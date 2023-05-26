@@ -4,7 +4,6 @@ import logger from '../lib/logger';
 import { reportErrorToSentry } from '../lib/sentry';
 import paymentProviders from '../paymentProviders';
 import paypalWebhookHandler from '../paymentProviders/paypal/webhook';
-import privacyWebhookHandler from '../paymentProviders/privacy/webhook';
 import thegivingblockWebhookHandler from '../paymentProviders/thegivingblock/webhook';
 import transferwiseWebhookHandler from '../paymentProviders/transferwise/webhook';
 
@@ -38,21 +37,6 @@ export async function paypalWebhook(req: Request, res: Response, next: NextFunct
     res.sendStatus(200);
   } catch (e) {
     next(e);
-  }
-}
-
-export async function privacyWebhook(
-  req: Request & { rawBody: string },
-  res: Response,
-  next: NextFunction,
-): Promise<void> {
-  try {
-    await privacyWebhookHandler(req);
-    res.sendStatus(200);
-  } catch (error) {
-    logger.error(`privacy/webhook : ${error.message}`, { body: req.body });
-    reportErrorToSentry(error);
-    next(error);
   }
 }
 
