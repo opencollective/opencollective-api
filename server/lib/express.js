@@ -1,6 +1,6 @@
 import cloudflareIps from 'cloudflare-ip/ips.json';
 import config from 'config';
-import connectRedis from 'connect-redis';
+import RedisStore from 'connect-redis';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import errorHandler from 'errorhandler';
@@ -11,7 +11,7 @@ import { get, has } from 'lodash';
 import passport from 'passport';
 import { Strategy as GitHubStrategy } from 'passport-github';
 import { Strategy as TwitterStrategy } from 'passport-twitter';
-import redis from 'redis';
+import { createClient as createRedisClient } from 'redis';
 
 import { loadersMiddleware } from '../graphql/loaders';
 
@@ -78,13 +78,14 @@ export default async function (app) {
 
   let store;
   if (get(config, 'redis.serverUrl')) {
-    const RedisStore = connectRedis(session);
     const redisOptions = {};
     if (get(config, 'redis.serverUrl').includes('rediss://')) {
       redisOptions.tls = { rejectUnauthorized: false };
     }
+    const redisClient = createRedisClient(get(config, 'redis.serverUrl'), redisOptions);
+    redisClient.connect().catch(console.error);
     store = new RedisStore({
-      client: redis.createClient(get(config, 'redis.serverUrl'), redisOptions),
+      client: redisClient,
     });
   }
 
