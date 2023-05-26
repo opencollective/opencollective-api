@@ -282,7 +282,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
       // Check activity
       const activity = await models.Activity.findOne({
-        where: { UserId: adminUser.id, type: ACTIVITY.TWO_FACTOR_CODE_ADDED },
+        where: { UserId: adminUser.id, type: ACTIVITY.TWO_FACTOR_METHOD_ADDED },
       });
 
       expect(activity).to.exist;
