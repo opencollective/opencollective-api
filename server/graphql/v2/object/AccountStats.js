@@ -358,7 +358,8 @@ export const AccountStats = new GraphQLObjectType({
         type: new GraphQLList(AmountStats),
         description: 'Returns expense tags for collective sorted by popularity',
         args: {
-          limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 30 },
+          limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
+          truncate: { type: GraphQLInt, defaultValue: 7 },
           ...pick(TransactionArgs, ['dateFrom', 'dateTo', 'includeChildren']),
         },
         async resolve(collective, args) {
@@ -366,7 +367,25 @@ export const AccountStats = new GraphQLObjectType({
           const dateFrom = args.dateFrom ? moment(args.dateFrom) : null;
           const dateTo = args.dateTo ? moment(args.dateTo) : null;
           const includeChildren = args.includeChildren;
-          return models.Expense.getCollectiveExpensesTags(collective, { limit, dateFrom, dateTo, includeChildren });
+          const tags = await models.Expense.getCollectiveExpensesTags(collective, {
+            limit,
+            dateFrom,
+            dateTo,
+            includeChildren,
+          });
+
+          return tags.reduce((acc, t, i) => {
+            if (i < args.truncate - 1) {
+              return [...acc, t];
+            } else {
+              if (!acc[args.truncate - 1]) {
+                acc[args.truncate - 1] = { label: 'OTHERS_COMBINED', amount: 0, count: 0, currency: t.currency };
+              }
+              acc[args.truncate - 1].amount += t.amount;
+              acc[args.truncate - 1].count += t.count;
+              return acc;
+            }
+          }, []);
         },
       },
       expensesTagsTimeSeries: {
