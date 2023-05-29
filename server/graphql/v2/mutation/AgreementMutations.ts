@@ -4,8 +4,9 @@ import { GraphQLDateTime, GraphQLNonEmptyString } from 'graphql-scalars';
 import GraphQLUpload from 'graphql-upload/GraphQLUpload.js';
 import type { FileUpload } from 'graphql-upload/Upload.js';
 
+import ActivityTypes from '../../../constants/activities';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import { UploadedFile } from '../../../models';
+import { Activity, UploadedFile } from '../../../models';
 import AgreementModel from '../../../models/Agreement';
 import { checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { Unauthorized } from '../../errors';
@@ -72,6 +73,19 @@ export default {
         UploadedFileId: uploadedFile?.id,
       });
 
+      await Activity.create({
+        type: ActivityTypes.AGREEMENT_CREATED,
+        UserId: req.remoteUser.id,
+        CollectiveId: account.id,
+        HostCollectiveId: host.id,
+        data: {
+          agreement: agreement.info,
+          collective: account.info,
+          host: host.info,
+          user: req.remoteUser.info,
+        },
+      });
+
       return agreement;
     },
   },
@@ -114,7 +128,22 @@ export default {
         toUpdate.expiresAt = args.expiresAt;
       }
 
-      return agreement.update(toUpdate);
+      const updatedAgreement = await agreement.update(toUpdate);
+
+      await Activity.create({
+        type: ActivityTypes.AGREEMENT_EDITED,
+        UserId: req.remoteUser.id,
+        CollectiveId: updatedAgreement.CollectiveId,
+        HostCollectiveId: host.id,
+        data: {
+          agreement: updatedAgreement.info,
+          collective: (await agreement.getCollective()).info,
+          host: host.info,
+          user: req.remoteUser.info,
+        },
+      });
+
+      return updatedAgreement;
     },
   },
   deleteAgreement: {
@@ -139,6 +168,20 @@ export default {
       await twoFactorAuthLib.enforceForAccount(req, host);
 
       await agreement.destroy();
+
+      await Activity.create({
+        type: ActivityTypes.AGREEMENT_DELETED,
+        UserId: req.remoteUser.id,
+        CollectiveId: agreement.CollectiveId,
+        HostCollectiveId: host.id,
+        data: {
+          agreement: agreement.info,
+          collective: (await agreement.getCollective()).info,
+          host: host.info,
+          user: req.remoteUser.info,
+        },
+      });
+
       return agreement;
     },
   },

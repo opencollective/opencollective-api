@@ -15,7 +15,10 @@ import Collective from './Collective';
 import UploadedFile from './UploadedFile';
 import User from './User';
 
-export default class Agreement extends Model<InferAttributes<Agreement>, InferCreationAttributes<Agreement>> {
+export default class Agreement extends Model<
+  InferAttributes<Agreement, { omit: 'info' }>,
+  InferCreationAttributes<Agreement, { omit: 'info' }>
+> {
   declare id: CreationOptional<number>;
   declare title: string;
   declare expiresAt: CreationOptional<Date>;
@@ -39,6 +42,20 @@ export default class Agreement extends Model<InferAttributes<Agreement>, InferCr
   declare createdAt: CreationOptional<Date>;
   declare updatedAt: CreationOptional<Date>;
   declare deletedAt: CreationOptional<Date>;
+
+  get info() {
+    return {
+      id: this.id,
+      title: this.title,
+      UserId: this.UserId,
+      CollectiveId: this.CollectiveId,
+      HostCollectiveId: this.HostCollectiveId,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt,
+      deletedAt: this.deletedAt,
+      expiresAt: this.expiresAt,
+    };
+  }
 }
 
 Agreement.init(

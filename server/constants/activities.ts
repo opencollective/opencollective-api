@@ -121,6 +121,12 @@ enum ActivityTypes {
   ACTIVATED_COLLECTIVE_AS_INDEPENDENT = 'activated.collective.as.independent',
   DEACTIVATED_COLLECTIVE_AS_HOST = 'deactivated.collective.as.host',
 
+  // Agreements
+
+  AGREEMENT_CREATED = 'agreement.created',
+  AGREEMENT_EDITED = 'agreement.edited',
+  AGREEMENT_DELETED = 'agreement.deleted',
+
   // Not used anymore, leaving for historical reference
   ADDED_FUND_TO_ORG = 'added.fund.to.org',
   COLLECTIVE_TRANSACTION_PAID = 'collective.transaction.paid', // replaced with COLLECTIVE_EXPENSE_PAID
