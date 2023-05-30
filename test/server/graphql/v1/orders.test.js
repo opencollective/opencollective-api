@@ -1,4 +1,3 @@
-import Promise from 'bluebird';
 import { describe } from 'mocha';
 import { createSandbox } from 'sinon';
 
@@ -45,8 +44,8 @@ describe('server/graphql/v1/orders', () => {
       tags: ['brussels', 'coding'],
     });
     const randomUser = models.User.createUserWithCollective({ email: randEmail() });
-    await Promise.map(collectives, collective =>
-      collective.addHost(host, randomUser, { shouldAutomaticallyApprove: true }),
+    await Promise.all(
+      collectives.map(collective => collective.addHost(host, randomUser, { shouldAutomaticallyApprove: true })),
     );
     orders[0] = await models.Order.create({
       CreatedByUserId: backers[1].id,

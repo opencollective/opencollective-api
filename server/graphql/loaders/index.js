@@ -1,4 +1,3 @@
-import Promise from 'bluebird';
 import DataLoader from 'dataloader';
 import { createContext } from 'dataloader-sequelize';
 import { get, groupBy } from 'lodash';
@@ -381,21 +380,23 @@ export const loaders = req => {
         raw: true,
       }).then(rows => {
         const results = groupBy(rows, 'CollectiveId');
-        return Promise.map(ids, async collectiveId => {
-          const stats = { CollectiveId: Number(collectiveId), monthly: 0, yearly: 0, currency: null };
-          if (results[collectiveId]) {
-            for (const result of results[collectiveId]) {
-              const interval = result.interval === 'month' ? 'monthly' : 'yearly';
-              // If it's the first total collected, set the currency
-              if (!stats.currency) {
-                stats.currency = result.currency;
+        return Promise.all(
+          ids.map(async collectiveId => {
+            const stats = { CollectiveId: Number(collectiveId), monthly: 0, yearly: 0, currency: null };
+            if (results[collectiveId]) {
+              for (const result of results[collectiveId]) {
+                const interval = result.interval === 'month' ? 'monthly' : 'yearly';
+                // If it's the first total collected, set the currency
+                if (!stats.currency) {
+                  stats.currency = result.currency;
+                }
+                const fxRate = await getFxRate(result.currency, stats.currency);
+                stats[interval] += result.total * fxRate;
               }
-              const fxRate = await getFxRate(result.currency, stats.currency);
-              stats[interval] += result.total * fxRate;
             }
-          }
-          return stats;
-        });
+            return stats;
+          }),
+        );
       }),
     ),
   };

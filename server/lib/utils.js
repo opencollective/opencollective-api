@@ -3,11 +3,11 @@ import fs from 'fs';
 import path from 'path';
 import { URL } from 'url';
 
-import Promise from 'bluebird';
 import config from 'config';
 import fastRedact from 'fast-redact';
 import pdf from 'html-pdf';
 import { filter, get, isEqual, padStart, sumBy } from 'lodash';
+import pFilter from 'p-filter';
 
 import { ZERO_DECIMAL_CURRENCIES } from '../constants/currencies';
 
@@ -117,62 +117,64 @@ export const getTiersStats = (tiers, startDate, endDate) => {
   // We sort tiers by number of users ASC
   tiers.sort((a, b) => b.amount - a.amount);
 
-  return Promise.map(tiers, tier => {
-    const backers = get(tier, 'dataValues.users');
-    let index = 0;
+  return Promise.all(
+    tiers.map(tier => {
+      const backers = get(tier, 'dataValues.users');
+      let index = 0;
 
-    // We sort backers by total donations DESC
-    backers.sort((a, b) => b.totalDonations - a.totalDonations);
+      // We sort backers by total donations DESC
+      backers.sort((a, b) => b.totalDonations - a.totalDonations);
 
-    return Promise.filter(backers, backer => {
-      if (backersIds[backer.id]) {
-        return false;
-      }
-      backersIds[backer.id] = true;
-
-      backer.index = index++;
-      return Promise.all([tier.isBackerActive(backer, endDate), tier.isBackerActive(backer, startDate)]).then(
-        results => {
-          backer.activeLastMonth = results[0];
-          backer.activePreviousMonth = backer.firstDonation < startDate && results[1];
-          if (tier.name.match(/sponsor/i)) {
-            backer.isSponsor = true;
-          }
-          if (backer.firstDonation > startDate) {
-            backer.isNew = true;
-            stats.backers.new++;
-          }
-          if (backer.activePreviousMonth && !backer.activeLastMonth) {
-            backer.isLost = true;
-            stats.backers.lost++;
-          }
-          if (backer.activePreviousMonth) {
-            stats.backers.previousMonth++;
-          }
-          if (backer.activeLastMonth) {
-            stats.backers.lastMonth++;
-            return true;
-          } else if (backer.isLost) {
-            return true;
-          }
-        },
-      );
-    }).then(backers => {
-      backers.sort((a, b) => {
-        if (rank(a) > rank(b)) {
-          return 1;
+      return pFilter(backers, backer => {
+        if (backersIds[backer.id]) {
+          return false;
         }
-        if (rank(a) < rank(b)) {
-          return -1;
-        }
-        return a.index - b.index; // make sure we keep the original order within a tier (typically totalDonations DESC)
+        backersIds[backer.id] = true;
+
+        backer.index = index++;
+        return Promise.all([tier.isBackerActive(backer, endDate), tier.isBackerActive(backer, startDate)]).then(
+          results => {
+            backer.activeLastMonth = results[0];
+            backer.activePreviousMonth = backer.firstDonation < startDate && results[1];
+            if (tier.name.match(/sponsor/i)) {
+              backer.isSponsor = true;
+            }
+            if (backer.firstDonation > startDate) {
+              backer.isNew = true;
+              stats.backers.new++;
+            }
+            if (backer.activePreviousMonth && !backer.activeLastMonth) {
+              backer.isLost = true;
+              stats.backers.lost++;
+            }
+            if (backer.activePreviousMonth) {
+              stats.backers.previousMonth++;
+            }
+            if (backer.activeLastMonth) {
+              stats.backers.lastMonth++;
+              return true;
+            } else if (backer.isLost) {
+              return true;
+            }
+          },
+        );
+      }).then(backers => {
+        backers.sort((a, b) => {
+          if (rank(a) > rank(b)) {
+            return 1;
+          }
+          if (rank(a) < rank(b)) {
+            return -1;
+          }
+          return a.index - b.index; // make sure we keep the original order within a tier (typically totalDonations DESC)
+        });
+
+        tier.activeBackers = backers.filter(b => !b.isLost);
+
+        return tier;
       });
-
-      tier.activeBackers = backers.filter(b => !b.isLost);
-
-      return tier;
-    });
-  }).then(tiers => {
+    }),
+  ).then(tiers => {
     return { stats, tiers };
   });
 };

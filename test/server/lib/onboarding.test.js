@@ -1,4 +1,3 @@
-import Promise from 'bluebird';
 import { expect } from 'chai';
 import { createSandbox } from 'sinon';
 
@@ -40,13 +39,15 @@ describe('server/lib/onboarding', () => {
       createdAt,
     });
 
-    await Promise.each(admins, admin =>
-      models.Member.create({
-        CreatedByUserId: admins[0].id,
-        CollectiveId: org.id,
-        MemberCollectiveId: admin.CollectiveId,
-        role: 'ADMIN',
-      }),
+    await Promise.all(
+      admins.map(admin =>
+        models.Member.create({
+          CreatedByUserId: admins[0].id,
+          CollectiveId: org.id,
+          MemberCollectiveId: admin.CollectiveId,
+          role: 'ADMIN',
+        }),
+      ),
     );
 
     const startsAt = new Date(createdAt);
@@ -78,13 +79,15 @@ describe('server/lib/onboarding', () => {
       createdAt,
     });
 
-    await Promise.each(admins, admin =>
-      models.Member.create({
-        CreatedByUserId: admins[0].id,
-        CollectiveId: org.id,
-        MemberCollectiveId: admin.CollectiveId,
-        role: 'ADMIN',
-      }),
+    await Promise.all(
+      admins.map(admin =>
+        models.Member.create({
+          CreatedByUserId: admins[0].id,
+          CollectiveId: org.id,
+          MemberCollectiveId: admin.CollectiveId,
+          role: 'ADMIN',
+        }),
+      ),
     );
 
     const startsAt = new Date(createdAt);

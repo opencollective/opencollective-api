@@ -10,7 +10,6 @@ import '../server/env';
  *  2) Mark Orders as cancelled
  *  3) Get transactions ORders and Mark the order Subscriptions of orders as isActive False and deactivedAt now()
  */
-import Promise from 'bluebird';
 import debug from 'debug';
 
 import { purgeCacheForCollective } from '../server/lib/cache';
@@ -100,7 +99,7 @@ async function run() {
   });
   try {
     debugRefund(`Trying to refund ${(transactions && transactions.length) || 0} transactions...`);
-    const mapResult = await Promise.map(transactions, refundTransaction);
+    const mapResult = await Promise.all(transactions.map(refundTransaction));
     debugRefund(`Script finished successfully,
       mapResult(tip: result transactions need to have RefundTransactionId set):
       ${JSON.stringify(mapResult, null, 2)}`);

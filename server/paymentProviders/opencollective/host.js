@@ -1,5 +1,3 @@
-import Promise from 'bluebird';
-
 import { maxInteger } from '../../constants/math';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';

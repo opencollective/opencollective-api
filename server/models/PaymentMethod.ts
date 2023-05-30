@@ -1,4 +1,3 @@
-import BluebirdPromise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
 import { get, intersection } from 'lodash';
@@ -328,7 +327,7 @@ PaymentMethod.prototype.canBeUsedForOrder = async function (order, user) {
   if (this.limitedToHostCollectiveIds) {
     const collective = order.collective || (await order.getCollective());
     if (!this.limitedToHostCollectiveIds.includes(collective.HostCollectiveId)) {
-      const hostCollectives = await BluebirdPromise.map(this.limitedToHostCollectiveIds, fetchCollectiveName);
+      const hostCollectives = await Promise.all(this.limitedToHostCollectiveIds.map(fetchCollectiveName));
       throw new Error(
         `This payment method can only be used for collectives hosted by ${formatArrayToString(hostCollectives)}`,
       );

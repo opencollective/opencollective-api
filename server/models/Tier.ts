@@ -1,7 +1,7 @@
-import Promise from 'bluebird';
 import debugLib from 'debug';
 import slugify from 'limax';
 import { defaults, isNil, min, uniq } from 'lodash';
+import pMap from 'p-map';
 import { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
@@ -173,7 +173,7 @@ class Tier extends Model<InferAttributes<Tier>, InferCreationAttributes<Tier>> {
    * Class Methods
    */
   static createMany = (tiers, defaultValues = {}) => {
-    return Promise.map(tiers, t => Tier.create(defaults({}, t, defaultValues)), { concurrency: 1 });
+    return pMap(tiers, t => Tier.create(defaults({}, t, defaultValues)), { concurrency: 1 });
   };
 
   /**

@@ -1,5 +1,5 @@
-import Promise from 'bluebird';
 import { intersection, sum } from 'lodash';
+import pMap from 'p-map';
 
 import { convertToCurrency } from '../lib/currency';
 import models, { Op, sequelize } from '../models';
@@ -107,7 +107,7 @@ export function sumTransactionsByCurrency(attribute = 'netAmountInCollectiveCurr
  */
 export async function sumTransactions(attribute, query = {}, hostCurrency) {
   const amountsByCurrency = await sumTransactionsByCurrency(attribute, query);
-  const convertedAmounts = await Promise.map(amountsByCurrency, s =>
+  const convertedAmounts = await pMap(amountsByCurrency, s =>
     convertToCurrency(s.amount, s.currency || s.hostCurrency, hostCurrency || 'USD'),
   );
   return {

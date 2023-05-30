@@ -1,4 +1,3 @@
-import Promise from 'bluebird';
 import config from 'config';
 import { pick } from 'lodash';
 
