@@ -63,12 +63,16 @@ export default async app => {
     if (get(config, 'redis.serverUrl').includes('rediss://')) {
       redisOptions.tls = { rejectUnauthorized: false };
     }
-    const client = createRedisClient(get(config, 'redis.serverUrl'), redisOptions);
-    await client.connect();
-    const rateLimiter = expressLimiter(
-      app,
-      client,
-    )({
+
+    let redisClient = createRedisClient(get(config, 'redis.serverUrl'), redisOptions);
+    try {
+      await redisClient.connect();
+    } catch (err) {
+      logger.error('Redis express limiter connection error', err);
+      redisClient = null;
+    }
+
+    const expressLimiterOptions = {
       lookup: function (req, res, opts, next) {
         if (req.personalToken) {
           opts.lookup = 'personalToken.id';
@@ -102,8 +106,11 @@ export default async app => {
         }
         res.status(429).send({ error: { message } });
       },
-    });
-    app.use('/graphql', rateLimiter);
+    };
+
+    if (redisClient) {
+      app.use('/graphql', expressLimiter(redisClient)(expressLimiterOptions));
+    }
   }
 
   /**

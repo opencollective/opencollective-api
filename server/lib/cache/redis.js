@@ -1,5 +1,7 @@
 import debug from 'debug';
-import { createClient } from 'redis';
+import { createClient as createRedisClient } from 'redis';
+
+import logger from '../logger';
 
 const makeRedisProvider = async ({ serverUrl }) => {
   const debugCache = debug('cache');
@@ -7,13 +9,20 @@ const makeRedisProvider = async ({ serverUrl }) => {
   if (serverUrl.includes('rediss://')) {
     redisOptions.tls = { rejectUnauthorized: false };
   }
-  const client = createClient(serverUrl, redisOptions);
-  await client.connect();
+
+  let redisClient = createRedisClient(serverUrl, redisOptions);
+  try {
+    await redisClient.connect();
+  } catch (err) {
+    logger.error('Redis cache connection error', err);
+    redisClient = null;
+  }
+
   return {
-    clear: async () => client.flushAll(),
-    delete: async key => client.del(key),
+    clear: async () => redisClient?.flushAll(),
+    delete: async key => redisClient?.del(key),
     get: async (key, { unserialize = JSON.parse } = {}) => {
-      const value = await client.get(key);
+      const value = await redisClient?.get(key);
       if (value) {
         try {
           return unserialize(value);
@@ -25,15 +34,15 @@ const makeRedisProvider = async ({ serverUrl }) => {
       }
     },
     has: async key => {
-      const value = await client.get(key);
+      const value = await redisClient?.get(key);
       return value !== null;
     },
     set: async (key, value, expirationInSeconds, { serialize = JSON.stringify } = {}) => {
       if (value !== undefined) {
         if (expirationInSeconds) {
-          return client.set(key, serialize(value), { EX: expirationInSeconds });
+          return redisClient?.set(key, serialize(value), { EX: expirationInSeconds });
         } else {
-          return client.set(key, serialize(value));
+          return redisClient?.set(key, serialize(value));
         }
       }
     },

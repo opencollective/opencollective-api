@@ -1,6 +1,6 @@
 // This is a quick port of https://github.com/ded/express-limiter to async Redis
 
-export default function expressLimiter(app, redisClient) {
+export default function expressLimiter(redisClient) {
   return function (opts) {
     let middleware = async function (req, res, next) {
       if (opts.whitelist && opts.whitelist(req)) {
@@ -20,8 +20,8 @@ export default function expressLimiter(app, redisClient) {
           }, req)}`;
         })
         .join(':');
-      const path = opts.path || req.path;
-      const method = (opts.method || req.method).toLowerCase();
+      const path = req.path;
+      const method = req.method.toLowerCase();
       const key = `ratelimit:${path}:${method}:${lookups}`;
       let limit;
       try {
@@ -68,6 +68,7 @@ export default function expressLimiter(app, redisClient) {
 
       opts.onRateLimited(req, res, next);
     };
+
     if (typeof opts.lookup === 'function') {
       const callableLookup = opts.lookup;
       middleware = function (middleware, req, res, next) {
@@ -76,9 +77,7 @@ export default function expressLimiter(app, redisClient) {
         });
       }.bind(this, middleware);
     }
-    if (opts.method && opts.path) {
-      app[opts.method](opts.path, middleware);
-    }
+
     return middleware;
   };
 }

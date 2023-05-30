@@ -76,27 +76,35 @@ export default async function (app) {
 
   // Setup session (required by passport)
 
-  let store;
   if (get(config, 'redis.serverUrl')) {
     const redisOptions = {};
     if (get(config, 'redis.serverUrl').includes('rediss://')) {
       redisOptions.tls = { rejectUnauthorized: false };
     }
-    const redisClient = createRedisClient(get(config, 'redis.serverUrl'), redisOptions);
-    redisClient.connect().catch(console.error);
-    store = new RedisStore({
-      client: redisClient,
-    });
+
+    let redisClient = createRedisClient(get(config, 'redis.serverUrl'), redisOptions);
+    try {
+      await redisClient.connect();
+    } catch (err) {
+      logger.error('Redis passport session connection error', err);
+      redisClient = null;
+    }
+
+    if (redisClient) {
+      const store = new RedisStore({
+        client: redisClient,
+      });
+
+      app.use(
+        session({
+          store,
+          secret: config.keys.opencollective.sessionSecret,
+          resave: false,
+          saveUninitialized: false,
+        }),
+      );
+
+      app.use(passport.initialize());
+    }
   }
-
-  app.use(
-    session({
-      store,
-      secret: config.keys.opencollective.sessionSecret,
-      resave: false,
-      saveUninitialized: false,
-    }),
-  );
-
-  app.use(passport.initialize());
 }
