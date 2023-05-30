@@ -1,4 +1,3 @@
-import Promise from 'bluebird';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { uniq } from 'lodash';
 import { isEmail } from 'validator';
@@ -648,20 +647,22 @@ const queries = {
             .slice(0, args.limit);
         }
 
-        return Promise.map(results, collective => {
-          const res = {
-            id: collective.dataValues.MemberId,
-            role: collective.dataValues.role,
-            createdAt: collective.dataValues.createdAt,
-            CollectiveId: collective.dataValues.CollectiveId,
-            MemberCollectiveId: collective.dataValues.MemberCollectiveId,
-            ParentCollectiveId: collective.dataValues.ParentCollectiveId,
-            totalDonations: collective.dataValues.totalDonations,
-            TierId: collective.dataValues.TierId,
-          };
-          res[memberTable] = collective;
-          return res;
-        });
+        return Promise.all(
+          results.map(collective => {
+            const res = {
+              id: collective.dataValues.MemberId,
+              role: collective.dataValues.role,
+              createdAt: collective.dataValues.createdAt,
+              CollectiveId: collective.dataValues.CollectiveId,
+              MemberCollectiveId: collective.dataValues.MemberCollectiveId,
+              ParentCollectiveId: collective.dataValues.ParentCollectiveId,
+              totalDonations: collective.dataValues.totalDonations,
+              TierId: collective.dataValues.TierId,
+            };
+            res[memberTable] = collective;
+            return res;
+          }),
+        );
       } else {
         const query = { where, include: [] };
         if (args.TierId) {
@@ -723,11 +724,13 @@ const queries = {
             },
           ];
           const hostedMembers = await models.Member.findAll(query);
-          await Promise.map(hostedMembers, m => {
-            m.memberCollective = m.collective;
-            delete m.collective;
-            members.push(m);
-          });
+          await Promise.all(
+            hostedMembers.map(m => {
+              m.memberCollective = m.collective;
+              delete m.collective;
+              members.push(m);
+            }),
+          );
           return members;
         } else if (args.CollectiveId && !req.remoteUser?.isAdmin(args.CollectiveId)) {
           return members.filter(m => !m.collective?.isIncognito);

@@ -1,6 +1,5 @@
 import assert from 'assert';
 
-import Promise from 'bluebird';
 import debugLib from 'debug';
 import { get, isNil, isNull, isUndefined, omit, pick } from 'lodash';
 import moment from 'moment';
@@ -295,7 +294,7 @@ const Transaction = sequelize.define(
     hooks: {
       afterCreate: transaction => {
         Transaction.createActivity(transaction);
-        // intentionally returns null, needs to be async (https://github.com/petkaantonov/bluebird/blob/master/docs/docs/warning-explanations.md#warning-a-promise-was-created-in-a-handler-but-was-not-returned-from-it)
+        // intentionally returns null, needs to be async
         return null;
       },
     },
@@ -411,24 +410,28 @@ Transaction.prototype.setCurrency = async function (currency) {
  * Class Methods
  */
 Transaction.createMany = (transactions, defaultValues) => {
-  return Promise.map(transactions, transaction => {
-    for (const attr in defaultValues) {
-      transaction[attr] = defaultValues[attr];
-    }
-    return Transaction.create(transaction);
-  }).catch(error => {
+  return Promise.all(
+    transactions.map(transaction => {
+      for (const attr in defaultValues) {
+        transaction[attr] = defaultValues[attr];
+      }
+      return Transaction.create(transaction);
+    }),
+  ).catch(error => {
     console.error(error);
     reportErrorToSentry(error);
   });
 };
 
 Transaction.createManyDoubleEntry = (transactions, defaultValues) => {
-  return Promise.map(transactions, transaction => {
-    for (const attr in defaultValues) {
-      transaction[attr] = defaultValues[attr];
-    }
-    return Transaction.createDoubleEntry(transaction);
-  }).catch(error => {
+  return Promise.all(
+    transactions.map(transaction => {
+      for (const attr in defaultValues) {
+        transaction[attr] = defaultValues[attr];
+      }
+      return Transaction.createDoubleEntry(transaction);
+    }),
+  ).catch(error => {
     console.error(error);
     reportErrorToSentry(error);
   });
@@ -630,19 +633,14 @@ Transaction.createDoubleEntry = async (transaction, opts) => {
 
   // We first record the negative transaction
   // and only then we can create the transaction to add money somewhere else
-  const transactions = [];
-  let index = 0;
   if (transaction.amount < 0) {
-    index = 0;
-    transactions.push(transaction);
-    transactions.push(oppositeTransaction);
+    const t = await Transaction.create(transaction, opts);
+    await Transaction.create(oppositeTransaction, opts);
+    return t;
   } else {
-    index = 1;
-    transactions.push(oppositeTransaction);
-    transactions.push(transaction);
+    await Transaction.create(oppositeTransaction, opts);
+    return await Transaction.create(transaction, opts);
   }
-
-  return Promise.mapSeries(transactions, t => Transaction.create(t, opts)).then(results => results[index]);
 };
 
 /**

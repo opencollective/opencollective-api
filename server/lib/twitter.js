@@ -1,4 +1,3 @@
-import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
 import { IntlMessageFormat } from 'intl-messageformat';

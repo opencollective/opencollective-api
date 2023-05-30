@@ -1,4 +1,3 @@
-import Promise from 'bluebird';
 import { expect } from 'chai';
 import config from 'config';
 import nock from 'nock';
@@ -76,21 +75,25 @@ describe('server/routes/email', () => {
   before('create collective and members', async () => {
     collective = await Collective.create(collectiveData);
 
-    users = await Promise.map(usersData, u => models.User.createUserWithCollective(u));
+    users = await Promise.all(usersData.map(u => models.User.createUserWithCollective(u)));
 
-    await Promise.map(users, (user, index) => collective.addUserWithRole(user, usersData[index].role));
+    await Promise.all(users.map((user, index) => collective.addUserWithRole(user, usersData[index].role)));
 
-    await Promise.map(users, (user, index) => {
-      const lists = usersData[index].lists || [];
-      return Promise.map(lists, list =>
-        models.Notification.create({
-          channel: 'email',
-          UserId: user.id,
-          CollectiveId: collective.id,
-          type: list,
-        }),
-      );
-    });
+    await Promise.all(
+      users.map(async (user, index) => {
+        const lists = usersData[index].lists || [];
+        return await Promise.all(
+          lists.map(list =>
+            models.Notification.create({
+              channel: 'email',
+              UserId: user.id,
+              CollectiveId: collective.id,
+              type: list,
+            }),
+          ),
+        );
+      }),
+    );
   });
 
   describe('unsubscribe', () => {

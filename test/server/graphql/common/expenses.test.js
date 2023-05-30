@@ -1,4 +1,3 @@
-import { Promise } from 'bluebird';
 import { expect } from 'chai';
 import { cloneDeep } from 'lodash';
 import moment from 'moment';
@@ -157,9 +156,9 @@ describe('server/graphql/common/expenses', () => {
     const { req, expense } = context;
     const promises = {};
     for (const key in req) {
-      promises[key] = fn(req[key], expense);
+      promises[key] = await Promise.resolve(fn(req[key], expense));
     }
-    return Promise.props(promises);
+    return promises;
   };
 
   describe('canSeeExpenseAttachments', () => {

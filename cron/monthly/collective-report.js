@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 import '../../server/env';
 
-import Promise from 'bluebird';
 import config from 'config';
 import { omit, pick } from 'lodash';
 import moment from 'moment';
+import pMap from 'p-map';
 
 import { roles } from '../../server/constants';
 import ActivityTypes from '../../server/constants/activities';
@@ -27,7 +27,6 @@ if (config.env === 'production' && today.getDate() !== 1 && !process.env.OFFCYCL
 }
 
 process.env.PORT = 3066;
-
 const CONCURRENCY = process.env.CONCURRENCY || 1;
 
 const d = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date();
@@ -42,7 +41,7 @@ const endDate = new Date(d.getFullYear(), d.getMonth() + 1, 1);
 console.log('startDate', startDate, 'endDate', endDate);
 
 const processCollectives = collectives => {
-  return Promise.mapSeries(collectives, processCollective, { concurrency: CONCURRENCY });
+  return pMap(collectives, processCollective, { concurrency: CONCURRENCY });
 };
 
 const hostFeeAmountForTransactionLoader = generateHostFeeAmountForTransactionLoader();

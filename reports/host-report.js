@@ -1,4 +1,3 @@
-import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
 import { groupBy, keyBy, pick, sumBy } from 'lodash';
@@ -195,15 +194,13 @@ async function HostReport(year, month, hostId) {
             role: { [Op.or]: [MemberRoles.ADMIN, MemberRoles.ACCOUNTANT] },
           },
         });
-        return Promise.map(
-          members,
-          admin => {
+        return Promise.all(
+          members.map(admin => {
             return models.User.findOne({
               attributes: ['email'],
               where: { CollectiveId: admin.MemberCollectiveId },
             }).then(user => user.email);
-          },
-          { concurrency: 1 },
+          }),
         );
       };
 
@@ -504,10 +501,11 @@ async function HostReport(year, month, hostId) {
   });
   console.log(`Preparing the ${reportName} for ${hosts.length} hosts`);
 
-  return Promise.mapSeries(hosts, processHost, { concurrency: 1 }).then(() => {
-    console.log('>>> All done. Exiting.');
-    process.exit(0);
-  });
+  for (const host of hosts) {
+    await processHost(host);
+  }
+  console.log('>>> All done. Exiting.');
+  process.exit(0);
 }
 
 export default HostReport;

@@ -1,4 +1,3 @@
-import Promise from 'bluebird';
 import { expect } from 'chai';
 import { createSandbox } from 'sinon';
 
@@ -119,13 +118,13 @@ describe('server/models/Notification', () => {
   describe('getSubscribers', () => {
     let users;
     beforeEach(() =>
-      Promise.map([utils.data('user3'), utils.data('user4')], user => models.User.createUserWithCollective(user)).then(
-        result => (users = result),
-      ),
+      Promise.all(
+        [utils.data('user3'), utils.data('user4')].map(user => models.User.createUserWithCollective(user)),
+      ).then(result => (users = result)),
     );
 
     it('getSubscribers to the backers mailinglist', async () => {
-      await Promise.map(users, user => collective.addUserWithRole(user, 'BACKER'));
+      await Promise.all(users.map(user => collective.addUserWithRole(user, 'BACKER')));
       const subscribers = await Notification.getSubscribersUsers(collective.slug, 'backers');
       expect(subscribers.length).to.equal(2);
 
@@ -145,22 +144,26 @@ describe('server/models/Notification', () => {
         ...tierData,
         CollectiveId: event.id,
       });
-      await Promise.map(users, user => {
-        return Order.create({
-          CreatedByUserId: user.id,
-          FromCollectiveId: user.CollectiveId,
-          CollectiveId: collective.id,
-          TierId: tier.id,
-        });
-      });
-      await Promise.map(users, user =>
-        models.Member.create({
-          CreatedByUserId: user.id,
-          MemberCollectiveId: user.CollectiveId,
-          CollectiveId: event.id,
-          TierId: tier.id,
-          role: roles.FOLLOWER,
+      await Promise.all(
+        users.map(user => {
+          return Order.create({
+            CreatedByUserId: user.id,
+            FromCollectiveId: user.CollectiveId,
+            CollectiveId: collective.id,
+            TierId: tier.id,
+          });
         }),
+      );
+      await Promise.all(
+        users.map(user =>
+          models.Member.create({
+            CreatedByUserId: user.id,
+            MemberCollectiveId: user.CollectiveId,
+            CollectiveId: event.id,
+            TierId: tier.id,
+            role: roles.FOLLOWER,
+          }),
+        ),
       );
 
       const subscribers = await Notification.getSubscribers(event.slug, event.slug);

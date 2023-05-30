@@ -1,7 +1,6 @@
 import fs from 'fs';
 import path from 'path';
 
-import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
 import { htmlToText } from 'html-to-text';

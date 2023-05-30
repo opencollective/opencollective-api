@@ -1,4 +1,3 @@
-import Promise from 'bluebird';
 import { expect } from 'chai';
 import gql from 'fake-tag';
 import { describe, it } from 'mocha';
