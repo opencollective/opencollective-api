@@ -190,9 +190,6 @@
     "tracesSampleRate": "SENTRY_TRACES_SAMPLE_RATE",
     "minExecutionTimeToSample": "SENTRY_MIN_EXECUTION_TIME_TO_SAMPLE"
   },
-  "privacy": {
-    "apiUrl": "PRIVACY_API_URL"
-  },
   "ledger": {
     "fastBalance": "LEDGER_FAST_BALANCE"
   },
