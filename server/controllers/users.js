@@ -10,7 +10,7 @@ import { confirmGuestAccount } from '../lib/guest-accounts';
 import logger from '../lib/logger';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../lib/rate-limit';
 import twoFactorAuthLib, { TwoFactorMethod } from '../lib/two-factor-authentication';
-import webauthn from '../lib/two-factor-authentication/webauthn';
+import * as webauthn from '../lib/two-factor-authentication/webauthn';
 import { isValidEmail, parseToBoolean } from '../lib/utils';
 import models from '../models';
 

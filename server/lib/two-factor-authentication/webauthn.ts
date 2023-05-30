@@ -238,7 +238,7 @@ async function getAuthenticatorMetadata(
   }
 
   const certs = attestationStatement.get('x5c');
-  if (certs.length === 0) {
+  if (!certs || certs.length === 0) {
     return null;
   }
 
