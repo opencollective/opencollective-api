@@ -16,8 +16,8 @@ describe('server/lib/cache/cacheProvider', () => {
   providersToTest.forEach(provider => {
     describe(`${provider} provider get / set`, () => {
       let cache;
-      before(() => {
-        cache = getProvider(provider);
+      before(async () => {
+        cache = await getProvider(provider);
       });
 
       it('zero (integer) is returned as zero (integer)', async () => {
@@ -90,6 +90,10 @@ describe('server/lib/cache/cacheProvider', () => {
         cache.set('true_as_true', true);
         const value = await cache.get('true_as_true');
         assert.strictEqual(value, true);
+      });
+
+      it('clear is available', async () => {
+        await cache.clear();
       });
     });
   });

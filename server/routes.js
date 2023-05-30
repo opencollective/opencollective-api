@@ -1,10 +1,9 @@
 import { ApolloArmor } from '@escape.tech/graphql-armor';
 import { ApolloServer } from 'apollo-server-express';
 import config from 'config';
-import expressLimiter from 'express-limiter';
 import { get, pick } from 'lodash';
 import multer from 'multer';
-import redis from 'redis';
+import { createClient as createRedisClient } from 'redis';
 
 import * as connectedAccounts from './controllers/connectedAccounts';
 import * as gitbook from './controllers/gitbook';
@@ -20,6 +19,7 @@ import graphqlSchemaV1 from './graphql/v1/schema';
 import graphqlSchemaV2 from './graphql/v2/schema';
 import cache from './lib/cache';
 import errors from './lib/errors';
+import expressLimiter from './lib/express-limiter';
 import logger from './lib/logger';
 import oauth, { authorizeAuthenticateHandler } from './lib/oauth';
 import { HandlerType, reportMessageToSentry, SentryGraphQLPlugin, sentryHandleSlowRequests } from './lib/sentry';
@@ -57,11 +57,16 @@ export default async app => {
     if (get(config, 'redis.serverUrl').includes('rediss://')) {
       redisOptions.tls = { rejectUnauthorized: false };
     }
-    const client = redis.createClient(get(config, 'redis.serverUrl'), redisOptions);
-    const rateLimiter = expressLimiter(
-      app,
-      client,
-    )({
+
+    let redisClient = createRedisClient(get(config, 'redis.serverUrl'), redisOptions);
+    try {
+      await redisClient.connect();
+    } catch (err) {
+      logger.error('Redis express limiter connection error', err);
+      redisClient = null;
+    }
+
+    const expressLimiterOptions = {
       lookup: function (req, res, opts, next) {
         if (req.personalToken) {
           opts.lookup = 'personalToken.id';
@@ -95,8 +100,11 @@ export default async app => {
         }
         res.status(429).send({ error: { message } });
       },
-    });
-    app.use('/graphql', rateLimiter);
+    };
+
+    if (redisClient) {
+      app.use('/graphql', expressLimiter(redisClient)(expressLimiterOptions));
+    }
   }
 
   /**
