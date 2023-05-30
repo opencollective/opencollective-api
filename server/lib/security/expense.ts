@@ -366,7 +366,11 @@ export const checkExpensesBatch = async (
       const relatedUsersByIp = uniqBy(
         filter(usersByIp, u => {
           const ip = expense.User.getLastKnownIp();
-          return ip && (u.data?.creationRequest?.ip === ip || u.data?.lastSignInRequest?.ip === ip);
+          return (
+            u.id !== expense.User.id &&
+            ip &&
+            (u.data?.creationRequest?.ip === ip || u.data?.lastSignInRequest?.ip === ip)
+          );
         }),
         'id',
       );
