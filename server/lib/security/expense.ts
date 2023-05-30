@@ -17,6 +17,7 @@ import moment from 'moment';
 
 import status from '../../constants/expense_status';
 import expenseType from '../../constants/expense_type';
+import type { ConvertToCurrencyArgs } from '../../graphql/loaders/currency-exchange-rate';
 import models, { Op, sequelize } from '../../models';
 import Expense from '../../models/Expense';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
@@ -310,7 +311,11 @@ const getCollectiveBalances = async (
       if (balance.currency === displayCurrency) {
         return balance;
       } else {
-        const convertParams = { amount: balance.value, from: balance.currency, to: displayCurrency };
+        const convertParams: ConvertToCurrencyArgs = {
+          amount: balance.value,
+          fromCurrency: balance.currency,
+          toCurrency: displayCurrency,
+        };
         return {
           value: await req.loaders.CurrencyExchangeRate.convert.load(convertParams),
           currency: displayCurrency,

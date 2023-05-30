@@ -44,7 +44,7 @@ export const generateFxRateLoader = (): DataLoader<CurrencyFxRateRequest, number
   );
 };
 
-type ConvertToCurrencyArgs = {
+export type ConvertToCurrencyArgs = {
   amount: number;
   fromCurrency: string;
   toCurrency: string;
