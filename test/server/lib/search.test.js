@@ -351,29 +351,11 @@ describe('server/lib/search', () => {
     };
 
     const testBuildSearchConditionsWithCustomConfig = (searchTerm, fieldsConfig, options) => {
-      const conditions = buildSearchConditions(searchTerm, fieldsConfig, options);
-      conditions.forEach(condition => {
-        Object.keys(condition).forEach(field => {
-          // We must operators like the ILIKE operator, as toString/expect is not parsing these flag
-          if (condition[field][Op.iLike]) {
-            condition[field]['ILIKE'] = condition[field][Op.iLike];
-          }
-          if (condition[field][Op.overlap]) {
-            condition[field]['OVERLAP'] = condition[field][Op.overlap];
-          }
-        });
-      });
-
-      return conditions;
+      return buildSearchConditions(searchTerm, fieldsConfig, options);
     };
 
-    const testBuildSearchConditions = (searchTerm, expectedResults) => {
-      return testBuildSearchConditionsWithCustomConfig(
-        searchTerm,
-        TEST_FIELDS_CONFIGURATION,
-        undefined,
-        expectedResults,
-      );
+    const testBuildSearchConditions = searchTerm => {
+      return testBuildSearchConditionsWithCustomConfig(searchTerm, TEST_FIELDS_CONFIGURATION);
     };
 
     it('returns no condition for an empty search', () => {
@@ -393,11 +375,11 @@ describe('server/lib/search', () => {
 
     it('build conditions for numbers', () => {
       expect(testBuildSearchConditions('4242')).to.deep.eq([
-        { slug: { ILIKE: '%4242%' } },
-        { '$fromCollective.slug$': { ILIKE: '%4242%' } },
-        { name: { ILIKE: '%4242%' } },
-        { '$fromCollective.name$': { ILIKE: '%4242%' } },
-        { tags: { OVERLAP: ['4242'] } },
+        { slug: { [Op.iLike]: '%4242%' } },
+        { '$fromCollective.slug$': { [Op.iLike]: '%4242%' } },
+        { name: { [Op.iLike]: '%4242%' } },
+        { '$fromCollective.name$': { [Op.iLike]: '%4242%' } },
+        { tags: { [Op.overlap]: ['4242'] } },
         { id: 4242 },
         { '$fromCollective.id$': 4242 },
         { amount: 424200 },
@@ -405,11 +387,11 @@ describe('server/lib/search', () => {
       ]);
 
       expect(testBuildSearchConditions('4242.66')).to.deep.eq([
-        { slug: { ILIKE: '%4242.66%' } },
-        { '$fromCollective.slug$': { ILIKE: '%4242.66%' } },
-        { name: { ILIKE: '%4242.66%' } },
-        { '$fromCollective.name$': { ILIKE: '%4242.66%' } },
-        { tags: { OVERLAP: ['4242.66'] } },
+        { slug: { [Op.iLike]: '%4242.66%' } },
+        { '$fromCollective.slug$': { [Op.iLike]: '%4242.66%' } },
+        { name: { [Op.iLike]: '%4242.66%' } },
+        { '$fromCollective.name$': { [Op.iLike]: '%4242.66%' } },
+        { tags: { [Op.overlap]: ['4242.66'] } },
         { amount: 424266 },
         { '$order.totalAmount$': 424266 },
       ]);
@@ -417,11 +399,11 @@ describe('server/lib/search', () => {
 
     it('build conditions for full text', () => {
       expect(testBuildSearchConditions('   hello world   ')).to.deep.eq([
-        { slug: { ILIKE: '%hello world%' } },
-        { '$fromCollective.slug$': { ILIKE: '%hello world%' } },
-        { name: { ILIKE: '%hello world%' } },
-        { '$fromCollective.name$': { ILIKE: '%hello world%' } },
-        { tags: { OVERLAP: ['hello world'] } },
+        { slug: { [Op.iLike]: '%hello world%' } },
+        { '$fromCollective.slug$': { [Op.iLike]: '%hello world%' } },
+        { name: { [Op.iLike]: '%hello world%' } },
+        { '$fromCollective.name$': { [Op.iLike]: '%hello world%' } },
+        { tags: { [Op.overlap]: ['hello world'] } },
       ]);
     });
 
@@ -430,7 +412,7 @@ describe('server/lib/search', () => {
 
       // No transform: will only trim
       expect(testBuildSearchConditionsWithCustomConfig('   hello   WorlD   ', fieldsConfig)).to.deep.eq([
-        { tags: { OVERLAP: ['hello WorlD'] } },
+        { tags: { [Op.overlap]: ['hello WorlD'] } },
       ]);
 
       // Uppercase
@@ -439,7 +421,7 @@ describe('server/lib/search', () => {
           ...fieldsConfig,
           stringArrayTransformFn: value => value.toUpperCase(),
         }),
-      ).to.deep.eq([{ tags: { OVERLAP: ['HELLO WORLD'] } }]);
+      ).to.deep.eq([{ tags: { [Op.overlap]: ['HELLO WORLD'] } }]);
     });
   });
 });
