@@ -106,7 +106,7 @@
     "node-fetch": "2.6.11",
     "node-slack": "0.0.7",
     "nodemailer": "6.9.3",
-    "p-filter": "2.1.0",
+    "p-filter": "3.0.0",
     "p-map": "4.0.0",
     "p-queue": "6.6.2",
     "p-throttle": "4.1.1",
