@@ -21,7 +21,7 @@ import {
 import * as utils from '../../utils';
 
 describe('cron/monthly/host-settlement', () => {
-  const lastMonth = moment.utc().subtract(1, 'month');
+  const lastMonth = moment.utc().subtract(1, 'month').startOf('month');
 
   let gbpHost, eurHost, eurCollective, gphHostSettlementExpense, eurHostSettlementExpense;
 
