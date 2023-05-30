@@ -1,5 +1,4 @@
 import { TaxType } from '@opencollective/taxes';
-import BluebirdPromise from 'bluebird';
 import debugLib from 'debug';
 import { get } from 'lodash';
 import {
@@ -479,22 +478,24 @@ Order.prototype.getUserForActivity = async function () {
 Order.prototype.populate = function (
   foreignKeys = ['FromCollectiveId', 'CollectiveId', 'CreatedByUserId', 'TierId', 'PaymentMethodId'],
 ) {
-  return BluebirdPromise.map(foreignKeys, fk => {
-    const attribute = (fk.substr(0, 1).toLowerCase() + fk.substr(1)).replace(/Id$/, '');
-    const model = fk.replace(/(from|to|createdby)/i, '').replace(/Id$/, '');
-    const promise = () => {
-      if (this[attribute]) {
-        return Promise.resolve(this[attribute]);
-      }
-      if (!this[fk]) {
-        return Promise.resolve(null);
-      }
-      return models[model].findByPk(this[fk]);
-    };
-    return promise().then(obj => {
-      this[attribute] = obj;
-    });
-  }).then(() => this);
+  return Promise.all(
+    foreignKeys.map(fk => {
+      const attribute = (fk.substr(0, 1).toLowerCase() + fk.substr(1)).replace(/Id$/, '');
+      const model = fk.replace(/(from|to|createdby)/i, '').replace(/Id$/, '');
+      const promise = () => {
+        if (this[attribute]) {
+          return Promise.resolve(this[attribute]);
+        }
+        if (!this[fk]) {
+          return Promise.resolve(null);
+        }
+        return models[model].findByPk(this[fk]);
+      };
+      return promise().then(obj => {
+        this[attribute] = obj;
+      });
+    }),
+  ).then(() => this);
 };
 
 Order.prototype.getSubscriptionForUser = function (user) {

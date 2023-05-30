@@ -274,9 +274,6 @@ export const Host = new GraphQLObjectType({
           if (!host.settings?.disableCustomPayoutMethod) {
             supportedPayoutMethods.push(PayoutMethodTypes.OTHER);
           }
-          if (connectedAccounts?.find?.(c => c.service === 'privacy')) {
-            supportedPayoutMethods.push(PayoutMethodTypes.CREDIT_CARD);
-          }
 
           return supportedPayoutMethods;
         },

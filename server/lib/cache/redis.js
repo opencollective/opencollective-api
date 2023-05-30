@@ -1,22 +1,28 @@
-import Promise from 'bluebird';
 import debug from 'debug';
-import redis from 'redis';
+import { createClient as createRedisClient } from 'redis';
 
-const asyncRedis = Promise.promisifyAll(redis);
+import logger from '../logger';
 
-const debugCache = debug('cache');
-
-const makeRedisProvider = ({ serverUrl }) => {
+const makeRedisProvider = async ({ serverUrl }) => {
+  const debugCache = debug('cache');
   const redisOptions = {};
   if (serverUrl.includes('rediss://')) {
     redisOptions.tls = { rejectUnauthorized: false };
   }
-  const client = asyncRedis.createClient(serverUrl, redisOptions);
+
+  let redisClient = createRedisClient(serverUrl, redisOptions);
+  try {
+    await redisClient.connect();
+  } catch (err) {
+    logger.error('Redis cache connection error', err);
+    redisClient = null;
+  }
+
   return {
-    clear: async () => client.flushallAsync(),
-    delete: async key => client.delAsync(key),
+    clear: async () => redisClient?.flushAll(),
+    delete: async key => redisClient?.del(key),
     get: async (key, { unserialize = JSON.parse } = {}) => {
-      const value = await client.getAsync(key);
+      const value = await redisClient?.get(key);
       if (value) {
         try {
           return unserialize(value);
@@ -28,15 +34,15 @@ const makeRedisProvider = ({ serverUrl }) => {
       }
     },
     has: async key => {
-      const value = await client.getAsync(key);
+      const value = await redisClient?.get(key);
       return value !== null;
     },
     set: async (key, value, expirationInSeconds, { serialize = JSON.stringify } = {}) => {
       if (value !== undefined) {
         if (expirationInSeconds) {
-          return client.setexAsync(key, expirationInSeconds, serialize(value));
+          return redisClient?.set(key, serialize(value), { EX: expirationInSeconds });
         } else {
-          return client.setAsync(key, serialize(value));
+          return redisClient?.set(key, serialize(value));
         }
       }
     },

@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import '../../server/env';
 
-import { filter } from 'bluebird';
 import { Op } from 'sequelize';
 
 import activities from '../../server/constants/activities';
@@ -56,10 +55,9 @@ async function run() {
     ],
   });
 
-  return filter(allOrders, order => {
-    return order.Subscription.data && needsDispatching(order.Subscription.data.nextDispatchDate);
-  }).map(
-    async order => {
+  return allOrders
+    .filter(order => order.Subscription.data && needsDispatching(order.Subscription.data.nextDispatchDate))
+    .map(async order => {
       return dispatchFunds(order)
         .then(async dispatchedOrders => {
           const nextDispatchDate = order.Subscription.nextChargeDate;
@@ -85,9 +83,7 @@ async function run() {
           console.error(error);
           reportErrorToSentry(error);
         });
-    },
-    { concurrency: 3 },
-  );
+    });
 }
 
 run()

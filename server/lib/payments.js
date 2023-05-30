@@ -1,5 +1,4 @@
 /** @module lib/payments */
-import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
 import { find, get, includes, isNil, isNumber, omit, pick } from 'lodash';

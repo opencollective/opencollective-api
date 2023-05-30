@@ -1,7 +1,6 @@
 import assert from 'assert';
 
 import { TaxType } from '@opencollective/taxes';
-import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
 import deepmerge from 'deepmerge';
@@ -30,6 +29,7 @@ import {
 } from 'lodash';
 import moment from 'moment';
 import fetch from 'node-fetch';
+import pMap from 'p-map';
 import prependHttp from 'prepend-http';
 import {
   CreationOptional,
@@ -280,7 +280,7 @@ class Collective extends Model<
   }
 
   static createMany = (collectives, defaultValues, sequelizeParams) => {
-    return Promise.map(collectives, u => Collective.create(defaults({}, u, defaultValues), sequelizeParams), {
+    return pMap(collectives, u => Collective.create(defaults({}, u, defaultValues), sequelizeParams), {
       concurrency: 1,
     }).catch(error => {
       logger.error(error);
@@ -512,39 +512,44 @@ class Collective extends Model<
     });
 
     let nextGoal;
-    await Promise.each(goals, async goal => {
-      if (nextGoal) {
-        return;
-      }
-      if (goal.type === 'balance') {
-        if (!stats.balance) {
-          stats.balance = await this.getBalance({ endDate: until });
-        }
-        if (stats.balance < goal.amount) {
-          nextGoal = goal;
-          nextGoal.progress = Math.round((stats.balance / goal.amount) * 100) / 100;
-          nextGoal.percentage = `${Math.round(nextGoal.progress * 100)}%`;
-          nextGoal.missing = { amount: goal.amount - stats.balance };
+    await pMap(
+      goals,
+      async goal => {
+        if (nextGoal) {
           return;
         }
-      }
-      if (goal.type === 'yearlyBudget') {
-        if (!stats.yearlyBudget) {
-          stats.yearlyBudget = await this.getYearlyBudget();
+        if (goal.type === 'balance') {
+          if (!stats.balance) {
+            stats.balance = await this.getBalance({ endDate: until });
+          }
+          if (stats.balance < goal.amount) {
+            nextGoal = goal;
+            nextGoal.progress = Math.round((stats.balance / goal.amount) * 100) / 100;
+            nextGoal.percentage = `${Math.round(nextGoal.progress * 100)}%`;
+            nextGoal.missing = { amount: goal.amount - stats.balance };
+            return;
+          }
         }
-        if (stats.yearlyBudget < goal.amount) {
-          nextGoal = goal;
-          nextGoal.progress = Math.round((stats.yearlyBudget / goal.amount) * 100) / 100;
-          nextGoal.percentage = `${Math.round(nextGoal.progress * 100)}%`;
-          nextGoal.missing = {
-            amount: Math.round((goal.amount - stats.yearlyBudget) / 12),
-            interval: 'month',
-          };
-          nextGoal.interval = 'year';
-          return;
+        if (goal.type === 'yearlyBudget') {
+          if (!stats.yearlyBudget) {
+            stats.yearlyBudget = await this.getYearlyBudget();
+          }
+          if (stats.yearlyBudget < goal.amount) {
+            nextGoal = goal;
+            nextGoal.progress = Math.round((stats.yearlyBudget / goal.amount) * 100) / 100;
+            nextGoal.percentage = `${Math.round(nextGoal.progress * 100)}%`;
+            nextGoal.missing = {
+              amount: Math.round((goal.amount - stats.yearlyBudget) / 12),
+              interval: 'month',
+            };
+            nextGoal.interval = 'year';
+            return;
+          }
         }
-      }
-    });
+      },
+      { concurrency: 1 },
+    );
+
     return nextGoal;
   };
 
@@ -1424,10 +1429,12 @@ class Collective extends Model<
       ],
     });
 
-    orders = await Promise.map(orders, async order => {
-      order.totalTransactions = await order.getTotalTransactions();
-      return order;
-    });
+    orders = await Promise.all(
+      orders.map(async order => {
+        order.totalTransactions = await order.getTotalTransactions();
+        return order;
+      }),
+    );
 
     orders.sort((a, b) => {
       if (a.dataValues.totalAmount > b.dataValues.totalAmount) {
@@ -1583,38 +1590,40 @@ class Collective extends Model<
     );
 
     // Map the users to their respective tier
-    await Promise.map(backerCollectives, backerCollective => {
-      const include = options.active ? [{ model: models.Subscription, attributes: ['isActive'] }] : [];
-      return models.Order.findOne({
-        attributes: ['TierId'],
-        where: {
-          FromCollectiveId: backerCollective.id,
-          CollectiveId: this.id,
-          TierId: { [Op.ne]: null },
-        },
-        include,
-      }).then(order => {
-        if (!order) {
-          debug('Collective.getTiersWithUsers: no order for a tier for ', {
+    await Promise.all(
+      backerCollectives.map(backerCollective => {
+        const include = options.active ? [{ model: models.Subscription, attributes: ['isActive'] }] : [];
+        return models.Order.findOne({
+          attributes: ['TierId'],
+          where: {
             FromCollectiveId: backerCollective.id,
             CollectiveId: this.id,
-          });
-          return null;
-        }
-        const TierId = order.TierId;
-        tiersById[TierId] = tiersById[TierId] || order.Tier;
-        if (!tiersById[TierId]) {
-          logger.error(">>> Couldn't find a tier with id", order.TierId, 'collective: ', this.slug);
-          tiersById[TierId] = { dataValues: { users: [] } };
-        }
-        tiersById[TierId].dataValues.users = tiersById[TierId].dataValues.users || [];
-        if (options.active) {
-          backerCollective.isActive = order.Subscription.isActive;
-        }
-        debug('adding to tier', TierId, 'backer: ', backerCollective.dataValues.slug);
-        tiersById[TierId].dataValues.users.push(backerCollective.dataValues);
-      });
-    });
+            TierId: { [Op.ne]: null },
+          },
+          include,
+        }).then(order => {
+          if (!order) {
+            debug('Collective.getTiersWithUsers: no order for a tier for ', {
+              FromCollectiveId: backerCollective.id,
+              CollectiveId: this.id,
+            });
+            return null;
+          }
+          const TierId = order.TierId;
+          tiersById[TierId] = tiersById[TierId] || order.Tier;
+          if (!tiersById[TierId]) {
+            logger.error(">>> Couldn't find a tier with id", order.TierId, 'collective: ', this.slug);
+            tiersById[TierId] = { dataValues: { users: [] } };
+          }
+          tiersById[TierId].dataValues.users = tiersById[TierId].dataValues.users || [];
+          if (options.active) {
+            backerCollective.isActive = order.Subscription.isActive;
+          }
+          debug('adding to tier', TierId, 'backer: ', backerCollective.dataValues.slug);
+          tiersById[TierId].dataValues.users.push(backerCollective.dataValues);
+        });
+      }),
+    );
 
     return Object.values(tiersById);
   };
@@ -2047,7 +2056,7 @@ class Collective extends Model<
       collectives = collectives.filter(collective => collective.id !== this.id);
       // We use setCurrency so that it will cascade to Tiers
       if (collectives.length > 0) {
-        await Promise.map(
+        await pMap(
           collectives,
           async collective => {
             const collectiveTransactionCount = await models.Transaction.count({
@@ -2069,7 +2078,7 @@ class Collective extends Model<
     // Update tiers, skip or delete when they are already used?
     const tiers = <Array<any>>await this.getTiers();
     if (tiers.length > 0) {
-      await Promise.map(
+      await pMap(
         tiers,
         async tier => {
           // We only proceed with Tiers without Orders
@@ -2085,11 +2094,11 @@ class Collective extends Model<
     // Cascade currency to events and projects
     const events = <Array<any>>await this.getEvents();
     if (events.length > 0) {
-      await Promise.map(events, event => event.setCurrency(currency), { concurrency: 3 });
+      await pMap(events, event => event.setCurrency(currency), { concurrency: 3 });
     }
     const projects = <Array<any>>await this.getProjects();
     if (projects.length > 0) {
-      await Promise.map(projects, project => project.setCurrency(currency), { concurrency: 3 });
+      await pMap(projects, project => project.setCurrency(currency), { concurrency: 3 });
     }
 
     return this.update({ currency });
@@ -2529,22 +2538,24 @@ class Collective extends Model<
         }
       })
       .then(() => {
-        return Promise.map(tiers, tier => {
-          if (tier.amountType === 'FIXED') {
-            tier.presets = null;
-            tier.minimumAmount = null;
-          }
-          if (tier.invoiceTemplate) {
-            tier.data = { ...tier.data, invoiceTemplate: tier.invoiceTemplate };
-          }
-          if (tier.id) {
-            return models.Tier.update(tier, { where: { id: tier.id, CollectiveId: this.id } });
-          } else {
-            tier.CollectiveId = this.id;
-            tier.currency = tier.currency || this.currency;
-            return models.Tier.create(tier);
-          }
-        });
+        return Promise.all(
+          tiers.map(tier => {
+            if (tier.amountType === 'FIXED') {
+              tier.presets = null;
+              tier.minimumAmount = null;
+            }
+            if (tier.invoiceTemplate) {
+              tier.data = { ...tier.data, invoiceTemplate: tier.invoiceTemplate };
+            }
+            if (tier.id) {
+              return models.Tier.update(tier, { where: { id: tier.id, CollectiveId: this.id } });
+            } else {
+              tier.CollectiveId = this.id;
+              tier.currency = tier.currency || this.currency;
+              return models.Tier.create(tier);
+            }
+          }),
+        );
       })
       .then(() => this.getTiers());
   };

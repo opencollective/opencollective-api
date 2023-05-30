@@ -1,5 +1,5 @@
-import Promise from 'bluebird';
 import { get } from 'lodash';
+import pMap from 'p-map';
 
 import logger from '../lib/logger';
 import models, { Op } from '../models';
@@ -50,7 +50,7 @@ export async function processCollective(collective, template) {
   }
 
   logger.info(`>>> Sending ${template} email to the ${recipients.length} admin(s) of`, collective.slug);
-  return Promise.map(recipients, recipient =>
+  return pMap(recipients, recipient =>
     emailLib.send(template, recipient, { collective: collective.info }, emailOptions).catch(e => {
       logger.warn('Unable to send email to ', collective.slug, recipient, 'error:', e);
     }),
@@ -78,7 +78,7 @@ export async function processOnBoardingTemplate(template, startsAt, filter = nul
     }
 
     logger.info(`${template}> processing ${collectives.length} collectives after filter`);
-    filteredCollectives = await Promise.map(filteredCollectives, c => processCollective(c, template));
+    filteredCollectives = await pMap(filteredCollectives, c => processCollective(c, template));
     logger.info(`${filteredCollectives.length} collectives processed.`);
   } catch (e) {
     logger.error('>>> error caught', e);

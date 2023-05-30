@@ -191,9 +191,6 @@
     "tracesSampleRate": 0,
     "minExecutionTimeToSample": 800
   },
-  "privacy": {
-    "apiUrl": "https://sandbox.privacy.com"
-  },
   "ledger": {
     "fastBalance": true
   },

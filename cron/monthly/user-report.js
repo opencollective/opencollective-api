@@ -4,7 +4,6 @@ import '../../server/env';
 import fs from 'fs';
 import path from 'path';
 
-import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
 import { groupBy, isEmpty, pick, uniq } from 'lodash';
@@ -103,7 +102,9 @@ const init = async () => {
   }
 
   console.log(`Preparing the ${month} report for ${FromCollectiveIds.length} backers`);
-  await Promise.each(FromCollectiveIds, processBacker);
+  for (const FromCollectiveId of FromCollectiveIds) {
+    await processBacker(FromCollectiveId);
+  }
 
   const timeLapsed = Math.round((new Date() - startTime) / 1000);
   console.log(`Total run time: ${timeLapsed}s`);
@@ -145,8 +146,8 @@ const processBacker = async FromCollectiveId => {
   }
 
   console.log(`>>> Collective ${FromCollectiveId} has backed ${distinctTransactions.length} collectives`);
-  const collectives = await Promise.map(distinctTransactions, transaction =>
-    processCollective(transaction.CollectiveId),
+  const collectives = await Promise.all(
+    distinctTransactions.map(transaction => processCollective(transaction.CollectiveId)),
   );
   const subscribers = await fetchUserSubscribers('user.monthlyreport', backerCollective);
   console.log(`>>> Collective ${FromCollectiveId} has ${subscribers.length} subscribers`);
@@ -192,7 +193,7 @@ const processBacker = async FromCollectiveId => {
   const monthlyConsolidatedInvoices = await getConsolidatedInvoicePdfs(backerCollective);
 
   try {
-    await Promise.each(subscribers, user => {
+    for (const user of subscribers) {
       const data = {
         config: { host: config.host },
         month,
@@ -211,7 +212,7 @@ const processBacker = async FromCollectiveId => {
         attachments: monthlyConsolidatedInvoices,
       };
       return sendEmail(user, data, options);
-    });
+    }
   } catch (e) {
     console.error(e);
     reportErrorToSentry(e);

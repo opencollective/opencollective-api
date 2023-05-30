@@ -1,5 +1,4 @@
 import axios from 'axios';
-import Promise from 'bluebird';
 import config from 'config';
 
 import { activities, channels } from '../../constants';
@@ -71,17 +70,19 @@ const dispatch = async (activity: Activity) => {
   };
 
   const notificationChannels = await models.Notification.findAll({ where });
-  return Promise.map(notificationChannels, async notifConfig => {
-    if (notifConfig.channel === channels.GITTER) {
-      return publishToGitter(activity, notifConfig);
-    } else if (notifConfig.channel === channels.SLACK) {
-      return slackLib.postActivityOnPublicChannel(activity, notifConfig.webhookUrl);
-    } else if (notifConfig.channel === channels.TWITTER) {
-      return twitter.tweetActivity(activity);
-    } else if (notifConfig.channel === channels.WEBHOOK) {
-      return publishToWebhook(activity, notifConfig.webhookUrl);
-    }
-  }).catch(err => {
+  return Promise.all(
+    notificationChannels.map(notifConfig => {
+      if (notifConfig.channel === channels.GITTER) {
+        return publishToGitter(activity, notifConfig);
+      } else if (notifConfig.channel === channels.SLACK) {
+        return slackLib.postActivityOnPublicChannel(activity, notifConfig.webhookUrl);
+      } else if (notifConfig.channel === channels.TWITTER) {
+        return twitter.tweetActivity(activity);
+      } else if (notifConfig.channel === channels.WEBHOOK) {
+        return publishToWebhook(activity, notifConfig.webhookUrl);
+      }
+    }),
+  ).catch(err => {
     reportErrorToSentry(err);
     console.error(
       `Error while publishing activity type ${activity.type} for collective ${activity.CollectiveId}`,

@@ -1,4 +1,3 @@
-import Promise from 'bluebird';
 import { expect } from 'chai';
 import { stub } from 'sinon';
 import request from 'supertest';

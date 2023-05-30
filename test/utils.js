@@ -3,7 +3,6 @@ import { execSync } from 'child_process';
 import fs from 'fs';
 import querystring from 'querystring';
 
-import Promise from 'bluebird';
 import { expect } from 'chai';
 import config from 'config';
 import debug from 'debug';

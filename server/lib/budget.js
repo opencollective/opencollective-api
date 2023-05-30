@@ -1,4 +1,3 @@
-import Promise from 'bluebird';
 import config from 'config';
 import { difference } from 'lodash';
 
@@ -856,8 +855,8 @@ export async function getBlockedFunds(collectiveIds) {
 // Get current balance for collective using a combination of speed and accuracy.
 export async function getCurrentCollectiveBalances(collectiveIds, { loaders = null, withBlockedFunds = false } = {}) {
   const fastResults = loaders
-    ? await Promise.map(collectiveIds, collectiveId =>
-        loaders.Collective.currentCollectiveBalance.load(collectiveId),
+    ? await Promise.all(
+        collectiveIds.map(collectiveId => loaders.Collective.currentCollectiveBalance.load(collectiveId)),
       ).then(results => results.filter(el => !!el))
     : await sequelize.query(`SELECT * FROM "CurrentCollectiveBalance" WHERE "CollectiveId" IN (:collectiveIds)`, {
         replacements: { collectiveIds },
@@ -893,8 +892,8 @@ export async function getCurrentCollectiveBalances(collectiveIds, { loaders = nu
 
 export async function getCurrentCollectiveTransactionStats(collectiveIds, { loaders = null, column } = {}) {
   const results = loaders
-    ? await Promise.map(collectiveIds, collectiveId =>
-        loaders.Collective.currentCollectiveTransactionStats.load(collectiveId),
+    ? await Promise.all(
+        collectiveIds.map(collectiveId => loaders.Collective.currentCollectiveTransactionStats.load(collectiveId)),
       ).then(results => results.filter(el => !!el))
     : await sequelize.query(
         `SELECT * FROM "CurrentCollectiveTransactionStats" WHERE "CollectiveId" IN (:collectiveIds)`,

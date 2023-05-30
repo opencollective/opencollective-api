@@ -10,6 +10,7 @@ import {
   fakePayoutMethod,
   fakeUser,
   multiple,
+  randStr,
 } from '../../../test-helpers/fake-data';
 import { makeRequest, resetTestDB } from '../../../utils';
 
@@ -51,6 +52,25 @@ describe('lib/security/expense', () => {
       });
 
       expense = await fakeExpense({ UserId: user.id, PayoutMethodId: pm.id });
+    });
+
+    it('does not identify user as impersonating itself', async () => {
+      const ip = '192.168.0.26';
+      const userSlug = randStr('user-');
+      const user = await fakeUser({ data: { lastSignInRequest: { ip } }, updatedAt: new Date() }, { slug: userSlug });
+
+      const pm = await fakePayoutMethod({
+        type: PayoutMethodTypes.PAYPAL,
+        data: {
+          email: `${randStr('email-')}@email.com`,
+        },
+        CollectiveId: user.collective.id,
+      });
+      const expense = await fakeExpense({ UserId: user.id, PayoutMethodId: pm.id });
+      const securityChecks = await checkExpense(expense, { req: makeRequest() as any });
+
+      expect(securityChecks.find(s => s.message === 'This user may be impersonating multiple profiles')).to.be
+        .undefined;
     });
 
     it('returns potential threats related to the expense payment', async () => {

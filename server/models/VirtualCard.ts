@@ -11,7 +11,6 @@ import type {
 import VirtualCardProviders from '../constants/virtual_card_providers';
 import { crypto } from '../lib/encryption';
 import sequelize, { DataTypes, Model, Op } from '../lib/sequelize';
-import privacyVirtualCards from '../paymentProviders/privacy';
 import * as stripeVirtualCards from '../paymentProviders/stripe/virtual-cards';
 
 import Collective from './Collective';
@@ -51,9 +50,6 @@ class VirtualCard extends Model<InferAttributes<VirtualCard, { omit: 'info' }>, 
       case VirtualCardProviders.STRIPE:
         await stripeVirtualCards.pauseCard(this);
         break;
-      case VirtualCardProviders.PRIVACY:
-        await privacyVirtualCards.pauseCard(this);
-        break;
       default:
         throw new Error(`Can not suspend virtual card provided by ${this.provider}`);
     }
@@ -66,9 +62,6 @@ class VirtualCard extends Model<InferAttributes<VirtualCard, { omit: 'info' }>, 
       case VirtualCardProviders.STRIPE:
         await stripeVirtualCards.resumeCard(this);
         break;
-      case VirtualCardProviders.PRIVACY:
-        await privacyVirtualCards.resumeCard(this);
-        break;
       default:
         throw new Error(`Can not resume virtual card provided by ${this.provider}`);
     }
@@ -80,9 +73,6 @@ class VirtualCard extends Model<InferAttributes<VirtualCard, { omit: 'info' }>, 
     switch (this.provider) {
       case VirtualCardProviders.STRIPE:
         await stripeVirtualCards.deleteCard(this);
-        break;
-      case VirtualCardProviders.PRIVACY:
-        await privacyVirtualCards.deleteCard(this);
         break;
       default:
         throw new Error(`Can not delete virtual card provided by ${this.provider}`);

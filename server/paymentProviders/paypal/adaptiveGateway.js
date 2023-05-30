@@ -1,4 +1,3 @@
-import Promise from 'bluebird';
 import config from 'config';
 import debug from 'debug';
 import { get } from 'lodash';

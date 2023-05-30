@@ -4,14 +4,12 @@ import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graph
 
 import { activities } from '../../../constants';
 import POLICIES from '../../../constants/policies';
-import VirtualCardProviders from '../../../constants/virtual_card_providers';
 import logger from '../../../lib/logger';
 import { getPolicy } from '../../../lib/policies';
 import { reportErrorToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import VirtualCardModel from '../../../models/VirtualCard';
-import privacy from '../../../paymentProviders/privacy';
 import * as stripe from '../../../paymentProviders/stripe/virtual-cards';
 import { checkRemoteUserCanUseVirtualCards } from '../../common/scope-check';
 import { BadRequest, NotFound, Unauthorized } from '../../errors';
@@ -71,9 +69,7 @@ const virtualCardMutations = {
         });
       }
 
-      const providerService = args.virtualCard.provider === VirtualCardProviders.STRIPE ? stripe : privacy;
-
-      const virtualCard = await providerService.assignCardToCollective(
+      const virtualCard = await stripe.assignCardToCollective(
         cardNumber,
         expiryDate,
         cvv,
