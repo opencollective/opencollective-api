@@ -218,5 +218,8 @@
   },
   "gitbook": {
     "apiKey": "GITBOOK_API_KEY"
+  },
+  "opentelemetry": {
+    "enabled": "OPENTELEMETRY_ENABLED"
   }
 }
