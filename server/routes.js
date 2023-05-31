@@ -1,6 +1,7 @@
 import { ApolloArmor } from '@escape.tech/graphql-armor';
 import { ApolloServer } from 'apollo-server-express';
 import config from 'config';
+import graphqlUploadExpress from 'graphql-upload/graphqlUploadExpress.js';
 import { get, pick } from 'lodash';
 import multer from 'multer';
 
@@ -283,8 +284,6 @@ export default async app => {
     },
   };
 
-  // TODO(ESM): Move this to standard ESM imports once available and remove the promise
-  const { default: graphqlUploadExpress } = await import('graphql-upload/graphqlUploadExpress.mjs');
   app.use('/graphql', graphqlUploadExpress());
 
   /**
@@ -303,7 +302,7 @@ export default async app => {
    * GraphQL v2
    */
   const graphqlServerV2 = new ApolloServer({
-    schema: await graphqlSchemaV2,
+    schema: graphqlSchemaV2,
     ...graphqlServerOptions,
   });
 
