@@ -39,15 +39,15 @@ module.exports = {
       )
       SELECT
         "CollectiveId",
-        SUM("accErrorRate") FILTER (WHERE "months" = 1) AS "errorRate1M",
-        SUM("accErrorRate") FILTER (WHERE "months" = 3) AS "errorRate3M",
-        SUM("accErrorRate") FILTER (WHERE "months" = 12) AS "errorRate12M",
-        SUM("accSuccessRate") FILTER (WHERE "months" = 3) AS "successRate1M",
-        SUM("accSuccessRate") FILTER (WHERE "months" = 3) AS "successRate3M",
-        SUM("accSuccessRate") FILTER (WHERE "months" = 12) AS "successRate12M",
-        SUM("accNumberOfOrders") FILTER (WHERE "months" = 1) AS "numOrders1M",
-        SUM("accNumberOfOrders") FILTER (WHERE "months" = 3) AS "numOrders3M",
-        SUM("accNumberOfOrders") FILTER (WHERE "months" = 12) AS "numOrders12M"
+        MAX("accErrorRate") FILTER (WHERE "months" = 1) AS "errorRate1M",
+        MAX("accErrorRate") FILTER (WHERE "months" = 3) AS "errorRate3M",
+        MAX("accErrorRate") FILTER (WHERE "months" = 12) AS "errorRate12M",
+        MAX("accSuccessRate") FILTER (WHERE "months" = 3) AS "successRate1M",
+        MAX("accSuccessRate") FILTER (WHERE "months" = 3) AS "successRate3M",
+        MAX("accSuccessRate") FILTER (WHERE "months" = 12) AS "successRate12M",
+        MAX("accNumberOfOrders") FILTER (WHERE "months" = 1) AS "numOrders1M",
+        MAX("accNumberOfOrders") FILTER (WHERE "months" = 3) AS "numOrders3M",
+        MAX("accNumberOfOrders") FILTER (WHERE "months" = 12) AS "numOrders12M"
       FROM acc
       GROUP BY "CollectiveId" 
       `);
