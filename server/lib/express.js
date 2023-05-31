@@ -77,12 +77,12 @@ export default async function (app) {
   // Setup session (required by passport)
 
   if (get(config, 'redis.serverUrl')) {
-    const redisOptions = {};
-    if (get(config, 'redis.serverUrl').includes('rediss://')) {
-      redisOptions.tls = { rejectUnauthorized: false };
+    const redisOptions = { url: get(config, 'redis.serverUrl') };
+    if (redisOptions.url.includes('rediss://')) {
+      redisOptions.socket = { tls: true, rejectUnauthorized: false };
     }
 
-    let redisClient = createRedisClient(get(config, 'redis.serverUrl'), redisOptions);
+    let redisClient = createRedisClient(redisOptions);
     try {
       await redisClient.connect();
     } catch (err) {
