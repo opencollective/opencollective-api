@@ -3,7 +3,6 @@ import { ApolloServer } from 'apollo-server-express';
 import config from 'config';
 import { get, pick } from 'lodash';
 import multer from 'multer';
-import { createClient as createRedisClient } from 'redis';
 
 import * as connectedAccounts from './controllers/connectedAccounts';
 import * as gitbook from './controllers/gitbook';
@@ -21,6 +20,7 @@ import errors from './lib/errors';
 import expressLimiter from './lib/express-limiter';
 import logger from './lib/logger';
 import oauth, { authorizeAuthenticateHandler } from './lib/oauth';
+import { createRedisClient } from './lib/redis';
 import { HandlerType, reportMessageToSentry, SentryGraphQLPlugin, sentryHandleSlowRequests } from './lib/sentry';
 import { parseToBoolean } from './lib/utils';
 import * as authentication from './middleware/authentication';
@@ -51,20 +51,8 @@ export default async app => {
   app.use('*', authentication.authorizeClient);
 
   // Setup rate limiter
-  if (get(config, 'redis.serverUrl')) {
-    const redisOptions = { url: get(config, 'redis.serverUrl') };
-    if (redisOptions.url.includes('rediss://')) {
-      redisOptions.socket = { tls: true, rejectUnauthorized: false };
-    }
-
-    let redisClient = createRedisClient(redisOptions);
-    try {
-      await redisClient.connect();
-    } catch (err) {
-      logger.error('Redis express limiter connection error', err);
-      redisClient = null;
-    }
-
+  const redisClient = await createRedisClient();
+  if (redisClient) {
     const expressLimiterOptions = {
       lookup: function (req, res, opts, next) {
         if (req.personalToken) {
