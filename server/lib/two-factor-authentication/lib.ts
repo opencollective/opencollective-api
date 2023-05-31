@@ -33,6 +33,8 @@ type ValidateRequestOptions = {
   sessionKey?: (() => string) | string;
   // to document which account requested the 2FA token. Defaults to the user's account
   FromCollectiveId?: number;
+  // Some additional data to be stored in the activity
+  customData?: Record<string, unknown>;
 };
 
 export const TwoFactorAuthenticationHeader = 'x-two-factor-authentication';
@@ -182,7 +184,7 @@ async function validateRequest(
         ip: req.ip,
         userAgent: req.get('user-agent'),
         context: inferContextFromRequest(req),
-        ...pick(options, ['alwaysAskForToken', 'sessionDuration']),
+        ...pick(options, ['alwaysAskForToken', 'sessionDuration', 'customData']),
       },
     });
 

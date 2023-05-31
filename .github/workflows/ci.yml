@@ -32,6 +32,7 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version-file: 'package.json'
+          cache: 'npm'
 
       - name: Restore node_modules
         uses: actions/cache@v3
@@ -39,16 +40,6 @@ jobs:
         with:
           path: node_modules
           key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-
-      - name: Restore .npm cache
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        uses: actions/cache@v3
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-          restore-keys: |
-            - ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-            - ${{ runner.os }}-api-npm-cache-
 
       - name: Install dependencies
         if: steps.api-node-modules.outputs.cache-hit != 'true'
@@ -68,6 +59,7 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version-file: 'package.json'
+          cache: 'npm'
 
       - name: Restore node_modules
         uses: actions/cache@v3
@@ -75,16 +67,6 @@ jobs:
         with:
           path: node_modules
           key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-
-      - name: Restore .npm cache
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        uses: actions/cache@v3
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-          restore-keys: |
-            - ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-            - ${{ runner.os }}-api-npm-cache-
 
       - name: Install dependencies
         if: steps.api-node-modules.outputs.cache-hit != 'true'
@@ -104,6 +86,7 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version-file: 'package.json'
+          cache: 'npm'
 
       - name: Restore node_modules
         uses: actions/cache@v3
@@ -111,16 +94,6 @@ jobs:
         with:
           path: node_modules
           key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-
-      - name: Restore .npm cache
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        uses: actions/cache@v3
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-          restore-keys: |
-            - ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-            - ${{ runner.os }}-api-npm-cache-
 
       - name: Install dependencies
         if: steps.api-node-modules.outputs.cache-hit != 'true'
@@ -177,6 +150,7 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version-file: 'package.json'
+          cache: 'npm'
 
       - name: Restore node_modules
         uses: actions/cache@v3
@@ -184,16 +158,6 @@ jobs:
         with:
           path: node_modules
           key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-
-      - name: Restore .npm cache
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        uses: actions/cache@v3
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-          restore-keys: |
-            - ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-            - ${{ runner.os }}-api-npm-cache-
 
       - name: Install dependencies
         if: steps.api-node-modules.outputs.cache-hit != 'true'
@@ -237,6 +201,7 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version-file: 'package.json'
+          cache: 'npm'
 
       - name: Restore node_modules
         uses: actions/cache@v3
@@ -244,16 +209,6 @@ jobs:
         with:
           path: node_modules
           key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-
-      - name: Restore .npm cache
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        uses: actions/cache@v3
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-          restore-keys: |
-            - ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-            - ${{ runner.os }}-api-npm-cache-
 
       - name: Install dependencies
         if: steps.api-node-modules.outputs.cache-hit != 'true'
@@ -294,6 +249,7 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version-file: 'package.json'
+          cache: 'npm'
 
       - name: Restore node_modules
         uses: actions/cache@v3
@@ -301,16 +257,6 @@ jobs:
         with:
           path: node_modules
           key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-
-      - name: Restore .npm cache
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        uses: actions/cache@v3
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-          restore-keys: |
-            - ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-            - ${{ runner.os }}-api-npm-cache-
 
       - name: Install dependencies
         if: steps.api-node-modules.outputs.cache-hit != 'true'
@@ -351,6 +297,7 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version-file: 'package.json'
+          cache: 'npm'
 
       - name: Restore node_modules
         uses: actions/cache@v3
@@ -358,16 +305,6 @@ jobs:
         with:
           path: node_modules
           key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-
-      - name: Restore .npm cache
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        uses: actions/cache@v3
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-          restore-keys: |
-            - ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-            - ${{ runner.os }}-api-npm-cache-
 
       - name: Install dependencies
         if: steps.api-node-modules.outputs.cache-hit != 'true'
