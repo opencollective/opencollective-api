@@ -5,12 +5,12 @@ import logger from '../logger';
 
 const makeRedisProvider = async ({ serverUrl }) => {
   const debugCache = debug('cache');
-  const redisOptions = {};
-  if (serverUrl.includes('rediss://')) {
-    redisOptions.tls = { rejectUnauthorized: false };
+  const redisOptions = { url: serverUrl };
+  if (redisOptions.url.includes('rediss://')) {
+    redisOptions.socket = { tls: true, rejectUnauthorized: false };
   }
 
-  let redisClient = createRedisClient(serverUrl, redisOptions);
+  let redisClient = createRedisClient(redisOptions);
   try {
     await redisClient.connect();
   } catch (err) {
