@@ -6,12 +6,20 @@ import Stripe from 'stripe';
 import { ZERO_DECIMAL_CURRENCIES } from '../constants/currencies';
 import { VirtualCardLimitIntervals } from '../constants/virtual-cards';
 
-const stripe = new Stripe(config.stripe.secret, { apiVersion: undefined, maxNetworkRetries: 2 });
+// Starting on stripe@v12, the default API version is set by the stripe package.
+// We need to hardcode the API version that we are compatible with.
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore stripe-version 2015-04-07
+const stripe = new Stripe(config.stripe.secret, { apiVersion: '2015-04-07', maxNetworkRetries: 2 });
 
 export default stripe;
 
 export const StripeCustomToken = token => {
-  const stripe = new Stripe(token, { apiVersion: undefined, maxNetworkRetries: 2 });
+  // Starting on stripe@v12, the default API version is set by the stripe package.
+  // We need to hardcode the API version that we are compatible with.
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore stripe-version 2015-04-07
+  const stripe = new Stripe(token, { apiVersion: '2015-04-07', maxNetworkRetries: 2 });
   return stripe;
 };
 
