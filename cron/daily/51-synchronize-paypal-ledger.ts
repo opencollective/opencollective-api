@@ -54,7 +54,6 @@ const IGNORED_HOSTS = [
   'gaianet1',
   'heroes-of-newerth-community',
   'hisham-bin-ateya',
-  'java-jda',
   'lucy-parsons-labs',
   'madeinjlm',
   'monachelle',
@@ -71,15 +70,8 @@ const IGNORED_HOSTS = [
   'stroud-district-community-hubs',
   'the-book-haven-npc',
   'thecodebulbs',
-  'themuseumofhumanachievement',
-  'thenewoilmedia',
-  'transition-network',
-  'treeoflight',
   'voltarails',
   'wildseed-society',
-  'wujimacha',
-  // Not active anymore
-  'paris',
 ];
 
 /**
