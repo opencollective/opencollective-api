@@ -50,7 +50,7 @@
     "apollo-server-errors": "3.3.1",
     "apollo-server-express": "3.9.0",
     "argparse": "2.0.1",
-    "aws-sdk": "2.1387.0",
+    "aws-sdk": "2.1388.0",
     "axios": "0.27.2",
     "babel-plugin-add-module-exports": "1.0.4",
     "bayes": "1.0.0",
