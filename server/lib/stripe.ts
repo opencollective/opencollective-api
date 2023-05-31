@@ -76,9 +76,15 @@ export const convertFromStripeAmount = (currency, amount) => {
 };
 
 export const retrieveChargeWithRefund = async (chargeId, stripeAccount) => {
-  const charge = await stripe.charges.retrieve(chargeId, {
-    stripeAccount: stripeAccount.username,
-  });
+  const charge = await stripe.charges.retrieve(
+    chargeId,
+    {
+      expand: ['dispute', 'refunds'],
+    },
+    {
+      stripeAccount: stripeAccount.username,
+    },
+  );
   if (!charge) {
     throw Error(`charge id ${chargeId} not found`);
   }
