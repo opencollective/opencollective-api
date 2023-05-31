@@ -11,12 +11,12 @@ import { get, has } from 'lodash';
 import passport from 'passport';
 import { Strategy as GitHubStrategy } from 'passport-github';
 import { Strategy as TwitterStrategy } from 'passport-twitter';
-import { createClient as createRedisClient } from 'redis';
 
 import { loadersMiddleware } from '../graphql/loaders';
 
 import hyperwatch from './hyperwatch';
 import logger from './logger';
+import { createRedisClient } from './redis';
 
 export default async function (app) {
   app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal'].concat(cloudflareIps));
@@ -76,35 +76,19 @@ export default async function (app) {
 
   // Setup session (required by passport)
 
-  if (get(config, 'redis.serverUrl')) {
-    const redisOptions = { url: get(config, 'redis.serverUrl') };
-    if (redisOptions.url.includes('rediss://')) {
-      redisOptions.socket = { tls: true, rejectUnauthorized: false };
-    }
+  const redisClient = await createRedisClient({ name: 'passport' });
+  if (redisClient) {
+    const store = new RedisStore({ client: redisClient });
 
-    let redisClient = createRedisClient(redisOptions);
-    try {
-      await redisClient.connect();
-    } catch (err) {
-      logger.error('Redis passport session connection error', err);
-      redisClient = null;
-    }
+    app.use(
+      session({
+        store,
+        secret: config.keys.opencollective.sessionSecret,
+        resave: false,
+        saveUninitialized: false,
+      }),
+    );
 
-    if (redisClient) {
-      const store = new RedisStore({
-        client: redisClient,
-      });
-
-      app.use(
-        session({
-          store,
-          secret: config.keys.opencollective.sessionSecret,
-          resave: false,
-          saveUninitialized: false,
-        }),
-      );
-
-      app.use(passport.initialize());
-    }
+    app.use(passport.initialize());
   }
 }

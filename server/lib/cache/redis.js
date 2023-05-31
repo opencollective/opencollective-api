@@ -1,22 +1,11 @@
 import debug from 'debug';
-import { createClient as createRedisClient } from 'redis';
 
-import logger from '../logger';
+import { createRedisClient } from '../redis';
 
 const makeRedisProvider = async ({ serverUrl }) => {
   const debugCache = debug('cache');
-  const redisOptions = { url: serverUrl };
-  if (redisOptions.url.includes('rediss://')) {
-    redisOptions.socket = { tls: true, rejectUnauthorized: false };
-  }
 
-  let redisClient = createRedisClient(redisOptions);
-  try {
-    await redisClient.connect();
-  } catch (err) {
-    logger.error('Redis cache connection error', err);
-    redisClient = null;
-  }
+  const redisClient = await createRedisClient({ serverUrl, name: 'cache' });
 
   return {
     clear: async () => redisClient?.flushAll(),
