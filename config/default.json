@@ -227,5 +227,8 @@
   "gitbook": {
     "apiUrl": "https://api.gitbook.com",
     "apiKey": "UNDEFINED_GITBOOK_API_KEY"
+  },
+  "opentelemetry": {
+    "enabled": false
   }
 }
