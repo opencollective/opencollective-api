@@ -118,7 +118,7 @@
     "pg-connection-string": "2.6.0",
     "pg-format": "1.0.4",
     "prepend-http": "3.0.1",
-    "redis": "4.6.6",
+    "redis": "4.6.7",
     "sanitize-html": "2.10.0",
     "sequelize": "6.31.1",
     "sequelize-cli": "6.6.0",
