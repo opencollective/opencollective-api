@@ -51,7 +51,7 @@ export default async app => {
   app.use('*', authentication.authorizeClient);
 
   // Setup rate limiter
-  const redisClient = await createRedisClient({ name: 'express limiter' });
+  const redisClient = await createRedisClient();
   if (redisClient) {
     const expressLimiterOptions = {
       lookup: function (req, res, opts, next) {

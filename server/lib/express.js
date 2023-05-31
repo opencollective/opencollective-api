@@ -76,7 +76,7 @@ export default async function (app) {
 
   // Setup session (required by passport)
 
-  const redisClient = await createRedisClient({ name: 'passport' });
+  const redisClient = await createRedisClient();
   if (redisClient) {
     const store = new RedisStore({ client: redisClient });
 

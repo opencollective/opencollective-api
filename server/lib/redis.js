@@ -4,29 +4,33 @@ import { createClient } from 'redis';
 
 import logger from './logger';
 
-export async function createRedisClient({ serverUrl, name = 'unknown' } = {}) {
-  const url = serverUrl || get(config, 'redis.serverUrl');
-  if (!url) {
-    return;
-  }
+let redisClient;
 
-  const redisOptions = { url };
-  if (redisOptions.url.includes('rediss://')) {
-    redisOptions.socket = { tls: true, rejectUnauthorized: false };
-  }
+export async function createRedisClient() {
+  if (!redisClient) {
+    const url = get(config, 'redis.serverUrl');
+    if (!url) {
+      return;
+    }
 
-  let redisClient = createClient(redisOptions);
-  try {
-    redisClient.on('error', err => logger.error(`Redis "${name}" error`, err));
-    redisClient.on('reconnecting', () => logger.info(`Redis "${name}" reconnecting`));
-    redisClient.on('connect', () => logger.info(`Redis "${name}" connected`));
-    redisClient.on('ready', () => logger.info(`Redis "${name}" ready`));
-    redisClient.on('end', () => logger.info(`Redis "${name}" connection closed`));
+    const redisOptions = { url };
+    if (redisOptions.url.includes('rediss://')) {
+      redisOptions.socket = { tls: true, rejectUnauthorized: false };
+    }
 
-    await redisClient.connect();
-  } catch (err) {
-    logger.error(`Redis "${name}" connection error`, err);
-    redisClient = null;
+    redisClient = createClient(redisOptions);
+    try {
+      redisClient.on('error', err => logger.error(`Redis error`, err));
+      redisClient.on('reconnecting', () => logger.info(`Redis reconnecting`));
+      redisClient.on('connect', () => logger.info(`Redis connected`));
+      redisClient.on('ready', () => logger.info(`Redis ready`));
+      redisClient.on('end', () => logger.info(`Redis connection closed`));
+
+      await redisClient.connect();
+    } catch (err) {
+      logger.error(`Redis connection error`, err);
+      redisClient = null;
+    }
   }
 
   return redisClient;

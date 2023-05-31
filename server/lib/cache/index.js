@@ -27,7 +27,7 @@ export const getProvider = async providerType => {
     case PROVIDER_TYPES.MEMCACHE:
       return makeMemcacheProvider(get(config, 'memcache'));
     case PROVIDER_TYPES.REDIS:
-      return makeRedisProvider(get(config, 'redis'));
+      return makeRedisProvider();
     case PROVIDER_TYPES.MEMORY:
       return makeMemoryProvider({ max: 1000 });
     default:
