@@ -8,8 +8,7 @@
 import '../env';
 
 import * as Sentry from '@sentry/node';
-import * as Tracing from '@sentry/tracing';
-import type { Integration, SeverityLevel } from '@sentry/types';
+import type { SeverityLevel } from '@sentry/types';
 import axios, { AxiosError } from 'axios';
 import config from 'config';
 import { get, isEmpty, isEqual, pick } from 'lodash';
@@ -20,14 +19,6 @@ import { User } from '../models';
 import logger from './logger';
 import { safeJsonStringify, sanitizeObjectForJSON } from './safe-json-stringify';
 import * as utils from './utils';
-
-const getIntegrations = (expressApp = null): Integration[] => {
-  const integrations: Integration[] = [new Sentry.Integrations.Http({ tracing: true })];
-  if (expressApp) {
-    integrations.push(new Tracing.Integrations.Express({ app: expressApp }));
-  }
-  return integrations;
-};
 
 const TRACES_SAMPLE_RATE = parseFloat(config.sentry.tracesSampleRate) || 0;
 const MIN_EXECUTION_TIME_TO_SAMPLE = parseInt(config.sentry.minExecutionTimeToSample);
@@ -51,36 +42,32 @@ const redactSensitiveDataFromRequest = request => {
   }
 };
 
-export const initSentry = (expressApp = null) => {
-  Sentry.init({
-    beforeSend(event) {
-      redactSensitiveDataFromRequest(event.request);
-      return event;
-    },
-    beforeSendTransaction(event) {
-      redactSensitiveDataFromRequest(event.request);
-      return event;
-    },
-    dsn: config.sentry.dsn,
-    environment: config.env,
-    attachStacktrace: true,
-    enabled: config.env !== 'test',
-    integrations: getIntegrations(expressApp),
-    tracesSampler: samplingContext => {
-      if (!TRACES_SAMPLE_RATE || !samplingContext) {
-        return 0;
-      } else if (samplingContext.request?.url?.match(/\/graphql(\/.*)?$/)) {
-        return 1; // GraphQL endpoints handle sampling manually in `server/routes.js`
-      } else {
-        return TRACES_SAMPLE_RATE;
-      }
-    },
-  });
-};
+Sentry.init({
+  beforeSend(event) {
+    redactSensitiveDataFromRequest(event.request);
+    return event;
+  },
+  beforeSendTransaction(event) {
+    redactSensitiveDataFromRequest(event.request);
+    return event;
+  },
+  dsn: config.sentry.dsn,
+  environment: config.env,
+  attachStacktrace: true,
+  enabled: config.env !== 'test',
+  tracesSampler: samplingContext => {
+    if (!TRACES_SAMPLE_RATE || !samplingContext) {
+      return 0;
+    } else if (samplingContext.request?.url?.match(/\/graphql(\/.*)?$/)) {
+      return 1; // GraphQL endpoints handle sampling manually in `server/routes.js`
+    } else {
+      return TRACES_SAMPLE_RATE;
+    }
+  },
+});
 
 if (config.sentry?.dsn) {
   logger.info('Initializing Sentry');
-  initSentry();
 
   // Catch all errors that haven't been caught anywhere else
   process
@@ -276,6 +263,16 @@ const isIgnoredGQLError = (err): boolean => {
 
 export const SentryGraphQLPlugin = {
   requestDidStart({ request, customTimeout = 30e3, forceSampling = false }) {
+    // There's normally no parent transaction, but just in case there's one  - either because it was created in the parent context or
+    // if we go back to the default Sentry middleware, we want to make sure we don't create a new transaction
+    const transactionName = `GraphQL: ${request.operationName || 'Anonymous Operation'}`;
+    let transaction = Sentry.getCurrentHub()?.getScope()?.getTransaction();
+    if (transaction) {
+      transaction.setName(transactionName);
+    } else {
+      transaction = Sentry.startTransaction({ op: 'graphql', name: transactionName });
+    }
+
     const requestDidStartResult = {
       executionDidStart: undefined,
       willSendResponse: undefined,
@@ -317,15 +314,6 @@ export const SentryGraphQLPlugin = {
 
     if (!TRACES_SAMPLE_RATE && !forceSampling) {
       return requestDidStartResult;
-    }
-
-    const transactionName = `GraphQL: ${request.operationName || 'Anonymous Operation'}`;
-    let transaction = Sentry.getCurrentHub()?.getScope()?.getTransaction();
-    if (transaction) {
-      // Re-use any existing transaction (Sentry pricing is based on the transactions count)
-      transaction.setName(transactionName);
-    } else {
-      transaction = Sentry.startTransaction({ op: 'graphql', name: transactionName });
     }
 
     // 30s timeout

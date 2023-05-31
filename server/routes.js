@@ -14,7 +14,6 @@ import * as transferwise from './controllers/transferwise';
 import * as users from './controllers/users';
 import { paypalWebhook, stripeWebhook, thegivingblockWebhook, transferwiseWebhook } from './controllers/webhooks';
 import { getGraphqlCacheProperties } from './graphql/cache';
-// import { Unauthorized } from './graphql/errors';
 import graphqlSchemaV1 from './graphql/v1/schema';
 import graphqlSchemaV2 from './graphql/v2/schema';
 import cache from './lib/cache';
