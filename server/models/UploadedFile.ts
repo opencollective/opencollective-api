@@ -2,7 +2,7 @@ import path from 'path';
 
 import { encode } from 'blurhash';
 import config from 'config';
-import type { FileUpload as GraphQLFileUpload } from 'graphql-upload/Upload.mjs';
+import type { FileUpload as GraphQLFileUpload } from 'graphql-upload/Upload.js';
 import { kebabCase } from 'lodash';
 import {
   BelongsToGetAssociationMixin,

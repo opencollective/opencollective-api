@@ -65,14 +65,7 @@ const mutation = {
   ...personalTokenMutations,
   ...socialLinkMutations,
   ...tagMutations,
+  ...agreementMutations,
 };
 
-// TODO(ESM): Move this to standard ESM imports once available and remove the promise
-export default new Promise(resolve => {
-  agreementMutations.then(agreementMutations => {
-    resolve({
-      ...mutation,
-      ...agreementMutations,
-    });
-  });
-});
+export default mutation;
