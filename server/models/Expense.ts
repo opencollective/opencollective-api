@@ -331,7 +331,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   static getCollectiveExpensesTags = async function (
     collective,
     { dateFrom = null, dateTo = null, limit = 100, includeChildren = false } = {},
-  ) {
+  ): Promise<Array<{ label: string; count: number; amount: number; currency: string }>> {
     const noTag = 'no tag';
     const collectiveIds = [collective.id];
     if (includeChildren) {
