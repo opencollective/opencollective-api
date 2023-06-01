@@ -79,7 +79,9 @@ const parseError = (
     code = `transferwise.error.validation`;
   }
 
-  return new TransferwiseError(message, code);
+  return new TransferwiseError(message, code, {
+    tracing: pick(error?.response?.headers, ['x-trace-id', 'cf-ray']),
+  });
 };
 
 export async function getToken(connectedAccount: ConnectedAccount, refresh = false): Promise<string> {
