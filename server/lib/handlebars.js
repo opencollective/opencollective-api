@@ -1,5 +1,5 @@
 import handlebars from 'handlebars';
-import { isNil, lowercase } from 'lodash';
+import { isNil, lowerCase } from 'lodash';
 import moment from 'moment-timezone';
 
 import {
@@ -171,7 +171,7 @@ handlebars.registerHelper('pluralize', (str, props) => pluralize(str, props.hash
  * From totalAmountToBeRaised, return "Total amount to be raised"
  */
 handlebars.registerHelper('prettifyVariableName', str => {
-  return capitalize(lowercase(str));
+  return capitalize(lowerCase(str));
 });
 
 handlebars.registerHelper('encodeURIComponent', str => {
