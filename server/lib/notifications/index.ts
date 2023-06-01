@@ -5,7 +5,6 @@ import { activities, channels } from '../../constants';
 import ActivityTypes from '../../constants/activities';
 import models from '../../models';
 import { Activity } from '../../models/Activity';
-import activitiesLib from '../activities';
 import { reportErrorToSentry } from '../sentry';
 import slackLib from '../slack';
 import twitter from '../twitter';
@@ -26,15 +25,6 @@ const shouldSkipActivity = (activity: Activity) => {
   return false;
 };
 
-const publishToGitter = (activity: Activity, notifConfig) => {
-  const { message } = activitiesLib.formatMessageForPublicChannel(activity, 'markdown');
-  if (message && config.env === 'production') {
-    return axios.post(notifConfig.webhookUrl, { message }, { maxRedirects: 0 });
-  } else {
-    Promise.resolve();
-  }
-};
-
 const publishToWebhook = (activity: Activity, webhookUrl: string) => {
   if (slackLib.isSlackWebhookUrl(webhookUrl)) {
     return slackLib.postActivityOnPublicChannel(activity, webhookUrl);
@@ -48,7 +38,7 @@ const publishToWebhook = (activity: Activity, webhookUrl: string) => {
 const dispatch = async (activity: Activity) => {
   notifyByEmail(activity).catch(console.log);
 
-  // process notification entries for slack, twitter, gitter
+  // process notification entries for slack, twitter, etc...
   if (!activity.CollectiveId || !activity.type) {
     return;
   }
@@ -72,9 +62,7 @@ const dispatch = async (activity: Activity) => {
   const notificationChannels = await models.Notification.findAll({ where });
   return Promise.all(
     notificationChannels.map(notifConfig => {
-      if (notifConfig.channel === channels.GITTER) {
-        return publishToGitter(activity, notifConfig);
-      } else if (notifConfig.channel === channels.SLACK) {
+      if (notifConfig.channel === channels.SLACK) {
         return slackLib.postActivityOnPublicChannel(activity, notifConfig.webhookUrl);
       } else if (notifConfig.channel === channels.TWITTER) {
         return twitter.tweetActivity(activity);
