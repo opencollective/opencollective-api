@@ -63,9 +63,8 @@ describe('server/paymentProviders/transferwise/index', () => {
     listBalancesAccount;
   let connectedAccount, collective, host, payoutMethod, expense;
 
-  after(sandbox.restore);
-  before(utils.resetTestDB);
-  before(() => {
+  before(async () => {
+    await utils.resetTestDB();
     createQuote = sandbox.stub(transferwiseLib, 'createQuote').resolves(quote);
     sandbox.stub(transferwiseLib, 'getTemporaryQuote').resolves(quote);
     sandbox.stub(transferwiseLib, 'getProfiles').resolves([
@@ -169,6 +168,8 @@ describe('server/paymentProviders/transferwise/index', () => {
       description: 'January Invoice',
     });
   });
+
+  after(sandbox.restore);
 
   describe('quoteExpense', () => {
     let quote;
