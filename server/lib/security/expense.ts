@@ -447,7 +447,7 @@ export const checkExpensesBatch = async (
       }
 
       // Check amounts
-      const balanceInHostCurrency = collectiveBalances[expense.CollectiveId].value;
+      const balanceInHostCurrency = collectiveBalances[expense.CollectiveId]?.value || 0;
       checkExpenseAmountStats(checks, expensesAmountsStats[expense.id], balanceInHostCurrency, displayCurrency);
 
       const payoutMethod = expense.PayoutMethod;
