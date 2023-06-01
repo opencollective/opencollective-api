@@ -10,11 +10,12 @@ import * as utils from '../../../../utils';
 
 describe('server/graphql/v2/mutation/ConnectedAccountMutations', () => {
   const sandbox = createSandbox();
-  beforeEach(() => {
-    sandbox.restore();
+  beforeEach(async () => {
     sandbox.stub(transferwise, 'getProfiles').resolves();
+    await utils.resetTestDB();
   });
-  beforeEach(utils.resetTestDB);
+
+  afterEach(() => sandbox.restore());
 
   describe('createConnectedAccount', () => {
     const createConnectedAccountMutation = gqlV2/* GraphQL */ `

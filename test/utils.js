@@ -50,6 +50,7 @@ export const resetTestDB = async () => {
     await sequelize.query(`TRUNCATE TABLE ${tableNames.join(', ')} RESTART IDENTITY CASCADE`);
     await sequelize.query(`REFRESH MATERIALIZED VIEW "TransactionBalances"`);
     await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"`);
+    await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveOrderStats"`);
   };
 
   try {

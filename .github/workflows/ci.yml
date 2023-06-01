@@ -219,7 +219,7 @@ jobs:
 
       - run: npm run test -- --ignore "test/server/graphql/**"
 
-      - run: npm run test:coverage
+      - run: npm run test:coverage -- -F Unit
 
   test-graphql:
     runs-on: ubuntu-latest
@@ -267,7 +267,7 @@ jobs:
 
       - run: npm run test:graphql
 
-      - run: npm run test:coverage
+      - run: npm run test:coverage -- -F GraphQL
 
   schema-update:
     runs-on: ubuntu-latest

@@ -84,10 +84,10 @@ const removeConnectedAccountsTokens = () => {
   });
 };
 
-// Remove all webhooks to ensure we won't use users Zapier apps
+// Remove all webhooks to ensure we won't ping user apps
 const deleteWebhooks = () => {
   return models.Notification.destroy({
-    where: { channel: [channels.WEBHOOK, channels.GITTER, channels.SLACK, channels.TWITTER] },
+    where: { channel: [channels.WEBHOOK, channels.SLACK, channels.TWITTER] },
   }).catch(e => console.error('There was an error removing the webhooks. Please do it manually', e));
 };
 

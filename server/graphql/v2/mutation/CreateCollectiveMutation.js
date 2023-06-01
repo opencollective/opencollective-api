@@ -207,7 +207,7 @@ async function createCollective(_, args, req) {
       // - tell them the status of their host application
       if (!args.skipDefaultAdmin) {
         const remoteUserCollective = await loaders.Collective.byId.load(user.CollectiveId);
-        collective.generateCollectiveCreatedActivity(req.remoteUser, req.userToken, {
+        collective.generateCollectiveCreatedActivity(user, req.userToken, {
           collective: collective.info,
           host: get(host, 'info'),
           hostPending: collective.approvedAt ? false : true,
