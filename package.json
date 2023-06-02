@@ -1,4 +1,5 @@
 {
+  "type": "module",
   "private": true,
   "name": "opencollective-api",
   "description": "Open Collective API",
@@ -163,6 +164,7 @@
     "cz-conventional-changelog": "^3.3.0",
     "eslint": "^8.42.0",
     "eslint-config-opencollective": "^3.0.3",
+    "eslint-import-resolver-typescript": "^3.5.5",
     "eslint-plugin-babel": "^5.3.1",
     "eslint-plugin-graphql": "^4.0.0",
     "eslint-plugin-import": "^2.27.5",
@@ -191,7 +193,7 @@
   "scripts": {
     "build": "npm run build:clean && npm run build:updates && npm run build:server",
     "build:clean": "rm -rf dist && mkdir dist",
-    "build:server": "babel server --extensions .js,.ts -d ./dist",
+    "build:server": "babel server --extensions .js,.mjs,.cjs,.ts,.mts,.cts -d ./dist",
     "build:updates": "npm --prefix node_modules/cloudflare-ip run update-list",
     "clean": "npm run build:clean && npm run test:clean",
     "commit": "git-cz",
@@ -223,7 +225,7 @@
     "depcheck": "npx depcheck .",
     "deploy:production": "./scripts/pre-deploy.sh production && git push production main",
     "deploy:staging": "./scripts/pre-deploy.sh staging && git push -f staging main",
-    "dev": "nodemon server/index.js -x \"babel-node --extensions .js,.ts\" . -e js,hbs,ts",
+    "dev": "nodemon server/index.js -x \"babel-node --extensions .js,.mjs,.cjs,.ts,.mts,.cts\" . -e js,hbs,ts",
     "docs:generate:oauth": "babel-node --extensions .js,.ts ./scripts/docs/oauth.ts",
     "export:csv": "babel-node --extensions .js,.ts cron/monthly/data-export.js",
     "forestadmin-schema:update": "npm run script scripts/forestadmin-schema-update && prettier .forestadmin-schema.json --write",
