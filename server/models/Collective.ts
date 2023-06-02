@@ -3759,6 +3759,7 @@ Collective.init(
             instance.name ? instance.name.replace(/ /g, '-') : null,
             instance.image ? userlib.getUsernameFromGithubURL(instance.image) : null,
             instance.twitterHandle ? instance.twitterHandle.replace(/@/g, '') : null,
+            `${instance.type || 'account'}-${uuid().split('-')[0]}`,
           ];
         }
         return Collective.generateSlug(potentialSlugs, useSlugify).then(slug => {
