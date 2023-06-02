@@ -4,9 +4,9 @@ import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { checkScope } from '../../common/scope-check';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
-import { Permission, PermissionFields } from './Permission';
+import { GraphQLPermission, PermissionFields } from './Permission';
 
-const AccountPermissions = new GraphQLObjectType({
+const GraphQLAccountPermissions = new GraphQLObjectType({
   name: 'AccountPermissions',
   description: 'Fields for the user permissions on an account',
   fields: () => ({
@@ -15,7 +15,7 @@ const AccountPermissions = new GraphQLObjectType({
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.ACCOUNT),
     },
     addFunds: {
-      type: new GraphQLNonNull(Permission),
+      type: new GraphQLNonNull(GraphQLPermission),
       description: 'Whether the current user can mark this order as expired',
       resolve(collective, _, req: express.Request): PermissionFields {
         return { allowed: (checkScope(req, 'host') && req.remoteUser?.isAdmin(collective.HostCollectiveId)) || false };
@@ -24,4 +24,4 @@ const AccountPermissions = new GraphQLObjectType({
   }),
 });
 
-export default AccountPermissions;
+export default GraphQLAccountPermissions;

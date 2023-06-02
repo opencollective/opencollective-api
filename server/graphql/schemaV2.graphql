@@ -3827,7 +3827,8 @@ type AccountStats {
   Returns expense tags for collective sorted by popularity
   """
   expensesTags(
-    limit: Int! = 30
+    limit: Int! = 100
+    truncate: Int = 7
 
     """
     Calculate amount after this date

@@ -1,10 +1,10 @@
 import { GraphQLBoolean, GraphQLFloat, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import { Currency } from '../enum';
-import { CurrencyExchangeRateSourceType } from '../enum/CurrencyExchangeRateSourceType';
+import { GraphQLCurrency } from '../enum';
+import { GraphQLCurrencyExchangeRateSourceType } from '../enum/CurrencyExchangeRateSourceType';
 
-const CurrencyExchangeRate = new GraphQLObjectType({
+const GraphQLCurrencyExchangeRate = new GraphQLObjectType({
   name: 'CurrencyExchangeRate',
   description: 'Fields for a currency fx rate',
   fields: () => ({
@@ -13,14 +13,14 @@ const CurrencyExchangeRate = new GraphQLObjectType({
       description: 'Exchange rate value as a scalar (e.g 1.15 or 0.86)',
     },
     source: {
-      type: new GraphQLNonNull(CurrencyExchangeRateSourceType),
+      type: new GraphQLNonNull(GraphQLCurrencyExchangeRateSourceType),
       description: 'Where does the FX rate comes from',
     },
     fromCurrency: {
-      type: new GraphQLNonNull(Currency),
+      type: new GraphQLNonNull(GraphQLCurrency),
     },
     toCurrency: {
-      type: new GraphQLNonNull(Currency),
+      type: new GraphQLNonNull(GraphQLCurrency),
     },
     date: {
       type: new GraphQLNonNull(GraphQLDateTime),
@@ -33,4 +33,4 @@ const CurrencyExchangeRate = new GraphQLObjectType({
   }),
 });
 
-export default CurrencyExchangeRate;
+export default GraphQLCurrencyExchangeRate;

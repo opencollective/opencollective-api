@@ -1,7 +1,7 @@
 import { GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
-export const EventCreateInput = new GraphQLInputObjectType({
+export const GraphQLEventCreateInput = new GraphQLInputObjectType({
   name: 'EventCreateInput',
   fields: () => ({
     name: { type: new GraphQLNonNull(GraphQLString) },

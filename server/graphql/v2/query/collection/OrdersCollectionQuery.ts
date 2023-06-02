@@ -7,13 +7,19 @@ import { buildSearchConditions } from '../../../../lib/search';
 import models, { Op } from '../../../../models';
 import { checkScope } from '../../../common/scope-check';
 import { NotFound, Unauthorized } from '../../../errors';
-import { OrderCollection } from '../../collection/OrderCollection';
-import { AccountOrdersFilter } from '../../enum/AccountOrdersFilter';
-import { ContributionFrequency } from '../../enum/ContributionFrequency';
-import { OrderStatus } from '../../enum/OrderStatus';
-import { AccountReferenceInput, fetchAccountWithReference } from '../../input/AccountReferenceInput';
-import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, ChronologicalOrderInput } from '../../input/ChronologicalOrderInput';
-import { fetchPaymentMethodWithReference, PaymentMethodReferenceInput } from '../../input/PaymentMethodReferenceInput';
+import { GraphQLOrderCollection } from '../../collection/OrderCollection';
+import { GraphQLAccountOrdersFilter } from '../../enum/AccountOrdersFilter';
+import { GraphQLContributionFrequency } from '../../enum/ContributionFrequency';
+import { GraphQLOrderStatus } from '../../enum/OrderStatus';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
+import {
+  CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
+  GraphQLChronologicalOrderInput,
+} from '../../input/ChronologicalOrderInput';
+import {
+  fetchPaymentMethodWithReference,
+  GraphQLPaymentMethodReferenceInput,
+} from '../../input/PaymentMethodReferenceInput';
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
 
 type OrderAssociation = 'fromCollective' | 'collective';
@@ -52,7 +58,7 @@ export const OrdersCollectionArgs = {
     description: 'If account is a host, also include hosted accounts orders',
   },
   paymentMethod: {
-    type: PaymentMethodReferenceInput,
+    type: GraphQLPaymentMethodReferenceInput,
     description:
       'Only return orders that were paid with this payment method. Must be an admin of the account owning the payment method.',
   },
@@ -62,19 +68,19 @@ export const OrdersCollectionArgs = {
     defaultValue: false,
   },
   filter: {
-    type: AccountOrdersFilter,
+    type: GraphQLAccountOrdersFilter,
     description: 'Account orders filter (INCOMING or OUTGOING)',
   },
   frequency: {
-    type: ContributionFrequency,
+    type: GraphQLContributionFrequency,
     description: 'Use this field to filter orders on their frequency (ONETIME, MONTHLY or YEARLY)',
   },
   status: {
-    type: new GraphQLList(OrderStatus),
+    type: new GraphQLList(GraphQLOrderStatus),
     description: 'Use this field to filter orders on their statuses',
   },
   orderBy: {
-    type: new GraphQLNonNull(ChronologicalOrderInput),
+    type: new GraphQLNonNull(GraphQLChronologicalOrderInput),
     description: 'The order of results',
     defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   },
@@ -257,10 +263,10 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
 
 // Using a generator to avoid circular dependencies (OrderCollection -> Order -> PaymentMethod -> OrderCollection -> ...)
 const getOrdersCollectionQuery = () => ({
-  type: new GraphQLNonNull(OrderCollection),
+  type: new GraphQLNonNull(GraphQLOrderCollection),
   args: {
     account: {
-      type: AccountReferenceInput,
+      type: GraphQLAccountReferenceInput,
       description: 'Return only orders made from/to account',
     },
     ...OrdersCollectionArgs,

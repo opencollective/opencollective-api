@@ -13,9 +13,9 @@ import models from '../../../models';
 import { editPublicMessage } from '../../common/members';
 import { checkRemoteUserCanRoot, checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { BadRequest, Forbidden, Unauthorized, ValidationFailed } from '../../errors';
-import { MemberRole } from '../enum';
-import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
-import { Member } from '../object/Member';
+import { GraphQLMemberRole } from '../enum';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import { GraphQLMember } from '../object/Member';
 
 const isLastAdmin = async (account, memberAccount) => {
   // When checking if the member is the last admin for Minimum Amount of Admins policy,
@@ -33,15 +33,15 @@ const isLastAdmin = async (account, memberAccount) => {
 
 const memberMutations = {
   editPublicMessage: {
-    type: new GraphQLNonNull(Member),
+    type: new GraphQLNonNull(GraphQLMember),
     description: 'Edit the public message for the given Member of a Collective. Scope: "account".',
     args: {
       fromAccount: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Reference to an account for the donating Collective',
       },
       toAccount: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Reference to an account for the receiving Collective',
       },
       message: {
@@ -68,19 +68,19 @@ const memberMutations = {
     },
   },
   createMember: {
-    type: new GraphQLNonNull(Member),
+    type: new GraphQLNonNull(GraphQLMember),
     description: '[Root only] Create a member entry directly. For non-root users, use `inviteMember`',
     args: {
       memberAccount: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Reference to an account for the member',
       },
       account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'memberAccount will become a member of this account',
       },
       role: {
-        type: new GraphQLNonNull(MemberRole),
+        type: new GraphQLNonNull(GraphQLMemberRole),
         description: 'Role of the member',
       },
       description: {
@@ -110,19 +110,19 @@ const memberMutations = {
     },
   },
   editMember: {
-    type: new GraphQLNonNull(Member),
+    type: new GraphQLNonNull(GraphQLMember),
     description: 'Edit an existing member of the Collective. Scope: "account".',
     args: {
       memberAccount: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Reference to an account for the member to edit.',
       },
       account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Reference to an account for the Collective',
       },
       role: {
-        type: MemberRole,
+        type: GraphQLMemberRole,
         description: 'Role of member',
       },
       description: {
@@ -200,15 +200,15 @@ const memberMutations = {
     description: 'Remove a member from the Collective. Scope: "account".',
     args: {
       memberAccount: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Reference to an account of member to remove',
       },
       account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Reference to the Collective account',
       },
       role: {
-        type: new GraphQLNonNull(MemberRole),
+        type: new GraphQLNonNull(GraphQLMemberRole),
         description: 'Role of member',
       },
       isInvitation: {

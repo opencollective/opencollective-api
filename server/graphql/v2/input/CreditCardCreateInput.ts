@@ -1,6 +1,6 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
 
-export const CreditCardCreateInput = new GraphQLInputObjectType({
+export const GraphQLCreditCardCreateInput = new GraphQLInputObjectType({
   name: 'CreditCardCreateInput',
   fields: () => ({
     token: { type: new GraphQLNonNull(GraphQLString) },

@@ -6,7 +6,7 @@ export enum CurrencyExchangeRateSourceTypeEnum {
   WISE = 'WISE',
 }
 
-export const CurrencyExchangeRateSourceType = new GraphQLEnumType({
+export const GraphQLCurrencyExchangeRateSourceType = new GraphQLEnumType({
   name: 'CurrencyExchangeRateSourceType',
   description: 'Where does the FX rate come from',
   values: {

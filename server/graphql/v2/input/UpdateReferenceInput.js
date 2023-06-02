@@ -7,7 +7,7 @@ import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 /**
  * An input for referencing Updates.
  */
-const UpdateReferenceInput = new GraphQLInputObjectType({
+const GraphQLUpdateReferenceInput = new GraphQLInputObjectType({
   name: 'UpdateReferenceInput',
   fields: () => ({
     id: {
@@ -44,4 +44,4 @@ const fetchUpdateWithReference = async (input, { loaders = null, throwIfMissing 
   return update;
 };
 
-export { UpdateReferenceInput, fetchUpdateWithReference, getDatabaseIdFromUpdateReference };
+export { GraphQLUpdateReferenceInput, fetchUpdateWithReference, getDatabaseIdFromUpdateReference };

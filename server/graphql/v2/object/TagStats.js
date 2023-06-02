@@ -1,8 +1,8 @@
 import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
-import { Amount } from '../object/Amount';
+import { GraphQLAmount } from '../object/Amount';
 
-export const TagStats = new GraphQLObjectType({
+export const GraphQLTagStats = new GraphQLObjectType({
   name: 'TagStat',
   description: 'Statistics for a given tag',
   fields: () => ({
@@ -19,7 +19,7 @@ export const TagStats = new GraphQLObjectType({
       description: 'Number of entries for this tag',
     },
     amount: {
-      type: Amount,
+      type: GraphQLAmount,
       description: 'Total amount for this tag',
       resolve(entry) {
         if (entry.amount) {

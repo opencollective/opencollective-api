@@ -1,24 +1,24 @@
 import { GraphQLInputObjectType, GraphQLNonNull } from 'graphql';
 
-import { AccountReferenceInput } from './AccountReferenceInput';
-import { AmountInput } from './AmountInput';
+import { GraphQLAccountReferenceInput } from './AccountReferenceInput';
+import { GraphQLAmountInput } from './AmountInput';
 
-const PaymentIntentInput = new GraphQLInputObjectType({
+const GraphQLPaymentIntentInput = new GraphQLInputObjectType({
   name: 'PaymentIntentInput',
   description: 'Input to create a Stripe payment intent',
   fields: () => {
     return {
       amount: {
-        type: new GraphQLNonNull(AmountInput),
+        type: new GraphQLNonNull(GraphQLAmountInput),
       },
       fromAccount: {
-        type: AccountReferenceInput,
+        type: GraphQLAccountReferenceInput,
       },
       toAccount: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
       },
     };
   },
 });
 
-export default PaymentIntentInput;
+export default GraphQLPaymentIntentInput;

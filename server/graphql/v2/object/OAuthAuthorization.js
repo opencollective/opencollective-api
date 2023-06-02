@@ -2,12 +2,12 @@ import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'g
 import { GraphQLDateTime } from 'graphql-scalars';
 
 import models from '../../../models';
-import { OAuthScope } from '../enum/OAuthScope';
+import { GraphQLOAuthScope } from '../enum/OAuthScope';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
-import { Application } from '../object/Application';
-import { Individual } from '../object/Individual';
+import { GraphQLApplication } from '../object/Application';
+import { GraphQLIndividual } from '../object/Individual';
 
-export const OAuthAuthorization = new GraphQLObjectType({
+export const GraphQLOAuthAuthorization = new GraphQLObjectType({
   name: 'OAuthAuthorization',
   description: 'An OAuth authorization',
   fields: () => ({
@@ -16,13 +16,13 @@ export const OAuthAuthorization = new GraphQLObjectType({
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.USER_TOKEN),
     },
     account: {
-      type: new GraphQLNonNull(Individual),
+      type: new GraphQLNonNull(GraphQLIndividual),
       resolve(authorization) {
         return authorization.account;
       },
     },
     application: {
-      type: new GraphQLNonNull(Application),
+      type: new GraphQLNonNull(GraphQLApplication),
       resolve(authorization) {
         return authorization.application;
       },
@@ -57,7 +57,7 @@ export const OAuthAuthorization = new GraphQLObjectType({
       },
     },
     scope: {
-      type: new GraphQLList(OAuthScope),
+      type: new GraphQLList(GraphQLOAuthScope),
       description: 'The attached scopes.',
     },
   }),

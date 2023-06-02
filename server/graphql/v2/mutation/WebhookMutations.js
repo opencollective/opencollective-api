@@ -5,17 +5,17 @@ import models from '../../../models';
 import { checkRemoteUserCanUseWebhooks } from '../../common/scope-check';
 import { Forbidden, NotFound } from '../../errors';
 import { fetchAccountWithReference } from '../input/AccountReferenceInput';
-import { WebhookCreateInput } from '../input/WebhookCreateInput';
-import { fetchWebhookWithReference, WebhookReferenceInput } from '../input/WebhookReferenceInput';
-import { WebhookUpdateInput } from '../input/WebhookUpdateInput';
-import { Webhook } from '../object/Webhook';
+import { GraphQLWebhookCreateInput } from '../input/WebhookCreateInput';
+import { fetchWebhookWithReference, GraphQLWebhookReferenceInput } from '../input/WebhookReferenceInput';
+import { GraphQLWebhookUpdateInput } from '../input/WebhookUpdateInput';
+import { GraphQLWebhook } from '../object/Webhook';
 
 const createWebhook = {
-  type: Webhook,
+  type: GraphQLWebhook,
   description: 'Create webhook. Scope: "webhooks".',
   args: {
     webhook: {
-      type: new GraphQLNonNull(WebhookCreateInput),
+      type: new GraphQLNonNull(GraphQLWebhookCreateInput),
     },
   },
   async resolve(_, args, req) {
@@ -46,11 +46,11 @@ const createWebhook = {
 };
 
 const updateWebhook = {
-  type: Webhook,
+  type: GraphQLWebhook,
   description: 'Update webhook. Scope: "webhooks".',
   args: {
     webhook: {
-      type: new GraphQLNonNull(WebhookUpdateInput),
+      type: new GraphQLNonNull(GraphQLWebhookUpdateInput),
     },
   },
   async resolve(_, args, req) {
@@ -84,11 +84,11 @@ const updateWebhook = {
 };
 
 const deleteWebhook = {
-  type: Webhook,
+  type: GraphQLWebhook,
   description: 'Delete webhook. Scope: "webhooks".',
   args: {
     webhook: {
-      type: new GraphQLNonNull(WebhookReferenceInput),
+      type: new GraphQLNonNull(GraphQLWebhookReferenceInput),
     },
   },
   async resolve(_, args, req) {

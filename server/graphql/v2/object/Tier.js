@@ -2,14 +2,14 @@ import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectT
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
 import models, { Op } from '../../../models';
-import { OrderCollection } from '../collection/OrderCollection';
-import { OrderStatus, TierAmountType, TierInterval, TierType } from '../enum';
-import { getTierFrequencyFromInterval, TierFrequency } from '../enum/TierFrequency';
+import { GraphQLOrderCollection } from '../collection/OrderCollection';
+import { GraphQLOrderStatus, GraphQLTierAmountType, GraphQLTierInterval, GraphQLTierType } from '../enum';
+import { getTierFrequencyFromInterval, GraphQLTierFrequency } from '../enum/TierFrequency';
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 
-import { Amount } from './Amount';
+import { GraphQLAmount } from './Amount';
 
-export const Tier = new GraphQLObjectType({
+export const GraphQLTier = new GraphQLObjectType({
   name: 'Tier',
   description: 'Tier model',
   fields: () => {
@@ -37,11 +37,11 @@ export const Tier = new GraphQLObjectType({
       },
       orders: {
         description: 'Get all orders',
-        type: new GraphQLNonNull(OrderCollection),
+        type: new GraphQLNonNull(GraphQLOrderCollection),
         args: {
           limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
           offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
-          status: { type: new GraphQLList(OrderStatus) },
+          status: { type: new GraphQLList(GraphQLOrderStatus) },
         },
         async resolve(tier, args) {
           const where = { TierId: tier.id };
@@ -58,7 +58,7 @@ export const Tier = new GraphQLObjectType({
         },
       },
       amount: {
-        type: new GraphQLNonNull(Amount),
+        type: new GraphQLNonNull(GraphQLAmount),
         resolve(tier) {
           return { value: tier.amount, currency: tier.currency };
         },
@@ -67,20 +67,20 @@ export const Tier = new GraphQLObjectType({
         type: GraphQLString,
       },
       goal: {
-        type: new GraphQLNonNull(Amount),
+        type: new GraphQLNonNull(GraphQLAmount),
         resolve(tier) {
           return { value: tier.goal, currency: tier.currency };
         },
       },
       type: {
-        type: new GraphQLNonNull(TierType),
+        type: new GraphQLNonNull(GraphQLTierType),
       },
       interval: {
-        type: TierInterval,
+        type: GraphQLTierInterval,
         deprecationReason: '2020-08-24: Please use "frequency"',
       },
       frequency: {
-        type: new GraphQLNonNull(TierFrequency),
+        type: new GraphQLNonNull(GraphQLTierFrequency),
         resolve(tier) {
           return getTierFrequencyFromInterval(tier.interval);
         },
@@ -106,10 +106,10 @@ export const Tier = new GraphQLObjectType({
         type: GraphQLJSON,
       },
       amountType: {
-        type: new GraphQLNonNull(TierAmountType),
+        type: new GraphQLNonNull(GraphQLTierAmountType),
       },
       minimumAmount: {
-        type: new GraphQLNonNull(Amount),
+        type: new GraphQLNonNull(GraphQLAmount),
         resolve(tier) {
           return { value: tier.minimumAmount, currency: tier.currency };
         },

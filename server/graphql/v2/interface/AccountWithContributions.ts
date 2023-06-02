@@ -14,9 +14,9 @@ import { OrderItem } from 'sequelize';
 
 import { filterContributors } from '../../../lib/contributors';
 import models, { Collective } from '../../../models';
-import { ContributorCollection } from '../collection/ContributorCollection';
-import { TierCollection } from '../collection/TierCollection';
-import { AccountType, MemberRole } from '../enum';
+import { GraphQLContributorCollection } from '../collection/ContributorCollection';
+import { GraphQLTierCollection } from '../collection/TierCollection';
+import { GraphQLAccountType, GraphQLMemberRole } from '../enum';
 
 import { CollectionArgs } from './Collection';
 
@@ -26,7 +26,7 @@ export const AccountWithContributionsFields = {
     type: new GraphQLNonNull(GraphQLInt),
     args: {
       accountType: {
-        type: AccountType,
+        type: GraphQLAccountType,
         description: 'Type of account (COLLECTIVE/EVENT/ORGANIZATION/INDIVIDUAL)',
       },
     },
@@ -46,7 +46,7 @@ export const AccountWithContributionsFields = {
     },
   },
   tiers: {
-    type: new GraphQLNonNull(TierCollection),
+    type: new GraphQLNonNull(GraphQLTierCollection),
     args: {
       ...CollectionArgs,
       limit: {
@@ -71,11 +71,11 @@ export const AccountWithContributionsFields = {
     },
   },
   contributors: {
-    type: new GraphQLNonNull(ContributorCollection),
+    type: new GraphQLNonNull(GraphQLContributorCollection),
     description: 'All the persons and entities that contribute to this account',
     args: {
       ...CollectionArgs,
-      roles: { type: new GraphQLList(MemberRole) },
+      roles: { type: new GraphQLList(GraphQLMemberRole) },
     },
     async resolve(collective: Collective, args, req): Promise<Record<string, unknown>> {
       const contributorsCache = await req.loaders.Contributors.forCollectiveId.load(collective.id);
@@ -119,7 +119,7 @@ export const AccountWithContributionsFields = {
   },
 };
 
-export const AccountWithContributions = new GraphQLInterfaceType({
+export const GraphQLAccountWithContributions = new GraphQLInterfaceType({
   name: 'AccountWithContributions',
   description: 'An account that can receive financial contributions',
   fields: () => AccountWithContributionsFields,

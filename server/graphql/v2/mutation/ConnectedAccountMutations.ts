@@ -11,25 +11,25 @@ import models from '../../../models';
 import type { ConnectedAccount as ConnectedAccountModel } from '../../../models/ConnectedAccount';
 import { checkRemoteUserCanUseConnectedAccounts } from '../../common/scope-check';
 import { Unauthorized, ValidationFailed } from '../../errors';
-import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
-import { ConnectedAccountCreateInput } from '../input/ConnectedAccountCreateInput';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import { GraphQLConnectedAccountCreateInput } from '../input/ConnectedAccountCreateInput';
 import {
-  ConnectedAccountReferenceInput,
   fetchConnectedAccountWithReference,
+  GraphQLConnectedAccountReferenceInput,
 } from '../input/ConnectedAccountReferenceInput';
-import { ConnectedAccount } from '../object/ConnectedAccount';
+import { GraphQLConnectedAccount } from '../object/ConnectedAccount';
 
 const connectedAccountMutations = {
   createConnectedAccount: {
-    type: ConnectedAccount,
+    type: GraphQLConnectedAccount,
     description: 'Connect external account to Open Collective Account. Scope: "connectedAccounts".',
     args: {
       connectedAccount: {
-        type: new GraphQLNonNull(ConnectedAccountCreateInput),
+        type: new GraphQLNonNull(GraphQLConnectedAccountCreateInput),
         description: 'Connected Account data',
       },
       account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Account where the external account will be connected',
       },
     },
@@ -92,11 +92,11 @@ const connectedAccountMutations = {
     },
   },
   deleteConnectedAccount: {
-    type: ConnectedAccount,
+    type: GraphQLConnectedAccount,
     description: 'Delete ConnectedAccount. Scope: "connectedAccounts".',
     args: {
       connectedAccount: {
-        type: new GraphQLNonNull(ConnectedAccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLConnectedAccountReferenceInput),
         description: 'ConnectedAccount reference containing either id or legacyId',
       },
     },

@@ -4,21 +4,21 @@ import { GraphQLFieldConfigMap, GraphQLList, GraphQLNonNull } from 'graphql';
 import type { default as SocialLinkModel } from '../../../models/SocialLink';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { Unauthorized } from '../../errors';
-import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
-import { SocialLinkInput } from '../input/SocialLinkInput';
-import { SocialLink } from '../object/SocialLink';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import { GraphQLSocialLinkInput } from '../input/SocialLinkInput';
+import { GraphQLSocialLink } from '../object/SocialLink';
 
 const socialLinkMutations: GraphQLFieldConfigMap<void, express.Request> = {
   updateSocialLinks: {
     description: 'Updates collective social links',
-    type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(SocialLink))),
+    type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLSocialLink))),
     args: {
       account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Account where the social link will be associated',
       },
       socialLinks: {
-        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(SocialLinkInput))),
+        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLSocialLinkInput))),
         description: 'The social links in order of preference',
       },
     },

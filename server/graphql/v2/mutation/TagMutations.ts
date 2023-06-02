@@ -5,36 +5,36 @@ import models from '../../../models';
 import { canEditExpenseTags } from '../../common/expenses';
 import { checkRemoteUserCanUseExpenses, checkRemoteUserCanUseOrders } from '../../common/scope-check';
 import { NotFound, Unauthorized } from '../../errors';
-import { ExpenseReferenceInput, fetchExpenseWithReference } from '../input/ExpenseReferenceInput';
-import { fetchOrderWithReference, OrderReferenceInput } from '../input/OrderReferenceInput';
-import { Expense } from '../object/Expense';
-import { Order } from '../object/Order';
+import { fetchExpenseWithReference, GraphQLExpenseReferenceInput } from '../input/ExpenseReferenceInput';
+import { fetchOrderWithReference, GraphQLOrderReferenceInput } from '../input/OrderReferenceInput';
+import { GraphQLExpense } from '../object/Expense';
+import { GraphQLOrder } from '../object/Order';
 
-const TagResponse = new GraphQLObjectType({
+const GraphQLTagResponse = new GraphQLObjectType({
   name: 'TagResponse',
   fields: () => ({
     order: {
-      type: Order,
+      type: GraphQLOrder,
     },
     expense: {
-      type: Expense,
+      type: GraphQLExpense,
     },
   }),
 });
 
 const tagMutations = {
   setTags: {
-    type: new GraphQLNonNull(TagResponse),
+    type: new GraphQLNonNull(GraphQLTagResponse),
     args: {
       tags: {
         type: new GraphQLList(GraphQLString),
         description: 'Tags associated with the object being updated',
       },
       order: {
-        type: OrderReferenceInput,
+        type: GraphQLOrderReferenceInput,
       },
       expense: {
-        type: ExpenseReferenceInput,
+        type: GraphQLExpenseReferenceInput,
       },
     },
     resolve: async (_: void, args, req: Request) => {

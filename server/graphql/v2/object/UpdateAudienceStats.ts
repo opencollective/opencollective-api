@@ -1,6 +1,6 @@
 import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
-export const UpdateAudienceStats = new GraphQLObjectType({
+export const GraphQLUpdateAudienceStats = new GraphQLObjectType({
   name: 'UpdateAudienceStats',
   description: 'Stats about the potential audience of an update',
   fields: () => {

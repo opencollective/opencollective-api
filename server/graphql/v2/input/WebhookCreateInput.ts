@@ -1,18 +1,18 @@
 import { GraphQLInputObjectType, GraphQLNonNull } from 'graphql';
 
-import { ActivityType } from '../enum';
-import { AccountReferenceInput } from '../input/AccountReferenceInput';
+import { GraphQLActivityType } from '../enum';
+import { GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import URL from '../scalar/URL';
 
-export const WebhookCreateInput = new GraphQLInputObjectType({
+export const GraphQLWebhookCreateInput = new GraphQLInputObjectType({
   name: 'WebhookCreateInput',
   description: 'Input type for Webhooks',
   fields: () => ({
     account: {
-      type: new GraphQLNonNull(AccountReferenceInput),
+      type: new GraphQLNonNull(GraphQLAccountReferenceInput),
       description: 'The account to attach the Webhook',
     },
-    activityType: { type: new GraphQLNonNull(ActivityType), defaultValue: 'all' },
+    activityType: { type: new GraphQLNonNull(GraphQLActivityType), defaultValue: 'all' },
     webhookUrl: { type: new GraphQLNonNull(URL) },
   }),
 });

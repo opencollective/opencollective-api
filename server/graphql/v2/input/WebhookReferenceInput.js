@@ -15,7 +15,7 @@ export const WebhookReferenceFields = {
   },
 };
 
-export const WebhookReferenceInput = new GraphQLInputObjectType({
+export const GraphQLWebhookReferenceInput = new GraphQLInputObjectType({
   name: 'WebhookReferenceInput',
   fields: () => WebhookReferenceFields,
 });

@@ -6,7 +6,7 @@ import URL from '../scalar/URL';
 /**
  * Input type to use as the type for the expense input in createExpense mutation.
  */
-export const ExpenseItemCreateInput = new GraphQLInputObjectType({
+export const GraphQLExpenseItemCreateInput = new GraphQLInputObjectType({
   name: 'ExpenseItemCreateInput',
   fields: () => ({
     amount: {

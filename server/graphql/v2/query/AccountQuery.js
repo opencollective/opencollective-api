@@ -4,7 +4,7 @@ import { getGithubHandleFromUrl, getGithubUrlFromHandle } from '../../../lib/git
 import models from '../../../models';
 import { NotFound } from '../../errors';
 import { idDecode } from '../identifiers';
-import { Account } from '../interface/Account';
+import { GraphQLAccount } from '../interface/Account';
 
 export const buildAccountQuery = ({ objectType }) => ({
   type: objectType,
@@ -67,6 +67,6 @@ export const buildAccountQuery = ({ objectType }) => ({
   },
 });
 
-const AccountQuery = buildAccountQuery({ objectType: Account });
+const AccountQuery = buildAccountQuery({ objectType: GraphQLAccount });
 
 export default AccountQuery;

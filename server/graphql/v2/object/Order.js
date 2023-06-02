@@ -14,20 +14,20 @@ import roles from '../../../constants/roles';
 import { getHostFeePercent } from '../../../lib/payments';
 import models from '../../../models';
 import { ORDER_PUBLIC_DATA_FIELDS } from '../../v1/mutations/orders';
-import { ContributionFrequency, OrderStatus } from '../enum';
+import { GraphQLContributionFrequency, GraphQLOrderStatus } from '../enum';
 import { idEncode } from '../identifiers';
-import { Account } from '../interface/Account';
-import { Transaction } from '../interface/Transaction';
-import { Amount } from '../object/Amount';
-import { PaymentMethod } from '../object/PaymentMethod';
-import { Tier } from '../object/Tier';
+import { GraphQLAccount } from '../interface/Account';
+import { GraphQLTransaction } from '../interface/Transaction';
+import { GraphQLAmount } from '../object/Amount';
+import { GraphQLPaymentMethod } from '../object/PaymentMethod';
+import { GraphQLTier } from '../object/Tier';
 
-import { MemberOf } from './Member';
-import OrderPermissions from './OrderPermissions';
-import { OrderTax } from './OrderTax';
-import { TaxInfo } from './TaxInfo';
+import { GraphQLMemberOf } from './Member';
+import GraphQLOrderPermissions from './OrderPermissions';
+import { GraphQLOrderTax } from './OrderTax';
+import { GraphQLTaxInfo } from './TaxInfo';
 
-const PendingOrderFromAccountInfo = new GraphQLObjectType({
+const GraphQLPendingOrderFromAccountInfo = new GraphQLObjectType({
   name: 'PendingOrderFromAccountInfo',
   fields: () => ({
     name: {
@@ -39,7 +39,7 @@ const PendingOrderFromAccountInfo = new GraphQLObjectType({
   }),
 });
 
-const PendingOrderData = new GraphQLObjectType({
+const GraphQLPendingOrderData = new GraphQLObjectType({
   name: 'PendingOrderData',
   fields: () => ({
     expectedAt: {
@@ -55,12 +55,12 @@ const PendingOrderData = new GraphQLObjectType({
       type: GraphQLString,
     },
     fromAccountInfo: {
-      type: PendingOrderFromAccountInfo,
+      type: GraphQLPendingOrderFromAccountInfo,
     },
   }),
 });
 
-export const Order = new GraphQLObjectType({
+export const GraphQLOrder = new GraphQLObjectType({
   name: 'Order',
   description: 'Order model',
   fields: () => {
@@ -84,7 +84,7 @@ export const Order = new GraphQLObjectType({
         },
       },
       amount: {
-        type: new GraphQLNonNull(Amount),
+        type: new GraphQLNonNull(GraphQLAmount),
         description: 'Base order amount (without platform tip)',
         resolve(order) {
           // We remove Platform Tip from totalAmount
@@ -93,7 +93,7 @@ export const Order = new GraphQLObjectType({
         },
       },
       taxAmount: {
-        type: Amount,
+        type: GraphQLAmount,
         description: 'Tax amount',
         resolve(order) {
           if (order.taxAmount) {
@@ -102,7 +102,7 @@ export const Order = new GraphQLObjectType({
         },
       },
       totalAmount: {
-        type: new GraphQLNonNull(Amount),
+        type: new GraphQLNonNull(GraphQLAmount),
         description: 'Total order amount, including all taxes and platform tip',
         resolve(order) {
           return { value: order.totalAmount, currency: order.currency };
@@ -112,13 +112,13 @@ export const Order = new GraphQLObjectType({
         type: GraphQLInt,
       },
       status: {
-        type: OrderStatus,
+        type: GraphQLOrderStatus,
         resolve(order) {
           return order.status;
         },
       },
       frequency: {
-        type: ContributionFrequency,
+        type: GraphQLContributionFrequency,
         async resolve(order, _, req) {
           const subscription = order.SubscriptionId && (await req.loaders.Subscription.byId.load(order.SubscriptionId));
           if (!subscription) {
@@ -139,7 +139,7 @@ export const Order = new GraphQLObjectType({
         },
       },
       tier: {
-        type: Tier,
+        type: GraphQLTier,
         resolve(order, args, req) {
           if (order.tier) {
             return order.tier;
@@ -150,20 +150,20 @@ export const Order = new GraphQLObjectType({
         },
       },
       fromAccount: {
-        type: Account,
+        type: GraphQLAccount,
         resolve(order, _, req) {
           return req.loaders.Collective.byId.load(order.FromCollectiveId);
         },
       },
       toAccount: {
-        type: Account,
+        type: GraphQLAccount,
         resolve(order, _, req) {
           return req.loaders.Collective.byId.load(order.CollectiveId);
         },
       },
       transactions: {
         description: 'Transactions for this order ordered by createdAt ASC',
-        type: new GraphQLNonNull(new GraphQLList(Transaction)),
+        type: new GraphQLNonNull(new GraphQLList(GraphQLTransaction)),
         resolve(order, _, req) {
           return req.loaders.Transaction.byOrderId.load(order.id);
         },
@@ -181,7 +181,7 @@ export const Order = new GraphQLObjectType({
         },
       },
       totalDonations: {
-        type: new GraphQLNonNull(Amount),
+        type: new GraphQLNonNull(GraphQLAmount),
         description:
           'WARNING: Total amount donated between collectives, though there will be edge cases especially when looking on the Order level, as the order id is not used in calculating this.',
         async resolve(order, args, req) {
@@ -193,7 +193,7 @@ export const Order = new GraphQLObjectType({
         },
       },
       paymentMethod: {
-        type: PaymentMethod,
+        type: GraphQLPaymentMethod,
         resolve(order, _, req) {
           if (order.PaymentMethodId) {
             return req.loaders.PaymentMethod.byId.load(order.PaymentMethodId);
@@ -208,7 +208,7 @@ export const Order = new GraphQLObjectType({
         },
       },
       platformTipAmount: {
-        type: Amount,
+        type: GraphQLAmount,
         description: 'Platform Tip attached to the Order.',
         resolve(order) {
           return { value: order.platformTipAmount, currency: order.currency };
@@ -224,7 +224,7 @@ export const Order = new GraphQLObjectType({
         },
       },
       tax: {
-        type: TaxInfo,
+        type: GraphQLTaxInfo,
         resolve(order) {
           if (order.data?.tax) {
             return {
@@ -238,7 +238,7 @@ export const Order = new GraphQLObjectType({
         },
       },
       taxes: {
-        type: new GraphQLNonNull(new GraphQLList(OrderTax)),
+        type: new GraphQLNonNull(new GraphQLList(GraphQLOrderTax)),
         deprecationReason: '2023-04-13: Please use `tax` instead.',
         resolve(order) {
           if (order.data?.tax) {
@@ -254,7 +254,7 @@ export const Order = new GraphQLObjectType({
         },
       },
       membership: {
-        type: MemberOf,
+        type: GraphQLMemberOf,
         description:
           'This represents a MemberOf relationship (ie: Collective backed by an Individual) attached to the Order.',
         async resolve(order) {
@@ -269,7 +269,7 @@ export const Order = new GraphQLObjectType({
         },
       },
       permissions: {
-        type: new GraphQLNonNull(OrderPermissions),
+        type: new GraphQLNonNull(GraphQLOrderPermissions),
         description: 'The permissions given to current logged in user for this order',
         async resolve(order) {
           return order; // Individual fields are set by OrderPermissions resolvers
@@ -309,7 +309,7 @@ export const Order = new GraphQLObjectType({
         },
       },
       createdByAccount: {
-        type: Account,
+        type: GraphQLAccount,
         description: 'The account who created this order',
         async resolve(order, _, req) {
           const user = await req.loaders.User.byId.load(order.CreatedByUserId);
@@ -329,7 +329,7 @@ export const Order = new GraphQLObjectType({
         },
       },
       pendingContributionData: {
-        type: PendingOrderData,
+        type: GraphQLPendingOrderData,
         description: 'Data about the pending contribution',
         async resolve(order, _, req) {
           const pendingContributionFields = ['expectedAt', 'paymentMethod', 'ponumber', 'fromAccountInfo', 'memo'];

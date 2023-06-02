@@ -4,7 +4,7 @@ import { GraphQLJSON } from 'graphql-scalars';
 
 import * as ExpenseLib from '../../common/expenses';
 
-export const Permission = new GraphQLObjectType({
+export const GraphQLPermission = new GraphQLObjectType({
   name: 'Permission',
   fields: () => ({
     allowed: { type: new GraphQLNonNull(GraphQLBoolean) },

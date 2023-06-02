@@ -24,22 +24,22 @@ import { sendMessage } from '../../common/collective';
 import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { AccountTypeToModelMapping } from '../enum/AccountType';
-import { TwoFactorMethodEnum } from '../enum/TwoFactorMethodEnum';
+import { GraphQLTwoFactorMethodEnum } from '../enum/TwoFactorMethodEnum';
 import { idDecode } from '../identifiers';
-import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
-import { AccountUpdateInput } from '../input/AccountUpdateInput';
-import { PoliciesInput } from '../input/PoliciesInput';
-import { Account } from '../interface/Account';
-import { Host } from '../object/Host';
-import { Individual } from '../object/Individual';
-import AccountSettingsKey from '../scalar/AccountSettingsKey';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import { GraphQLAccountUpdateInput } from '../input/AccountUpdateInput';
+import { GraphQLPoliciesInput } from '../input/PoliciesInput';
+import { GraphQLAccount } from '../interface/Account';
+import { GraphQLHost } from '../object/Host';
+import { GraphQLIndividual } from '../object/Individual';
+import GraphQLAccountSettingsKey from '../scalar/AccountSettingsKey';
 
-const AddTwoFactorAuthTokenToIndividualResponse = new GraphQLObjectType({
+const GraphQLAddTwoFactorAuthTokenToIndividualResponse = new GraphQLObjectType({
   name: 'AddTwoFactorAuthTokenToIndividualResponse',
   description: 'Response for the addTwoFactorAuthTokenToIndividual mutation',
   fields: () => ({
     account: {
-      type: new GraphQLNonNull(Individual),
+      type: new GraphQLNonNull(GraphQLIndividual),
       description: 'The Individual that the 2FA has been enabled for',
     },
     recoveryCodes: {
@@ -51,15 +51,15 @@ const AddTwoFactorAuthTokenToIndividualResponse = new GraphQLObjectType({
 
 const accountMutations = {
   editAccountSetting: {
-    type: new GraphQLNonNull(Account),
+    type: new GraphQLNonNull(GraphQLAccount),
     description: 'Edit the settings for the given account. Scope: "account" or "host".',
     args: {
       account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Account where the settings will be updated',
       },
       key: {
-        type: new GraphQLNonNull(AccountSettingsKey),
+        type: new GraphQLNonNull(GraphQLAccountSettingsKey),
         description: 'The key that you want to edit in settings',
       },
       value: {
@@ -137,11 +137,11 @@ const accountMutations = {
     },
   },
   editAccountFeeStructure: {
-    type: new GraphQLNonNull(Account),
+    type: new GraphQLNonNull(GraphQLAccount),
     description: 'An endpoint for hosts to edit the fees structure of their hosted accounts. Scope: "host".',
     args: {
       account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Account where the settings will be updated',
       },
       hostFeePercent: {
@@ -219,11 +219,11 @@ const accountMutations = {
     },
   },
   editAccountFreezeStatus: {
-    type: new GraphQLNonNull(Account),
+    type: new GraphQLNonNull(GraphQLAccount),
     description: 'An endpoint for hosts to edit the freeze status of their hosted accounts. Scope: "host".',
     args: {
       account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Account to freeze',
       },
       action: {
@@ -261,15 +261,15 @@ const accountMutations = {
     },
   },
   addTwoFactorAuthTokenToIndividual: {
-    type: new GraphQLNonNull(AddTwoFactorAuthTokenToIndividualResponse),
+    type: new GraphQLNonNull(GraphQLAddTwoFactorAuthTokenToIndividualResponse),
     description: 'Add 2FA to the Individual if it does not have it. Scope: "account".',
     args: {
       account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Individual that will have 2FA added to it',
       },
       type: {
-        type: TwoFactorMethodEnum,
+        type: GraphQLTwoFactorMethodEnum,
         description: 'The two factor method to add, defaults to TOTP',
       },
       token: {
@@ -371,15 +371,15 @@ const accountMutations = {
     },
   },
   removeTwoFactorAuthTokenFromIndividual: {
-    type: new GraphQLNonNull(Individual),
+    type: new GraphQLNonNull(GraphQLIndividual),
     description: 'Remove 2FA from the Individual if it has been enabled. Scope: "account".',
     args: {
       account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Account that will have 2FA removed from it',
       },
       type: {
-        type: TwoFactorMethodEnum,
+        type: GraphQLTwoFactorMethodEnum,
         description: 'The two factor method to remove. Removes all if empty',
       },
       code: {
@@ -435,11 +435,11 @@ const accountMutations = {
     },
   },
   editAccount: {
-    type: new GraphQLNonNull(Host),
+    type: new GraphQLNonNull(GraphQLHost),
     description: 'Edit key properties of an account. Scope: "account".',
     args: {
       account: {
-        type: new GraphQLNonNull(AccountUpdateInput),
+        type: new GraphQLNonNull(GraphQLAccountUpdateInput),
         description: 'Account to edit.',
       },
     },
@@ -480,15 +480,15 @@ const accountMutations = {
     },
   },
   setPolicies: {
-    type: new GraphQLNonNull(Account),
+    type: new GraphQLNonNull(GraphQLAccount),
     description: 'Adds or removes a policy on a given account. Scope: "account".',
     args: {
       account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Account where the policies are being set',
       },
       policies: {
-        type: new GraphQLNonNull(PoliciesInput),
+        type: new GraphQLNonNull(GraphQLPoliciesInput),
         description: 'The policy to be added',
       },
     },
@@ -534,12 +534,12 @@ const accountMutations = {
     },
   },
   deleteAccount: {
-    type: Account,
+    type: GraphQLAccount,
     description: 'Adds or removes a policy on a given account. Scope: "account".',
     args: {
       account: {
         description: 'Reference to the Account to be deleted.',
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
       },
     },
     async resolve(_, args, req) {
@@ -582,7 +582,7 @@ const accountMutations = {
     description: 'Send a message to an account. Scope: "account"',
     args: {
       account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Reference to the Account to send message to.',
       },
       message: {

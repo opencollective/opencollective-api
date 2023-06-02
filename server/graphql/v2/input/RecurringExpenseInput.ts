@@ -1,13 +1,13 @@
 import { GraphQLInputObjectType, GraphQLNonNull } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import { RecurringExpenseInterval } from '../enum/RecurringExpenseInterval';
+import { GraphQLRecurringExpenseInterval } from '../enum/RecurringExpenseInterval';
 
-const RecurringExpenseInput = new GraphQLInputObjectType({
+export const GraphQLRecurringExpenseInput = new GraphQLInputObjectType({
   name: 'RecurringExpenseInput',
   fields: () => ({
     interval: {
-      type: new GraphQLNonNull(RecurringExpenseInterval),
+      type: new GraphQLNonNull(GraphQLRecurringExpenseInterval),
       description: 'The interval in which this recurring expense is created',
     },
     endsAt: {
@@ -16,5 +16,3 @@ const RecurringExpenseInput = new GraphQLInputObjectType({
     },
   }),
 });
-
-export { RecurringExpenseInput };

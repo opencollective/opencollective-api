@@ -1,9 +1,9 @@
 import { GraphQLBoolean, GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import { AccountReferenceInput } from './AccountReferenceInput';
+import { GraphQLAccountReferenceInput } from './AccountReferenceInput';
 
-export const UpdateCreateInput = new GraphQLInputObjectType({
+export const GraphQLUpdateCreateInput = new GraphQLInputObjectType({
   name: 'UpdateCreateInput',
   description: 'Input type for UpdateType',
   fields: () => ({
@@ -12,7 +12,7 @@ export const UpdateCreateInput = new GraphQLInputObjectType({
     isChangelog: { type: GraphQLBoolean },
     makePublicOn: { type: GraphQLDateTime },
     html: { type: new GraphQLNonNull(GraphQLString) },
-    fromAccount: { type: AccountReferenceInput },
-    account: { type: new GraphQLNonNull(AccountReferenceInput) },
+    fromAccount: { type: GraphQLAccountReferenceInput },
+    account: { type: new GraphQLNonNull(GraphQLAccountReferenceInput) },
   }),
 });

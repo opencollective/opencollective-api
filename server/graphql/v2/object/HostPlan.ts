@@ -2,7 +2,7 @@ import { GraphQLBoolean, GraphQLFloat, GraphQLInt, GraphQLObjectType, GraphQLStr
 
 import { idEncode } from '../identifiers';
 
-export const HostPlan = new GraphQLObjectType({
+export const GraphQLHostPlan = new GraphQLObjectType({
   name: 'HostPlan',
   description: 'The name of the current plan and its characteristics.',
   fields: () => ({

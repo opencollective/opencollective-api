@@ -3,7 +3,7 @@ import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 import models from '../../../models';
 import { NotFound } from '../../errors';
 
-const TransactionReferenceInput = new GraphQLInputObjectType({
+const GraphQLTransactionReferenceInput = new GraphQLInputObjectType({
   name: 'TransactionReferenceInput',
   fields: () => ({
     id: {
@@ -40,4 +40,4 @@ const fetchTransactionWithReference = async (
   return transaction;
 };
 
-export { TransactionReferenceInput, fetchTransactionWithReference };
+export { GraphQLTransactionReferenceInput, fetchTransactionWithReference };

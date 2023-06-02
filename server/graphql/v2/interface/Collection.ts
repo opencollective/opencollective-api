@@ -24,7 +24,7 @@ const CollectionFields = {
  * }
  * By convention the collection of types is called nodes.
  */
-const Collection = new GraphQLInterfaceType({
+const GraphQLCollection = new GraphQLInterfaceType({
   name: 'Collection',
   description: 'Collection interface shared by all collection types',
   fields: () => CollectionFields,
@@ -62,4 +62,4 @@ export interface TransactionsCollectionReturnType {
   kinds?: string[] | (() => string[]);
 }
 
-export { Collection, CollectionFields, CollectionArgs };
+export { GraphQLCollection, CollectionFields, CollectionArgs };

@@ -1,28 +1,28 @@
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import { TransactionKind } from '../enum/TransactionKind';
-import { getTimeSeriesFields, TimeSeries } from '../interface/TimeSeries';
+import { GraphQLTransactionKind } from '../enum/TransactionKind';
+import { getTimeSeriesFields, GraphQLTimeSeries } from '../interface/TimeSeries';
 
-import { Amount } from './Amount';
+import { GraphQLAmount } from './Amount';
 
-const TimeSeriesAmountWithKindNodes = new GraphQLObjectType({
+const GraphQLTimeSeriesAmountWithKindNodes = new GraphQLObjectType({
   name: 'TimeSeriesAmountWithKindNode',
   fields: () => ({
     date: { type: new GraphQLNonNull(GraphQLDateTime) },
-    amount: { type: new GraphQLNonNull(Amount) },
-    kind: { type: new GraphQLNonNull(TransactionKind) },
+    amount: { type: new GraphQLNonNull(GraphQLAmount) },
+    kind: { type: new GraphQLNonNull(GraphQLTransactionKind) },
   }),
 });
 
-export const TimeSeriesAmountWithKind = new GraphQLObjectType({
+export const GraphQLTimeSeriesAmountWithKind = new GraphQLObjectType({
   name: 'TimeSeriesAmountWithKind',
   description: 'Amounts with settlements time series',
-  interfaces: [TimeSeries],
+  interfaces: [GraphQLTimeSeries],
   fields: () => ({
     ...getTimeSeriesFields(),
     nodes: {
-      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(TimeSeriesAmountWithKindNodes))),
+      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLTimeSeriesAmountWithKindNodes))),
       description: 'Time series data points',
     },
   }),

@@ -1,13 +1,13 @@
 import { GraphQLList, GraphQLString } from 'graphql';
 
 import { searchCollectivesInDB } from '../../../../lib/search';
-import { HostCollection } from '../../collection/HostCollection';
+import { GraphQLHostCollection } from '../../collection/HostCollection';
 import { CollectionArgs } from '../../interface/Collection';
 
 import { CommonAccountsCollectionQueryArgs } from './AccountsCollectionQuery';
 
 const HostsCollectionQuery = {
-  type: HostCollection,
+  type: GraphQLHostCollection,
   args: {
     ...CollectionArgs,
     ...CommonAccountsCollectionQueryArgs,

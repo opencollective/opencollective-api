@@ -21,21 +21,21 @@ import { HostApplicationStatus } from '../../../models/HostApplication';
 import { processInviteMembersInput } from '../../common/members';
 import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseHost, checkScope } from '../../common/scope-check';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
-import { ProcessHostApplicationAction } from '../enum/ProcessHostApplicationAction';
-import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
-import { InviteMemberInput } from '../input/InviteMemberInput';
-import { Account } from '../interface/Account';
-import Conversation from '../object/Conversation';
+import { GraphQLProcessHostApplicationAction } from '../enum/ProcessHostApplicationAction';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import { GraphQLInviteMemberInput } from '../input/InviteMemberInput';
+import { GraphQLAccount } from '../interface/Account';
+import GraphQLConversation from '../object/Conversation';
 
-const ProcessHostApplicationResponse = new GraphQLObjectType({
+const GraphQLProcessHostApplicationResponse = new GraphQLObjectType({
   name: 'ProcessHostApplicationResponse',
   fields: () => ({
     account: {
-      type: new GraphQLNonNull(Account),
+      type: new GraphQLNonNull(GraphQLAccount),
       description: 'The account that applied to the host',
     },
     conversation: {
-      type: Conversation,
+      type: GraphQLConversation,
       description: 'When sending a public message, this field will have the info about the conversation created',
     },
   }),
@@ -43,15 +43,15 @@ const ProcessHostApplicationResponse = new GraphQLObjectType({
 
 const HostApplicationMutations = {
   applyToHost: {
-    type: new GraphQLNonNull(Account),
+    type: new GraphQLNonNull(GraphQLAccount),
     description: 'Apply to an host with a collective. Scope: "account".',
     args: {
       collective: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Account applying to the host.',
       },
       host: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Host to apply to.',
       },
       message: {
@@ -63,7 +63,7 @@ const HostApplicationMutations = {
         description: 'Further information about collective applying to host',
       },
       inviteMembers: {
-        type: new GraphQLList(InviteMemberInput),
+        type: new GraphQLList(GraphQLInviteMemberInput),
         description: 'A list of members to invite when applying to the host',
       },
     },
@@ -159,19 +159,19 @@ const HostApplicationMutations = {
     },
   },
   processHostApplication: {
-    type: new GraphQLNonNull(ProcessHostApplicationResponse),
+    type: new GraphQLNonNull(GraphQLProcessHostApplicationResponse),
     description: 'Reply to a host application. Scope: "host".',
     args: {
       account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'The account that applied to the host',
       },
       host: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'The host concerned by the application',
       },
       action: {
-        type: new GraphQLNonNull(ProcessHostApplicationAction),
+        type: new GraphQLNonNull(GraphQLProcessHostApplicationAction),
         description: 'What to do with the application',
       },
       message: {
@@ -215,11 +215,11 @@ const HostApplicationMutations = {
     },
   },
   removeHost: {
-    type: new GraphQLNonNull(Account),
+    type: new GraphQLNonNull(GraphQLAccount),
     description: 'Removes the host for an account',
     args: {
       account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'The account to unhost',
       },
       message: {

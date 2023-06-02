@@ -9,12 +9,12 @@ import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { NotFound, Unauthorized } from '../../errors';
 import { getIntervalFromTierFrequency } from '../enum/TierFrequency';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
-import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { getValueInCentsFromAmountInput } from '../input/AmountInput';
-import { TierCreateInput, TierCreateInputFields } from '../input/TierCreateInput';
-import { fetchTierWithReference, TierReferenceInput } from '../input/TierReferenceInput';
-import { TierUpdateInput, TierUpdateInputFields } from '../input/TierUpdateInput';
-import { Tier } from '../object/Tier';
+import { GraphQLTierCreateInput, TierCreateInputFields } from '../input/TierCreateInput';
+import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput';
+import { GraphQLTierUpdateInput, TierUpdateInputFields } from '../input/TierUpdateInput';
+import { GraphQLTier } from '../object/Tier';
 
 // Makes sure we default to `undefined` if the amount is not set to not override existing values with `null`
 const getAmountWithDefault = (amountInput, existingAmount = undefined) =>
@@ -68,11 +68,11 @@ const transformTierInputToAttributes = (
 
 const tierMutations = {
   editTier: {
-    type: new GraphQLNonNull(Tier),
+    type: new GraphQLNonNull(GraphQLTier),
     description: 'Edit a tier.',
     args: {
       tier: {
-        type: new GraphQLNonNull(TierUpdateInput),
+        type: new GraphQLNonNull(GraphQLTierUpdateInput),
       },
     },
     async resolve(_, args, req) {
@@ -103,14 +103,14 @@ const tierMutations = {
     },
   },
   createTier: {
-    type: new GraphQLNonNull(Tier),
+    type: new GraphQLNonNull(GraphQLTier),
     description: 'Create a tier.',
     args: {
       tier: {
-        type: new GraphQLNonNull(TierCreateInput),
+        type: new GraphQLNonNull(GraphQLTierCreateInput),
       },
       account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Account to create tier in',
       },
     },
@@ -139,11 +139,11 @@ const tierMutations = {
     },
   },
   deleteTier: {
-    type: new GraphQLNonNull(Tier),
+    type: new GraphQLNonNull(GraphQLTier),
     description: 'Delete a tier.',
     args: {
       tier: {
-        type: new GraphQLNonNull(TierReferenceInput),
+        type: new GraphQLNonNull(GraphQLTierReferenceInput),
       },
       stopRecurringContributions: {
         type: new GraphQLNonNull(GraphQLBoolean),

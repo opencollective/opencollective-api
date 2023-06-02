@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
-export const ApplicationType = new GraphQLEnumType({
+export const GraphQLApplicationType = new GraphQLEnumType({
   name: 'ApplicationType',
   description: 'All application types',
   values: {

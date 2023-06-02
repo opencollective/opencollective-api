@@ -10,26 +10,26 @@ import models from '../../../models';
 import { checkRemoteUserCanUseTransactions } from '../../common/scope-check';
 import { canReject, refundTransaction } from '../../common/transactions';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
-import { AmountInput, getValueInCentsFromAmountInput } from '../input/AmountInput';
-import { fetchTransactionWithReference, TransactionReferenceInput } from '../input/TransactionReferenceInput';
-import { Transaction } from '../interface/Transaction';
+import { getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/AmountInput';
+import { fetchTransactionWithReference, GraphQLTransactionReferenceInput } from '../input/TransactionReferenceInput';
+import { GraphQLTransaction } from '../interface/Transaction';
 
 const transactionMutations = {
   addPlatformTipToTransaction: {
-    type: new GraphQLNonNull(Transaction),
+    type: new GraphQLNonNull(GraphQLTransaction),
     description: 'Add platform tips to a transaction. Scope: "transactions".',
     deprecationReason: "2022-07-06: This feature will not be supported in the future. Please don't rely on it.",
     args: {
       transaction: {
-        type: new GraphQLNonNull(TransactionReferenceInput),
+        type: new GraphQLNonNull(GraphQLTransactionReferenceInput),
         description: 'Reference to the transaction in the platform tip',
       },
       amount: {
-        type: new GraphQLNonNull(AmountInput),
+        type: new GraphQLNonNull(GraphQLAmountInput),
         description: 'Amount of the platform tip',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<typeof Transaction> {
+    async resolve(_: void, args, req: express.Request): Promise<typeof GraphQLTransaction> {
       checkRemoteUserCanUseTransactions(req);
 
       const transaction = await fetchTransactionWithReference(args.transaction, { throwIfMissing: true });
@@ -75,27 +75,27 @@ const transactionMutations = {
     },
   },
   refundTransaction: {
-    type: Transaction,
+    type: GraphQLTransaction,
     description: 'Refunds a transaction. Scope: "transactions".',
     args: {
       transaction: {
-        type: new GraphQLNonNull(TransactionReferenceInput),
+        type: new GraphQLNonNull(GraphQLTransactionReferenceInput),
         description: 'Reference of the transaction to refund',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<typeof Transaction> {
+    async resolve(_: void, args, req: express.Request): Promise<typeof GraphQLTransaction> {
       checkRemoteUserCanUseTransactions(req);
       const transaction = await fetchTransactionWithReference(args.transaction, { throwIfMissing: true });
       return refundTransaction(transaction, req);
     },
   },
   rejectTransaction: {
-    type: new GraphQLNonNull(Transaction),
+    type: new GraphQLNonNull(GraphQLTransaction),
     description:
       'Rejects transaction, removes member from Collective, and sends a message to the contributor. Scope: "transactions".',
     args: {
       transaction: {
-        type: new GraphQLNonNull(TransactionReferenceInput),
+        type: new GraphQLNonNull(GraphQLTransactionReferenceInput),
         description: 'Reference of the transaction to refund',
       },
       message: {
@@ -103,7 +103,7 @@ const transactionMutations = {
         description: 'Message to send to the contributor whose contribution has been rejected',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<typeof Transaction> {
+    async resolve(_: void, args, req: express.Request): Promise<typeof GraphQLTransaction> {
       checkRemoteUserCanUseTransactions(req);
 
       // get transaction info

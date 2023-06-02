@@ -2,10 +2,10 @@ import { GraphQLString } from 'graphql';
 
 import models from '../../../models';
 import { NotFound } from '../../errors';
-import { Transaction } from '../interface/Transaction';
+import { GraphQLTransaction } from '../interface/Transaction';
 
 const TransactionQuery = {
-  type: Transaction,
+  type: GraphQLTransaction,
   description: 'Fetch a single transaction',
   args: {
     id: {

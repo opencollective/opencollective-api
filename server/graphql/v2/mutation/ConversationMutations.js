@@ -4,11 +4,11 @@ import models from '../../../models';
 import { createConversation, editConversation } from '../../common/conversations';
 import { checkRemoteUserCanUseConversations } from '../../common/scope-check';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
-import Conversation from '../object/Conversation';
+import GraphQLConversation from '../object/Conversation';
 
 const conversationMutations = {
   createConversation: {
-    type: Conversation,
+    type: GraphQLConversation,
     description: 'Create a conversation. Scope: "conversations".',
     args: {
       title: {
@@ -34,7 +34,7 @@ const conversationMutations = {
     },
   },
   editConversation: {
-    type: Conversation,
+    type: GraphQLConversation,
     description: 'Edit a conversation. Scope: "conversations".',
     args: {
       id: {

@@ -2,7 +2,7 @@ import { GraphQLEnumType } from 'graphql';
 
 import oAuthScopes from '../../../constants/oauth-scopes';
 
-export const OAuthScope = new GraphQLEnumType({
+export const GraphQLOAuthScope = new GraphQLEnumType({
   name: 'OAuthScope',
   description: 'All supported OAuth scopes',
   values: {

@@ -2,13 +2,13 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import { ActivityChannel } from '../enum/ActivityChannel';
+import { GraphQLActivityChannel } from '../enum/ActivityChannel';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
-import { Account } from '../interface/Account';
+import { GraphQLAccount } from '../interface/Account';
 
-import { Individual } from './Individual';
+import { GraphQLIndividual } from './Individual';
 
-export const ActivitySubscription = new GraphQLObjectType({
+export const GraphQLActivitySubscription = new GraphQLObjectType({
   name: 'ActivitySubscription',
   fields: () => ({
     id: {
@@ -17,7 +17,7 @@ export const ActivitySubscription = new GraphQLObjectType({
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.NOTIFICATION),
     },
     channel: {
-      type: new GraphQLNonNull(ActivityChannel),
+      type: new GraphQLNonNull(GraphQLActivityChannel),
       description: 'The channel this setting is notifying through',
     },
     type: {
@@ -37,14 +37,14 @@ export const ActivitySubscription = new GraphQLObjectType({
       description: 'If channel supports, this is the webhook URL we submit the notification to',
     },
     account: {
-      type: Account,
+      type: GraphQLAccount,
       description: 'The account which this notification setting is applied to',
       resolve(notification, args, req) {
         return req.loaders.Collective.byId.load(notification.CollectiveId);
       },
     },
     individual: {
-      type: new GraphQLNonNull(Individual),
+      type: new GraphQLNonNull(GraphQLIndividual),
       description: 'The user who defined the setting',
       resolve: async (notification, _, req: express.Request): Promise<Record<string, unknown>> => {
         if (notification.UserId) {

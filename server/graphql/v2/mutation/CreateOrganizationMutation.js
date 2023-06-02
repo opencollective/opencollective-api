@@ -7,9 +7,9 @@ import models from '../../../models';
 import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation';
 import { processInviteMembersInput } from '../../common/members';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
-import { InviteMemberInput } from '../input/InviteMemberInput';
-import { OrganizationCreateInput } from '../input/OrganizationCreateInput';
-import { Organization } from '../object/Organization';
+import { GraphQLInviteMemberInput } from '../input/InviteMemberInput';
+import { GraphQLOrganizationCreateInput } from '../input/OrganizationCreateInput';
+import { GraphQLOrganization } from '../object/Organization';
 
 const DEFAULT_ORGANIZATION_SETTINGS = {
   features: { conversations: true },
@@ -50,15 +50,15 @@ async function createOrganization(_, args, req) {
 }
 
 const createOrganizationMutation = {
-  type: Organization,
+  type: GraphQLOrganization,
   description: 'Create an Organization. Scope: "account".',
   args: {
     organization: {
       description: 'Information about the organization to create (name, slug, description, website, ...)',
-      type: new GraphQLNonNull(OrganizationCreateInput),
+      type: new GraphQLNonNull(GraphQLOrganizationCreateInput),
     },
     inviteMembers: {
-      type: new GraphQLList(InviteMemberInput),
+      type: new GraphQLList(GraphQLInviteMemberInput),
       description: 'List of members to invite on Organization creation.',
     },
   },

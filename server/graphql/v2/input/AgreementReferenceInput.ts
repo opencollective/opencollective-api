@@ -4,7 +4,7 @@ import Agreement from '../../../models/Agreement';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
-export const AgreementReferenceInput = new GraphQLInputObjectType({
+export const GraphQLAgreementReferenceInput = new GraphQLInputObjectType({
   name: 'AgreementReferenceInput',
   fields: () => ({
     id: {

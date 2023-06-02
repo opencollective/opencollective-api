@@ -13,28 +13,28 @@ import VirtualCardModel from '../../../models/VirtualCard';
 import * as stripe from '../../../paymentProviders/stripe/virtual-cards';
 import { checkRemoteUserCanUseVirtualCards } from '../../common/scope-check';
 import { BadRequest, NotFound, Unauthorized } from '../../errors';
-import { VirtualCardLimitInterval } from '../enum/VirtualCardLimitInterval';
-import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
-import { AmountInput, getValueInCentsFromAmountInput } from '../input/AmountInput';
-import { VirtualCardInput } from '../input/VirtualCardInput';
-import { VirtualCardReferenceInput } from '../input/VirtualCardReferenceInput';
-import { VirtualCard } from '../object/VirtualCard';
+import { GraphQLVirtualCardLimitInterval } from '../enum/VirtualCardLimitInterval';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import { getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/AmountInput';
+import { GraphQLVirtualCardInput } from '../input/VirtualCardInput';
+import { GraphQLVirtualCardReferenceInput } from '../input/VirtualCardReferenceInput';
+import { GraphQLVirtualCard } from '../object/VirtualCard';
 
 const virtualCardMutations = {
   assignNewVirtualCard: {
     description: 'Assign Virtual Card information to existing hosted collective. Scope: "virtualCards".',
-    type: new GraphQLNonNull(VirtualCard),
+    type: new GraphQLNonNull(GraphQLVirtualCard),
     args: {
       virtualCard: {
-        type: new GraphQLNonNull(VirtualCardInput),
+        type: new GraphQLNonNull(GraphQLVirtualCardInput),
         description: 'Virtual Card data',
       },
       account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Account where the virtual card will be associated',
       },
       assignee: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Individual account responsible for the card',
       },
     },
@@ -100,26 +100,26 @@ const virtualCardMutations = {
   },
   createVirtualCard: {
     description: 'Create new Stripe Virtual Card for existing hosted collective. Scope: "virtualCards".',
-    type: new GraphQLNonNull(VirtualCard),
+    type: new GraphQLNonNull(GraphQLVirtualCard),
     args: {
       name: {
         type: new GraphQLNonNull(GraphQLString),
         description: 'Virtual card name',
       },
       limitAmount: {
-        type: new GraphQLNonNull(AmountInput),
+        type: new GraphQLNonNull(GraphQLAmountInput),
         description: 'Virtual card limit amount',
       },
       limitInterval: {
-        type: new GraphQLNonNull(VirtualCardLimitInterval),
+        type: new GraphQLNonNull(GraphQLVirtualCardLimitInterval),
         description: 'Virtual card limit interval',
       },
       account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Account where the virtual card will be associated',
       },
       assignee: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Individual account responsible for the virtual card',
       },
     },
@@ -199,10 +199,10 @@ const virtualCardMutations = {
   },
   editVirtualCard: {
     description: 'Edit existing Virtual Card information. Scope: "virtualCards".',
-    type: new GraphQLNonNull(VirtualCard),
+    type: new GraphQLNonNull(GraphQLVirtualCard),
     args: {
       virtualCard: {
-        type: new GraphQLNonNull(VirtualCardReferenceInput),
+        type: new GraphQLNonNull(GraphQLVirtualCardReferenceInput),
         description: 'Virtual card reference',
       },
       name: {
@@ -210,15 +210,15 @@ const virtualCardMutations = {
         description: 'Virtual card name',
       },
       assignee: {
-        type: AccountReferenceInput,
+        type: GraphQLAccountReferenceInput,
         description: 'Individual account responsible for the card',
       },
       limitAmount: {
-        type: AmountInput,
+        type: GraphQLAmountInput,
         description: 'Virtual card limit amount',
       },
       limitInterval: {
-        type: VirtualCardLimitInterval,
+        type: GraphQLVirtualCardLimitInterval,
         description: 'Virtual card limit interval',
       },
     },
@@ -319,7 +319,7 @@ const virtualCardMutations = {
         description: 'Monthly budget you want for this Virtual Card',
       },
       account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Account where the virtual card will be associated',
       },
     },
@@ -359,10 +359,10 @@ const virtualCardMutations = {
   },
   pauseVirtualCard: {
     description: 'Pause active Virtual Card. Scope: "virtualCards".',
-    type: new GraphQLNonNull(VirtualCard),
+    type: new GraphQLNonNull(GraphQLVirtualCard),
     args: {
       virtualCard: {
-        type: new GraphQLNonNull(VirtualCardReferenceInput),
+        type: new GraphQLNonNull(GraphQLVirtualCardReferenceInput),
         description: 'Virtual Card reference',
       },
     },
@@ -413,10 +413,10 @@ const virtualCardMutations = {
   },
   resumeVirtualCard: {
     description: 'Resume paused Virtual Card. Scope: "virtualCards".',
-    type: new GraphQLNonNull(VirtualCard),
+    type: new GraphQLNonNull(GraphQLVirtualCard),
     args: {
       virtualCard: {
-        type: new GraphQLNonNull(VirtualCardReferenceInput),
+        type: new GraphQLNonNull(GraphQLVirtualCardReferenceInput),
         description: 'Virtual Card reference',
       },
     },
@@ -443,7 +443,7 @@ const virtualCardMutations = {
     type: GraphQLBoolean,
     args: {
       virtualCard: {
-        type: new GraphQLNonNull(VirtualCardReferenceInput),
+        type: new GraphQLNonNull(GraphQLVirtualCardReferenceInput),
         description: 'Virtual Card reference',
       },
     },

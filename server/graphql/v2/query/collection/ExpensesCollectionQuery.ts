@@ -14,12 +14,15 @@ import { PayoutMethodTypes } from '../../../../models/PayoutMethod';
 import { validateExpenseCustomData } from '../../../common/expenses';
 import { Unauthorized } from '../../../errors';
 import { loadFxRatesMap } from '../../../loaders/currency-exchange-rate';
-import { ExpenseCollection } from '../../collection/ExpenseCollection';
-import ExpenseStatusFilter from '../../enum/ExpenseStatusFilter';
-import { ExpenseType } from '../../enum/ExpenseType';
-import { PayoutMethodType } from '../../enum/PayoutMethodType';
-import { AccountReferenceInput, fetchAccountWithReference } from '../../input/AccountReferenceInput';
-import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, ChronologicalOrderInput } from '../../input/ChronologicalOrderInput';
+import { GraphQLExpenseCollection } from '../../collection/ExpenseCollection';
+import GraphQLExpenseStatusFilter from '../../enum/ExpenseStatusFilter';
+import { GraphQLExpenseType } from '../../enum/ExpenseType';
+import { GraphQLPayoutMethodType } from '../../enum/PayoutMethodType';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
+import {
+  CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
+  GraphQLChronologicalOrderInput,
+} from '../../input/ChronologicalOrderInput';
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
 
 const updateFilterConditionsForReadyToPay = async (where, include, host, loaders): Promise<void> => {
@@ -99,31 +102,31 @@ const updateFilterConditionsForReadyToPay = async (where, include, host, loaders
 };
 
 const ExpensesCollectionQuery = {
-  type: new GraphQLNonNull(ExpenseCollection),
+  type: new GraphQLNonNull(GraphQLExpenseCollection),
   args: {
     ...CollectionArgs,
     fromAccount: {
-      type: AccountReferenceInput,
+      type: GraphQLAccountReferenceInput,
       description: 'Reference of an account that is the payee of an expense',
     },
     account: {
-      type: AccountReferenceInput,
+      type: GraphQLAccountReferenceInput,
       description: 'Reference of an account that is the payer of an expense',
     },
     host: {
-      type: AccountReferenceInput,
+      type: GraphQLAccountReferenceInput,
       description: 'Return expenses only for this host',
     },
     createdByAccount: {
-      type: AccountReferenceInput,
+      type: GraphQLAccountReferenceInput,
       description: 'Return expenses only created by this INDIVIDUAL account',
     },
     status: {
-      type: ExpenseStatusFilter,
+      type: GraphQLExpenseStatusFilter,
       description: 'Use this field to filter expenses on their statuses',
     },
     type: {
-      type: ExpenseType,
+      type: GraphQLExpenseType,
       description: 'Use this field to filter expenses on their type (RECEIPT/INVOICE)',
     },
     tags: {
@@ -136,7 +139,7 @@ const ExpensesCollectionQuery = {
       description: 'Only expenses that match these tags',
     },
     orderBy: {
-      type: new GraphQLNonNull(ChronologicalOrderInput),
+      type: new GraphQLNonNull(GraphQLChronologicalOrderInput),
       description: 'The order of results',
       defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
     },
@@ -149,7 +152,7 @@ const ExpensesCollectionQuery = {
       description: 'Only return expenses where the amount is lower than or equal to this value (in cents)',
     },
     payoutMethodType: {
-      type: PayoutMethodType,
+      type: GraphQLPayoutMethodType,
       description: 'Only return expenses that use the given type as payout method',
     },
     dateFrom: {

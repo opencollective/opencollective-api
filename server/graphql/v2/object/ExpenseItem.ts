@@ -4,10 +4,10 @@ import { GraphQLDateTime } from 'graphql-scalars';
 
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
-import { FileInfo } from '../interface/FileInfo';
+import { GraphQLFileInfo } from '../interface/FileInfo';
 import URL from '../scalar/URL';
 
-const ExpenseItem = new GraphQLObjectType({
+const GraphQLExpenseItem = new GraphQLObjectType({
   name: 'ExpenseItem',
   description: 'Fields for an expense item',
   fields: () => ({
@@ -45,7 +45,7 @@ const ExpenseItem = new GraphQLObjectType({
       },
     },
     file: {
-      type: FileInfo,
+      type: GraphQLFileInfo,
       description: 'The file associated with this item (if any)',
       resolve(item, _, req: express.Request): string | undefined {
         if (item.url && getContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_ATTACHMENTS_URL, item.ExpenseId)) {
@@ -56,4 +56,4 @@ const ExpenseItem = new GraphQLObjectType({
   }),
 });
 
-export default ExpenseItem;
+export default GraphQLExpenseItem;

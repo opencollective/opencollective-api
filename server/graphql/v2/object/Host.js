@@ -27,34 +27,37 @@ import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import TransferwiseLib from '../../../paymentProviders/transferwise';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { Unauthorized } from '../../errors';
-import { AccountCollection } from '../collection/AccountCollection';
-import { AgreementCollection } from '../collection/AgreementCollection';
-import { HostApplicationCollection } from '../collection/HostApplicationCollection';
-import { VirtualCardCollection } from '../collection/VirtualCardCollection';
-import { PaymentMethodLegacyType, PayoutMethodType } from '../enum';
+import { GraphQLAccountCollection } from '../collection/AccountCollection';
+import { GraphQLAgreementCollection } from '../collection/AgreementCollection';
+import { GraphQLHostApplicationCollection } from '../collection/HostApplicationCollection';
+import { GraphQLVirtualCardCollection } from '../collection/VirtualCardCollection';
+import { GraphQLPaymentMethodLegacyType, GraphQLPayoutMethodType } from '../enum';
 import { PaymentMethodLegacyTypeEnum } from '../enum/PaymentMethodLegacyType';
-import { TimeUnit } from '../enum/TimeUnit';
+import { GraphQLTimeUnit } from '../enum/TimeUnit';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import {
-  AccountReferenceInput,
   fetchAccountsIdsWithReference,
   fetchAccountsWithReferences,
   fetchAccountWithReference,
+  GraphQLAccountReferenceInput,
 } from '../input/AccountReferenceInput';
-import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
-import { Account, AccountFields } from '../interface/Account';
-import { AccountWithContributions, AccountWithContributionsFields } from '../interface/AccountWithContributions';
+import {
+  CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
+  GraphQLChronologicalOrderInput,
+} from '../input/ChronologicalOrderInput';
+import { AccountFields, GraphQLAccount } from '../interface/Account';
+import { AccountWithContributionsFields, GraphQLAccountWithContributions } from '../interface/AccountWithContributions';
 import { CollectionArgs } from '../interface/Collection';
 import URL from '../scalar/URL';
 
-import { Amount } from './Amount';
-import { ContributionStats } from './ContributionStats';
-import { ExpenseStats } from './ExpenseStats';
-import { HostMetrics } from './HostMetrics';
-import { HostMetricsTimeSeries } from './HostMetricsTimeSeries';
-import { HostPlan } from './HostPlan';
-import { PaymentMethod } from './PaymentMethod';
-import PayoutMethod from './PayoutMethod';
+import { GraphQLAmount } from './Amount';
+import { GraphQLContributionStats } from './ContributionStats';
+import { GraphQLExpenseStats } from './ExpenseStats';
+import { GraphQLHostMetrics } from './HostMetrics';
+import { GraphQLHostMetricsTimeSeries } from './HostMetricsTimeSeries';
+import { GraphQLHostPlan } from './HostPlan';
+import { GraphQLPaymentMethod } from './PaymentMethod';
+import GraphQLPayoutMethod from './PayoutMethod';
 
 const getFilterDateRange = (startDate, endDate) => {
   let dateRange;
@@ -84,10 +87,10 @@ const getTimeUnit = numberOfDays => {
   }
 };
 
-export const Host = new GraphQLObjectType({
+export const GraphQLHost = new GraphQLObjectType({
   name: 'Host',
   description: 'This represents an Host account',
-  interfaces: () => [Account, AccountWithContributions],
+  interfaces: () => [GraphQLAccount, GraphQLAccountWithContributions],
   fields: () => {
     return {
       ...AccountFields,
@@ -124,16 +127,16 @@ export const Host = new GraphQLObjectType({
         },
       },
       plan: {
-        type: new GraphQLNonNull(HostPlan),
+        type: new GraphQLNonNull(GraphQLHostPlan),
         resolve(host) {
           return host.getPlan();
         },
       },
       hostMetrics: {
-        type: new GraphQLNonNull(HostMetrics),
+        type: new GraphQLNonNull(GraphQLHostMetrics),
         args: {
           account: {
-            type: new GraphQLList(new GraphQLNonNull(AccountReferenceInput)),
+            type: new GraphQLList(new GraphQLNonNull(GraphQLAccountReferenceInput)),
             description: 'A collection of accounts for which the metrics should be returned.',
           },
           dateFrom: {
@@ -159,10 +162,10 @@ export const Host = new GraphQLObjectType({
         },
       },
       hostMetricsTimeSeries: {
-        type: new GraphQLNonNull(HostMetricsTimeSeries),
+        type: new GraphQLNonNull(GraphQLHostMetricsTimeSeries),
         args: {
           account: {
-            type: new GraphQLList(new GraphQLNonNull(AccountReferenceInput)),
+            type: new GraphQLList(new GraphQLNonNull(GraphQLAccountReferenceInput)),
             description: 'A collection of accounts for which the metrics should be returned.',
           },
           dateFrom: {
@@ -174,7 +177,7 @@ export const Host = new GraphQLObjectType({
             description: 'The end date of the time series',
           },
           timeUnit: {
-            type: TimeUnit,
+            type: GraphQLTimeUnit,
             description:
               'The time unit of the time series (such as MONTH, YEAR, WEEK etc). If no value is provided this is calculated using the dateFrom and dateTo values.',
           },
@@ -188,7 +191,7 @@ export const Host = new GraphQLObjectType({
         },
       },
       supportedPaymentMethods: {
-        type: new GraphQLList(PaymentMethodLegacyType),
+        type: new GraphQLList(GraphQLPaymentMethodLegacyType),
         description:
           'The list of payment methods (Stripe, Paypal, manual bank transfer, etc ...) the Host can accept for its Collectives',
         async resolve(collective, _, req) {
@@ -217,7 +220,7 @@ export const Host = new GraphQLObjectType({
         },
       },
       bankAccount: {
-        type: PayoutMethod,
+        type: GraphQLPayoutMethod,
         async resolve(collective, _, req) {
           const payoutMethods = await req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
           const payoutMethod = payoutMethods.find(c => c.type === 'BANK_ACCOUNT' && c.data?.isManualBankTransfer);
@@ -230,7 +233,7 @@ export const Host = new GraphQLObjectType({
         },
       },
       paypalPreApproval: {
-        type: PaymentMethod,
+        type: GraphQLPaymentMethod,
         description: 'Paypal preapproval info. Returns null if PayPal account is not connected.',
         resolve: async host => {
           return models.PaymentMethod.findOne({
@@ -252,7 +255,7 @@ export const Host = new GraphQLObjectType({
         },
       },
       supportedPayoutMethods: {
-        type: new GraphQLList(PayoutMethodType),
+        type: new GraphQLList(GraphQLPayoutMethodType),
         description: 'The list of payout methods this Host accepts for its expenses',
         async resolve(host, _, req) {
           const connectedAccounts = await req.loaders.Collective.connectedAccounts.load(host.id);
@@ -279,7 +282,7 @@ export const Host = new GraphQLObjectType({
         },
       },
       transferwiseBalances: {
-        type: new GraphQLList(Amount),
+        type: new GraphQLList(GraphQLAmount),
         description: 'Transferwise balances. Returns null if Transferwise account is not connected.',
         resolve: async host => {
           const transferwiseAccount = await models.ConnectedAccount.findOne({
@@ -301,7 +304,7 @@ export const Host = new GraphQLObjectType({
         },
       },
       pendingApplications: {
-        type: new GraphQLNonNull(HostApplicationCollection),
+        type: new GraphQLNonNull(GraphQLHostApplicationCollection),
         description: 'Pending applications for this host',
         args: {
           ...CollectionArgs,
@@ -311,7 +314,7 @@ export const Host = new GraphQLObjectType({
               'A term to search membership. Searches in collective tags, name, slug, members description and role.',
           },
           orderBy: {
-            type: new GraphQLNonNull(ChronologicalOrderInput),
+            type: new GraphQLNonNull(GraphQLChronologicalOrderInput),
             defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
             description: 'Order of the results',
           },
@@ -368,14 +371,14 @@ export const Host = new GraphQLObjectType({
         },
       },
       hostedVirtualCards: {
-        type: new GraphQLNonNull(VirtualCardCollection),
+        type: new GraphQLNonNull(GraphQLVirtualCardCollection),
         args: {
           limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
           offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
           state: { type: GraphQLString, defaultValue: null },
-          orderBy: { type: ChronologicalOrderInput, defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE },
-          merchantAccount: { type: AccountReferenceInput, defaultValue: null },
-          collectiveAccountIds: { type: new GraphQLList(AccountReferenceInput), defaultValue: null },
+          orderBy: { type: GraphQLChronologicalOrderInput, defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE },
+          merchantAccount: { type: GraphQLAccountReferenceInput, defaultValue: null },
+          collectiveAccountIds: { type: new GraphQLList(GraphQLAccountReferenceInput), defaultValue: null },
         },
         async resolve(host, args, req) {
           if (!req.remoteUser?.isAdmin(host.id)) {
@@ -443,7 +446,7 @@ export const Host = new GraphQLObjectType({
         },
       },
       hostedVirtualCardMerchants: {
-        type: new GraphQLNonNull(AccountCollection),
+        type: new GraphQLNonNull(GraphQLAccountCollection),
         args: {
           limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
           offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
@@ -487,7 +490,7 @@ export const Host = new GraphQLObjectType({
         },
       },
       hostedVirtualCardCollectives: {
-        type: new GraphQLNonNull(AccountCollection),
+        type: new GraphQLNonNull(GraphQLAccountCollection),
         args: {
           limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
           offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
@@ -520,10 +523,10 @@ export const Host = new GraphQLObjectType({
         },
       },
       contributionStats: {
-        type: new GraphQLNonNull(ContributionStats),
+        type: new GraphQLNonNull(GraphQLContributionStats),
         args: {
           account: {
-            type: new GraphQLList(new GraphQLNonNull(AccountReferenceInput)),
+            type: new GraphQLList(new GraphQLNonNull(GraphQLAccountReferenceInput)),
             description: 'A collection of accounts for which the contribution stats should be returned.',
           },
           dateFrom: {
@@ -535,7 +538,7 @@ export const Host = new GraphQLObjectType({
             description: 'Calculate contribution statistics until this date.',
           },
           timeUnit: {
-            type: TimeUnit,
+            type: GraphQLTimeUnit,
             description: 'The time unit of the time series',
           },
         },
@@ -612,10 +615,10 @@ export const Host = new GraphQLObjectType({
         },
       },
       expenseStats: {
-        type: new GraphQLNonNull(ExpenseStats),
+        type: new GraphQLNonNull(GraphQLExpenseStats),
         args: {
           account: {
-            type: new GraphQLList(new GraphQLNonNull(AccountReferenceInput)),
+            type: new GraphQLList(new GraphQLNonNull(GraphQLAccountReferenceInput)),
             description: 'A collection of accounts for which the expense stats should be returned.',
           },
           dateFrom: {
@@ -627,7 +630,7 @@ export const Host = new GraphQLObjectType({
             description: 'Calculate expense statistics until this date.',
           },
           timeUnit: {
-            type: TimeUnit,
+            type: GraphQLTimeUnit,
             description:
               'The time unit of the time series (such as MONTH, YEAR, WEEK etc). If no value is provided this is calculated using the dateFrom and dateTo values.',
           },
@@ -754,12 +757,12 @@ export const Host = new GraphQLObjectType({
         },
       },
       hostedAccountAgreements: {
-        type: new GraphQLNonNull(AgreementCollection),
+        type: new GraphQLNonNull(GraphQLAgreementCollection),
         description: 'Returns agreements with Hosted Accounts',
         args: {
           ...CollectionArgs,
           accounts: {
-            type: new GraphQLList(AccountReferenceInput),
+            type: new GraphQLList(GraphQLAccountReferenceInput),
             description: 'Filter by accounts participating in the agreement',
           },
         },

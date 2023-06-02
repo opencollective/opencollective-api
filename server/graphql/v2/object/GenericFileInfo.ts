@@ -1,10 +1,10 @@
 import { GraphQLObjectType } from 'graphql';
 
-import { FileInfo, fileInfoFields } from '../interface/FileInfo';
+import { fileInfoFields, GraphQLFileInfo } from '../interface/FileInfo';
 
-export const GenericFileInfo = new GraphQLObjectType({
+export const GraphQLGenericFileInfo = new GraphQLObjectType({
   name: 'GenericFileInfo',
-  interfaces: () => [FileInfo],
+  interfaces: () => [GraphQLFileInfo],
   fields: () => ({
     ...fileInfoFields,
   }),

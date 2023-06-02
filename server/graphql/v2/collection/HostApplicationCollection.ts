@@ -1,18 +1,16 @@
 import { GraphQLList, GraphQLObjectType } from 'graphql';
 
-import { Collection, CollectionFields } from '../interface/Collection';
-import HostApplication from '../object/HostApplication';
+import { CollectionFields, GraphQLCollection } from '../interface/Collection';
+import GraphQLHostApplication from '../object/HostApplication';
 
-const HostApplicationCollection = new GraphQLObjectType({
+export const GraphQLHostApplicationCollection = new GraphQLObjectType({
   name: 'HostApplicationCollection',
-  interfaces: [Collection],
+  interfaces: [GraphQLCollection],
   description: 'A collection of "HostApplication"',
   fields: () => ({
     ...CollectionFields,
     nodes: {
-      type: new GraphQLList(HostApplication),
+      type: new GraphQLList(GraphQLHostApplication),
     },
   }),
 });
-
-export { HostApplicationCollection };

@@ -6,22 +6,22 @@ import { VirtualCardLimitIntervals } from '../../../constants/virtual-cards';
 import { getSpendingLimitIntervalDates } from '../../../lib/stripe';
 import models, { Op } from '../../../models';
 import { checkScope } from '../../common/scope-check';
-import { Currency } from '../enum';
-import { VirtualCardLimitInterval } from '../enum/VirtualCardLimitInterval';
-import { Account } from '../interface/Account';
+import { GraphQLCurrency } from '../enum';
+import { GraphQLVirtualCardLimitInterval } from '../enum/VirtualCardLimitInterval';
+import { GraphQLAccount } from '../interface/Account';
 
-import { Individual } from './Individual';
+import { GraphQLIndividual } from './Individual';
 
 const canSeeVirtualCardPrivateInfo = (req, collective) =>
   req.remoteUser?.isAdminOfCollectiveOrHost(collective) && checkScope(req, 'virtualCards');
 
-export const VirtualCard = new GraphQLObjectType({
+export const GraphQLVirtualCard = new GraphQLObjectType({
   name: 'VirtualCard',
   description: 'A Virtual Card used to pay expenses',
   fields: () => ({
     id: { type: GraphQLString },
     account: {
-      type: Account,
+      type: GraphQLAccount,
       resolve(virtualCard, _, req) {
         if (virtualCard.CollectiveId) {
           return req.loaders.Collective.byId.load(virtualCard.CollectiveId);
@@ -29,7 +29,7 @@ export const VirtualCard = new GraphQLObjectType({
       },
     },
     host: {
-      type: Account,
+      type: GraphQLAccount,
       resolve(virtualCard, _, req) {
         if (virtualCard.HostCollectiveId) {
           return req.loaders.Collective.byId.load(virtualCard.HostCollectiveId);
@@ -37,7 +37,7 @@ export const VirtualCard = new GraphQLObjectType({
       },
     },
     assignee: {
-      type: Individual,
+      type: GraphQLIndividual,
       async resolve(virtualCard, _, req) {
         if (!virtualCard.UserId) {
           return null;
@@ -99,7 +99,7 @@ export const VirtualCard = new GraphQLObjectType({
       },
     },
     spendingLimitInterval: {
-      type: VirtualCardLimitInterval,
+      type: GraphQLVirtualCardLimitInterval,
       async resolve(virtualCard, _, req) {
         const collective = await req.loaders.Collective.byId.load(virtualCard.CollectiveId);
         if (canSeeVirtualCardPrivateInfo(req, collective)) {
@@ -145,7 +145,7 @@ export const VirtualCard = new GraphQLObjectType({
         }
       },
     },
-    currency: { type: Currency },
+    currency: { type: GraphQLCurrency },
     createdAt: { type: GraphQLDateTime },
     updatedAt: { type: GraphQLDateTime },
   }),

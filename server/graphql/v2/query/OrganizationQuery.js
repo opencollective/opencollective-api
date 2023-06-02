@@ -1,7 +1,7 @@
-import { Organization } from '../object/Organization';
+import { GraphQLOrganization } from '../object/Organization';
 
 import { buildAccountQuery } from './AccountQuery';
 
-const OrganizationQuery = buildAccountQuery({ objectType: Organization });
+const OrganizationQuery = buildAccountQuery({ objectType: GraphQLOrganization });
 
 export default OrganizationQuery;

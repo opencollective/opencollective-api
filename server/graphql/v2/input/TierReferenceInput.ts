@@ -4,7 +4,7 @@ import Tier from '../../../models/Tier';
 import { NotFound } from '../../errors';
 import { idDecode } from '../identifiers';
 
-export const TierReferenceInput = new GraphQLInputObjectType({
+export const GraphQLTierReferenceInput = new GraphQLInputObjectType({
   name: 'TierReferenceInput',
   fields: () => ({
     id: {

@@ -1,11 +1,11 @@
 import { TaxType } from '@opencollective/taxes';
 import { GraphQLFloat, GraphQLInputFieldConfig, GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
 
-import { CountryISO } from '../enum';
+import { GraphQLCountryISO } from '../enum';
 import { COUNTRY_CODES } from '../enum/CountryISO';
-import { TaxType as GraphQLTaxType } from '../enum/TaxType';
+import { GraphQLTaxType as GraphQLTaxType } from '../enum/TaxType';
 
-import { AmountInput, AmountInputType } from './AmountInput';
+import { AmountInputType, GraphQLAmountInput } from './AmountInput';
 
 export type TaxInput = {
   type: TaxType;
@@ -35,11 +35,11 @@ export const GraphQLTaxInput = new GraphQLInputObjectType({
       description: 'Tax identification number, if any',
     },
     country: {
-      type: CountryISO,
+      type: GraphQLCountryISO,
       description: 'Country ISO code of the entity paying the tax',
     },
     amount: {
-      type: AmountInput,
+      type: GraphQLAmountInput,
       description:
         'An optional tax amount to make sure the tax displayed in your frontend matches the one calculated by the API',
     },

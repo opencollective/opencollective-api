@@ -26,7 +26,7 @@ export const canEdit = async (req: express.Request, order): Promise<boolean> => 
   return order.status === ORDER_STATUS.PENDING && isHostAdmin(req, order);
 };
 
-const OrderPermissions = new GraphQLObjectType({
+const GraphQLOrderPermissions = new GraphQLObjectType({
   name: 'OrderPermissions',
   description: 'Fields for the user permissions on an order',
   fields: () => ({
@@ -58,4 +58,4 @@ const OrderPermissions = new GraphQLObjectType({
   }),
 });
 
-export default OrderPermissions;
+export default GraphQLOrderPermissions;

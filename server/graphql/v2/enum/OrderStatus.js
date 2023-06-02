@@ -2,7 +2,7 @@ import { GraphQLEnumType } from 'graphql';
 
 import statuses from '../../../constants/order_status';
 
-export const OrderStatus = new GraphQLEnumType({
+export const GraphQLOrderStatus = new GraphQLEnumType({
   name: 'OrderStatus',
   description: 'All order statuses',
   values: {

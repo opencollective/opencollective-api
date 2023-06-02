@@ -2,7 +2,7 @@ import { GraphQLEnumType } from 'graphql';
 
 import { TwoFactorMethod } from '../../../lib/two-factor-authentication';
 
-export const TwoFactorMethodEnum = new GraphQLEnumType({
+export const GraphQLTwoFactorMethodEnum = new GraphQLEnumType({
   name: 'TwoFactorMethod',
   description: 'A two factor authentication method',
   values: Object.keys(TwoFactorMethod)

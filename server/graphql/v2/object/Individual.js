@@ -6,18 +6,18 @@ import models from '../../../models';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { checkScope } from '../../common/scope-check';
 import { hasSeenLatestChangelogEntry } from '../../common/user';
-import { OAuthAuthorizationCollection } from '../collection/OAuthAuthorizationCollection';
-import { PersonalTokenCollection } from '../collection/PersonalTokenCollection';
+import { GraphQLOAuthAuthorizationCollection } from '../collection/OAuthAuthorizationCollection';
+import { GraphQLPersonalTokenCollection } from '../collection/PersonalTokenCollection';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
-import { Account, AccountFields } from '../interface/Account';
+import { AccountFields, GraphQLAccount } from '../interface/Account';
 import { CollectionArgs } from '../interface/Collection';
 
-import { Host } from './Host';
+import { GraphQLHost } from './Host';
 
-export const Individual = new GraphQLObjectType({
+export const GraphQLIndividual = new GraphQLObjectType({
   name: 'Individual',
   description: 'This represents an Individual account',
-  interfaces: () => [Account],
+  interfaces: () => [GraphQLAccount],
   isTypeOf: collective => collective.type === collectiveTypes.USER,
   fields: () => {
     return {
@@ -120,7 +120,7 @@ export const Individual = new GraphQLObjectType({
         },
       },
       host: {
-        type: Host,
+        type: GraphQLHost,
         description: 'If the individual is a host account, this will return the matching Host object',
         resolve(collective) {
           if (collective.isHostAccount) {
@@ -139,7 +139,7 @@ export const Individual = new GraphQLObjectType({
         },
       },
       oAuthAuthorizations: {
-        type: OAuthAuthorizationCollection,
+        type: GraphQLOAuthAuthorizationCollection,
         args: {
           ...CollectionArgs,
         },
@@ -177,7 +177,7 @@ export const Individual = new GraphQLObjectType({
         },
       },
       personalTokens: {
-        type: PersonalTokenCollection,
+        type: GraphQLPersonalTokenCollection,
         description: 'The list of personal tokens created by this account. Admin only. Scope: "applications".',
         args: {
           ...CollectionArgs,
@@ -214,4 +214,4 @@ export const Individual = new GraphQLObjectType({
   },
 });
 
-export default Individual;
+export default GraphQLIndividual;

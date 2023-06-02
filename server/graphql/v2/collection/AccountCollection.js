@@ -1,20 +1,18 @@
 import { GraphQLList, GraphQLObjectType } from 'graphql';
 
-import { Account } from '../interface/Account';
-import { Collection, CollectionFields } from '../interface/Collection';
+import { GraphQLAccount } from '../interface/Account';
+import { CollectionFields, GraphQLCollection } from '../interface/Collection';
 
-const AccountCollection = new GraphQLObjectType({
+export const GraphQLAccountCollection = new GraphQLObjectType({
   name: 'AccountCollection',
-  interfaces: [Collection],
+  interfaces: [GraphQLCollection],
   description: 'A collection of "Accounts"',
   fields: () => {
     return {
       ...CollectionFields,
       nodes: {
-        type: new GraphQLList(Account),
+        type: new GraphQLList(GraphQLAccount),
       },
     };
   },
 });
-
-export { AccountCollection };

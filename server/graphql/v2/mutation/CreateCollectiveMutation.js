@@ -17,11 +17,11 @@ import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitat
 import { processInviteMembersInput } from '../../common/members';
 import { checkScope } from '../../common/scope-check';
 import { RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
-import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
-import { CollectiveCreateInput } from '../input/CollectiveCreateInput';
-import { IndividualCreateInput } from '../input/IndividualCreateInput';
-import { InviteMemberInput } from '../input/InviteMemberInput';
-import { Collective } from '../object/Collective';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import { GraphQLCollectiveCreateInput } from '../input/CollectiveCreateInput';
+import { GraphQLIndividualCreateInput } from '../input/IndividualCreateInput';
+import { GraphQLInviteMemberInput } from '../input/InviteMemberInput';
+import { GraphQLCollective } from '../object/Collective';
 
 const DEFAULT_COLLECTIVE_SETTINGS = {
   features: { conversations: true },
@@ -224,20 +224,20 @@ async function createCollective(_, args, req) {
 }
 
 const createCollectiveMutation = {
-  type: Collective,
+  type: GraphQLCollective,
   description: 'Create a Collective. Scope: "account".',
   args: {
     collective: {
       description: 'Information about the collective to create (name, slug, description, tags, ...)',
-      type: new GraphQLNonNull(CollectiveCreateInput),
+      type: new GraphQLNonNull(GraphQLCollectiveCreateInput),
     },
     host: {
       description: 'Reference to the host to apply on creation.',
-      type: AccountReferenceInput,
+      type: GraphQLAccountReferenceInput,
     },
     user: {
       description: 'User information to create along with the collective',
-      type: IndividualCreateInput,
+      type: GraphQLIndividualCreateInput,
     },
     automateApprovalWithGithub: {
       description: 'Whether to trigger the automated approval for Open Source collectives with GitHub.',
@@ -263,7 +263,7 @@ const createCollectiveMutation = {
       defaultValue: false,
     },
     inviteMembers: {
-      type: new GraphQLList(InviteMemberInput),
+      type: new GraphQLList(GraphQLInviteMemberInput),
       description: 'List of members to invite on Collective creation.',
     },
   },

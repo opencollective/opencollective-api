@@ -1,22 +1,22 @@
 import { GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
 
-import { CountryISO } from '../enum';
-import { OrderTaxType } from '../enum/OrderTaxType';
+import { GraphQLCountryISO } from '../enum';
+import { GraphQLOrderTaxType } from '../enum/OrderTaxType';
 
-import { AmountInput } from './AmountInput';
+import { GraphQLAmountInput } from './AmountInput';
 
-export const OrderTaxInput = new GraphQLInputObjectType({
+export const GraphQLOrderTaxInput = new GraphQLInputObjectType({
   name: 'OrderTaxInput',
   description: 'Input to set taxes for an order',
   fields: () => ({
     type: {
-      type: new GraphQLNonNull(OrderTaxType),
+      type: new GraphQLNonNull(GraphQLOrderTaxType),
     },
     amount: {
-      type: new GraphQLNonNull(AmountInput),
+      type: new GraphQLNonNull(GraphQLAmountInput),
     },
     country: {
-      type: CountryISO,
+      type: GraphQLCountryISO,
       description: 'Country of the account ordering, to know from where to apply the tax',
       // TODO: Create an issue to deprecate this field and use `order.location` instead
     },

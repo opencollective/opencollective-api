@@ -48,28 +48,39 @@ import {
   getOrderTaxInfoFromTaxInput,
 } from '../../v1/mutations/orders';
 import { getIntervalFromContributionFrequency } from '../enum/ContributionFrequency';
-import { ProcessOrderAction } from '../enum/ProcessOrderAction';
+import { GraphQLProcessOrderAction } from '../enum/ProcessOrderAction';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
-import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
-import { AmountInput, assertAmountInputCurrency, getValueInCentsFromAmountInput } from '../input/AmountInput';
-import { GuestInfoInput } from '../input/GuestInfoInput';
-import { OrderCreateInput, PendingOrderCreateInput, PendingOrderEditInput } from '../input/OrderCreateInput';
-import { fetchOrdersWithReferences, fetchOrderWithReference, OrderReferenceInput } from '../input/OrderReferenceInput';
-import { OrderUpdateInput } from '../input/OrderUpdateInput';
-import PaymentIntentInput from '../input/PaymentIntentInput';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import { assertAmountInputCurrency, getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/AmountInput';
+import { GraphQLGuestInfoInput } from '../input/GuestInfoInput';
+import {
+  GraphQLOrderCreateInput,
+  GraphQLPendingOrderCreateInput,
+  GraphQLPendingOrderEditInput,
+} from '../input/OrderCreateInput';
+import {
+  fetchOrdersWithReferences,
+  fetchOrderWithReference,
+  GraphQLOrderReferenceInput,
+} from '../input/OrderReferenceInput';
+import { GraphQLOrderUpdateInput } from '../input/OrderUpdateInput';
+import GraphQLPaymentIntentInput from '../input/PaymentIntentInput';
 import { getLegacyPaymentMethodFromPaymentMethodInput } from '../input/PaymentMethodInput';
-import { fetchPaymentMethodWithReference, PaymentMethodReferenceInput } from '../input/PaymentMethodReferenceInput';
-import { fetchTierWithReference, TierReferenceInput } from '../input/TierReferenceInput';
-import { Order } from '../object/Order';
+import {
+  fetchPaymentMethodWithReference,
+  GraphQLPaymentMethodReferenceInput,
+} from '../input/PaymentMethodReferenceInput';
+import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput';
+import { GraphQLOrder } from '../object/Order';
 import { canEdit, canMarkAsExpired, canMarkAsPaid } from '../object/OrderPermissions';
-import PaymentIntent from '../object/PaymentIntent';
-import { StripeError } from '../object/StripeError';
+import GraphQLPaymentIntent from '../object/PaymentIntent';
+import { GraphQLStripeError } from '../object/StripeError';
 
-const OrderWithPayment = new GraphQLObjectType({
+const GraphQLOrderWithPayment = new GraphQLObjectType({
   name: 'OrderWithPayment',
   fields: () => ({
     order: {
-      type: new GraphQLNonNull(Order),
+      type: new GraphQLNonNull(GraphQLOrder),
       description: 'The order created',
     },
     guestToken: {
@@ -77,7 +88,7 @@ const OrderWithPayment = new GraphQLObjectType({
       description: 'If donating as a guest, this will contain your guest token to confirm your order',
     },
     stripeError: {
-      type: StripeError,
+      type: GraphQLStripeError,
       description:
         'This field will be set if the order was created but there was an error with Stripe during the payment',
     },
@@ -138,11 +149,11 @@ const getOrderTaxInfo = (taxInput, quantity, orderAmount, fromAccount, toAccount
 
 const orderMutations = {
   createOrder: {
-    type: new GraphQLNonNull(OrderWithPayment),
+    type: new GraphQLNonNull(GraphQLOrderWithPayment),
     description: 'To submit a new order. Scope: "orders".',
     args: {
       order: {
-        type: new GraphQLNonNull(OrderCreateInput),
+        type: new GraphQLNonNull(GraphQLOrderCreateInput),
       },
     },
     async resolve(_, args, req) {
@@ -211,11 +222,11 @@ const orderMutations = {
     },
   },
   cancelOrder: {
-    type: Order,
+    type: GraphQLOrder,
     description: 'Cancel an order. Scope: "orders".',
     args: {
       order: {
-        type: new GraphQLNonNull(OrderReferenceInput),
+        type: new GraphQLNonNull(GraphQLOrderReferenceInput),
         description: 'Object matching the OrderReferenceInput (id)',
       },
       reason: {
@@ -280,15 +291,15 @@ const orderMutations = {
     },
   },
   updateOrder: {
-    type: Order,
+    type: GraphQLOrder,
     description: `Update an Order's amount, tier, or payment method. Scope: "orders".`,
     args: {
       order: {
-        type: new GraphQLNonNull(OrderReferenceInput),
+        type: new GraphQLNonNull(GraphQLOrderReferenceInput),
         description: 'Reference to the Order to update',
       },
       paymentMethod: {
-        type: PaymentMethodReferenceInput,
+        type: GraphQLPaymentMethodReferenceInput,
         description: 'Reference to a Payment Method to update the order with',
       },
       paypalSubscriptionId: {
@@ -296,11 +307,11 @@ const orderMutations = {
         description: 'To update the order with a PayPal subscription',
       },
       tier: {
-        type: TierReferenceInput,
+        type: GraphQLTierReferenceInput,
         description: 'Reference to a Tier to update the order with',
       },
       amount: {
-        type: AmountInput,
+        type: GraphQLAmountInput,
         description: 'An Amount to update the order to',
       },
     },
@@ -394,11 +405,11 @@ const orderMutations = {
     },
   },
   confirmOrder: {
-    type: new GraphQLNonNull(OrderWithPayment),
+    type: new GraphQLNonNull(GraphQLOrderWithPayment),
     description: 'Confirm an order (strong customer authentication). Scope: "orders".',
     args: {
       order: {
-        type: new GraphQLNonNull(OrderReferenceInput),
+        type: new GraphQLNonNull(GraphQLOrderReferenceInput),
       },
       guestToken: {
         type: GraphQLString,
@@ -421,14 +432,14 @@ const orderMutations = {
     },
   },
   processPendingOrder: {
-    type: new GraphQLNonNull(Order),
+    type: new GraphQLNonNull(GraphQLOrder),
     description: 'A mutation for the host to approve or reject an order. Scope: "orders".',
     args: {
       order: {
-        type: new GraphQLNonNull(OrderUpdateInput),
+        type: new GraphQLNonNull(GraphQLOrderUpdateInput),
       },
       action: {
-        type: new GraphQLNonNull(ProcessOrderAction),
+        type: new GraphQLNonNull(GraphQLProcessOrderAction),
       },
     },
     async resolve(_, args, req) {
@@ -556,19 +567,19 @@ const orderMutations = {
     },
   },
   moveOrders: {
-    type: new GraphQLNonNull(new GraphQLList(Order)),
+    type: new GraphQLNonNull(new GraphQLList(GraphQLOrder)),
     description: '[Root only] A mutation to move orders from one account to another',
     args: {
       orders: {
-        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(OrderReferenceInput))),
+        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLOrderReferenceInput))),
         description: 'The orders to move',
       },
       fromAccount: {
-        type: AccountReferenceInput,
+        type: GraphQLAccountReferenceInput,
         description: 'The account to move the orders to. Set to null to keep existing',
       },
       tier: {
-        type: TierReferenceInput,
+        type: GraphQLTierReferenceInput,
         description:
           'The tier to move the orders to. Set to null to keep existing. Pass { id: "custom" } to reference the custom tier (/donate)',
       },
@@ -792,14 +803,14 @@ const orderMutations = {
     },
   },
   createPaymentIntent: {
-    type: new GraphQLNonNull(PaymentIntent),
+    type: new GraphQLNonNull(GraphQLPaymentIntent),
     description: 'Creates a Stripe payment intent',
     args: {
       paymentIntent: {
-        type: new GraphQLNonNull(PaymentIntentInput),
+        type: new GraphQLNonNull(GraphQLPaymentIntentInput),
       },
       guestInfo: {
-        type: GuestInfoInput,
+        type: GraphQLGuestInfoInput,
       },
     },
     async resolve(_, args, req) {
@@ -925,11 +936,11 @@ const orderMutations = {
     },
   },
   createPendingOrder: {
-    type: new GraphQLNonNull(Order),
+    type: new GraphQLNonNull(GraphQLOrder),
     description: 'To submit a new order. Scope: "orders".',
     args: {
       order: {
-        type: new GraphQLNonNull(PendingOrderCreateInput),
+        type: new GraphQLNonNull(GraphQLPendingOrderCreateInput),
       },
     },
     async resolve(_, args, req) {
@@ -1019,11 +1030,11 @@ const orderMutations = {
     },
   },
   editPendingOrder: {
-    type: new GraphQLNonNull(Order),
+    type: new GraphQLNonNull(GraphQLOrder),
     description: 'To edit a pending order. Scope: "orders".',
     args: {
       order: {
-        type: new GraphQLNonNull(PendingOrderEditInput),
+        type: new GraphQLNonNull(GraphQLPendingOrderEditInput),
       },
     },
     async resolve(_, args, req) {

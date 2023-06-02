@@ -2,9 +2,9 @@ import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectT
 import { GraphQLDateTime } from 'graphql-scalars';
 
 import { getCollectiveAvatarUrl } from '../../../lib/collectivelib';
-import { ImageFormat, MemberRole } from '../enum';
+import { GraphQLImageFormat, GraphQLMemberRole } from '../enum';
 
-export const Contributor = new GraphQLObjectType({
+export const GraphQLContributor = new GraphQLObjectType({
   name: 'Contributor',
   description: `
     A person or an entity that contributes financially or by any other mean to the mission
@@ -21,7 +21,7 @@ export const Contributor = new GraphQLObjectType({
       description: 'Name of the contributor',
     },
     roles: {
-      type: new GraphQLList(MemberRole),
+      type: new GraphQLList(GraphQLMemberRole),
       description: 'All the roles for a given contributor',
     },
     isAdmin: {
@@ -69,7 +69,7 @@ export const Contributor = new GraphQLObjectType({
       description: 'Contributor avatar or logo',
       args: {
         height: { type: GraphQLInt },
-        format: { type: ImageFormat },
+        format: { type: GraphQLImageFormat },
       },
       resolve(contributor, args): string | null {
         if (!contributor.collectiveSlug) {

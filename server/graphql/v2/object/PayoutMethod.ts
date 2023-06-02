@@ -4,10 +4,10 @@ import { GraphQLJSON } from 'graphql-scalars';
 
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { checkScope } from '../../common/scope-check';
-import { PayoutMethodType } from '../enum/PayoutMethodType';
+import { GraphQLPayoutMethodType } from '../enum/PayoutMethodType';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
-const PayoutMethod = new GraphQLObjectType({
+const GraphQLPayoutMethod = new GraphQLObjectType({
   name: 'PayoutMethod',
   description: 'A payout method',
   fields: () => ({
@@ -17,7 +17,7 @@ const PayoutMethod = new GraphQLObjectType({
       description: 'Unique identifier for this payout method',
     },
     type: {
-      type: PayoutMethodType,
+      type: GraphQLPayoutMethodType,
       description: 'The type of this payout method (usually the payment provider)',
     },
     name: {
@@ -65,4 +65,4 @@ const PayoutMethod = new GraphQLObjectType({
   }),
 });
 
-export default PayoutMethod;
+export default GraphQLPayoutMethod;

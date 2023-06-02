@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
-export const AccountType = new GraphQLEnumType({
+export const GraphQLAccountType = new GraphQLEnumType({
   name: 'AccountType',
   description: 'All account types',
   values: {

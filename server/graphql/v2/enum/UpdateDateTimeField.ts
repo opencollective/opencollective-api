@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
-export const UpdateDateTimeField = new GraphQLEnumType({
+export const GraphQLUpdateDateTimeField = new GraphQLEnumType({
   name: 'UpdateDateTimeField',
   description: 'All possible DateTime fields for an update',
   values: {

@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
-export const ExpenseProcessAction = new GraphQLEnumType({
+export const GraphQLExpenseProcessAction = new GraphQLEnumType({
   name: 'ExpenseProcessAction',
   description: 'All supported expense types',
   values: {
