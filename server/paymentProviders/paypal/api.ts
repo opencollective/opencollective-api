@@ -1,5 +1,5 @@
 import config from 'config';
-import fetch from 'node-fetch';
+import fetch, { Response } from 'node-fetch';
 
 import logger from '../../lib/logger';
 import { getHostPaypalAccount } from '../../lib/paypal';
@@ -90,7 +90,7 @@ export async function paypalRequest(urlPath, body, hostCollective, method = 'POS
     },
   };
 
-  const result = await fetch(url, params);
+  const result: Response = await fetch(url, params);
   if (!result.ok) {
     const { message, metadata } = await parsePaypalError(result);
     logger.error('PayPal request failed', metadata);
@@ -125,7 +125,7 @@ export async function paypalRequestV2(
     },
   };
 
-  const result = await fetch(url, params);
+  const result: Response = await fetch(url, params);
   if (!result.ok) {
     const { message, metadata } = await parsePaypalError(result);
     logger.error(`PayPal request V2 failed`, metadata);

@@ -185,19 +185,22 @@ export default async app => {
 
   /* GraphQL server protection rules */
   const logRejection = (ctx, err) => {
-    logger.warn(`Query complexity is too high: ${err.message}`);
+    let queryName = 'Query';
     if (ctx._ast) {
       const operation = ctx._ast.definitions?.find(d => d.kind === 'OperationDefinition');
+      queryName = operation?.name?.value || queryName;
       reportMessageToSentry('Query complexity is too high', {
         handler: HandlerType.GQL,
         severity: 'warning',
-        transactionName: `GraphQL complexity too high: ${operation?.name?.value}`,
+        transactionName: `GraphQL complexity too high: ${queryName}`,
         extra: {
           query: ctx._ast.loc?.source?.body || '',
           message: err.message,
         },
       });
     }
+
+    logger.warn(`Query complexity is too high (${queryName}): ${err.message.replace(/^Syntax Error: /, '')}`);
   };
 
   const apolloArmor = new ApolloArmor({
