@@ -712,7 +712,7 @@ describe('server/graphql/v1/mutation', () => {
             },
           });
           expect(members).to.have.length(1);
-          await utils.waitForCondition(() => emailSendMessageSpy.callCount > 0);
+          await utils.waitForCondition(() => emailSendMessageSpy.callCount > 1);
           expect(emailSendSpy.callCount).to.equal(2);
           const activityData = emailSendSpy.lastCall.args[2];
           expect(activityData.member.role).to.equal(roles.BACKER);
