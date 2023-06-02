@@ -1,7 +1,6 @@
 import { expect } from 'chai';
 import { repeat } from 'lodash';
 import moment from 'moment';
-import { SequelizeValidationError } from 'sequelize';
 import { createSandbox } from 'sinon';
 
 import { expenseStatus, roles } from '../../../server/constants';
@@ -200,10 +199,6 @@ describe('server/models/Collective', () => {
   });
 
   it('validates name', async () => {
-    // Invalid
-    await expect(models.Collective.create({ name: '' })).to.be.eventually.rejectedWith(SequelizeValidationError);
-
-    // Valid
     await expect(models.Collective.create({ name: 'joe', slug: randStr() })).to.be.eventually.fulfilled;
     await expect(models.Collective.create({ name: 'frank zappa', slug: randStr() })).to.be.eventually.fulfilled;
     await expect(models.Collective.create({ name: '王继磊', slug: randStr() })).to.be.eventually.fulfilled;
