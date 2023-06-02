@@ -1,4 +1,4 @@
-import AddressFormatter, { formatAddress as shopifyFormatAddress } from '@shopify/address/index.mjs';
+import AddressFormatter, { formatAddress as shopifyFormatAddress } from '@shopify/address';
 
 import { Location } from '../types/Location.js';
 

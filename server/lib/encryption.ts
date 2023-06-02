@@ -1,7 +1,9 @@
 import config from 'config';
 import cryptojs from 'crypto-js';
-import { randomBytes, secretbox as _secretbox } from 'tweetnacl';
-import { decodeBase64, encodeBase64, encodeUTF8 } from 'tweetnacl-util';
+import tweetnacl from 'tweetnacl';
+const { randomBytes, secretbox: _secretbox } = tweetnacl;
+import tweetnaclUtil from 'tweetnacl-util';
+const { decodeBase64, encodeBase64, encodeUTF8 } = tweetnaclUtil;
 
 const { nonceLength, keyLength } = _secretbox;
 

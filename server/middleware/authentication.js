@@ -64,7 +64,7 @@ const parseJwt = req => {
 };
 
 const checkJwtScope = req => {
-  const minifiedGraphqlOperation = req.body?.query ? gqlmin(req.body.query) : null;
+  const minifiedGraphqlOperation = req.body?.query ? gqlmin.default(req.body.query) : null;
   const allowedResetPasswordGraphqlOperations = [
     'query ResetPasswordAccount{loggedInAccount{id type slug name email imageUrl __typename}}',
     'mutation ResetPassword($password:String!){setPassword(password:$password){individual{id __typename}token __typename}}',

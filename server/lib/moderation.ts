@@ -4,6 +4,7 @@ import { readFileSync } from 'fs';
 import path from 'path';
 
 import { pick, startCase } from 'lodash-es';
+
 import models, { Collective, Op, sequelize } from '../models/index.js';
 import { MigrationLogType } from '../models/MigrationLog.js';
 

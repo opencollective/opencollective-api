@@ -4,7 +4,6 @@ const __dirname = url.fileURLToPath(new url.URL('.', import.meta.url));
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import url from 'url';
 
 import axios, { AxiosError, AxiosResponse } from 'axios';
 import config from 'config';
@@ -17,7 +16,6 @@ import ActivityTypes from '../constants/activities.js';
 import { TransferwiseError } from '../graphql/errors.js';
 import models from '../models/index.js';
 import { ConnectedAccount } from '../models/ConnectedAccount.js';
-
 import {
   AccessToken,
   BalanceV4,

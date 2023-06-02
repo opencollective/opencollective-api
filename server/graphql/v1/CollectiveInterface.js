@@ -13,7 +13,7 @@ import { GraphQLJSON } from 'graphql-scalars';
 import { get, has, isNil, isNull, merge, omitBy, sortBy } from 'lodash-es';
 import moment from 'moment';
 import sequelize from 'sequelize';
-import SqlString from 'sequelize/lib/sql-string.js';
+import SqlString from 'sequelize/lib/sql-string';
 
 import { types } from '../../constants/collectives.js';
 import FEATURE from '../../constants/feature.js';

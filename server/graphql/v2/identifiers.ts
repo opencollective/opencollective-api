@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 
 import config from 'config';
-import Hashids from 'hashids/cjs/index.js';
+import Hashids from 'hashids';
 
 import { BadRequest } from '../errors.js';
 

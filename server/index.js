@@ -28,7 +28,7 @@ async function start(i) {
   /**
    * Start server
    */
-  const server = expressApp.listen(config.port, () => {
+  const server = expressApp.listen(config.port, async () => {
     const host = os.hostname();
     logger.info(
       'Open Collective API listening at http://%s:%s in %s environment. Worker #%s',
@@ -38,7 +38,7 @@ async function start(i) {
       i,
     );
     if (config.maildev.server) {
-      const maildev = require('./maildev'); // eslint-disable-line @typescript-eslint/no-var-requires
+      const { default: maildev } = await import('./maildev.js'); // eslint-disable-line @typescript-eslint/no-var-requires
       maildev.listen();
     }
   });

@@ -1,5 +1,6 @@
 import twoFactorAuthLib from './lib.js';
 
-export { SupportedTwoFactorMethods, Token, TwoFactorAuthProvider, TwoFactorMethod } from './lib';
+export { SupportedTwoFactorMethods, TwoFactorMethod } from './lib.js';
+export type { Token, TwoFactorAuthProvider } from './lib.js';
 
 export default twoFactorAuthLib;

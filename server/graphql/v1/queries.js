@@ -1,6 +1,6 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { uniq } from 'lodash-es';
-import { isEmail } from 'validator';
+import isEmail from 'validator/lib/isEmail.js';
 
 import { roles } from '../../constants/index.js';
 import { types as CollectiveTypes } from '../../constants/collectives.js';

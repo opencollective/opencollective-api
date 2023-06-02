@@ -1,5 +1,4 @@
-import { GraphQLList, GraphQLNonNull } from 'graphql';
-import { GraphQLBoolean } from 'graphql/type/index.mjs';
+import { GraphQLBoolean, GraphQLList, GraphQLNonNull } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { flatten, uniq } from 'lodash-es';
 import { Order } from 'sequelize';

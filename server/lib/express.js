@@ -1,4 +1,7 @@
-import cloudflareIps from 'cloudflare-ip/ips.json';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const cloudflareIps = require('cloudflare-ip/ips.json');
+
 import config from 'config';
 import RedisStore from 'connect-redis';
 import cookieParser from 'cookie-parser';
