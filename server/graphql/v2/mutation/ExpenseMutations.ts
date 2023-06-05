@@ -497,34 +497,6 @@ const expenseMutations = {
       return expense;
     },
   },
-  verifyExpense: {
-    type: new GraphQLNonNull(GraphQLExpense),
-    description: 'To verify and unverified expense. Scope: "expenses".',
-    args: {
-      expense: {
-        type: new GraphQLNonNull(GraphQLExpenseReferenceInput),
-        description: 'Reference of the expense to process',
-      },
-      draftKey: {
-        type: GraphQLString,
-        description: 'Expense draft key if invited to submit expense',
-      },
-    },
-    async resolve(_: void, args, req: express.Request): Promise<ExpenseModel> {
-      // NOTE(oauth-scope): Ok for non-authenticated users, we only check scope
-      enforceScope(req, 'expenses');
-
-      const expense = await fetchExpenseWithReference(args.expense, { throwIfMissing: true });
-      if (expense.status !== expenseStatus.UNVERIFIED) {
-        throw new Unauthorized('Expense can not be verified.');
-      } else if (!(await canVerifyDraftExpense(req, expense))) {
-        throw new Unauthorized("You don't have the permission to verify this expense.");
-      }
-      await expense.verify(req.remoteUser);
-
-      return expense;
-    },
-  },
 };
 
 export default expenseMutations;
