@@ -13,7 +13,9 @@ import { pick, round } from 'lodash';
 import roles from '../../../constants/roles';
 import { getHostFeePercent } from '../../../lib/payments';
 import models from '../../../models';
+import { PRIVATE_ORDER_ACTIVITIES } from '../../loaders/order';
 import { ORDER_PUBLIC_DATA_FIELDS } from '../../v1/mutations/orders';
+import { GraphQLActivityCollection } from '../collection/ActivityCollection';
 import { GraphQLContributionFrequency, GraphQLOrderStatus } from '../enum';
 import { idEncode } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
@@ -22,9 +24,8 @@ import { GraphQLAmount } from '../object/Amount';
 import { GraphQLPaymentMethod } from '../object/PaymentMethod';
 import { GraphQLTier } from '../object/Tier';
 
-import { GraphQLActivity } from './Activity';
 import { GraphQLMemberOf } from './Member';
-import GraphQLOrderPermissions from './OrderPermissions';
+import GraphQLOrderPermissions, { canSeeOrderPrivateActivities } from './OrderPermissions';
 import { GraphQLOrderTax } from './OrderTax';
 import { GraphQLTaxInfo } from './TaxInfo';
 
@@ -277,10 +278,21 @@ export const GraphQLOrder = new GraphQLObjectType({
         },
       },
       activities: {
-        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLActivity))),
+        // We're not paginating yet, but already using the collection type to introduce it without breaking changes in the future
+        type: new GraphQLNonNull(GraphQLActivityCollection),
         description: 'The list of activities (ie. approved, edited, etc) for this Order ordered by date ascending',
         async resolve(order, _, req) {
-          return await req.loaders.Order.activities.load(order.id);
+          let activities = await req.loaders.Order.activities.load(order.id);
+          if (!(await canSeeOrderPrivateActivities(req, order))) {
+            activities = activities.filter(activity => !PRIVATE_ORDER_ACTIVITIES.includes(activity.type));
+          }
+
+          return {
+            nodes: activities,
+            totalCount: activities.length,
+            limit: activities.length,
+            offset: 0,
+          };
         },
       },
       data: {

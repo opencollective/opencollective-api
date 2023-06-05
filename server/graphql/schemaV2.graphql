@@ -879,6 +879,11 @@ type Order {
   permissions: OrderPermissions!
 
   """
+  The list of activities (ie. approved, edited, etc) for this Order ordered by date ascending
+  """
+  activities: ActivityCollection!
+
+  """
   Data related to the order
   """
   data: JSON
@@ -4320,7 +4325,6 @@ type ActivitySubscription {
 All supported Activity channels we can broadcast to
 """
 enum ActivityChannel {
-  gitter
   slack
   twitter
   webhook
@@ -5236,9 +5240,24 @@ type OrderPermissions {
   canMarkAsPaid: Boolean!
 
   """
-  Whether the current user edit this pending order
+  Whether the current user can edit this pending order
   """
   canEdit: Boolean!
+
+  """
+  Whether the current user can see private activities for this order
+  """
+  canSeePrivateActivities: Boolean!
+}
+
+"""
+A collection of "Activities"
+"""
+type ActivityCollection implements Collection {
+  offset: Int
+  limit: Int
+  totalCount: Int
+  nodes: [Activity!]
 }
 
 type PendingOrderData {
@@ -11518,16 +11537,6 @@ enum CountryISO {
   Western Sahara
   """
   EH
-}
-
-"""
-A collection of "Activities"
-"""
-type ActivityCollection implements Collection {
-  offset: Int
-  limit: Int
-  totalCount: Int
-  nodes: [Activity!]
 }
 
 enum ActivityAndClassesType {
