@@ -400,6 +400,18 @@ export const loaders = req => {
         );
       }),
     ),
+    orders: new DataLoader(async collectiveIds => {
+      const stats = await sequelize.query(
+        `SELECT * FROM "CollectiveOrderStats" WHERE "CollectiveId" IN (:collectiveIds)`,
+        {
+          replacements: { collectiveIds },
+          type: sequelize.QueryTypes.SELECT,
+          raw: true,
+        },
+      );
+
+      return sortResultsSimple(collectiveIds, stats, row => row.CollectiveId);
+    }),
   };
 
   /** *** Tier *****/
