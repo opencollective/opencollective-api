@@ -22,14 +22,11 @@ import { GraphQLAmount } from '../object/Amount';
 import { GraphQLPaymentMethod } from '../object/PaymentMethod';
 import { GraphQLTier } from '../object/Tier';
 
+import { GraphQLActivity } from './Activity';
 import { GraphQLMemberOf } from './Member';
 import GraphQLOrderPermissions from './OrderPermissions';
 import { GraphQLOrderTax } from './OrderTax';
 import { GraphQLTaxInfo } from './TaxInfo';
-import { Activity } from './Activity';
-import { MemberOf } from './Member';
-import OrderPermissions from './OrderPermissions';
-import { OrderTax } from './OrderTax';
 
 const GraphQLPendingOrderFromAccountInfo = new GraphQLObjectType({
   name: 'PendingOrderFromAccountInfo',
@@ -280,7 +277,7 @@ export const GraphQLOrder = new GraphQLObjectType({
         },
       },
       activities: {
-        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Activity))),
+        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLActivity))),
         description: 'The list of activities (ie. approved, edited, etc) for this Order ordered by date ascending',
         async resolve(order, _, req) {
           return await req.loaders.Order.activities.load(order.id);
