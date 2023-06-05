@@ -220,6 +220,21 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
     return this.save();
   };
 
+  verify = async function (remoteUser) {
+    if (this.status !== ExpenseStatus.UNVERIFIED) {
+      throw new Error(`Expense needs to be UNVERIFIED in order to be verified.`);
+    }
+
+    await this.update({ status: ExpenseStatus.PENDING });
+
+    // Technically the expense was already created, but it was a draft. It truly becomes visible
+    // for everyone (especially admins) at this point, so it's the right time to trigger `COLLECTIVE_EXPENSE_CREATED`
+    await this.createActivity(ActivityTypes.COLLECTIVE_EXPENSE_CREATED, remoteUser).catch(e => {
+      logger.error('An error happened when creating the COLLECTIVE_EXPENSE_CREATED activity', e);
+      reportErrorToSentry(e);
+    });
+  };
+
   /**
    * Returns the PayoutMethod.type based on the legacy `payoutMethod`
    */
@@ -442,6 +457,17 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
     });
 
     return expenses.filter(expense => expense?.Transactions?.some(t => t.isRefund) === false);
+  };
+
+  static verifyUserExpenses = async function (user) {
+    const expenses = await Expense.findAll({
+      where: {
+        UserId: user.id,
+        status: ExpenseStatus.UNVERIFIED,
+      },
+    });
+
+    return Promise.all(expenses.map(expense => expense.verify(user)));
   };
 }
 

@@ -520,14 +520,7 @@ const expenseMutations = {
       } else if (!(await canVerifyDraftExpense(req, expense))) {
         throw new Unauthorized("You don't have the permission to verify this expense.");
       }
-      await expense.update({ status: expenseStatus.PENDING });
-
-      // Technically the expense was already created, but it was a draft. It truly becomes visible
-      // for everyone (especially admins) at this point, so it's the right time to trigger `COLLECTIVE_EXPENSE_CREATED`
-      await expense.createActivity(activities.COLLECTIVE_EXPENSE_CREATED, req.remoteUser).catch(e => {
-        logger.error('An error happened when creating the COLLECTIVE_EXPENSE_CREATED activity', e);
-        reportErrorToSentry(e);
-      });
+      await expense.verify(req.remoteUser);
 
       return expense;
     },

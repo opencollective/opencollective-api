@@ -193,7 +193,11 @@ const _authenticateUserByJwt = async (req, res, next) => {
           logger.info(`${errorMessage}. Ignoring in non-production environment.`);
         }
       }
+    } else {
+      // Verify any Expenses marked as UNVERIFIED that were created before the login link was generated
+      await models.Expense.verifyUserExpenses(user);
     }
+
     if (!parseToBoolean(config.database.readOnly)) {
       await user.update({
         // The login was accepted, we can update lastLoginAt. This will invalidate all older login tokens.
