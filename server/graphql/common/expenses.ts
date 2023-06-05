@@ -287,6 +287,17 @@ export const canSeeExpensePayeeLocation: ExpensePermissionEvaluator = async (req
 };
 
 export const canSeeExpenseSecurityChecks: ExpensePermissionEvaluator = async (req, expense) => {
+  // Preload host and collective, we'll need them for permissions checks
+  expense.collective = expense.collective || (await req.loaders.Collective.byId.load(expense.CollectiveId));
+  if (expense.collective?.HostCollectiveId && !expense.collective.host) {
+    expense.collective.host = await req.loaders.Collective.byId.load(expense.collective.HostCollectiveId);
+  }
+
+  // Only trusted hosts can use security checks
+  if (!get(expense.collective, 'host.data.isTrustedHost')) {
+    return false;
+  }
+
   return remoteUserMeetsOneCondition(req, expense, [isHostAdmin]);
 };
 
