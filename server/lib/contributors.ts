@@ -233,5 +233,5 @@ export const getContributorsForCollective = async (collectiveId: number): Promis
 /** Invalidates the contributors cache for this collective */
 export const invalidateContributorsCache = async (collectiveId: number): Promise<void> => {
   const cacheKey = getCacheKey(collectiveId);
-  return cache.delete(cacheKey);
+  await cache.delete(cacheKey);
 };

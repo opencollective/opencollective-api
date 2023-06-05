@@ -121,10 +121,7 @@ async function hasValidTwoFactorSession(
   return true;
 }
 
-async function storeTwoFactorSession(
-  req: Request,
-  options: ValidateRequestOptions = DefaultValidateRequestOptions,
-): Promise<void> {
+async function storeTwoFactorSession(req: Request, options: ValidateRequestOptions = DefaultValidateRequestOptions) {
   const sessionKey = getSessionKey(req, options);
   return cache.set(sessionKey, {}, options.sessionDuration);
 }

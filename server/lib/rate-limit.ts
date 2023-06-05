@@ -50,7 +50,7 @@ export default class RateLimit {
   }
 
   /** Resets the limit */
-  public async reset(): Promise<undefined> {
+  public async reset() {
     return cache.delete(this.cacheKey);
   }
 
