@@ -2070,7 +2070,7 @@ export const checkHasBalanceToPayExpense = async (
         `Collective does not have enough funds to pay this expense. Current balance: ${formatCurrency(
           balanceInHostCurrency,
           host.currency,
-        )}, Expense amount: ${formatCurrency(balanceInHostCurrency, host.currency)}`,
+        )}, Expense amount: ${formatCurrency(totalAmountPaidInHostCurrency, host.currency)}`,
       );
     }
     return {
