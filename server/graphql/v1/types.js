@@ -259,7 +259,7 @@ export const UserType = new GraphQLObjectType({
       hasTwoFactorAuth: {
         type: GraphQLBoolean,
         resolve(user, _, req) {
-          if (req.remoteUser.id === user.id) {
+          if (req.remoteUser?.id === user.id) {
             return twoFactorAuthLib.userHasTwoFactorAuthEnabled(user);
           }
         },
@@ -268,7 +268,7 @@ export const UserType = new GraphQLObjectType({
         type: GraphQLBoolean,
         description: 'Has the account a password set?',
         async resolve(user, args, req) {
-          if (req.remoteUser.id === user.id) {
+          if (req.remoteUser?.id === user.id) {
             return Boolean(user.passwordHash);
           }
         },
