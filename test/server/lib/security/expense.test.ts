@@ -7,10 +7,12 @@ import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
 import {
   fakeConnectedAccount,
   fakeExpense,
+  fakeOrder,
   fakePayoutMethod,
   fakeUser,
   multiple,
   randStr,
+  sequelize,
 } from '../../../test-helpers/fake-data';
 import { makeRequest, resetTestDB } from '../../../utils';
 
@@ -52,6 +54,11 @@ describe('lib/security/expense', () => {
       });
 
       expense = await fakeExpense({ UserId: user.id, PayoutMethodId: pm.id });
+
+      // Order Error rate
+      await multiple(fakeOrder, 5, { CollectiveId: expense.CollectiveId, status: 'ERROR' });
+      await multiple(fakeOrder, 5, { CollectiveId: expense.CollectiveId, status: 'PAID' });
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveOrderStats"`);
     });
 
     it('does not identify user as impersonating itself', async () => {
