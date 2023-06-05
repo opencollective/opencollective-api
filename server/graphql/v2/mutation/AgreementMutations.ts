@@ -12,6 +12,7 @@ import { Unauthorized } from '../../errors';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { fetchAgreementWithReference, GraphQLAgreementReferenceInput } from '../input/AgreementReferenceInput';
 import { GraphQLAgreement } from '../object/Agreement';
+import URL from '../scalar/URL';
 
 export default {
   addAgreement: {
@@ -38,6 +39,10 @@ export default {
         type: GraphQLUpload,
         description: 'Agreement attachment',
       },
+      attachmentUrl: {
+        type: URL,
+        description: 'Agreement attachment URL to already uploaded file. Ignored if `attachment` is provided.',
+      },
     },
     async resolve(_: void, args, req: express.Request): Promise<AgreementModel> {
       checkRemoteUserCanUseHost(req);
@@ -61,6 +66,8 @@ export default {
       let uploadedFile;
       if (attachment) {
         uploadedFile = await UploadedFile.uploadGraphQl(await attachment, 'AGREEMENT_ATTACHMENT', req.remoteUser);
+      } else if (args.attachmentUrl) {
+        uploadedFile = await UploadedFile.findOne({ where: { url: args.attachmentUrl } });
       }
 
       const agreement = await AgreementModel.create({
