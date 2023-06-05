@@ -102,7 +102,9 @@ export const GraphQLIndividual = new GraphQLObjectType({
         type: GraphQLBoolean,
         async resolve(collective, args, req) {
           const user = await req.loaders.User.byCollectiveId.load(collective.id);
-          return twoFactorAuthLib.userHasTwoFactorAuthEnabled(user);
+          if (req.remoteUser.id === user.id) {
+            return twoFactorAuthLib.userHasTwoFactorAuthEnabled(user);
+          }
         },
       },
       newsletterOptIn: {
