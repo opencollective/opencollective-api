@@ -238,17 +238,20 @@ const isOpenCollectiveWebhook = (webhook: PaypalWebhook): boolean => {
 
 /**
  * Check if a webhook has all event types required by Open Collective
+ * @returns An error message if the webhook is not compatible, `undefined` otherwise
  */
-const isCompatibleWebhook = (webhook: PaypalWebhook): boolean => {
+const getWebhookIncompatibilities = (webhook: PaypalWebhook): string | undefined => {
   if (!isOpenCollectiveWebhook(webhook)) {
-    return false;
+    return 'Not an Open Collective webhook';
   } else if (webhook.url.endsWith('/paypal')) {
     // Old format, force update
-    return false;
+    return 'Using legacy URL format';
   } else {
     const webhookEvents = webhook['event_types'].map(event => event.name);
     const differences = difference(WATCHED_EVENT_TYPES, webhookEvents);
-    return differences.length === 0;
+    if (differences.length) {
+      return `Missing event types: ${differences.join(', ')}`;
+    }
   }
 };
 
@@ -262,8 +265,14 @@ const hostPaypalWebhookIsReady = async (host): Promise<boolean> => {
     return false;
   }
 
-  const webhook = await getPaypalWebhook(host, webhookId);
-  return webhook ? isCompatibleWebhook(webhook) : false;
+  try {
+    const webhook = await getPaypalWebhook(host, webhookId);
+    return Boolean(webhook && !getWebhookIncompatibilities(webhook));
+  } catch (e) {
+    // Can happen when the webhook has been deleted manually on PayPal
+    logger.info(`Something's wrong with ${host.slug}'s webhook, let's recreate it`);
+    return false;
+  }
 };
 
 const updatePaypalAccountWithWebhook = async (connectedAccount, webhook: PaypalWebhook) => {
@@ -290,16 +299,24 @@ export const setupPaypalWebhookForHost = async (host): Promise<void> => {
   const webhookUrl = getPaypalWebhookUrl(host);
 
   if (existingOCWebhook) {
-    if (isCompatibleWebhook(existingOCWebhook)) {
+    const incompatibilities = getWebhookIncompatibilities(existingOCWebhook);
+    if (!incompatibilities) {
       // Link webhook directly if it has the right events
       logger.info(`Found an existing PayPal webhook to use, linking ${existingOCWebhook.id} to ${host.slug}`);
       newWebhook = existingOCWebhook;
-    } else {
+    } else if (incompatibilities === 'Using legacy URL format') {
+      // Update webhook
+      logger.info(`Updating PayPal webhook ${existingOCWebhook.id} for ${host.slug}`);
+      const patchRequest = [{ op: 'replace', path: '/url', value: webhookUrl }];
+      newWebhook = await updatePaypalWebhook(host, existingOCWebhook.id, patchRequest);
+    } else if (incompatibilities.startsWith('Missing event types')) {
       // Update webhook
       logger.info(`Updating PayPal webhook ${existingOCWebhook.id} for ${host.slug}`);
       const eventTypes = <PaypalWebhookEventType[]>WATCHED_EVENT_TYPES.map(name => ({ name }));
       const patchRequest = [{ op: 'replace', path: '/event_types', value: eventTypes }];
       newWebhook = await updatePaypalWebhook(host, existingOCWebhook.id, patchRequest);
+    } else {
+      throw new Error(`Could not configure PayPal webhook: ${incompatibilities}`);
     }
   } else {
     // Create webhook
