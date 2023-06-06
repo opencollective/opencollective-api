@@ -26,6 +26,10 @@ export const canEdit = async (req: express.Request, order): Promise<boolean> => 
   return order.status === ORDER_STATUS.PENDING && isHostAdmin(req, order);
 };
 
+export const canSeeOrderPrivateActivities = async (req: express.Request, order): Promise<boolean> => {
+  return isHostAdmin(req, order);
+};
+
 const GraphQLOrderPermissions = new GraphQLObjectType({
   name: 'OrderPermissions',
   description: 'Fields for the user permissions on an order',
@@ -50,9 +54,16 @@ const GraphQLOrderPermissions = new GraphQLObjectType({
     },
     canEdit: {
       type: new GraphQLNonNull(GraphQLBoolean),
-      description: 'Whether the current user edit this pending order',
+      description: 'Whether the current user can edit this pending order',
       async resolve(order, _, req: express.Request): Promise<boolean> {
         return canEdit(req, order);
+      },
+    },
+    canSeePrivateActivities: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can see private activities for this order',
+      async resolve(order, _, req: express.Request): Promise<boolean> {
+        return canSeeOrderPrivateActivities(req, order);
       },
     },
   }),

@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
 
-import { fakeCollective, fakeHost, fakeOrder, fakeUser } from '../../../../test-helpers/fake-data';
+import { fakeActivity, fakeCollective, fakeHost, fakeOrder, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
 describe('server/graphql/v2/query/ExpenseQuery', () => {
@@ -14,6 +14,13 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
       order(order: { legacyId: $legacyId }) {
         id
         customData
+        activities {
+          totalCount
+          nodes {
+            id
+            type
+          }
+        }
       }
     }
   `;
@@ -35,6 +42,10 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
         },
       },
     });
+
+    await fakeActivity({ OrderId: order.id, type: 'order.pending' });
+    await fakeActivity({ OrderId: order.id, type: 'order.thankyou' });
+    await fakeActivity({ OrderId: order.id, type: 'orders.suspicious' });
   });
 
   const fetchOrder = (legacyId, remoteUser = undefined) => {
@@ -61,6 +72,25 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
           expect(fetchedOrderHostAdmin.customData).to.be.null;
         });
       });
+    });
+  });
+
+  describe('activities', () => {
+    it('returns public activities in most cases', async () => {
+      for (const user of [undefined, ownerUser, collectiveAdminUser, randomUser]) {
+        const fetchedOrder = await fetchOrder(order.id, user);
+        expect(fetchedOrder.activities.totalCount).to.eq(2);
+        expect(fetchedOrder.activities.nodes[0].type).to.eq('ORDER_PENDING');
+        expect(fetchedOrder.activities.nodes[1].type).to.eq('ORDER_THANKYOU');
+      }
+    });
+
+    it('returns private activities to admins', async () => {
+      const fetchedOrder = await fetchOrder(order.id, hostAdminUser);
+      expect(fetchedOrder.activities.totalCount).to.eq(3);
+      expect(fetchedOrder.activities.nodes[0].type).to.eq('ORDER_PENDING');
+      expect(fetchedOrder.activities.nodes[1].type).to.eq('ORDER_THANKYOU');
+      expect(fetchedOrder.activities.nodes[2].type).to.eq('ORDERS_SUSPICIOUS');
     });
   });
 });
