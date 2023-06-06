@@ -31,6 +31,7 @@ import models, {
   Location,
   Notification,
   PaypalProduct,
+  sequelize,
   Subscription,
   Tier,
   Transaction,
@@ -60,7 +61,7 @@ import { TokenType } from '../../server/models/UserToken';
 import UserTwoFactorMethod from '../../server/models/UserTwoFactorMethod';
 import { randEmail, randUrl } from '../stores';
 
-export { randEmail };
+export { randEmail, sequelize };
 export const randStr = (prefix = '') => `${prefix}${uuid().split('-')[0]}`;
 export const randNumber = (min = 0, max = 10000000) => Math.floor(Math.random() * max) + min;
 export const randAmount = (min = 100, max = 10000000) => randNumber(min, max);

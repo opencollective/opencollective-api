@@ -511,6 +511,60 @@ export const checkExpensesBatch = async (
         });
       }
 
+      const orderStats:
+        | undefined
+        | {
+            errorRate1M: number;
+            errorRate3M: number;
+            errorRate12M: number;
+            numOrders1M: number;
+            numOrders3M: number;
+            numOrders12M: number;
+          } = await req.loaders.Collective.stats.orders.load(expense.CollectiveId);
+      if (orderStats) {
+        const checkVector = (stats, threshold) => stats.every((stat, index) => stat >= threshold[index]);
+        // Current month error rate above 30% and more than 10 orders
+        addBooleanCheck(checks, checkVector([orderStats.errorRate1M, orderStats.numOrders1M], [0.3, 10]), {
+          scope: Scope.COLLECTIVE,
+          level: Level.HIGH,
+          message: `High order error rate in current month`,
+          details: `The order error rate for this collective has been ${Math.round(
+            orderStats.errorRate1M * 100,
+          )}% over the current month, which is higher than the average of ${Math.round(
+            orderStats.errorRate3M * 100,
+          )}% over the past 3 months.`,
+        });
+        // Current month error rate above 20% and increasing by 40% compared to the previous 3 month period and more than 20 orders in the past 3 months
+        addBooleanCheck(
+          checks,
+          checkVector(
+            [orderStats.errorRate1M, orderStats.errorRate1M / (orderStats.errorRate3M || 1), orderStats.numOrders3M],
+            [0.2, 1.4, 20],
+          ),
+          {
+            scope: Scope.COLLECTIVE,
+            level: Level.HIGH,
+            message: `Recent increase in order error rate`,
+            details: `The order error rate for this collective has been ${Math.round(
+              orderStats.errorRate1M * 100,
+            )}% over the current month, which is higher than the average of ${Math.round(
+              orderStats.errorRate3M * 100,
+            )}% over the past 3 months.`,
+          },
+        );
+        // 3 month error rate above 30% and yearly error rate above 20%
+        addBooleanCheck(checks, checkVector([orderStats.errorRate3M, orderStats.errorRate12M], [0.3, 0.2]), {
+          scope: Scope.COLLECTIVE,
+          level: Level.MEDIUM,
+          message: `Collective has a consistently high order error rate`,
+          details: `The order error rate for this collective has been ${Math.round(
+            orderStats.errorRate3M * 100,
+          )}% over the past 3 months, which is higher than the average of ${Math.round(
+            orderStats.errorRate12M * 100,
+          )}% over the past 12 months.`,
+        });
+      }
+
       return checks;
     }),
   );
