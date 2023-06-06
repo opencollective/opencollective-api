@@ -497,41 +497,6 @@ const expenseMutations = {
       return expense;
     },
   },
-  verifyExpense: {
-    type: new GraphQLNonNull(GraphQLExpense),
-    description: 'To verify and unverified expense. Scope: "expenses".',
-    args: {
-      expense: {
-        type: new GraphQLNonNull(GraphQLExpenseReferenceInput),
-        description: 'Reference of the expense to process',
-      },
-      draftKey: {
-        type: GraphQLString,
-        description: 'Expense draft key if invited to submit expense',
-      },
-    },
-    async resolve(_: void, args, req: express.Request): Promise<ExpenseModel> {
-      // NOTE(oauth-scope): Ok for non-authenticated users, we only check scope
-      enforceScope(req, 'expenses');
-
-      const expense = await fetchExpenseWithReference(args.expense, { throwIfMissing: true });
-      if (expense.status !== expenseStatus.UNVERIFIED) {
-        throw new Unauthorized('Expense can not be verified.');
-      } else if (!(await canVerifyDraftExpense(req, expense))) {
-        throw new Unauthorized("You don't have the permission to verify this expense.");
-      }
-      await expense.update({ status: expenseStatus.PENDING });
-
-      // Technically the expense was already created, but it was a draft. It truly becomes visible
-      // for everyone (especially admins) at this point, so it's the right time to trigger `COLLECTIVE_EXPENSE_CREATED`
-      await expense.createActivity(activities.COLLECTIVE_EXPENSE_CREATED, req.remoteUser).catch(e => {
-        logger.error('An error happened when creating the COLLECTIVE_EXPENSE_CREATED activity', e);
-        reportErrorToSentry(e);
-      });
-
-      return expense;
-    },
-  },
 };
 
 export default expenseMutations;
