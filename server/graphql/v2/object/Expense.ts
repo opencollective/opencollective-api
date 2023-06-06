@@ -445,6 +445,7 @@ const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Request>({
       },
       securityChecks: {
         type: new GraphQLList(GraphQLSecurityCheck),
+        description: '[Admin only] Security checks for this expense. Only available to expenses under trusted hosts.',
         async resolve(expense, _, req) {
           if (await ExpenseLib.canSeeExpenseSecurityChecks(req, expense)) {
             return req.loaders.Expense.securityChecks.load(expense);

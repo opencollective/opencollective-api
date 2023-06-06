@@ -1285,6 +1285,10 @@ type Expense {
   requestedByAccount: Account
   quote: ExpenseQuote
   recurringExpense: RecurringExpense
+
+  """
+  [Admin only] Security checks for this expense. Only available to expenses under trusted hosts.
+  """
   securityChecks: [SecurityCheck]
 
   """
@@ -4320,7 +4324,6 @@ type ActivitySubscription {
 All supported Activity channels we can broadcast to
 """
 enum ActivityChannel {
-  gitter
   slack
   twitter
   webhook
