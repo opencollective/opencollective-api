@@ -21,7 +21,7 @@ import { TransactionTypes } from '../../../constants/transactions';
 import { FEATURE, hasFeature } from '../../../lib/allowed-features';
 import { buildSearchConditions } from '../../../lib/search';
 import sequelize from '../../../lib/sequelize';
-import models, { Op } from '../../../models';
+import models, { Collective, Op } from '../../../models';
 import Agreement from '../../../models/Agreement';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import TransferwiseLib from '../../../paymentProviders/transferwise';
@@ -771,27 +771,46 @@ export const GraphQLHost = new GraphQLObjectType({
             throw new Unauthorized('You need to be logged in as an admin of the host to see its agreements');
           }
 
-          const whereArgs = {};
+          const includeWhereArgs = {};
 
           if (args.accounts && args.accounts.length > 0) {
-            whereArgs.CollectiveId = {
-              [Op.or]: args.accounts.map(accountReference => {
-                return accountReference.legacyId || idDecode(accountReference.id, IDENTIFIER_TYPES.ACCOUNT);
-              }),
-            };
+            const or = [
+              {
+                id: {
+                  [Op.or]: args.accounts
+                    .filter(reference => reference.legacyId || reference.id)
+                    .map(accountReference => {
+                      return accountReference.legacyId || idDecode(accountReference.id, IDENTIFIER_TYPES.ACCOUNT);
+                    }),
+                },
+              },
+              {
+                slug: {
+                  [Op.or]: args.accounts.filter(reference => reference.slug).map(reference => reference.slug),
+                },
+              },
+            ];
+            includeWhereArgs[Op.or] = or;
           }
 
-          const agreements = await Agreement.findAll({
+          const agreements = await Agreement.findAndCountAll({
             where: {
               HostCollectiveId: host.id,
-              ...whereArgs,
             },
+            include: [
+              {
+                model: Collective,
+                as: 'Collective',
+                required: true,
+                where: includeWhereArgs,
+              },
+            ],
             limit: args.limit,
             offset: args.offset,
             order: [['createdAt', 'desc']],
           });
 
-          return { totalCount: agreements.count, limit: args.limit, offset: args.offset, nodes: agreements };
+          return { totalCount: agreements.count, limit: args.limit, offset: args.offset, nodes: agreements.rows };
         },
       },
     };
