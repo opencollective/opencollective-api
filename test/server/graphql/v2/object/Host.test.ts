@@ -100,5 +100,43 @@ describe('server/graphql/v2/object/Host', () => {
       expect(otherResult.data.host.hostedAccountAgreements.nodes).to.have.length(1);
       expect(otherResult.data.host.hostedAccountAgreements.nodes[0].title).to.eql('second test title');
     });
+
+    it('should filter agreements by hosted account slug or id', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeHost({ admin: hostAdmin });
+      const account = await fakeCollective({ HostCollectiveId: host.id });
+      const secondAccount = await fakeCollective({ HostCollectiveId: host.id });
+      const uploadedFile = await fakeUploadedFile({ fileName: 'my agreement.pdf' });
+      await Agreement.create({
+        title: 'test title',
+        CollectiveId: account.id,
+        HostCollectiveId: host.id,
+        UploadedFileId: uploadedFile.id,
+      });
+
+      await Agreement.create({
+        title: 'second test title',
+        CollectiveId: secondAccount.id,
+        HostCollectiveId: host.id,
+      });
+
+      const result = await graphqlQueryV2(
+        hostQuery,
+        {
+          slug: host.slug,
+          accounts: [
+            {
+              slug: account.slug,
+            },
+            {
+              legacyId: secondAccount.id,
+            },
+          ],
+        },
+        hostAdmin,
+      );
+      expect(result.data.host.hostedAccountAgreements.totalCount).to.eql(2);
+      expect(result.data.host.hostedAccountAgreements.nodes).to.have.length(2);
+    });
   });
 });
