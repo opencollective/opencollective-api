@@ -295,6 +295,9 @@ export async function createOrder(order, req) {
         throw new Error('Only an admin of the host can change the hostFeePercent');
       }
     }
+    if (order.paymentMethod?.type === PAYMENT_METHOD_TYPE.CRYPTO && host.settings?.cryptoEnabled !== true) {
+      throw new Error('This host does not accept crypto payments.');
+    }
 
     order.collective = collective;
 
