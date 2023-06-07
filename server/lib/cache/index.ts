@@ -8,12 +8,10 @@ import { invalidateContributorsCache } from '../contributors';
 import logger from '../logger';
 import { md5 } from '../utils';
 
-import makeMemcacheProvider from './memcache';
 import makeMemoryProvider from './memory';
 import makeRedisProvider from './redis';
 
 export const PROVIDER_TYPES = {
-  MEMCACHE: 'MEMCACHE',
   MEMORY: 'MEMORY',
   REDIS: 'REDIS',
 };
@@ -24,8 +22,6 @@ const oneDayInSeconds = 60 * 60 * 24;
 
 export const getProvider = async providerType => {
   switch (providerType) {
-    case PROVIDER_TYPES.MEMCACHE:
-      return makeMemcacheProvider(get(config, 'memcache'));
     case PROVIDER_TYPES.REDIS:
       return makeRedisProvider();
     case PROVIDER_TYPES.MEMORY:
@@ -38,8 +34,6 @@ export const getProvider = async providerType => {
 const getDefaultProviderType = () => {
   if (get(config, 'redis.serverUrl')) {
     return PROVIDER_TYPES.REDIS;
-  } else if (get(config, 'memcache.servers')) {
-    return PROVIDER_TYPES.MEMCACHE;
   } else {
     return PROVIDER_TYPES.MEMORY;
   }
@@ -47,7 +41,7 @@ const getDefaultProviderType = () => {
 
 let defaultProvider;
 
-const getDefaultProvider = () => {
+const getDefaultProvider = (): Promise<ReturnType<typeof getProvider>> => {
   const defaultProviderType = getDefaultProviderType();
   if (!defaultProvider) {
     defaultProvider = getProvider(defaultProviderType);
@@ -65,7 +59,7 @@ const cache = {
       logger.warn(`Error while clearing cache: ${err.message}`);
     }
   },
-  delete: async key => {
+  delete: async (key: string) => {
     try {
       debugCache(`delete ${key}`);
       const provider = await getDefaultProvider();
@@ -74,7 +68,7 @@ const cache = {
       logger.warn(`Error while deleting from cache: ${err.message}`);
     }
   },
-  get: async (key, options) => {
+  get: async (key: string, options?) => {
     try {
       debugCache(`get ${key}`);
       const provider = await getDefaultProvider();
@@ -83,7 +77,7 @@ const cache = {
       logger.warn(`Error while fetching from cache: ${err.message}`);
     }
   },
-  has: async key => {
+  has: async (key: string) => {
     try {
       debugCache(`has ${key}`);
       const provider = await getDefaultProvider();
@@ -92,7 +86,7 @@ const cache = {
       logger.warn(`Error while checking from cache: ${err.message}`);
     }
   },
-  set: async (key, value, expirationInSeconds, options) => {
+  set: async (key: string, value: any, expirationInSeconds?: number, options?) => {
     try {
       debugCache(`set ${key}`);
       const provider = await getDefaultProvider();
@@ -124,22 +118,22 @@ export function memoize(func, { key, maxAge = 0, serialize, unserialize }) {
     return args.length ? `${key}_${md5(JSON.stringify(args))}` : key;
   };
 
-  const memoizedFunction = async function () {
-    let value = await cache.get(cacheKey(arguments), { unserialize });
+  const memoizedFunction = async function (...args) {
+    let value = await cache.get(cacheKey(args), { unserialize });
     if (value === undefined) {
-      value = await func(...arguments);
-      cache.set(cacheKey(arguments), value, maxAge, { serialize });
+      value = await func(...args);
+      cache.set(cacheKey(args), value, maxAge, { serialize });
     }
     return value;
   };
 
-  memoizedFunction.refresh = async function () {
-    const value = await func(...arguments);
-    cache.set(cacheKey(arguments), value, maxAge, { serialize });
+  memoizedFunction.refresh = async function (...args) {
+    const value = await func(...args);
+    cache.set(cacheKey(args), value, maxAge, { serialize });
   };
 
-  memoizedFunction.clear = async function () {
-    cache.delete(cacheKey(arguments));
+  memoizedFunction.clear = async function (...args) {
+    cache.delete(cacheKey(args));
   };
 
   return memoizedFunction;

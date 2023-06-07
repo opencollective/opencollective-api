@@ -5,9 +5,6 @@ import { has } from 'lodash';
 import { getProvider, PROVIDER_TYPES } from '../../../../server/lib/cache';
 
 const providersToTest = [PROVIDER_TYPES.MEMORY];
-if (has(config, 'memcache.servers')) {
-  providersToTest.push(PROVIDER_TYPES.MEMCACHE);
-}
 if (has(config, 'redis.serverUrl')) {
   providersToTest.push(PROVIDER_TYPES.REDIS);
 }

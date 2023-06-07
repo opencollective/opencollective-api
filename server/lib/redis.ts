@@ -1,12 +1,12 @@
 import config from 'config';
 import { get } from 'lodash';
-import { createClient } from 'redis';
+import { createClient, RedisClientType } from 'redis';
 
 import logger from './logger';
 
 let redisClient;
 
-export async function createRedisClient() {
+export async function createRedisClient(): Promise<RedisClientType> {
   if (!redisClient) {
     const url = get(config, 'redis.serverUrl');
     if (!url) {
@@ -15,7 +15,7 @@ export async function createRedisClient() {
 
     const redisOptions = { url };
     if (redisOptions.url.includes('rediss://')) {
-      redisOptions.socket = { tls: true, rejectUnauthorized: false };
+      redisOptions['socket'] = { tls: true, rejectUnauthorized: false };
     }
 
     redisClient = createClient(redisOptions);
