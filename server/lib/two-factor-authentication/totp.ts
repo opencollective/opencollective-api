@@ -1,4 +1,4 @@
-import { ApolloError } from 'apollo-server-express';
+import { ApolloError } from 'apollo-server-errors';
 import speakeasy from 'speakeasy';
 
 import User from '../../models/User';
