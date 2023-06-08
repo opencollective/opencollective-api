@@ -13551,21 +13551,6 @@ type Mutation {
   ): Expense!
 
   """
-  To verify and unverified expense. Scope: "expenses".
-  """
-  verifyExpense(
-    """
-    Reference of the expense to process
-    """
-    expense: ExpenseReferenceInput!
-
-    """
-    Expense draft key if invited to submit expense
-    """
-    draftKey: String
-  ): Expense!
-
-  """
   Sends an email for guest to confirm their emails and create their Open Collective account
   """
   sendGuestConfirmationEmail(
@@ -15849,6 +15834,11 @@ input PendingOrderEditInput {
   The contribution amount, without platform contribution and taxes
   """
   amount: AmountInput!
+
+  """
+  Platform tip attached to this order
+  """
+  platformTipAmount: AmountInput
 
   """
   The profile making the contribution.

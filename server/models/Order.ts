@@ -301,6 +301,7 @@ const Order: ModelStatic<OrderModelInterface> & OrderModelStaticInterface = sequ
           quantity: this.quantity,
           interval: this.interval,
           totalAmount: this.totalAmount,
+          taxAmount: this.taxAmount,
           // introducing 3 new values to clarify
           netAmount: this.totalAmount - this.platformTipAmount,
           platformTipAmount: this.platformTipAmount,

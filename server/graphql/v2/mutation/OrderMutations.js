@@ -1071,7 +1071,7 @@ const orderMutations = {
 
       // Ensure amounts are provided with the right currency
       const expectedCurrency = tier?.currency || order.collective.currency;
-      ['amount', 'tax.amount'].forEach(field => {
+      ['amount', 'tax.amount', 'platformTipAmount'].forEach(field => {
         const amount = get(args.order, field);
         if (amount) {
           assertAmountInputCurrency(amount, expectedCurrency, { name: field });
@@ -1091,10 +1091,13 @@ const orderMutations = {
 
       const baseAmountInCents = getValueInCentsFromAmountInput(args.order.amount);
       const tax = !isUndefined(args.order.tax) ? args.order.tax : order.data?.tax;
+      const platformTip = args.order.platformTipAmount;
+      const platformTipAmount = platformTip ? getValueInCentsFromAmountInput(platformTip) : 0;
       await order.update({
         FromCollectiveId: fromAccount?.id || undefined,
         TierId: tier?.id || undefined,
-        totalAmount: getTotalAmountForOrderInput(baseAmountInCents, null, tax, quantity),
+        totalAmount: getTotalAmountForOrderInput(baseAmountInCents, platformTipAmount, tax, quantity),
+        platformTipAmount,
         currency: args.order.amount.currency,
         description: args.order.description,
         taxAmount: taxAmount || null,
