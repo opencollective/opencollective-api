@@ -90,7 +90,6 @@
     "helmet": "7.0.0",
     "html-pdf": "3.0.1",
     "html-to-text": "9.0.5",
-    "ics": "3.1.0",
     "intl-messageformat": "10.4.0",
     "json2csv": "5.0.7",
     "jsonwebtoken": "9.0.0",
