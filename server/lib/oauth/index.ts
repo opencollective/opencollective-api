@@ -27,7 +27,7 @@ class CustomTokenHandler extends TokenHandler {
             // eslint-disable-next-line camelcase
             access_token: model.accessToken,
           },
-          auth.TOKEN_EXPIRATION_SESSION,
+          auth.TOKEN_EXPIRATION_SESSION_OAUTH, // 90 days,
         );
         // eslint-disable-next-line camelcase
         return { access_token: accessToken };
@@ -76,7 +76,7 @@ class CustomOAuth2Server extends OAuth2Server {
   token = function (request, response, options): Promise<OAuth2Server.Token> {
     options = assign(
       {
-        accessTokenLifetime: auth.TOKEN_EXPIRATION_SESSION, // 30 days
+        accessTokenLifetime: auth.TOKEN_EXPIRATION_SESSION_OAUTH, // 90 days
         refreshTokenLifetime: 60 * 60 * 24 * 365, // 1 year
         allowExtendedTokenAttributes: false,
         requireClientAuthentication: {}, // defaults to true for all grant types
