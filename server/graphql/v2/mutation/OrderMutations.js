@@ -106,15 +106,13 @@ const getTotalAmountForOrderInput = (baseAmount, platformTipAmount, tax, quantit
   let totalAmount = baseAmount * (quantity || 1);
 
   if (tax) {
-    if (tax.rate) {
+    if (tax.amount) {
+      // Prefer using the amount if provided, to make sure the totals match
+      totalAmount += tax.amount ? getValueInCentsFromAmountInput(tax.amount) : 0;
+    } else if (tax.rate) {
       totalAmount += Math.round(tax.rate * totalAmount);
-    } else {
-      if (tax.percentage) {
-        totalAmount += Math.round((tax.percentage / 100) * totalAmount);
-      } else if (tax.amount) {
-        // Legacy tax format, can remove after `taxes` param is removed
-        totalAmount += tax.amount ? getValueInCentsFromAmountInput(tax.amount) : 0;
-      }
+    } else if (tax.percentage) {
+      totalAmount += Math.round((tax.percentage / 100) * totalAmount);
     }
   }
 
@@ -139,8 +137,14 @@ const getOrderTaxInfo = (taxInput, quantity, orderAmount, fromAccount, toAccount
     taxInfo = getOrderTaxInfoFromTaxInput(taxInput, fromAccount, toAccount, host);
     taxAmount = Math.round(grossAmount * (taxInfo.percentage / 100));
     const taxAmountFromInput = taxInput.amount && getValueInCentsFromAmountInput(taxInput.amount);
-    if (taxInfo?.percentage && taxAmountFromInput && taxAmountFromInput !== taxAmount) {
-      throw new Error(`Tax amount doesn't match tax percentage. Expected ${taxAmount}, got ${taxAmountFromInput}`);
+    if (taxInfo?.percentage && taxAmountFromInput) {
+      const amountDiff = Math.abs(taxAmountFromInput - taxAmount);
+      if (amountDiff > 1) {
+        // We tolerate a diff by 1 cent to account for rounding. Example: with a contribution of 12$, 15% tax, the gross amount
+        // is $10.43 and the tax amount could be rounded either to $1.56 (14.95%) or $1.57 (15.05%). When that happens, the most important
+        // is to make sure that we respect the total amount of the order.
+        throw new Error(`Tax amount doesn't match tax percentage. Expected ${taxAmount}, got ${taxAmountFromInput}`);
+      }
     }
   }
 
