@@ -1102,9 +1102,9 @@ const orderMutations = {
         TierId: tier?.id || undefined,
         totalAmount: getTotalAmountForOrderInput(baseAmountInCents, platformTipAmount, tax, quantity),
         platformTipAmount,
+        taxAmount: taxAmount || null,
         currency: args.order.amount.currency,
         description: args.order.description,
-        taxAmount: taxAmount || null,
         data: {
           ...order.data,
           tax: taxInfo || null,

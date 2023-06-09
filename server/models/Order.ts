@@ -318,6 +318,14 @@ const Order: ModelStatic<OrderModelInterface> & OrderModelStaticInterface = sequ
         };
       },
     },
+
+    validate: {
+      validateTotalAmount() {
+        if ((this.taxAmount || 0) + (this.platformTipAmount || 0) > this.totalAmount) {
+          throw new Error('Invalid contribution amount: Taxes and platform tip cannot exceed the total amount');
+        }
+      },
+    },
   },
 );
 
