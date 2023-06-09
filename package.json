@@ -43,7 +43,6 @@
     "@opencollective/taxes": "4.0.2",
     "@paypal/payouts-sdk": "1.1.1",
     "@sentry/node": "7.54.0",
-    "@sentry/tracing": "7.54.0",
     "@sentry/types": "7.54.0",
     "@shopify/address": "4.1.0",
     "apollo-server-errors": "3.3.1",
@@ -61,7 +60,6 @@
     "commander": "10.0.1",
     "config": "3.3.9",
     "connect-redis": "7.1.0",
-    "cookie": "0.5.0",
     "cookie-parser": "1.4.6",
     "cors": "2.8.5",
     "crypto-js": "4.1.1",
@@ -223,7 +221,7 @@
     "db:sanitize-collective-tags": "babel-node --extensions .js,.ts scripts/sanitize-collective-tags",
     "db:seed": "./scripts/sequelize.sh db:seed",
     "db:setup": "babel-node --extensions .js,.ts ./scripts/db_setup.js",
-    "depcheck": "npx depcheck --specials babel,bin,commitizen,eslint,husky,lint-staged,mocha --ignores cookie --ignore-dirs dist,dbdumps .",
+    "depcheck": "npx depcheck .",
     "deploy:production": "./scripts/pre-deploy.sh production && git push production main",
     "deploy:staging": "./scripts/pre-deploy.sh staging && git push -f staging main",
     "dev": "nodemon server/index.js -x \"babel-node --extensions .js,.ts\" . -e js,hbs,ts",
@@ -286,5 +284,21 @@
       "lcov"
     ],
     "cache": true
+  },
+  "depcheck": {
+    "ignoreDirs": [
+      "dist",
+      "dbdumps",
+      "migrations/archives"
+    ],
+    "specials": [
+      "babel",
+      "bin",
+      "commitizen",
+      "eslint",
+      "husky",
+      "lint-staged",
+      "mocha"
+    ]
   }
 }
