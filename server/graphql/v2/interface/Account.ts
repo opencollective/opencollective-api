@@ -1,12 +1,14 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { assign, get, invert, isEmpty, isNull, merge, omitBy } from 'lodash';
+import { Order } from 'sequelize';
 
 import { types as CollectiveTypes } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import { buildSearchConditions } from '../../../lib/search';
 import { canSeeLegalName } from '../../../lib/user-permissions';
 import models, { Op } from '../../../models';
+import Application from '../../../models/Application';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { GraphQLCollectiveFeatures } from '../../common/CollectiveFeatures';
 import { allowContextPermission, getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
@@ -387,9 +389,13 @@ const accountFieldsDefinition = () => ({
       }
 
       const { limit, offset } = args;
-      const order = [['createdAt', 'DESC']];
       const where = { CollectiveId: collective.id, type: 'oAuth' };
-      const result = await models.Application.findAndCountAll({ where, order, limit, offset });
+      const result = await Application.findAndCountAll({
+        where,
+        order: [['createdAt', 'DESC']],
+        limit,
+        offset,
+      });
       return { nodes: result.rows, totalCount: result.count, limit, offset };
     },
   },
@@ -441,7 +447,7 @@ const accountFieldsDefinition = () => ({
       }
 
       // Order by
-      const order = [[orderBy.field, orderBy.direction]];
+      const order: [string, string][] = [[orderBy.field, orderBy.direction]];
       if (order[0][0] === 'publishedAt') {
         order.push(['createdAt', 'DESC']); // publishedAt is nullable so we need to fallback on createdAt
       }
@@ -491,7 +497,7 @@ const accountFieldsDefinition = () => ({
       },
       orderBy: {
         type: GraphQLChronologicalOrderInput,
-        defaultValue: GraphQLChronologicalOrderInput.defaultValue,
+        defaultValue: GraphQLChronologicalOrderInput['defaultValue'],
       },
     },
     async resolve(account, args, req) {
@@ -511,7 +517,7 @@ const accountFieldsDefinition = () => ({
         },
         limit: args.limit,
         offset: args.offset,
-        order: [[args.orderBy.field, args.orderBy.direction]],
+        order: [[args.orderBy.field, args.orderBy.direction]] as Order,
       };
 
       if (args.dateFrom) {
@@ -522,15 +528,15 @@ const accountFieldsDefinition = () => ({
       }
 
       if (args.state) {
-        query.where.data = { state: args.state };
+        query.where['data'] = { state: args.state };
       }
 
       if (merchantId) {
-        if (!query.where.data) {
-          query.where.data = {};
+        if (!query.where['data']) {
+          query.where['data'] = {};
         }
-        query.where.data.type = 'MERCHANT_LOCKED';
-        query.include = [
+        query.where['data'].type = 'MERCHANT_LOCKED';
+        query['include'] = [
           {
             attributes: [],
             association: 'expenses',
@@ -546,7 +552,7 @@ const accountFieldsDefinition = () => ({
 
       return {
         nodes: result.rows,
-        totalCount: result.count.length, // See https://github.com/sequelize/sequelize/issues/9109
+        totalCount: (result.count as unknown as { count: number }[]).length, // See https://github.com/sequelize/sequelize/issues/9109
         limit: args.limit,
         offset: args.offset,
       };
@@ -615,7 +621,7 @@ const accountFieldsDefinition = () => ({
         ParentCollectiveId: account.id,
       };
       if (args.accountType && args.accountType.length > 0) {
-        where.type = {
+        where['type'] = {
           [Op.in]: args.accountType.map(value => AccountTypeToModelMapping[value]),
         };
       }
@@ -809,15 +815,15 @@ export const AccountFields = {
       },
     },
     async resolve(collective, { limit, offset, tag }) {
-      const query = { where: { CollectiveId: collective.id }, order: [['createdAt', 'DESC']] };
+      const query = { where: { CollectiveId: collective.id }, order: [['createdAt', 'DESC']] as Order };
       if (limit) {
-        query.limit = limit;
+        query['limit'] = limit;
       }
       if (offset) {
-        query.offset = offset;
+        query['offset'] = offset;
       }
       if (tag) {
-        query.where.tags = { [Op.contains]: [tag] };
+        query.where['tags'] = { [Op.contains]: [tag] };
       }
       const result = await models.Conversation.findAndCountAll(query);
       return { nodes: result.rows, totalCount: result.count, limit, offset };
