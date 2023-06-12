@@ -1,5 +1,5 @@
 import config from 'config';
-import fetch from 'node-fetch';
+import fetch, { RequestRedirect } from 'node-fetch';
 
 import { activities, channels } from '../../constants';
 import ActivityTypes from '../../constants/activities';
@@ -38,7 +38,7 @@ const publishToWebhook = (activity: Activity, webhookUrl: string) => {
         'Content-Type': 'application/json;charset=UTF-8',
       },
       body: JSON.stringify(enrichedActivity),
-      redirect: 'manual',
+      redirect: 'manual' as RequestRedirect,
     };
     return fetch(webhookUrl, webhookOptions).then(response => response.json());
   }
