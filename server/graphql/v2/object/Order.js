@@ -332,6 +332,10 @@ export const GraphQLOrder = new GraphQLObjectType({
         type: GraphQLAccount,
         description: 'The account who created this order',
         async resolve(order, _, req) {
+          if (!order.CreatedByUserId) {
+            return null;
+          }
+
           const user = await req.loaders.User.byId.load(order.CreatedByUserId);
           if (user && user.CollectiveId) {
             const collective = await req.loaders.Collective.byId.load(user.CollectiveId);
