@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import url from 'url';
 
-import axios, { AxiosError, AxiosResponse } from 'axios'; // eslint-disable-line import/named
+import axios, { AxiosError, AxiosResponse } from 'axios';
 import config from 'config';
 import Debug from 'debug';
 import { Request } from 'express';
