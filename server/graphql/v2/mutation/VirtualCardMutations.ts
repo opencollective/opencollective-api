@@ -9,7 +9,7 @@ import { getPolicy } from '../../../lib/policies';
 import { reportErrorToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
-import VirtualCardModel from '../../../models/VirtualCard';
+import VirtualCardModel, { VirtualCardStatus } from '../../../models/VirtualCard';
 import * as stripe from '../../../paymentProviders/stripe/virtual-cards';
 import { checkRemoteUserCanUseVirtualCards } from '../../common/scope-check';
 import { BadRequest, NotFound, Unauthorized } from '../../errors';
@@ -247,6 +247,10 @@ const virtualCardMutations = {
         throw new Unauthorized("You don't have permission to update this Virtual Card");
       }
 
+      if (virtualCard.data.status === VirtualCardStatus.CANCELED) {
+        throw new BadRequest('This Virtual Card cannot be edited');
+      }
+
       const updateAttributes = {};
 
       if (args.assignee) {
@@ -394,6 +398,10 @@ const virtualCardMutations = {
         throw new Unauthorized("You don't have permission to pause this Virtual Card");
       }
 
+      if (virtualCard.data.status === VirtualCardStatus.CANCELED) {
+        throw new BadRequest('This Virtual Card cannot be edited');
+      }
+
       const card = await virtualCard.pause();
       const data = {
         virtualCard,
@@ -433,6 +441,10 @@ const virtualCardMutations = {
 
       if (!req.remoteUser.isAdmin(virtualCard.HostCollectiveId)) {
         throw new Unauthorized("You don't have permission to edit this Virtual Card");
+      }
+
+      if (virtualCard.data.status === VirtualCardStatus.CANCELED) {
+        throw new BadRequest('This Virtual Card cannot be activated');
       }
 
       return virtualCard.resume();
