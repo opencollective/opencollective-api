@@ -26,8 +26,11 @@ const getAllHostsWithPaypalAccounts = () => {
 
 const main = async (): Promise<void> => {
   const allHosts = await getAllHostsWithPaypalAccounts();
-  const ignoredSlugs = process.env.SKIP_SLUGS ? process.env.SKIP_SLUGS.split(',') : [];
-  const filteredHosts = allHosts.filter(host => !ignoredSlugs.includes(host.slug));
+  const ignoredSlugs = process.env.SKIP_SLUGS ? process.env.SKIP_SLUGS.split(',') : null;
+  const onlySlugs = process.env.ONLY_SLUGS ? process.env.ONLY_SLUGS.split(',') : null;
+  const filteredHosts = allHosts.filter(host => {
+    return (!ignoredSlugs || !ignoredSlugs.includes(host.slug)) && (!onlySlugs || onlySlugs.includes(host.slug));
+  });
 
   for (const host of filteredHosts) {
     logger.info(`Checking PayPal webhook for ${host.slug}...`);
