@@ -243,6 +243,7 @@ export default async app => {
   const httpServer = http.createServer(app);
 
   const apolloServerOptions = {
+    includeStacktraceInErrorResponses: config.env !== 'production',
     // https://www.apollographql.com/docs/apollo-server/api/apollo-server#introspection
     introspection: true,
     // https://www.apollographql.com/docs/apollo-server/api/apollo-server#persistedqueries
