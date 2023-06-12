@@ -1,5 +1,9 @@
+import http from 'http';
+
+import { ApolloServer } from '@apollo/server';
+import { expressMiddleware } from '@apollo/server/express4';
+import { ApolloServerPluginDrainHttpServer } from '@apollo/server/plugin/drainHttpServer';
 import { ApolloArmor } from '@escape.tech/graphql-armor';
-import { ApolloServer } from 'apollo-server-express';
 import config from 'config';
 import graphqlUploadExpress from 'graphql-upload/graphqlUploadExpress.js';
 import { get, pick } from 'lodash';
@@ -133,8 +137,6 @@ export default async app => {
   app.param('paranoidtransactionid', params.paranoidtransactionid);
   app.param('expenseid', params.expenseid);
 
-  const isDevelopment = config.env === 'development';
-
   /**
    * GraphQL caching
    */
@@ -238,18 +240,16 @@ export default async app => {
 
   const minExecutionTimeToCache = parseInt(config.graphql.cache.minExecutionTimeToCache);
 
-  const graphqlServerOptions = {
+  const httpServer = http.createServer(app);
+
+  const apolloServerOptions = {
+    // https://www.apollographql.com/docs/apollo-server/api/apollo-server#introspection
     introspection: true,
+    // https://www.apollographql.com/docs/apollo-server/api/apollo-server#persistedqueries
     persistedQueries: false,
-    playground: isDevelopment,
+    // https://www.apollographql.com/docs/apollo-server/api/apollo-server#csrfprevention
     csrfPrevention: { requestHeaders: ['Authorization'] },
-    ...graphqlProtection,
-    debug: !['production', 'staging'].includes(config.env), // Keep stracktraces in dev & CI
-    plugins: graphqlPlugins,
-    // Align with behavior from express-graphql
-    context: ({ req }) => {
-      return req;
-    },
+    // https://www.apollographql.com/docs/apollo-server/api/apollo-server#formaterror
     formatError: err => {
       logger.error(`GraphQL error: ${err.message}`);
       const extra = pick(err, ['locations', 'path']);
@@ -263,27 +263,45 @@ export default async app => {
       }
       return err;
     },
-    formatResponse: (response, ctx) => {
-      const req = ctx.context;
-      req.endAt = req.endAt || new Date();
-      const executionTime = req.endAt - req.startAt;
-      req.res.set('Execution-Time', executionTime);
+    ...graphqlProtection,
+    plugins: [
+      ApolloServerPluginDrainHttpServer({ httpServer }),
+      {
+        async requestDidStart() {
+          return {
+            async willSendResponse(requestContext) {
+              const response = requestContext.response;
+              const req = requestContext.contextValue; // From apolloExpressMiddlewareOptions context()
 
-      // Track all slow queries on Sentry performance
-      sentryHandleSlowRequests(executionTime);
+              req.endAt = req.endAt || new Date();
+              const executionTime = req.endAt - req.startAt;
+              req.res.set('Execution-Time', executionTime);
 
-      // This will never happen for logged-in users as cacheKey is not set
-      if (req.cacheKey && !response?.errors && executionTime > minExecutionTimeToCache) {
-        cache.set(req.cacheKey, response, Number(config.graphql.cache.ttl));
-        // Index key
-        cache.get(`graphqlCacheKeys_${req.cacheSlug}`).then(keys => {
-          keys = keys || [];
-          keys.push(req.cacheKey);
-          cache.set(`graphqlCacheKeys_${req.cacheSlug}`, keys);
-        });
-      }
+              // Track all slow queries on Sentry performance
+              sentryHandleSlowRequests(executionTime);
 
-      return response;
+              // This will never happen for logged-in users as cacheKey is not set
+              if (req.cacheKey && !response?.errors && executionTime > minExecutionTimeToCache) {
+                cache.set(req.cacheKey, response, Number(config.graphql.cache.ttl));
+                // Index key
+                cache.get(`graphqlCacheKeys_${req.cacheSlug}`).then(keys => {
+                  keys = keys || [];
+                  keys.push(req.cacheKey);
+                  cache.set(`graphqlCacheKeys_${req.cacheSlug}`, keys);
+                });
+              }
+            },
+          };
+        },
+      },
+      ...graphqlPlugins,
+    ],
+  };
+
+  const apolloExpressMiddlewareOptions = {
+    // Align with behavior from previously used `express-graphql` package
+    context: async ({ req }) => {
+      return req;
     },
   };
 
@@ -294,29 +312,29 @@ export default async app => {
    */
   const graphqlServerV1 = new ApolloServer({
     schema: graphqlSchemaV1,
-    ...graphqlServerOptions,
+    ...apolloServerOptions,
   });
 
   await graphqlServerV1.start();
 
-  graphqlServerV1.applyMiddleware({ app, path: '/graphql/v1' });
+  app.use('/graphql/v1', expressMiddleware(graphqlServerV1, apolloExpressMiddlewareOptions));
 
   /**
    * GraphQL v2
    */
   const graphqlServerV2 = new ApolloServer({
     schema: graphqlSchemaV2,
-    ...graphqlServerOptions,
+    ...apolloServerOptions,
   });
 
   await graphqlServerV2.start();
 
-  graphqlServerV2.applyMiddleware({ app, path: '/graphql/v2' });
+  app.use('/graphql/v2', expressMiddleware(graphqlServerV2, apolloExpressMiddlewareOptions));
 
   /**
    * GraphQL default (v2)
    */
-  graphqlServerV2.applyMiddleware({ app, path: '/graphql' });
+  app.use('/graphql', expressMiddleware(graphqlServerV2, apolloExpressMiddlewareOptions));
 
   /**
    * Webhooks that should bypass api key check
