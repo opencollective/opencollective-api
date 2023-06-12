@@ -6,8 +6,12 @@ import stripe from '../../server/lib/stripe';
 const IS_DRY = !!process.env.DRY;
 
 const refund = async (stripeAccount, paymentIntentId) => {
-  const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId, { stripeAccount });
-  const charge = (paymentIntent as any).charges.data[0];
+  const paymentIntent = await stripe.paymentIntents.retrieve(
+    paymentIntentId,
+    { expand: ['latest_charge'] },
+    { stripeAccount },
+  );
+  const charge = paymentIntent.latest_charge || (paymentIntent as any).charges.data[0];
 
   console.log(
     `Amount: ${charge.amount}, livemode: ${charge.livemode}, status: ${charge.status}, refunded: ${charge.refunded}, type: ${charge.payment_method_details.type}`,

@@ -158,7 +158,12 @@ export const mandateUpdated = async (event: Stripe.Event) => {
 export const paymentIntentSucceeded = async (event: Stripe.Event) => {
   const stripeAccount = event.account ?? config.stripe.accountId;
   const paymentIntent = event.data.object as Stripe.PaymentIntent;
-  const charge = (paymentIntent as any).charges.data[0] as Stripe.Charge;
+
+  let charge = paymentIntent.latest_charge || ((paymentIntent as any).charges?.data?.[0] as Stripe.Charge);
+  if (typeof charge === 'string') {
+    charge = await stripe.charges.retrieve(charge, { stripeAccount });
+  }
+
   const order = await models.Order.findOne({
     where: {
       data: { paymentIntent: { id: paymentIntent.id } },
@@ -186,8 +191,6 @@ export const paymentIntentSucceeded = async (event: Stripe.Event) => {
 
   await createOrUpdateOrderStripePaymentMethod(order, stripeAccount, paymentIntent);
 
-  // Recently, Stripe updated their library and removed the 'charges' property in favor of 'latest_charge',
-  // but this is something that only makes sense in the LatestApiVersion, and that's not the one we're using.
   const transaction = await createChargeTransactions(charge, { order });
 
   // after successful first payment of a recurring subscription where the payment confirmation is async

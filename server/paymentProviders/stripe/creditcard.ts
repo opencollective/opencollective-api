@@ -85,7 +85,7 @@ const createChargeAndTransactions = async (
 
   paymentIntent = await stripe.paymentIntents.confirm(
     paymentIntent.id,
-    { payment_method: stripePaymentMethod.id },
+    { payment_method: stripePaymentMethod.id, expand: ['latest_charge'] },
     { stripeAccount: hostStripeAccount.username },
   );
 
@@ -113,9 +113,7 @@ const createChargeAndTransactions = async (
     },
   });
 
-  // Recently, Stripe updated their library and removed the 'charges' property in favor of 'latest_charge',
-  // but this is something that only makes sense in the LatestApiVersion, and that's not the one we're using.
-  const charge = (paymentIntent as any).charges.data[0] as Stripe.Charge;
+  const charge = paymentIntent.latest_charge || ((paymentIntent as any).charges.data[0] as Stripe.Charge);
   return createChargeTransactions(charge, { order });
 };
 
