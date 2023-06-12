@@ -123,7 +123,7 @@
     "showdown": "2.1.0",
     "spdx-license-list": "^6.6.0",
     "speakeasy": "2.0.0",
-    "stripe": "12.7.0",
+    "stripe": "12.9.0",
     "throng": "5.0.0",
     "tweetnacl": "1.0.3",
     "tweetnacl-util": "0.15.1",
