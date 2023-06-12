@@ -34,6 +34,7 @@ import { GraphQLVirtualCardCollection } from '../collection/VirtualCardCollectio
 import { GraphQLPaymentMethodLegacyType, GraphQLPayoutMethodType } from '../enum';
 import { PaymentMethodLegacyTypeEnum } from '../enum/PaymentMethodLegacyType';
 import { GraphQLTimeUnit } from '../enum/TimeUnit';
+import { GraphQLVirtualCardStatusEnum } from '../enum/VirtualCardStatus';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import {
   fetchAccountsIdsWithReference,
@@ -375,7 +376,8 @@ export const GraphQLHost = new GraphQLObjectType({
         args: {
           limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
           offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
-          state: { type: GraphQLString, defaultValue: null },
+          state: { type: GraphQLString, defaultValue: null, deprecationReason: '2023-06-12: Please use status.' },
+          status: { type: new GraphQLList(GraphQLVirtualCardStatusEnum) },
           orderBy: { type: GraphQLChronologicalOrderInput, defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE },
           merchantAccount: { type: GraphQLAccountReferenceInput, defaultValue: null },
           collectiveAccountIds: { type: new GraphQLList(GraphQLAccountReferenceInput), defaultValue: null },
@@ -412,6 +414,15 @@ export const GraphQLHost = new GraphQLObjectType({
 
           if (args.state) {
             query.where.data = { state: args.state };
+          }
+
+          if (args.status && args.status.length > 0) {
+            query.where.data = {
+              ...query.where.data,
+              status: {
+                [Op.in]: args.status,
+              },
+            };
           }
 
           if (collectiveIds) {
