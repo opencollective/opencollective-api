@@ -16,6 +16,12 @@ import * as stripeVirtualCards from '../paymentProviders/stripe/virtual-cards';
 import Collective from './Collective';
 import User from './User';
 
+export enum VirtualCardStatus {
+  ACTIVE = 'active',
+  INACTIVE = 'inactive',
+  CANCELED = 'canceled',
+}
+
 class VirtualCard extends Model<InferAttributes<VirtualCard, { omit: 'info' }>, InferCreationAttributes<VirtualCard>> {
   public declare id: CreationOptional<string>;
   public declare CollectiveId: number;
