@@ -95,6 +95,20 @@ const GraphQLOrderWithPayment = new GraphQLObjectType({
   }),
 });
 
+const getTaxAmount = (baseAmount, tax) => {
+  if (tax) {
+    if (tax.amount) {
+      return getValueInCentsFromAmountInput(tax.amount);
+    } else if (tax.rate) {
+      return Math.round(tax.rate * baseAmount);
+    } else if (tax.percentage) {
+      return Math.round((tax.percentage / 100) * baseAmount);
+    }
+  }
+
+  return 0;
+};
+
 /**
  * Computes the total amount for an order
  * @param {number} baseAmount
@@ -106,14 +120,7 @@ const getTotalAmountForOrderInput = (baseAmount, platformTipAmount, tax, quantit
   let totalAmount = baseAmount * (quantity || 1);
 
   if (tax) {
-    if (tax.amount) {
-      // Prefer using the amount if provided, to make sure the totals match
-      totalAmount += tax.amount ? getValueInCentsFromAmountInput(tax.amount) : 0;
-    } else if (tax.rate) {
-      totalAmount += Math.round(tax.rate * totalAmount);
-    } else if (tax.percentage) {
-      totalAmount += Math.round((tax.percentage / 100) * totalAmount);
-    }
+    totalAmount += getTaxAmount(baseAmount, tax);
   }
 
   if (platformTipAmount) {
@@ -135,7 +142,7 @@ const getOrderTaxInfo = (taxInput, quantity, orderAmount, fromAccount, toAccount
   if (taxInput) {
     const grossAmount = quantity * getValueInCentsFromAmountInput(orderAmount);
     taxInfo = getOrderTaxInfoFromTaxInput(taxInput, fromAccount, toAccount, host);
-    taxAmount = Math.round(grossAmount * (taxInfo.percentage / 100));
+    taxAmount = getTaxAmount(grossAmount, taxInput);
     const taxAmountFromInput = taxInput.amount && getValueInCentsFromAmountInput(taxInput.amount);
     if (taxInfo?.percentage && taxAmountFromInput) {
       const amountDiff = Math.abs(taxAmountFromInput - taxAmount);
@@ -528,7 +535,12 @@ const orderMutations = {
             : getOrderBaseAmount(order);
           order.set(
             'totalAmount',
-            getTotalAmountForOrderInput(baseAmount, order.platformTipAmount, order.data?.tax, order.quantity),
+            getTotalAmountForOrderInput(
+              baseAmount,
+              order.platformTipAmount,
+              args.order.tax || order.data?.tax,
+              order.quantity,
+            ),
           );
 
           await order.save();

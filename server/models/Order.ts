@@ -319,9 +319,9 @@ const Order: ModelStatic<OrderModelInterface> & OrderModelStaticInterface = sequ
       },
     },
 
-    validate: {
-      validateTotalAmount() {
-        if ((this.taxAmount || 0) + (this.platformTipAmount || 0) > this.totalAmount) {
+    hooks: {
+      beforeSave: order => {
+        if ((order.taxAmount || 0) + (order.platformTipAmount || 0) > order.totalAmount) {
           throw new Error('Invalid contribution amount: Taxes and platform tip cannot exceed the total amount');
         }
       },
