@@ -15833,6 +15833,11 @@ input PendingOrderEditInput {
   amount: AmountInput!
 
   """
+  Platform tip attached to this order
+  """
+  platformTipAmount: AmountInput
+
+  """
   The profile making the contribution.
   """
   fromAccount: AccountReferenceInput

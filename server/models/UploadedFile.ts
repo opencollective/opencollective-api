@@ -204,7 +204,7 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
           .ensureAlpha()
           .resize({ fit: sharp.fit.contain, width: 200 })
           .toBuffer({ resolveWithObject: true });
-        blurHash = encode(data, info.width, info.height, 4, 4);
+        blurHash = encode(Uint8ClampedArray.from(data), info.width, info.height, 4, 4);
       } catch (err) {
         reportErrorToSentry(err, {
           severity: 'error',

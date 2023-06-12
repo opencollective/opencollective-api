@@ -301,6 +301,7 @@ const Order: ModelStatic<OrderModelInterface> & OrderModelStaticInterface = sequ
           quantity: this.quantity,
           interval: this.interval,
           totalAmount: this.totalAmount,
+          taxAmount: this.taxAmount,
           // introducing 3 new values to clarify
           netAmount: this.totalAmount - this.platformTipAmount,
           platformTipAmount: this.platformTipAmount,
@@ -315,6 +316,14 @@ const Order: ModelStatic<OrderModelInterface> & OrderModelStaticInterface = sequ
           isGuest: Boolean(this.data?.isGuest),
           tags: this.tags,
         };
+      },
+    },
+
+    validate: {
+      validateTotalAmount() {
+        if ((this.taxAmount || 0) + (this.platformTipAmount || 0) > this.totalAmount) {
+          throw new Error('Invalid contribution amount: Taxes and platform tip cannot exceed the total amount');
+        }
       },
     },
   },

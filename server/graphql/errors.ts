@@ -1,4 +1,4 @@
-import { ApolloError } from 'apollo-server-express';
+import { ApolloError } from 'apollo-server-errors';
 import config from 'config';
 import { v4 as uuid } from 'uuid';
 

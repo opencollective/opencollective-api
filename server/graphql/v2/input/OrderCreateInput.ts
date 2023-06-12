@@ -198,6 +198,10 @@ export const GraphQLPendingOrderEditInput = new GraphQLInputObjectType({
       type: new GraphQLNonNull(GraphQLAmountInput),
       description: 'The contribution amount, without platform contribution and taxes',
     },
+    platformTipAmount: {
+      type: GraphQLAmountInput,
+      description: 'Platform tip attached to this order',
+    },
     fromAccount: {
       type: GraphQLAccountReferenceInput,
       description: 'The profile making the contribution.',
