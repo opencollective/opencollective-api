@@ -2848,6 +2848,7 @@ type Host implements Account & AccountWithContributions {
     limit: Int! = 100
     offset: Int! = 0
     state: String = null
+    status: [VirtualCardStatus]
     orderBy: ChronologicalOrderInput = { field: CREATED_AT, direction: DESC }
     merchantAccount: AccountReferenceInput = null
     collectiveAccountIds: [AccountReferenceInput] = null
@@ -4767,6 +4768,15 @@ enum HostApplicationStatus {
   APPROVED
   REJECTED
   EXPIRED
+}
+
+"""
+The status of a virtual card
+"""
+enum VirtualCardStatus {
+  ACTIVE
+  INACTIVE
+  CANCELED
 }
 
 """
