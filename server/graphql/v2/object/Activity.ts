@@ -161,6 +161,11 @@ export const GraphQLActivity = new GraphQLObjectType({
             toPick.push('previousData');
             toPick.push('newData');
           }
+        } else if (activity.type === ACTIVITY.EXPENSE_COMMENT_CREATED && activity.ExpenseId) {
+          const expense = await req.loaders.Expense.byId.load(activity.ExpenseId);
+          if (await ExpenseLib.canComment(req, expense)) {
+            toPick.push('comment');
+          }
         }
 
         return pick(activity.data, toPick);
