@@ -290,8 +290,11 @@ export const SentryGraphQLPlugin = {
 
           // Try to generate a User object for Sentry if logged in
           let remoteUserForSentry: Sentry.User | undefined;
-          if (ctx.context.remoteUser) {
-            remoteUserForSentry = { id: ctx.context.remoteUser.id, CollectiveId: ctx.context.remoteUser.CollectiveId };
+          if (ctx.contextValue.remoteUser) {
+            remoteUserForSentry = {
+              id: ctx.contextValue.remoteUser.id,
+              CollectiveId: ctx.contextValue.remoteUser.CollectiveId,
+            };
           }
 
           reportErrorToSentry(err, {

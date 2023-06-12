@@ -63,7 +63,7 @@ describe('server/lib/sentry', () => {
       context.didEncounterErrors({
         operation: {},
         errors: [{ message: 'Test error 1' }, { message: 'Test error 2' }],
-        context: {},
+        contextValue: {},
         request: req,
       });
       expect(captureExceptionSpy).to.have.been.calledTwice;
@@ -81,7 +81,7 @@ describe('server/lib/sentry', () => {
       context.didEncounterErrors({
         operation: {},
         errors: [{ extensions: { code: 'IGNORED' } }, { path: ['account'], message: 'No collective found' }],
-        context: {},
+        contextValue: {},
         request: req,
       });
       expect(captureExceptionSpy).to.not.have.been.called;
