@@ -40,7 +40,7 @@ const publishToWebhook = (activity: Activity, webhookUrl: string) => {
       body: JSON.stringify(enrichedActivity),
       redirect: 'manual' as RequestRedirect,
     };
-    return fetch(webhookUrl, webhookOptions).then(response => response.json());
+    return fetch(webhookUrl, webhookOptions).then(response => response?.json());
   }
 };
 
