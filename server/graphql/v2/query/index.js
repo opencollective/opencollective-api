@@ -10,6 +10,7 @@ import TagStatsCollectionQuery from './collection/TagStatsCollectionQuery';
 import TransactionsCollectionQuery from './collection/TransactionsCollectionQuery';
 import UpdatesCollectionQuery from './collection/UpdatesCollectionQuery';
 import AccountQuery from './AccountQuery';
+import ActivityTimelineQuery from './ActivityTimelineQuery';
 import ApplicationQuery from './ApplicationQuery';
 import CollectiveQuery from './CollectiveQuery';
 import ConversationQuery from './ConversationQuery';
@@ -32,6 +33,7 @@ const query = {
   account: AccountQuery,
   accounts: AccountsCollectionQuery,
   activities: ActivitiesCollectionQuery,
+  activityTimeline: ActivityTimelineQuery,
   application: ApplicationQuery,
   collective: CollectiveQuery,
   conversation: ConversationQuery,
