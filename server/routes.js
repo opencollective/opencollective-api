@@ -272,6 +272,11 @@ export default async app => {
           return {
             async willSendResponse(requestContext) {
               const response = requestContext.response;
+              const result = response?.body?.singleResult;
+              if (!result) {
+                return;
+              }
+
               const req = requestContext.contextValue; // From apolloExpressMiddlewareOptions context()
 
               req.endAt = req.endAt || new Date();
@@ -283,7 +288,7 @@ export default async app => {
 
               // This will never happen for logged-in users as cacheKey is not set
               if (req.cacheKey && !response?.errors && executionTime > minExecutionTimeToCache) {
-                cache.set(req.cacheKey, response, Number(config.graphql.cache.ttl));
+                cache.set(req.cacheKey, result, Number(config.graphql.cache.ttl));
                 // Index key
                 cache.get(`graphqlCacheKeys_${req.cacheSlug}`).then(keys => {
                   keys = keys || [];
