@@ -8,6 +8,7 @@ import models, { Op } from '../../../models';
 import { checkScope } from '../../common/scope-check';
 import { GraphQLCurrency } from '../enum';
 import { GraphQLVirtualCardLimitInterval } from '../enum/VirtualCardLimitInterval';
+import { GraphQLVirtualCardStatusEnum } from '../enum/VirtualCardStatus';
 import { GraphQLAccount } from '../interface/Account';
 
 import { GraphQLIndividual } from './Individual';
@@ -76,6 +77,15 @@ export const GraphQLVirtualCard = new GraphQLObjectType({
         const collective = await req.loaders.Collective.byId.load(virtualCard.CollectiveId);
         if (canSeeVirtualCardPrivateInfo(req, collective)) {
           return virtualCard.data;
+        }
+      },
+    },
+    status: {
+      type: GraphQLVirtualCardStatusEnum,
+      async resolve(virtualCard, _, req) {
+        const collective = await req.loaders.Collective.byId.load(virtualCard.CollectiveId);
+        if (canSeeVirtualCardPrivateInfo(req, collective)) {
+          return virtualCard.data.status;
         }
       },
     },

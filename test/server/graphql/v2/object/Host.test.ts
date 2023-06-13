@@ -1,8 +1,15 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
 
-import Agreement from '../../../../../server/models/Agreement';
-import { fakeCollective, fakeHost, fakeUploadedFile, fakeUser } from '../../../../test-helpers/fake-data';
+import models from '../../../../../server/models';
+import { VirtualCardStatus } from '../../../../../server/models/VirtualCard';
+import {
+  fakeCollective,
+  fakeHost,
+  fakeUploadedFile,
+  fakeUser,
+  fakeVirtualCard,
+} from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
 
 const hostQuery = gqlV2/* GraphQL */ `
@@ -30,7 +37,7 @@ describe('server/graphql/v2/object/Host', () => {
       const host = await fakeHost({ admin: hostAdmin });
       const account = await fakeCollective({ HostCollectiveId: host.id });
       const uploadedFile = await fakeUploadedFile({ fileName: 'my agreement.pdf' });
-      await Agreement.create({
+      await models.Agreement.create({
         title: 'test title',
         CollectiveId: account.id,
         HostCollectiveId: host.id,
@@ -52,14 +59,14 @@ describe('server/graphql/v2/object/Host', () => {
       const account = await fakeCollective({ HostCollectiveId: host.id });
       const secondAccount = await fakeCollective({ HostCollectiveId: host.id });
       const uploadedFile = await fakeUploadedFile({ fileName: 'my agreement.pdf' });
-      await Agreement.create({
+      await models.Agreement.create({
         title: 'test title',
         CollectiveId: account.id,
         HostCollectiveId: host.id,
         UploadedFileId: uploadedFile.id,
       });
 
-      await Agreement.create({
+      await models.Agreement.create({
         title: 'second test title',
         CollectiveId: secondAccount.id,
         HostCollectiveId: host.id,
@@ -107,14 +114,14 @@ describe('server/graphql/v2/object/Host', () => {
       const account = await fakeCollective({ HostCollectiveId: host.id });
       const secondAccount = await fakeCollective({ HostCollectiveId: host.id });
       const uploadedFile = await fakeUploadedFile({ fileName: 'my agreement.pdf' });
-      await Agreement.create({
+      await models.Agreement.create({
         title: 'test title',
         CollectiveId: account.id,
         HostCollectiveId: host.id,
         UploadedFileId: uploadedFile.id,
       });
 
-      await Agreement.create({
+      await models.Agreement.create({
         title: 'second test title',
         CollectiveId: secondAccount.id,
         HostCollectiveId: host.id,
@@ -137,6 +144,119 @@ describe('server/graphql/v2/object/Host', () => {
       );
       expect(result.data.host.hostedAccountAgreements.totalCount).to.eql(2);
       expect(result.data.host.hostedAccountAgreements.nodes).to.have.length(2);
+    });
+  });
+
+  describe('hostedVirtualCards', () => {
+    const query = gqlV2/* GraphQL */ `
+      query Host($slug: String!, $status: [VirtualCardStatus], $collectiveAccountIds: [AccountReferenceInput]) {
+        host(slug: $slug) {
+          id
+          hostedVirtualCards(
+            orderBy: { direction: ASC }
+            status: $status
+            collectiveAccountIds: $collectiveAccountIds
+          ) {
+            totalCount
+            nodes {
+              id
+              status
+            }
+          }
+        }
+      }
+    `;
+
+    it('returns all virtual cards', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeHost({ admin: hostAdmin });
+      const account = await fakeCollective({ HostCollectiveId: host.id });
+      const vc1 = await fakeVirtualCard({
+        CollectiveId: account.id,
+        HostCollectiveId: host.id,
+        data: {
+          status: VirtualCardStatus.ACTIVE,
+        },
+      });
+
+      const vc2 = await fakeVirtualCard({
+        CollectiveId: account.id,
+        HostCollectiveId: host.id,
+        data: {
+          status: VirtualCardStatus.INACTIVE,
+        },
+      });
+
+      const vc3 = await fakeVirtualCard({
+        CollectiveId: account.id,
+        HostCollectiveId: host.id,
+        data: {
+          status: VirtualCardStatus.CANCELED,
+        },
+      });
+
+      const result = await graphqlQueryV2(query, { slug: host.slug }, hostAdmin);
+
+      expect(result.data.host.hostedVirtualCards.totalCount).to.eql(3);
+
+      expect(result.data.host.hostedVirtualCards.nodes).to.deep.eql([
+        {
+          id: vc1.id,
+          status: 'ACTIVE',
+        },
+        {
+          id: vc2.id,
+          status: 'INACTIVE',
+        },
+        {
+          id: vc3.id,
+          status: 'CANCELED',
+        },
+      ]);
+    });
+
+    it('filter virtual cards by status', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeHost({ admin: hostAdmin });
+      const account = await fakeCollective({ HostCollectiveId: host.id });
+      const vc1 = await fakeVirtualCard({
+        CollectiveId: account.id,
+        HostCollectiveId: host.id,
+        data: {
+          status: VirtualCardStatus.ACTIVE,
+        },
+      });
+
+      await fakeVirtualCard({
+        CollectiveId: account.id,
+        HostCollectiveId: host.id,
+        data: {
+          status: VirtualCardStatus.INACTIVE,
+        },
+      });
+
+      const vc3 = await fakeVirtualCard({
+        CollectiveId: account.id,
+        HostCollectiveId: host.id,
+        data: {
+          status: VirtualCardStatus.CANCELED,
+        },
+      });
+
+      const result = await graphqlQueryV2(query, { slug: host.slug, status: ['ACTIVE', 'CANCELED'] }, hostAdmin);
+
+      expect(result.data.host.hostedVirtualCards.totalCount).to.eql(2);
+
+      expect(result.data.host.hostedVirtualCards.nodes).to.deep.eql([
+        {
+          id: vc1.id,
+          status: 'ACTIVE',
+        },
+        {
+          id: vc3.id,
+          status: 'CANCELED',
+        },
+      ]);
     });
   });
 });

@@ -2847,7 +2847,7 @@ type Host implements Account & AccountWithContributions {
   hostedVirtualCards(
     limit: Int! = 100
     offset: Int! = 0
-    state: String = null
+    state: String = null @deprecated(reason: "2023-06-12: Please use status.")
     status: [VirtualCardStatus]
     orderBy: ChronologicalOrderInput = { field: CREATED_AT, direction: DESC }
     merchantAccount: AccountReferenceInput = null
@@ -9461,6 +9461,7 @@ type VirtualCard {
   name: String
   last4: String
   data: JSONObject
+  status: VirtualCardStatus
   privateData: JSONObject
   provider: String
   spendingLimitAmount: Int
