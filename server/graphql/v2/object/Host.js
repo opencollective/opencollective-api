@@ -381,11 +381,82 @@ export const GraphQLHost = new GraphQLObjectType({
           orderBy: { type: GraphQLChronologicalOrderInput, defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE },
           merchantAccount: { type: GraphQLAccountReferenceInput, defaultValue: null },
           collectiveAccountIds: { type: new GraphQLList(GraphQLAccountReferenceInput), defaultValue: null },
+          withExpensesDateFrom: {
+            type: GraphQLDateTime,
+            description: 'Returns virtual cards with expenses from this date.',
+          },
+          withExpensesDateTo: {
+            type: GraphQLDateTime,
+            description: 'Returns virtual cards with expenses to this date.',
+          },
+          spentAmountFrom: {
+            type: GraphQLInt,
+            description: 'Filter virtual cards with at least this amount in cents charged',
+          },
+          spentAmountTo: {
+            type: GraphQLInt,
+            description: 'Filter virtual cards with up to this amount in cents charged',
+          },
+          hasMissingReceipts: {
+            type: GraphQLBoolean,
+            description: 'Filter virtual cards by whether they are missing receipts for any charges',
+          },
         },
         async resolve(host, args, req) {
           if (!req.remoteUser?.isAdmin(host.id)) {
             throw new Unauthorized('You need to be logged in as an admin of the host to see its hosted virtual cards');
           }
+
+          const baseQuery = `
+            SELECT
+              vc.* from "VirtualCards" vc
+              LEFT JOIN "Expenses" e ON e."VirtualCardId" = vc.id
+              LEFT JOIN LATERAL (
+                SELECT sum(ce.amount) as sum, count(1) as count FROM "Expenses" ce
+                WHERE ce."VirtualCardId" = vc.id
+                AND (:expensesFromDate IS NULL OR ce."createdAt" >= :expensesFromDate)
+                AND (:expensesToDate IS NULL OR ce."createdAt" <= :expensesToDate)
+              ) AS charges ON TRUE
+              LEFT JOIN LATERAL (
+                SELECT count(1) as total FROM "Expenses" ce
+                LEFT JOIN "ExpenseItems" ei on ei."ExpenseId" = ce.id
+                WHERE ce."VirtualCardId" = vc.id
+                AND (:expensesFromDate IS NULL OR ce."createdAt" >= :expensesFromDate)
+                AND (:expensesToDate IS NULL OR ce."createdAt" <= :expensesToDate)
+                AND ei.url IS NULL
+              ) AS "lackingReceipts" ON TRUE
+            WHERE
+              vc."HostCollectiveId" = :hostCollectiveId
+              AND (COALESCE(:status) IS NULL OR vc.data#>>'{status}' IN (:status))
+              AND (COALESCE(:collectiveIds) IS NULL OR vc."CollectiveId" IN (:collectiveIds))
+              AND (:merchantId IS NULL OR e."CollectiveId" = :merchantId)
+              AND (:spentAmountFrom IS NULL OR COALESCE(charges.sum, 0) >= :spentAmountFrom)
+              AND (:spentAmountTo IS NULL OR COALESCE(charges.sum, 0) <= :spentAmountTo)
+              AND (:expensesFromDate IS NULL OR COALESCE(charges.count, 0) > 0)
+              AND (:expensesToDate IS NULL OR COALESCE(charges.count, 0) > 0)
+              AND (
+                :hasMissingReceipts IS NULL
+                OR
+                (
+                  NOT :hasMissingReceipts AND COALESCE("lackingReceipts".total, 0) = 0
+                )
+                OR
+                (
+                  :hasMissingReceipts AND COALESCE("lackingReceipts".total, 0) > 0
+                )
+              )
+          `;
+
+          const countQuery = `
+            SELECT count(1) as total FROM (${baseQuery}) as base
+          `;
+
+          const pageQuery = `
+                SELECT * FROM (${baseQuery}) as base
+                ORDER BY "createdAt" ${args.orderBy.direction === 'DESC' ? 'DESC' : 'ASC'}
+                LIMIT :limit
+                OFFSET :offset
+          `;
 
           let merchantId;
           if (!isEmpty(args.merchantAccount)) {
@@ -395,62 +466,44 @@ export const GraphQLHost = new GraphQLObjectType({
           }
 
           const collectiveIds = isEmpty(args.collectiveAccountIds)
-            ? undefined
+            ? [null]
             : await Promise.all(
                 args.collectiveAccountIds.map(collectiveAccountId =>
                   fetchAccountWithReference(collectiveAccountId, { throwIfMissing: true, loaders: req.loaders }),
                 ),
               ).then(collectives => collectives.map(collective => collective.id));
 
-          const query = {
-            group: 'VirtualCard.id',
-            where: {
-              HostCollectiveId: host.id,
-            },
+          const statusArg = !args.status || args.status.length === 0 ? [null] : args.status;
+
+          const queryReplacements = {
+            hostCollectiveId: host.id,
+            status: statusArg,
+            collectiveIds: collectiveIds,
+            merchantId: merchantId ?? null,
+            expensesFromDate: args.withExpensesDateFrom ?? null,
+            expensesToDate: args.withExpensesDateTo ?? null,
+            spentAmountFrom: args.spentAmountFrom ?? null,
+            spentAmountTo: args.spentAmountTo ?? null,
             limit: args.limit,
             offset: args.offset,
-            order: [[args.orderBy.field, args.orderBy.direction]],
+            hasMissingReceipts: args.hasMissingReceipts ?? null,
           };
 
-          if (args.state) {
-            query.where.data = { state: args.state };
-          }
-
-          if (args.status && args.status.length > 0) {
-            query.where.data = {
-              ...query.where.data,
-              status: {
-                [Op.in]: args.status,
-              },
-            };
-          }
-
-          if (collectiveIds) {
-            query.where.CollectiveId = { [Op.in]: collectiveIds };
-          }
-
-          if (merchantId) {
-            if (!query.where.data) {
-              query.where.data = {};
-            }
-            query.where.data.type = 'MERCHANT_LOCKED';
-            query.include = [
-              {
-                attributes: [],
-                association: 'expenses',
-                required: true,
-                where: {
-                  CollectiveId: merchantId,
-                },
-              },
-            ];
-          }
-
-          const result = await models.VirtualCard.findAndCountAll(query);
+          const [virtualCards, { total }] = await Promise.all([
+            sequelize.query(pageQuery, {
+              replacements: queryReplacements,
+              type: sequelize.QueryTypes.SELECT,
+              model: models.VirtualCard,
+            }),
+            sequelize.query(countQuery, {
+              plain: true,
+              replacements: queryReplacements,
+            }),
+          ]);
 
           return {
-            nodes: result.rows,
-            totalCount: result.count.length, // See https://github.com/sequelize/sequelize/issues/9109
+            nodes: virtualCards,
+            totalCount: total,
             limit: args.limit,
             offset: args.offset,
           };

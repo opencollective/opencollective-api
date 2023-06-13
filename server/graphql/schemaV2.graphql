@@ -2852,6 +2852,31 @@ type Host implements Account & AccountWithContributions {
     orderBy: ChronologicalOrderInput = { field: CREATED_AT, direction: DESC }
     merchantAccount: AccountReferenceInput = null
     collectiveAccountIds: [AccountReferenceInput] = null
+
+    """
+    Returns virtual cards with expenses from this date.
+    """
+    withExpensesDateFrom: DateTime
+
+    """
+    Returns virtual cards with expenses to this date.
+    """
+    withExpensesDateTo: DateTime
+
+    """
+    Filter virtual cards with at least this amount in cents charged
+    """
+    spentAmountFrom: Int
+
+    """
+    Filter virtual cards with up to this amount in cents charged
+    """
+    spentAmountTo: Int
+
+    """
+    Filter virtual cards by whether they are missing receipts for any charges
+    """
+    hasMissingReceipts: Boolean
   ): VirtualCardCollection!
   hostedVirtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
   hostedVirtualCardCollectives(limit: Int! = 100, offset: Int! = 0): AccountCollection!
