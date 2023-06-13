@@ -1,5 +1,5 @@
 {
-  "extends": ["plugin:@typescript-eslint/recommended", "plugin:import/typescript", "opencollective"],
+  "extends": ["opencollective", "plugin:@typescript-eslint/recommended", "plugin:import/typescript"],
   "parser": "@typescript-eslint/parser",
   "env": { "mocha": true },
   "plugins": ["@typescript-eslint", "graphql", "mocha", "simple-import-sort"],
