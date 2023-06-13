@@ -1568,7 +1568,8 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
     if (
       !isPaidCreditCardCharge &&
       expenseData.payoutMethod !== undefined &&
-      expenseData.payoutMethod?.id !== expense.PayoutMethodId
+      (!expenseData.payoutMethod?.id || // This represents a new payout method without an id
+        expenseData.payoutMethod?.id !== expense.PayoutMethodId)
     ) {
       payoutMethod = await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, transaction);
 
