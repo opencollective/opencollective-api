@@ -174,6 +174,7 @@ export default {
       await Activity.create({
         type: ActivityTypes.AGREEMENT_DELETED,
         UserId: req.remoteUser.id,
+        UserTokenId: req.userToken?.id,
         CollectiveId: agreement.CollectiveId,
         HostCollectiveId: host.id,
         data: {
