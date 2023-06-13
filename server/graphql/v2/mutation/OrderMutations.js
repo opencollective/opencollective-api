@@ -114,20 +114,17 @@ const getTaxAmount = (baseAmount, tax) => {
  * @param {number} baseAmount
  * @param {number} platformTipAmount
  * @param {OrderTaxInput | TaxInput | OrderTax} taxInput
- * @param {number} quantity
  */
-const getTotalAmountForOrderInput = (baseAmount, platformTipAmount, tax, quantity) => {
-  let totalAmount = baseAmount * (quantity || 1);
-
+const getTotalAmountForOrderInput = (baseAmount, platformTipAmount, tax) => {
   if (tax) {
-    totalAmount += getTaxAmount(baseAmount, tax);
+    baseAmount += getTaxAmount(baseAmount, tax);
   }
 
   if (platformTipAmount) {
-    totalAmount += platformTipAmount;
+    baseAmount += platformTipAmount;
   }
 
-  return totalAmount;
+  return baseAmount;
 };
 
 const getOrderBaseAmount = order => {
@@ -201,8 +198,9 @@ const orderMutations = {
       });
 
       const amountInCents = getValueInCentsFromAmountInput(order.amount);
+      const quantity = order.quantity || 1;
       const legacyOrderObj = {
-        quantity: order.quantity,
+        quantity,
         amount: amountInCents,
         currency: expectedCurrency,
         interval: getIntervalFromContributionFrequency(order.frequency),
@@ -212,7 +210,7 @@ const orderMutations = {
         fromCollective: fromCollective && { id: fromCollective.id },
         fromAccountInfo: order.fromAccountInfo,
         collective: { id: collective.id },
-        totalAmount: getTotalAmountForOrderInput(amountInCents, platformTipAmount, tax, order.quantity),
+        totalAmount: getTotalAmountForOrderInput(amountInCents * quantity, platformTipAmount, tax),
         data: order.data, // We're filtering data before saving it (see `ORDER_PUBLIC_DATA_FIELDS`)
         customData: order.customData,
         isBalanceTransfer: order.isBalanceTransfer,
@@ -535,12 +533,7 @@ const orderMutations = {
             : getOrderBaseAmount(order);
           order.set(
             'totalAmount',
-            getTotalAmountForOrderInput(
-              baseAmount,
-              order.platformTipAmount,
-              args.order.tax || order.data?.tax,
-              order.quantity,
-            ),
+            getTotalAmountForOrderInput(baseAmount, order.platformTipAmount, args.order.tax || order.data?.tax),
           );
 
           await order.save();
@@ -999,7 +992,7 @@ const orderMutations = {
         FromCollectiveId: fromAccount.id,
         CollectiveId: toAccount.id,
         quantity,
-        totalAmount: getTotalAmountForOrderInput(baseAmountInCents, null, args.order.tax, quantity),
+        totalAmount: getTotalAmountForOrderInput(baseAmountInCents, null, args.order.tax),
         currency: args.order.amount.currency,
         description: args.order.description || models.Order.generateDescription(toAccount, undefined, undefined),
         taxAmount,
@@ -1112,7 +1105,7 @@ const orderMutations = {
       await order.update({
         FromCollectiveId: fromAccount?.id || undefined,
         TierId: tier?.id || undefined,
-        totalAmount: getTotalAmountForOrderInput(baseAmountInCents, platformTipAmount, tax, quantity),
+        totalAmount: getTotalAmountForOrderInput(baseAmountInCents, platformTipAmount, tax),
         platformTipAmount,
         taxAmount: taxAmount || null,
         currency: args.order.amount.currency,
