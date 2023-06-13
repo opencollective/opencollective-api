@@ -195,7 +195,12 @@ const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Request>({
           const activities: Activity[] = await req.loaders.Expense.activities.load(expense.id);
           const approvalActivitiesSinceLastUnapprovedState = takeRightWhile(
             activities,
-            a => a.type !== ActivityTypes.COLLECTIVE_EXPENSE_UNAPPROVED,
+            a =>
+              ![
+                ActivityTypes.COLLECTIVE_EXPENSE_UNAPPROVED,
+                ActivityTypes.COLLECTIVE_EXPENSE_RE_APPROVAL_REQUESTED,
+                ActivityTypes.COLLECTIVE_EXPENSE_REJECTED,
+              ].includes(a.type),
           ).filter(a => a.type === ActivityTypes.COLLECTIVE_EXPENSE_APPROVED);
 
           const approvingUserIds = uniq(approvalActivitiesSinceLastUnapprovedState.map(a => a.UserId));
