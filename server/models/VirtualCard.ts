@@ -82,6 +82,12 @@ class VirtualCard extends Model<InferAttributes<VirtualCard, { omit: 'info' }>, 
           return;
         }
         await stripeVirtualCards.deleteCard(this);
+        await this.update({
+          data: {
+            ...this.data,
+            status: VirtualCardStatus.CANCELED,
+          },
+        });
         break;
       default:
         throw new Error(`Can not delete virtual card provided by ${this.provider}`);

@@ -59,6 +59,7 @@ import {
 import User from '../../server/models/User';
 import { TokenType } from '../../server/models/UserToken';
 import UserTwoFactorMethod from '../../server/models/UserTwoFactorMethod';
+import { VirtualCardStatus } from '../../server/models/VirtualCard';
 import { randEmail, randUrl } from '../stores';
 
 export { randEmail, sequelize };
@@ -882,6 +883,10 @@ export const fakeVirtualCard = async (virtualCardData: Partial<InferCreationAttr
     last4: padStart(randNumber(0, 9999).toString(), 4, '0'),
     name: randStr('card'),
     ...virtualCardData,
+    data: {
+      status: VirtualCardStatus.ACTIVE,
+      ...virtualCardData?.data,
+    },
     CollectiveId,
     HostCollectiveId,
   });
