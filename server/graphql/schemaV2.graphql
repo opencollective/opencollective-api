@@ -1187,6 +1187,11 @@ type Expense {
   status: ExpenseStatus!
 
   """
+  The accounts who approved this expense
+  """
+  approvedBy: [Account!]!
+
+  """
   Whether this expense is on hold
   """
   onHold: Boolean

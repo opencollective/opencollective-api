@@ -9,11 +9,11 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { pick, round } from 'lodash';
+import { pick, round, takeRightWhile, uniq } from 'lodash';
 
 import ActivityTypes from '../../../constants/activities';
 import expenseStatus from '../../../constants/expense_status';
-import models from '../../../models';
+import models, { Activity } from '../../../models';
 import { CommentType } from '../../../models/Comment';
 import ExpenseModel from '../../../models/Expense';
 import { LEGAL_DOCUMENT_TYPE } from '../../../models/LegalDocument';
@@ -187,6 +187,30 @@ const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Request>({
       status: {
         type: new GraphQLNonNull(GraphQLExpenseStatus),
         description: 'The state of the expense (pending, approved, paid, rejected...etc)',
+      },
+      approvedBy: {
+        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLAccount))),
+        description: 'The accounts who approved this expense',
+        async resolve(expense, _, req) {
+          const activities: Activity[] = await req.loaders.Expense.activities.load(expense.id);
+          const approvalActivitiesSinceLastUnapprovedState = takeRightWhile(
+            activities,
+            a =>
+              ![
+                ActivityTypes.COLLECTIVE_EXPENSE_UNAPPROVED,
+                ActivityTypes.COLLECTIVE_EXPENSE_RE_APPROVAL_REQUESTED,
+                ActivityTypes.COLLECTIVE_EXPENSE_REJECTED,
+              ].includes(a.type),
+          ).filter(a => a.type === ActivityTypes.COLLECTIVE_EXPENSE_APPROVED);
+
+          const approvingUserIds = uniq(approvalActivitiesSinceLastUnapprovedState.map(a => a.UserId));
+
+          if (approvingUserIds.length === 0) {
+            return [];
+          }
+
+          return await req.loaders.Collective.byUserId.loadMany(approvingUserIds);
+        },
       },
       onHold: {
         type: GraphQLBoolean,
