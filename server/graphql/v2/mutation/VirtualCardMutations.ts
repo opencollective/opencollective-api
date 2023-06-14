@@ -399,7 +399,7 @@ const virtualCardMutations = {
       }
 
       if (virtualCard.data.status === VirtualCardStatus.CANCELED) {
-        throw new BadRequest('This Virtual Card cannot be edited');
+        throw new BadRequest('This Virtual Card cannot be paused');
       }
 
       const card = await virtualCard.pause();
