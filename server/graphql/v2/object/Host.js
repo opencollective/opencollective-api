@@ -42,6 +42,7 @@ import {
   fetchAccountWithReference,
   GraphQLAccountReferenceInput,
 } from '../input/AccountReferenceInput';
+import { GraphQLAmountInput } from '../input/AmountInput';
 import {
   CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   GraphQLChronologicalOrderInput,
@@ -390,11 +391,11 @@ export const GraphQLHost = new GraphQLObjectType({
             description: 'Returns virtual cards with expenses to this date.',
           },
           spentAmountFrom: {
-            type: GraphQLInt,
+            type: GraphQLAmountInput,
             description: 'Filter virtual cards with at least this amount in cents charged',
           },
           spentAmountTo: {
-            type: GraphQLInt,
+            type: GraphQLAmountInput,
             description: 'Filter virtual cards with up to this amount in cents charged',
           },
           hasMissingReceipts: {
@@ -410,7 +411,7 @@ export const GraphQLHost = new GraphQLObjectType({
           const baseQuery = `
             SELECT
               vc.* from "VirtualCards" vc
-              LEFT JOIN "Expenses" e ON e."VirtualCardId" = vc.id
+              LEFT JOIN "Expenses" e ON e."VirtualCardId" = vc.id AND e."deletedAt" IS NULL
               LEFT JOIN LATERAL (
                 SELECT sum(ce.amount) as sum, count(1) as count FROM "Expenses" ce
                 WHERE ce."VirtualCardId" = vc.id
@@ -425,6 +426,8 @@ export const GraphQLHost = new GraphQLObjectType({
                 AND (:expensesFromDate IS NULL OR ce."createdAt" >= :expensesFromDate)
                 AND (:expensesToDate IS NULL OR ce."createdAt" <= :expensesToDate)
                 AND ei.url IS NULL
+                AND ce."deletedAt" is NULL
+                LIMIT 1
               ) AS "lackingReceipts" ON TRUE
             WHERE
               vc."HostCollectiveId" = :hostCollectiveId
@@ -483,8 +486,8 @@ export const GraphQLHost = new GraphQLObjectType({
             merchantId: merchantId ?? null,
             expensesFromDate: args.withExpensesDateFrom ?? null,
             expensesToDate: args.withExpensesDateTo ?? null,
-            spentAmountFrom: args.spentAmountFrom ?? null,
-            spentAmountTo: args.spentAmountTo ?? null,
+            spentAmountFrom: args.spentAmountFrom?.valueInCents ?? null,
+            spentAmountTo: args.spentAmountTo?.valueInCents ?? null,
             limit: args.limit,
             offset: args.offset,
             hasMissingReceipts: args.hasMissingReceipts ?? null,
