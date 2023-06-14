@@ -416,6 +416,7 @@ export const GraphQLHost = new GraphQLObjectType({
                 WHERE ce."VirtualCardId" = vc.id
                 AND (:expensesFromDate IS NULL OR ce."createdAt" >= :expensesFromDate)
                 AND (:expensesToDate IS NULL OR ce."createdAt" <= :expensesToDate)
+                AND ce."deletedAt" IS NULL
               ) AS charges ON TRUE
               LEFT JOIN LATERAL (
                 SELECT count(1) as total FROM "Expenses" ce
