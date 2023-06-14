@@ -42,7 +42,7 @@ import {
   fetchAccountWithReference,
   GraphQLAccountReferenceInput,
 } from '../input/AccountReferenceInput';
-import { GraphQLAmountInput } from '../input/AmountInput';
+import { getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/AmountInput';
 import {
   CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   GraphQLChronologicalOrderInput,
@@ -486,8 +486,8 @@ export const GraphQLHost = new GraphQLObjectType({
             merchantId: merchantId ?? null,
             expensesFromDate: args.withExpensesDateFrom ?? null,
             expensesToDate: args.withExpensesDateTo ?? null,
-            spentAmountFrom: args.spentAmountFrom?.valueInCents ?? null,
-            spentAmountTo: args.spentAmountTo?.valueInCents ?? null,
+            spentAmountFrom: args.spentAmountFrom ? getValueInCentsFromAmountInput(args.spentAmountFrom) : null,
+            spentAmountTo: args.spentAmountTo ? getValueInCentsFromAmountInput(args.spentAmountTo) : null,
             limit: args.limit,
             offset: args.offset,
             hasMissingReceipts: args.hasMissingReceipts ?? null,
