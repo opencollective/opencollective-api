@@ -166,6 +166,8 @@ export const GraphQLActivity = new GraphQLObjectType({
           if (await ExpenseLib.canComment(req, expense)) {
             toPick.push('comment');
           }
+        } else if (activity.type === ACTIVITY.COLLECTIVE_UPDATE_PUBLISHED && !activity.data.update.isPrivate) {
+          toPick.push('update.title', 'update.html');
         }
 
         return pick(activity.data, toPick);
