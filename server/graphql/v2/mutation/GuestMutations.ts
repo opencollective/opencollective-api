@@ -47,7 +47,7 @@ const guestMutations = {
 
       // Make sure that this cannot be abused to guess email addresses
       const rateLimitOnIP = new RateLimit(
-        `send_guest_confirm_ip_${req.ip}}`,
+        `send_guest_confirm_ip_${req.ip}`,
         config.limits.sendGuestConfirmPerMinutePerIp,
         60,
       );
@@ -120,7 +120,7 @@ const guestMutations = {
 
       // Adding a rate limite here to prevent attackers from guessing email addresses
       const rateLimitOnIP = new RateLimit(
-        `confirm_guest_account_${req.ip}}`,
+        `confirm_guest_account_${req.ip}`,
         config.limits.confirmGuestAccountPerMinutePerIp,
         60,
       );
