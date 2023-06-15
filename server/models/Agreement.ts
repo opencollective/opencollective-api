@@ -39,6 +39,33 @@ export default class Agreement extends Model<InferAttributes<Agreement>, InferCr
   declare createdAt: CreationOptional<Date>;
   declare updatedAt: CreationOptional<Date>;
   declare deletedAt: CreationOptional<Date>;
+
+  get info(): NonAttribute<
+    Pick<
+      Agreement,
+      | 'id'
+      | 'title'
+      | 'UserId'
+      | 'CollectiveId'
+      | 'HostCollectiveId'
+      | 'createdAt'
+      | 'updatedAt'
+      | 'deletedAt'
+      | 'expiresAt'
+    >
+  > {
+    return {
+      id: this.id,
+      title: this.title,
+      UserId: this.UserId,
+      CollectiveId: this.CollectiveId,
+      HostCollectiveId: this.HostCollectiveId,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt,
+      deletedAt: this.deletedAt,
+      expiresAt: this.expiresAt,
+    };
+  }
 }
 
 Agreement.init(
