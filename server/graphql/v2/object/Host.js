@@ -8,7 +8,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { find, get, isEmpty, keyBy, mapValues } from 'lodash';
+import { find, get, isEmpty, isNil, keyBy, mapValues } from 'lodash';
 import moment from 'moment';
 
 import { roles } from '../../../constants';
@@ -21,6 +21,7 @@ import { TransactionTypes } from '../../../constants/transactions';
 import { FEATURE, hasFeature } from '../../../lib/allowed-features';
 import { buildSearchConditions } from '../../../lib/search';
 import sequelize from '../../../lib/sequelize';
+import { ifStr } from '../../../lib/utils';
 import models, { Collective, Op } from '../../../models';
 import Agreement from '../../../models/Agreement';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
@@ -408,47 +409,84 @@ export const GraphQLHost = new GraphQLObjectType({
             throw new Unauthorized('You need to be logged in as an admin of the host to see its hosted virtual cards');
           }
 
+          const hasStatusFilter = !isEmpty(args.status);
+          const hasCollectiveFilter = !isEmpty(args.collectiveAccountIds);
+          const hasMerchantFilter = !isNil(args.merchantId);
+
+          const hasSpentFromFilter = !isNil(args.spentAmountFrom);
+          const hasSpentToFilter = !isNil(args.spentAmountTo);
+          const hasSpentFilter = hasSpentFromFilter || hasSpentToFilter;
+
+          const hasExpenseFromDate = !isNil(args.withExpensesDateFrom);
+          const hasExpenseToDate = !isNil(args.withExpensesDateTo);
+          const hasExpensePeriodFilter = hasExpenseFromDate || hasExpenseToDate;
+
           const baseQuery = `
             SELECT
               vc.* from "VirtualCards" vc
-              LEFT JOIN "Expenses" e ON e."VirtualCardId" = vc.id AND e."deletedAt" IS NULL
-              LEFT JOIN LATERAL (
-                SELECT sum(ce.amount) as sum, count(1) as count FROM "Expenses" ce
-                WHERE ce."VirtualCardId" = vc.id
-                AND (:expensesFromDate IS NULL OR ce."createdAt" >= :expensesFromDate)
-                AND (:expensesToDate IS NULL OR ce."createdAt" <= :expensesToDate)
-                AND ce."deletedAt" IS NULL
-              ) AS charges ON TRUE
-              LEFT JOIN LATERAL (
-                SELECT count(1) as total FROM "Expenses" ce
-                LEFT JOIN "ExpenseItems" ei on ei."ExpenseId" = ce.id
-                WHERE ce."VirtualCardId" = vc.id
-                AND (:expensesFromDate IS NULL OR ce."createdAt" >= :expensesFromDate)
-                AND (:expensesToDate IS NULL OR ce."createdAt" <= :expensesToDate)
-                AND ei.url IS NULL
-                AND ce."deletedAt" is NULL
-                LIMIT 1
-              ) AS "lackingReceipts" ON TRUE
+              ${ifStr(args.merchantId, 'LEFT JOIN "Expenses" e ON e."VirtualCardId" = vc.id AND e."deletedAt" IS NULL')}
+              ${ifStr(
+                hasSpentFilter || hasExpensePeriodFilter,
+                `
+                LEFT JOIN LATERAL (
+                  SELECT
+                    ${ifStr(hasSpentFilter, 'sum(ce.amount) as sum')}
+                    ${ifStr(!hasSpentFilter, 'count(1) as count')}
+                  FROM "Expenses" ce
+                  WHERE ce."VirtualCardId" = vc.id
+                  ${ifStr(hasExpenseFromDate, 'AND ce."createdAt" >= :expensesFromDate')}
+                  ${ifStr(hasExpenseToDate, 'AND ce."createdAt" <= :expensesToDate')}
+                  AND ce."deletedAt" IS NULL
+                  ${ifStr(!hasSpentFilter, 'LIMIT 1')}
+                ) AS charges ON TRUE
+              `,
+              )}
+              ${ifStr(
+                !isNil(args.hasMissingReceipts),
+                `
+                LEFT JOIN LATERAL (
+                  SELECT count(1) as total FROM "Expenses" ce
+                  LEFT JOIN "ExpenseItems" ei on ei."ExpenseId" = ce.id
+                  WHERE ce."VirtualCardId" = vc.id
+                  ${ifStr(hasExpenseFromDate, 'AND ce."createdAt" >= :expensesFromDate')}
+                  ${ifStr(hasExpenseToDate, 'AND ce."createdAt" <= :expensesToDate')}
+                  AND ei.url IS NULL
+                  AND ce."deletedAt" is NULL
+                  LIMIT 1
+                ) AS "lackingReceipts" ON TRUE
+              `,
+              )}
             WHERE
               vc."HostCollectiveId" = :hostCollectiveId
-              AND (COALESCE(:status) IS NULL OR vc.data#>>'{status}' IN (:status))
-              AND (COALESCE(:collectiveIds) IS NULL OR vc."CollectiveId" IN (:collectiveIds))
-              AND (:merchantId IS NULL OR e."CollectiveId" = :merchantId)
-              AND (:spentAmountFrom IS NULL OR COALESCE(charges.sum, 0) >= :spentAmountFrom)
-              AND (:spentAmountTo IS NULL OR COALESCE(charges.sum, 0) <= :spentAmountTo)
-              AND (:expensesFromDate IS NULL OR COALESCE(charges.count, 0) > 0)
-              AND (:expensesToDate IS NULL OR COALESCE(charges.count, 0) > 0)
-              AND (
-                :hasMissingReceipts IS NULL
-                OR
-                (
-                  NOT :hasMissingReceipts AND COALESCE("lackingReceipts".total, 0) = 0
-                )
-                OR
-                (
-                  :hasMissingReceipts AND COALESCE("lackingReceipts".total, 0) > 0
-                )
-              )
+              ${ifStr(hasStatusFilter, `AND vc.data#>>'{status}' IN (:status)`)}
+              ${ifStr(hasCollectiveFilter, `AND vc."CollectiveId" IN (:collectiveIds)`)}
+              ${ifStr(hasMerchantFilter, 'AND e."CollectiveId" = :merchantId')}
+
+              ${ifStr(
+                hasExpensePeriodFilter && !hasSpentFilter,
+                `
+              -- filter by existence of expenses
+                AND COALESCE(charges.count, 0) > 0
+              `,
+              )}
+
+              ${ifStr(
+                hasSpentFromFilter,
+                `
+                -- filter by sum of expense amounts
+                AND COALESCE(charges.sum, 0) >= :spentAmountFrom
+              `,
+              )}
+              ${ifStr(
+                hasSpentToFilter,
+                `
+                -- filter by sum of expense amounts
+                AND COALESCE(charges.sum, 0) <= :spentAmountTo
+              `,
+              )}
+
+              ${ifStr(args.hasMissingReceipts === true, `AND COALESCE("lackingReceipts".total, 0) > 0`)}
+              ${ifStr(args.hasMissingReceipts === false, `AND COALESCE("lackingReceipts".total, 0) = 0`)}
           `;
 
           const countQuery = `
