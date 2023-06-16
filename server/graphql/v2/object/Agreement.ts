@@ -4,7 +4,7 @@ import { GraphQLDateTime } from 'graphql-scalars';
 
 import AgreementModel from '../../../models/Agreement';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
-import GraphQLAccount from '../interface/Account';
+import { GraphQLAccount } from '../interface/Account';
 import { GraphQLFileInfo } from '../interface/FileInfo';
 
 import { GraphQLHost } from './Host';
