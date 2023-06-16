@@ -1,32 +1,32 @@
 import DataLoader from 'dataloader';
+import { uniqBy } from 'lodash';
 
-import { sequelize } from '../../models';
+import models, { Collective, Op } from '../../models';
+import Agreement from '../../models/Agreement';
 
-import { sortResultsSimple } from './helpers';
+import { sortResultsArray } from './helpers';
 
-export const generateTotalAccountHostAgreementsLoader = () =>
-  new DataLoader<number, number>(async (collectiveIds: number[]) => {
-    const results: { CollectiveId?: number; totalCount: number }[] = await sequelize.query(
-      `
-    SELECT a."CollectiveId", count(a.id) as "totalCount" FROM
-    "Agreements" a
-    JOIN "Collectives" c 
-    ON a."CollectiveId" = c.id
-    AND a."HostCollectiveId" = c."HostCollectiveId"
-    WHERE a."deletedAt" IS NULL
-    AND a."CollectiveId" IN (:collectiveIds)
-    GROUP BY a."CollectiveId";
-  `,
-      {
-        type: sequelize.QueryTypes.SELECT,
-        raw: true,
-        replacements: {
-          collectiveIds,
+export const generateAccountCurrentHostAgreementsLoader = () =>
+  new DataLoader<Collective, Agreement[], number>(
+    async (accounts: Collective[]) => {
+      const agreements = await models.Agreement.findAll({
+        order: [
+          ['createdAt', 'DESC'],
+          ['id', 'DESC'],
+        ],
+        where: {
+          [Op.or]: uniqBy(accounts, 'id')
+            .filter(c => c.HostCollectiveId && c.approvedAt)
+            .map(c => ({ CollectiveId: c.id, HostCollectiveId: c.HostCollectiveId })),
         },
-      },
-    );
+      });
 
-    return sortResultsSimple(collectiveIds, results, result => result.CollectiveId, {
-      totalCount: 0,
-    }).map(r => r.totalCount);
-  });
+      const getAccountKey = (accountId, hostId) => `${accountId}-${hostId}`;
+      const getKeyFromAgreement = agreement => getAccountKey(agreement.CollectiveId, agreement.HostCollectiveId);
+      const sourceAccountsKeys = accounts.map(collective => getAccountKey(collective.id, collective.HostCollectiveId));
+      return sortResultsArray(sourceAccountsKeys, agreements, getKeyFromAgreement);
+    },
+    {
+      cacheKeyFn: collective => collective.id,
+    },
+  );
