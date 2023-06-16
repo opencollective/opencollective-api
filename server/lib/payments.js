@@ -1081,7 +1081,7 @@ export const getHostFeePercent = async (order, { host = null, loaders = null } =
 
 export const getHostFeeSharePercent = async (order, { host = null, loaders = null } = {}) => {
   const collective =
-    order.collective || loaders?.Collective.byId.load(order.CollectiveId) || (await order.getCollective());
+    order.collective || (await loaders?.Collective.byId.load(order.CollectiveId)) || (await order.getCollective());
 
   host = host || (await collective.getHostCollective({ loaders }));
 
