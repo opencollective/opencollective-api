@@ -33,7 +33,7 @@ const getJoinCondition = (
   const associationFields = { collective: 'CollectiveId', fromCollective: 'FromCollectiveId' };
   const field = associationFields[association] || `$${association}.id$`;
 
-  if (!includeHostedAccounts) {
+  if (!includeHostedAccounts || !account.isHostAccount) {
     return { [field]: account.id };
   } else {
     return {
