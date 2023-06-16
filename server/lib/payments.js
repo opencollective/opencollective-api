@@ -1080,10 +1080,12 @@ export const getHostFeePercent = async (order, { host = null, loaders = null } =
 };
 
 export const getHostFeeSharePercent = async (order, { host = null, loaders = null } = {}) => {
-  const collective =
-    order.collective || (await loaders?.Collective.byId.load(order.CollectiveId)) || (await order.getCollective());
-
-  host = host || (await collective.getHostCollective({ loaders }));
+  if (!host) {
+    if (!order.collective) {
+      order.collective = (await loaders?.Collective.byId.load(order.CollectiveId)) || (await order.getCollective());
+    }
+    host = await order.collective.getHostCollective({ loaders });
+  }
 
   const plan = await host.getPlan();
 
