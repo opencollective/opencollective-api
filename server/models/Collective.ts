@@ -657,7 +657,7 @@ class Collective extends Model<
     if (!this.ParentCollectiveId) {
       return null;
     } else if (attributes) {
-      return models.Collective.findByPk(this.ParentCollectiveId, attributes);
+      return models.Collective.findByPk(this.ParentCollectiveId, { attributes });
     } else if (this.parentCollective) {
       return this.parentCollective;
     } else if (loaders) {
