@@ -852,7 +852,7 @@ Transaction.createHostFeeShareTransactions = async (
   if (transaction.OrderId) {
     order = await models.Order.findByPk(transaction.OrderId);
   }
-  const hostFeeSharePercent = await getHostFeeSharePercent(order, host);
+  const hostFeeSharePercent = await getHostFeeSharePercent(order, { host });
   if (!hostFeeSharePercent) {
     return;
   }

@@ -653,12 +653,15 @@ class Collective extends Model<
     });
   };
 
-  getParentCollective = async function (options = undefined) {
+  getParentCollective = async function ({ attributes = null, loaders = null } = {}) {
     if (!this.ParentCollectiveId) {
       return null;
-    } else if (options) {
-      return models.Collective.findByPk(this.ParentCollectiveId, options);
+    } else if (attributes) {
+      return models.Collective.findByPk(this.ParentCollectiveId, attributes);
     } else if (this.parentCollective) {
+      return this.parentCollective;
+    } else if (loaders) {
+      this.parentCollective = await loaders?.Collective.byId.load(this.ParentCollectiveId);
       return this.parentCollective;
     } else {
       this.parentCollective = await models.Collective.findByPk(this.ParentCollectiveId);

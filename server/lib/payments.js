@@ -928,12 +928,12 @@ export const sendExpiringCreditCardUpdateEmail = async data => {
   });
 };
 
-export const getApplicationFee = async (order, host = null) => {
+export const getApplicationFee = async (order, { host = null } = {}) => {
   let applicationFee = getPlatformTip(order);
 
-  const hostFeeSharePercent = await getHostFeeSharePercent(order, host);
+  const hostFeeSharePercent = await getHostFeeSharePercent(order, { host });
   if (hostFeeSharePercent) {
-    const hostFee = await getHostFee(order, host);
+    const hostFee = await getHostFee(order, { host });
     const sharedRevenue = hostFeeSharePercent ? calcFee(hostFee, hostFeeSharePercent) : 0;
     applicationFee += sharedRevenue;
   }
@@ -957,11 +957,11 @@ export const getPlatformFeePercent = async () => {
   return 0;
 };
 
-export const getHostFee = async (order, host = null) => {
+export const getHostFee = async (order, { host = null } = {}) => {
   const platformTip = getPlatformTip(order);
   const taxAmount = order.taxAmount || 0;
 
-  const hostFeePercent = await getHostFeePercent(order, host);
+  const hostFeePercent = await getHostFeePercent(order, { host });
 
   return calcFee(order.totalAmount - platformTip - taxAmount, hostFeePercent);
 };
@@ -980,12 +980,13 @@ export const isPlatformTipEligible = async (order, host = null) => {
   return false;
 };
 
-export const getHostFeePercent = async (order, host = null) => {
-  const collective = order.collective || (await order.getCollective());
+export const getHostFeePercent = async (order, { host = null, loaders = null } = {}) => {
+  const collective =
+    order.collective || (await loaders?.Collective.byId.load(order.CollectiveId)) || (await order.getCollective());
 
-  const parent = await collective.getParentCollective();
+  const parent = await collective.getParentCollective({ loaders });
 
-  host = host || (await collective.getHostCollective());
+  host = host || (await collective.getHostCollective({ loaders }));
 
   // No Host Fee for money going to an host itself
   if (collective.isHostAccount) {
@@ -1078,8 +1079,11 @@ export const getHostFeePercent = async (order, host = null) => {
   return possibleValues.find(isNumber);
 };
 
-export const getHostFeeSharePercent = async (order, host = null) => {
-  host = host || (await order.collective.getHostCollective());
+export const getHostFeeSharePercent = async (order, { host = null, loaders = null } = {}) => {
+  const collective =
+    order.collective || loaders?.Collective.byId.load(order.CollectiveId) || (await order.getCollective());
+
+  host = host || (await collective.getHostCollective({ loaders }));
 
   const plan = await host.getPlan();
 
