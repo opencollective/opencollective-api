@@ -82,6 +82,9 @@ Agreement.init(
     title: {
       type: DataTypes.STRING,
       allowNull: false,
+      set(val: string) {
+        this.setDataValue('title', val?.trim());
+      },
       validate: {
         len: [1, 60],
         notEmpty: true,
@@ -90,6 +93,9 @@ Agreement.init(
     notes: {
       type: DataTypes.TEXT,
       allowNull: true,
+      set(val: string) {
+        this.setDataValue('notes', val?.trim());
+      },
       validate: {
         len: [0, 3000],
       },

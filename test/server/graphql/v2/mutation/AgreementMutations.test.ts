@@ -12,11 +12,25 @@ const AddAgreementMutation = gqlV2/* GraphQL */ `
     $account: AccountReferenceInput!
     $title: NonEmptyString!
     $expiresAt: DateTime
+    $notes: String
+    $attachment: Upload
   ) {
-    addAgreement(host: $host, account: $account, title: $title, expiresAt: $expiresAt) {
+    addAgreement(
+      host: $host
+      account: $account
+      title: $title
+      expiresAt: $expiresAt
+      notes: $notes
+      attachment: $attachment
+    ) {
       id
       title
       expiresAt
+      notes
+      attachment {
+        id
+        url
+      }
       account {
         id
         type
@@ -29,11 +43,22 @@ const AddAgreementMutation = gqlV2/* GraphQL */ `
 `;
 
 const EditAgreementMutation = gqlV2/* GraphQL */ `
-  mutation EditAgreementMutation($agreement: AgreementReferenceInput!, $title: NonEmptyString, $expiresAt: DateTime) {
-    editAgreement(agreement: $agreement, title: $title, expiresAt: $expiresAt) {
+  mutation EditAgreementMutation(
+    $agreement: AgreementReferenceInput!
+    $title: NonEmptyString
+    $expiresAt: DateTime
+    $notes: String
+    $attachment: Upload
+  ) {
+    editAgreement(agreement: $agreement, title: $title, expiresAt: $expiresAt, notes: $notes, attachment: $attachment) {
       id
       title
       expiresAt
+      notes
+      attachment {
+        id
+        url
+      }
       account {
         id
       }
@@ -62,12 +87,13 @@ describe('server/graphql/v2/mutation/AgreementMutations', () => {
 
     it('validates request user is admin of host', async () => {
       const host = await fakeHost();
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
       const user = await fakeUser();
       const result = await graphqlQueryV2(
         AddAgreementMutation,
         {
           host: { legacyId: host.id },
-          account: {},
+          account: { legacyId: collective.id },
           title: 'Test agreement',
         },
         user,
@@ -95,6 +121,32 @@ describe('server/graphql/v2/mutation/AgreementMutations', () => {
     it('adds an agreement to a collective', async () => {
       const adminUser = await fakeUser();
       const host = await fakeHost({ admin: adminUser });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const expiresAt = new Date();
+      const result = await graphqlQueryV2(
+        AddAgreementMutation,
+        {
+          host: { legacyId: host.id },
+          account: { legacyId: collective.id },
+          title: '  Test agreement   ',
+          notes: '  Test notes   ',
+          expiresAt,
+        },
+        adminUser,
+      );
+      result.errors && console.log(result.errors);
+      expect(result.data.addAgreement.id).to.exist;
+      expect(result.data.addAgreement.title).to.eq('Test agreement');
+      expect(result.data.addAgreement.notes).to.eq('Test notes');
+      expect(result.data.addAgreement.account.id).to.eq(idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT));
+      expect(result.data.addAgreement.account.type).to.eq('COLLECTIVE');
+      expect(result.data.addAgreement.host.id).to.eq(idEncode(host.id, IDENTIFIER_TYPES.ACCOUNT));
+      expect(result.data.addAgreement.expiresAt.toString()).to.eq(expiresAt.toString());
+    });
+
+    it('validates that host is the current host', async () => {
+      const adminUser = await fakeUser();
+      const host = await fakeHost({ admin: adminUser });
       const collective = await fakeCollective();
       const expiresAt = new Date();
       const result = await graphqlQueryV2(
@@ -102,42 +154,14 @@ describe('server/graphql/v2/mutation/AgreementMutations', () => {
         {
           host: { legacyId: host.id },
           account: { legacyId: collective.id },
-          title: 'Test agreement',
+          title: '  Test agreement   ',
           expiresAt,
         },
         adminUser,
       );
-      result.errors && console.log(result.errors);
-      expect(result.data.addAgreement.id).to.exist;
-      expect(result.data.addAgreement.title).to.eq('Test agreement');
-      expect(result.data.addAgreement.account.id).to.eq(idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT));
-      expect(result.data.addAgreement.account.type).to.eq('COLLECTIVE');
-      expect(result.data.addAgreement.host.id).to.eq(idEncode(host.id, IDENTIFIER_TYPES.ACCOUNT));
-      expect(result.data.addAgreement.expiresAt.toString()).to.eq(expiresAt.toString());
-    });
 
-    it('adds an agreement to an individual', async () => {
-      const adminUser = await fakeUser();
-      const host = await fakeHost({ admin: adminUser });
-      const user = await fakeUser();
-      const expiresAt = new Date();
-      const result = await graphqlQueryV2(
-        AddAgreementMutation,
-        {
-          host: { legacyId: host.id },
-          account: { legacyId: user.CollectiveId },
-          title: 'Test agreement',
-          expiresAt,
-        },
-        adminUser,
-      );
-      result.errors && console.log(result.errors);
-      expect(result.data.addAgreement.id).to.exist;
-      expect(result.data.addAgreement.title).to.eq('Test agreement');
-      expect(result.data.addAgreement.account.id).to.eq(idEncode(user.CollectiveId, IDENTIFIER_TYPES.ACCOUNT));
-      expect(result.data.addAgreement.account.type).to.eq('INDIVIDUAL');
-      expect(result.data.addAgreement.host.id).to.eq(idEncode(host.id, IDENTIFIER_TYPES.ACCOUNT));
-      expect(result.data.addAgreement.expiresAt.toString()).to.eq(expiresAt.toString());
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include('is not currently hosted by Test Host');
     });
   });
 
@@ -199,6 +223,7 @@ describe('server/graphql/v2/mutation/AgreementMutations', () => {
         {
           agreement: { legacyId: agreement.id },
           title: 'new agreement title',
+          notes: 'new agreement notes',
           expiresAt,
         },
         adminUser,
@@ -206,6 +231,7 @@ describe('server/graphql/v2/mutation/AgreementMutations', () => {
       result.errors && console.log(result.errors);
       expect(result.data.editAgreement.id).to.exist;
       expect(result.data.editAgreement.title).to.eq('new agreement title');
+      expect(result.data.editAgreement.notes).to.eq('new agreement notes');
       expect(result.data.editAgreement.expiresAt.toString()).to.eq(expiresAt.toString());
     });
   });
