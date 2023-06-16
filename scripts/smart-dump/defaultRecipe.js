@@ -42,6 +42,20 @@ const entries = [
           },
         ],
       },
+      {
+        model: 'Activity',
+        on: 'CollectiveId',
+        limit: 50,
+        order: [['id', 'DESC']],
+        dependencies: [{ model: 'Collective', from: 'FromCollectiveId' }],
+      },
+      {
+        model: 'Activity',
+        on: 'FromCollectiveId',
+        limit: 50,
+        order: [['id', 'DESC']],
+        dependencies: [{ model: 'Collective', from: 'CollectiveId' }],
+      },
     ],
   },
 ];
@@ -64,6 +78,7 @@ const defaultDependencies = {
       model: 'RecurringExpense',
       from: 'RecurringExpenseId',
     },
+    { model: 'Activity', on: 'ExpenseId' },
   ],
   Order: [
     'Transaction',
@@ -80,6 +95,7 @@ const defaultDependencies = {
       model: 'Subscription',
       from: 'SubscriptionId',
     },
+    { model: 'Activity', on: 'OrderId' },
   ],
 };
 
