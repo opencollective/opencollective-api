@@ -8,6 +8,7 @@ export const GraphQLContributionFrequency = new GraphQLEnumType({
     MONTHLY: {},
     YEARLY: {},
     ONETIME: {},
+    RECURRING: {},
   },
 });
 
