@@ -1,0 +1,24 @@
+---
+id: guides
+title: User Recipes
+hide_title: true
+slug: /
+---
+
+:::important
+Please select a recipe to get started
+:::
+
+import RecipeLayout from "/src/components/recipeBoxes/recipeLayout"
+
+## Authentication Methods
+
+<RecipeLayout mode="auth_modes" cols={3} />
+
+## Add-ons
+<RecipeLayout mode="add_ons" cols={2} />
+
+## Reference Docs
+<RecipeLayout mode="ref" cols={2} />
+
+
