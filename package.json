@@ -46,7 +46,7 @@
     "@sentry/node": "7.55.2",
     "@sentry/types": "7.55.2",
     "@shopify/address": "4.1.0",
-    "apollo-server-errors": "3.3.1",
+    "@apollo/server": "4.0.0",
     "argparse": "2.0.1",
     "aws-sdk": "2.1398.0",
     "axios": "1.4.0",
