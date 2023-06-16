@@ -60,7 +60,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   public _emailWaitingForValidationChanged?: NonAttribute<boolean>;
 
   // Associations
-  public declare collective?: typeof Collective;
+  public declare collective?: Collective;
 
   // Non-model attributes
   public rolesByCollectiveId?: NonAttribute<Record<string, string[]>>;
@@ -369,7 +369,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     });
   };
 
-  getCollective = async function ({ loaders } = {}): typeof models.Collective {
+  getCollective = async function ({ loaders = null } = {}): Promise<Collective> {
     if (this.collective) {
       this.collective.user = this;
       return this.collective;
