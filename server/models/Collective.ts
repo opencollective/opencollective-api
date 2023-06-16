@@ -2920,15 +2920,10 @@ class Collective extends Model<
       return null;
     }
 
-    if (this.host) {
-      return this.host;
-    }
-
     if (this.HostCollectiveId) {
-      const host = loaders
-        ? await loaders.Collective.byId.load(this.HostCollectiveId)
-        : await models.Collective.findByPk(this.HostCollectiveId);
-      return (this.host = host);
+      return loaders
+        ? loaders.Collective.byId.load(this.HostCollectiveId)
+        : models.Collective.findByPk(this.HostCollectiveId);
     }
 
     return models.Member.findOne({
