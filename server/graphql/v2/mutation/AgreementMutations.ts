@@ -47,15 +47,18 @@ export default {
         throwIfMissing: true,
       });
 
-      if (!req.remoteUser.isAdminOfCollective(host)) {
-        throw new Unauthorized('Only host admins can create agreements');
-      }
-
-      await twoFactorAuthLib.enforceForAccount(req, host);
-
       const account = await fetchAccountWithReference(args.account, {
         throwIfMissing: true,
       });
+
+      if (!req.remoteUser.isAdminOfCollective(host)) {
+        throw new Unauthorized('Only host admins can create agreements');
+      } else if (account.HostCollectiveId !== host.id) {
+        // We're not checking `isActive` as it should be possible to create agreements for accounts not approved yet
+        throw new Unauthorized(`Account ${account.name} is not currently hosted by ${host.name}`);
+      }
+
+      await twoFactorAuthLib.enforceForAccount(req, host);
 
       const attachment: Promise<FileUpload> = args.attachment;
 
