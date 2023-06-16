@@ -451,6 +451,7 @@ export const GraphQLHost = new GraphQLObjectType({
                   ${ifStr(hasExpenseFromDate, 'AND ce."createdAt" >= :expensesFromDate')}
                   ${ifStr(hasExpenseToDate, 'AND ce."createdAt" <= :expensesToDate')}
                   AND ei.url IS NULL
+                  AND ei."deletedAt" is NULL
                   AND ce."deletedAt" is NULL
                   LIMIT 1
                 ) AS "lackingReceipts" ON TRUE
