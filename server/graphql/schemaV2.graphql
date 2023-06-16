@@ -4478,6 +4478,9 @@ enum ActivityType {
   ACTIVATED_COLLECTIVE_AS_HOST
   ACTIVATED_COLLECTIVE_AS_INDEPENDENT
   DEACTIVATED_COLLECTIVE_AS_HOST
+  AGREEMENT_CREATED
+  AGREEMENT_EDITED
+  AGREEMENT_DELETED
   ADDED_FUND_TO_ORG
   COLLECTIVE_TRANSACTION_PAID
   COLLECTIVE_USER_ADDED
@@ -4845,6 +4848,11 @@ An agreement
 type Agreement {
   id: String
   title: String!
+
+  """
+  Additional notes about the agreement for the host admins
+  """
+  notes: String
   createdBy: Account!
   account: Account!
   host: Host!
@@ -6442,7 +6450,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     """
     The number of results to fetch (default 10, max 1000)
     """
-    limit: Int! = 10
+    limit: Int! = 30
 
     """
     The offset to use to fetch
@@ -6540,7 +6548,7 @@ interface AccountWithHost {
     """
     The number of results to fetch (default 10, max 1000)
     """
-    limit: Int! = 10
+    limit: Int! = 30
 
     """
     The offset to use to fetch
@@ -7329,7 +7337,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     """
     The number of results to fetch (default 10, max 1000)
     """
-    limit: Int! = 10
+    limit: Int! = 30
 
     """
     The offset to use to fetch
@@ -9393,7 +9401,7 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
     """
     The number of results to fetch (default 10, max 1000)
     """
-    limit: Int! = 10
+    limit: Int! = 30
 
     """
     The offset to use to fetch
@@ -11639,6 +11647,9 @@ enum ActivityAndClassesType {
   ACTIVATED_COLLECTIVE_AS_HOST
   ACTIVATED_COLLECTIVE_AS_INDEPENDENT
   DEACTIVATED_COLLECTIVE_AS_HOST
+  AGREEMENT_CREATED
+  AGREEMENT_EDITED
+  AGREEMENT_DELETED
   ADDED_FUND_TO_ORG
   COLLECTIVE_TRANSACTION_PAID
   COLLECTIVE_USER_ADDED
@@ -12259,7 +12270,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     """
     The number of results to fetch (default 10, max 1000)
     """
-    limit: Int! = 10
+    limit: Int! = 30
 
     """
     The offset to use to fetch
@@ -12887,7 +12898,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     """
     The number of results to fetch (default 10, max 1000)
     """
-    limit: Int! = 10
+    limit: Int! = 30
 
     """
     The offset to use to fetch
@@ -14409,6 +14420,11 @@ type Mutation {
     Agreement attachment
     """
     attachment: Upload
+
+    """
+    Additional notes about the agreement for the host admins
+    """
+    notes: String
   ): Agreement!
 
   """
@@ -14429,6 +14445,16 @@ type Mutation {
     Optional date in which this agreement expires.
     """
     expiresAt: DateTime
+
+    """
+    Agreement attachment
+    """
+    attachment: Upload
+
+    """
+    Additional notes about the agreement for the host admins
+    """
+    notes: String
   ): Agreement!
 
   """

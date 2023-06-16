@@ -1,8 +1,9 @@
 import express from 'express';
-import { GraphQLNonNull } from 'graphql';
+import { GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLNonEmptyString } from 'graphql-scalars';
 import GraphQLUpload from 'graphql-upload/GraphQLUpload.js';
 import type { FileUpload } from 'graphql-upload/Upload.js';
+import { pick } from 'lodash';
 
 import ActivityTypes from '../../../constants/activities';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
@@ -39,6 +40,10 @@ export default {
         type: GraphQLUpload,
         description: 'Agreement attachment',
       },
+      notes: {
+        type: GraphQLString,
+        description: 'Additional notes about the agreement for the host admins',
+      },
     },
     async resolve(_: void, args, req: express.Request): Promise<AgreementModel> {
       checkRemoteUserCanUseHost(req);
@@ -69,6 +74,7 @@ export default {
 
       const agreement = await AgreementModel.create({
         title: args.title,
+        notes: args.notes,
         expiresAt: args.expiresAt,
         HostCollectiveId: host.id,
         CollectiveId: account.id,
@@ -109,6 +115,14 @@ export default {
         type: GraphQLDateTime,
         description: 'Optional date in which this agreement expires.',
       },
+      attachment: {
+        type: GraphQLUpload,
+        description: 'Agreement attachment',
+      },
+      notes: {
+        type: GraphQLString,
+        description: 'Additional notes about the agreement for the host admins',
+      },
     },
     async resolve(_: void, args, req: express.Request): Promise<AgreementModel> {
       checkRemoteUserCanUseHost(req);
@@ -122,14 +136,16 @@ export default {
 
       await twoFactorAuthLib.enforceForAccount(req, host);
 
-      const toUpdate: Parameters<AgreementModel['update']>[0] = {};
-
-      if (args.title) {
-        toUpdate.title = args.title;
-      }
-
-      if (args.expiresAt) {
-        toUpdate.expiresAt = args.expiresAt;
+      const toUpdate: Parameters<AgreementModel['update']>[0] = pick(args, ['notes', 'title', 'expiresAt']);
+      const attachment: Promise<FileUpload> = args.attachment;
+      if (attachment !== undefined) {
+        const file = await attachment;
+        if (file === null) {
+          toUpdate.UploadedFileId = null;
+        } else {
+          const uploadedFile = await UploadedFile.uploadGraphQl(file, 'AGREEMENT_ATTACHMENT', req.remoteUser);
+          toUpdate.UploadedFileId = uploadedFile.id;
+        }
       }
 
       const updatedAgreement = await agreement.update(toUpdate);

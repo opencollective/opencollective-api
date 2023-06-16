@@ -15,6 +15,10 @@ export const GraphQLAgreement = new GraphQLObjectType<AgreementModel, express.Re
   fields: () => ({
     id: { type: GraphQLString, resolve: getIdEncodeResolver(IDENTIFIER_TYPES.AGREEMENT) },
     title: { type: new GraphQLNonNull(GraphQLString) },
+    notes: {
+      type: GraphQLString,
+      description: 'Additional notes about the agreement for the host admins',
+    },
     createdBy: {
       type: new GraphQLNonNull(GraphQLAccount),
       async resolve(agreement, _, req) {
