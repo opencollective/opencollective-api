@@ -370,17 +370,11 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   };
 
   getCollective = async function ({ loaders = null } = {}): Promise<Collective> {
-    if (this.collective) {
-      this.collective.user = this;
-      return this.collective;
-    }
     if (this.CollectiveId) {
       const collective = loaders
         ? await loaders.Collective.byId.load(this.CollectiveId)
         : await models.Collective.findByPk(this.CollectiveId);
       if (collective) {
-        this.collective = collective;
-        this.collective.user = this;
         return collective;
       }
     }
