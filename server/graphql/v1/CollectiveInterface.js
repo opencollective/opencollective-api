@@ -912,7 +912,7 @@ const CollectiveFields = () => {
     parentCollective: {
       type: CollectiveInterfaceType,
       resolve(collective, args, req) {
-        return req.loaders.Collective.byId.load(collective.ParentCollectiveId);
+        return collective.getParentCollective({ loaders: req.loaders });
       },
     },
     children: {
