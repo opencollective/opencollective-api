@@ -3,7 +3,7 @@ import { GraphQLDateTime } from 'graphql-scalars';
 
 import { TwoFactorMethod } from '../../../lib/two-factor-authentication';
 import UserTwoFactorMethodModel from '../../../models/UserTwoFactorMethod';
-import { TwoFactorMethodEnum } from '../enum/TwoFactorMethodEnum';
+import { GraphQLTwoFactorMethodEnum } from '../enum/TwoFactorMethodEnum';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
 export const UserTwoFactorMethod = new GraphQLObjectType({
@@ -16,7 +16,7 @@ export const UserTwoFactorMethod = new GraphQLObjectType({
         resolve: getIdEncodeResolver(IDENTIFIER_TYPES.USER_TWO_FACTOR_METHOD),
       },
       method: {
-        type: new GraphQLNonNull(TwoFactorMethodEnum),
+        type: new GraphQLNonNull(GraphQLTwoFactorMethodEnum),
       },
       createdAt: {
         type: new GraphQLNonNull(GraphQLDateTime),

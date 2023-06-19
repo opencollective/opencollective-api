@@ -266,7 +266,7 @@ const accountMutations = {
     description: 'Create WebAuthn public key registration request options',
     args: {
       account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Account that will create a WebAuthn registration',
       },
     },
