@@ -661,7 +661,7 @@ class Collective extends Model<
     } else if (this.parentCollective) {
       return this.parentCollective;
     } else if (loaders) {
-      this.parentCollective = await loaders?.Collective.byId.load(this.ParentCollectiveId);
+      this.parentCollective = await loaders.Collective.byId.load(this.ParentCollectiveId);
       return this.parentCollective;
     } else {
       this.parentCollective = await models.Collective.findByPk(this.ParentCollectiveId);
