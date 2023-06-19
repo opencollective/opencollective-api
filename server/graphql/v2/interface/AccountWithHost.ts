@@ -6,7 +6,6 @@ import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
 import { Collective } from '../../../models';
 import Agreement from '../../../models/Agreement';
 import { hostResolver } from '../../common/collective';
-import { Unauthorized } from '../../errors';
 import { GraphQLAgreementCollection } from '../collection/AgreementCollection';
 import { GraphQLHostFeeStructure } from '../enum/HostFeeStructure';
 import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
@@ -125,8 +124,8 @@ export const AccountWithHostFields = {
     },
   },
   hostAgreements: {
-    type: new GraphQLNonNull(GraphQLAgreementCollection),
-    description: 'Returns agreements this account has with its host',
+    type: GraphQLAgreementCollection,
+    description: 'Returns agreements this account has with its host, or null if not enough permissions.',
     args: {
       ...getCollectionArgs({ limit: 30 }),
     },
@@ -136,7 +135,7 @@ export const AccountWithHostFields = {
       }
 
       if (!req.remoteUser?.isAdmin(account.HostCollectiveId)) {
-        throw new Unauthorized("You need to be logged in as an admin of the account's host to see its agreements");
+        return null;
       }
 
       const totalCount = await req.loaders.Agreement.totalAccountHostAgreements.load(account.id);
