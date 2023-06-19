@@ -1,7 +1,7 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { isEmpty, uniq } from 'lodash';
+import { isEmpty, isNil, uniq } from 'lodash';
 import { OrderItem } from 'sequelize';
 
 import { expenseStatus } from '../../../../constants';
@@ -10,6 +10,7 @@ import { getBalances } from '../../../../lib/budget';
 import { buildSearchConditions } from '../../../../lib/search';
 import { expenseMightBeSubjectToTaxForm } from '../../../../lib/tax-forms';
 import models, { Op, sequelize } from '../../../../models';
+import { ExpenseType } from '../../../../models/Expense';
 import { PayoutMethodTypes } from '../../../../models/PayoutMethod';
 import { validateExpenseCustomData } from '../../../common/expenses';
 import { Unauthorized } from '../../../errors';
@@ -23,6 +24,7 @@ import {
   CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   GraphQLChronologicalOrderInput,
 } from '../../input/ChronologicalOrderInput';
+import { GraphQLVirtualCardReferenceInput } from '../../input/VirtualCardReferenceInput';
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
 
 const updateFilterConditionsForReadyToPay = async (where, include, host, loaders): Promise<void> => {
@@ -177,6 +179,14 @@ const ExpensesCollectionQuery = {
       description:
         'Only return expenses that contains this custom data. Requires being an admin of the collective, payee or host.',
     },
+    chargeHasReceipts: {
+      type: GraphQLBoolean,
+      description: 'Filter expenses of type charges based on presence of receipts',
+    },
+    virtualCards: {
+      type: new GraphQLList(GraphQLVirtualCardReferenceInput),
+      description: 'Filter expenses of type charges using these virtual cards',
+    },
   },
   async resolve(_: void, args, req: express.Request): Promise<CollectionReturnType> {
     const where = { [Op.and]: [] };
@@ -251,6 +261,26 @@ const ExpensesCollectionQuery = {
         { association: 'collective', attributes: [] },
         { association: 'User', attributes: [], include: [{ association: 'collective', attributes: [] }] },
       );
+    }
+
+    if (!isNil(args.chargeHasReceipts)) {
+      where[Op.and].push({
+        [Op.or]: [
+          { type: { [Op.ne]: ExpenseType.CHARGE } },
+          sequelize.where(
+            sequelize.literal(`
+                 NOT EXISTS (SELECT id from "ExpenseItems" ei where ei."ExpenseId" = "Expense".id and ei.url IS NULL)`),
+            Op.eq,
+            args.chargeHasReceipts,
+          ),
+        ],
+      });
+    }
+
+    if (!isEmpty(args.virtualCards)) {
+      where[Op.and].push({
+        [Op.or]: [{ type: { [Op.ne]: ExpenseType.CHARGE } }, { VirtualCardId: args.virtualCards.map(vc => vc.id) }],
+      });
     }
 
     // Add filters

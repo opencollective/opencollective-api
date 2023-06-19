@@ -2866,12 +2866,12 @@ type Host implements Account & AccountWithContributions {
     """
     Filter virtual cards with at least this amount in cents charged
     """
-    spentAmountFrom: Int
+    spentAmountFrom: AmountInput
 
     """
     Filter virtual cards with up to this amount in cents charged
     """
-    spentAmountTo: Int
+    spentAmountTo: AmountInput
 
     """
     Filter virtual cards by whether they are missing receipts for any charges
@@ -4802,6 +4802,26 @@ enum VirtualCardStatus {
   ACTIVE
   INACTIVE
   CANCELED
+}
+
+"""
+Input type for an amount with the value and currency
+"""
+input AmountInput {
+  """
+  The value in plain
+  """
+  value: Float
+
+  """
+  The currency string
+  """
+  currency: Currency
+
+  """
+  The value in cents
+  """
+  valueInCents: Int
 }
 
 """
@@ -9824,6 +9844,16 @@ type Query {
     Only return expenses that contains this custom data. Requires being an admin of the collective, payee or host.
     """
     customData: JSON
+
+    """
+    Filter expenses of type charges based on presence of receipts
+    """
+    chargeHasReceipts: Boolean
+
+    """
+    Filter expenses of type charges using these virtual cards
+    """
+    virtualCards: [VirtualCardReferenceInput]
   ): ExpenseCollection!
   fund(
     """
@@ -11736,6 +11766,10 @@ enum ExpenseStatusFilter {
   ON_HOLD
 }
 
+input VirtualCardReferenceInput {
+  id: String
+}
+
 """
 This represents an Project account
 """
@@ -13017,26 +13051,6 @@ A PayPal plan to associate with a contribution
 """
 type PaypalPlan {
   id: String!
-}
-
-"""
-Input type for an amount with the value and currency
-"""
-input AmountInput {
-  """
-  The value in plain
-  """
-  value: Float
-
-  """
-  The currency string
-  """
-  currency: Currency
-
-  """
-  The value in cents
-  """
-  valueInCents: Int
 }
 
 """
@@ -16020,10 +16034,6 @@ input VirtualCardInput {
 enum VirtualCardProvider {
   PRIVACY
   STRIPE
-}
-
-input VirtualCardReferenceInput {
-  id: String
 }
 
 """
