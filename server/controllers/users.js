@@ -112,8 +112,8 @@ export const signin = async (req, res, next) => {
         );
         return res.send({ token });
       } else {
-        // All good, no 2FA, send token
-        const token = await user.generateSessionToken();
+        // Context: this is token generation when using a password and no 2FA
+        const token = await user.generateSessionToken({ createActivity: true, updateLastLoginAt: true, req });
         return res.send({ token });
       }
     }
@@ -206,7 +206,13 @@ export const exchangeLoginToken = async (req, res, next) => {
     );
     res.send({ token });
   } else {
-    const token = await req.remoteUser.generateSessionToken({ sessionId: req.jwtPayload?.sessionId });
+    // Context: this is token generation after using a signin link (magic link) and no 2FA
+    const token = await req.remoteUser.generateSessionToken({
+      createActivity: true,
+      updateLastLoginAt: true,
+      req,
+      sessionId: req.jwtPayload?.sessionId,
+    });
     res.send({ token });
   }
 };
@@ -243,7 +249,13 @@ export const refreshToken = async (req, res, next) => {
     return next(new BadRequest(errorMessage));
   }
 
-  const token = await req.remoteUser.generateSessionToken({ sessionId: req.jwtPayload?.sessionId });
+  // Context: this is token generation when extending a session
+  const token = await req.remoteUser.generateSessionToken({
+    createActivity: false,
+    updateLastLoginAt: false,
+    sessionId: req.jwtPayload?.sessionId,
+  });
+
   res.send({ token });
 };
 
@@ -298,6 +310,8 @@ export const twoFactorAuthAndUpdateToken = async (req, res, next) => {
     return fail(new Unauthorized('Two-factor authentication code failed. Please try again'));
   }
 
-  const token = await user.generateSessionToken({ sessionId });
+  // Context: this is token generation after signin and valid 2FA authentication
+  const token = await user.generateSessionToken({ createActivity: true, updateLastLoginAt: true, req, sessionId });
+
   res.send({ token: token });
 };

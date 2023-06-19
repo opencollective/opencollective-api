@@ -85,7 +85,12 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     return auth.createJwt(this.id, payload, expiration);
   };
 
-  generateSessionToken = async function ({ sessionId = null, createActivity = true, expiration = null } = {}) {
+  generateSessionToken = async function ({
+    sessionId = null,
+    createActivity = true,
+    updateLastLoginAt = false,
+    expiration = null,
+  } = {}) {
     if (createActivity && !parseToBoolean(config.database.readOnly)) {
       await models.Activity.create({
         type: activities.USER_SIGNIN,
@@ -93,6 +98,14 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
         FromCollectiveId: this.CollectiveId,
         CollectiveId: this.CollectiveId,
         data: { notify: false },
+      });
+    }
+
+    if (updateLastLoginAt && req && !parseToBoolean(config.database.readOnly)) {
+      await this.update({
+        // The login was accepted, we can update lastLoginAt. This will invalidate all older login tokens.
+        lastLoginAt: new Date(),
+        data: { ...this.data, lastSignInRequest: { ip: req.ip, userAgent: req.header('user-agent') } },
       });
     }
 
