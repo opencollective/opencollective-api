@@ -163,7 +163,7 @@ export const GraphQLActivity = new GraphQLObjectType({
           }
         } else if (activity.type === ACTIVITY.EXPENSE_COMMENT_CREATED && activity.ExpenseId) {
           const expense = await req.loaders.Expense.byId.load(activity.ExpenseId);
-          if (await ExpenseLib.canComment(req, expense)) {
+          if (expense && (await ExpenseLib.canComment(req, expense))) {
             toPick.push('comment');
           }
         } else if (activity.type === ACTIVITY.COLLECTIVE_UPDATE_PUBLISHED && !activity.data.update.isPrivate) {
