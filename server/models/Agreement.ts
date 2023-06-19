@@ -18,6 +18,7 @@ import User from './User';
 export default class Agreement extends Model<InferAttributes<Agreement>, InferCreationAttributes<Agreement>> {
   declare id: CreationOptional<number>;
   declare title: string;
+  declare notes: string;
   declare expiresAt: CreationOptional<Date>;
 
   declare UserId: ForeignKey<User['id']>;
@@ -45,6 +46,7 @@ export default class Agreement extends Model<InferAttributes<Agreement>, InferCr
       Agreement,
       | 'id'
       | 'title'
+      | 'notes'
       | 'UserId'
       | 'CollectiveId'
       | 'HostCollectiveId'
@@ -57,6 +59,7 @@ export default class Agreement extends Model<InferAttributes<Agreement>, InferCr
     return {
       id: this.id,
       title: this.title,
+      notes: this.notes,
       UserId: this.UserId,
       CollectiveId: this.CollectiveId,
       HostCollectiveId: this.HostCollectiveId,
@@ -79,6 +82,23 @@ Agreement.init(
     title: {
       type: DataTypes.STRING,
       allowNull: false,
+      set(val: string) {
+        this.setDataValue('title', val?.trim());
+      },
+      validate: {
+        len: [1, 60],
+        notEmpty: true,
+      },
+    },
+    notes: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      set(val: string) {
+        this.setDataValue('notes', val?.trim());
+      },
+      validate: {
+        len: [0, 3000],
+      },
     },
     expiresAt: {
       allowNull: true,

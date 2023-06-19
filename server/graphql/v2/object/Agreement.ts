@@ -4,7 +4,7 @@ import { GraphQLDateTime } from 'graphql-scalars';
 
 import AgreementModel from '../../../models/Agreement';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
-import GraphQLAccount from '../interface/Account';
+import { GraphQLAccount } from '../interface/Account';
 import { GraphQLFileInfo } from '../interface/FileInfo';
 
 import { GraphQLHost } from './Host';
@@ -15,6 +15,10 @@ export const GraphQLAgreement = new GraphQLObjectType<AgreementModel, express.Re
   fields: () => ({
     id: { type: GraphQLString, resolve: getIdEncodeResolver(IDENTIFIER_TYPES.AGREEMENT) },
     title: { type: new GraphQLNonNull(GraphQLString) },
+    notes: {
+      type: GraphQLString,
+      description: 'Additional notes about the agreement for the host admins',
+    },
     createdBy: {
       type: new GraphQLNonNull(GraphQLAccount),
       async resolve(agreement, _, req) {

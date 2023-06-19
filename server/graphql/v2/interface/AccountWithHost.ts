@@ -1,19 +1,18 @@
 import { GraphQLBoolean, GraphQLFloat, GraphQLInterfaceType, GraphQLNonNull } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { isNumber } from 'lodash';
+import { clamp, isNumber } from 'lodash';
 
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
 import { Collective } from '../../../models';
 import Agreement from '../../../models/Agreement';
 import { hostResolver } from '../../common/collective';
-import { Unauthorized } from '../../errors';
 import { GraphQLAgreementCollection } from '../collection/AgreementCollection';
 import { GraphQLHostFeeStructure } from '../enum/HostFeeStructure';
 import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
 import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType';
 import { GraphQLHost } from '../object/Host';
 
-import { CollectionArgs } from './Collection';
+import { getCollectionArgs } from './Collection';
 
 export const AccountWithHostFields = {
   host: {
@@ -125,10 +124,10 @@ export const AccountWithHostFields = {
     },
   },
   hostAgreements: {
-    type: new GraphQLNonNull(GraphQLAgreementCollection),
-    description: 'Returns agreements this account has with its host',
+    type: GraphQLAgreementCollection,
+    description: 'Returns agreements this account has with its host, or null if not enough permissions.',
     args: {
-      ...CollectionArgs,
+      ...getCollectionArgs({ limit: 30 }),
     },
     async resolve(account, args, req) {
       if (!account.HostCollectiveId) {
@@ -136,28 +135,27 @@ export const AccountWithHostFields = {
       }
 
       if (!req.remoteUser?.isAdmin(account.HostCollectiveId)) {
-        throw new Unauthorized("You need to be logged in as an admin of the account's host to see its agreements");
+        return null;
       }
 
       const totalCount = await req.loaders.Agreement.totalAccountHostAgreements.load(account.id);
-      const agreements =
-        args.limit <= 0
-          ? []
-          : await Agreement.findAll({
-              where: {
-                HostCollectiveId: account.HostCollectiveId,
-                CollectiveId: account.id,
-              },
-              limit: args.limit,
-              offset: args.offset,
-              order: [['createdAt', 'desc']],
-            });
-
+      const offset = clamp(args.offset || 0, 0, totalCount);
+      const limit = clamp(args.limit || 30, 0, 100);
       return {
         totalCount,
-        limit: args.limit,
-        offset: args.offset,
-        nodes: agreements,
+        limit: limit,
+        offset: offset,
+        nodes: () => {
+          return Agreement.findAll({
+            where: {
+              HostCollectiveId: account.HostCollectiveId,
+              CollectiveId: account.id,
+            },
+            limit: limit,
+            offset: offset,
+            order: [['createdAt', 'desc']],
+          });
+        },
       };
     },
   },
