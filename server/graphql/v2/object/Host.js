@@ -20,7 +20,9 @@ import { TransactionKind } from '../../../constants/transaction-kind';
 import { TransactionTypes } from '../../../constants/transactions';
 import { FEATURE, hasFeature } from '../../../lib/allowed-features';
 import { buildSearchConditions } from '../../../lib/search';
+import { reportErrorToSentry } from '../../../lib/sentry';
 import sequelize from '../../../lib/sequelize';
+import stripe from '../../../lib/stripe';
 import { ifStr } from '../../../lib/utils';
 import models, { Collective, Op } from '../../../models';
 import Agreement from '../../../models/Agreement';
@@ -310,6 +312,38 @@ export const GraphQLHost = new GraphQLObjectType({
               .catch(() => {
                 return null;
               });
+          }
+        },
+      },
+      stripeIssuingBalance: {
+        type: GraphQLAmount,
+        description: 'Stripe issuing balance',
+        async resolve(host, _, req) {
+          if (!req.remoteUser?.isAdmin(host.id)) {
+            throw new Unauthorized('You need to be logged in as an admin to see the stripe issuing balance');
+          }
+          try {
+            const connectedAccount = await host.getAccountForPaymentProvider('stripe');
+            const stripeBalance = await stripe.balance.retrieve({
+              stripeAccount: connectedAccount.username,
+            });
+
+            if (!stripeBalance?.issuing?.available?.length > 0) {
+              return null;
+            }
+
+            const issuingBalance = stripeBalance?.issuing?.available?.[0];
+            if (!issuingBalance) {
+              return null;
+            }
+
+            return {
+              currency: issuingBalance.currency.toUpperCase(),
+              value: issuingBalance.amount,
+            };
+          } catch (e) {
+            reportErrorToSentry(e);
+            return null;
           }
         },
       },

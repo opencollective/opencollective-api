@@ -2828,6 +2828,11 @@ type Host implements Account & AccountWithContributions {
   transferwiseBalances: [Amount]
 
   """
+  Stripe issuing balance
+  """
+  stripeIssuingBalance: Amount
+
+  """
   Pending applications for this host
   """
   pendingApplications(
@@ -6507,7 +6512,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   isApproved: Boolean!
 
   """
-  Returns agreements this account has with its host
+  Returns agreements this account has with its host, or null if not enough permissions.
   """
   hostAgreements(
     """
@@ -6519,7 +6524,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     The offset to use to fetch
     """
     offset: Int! = 0
-  ): AgreementCollection!
+  ): AgreementCollection
 
   """
   Number of unique financial contributors.
@@ -6605,7 +6610,7 @@ interface AccountWithHost {
   isActive: Boolean!
 
   """
-  Returns agreements this account has with its host
+  Returns agreements this account has with its host, or null if not enough permissions.
   """
   hostAgreements(
     """
@@ -6617,7 +6622,7 @@ interface AccountWithHost {
     The offset to use to fetch
     """
     offset: Int! = 0
-  ): AgreementCollection!
+  ): AgreementCollection
 }
 
 """
@@ -7395,7 +7400,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   isApproved: Boolean!
 
   """
-  Returns agreements this account has with its host
+  Returns agreements this account has with its host, or null if not enough permissions.
   """
   hostAgreements(
     """
@@ -7407,7 +7412,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     The offset to use to fetch
     """
     offset: Int! = 0
-  ): AgreementCollection!
+  ): AgreementCollection
 
   """
   Number of unique financial contributors.
@@ -9462,7 +9467,7 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
   isApproved: Boolean!
 
   """
-  Returns agreements this account has with its host
+  Returns agreements this account has with its host, or null if not enough permissions.
   """
   hostAgreements(
     """
@@ -9474,7 +9479,7 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
     The offset to use to fetch
     """
     offset: Int! = 0
-  ): AgreementCollection!
+  ): AgreementCollection
 
   """
   Number of unique financial contributors.
@@ -12344,7 +12349,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   isApproved: Boolean!
 
   """
-  Returns agreements this account has with its host
+  Returns agreements this account has with its host, or null if not enough permissions.
   """
   hostAgreements(
     """
@@ -12356,7 +12361,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     The offset to use to fetch
     """
     offset: Int! = 0
-  ): AgreementCollection!
+  ): AgreementCollection
 
   """
   Number of unique financial contributors.
@@ -12973,7 +12978,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   isApproved: Boolean!
 
   """
-  Returns agreements this account has with its host
+  Returns agreements this account has with its host, or null if not enough permissions.
   """
   hostAgreements(
     """
@@ -12985,7 +12990,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     The offset to use to fetch
     """
     offset: Int! = 0
-  ): AgreementCollection!
+  ): AgreementCollection
 
   """
   Number of unique financial contributors.
