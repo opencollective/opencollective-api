@@ -16,6 +16,12 @@ import * as stripeVirtualCards from '../paymentProviders/stripe/virtual-cards';
 import Collective from './Collective';
 import User from './User';
 
+export enum VirtualCardStatus {
+  ACTIVE = 'active',
+  INACTIVE = 'inactive',
+  CANCELED = 'canceled',
+}
+
 class VirtualCard extends Model<InferAttributes<VirtualCard, { omit: 'info' }>, InferCreationAttributes<VirtualCard>> {
   public declare id: CreationOptional<string>;
   public declare CollectiveId: number;
@@ -72,13 +78,20 @@ class VirtualCard extends Model<InferAttributes<VirtualCard, { omit: 'info' }>, 
   async delete() {
     switch (this.provider) {
       case VirtualCardProviders.STRIPE:
+        if (this.data.status === VirtualCardStatus.CANCELED) {
+          return;
+        }
         await stripeVirtualCards.deleteCard(this);
+        await this.update({
+          data: {
+            ...this.data,
+            status: VirtualCardStatus.CANCELED,
+          },
+        });
         break;
       default:
         throw new Error(`Can not delete virtual card provided by ${this.provider}`);
     }
-
-    await this.destroy();
   }
 
   isActive() {

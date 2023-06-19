@@ -10,6 +10,7 @@ import VirtualCardProviders from '../../../../../server/constants/virtual_card_p
 import { GraphQLProcessHostApplicationAction } from '../../../../../server/graphql/v2/enum';
 import emailLib from '../../../../../server/lib/email';
 import models from '../../../../../server/models';
+import { VirtualCardStatus } from '../../../../../server/models/VirtualCard';
 import * as stripeVirtualCardService from '../../../../../server/paymentProviders/stripe/virtual-cards';
 import { randEmail } from '../../../../stores';
 import {
@@ -582,7 +583,8 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
       await orderWithInternalSubscription.reload();
       expect(orderWithInternalSubscription.status).to.eq(OrderStatuses.ACTIVE);
 
-      expect(await models.VirtualCard.findByPk(virtualCard.id)).to.not.exist;
+      await virtualCard.reload();
+      expect(virtualCard.data.status).to.eq(VirtualCardStatus.CANCELED);
     });
   });
 });

@@ -1,7 +1,7 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { cloneDeep, flatten, isNil, pick, uniq } from 'lodash';
+import { cloneDeep, flatten, isEmpty, isNil, pick, uniq } from 'lodash';
 
 import { buildSearchConditions } from '../../../../lib/search';
 import models, { Op, sequelize } from '../../../../models';
@@ -19,6 +19,7 @@ import {
   CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   GraphQLChronologicalOrderInput,
 } from '../../input/ChronologicalOrderInput';
+import { GraphQLVirtualCardReferenceInput } from '../../input/VirtualCardReferenceInput';
 import { CollectionArgs, TransactionsCollectionReturnType } from '../../interface/Collection';
 
 export const TransactionsCollectionArgs = {
@@ -115,6 +116,9 @@ export const TransactionsCollectionArgs = {
   group: {
     type: GraphQLString,
     description: 'The transactions group to filter by',
+  },
+  virtualCard: {
+    type: new GraphQLList(GraphQLVirtualCardReferenceInput),
   },
 };
 
@@ -288,6 +292,17 @@ export const TransactionsCollectionResolver = async (args, req: express.Request)
       include.push({ model: models.PaymentMethod });
       where.push({ [Op.or]: paymentMethodConditions });
     }
+  }
+
+  if (!isEmpty(args.virtualCard)) {
+    include.push({
+      attributes: [],
+      model: models.Expense,
+      required: true,
+      where: {
+        VirtualCardId: args.virtualCard.map(vc => vc.id),
+      },
+    });
   }
 
   const order = [

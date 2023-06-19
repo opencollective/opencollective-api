@@ -8,7 +8,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { find, get, isEmpty, keyBy, mapValues } from 'lodash';
+import { find, get, isEmpty, isNil, keyBy, mapValues } from 'lodash';
 import moment from 'moment';
 
 import { roles } from '../../../constants';
@@ -21,6 +21,7 @@ import { TransactionTypes } from '../../../constants/transactions';
 import { FEATURE, hasFeature } from '../../../lib/allowed-features';
 import { buildSearchConditions } from '../../../lib/search';
 import sequelize from '../../../lib/sequelize';
+import { ifStr } from '../../../lib/utils';
 import models, { Collective, Op } from '../../../models';
 import Agreement from '../../../models/Agreement';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
@@ -34,6 +35,7 @@ import { GraphQLVirtualCardCollection } from '../collection/VirtualCardCollectio
 import { GraphQLPaymentMethodLegacyType, GraphQLPayoutMethodType } from '../enum';
 import { PaymentMethodLegacyTypeEnum } from '../enum/PaymentMethodLegacyType';
 import { GraphQLTimeUnit } from '../enum/TimeUnit';
+import { GraphQLVirtualCardStatusEnum } from '../enum/VirtualCardStatus';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import {
   fetchAccountsIdsWithReference,
@@ -41,6 +43,7 @@ import {
   fetchAccountWithReference,
   GraphQLAccountReferenceInput,
 } from '../input/AccountReferenceInput';
+import { getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/AmountInput';
 import {
   CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   GraphQLChronologicalOrderInput,
@@ -382,15 +385,128 @@ export const GraphQLHost = new GraphQLObjectType({
         args: {
           limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
           offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
-          state: { type: GraphQLString, defaultValue: null },
+          state: { type: GraphQLString, defaultValue: null, deprecationReason: '2023-06-12: Please use status.' },
+          status: { type: new GraphQLList(GraphQLVirtualCardStatusEnum) },
           orderBy: { type: GraphQLChronologicalOrderInput, defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE },
           merchantAccount: { type: GraphQLAccountReferenceInput, defaultValue: null },
           collectiveAccountIds: { type: new GraphQLList(GraphQLAccountReferenceInput), defaultValue: null },
+          withExpensesDateFrom: {
+            type: GraphQLDateTime,
+            description: 'Returns virtual cards with expenses from this date.',
+          },
+          withExpensesDateTo: {
+            type: GraphQLDateTime,
+            description: 'Returns virtual cards with expenses to this date.',
+          },
+          spentAmountFrom: {
+            type: GraphQLAmountInput,
+            description: 'Filter virtual cards with at least this amount in cents charged',
+          },
+          spentAmountTo: {
+            type: GraphQLAmountInput,
+            description: 'Filter virtual cards with up to this amount in cents charged',
+          },
+          hasMissingReceipts: {
+            type: GraphQLBoolean,
+            description: 'Filter virtual cards by whether they are missing receipts for any charges',
+          },
         },
         async resolve(host, args, req) {
           if (!req.remoteUser?.isAdmin(host.id)) {
             throw new Unauthorized('You need to be logged in as an admin of the host to see its hosted virtual cards');
           }
+
+          const hasStatusFilter = !isEmpty(args.status);
+          const hasCollectiveFilter = !isEmpty(args.collectiveAccountIds);
+          const hasMerchantFilter = !isNil(args.merchantId);
+
+          const hasSpentFromFilter = !isNil(args.spentAmountFrom);
+          const hasSpentToFilter = !isNil(args.spentAmountTo);
+          const hasSpentFilter = hasSpentFromFilter || hasSpentToFilter;
+
+          const hasExpenseFromDate = !isNil(args.withExpensesDateFrom);
+          const hasExpenseToDate = !isNil(args.withExpensesDateTo);
+          const hasExpensePeriodFilter = hasExpenseFromDate || hasExpenseToDate;
+
+          const baseQuery = `
+            SELECT
+              vc.* from "VirtualCards" vc
+              ${ifStr(args.merchantId, 'LEFT JOIN "Expenses" e ON e."VirtualCardId" = vc.id AND e."deletedAt" IS NULL')}
+              ${ifStr(
+                hasSpentFilter || hasExpensePeriodFilter,
+                `
+                LEFT JOIN LATERAL (
+                  SELECT
+                    ${ifStr(hasSpentFilter, 'sum(ce.amount) as sum')}
+                    ${ifStr(!hasSpentFilter, 'count(1) as count')}
+                  FROM "Expenses" ce
+                  WHERE ce."VirtualCardId" = vc.id
+                  ${ifStr(hasExpenseFromDate, 'AND ce."createdAt" >= :expensesFromDate')}
+                  ${ifStr(hasExpenseToDate, 'AND ce."createdAt" <= :expensesToDate')}
+                  AND ce."deletedAt" IS NULL
+                  ${ifStr(!hasSpentFilter, 'LIMIT 1')}
+                ) AS charges ON TRUE
+              `,
+              )}
+              ${ifStr(
+                !isNil(args.hasMissingReceipts),
+                `
+                LEFT JOIN LATERAL (
+                  SELECT count(1) as total FROM "Expenses" ce
+                  LEFT JOIN "ExpenseItems" ei on ei."ExpenseId" = ce.id
+                  WHERE ce."VirtualCardId" = vc.id
+                  ${ifStr(hasExpenseFromDate, 'AND ce."createdAt" >= :expensesFromDate')}
+                  ${ifStr(hasExpenseToDate, 'AND ce."createdAt" <= :expensesToDate')}
+                  AND ei.url IS NULL
+                  AND ei."deletedAt" is NULL
+                  AND ce."deletedAt" is NULL
+                  LIMIT 1
+                ) AS "lackingReceipts" ON TRUE
+              `,
+              )}
+            WHERE
+              vc."HostCollectiveId" = :hostCollectiveId
+              ${ifStr(hasStatusFilter, `AND vc.data#>>'{status}' IN (:status)`)}
+              ${ifStr(hasCollectiveFilter, `AND vc."CollectiveId" IN (:collectiveIds)`)}
+              ${ifStr(hasMerchantFilter, 'AND e."CollectiveId" = :merchantId')}
+
+              ${ifStr(
+                hasExpensePeriodFilter && !hasSpentFilter,
+                `
+              -- filter by existence of expenses
+                AND COALESCE(charges.count, 0) > 0
+              `,
+              )}
+
+              ${ifStr(
+                hasSpentFromFilter,
+                `
+                -- filter by sum of expense amounts
+                AND COALESCE(charges.sum, 0) >= :spentAmountFrom
+              `,
+              )}
+              ${ifStr(
+                hasSpentToFilter,
+                `
+                -- filter by sum of expense amounts
+                AND COALESCE(charges.sum, 0) <= :spentAmountTo
+              `,
+              )}
+
+              ${ifStr(args.hasMissingReceipts === true, `AND COALESCE("lackingReceipts".total, 0) > 0`)}
+              ${ifStr(args.hasMissingReceipts === false, `AND COALESCE("lackingReceipts".total, 0) = 0`)}
+          `;
+
+          const countQuery = `
+            SELECT count(1) as total FROM (${baseQuery}) as base
+          `;
+
+          const pageQuery = `
+                SELECT * FROM (${baseQuery}) as base
+                ORDER BY "createdAt" ${args.orderBy.direction === 'DESC' ? 'DESC' : 'ASC'}
+                LIMIT :limit
+                OFFSET :offset
+          `;
 
           let merchantId;
           if (!isEmpty(args.merchantAccount)) {
@@ -400,53 +516,44 @@ export const GraphQLHost = new GraphQLObjectType({
           }
 
           const collectiveIds = isEmpty(args.collectiveAccountIds)
-            ? undefined
+            ? [null]
             : await Promise.all(
                 args.collectiveAccountIds.map(collectiveAccountId =>
                   fetchAccountWithReference(collectiveAccountId, { throwIfMissing: true, loaders: req.loaders }),
                 ),
               ).then(collectives => collectives.map(collective => collective.id));
 
-          const query = {
-            group: 'VirtualCard.id',
-            where: {
-              HostCollectiveId: host.id,
-            },
+          const statusArg = !args.status || args.status.length === 0 ? [null] : args.status;
+
+          const queryReplacements = {
+            hostCollectiveId: host.id,
+            status: statusArg,
+            collectiveIds: collectiveIds,
+            merchantId: merchantId ?? null,
+            expensesFromDate: args.withExpensesDateFrom ?? null,
+            expensesToDate: args.withExpensesDateTo ?? null,
+            spentAmountFrom: args.spentAmountFrom ? getValueInCentsFromAmountInput(args.spentAmountFrom) : null,
+            spentAmountTo: args.spentAmountTo ? getValueInCentsFromAmountInput(args.spentAmountTo) : null,
             limit: args.limit,
             offset: args.offset,
-            order: [[args.orderBy.field, args.orderBy.direction]],
+            hasMissingReceipts: args.hasMissingReceipts ?? null,
           };
 
-          if (args.state) {
-            query.where.data = { state: args.state };
-          }
-
-          if (collectiveIds) {
-            query.where.CollectiveId = { [Op.in]: collectiveIds };
-          }
-
-          if (merchantId) {
-            if (!query.where.data) {
-              query.where.data = {};
-            }
-            query.where.data.type = 'MERCHANT_LOCKED';
-            query.include = [
-              {
-                attributes: [],
-                association: 'expenses',
-                required: true,
-                where: {
-                  CollectiveId: merchantId,
-                },
-              },
-            ];
-          }
-
-          const result = await models.VirtualCard.findAndCountAll(query);
+          const [virtualCards, { total }] = await Promise.all([
+            sequelize.query(pageQuery, {
+              replacements: queryReplacements,
+              type: sequelize.QueryTypes.SELECT,
+              model: models.VirtualCard,
+            }),
+            sequelize.query(countQuery, {
+              plain: true,
+              replacements: queryReplacements,
+            }),
+          ]);
 
           return {
-            nodes: result.rows,
-            totalCount: result.count.length, // See https://github.com/sequelize/sequelize/issues/9109
+            nodes: virtualCards,
+            totalCount: total,
             limit: args.limit,
             offset: args.offset,
           };
