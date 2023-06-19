@@ -401,6 +401,7 @@ interface Account {
     The transactions group to filter by
     """
     group: String
+    virtualCard: [VirtualCardReferenceInput]
   ): TransactionCollection!
   orders(
     """
@@ -2460,6 +2461,7 @@ type Host implements Account & AccountWithContributions {
     The transactions group to filter by
     """
     group: String
+    virtualCard: [VirtualCardReferenceInput]
   ): TransactionCollection!
   orders(
     """
@@ -3240,6 +3242,10 @@ enum PaymentMethodType {
   SEPA_DEBIT
   BACS_DEBIT
   BANCONTACT
+}
+
+input VirtualCardReferenceInput {
+  id: String
 }
 
 input PaymentMethodReferenceInput {
@@ -5694,6 +5700,7 @@ type Bot implements Account {
     The transactions group to filter by
     """
     group: String
+    virtualCard: [VirtualCardReferenceInput]
   ): TransactionCollection!
   orders(
     """
@@ -6212,6 +6219,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     The transactions group to filter by
     """
     group: String
+    virtualCard: [VirtualCardReferenceInput]
   ): TransactionCollection!
   orders(
     """
@@ -7099,6 +7107,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     The transactions group to filter by
     """
     group: String
+    virtualCard: [VirtualCardReferenceInput]
   ): TransactionCollection!
   orders(
     """
@@ -7837,6 +7846,7 @@ type Individual implements Account {
     The transactions group to filter by
     """
     group: String
+    virtualCard: [VirtualCardReferenceInput]
   ): TransactionCollection!
   orders(
     """
@@ -8530,6 +8540,7 @@ type Organization implements Account & AccountWithContributions {
     The transactions group to filter by
     """
     group: String
+    virtualCard: [VirtualCardReferenceInput]
   ): TransactionCollection!
   orders(
     """
@@ -9163,6 +9174,7 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
     The transactions group to filter by
     """
     group: String
+    virtualCard: [VirtualCardReferenceInput]
   ): TransactionCollection!
   orders(
     """
@@ -10279,6 +10291,7 @@ type Query {
     The transactions group to filter by
     """
     group: String
+    virtualCard: [VirtualCardReferenceInput]
   ): TransactionCollection!
   update(
     """
@@ -11766,10 +11779,6 @@ enum ExpenseStatusFilter {
   ON_HOLD
 }
 
-input VirtualCardReferenceInput {
-  id: String
-}
-
 """
 This represents an Project account
 """
@@ -12044,6 +12053,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     The transactions group to filter by
     """
     group: String
+    virtualCard: [VirtualCardReferenceInput]
   ): TransactionCollection!
   orders(
     """
@@ -12672,6 +12682,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     The transactions group to filter by
     """
     group: String
+    virtualCard: [VirtualCardReferenceInput]
   ): TransactionCollection!
   orders(
     """
