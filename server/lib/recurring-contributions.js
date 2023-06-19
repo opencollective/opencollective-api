@@ -448,7 +448,7 @@ export async function createPaymentCreditCardConfirmationActivity(order) {
       order: order.info,
       collective: order.collective.info,
       fromCollective: order.fromCollective.minimal,
-      confirmOrderLink: `${config.host.website}/${order.fromCollective.slug}/orders/${order.id}/confirm`,
+      confirmOrderLink: `${config.host.website}/${order.fromCollective.slug}/contributions/${order.id}/confirm`,
       paymentMethod: order.paymentMethod?.info,
     },
   });
