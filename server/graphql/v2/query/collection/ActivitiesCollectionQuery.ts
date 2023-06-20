@@ -1,7 +1,7 @@
 import { GraphQLList, GraphQLNonNull } from 'graphql';
 import { GraphQLBoolean } from 'graphql/type';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { flatten, uniq } from 'lodash';
+import { flatten, toString, uniq } from 'lodash';
 import { InferAttributes, Order, WhereOptions } from 'sequelize';
 
 import ActivityTypes, { ActivitiesPerClass } from '../../../../constants/activities';
@@ -42,13 +42,13 @@ const generateTimelineQuery = async (account): Promise<WhereOptions<InferAttribu
               ActivityTypes.EXPENSE_COMMENT_CREATED,
             ],
           },
-          data: { user: { id: account.id } },
+          data: { user: { id: toString(account.id) } },
           UserId: { [Op.ne]: account.CreatedByUserId },
         },
         // Expenses that were drafted for me (recurring expenses waiting to be submitted)
         {
           type: ActivityTypes.COLLECTIVE_EXPENSE_INVITE_DRAFTED,
-          data: { payee: { id: account.id } },
+          data: { payee: { id: toString(account.id) } },
         },
         { type: ActivityTypes.COLLECTIVE_EXPENSE_RECURRING_DRAFTED, UserId: user.id },
         // My contributions, both one-time and when recurring contributions are drawn
