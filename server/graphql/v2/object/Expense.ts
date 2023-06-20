@@ -479,7 +479,7 @@ const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Request>({
       customData: {
         type: GraphQLJSON,
         description: 'Custom data for this expense',
-        async resolve(expense, _, req) {
+        async resolve(expense) {
           return expense.data?.customData || null;
         },
       },
