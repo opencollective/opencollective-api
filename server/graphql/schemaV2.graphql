@@ -2823,11 +2823,6 @@ type Host implements Account & AccountWithContributions {
   supportedPayoutMethods: [PayoutMethodType]
 
   """
-  Transferwise balances. Returns null if Transferwise account is not connected.
-  """
-  transferwiseBalances: [Amount]
-
-  """
   Pending applications for this host
   """
   pendingApplications(
@@ -6507,7 +6502,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   isApproved: Boolean!
 
   """
-  Returns agreements this account has with its host
+  Returns agreements this account has with its host, or null if not enough permissions.
   """
   hostAgreements(
     """
@@ -6519,7 +6514,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     The offset to use to fetch
     """
     offset: Int! = 0
-  ): AgreementCollection!
+  ): AgreementCollection
 
   """
   Number of unique financial contributors.
@@ -6605,7 +6600,7 @@ interface AccountWithHost {
   isActive: Boolean!
 
   """
-  Returns agreements this account has with its host
+  Returns agreements this account has with its host, or null if not enough permissions.
   """
   hostAgreements(
     """
@@ -6617,7 +6612,7 @@ interface AccountWithHost {
     The offset to use to fetch
     """
     offset: Int! = 0
-  ): AgreementCollection!
+  ): AgreementCollection
 }
 
 """
@@ -7395,7 +7390,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   isApproved: Boolean!
 
   """
-  Returns agreements this account has with its host
+  Returns agreements this account has with its host, or null if not enough permissions.
   """
   hostAgreements(
     """
@@ -7407,7 +7402,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     The offset to use to fetch
     """
     offset: Int! = 0
-  ): AgreementCollection!
+  ): AgreementCollection
 
   """
   Number of unique financial contributors.
@@ -8875,6 +8870,11 @@ type TransferWise {
     """
     ignoreBlockedCurrencies: Boolean
   ): [JSONObject]
+
+  """
+  Transferwise balances. Returns null if Transferwise account is not connected.
+  """
+  balances: [Amount]
 }
 
 type TransferWiseRequiredField {
@@ -9462,7 +9462,7 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
   isApproved: Boolean!
 
   """
-  Returns agreements this account has with its host
+  Returns agreements this account has with its host, or null if not enough permissions.
   """
   hostAgreements(
     """
@@ -9474,7 +9474,7 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
     The offset to use to fetch
     """
     offset: Int! = 0
-  ): AgreementCollection!
+  ): AgreementCollection
 
   """
   Number of unique financial contributors.
@@ -9693,6 +9693,11 @@ type Query {
     Only return activities that are of this class/type
     """
     type: [ActivityAndClassesType!] = null
+
+    """
+    If true, return the timeline of activities for this account
+    """
+    timeline: Boolean! = false
   ): ActivityCollection!
   application(
     """
@@ -12344,7 +12349,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   isApproved: Boolean!
 
   """
-  Returns agreements this account has with its host
+  Returns agreements this account has with its host, or null if not enough permissions.
   """
   hostAgreements(
     """
@@ -12356,7 +12361,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     The offset to use to fetch
     """
     offset: Int! = 0
-  ): AgreementCollection!
+  ): AgreementCollection
 
   """
   Number of unique financial contributors.
@@ -12973,7 +12978,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   isApproved: Boolean!
 
   """
-  Returns agreements this account has with its host
+  Returns agreements this account has with its host, or null if not enough permissions.
   """
   hostAgreements(
     """
@@ -12985,7 +12990,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     The offset to use to fetch
     """
     offset: Int! = 0
-  ): AgreementCollection!
+  ): AgreementCollection
 
   """
   Number of unique financial contributors.
