@@ -476,15 +476,6 @@ const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Request>({
           }
         },
       },
-      customData: {
-        type: GraphQLJSON,
-        description: 'Custom data for this expense',
-        async resolve(expense, _, req) {
-          if (await ExpenseLib.canSeeExpenseCustomData(req, expense)) {
-            return expense.data?.customData || null;
-          }
-        },
-      },
     };
   },
 });
