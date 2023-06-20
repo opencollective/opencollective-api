@@ -301,16 +301,6 @@ export const canSeeExpenseSecurityChecks: ExpensePermissionEvaluator = async (re
   return remoteUserMeetsOneCondition(req, expense, [isHostAdmin]);
 };
 
-export const canSeeExpenseCustomData: ExpensePermissionEvaluator = async (req, expense) => {
-  return remoteUserMeetsOneCondition(req, expense, [
-    isOwner,
-    isCollectiveOrHostAccountant,
-    isCollectiveAdmin,
-    isHostAdmin,
-    isAdminOrAccountantOfHostWhoPaidExpense,
-  ]);
-};
-
 export const canUsePrivateNotes = async (req: express.Request, expense: Expense): Promise<boolean> => {
   return isHostAdmin(req, expense);
 };
