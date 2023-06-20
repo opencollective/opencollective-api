@@ -2828,9 +2828,9 @@ type Host implements Account & AccountWithContributions {
   transferwiseBalances: [Amount]
 
   """
-  Stripe issuing balance
+  Stripe connected account
   """
-  stripeIssuingBalance: Amount
+  stripe: StripeConnectedAccount
 
   """
   Pending applications for this host
@@ -4778,6 +4778,13 @@ type TimeSeriesAmountWithKindNode {
   date: DateTime!
   amount: Amount!
   kind: TransactionKind!
+}
+
+"""
+Stripe connected account properties
+"""
+type StripeConnectedAccount {
+  issuingBalance: Amount
 }
 
 """
