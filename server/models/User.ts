@@ -90,6 +90,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     createActivity = true,
     updateLastLoginAt = false,
     expiration = null,
+    req = null,
   } = {}) {
     if (createActivity && !parseToBoolean(config.database.readOnly)) {
       await models.Activity.create({

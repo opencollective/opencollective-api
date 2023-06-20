@@ -87,9 +87,9 @@ const individualMutations = {
       if (req.userToken?.type !== 'OAUTH') {
         // Context: this is token generation when updating password
         token = await user.generateSessionToken({
+          sessionId: req.jwtPayload?.sessionId,
           createActivity: false,
           updateLastLoginAt: false,
-          sessionId: req.jwtPayload?.sessionId,
         });
       }
 
