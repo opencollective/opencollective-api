@@ -112,8 +112,8 @@ export const signin = async (req, res, next) => {
         );
         return res.send({ token });
       } else {
-        // All good, no 2FA, send token
-        const token = await user.generateSessionToken();
+        // Context: this is token generation when using a password and no 2FA
+        const token = await user.generateSessionToken({ createActivity: true, updateLastLoginAt: true, req });
         return res.send({ token });
       }
     }
@@ -206,7 +206,13 @@ export const exchangeLoginToken = async (req, res, next) => {
     );
     res.send({ token });
   } else {
-    const token = await req.remoteUser.generateSessionToken({ sessionId: req.jwtPayload?.sessionId });
+    // Context: this is token generation after using a signin link (magic link) and no 2FA
+    const token = await req.remoteUser.generateSessionToken({
+      sessionId: req.jwtPayload.sessionId,
+      createActivity: true,
+      updateLastLoginAt: true,
+      req,
+    });
     res.send({ token });
   }
 };
@@ -243,7 +249,13 @@ export const refreshToken = async (req, res, next) => {
     return next(new BadRequest(errorMessage));
   }
 
-  const token = await req.remoteUser.generateSessionToken({ sessionId: req.jwtPayload?.sessionId });
+  // Context: this is token generation when extending a session
+  const token = await req.remoteUser.generateSessionToken({
+    sessionId: req.jwtPayload?.sessionId,
+    createActivity: false,
+    updateLastLoginAt: false,
+  });
+
   res.send({ token });
 };
 
@@ -261,7 +273,6 @@ export const twoFactorAuthAndUpdateToken = async (req, res, next) => {
   const { twoFactorAuthenticatorCode, twoFactorAuthenticationRecoveryCode, twoFactorAuthenticationType } = req.body;
 
   const userId = Number(req.jwtPayload.sub);
-  const sessionId = req.jwtPayload.sessionId;
 
   // Both 2FA and recovery codes rate limited to 10 tries per hour
   const rateLimit = new RateLimit(`user_2FA_endpoint_${userId}`, 10, ONE_HOUR_IN_SECONDS);
@@ -298,6 +309,13 @@ export const twoFactorAuthAndUpdateToken = async (req, res, next) => {
     return fail(new Unauthorized('Two-factor authentication code failed. Please try again'));
   }
 
-  const token = await user.generateSessionToken({ sessionId });
+  // Context: this is token generation after signin and valid 2FA authentication
+  const token = await user.generateSessionToken({
+    sessionId: req.jwtPayload.sessionId,
+    createActivity: true,
+    updateLastLoginAt: true,
+    req,
+  });
+
   res.send({ token: token });
 };

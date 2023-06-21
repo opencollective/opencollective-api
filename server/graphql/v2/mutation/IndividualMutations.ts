@@ -85,7 +85,12 @@ const individualMutations = {
 
       // We don't want OAuth tokens to be exchanged against a session token
       if (req.userToken?.type !== 'OAUTH') {
-        token = await user.generateSessionToken({ sessionId: req.jwtPayload?.sessionId });
+        // Context: this is token generation when updating password
+        token = await user.generateSessionToken({
+          sessionId: req.jwtPayload?.sessionId,
+          createActivity: false,
+          updateLastLoginAt: false,
+        });
       }
 
       return { individual, token };
