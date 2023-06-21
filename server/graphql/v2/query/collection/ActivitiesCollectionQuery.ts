@@ -225,10 +225,10 @@ const ActivitiesCollectionQuery = {
     }
 
     const order: Order = [['createdAt', 'DESC']];
-    const result = await models.Activity.findAndCountAll({ where, order, offset, limit });
+    const result = await models.Activity.findAll({ where, order, offset, limit });
     return {
-      nodes: result.rows,
-      totalCount: result.count,
+      nodes: result,
+      totalCount: () => models.Activity.count({ where }),
       limit: args.limit,
       offset: args.offset,
     };
