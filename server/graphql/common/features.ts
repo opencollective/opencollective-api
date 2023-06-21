@@ -242,7 +242,7 @@ export const getFeatureStatusResolver =
       case FEATURE.VIRTUAL_CARDS:
         return checkVirtualCardFeatureStatus(collective);
       case FEATURE.REQUEST_VIRTUAL_CARDS: {
-        const host = await collective.getHostCollective();
+        const host = await collective.getHostCollective({ loaders: req.loaders });
         const balance = await collective.getBalance();
         return balance > 0 && // Collective has balance
           collective.isActive && // Collective is effectively being hosted

@@ -236,7 +236,7 @@ const memberMutations = {
           throw new Forbidden('There must be at least one admin for the account.');
         }
 
-        const host = await account.getHostCollective();
+        const host = await account.getHostCollective({ loaders: req.loaders });
         if (host) {
           const adminCount = await models.Member.count({
             where: {

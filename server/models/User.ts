@@ -4,13 +4,7 @@ import config from 'config';
 import debugLib from 'debug';
 import slugify from 'limax';
 import { defaults, get, intersection, isEmpty, pick } from 'lodash';
-import {
-  BelongsToGetAssociationMixin,
-  CreationOptional,
-  InferAttributes,
-  InferCreationAttributes,
-  NonAttribute,
-} from 'sequelize';
+import { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
 import activities from '../constants/activities';
@@ -67,7 +61,6 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
 
   // Associations
   public declare collective?: Collective;
-  declare getCollective: BelongsToGetAssociationMixin<Collective>;
 
   // Non-model attributes
   public rolesByCollectiveId?: NonAttribute<Record<string, string[]>>;
@@ -85,7 +78,13 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     return auth.createJwt(this.id, payload, expiration);
   };
 
-  generateSessionToken = async function ({ sessionId = null, createActivity = true, expiration = null } = {}) {
+  generateSessionToken = async function ({
+    sessionId = null,
+    createActivity = true,
+    updateLastLoginAt = false,
+    expiration = null,
+    req = null,
+  } = {}) {
     if (createActivity && !parseToBoolean(config.database.readOnly)) {
       await models.Activity.create({
         type: activities.USER_SIGNIN,
@@ -93,6 +92,14 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
         FromCollectiveId: this.CollectiveId,
         CollectiveId: this.CollectiveId,
         data: { notify: false },
+      });
+    }
+
+    if (updateLastLoginAt && req && !parseToBoolean(config.database.readOnly)) {
+      await this.update({
+        // The login was accepted, we can update lastLoginAt. This will invalidate all older login tokens.
+        lastLoginAt: new Date(),
+        data: { ...this.data, lastSignInRequest: { ip: req.ip, userAgent: req.header('user-agent') } },
       });
     }
 
@@ -376,6 +383,17 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     });
   };
 
+  getCollective = async function ({ loaders = null } = {}): Promise<Collective> {
+    if (this.CollectiveId) {
+      const collective = loaders
+        ? await loaders.Collective.byId.load(this.CollectiveId)
+        : await models.Collective.findByPk(this.CollectiveId);
+      if (collective) {
+        return collective;
+      }
+    }
+  };
+
   /**
    * Static Methods
    */
@@ -463,17 +481,6 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   };
 
   // Getters
-  // Collective of type USER corresponding to this user
-  // @deprecated use user.getCollective()
-  get userCollective(): NonAttribute<Promise<Collective | Record<string, never>>> {
-    return models.Collective.findByPk(this.CollectiveId).then(userCollective => {
-      if (!userCollective) {
-        logger.info(`No Collective attached to this user id ${this.id} (User.CollectiveId: ${this.CollectiveId})`);
-        return {};
-      }
-      return userCollective;
-    });
-  }
 
   hasTwoFactorAuthentication(): NonAttribute<Promise<boolean>> {
     return twoFactorAuthLib.userHasTwoFactorAuthEnabled(this);
@@ -481,42 +488,42 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
 
   // @deprecated
   get name(): NonAttribute<Promise<string>> {
-    return this.userCollective.then(c => c.name);
+    return this.getCollective().then(c => c.name);
   }
 
   // @deprecated
   get twitterHandle(): NonAttribute<Promise<string>> {
-    return this.userCollective.then(c => c.twitterHandle);
+    return this.getCollective().then(c => c.twitterHandle);
   }
 
   // @deprecated
   get githubHandle(): NonAttribute<Promise<string>> {
-    return this.userCollective.then(c => c.githubHandle);
+    return this.getCollective().then(c => c.githubHandle);
   }
 
   // @deprecated
   get repositoryUrl(): NonAttribute<Promise<string>> {
-    return this.userCollective.then(c => c.repositoryUrl);
+    return this.getCollective().then(c => c.repositoryUrl);
   }
 
   // @deprecated
   get website(): NonAttribute<Promise<string>> {
-    return this.userCollective.then(c => c.website);
+    return this.getCollective().then(c => c.website);
   }
 
   // @deprecated
   get description(): NonAttribute<Promise<string>> {
-    return this.userCollective.then(c => c.description);
+    return this.getCollective().then(c => c.description);
   }
 
   // @deprecated
   get longDescription(): NonAttribute<Promise<string>> {
-    return this.userCollective.then(c => c.longDescription);
+    return this.getCollective().then(c => c.longDescription);
   }
 
   // @deprecated
   get image(): NonAttribute<Promise<string>> {
-    return this.userCollective.then(c => c.image);
+    return this.getCollective().then(c => c.image);
   }
 
   // Info (private).

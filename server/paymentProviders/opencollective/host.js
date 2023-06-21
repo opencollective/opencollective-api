@@ -51,7 +51,7 @@ paymentMethodProvider.processOrder = async (order, options) => {
     throw new Error('Can only use the Host payment method to Add Funds to an hosted Collective.');
   }
 
-  const hostFeeSharePercent = await getHostFeeSharePercent(order, host);
+  const hostFeeSharePercent = await getHostFeeSharePercent(order, { host });
   const isSharedRevenue = !!hostFeeSharePercent;
 
   const amount = order.totalAmount;
@@ -60,7 +60,7 @@ paymentMethodProvider.processOrder = async (order, options) => {
   const hostCurrencyFxRate = await getFxRate(currency, hostCurrency);
   const amountInHostCurrency = amount * hostCurrencyFxRate;
 
-  const hostFee = await getHostFee(order, host);
+  const hostFee = await getHostFee(order, { host });
   const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
 
   const transactionPayload = {

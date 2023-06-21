@@ -131,6 +131,18 @@ describe('server/routes/users', () => {
       expect(moment(parsedToken.exp).diff(parsedToken.iat)).to.equal(auth.TOKEN_EXPIRATION_SESSION);
     });
 
+    it('should updates user lastLoginAt if scope = login', async () => {
+      // Given a user and an authentication token
+      const user = await fakeUser({ email: 'test@mctesterson.com' });
+      const currentToken = user.jwt({ scope: 'login' });
+
+      // When the endpoint is hit with a valid token
+      await request(expressApp).post(updateTokenUrl).set('Authorization', `Bearer ${currentToken}`);
+
+      const reloadUser = await models.User.findByPk(user.id);
+      expect(reloadUser.lastLoginAt).to.be.a('date');
+    });
+
     it('should respond with 2FA token if the user has 2FA enabled on account', async () => {
       const secret = speakeasy.generateSecret({ length: 64 });
       const encryptedToken = crypto[CIPHER].encrypt(secret.base32, SECRET_KEY).toString();

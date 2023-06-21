@@ -653,12 +653,15 @@ class Collective extends Model<
     });
   };
 
-  getParentCollective = async function (options = undefined) {
+  getParentCollective = async function ({ attributes = null, loaders = null } = {}) {
     if (!this.ParentCollectiveId) {
       return null;
-    } else if (options) {
-      return models.Collective.findByPk(this.ParentCollectiveId, options);
+    } else if (attributes) {
+      return models.Collective.findByPk(this.ParentCollectiveId, { attributes });
     } else if (this.parentCollective) {
+      return this.parentCollective;
+    } else if (loaders) {
+      this.parentCollective = await loaders.Collective.byId.load(this.ParentCollectiveId);
       return this.parentCollective;
     } else {
       this.parentCollective = await models.Collective.findByPk(this.ParentCollectiveId);
@@ -2912,14 +2915,17 @@ class Collective extends Model<
   };
 
   // get the host of the parent collective if any, or of this collective
-  getHostCollective = async function ({ returnEvenIfNotApproved = false } = {}) {
+  getHostCollective = async function ({ loaders = null, returnEvenIfNotApproved = false } = {}) {
     if (!this.isActive && !returnEvenIfNotApproved) {
       return null;
     }
 
     if (this.HostCollectiveId) {
-      return models.Collective.findByPk(this.HostCollectiveId);
+      return loaders
+        ? loaders.Collective.byId.load(this.HostCollectiveId)
+        : models.Collective.findByPk(this.HostCollectiveId);
     }
+
     return models.Member.findOne({
       attributes: ['MemberCollectiveId'],
       where: { role: roles.HOST, CollectiveId: this.ParentCollectiveId },

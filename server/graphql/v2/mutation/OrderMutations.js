@@ -461,7 +461,7 @@ const orderMutations = {
         throw new ValidationFailed(`${toAccount.name} has been archived`);
       }
 
-      const host = await toAccount.getHostCollective();
+      const host = await toAccount.getHostCollective({ loaders: req.loaders });
 
       if (!req.remoteUser?.isAdminOfCollective(host)) {
         throw new Unauthorized('Only host admins can process pending contributions');
@@ -959,7 +959,7 @@ const orderMutations = {
 
       const fromAccount = await fetchAccountWithReference(args.order.fromAccount, { throwIfMissing: true });
       const toAccount = await fetchAccountWithReference(args.order.toAccount, { throwIfMissing: true });
-      const host = await toAccount.getHostCollective();
+      const host = await toAccount.getHostCollective({ loaders: req.loaders });
       const tier = args.order.tier && (await fetchTierWithReference(args.order.tier, { throwIfMissing: true }));
 
       if (!req.remoteUser?.isAdminOfCollective(host)) {
@@ -1063,7 +1063,7 @@ const orderMutations = {
         throw new NotFound('Contribution not found');
       }
 
-      const host = await order.collective.getHostCollective();
+      const host = await order.collective.getHostCollective({ loaders: req.loaders });
       if (!req.remoteUser?.isAdminOfCollective(host)) {
         throw new Unauthorized('Only host admins can edit pending orders');
       }

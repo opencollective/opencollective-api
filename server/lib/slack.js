@@ -2,12 +2,13 @@
  * Slack message sending logic
  */
 
+import axios from 'axios';
 import config from 'config';
-import Slack from 'node-slack';
 
 import activitiesLib from '../lib/activities';
 
 import logger from './logger';
+import { reportErrorToSentry } from './sentry';
 
 export const OPEN_COLLECTIVE_SLACK_CHANNEL = {
   ABUSE: 'abuse',
@@ -42,7 +43,7 @@ export default {
   /*
    * Posts a message to a slack webhook
    */
-  postMessage(msg, webhookUrl, options) {
+  async postMessage(msg, webhookUrl, options) {
     if (!options) {
       options = {};
     }
@@ -58,30 +59,28 @@ export default {
       attachments: options.attachments || [],
     };
 
-    return new Promise((resolve, reject) => {
-      // production check
-      if (config.env !== 'production' && !process.env.TEST_SLACK) {
-        return resolve();
-      }
+    // production check
+    if (config.env !== 'production' && !process.env.TEST_SLACK) {
+      return;
+    }
 
-      if (!slackOptions.text) {
-        return resolve();
-      }
+    if (!slackOptions.text) {
+      return;
+    }
 
-      let targetUrl = webhookUrl;
-      if (targetUrl.match(DISCORD_REGEX) && !targetUrl.match(/\/slack\/*$/)) {
-        // Discord slack-compatible webhook - See https://discord.com/developers/docs/resources/webhook#execute-slackcompatible-webhook
-        targetUrl = `${targetUrl.replace(/\/+$/, '')}/slack`;
-      }
+    let targetUrl = webhookUrl;
+    if (targetUrl.match(DISCORD_REGEX) && !targetUrl.match(/\/slack\/*$/)) {
+      // Discord slack-compatible webhook - See https://discord.com/developers/docs/resources/webhook#execute-slackcompatible-webhook
+      targetUrl = `${targetUrl.replace(/\/+$/, '')}/slack`;
+    }
 
-      return new Slack(targetUrl, {}).send(slackOptions, err => {
-        if (err) {
-          logger.warn(`SlackLib.postMessage failed for ${targetUrl}:`, err);
-          return reject(err);
-        }
-        return resolve();
-      });
-    });
+    try {
+      return await axios.post(targetUrl, slackOptions);
+    } catch (err) {
+      logger.warn(`SlackLib.postMessage failed for ${targetUrl}:`, err);
+      reportErrorToSentry(err, { extra: { targetUrl, slackOptions } });
+      throw err;
+    }
   },
 
   isSlackWebhookUrl(url) {

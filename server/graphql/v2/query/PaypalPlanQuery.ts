@@ -57,7 +57,7 @@ const PaypalPlanQuery = {
     const expectedCurrency = tier?.currency || collective?.currency;
     const amount = getValueInCentsFromAmountInput(args.amount, { expectedCurrency, allowNilCurrency: false });
     const currency = args.amount.currency;
-    const host = await collective.getHostCollective();
+    const host = await collective.getHostCollective({ loaders: req.loaders });
     return getOrCreatePlan(host, collective, interval, amount, currency, tier);
   },
 };

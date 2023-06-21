@@ -63,7 +63,7 @@ export const getCollectionArgs = ({ limit = 10, offset = 0 }) => ({
 
 export interface CollectionReturnType {
   nodes: unknown[];
-  totalCount: number;
+  totalCount: number | Promise<number> | (() => Promise<number>);
   limit: number;
   offset: number;
 }

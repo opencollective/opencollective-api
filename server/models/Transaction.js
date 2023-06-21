@@ -314,14 +314,16 @@ Transaction.prototype.getGiftCardEmitterCollective = function () {
   }
 };
 
-Transaction.prototype.getHostCollective = async function () {
+Transaction.prototype.getHostCollective = async function ({ loaders } = {}) {
   let HostCollectiveId = this.HostCollectiveId;
   // if the transaction is from the perspective of the fromCollective
   if (!HostCollectiveId) {
-    const fromCollective = await models.Collective.findByPk(this.FromCollectiveId);
+    const fromCollective = loaders
+      ? await loaders.Collective.byId.load(this.FromCollectiveId)
+      : await models.Collective.findByPk(this.FromCollectiveId);
     HostCollectiveId = await fromCollective.getHostCollectiveId();
   }
-  return models.Collective.findByPk(HostCollectiveId);
+  return loaders ? loaders.Collective.byId.load(HostCollectiveId) : models.Collective.findByPk(HostCollectiveId);
 };
 
 Transaction.prototype.getSource = function () {
@@ -850,7 +852,7 @@ Transaction.createHostFeeShareTransactions = async (
   if (transaction.OrderId) {
     order = await models.Order.findByPk(transaction.OrderId);
   }
-  const hostFeeSharePercent = await getHostFeeSharePercent(order, host);
+  const hostFeeSharePercent = await getHostFeeSharePercent(order, { host });
   if (!hostFeeSharePercent) {
     return;
   }

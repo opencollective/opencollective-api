@@ -205,8 +205,8 @@ export const GraphQLOrder = new GraphQLObjectType({
       hostFeePercent: {
         type: GraphQLFloat,
         description: 'Host fee percent attached to the Order.',
-        async resolve(order) {
-          return await getHostFeePercent(order);
+        async resolve(order, _, req) {
+          return await getHostFeePercent(order, { loaders: req.loaders });
         },
       },
       platformTipAmount: {

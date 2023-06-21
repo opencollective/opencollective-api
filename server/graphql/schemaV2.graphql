@@ -2823,11 +2823,6 @@ type Host implements Account & AccountWithContributions {
   supportedPayoutMethods: [PayoutMethodType]
 
   """
-  Transferwise balances. Returns null if Transferwise account is not connected.
-  """
-  transferwiseBalances: [Amount]
-
-  """
   Stripe connected account
   """
   stripe: StripeConnectedAccount
@@ -8887,6 +8882,11 @@ type TransferWise {
     """
     ignoreBlockedCurrencies: Boolean
   ): [JSONObject]
+
+  """
+  Transferwise balances. Returns null if Transferwise account is not connected.
+  """
+  balances: [Amount]
 }
 
 type TransferWiseRequiredField {
@@ -9705,6 +9705,11 @@ type Query {
     Only return activities that are of this class/type
     """
     type: [ActivityAndClassesType!] = null
+
+    """
+    If true, return the timeline of activities for this account
+    """
+    timeline: Boolean! = false
   ): ActivityCollection!
   application(
     """

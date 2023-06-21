@@ -186,7 +186,7 @@ async function createCollective(_, args, req) {
 
       // Automated approval if the creator is Github Sponsors
       if (req.remoteUser) {
-        const remoteUserCollective = await models.Collective.findByPk(req.remoteUser.CollectiveId);
+        const remoteUserCollective = await req.loaders.Collective.byId.load(req.remoteUser.CollectiveId);
         if (remoteUserCollective.slug === 'github-sponsors') {
           shouldAutomaticallyApprove = true;
         }

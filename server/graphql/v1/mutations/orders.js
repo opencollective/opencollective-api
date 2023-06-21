@@ -286,7 +286,7 @@ export async function createOrder(order, req) {
       throw new Error('Orders cannot be created for a collective by that same collective.');
     }
 
-    const host = await collective.getHostCollective();
+    const host = await collective.getHostCollective({ loaders: req.loaders });
     if (!host && !collective.isPledged) {
       throw new Error('This collective has no host and cannot accept financial contributions at this time.');
     }

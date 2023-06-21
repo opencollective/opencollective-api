@@ -26,7 +26,7 @@ async function main(args) {
 
   const user = await models.User.findByPk(args.user_id);
 
-  const jwt = await user.generateSessionToken({ createActivity: false });
+  const jwt = await user.generateSessionToken({ createActivity: false, updateLastLoginAt: false });
 
   console.log(`${config.host.website}/signin/${jwt}`);
 }

@@ -217,7 +217,10 @@ export async function refundTransaction(
   } else {
     const creditTransaction = transaction.type === 'CREDIT' ? transaction : await transaction.getOppositeTransaction();
     if (req.remoteUser.isAdmin(creditTransaction?.HostCollectiveId)) {
-      await twoFactorAuthLib.enforceForAccount(req, await creditTransaction.getHostCollective());
+      await twoFactorAuthLib.enforceForAccount(
+        req,
+        await creditTransaction.getHostCollective({ loaders: req.loaders }),
+      );
     }
   }
 

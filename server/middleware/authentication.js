@@ -197,14 +197,6 @@ const _authenticateUserByJwt = async (req, res, next) => {
       // Verify any Expenses marked as UNVERIFIED that were created before the login link was generated
       await models.Expense.verifyUserExpenses(user);
     }
-
-    if (!parseToBoolean(config.database.readOnly)) {
-      await user.update({
-        // The login was accepted, we can update lastLoginAt. This will invalidate all older login tokens.
-        lastLoginAt: new Date(),
-        data: { ...user.data, lastSignInRequest: { ip: req.ip, userAgent: req.header('user-agent') } },
-      });
-    }
   } else if (req.jwtPayload.scope === 'reset-password' && user.passwordUpdatedAt) {
     if (!req.jwtPayload.passwordUpdatedAt || user.passwordUpdatedAt.getTime() !== req.jwtPayload.passwordUpdatedAt) {
       const errorMessage = 'This reset password token is expired or has already been used';

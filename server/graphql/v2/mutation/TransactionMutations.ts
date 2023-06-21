@@ -64,7 +64,7 @@ const transactionMutations = {
         },
       };
 
-      const host = await models.Collective.findByPk(transaction.HostCollectiveId);
+      const host = await req.loaders.Collective.byId.load(transaction.HostCollectiveId);
 
       // Enforce 2FA
       await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });
@@ -114,7 +114,7 @@ const transactionMutations = {
         throw new Forbidden('Cannot reject this transaction');
       }
 
-      const toAccount = await models.Collective.findByPk(transaction.CollectiveId);
+      const toAccount = await req.loaders.Collective.byId.load(transaction.CollectiveId);
       const rejectionReason =
         args.message ||
         `An administrator of ${toAccount.name} manually rejected your contribution without providing a specific reason.`;
@@ -147,7 +147,7 @@ const transactionMutations = {
       if (req.remoteUser.isAdminOfCollective(toAccount)) {
         await twoFactorAuthLib.enforceForAccount(req, toAccount, { onlyAskOnLogin: true });
       } else if (req.remoteUser.isAdmin(transaction.HostCollectiveId)) {
-        const host = await models.Collective.findByPk(transaction.HostCollectiveId);
+        const host = await req.loaders.Collective.byId.load(transaction.HostCollectiveId);
         await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });
       }
 
@@ -162,7 +162,7 @@ const transactionMutations = {
       }
 
       // get membership info & remove member from Collective
-      const fromAccount = await models.Collective.findByPk(transaction.FromCollectiveId);
+      const fromAccount = await req.loaders.Collective.byId.load(transaction.FromCollectiveId);
       await models.Member.destroy({
         where: {
           MemberCollectiveId: fromAccount.id,

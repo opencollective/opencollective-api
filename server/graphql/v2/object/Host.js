@@ -25,7 +25,6 @@ import { ifStr } from '../../../lib/utils';
 import models, { Collective, Op } from '../../../models';
 import Agreement from '../../../models/Agreement';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
-import TransferwiseLib from '../../../paymentProviders/transferwise';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { Unauthorized } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
@@ -53,7 +52,6 @@ import { AccountWithContributionsFields, GraphQLAccountWithContributions } from 
 import { CollectionArgs } from '../interface/Collection';
 import URL from '../scalar/URL';
 
-import { GraphQLAmount } from './Amount';
 import { GraphQLContributionStats } from './ContributionStats';
 import { GraphQLExpenseStats } from './ExpenseStats';
 import { GraphQLHostMetrics } from './HostMetrics';
@@ -290,28 +288,6 @@ export const GraphQLHost = new GraphQLObjectType({
           }
 
           return supportedPayoutMethods;
-        },
-      },
-      transferwiseBalances: {
-        type: new GraphQLList(GraphQLAmount),
-        description: 'Transferwise balances. Returns null if Transferwise account is not connected.',
-        resolve: async host => {
-          const transferwiseAccount = await models.ConnectedAccount.findOne({
-            where: { CollectiveId: host.id, service: 'transferwise' },
-          });
-
-          if (transferwiseAccount) {
-            return TransferwiseLib.getAccountBalances(transferwiseAccount)
-              .then(balances => {
-                return balances.map(balance => ({
-                  value: Math.round(balance.amount.value * 100),
-                  currency: balance.amount.currency,
-                }));
-              })
-              .catch(() => {
-                return null;
-              });
-          }
         },
       },
       stripe: {
