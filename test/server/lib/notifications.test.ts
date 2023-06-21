@@ -1,6 +1,6 @@
-import axios from 'axios';
-import { expect } from 'chai';
+import chai, { expect } from 'chai';
 import { before } from 'mocha';
+import * as fetchModule from 'node-fetch';
 import { assert, createSandbox } from 'sinon';
 
 import { activities } from '../../../server/constants';
@@ -41,7 +41,7 @@ const generateCollectiveActivity = async (collective, activityType, fromCollecti
 };
 
 describe('server/lib/notification', () => {
-  let sandbox, axiosPostStub, slackPostActivityOnPublicChannelStub;
+  let sandbox, fetchStub, slackPostActivityOnPublicChannelStub;
 
   before(async () => {
     await resetTestDB();
@@ -49,7 +49,7 @@ describe('server/lib/notification', () => {
   });
 
   beforeEach(() => {
-    axiosPostStub = sandbox.stub(axios, 'post').resolves();
+    fetchStub = sandbox.stub(fetchModule, 'default').resolves();
     slackPostActivityOnPublicChannelStub = sandbox.stub(slackLib, 'postActivityOnPublicChannel').resolves();
   });
 
@@ -69,7 +69,9 @@ describe('server/lib/notification', () => {
 
         const activity = await generateCollectiveActivity(collective, activities.COLLECTIVE_APPLY);
         await notifyLib(activity);
-        assert.calledWithMatch(axiosPostStub, notification.webhookUrl, { type: 'collective.apply' });
+        assert.calledWithMatch(fetchStub, notification.webhookUrl);
+        const body = JSON.parse(fetchStub.lastCall.args[1].body);
+        chai.assert.include(body, { type: 'collective.apply' });
       });
 
       it('posts to slack webhooks', async () => {
@@ -83,7 +85,7 @@ describe('server/lib/notification', () => {
 
         const activity = await generateCollectiveActivity(collective, activities.COLLECTIVE_APPLY);
         await notifyLib(activity);
-        assert.notCalled(axiosPostStub);
+        assert.notCalled(fetchStub);
         assert.calledWith(slackPostActivityOnPublicChannelStub, activity, notification.webhookUrl);
       });
 
@@ -98,7 +100,7 @@ describe('server/lib/notification', () => {
 
         const activity = await generateCollectiveActivity(collective, activities.COLLECTIVE_APPLY);
         await notifyLib(activity);
-        assert.notCalled(axiosPostStub);
+        assert.notCalled(fetchStub);
         assert.calledWith(slackPostActivityOnPublicChannelStub, activity, notification.webhookUrl);
       });
 
@@ -113,7 +115,7 @@ describe('server/lib/notification', () => {
 
         const activity = await generateCollectiveActivity(collective, activities.COLLECTIVE_APPLY);
         await notifyLib(activity);
-        assert.notCalled(axiosPostStub);
+        assert.notCalled(fetchStub);
         assert.calledWith(slackPostActivityOnPublicChannelStub, activity, notification.webhookUrl);
       });
     });

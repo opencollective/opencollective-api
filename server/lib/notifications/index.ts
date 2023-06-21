@@ -1,5 +1,5 @@
-import axios from 'axios';
 import config from 'config';
+import fetch, { RequestRedirect } from 'node-fetch';
 
 import { activities, channels } from '../../constants';
 import ActivityTypes from '../../constants/activities';
@@ -31,7 +31,16 @@ const publishToWebhook = (activity: Activity, webhookUrl: string) => {
   } else {
     const sanitizedActivity = sanitizeActivity(activity);
     const enrichedActivity = enrichActivity(sanitizedActivity);
-    return axios.post(webhookUrl, enrichedActivity, { maxRedirects: 0 });
+    const webhookOptions = {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json;charset=UTF-8',
+      },
+      body: JSON.stringify(enrichedActivity),
+      redirect: 'manual' as RequestRedirect,
+    };
+    return fetch(webhookUrl, webhookOptions).then(response => response?.json());
   }
 };
 
