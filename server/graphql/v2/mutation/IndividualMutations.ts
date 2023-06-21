@@ -23,7 +23,7 @@ const individualMutations = {
       checkRemoteUserCanUseAccount(req);
 
       const user = await req.remoteUser.update({ changelogViewDate: changelogViewDate });
-      return user.getCollective();
+      return user.getCollective({ loaders: req.loaders });
     },
   },
   setNewsletterOptIn: {
@@ -36,7 +36,7 @@ const individualMutations = {
       checkRemoteUserCanUseAccount(req);
 
       const user = await req.remoteUser.update({ newsletterOptIn });
-      return user.getCollective();
+      return user.getCollective({ loaders: req.loaders });
     },
   },
   setPassword: {
@@ -61,7 +61,7 @@ const individualMutations = {
       }
 
       // Enforce 2FA
-      const account = await req.remoteUser.getCollective();
+      const account = await req.remoteUser.getCollective({ loaders: req.loaders });
       await TwoFactorAuthLib.enforceForAccount(req, account, { alwaysAskForToken: true });
 
       // Check current password if one already set
@@ -79,7 +79,7 @@ const individualMutations = {
       await rateLimit.reset();
 
       const user = await req.remoteUser.setPassword(args.password, { userToken: req.userToken });
-      const individual = await user.getCollective();
+      const individual = await user.getCollective({ loaders: req.loaders });
 
       let token;
 

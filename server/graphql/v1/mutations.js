@@ -245,7 +245,7 @@ const mutations = {
       members: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(MemberInputType))) },
     },
     async resolve(_, args, req) {
-      const collective = await models.Collective.findByPk(args.collectiveId);
+      const collective = await req.loaders.Collective.byId.load(args.collectiveId);
       if (!collective) {
         throw new NotFound();
       } else if (!req.remoteUser || !req.remoteUser.isAdminOfCollective(collective)) {
@@ -431,7 +431,7 @@ const mutations = {
         args.limitedToHostCollectiveIds = [openSourceHost.id];
       }
 
-      const collective = await models.Collective.findByPk(args.CollectiveId);
+      const collective = await req.loaders.Collective.byId.load(args.CollectiveId);
       if (!collective) {
         throw new Error('Collective does not exist');
       } else if (!req.remoteUser.isAdminOfCollective(collective)) {

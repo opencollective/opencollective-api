@@ -286,7 +286,7 @@ const expenseMutations = {
 
       let expense = await fetchExpenseWithReference(args.expense, { loaders: req.loaders, throwIfMissing: true });
       const collective = await expense.getCollective();
-      const host = await collective.getHostCollective();
+      const host = await collective.getHostCollective({ loaders: req.loaders });
 
       // Enforce 2FA for processing expenses, except for `PAY` action which handles it internally (with rolling limit)
       if (!['PAY', 'SCHEDULE_FOR_PAYMENT'].includes(args.action)) {
@@ -409,7 +409,7 @@ const expenseMutations = {
       const draftKey = process.env.OC_ENV === 'e2e' || process.env.OC_ENV === 'ci' ? 'draft-key' : uuid();
       const expenseFields = ['description', 'longDescription', 'tags', 'type', 'privateMessage', 'invoiceInfo'];
 
-      const fromCollective = await remoteUser.getCollective();
+      const fromCollective = await remoteUser.getCollective({ loaders: req.loaders });
       const payeeLegacyId = expenseData.payee?.legacyId || expenseData.payee?.id;
       const payee = payeeLegacyId
         ? (await fetchAccountWithReference({ legacyId: payeeLegacyId }, { throwIfMissing: true }))?.minimal
