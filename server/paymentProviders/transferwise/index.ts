@@ -34,7 +34,7 @@ import {
 
 import { handleTransferStateChange } from './webhook';
 
-const providerName = 'transferwise';
+const PROVIDER_NAME = 'transferwise';
 
 const hashObject = obj => crypto.createHash('sha1').update(JSON.stringify(obj)).digest('hex').slice(0, 7);
 const splitCSV = string => compact(split(string, /,\s*/));
@@ -292,7 +292,7 @@ const getOrCreateActiveBatch = async (
     ],
   });
 
-  const connectedAccount = options?.connectedAccount || (await host.getAccountForPaymentProvider(providerName));
+  const connectedAccount = options?.connectedAccount || (await host.getAccountForPaymentProvider(PROVIDER_NAME));
   if (expense) {
     const batchGroup = await transferwise.getBatchGroup(connectedAccount, expense.data.batchGroup['id']);
     if (batchGroup.status === 'NEW') {
@@ -320,10 +320,10 @@ async function scheduleExpenseForPayment(expense: Expense): Promise<Expense> {
     expense.PayoutMethod = await expense.getPayoutMethod();
   }
 
-  const connectedAccount = await host.getAccountForPaymentProvider(providerName);
+  const connectedAccount = await host.getAccountForPaymentProvider(PROVIDER_NAME);
   const token = await transferwise.getToken(connectedAccount);
   const [wiseBalances, quote] = await Promise.all([
-    getAccountBalances(connectedAccount),
+    getAccountBalances(host, { connectedAccount }),
     quoteExpense(connectedAccount, expense.PayoutMethod, expense),
   ]);
   const balanceInSourceCurrency = wiseBalances.find(b => b.currency === quote.sourceCurrency);
@@ -362,7 +362,7 @@ async function unscheduleExpenseForPayment(expense: Expense): Promise<void> {
     throw new Error(`Can not find Host for expense ${expense.id}`);
   }
 
-  const connectedAccount = await host.getAccountForPaymentProvider(providerName);
+  const connectedAccount = await host.getAccountForPaymentProvider(PROVIDER_NAME);
 
   const batchGroup = await transferwise.getBatchGroup(connectedAccount, expense.data.batchGroup['id']);
   const expensesInBatch = await models.Expense.findAll({
@@ -383,7 +383,7 @@ async function unscheduleExpenseForPayment(expense: Expense): Promise<void> {
 
 async function payExpensesBatchGroup(host, expenses, x2faApproval?: string, remoteUser?) {
   const connectedAccounts = await models.ConnectedAccount.findAll({
-    where: { service: providerName, CollectiveId: host.id },
+    where: { service: PROVIDER_NAME, CollectiveId: host.id },
   });
   const connectedAccount = remoteUser
     ? find(connectedAccounts, { CreatedByUserId: remoteUser?.id }) || connectedAccounts[0]
@@ -456,7 +456,7 @@ async function getAvailableCurrencies(
   host: Collective,
   ignoreBlockedCurrencies = true,
 ): Promise<{ code: string; minInvoiceAmount: number }[]> {
-  const connectedAccount = await host.getAccountForPaymentProvider(providerName);
+  const connectedAccount = await host.getAccountForPaymentProvider(PROVIDER_NAME);
 
   let currencyBlockList = [];
   if (ignoreBlockedCurrencies) {
@@ -518,7 +518,7 @@ async function getRequiredBankInformation(
     return fromCache;
   }
 
-  const connectedAccount = await host.getAccountForPaymentProvider(providerName);
+  const connectedAccount = await host.getAccountForPaymentProvider(PROVIDER_NAME);
 
   await populateProfileId(connectedAccount);
 
@@ -555,7 +555,11 @@ async function getRequiredBankInformation(
   return requiredFields;
 }
 
-async function getAccountBalances(connectedAccount: ConnectedAccount): Promise<BalanceV4[]> {
+async function getAccountBalances(
+  host: Collective,
+  options?: { connectedAccount: ConnectedAccount },
+): Promise<BalanceV4[]> {
+  const connectedAccount = options?.connectedAccount || (await host.getAccountForPaymentProvider(PROVIDER_NAME));
   await populateProfileId(connectedAccount);
   return transferwise.listBalancesAccount(connectedAccount);
 }

@@ -4,6 +4,8 @@ import { GraphQLJSON, GraphQLJSONObject } from 'graphql-scalars';
 import transferwise from '../../../paymentProviders/transferwise';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
+import { GraphQLAmount } from './Amount';
+
 const GraphQLTransferWiseFieldGroupValuesAllowed = new GraphQLObjectType({
   name: 'TransferWiseFieldVatvkluesAllowed',
   fields: () => ({
@@ -94,6 +96,23 @@ export const GraphQLTransferWise = new GraphQLObjectType({
         } else {
           return null;
         }
+      },
+    },
+    balances: {
+      type: new GraphQLList(GraphQLAmount),
+      description: 'Transferwise balances. Returns null if Transferwise account is not connected.',
+      resolve: async host => {
+        return transferwise
+          .getAccountBalances(host)
+          .then(balances => {
+            return balances.map(balance => ({
+              value: Math.round(balance.amount.value * 100),
+              currency: balance.amount.currency,
+            }));
+          })
+          .catch(() => {
+            return null;
+          });
       },
     },
   }),
