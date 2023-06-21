@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import config from 'config';
 
 import { activities, channels } from '../../constants';
@@ -72,11 +72,13 @@ const dispatch = async (activity: Activity) => {
     }),
   ).catch(err => {
     reportErrorToSentry(err);
+    const stringifiedError =
+      err instanceof AxiosError ? `${err.response?.status} ${err.response?.statusText} ${err.config?.url}` : err;
     console.error(
       `Error while publishing activity type ${activity.type} for collective ${activity.CollectiveId}`,
       activity,
       'error: ',
-      err,
+      stringifiedError,
     );
   });
 };
