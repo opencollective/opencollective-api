@@ -59,6 +59,7 @@ import { GraphQLHostMetricsTimeSeries } from './HostMetricsTimeSeries';
 import { GraphQLHostPlan } from './HostPlan';
 import { GraphQLPaymentMethod } from './PaymentMethod';
 import GraphQLPayoutMethod from './PayoutMethod';
+import { GraphQLStripeConnectedAccount } from './StripeConnectedAccount';
 
 const getFilterDateRange = (startDate, endDate) => {
   let dateRange;
@@ -287,6 +288,17 @@ export const GraphQLHost = new GraphQLObjectType({
           }
 
           return supportedPayoutMethods;
+        },
+      },
+      stripe: {
+        type: GraphQLStripeConnectedAccount,
+        description: 'Stripe connected account',
+        async resolve(host, _, req) {
+          if (!req.remoteUser?.isAdmin(host.id)) {
+            throw new Unauthorized('You need to be logged in as an admin to see the stripe connected account');
+          }
+
+          return await host.getAccountForPaymentProvider('stripe');
         },
       },
       pendingApplications: {
