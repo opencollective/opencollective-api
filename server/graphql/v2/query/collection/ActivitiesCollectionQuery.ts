@@ -28,7 +28,7 @@ const generateTimelineQuery = async (account): Promise<WhereOptions<InferAttribu
     const memberships = await user.getMemberships();
     return {
       [Op.or]: [
-        // Events on expenses the user submitted but omitting my own actions
+        // Events on expenses the user submitted
         {
           type: {
             [Op.in]: [
@@ -43,7 +43,6 @@ const generateTimelineQuery = async (account): Promise<WhereOptions<InferAttribu
             ],
           },
           data: { user: { id: toString(account.id) } },
-          UserId: { [Op.ne]: account.CreatedByUserId },
         },
         // Expenses that were drafted for me (recurring expenses waiting to be submitted)
         {
