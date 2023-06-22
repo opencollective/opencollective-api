@@ -131,6 +131,10 @@ type Settings = {
   virtualcards?: {
     reminder?: boolean;
     autopause?: boolean;
+    autopauseUnusedCards?: {
+      enabled: boolean;
+      period: number;
+    };
   };
 };
 
