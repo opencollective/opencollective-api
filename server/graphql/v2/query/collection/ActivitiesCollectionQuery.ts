@@ -86,6 +86,7 @@ const generateTimelineQuery = async (account): Promise<WhereOptions<InferAttribu
             [Op.in]: [
               ActivityTypes.COLLECTIVE_VIRTUAL_CARD_MISSING_RECEIPTS,
               ActivityTypes.COLLECTIVE_VIRTUAL_CARD_SUSPENDED,
+              ActivityTypes.COLLECTIVE_VIRTUAL_CARD_SUSPENDED_DUE_TO_INACTIVITY,
               ActivityTypes.VIRTUAL_CARD_PURCHASE,
             ],
           },
