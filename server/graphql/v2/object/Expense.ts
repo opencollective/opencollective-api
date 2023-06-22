@@ -446,8 +446,13 @@ const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Request>({
       quote: {
         type: GraphQLExpenseQuote,
         async resolve(expense, _, req) {
-          if (await ExpenseLib.canPayExpense(req, expense)) {
-            const quote = await ExpenseLib.quoteExpense(expense, { req });
+          const isScheduledForPayment = expense.status === 'SCHEDULED_FOR_PAYMENT';
+          const canSeeQuote = isScheduledForPayment
+            ? await ExpenseLib.canUnschedulePayment(req, expense)
+            : await ExpenseLib.canPayExpense(req, expense);
+          if (canSeeQuote) {
+            const quote = isScheduledForPayment ? expense.data?.quote : await ExpenseLib.quoteExpense(expense, { req });
+
             const sourceAmount = {
               value: quote.paymentOption.sourceAmount * 100,
               currency: quote.paymentOption.sourceCurrency,
