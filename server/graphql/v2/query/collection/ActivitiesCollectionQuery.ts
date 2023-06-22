@@ -4,7 +4,7 @@ import { GraphQLDateTime } from 'graphql-scalars';
 import { flatten, toString, uniq } from 'lodash';
 import { InferAttributes, Order, WhereOptions } from 'sequelize';
 
-import ActivityTypes, { ActivitiesPerClass } from '../../../../constants/activities';
+import ActivityTypes, { ActivitiesPerClass, ActivityClasses } from '../../../../constants/activities';
 import { types as AccountTypes } from '../../../../constants/collectives';
 import MemberRoles from '../../../../constants/roles';
 import models, { Op } from '../../../../models';
@@ -22,13 +22,17 @@ const IGNORED_ACTIVITIES: string[] = [ActivityTypes.COLLECTIVE_TRANSACTION_CREAT
 const getCollectiveIdsForRole = (memberships: MemberModelInterface[], roles: MemberRoles[]): number[] =>
   memberships.filter(m => roles.includes(m.role)).map(m => m.CollectiveId);
 
-const generateTimelineQuery = async (account): Promise<WhereOptions<InferAttributes<Activity, { omit: never }>>> => {
+const generateTimelineQuery = async (
+  account,
+  filters?: ActivityClasses,
+): Promise<WhereOptions<InferAttributes<Activity, { omit: never }>>> => {
   if (account.type === AccountTypes.USER) {
     const user = await account.getUser();
     const memberships = await user.getMemberships();
-    return {
-      [Op.or]: [
-        // Events on expenses the user submitted
+    const conditionals = [];
+
+    if (filters.includes(ActivityClasses.EXPENSES)) {
+      conditionals.push(
         {
           type: {
             [Op.in]: [
@@ -44,43 +48,11 @@ const generateTimelineQuery = async (account): Promise<WhereOptions<InferAttribu
           },
           data: { user: { id: toString(account.id) } },
         },
-        // Expenses that were drafted for me (recurring expenses waiting to be submitted)
         {
           type: ActivityTypes.COLLECTIVE_EXPENSE_INVITE_DRAFTED,
           data: { payee: { id: toString(account.id) } },
         },
         { type: ActivityTypes.COLLECTIVE_EXPENSE_RECURRING_DRAFTED, UserId: user.id },
-        // My contributions, both one-time and when recurring contributions are drawn
-        //  Update your payment method
-        //  There is an issue with your credit card, etc
-        {
-          type: {
-            [Op.in]: [
-              ActivityTypes.PAYMENT_FAILED,
-              ActivityTypes.ORDER_PAYMENT_FAILED,
-              ActivityTypes.ORDER_THANKYOU,
-              ActivityTypes.ORDER_PROCESSING,
-            ],
-          },
-          [Op.or]: [{ UserId: account.CreatedByUserId }, { FromCollectiveId: account.id }],
-        },
-        // Updates from Collectives I contribute to
-        {
-          type: ActivityTypes.COLLECTIVE_UPDATE_PUBLISHED,
-          CollectiveId: {
-            [Op.in]: getCollectiveIdsForRole(memberships, [
-              MemberRoles.BACKER,
-              MemberRoles.FOLLOWER,
-              MemberRoles.MEMBER,
-              MemberRoles.CONTRIBUTOR,
-              MemberRoles.ATTENDEE,
-              MemberRoles.ADMIN,
-            ]),
-          },
-        },
-        // Purchases made with Virtual Cards assigned to me
-        //  Missing receipts
-        //  Errors, etc
         {
           type: {
             [Op.in]: [
@@ -91,8 +63,37 @@ const generateTimelineQuery = async (account): Promise<WhereOptions<InferAttribu
           },
           UserId: user.id,
         },
-      ],
-    };
+      );
+    }
+    if (filters.includes(ActivityClasses.CONTRIBUTIONS)) {
+      conditionals.push({
+        type: {
+          [Op.in]: [
+            ActivityTypes.PAYMENT_FAILED,
+            ActivityTypes.ORDER_PAYMENT_FAILED,
+            ActivityTypes.ORDER_THANKYOU,
+            ActivityTypes.ORDER_PROCESSING,
+          ],
+        },
+        [Op.or]: [{ UserId: account.CreatedByUserId }, { FromCollectiveId: account.id }],
+      });
+    }
+    if (filters.includes(ActivityClasses.ACTIVITIES_UPDATES)) {
+      conditionals.push({
+        type: ActivityTypes.COLLECTIVE_UPDATE_PUBLISHED,
+        CollectiveId: {
+          [Op.in]: getCollectiveIdsForRole(memberships, [
+            MemberRoles.BACKER,
+            MemberRoles.FOLLOWER,
+            MemberRoles.MEMBER,
+            MemberRoles.CONTRIBUTOR,
+            MemberRoles.ATTENDEE,
+            MemberRoles.ADMIN,
+          ]),
+        },
+      });
+    }
+    return { [Op.or]: conditionals };
   } else {
     return { [Op.or]: [{ CollectiveId: account.id }, { FromCollectiveId: account.id }] };
   }
@@ -173,7 +174,7 @@ const ActivitiesCollectionQuery = {
       if (!req.remoteUser?.isAdminOfCollective(accounts[0]) && !isRoot) {
         throw new Unauthorized('You need to be logged in as an admin of this collective to see its activity');
       }
-      where = await generateTimelineQuery(accounts[0]);
+      where = await generateTimelineQuery(accounts[0], args.type);
     } else {
       // Build accounts conditions
       const accountOrConditions = [];
