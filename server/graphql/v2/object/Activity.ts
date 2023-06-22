@@ -14,6 +14,7 @@ import { GraphQLExpense } from './Expense';
 import { GraphQLHost } from './Host';
 import { GraphQLIndividual } from './Individual';
 import { GraphQLOrder } from './Order';
+import GraphQLUpdate from './Update';
 
 export const GraphQLActivity = new GraphQLObjectType({
   name: 'Activity',
@@ -103,6 +104,16 @@ export const GraphQLActivity = new GraphQLObjectType({
       resolve: async (activity, _, req: express.Request): Promise<Record<string, unknown>> => {
         if (activity.OrderId) {
           return req.loaders.Order.byId.load(activity.OrderId);
+        }
+      },
+    },
+    update: {
+      type: GraphQLUpdate,
+      description: 'The update related to this activity, if any',
+      resolve: async (activity, _, req: express.Request): Promise<Record<string, unknown>> => {
+        const updateId = activity.data.update?.id;
+        if (updateId) {
+          return req.loaders.Update.byId.load(updateId);
         }
       },
     },
