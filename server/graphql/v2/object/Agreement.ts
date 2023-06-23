@@ -19,8 +19,12 @@ export const GraphQLAgreement = new GraphQLObjectType<AgreementModel, express.Re
       type: GraphQLString,
       description: 'Additional notes about the agreement for the host admins',
     },
+    createdAt: {
+      type: new GraphQLNonNull(GraphQLDateTime),
+      description: 'The time of creation of this agreement',
+    },
     createdBy: {
-      type: new GraphQLNonNull(GraphQLAccount),
+      type: GraphQLAccount,
       async resolve(agreement, _, req) {
         const user = agreement.User || (await req.loaders.User.byId.load(agreement.UserId));
         if (user && user.CollectiveId) {
