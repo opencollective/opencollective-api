@@ -4921,6 +4921,11 @@ type Agreement {
   Additional notes about the agreement for the host admins
   """
   notes: String
+
+  """
+  The time of creation of this agreement
+  """
+  createdAt: DateTime!
   createdBy: Account!
   account: Account!
   host: Host!
@@ -5149,6 +5154,11 @@ type Activity {
   The order related to this activity, if any
   """
   order: Order
+
+  """
+  The update related to this activity, if any
+  """
+  update: Update
 
   """
   The transaction related to this activity, if any
