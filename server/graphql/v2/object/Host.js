@@ -8,7 +8,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { find, get, isEmpty, isNil, keyBy, mapValues } from 'lodash';
+import { find, get, isEmpty, isNil, keyBy, mapValues, uniq } from 'lodash';
 import moment from 'moment';
 
 import { roles } from '../../../constants';
@@ -35,7 +35,6 @@ import { GraphQLPaymentMethodLegacyType, GraphQLPayoutMethodType } from '../enum
 import { PaymentMethodLegacyTypeEnum } from '../enum/PaymentMethodLegacyType';
 import { GraphQLTimeUnit } from '../enum/TimeUnit';
 import { GraphQLVirtualCardStatusEnum } from '../enum/VirtualCardStatus';
-import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import {
   fetchAccountsIdsWithReference,
   fetchAccountsWithReferences,
@@ -876,23 +875,14 @@ export const GraphQLHost = new GraphQLObjectType({
           const includeWhereArgs = {};
 
           if (args.accounts && args.accounts.length > 0) {
-            const or = [
-              {
-                id: {
-                  [Op.or]: args.accounts
-                    .filter(reference => reference.legacyId || reference.id)
-                    .map(accountReference => {
-                      return accountReference.legacyId || idDecode(accountReference.id, IDENTIFIER_TYPES.ACCOUNT);
-                    }),
-                },
-              },
-              {
-                slug: {
-                  [Op.or]: args.accounts.filter(reference => reference.slug).map(reference => reference.slug),
-                },
-              },
-            ];
-            includeWhereArgs[Op.or] = or;
+            const accounts = await fetchAccountsWithReferences(args.accounts, {
+              throwIfMissing: true,
+              attributes: ['id', 'ParentCollectiveId'],
+            });
+
+            const allIds = accounts.map(account => account.id);
+            const allParentIds = accounts.map(account => account.ParentCollectiveId).filter(Boolean);
+            includeWhereArgs['id'] = uniq([...allIds, ...allParentIds]);
           }
 
           const agreements = await Agreement.findAndCountAll({

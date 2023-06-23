@@ -149,7 +149,7 @@ export const AccountWithHostFields = {
           return Agreement.findAll({
             where: {
               HostCollectiveId: account.HostCollectiveId,
-              CollectiveId: account.id,
+              CollectiveId: [account.id, account.ParentCollectiveId].filter(Boolean),
             },
             limit: limit,
             offset: offset,
