@@ -24,7 +24,7 @@ export const GraphQLAgreement = new GraphQLObjectType<AgreementModel, express.Re
       description: 'The time of creation of this agreement',
     },
     createdBy: {
-      type: new GraphQLNonNull(GraphQLAccount),
+      type: GraphQLAccount,
       async resolve(agreement, _, req) {
         const user = agreement.User || (await req.loaders.User.byId.load(agreement.UserId));
         if (user && user.CollectiveId) {
