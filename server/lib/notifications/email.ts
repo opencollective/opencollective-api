@@ -613,7 +613,8 @@ export const notifyByEmail = async (activity: Activity) => {
       break;
 
     case ActivityTypes.COLLECTIVE_VIRTUAL_CARD_SUSPENDED:
-    case ActivityTypes.COLLECTIVE_VIRTUAL_CARD_DELETED:
+    case ActivityTypes.COLLECTIVE_VIRTUAL_CARD_DELETED: {
+      activity.data.hostCollective = activity.data.host;
       await notify.collective(activity, {
         collectiveId: activity.data.collective.id,
       });
@@ -621,7 +622,7 @@ export const notifyByEmail = async (activity: Activity) => {
         collectiveId: activity.data.host.id,
       });
       break;
-
+    }
     case ActivityTypes.VIRTUAL_CARD_REQUESTED:
       await notify.collective(activity, {
         collectiveId: activity.data.host.id,
