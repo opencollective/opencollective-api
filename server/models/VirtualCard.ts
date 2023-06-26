@@ -60,6 +60,13 @@ class VirtualCard extends Model<InferAttributes<VirtualCard, { omit: 'info' }>, 
         throw new Error(`Can not suspend virtual card provided by ${this.provider}`);
     }
 
+    await this.update({
+      data: {
+        ...this.data,
+        status: VirtualCardStatus.INACTIVE,
+      },
+    });
+
     return this.reload();
   }
 
@@ -71,6 +78,13 @@ class VirtualCard extends Model<InferAttributes<VirtualCard, { omit: 'info' }>, 
       default:
         throw new Error(`Can not resume virtual card provided by ${this.provider}`);
     }
+
+    await this.update({
+      data: {
+        ...this.data,
+        status: VirtualCardStatus.ACTIVE,
+      },
+    });
 
     return this.reload();
   }
