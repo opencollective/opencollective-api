@@ -233,7 +233,13 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
       include.push({ model: models.Subscription, required: true, where: { interval: 'year' } });
     }
   } else if (args.onlySubscriptions) {
-    include.push({ model: models.Subscription, required: true });
+    include.push({ model: models.Subscription, required: false });
+    where[Op.and].push({
+      [Op.or]: [
+        { ['$Subscription.id$']: { [Op.ne]: null } },
+        { interval: { [Op.in]: ['year', 'month'] }, status: 'PROCESSING' },
+      ],
+    });
   } else if (args.onlyActiveSubscriptions) {
     include.push({ model: models.Subscription, required: true, where: { isActive: true } });
   }
