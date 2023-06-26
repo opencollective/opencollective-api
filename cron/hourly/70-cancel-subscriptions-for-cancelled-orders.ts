@@ -2,7 +2,7 @@
 
 import '../../server/env';
 
-import { groupBy, size } from 'lodash';
+import { groupBy, size, uniq } from 'lodash';
 
 import { activities } from '../../server/constants';
 import FEATURE from '../../server/constants/feature';
@@ -24,11 +24,12 @@ const getHostFromOrder = async order => {
     where: { type: 'CREDIT', kind: 'CONTRIBUTION', HostCollectiveId: { [Op.ne]: null } },
   });
 
-  if (transactions.length !== 1) {
+  const hostIds: number[] = uniq(transactions.map(t => t.HostCollectiveId));
+  if (hostIds.length !== 1) {
     throw new Error(`Could not find the host for order ${order.id}`);
   }
 
-  return models.Collective.findByPk(transactions[0].HostCollectiveId);
+  return models.Collective.findByPk(hostIds[0]);
 };
 
 const getOrderCancelationReason = (collective, order, orderHost) => {
