@@ -226,16 +226,20 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
 
   if (args.frequency) {
     if (args.frequency === 'ONETIME') {
-      where['interval'] = { [Op.is]: null };
+      where['SubscriptionId'] = { [Op.is]: null };
     } else if (args.frequency === 'MONTHLY') {
-      where['interval'] = 'month';
+      include.push({ model: models.Subscription, required: true, where: { interval: 'month' } });
     } else if (args.frequency === 'YEARLY') {
-      where['interval'] = 'year';
-    } else if (args.frequency === 'RECURRING') {
-      where['interval'] = { [Op.in]: ['year', 'month'] };
+      include.push({ model: models.Subscription, required: true, where: { interval: 'year' } });
     }
   } else if (args.onlySubscriptions) {
-    include.push({ model: models.Subscription, required: true });
+    include.push({ model: models.Subscription, required: false });
+    where[Op.and].push({
+      [Op.or]: [
+        { ['$Subscription.id$']: { [Op.ne]: null } },
+        { interval: { [Op.in]: ['year', 'month'] }, status: 'PROCESSING' },
+      ],
+    });
   } else if (args.onlyActiveSubscriptions) {
     include.push({ model: models.Subscription, required: true, where: { isActive: true } });
   }

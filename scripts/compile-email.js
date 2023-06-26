@@ -175,17 +175,6 @@ data['collective.created.the-social-change-nest'] = data['collective.approved.th
     name: 'Coinbase',
   },
 };
-data['onboarding.day2.foundation'] = {
-  collective: {
-    slug: 'the-training-collective-nyc',
-    name: 'Training Collective NYC',
-  },
-};
-data['onboarding.day3.foundation'] = {
-  collective: {
-    name: 'Training Collective NYC',
-  },
-};
 data['organization.collective.created'] = {
   collective: {
     slug: 'coinbase',
