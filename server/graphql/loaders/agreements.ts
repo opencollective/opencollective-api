@@ -8,14 +8,17 @@ export const generateTotalAccountHostAgreementsLoader = () =>
   new DataLoader<number, number>(async (collectiveIds: number[]) => {
     const results: { CollectiveId?: number; totalCount: number }[] = await sequelize.query(
       `
-    SELECT a."CollectiveId", count(a.id) as "totalCount" FROM
-    "Agreements" a
-    JOIN "Collectives" c 
-    ON a."CollectiveId" = c.id
-    AND a."HostCollectiveId" = c."HostCollectiveId"
+    SELECT c."id", count(a.id) as "totalCount"
+    FROM "Collectives" c
+    INNER JOIN "Agreements" a
+      ON a."HostCollectiveId" = c."HostCollectiveId"
+      AND (
+        a."CollectiveId" = c.id
+        OR (c."ParentCollectiveId" IS NOT NULL AND a."CollectiveId" = c."ParentCollectiveId")
+      )
     WHERE a."deletedAt" IS NULL
-    AND a."CollectiveId" IN (:collectiveIds)
-    GROUP BY a."CollectiveId";
+    AND c."id" IN (:collectiveIds)
+    GROUP BY c."id"
   `,
       {
         type: sequelize.QueryTypes.SELECT,
@@ -26,7 +29,5 @@ export const generateTotalAccountHostAgreementsLoader = () =>
       },
     );
 
-    return sortResultsSimple(collectiveIds, results, result => result.CollectiveId, {
-      totalCount: 0,
-    }).map(r => r.totalCount);
+    return sortResultsSimple(collectiveIds, results, result => result.id, { totalCount: 0 }).map(r => r.totalCount);
   });

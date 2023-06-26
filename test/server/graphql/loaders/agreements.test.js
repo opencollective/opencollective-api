@@ -29,7 +29,8 @@ describe('server/graphql/loaders/agreements', () => {
     it('loads total agreement count for many', async () => {
       const host = await fakeHost();
       const account = await fakeCollective({ HostCollectiveId: host.id });
-      const account2 = await fakeCollective({ HostCollectiveId: host.id });
+      const account2Parent = await fakeCollective({ HostCollectiveId: host.id });
+      const account2 = await fakeCollective({ HostCollectiveId: host.id, ParentCollectiveId: account2Parent.id });
 
       await Agreement.create({
         CollectiveId: account.id,
@@ -45,6 +46,12 @@ describe('server/graphql/loaders/agreements', () => {
       });
 
       await Agreement.create({
+        CollectiveId: account2Parent.id,
+        HostCollectiveId: host.id,
+        title: 'Test 2 parent',
+      });
+
+      await Agreement.create({
         CollectiveId: account2.id,
         HostCollectiveId: host.id,
         title: 'Test 2',
@@ -56,7 +63,9 @@ describe('server/graphql/loaders/agreements', () => {
         title: 'Test 3',
       });
 
-      expect(await generateTotalAccountHostAgreementsLoader().loadMany([account.id, account2.id])).to.eql([1, 2]);
+      expect(
+        await generateTotalAccountHostAgreementsLoader().loadMany([account.id, account2Parent.id, account2.id]),
+      ).to.eql([1, 1, 3]);
     });
   });
 });
