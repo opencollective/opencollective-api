@@ -48,7 +48,7 @@
     "@shopify/address": "4.1.0",
     "apollo-server-errors": "3.3.1",
     "argparse": "2.0.1",
-    "aws-sdk": "2.1404.0",
+    "aws-sdk": "2.1405.0",
     "axios": "1.4.0",
     "babel-plugin-add-module-exports": "1.0.4",
     "bayes": "1.0.0",
