@@ -1,12 +1,11 @@
-import '../server/env';
+import '../../server/env';
 
-import { sequelize } from '../server/models';
-// import models, { Op } from '../server/models';
+import logger from '../../server/lib/logger';
+import { sequelize } from '../../server/models';
 
-const check = true;
-const fix = false;
+async function checkIsActive({ fix = false } = {}) {
+  const message = 'Independent Collectives without isActive=TRUE';
 
-async function checkIsActive() {
   const results = await sequelize.query(
     `SELECT COUNT(*) as count
      FROM "Collectives"
@@ -19,10 +18,11 @@ async function checkIsActive() {
   );
 
   if (results[0].count > 0) {
-    if (check) {
-      throw new Error('Independent Collectives without isActive=TRUE');
+    if (!fix) {
+      throw new Error(message);
     }
     if (fix) {
+      logger.warn(`Fixing: ${message}`);
       await sequelize.query(
         `UPDATE "Collectives"
          SET "isActive" = TRUE, "updatedAt" = NOW()
@@ -36,7 +36,9 @@ async function checkIsActive() {
   }
 }
 
-async function checkHasHostCollectiveId() {
+async function checkHasHostCollectiveId({ fix = false } = {}) {
+  const message = 'Independent Collectives without HostCollectiveId set';
+
   const results = await sequelize.query(
     `SELECT COUNT(*) as count
      FROM "Collectives"
@@ -49,10 +51,11 @@ async function checkHasHostCollectiveId() {
   );
 
   if (results[0].count > 0) {
-    if (check) {
-      throw new Error('Independent Collectives without HostCollectiveId set');
+    if (!fix) {
+      throw new Error(message);
     }
     if (fix) {
+      logger.warn(`Fixing: ${message}`);
       await sequelize.query(
         `UPDATE "Collectives"
          SET "HostCollectiveId" = "id", "updatedAt" = NOW()
@@ -66,7 +69,9 @@ async function checkHasHostCollectiveId() {
   }
 }
 
-async function checkApprovedAt() {
+async function checkApprovedAt({ fix = false } = {}) {
+  const message = 'Independent Collectives with approvedAt=null';
+
   const results = await sequelize.query(
     `SELECT COUNT(*) as count
      FROM "Collectives"
@@ -79,10 +84,11 @@ async function checkApprovedAt() {
   );
 
   if (results[0].count > 0) {
-    if (check) {
-      throw new Error('Independent Collectives with approvedAt=null');
+    if (!fix) {
+      throw new Error(message);
     }
     if (fix) {
+      logger.warn(`Fixing: ${message}`);
       await sequelize.query(
         `UPDATE "Collectives"
          SET "approvedAt" = NOW(), "updatedAt" = NOW()
@@ -96,7 +102,9 @@ async function checkApprovedAt() {
   }
 }
 
-async function checkIsHostAccount() {
+async function checkIsHostAccount({ fix = false } = {}) {
+  const message = 'Non-Independent Collectives with isHostAccount=TRUE';
+
   const results = await sequelize.query(
     `SELECT COUNT(*) as count
      FROM "Collectives"
@@ -108,10 +116,11 @@ async function checkIsHostAccount() {
   );
 
   if (results[0].count > 0) {
-    if (check) {
-      throw new Error('Non-Independent Collectives with isHostAccount=TRUE');
+    if (!fix) {
+      throw new Error(message);
     }
     if (fix) {
+      logger.warn(`Fixing: ${message}`);
       await sequelize.query(
         `UPDATE "Collectives"
          SET "isHostAccount" = FALSE, "updatedAt" = NOW()
@@ -124,7 +133,9 @@ async function checkIsHostAccount() {
   }
 }
 
-async function checkHostFeePercent() {
+async function checkHostFeePercent({ fix = false } = {}) {
+  const message = 'Independent Collectives with hostFeePercent != 0';
+
   const results = await sequelize.query(
     `SELECT COUNT(*) as count
      FROM "Collectives"
@@ -137,10 +148,11 @@ async function checkHostFeePercent() {
   );
 
   if (results[0].count > 0) {
-    if (check) {
-      throw new Error('Independent Collectives with hostFeePercent != 0');
+    if (!fix) {
+      throw new Error(message);
     }
     if (fix) {
+      logger.warn(`Fixing: ${message}`);
       await sequelize.query(
         `UPDATE "Collectives"
          SET "hostFeePercent" = 0, "updatedAt" = NOW()
@@ -154,12 +166,12 @@ async function checkHostFeePercent() {
   }
 }
 
-export async function checkIndepedentCollectives() {
-  await checkIsActive();
-  await checkHasHostCollectiveId();
-  await checkApprovedAt();
-  await checkIsHostAccount();
-  await checkHostFeePercent();
+export async function checkIndepedentCollectives({ fix = false } = {}) {
+  await checkIsActive({ fix });
+  await checkHasHostCollectiveId({ fix });
+  await checkApprovedAt({ fix });
+  await checkIsHostAccount({ fix });
+  await checkHostFeePercent({ fix });
 }
 
 if (!module.parent) {

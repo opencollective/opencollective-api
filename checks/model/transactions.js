@@ -1,12 +1,11 @@
-import '../server/env';
+import '../../server/env';
 
-import { sequelize } from '../server/models';
-// import models, { Op } from '../server/models';
+import logger from '../../server/lib/logger';
+import { sequelize } from '../../server/models';
 
-const check = true;
-const fix = false;
+async function checkDeletedCollectives({ fix = false } = {}) {
+  const message = 'No Transactions without a matching Collective';
 
-async function checkDeletedCollectives() {
   const results = await sequelize.query(
     `SELECT COUNT(*) as count
      FROM "Transactions" t
@@ -18,10 +17,11 @@ async function checkDeletedCollectives() {
   );
 
   if (results[0].count > 0) {
-    if (check) {
-      throw new Error('No Transactions without a matching Collective');
+    if (!fix) {
+      throw new Error(message);
     }
     if (fix) {
+      logger.warn(`Fixing: ${message}`);
       await sequelize.query(
         `UPDATE "Transactions"
          SET "deletedAt" = NOW()
@@ -42,8 +42,8 @@ async function checkDeletedCollectives() {
   }
 }
 
-export async function checkTransactions() {
-  await checkDeletedCollectives();
+export async function checkTransactions({ fix = false } = {}) {
+  await checkDeletedCollectives({ fix });
 }
 
 if (!module.parent) {

@@ -1,12 +1,11 @@
-import '../server/env';
+import '../../server/env';
 
-import { sequelize } from '../server/models';
-// import models, { Op } from '../server/models';
+import logger from '../../server/lib/logger';
+import { sequelize } from '../../server/models';
 
-const check = true;
-const fix = false;
+async function checkHostFeePercent({ fix = false } = {}) {
+  const message = 'Host without hostFeePercent';
 
-async function checkHostFeePercent() {
   const results = await sequelize.query(
     `SELECT COUNT(*) as count
      FROM "Collectives"
@@ -18,10 +17,11 @@ async function checkHostFeePercent() {
   );
 
   if (results[0].count > 0) {
-    if (check) {
-      throw new Error('Hosts should have hostFeePercent set');
+    if (!fix) {
+      throw new Error(message);
     }
     if (fix) {
+      logger.warn(`Fixing: ${message}`);
       await sequelize.query(
         `UPDATE "Collectives"
          SET "hostFeePercent" = 0
@@ -34,8 +34,8 @@ async function checkHostFeePercent() {
   }
 }
 
-export async function checkHosts() {
-  await checkHostFeePercent();
+export async function checkHosts({ fix = false } = {}) {
+  await checkHostFeePercent({ fix });
 }
 
 if (!module.parent) {
