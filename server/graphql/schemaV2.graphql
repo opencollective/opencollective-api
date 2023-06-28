@@ -2852,6 +2852,10 @@ type Host implements Account & AccountWithContributions {
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
   ): HostApplicationCollection!
   hostedVirtualCards(
+    """
+    Search term (card name, card last four digits)
+    """
+    searchTerm: String
     limit: Int! = 100
     offset: Int! = 0
     state: String = null @deprecated(reason: "2023-06-12: Please use status.")
@@ -4455,6 +4459,7 @@ enum ActivityType {
   COLLECTIVE_VIRTUAL_CARD_ADDED
   COLLECTIVE_VIRTUAL_CARD_MISSING_RECEIPTS
   COLLECTIVE_VIRTUAL_CARD_SUSPENDED
+  COLLECTIVE_VIRTUAL_CARD_SUSPENDED_DUE_TO_INACTIVITY
   COLLECTIVE_VIRTUAL_CARD_DELETED
   VIRTUAL_CARD_REQUESTED
   VIRTUAL_CARD_CHARGE_DECLINED
@@ -11698,6 +11703,7 @@ enum ActivityAndClassesType {
   COLLECTIVE_VIRTUAL_CARD_ADDED
   COLLECTIVE_VIRTUAL_CARD_MISSING_RECEIPTS
   COLLECTIVE_VIRTUAL_CARD_SUSPENDED
+  COLLECTIVE_VIRTUAL_CARD_SUSPENDED_DUE_TO_INACTIVITY
   COLLECTIVE_VIRTUAL_CARD_DELETED
   VIRTUAL_CARD_REQUESTED
   VIRTUAL_CARD_CHARGE_DECLINED
