@@ -7,7 +7,7 @@ import {
   first,
   isEqual,
   isUndefined,
-  keyBy,
+  // keyBy,
   max,
   startCase,
   uniq,
@@ -17,13 +17,13 @@ import moment from 'moment';
 
 import status from '../../constants/expense_status';
 import expenseType from '../../constants/expense_type';
-import type { ConvertToCurrencyArgs } from '../../graphql/loaders/currency-exchange-rate';
+// import type { ConvertToCurrencyArgs } from '../../graphql/loaders/currency-exchange-rate';
 import models, { Op, sequelize } from '../../models';
 import Expense from '../../models/Expense';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import { RecipientAccount as BankAccountPayoutMethodData } from '../../types/transferwise';
 import { expenseMightBeSubjectToTaxForm } from '../tax-forms';
-import { formatCurrency } from '../utils';
+// import { formatCurrency } from '../utils';
 
 export enum Scope {
   USER = 'USER',
@@ -57,14 +57,14 @@ const isDefinedButNotEqual = (a, b) => !isUndefined(a) && !isEqual(a, b);
 
 type ExpenseStats = { count: number; lastCreatedAt: Date; status: status; CollectiveId: number };
 
-type ExpenseAmountStats = {
-  amountInHostCurrency: number;
-  totalApprovedAmountForCollective: number;
-  totalApprovedCountForCollective: number;
-  averageAmountForCollective: number;
-  paidAmountP95ForCollective: number;
-  isConvertedCurrency: boolean;
-};
+// type ExpenseAmountStats = {
+//   amountInHostCurrency: number;
+//   totalApprovedAmountForCollective: number;
+//   totalApprovedCountForCollective: number;
+//   averageAmountForCollective: number;
+//   paidAmountP95ForCollective: number;
+//   isConvertedCurrency: boolean;
+// };
 
 const addBooleanCheck = (
   checks: Array<SecurityCheck>,
@@ -153,46 +153,46 @@ const checkExpenseStats = (
   });
 };
 
-const checkExpenseAmountStats = (
-  checks: Array<SecurityCheck>,
-  expenseStats: ExpenseAmountStats,
-  collectiveBalanceInDisplayCurrency: number,
-  displayCurrency: string,
-) => {
-  // Add warning if total approved is above the balance of the collective
-  addBooleanCheck(checks, expenseStats.totalApprovedAmountForCollective > collectiveBalanceInDisplayCurrency, {
-    scope: Scope.COLLECTIVE,
-    level: Level.MEDIUM,
-    message: `The total amount of approved expenses is higher than the collective balance`,
-    details: `There are ${
-      expenseStats.totalApprovedCountForCollective
-    } approved expenses for this collective for a total of ${formatCurrency(
-      expenseStats.totalApprovedAmountForCollective,
-      displayCurrency,
-    )}, which is higher than the collective balance of ${formatCurrency(
-      collectiveBalanceInDisplayCurrency,
-      displayCurrency,
-    )}.`,
-  });
+// const checkExpenseAmountStats = (
+//   checks: Array<SecurityCheck>,
+//   expenseStats: ExpenseAmountStats,
+//   collectiveBalanceInDisplayCurrency: number,
+//   displayCurrency: string,
+// ) => {
+//   // Add warning if total approved is above the balance of the collective
+//   addBooleanCheck(checks, expenseStats.totalApprovedAmountForCollective > collectiveBalanceInDisplayCurrency, {
+//     scope: Scope.COLLECTIVE,
+//     level: Level.MEDIUM,
+//     message: `The total amount of approved expenses is higher than the collective balance`,
+//     details: `There are ${
+//       expenseStats.totalApprovedCountForCollective
+//     } approved expenses for this collective for a total of ${formatCurrency(
+//       expenseStats.totalApprovedAmountForCollective,
+//       displayCurrency,
+//     )}, which is higher than the collective balance of ${formatCurrency(
+//       collectiveBalanceInDisplayCurrency,
+//       displayCurrency,
+//     )}.`,
+//   });
 
-  // Unless it's the 1st expense, add a warning if amount is above p95 for this collective
-  if (expenseStats.paidAmountP95ForCollective) {
-    addBooleanCheck(checks, expenseStats.amountInHostCurrency >= expenseStats.paidAmountP95ForCollective, {
-      scope: Scope.COLLECTIVE,
-      level: Level.MEDIUM,
-      message: `Amount is higher than usual`,
-      details: `The amount of this expense (${formatCurrency(
-        expenseStats.amountInHostCurrency,
-        displayCurrency,
-        2,
-        expenseStats.isConvertedCurrency,
-      )}) is in the top 5% of expenses for this collective. The average amount of paid expenses is ${formatCurrency(
-        expenseStats.averageAmountForCollective,
-        displayCurrency,
-      )}, with the top 5% being above ${formatCurrency(expenseStats.paidAmountP95ForCollective, displayCurrency)}.`,
-    });
-  }
-};
+//   // Unless it's the 1st expense, add a warning if amount is above p95 for this collective
+//   if (expenseStats.paidAmountP95ForCollective) {
+//     addBooleanCheck(checks, expenseStats.amountInHostCurrency >= expenseStats.paidAmountP95ForCollective, {
+//       scope: Scope.COLLECTIVE,
+//       level: Level.MEDIUM,
+//       message: `Amount is higher than usual`,
+//       details: `The amount of this expense (${formatCurrency(
+//         expenseStats.amountInHostCurrency,
+//         displayCurrency,
+//         2,
+//         expenseStats.isConvertedCurrency,
+//       )}) is in the top 5% of expenses for this collective. The average amount of paid expenses is ${formatCurrency(
+//         expenseStats.averageAmountForCollective,
+//         displayCurrency,
+//       )}, with the top 5% being above ${formatCurrency(expenseStats.paidAmountP95ForCollective, displayCurrency)}.`,
+//     });
+//   }
+// };
 
 const getGroupedExpensesStats = (expenses: Array<Expense>) => {
   const expensesStatsConditions = [];
@@ -228,113 +228,113 @@ const getGroupedExpensesStats = (expenses: Array<Expense>) => {
 /**
  * Get some stats about the collectives of the expenses. Returns an object with the expense id as key and the stats as value.
  */
-const getExpensesAmountsStats = async (
-  expenses: Array<Expense>,
-  displayCurrency,
-): Promise<Record<string, ExpenseAmountStats>> => {
-  const collectiveIds = uniq(expenses.map(e => e.CollectiveId));
-  const expenseIds = uniq(expenses.map(e => e.id));
-  const result: Array<ExpenseAmountStats> = await sequelize.query(
-    `
-      WITH all_expenses AS (
-        SELECT
-          e.*,
-          e.currency != :displayCurrency AS "isConvertedCurrency",
-          CASE
-            -- Simple case: expense is already in display currency
-            WHEN e.currency = :displayCurrency THEN e.amount
-            -- Convert expense to display currency
-            ELSE e.amount * COALESCE((
-                SELECT rate
-                FROM "CurrencyExchangeRates" r
-                WHERE r."from" = e.currency
-                AND r."to" = :displayCurrency
-                AND r."createdAt" <= e."createdAt"
-                ORDER BY e."createdAt" DESC -- Most recent rate that is older than the expense
-                LIMIT 1
-              ), (
-                -- Fix for old expenses where we didn't have an exchange rate stored yet: just use the oldest rate available
-                SELECT rate
-                FROM "CurrencyExchangeRates" r
-                WHERE r."from" = e.currency
-                AND r."to" = :displayCurrency
-                ORDER BY e."createdAt" ASC -- Oldest rate
-                LIMIT 1
-            ))
-            END AS "amountInHostCurrency"
-        FROM "Expenses" e
-        WHERE e."deletedAt" IS NULL
-        AND (e.id IN (:expenseIds) OR e."CollectiveId" IN (:collectiveIds))
-        ORDER BY e."createdAt" ASC
-      ), all_expenses_stats AS (
-        SELECT
-          "id",
-          "isConvertedCurrency",
-          "amountInHostCurrency",
-          AVG("amountInHostCurrency") FILTER (WHERE status = 'PAID') OVER (PARTITION BY "CollectiveId") AS "averageAmountForCollective",
-          SUM("amountInHostCurrency") FILTER (WHERE status = 'APPROVED') OVER (PARTITION BY "CollectiveId") AS "totalApprovedAmountForCollective",
-          COUNT("id") FILTER (WHERE status = 'APPROVED') OVER (PARTITION BY "CollectiveId") AS "totalApprovedCountForCollective",
-          (SELECT PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY "amountInHostCurrency") FROM all_expenses WHERE "CollectiveId" = e."CollectiveId" AND status = 'PAID') AS "paidAmountP95ForCollective"
-        FROM all_expenses e
-      ) SELECT * FROM all_expenses_stats
-      WHERE id IN (:expenseIds)
-    `,
-    {
-      type: sequelize.QueryTypes.SELECT,
-      replacements: { displayCurrency, collectiveIds, expenseIds },
-    },
-  );
+// const getExpensesAmountsStats = async (
+//   expenses: Array<Expense>,
+//   displayCurrency,
+// ): Promise<Record<string, ExpenseAmountStats>> => {
+//   const collectiveIds = uniq(expenses.map(e => e.CollectiveId));
+//   const expenseIds = uniq(expenses.map(e => e.id));
+//   const result: Array<ExpenseAmountStats> = await sequelize.query(
+//     `
+//       WITH all_expenses AS (
+//         SELECT
+//           e.*,
+//           e.currency != :displayCurrency AS "isConvertedCurrency",
+//           CASE
+//             -- Simple case: expense is already in display currency
+//             WHEN e.currency = :displayCurrency THEN e.amount
+//             -- Convert expense to display currency
+//             ELSE e.amount * COALESCE((
+//                 SELECT rate
+//                 FROM "CurrencyExchangeRates" r
+//                 WHERE r."from" = e.currency
+//                 AND r."to" = :displayCurrency
+//                 AND r."createdAt" <= e."createdAt"
+//                 ORDER BY e."createdAt" DESC -- Most recent rate that is older than the expense
+//                 LIMIT 1
+//               ), (
+//                 -- Fix for old expenses where we didn't have an exchange rate stored yet: just use the oldest rate available
+//                 SELECT rate
+//                 FROM "CurrencyExchangeRates" r
+//                 WHERE r."from" = e.currency
+//                 AND r."to" = :displayCurrency
+//                 ORDER BY e."createdAt" ASC -- Oldest rate
+//                 LIMIT 1
+//             ))
+//             END AS "amountInHostCurrency"
+//         FROM "Expenses" e
+//         WHERE e."deletedAt" IS NULL
+//         AND (e.id IN (:expenseIds) OR e."CollectiveId" IN (:collectiveIds))
+//         ORDER BY e."createdAt" ASC
+//       ), all_expenses_stats AS (
+//         SELECT
+//           "id",
+//           "isConvertedCurrency",
+//           "amountInHostCurrency",
+//           AVG("amountInHostCurrency") FILTER (WHERE status = 'PAID') OVER (PARTITION BY "CollectiveId") AS "averageAmountForCollective",
+//           SUM("amountInHostCurrency") FILTER (WHERE status = 'APPROVED') OVER (PARTITION BY "CollectiveId") AS "totalApprovedAmountForCollective",
+//           COUNT("id") FILTER (WHERE status = 'APPROVED') OVER (PARTITION BY "CollectiveId") AS "totalApprovedCountForCollective",
+//           (SELECT PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY "amountInHostCurrency") FROM all_expenses WHERE "CollectiveId" = e."CollectiveId" AND status = 'PAID') AS "paidAmountP95ForCollective"
+//         FROM all_expenses e
+//       ) SELECT * FROM all_expenses_stats
+//       WHERE id IN (:expenseIds)
+//     `,
+//     {
+//       type: sequelize.QueryTypes.SELECT,
+//       replacements: { displayCurrency, collectiveIds, expenseIds },
+//     },
+//   );
 
-  return keyBy(result, 'id');
-};
+//   return keyBy(result, 'id');
+// };
 
 /**
  * The currency that needs to be used will depend on the context. Since, for now, we're only
  * displaying these warnings for fiscal hosts, the assumption is that the currency of the
  * host is the one that should be used; regardless of the other expenses in the batch.
  */
-const getDisplayCurrency = async expenses => {
-  const host = await expenses[0].collective.getHostCollective();
-  return host?.currency || expenses[0].collective.currency;
-};
+// const getDisplayCurrency = async expenses => {
+//   const host = await expenses[0].collective.getHostCollective();
+//   return host?.currency || expenses[0].collective.currency;
+// };
 
-const getCollectiveBalances = async (
-  req: Request,
-  expenses: Expense[],
-  displayCurrency: string,
-): Promise<Record<string, { currency: string; value: number }>> => {
-  const collectiveIds = uniq(expenses.map(e => e.CollectiveId));
-  const balanceLoader = req.loaders.Collective.balance.buildLoader({ withBlockedFunds: true }); // Use the same loader as https://github.com/opencollective/opencollective-api/blob/main/server/graphql/v2/object/AccountStats.js#L70 to make sure we don't hit the DB twice
-  const collectiveBalances = await balanceLoader.loadMany(collectiveIds);
-  const balancesInHostCurrency = await Promise.all(
-    collectiveBalances.map(async balance => {
-      if (balance.currency === displayCurrency) {
-        return balance;
-      } else {
-        const convertParams: ConvertToCurrencyArgs = {
-          amount: balance.value,
-          fromCurrency: balance.currency,
-          toCurrency: displayCurrency,
-        };
-        return {
-          value: await req.loaders.CurrencyExchangeRate.convert.load(convertParams),
-          currency: displayCurrency,
-        };
-      }
-    }),
-  );
+// const getCollectiveBalances = async (
+//   req: Request,
+//   expenses: Expense[],
+//   displayCurrency: string,
+// ): Promise<Record<string, { currency: string; value: number }>> => {
+//   const collectiveIds = uniq(expenses.map(e => e.CollectiveId));
+//   const balanceLoader = req.loaders.Collective.balance.buildLoader({ withBlockedFunds: true }); // Use the same loader as https://github.com/opencollective/opencollective-api/blob/main/server/graphql/v2/object/AccountStats.js#L70 to make sure we don't hit the DB twice
+//   const collectiveBalances = await balanceLoader.loadMany(collectiveIds);
+//   const balancesInHostCurrency = await Promise.all(
+//     collectiveBalances.map(async balance => {
+//       if (balance.currency === displayCurrency) {
+//         return balance;
+//       } else {
+//         const convertParams: ConvertToCurrencyArgs = {
+//           amount: balance.value,
+//           fromCurrency: balance.currency,
+//           toCurrency: displayCurrency,
+//         };
+//         return {
+//           value: await req.loaders.CurrencyExchangeRate.convert.load(convertParams),
+//           currency: displayCurrency,
+//         };
+//       }
+//     }),
+//   );
 
-  return keyBy(balancesInHostCurrency, 'CollectiveId');
-};
+//   return keyBy(balancesInHostCurrency, 'CollectiveId');
+// };
 
 export const checkExpensesBatch = async (
   req: Request,
   expenses: Array<Expense>,
 ): Promise<Array<Array<SecurityCheck>>> => {
-  const displayCurrency = await getDisplayCurrency(expenses);
+  // const displayCurrency = await getDisplayCurrency(expenses);
   const expensesStats = await getGroupedExpensesStats(expenses);
-  const expensesAmountsStats = await getExpensesAmountsStats(expenses, displayCurrency);
-  const collectiveBalances = await getCollectiveBalances(req, expenses, displayCurrency);
+  // const expensesAmountsStats = await getExpensesAmountsStats(expenses, displayCurrency);
+  // const collectiveBalances = await getCollectiveBalances(req, expenses, displayCurrency);
   const usersByIpConditions = expenses.map(expense => {
     const ip = expense.User.getLastKnownIp();
     return {
@@ -447,8 +447,8 @@ export const checkExpensesBatch = async (
       }
 
       // Check amounts
-      const balanceInHostCurrency = collectiveBalances[expense.CollectiveId]?.value || 0;
-      checkExpenseAmountStats(checks, expensesAmountsStats[expense.id], balanceInHostCurrency, displayCurrency);
+      // const balanceInHostCurrency = collectiveBalances[expense.CollectiveId]?.value || 0;
+      // checkExpenseAmountStats(checks, expensesAmountsStats[expense.id], balanceInHostCurrency, displayCurrency);
 
       const payoutMethod = expense.PayoutMethod;
       // Add checks on payout method
