@@ -1,8 +1,8 @@
-import { ApolloError } from 'apollo-server-errors';
 import config from 'config';
+import { GraphQLError } from 'graphql';
 import { v4 as uuid } from 'uuid';
 
-class IdentifiableApolloError extends ApolloError {
+class IdentifiableApolloError extends GraphQLError {
   constructor(
     message?: string,
     code?: string,
@@ -15,7 +15,7 @@ class IdentifiableApolloError extends ApolloError {
     if (!['ci', 'test'].includes(config.env)) {
       additionalProperties = { ...additionalProperties, id };
     }
-    super(message, code, additionalProperties);
+    super(message, { extensions: { ...additionalProperties, code } });
   }
 }
 

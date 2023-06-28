@@ -1,10 +1,9 @@
-import { ApolloError } from 'apollo-server-errors';
 import { Request } from 'express';
 import { isNil, pick } from 'lodash';
 
 import { activities } from '../../constants';
 import POLICIES from '../../constants/policies';
-import { Unauthorized } from '../../graphql/errors';
+import { ApolloError, Unauthorized } from '../../graphql/errors';
 import { Activity, Collective } from '../../models';
 import User from '../../models/User';
 import UserTwoFactorMethod from '../../models/UserTwoFactorMethod';

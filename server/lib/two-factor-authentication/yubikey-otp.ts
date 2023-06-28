@@ -1,7 +1,6 @@
 import crypto from 'crypto';
 
-import { ApolloError } from 'apollo-server-errors';
-
+import { ApolloError } from '../../graphql/errors';
 import User from '../../models/User';
 import UserTwoFactorMethod from '../../models/UserTwoFactorMethod';
 
