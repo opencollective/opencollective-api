@@ -601,14 +601,20 @@ export const fakeOrder = async (
   }
 
   if (withSubscription) {
-    const subscription = await fakeSubscription({
+    const subscriptionData = {
       amount: order.totalAmount,
       interval: order.interval || 'month',
       currency: order.currency,
       isActive: true,
       quantity: order.quantity,
       ...orderData.subscription,
-    });
+    };
+
+    if (order.paymentMethod?.type === 'subscription' && order.paymentMethod.service === 'paypal') {
+      subscriptionData.paypalSubscriptionId = order.paymentMethod.token;
+    }
+
+    const subscription = await fakeSubscription(subscriptionData);
     await order.update({ SubscriptionId: subscription.id });
     order.Subscription = subscription;
   }

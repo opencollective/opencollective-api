@@ -1,5 +1,5 @@
 import config from 'config';
-import { pick } from 'lodash';
+import { get, pick } from 'lodash';
 import moment from 'moment';
 
 import INTERVALS from '../../constants/intervals';
@@ -32,8 +32,22 @@ export const cancelPaypalSubscription = async (
   const hostCollective = host || (await collective.getHostCollective());
   const subscription = order.Subscription || (await order.getSubscription());
 
-  // TODO: Do not fail if already cancelled
-  await paypalRequest(`billing/subscriptions/${subscription.paypalSubscriptionId}/cancel`, { reason }, hostCollective);
+  try {
+    await paypalRequest(
+      `billing/subscriptions/${subscription.paypalSubscriptionId}/cancel`,
+      { reason },
+      hostCollective,
+    );
+  } catch (e) {
+    const paypalIssue = get(e, 'metadata.error.body.details.0.issue');
+    if (paypalIssue === 'SUBSCRIPTION_STATUS_INVALID') {
+      // Subscription is already cancelled, we can ignore this error
+      return;
+    }
+
+    logger.error(`PayPal cancel subscription error: ${e.message}`);
+    throw e;
+  }
 };
 
 export const createPaypalPaymentMethodForSubscription = (
