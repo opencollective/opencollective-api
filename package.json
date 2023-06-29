@@ -29,7 +29,7 @@
     }
   },
   "dependencies": {
-    "@apollo/server": "4.7.4",
+    "@apollo/server": "4.7.5",
     "@babel/core": "7.22.5",
     "@babel/node": "7.22.5",
     "@babel/plugin-proposal-class-properties": "7.18.6",
@@ -46,7 +46,6 @@
     "@sentry/node": "7.57.0",
     "@sentry/types": "7.57.0",
     "@shopify/address": "4.1.0",
-    "apollo-server-errors": "3.3.1",
     "argparse": "2.0.1",
     "aws-sdk": "2.1407.0",
     "axios": "1.4.0",

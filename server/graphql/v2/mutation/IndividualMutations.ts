@@ -71,7 +71,7 @@ const individualMutations = {
         }
         const validPassword = await bcrypt.compare(args.currentPassword, req.remoteUser.passwordHash);
         if (!validPassword) {
-          return new Unauthorized('Invalid current password while attempting to change password.');
+          throw new Unauthorized('Invalid current password while attempting to change password.');
         }
       }
 

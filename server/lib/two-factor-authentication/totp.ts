@@ -1,6 +1,6 @@
-import { ApolloError } from 'apollo-server-errors';
 import speakeasy from 'speakeasy';
 
+import { ApolloError } from '../../graphql/errors';
 import User from '../../models/User';
 import UserTwoFactorMethod from '../../models/UserTwoFactorMethod';
 import { crypto } from '../encryption';
