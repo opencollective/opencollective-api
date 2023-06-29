@@ -43,6 +43,11 @@ if (process.env.MEMCACHIER_PASSWORD) {
   process.env.MEMCACHE_PASSWORD = process.env.MEMCACHIER_PASSWORD;
 }
 
+// Normalize Statsd environment variables (production / heroku)
+if (process.env.HOSTEDGRAPHITE_APIKEY) {
+  process.env.STATSD_PREFIX = `${process.env.HOSTEDGRAPHITE_APIKEY}.`;
+}
+
 // Compute PG_URL based on PG_URL_ENVIRONMENT_VARIABLE, look in DATABASE_URL by default
 const pgUrlEnvironmentVariable = get(process.env, 'PG_URL_ENVIRONMENT_VARIABLE', 'DATABASE_URL');
 if (has(process.env, pgUrlEnvironmentVariable) && !has(process.env, 'PG_URL')) {

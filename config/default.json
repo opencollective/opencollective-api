@@ -230,5 +230,11 @@
   },
   "opentelemetry": {
     "enabled": false
+  },
+  "statsd": {
+    "enabled": false,
+    "url": "localhost",
+    "port": 8125,
+    "prefix": ""
   }
 }
