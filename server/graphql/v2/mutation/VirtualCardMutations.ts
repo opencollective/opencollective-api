@@ -4,12 +4,14 @@ import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graph
 
 import { activities } from '../../../constants';
 import POLICIES from '../../../constants/policies';
+import { VirtualCardLimitIntervals } from '../../../constants/virtual-cards';
 import logger from '../../../lib/logger';
 import { getPolicy } from '../../../lib/policies';
 import { reportErrorToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import VirtualCardModel, { VirtualCardStatus } from '../../../models/VirtualCard';
+import VirtualCardRequest, { VirtualCardRequestStatus } from '../../../models/VirtualCardRequest';
 import * as stripe from '../../../paymentProviders/stripe/virtual-cards';
 import { checkRemoteUserCanUseVirtualCards } from '../../common/scope-check';
 import { BadRequest, NotFound, Unauthorized } from '../../errors';
@@ -320,7 +322,18 @@ const virtualCardMutations = {
       },
       budget: {
         type: GraphQLInt,
+        deprecationReason: '2023-06-29: Use spendingLimitAmount',
         description: 'Monthly budget you want for this Virtual Card',
+      },
+      spendingLimitAmount: {
+        type: GraphQLAmountInput,
+        deprecationReason: '2023-06-29: Use spendingLimitAmount',
+        description: 'Limit you want for this Virtual Card in the given use interval',
+      },
+      spendingLimitInterval: {
+        type: GraphQLVirtualCardLimitInterval,
+        defaultValue: VirtualCardLimitIntervals.MONTHLY,
+        description: 'Interval to apply the amount limit on this virtual card',
       },
       account: {
         type: new GraphQLNonNull(GraphQLAccountReferenceInput),
@@ -340,6 +353,22 @@ const virtualCardMutations = {
 
       const host = await collective.getHostCollective({ loaders: req.loaders });
       const userCollective = await req.remoteUser.getCollective({ loaders: req.loaders });
+
+      const spendingLimitAmount = args.budget ? args.budget : getValueInCentsFromAmountInput(args.spendingLimitAmount);
+      const spendingLimitInterval = args.spendingLimitInterval ?? VirtualCardLimitIntervals.MONTHLY;
+
+      await VirtualCardRequest.create({
+        CollectiveId: collective.id,
+        UserId: req.remoteUser.id,
+        HostCollectiveId: host.id,
+        purpose: args.purpose,
+        notes: args.notes,
+        currency: host.currency,
+        spendingLimitAmount: spendingLimitAmount,
+        spendingLimitInterval: spendingLimitInterval,
+        status: VirtualCardRequestStatus.PENDING,
+      });
+
       const activity = {
         type: activities.VIRTUAL_CARD_REQUESTED,
         UserId: req.remoteUser.id,
