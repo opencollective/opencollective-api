@@ -3,7 +3,7 @@ import '../../server/env';
 import { sequelize } from '../../server/models';
 
 async function checkDeletedUsers() {
-  const message = 'No USER Collective without a matching User';
+  const message = 'No USER Collective without a matching User (no auto fix)';
 
   const results = await sequelize.query(
     `SELECT COUNT(*) as count

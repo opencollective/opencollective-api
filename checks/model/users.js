@@ -3,6 +3,8 @@ import '../../server/env';
 import { sequelize } from '../../server/models';
 
 async function checkDeletedCollectives() {
+  const message = 'No Users without a matching Collective (no auto fix)';
+
   const results = await sequelize.query(
     `SELECT COUNT(*) as count
      FROM "Users" u
@@ -15,7 +17,7 @@ async function checkDeletedCollectives() {
 
   if (results[0].count > 0) {
     // Not fixable
-    throw new Error('No Users without a matching Collective');
+    throw new Error(message);
   }
 }
 

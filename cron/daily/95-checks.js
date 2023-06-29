@@ -8,17 +8,21 @@ const recipients = 'ops@opencollective.com';
 
 const subject = 'Daily Checks failed';
 
+const failureMessage = 'The Daily Checks failed today with the following errors:';
+const fixMessage = 'To fix the models, try:';
+const fixCommand = 'npm run script checks/model -- --fix';
+
 async function run() {
   const { errors } = await checkAllModels();
 
   if (errors.length > 0) {
-    const text = `The Daily Checks Job failed today.\n\n${errors
-      .map(msg => `- ${msg}`)
-      .join('\n')}\n\nTo fix the models, try: npm run script checks/model -- --fix`;
+    const html = `${failureMessage}<br>\n<br>\n${errors
+      .map(msg => `<li> ${msg}`)
+      .join('\n')}<br>\n<br>\n${fixMessage} <code>${fixCommand}</code>`;
 
-    console.log({ text });
+    const text = `${failureMessage}\n\n${errors.map(msg => `- ${msg}`).join('\n')}\n\n${fixMessage} ${fixCommand}`;
 
-    return email.sendMessage(recipients, subject, text, { text });
+    return email.sendMessage(recipients, subject, html, { text });
   }
 
   process.exit();
