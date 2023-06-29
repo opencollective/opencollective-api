@@ -294,7 +294,7 @@ export const GraphQLHost = new GraphQLObjectType({
         description: 'Stripe connected account',
         async resolve(host, _, req) {
           if (!req.remoteUser?.isAdmin(host.id)) {
-            throw new Unauthorized('You need to be logged in as an admin to see the stripe connected account');
+            return null;
           }
 
           return await host.getAccountForPaymentProvider('stripe');
