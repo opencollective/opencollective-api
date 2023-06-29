@@ -1,12 +1,17 @@
 /* eslint-disable camelcase */
 
 import { expect } from 'chai';
+import nock from 'nock';
 import { assert, createSandbox } from 'sinon';
 
 import OrderStatuses from '../../../../server/constants/order_status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
 import * as PaypalAPI from '../../../../server/paymentProviders/paypal/api';
-import { setupPaypalSubscriptionForOrder } from '../../../../server/paymentProviders/paypal/subscription';
+import {
+  cancelPaypalSubscription,
+  setupPaypalSubscriptionForOrder,
+} from '../../../../server/paymentProviders/paypal/subscription';
+import { nockPayPalGetCredentials } from '../../../mocks/paypal.nock';
 import { randEmail } from '../../../stores';
 import {
   fakeConnectedAccount,
@@ -182,6 +187,44 @@ describe('server/paymentProviders/paypal/subscription', () => {
         assert.calledWith(paypalRequestStub, `${oldSubscriptionUrl}/cancel`);
         assert.callCount(paypalRequestStub, 2); // Must NOT call activate if cancellation fails
       });
+    });
+  });
+
+  describe('cancelPaypalSubscription', () => {
+    it('ignores if the subscription is already cancelled', async () => {
+      const paymentMethod = await fakePaypalSubscriptionPm(validSubscriptionParams);
+      const order = await fakeOrder(
+        {
+          CollectiveId: host.id,
+          status: OrderStatuses.NEW,
+          TierId: null,
+          totalAmount: 1000,
+          PaymentMethodId: paymentMethod.id,
+        },
+        { withSubscription: true },
+      );
+
+      await nockPayPalGetCredentials();
+      const paypalNock = nock('https://api.sandbox.paypal.com:443')
+        .post(`/v1/billing/subscriptions/${paymentMethod.token}/cancel`, { reason: 'Test cancellation' })
+        .reply(422, {
+          body: {
+            details: [
+              {
+                description:
+                  'Invalid subscription status for cancel action; subscription status should be active or suspended.',
+                issue: 'SUBSCRIPTION_STATUS_INVALID',
+              },
+            ],
+            message:
+              'The requested action could not be performed, semantically incorrect, or failed business validation.',
+            name: 'UNPROCESSABLE_ENTITY',
+          },
+          status: 422,
+        });
+
+      await cancelPaypalSubscription(order, 'Test cancellation');
+      expect(paypalNock.isDone()).to.be.true;
     });
   });
 });

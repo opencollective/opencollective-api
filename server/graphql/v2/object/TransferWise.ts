@@ -1,6 +1,7 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLJSON, GraphQLJSONObject } from 'graphql-scalars';
 
+import models, { Op } from '../../../models';
 import transferwise from '../../../paymentProviders/transferwise';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
@@ -113,6 +114,40 @@ export const GraphQLTransferWise = new GraphQLObjectType({
           .catch(() => {
             return null;
           });
+      },
+    },
+    amountBatched: {
+      type: GraphQLAmount,
+      resolve: async (host, _, req) => {
+        if (!req.remoteUser?.isAdminOfCollective(host)) {
+          return null;
+        }
+        const scheduledExpenses = await models.Expense.findAll({
+          where: {
+            status: 'SCHEDULED_FOR_PAYMENT',
+          },
+          include: [
+            {
+              association: 'collective',
+              attributes: [],
+              required: true,
+              where: { HostCollectiveId: host.id, approvedAt: { [Op.not]: null } },
+            },
+          ],
+        });
+
+        const sourceAmount = scheduledExpenses
+          .filter(expense => !!expense.data.quote?.paymentOption)
+          .reduce((total, expense) => {
+            return total + expense.data.quote.paymentOption.sourceAmount;
+          }, 0);
+
+        if (sourceAmount) {
+          return {
+            value: sourceAmount * 100,
+            currency: scheduledExpenses[0].data.quote.sourceCurrency,
+          };
+        }
       },
     },
   }),

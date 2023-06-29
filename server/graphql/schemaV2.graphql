@@ -800,6 +800,7 @@ type Tier {
   invoiceTemplate: String
   useStandalonePage: Boolean
   singleTicket: Boolean
+  requireAddress: Boolean!
 }
 
 """
@@ -8902,6 +8903,7 @@ type TransferWise {
   Transferwise balances. Returns null if Transferwise account is not connected.
   """
   balances: [Amount]
+  amountBatched: Amount
 }
 
 type TransferWiseRequiredField {

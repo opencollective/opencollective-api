@@ -132,6 +132,12 @@ export const GraphQLTier = new GraphQLObjectType({
           return tier.data?.singleTicket;
         },
       },
+      requireAddress: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        async resolve(tier) {
+          return Boolean(tier.data?.requireAddress);
+        },
+      },
     };
   },
 });

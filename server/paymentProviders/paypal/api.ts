@@ -66,6 +66,8 @@ const parsePaypalError = async (
     } else if (errorDetails.issue === 'REFUND_FAILED_INSUFFICIENT_FUNDS') {
       message =
         'Capture could not be refunded due to insufficient funds. Please check to see if you have sufficient funds in your PayPal account or if the bank account linked to your PayPal account is verified and has sufficient funds.';
+    } else {
+      message = `${message} (${errorDetails.issue})`;
     }
   }
 
@@ -95,7 +97,9 @@ export async function paypalRequest(urlPath, body, hostCollective, method = 'POS
     const { message, metadata } = await parsePaypalError(result);
     logger.error('PayPal request failed', metadata);
     reportMessageToSentry('PayPal request failed', { extra: metadata });
-    throw new Error(message);
+    const error = new Error(message);
+    error['metadata'] = metadata;
+    throw error;
   } else if (result.status === 204) {
     return null;
   } else {

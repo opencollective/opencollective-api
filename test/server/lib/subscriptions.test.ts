@@ -7,15 +7,17 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../server/con
 import { updatePaymentMethodForSubscription } from '../../../server/lib/subscriptions';
 import * as PaypalSubscriptionAPI from '../../../server/paymentProviders/paypal/subscription';
 import { fakeOrder, fakePaymentMethod } from '../../test-helpers/fake-data';
+import { resetTestDB } from '../../utils';
 
 describe('server/lib/subscriptions', () => {
   let sandbox;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    await resetTestDB();
     sandbox = sinon.createSandbox();
   });
 
-  after(() => {
+  afterEach(() => {
     sandbox.restore();
   });
 
@@ -52,6 +54,7 @@ describe('server/lib/subscriptions', () => {
               type: PAYMENT_METHOD_TYPE.CREDITCARD,
             });
 
+            sandbox.stub(PaypalSubscriptionAPI, 'cancelPaypalSubscription').resolves();
             const updatedOrder = await updatePaymentMethodForSubscription(user, order, newPaymentMethod);
             const expectedNextChargeDate = subscription.nextChargeDate.toISOString();
             expect(updatedOrder.Subscription.nextChargeDate.toISOString()).to.equal(expectedNextChargeDate);
@@ -80,6 +83,7 @@ describe('server/lib/subscriptions', () => {
               type: PAYMENT_METHOD_TYPE.CREDITCARD,
             });
 
+            sandbox.stub(PaypalSubscriptionAPI, 'cancelPaypalSubscription').resolves();
             const updatedOrder = await updatePaymentMethodForSubscription(user, order, newPaymentMethod);
             expect(updatedOrder.Subscription.nextChargeDate.toISOString()).to.equal('2022-02-01T00:00:00.000Z');
             expect(updatedOrder.Subscription.nextPeriodStart.toISOString()).to.equal('2022-02-01T00:00:00.000Z');
@@ -105,6 +109,7 @@ describe('server/lib/subscriptions', () => {
               type: PAYMENT_METHOD_TYPE.CREDITCARD,
             });
 
+            sandbox.stub(PaypalSubscriptionAPI, 'cancelPaypalSubscription').resolves();
             const updatedOrder = await updatePaymentMethodForSubscription(user, order, newPaymentMethod);
             expect(updatedOrder.Subscription.nextChargeDate.toISOString()).to.equal('2022-03-01T00:00:00.000Z');
             expect(updatedOrder.Subscription.nextPeriodStart.toISOString()).to.equal('2022-03-01T00:00:00.000Z');
@@ -129,13 +134,14 @@ describe('server/lib/subscriptions', () => {
           type: PAYMENT_METHOD_TYPE.CREDITCARD,
         });
 
+        sandbox.stub(PaypalSubscriptionAPI, 'cancelPaypalSubscription').resolves();
         const updatedOrder = await updatePaymentMethodForSubscription(user, order, newPaymentMethod);
         expect(updatedOrder.Subscription.isManagedExternally).to.be.false;
         expect(updatedOrder.Subscription.paypalSubscriptionId).to.be.null;
       });
 
       it('deactivates the previous subscription', async () => {
-        const cancelPaypalSubscriptionStub = sinon.stub(PaypalSubscriptionAPI, 'cancelPaypalSubscription').resolves();
+        const cancelPaypalSubscriptionStub = sandbox.stub(PaypalSubscriptionAPI, 'cancelPaypalSubscription').resolves();
         const paypalPm = await fakePaymentMethod({
           service: PAYMENT_METHOD_SERVICE.PAYPAL,
           type: PAYMENT_METHOD_TYPE.SUBSCRIPTION,

@@ -264,20 +264,31 @@ const getExpensesAmountsStats = async (
             END AS "amountInHostCurrency"
         FROM "Expenses" e
         WHERE e."deletedAt" IS NULL
-        AND (e.id IN (:expenseIds) OR e."CollectiveId" IN (:collectiveIds))
+        AND e."CollectiveId" IN (:collectiveIds)
         ORDER BY e."createdAt" ASC
-      ), all_expenses_stats AS (
+      ), expense_for_stats AS (
+        SELECT * FROM all_expenses e WHERE e.status IN ('APPROVED', 'PAID')
+      ), all_collective_stats AS (
         SELECT
-          "id",
-          "isConvertedCurrency",
-          "amountInHostCurrency",
-          AVG("amountInHostCurrency") FILTER (WHERE status = 'PAID') OVER (PARTITION BY "CollectiveId") AS "averageAmountForCollective",
-          SUM("amountInHostCurrency") FILTER (WHERE status = 'APPROVED') OVER (PARTITION BY "CollectiveId") AS "totalApprovedAmountForCollective",
-          COUNT("id") FILTER (WHERE status = 'APPROVED') OVER (PARTITION BY "CollectiveId") AS "totalApprovedCountForCollective",
-          (SELECT PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY "amountInHostCurrency") FROM all_expenses WHERE "CollectiveId" = e."CollectiveId" AND status = 'PAID') AS "paidAmountP95ForCollective"
-        FROM all_expenses e
-      ) SELECT * FROM all_expenses_stats
-      WHERE id IN (:expenseIds)
+          e."CollectiveId",
+          AVG("amountInHostCurrency") FILTER (WHERE status = 'PAID') AS "averageAmountForCollective",
+          SUM("amountInHostCurrency") FILTER (WHERE status = 'APPROVED') AS "totalApprovedAmountForCollective",
+          COUNT("id") FILTER (WHERE status = 'APPROVED') AS "totalApprovedCountForCollective",
+          (SELECT PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY "amountInHostCurrency") FILTER (WHERE status = 'PAID')) AS "paidAmountP95ForCollective"
+        FROM expense_for_stats e
+        GROUP BY e."CollectiveId"
+      ) SELECT
+        e."id",
+        e."isConvertedCurrency",
+        e."amountInHostCurrency",
+        e."CollectiveId",
+        COALESCE(s."averageAmountForCollective", 0) AS "averageAmountForCollective",
+        COALESCE(s."totalApprovedAmountForCollective", 0) AS "totalApprovedAmountForCollective",
+        COALESCE(s."totalApprovedCountForCollective", 0) AS "totalApprovedCountForCollective",
+        COALESCE(s."paidAmountP95ForCollective", 0) AS "paidAmountP95ForCollective"
+      FROM all_expenses e
+      LEFT JOIN all_collective_stats s ON s."CollectiveId" = e."CollectiveId"
+      WHERE e.id IN (:expenseIds)
     `,
     {
       type: sequelize.QueryTypes.SELECT,
