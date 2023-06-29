@@ -370,6 +370,7 @@ export const GraphQLHost = new GraphQLObjectType({
       hostedVirtualCards: {
         type: new GraphQLNonNull(GraphQLVirtualCardCollection),
         args: {
+          searchTerm: { type: GraphQLString, description: 'Search term (card name, card last four digits)' },
           limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
           offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
           state: { type: GraphQLString, defaultValue: null, deprecationReason: '2023-06-12: Please use status.' },
@@ -414,6 +415,8 @@ export const GraphQLHost = new GraphQLObjectType({
           const hasExpenseFromDate = !isNil(args.withExpensesDateFrom);
           const hasExpenseToDate = !isNil(args.withExpensesDateTo);
           const hasExpensePeriodFilter = hasExpenseFromDate || hasExpenseToDate;
+          const hasSearchTerm = !isNil(args.searchTerm) && args.searchTerm.length !== 0;
+          const searchTerm = `%${args.searchTerm}%`;
 
           const baseQuery = `
             SELECT
@@ -482,6 +485,14 @@ export const GraphQLHost = new GraphQLObjectType({
 
               ${ifStr(args.hasMissingReceipts === true, `AND COALESCE("lackingReceipts".total, 0) > 0`)}
               ${ifStr(args.hasMissingReceipts === false, `AND COALESCE("lackingReceipts".total, 0) = 0`)}
+
+              ${ifStr(
+                hasSearchTerm,
+                `AND (
+                vc.name ILIKE :searchTerm
+                OR vc.data#>>'{last4}' ILIKE :searchTerm
+              )`,
+              )}
           `;
 
           const countQuery = `
@@ -524,6 +535,7 @@ export const GraphQLHost = new GraphQLObjectType({
             limit: args.limit,
             offset: args.offset,
             hasMissingReceipts: args.hasMissingReceipts ?? null,
+            searchTerm: searchTerm,
           };
 
           const [virtualCards, { total }] = await Promise.all([
