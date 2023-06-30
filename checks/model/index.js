@@ -38,7 +38,7 @@ export async function checkAllModels({ fix = false } = {}) {
   return { errors };
 }
 
-if (!module.parent) {
+async function run() {
   const options = {
     fix: {
       type: 'boolean',
@@ -50,7 +50,11 @@ if (!module.parent) {
     values: { fix },
   } = parseArgs({ options });
 
-  checkAllModels({ fix });
+  await checkAllModels({ fix });
 
   process.exit();
+}
+
+if (!module.parent) {
+  run();
 }
