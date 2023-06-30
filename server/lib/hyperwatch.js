@@ -4,6 +4,7 @@ import expressBasicAuth from 'express-basic-auth';
 import expressWs from 'express-ws';
 import { get, pick } from 'lodash';
 
+import { timing } from './statsd';
 import { md5, parseToBoolean } from './utils';
 
 const computeMask = req => {
@@ -147,6 +148,13 @@ const load = async app => {
   };
 
   lib.logger.defaultFormatter.replaceFormat('request', formatRequest);
+
+  // GraphQL Metrics
+  pipeline.getNode('graphql').map(log => {
+    const application = log.getIn(['request', 'headers', 'oc-application']) || 'unknown';
+    const operationName = log.getIn(['graphql', 'operationName']) || 'unknown';
+    timing(`graphql.${application}.${operationName}.responseTime`, log.get('executionTime'));
+  });
 
   // Access Logs
 

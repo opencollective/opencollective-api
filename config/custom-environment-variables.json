@@ -221,5 +221,11 @@
   },
   "opentelemetry": {
     "enabled": "OPENTELEMETRY_ENABLED"
+  },
+  "statsd": {
+    "enabled": "STATSD_ENABLED",
+    "url": "STATSD_URL",
+    "port": "STATSD_PORT",
+    "prefix": "STATSD_PREFIX"
   }
 }
