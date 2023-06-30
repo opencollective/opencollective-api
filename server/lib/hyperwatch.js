@@ -4,7 +4,7 @@ import expressBasicAuth from 'express-basic-auth';
 import expressWs from 'express-ws';
 import { get, pick } from 'lodash';
 
-import { timing } from './metrics';
+import { timing } from './statsd';
 import { md5, parseToBoolean } from './utils';
 
 const computeMask = req => {
@@ -151,7 +151,7 @@ const load = async app => {
 
   // GraphQL Metrics
   pipeline.getNode('graphql').map(log => {
-    const application = log.getIn(['application']) || 'unknown';
+    const application = log.getIn(['request', 'headers', 'oc-application']) || 'unknown';
     const operationName = log.getIn(['graphql', 'operationName']) || 'unknown';
     timing(`graphql.${application}.${operationName}.responseTime`, log.get('executionTime'));
   });

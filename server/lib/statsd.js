@@ -16,11 +16,11 @@ export function getStatsdClient() {
   return statsdClient;
 }
 
-export function timing(stat, time, sampleRate, tags, callback) {
+export function timing(stat, time) {
   const client = getStatsdClient();
   if (client) {
     try {
-      client.timing(stat, time, sampleRate, tags, callback);
+      client.timing(stat, time);
     } catch (error) {
       logger.error(`StatsD timing error: ${error.message}`);
     }
