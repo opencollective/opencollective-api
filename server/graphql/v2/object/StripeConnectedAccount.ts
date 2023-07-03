@@ -1,4 +1,4 @@
-import { GraphQLObjectType } from 'graphql';
+import { GraphQLObjectType, GraphQLString } from 'graphql';
 
 import { reportErrorToSentry } from '../../../lib/sentry';
 import stripe from '../../../lib/stripe';
@@ -10,6 +10,9 @@ export const GraphQLStripeConnectedAccount = new GraphQLObjectType({
   name: 'StripeConnectedAccount',
   description: 'Stripe connected account properties',
   fields: () => ({
+    username: {
+      type: GraphQLString,
+    },
     issuingBalance: {
       type: GraphQLAmount,
       async resolve(connectedAccount: ConnectedAccount) {
