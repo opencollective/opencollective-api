@@ -125,6 +125,7 @@ export const GraphQLTransferWise = new GraphQLObjectType({
         const scheduledExpenses = await models.Expense.findAll({
           where: {
             status: 'SCHEDULED_FOR_PAYMENT',
+            data: { quote: { [Op.not]: null } },
           },
           include: [
             {
@@ -136,11 +137,13 @@ export const GraphQLTransferWise = new GraphQLObjectType({
           ],
         });
 
-        const sourceAmount = scheduledExpenses
-          .filter(expense => !!expense.data.quote?.paymentOption)
-          .reduce((total, expense) => {
-            return total + expense.data.quote.paymentOption.sourceAmount;
-          }, 0);
+        if (!scheduledExpenses.length) {
+          return null;
+        }
+
+        const sourceAmount = scheduledExpenses.reduce((total, expense) => {
+          return total + expense.data.quote.paymentOption.sourceAmount;
+        }, 0);
 
         if (sourceAmount) {
           return {
