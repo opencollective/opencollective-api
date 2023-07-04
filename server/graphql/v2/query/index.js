@@ -26,6 +26,7 @@ import ProjectQuery from './ProjectQuery';
 import TierQuery from './TierQuery';
 import TransactionQuery from './TransactionQuery';
 import UpdateQuery from './UpdateQuery';
+import VirtualCardQuery from './VirtualCardQuery';
 
 const query = {
   account: AccountQuery,
@@ -54,6 +55,7 @@ const query = {
   updates: UpdatesCollectionQuery,
   paypalPlan: PaypalPlanQuery,
   personalToken: PersonalTokenQuery,
+  virtualCard: VirtualCardQuery,
   loggedInAccount: {
     type: GraphQLIndividual,
     resolve(_, args, req) {
