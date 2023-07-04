@@ -13,7 +13,7 @@ import { floatAmountToCents } from '../../lib/math';
 import { createRefundTransaction } from '../../lib/payments';
 import { validateWebhookEvent } from '../../lib/paypal';
 import { sendThankYouEmail } from '../../lib/recurring-contributions';
-import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
+import { reportMessageToSentry } from '../../lib/sentry';
 import models, { Op } from '../../models';
 import { PayoutWebhookRequest } from '../../types/paypal';
 
@@ -328,35 +328,25 @@ async function handleSubscriptionActivated(req: Request): Promise<void> {
  */
 async function webhook(req: Request): Promise<void> {
   debug('new event', req.body);
-  try {
-    const eventType = get(req, 'body.event_type');
-    switch (eventType) {
-      case 'PAYMENT.PAYOUTS-ITEM':
-        return handlePayoutTransactionUpdate(req);
-      case 'PAYMENT.SALE.COMPLETED':
-        return handleSaleCompleted(req);
-      case 'PAYMENT.CAPTURE.COMPLETED':
-        return handleCaptureCompleted(req);
-      case 'PAYMENT.CAPTURE.REFUNDED':
-      case 'PAYMENT.CAPTURE.REVERSED':
-        return handleCaptureRefunded(req);
-      case 'BILLING.SUBSCRIPTION.CANCELLED':
-      case 'BILLING.SUBSCRIPTION.SUSPENDED':
-        return handleSubscriptionCancelled(req);
-      case 'BILLING.SUBSCRIPTION.ACTIVATED':
-        return handleSubscriptionActivated(req);
-      default:
-        logger.info(`Received unhandled PayPal event (${eventType}), ignoring it.`);
-        break;
-    }
-  } catch (e) {
-    reportErrorToSentry(e, {
-      feature: FEATURE.PAYPAL_DONATIONS,
-      tags: { webhook: 'paypal' },
-      extra: { body: req.body },
-    });
-
-    throw e;
+  const eventType = get(req, 'body.event_type');
+  switch (eventType) {
+    case 'PAYMENT.PAYOUTS-ITEM':
+      return handlePayoutTransactionUpdate(req);
+    case 'PAYMENT.SALE.COMPLETED':
+      return handleSaleCompleted(req);
+    case 'PAYMENT.CAPTURE.COMPLETED':
+      return handleCaptureCompleted(req);
+    case 'PAYMENT.CAPTURE.REFUNDED':
+    case 'PAYMENT.CAPTURE.REVERSED':
+      return handleCaptureRefunded(req);
+    case 'BILLING.SUBSCRIPTION.CANCELLED':
+    case 'BILLING.SUBSCRIPTION.SUSPENDED':
+      return handleSubscriptionCancelled(req);
+    case 'BILLING.SUBSCRIPTION.ACTIVATED':
+      return handleSubscriptionActivated(req);
+    default:
+      logger.info(`Received unhandled PayPal event (${eventType}), ignoring it.`);
+      break;
   }
 }
 
