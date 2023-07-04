@@ -415,6 +415,10 @@ export default async app => {
     res.sendStatus(200);
   });
 
+  app.get('/__test_sentry_crash__', () => {
+    throw new Error('Test Sentry');
+  });
+
   /**
    * Override default 404 handler to make sure to obfuscate api_key visible in URL
    */
