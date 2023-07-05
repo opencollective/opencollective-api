@@ -100,6 +100,28 @@ const generateTimelineQuery = async (
   }
 };
 
+const resolveTimeline = async ({ args, accounts, req }) => {
+  const isRoot = req.remoteUser.isRoot();
+  const { offset, limit } = args;
+
+  if (accounts.length !== 1) {
+    throw new BadRequest('Cannot retrieve timeline for multiple accounts at the same time');
+  }
+  if (!req.remoteUser?.isAdminOfCollective(accounts[0]) && !isRoot) {
+    throw new Unauthorized('You need to be logged in as an admin of this collective to see its activity');
+  }
+  const where = await generateTimelineQuery(accounts[0], args.type);
+
+  const order: Order = [['createdAt', 'DESC']];
+  const result = await models.Activity.findAll({ where, order, offset, limit });
+  return {
+    nodes: result,
+    totalCount: () => models.Activity.count({ where }),
+    limit: args.limit,
+    offset: args.offset,
+  };
+};
+
 const ActivitiesCollectionArgs = {
   limit: { ...CollectionArgs.limit, defaultValue: 100 },
   offset: CollectionArgs.offset,
@@ -166,63 +188,55 @@ const ActivitiesCollectionQuery = {
     // Check permissions
     checkRemoteUserCanUseAccount(req);
     const isRoot = req.remoteUser.isRoot();
-
-    let where;
     if (args.timeline) {
-      if (accounts.length !== 1) {
-        throw new BadRequest('Cannot retrieve timeline for multiple accounts at the same time');
+      return resolveTimeline({ args, accounts, req });
+    }
+
+    // Build accounts conditions
+    const accountOrConditions = [];
+    const allowedAccounts = isRoot ? accounts : accounts.filter(a => req.remoteUser.isAdminOfCollectiveOrHost(a));
+    for (const account of allowedAccounts) {
+      // Include all activities related to the account itself
+      if (!args.excludeParentAccount) {
+        accountOrConditions.push({ CollectiveId: account.id }, { FromCollectiveId: account.id });
       }
-      if (!req.remoteUser?.isAdminOfCollective(accounts[0]) && !isRoot) {
-        throw new Unauthorized('You need to be logged in as an admin of this collective to see its activity');
+
+      // Include all activities related to the account's hosted collectives
+      if (args.includeHostedAccounts && account.isHostAccount) {
+        accountOrConditions.push({ HostCollectiveId: account.id });
       }
-      where = await generateTimelineQuery(accounts[0], args.type);
+    }
+
+    // Include all activities related to the account's children
+    if (args.includeChildrenAccounts) {
+      const parentIds = uniq(allowedAccounts.map(account => account.id));
+      const childrenAccounts = await models.Collective.findAll({
+        attributes: ['id'],
+        where: { ParentCollectiveId: parentIds, id: { [Op.notIn]: parentIds } },
+        raw: true,
+      });
+
+      childrenAccounts.forEach(childAccount => {
+        accountOrConditions.push({ CollectiveId: childAccount.id }, { FromCollectiveId: childAccount.id });
+      });
+    }
+
+    if (accountOrConditions.length === 0) {
+      return { nodes: null, totalCount: 0, limit, offset };
+    }
+
+    const where = { [Op.or]: accountOrConditions };
+    if (args.dateFrom) {
+      where['createdAt'] = { [Op.gte]: args.dateFrom };
+    }
+    if (args.dateTo) {
+      where['createdAt'] = Object.assign({}, where['createdAt'], { [Op.lte]: args.dateTo });
+    }
+    if (args.type) {
+      const selectedActivities: string[] = uniq(flatten(args.type.map(type => ActivitiesPerClass[type] || type)));
+      where['type'] = selectedActivities.filter(type => !IGNORED_ACTIVITIES.includes(type));
     } else {
-      // Build accounts conditions
-      const accountOrConditions = [];
-      const allowedAccounts = isRoot ? accounts : accounts.filter(a => req.remoteUser.isAdminOfCollectiveOrHost(a));
-      for (const account of allowedAccounts) {
-        // Include all activities related to the account itself
-        if (!args.excludeParentAccount) {
-          accountOrConditions.push({ CollectiveId: account.id }, { FromCollectiveId: account.id });
-        }
-
-        // Include all activities related to the account's hosted collectives
-        if (args.includeHostedAccounts && account.isHostAccount) {
-          accountOrConditions.push({ HostCollectiveId: account.id });
-        }
-      }
-
-      // Include all activities related to the account's children
-      if (args.includeChildrenAccounts) {
-        const parentIds = uniq(allowedAccounts.map(account => account.id));
-        const childrenAccounts = await models.Collective.findAll({
-          attributes: ['id'],
-          where: { ParentCollectiveId: parentIds, id: { [Op.notIn]: parentIds } },
-          raw: true,
-        });
-
-        childrenAccounts.forEach(childAccount => {
-          accountOrConditions.push({ CollectiveId: childAccount.id }, { FromCollectiveId: childAccount.id });
-        });
-      }
-
-      if (accountOrConditions.length === 0) {
-        return { nodes: null, totalCount: 0, limit, offset };
-      }
-
-      where = { [Op.or]: accountOrConditions };
-      if (args.dateFrom) {
-        where['createdAt'] = { [Op.gte]: args.dateFrom };
-      }
-      if (args.dateTo) {
-        where['createdAt'] = Object.assign({}, where['createdAt'], { [Op.lte]: args.dateTo });
-      }
-      if (args.type) {
-        const selectedActivities: string[] = uniq(flatten(args.type.map(type => ActivitiesPerClass[type] || type)));
-        where['type'] = selectedActivities.filter(type => !IGNORED_ACTIVITIES.includes(type));
-      } else {
-        where['type'] = { [Op.not]: IGNORED_ACTIVITIES };
-      }
+      where['type'] = { [Op.not]: IGNORED_ACTIVITIES };
     }
 
     const order: Order = [['createdAt', 'DESC']];
