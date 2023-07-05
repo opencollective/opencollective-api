@@ -9556,7 +9556,7 @@ A Virtual Card used to pay expenses
 type VirtualCard {
   id: String
   account: Account
-  host: Account
+  host: Host
   assignee: Individual
   name: String
   last4: String
