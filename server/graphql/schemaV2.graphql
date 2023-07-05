@@ -9556,7 +9556,7 @@ A Virtual Card used to pay expenses
 type VirtualCard {
   id: String
   account: Account
-  host: Account
+  host: Host
   assignee: Individual
   name: String
   last4: String
@@ -10415,6 +10415,17 @@ type Query {
     """
     legacyId: Int
   ): PersonalToken
+  virtualCard(
+    """
+    Identifiers to retrieve the virtual card
+    """
+    virtualCard: VirtualCardReferenceInput!
+
+    """
+    If true, an error will be returned if the virtual card is missing
+    """
+    throwIfMissing: Boolean! = true
+  ): VirtualCard
   loggedInAccount: Individual
   me: Individual
 }

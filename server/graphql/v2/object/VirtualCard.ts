@@ -11,6 +11,7 @@ import { GraphQLVirtualCardLimitInterval } from '../enum/VirtualCardLimitInterva
 import { GraphQLVirtualCardStatusEnum } from '../enum/VirtualCardStatus';
 import { GraphQLAccount } from '../interface/Account';
 
+import { GraphQLHost } from './Host';
 import { GraphQLIndividual } from './Individual';
 
 const canSeeVirtualCardPrivateInfo = (req, collective) =>
@@ -30,7 +31,7 @@ export const GraphQLVirtualCard = new GraphQLObjectType({
       },
     },
     host: {
-      type: GraphQLAccount,
+      type: GraphQLHost,
       resolve(virtualCard, _, req) {
         if (virtualCard.HostCollectiveId) {
           return req.loaders.Collective.byId.load(virtualCard.HostCollectiveId);
