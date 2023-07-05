@@ -1,18 +1,5 @@
 import type { Request } from 'express';
-import {
-  capitalize,
-  compact,
-  filter,
-  find,
-  first,
-  isEqual,
-  isUndefined,
-  keyBy,
-  max,
-  startCase,
-  uniq,
-  uniqBy,
-} from 'lodash';
+import { capitalize, compact, filter, find, first, isEqual, isNil, keyBy, max, startCase, uniq, uniqBy } from 'lodash';
 import moment from 'moment';
 
 import status from '../../constants/expense_status';
@@ -53,7 +40,7 @@ const setProperty = (obj, key) => value => {
     obj[key] = value;
   }
 };
-const isDefinedButNotEqual = (a, b) => !isUndefined(a) && !isEqual(a, b);
+const isDefinedButNotEqual = (a, b) => !isNil(a) && !isNil(b) && !isEqual(a, b);
 
 type ExpenseStats = { count: number; lastCreatedAt: Date; status: status; CollectiveId: number };
 

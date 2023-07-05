@@ -46,6 +46,10 @@ async function handlePayoutTransactionUpdate(req: Request): Promise<void> {
   }
 
   const host = await expense.collective.getHostCollective();
+  if (!host) {
+    throw new Error(`No host found for collective ${expense.collective.slug}`);
+  }
+
   const paypalAccount = await getPaypalAccount(host);
   await validateWebhookEvent(paypalAccount, req);
 
@@ -91,6 +95,10 @@ const loadSubscriptionForWebhookEvent = async (
   }
 
   const host = await order.collective.getHostCollective();
+  if (!host) {
+    throw new Error(`No host found for collective ${order.collective.slug}`);
+  }
+
   const paypalAccount = await getPaypalAccount(host);
   await validateWebhookEvent(paypalAccount, req);
   return { host, order, paypalAccount };
@@ -168,6 +176,10 @@ async function handleCaptureCompleted(req: Request): Promise<void> {
 
   // Validate webhook event
   const host = await order.collective.getHostCollective();
+  if (!host) {
+    throw new Error(`No host found for collective ${order.collective.slug}`);
+  }
+
   const paypalAccount = await getPaypalAccount(host);
   await validateWebhookEvent(paypalAccount, req);
 
@@ -203,6 +215,10 @@ async function handleCaptureRefunded(req: Request): Promise<void> {
 
   // Validate webhook event
   const host = await models.Collective.findByPk(req.params.hostId);
+  if (!host) {
+    throw new Error(`No host found for ID ${req.params.hostId}`);
+  }
+
   const paypalAccount = await getPaypalAccount(host);
   await validateWebhookEvent(paypalAccount, req);
 

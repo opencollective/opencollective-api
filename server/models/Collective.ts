@@ -2355,13 +2355,9 @@ class Collective extends Model<
     await Promise.all(virtualCards.map(virtualCard => virtualCard.delete()));
 
     // Prepare events and projects to receive a new host
-    const events = await this.getEvents();
-    if (events?.length > 0) {
-      await Promise.all(events.map(e => e.changeHost(null, remoteUser, { isChildren: true })));
-    }
-    const projects = await this.getProjects();
-    if (projects?.length > 0) {
-      await Promise.all(projects.map(e => e.changeHost(null, remoteUser, { isChildren: true })));
+    const children = await this.getChildren();
+    if (children.length > 0) {
+      await Promise.all(children.map(e => e.changeHost(null, remoteUser, { isChildren: true })));
     }
 
     // Reset current host

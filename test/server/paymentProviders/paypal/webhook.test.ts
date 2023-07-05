@@ -67,7 +67,7 @@ describe('server/paymentProviders/paypal/webhook', () => {
       const order = await createOrderWithSubscription({ CollectiveId: collective.id });
       await expect(
         callPaymentSaleCompleted({ resource: { billing_agreement_id: order.paymentMethod.token } }),
-      ).to.be.rejectedWith('PayPal webhook: no host found');
+      ).to.be.rejectedWith(`No host found for collective ${collective.slug}`);
     });
 
     it('fails if host does not have PayPal', async () => {
@@ -147,7 +147,7 @@ describe('server/paymentProviders/paypal/webhook', () => {
       const collective = await fakeCollective({ HostCollectiveId: null });
       const order = await createOrderWithSubscription({ CollectiveId: collective.id });
       await expect(callSubscriptionCancelled({ resource: { id: order.paymentMethod.token } })).to.be.rejectedWith(
-        'PayPal webhook: no host found',
+        `No host found for collective ${collective.slug}`,
       );
     });
 

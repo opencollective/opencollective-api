@@ -81,7 +81,7 @@ if (config.sentry?.dsn) {
 
 export enum HandlerType {
   GQL = 'GQL',
-  REST = 'REST',
+  EXPRESS = 'EXPRESS',
   CRON = 'CRON',
   FALLBACK = 'FALLBACK',
 }

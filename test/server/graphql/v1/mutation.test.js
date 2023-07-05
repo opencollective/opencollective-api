@@ -4,10 +4,11 @@ import { describe, it } from 'mocha';
 import { assert, createSandbox, match } from 'sinon';
 
 import roles from '../../../../server/constants/roles';
+import * as CacheLib from '../../../../server/lib/cache';
 import emailLib from '../../../../server/lib/email';
 import * as payments from '../../../../server/lib/payments';
 import models from '../../../../server/models';
-import { fakePaymentMethod, fakeProject } from '../../../test-helpers/fake-data';
+import { fakeOrder, fakePaymentMethod, fakeProject, fakeUser } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
 let host, user1, user2, user3, collective1, event1, ticket1;
@@ -375,6 +376,11 @@ describe('server/graphql/v1/mutation', () => {
           }
         }
       `;
+
+      after(async () => {
+        await utils.graphqlQuery(unarchiveCollectiveMutation, { id: collective1.id }, user3);
+      });
+
       it('fails if not authenticated', async () => {
         const result = await utils.graphqlQuery(archiveCollectiveMutation, {
           id: collective1.id,
@@ -403,8 +409,34 @@ describe('server/graphql/v1/mutation', () => {
         events.forEach(event => expect(event.isActive).to.eq(false));
       });
 
-      after(async () => {
-        await utils.graphqlQuery(unarchiveCollectiveMutation, { id: collective1.id }, user3);
+      it('archives a project should cancel recurring contributions', async () => {
+        // Setup test data
+        const admin = await fakeUser();
+        const project = await fakeProject({ admin });
+        const order = await fakeOrder(
+          { CollectiveId: project.id, status: 'ACTIVE', subscription: { isManagedExternally: true } },
+          { withSubscription: true },
+        );
+
+        // Setup some spies
+        const purgeCacheSpy = sandbox.spy(CacheLib, 'purgeCacheForCollective');
+
+        // Call mutation
+        const response = await utils.graphqlQuery(archiveCollectiveMutation, { id: project.id }, admin);
+        expect(response.data.archiveCollective.isArchived).to.be.true;
+
+        // Check DB entries
+        await project.reload();
+        await order.reload();
+        expect(project.isActive).to.be.false;
+        expect(project.HostCollectiveId).to.be.null;
+        expect(project.deactivatedAt).to.be.a('date');
+        expect(order.status).to.equal('CANCELLED');
+
+        // Check API calls
+        expect(purgeCacheSpy.callCount).to.equal(2);
+        expect(purgeCacheSpy.firstCall.args[0]).to.equal(project.slug);
+        expect(purgeCacheSpy.secondCall.args[0]).to.equal((await project.getParentCollective()).slug);
       });
     });
   });
