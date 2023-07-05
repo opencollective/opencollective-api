@@ -517,53 +517,44 @@ export async function archiveCollective(_, args, req) {
     }
   }
 
-  // Trigger archive
-  const membership = await models.Member.findOne({
-    where: {
-      CollectiveId: collective.id,
-      MemberCollectiveId: collective.HostCollectiveId,
-      role: roles.HOST,
-    },
-  });
-
-  if (membership) {
-    membership.destroy();
-  }
-
-  if (collective.type === types.EVENT || collective.type === types.PROJECT) {
-    const updatedCollective = await collective.update({ isActive: false, deactivatedAt: Date.now() });
-    const parent = await updatedCollective.getParentCollective();
-    if (parent) {
-      // purge cache for parent to make sure the card gets updated on the collective page
-      purgeCacheForCollective(parent.slug);
-    }
-
-    return updatedCollective;
-  }
-
-  // `changeHost` will recursively check children and unhost them
-  await collective.changeHost(null);
-
-  // Mark all children as archived, with a special `data.archivedFromParent` flag for later un-archive
-  const deactivatedAt = new Date();
-  await sequelize.query(
-    `UPDATE "Collectives"
+  const isChildren = collective.type === types.EVENT || collective.type === types.PROJECT;
+  const slugsToClearCacheFor = [collective.slug];
+  if (!isChildren) {
+    // Mark all children as archived, with a special `data.archivedFromParent` flag for later un-archive
+    const deactivatedAt = new Date();
+    await sequelize.query(
+      `UPDATE "Collectives"
     SET "deactivatedAt" = :deactivatedAt,
-        "data" = JSONB_SET(COALESCE("data", '{}'), '{archivedFromParent}', 'true')
+    "data" = JSONB_SET(COALESCE("data", '{}'), '{archivedFromParent}', 'true')
     WHERE "ParentCollectiveId" = :collectiveId
     AND "deletedAt" IS NULL
     AND "deactivatedAt" IS NULL
-  `,
-    {
-      replacements: { collectiveId: collective.id, deactivatedAt },
-    },
-  );
+    `,
+      {
+        replacements: { collectiveId: collective.id, deactivatedAt },
+      },
+    );
+  } else {
+    // Purge cache for parent to make sure the card gets updated on the collective page
+    const parent = await collective.getParentCollective();
+    if (parent) {
+      slugsToClearCacheFor.push(parent.slug);
+    }
+  }
 
   // Cancel all subscriptions which the collective is contributing
   await models.Order.cancelActiveOrdersByCollective(collective.id);
 
+  // Resets the host, which marks orders as CANCELLED and recursively unhost children
+  await collective.changeHost(null, req.remoteUser, { isChildren });
+
   // Mark main account as archived
-  return collective.update({ deactivatedAt });
+  await collective.update({ isActive: false, deactivatedAt: new Date() });
+
+  // Clear caches
+  slugsToClearCacheFor.map(purgeCacheForCollective);
+
+  return collective;
 }
 
 export async function unarchiveCollective(_, args, req) {
