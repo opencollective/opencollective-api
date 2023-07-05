@@ -41,6 +41,7 @@ import User from './User';
 import UserToken from './UserToken';
 import UserTwoFactorMethod from './UserTwoFactorMethod';
 import VirtualCard from './VirtualCard';
+import VirtualCardRequest from './VirtualCardRequest';
 
 /**
  * Models.
@@ -84,6 +85,7 @@ const models = {
   User: User,
   UserToken: UserToken,
   VirtualCard: VirtualCard,
+  VirtualCardRequest: VirtualCardRequest,
   PersonalToken: PersonalToken,
   SocialLink,
 } as const;
@@ -398,6 +400,20 @@ models.VirtualCard.belongsTo(models.User, {
 models.VirtualCard.hasMany(models.Expense, { foreignKey: 'VirtualCardId', as: 'expenses' });
 models.Collective.hasMany(models.VirtualCard, { foreignKey: 'HostCollectiveId', as: 'virtualCards' });
 models.Collective.hasMany(models.VirtualCard, { foreignKey: 'CollectiveId', as: 'virtualCardCollectives' });
+
+// VirtualCardRequest
+models.VirtualCardRequest.belongsTo(models.Collective, {
+  foreignKey: 'CollectiveId',
+  as: 'collective',
+});
+models.VirtualCardRequest.belongsTo(models.Collective, {
+  foreignKey: 'HostCollectiveId',
+  as: 'host',
+});
+models.VirtualCardRequest.belongsTo(models.User, {
+  foreignKey: 'UserId',
+  as: 'user',
+});
 
 // SocialLink
 models.SocialLink.belongsTo(models.Collective, {

@@ -32,15 +32,15 @@ export default class VirtualCardRequest extends Model<
   declare spendingLimitInterval: VirtualCardLimitIntervals;
 
   declare UserId: ForeignKey<User['id']>;
-  declare User?: User;
+  declare user?: NonAttribute<User>;
   declare getUser: BelongsToGetAssociationMixin<User>;
 
   declare HostCollectiveId: ForeignKey<Collective['id']>;
-  declare Host?: NonAttribute<Collective>;
+  declare host?: NonAttribute<Collective>;
   declare getHost: BelongsToGetAssociationMixin<Collective>;
 
   declare CollectiveId: ForeignKey<Collective['id']>;
-  declare Collective?: NonAttribute<Collective>;
+  declare collective?: NonAttribute<Collective>;
   declare getCollective: BelongsToGetAssociationMixin<Collective>;
 
   declare createdAt: CreationOptional<Date>;
@@ -128,7 +128,7 @@ VirtualCardRequest.init(
     },
     spendingLimitInterval: {
       allowNull: false,
-      type: DataTypes.INTEGER,
+      type: DataTypes.TEXT,
     },
     UserId: {
       type: DataTypes.INTEGER,

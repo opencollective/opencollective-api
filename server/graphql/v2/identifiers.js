@@ -39,6 +39,7 @@ export const IDENTIFIER_TYPES = {
   NOTIFICATION: 'notification',
   PERSONAL_TOKEN: 'personal-token',
   UPLOADED_FILE: 'uploaded-file',
+  VIRTUAL_CARD_REQUEST: 'virtual-card-request',
 };
 
 const getDefaultInstance = type => {
