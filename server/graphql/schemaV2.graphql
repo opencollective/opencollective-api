@@ -10415,6 +10415,17 @@ type Query {
     """
     legacyId: Int
   ): PersonalToken
+  virtualCard(
+    """
+    Identifiers to retrieve the virtual card
+    """
+    virtualCard: VirtualCardReferenceInput!
+
+    """
+    If true, an error will be returned if the virtual card is missing
+    """
+    throwIfMissing: Boolean! = true
+  ): VirtualCard
   loggedInAccount: Individual
   me: Individual
 }
