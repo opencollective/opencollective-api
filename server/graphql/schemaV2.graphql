@@ -5350,6 +5350,11 @@ type OrderPermissions {
   Whether the current user can see private activities for this order
   """
   canSeePrivateActivities: Boolean!
+
+  """
+  Whether the current user can set tags on this order
+  """
+  canSetTags: Boolean!
 }
 
 """

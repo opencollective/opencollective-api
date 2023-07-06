@@ -30,6 +30,15 @@ export const canSeeOrderPrivateActivities = async (req: express.Request, order):
   return isHostAdmin(req, order);
 };
 
+export const canSetOrderTags = async (req: express.Request, order): Promise<boolean> => {
+  if (!req.remoteUser) {
+    return false;
+  }
+
+  const account = order.collective || (await req.loaders.Collective.byId.load(order.CollectiveId));
+  return req.remoteUser.isAdminOfCollectiveOrHost(account);
+};
+
 const GraphQLOrderPermissions = new GraphQLObjectType({
   name: 'OrderPermissions',
   description: 'Fields for the user permissions on an order',
@@ -64,6 +73,13 @@ const GraphQLOrderPermissions = new GraphQLObjectType({
       description: 'Whether the current user can see private activities for this order',
       async resolve(order, _, req: express.Request): Promise<boolean> {
         return canSeeOrderPrivateActivities(req, order);
+      },
+    },
+    canSetTags: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can set tags on this order',
+      async resolve(order, _, req: express.Request): Promise<boolean> {
+        return canSetOrderTags(req, order);
       },
     },
   }),

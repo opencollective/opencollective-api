@@ -4,11 +4,12 @@ import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'g
 import models from '../../../models';
 import { canEditExpenseTags } from '../../common/expenses';
 import { checkRemoteUserCanUseExpenses, checkRemoteUserCanUseOrders } from '../../common/scope-check';
-import { NotFound, Unauthorized } from '../../errors';
+import { Unauthorized } from '../../errors';
 import { fetchExpenseWithReference, GraphQLExpenseReferenceInput } from '../input/ExpenseReferenceInput';
 import { fetchOrderWithReference, GraphQLOrderReferenceInput } from '../input/OrderReferenceInput';
 import { GraphQLExpense } from '../object/Expense';
 import { GraphQLOrder } from '../object/Order';
+import { canSetOrderTags } from '../object/OrderPermissions';
 
 const GraphQLTagResponse = new GraphQLObjectType({
   name: 'TagResponse',
@@ -49,25 +50,25 @@ const tagMutations = {
           throwIfMissing: true,
           include: [{ model: models.Collective, as: 'collective' }],
         });
-        if (!req.remoteUser.isAdminOfCollectiveOrHost(order.collective)) {
-          throw new Unauthorized();
+        if (!(await canSetOrderTags(req, order))) {
+          throw new Unauthorized('You do not have the permissions to set tags on this order');
         }
 
         await order.update({ tags: args.tags });
 
-        return order;
+        return { order };
       } else if (args.expense) {
         checkRemoteUserCanUseExpenses(req);
 
         const expense = await fetchExpenseWithReference(args.expense, { throwIfMissing: true });
-        await canEditExpenseTags(req, expense, { throw: true });
+        if (!(await canEditExpenseTags(req, expense))) {
+          throw new Unauthorized('You do not have the permissions to set tags on this expense');
+        }
 
         await expense.update({ tags: args.tags });
 
-        return expense;
+        return { expense };
       }
-
-      throw new NotFound();
     },
   },
 };
