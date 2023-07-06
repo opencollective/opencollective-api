@@ -20,12 +20,12 @@ import { OrderModelInterface } from '../../server/models/Order';
 const getHostFromOrder = async order => {
   const transactions = await order.getTransactions({
     attributes: ['HostCollectiveId'],
-    group: ['HostCollectiveId'],
     where: { type: 'CREDIT', kind: 'CONTRIBUTION', HostCollectiveId: { [Op.ne]: null } },
+    order: [['createdAt', 'DESC']],
   });
 
   const hostIds: number[] = uniq(transactions.map(t => t.HostCollectiveId));
-  if (hostIds.length !== 1) {
+  if (!hostIds.length) {
     throw new Error(`Could not find the host for order ${order.id}`);
   }
 
