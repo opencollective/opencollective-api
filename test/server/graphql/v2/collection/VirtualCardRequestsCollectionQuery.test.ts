@@ -13,8 +13,25 @@ const virtualCardRequestsCollectionQuery = gqlV2/* GraphQL */ `
       limit
       totalCount
       nodes {
-        id
         legacyId
+        purpose
+        status
+        notes
+        currency
+        spendingLimitAmount {
+          currency
+          valueInCents
+        }
+        spendingLimitInterval
+        assignee {
+          legacyId
+        }
+        host {
+          legacyId
+        }
+        account {
+          legacyId
+        }
       }
     }
   }
@@ -35,11 +52,12 @@ describe('server/graphql/v2/collection/VirtualCardRequestsCollectionQuery', () =
     const adminUser = await fakeUser();
     const host = await fakeHost({ admin: adminUser });
     const otherHost = await fakeHost({ admin: adminUser });
+    const collective = await fakeCollective();
 
     const vcr = await VirtualCardRequest.create({
       HostCollectiveId: host.id,
       UserId: adminUser.id,
-      CollectiveId: (await fakeCollective()).id,
+      CollectiveId: collective.id,
       purpose: 'new card',
       notes: 'expenses',
       currency: 'USD',
@@ -62,6 +80,26 @@ describe('server/graphql/v2/collection/VirtualCardRequestsCollectionQuery', () =
     expect(result.errors).to.not.exist;
     expect(result.data.virtualCardRequests.totalCount).to.eq(1);
     expect(result.data.virtualCardRequests.nodes).to.not.be.null;
-    expect(result.data.virtualCardRequests.nodes[0].legacyId).to.eq(vcr.id);
+    expect(result.data.virtualCardRequests.nodes[0]).to.deep.eq({
+      legacyId: vcr.id,
+      account: {
+        legacyId: collective.id,
+      },
+      assignee: {
+        legacyId: adminUser.collective.id,
+      },
+      host: {
+        legacyId: host.id,
+      },
+      notes: 'expenses',
+      purpose: 'new card',
+      status: 'PENDING',
+      currency: 'USD',
+      spendingLimitInterval: 'MONTHLY',
+      spendingLimitAmount: {
+        currency: 'USD',
+        valueInCents: 10000,
+      },
+    });
   });
 });

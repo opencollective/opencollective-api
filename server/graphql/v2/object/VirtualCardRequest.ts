@@ -37,7 +37,7 @@ export const GraphQLVirtualCardRequest = new GraphQLObjectType({
       resolve(virtualCardRequest: VirtualCardRequest) {
         return {
           currency: virtualCardRequest.currency,
-          valueInCents: virtualCardRequest.spendingLimitAmount,
+          value: virtualCardRequest.spendingLimitAmount,
         };
       },
     },
