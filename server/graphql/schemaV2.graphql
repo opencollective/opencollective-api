@@ -10431,6 +10431,17 @@ type Query {
     """
     throwIfMissing: Boolean! = true
   ): VirtualCard
+  virtualCardRequest(
+    """
+    Identifiers to retrieve the virtual card request
+    """
+    virtualCardRequest: VirtualCardRequestReferenceInput!
+
+    """
+    If true, an error will be returned if the virtual card request is missing
+    """
+    throwIfMissing: Boolean! = true
+  ): VirtualCardRequest
   virtualCardRequests(
     """
     The number of results to fetch (default 10, max 1000)
@@ -13139,19 +13150,9 @@ type PaypalPlan {
 }
 
 """
-A collection of "VirtualCardRequest"
-"""
-type VirtualCardRequestCollection implements Collection {
-  offset: Int
-  limit: Int
-  totalCount: Int
-  nodes: [GraphQLVirtualCardRequest!]
-}
-
-"""
 A Virtual Card request
 """
-type GraphQLVirtualCardRequest {
+type VirtualCardRequest {
   id: String!
   legacyId: Int
   purpose: String
@@ -13172,6 +13173,20 @@ The status of a virtual card request
 """
 enum VirtualCardRequestStatus {
   PENDING
+}
+
+input VirtualCardRequestReferenceInput {
+  id: String
+}
+
+"""
+A collection of "VirtualCardRequest"
+"""
+type VirtualCardRequestCollection implements Collection {
+  offset: Int
+  limit: Int
+  totalCount: Int
+  nodes: [VirtualCardRequest!]
 }
 
 """

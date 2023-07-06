@@ -13,7 +13,7 @@ import { GraphQLHost } from './Host';
 import GraphQLIndividual from './Individual';
 
 export const GraphQLVirtualCardRequest = new GraphQLObjectType({
-  name: 'GraphQLVirtualCardRequest',
+  name: 'VirtualCardRequest',
   description: 'A Virtual Card request',
   fields: () => ({
     id: {

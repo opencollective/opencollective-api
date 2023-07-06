@@ -28,6 +28,7 @@ import TierQuery from './TierQuery';
 import TransactionQuery from './TransactionQuery';
 import UpdateQuery from './UpdateQuery';
 import VirtualCardQuery from './VirtualCardQuery';
+import VirtualCardRequestQuery from './VirtualCardRequestQuery';
 
 const query = {
   account: AccountQuery,
@@ -57,6 +58,7 @@ const query = {
   paypalPlan: PaypalPlanQuery,
   personalToken: PersonalTokenQuery,
   virtualCard: VirtualCardQuery,
+  virtualCardRequest: VirtualCardRequestQuery,
   virtualCardRequests: VirtualCardRequestsCollectionQuery,
   loggedInAccount: {
     type: GraphQLIndividual,
