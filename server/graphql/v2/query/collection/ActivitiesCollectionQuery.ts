@@ -1,126 +1,18 @@
 import { GraphQLList, GraphQLNonNull } from 'graphql';
 import { GraphQLBoolean } from 'graphql/type';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { flatten, toString, uniq } from 'lodash';
-import { InferAttributes, Order, WhereOptions } from 'sequelize';
+import { flatten, uniq } from 'lodash';
+import { Order } from 'sequelize';
 
-import ActivityTypes, { ActivitiesPerClass, ActivityClasses } from '../../../../constants/activities';
-import { types as AccountTypes } from '../../../../constants/collectives';
-import MemberRoles from '../../../../constants/roles';
+import ActivityTypes, { ActivitiesPerClass } from '../../../../constants/activities';
 import models, { Op } from '../../../../models';
-import { Activity } from '../../../../models/Activity';
-import { MemberModelInterface } from '../../../../models/Member';
 import { checkRemoteUserCanUseAccount } from '../../../common/scope-check';
-import { BadRequest, Unauthorized } from '../../../errors';
 import { GraphQLActivityCollection } from '../../collection/ActivityCollection';
 import { GraphQLActivityAndClassesType } from '../../enum/ActivityType';
 import { fetchAccountsWithReferences, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
 
 const IGNORED_ACTIVITIES: string[] = [ActivityTypes.COLLECTIVE_TRANSACTION_CREATED]; // This activity is creating a lot of noise, is usually covered already by orders/expenses activities and is not properly categorized (see https://github.com/opencollective/opencollective/issues/5903)
-
-const getCollectiveIdsForRole = (memberships: MemberModelInterface[], roles: MemberRoles[]): number[] =>
-  memberships.filter(m => roles.includes(m.role)).map(m => m.CollectiveId);
-
-const generateTimelineQuery = async (
-  account,
-  filters?: ActivityClasses,
-): Promise<WhereOptions<InferAttributes<Activity, { omit: never }>>> => {
-  if (account.type === AccountTypes.USER) {
-    const user = await account.getUser();
-    const memberships = await user.getMemberships();
-    const conditionals = [];
-
-    if (filters.includes(ActivityClasses.EXPENSES)) {
-      conditionals.push(
-        {
-          type: {
-            [Op.in]: [
-              ActivityTypes.COLLECTIVE_EXPENSE_APPROVED,
-              ActivityTypes.COLLECTIVE_EXPENSE_ERROR,
-              ActivityTypes.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE,
-              ActivityTypes.COLLECTIVE_EXPENSE_PAID,
-              ActivityTypes.COLLECTIVE_EXPENSE_REJECTED,
-              ActivityTypes.COLLECTIVE_EXPENSE_UNAPPROVED,
-              ActivityTypes.COLLECTIVE_EXPENSE_UPDATED,
-              ActivityTypes.EXPENSE_COMMENT_CREATED,
-            ],
-          },
-          data: { user: { id: toString(account.id) } },
-        },
-        {
-          type: ActivityTypes.COLLECTIVE_EXPENSE_INVITE_DRAFTED,
-          data: { payee: { id: toString(account.id) } },
-        },
-        { type: ActivityTypes.COLLECTIVE_EXPENSE_RECURRING_DRAFTED, UserId: user.id },
-        {
-          type: {
-            [Op.in]: [
-              ActivityTypes.COLLECTIVE_VIRTUAL_CARD_MISSING_RECEIPTS,
-              ActivityTypes.COLLECTIVE_VIRTUAL_CARD_SUSPENDED,
-              ActivityTypes.COLLECTIVE_VIRTUAL_CARD_SUSPENDED_DUE_TO_INACTIVITY,
-              ActivityTypes.VIRTUAL_CARD_PURCHASE,
-            ],
-          },
-          UserId: user.id,
-        },
-      );
-    }
-    if (filters.includes(ActivityClasses.CONTRIBUTIONS)) {
-      conditionals.push({
-        type: {
-          [Op.in]: [
-            ActivityTypes.PAYMENT_FAILED,
-            ActivityTypes.ORDER_PAYMENT_FAILED,
-            ActivityTypes.ORDER_THANKYOU,
-            ActivityTypes.ORDER_PROCESSING,
-          ],
-        },
-        [Op.or]: [{ UserId: account.CreatedByUserId }, { FromCollectiveId: account.id }],
-      });
-    }
-    if (filters.includes(ActivityClasses.ACTIVITIES_UPDATES)) {
-      conditionals.push({
-        type: ActivityTypes.COLLECTIVE_UPDATE_PUBLISHED,
-        CollectiveId: {
-          [Op.in]: getCollectiveIdsForRole(memberships, [
-            MemberRoles.BACKER,
-            MemberRoles.FOLLOWER,
-            MemberRoles.MEMBER,
-            MemberRoles.CONTRIBUTOR,
-            MemberRoles.ATTENDEE,
-            MemberRoles.ADMIN,
-          ]),
-        },
-      });
-    }
-    return { [Op.or]: conditionals };
-  } else {
-    return { [Op.or]: [{ CollectiveId: account.id }, { FromCollectiveId: account.id }] };
-  }
-};
-
-const resolveTimeline = async ({ args, accounts, req }) => {
-  const isRoot = req.remoteUser.isRoot();
-  const { offset, limit } = args;
-
-  if (accounts.length !== 1) {
-    throw new BadRequest('Cannot retrieve timeline for multiple accounts at the same time');
-  }
-  if (!req.remoteUser?.isAdminOfCollective(accounts[0]) && !isRoot) {
-    throw new Unauthorized('You need to be logged in as an admin of this collective to see its activity');
-  }
-  const where = await generateTimelineQuery(accounts[0], args.type);
-
-  const order: Order = [['createdAt', 'DESC']];
-  const result = await models.Activity.findAll({ where, order, offset, limit });
-  return {
-    nodes: result,
-    totalCount: () => models.Activity.count({ where }),
-    limit: args.limit,
-    offset: args.offset,
-  };
-};
 
 const ActivitiesCollectionArgs = {
   limit: { ...CollectionArgs.limit, defaultValue: 100 },
@@ -188,9 +80,6 @@ const ActivitiesCollectionQuery = {
     // Check permissions
     checkRemoteUserCanUseAccount(req);
     const isRoot = req.remoteUser.isRoot();
-    if (args.timeline) {
-      return resolveTimeline({ args, accounts, req });
-    }
 
     // Build accounts conditions
     const accountOrConditions = [];
