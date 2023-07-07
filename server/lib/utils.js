@@ -564,6 +564,7 @@ export const redactSensitiveFields = fastRedact({
     'AUTHORIZATION',
     'token',
     'accessToken',
+    'access_token',
     'refreshToken',
     '["Personal-Token"]',
     'password',
