@@ -62,14 +62,7 @@ export default (err, req, res, next) => {
     try {
       reportErrorToSentry(err, {
         handler: HandlerType.EXPRESS,
-        user: req?.remoteUser,
-        extra: req && {
-          method: req.method,
-          url: req.url,
-          query: req.query,
-          body: req.body,
-          headers: req.headers,
-        },
+        req,
       });
     } catch (e) {
       // Ignore errors from Sentry reporting to make sure we keep returning a real error
