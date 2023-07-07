@@ -90,7 +90,7 @@
     "ics": "3.2.0",
     "intl-messageformat": "10.5.0",
     "json2csv": "5.0.7",
-    "jsonwebtoken": "9.0.0",
+    "jsonwebtoken": "9.0.1",
     "juice": "9.1.0",
     "limax": "4.1.0",
     "lodash": "4.17.21",
