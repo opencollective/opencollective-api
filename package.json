@@ -39,7 +39,7 @@
     "@escape.tech/graphql-armor": "2.2.0",
     "@hyperwatch/hyperwatch": "3.9.4",
     "@node-oauth/oauth2-server": "4.3.0",
-    "@octokit/auth-oauth-app": "6.0.1",
+    "@octokit/auth-oauth-app": "7.0.0",
     "@octokit/rest": "19.0.13",
     "@opencollective/taxes": "4.0.2",
     "@paypal/payouts-sdk": "1.1.1",
