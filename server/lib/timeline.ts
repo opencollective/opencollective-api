@@ -15,7 +15,7 @@ const debug = debugLib('timeline');
 const getCollectiveIdsForRole = (memberships: MemberModelInterface[], roles: MemberRoles[]): number[] =>
   memberships.filter(m => roles.includes(m.role)).map(m => m.CollectiveId);
 
-const generateTimelineQuery = async (
+const makeTimelineQuery = async (
   collective: Collective,
   classes: ActivityClasses[] = [
     ActivityClasses.EXPENSES,
@@ -95,11 +95,11 @@ const generateTimelineQuery = async (
 const order: Order = [['createdAt', 'DESC']];
 const FEED_LIMIT = 1000;
 
-const generateFeed = async (collective: Collective, sinceId?: string) => {
+const createOrUpdateFeed = async (collective: Collective, sinceId?: string) => {
   const redis = await createRedisClient();
   const cacheKey = `timeline-${collective.slug}`;
 
-  const where = await generateTimelineQuery(collective);
+  const where = await makeTimelineQuery(collective);
   if (sinceId) {
     where['id'] = { [Op.gt]: sinceId };
   }
@@ -122,7 +122,7 @@ const generateFeed = async (collective: Collective, sinceId?: string) => {
 export const getCollectiveFeed = async ({
   collective,
   untilId,
-  limit,
+  limit = 20,
   classes,
 }: {
   collective: Collective;
@@ -134,7 +134,7 @@ export const getCollectiveFeed = async ({
   // If we don't have a redis client, we can't cache the timeline using sorted sets
   if (!redis) {
     debug('Redis is not configured, skipping cached timeline');
-    const where = await generateTimelineQuery(collective, classes);
+    const where = await makeTimelineQuery(collective, classes);
     if (untilId) {
       where['id'] = { [Op.lt]: untilId };
     }
@@ -150,7 +150,7 @@ export const getCollectiveFeed = async ({
   const cacheExists = await redis.exists(cacheKey);
   if (!cacheExists) {
     // If we don't have a cache, generate it asynchronously
-    generateFeed(collective);
+    createOrUpdateFeed(collective);
     return null;
   }
 
@@ -159,24 +159,23 @@ export const getCollectiveFeed = async ({
   let offset = 0;
 
   // This is a thunk responsible for paginating until we have enough results
-  // Notice that we fetch twice the limit to account for activities that might be filtered out
   const fetchMore = untilId
     ? // When fetching since a specific ID, we need to paginate in reverse by score (ID)
       () =>
         redis.zRange(cacheKey, `(${untilId}`, '-inf', {
           BY: 'SCORE',
           REV: true,
-          LIMIT: { count: limit * 2, offset },
+          LIMIT: { count: limit, offset },
         })
     : // When fetching the latest activities, we can paginate in reverse by rank
-      () => redis.zRange(cacheKey, offset, offset + limit * 2, { REV: true });
+      () => redis.zRange(cacheKey, offset, offset + limit, { REV: true });
 
   let cached = await fetchMore();
 
   // If we're not paginating, first regenerate cache
   if (!untilId) {
     const latestActivity = JSON.parse(cached[0]);
-    await generateFeed(collective, latestActivity.id);
+    await createOrUpdateFeed(collective, latestActivity.id);
   }
 
   while (cached.length > 0) {
@@ -190,7 +189,7 @@ export const getCollectiveFeed = async ({
     if (ids.length >= limit) {
       break;
     } else {
-      offset += limit * 2;
+      offset += limit;
       cached = await fetchMore();
     }
   }
