@@ -151,15 +151,18 @@ const getOrderTaxInfo = async (order, collective, host, tier, loaders) => {
     };
   } else if (taxes.some(({ type }) => type === LibTaxes.TaxType.GST)) {
     const hostGSTNumber = get(host, 'settings.GST.number');
+    let taxPercent = LibTaxes.GST_RATE_PERCENT;
     if (!hostGSTNumber) {
       throw new Error('GST tax is not enabled for this host');
+    } else if (order.tax.country && order.tax.country !== 'NZ') {
+      taxPercent = 0;
     }
 
     return {
       id: LibTaxes.TaxType.GST,
       taxerCountry: host.countryISO,
       taxedCountry: order.tax?.country,
-      percentage: LibTaxes.GST_RATE_PERCENT,
+      percentage: taxPercent,
       taxIDNumber: order.tax?.idNumber,
       taxIDNumberFrom: hostGSTNumber,
     };
