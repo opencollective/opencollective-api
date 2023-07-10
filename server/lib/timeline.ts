@@ -1,5 +1,5 @@
 import debugLib from 'debug';
-import { flatten, toString } from 'lodash';
+import { flatten, toInteger, toString } from 'lodash';
 import { InferAttributes, Op, Order, WhereOptions } from 'sequelize';
 
 import ActivityTypes, { ActivitiesPerClass, ActivityClasses } from '../constants/activities';
@@ -95,22 +95,25 @@ const makeTimelineQuery = async (
 const order: Order = [['createdAt', 'DESC']];
 const FEED_LIMIT = 1000;
 
-const createOrUpdateFeed = async (collective: Collective, sinceId?: string) => {
+const createOrUpdateFeed = async (collective: Collective, since?: number) => {
   const redis = await createRedisClient();
   const cacheKey = `timeline-${collective.slug}`;
 
   const where = await makeTimelineQuery(collective);
-  if (sinceId) {
-    where['id'] = { [Op.gt]: sinceId };
+  if (since) {
+    where['createdAt'] = { [Op.gt]: since };
   }
   const result = await models.Activity.findAll({ where, order, limit: FEED_LIMIT });
   if (result.length > 0) {
-    const activities = result.map(({ id, type }) => ({ score: id, value: JSON.stringify({ id, type }) }));
+    const activities = result.map(({ id, type, createdAt }) => ({
+      score: toInteger(createdAt.getTime() / 1000),
+      value: JSON.stringify({ id, type }),
+    }));
     debug(`Generated timeline for ${collective.slug} with ${activities.length} activities`);
     await redis.zAdd(cacheKey, activities);
 
     // Trim the cache if updating with new activities
-    if (sinceId) {
+    if (since) {
       const count = await redis.zCount(cacheKey, '0', '+inf');
       if (count > FEED_LIMIT) {
         await redis.zRemRangeByRank(cacheKey, 0, count - FEED_LIMIT - 1);
@@ -121,12 +124,12 @@ const createOrUpdateFeed = async (collective: Collective, sinceId?: string) => {
 
 export const getCollectiveFeed = async ({
   collective,
-  untilId,
+  dateTo,
   limit = 20,
   classes,
 }: {
   collective: Collective;
-  untilId: number;
+  dateTo: Date;
   limit: number;
   classes: ActivityClasses[];
 }) => {
@@ -135,8 +138,8 @@ export const getCollectiveFeed = async ({
   if (!redis) {
     debug('Redis is not configured, skipping cached timeline');
     const where = await makeTimelineQuery(collective, classes);
-    if (untilId) {
-      where['id'] = { [Op.lt]: untilId };
+    if (dateTo) {
+      where['createdAt'] = { [Op.lt]: dateTo };
     }
     return models.Activity.findAll({
       where,
@@ -159,10 +162,10 @@ export const getCollectiveFeed = async ({
   let offset = 0;
 
   // This is a thunk responsible for paginating until we have enough results
-  const fetchMore = untilId
+  const fetchMore = dateTo
     ? // When fetching since a specific ID, we need to paginate in reverse by score (ID)
       () =>
-        redis.zRange(cacheKey, `(${untilId}`, '-inf', {
+        redis.zRange(cacheKey, `(${toInteger(dateTo.getTime() / 1000)}`, '-inf', {
           BY: 'SCORE',
           REV: true,
           LIMIT: { count: limit, offset },
@@ -172,10 +175,11 @@ export const getCollectiveFeed = async ({
 
   let cached = await fetchMore();
 
-  // If we're not paginating, first regenerate cache
-  if (!untilId) {
-    const latestActivity = JSON.parse(cached[0]);
-    await createOrUpdateFeed(collective, latestActivity.id);
+  // If we're not paginating, first update cache
+  if (!dateTo) {
+    const [latest] = await redis.zRangeWithScores(cacheKey, -1, -1);
+    debug(`Updating timeline for ${collective.slug} from ${latest.score}`);
+    await createOrUpdateFeed(collective, latest.score);
   }
 
   while (cached.length > 0) {

@@ -34,7 +34,7 @@ import { GraphQLActivityClassType } from '../enum/ActivityType';
 import { GraphQLExpenseType } from '../enum/ExpenseType';
 import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
 import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType';
-import { idDecode, idEncode, IDENTIFIER_TYPES } from '../identifiers';
+import { idEncode } from '../identifiers';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLChronologicalOrderInput } from '../input/ChronologicalOrderInput';
 import { GraphQLOrderByInput, ORDER_BY_PSEUDO_FIELDS } from '../input/OrderByInput';
@@ -681,9 +681,9 @@ const accountFieldsDefinition = () => ({
     type: new GraphQLList(GraphQLActivity),
     describe: 'Get the activity feed for this account',
     args: {
-      untilId: {
-        type: GraphQLString,
-        description: 'Only returns activities before ID',
+      dateTo: {
+        type: GraphQLDateTime,
+        description: 'Only returns activities before this date',
       },
       limit: {
         type: GraphQLInt,
@@ -705,8 +705,12 @@ const accountFieldsDefinition = () => ({
         return [];
       }
 
-      const untilId = args.untilId ? idDecode(args.untilId, IDENTIFIER_TYPES.ACTIVITY) : undefined;
-      const feed = await getCollectiveFeed({ collective, untilId, limit: args.limit, classes: args.classes });
+      const feed = await getCollectiveFeed({
+        collective,
+        dateTo: args.dateTo,
+        limit: args.limit,
+        classes: args.classes,
+      });
       if (feed === null) {
         throw new ContentNotReady();
       } else {
