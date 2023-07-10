@@ -99,11 +99,12 @@ const doFormatMessage = (activity, format) => {
   // get member data
   let member;
   if (activity.data.member) {
-    member = linkify(
-      format,
-      `${config.host.website}/${activity.data.member.memberCollective.slug}`,
-      activity.data.member.memberCollective.name,
-    );
+    const memberCollective = activity.data.member.memberCollective;
+    if (memberCollective.isGuest || memberCollective.isIncognito) {
+      member = memberCollective.name || 'A guest';
+    } else {
+      member = linkify(format, `${config.host.website}/${memberCollective.slug}`, memberCollective.name);
+    }
   }
 
   let collective;

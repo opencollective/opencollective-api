@@ -469,6 +469,7 @@ class Collective extends Model<
       company: this.company,
       website: this.website,
       isIncognito: this.isIncognito,
+      isGuest: Boolean(this.data?.isGuest),
       twitterHandle: this.twitterHandle,
       githubHandle: this.githubHandle,
       repositoryUrl: this.repositoryUrl,
