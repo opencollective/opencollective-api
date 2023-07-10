@@ -460,10 +460,10 @@ ${subtitle}
     priorPaypalDonationCount,
   )})
     * USD ${formatCurrency(paypalDonationAmount, 'USD')} (${compareNumbers(
-    paypalDonationAmount,
-    priorPaypalDonationAmount,
-    n => formatCurrency(n, 'USD'),
-  )})
+      paypalDonationAmount,
+      priorPaypalDonationAmount,
+      n => formatCurrency(n, 'USD'),
+    )})
   - MANUAL: ${manualDonationCount} donations received (${compareNumbers(manualDonationCount, priorManualDonationCount)})
     ${manualDonationAmount
       .map(
