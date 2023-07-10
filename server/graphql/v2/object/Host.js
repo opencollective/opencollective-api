@@ -297,7 +297,11 @@ export const GraphQLHost = new GraphQLObjectType({
             return null;
           }
 
-          return await host.getAccountForPaymentProvider('stripe');
+          try {
+            return await host.getAccountForPaymentProvider('stripe');
+          } catch (err) {
+            return null;
+          }
         },
       },
       pendingApplications: {
