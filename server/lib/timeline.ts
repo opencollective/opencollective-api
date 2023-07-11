@@ -100,7 +100,7 @@ const TTL = 60 * 60 * 24 * 3; // 3 days
 const FEED_LIMIT = 1000;
 
 const createOrUpdateFeed = async (collective: Collective, sinceId?: number) => {
-  const stop = utils.stopwatch(sinceId ? 'timeline.create' : 'timeline.update');
+  const stopWatch = utils.stopwatch(sinceId ? 'timeline.create' : 'timeline.update');
   const redis = await createRedisClient();
   const cacheKey = `timeline-${collective.slug}`;
 
@@ -130,7 +130,7 @@ const createOrUpdateFeed = async (collective: Collective, sinceId?: number) => {
       }
     }
   }
-  stop();
+  stopWatch();
 };
 
 export const getCollectiveFeed = async ({
@@ -148,7 +148,7 @@ export const getCollectiveFeed = async ({
   // If we don't have a redis client, we can't cache the timeline using sorted sets
   if (!redis) {
     debug('Redis is not configured, skipping cached timeline');
-    const stop = utils.stopwatch('timeline.readPage.noCache');
+    const stopWatch = utils.stopwatch('timeline.readPage.noCache');
     const where = await makeTimelineQuery(collective, classes);
     if (dateTo) {
       where['createdAt'] = { [Op.lt]: dateTo };
@@ -159,7 +159,7 @@ export const getCollectiveFeed = async ({
       order,
       limit,
     });
-    stop();
+    stopWatch();
     return activities;
   }
 
@@ -198,7 +198,7 @@ export const getCollectiveFeed = async ({
     await createOrUpdateFeed(collective, activity.id);
   }
 
-  const stop = utils.stopwatch('timeline.readPage.cached');
+  const stopWatch = utils.stopwatch('timeline.readPage.cached');
   while (cached.length > 0) {
     cached
       .map(v => JSON.parse(v) as SerializedActivity)
@@ -217,6 +217,6 @@ export const getCollectiveFeed = async ({
 
   // Return the actual activities from the database
   const activities = await models.Activity.findAll({ where: { id: ids }, order });
-  stop();
+  stopWatch();
   return activities;
 };
