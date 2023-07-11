@@ -93,6 +93,7 @@ const makeTimelineQuery = async (
 };
 
 const order: Order = [['createdAt', 'DESC']];
+const TTL = 60 * 60 * 24 * 3; // 3 days
 const FEED_LIMIT = 1000;
 
 const createOrUpdateFeed = async (collective: Collective, since?: number) => {
@@ -111,6 +112,8 @@ const createOrUpdateFeed = async (collective: Collective, since?: number) => {
     }));
     debug(`Generated timeline for ${collective.slug} with ${activities.length} activities`);
     await redis.zAdd(cacheKey, activities);
+    // Set initial TTL or bump existing Cache TTL
+    await redis.expire(cacheKey, TTL);
 
     // Trim the cache if updating with new activities
     if (since) {
