@@ -214,6 +214,7 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
   [ActivityClasses.CONTRIBUTIONS]: [
     ActivityTypes.COLLECTIVE_MEMBER_CREATED,
     ActivityTypes.CONTRIBUTION_REJECTED,
+    ActivityTypes.ORDER_PAYMENT_FAILED,
     ActivityTypes.ORDER_PENDING_CONTRIBUTION_NEW,
     ActivityTypes.ORDER_PENDING_CONTRIBUTION_REMINDER,
     ActivityTypes.ORDER_PENDING_CRYPTO,
@@ -245,8 +246,10 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
     ActivityTypes.COLLECTIVE_VIRTUAL_CARD_MISSING_RECEIPTS,
     ActivityTypes.COLLECTIVE_VIRTUAL_CARD_SUSPENDED,
     ActivityTypes.COLLECTIVE_VIRTUAL_CARD_DELETED,
+    ActivityTypes.COLLECTIVE_VIRTUAL_CARD_SUSPENDED_DUE_TO_INACTIVITY,
     ActivityTypes.VIRTUAL_CARD_CHARGE_DECLINED,
     ActivityTypes.VIRTUAL_CARD_REQUESTED,
+    ActivityTypes.VIRTUAL_CARD_PURCHASE,
   ],
   [ActivityClasses.REPORTS]: [ActivityTypes.COLLECTIVE_MONTHLY_REPORT],
 };

@@ -114,3 +114,9 @@ export class TransferwiseError extends IdentifiableApolloError {
     );
   }
 }
+
+export class ContentNotReady extends IdentifiableApolloError {
+  constructor(message?: string, code?: string, additionalProperties?: Record<string, unknown>) {
+    super(message || 'Content not ready', code || 'ContentNotReady', additionalProperties);
+  }
+}

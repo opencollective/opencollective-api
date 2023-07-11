@@ -6,6 +6,7 @@ import { Order } from 'sequelize';
 import { types as CollectiveTypes } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import { buildSearchConditions } from '../../../lib/search';
+import { getCollectiveFeed } from '../../../lib/timeline';
 import { canSeeLegalName } from '../../../lib/user-permissions';
 import models, { Op } from '../../../models';
 import Application from '../../../models/Application';
@@ -13,7 +14,7 @@ import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { GraphQLCollectiveFeatures } from '../../common/CollectiveFeatures';
 import { allowContextPermission, getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { checkRemoteUserCanUseAccount, checkScope } from '../../common/scope-check';
-import { BadRequest } from '../../errors';
+import { BadRequest, ContentNotReady, Unauthorized } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { GraphQLConversationCollection } from '../collection/ConversationCollection';
 import { GraphQLMemberCollection, GraphQLMemberOfCollection } from '../collection/MemberCollection';
@@ -29,6 +30,7 @@ import {
 } from '../collection/WebhookCollection';
 import { AccountTypeToModelMapping, GraphQLAccountType, GraphQLImageFormat, GraphQLMemberRole } from '../enum';
 import { GraphQLActivityChannel } from '../enum/ActivityChannel';
+import { GraphQLActivityClassType } from '../enum/ActivityType';
 import { GraphQLExpenseType } from '../enum/ExpenseType';
 import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
 import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType';
@@ -42,6 +44,7 @@ import {
 } from '../input/UpdateChronologicalOrderInput';
 import GraphQLAccountPermissions from '../object/AccountPermissions';
 import { GraphQLAccountStats } from '../object/AccountStats';
+import { GraphQLActivity } from '../object/Activity';
 import { GraphQLActivitySubscription } from '../object/ActivitySubscription';
 import { GraphQLConnectedAccount } from '../object/ConnectedAccount';
 import { GraphQLLocation } from '../object/Location';
@@ -673,6 +676,47 @@ const accountFieldsDefinition = () => ({
   permissions: {
     type: new GraphQLNonNull(GraphQLAccountPermissions),
     description: 'Logged-in user permissions on an account',
+  },
+  feed: {
+    type: new GraphQLList(GraphQLActivity),
+    describe: 'Get the activity feed for this account',
+    args: {
+      dateTo: {
+        type: GraphQLDateTime,
+        description: 'Only returns activities before this date',
+      },
+      limit: {
+        type: GraphQLInt,
+        default: 20,
+        description: 'Number of activities to retrieve',
+      },
+      classes: {
+        type: new GraphQLList(GraphQLActivityClassType),
+        description: 'The classes of activity types to filter for',
+      },
+    },
+    async resolve(collective, args, req) {
+      const isRoot = req.remoteUser.isRoot();
+      if (!req.remoteUser?.isAdminOfCollective(collective) && !isRoot) {
+        throw new Unauthorized('You need to be logged in as an admin of this collective to see its activity');
+      }
+
+      if (args.classes.length === 0) {
+        return [];
+      }
+
+      const feed = await getCollectiveFeed({
+        collective,
+        dateTo: args.dateTo,
+        limit: args.limit,
+        classes: args.classes,
+      });
+      if (feed === null) {
+        throw new ContentNotReady();
+      } else {
+        return feed;
+      }
+    },
   },
 });
 

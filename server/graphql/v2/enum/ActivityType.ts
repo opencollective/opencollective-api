@@ -21,6 +21,11 @@ export const GraphQLActivityType = new GraphQLEnumType({
   values: Activities,
 });
 
+export const GraphQLActivityClassType = new GraphQLEnumType({
+  name: 'ActivityClassType',
+  values: Classes,
+});
+
 export const GraphQLActivityAndClassesType = new GraphQLEnumType({
   name: 'ActivityAndClassesType',
   values: { ...Activities, ...Classes },
