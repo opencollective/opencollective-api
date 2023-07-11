@@ -92,31 +92,35 @@ const makeTimelineQuery = async (
   }
 };
 
+type SerializedActivity = { id: number; type: ActivityTypes };
 const order: Order = [['createdAt', 'DESC']];
 const TTL = 60 * 60 * 24 * 3; // 3 days
 const FEED_LIMIT = 1000;
 
-const createOrUpdateFeed = async (collective: Collective, since?: number) => {
+const createOrUpdateFeed = async (collective: Collective, sinceId?: number) => {
   const redis = await createRedisClient();
   const cacheKey = `timeline-${collective.slug}`;
 
   const where = await makeTimelineQuery(collective);
-  if (since) {
-    where['createdAt'] = { [Op.gt]: since };
+  if (sinceId) {
+    where['id'] = { [Op.gt]: sinceId };
   }
   const result = await models.Activity.findAll({ where, order, limit: FEED_LIMIT });
   if (result.length > 0) {
-    const activities = result.map(({ id, type, createdAt }) => ({
+    const activities = result.map(({ id, type, createdAt }) => {
+      const value: SerializedActivity = { id, type };
+      return {
       score: toInteger(createdAt.getTime() / 1000),
-      value: JSON.stringify({ id, type }),
-    }));
+        value: JSON.stringify(value),
+      };
+    });
     debug(`Generated timeline for ${collective.slug} with ${activities.length} activities`);
     await redis.zAdd(cacheKey, activities);
     // Set initial TTL or bump existing Cache TTL
     await redis.expire(cacheKey, TTL);
 
     // Trim the cache if updating with new activities
-    if (since) {
+    if (sinceId) {
       const count = await redis.zCount(cacheKey, '0', '+inf');
       if (count > FEED_LIMIT) {
         await redis.zRemRangeByRank(cacheKey, 0, count - FEED_LIMIT - 1);
@@ -180,14 +184,15 @@ export const getCollectiveFeed = async ({
 
   // If we're not paginating, first update cache
   if (!dateTo) {
-    const [latest] = await redis.zRangeWithScores(cacheKey, -1, -1);
-    debug(`Updating timeline for ${collective.slug} from ${latest.score}`);
-    await createOrUpdateFeed(collective, latest.score);
+    const [latest] = await redis.zRange(cacheKey, -1, -1);
+    const activity = JSON.parse(latest) as SerializedActivity;
+    debug(`Updating timeline for ${collective.slug} from id ${activity.id}`);
+    await createOrUpdateFeed(collective, activity.id);
   }
 
   while (cached.length > 0) {
     cached
-      .map(v => JSON.parse(v) as { id: number; type: ActivityTypes })
+      .map(v => JSON.parse(v) as SerializedActivity)
       // Filter out unwanted types based on the classes the user requested
       .filter(({ type }) => wantedTypes.includes(type))
       // In the case we fetch more than we need, we slice the array to the limit
