@@ -10,6 +10,8 @@ import models, { Collective } from '../models';
 import { Activity } from '../models/Activity';
 import { MemberModelInterface } from '../models/Member';
 
+import { utils } from './statsd';
+
 const debug = debugLib('timeline');
 
 const getCollectiveIdsForRole = (memberships: MemberModelInterface[], roles: MemberRoles[]): number[] =>
@@ -98,6 +100,7 @@ const TTL = 60 * 60 * 24 * 3; // 3 days
 const FEED_LIMIT = 1000;
 
 const createOrUpdateFeed = async (collective: Collective, sinceId?: number) => {
+  const stop = utils.stopwatch(sinceId ? 'timeline.create' : 'timeline.update');
   const redis = await createRedisClient();
   const cacheKey = `timeline-${collective.slug}`;
 
@@ -110,7 +113,7 @@ const createOrUpdateFeed = async (collective: Collective, sinceId?: number) => {
     const activities = result.map(({ id, type, createdAt }) => {
       const value: SerializedActivity = { id, type };
       return {
-      score: toInteger(createdAt.getTime() / 1000),
+        score: toInteger(createdAt.getTime() / 1000),
         value: JSON.stringify(value),
       };
     });
@@ -127,6 +130,7 @@ const createOrUpdateFeed = async (collective: Collective, sinceId?: number) => {
       }
     }
   }
+  stop();
 };
 
 export const getCollectiveFeed = async ({
@@ -144,15 +148,19 @@ export const getCollectiveFeed = async ({
   // If we don't have a redis client, we can't cache the timeline using sorted sets
   if (!redis) {
     debug('Redis is not configured, skipping cached timeline');
+    const stop = utils.stopwatch('timeline.readPage.noCache');
     const where = await makeTimelineQuery(collective, classes);
     if (dateTo) {
       where['createdAt'] = { [Op.lt]: dateTo };
     }
-    return models.Activity.findAll({
+
+    const activities = await models.Activity.findAll({
       where,
       order,
       limit,
     });
+    stop();
+    return activities;
   }
 
   // Check if timeline cache exists
@@ -190,6 +198,7 @@ export const getCollectiveFeed = async ({
     await createOrUpdateFeed(collective, activity.id);
   }
 
+  const stop = utils.stopwatch('timeline.readPage.cached');
   while (cached.length > 0) {
     cached
       .map(v => JSON.parse(v) as SerializedActivity)
@@ -207,5 +216,7 @@ export const getCollectiveFeed = async ({
   }
 
   // Return the actual activities from the database
-  return await models.Activity.findAll({ where: { id: ids }, order });
+  const activities = await models.Activity.findAll({ where: { id: ids }, order });
+  stop();
+  return activities;
 };

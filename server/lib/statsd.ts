@@ -16,7 +16,7 @@ export function getStatsdClient() {
   return statsdClient;
 }
 
-export function timing(stat, time) {
+export function timing(stat: string, time: number) {
   const client = getStatsdClient();
   if (client) {
     try {
@@ -26,3 +26,13 @@ export function timing(stat, time) {
     }
   }
 }
+
+export const utils = {
+  stopwatch(name: string) {
+    const start = Date.now();
+    return () => {
+      const duration = Date.now() - start;
+      timing(name, duration);
+    };
+  },
+};
