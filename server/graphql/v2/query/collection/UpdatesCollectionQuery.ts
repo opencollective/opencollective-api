@@ -2,13 +2,13 @@ import { GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { Order } from 'sequelize';
 
 import models, { Op } from '../../../../models';
-import { GraphQLUpdatesCollection } from '../../collection/UpdatesCollection';
+import { GraphQLUpdateCollection } from '../../collection/UpdateCollection';
 import { AccountTypeToModelMapping, GraphQLAccountType } from '../../enum';
 import { fetchAccountsIdsWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
 
 const UpdatesCollectionQuery = {
-  type: new GraphQLNonNull(GraphQLUpdatesCollection),
+  type: new GraphQLNonNull(GraphQLUpdateCollection),
   args: {
     ...CollectionArgs,
     accountTag: {

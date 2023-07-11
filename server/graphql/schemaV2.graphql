@@ -4085,7 +4085,7 @@ type UpdateCollection implements Collection {
   offset: Int
   limit: Int
   totalCount: Int
-  nodes: [Update]
+  nodes: [Update!]
 }
 
 """
@@ -10387,7 +10387,7 @@ type Query {
     Host for the accounts for which to get updates
     """
     host: [AccountReferenceInput]
-  ): UpdatesCollection!
+  ): UpdateCollection!
   paypalPlan(
     """
     The account that serves as a payment target
@@ -13113,16 +13113,6 @@ input TierReferenceInput {
   Pass this flag to reference the custom tier (/donate)
   """
   isCustom: Boolean
-}
-
-"""
-A collection of "Updates"
-"""
-type UpdatesCollection implements Collection {
-  offset: Int
-  limit: Int
-  totalCount: Int
-  nodes: [Update!]
 }
 
 """
