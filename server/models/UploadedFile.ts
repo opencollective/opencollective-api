@@ -2,6 +2,7 @@ import path from 'path';
 
 import { encode } from 'blurhash';
 import config from 'config';
+import ExifTransformer from 'exif-be-gone';
 import type { FileUpload as GraphQLFileUpload } from 'graphql-upload/Upload.js';
 import { kebabCase } from 'lodash';
 import {
@@ -38,8 +39,8 @@ type ImageDataShape = CommonDataShape & {
 };
 
 type FileUpload = {
-  buffer: Buffer;
-  size: number;
+  stream: GraphQLFileUpload['createReadStream'];
+  size?: number;
   mimetype: string;
   originalname: string;
 };
@@ -117,13 +118,10 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
     user: User | null,
     args: { fileName?: string } = {},
   ): Promise<UploadedFile> {
-    const buffer = await streamToBuffer(file.createReadStream());
-
     return UploadedFile.upload(
       {
-        buffer,
-        size: buffer.length,
-        mimetype: file.mimetype,
+        stream: file.createReadStream(),
+        detectedMimetype: file.mimetype,
         originalname: file.filename,
       },
       kind,

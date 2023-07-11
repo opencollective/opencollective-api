@@ -39,7 +39,7 @@ export default async function uploadImage(req, res, next) {
   }
 
   // Validate file
-  if (!UploadedFile.isSupportedMimeType(file.mimetype)) {
+  if (!UploadedFile.isSupportedMimeType(file.detectedMimeType)) {
     const message = `Mimetype of the file should be one of: ${SUPPORTED_FILE_TYPES.join(', ')}`;
     return next(new errors.ValidationFailed('INVALID_FILE_MIME_TYPE', { file: message }, message));
   }

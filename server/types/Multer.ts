@@ -7,30 +7,19 @@ import { Readable } from 'stream';
 
 export interface MulterFile {
   /** Name of the form field associated with this file. */
-  fieldname: string;
+  fieldName: string;
   /** Name of the file on the uploader's computer. */
   originalname: string;
-  /**
-   * Value of the `Content-Transfer-Encoding` header for this file.
-   * @deprecated since July 2015
-   * @see RFC 7578, Section 4.7
-   */
-  encoding: string;
-  /** Value of the `Content-Type` header for this file. */
-  mimetype: string;
   /** Size of the file in bytes. */
   size: number;
-  /**
-   * A readable stream of this file. Only available to the `_handleFile`
-   * callback for custom `StorageEngine`s.
-   */
+  /** Readable stream of file data */
   stream: Readable;
-  /** `DiskStorage` only: Directory to which this file has been uploaded. */
-  destination: string;
-  /** `DiskStorage` only: Name of this file within `destination`. */
-  filename: string;
-  /** `DiskStorage` only: Full path to the uploaded file. */
-  path: string;
-  /** `MemoryStorage` only: A Buffer containing the entire file. */
-  buffer: Buffer;
+  /** Value of the `Content-Type` header for this file. */
+  detectedMimeType: string;
+  /** The typical file extension for files of the detected type, or empty string if we failed to detect (with leading . to match path.extname)*/
+  detectedFileExtension: string;
+  /** The mime type reported by the client using the Content-Type header, or null1 if the header was absent */
+  clientReportedMimeType?: string;
+  /** The extension of the file uploaded (as reported by path.extname) */
+  clientReportedFileExtension?: string;
 }
