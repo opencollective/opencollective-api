@@ -1637,9 +1637,15 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
       status = 'PENDING';
     }
 
+    const data = !expense.data
+      ? null
+      : cloneDeep(
+          omit(expense.data, ['items', 'draftKey']), // Make sure we omit draft key and items
+        );
+
     const updatedExpenseProps = {
       ...cleanExpenseData,
-      data: !expense.data ? null : cloneDeep(expense.data),
+      data,
       amount: computeTotalAmountForExpense(expense.items, taxes),
       lastEditedById: remoteUser.id,
       incurredAt: expenseData.incurredAt || new Date(),
