@@ -100,7 +100,7 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
 
   // ==== Static methods ====
   public static isOpenCollectiveS3BucketURL(url: string): boolean {
-    return new RegExp(`^https://${config.aws.s3.bucket}\\.s3[.-]us-west-1.amazonaws.com/\\w+`).test(url);
+    return new RegExp(`^https://${config.aws.s3.bucket}\\.s3[.-]us-west-1\\.amazonaws\\.com/\\w+`).test(url);
   }
 
   public static isSupportedImageMimeType(mimeType: string): boolean {
