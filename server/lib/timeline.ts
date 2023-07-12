@@ -101,9 +101,9 @@ const TTL = 60 * 60 * 24 * 3; // 3 days
 const FEED_LIMIT = 1000;
 
 const createOrUpdateFeed = async (collective: Collective, sinceId?: number) => {
-  const stopWatch = utils.stopwatch(sinceId ? 'timeline.create' : 'timeline.update');
-  const redis = await createRedisClient();
   const cacheKey = `timeline-${collective.slug}`;
+  const stopWatch = utils.stopwatch(sinceId ? 'timeline.update' : 'timeline.create');
+  const redis = await createRedisClient();
 
   const where = await makeTimelineQuery(collective);
   if (sinceId) {
