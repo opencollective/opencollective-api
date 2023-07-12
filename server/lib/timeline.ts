@@ -10,6 +10,7 @@ import models, { Collective } from '../models';
 import { Activity } from '../models/Activity';
 import { MemberModelInterface } from '../models/Member';
 
+import cache from './cache';
 import { utils } from './statsd';
 
 const debug = debugLib('timeline');
@@ -167,8 +168,15 @@ export const getCollectiveFeed = async ({
   const cacheKey = `timeline-${collective.slug}`;
   const cacheExists = await redis.exists(cacheKey);
   if (!cacheExists) {
+    const lockKey = `${cacheKey}-semaphore`;
+    if (await cache.has(lockKey)) {
+      debug('Timeline cache is being generated, ignoring request');
+      return null;
+    }
+    cache.set(lockKey, true, 60);
+
     // If we don't have a cache, generate it asynchronously
-    createOrUpdateFeed(collective);
+    createOrUpdateFeed(collective).then(() => cache.delete(lockKey));
     return null;
   }
 
