@@ -102,7 +102,7 @@ const FEED_LIMIT = 1000;
 
 const createOrUpdateFeed = async (collective: Collective, sinceId?: number) => {
   const cacheKey = `timeline-${collective.slug}`;
-  const stopWatch = utils.stopwatch(sinceId ? 'timeline.update' : 'timeline.create');
+  const stopWatch = utils.stopwatch(sinceId ? 'timeline.update' : 'timeline.create', { log: debug });
   const redis = await createRedisClient();
 
   const where = await makeTimelineQuery(collective);
@@ -180,6 +180,7 @@ export const getCollectiveFeed = async ({
     return null;
   }
 
+  const stopWatch = utils.stopwatch(dateTo ? 'timeline.readPage.cached' : 'timeline.readFirstPage.cached', { log: debug });
   const wantedTypes = flatten(classes.map(c => ActivitiesPerClass[c]));
   const ids = [];
   let offset = 0;
@@ -206,7 +207,6 @@ export const getCollectiveFeed = async ({
     await createOrUpdateFeed(collective, activity.id);
   }
 
-  const stopWatch = utils.stopwatch('timeline.readPage.cached');
   while (cached.length > 0) {
     cached
       .map(v => JSON.parse(v) as SerializedActivity)
