@@ -109,7 +109,12 @@ const createOrUpdateFeed = async (collective: Collective, sinceId?: number) => {
   if (sinceId) {
     where['id'] = { [Op.gt]: sinceId };
   }
-  const result = await models.Activity.findAll({ where, order, limit: FEED_LIMIT });
+  const result = await models.Activity.findAll({
+    where,
+    attributes: ['id', 'type', 'createdAt'],
+    order,
+    limit: FEED_LIMIT,
+  });
   if (result.length > 0) {
     const activities = result.map(({ id, type, createdAt }) => {
       const value: SerializedActivity = { id, type };
