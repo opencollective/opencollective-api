@@ -631,6 +631,11 @@ export const notifyByEmail = async (activity: Activity) => {
       });
       break;
 
+    case ActivityTypes.COLLECTIVE_VIRTUAL_CARD_REQUEST_APPROVED:
+    case ActivityTypes.COLLECTIVE_VIRTUAL_CARD_REQUEST_REJECTED:
+      await notify.collective(activity);
+      break;
+
     case ActivityTypes.VIRTUAL_CARD_PURCHASE:
       await notify.collective(activity);
       break;

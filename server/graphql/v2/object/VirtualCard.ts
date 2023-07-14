@@ -4,7 +4,7 @@ import { GraphQLDateTime, GraphQLJSONObject } from 'graphql-scalars';
 import ExpenseStatus from '../../../constants/expense_status';
 import { VirtualCardLimitIntervals } from '../../../constants/virtual-cards';
 import { getSpendingLimitIntervalDates } from '../../../lib/stripe';
-import models, { Op } from '../../../models';
+import models, { Op, VirtualCard } from '../../../models';
 import { checkScope } from '../../common/scope-check';
 import { GraphQLCurrency } from '../enum';
 import { GraphQLVirtualCardLimitInterval } from '../enum/VirtualCardLimitInterval';
@@ -13,6 +13,7 @@ import { GraphQLAccount } from '../interface/Account';
 
 import { GraphQLHost } from './Host';
 import { GraphQLIndividual } from './Individual';
+import { GraphQLVirtualCardRequest } from './VirtualCardRequest';
 
 const canSeeVirtualCardPrivateInfo = (req, collective) =>
   req.remoteUser?.isAdminOfCollectiveOrHost(collective) && checkScope(req, 'virtualCards');
@@ -157,6 +158,12 @@ export const GraphQLVirtualCard = new GraphQLObjectType({
       },
     },
     currency: { type: GraphQLCurrency },
+    virtualCardRequest: {
+      type: GraphQLVirtualCardRequest,
+      resolve(virtualCard: VirtualCard) {
+        return virtualCard.getVirtualCardRequest();
+      },
+    },
     createdAt: { type: GraphQLDateTime },
     updatedAt: { type: GraphQLDateTime },
   }),
