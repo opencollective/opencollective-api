@@ -397,6 +397,11 @@ models.VirtualCard.belongsTo(models.User, {
   foreignKey: 'UserId',
   as: 'user',
 });
+
+models.VirtualCard.belongsTo(models.VirtualCardRequest, {
+  foreignKey: 'VirtualCardRequestId',
+  as: 'virtualCardRequest',
+});
 models.VirtualCard.hasMany(models.Expense, { foreignKey: 'VirtualCardId', as: 'expenses' });
 models.Collective.hasMany(models.VirtualCard, { foreignKey: 'HostCollectiveId', as: 'virtualCards' });
 models.Collective.hasMany(models.VirtualCard, { foreignKey: 'CollectiveId', as: 'virtualCardCollectives' });
@@ -413,6 +418,10 @@ models.VirtualCardRequest.belongsTo(models.Collective, {
 models.VirtualCardRequest.belongsTo(models.User, {
   foreignKey: 'UserId',
   as: 'user',
+});
+models.VirtualCardRequest.belongsTo(models.VirtualCard, {
+  foreignKey: 'VirtualCardId',
+  as: 'virtualCard',
 });
 
 // SocialLink

@@ -15,6 +15,7 @@ import * as stripeVirtualCards from '../paymentProviders/stripe/virtual-cards';
 
 import Collective from './Collective';
 import User from './User';
+import VirtualCardRequest from './VirtualCardRequest';
 
 export enum VirtualCardStatus {
   ACTIVE = 'active',
@@ -27,6 +28,7 @@ class VirtualCard extends Model<InferAttributes<VirtualCard, { omit: 'info' }>, 
   public declare CollectiveId: number;
   public declare HostCollectiveId: number;
   public declare UserId: ForeignKey<User['id']>;
+  public declare VirtualCardRequestId: ForeignKey<VirtualCardRequest['id']>;
   public declare name: string;
   public declare last4: string;
   public declare data: Record<string, any>;
@@ -44,6 +46,9 @@ class VirtualCard extends Model<InferAttributes<VirtualCard, { omit: 'info' }>, 
   public declare host?: NonAttribute<Collective>;
   public declare getHost: BelongsToGetAssociationMixin<Collective>;
   public declare user?: NonAttribute<any>;
+
+  public declare virtualCardRequest?: NonAttribute<VirtualCardRequest>;
+  public declare getVirtualCardRequest?: BelongsToGetAssociationMixin<VirtualCardRequest>;
 
   async getExpensesMissingDetails(): Promise<Array<any>> {
     return sequelize.models.Expense.findPendingCardCharges({

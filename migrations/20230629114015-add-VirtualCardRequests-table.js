@@ -58,6 +58,13 @@ module.exports = {
         onDelete: 'CASCADE',
         onUpdate: 'CASCADE',
       },
+      VirtualCardId: {
+        type: Sequelize.STRING,
+        references: { key: 'id', model: 'VirtualCards' },
+        allowNull: true,
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE',
+      },
       createdAt: {
         allowNull: false,
         type: Sequelize.DATE,
@@ -77,9 +84,19 @@ module.exports = {
     await queryInterface.addIndex('VirtualCardRequests', ['HostCollectiveId', 'CollectiveId'], {
       where: { deletedAt: null },
     });
+
+    await queryInterface.addColumn('VirtualCards', 'VirtualCardRequestId', {
+      type: Sequelize.INTEGER,
+      references: { key: 'id', model: 'VirtualCardRequests' },
+      onDelete: 'CASCADE',
+      onUpdate: 'CASCADE',
+      allowNull: true,
+      defaultValue: null,
+    });
   },
 
   async down(queryInterface) {
     await queryInterface.dropTable('VirtualCardRequests');
+    await queryInterface.removeColumn('VirtualCards', 'VirtualCardRequestId');
   },
 };

@@ -14,8 +14,11 @@ import sequelize from '../lib/sequelize';
 
 import Collective from './Collective';
 import User from './User';
+import VirtualCard from './VirtualCard';
 
 export enum VirtualCardRequestStatus {
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED',
   PENDING = 'PENDING',
 }
 
@@ -42,6 +45,10 @@ export default class VirtualCardRequest extends Model<
   declare CollectiveId: ForeignKey<Collective['id']>;
   declare collective?: NonAttribute<Collective>;
   declare getCollective: BelongsToGetAssociationMixin<Collective>;
+
+  declare VirtualCardId: ForeignKey<VirtualCard['id']>;
+  declare virtualCard?: NonAttribute<VirtualCard>;
+  declare getVirtualCard: BelongsToGetAssociationMixin<VirtualCard>;
 
   declare createdAt: CreationOptional<Date>;
   declare updatedAt: CreationOptional<Date>;
