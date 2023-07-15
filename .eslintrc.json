@@ -50,6 +50,7 @@
     ],
     // tweak typescript defaults
     "@typescript-eslint/ban-types": "warn",
+    "@typescript-eslint/no-explicit-any": "warn",
     // GraphQL
     // To lint multiple schemas each one needs a different tagName.
     // https://github.com/apollographql/eslint-plugin-graphql#additional-schemas-or-tags
