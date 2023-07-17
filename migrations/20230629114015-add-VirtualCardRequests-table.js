@@ -23,7 +23,11 @@ module.exports = {
       status: {
         allowNull: false,
         defaultValue: VirtualCardRequestStatus.PENDING,
-        type: Sequelize.STRING,
+        type: Sequelize.ENUM(
+          VirtualCardRequestStatus.APPROVED,
+          VirtualCardRequestStatus.PENDING,
+          VirtualCardRequestStatus.REJECTED,
+        ),
       },
       currency: {
         allowNull: false,
@@ -96,7 +100,7 @@ module.exports = {
   },
 
   async down(queryInterface) {
-    await queryInterface.dropTable('VirtualCardRequests');
     await queryInterface.removeColumn('VirtualCards', 'VirtualCardRequestId');
+    await queryInterface.dropTable('VirtualCardRequests');
   },
 };

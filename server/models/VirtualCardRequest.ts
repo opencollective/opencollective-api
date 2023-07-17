@@ -121,7 +121,11 @@ VirtualCardRequest.init(
       },
     },
     status: {
-      type: DataTypes.TEXT,
+      type: DataTypes.ENUM(
+        VirtualCardRequestStatus.APPROVED,
+        VirtualCardRequestStatus.PENDING,
+        VirtualCardRequestStatus.REJECTED,
+      ),
       allowNull: false,
       defaultValue: VirtualCardRequestStatus.PENDING,
     },
