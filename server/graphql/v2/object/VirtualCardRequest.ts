@@ -29,7 +29,18 @@ export const GraphQLVirtualCardRequest = new GraphQLObjectType({
       },
     },
     purpose: { type: GraphQLString },
-    notes: { type: GraphQLString },
+    notes: {
+      type: GraphQLString,
+      async resolve(virtualCardRequest: VirtualCardRequest, _: void, req: Express.Request) {
+        const collective =
+          virtualCardRequest.collective || (await req.loaders.Collective.byId.load(virtualCardRequest.CollectiveId));
+        if (!req.remoteUser.isAdminOfCollectiveOrHost(collective)) {
+          return null;
+        }
+
+        return virtualCardRequest.notes;
+      },
+    },
     status: { type: GraphQLVirtualCardRequestStatus },
     currency: { type: GraphQLCurrency },
     spendingLimitAmount: {
