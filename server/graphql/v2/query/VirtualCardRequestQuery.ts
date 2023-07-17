@@ -3,9 +3,10 @@ import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
 
 import VirtualCardRequest from '../../../models/VirtualCardRequest';
 import { checkScope } from '../../common/scope-check';
-import { NotFound } from '../../errors';
-import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
-import { fetchVirtualCardRequestWithReference, GraphQLVirtualCardRequestReferenceInput } from '../input/VirtualCardRequestReferenceInput';
+import {
+  fetchVirtualCardRequestWithReference,
+  GraphQLVirtualCardRequestReferenceInput,
+} from '../input/VirtualCardRequestReferenceInput';
 import { GraphQLVirtualCardRequest } from '../object/VirtualCardRequest';
 
 const VirtualCardRequestQuery = {
@@ -29,7 +30,7 @@ const VirtualCardRequestQuery = {
     const virtualCardRequest = await fetchVirtualCardRequestWithReference(args.virtualCardRequest, {
       include: ['collective', 'host'],
       throwIfMissing: args.throwIfMissing,
-    })
+    });
 
     if (
       !req.remoteUser?.isAdminOfCollective(virtualCardRequest.collective) &&

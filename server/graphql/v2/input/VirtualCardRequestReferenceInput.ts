@@ -2,13 +2,13 @@ import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
 import VirtualCardRequest from '../../../models/VirtualCardRequest';
 import { NotFound } from '../../errors';
-import { idDecode,IDENTIFIER_TYPES } from '../identifiers';
+import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
 export const GraphQLVirtualCardRequestReferenceInput = new GraphQLInputObjectType({
   name: 'VirtualCardRequestReferenceInput',
   fields: () => ({
     id: { type: GraphQLString },
-    legacyId: { type: GraphQLInt }
+    legacyId: { type: GraphQLInt },
   }),
 });
 

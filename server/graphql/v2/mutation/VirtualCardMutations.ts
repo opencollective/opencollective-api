@@ -16,7 +16,6 @@ import * as stripe from '../../../paymentProviders/stripe/virtual-cards';
 import { checkRemoteUserCanUseVirtualCards } from '../../common/scope-check';
 import { BadRequest, NotFound, Unauthorized } from '../../errors';
 import { GraphQLVirtualCardLimitInterval } from '../enum/VirtualCardLimitInterval';
-import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/AmountInput';
 import { GraphQLVirtualCardInput } from '../input/VirtualCardInput';
