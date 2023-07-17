@@ -160,8 +160,11 @@ export const GraphQLVirtualCard = new GraphQLObjectType({
     currency: { type: GraphQLCurrency },
     virtualCardRequest: {
       type: GraphQLVirtualCardRequest,
-      resolve(virtualCard: VirtualCard) {
-        return virtualCard.getVirtualCardRequest();
+      resolve(virtualCard: VirtualCard, _: void, req: Express.Request) {
+        if (!virtualCard.VirtualCardRequestId) {
+          return null;
+        }
+        return req.loaders.VirtualCardRequest.byId.load(virtualCard.VirtualCardRequestId);
       },
     },
     createdAt: { type: GraphQLDateTime },
