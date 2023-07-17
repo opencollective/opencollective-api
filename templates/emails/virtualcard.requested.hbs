@@ -49,6 +49,7 @@ Dear admin of {{host.name}},
 </table>
 
 <h2>Request Details</h2>
+<a href="{{config.host.website}}/{{host.slug}}/admin/host-virtual-card-requests?virtualCardRequest={{virtualCardRequest.id}}">View request</a>
 <p>
   <strong>Assignee</strong><br />
   {{userCollective.name}}
@@ -59,6 +60,26 @@ Dear admin of {{host.name}},
   {{purpose}}
 </p>
 {{/if}}
+
+<p>
+  <strong>Budget</strong><br />
+  {{currency virtualCardRequest.spendingLimitAmount currency=virtualCardRequest.currency}}
+  {{#ifCond virtualCardRequest.spendingLimitInterval '===' 'PER_AUTHORIZARION'}}
+  per use
+  {{/ifCond}}
+  {{#ifCond virtualCardRequest.spendingLimitInterval '===' 'MONTHLY'}}
+  per month
+  {{/ifCond}}
+  {{#ifCond virtualCardRequest.spendingLimitInterval '===' 'DAILY'}}
+  per day
+  {{/ifCond}}
+  {{#ifCond virtualCardRequest.spendingLimitInterval '===' 'WEEKLY'}}
+  per week
+  {{/ifCond}}
+  {{#ifCond virtualCardRequest.spendingLimitInterval '===' 'YEARLY'}}
+  per year
+  {{/ifCond}}
+</p>
 {{#if budget}}
 <p>
   <strong>Monthly Budget</strong><br />

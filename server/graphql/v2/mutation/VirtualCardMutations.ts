@@ -21,7 +21,10 @@ import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../inpu
 import { getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/AmountInput';
 import { GraphQLVirtualCardInput } from '../input/VirtualCardInput';
 import { GraphQLVirtualCardReferenceInput } from '../input/VirtualCardReferenceInput';
-import { GraphQLVirtualCardRequestReferenceInput } from '../input/VirtualCardRequestReferenceInput';
+import {
+  fetchVirtualCardRequestWithReference,
+  GraphQLVirtualCardRequestReferenceInput,
+} from '../input/VirtualCardRequestReferenceInput';
 import { GraphQLVirtualCard } from '../object/VirtualCard';
 import { GraphQLVirtualCardRequest } from '../object/VirtualCardRequest';
 
@@ -180,9 +183,7 @@ const virtualCardMutations = {
 
       let virtualCardRequest: VirtualCardRequest;
       if (args.virtualCardRequest) {
-        virtualCardRequest = await VirtualCardRequest.findByPk(
-          idDecode(args.virtualCardRequest.id, IDENTIFIER_TYPES.VIRTUAL_CARD_REQUEST),
-        );
+        virtualCardRequest = await fetchVirtualCardRequestWithReference(args.virtualCardRequest);
         if (
           !virtualCardRequest ||
           virtualCardRequest.CollectiveId !== collective.id ||
@@ -369,7 +370,6 @@ const virtualCardMutations = {
       },
       spendingLimitAmount: {
         type: GraphQLAmountInput,
-        deprecationReason: '2023-06-29: Use spendingLimitAmount',
         description: 'Limit you want for this Virtual Card in the given use interval',
       },
       spendingLimitInterval: {
@@ -443,12 +443,9 @@ const virtualCardMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<VirtualCardRequest> {
-      const virtualCardRequest = await VirtualCardRequest.findByPk(
-        idDecode(args?.virtualCardRequest?.id, IDENTIFIER_TYPES.VIRTUAL_CARD_REQUEST),
-        {
-          include: ['host', 'collective', 'user'],
-        },
-      );
+      const virtualCardRequest = await fetchVirtualCardRequestWithReference(args.virtualCardRequest, {
+        include: ['host', 'collective', 'user'],
+      });
       if (!virtualCardRequest || virtualCardRequest.status !== VirtualCardRequestStatus.PENDING) {
         throw new BadRequest('Invalid Virtual Card request');
       }

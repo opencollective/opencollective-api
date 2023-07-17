@@ -5,7 +5,7 @@ import VirtualCardRequest from '../../../models/VirtualCardRequest';
 import { checkScope } from '../../common/scope-check';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
-import { GraphQLVirtualCardRequestReferenceInput } from '../input/VirtualCardRequestReferenceInput';
+import { fetchVirtualCardRequestWithReference, GraphQLVirtualCardRequestReferenceInput } from '../input/VirtualCardRequestReferenceInput';
 import { GraphQLVirtualCardRequest } from '../object/VirtualCardRequest';
 
 const VirtualCardRequestQuery = {
@@ -26,15 +26,10 @@ const VirtualCardRequestQuery = {
       return null;
     }
 
-    const legacyId = idDecode(args.virtualCardRequest.id, IDENTIFIER_TYPES.VIRTUAL_CARD_REQUEST);
-
-    const virtualCardRequest = await VirtualCardRequest.findByPk(legacyId, {
+    const virtualCardRequest = await fetchVirtualCardRequestWithReference(args.virtualCardRequest, {
       include: ['collective', 'host'],
-    });
-
-    if (!virtualCardRequest && args.throwIfMissing) {
-      throw new NotFound('Virtual Card Request Not Found');
-    }
+      throwIfMissing: args.throwIfMissing,
+    })
 
     if (
       !req.remoteUser?.isAdminOfCollective(virtualCardRequest.collective) &&
