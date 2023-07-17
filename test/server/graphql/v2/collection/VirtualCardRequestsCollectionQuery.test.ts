@@ -52,7 +52,9 @@ describe('server/graphql/v2/collection/VirtualCardRequestsCollectionQuery', () =
     const adminUser = await fakeUser();
     const host = await fakeHost({ admin: adminUser });
     const otherHost = await fakeHost({ admin: adminUser });
-    const collective = await fakeCollective();
+    const collective = await fakeCollective({
+      HostCollectiveId: host.id,
+    });
 
     const vcr = await VirtualCardRequest.create({
       HostCollectiveId: host.id,
