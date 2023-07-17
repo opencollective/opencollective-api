@@ -8423,7 +8423,7 @@ type PersonalToken {
 }
 
 """
-User two factor method
+User two factor authentication method
 """
 type UserTwoFactorMethod {
   id: String!
