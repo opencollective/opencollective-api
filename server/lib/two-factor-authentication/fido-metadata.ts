@@ -56,18 +56,21 @@ export async function updateCachedFidoMetadata() {
 
       const newMetadata = await downloadFidoMetadata();
       nextUpdate = newMetadata.nextUpdate;
-      cachedEntriesByAaguid = newMetadata.entries.reduce((acc, current) => {
-        if (!current.aaguid) {
-          return acc;
-        }
+      cachedEntriesByAaguid = newMetadata.entries.reduce(
+        (acc, current) => {
+          if (!current.aaguid) {
+            return acc;
+          }
 
-        return {
-          ...acc,
-          [current.aaguid]: {
-            ...current,
-          },
-        };
-      }, {} as Record<string, MetadataEntry>);
+          return {
+            ...acc,
+            [current.aaguid]: {
+              ...current,
+            },
+          };
+        },
+        {} as Record<string, MetadataEntry>,
+      );
 
       cachedMetadata = newMetadata;
     });
