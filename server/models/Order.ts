@@ -24,7 +24,7 @@ import Collective from './Collective';
 import CustomDataTypes from './DataTypes';
 import { MemberModelInterface } from './Member';
 import PaymentMethod, { PaymentMethodModelInterface } from './PaymentMethod';
-import Subscription from './Subscription';
+import { SubscriptionInterface } from './Subscription';
 import Tier from './Tier';
 import Transaction from './Transaction';
 import User from './User';
@@ -81,8 +81,8 @@ export interface OrderModelInterface
   privateMessage: string;
 
   SubscriptionId?: number;
-  Subscription?: typeof Subscription;
-  getSubscription: HasOneGetAssociationMixin<typeof Subscription>;
+  Subscription?: SubscriptionInterface;
+  getSubscription: HasOneGetAssociationMixin<SubscriptionInterface>;
 
   PaymentMethodId: number;
   paymentMethod?: PaymentMethodModelInterface;

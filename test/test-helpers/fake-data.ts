@@ -664,7 +664,7 @@ export const fakeSubscription = (params = {}) => {
   return models.Subscription.create({
     amount: randAmount(),
     currency: sample(['USD', 'EUR']),
-    interval: sample(['month', 'year']),
+    interval: <'month' | 'year'>sample(['month', 'year']),
     isActive: true,
     quantity: 1,
     ...params,

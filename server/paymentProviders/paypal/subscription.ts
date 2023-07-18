@@ -24,7 +24,7 @@ import { getCaptureIdFromPaypalTransaction, refundPaypalCapture } from './paymen
 export const CANCEL_PAYPAL_EDITED_SUBSCRIPTION_REASON = 'Updated subscription';
 
 export const cancelPaypalSubscription = async (
-  order: OrderModelInterface & { Subscription?: typeof models.Subscription },
+  order: OrderModelInterface,
   reason = undefined,
   host: Collective = undefined,
 ): Promise<void> => {
