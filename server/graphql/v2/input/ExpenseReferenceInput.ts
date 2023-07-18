@@ -1,4 +1,4 @@
-import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
+import { GraphQLInputFieldConfig, GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 import { uniq } from 'lodash';
 import { Includeable } from 'sequelize';
 
@@ -7,9 +7,14 @@ import Expense from '../../../models/Expense';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
+interface ExpenseReferenceInputFields {
+  id?: string;
+  legacyId?: number;
+}
+
 const GraphQLExpenseReferenceInput = new GraphQLInputObjectType({
   name: 'ExpenseReferenceInput',
-  fields: () => ({
+  fields: (): Record<keyof ExpenseReferenceInputFields, GraphQLInputFieldConfig> => ({
     id: {
       type: GraphQLString,
       description: 'The public id identifying the expense (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
@@ -21,7 +26,7 @@ const GraphQLExpenseReferenceInput = new GraphQLInputObjectType({
   }),
 });
 
-const getDatabaseIdFromExpenseReference = (input: Record<string, unknown>): number => {
+const getDatabaseIdFromExpenseReference = (input: ExpenseReferenceInputFields): number => {
   if (input['id']) {
     return idDecode(input['id'], IDENTIFIER_TYPES.EXPENSE);
   } else if (input['legacyId']) {
@@ -35,7 +40,7 @@ const getDatabaseIdFromExpenseReference = (input: Record<string, unknown>): numb
  * Retrieve an expense from an `ExpenseReferenceInput`
  */
 const fetchExpenseWithReference = async (
-  input: Record<string, unknown>,
+  input: ExpenseReferenceInputFields,
   { loaders = null, throwIfMissing = false } = {},
 ): Promise<Expense> => {
   const dbId = getDatabaseIdFromExpenseReference(input);
@@ -59,7 +64,7 @@ const fetchExpenseWithReference = async (
  * @returns
  */
 const fetchExpensesWithReferences = async (
-  inputs: Record<string, unknown>[],
+  inputs: ExpenseReferenceInputFields[],
   opts: { throwIfMissing?: boolean; include?: Includeable } = {},
 ): Promise<Expense[]> => {
   if (inputs.length === 0) {

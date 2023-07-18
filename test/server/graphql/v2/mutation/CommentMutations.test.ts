@@ -159,7 +159,7 @@ describe('test/server/graphql/v2/mutation/CommentMutations', () => {
 
     it('fails to delete a comment if not logged in', async () => {
       const result = await utils.graphqlQueryV2(editCommentMutation, {
-        comment: { id: idEncode(comment.id) },
+        comment: { id: idEncode(comment.id, 'comment') },
       });
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal('You must be logged in to edit this comment');
@@ -167,7 +167,11 @@ describe('test/server/graphql/v2/mutation/CommentMutations', () => {
 
     it('fails if not authenticated as author or admin of collective', async () => {
       const user = await fakeUser();
-      const result = await utils.graphqlQueryV2(editCommentMutation, { comment: { id: idEncode(comment.id) } }, user);
+      const result = await utils.graphqlQueryV2(
+        editCommentMutation,
+        { comment: { id: idEncode(comment.id, 'comment') } },
+        user,
+      );
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal(
         'You must be the author or an admin of this collective to edit this comment',
@@ -178,7 +182,7 @@ describe('test/server/graphql/v2/mutation/CommentMutations', () => {
       const html = '<p>new <em>comment</em> text</p>';
       const result = await utils.graphqlQueryV2(
         editCommentMutation,
-        { comment: { id: idEncode(comment.id), html } },
+        { comment: { id: idEncode(comment.id, 'comment'), html } },
         admin,
       );
       utils.expectNoErrorsFromResult(result);

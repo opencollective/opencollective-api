@@ -40,9 +40,11 @@ export const IDENTIFIER_TYPES = {
   PERSONAL_TOKEN: 'personal-token',
   UPLOADED_FILE: 'uploaded-file',
   VIRTUAL_CARD_REQUEST: 'virtual-card-request',
-};
+} as const;
 
-const getDefaultInstance = type => {
+type IdentifierType = (typeof IDENTIFIER_TYPES)[keyof typeof IDENTIFIER_TYPES];
+
+const getDefaultInstance = (type: IdentifierType): Hashids => {
   switch (type) {
     case IDENTIFIER_TYPES.CONVERSATION:
       return new Hashids(salt + type, 8, alphabet);
@@ -51,7 +53,7 @@ const getDefaultInstance = type => {
   }
 };
 
-const getInstance = type => {
+const getInstance = (type: IdentifierType): Hashids => {
   let instance = instances[type];
   if (!instance) {
     instance = instances[type] = getDefaultInstance(type);
@@ -60,7 +62,7 @@ const getInstance = type => {
   return instance;
 };
 
-function chunkStr(str, size) {
+function chunkStr(str: string, size: number): string[] {
   const chunks = [];
   for (let i = 0; i < str.length; i += size) {
     chunks.push(str.substring(i, i + size));
@@ -69,7 +71,7 @@ function chunkStr(str, size) {
   return chunks;
 }
 
-export const idEncode = (integer, type) => {
+export const idEncode = (integer: number, type: IdentifierType): string => {
   const string = getInstance(type).encode(integer);
   if (string.length > 8) {
     return chunkStr(string, 8).join('-');
@@ -78,7 +80,7 @@ export const idEncode = (integer, type) => {
   }
 };
 
-export const idDecode = (string, type) => {
+export const idDecode = (string: string, type: IdentifierType): number => {
   const [decoded] = getInstance(type).decode(string.split('-').join(''));
   if (decoded === undefined) {
     throw new BadRequest(`Invalid ${type} id: ${string}`);
@@ -94,6 +96,6 @@ export const idDecode = (string, type) => {
  * @param {string} idField - Field that represents the id. By default 'id'
  */
 export const getIdEncodeResolver =
-  (type, idField = 'id') =>
+  (type: IdentifierType, idField = 'id') =>
   entity =>
     idEncode(entity[idField], type);

@@ -4,6 +4,7 @@ import models from '../../../models';
 import { createConversation, editConversation } from '../../common/conversations';
 import { checkRemoteUserCanUseConversations } from '../../common/scope-check';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import GraphQLConversation from '../object/Conversation';
 
 const conversationMutations = {
@@ -20,17 +21,31 @@ const conversationMutations = {
         description: 'The body of the conversation initial comment',
       },
       CollectiveId: {
-        type: new GraphQLNonNull(GraphQLString),
+        type: GraphQLString,
         description: 'ID of the Collective where the conversation will be created',
+        deprecationReason: '2023-07-18: Please use `account` instead',
+      },
+      account: {
+        type: GraphQLAccountReferenceInput,
+        description: 'Account where the conversation will be created',
       },
       tags: {
         type: new GraphQLList(GraphQLString),
         description: 'A list of tags for this conversation',
       },
     },
-    resolve(_, args, req) {
-      args.CollectiveId = parseInt(idDecode(args.CollectiveId, 'collective'));
-      return createConversation(req, args);
+    async resolve(_, args, req) {
+      let CollectiveId;
+      if (args.account) {
+        const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
+        CollectiveId = account.id;
+      } else if (args.CollectiveId) {
+        CollectiveId = idDecode(args.CollectiveId, IDENTIFIER_TYPES.ACCOUNT);
+      } else {
+        throw new Error('Please provide an account');
+      }
+
+      return createConversation(req, { ...args, CollectiveId });
     },
   },
   editConversation: {
@@ -51,7 +66,7 @@ const conversationMutations = {
       },
     },
     resolve(_, args, req) {
-      args.id = parseInt(idDecode(args.id, IDENTIFIER_TYPES.CONVERSATION));
+      args.id = idDecode(args.id, IDENTIFIER_TYPES.CONVERSATION);
       return editConversation(req, args);
     },
   },
@@ -72,7 +87,7 @@ const conversationMutations = {
     async resolve(_, { id, isActive }, req) {
       checkRemoteUserCanUseConversations(req);
 
-      const conversationId = parseInt(idDecode(id, IDENTIFIER_TYPES.CONVERSATION));
+      const conversationId = idDecode(id, IDENTIFIER_TYPES.CONVERSATION);
 
       if (isActive) {
         await models.ConversationFollower.follow(req.remoteUser.id, conversationId);

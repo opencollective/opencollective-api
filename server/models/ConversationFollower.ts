@@ -1,6 +1,37 @@
+import { InferAttributes, InferCreationAttributes, Model, ModelStatic } from 'sequelize';
+
 import sequelize, { DataTypes } from '../lib/sequelize';
 
-const ConversationFollower = sequelize.define(
+import Conversation from './Conversation';
+import User from './User';
+
+interface ConversationFollowerModelStaticInterface {
+  isFollowing(UserId: number, ConversationId: number): Promise<boolean>;
+  follow(UserId: number, ConversationId: number): Promise<ConversationFollowerModelInterface>;
+  unfollow(UserId: number, ConversationId: number): Promise<ConversationFollowerModelInterface>;
+}
+
+export interface ConversationFollowerModelInterface
+  extends Model<
+    InferAttributes<ConversationFollowerModelInterface>,
+    InferCreationAttributes<ConversationFollowerModelInterface>
+  > {
+  id: number;
+  UserId: number;
+  ConversationId: number;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+
+  // Associations
+  user?: User;
+  conversation?: Conversation;
+}
+
+type ConversationFollowerType = ModelStatic<ConversationFollowerModelInterface> &
+  ConversationFollowerModelStaticInterface;
+
+const ConversationFollower: ConversationFollowerType = sequelize.define(
   'ConversationFollower',
   {
     id: {
@@ -56,10 +87,11 @@ const ConversationFollower = sequelize.define(
  * @returns true if user follows the conversation
  */
 ConversationFollower.isFollowing = async (UserId, ConversationId) => {
-  const following = await ConversationFollower.findOne(
-    { where: { UserId, ConversationId, isActive: true } },
-    { mapToModel: false },
-  );
+  const following = await ConversationFollower.findOne({
+    where: { UserId, ConversationId, isActive: true },
+    attributes: ['id'],
+    mapToModel: false,
+  });
 
   return Boolean(following);
 };
@@ -71,7 +103,7 @@ ConversationFollower.isFollowing = async (UserId, ConversationId) => {
  */
 ConversationFollower.follow = async (UserId, ConversationId) => {
   return sequelize.transaction(async transaction => {
-    const following = await ConversationFollower.findOne({ where: { UserId, ConversationId } }, { transaction });
+    const following = await ConversationFollower.findOne({ where: { UserId, ConversationId }, transaction });
     if (!following) {
       return ConversationFollower.create({ UserId, ConversationId, isActive: true }, { transaction });
     } else if (!following.isActive) {
@@ -89,7 +121,7 @@ ConversationFollower.follow = async (UserId, ConversationId) => {
  */
 ConversationFollower.unfollow = async (UserId, ConversationId) => {
   return sequelize.transaction(async transaction => {
-    const following = await ConversationFollower.findOne({ where: { UserId, ConversationId } }, { transaction });
+    const following = await ConversationFollower.findOne({ where: { UserId, ConversationId }, transaction });
     if (!following) {
       return ConversationFollower.create({ UserId, ConversationId, isActive: false }, { transaction });
     } else if (following.isActive) {
