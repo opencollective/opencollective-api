@@ -8,6 +8,7 @@ import getOrdersCollectionQuery from './collection/OrdersCollectionQuery';
 import TagStatsCollectionQuery from './collection/TagStatsCollectionQuery';
 import TransactionsCollectionQuery from './collection/TransactionsCollectionQuery';
 import UpdatesCollectionQuery from './collection/UpdatesCollectionQuery';
+import VirtualCardRequestsCollectionQuery from './collection/VirtualCardRequestsCollectionQuery';
 import AccountQuery from './AccountQuery';
 import ApplicationQuery from './ApplicationQuery';
 import CollectiveQuery from './CollectiveQuery';
@@ -27,6 +28,7 @@ import TierQuery from './TierQuery';
 import TransactionQuery from './TransactionQuery';
 import UpdateQuery from './UpdateQuery';
 import VirtualCardQuery from './VirtualCardQuery';
+import VirtualCardRequestQuery from './VirtualCardRequestQuery';
 
 const query = {
   account: AccountQuery,
@@ -56,6 +58,8 @@ const query = {
   paypalPlan: PaypalPlanQuery,
   personalToken: PersonalTokenQuery,
   virtualCard: VirtualCardQuery,
+  virtualCardRequest: VirtualCardRequestQuery,
+  virtualCardRequests: VirtualCardRequestsCollectionQuery,
   loggedInAccount: {
     type: GraphQLIndividual,
     resolve(_, args, req) {
