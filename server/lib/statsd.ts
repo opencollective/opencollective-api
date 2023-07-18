@@ -28,11 +28,14 @@ export function timing(stat: string, time: number) {
 }
 
 export const utils = {
-  stopwatch(name: string) {
+  stopwatch(name: string, { log }: { log?: (string) => void } = {}) {
     const start = Date.now();
     return () => {
       const duration = Date.now() - start;
       timing(name, duration);
+      if (log) {
+        log(`${name} duration: ${duration}ms`);
+      }
     };
   },
 };

@@ -10,6 +10,7 @@ import models, { Collective } from '../models';
 import { Activity } from '../models/Activity';
 import { MemberModelInterface } from '../models/Member';
 
+import cache from './cache';
 import { utils } from './statsd';
 
 const debug = debugLib('timeline');
@@ -100,15 +101,20 @@ const TTL = 60 * 60 * 24 * 3; // 3 days
 const FEED_LIMIT = 1000;
 
 const createOrUpdateFeed = async (collective: Collective, sinceId?: number) => {
-  const stopWatch = utils.stopwatch(sinceId ? 'timeline.create' : 'timeline.update');
-  const redis = await createRedisClient();
   const cacheKey = `timeline-${collective.slug}`;
+  const stopWatch = utils.stopwatch(sinceId ? 'timeline.update' : 'timeline.create', { log: debug });
+  const redis = await createRedisClient();
 
   const where = await makeTimelineQuery(collective);
   if (sinceId) {
     where['id'] = { [Op.gt]: sinceId };
   }
-  const result = await models.Activity.findAll({ where, order, limit: FEED_LIMIT });
+  const result = await models.Activity.findAll({
+    where,
+    attributes: ['id', 'type', 'createdAt'],
+    order,
+    limit: FEED_LIMIT,
+  });
   if (result.length > 0) {
     const activities = result.map(({ id, type, createdAt }) => {
       const value: SerializedActivity = { id, type };
@@ -167,11 +173,19 @@ export const getCollectiveFeed = async ({
   const cacheKey = `timeline-${collective.slug}`;
   const cacheExists = await redis.exists(cacheKey);
   if (!cacheExists) {
+    const lockKey = `${cacheKey}-semaphore`;
+    if (await cache.has(lockKey)) {
+      debug('Timeline cache is being generated, ignoring request');
+      return null;
+    }
+    cache.set(lockKey, true, 60);
+
     // If we don't have a cache, generate it asynchronously
-    createOrUpdateFeed(collective);
+    createOrUpdateFeed(collective).then(() => cache.delete(lockKey));
     return null;
   }
 
+  const stopWatch = utils.stopwatch(dateTo ? 'timeline.readPage.cached' : 'timeline.readFirstPage.cached', { log: debug });
   const wantedTypes = flatten(classes.map(c => ActivitiesPerClass[c]));
   const ids = [];
   let offset = 0;
@@ -198,7 +212,6 @@ export const getCollectiveFeed = async ({
     await createOrUpdateFeed(collective, activity.id);
   }
 
-  const stopWatch = utils.stopwatch('timeline.readPage.cached');
   while (cached.length > 0) {
     cached
       .map(v => JSON.parse(v) as SerializedActivity)
