@@ -481,18 +481,13 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
       const host = await fakeHost();
       const collective = await fakeCollective({ HostCollectiveId: host.id });
 
-      const transactionProps = {
+      await fakeTransaction({
         type: 'CREDIT',
-        kind: TransactionKind.CONTRIBUTION,
         CollectiveId: collective.id,
         currency: 'USD',
         hostCurrency: 'USD',
         HostCollectiveId: host.id,
-        createdAt: moment.utc(),
-      };
-
-      await fakeTransaction({
-        ...transactionProps,
+        createdAt: moment.utc().toDate(),
         kind: TransactionKind.CONTRIBUTION,
         amount: 3000,
         amountInHostCurrency: 3000,

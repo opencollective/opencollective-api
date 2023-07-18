@@ -1,6 +1,7 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
 import models from '../../../models';
+import { TransactionInterface } from '../../../models/Transaction';
 import { NotFound } from '../../errors';
 
 const GraphQLTransactionReferenceInput = new GraphQLInputObjectType({
@@ -21,9 +22,9 @@ const GraphQLTransactionReferenceInput = new GraphQLInputObjectType({
  * Retrieve an expense from an `ExpenseReferenceInput`
  */
 const fetchTransactionWithReference = async (
-  input: Record<string, unknown>,
+  input: { id?: string; legacyId?: number },
   { loaders = null, throwIfMissing = false } = {},
-): Promise<typeof models.Transaction> => {
+): Promise<TransactionInterface> => {
   let transaction = null;
   if (input.id) {
     transaction = await models.Transaction.findOne({ where: { uuid: input.id } });

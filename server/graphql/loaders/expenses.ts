@@ -98,7 +98,7 @@ export const generateExpenseToHostTransactionFxRateLoader = (): DataLoader<
   { rate: number; currency: string }
 > =>
   new DataLoader(async (expenseIds: number[]) => {
-    const transactions = await models.Transaction.findAll({
+    const transactions = (await models.Transaction.findAll({
       raw: true,
       attributes: ['ExpenseId', 'currency', [sequelize.json('data.expenseToHostFxRate'), 'expenseToHostFxRate']],
       where: {
@@ -109,7 +109,13 @@ export const generateExpenseToHostTransactionFxRateLoader = (): DataLoader<
         RefundTransactionId: null,
         data: { expenseToHostFxRate: { [Op.ne]: null } },
       },
-    });
+    })) as unknown as [
+      {
+        ExpenseId: number;
+        currency: string;
+        expenseToHostFxRate: string;
+      },
+    ];
 
     const groupedTransactions = groupBy(transactions, 'ExpenseId');
     return expenseIds.map(expenseId => {

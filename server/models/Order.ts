@@ -26,7 +26,7 @@ import { MemberModelInterface } from './Member';
 import PaymentMethod, { PaymentMethodModelInterface } from './PaymentMethod';
 import { SubscriptionInterface } from './Subscription';
 import Tier from './Tier';
-import Transaction from './Transaction';
+import { TransactionInterface } from './Transaction';
 import User from './User';
 
 const { models } = sequelize;
@@ -88,8 +88,8 @@ export interface OrderModelInterface
   paymentMethod?: PaymentMethodModelInterface;
   getPaymentMethod: HasOneGetAssociationMixin<PaymentMethodModelInterface>;
 
-  Transactions?: (typeof Transaction)[];
-  getTransactions: HasManyGetAssociationsMixin<typeof Transaction>;
+  Transactions?: TransactionInterface[];
+  getTransactions: HasManyGetAssociationsMixin<TransactionInterface>;
 
   processedAt: Date;
   status: OrderStatus;

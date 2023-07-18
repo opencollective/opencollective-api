@@ -34,7 +34,6 @@ import models, {
   sequelize,
   Subscription,
   Tier,
-  Transaction,
   Update,
   UploadedFile,
   VirtualCard,
@@ -51,6 +50,7 @@ import { PaymentMethodModelInterface } from '../../server/models/PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import RecurringExpense, { RecurringExpenseIntervals } from '../../server/models/RecurringExpense';
 import { AssetType } from '../../server/models/SuspendedAsset';
+import { TransactionCreationAttributes, TransactionInterface } from '../../server/models/Transaction';
 import {
   SUPPORTED_FILE_EXTENSIONS,
   SUPPORTED_FILE_KINDS,
@@ -583,7 +583,7 @@ export const fakeOrder = async (
 
   const order: OrderModelInterface & {
     subscription?: typeof Subscription;
-    transactions?: (typeof Transaction)[];
+    transactions?: TransactionInterface[];
   } = await models.Order.create({
     quantity: 1,
     currency: collective.currency,
@@ -727,7 +727,7 @@ export const fakeConnectedAccount = async (
  * Creates a fake transaction. All params are optionals.
  */
 export const fakeTransaction = async (
-  transactionData: Record<string, unknown> = {},
+  transactionData: Partial<TransactionCreationAttributes> = {},
   { settlementStatus = undefined, createDoubleEntry = false } = {},
 ) => {
   const amount = (transactionData.amount as number) || randAmount(10, 100) * 100;

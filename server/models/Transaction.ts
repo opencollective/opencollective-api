@@ -3,6 +3,14 @@ import assert from 'assert';
 import debugLib from 'debug';
 import { get, isNil, isNull, isUndefined, omit, pick } from 'lodash';
 import moment from 'moment';
+import {
+  CreationOptional,
+  InferAttributes,
+  InferCreationAttributes,
+  Model,
+  ModelStatic,
+  Transaction as SQLTransaction,
+} from 'sequelize';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../constants/activities';
@@ -20,8 +28,12 @@ import { reportErrorToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op } from '../lib/sequelize';
 import { exportToCSV } from '../lib/utils';
 
+import Collective from './Collective';
 import CustomDataTypes from './DataTypes';
+import { OrderModelInterface } from './Order';
+import PayoutMethod from './PayoutMethod';
 import { TransactionSettlementStatus } from './TransactionSettlement';
+import User from './User';
 
 const { CREDIT, DEBIT } = TransactionTypes;
 
@@ -29,14 +41,160 @@ const debug = debugLib('models:Transaction');
 
 const { models } = sequelize;
 
-const Transaction = sequelize.define(
+export interface TransactionInterface
+  extends Model<InferAttributes<TransactionInterface>, InferCreationAttributes<TransactionInterface>> {
+  id: CreationOptional<number>;
+  type: TransactionTypes | `${TransactionTypes}`;
+  kind: TransactionKind | `${TransactionKind}`;
+  uuid: CreationOptional<string>;
+  description: string;
+  amount: number;
+  currency: string;
+  hostCurrency: string;
+  hostCurrencyFxRate: number;
+  netAmountInCollectiveCurrency: number;
+  amountInHostCurrency: number;
+  hostFeeInHostCurrency: number | null;
+  paymentProcessorFeeInHostCurrency: number | null;
+  platformFeeInHostCurrency: number | null;
+  taxAmount: number | null;
+  data: Record<string, unknown> | null;
+  TransactionGroup: string;
+  isRefund: boolean;
+  isDebt: boolean;
+  isDisputed: boolean;
+  isInReview: boolean;
+  isInternal: boolean;
+
+  // Timestamps
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date;
+
+  // Foreign keys
+  CreatedByUserId: number;
+  FromCollectiveId: number;
+  CollectiveId: number;
+  HostCollectiveId: number;
+  UsingGiftCardFromCollectiveId: number;
+  OrderId: number;
+  ExpenseId: number;
+  PayoutMethodId: number;
+  PaymentMethodId: number;
+  RefundTransactionId: number;
+
+  // Associations
+  createdByUser?: User;
+  fromCollective?: Collective;
+  host?: Collective;
+  usingGiftCardFromCollective?: Collective;
+  collective?: Collective;
+  PaymentMethod?: typeof models.PaymentMethod;
+  PayoutMethod?: PayoutMethod;
+  Order?: OrderModelInterface;
+
+  // Class methods
+  info: () => Partial<TransactionInterface>;
+  getHostCollective: (options?: { loaders?: any }) => Promise<Collective>;
+  getCollective: () => Promise<Collective | null>;
+  getOrder: (options?: { paranoid?: boolean }) => Promise<OrderModelInterface | null>;
+  hasPlatformTip: () => boolean;
+  getRelatedTransaction: (options: { type?: string; kind?: string; isDebt?: boolean }) => Promise<TransactionInterface>;
+  getOppositeTransaction: () => Promise<TransactionInterface | null>;
+  getPlatformTipTransaction: () => Promise<TransactionInterface | null>;
+  getPlatformTipDebtTransaction: () => Promise<TransactionInterface | null>;
+  getHostFeeTransaction: () => Promise<TransactionInterface | null>;
+  getHostFeeShareTransaction: () => Promise<TransactionInterface | null>;
+  getHostFeeShareDebtTransaction: () => Promise<TransactionInterface | null>;
+  getRefundTransaction: () => Promise<TransactionInterface | null>;
+  getGiftCardEmitterCollective: () => Promise<Collective | null>;
+  getSource: () => Promise<Collective | null>;
+  getUser: () => Promise<User | null>;
+  setCurrency: (currency: string) => Promise<TransactionInterface>;
+  paymentMethodProviderCollectiveId: () => number;
+}
+
+// Ideally, this should be `InferCreationAttributes<TransactionInterface>` but for some reason
+// Typescript is not respecting the `CreationOptional` type and makes all attributes required.
+export type TransactionCreationAttributes = Partial<TransactionInterface>;
+
+interface TransactionModelStaticInterface {
+  updateCurrency(currency: string, transaction: TransactionInterface): Promise<TransactionInterface>;
+  createMany(
+    transactions: TransactionCreationAttributes[],
+    defaultValues?: TransactionCreationAttributes,
+  ): Promise<TransactionInterface[] | void>;
+  createManyDoubleEntry(
+    transactions: TransactionCreationAttributes[],
+    defaultValues?: TransactionCreationAttributes,
+  ): Promise<TransactionInterface[] | void>;
+  createDoubleEntry(transaction: TransactionCreationAttributes, opts?: any): Promise<TransactionInterface>;
+  exportCSV(transactions: TransactionInterface[], collectivesById: Record<number, Collective>): string;
+
+  getFxRate(
+    fromCurrency: string,
+    toCurrency: string,
+    transaction?: TransactionInterface | TransactionCreationAttributes,
+  ): Promise<number>;
+  calculateNetAmountInCollectiveCurrency(transaction: TransactionInterface | TransactionCreationAttributes): number;
+  assertAmountsLooselyEqual(a: number, b: number, message?: string): void;
+  assertAmountsStrictlyEqual(a: number, b: number, message?: string): void;
+  calculateNetAmountInHostCurrency(transaction: TransactionInterface): number;
+  validateContributionPayload(payload: Record<string, unknown>): void;
+  createActivity(transaction: TransactionInterface, options?: { transaction: SQLTransaction }): Promise<void>;
+  createPlatformTipTransactions(
+    transaction: TransactionCreationAttributes,
+    host: Collective,
+    isDirectlyCollected?: boolean,
+  ): Promise<void | {
+    transaction: TransactionCreationAttributes;
+    platformTipTransaction: TransactionInterface;
+    platformTipDebtTransaction: TransactionInterface;
+  }>;
+  createPlatformTipDebtTransactions(
+    args: { platformTipTransaction: TransactionInterface },
+    host: Collective,
+  ): Promise<TransactionInterface>;
+  createHostFeeTransactions(
+    transaction: TransactionInterface | TransactionCreationAttributes,
+    host: Collective,
+    data?: Record<string, unknown>,
+  ): Promise<{
+    transaction: TransactionInterface | TransactionCreationAttributes;
+    hostFeeTransaction: TransactionInterface;
+  }>;
+  createHostFeeShareTransactions(
+    params: {
+      transaction: TransactionInterface | TransactionCreationAttributes;
+      hostFeeTransaction: TransactionInterface;
+    },
+    host: Collective,
+    isDirectlyCollected: boolean,
+  ): Promise<{
+    hostFeeShareTransaction: TransactionInterface;
+    hostFeeShareDebtTransaction: TransactionInterface;
+  }>;
+  createHostFeeShareDebtTransactions(params: {
+    hostFeeShareTransaction: TransactionInterface;
+  }): Promise<TransactionInterface>;
+  createFromContributionPayload(
+    transaction: TransactionCreationAttributes,
+    opts?: { isPlatformRevenueDirectlyCollected?: boolean },
+  ): Promise<TransactionInterface>;
+  validate(
+    transaction: TransactionInterface | TransactionCreationAttributes,
+    opts?: { validateOppositeTransaction?: boolean; oppositeTransaction?: TransactionInterface },
+  ): void;
+}
+
+const Transaction: ModelStatic<TransactionInterface> & TransactionModelStaticInterface = sequelize.define(
   'Transaction',
   {
     type: DataTypes.STRING, // DEBIT or CREDIT
 
     kind: {
       allowNull: true,
-      type: DataTypes.ENUM(Object.values(TransactionKind)),
+      type: DataTypes.ENUM(...Object.values(TransactionKind)),
     },
 
     uuid: {
@@ -111,7 +269,6 @@ const Transaction = sequelize.define(
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
       allowNull: true,
-      description: 'References the collective that created the gift card used for this order',
     },
 
     OrderId: {
@@ -140,7 +297,7 @@ const Transaction = sequelize.define(
     // stores the currency that the transaction happened in (currency of the host)
     hostCurrency: {
       type: DataTypes.STRING,
-      set(val) {
+      set(val: string) {
         if (val && val.toUpperCase) {
           this.setDataValue('hostCurrency', val.toUpperCase());
         }
@@ -314,7 +471,7 @@ Transaction.prototype.getGiftCardEmitterCollective = function () {
   }
 };
 
-Transaction.prototype.getHostCollective = async function ({ loaders } = {}) {
+Transaction.prototype.getHostCollective = async function ({ loaders = undefined } = {}) {
   let HostCollectiveId = this.HostCollectiveId;
   // if the transaction is from the perspective of the fromCollective
   if (!HostCollectiveId) {
@@ -417,7 +574,7 @@ Transaction.createMany = (transactions, defaultValues) => {
       for (const attr in defaultValues) {
         transaction[attr] = defaultValues[attr];
       }
-      return Transaction.create(transaction);
+      return Transaction.create(transaction) as Promise<TransactionInterface>;
     }),
   ).catch(error => {
     console.error(error);
@@ -431,7 +588,7 @@ Transaction.createManyDoubleEntry = (transactions, defaultValues) => {
       for (const attr in defaultValues) {
         transaction[attr] = defaultValues[attr];
       }
-      return Transaction.createDoubleEntry(transaction);
+      return Transaction.createDoubleEntry(transaction) as Promise<TransactionInterface>;
     }),
   ).catch(error => {
     console.error(error);
@@ -545,7 +702,7 @@ Transaction.createDoubleEntry = async (transaction, opts) => {
 
   // If FromCollectiveId = CollectiveId, we only create one transaction (DEBIT or CREDIT)
   if (transaction.FromCollectiveId === transaction.CollectiveId) {
-    return Transaction.create(transaction, opts);
+    return Transaction.create(transaction, opts) as Promise<TransactionInterface>;
   }
 
   if (!isUndefined(transaction.amountInHostCurrency)) {
@@ -638,10 +795,10 @@ Transaction.createDoubleEntry = async (transaction, opts) => {
   if (transaction.amount < 0) {
     const t = await Transaction.create(transaction, opts);
     await Transaction.create(oppositeTransaction, opts);
-    return t;
+    return t as TransactionInterface;
   } else {
     await Transaction.create(oppositeTransaction, opts);
-    return await Transaction.create(transaction, opts);
+    return (await Transaction.create(transaction, opts)) as TransactionInterface;
   }
 };
 
@@ -752,18 +909,19 @@ Transaction.createPlatformTipTransactions = async (transactionData, host, isDire
     },
   };
 
-  const platformTipTransaction = await Transaction.createDoubleEntry(platformTipTransactionData);
+  const platformTipTransaction = (await Transaction.createDoubleEntry(
+    platformTipTransactionData,
+  )) as TransactionInterface;
+
   let platformTipDebtTransaction;
   if (!isDirectlyCollected) {
-    platformTipDebtTransaction = await Transaction.createPlatformTipDebtTransactions(
-      { transaction: transactionData, platformTipTransaction },
-      host,
-    );
+    platformTipDebtTransaction = await Transaction.createPlatformTipDebtTransactions({ platformTipTransaction }, host);
   }
 
   // If we have platformTipInHostCurrency available, we trust it, otherwise we compute it
   const platformTipInHostCurrency =
-    transactionData.data?.platformTipInHostCurrency || Math.round(platformTip * transactionData.hostCurrencyFxRate);
+    <number>transactionData.data?.platformTipInHostCurrency ||
+    Math.round(platformTip * transactionData.hostCurrencyFxRate);
 
   // Recalculate amount
   transactionData.amountInHostCurrency = Math.round(transactionData.amountInHostCurrency - platformTipInHostCurrency);
@@ -777,13 +935,18 @@ Transaction.createPlatformTipTransactions = async (transactionData, host, isDire
 };
 
 Transaction.validateContributionPayload = payload => {
-  if (!payload.amount || payload.amount < 0) {
+  if (!payload.amount || typeof payload.amount !== 'number' || payload.amount < 0) {
     throw new Error('amount should be set and positive');
   }
   if (!payload.currency) {
     throw new Error('currency should be set');
   }
-  if (payload.hostCurrency && (!payload.amountInHostCurrency || payload.amountInHostCurrency < 0)) {
+  if (
+    payload.hostCurrency &&
+    (!payload.amountInHostCurrency ||
+      typeof payload.amountInHostCurrency !== 'number' ||
+      payload.amountInHostCurrency < 0)
+  ) {
     throw new Error('amountInHostCurrency should be set and positive');
   }
   if (payload.amountInHostCurrency && !payload.hostCurrency) {
@@ -907,10 +1070,7 @@ Transaction.createHostFeeShareTransactions = async (
 
   let hostFeeShareDebtTransaction;
   if (!isDirectlyCollected) {
-    hostFeeShareDebtTransaction = await Transaction.createHostFeeShareDebtTransactions(
-      { transaction, hostFeeTransaction, hostFeeShareTransaction },
-      host,
-    );
+    hostFeeShareDebtTransaction = await Transaction.createHostFeeShareDebtTransactions({ hostFeeShareTransaction });
   }
 
   return { hostFeeShareTransaction, hostFeeShareDebtTransaction };
@@ -1060,7 +1220,7 @@ Transaction.createActivity = (transaction, options) => {
           OrderId: transaction.OrderId,
           data: {
             transaction: transaction.info,
-            user: transaction.User && transaction.User.minimal,
+            user: transaction['User'] && transaction['User'].minimal, // TODO: `transaction.user` doesn't seem to exists, should be createdByUser?
             fromCollective: transaction.fromCollective && transaction.fromCollective.minimal,
             collective: transaction.collective && transaction.collective.minimal,
           },
@@ -1069,7 +1229,7 @@ Transaction.createActivity = (transaction, options) => {
           activityPayload.data.user = transaction.createdByUser.info;
         }
         if (transaction.PaymentMethod) {
-          activityPayload.data.paymentMethod = transaction.PaymentMethod.info;
+          activityPayload.data['paymentMethod'] = transaction.PaymentMethod.info;
         }
         return models.Activity.create(activityPayload, { transaction: options?.transaction });
       })
@@ -1138,35 +1298,34 @@ Transaction.getFxRate = async function (fromCurrency, toCurrency, transaction) {
   }
 
   // If Stripe transaction, we check if we have the rate stored locally
-  // eslint-disable-next-line camelcase
-  if (transaction.data?.balanceTransaction?.exchange_rate) {
+  if (transaction.data?.balanceTransaction?.['exchange_rate']) {
     if (
-      transaction.data?.charge?.currency === fromCurrency.toLowerCase() &&
-      transaction.data?.balanceTransaction?.currency === toCurrency.toLowerCase()
+      transaction.data.charge?.['currency'] === fromCurrency.toLowerCase() &&
+      transaction.data.balanceTransaction['currency'] === toCurrency.toLowerCase()
     ) {
-      return transaction.data.balanceTransaction.exchange_rate; // eslint-disable-line camelcase
+      return transaction.data.balanceTransaction['exchange_rate'];
     }
     if (
-      transaction.data?.charge?.currency === toCurrency.toLowerCase() &&
-      transaction.data?.balanceTransaction?.currency === fromCurrency.toLowerCase()
+      transaction.data?.charge?.['currency'] === toCurrency.toLowerCase() &&
+      transaction.data?.balanceTransaction?.['currency'] === fromCurrency.toLowerCase()
     ) {
-      return 1 / transaction.data.balanceTransaction.exchange_rate; // eslint-disable-line camelcase
+      return 1 / transaction.data.balanceTransaction['exchange_rate'];
     }
   }
 
   // If Transferwise transaction, we check if we have the rate stored locally
-  if (transaction.data?.transfer?.rate) {
+  if (transaction.data?.transfer?.['rate']) {
     if (
-      transaction.data?.transfer?.sourceCurrency === fromCurrency &&
-      transaction.data?.transfer?.targetCurrency === toCurrency
+      transaction.data?.transfer?.['sourceCurrency'] === fromCurrency &&
+      transaction.data?.transfer?.['targetCurrency'] === toCurrency
     ) {
-      return transaction.data.transfer.rate;
+      return transaction.data.transfer['rate'];
     }
     if (
-      transaction.data?.transfer?.sourceCurrency === toCurrency &&
-      transaction.data?.transfer?.targetCurrency === fromCurrency
+      transaction.data?.transfer?.['sourceCurrency'] === toCurrency &&
+      transaction.data?.transfer?.['targetCurrency'] === fromCurrency
     ) {
-      return 1 / transaction.data.transfer.rate;
+      return 1 / transaction.data.transfer['rate'];
     }
   }
 
@@ -1284,14 +1443,14 @@ Transaction.validate = async (transaction, { validateOppositeTransaction = true,
 
   const oppositeTransactionHostCurrencyFxRate =
     // Use the one stored locally in oppositeTransaction
-    oppositeTransaction.data?.oppositeTransactionHostCurrencyFxRate ||
-    oppositeTransaction.data?.oppositeTransactionFeesCurrencyFxRate ||
+    <number>oppositeTransaction.data?.oppositeTransactionHostCurrencyFxRate ||
+    <number>oppositeTransaction.data?.oppositeTransactionFeesCurrencyFxRate ||
     // Use the one stored locally in transaction
     (transaction.data?.oppositeTransactionHostCurrencyFxRate
-      ? 1 / transaction.data?.oppositeTransactionHostCurrencyFxRate
+      ? 1 / <number>transaction.data?.oppositeTransactionHostCurrencyFxRate
       : null) ||
     (transaction.data?.oppositeTransactionFeesCurrencyFxRate
-      ? 1 / transaction.data?.oppositeTransactionFeesCurrencyFxRate
+      ? 1 / <number>transaction.data?.oppositeTransactionFeesCurrencyFxRate
       : null) ||
     // Fetch from getFxRate
     (await Transaction.getFxRate(transaction.hostCurrency, oppositeTransaction.hostCurrency, transaction));

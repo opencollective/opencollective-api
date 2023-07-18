@@ -4,6 +4,7 @@ import { createSandbox } from 'sinon';
 
 import ExpenseStatuses from '../../../server/constants/expense_status';
 import OrderStatuses from '../../../server/constants/order_status';
+import { TransactionTypes } from '../../../server/constants/transactions';
 import {
   getBalances,
   getCurrentCollectiveBalances,
@@ -74,12 +75,12 @@ describe('server/lib/budget', () => {
       );
       await cancelledOrder.Subscription.deactivate();
       const cancelledOrderTransactionValues = {
-        type: 'CREDIT',
+        type: TransactionTypes.CREDIT,
         kind: 'CONTRIBUTION',
         CollectiveId: collective.id,
         OrderId: cancelledOrder.id,
         amount: cancelledOrder.totalAmount,
-      };
+      } as const;
 
       await fakeTransaction(cancelledOrderTransactionValues, { createDoubleEntry: true });
       await fakeTransaction(cancelledOrderTransactionValues, { createDoubleEntry: true });

@@ -2,11 +2,15 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { cloneDeep, flatten, isEmpty, isNil, pick, uniq } from 'lodash';
+import { Order } from 'sequelize';
 
 import { buildSearchConditions } from '../../../../lib/search';
 import models, { Op, sequelize } from '../../../../models';
 import { checkScope } from '../../../common/scope-check';
-import { GraphQLTransactionCollection } from '../../collection/TransactionCollection';
+import {
+  GraphQLTransactionCollection,
+  GraphQLTransactionsCollectionReturnType,
+} from '../../collection/TransactionCollection';
 import { GraphQLPaymentMethodType } from '../../enum/PaymentMethodType';
 import { GraphQLTransactionKind } from '../../enum/TransactionKind';
 import { GraphQLTransactionType } from '../../enum/TransactionType';
@@ -20,7 +24,7 @@ import {
   GraphQLChronologicalOrderInput,
 } from '../../input/ChronologicalOrderInput';
 import { GraphQLVirtualCardReferenceInput } from '../../input/VirtualCardReferenceInput';
-import { CollectionArgs, TransactionsCollectionReturnType } from '../../interface/Collection';
+import { CollectionArgs } from '../../interface/Collection';
 
 export const TransactionsCollectionArgs = {
   limit: { ...CollectionArgs.limit, defaultValue: 100 },
@@ -122,7 +126,10 @@ export const TransactionsCollectionArgs = {
   },
 };
 
-export const TransactionsCollectionResolver = async (args, req: express.Request) => {
+export const TransactionsCollectionResolver = async (
+  args,
+  req: express.Request,
+): Promise<GraphQLTransactionsCollectionReturnType> => {
   const where = [];
   const include = [];
 
@@ -305,7 +312,7 @@ export const TransactionsCollectionResolver = async (args, req: express.Request)
     });
   }
 
-  const order = [
+  const order: Order = [
     [args.orderBy.field, args.orderBy.direction],
     // Add additional sort for consistent sorting
     // (transactions in the same TransactionGroup usually have the exact same datetime)
@@ -336,13 +343,15 @@ export const TransactionsCollectionResolver = async (args, req: express.Request)
     totalCount,
     limit: args.limit,
     offset: args.offset,
-    kinds: () => {
-      return models.Transaction.findAll({
+    kinds: async () => {
+      const results = await models.Transaction.findAll({
         attributes: ['kind'],
         where: whereKinds,
         group: ['kind'],
         raw: true,
-      }).then(results => results.map(m => m.kind).filter(kind => !!kind));
+      });
+
+      return results.map(m => m.kind).filter(kind => !!kind);
     },
     paymentMethodTypes: () => {
       return models.Transaction.findAll({
@@ -368,7 +377,7 @@ const TransactionsCollectionQuery = {
     },
     ...TransactionsCollectionArgs,
   },
-  async resolve(_: void, args, req: express.Request): Promise<TransactionsCollectionReturnType> {
+  async resolve(_: void, args, req: express.Request): Promise<GraphQLTransactionsCollectionReturnType> {
     return TransactionsCollectionResolver(args, req);
   },
 };

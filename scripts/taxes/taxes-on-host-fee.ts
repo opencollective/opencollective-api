@@ -8,6 +8,7 @@ import { groupBy, mapValues, pick, sumBy } from 'lodash';
 import logger from '../../server/lib/logger';
 import { formatCurrency } from '../../server/lib/utils';
 import models, { sequelize } from '../../server/models';
+import { TransactionInterface } from '../../server/models/Transaction';
 
 const DRY_RUN = process.env.DRY_RUN !== 'false';
 
@@ -94,7 +95,7 @@ program
     }
   });
 
-const migrateHostFeeTransaction = (transaction, newValues, dbTransaction): Promise<typeof models.Transaction> => {
+const migrateHostFeeTransaction = (transaction, newValues, dbTransaction): Promise<TransactionInterface> => {
   return transaction.update(
     {
       ...newValues,

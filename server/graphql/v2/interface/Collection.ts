@@ -68,12 +68,4 @@ export interface CollectionReturnType {
   offset: number;
 }
 
-export interface TransactionsCollectionReturnType {
-  nodes: Record<string, unknown>[];
-  totalCount: number;
-  limit: number;
-  offset: number;
-  kinds?: string[] | (() => string[]);
-}
-
 export { GraphQLCollection, CollectionFields, CollectionArgs };

@@ -18,19 +18,20 @@ import stripe, { convertFromStripeAmount, extractFees, retrieveChargeWithRefund 
 import models, { Collective } from '../../models';
 import { OrderModelInterface } from '../../models/Order';
 import PaymentMethod, { PaymentMethodModelInterface } from '../../models/PaymentMethod';
+import { TransactionInterface } from '../../models/Transaction';
 import User from '../../models/User';
 
 export const APPLICATION_FEE_INCOMPATIBLE_CURRENCIES = ['BRL'];
 
 /** Refund a given transaction */
 export const refundTransaction = async (
-  transaction: typeof models.Transaction,
+  transaction: TransactionInterface,
   user: User,
   options?: { checkRefundStatus: boolean },
-): Promise<typeof models.Transaction> => {
+): Promise<TransactionInterface> => {
   /* What's going to be refunded */
   const chargeId: string = result(transaction.data, 'charge.id');
-  if (transaction.data?.refund?.status === 'pending') {
+  if (transaction.data?.refund?.['status'] === 'pending') {
     throw new Error(`Transaction #${transaction.id} refund was already requested and it is pending`);
   }
 
@@ -41,7 +42,7 @@ export const refundTransaction = async (
   const hostStripeAccount = await collective.getHostStripeAccount();
 
   /* Refund both charge & application fee */
-  const fees = get(transaction.data, 'balanceTransaction.fee_details', []);
+  const fees = get(transaction.data, 'balanceTransaction.fee_details', []) as Stripe.BalanceTransaction.FeeDetail[];
   const hasApplicationFees = fees.some(fee => fee.type === 'application_fee' && fee.amount > 0);
   const refund = await stripe.refunds.create(
     { charge: chargeId, refund_application_fee: hasApplicationFees }, // eslint-disable-line camelcase
@@ -77,9 +78,9 @@ export const refundTransaction = async (
  * in stripe but not in our database
  */
 export const refundTransactionOnlyInDatabase = async (
-  transaction: typeof models.Transaction,
+  transaction: TransactionInterface,
   user: User,
-): Promise<typeof models.Transaction> => {
+): Promise<TransactionInterface> => {
   /* What's going to be refunded */
   const chargeId = result(transaction.data, 'charge.id');
 

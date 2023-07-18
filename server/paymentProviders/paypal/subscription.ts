@@ -14,6 +14,7 @@ import { OrderModelInterface } from '../../models/Order';
 import { PaymentMethodModelInterface } from '../../models/PaymentMethod';
 import PaypalPlan from '../../models/PaypalPlan';
 import Tier from '../../models/Tier';
+import { TransactionInterface } from '../../models/Transaction';
 import User from '../../models/User';
 import { SubscriptionTransactions } from '../../types/paypal';
 import { PaymentProviderService } from '../types';
@@ -378,10 +379,10 @@ const PayPalSubscription: PaymentProviderService = {
   },
 
   async refundTransactionOnlyInDatabase(
-    transaction: typeof models.Transaction,
+    transaction: TransactionInterface,
     user: User,
     reason: string,
-  ): Promise<typeof models.Transaction> {
+  ): Promise<TransactionInterface> {
     return createRefundTransaction(transaction, 0, { ...transaction.data, refundReason: reason }, user);
   },
 };

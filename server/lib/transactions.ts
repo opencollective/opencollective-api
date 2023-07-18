@@ -1,6 +1,7 @@
 import assert from 'assert';
 
 import { get, groupBy, mapValues, round, set, sumBy, truncate } from 'lodash';
+import { Order } from 'sequelize';
 
 import ExpenseType from '../constants/expense_type';
 import TierType from '../constants/tiers';
@@ -10,6 +11,7 @@ import { toNegative } from '../lib/math';
 import { exportToCSV, sumByWhen } from '../lib/utils';
 import models, { Op } from '../models';
 import Tier from '../models/Tier';
+import { TransactionInterface } from '../models/Transaction';
 
 import { getFxRate } from './currency';
 
@@ -56,7 +58,7 @@ export function getTransactions(collectiveids, startDate = new Date('2015-01-01'
       CollectiveId: { [Op.in]: collectiveids },
       createdAt: { [Op.gte]: startDate, [Op.lt]: endDate },
     },
-    order: [['createdAt', 'DESC']],
+    order: [['createdAt', 'DESC']] as Order,
   };
   if (options.limit) {
     query['limit'] = options.limit;
@@ -451,7 +453,7 @@ export async function generateDescription(transaction, { req = null, full = fals
  *   [TaxId]: { totalCollected: number, totalPaid: number }
  * }
  */
-export const getTaxesSummary = (allTransactions: typeof models.Transaction) => {
+export const getTaxesSummary = (allTransactions: TransactionInterface[]) => {
   const transactionsWithTaxes = allTransactions.filter(t => t.taxAmount);
   if (!transactionsWithTaxes.length) {
     return null;
