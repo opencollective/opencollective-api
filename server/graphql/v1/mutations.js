@@ -11,7 +11,6 @@ import { editPublicMessage } from '../common/members';
 import { createUser } from '../common/user';
 import { NotFound, RateLimitExceeded, Unauthorized } from '../errors';
 
-import * as applicationMutations from './mutations/applications';
 import * as backyourstackMutations from './mutations/backyourstack';
 import {
   activateBudget,
@@ -31,7 +30,6 @@ import { createOrder } from './mutations/orders';
 import * as paymentMethodsMutation from './mutations/paymentMethods';
 import { editTier, editTiers } from './mutations/tiers';
 import { confirmUserEmail, updateUserEmail } from './mutations/users';
-import { ApplicationInputType, ApplicationType } from './Application';
 import { CollectiveInterfaceType } from './CollectiveInterface';
 import {
   CollectiveInputType,
@@ -311,30 +309,6 @@ const mutations = {
 
       const { order } = await createOrder({ ...args.order, amount, tax }, req);
       return order;
-    },
-  },
-  createApplication: {
-    type: ApplicationType,
-    deprecationReason: '2023-01-03: Please use createPersonalToken from GQLV2',
-    args: {
-      application: {
-        type: new GraphQLNonNull(ApplicationInputType),
-      },
-    },
-    resolve(_, args, req) {
-      return applicationMutations.createApplication(_, args, req);
-    },
-  },
-  deleteApplication: {
-    type: ApplicationType,
-    deprecationReason: '2023-01-03: Please use deletePersonalToken from GQLV2',
-    args: {
-      id: {
-        type: new GraphQLNonNull(GraphQLInt),
-      },
-    },
-    resolve(_, args, req) {
-      return applicationMutations.deleteApplication(_, args, req);
     },
   },
   updatePaymentMethod: {

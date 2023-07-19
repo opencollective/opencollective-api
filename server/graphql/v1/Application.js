@@ -1,11 +1,4 @@
-import {
-  GraphQLEnumType,
-  GraphQLInputObjectType,
-  GraphQLInt,
-  GraphQLNonNull,
-  GraphQLObjectType,
-  GraphQLString,
-} from 'graphql';
+import { GraphQLEnumType, GraphQLInt, GraphQLObjectType, GraphQLString } from 'graphql';
 
 const ApplicationTypeType = new GraphQLEnumType({
   name: 'ApplicationType',
@@ -80,15 +73,4 @@ export const ApplicationType = new GraphQLObjectType({
       },
     };
   },
-});
-
-export const ApplicationInputType = new GraphQLInputObjectType({
-  name: 'ApplicationInput',
-  description: 'Input type for Application',
-  fields: () => ({
-    type: { type: new GraphQLNonNull(ApplicationTypeType) },
-    name: { type: GraphQLString },
-    description: { type: GraphQLString },
-    callbackUrl: { type: GraphQLString },
-  }),
 });

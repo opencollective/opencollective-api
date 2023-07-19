@@ -161,13 +161,6 @@ export const UserType = new GraphQLObjectType({
           return req.loaders.Collective.byId.load(user.CollectiveId);
         },
       },
-      username: {
-        type: GraphQLString,
-        deprecationReason: '2022-01-13: Not used anymore. Will be ignored',
-        resolve() {
-          return null;
-        },
-      },
       name: {
         type: GraphQLString,
         deprecationReason: '2022-06-02: Please use collective.name',
@@ -450,51 +443,6 @@ export const MemberType = new GraphQLObjectType({
   },
 });
 
-export const MemberInvitationType = new GraphQLObjectType({
-  name: 'MemberInvitation',
-  description: 'An invitation to join the members of a collective',
-  fields: () => {
-    return {
-      id: {
-        type: GraphQLInt,
-      },
-      createdAt: {
-        type: DateString,
-      },
-      collective: {
-        type: CollectiveInterfaceType,
-        resolve(member, args, req) {
-          return req.loaders.Collective.byId.load(member.CollectiveId);
-        },
-      },
-      member: {
-        type: CollectiveInterfaceType,
-        resolve(member, args, req) {
-          return req.loaders.Collective.byId.load(member.MemberCollectiveId);
-        },
-      },
-      role: {
-        type: GraphQLString,
-      },
-      description: {
-        type: GraphQLString,
-      },
-      tier: {
-        type: TierType,
-        resolve(member, args, req) {
-          return member.TierId && req.loaders.Tier.byId.load(member.TierId);
-        },
-      },
-      since: {
-        type: DateString,
-        resolve(member) {
-          return member.since;
-        },
-      },
-    };
-  },
-});
-
 export const ContributorRoleEnum = new GraphQLEnumType({
   name: 'ContributorRole',
   description: 'Possible roles for a contributor. Extends `Member.Role`.',
@@ -546,11 +494,6 @@ export const ContributorType = new GraphQLObjectType({
     isBacker: {
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'True if the contributor is a financial contributor',
-    },
-    isFundraiser: {
-      type: GraphQLBoolean,
-      description: 'True if the contributor is a fundraiser',
-      deprecationReason: '2022-09-12: This role does not exist anymore',
     },
     tiersIds: {
       type: new GraphQLNonNull(new GraphQLList(GraphQLInt)),

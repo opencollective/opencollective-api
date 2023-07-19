@@ -23,7 +23,6 @@ export interface Contributor {
   isAdmin: boolean;
   isCore: boolean;
   isBacker: boolean;
-  isFundraiser: boolean;
   isIncognito: boolean;
   isGuest: boolean;
   tiersIds: Array<number | null>;
