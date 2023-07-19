@@ -95,7 +95,7 @@ async function runReport(responses) {
     env.SLUGS = slugs.join(',');
   }
 
-  const command = `./node_modules/.bin/babel-node ${responses.command}`;
+  const command = `./node_modules/.bin/ts-node ${responses.command}`;
   console.log('>>> command', command);
   return new Promise(resolve => {
     const cmd = exec(command, { env });

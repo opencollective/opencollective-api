@@ -20,5 +20,10 @@
     "outDir": "dist",
     "skipLibCheck": true
   },
-  "include": ["server", "test", "scripts", "migrations", "reports", "cron"]
+  "include": ["server", "test", "scripts", "migrations", "reports", "cron"],
+  "ts-node": {
+    "transpileOnly": true,
+    "files": true,
+    "esm": true
+  }
 }

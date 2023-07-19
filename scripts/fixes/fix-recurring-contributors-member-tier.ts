@@ -1,4 +1,4 @@
-#!/usr/bin/env ./node_modules/.bin/babel-node
+#!/usr/bin/env ./node_modules/.bin/ts-node
 import '../../server/env.js';
 
 import models, { sequelize } from '../../server/models/index.js';

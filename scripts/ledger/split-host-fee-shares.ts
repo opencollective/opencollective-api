@@ -1,4 +1,4 @@
-#!/usr/bin/env ./node_modules/.bin/babel-node
+#!/usr/bin/env ./node_modules/.bin/ts-node
 import '../../server/env.js';
 
 import { partition, uniq } from 'lodash-es';
