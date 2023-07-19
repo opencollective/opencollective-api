@@ -10,7 +10,7 @@ import fetch from 'node-fetch';
 
 import { sleep } from '../server/lib/utils.js';
 
-const fetchIssueEvents = (issueId: string, cursor: number) => {
+const fetchIssueEvents = (issueId: string, cursor: number): Promise<any> => {
   return fetch(`https://sentry.io/api/0/issues/${issueId}/events/?full=true&cursor=0:${cursor}:0`, {
     headers: {
       accept: 'application/json; charset=utf-8',

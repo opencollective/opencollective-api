@@ -2,7 +2,7 @@ import * as LibTaxes from '@opencollective/taxes';
 import config from 'config';
 import { get, pick } from 'lodash-es';
 import map from 'p-map';
-import isURL from 'validator/lib/isURL.js';
+import { isURL } from 'validator/es/index.js';
 
 import activities from '../constants/activities.js';
 import { types as CollectiveTypes } from '../constants/collectives.js';

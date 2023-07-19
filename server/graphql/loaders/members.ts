@@ -1,5 +1,5 @@
 import DataLoader from 'dataloader';
-import _, { groupBy, partition, uniq } from 'lodash-es';
+import { groupBy, keyBy, partition, uniq } from 'lodash-es';
 
 import MemberRoles from '../../constants/roles.js';
 import models, { Collective, sequelize } from '../../models/index.js';
@@ -64,7 +64,7 @@ export const generateCountAdminMembersOfCollective = () => {
         CollectiveId: collectiveIds,
       },
     });
-    const result = _.keyBy(adminsByCollective, 'CollectiveId');
+    const result = keyBy(adminsByCollective, 'CollectiveId');
     return collectiveIds.map(collectiveId => (result[collectiveId]?.dataValues as any)?.adminCount || 0);
   });
 };

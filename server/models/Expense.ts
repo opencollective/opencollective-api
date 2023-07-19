@@ -9,7 +9,7 @@ import {
   NonAttribute,
 } from 'sequelize';
 import Temporal from 'sequelize-temporal';
-import validator from 'validator';
+import validator from 'validator/es/index.js';
 
 import { roles } from '../constants/index.js';
 import ActivityTypes from '../constants/activities.js';

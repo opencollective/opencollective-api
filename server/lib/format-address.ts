@@ -28,7 +28,7 @@ export async function formatAddress(
    */
   try {
     // Locale is only affecting language, not formatting
-    const addressFormatter = new AddressFormatter(locale);
+    const addressFormatter = new AddressFormatter.default(locale);
     const formattingCountry = await addressFormatter.getCountry(country);
     addressLines = shopifyFormatAddress(
       {

@@ -18,7 +18,7 @@ export async function getRemoteSchema(
 ): Promise<{ status: 'ok'; schema: string } | { status: 'err'; message: string }> {
   try {
     const introspectionQuery = getIntrospectionQuery({ inputValueDeprecation: true, schemaDescription: true });
-    const { data, errors } = await fetch(endpoint, {
+    const { data, errors } = <any>await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query: introspectionQuery }),
