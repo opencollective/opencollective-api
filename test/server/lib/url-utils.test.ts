@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 import config from 'config';
 
-import { getEditRecurringContributionsUrl } from '../../../server/lib/url-utils';
-import { fakeOrganization, fakeUser } from '../../test-helpers/fake-data';
+import { getEditRecurringContributionsUrl } from '../../../server/lib/url-utils.js';
+import { fakeOrganization, fakeUser } from '../../test-helpers/fake-data.js';
 
 describe('server/lib/url-utils', () => {
   describe('getEditRecurringContributionsUrl', () => {

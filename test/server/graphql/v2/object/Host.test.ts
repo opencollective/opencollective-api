@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
 
-import models from '../../../../../server/models';
-import { VirtualCardStatus } from '../../../../../server/models/VirtualCard';
+import models from '../../../../../server/models/index.js';
+import { VirtualCardStatus } from '../../../../../server/models/VirtualCard.js';
 import {
   fakeCollective,
   fakeExpense,
@@ -10,8 +10,8 @@ import {
   fakeUploadedFile,
   fakeUser,
   fakeVirtualCard,
-} from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2 } from '../../../../utils';
+} from '../../../../test-helpers/fake-data.js';
+import { graphqlQueryV2 } from '../../../../utils.js';
 
 const hostQuery = gqlV2/* GraphQL */ `
   query Host($slug: String!, $accounts: [AccountReferenceInput]) {

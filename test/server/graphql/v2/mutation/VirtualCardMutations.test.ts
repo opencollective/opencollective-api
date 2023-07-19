@@ -2,15 +2,15 @@ import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
 import { createSandbox, match } from 'sinon';
 
-import { frequencies } from '../../../../../server/constants';
-import ActivityTypes from '../../../../../server/constants/activities';
-import VirtualCardProviders from '../../../../../server/constants/virtual_card_providers';
-import { VirtualCardLimitIntervals } from '../../../../../server/constants/virtual-cards';
-import models from '../../../../../server/models';
-import { VirtualCardStatus } from '../../../../../server/models/VirtualCard';
-import * as stripeVirtualCards from '../../../../../server/paymentProviders/stripe/virtual-cards';
-import { fakeCollective, fakeHost, fakeUser, fakeVirtualCard } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, resetTestDB } from '../../../../utils';
+import { frequencies } from '../../../../../server/constants/index.js';
+import ActivityTypes from '../../../../../server/constants/activities.js';
+import VirtualCardProviders from '../../../../../server/constants/virtual_card_providers.js';
+import { VirtualCardLimitIntervals } from '../../../../../server/constants/virtual-cards.js';
+import models from '../../../../../server/models/index.js';
+import { VirtualCardStatus } from '../../../../../server/models/VirtualCard.js';
+import * as stripeVirtualCards from '../../../../../server/paymentProviders/stripe/virtual-cards.js';
+import { fakeCollective, fakeHost, fakeUser, fakeVirtualCard } from '../../../../test-helpers/fake-data.js';
+import { graphqlQueryV2, resetTestDB } from '../../../../utils.js';
 
 const DELETE_VIRTUAL_CARD_MUTATION = gqlV2/* GraphQL */ `
   mutation DeleteVirtualCard($virtualCard: VirtualCardReferenceInput!) {

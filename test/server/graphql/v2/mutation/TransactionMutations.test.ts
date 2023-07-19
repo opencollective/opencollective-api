@@ -3,17 +3,17 @@ import gqlV2 from 'fake-tag';
 import nock from 'nock';
 import { createSandbox } from 'sinon';
 
-import MemberRoles from '../../../../../server/constants/roles';
-import { TransactionTypes } from '../../../../../server/constants/transactions';
-import * as TransactionMutationHelpers from '../../../../../server/graphql/common/transactions';
-import emailLib from '../../../../../server/lib/email';
-import * as payments from '../../../../../server/lib/payments';
-import stripe, { convertFromStripeAmount, convertToStripeAmount, extractFees } from '../../../../../server/lib/stripe';
-import models from '../../../../../server/models';
-import stripeMocks from '../../../../mocks/stripe';
-import { fakeCollective, fakeOrder, fakeUser, randStr } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2 } from '../../../../utils';
-import * as utils from '../../../../utils';
+import MemberRoles from '../../../../../server/constants/roles.js';
+import { TransactionTypes } from '../../../../../server/constants/transactions.js';
+import * as TransactionMutationHelpers from '../../../../../server/graphql/common/transactions.js';
+import emailLib from '../../../../../server/lib/email.js';
+import * as payments from '../../../../../server/lib/payments.js';
+import stripe, { convertFromStripeAmount, convertToStripeAmount, extractFees } from '../../../../../server/lib/stripe.js';
+import models from '../../../../../server/models/index.js';
+import stripeMocks from '../../../../mocks/stripe.js';
+import { fakeCollective, fakeOrder, fakeUser, randStr } from '../../../../test-helpers/fake-data.js';
+import { graphqlQueryV2 } from '../../../../utils.js';
+import * as utils from '../../../../utils.js';
 
 const STRIPE_TOKEN = 'tok_123456781234567812345678';
 

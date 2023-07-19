@@ -3,13 +3,13 @@ import gql from 'fake-tag';
 import { describe, it } from 'mocha';
 import { assert, createSandbox, match } from 'sinon';
 
-import roles from '../../../../server/constants/roles';
-import * as CacheLib from '../../../../server/lib/cache';
-import emailLib from '../../../../server/lib/email';
-import * as payments from '../../../../server/lib/payments';
-import models from '../../../../server/models';
-import { fakeOrder, fakePaymentMethod, fakeProject, fakeUser } from '../../../test-helpers/fake-data';
-import * as utils from '../../../utils';
+import roles from '../../../../server/constants/roles.js';
+import * as CacheLib from '../../../../server/lib/cache/index.js';
+import emailLib from '../../../../server/lib/email.js';
+import * as payments from '../../../../server/lib/payments.js';
+import models from '../../../../server/models/index.js';
+import { fakeOrder, fakePaymentMethod, fakeProject, fakeUser } from '../../../test-helpers/fake-data.js';
+import * as utils from '../../../utils.js';
 
 let host, user1, user2, user3, collective1, event1, ticket1;
 let sandbox, executeOrderStub, emailSendSpy, emailSendMessageSpy;

@@ -7,11 +7,11 @@ import nock from 'nock';
 import { createSandbox } from 'sinon';
 import request from 'supertest';
 
-import roles from '../../../server/constants/roles';
-import app from '../../../server/index';
-import stripe from '../../../server/lib/stripe';
-import models from '../../../server/models';
-import * as utils from '../../utils';
+import roles from '../../../server/constants/roles.js';
+import app from '../../../server/index.js';
+import stripe from '../../../server/lib/stripe.js';
+import models from '../../../server/models/index.js';
+import * as utils from '../../utils.js';
 
 const application = utils.data('application');
 

@@ -3,19 +3,26 @@ import config from 'config';
 import nock from 'nock';
 import { createSandbox } from 'sinon';
 
-import { activities } from '../../../server/constants';
-import status from '../../../server/constants/order_status';
-import { PLANS_COLLECTIVE_SLUG } from '../../../server/constants/plans';
-import roles from '../../../server/constants/roles';
-import { TransactionKind } from '../../../server/constants/transaction-kind';
-import emailLib from '../../../server/lib/email';
-import * as payments from '../../../server/lib/payments';
-import stripe from '../../../server/lib/stripe';
-import models from '../../../server/models';
-import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
-import stripeMocks from '../../mocks/stripe';
-import { fakeCollective, fakeHost, fakeOrder, fakePayoutMethod, fakeUser, randStr } from '../../test-helpers/fake-data';
-import * as utils from '../../utils';
+import { activities } from '../../../server/constants/index.js';
+import status from '../../../server/constants/order_status.js';
+import { PLANS_COLLECTIVE_SLUG } from '../../../server/constants/plans.js';
+import roles from '../../../server/constants/roles.js';
+import { TransactionKind } from '../../../server/constants/transaction-kind.js';
+import emailLib from '../../../server/lib/email.js';
+import * as payments from '../../../server/lib/payments.js';
+import stripe from '../../../server/lib/stripe.js';
+import models from '../../../server/models/index.js';
+import { PayoutMethodTypes } from '../../../server/models/PayoutMethod.js';
+import stripeMocks from '../../mocks/stripe.js';
+import {
+  fakeCollective,
+  fakeHost,
+  fakeOrder,
+  fakePayoutMethod,
+  fakeUser,
+  randStr,
+} from '../../test-helpers/fake-data.js';
+import * as utils from '../../utils.js';
 
 const AMOUNT = 1099;
 const AMOUNT2 = 199;

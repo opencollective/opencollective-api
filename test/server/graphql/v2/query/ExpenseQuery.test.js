@@ -7,8 +7,8 @@ import {
   fakeExpense,
   fakePayoutMethod,
   fakeUser,
-} from '../../../../test-helpers/fake-data';
-import { expectNoErrorsFromResult, graphqlQueryV2, resetTestDB, traverse } from '../../../../utils';
+} from '../../../../test-helpers/fake-data.js';
+import { expectNoErrorsFromResult, graphqlQueryV2, resetTestDB, traverse } from '../../../../utils.js';
 
 describe('server/graphql/v2/query/ExpenseQuery', () => {
   before(resetTestDB);

@@ -2,9 +2,9 @@ import { expect } from 'chai';
 import config from 'config';
 import { stub, useFakeTimers } from 'sinon';
 
-import slackLib from '../../../server/lib/slack';
-import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective, resolveRedirect } from '../../../server/lib/spam';
-import { fakeCollective } from '../../test-helpers/fake-data';
+import slackLib from '../../../server/lib/slack.js';
+import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective, resolveRedirect } from '../../../server/lib/spam.js';
+import { fakeCollective } from '../../test-helpers/fake-data.js';
 
 // To prevent false positives with random values, we initialize all collectives with safe values
 const LEGIT_VALUES = {

@@ -3,12 +3,12 @@ import gqlV2 from 'fake-tag';
 import { describe, it } from 'mocha';
 import { assert, createSandbox } from 'sinon';
 
-import roles from '../../../../../server/constants/roles';
-import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
-import emailLib from '../../../../../server/lib/email';
-import twitterLib from '../../../../../server/lib/twitter';
-import models from '../../../../../server/models';
-import * as utils from '../../../../utils';
+import roles from '../../../../../server/constants/roles.js';
+import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers.js';
+import emailLib from '../../../../../server/lib/email.js';
+import twitterLib from '../../../../../server/lib/twitter.js';
+import models from '../../../../../server/models/index.js';
+import * as utils from '../../../../utils.js';
 
 let host, user1, user2, collective1, event1, update1;
 let sandbox, sendEmailSpy, sendTweetSpy;

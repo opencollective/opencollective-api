@@ -2,8 +2,8 @@ import { expect } from 'chai';
 import nock from 'nock';
 import { assert, createSandbox } from 'sinon';
 
-import * as transferwise from '../../../server/lib/transferwise';
-import { fakeConnectedAccount } from '../../test-helpers/fake-data';
+import * as transferwise from '../../../server/lib/transferwise.js';
+import { fakeConnectedAccount } from '../../test-helpers/fake-data.js';
 
 const sandbox = createSandbox();
 

@@ -1,17 +1,17 @@
 import { expect } from 'chai';
-import { repeat } from 'lodash';
+import { repeat } from 'lodash-es';
 import moment from 'moment';
 import { createSandbox } from 'sinon';
 
-import { expenseStatus, roles } from '../../../server/constants';
-import FEATURE from '../../../server/constants/feature';
-import plans from '../../../server/constants/plans';
-import POLICIES from '../../../server/constants/policies';
-import { TransactionKind } from '../../../server/constants/transaction-kind';
-import { getFxRate } from '../../../server/lib/currency';
-import emailLib from '../../../server/lib/email';
-import models, { Op, sequelize } from '../../../server/models';
-import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
+import { expenseStatus, roles } from '../../../server/constants/index.js';
+import FEATURE from '../../../server/constants/feature.js';
+import plans from '../../../server/constants/plans.js';
+import POLICIES from '../../../server/constants/policies.js';
+import { TransactionKind } from '../../../server/constants/transaction-kind.js';
+import { getFxRate } from '../../../server/lib/currency.js';
+import emailLib from '../../../server/lib/email.js';
+import models, { Op, sequelize } from '../../../server/models/index.js';
+import { PayoutMethodTypes } from '../../../server/models/PayoutMethod.js';
 import {
   fakeCollective,
   fakeEvent,
@@ -25,8 +25,8 @@ import {
   fakeTransaction,
   fakeUser,
   randStr,
-} from '../../test-helpers/fake-data';
-import * as utils from '../../utils';
+} from '../../test-helpers/fake-data.js';
+import * as utils from '../../utils.js';
 
 const { Transaction, Collective, User } = models;
 

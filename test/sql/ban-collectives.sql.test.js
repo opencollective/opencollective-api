@@ -1,13 +1,15 @@
+import url from 'url';
+const __dirname = url.fileURLToPath(new url.URL('.', import.meta.url));
 /* eslint-disable camelcase */
 
 import path from 'path';
 
 import { expect } from 'chai';
 import { readFileSync } from 'fs-extra';
-import { times } from 'lodash';
+import { times } from 'lodash-es';
+import { PLATFORM_TIP_TRANSACTION_PROPERTIES } from '../../server/constants/transactions.js';
+import models, { sequelize } from '../../server/models/index.js';
 
-import { PLATFORM_TIP_TRANSACTION_PROPERTIES } from '../../server/constants/transactions';
-import models, { sequelize } from '../../server/models';
 import {
   fakeCollective,
   fakeComment,
@@ -17,8 +19,9 @@ import {
   fakeTransaction,
   fakeUpdate,
   fakeUser,
-} from '../test-helpers/fake-data';
-import { resetTestDB } from '../utils';
+} from '../test-helpers/fake-data.js';
+
+import { resetTestDB } from '../utils.js';
 
 const banCollectivesQuery = readFileSync(path.join(__dirname, '../../sql/ban-collectives.sql'), 'utf8');
 

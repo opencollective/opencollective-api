@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { diffDBEntries } from '../../../server/lib/data';
+import { diffDBEntries } from '../../../server/lib/data.js';
 
 // Models have a `get` method to access properties. We need to simulate that for old entries.
 const simulateModel = data => {

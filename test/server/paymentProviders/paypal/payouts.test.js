@@ -4,18 +4,18 @@ import crypto from 'crypto';
 import { expect } from 'chai';
 import { assert, createSandbox } from 'sinon';
 
-import status from '../../../../server/constants/expense_status';
-import * as paypalLib from '../../../../server/lib/paypal';
-import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
-import * as paypalPayouts from '../../../../server/paymentProviders/paypal/payouts';
+import status from '../../../../server/constants/expense_status.js';
+import * as paypalLib from '../../../../server/lib/paypal.js';
+import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod.js';
+import * as paypalPayouts from '../../../../server/paymentProviders/paypal/payouts.js';
 import {
   fakeCollective,
   fakeConnectedAccount,
   fakeExpense,
   fakeHost,
   fakePayoutMethod,
-} from '../../../test-helpers/fake-data';
-import * as utils from '../../../utils';
+} from '../../../test-helpers/fake-data.js';
+import * as utils from '../../../utils.js';
 
 describe('paymentMethods/paypal/payouts.js', () => {
   const sandbox = createSandbox();

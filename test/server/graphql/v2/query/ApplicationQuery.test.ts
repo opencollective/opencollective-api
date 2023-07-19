@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
 
-import { fakeActivity, fakeApplication, fakeUser, fakeUserToken } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, resetTestDB } from '../../../../utils';
+import { fakeActivity, fakeApplication, fakeUser, fakeUserToken } from '../../../../test-helpers/fake-data.js';
+import { graphqlQueryV2, resetTestDB } from '../../../../utils.js';
 
 const applicationQuery = gqlV2/* GraphQL */ `
   query Application($legacyId: Int!) {

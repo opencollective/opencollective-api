@@ -1,11 +1,17 @@
 import { expect } from 'chai';
-import { pick } from 'lodash';
+import { pick } from 'lodash-es';
 
-import { expenseStatus, expenseTypes } from '../../../server/constants';
-import models from '../../../server/models';
-import Expense from '../../../server/models/Expense';
-import { fakeCollective, fakeExpense, fakeExpenseItem, fakeTransaction, fakeUser } from '../../test-helpers/fake-data';
-import { resetTestDB } from '../../utils';
+import { expenseStatus, expenseTypes } from '../../../server/constants/index.js';
+import models from '../../../server/models/index.js';
+import Expense from '../../../server/models/Expense.js';
+import {
+  fakeCollective,
+  fakeExpense,
+  fakeExpenseItem,
+  fakeTransaction,
+  fakeUser,
+} from '../../test-helpers/fake-data.js';
+import { resetTestDB } from '../../utils.js';
 
 describe('test/server/models/Expense', () => {
   describe('Create', () => {

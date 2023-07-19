@@ -1,11 +1,11 @@
 import { expect } from 'chai';
 import { SequelizeValidationError, ValidationError } from 'sequelize';
 
-import models from '../../../server/models';
-import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
-import { randEmail } from '../../stores';
-import { fakePayoutMethod, fakeUser } from '../../test-helpers/fake-data';
-import { resetTestDB } from '../../utils';
+import models from '../../../server/models/index.js';
+import { PayoutMethodTypes } from '../../../server/models/PayoutMethod.js';
+import { randEmail } from '../../stores/index.js';
+import { fakePayoutMethod, fakeUser } from '../../test-helpers/fake-data.js';
+import { resetTestDB } from '../../utils.js';
 
 describe('server/models/PayoutMethod', () => {
   describe('findSimilar()', () => {

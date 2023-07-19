@@ -1,9 +1,9 @@
 import { expect } from 'chai';
 
-import { generateUserHasTwoFactorAuthEnabled } from '../../../../server/graphql/loaders/user';
-import { TwoFactorMethod } from '../../../../server/lib/two-factor-authentication';
-import UserTwoFactorMethod from '../../../../server/models/UserTwoFactorMethod';
-import { fakeUser } from '../../../test-helpers/fake-data';
+import { generateUserHasTwoFactorAuthEnabled } from '../../../../server/graphql/loaders/user.js';
+import { TwoFactorMethod } from '../../../../server/lib/two-factor-authentication/index.js';
+import UserTwoFactorMethod from '../../../../server/models/UserTwoFactorMethod.js';
+import { fakeUser } from '../../../test-helpers/fake-data.js';
 
 describe('server/graphql/loaders/user', () => {
   describe('userHasTwoFactorAuthEnabled', () => {

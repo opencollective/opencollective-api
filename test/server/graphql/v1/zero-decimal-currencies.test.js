@@ -2,8 +2,8 @@ import { expect } from 'chai';
 import gql from 'fake-tag';
 import { describe, it } from 'mocha';
 
-import * as store from '../../../stores';
-import * as utils from '../../../utils';
+import * as store from '../../../stores/index.js';
+import * as utils from '../../../utils.js';
 
 describe('server/graphql/v1/zero-decimal-currencies', () => {
   before(async () => {

@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
 
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../server/constants/paymentMethods';
-import { TransactionKind } from '../../../../../server/constants/transaction-kind';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../server/constants/paymentMethods.js';
+import { TransactionKind } from '../../../../../server/constants/transaction-kind.js';
 import {
   fakeCollective,
   fakeHost,
@@ -10,8 +10,8 @@ import {
   fakePaymentMethod,
   fakeTransaction,
   fakeUser,
-} from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2 } from '../../../../utils';
+} from '../../../../test-helpers/fake-data.js';
+import { graphqlQueryV2 } from '../../../../utils.js';
 
 const transactionsQuery = gqlV2/* GraphQL */ `
   query Transactions(

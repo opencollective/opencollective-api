@@ -3,9 +3,9 @@ import config from 'config';
 import nodemailer from 'nodemailer';
 import { stub } from 'sinon';
 
-import emailLib from '../../../server/lib/email';
-import { md5 } from '../../../server/lib/utils';
-import * as utils from '../../utils';
+import emailLib from '../../../server/lib/email.js';
+import { md5 } from '../../../server/lib/utils.js';
+import * as utils from '../../utils.js';
 
 const emailData = utils.data('emailData');
 

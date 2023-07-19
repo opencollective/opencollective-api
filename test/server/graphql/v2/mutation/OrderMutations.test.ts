@@ -4,15 +4,15 @@ import gqlV2 from 'fake-tag';
 import moment from 'moment';
 import { createSandbox, useFakeTimers } from 'sinon';
 
-import { roles } from '../../../../../server/constants';
-import OrderStatuses from '../../../../../server/constants/order_status';
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../server/constants/paymentMethods';
-import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
-import * as payments from '../../../../../server/lib/payments';
-import stripe from '../../../../../server/lib/stripe';
-import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
-import models from '../../../../../server/models';
-import { randEmail } from '../../../../stores';
+import { roles } from '../../../../../server/constants/index.js';
+import OrderStatuses from '../../../../../server/constants/order_status.js';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../server/constants/paymentMethods.js';
+import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers.js';
+import * as payments from '../../../../../server/lib/payments.js';
+import stripe from '../../../../../server/lib/stripe.js';
+import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib.js';
+import models from '../../../../../server/models/index.js';
+import { randEmail } from '../../../../stores/index.js';
 import {
   fakeCollective,
   fakeHost,
@@ -21,8 +21,8 @@ import {
   fakePaymentMethod,
   fakeTier,
   fakeUser,
-} from '../../../../test-helpers/fake-data';
-import { generateValid2FAHeader, graphqlQueryV2, resetTestDB } from '../../../../utils';
+} from '../../../../test-helpers/fake-data.js';
+import { generateValid2FAHeader, graphqlQueryV2, resetTestDB } from '../../../../utils.js';
 
 const CREATE_ORDER_MUTATION = gqlV2/* GraphQL */ `
   mutation CreateOrder($order: OrderCreateInput!) {

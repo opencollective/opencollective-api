@@ -2,8 +2,8 @@ import { expect } from 'chai';
 import gql from 'fake-tag';
 import { describe, it } from 'mocha';
 
-import models from '../../../../server/models';
-import * as utils from '../../../utils';
+import models from '../../../../server/models/index.js';
+import * as utils from '../../../utils.js';
 
 describe('server/graphql/v1/allHosts', () => {
   let hostAdmin, publicHost, privateHost, collective1, collective2, user1;

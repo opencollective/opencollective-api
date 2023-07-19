@@ -1,3 +1,5 @@
+import url from 'url';
+const __dirname = url.fileURLToPath(new url.URL('.', import.meta.url));
 /**
  * A set of helpers for creating database snapshots and restoring them, intended to save time in
  * tests that need to setup a lot of data to test against.
@@ -11,10 +13,10 @@ import config from 'config';
 import slugify from 'limax';
 import { Context } from 'mocha';
 
-import { getDBConf } from '../../server/lib/db';
-import logger from '../../server/lib/logger';
-import { parseToBoolean } from '../../server/lib/utils';
-import { sequelize } from '../../server/models';
+import { getDBConf } from '../../server/lib/db.js';
+import logger from '../../server/lib/logger.js';
+import { parseToBoolean } from '../../server/lib/utils.js';
+import { sequelize } from '../../server/models/index.js';
 
 const snapshotCurrentDB = (filePath: string) => {
   // Create base directory if it doesn't exist

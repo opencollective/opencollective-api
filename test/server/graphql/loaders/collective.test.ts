@@ -1,10 +1,10 @@
 import { expect } from 'chai';
 
-import { types } from '../../../../server/constants/collectives';
-import MemberRoles from '../../../../server/constants/roles';
-import CollectiveLoaders from '../../../../server/graphql/loaders/collective';
-import { fakeCollective, fakeMember, fakeUser } from '../../../test-helpers/fake-data';
-import { resetTestDB } from '../../../utils';
+import { types } from '../../../../server/constants/collectives.js';
+import MemberRoles from '../../../../server/constants/roles.js';
+import CollectiveLoaders from '../../../../server/graphql/loaders/collective.js';
+import { fakeCollective, fakeMember, fakeUser } from '../../../test-helpers/fake-data.js';
+import { resetTestDB } from '../../../utils.js';
 
 describe('server/graphql/loaders/collective', () => {
   before(async () => {

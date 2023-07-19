@@ -2,9 +2,9 @@ import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
 import { useFakeTimers } from 'sinon';
 
-import * as ManualPaymentMethod from '../../../../../server/lib/payments';
-import { fakeCollective, fakeHost, fakeOrder, fakeUser } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, resetTestDB } from '../../../../utils';
+import * as ManualPaymentMethod from '../../../../../server/lib/payments.js';
+import { fakeCollective, fakeHost, fakeOrder, fakeUser } from '../../../../test-helpers/fake-data.js';
+import { graphqlQueryV2, resetTestDB } from '../../../../utils.js';
 
 describe('server/graphql/v2/query/HostMetricsQuery', () => {
   before(resetTestDB);

@@ -1,12 +1,12 @@
 import { expect } from 'chai';
 import { createSandbox } from 'sinon';
 
-import { run as payPaypalScheduledExpenses } from '../../../cron/hourly/10-pay-paypal-scheduled-expenses-payouts';
-import status from '../../../server/constants/expense_status';
-import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
-import * as paypal from '../../../server/paymentProviders/paypal/payouts';
-import { fakeCollective, fakeExpense, fakePayoutMethod, multiple } from '../../test-helpers/fake-data';
-import * as utils from '../../utils';
+import { run as payPaypalScheduledExpenses } from '../../../cron/hourly/10-pay-paypal-scheduled-expenses-payouts.js';
+import status from '../../../server/constants/expense_status.js';
+import { PayoutMethodTypes } from '../../../server/models/PayoutMethod.js';
+import * as paypal from '../../../server/paymentProviders/paypal/payouts.js';
+import { fakeCollective, fakeExpense, fakePayoutMethod, multiple } from '../../test-helpers/fake-data.js';
+import * as utils from '../../utils.js';
 
 describe('cron/hourly/10-pay-paypal-scheduled-expenses-payouts', () => {
   const sandbox = createSandbox();

@@ -1,12 +1,12 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
 
-import OrderStatuses from '../../../../../server/constants/order_status';
-import roles from '../../../../../server/constants/roles';
-import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
-import models from '../../../../../server/models';
-import { fakeCollective, fakeMember, fakeOrder, fakeTier, fakeUser } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, resetTestDB } from '../../../../utils';
+import OrderStatuses from '../../../../../server/constants/order_status.js';
+import roles from '../../../../../server/constants/roles.js';
+import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers.js';
+import models from '../../../../../server/models/index.js';
+import { fakeCollective, fakeMember, fakeOrder, fakeTier, fakeUser } from '../../../../test-helpers/fake-data.js';
+import { graphqlQueryV2, resetTestDB } from '../../../../utils.js';
 
 const CREATE_TIER_MUTATION = gqlV2/* GraphQL */ `
   mutation CreateTierMutation($tier: TierCreateInput!, $account: AccountReferenceInput!) {

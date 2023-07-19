@@ -4,18 +4,18 @@ import { expect } from 'chai';
 import config from 'config';
 import { assert, createSandbox } from 'sinon';
 
-import { Service } from '../../../../server/constants/connected_account';
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
-import stripe from '../../../../server/lib/stripe';
-import * as common from '../../../../server/paymentProviders/stripe/common';
+import { Service } from '../../../../server/constants/connected_account.js';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods.js';
+import stripe from '../../../../server/lib/stripe.js';
+import * as common from '../../../../server/paymentProviders/stripe/common.js';
 import {
   fakeCollective,
   fakeConnectedAccount,
   fakeOrder,
   fakePaymentMethod,
   fakeUser,
-} from '../../../test-helpers/fake-data';
-import * as utils from '../../../utils';
+} from '../../../test-helpers/fake-data.js';
+import * as utils from '../../../utils.js';
 
 describe('server/paymentProviders/stripe/common', () => {
   describe('#getOrCreateStripeCustomer()', async () => {

@@ -3,11 +3,11 @@ import config from 'config';
 import gqlV2 from 'fake-tag';
 import { createSandbox } from 'sinon';
 
-import { verifyJwt } from '../../../../../server/lib/auth';
-import emailLib from '../../../../../server/lib/email';
-import { randEmail } from '../../../../stores';
-import { fakeUser, randStr } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, resetTestDB, waitForCondition } from '../../../../utils';
+import { verifyJwt } from '../../../../../server/lib/auth.js';
+import emailLib from '../../../../../server/lib/email.js';
+import { randEmail } from '../../../../stores/index.js';
+import { fakeUser, randStr } from '../../../../test-helpers/fake-data.js';
+import { graphqlQueryV2, resetTestDB, waitForCondition } from '../../../../utils.js';
 
 const sendConfirmationMutation = gqlV2/* GraphQL */ `
   mutation SendGuestConfirmation($email: EmailAddress!) {

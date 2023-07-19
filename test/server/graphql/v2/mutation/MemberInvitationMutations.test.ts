@@ -1,16 +1,16 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
-import { omit } from 'lodash';
+import { omit } from 'lodash-es';
 import { describe, it } from 'mocha';
 import { createSandbox } from 'sinon';
 
-import ActivityTypes from '../../../../../server/constants/activities';
-import roles from '../../../../../server/constants/roles';
-import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
-import emailLib from '../../../../../server/lib/email';
-import models from '../../../../../server/models';
-import { fakeCollective, fakeMemberInvitation, fakeUser } from '../../../../test-helpers/fake-data';
-import * as utils from '../../../../utils';
+import ActivityTypes from '../../../../../server/constants/activities.js';
+import roles from '../../../../../server/constants/roles.js';
+import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers.js';
+import emailLib from '../../../../../server/lib/email.js';
+import models from '../../../../../server/models/index.js';
+import { fakeCollective, fakeMemberInvitation, fakeUser } from '../../../../test-helpers/fake-data.js';
+import * as utils from '../../../../utils.js';
 
 let collectiveAdminUser, collective;
 let sandbox, sendEmailSpy;

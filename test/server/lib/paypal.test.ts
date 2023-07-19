@@ -1,9 +1,8 @@
-/* eslint-disable camelcase */
-import paypalPayoutsSDK from '@paypal/payouts-sdk';
+import paypalPayoutsSDK from '@paypal/payouts-sdk/index.js';
 import { expect } from 'chai';
 import { createSandbox } from 'sinon';
 
-import { validateConnectedAccount, validateWebhookEvent } from '../../../server/lib/paypal';
+import { validateConnectedAccount, validateWebhookEvent } from '../../../server/lib/paypal.js';
 
 describe('lib/paypal', () => {
   const connectedAccount = {

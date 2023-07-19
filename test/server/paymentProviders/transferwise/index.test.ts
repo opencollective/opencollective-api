@@ -2,18 +2,18 @@ import { expect } from 'chai';
 import moment from 'moment';
 import { assert, createSandbox } from 'sinon';
 
-import cache from '../../../../server/lib/cache';
-import * as transferwiseLib from '../../../../server/lib/transferwise';
-import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
-import transferwise from '../../../../server/paymentProviders/transferwise';
+import cache from '../../../../server/lib/cache/index.js';
+import * as transferwiseLib from '../../../../server/lib/transferwise.js';
+import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod.js';
+import transferwise from '../../../../server/paymentProviders/transferwise/index.js';
 import {
   fakeCollective,
   fakeConnectedAccount,
   fakeExpense,
   fakePayoutMethod,
   multiple,
-} from '../../../test-helpers/fake-data';
-import * as utils from '../../../utils';
+} from '../../../test-helpers/fake-data.js';
+import * as utils from '../../../utils.js';
 
 describe('server/paymentProviders/transferwise/index', () => {
   const sandbox = createSandbox();

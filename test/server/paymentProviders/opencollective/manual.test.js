@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 
-import models from '../../../../server/models';
-import ManualPaymentMethod from '../../../../server/paymentProviders/opencollective/manual';
-import * as store from '../../../stores';
+import models from '../../../../server/models/index.js';
+import ManualPaymentMethod from '../../../../server/paymentProviders/opencollective/manual.js';
+import * as store from '../../../stores/index.js';
 
 describe('server/paymentProviders/opencollective/manual', () => {
   const hostFeePercent = 5;

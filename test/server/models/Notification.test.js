@@ -1,12 +1,12 @@
 import { expect } from 'chai';
 import { createSandbox } from 'sinon';
 
-import ActivityTypes, { ActivitiesPerClass, ActivityClasses } from '../../../server/constants/activities';
-import roles from '../../../server/constants/roles';
-import emailLib from '../../../server/lib/email';
-import models from '../../../server/models';
-import { fakeCollective, fakeNotification, fakeUser, multiple } from '../../test-helpers/fake-data';
-import * as utils from '../../utils';
+import ActivityTypes, { ActivitiesPerClass, ActivityClasses } from '../../../server/constants/activities.js';
+import roles from '../../../server/constants/roles.js';
+import emailLib from '../../../server/lib/email.js';
+import models from '../../../server/models/index.js';
+import { fakeCollective, fakeNotification, fakeUser, multiple } from '../../test-helpers/fake-data.js';
+import * as utils from '../../utils.js';
 
 const { User, Collective, Notification, Tier, Order } = models;
 

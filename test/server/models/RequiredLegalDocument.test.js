@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 
-import models from '../../../server/models';
-import * as utils from '../../utils';
+import models from '../../../server/models/index.js';
+import * as utils from '../../utils.js';
 
 const { RequiredLegalDocument, Collective } = models;
 

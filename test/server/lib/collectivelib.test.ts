@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 
-import OrderStatuses from '../../../server/constants/order_status';
-import { isCollectiveDeletable } from '../../../server/lib/collectivelib';
+import OrderStatuses from '../../../server/constants/order_status.js';
+import { isCollectiveDeletable } from '../../../server/lib/collectivelib.js';
 import {
   fakeCollective,
   fakeEvent,
@@ -10,7 +10,7 @@ import {
   fakeOrder,
   fakeTransaction,
   fakeUser,
-} from '../../test-helpers/fake-data';
+} from '../../test-helpers/fake-data.js';
 
 describe('server/lib/collectivelib', () => {
   describe('isCollectiveDeletable', () => {

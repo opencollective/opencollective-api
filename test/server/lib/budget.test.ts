@@ -2,19 +2,19 @@ import { expect } from 'chai';
 import moment from 'moment';
 import { createSandbox } from 'sinon';
 
-import ExpenseStatuses from '../../../server/constants/expense_status';
-import OrderStatuses from '../../../server/constants/order_status';
+import ExpenseStatuses from '../../../server/constants/expense_status.js';
+import OrderStatuses from '../../../server/constants/order_status.js';
 import {
   getBalances,
   getCurrentCollectiveBalances,
   getTotalMoneyManagedAmount,
   getYearlyBudgets,
   sumCollectivesTransactions,
-} from '../../../server/lib/budget';
-import * as libcurrency from '../../../server/lib/currency';
-import { sequelize } from '../../../server/models';
-import { fakeCollective, fakeExpense, fakeOrder, fakeTransaction } from '../../test-helpers/fake-data';
-import { resetTestDB } from '../../utils';
+} from '../../../server/lib/budget.js';
+import * as libcurrency from '../../../server/lib/currency.js';
+import { sequelize } from '../../../server/models/index.js';
+import { fakeCollective, fakeExpense, fakeOrder, fakeTransaction } from '../../test-helpers/fake-data.js';
+import { resetTestDB } from '../../utils.js';
 
 describe('server/lib/budget', () => {
   before(resetTestDB);

@@ -4,15 +4,15 @@ import moment from 'moment';
 import nock from 'nock';
 import { createSandbox, stub } from 'sinon';
 
-import { maxInteger } from '../../../../server/constants/math';
-import emailLib from '../../../../server/lib/email';
-import models from '../../../../server/models';
-import giftcard from '../../../../server/paymentProviders/opencollective/giftcard';
-import creditCardLib from '../../../../server/paymentProviders/stripe/creditcard';
-import initNock from '../../../nocks/paymentMethods.opencollective.giftcard.nock';
-import * as store from '../../../stores';
-import { fakeOrder } from '../../../test-helpers/fake-data';
-import * as utils from '../../../utils';
+import { maxInteger } from '../../../../server/constants/math.js';
+import emailLib from '../../../../server/lib/email.js';
+import models from '../../../../server/models/index.js';
+import giftcard from '../../../../server/paymentProviders/opencollective/giftcard.js';
+import creditCardLib from '../../../../server/paymentProviders/stripe/creditcard.js';
+import initNock from '../../../nocks/paymentMethods.opencollective.giftcard.nock.js';
+import * as store from '../../../stores/index.js';
+import { fakeOrder } from '../../../test-helpers/fake-data.js';
+import * as utils from '../../../utils.js';
 
 const ORDER_TOTAL_AMOUNT = 5000;
 const STRIPE_FEE_STUBBED_VALUE = 300;

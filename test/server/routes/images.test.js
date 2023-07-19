@@ -1,3 +1,5 @@
+import url from 'url';
+const __dirname = url.fileURLToPath(new url.URL('.', import.meta.url));
 import fs from 'fs';
 import path from 'path';
 
@@ -6,9 +8,9 @@ import config from 'config';
 import fetch from 'node-fetch';
 import request from 'supertest';
 
-import { fakeUser } from '../../test-helpers/fake-data';
-import { startTestServer, stopTestServer } from '../../test-helpers/server';
-import * as utils from '../../utils';
+import { fakeUser } from '../../test-helpers/fake-data.js';
+import { startTestServer, stopTestServer } from '../../test-helpers/server.js';
+import * as utils from '../../utils.js';
 
 const application = utils.data('application');
 

@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 
-import { TwoFactorMethod } from '../../../server/lib/two-factor-authentication';
-import UserTwoFactorMethod from '../../../server/models/UserTwoFactorMethod';
-import { fakeUser } from '../../test-helpers/fake-data';
+import { TwoFactorMethod } from '../../../server/lib/two-factor-authentication/index.js';
+import UserTwoFactorMethod from '../../../server/models/UserTwoFactorMethod.js';
+import { fakeUser } from '../../test-helpers/fake-data.js';
 
 describe('server/models/UserTwoFactorMethod', () => {
   it('returns empty user methods', async () => {

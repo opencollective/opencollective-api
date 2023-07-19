@@ -1,15 +1,15 @@
 import { expect } from 'chai';
 
-import FEATURE from '../../../../server/constants/feature';
-import FEATURE_STATUS from '../../../../server/constants/feature-status';
-import { getFeatureStatusResolver } from '../../../../server/graphql/common/features';
+import FEATURE from '../../../../server/constants/feature.js';
+import FEATURE_STATUS from '../../../../server/constants/feature-status.js';
+import { getFeatureStatusResolver } from '../../../../server/graphql/common/features.js';
 import {
   fakeCollective,
   fakeConnectedAccount,
   fakeConversation,
   fakeHost,
   fakeUpdate,
-} from '../../../test-helpers/fake-data';
+} from '../../../test-helpers/fake-data.js';
 
 describe('server/graphql/common/features', () => {
   describe('getFeatureStatusResolver', () => {

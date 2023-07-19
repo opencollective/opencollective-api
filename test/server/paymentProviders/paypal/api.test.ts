@@ -3,10 +3,10 @@ import config from 'config';
 import nock from 'nock';
 import { stub } from 'sinon';
 
-import models from '../../../../server/models';
-import { paypalRequest, paypalUrl, retrieveOAuthToken } from '../../../../server/paymentProviders/paypal/api';
-import { fakeCollective } from '../../../test-helpers/fake-data';
-import * as utils from '../../../utils';
+import models from '../../../../server/models/index.js';
+import { paypalRequest, paypalUrl, retrieveOAuthToken } from '../../../../server/paymentProviders/paypal/api.js';
+import { fakeCollective } from '../../../test-helpers/fake-data.js';
+import * as utils from '../../../utils.js';
 
 describe('server/paymentProviders/paypal/api', () => {
   describe('#paypalUrl', () => {

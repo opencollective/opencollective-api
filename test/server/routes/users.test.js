@@ -7,11 +7,11 @@ import { stub } from 'sinon';
 import speakeasy from 'speakeasy';
 import request from 'supertest';
 
-import app from '../../../server/index';
+import app from '../../../server/index.js';
 import * as auth from '../../../server/lib/auth.js';
-import models from '../../../server/models';
-import { fakeUser } from '../../test-helpers/fake-data';
-import * as utils from '../../utils';
+import models from '../../../server/models/index.js';
+import { fakeUser } from '../../test-helpers/fake-data.js';
+import * as utils from '../../utils.js';
 
 /**
  * Variables.

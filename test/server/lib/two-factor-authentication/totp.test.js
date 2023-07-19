@@ -3,8 +3,8 @@ import config from 'config';
 import crypto from 'crypto-js';
 import speakeasy from 'speakeasy';
 
-import totpProvider from '../../../../server/lib/two-factor-authentication/totp';
-import { fakeUser } from '../../../test-helpers/fake-data';
+import totpProvider from '../../../../server/lib/two-factor-authentication/totp.js';
+import { fakeUser } from '../../../test-helpers/fake-data.js';
 
 const SECRET_KEY = config.dbEncryption.secretKey;
 const CIPHER = config.dbEncryption.cipher;

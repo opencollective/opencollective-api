@@ -1,10 +1,10 @@
 import { expect } from 'chai';
-import { times } from 'lodash';
+import { times } from 'lodash-es';
 
-import { TransactionKind } from '../../../server/constants/transaction-kind';
-import { PLATFORM_TIP_TRANSACTION_PROPERTIES } from '../../../server/constants/transactions';
-import models, { Op } from '../../../server/models';
-import TransactionSettlement, { TransactionSettlementStatus } from '../../../server/models/TransactionSettlement';
+import { TransactionKind } from '../../../server/constants/transaction-kind.js';
+import { PLATFORM_TIP_TRANSACTION_PROPERTIES } from '../../../server/constants/transactions.js';
+import models, { Op } from '../../../server/models/index.js';
+import TransactionSettlement, { TransactionSettlementStatus } from '../../../server/models/TransactionSettlement.js';
 import {
   fakeCollective,
   fakeExpense,
@@ -13,8 +13,8 @@ import {
   fakeTransaction,
   fakeUser,
   fakeUUID,
-} from '../../test-helpers/fake-data';
-import * as utils from '../../utils';
+} from '../../test-helpers/fake-data.js';
+import * as utils from '../../utils.js';
 
 // ---- Helpers ----
 

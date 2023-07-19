@@ -2,28 +2,28 @@ import { expect } from 'chai';
 import config from 'config';
 import crypto from 'crypto-js';
 import gqlV2 from 'fake-tag';
-import { defaultsDeep, omit, pick, round, sumBy } from 'lodash';
+import { defaultsDeep, omit, pick, round, sumBy } from 'lodash-es';
 import { createSandbox } from 'sinon';
 import speakeasy from 'speakeasy';
 
-import { expenseStatus, expenseTypes } from '../../../../../server/constants';
-import ExpenseTypes from '../../../../../server/constants/expense_type';
-import { TransactionKind } from '../../../../../server/constants/transaction-kind';
-import { payExpense } from '../../../../../server/graphql/common/expenses';
-import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
-import { getFxRate } from '../../../../../server/lib/currency';
-import * as LibCurrency from '../../../../../server/lib/currency';
-import emailLib from '../../../../../server/lib/email';
+import { expenseStatus, expenseTypes } from '../../../../../server/constants/index.js';
+import ExpenseTypes from '../../../../../server/constants/expense_type.js';
+import { TransactionKind } from '../../../../../server/constants/transaction-kind.js';
+import { payExpense } from '../../../../../server/graphql/common/expenses.js';
+import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers.js';
+import { getFxRate } from '../../../../../server/lib/currency.js';
+import * as LibCurrency from '../../../../../server/lib/currency.js';
+import emailLib from '../../../../../server/lib/email.js';
 import {
   TwoFactorAuthenticationHeader,
   TwoFactorMethod,
-} from '../../../../../server/lib/two-factor-authentication/lib';
-import models from '../../../../../server/models';
-import { PayoutMethodTypes } from '../../../../../server/models/PayoutMethod';
-import UserTwoFactorMethod from '../../../../../server/models/UserTwoFactorMethod';
-import paymentProviders from '../../../../../server/paymentProviders';
-import paypalAdaptive from '../../../../../server/paymentProviders/paypal/adaptiveGateway';
-import { randEmail, randUrl } from '../../../../stores';
+} from '../../../../../server/lib/two-factor-authentication/lib.js';
+import models from '../../../../../server/models/index.js';
+import { PayoutMethodTypes } from '../../../../../server/models/PayoutMethod.js';
+import UserTwoFactorMethod from '../../../../../server/models/UserTwoFactorMethod.js';
+import paymentProviders from '../../../../../server/paymentProviders/index.js';
+import paypalAdaptive from '../../../../../server/paymentProviders/paypal/adaptiveGateway.js';
+import { randEmail, randUrl } from '../../../../stores/index.js';
 import {
   fakeCollective,
   fakeConnectedAccount,
@@ -38,7 +38,7 @@ import {
   fakeVirtualCard,
   multiple,
   randStr,
-} from '../../../../test-helpers/fake-data';
+} from '../../../../test-helpers/fake-data.js';
 import {
   graphqlQueryV2,
   makeRequest,
@@ -46,7 +46,7 @@ import {
   resetTestDB,
   snapshotTransactions,
   waitForCondition,
-} from '../../../../utils';
+} from '../../../../utils.js';
 
 const SECRET_KEY = config.dbEncryption.secretKey;
 const CIPHER = config.dbEncryption.cipher;

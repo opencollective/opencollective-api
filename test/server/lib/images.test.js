@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import config from 'config';
 import { createSandbox } from 'sinon';
 
-import { isValidUploadedImage } from '../../../server/lib/images';
+import { isValidUploadedImage } from '../../../server/lib/images.js';
 
 const sandbox = createSandbox();
 

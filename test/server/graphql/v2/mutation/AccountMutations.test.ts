@@ -3,16 +3,16 @@ import gqlV2 from 'fake-tag';
 import { createSandbox } from 'sinon';
 import speakeasy from 'speakeasy';
 
-import { activities as ACTIVITY, roles } from '../../../../../server/constants';
-import FEATURE from '../../../../../server/constants/feature';
-import POLICIES from '../../../../../server/constants/policies';
-import { idEncode } from '../../../../../server/graphql/v2/identifiers';
-import emailLib from '../../../../../server/lib/email';
-import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
-import * as yubikeyOtp from '../../../../../server/lib/two-factor-authentication/yubikey-otp';
-import models from '../../../../../server/models';
-import { fakeCollective, fakeEvent, fakeHost, fakeProject, fakeUser } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, resetTestDB, waitForCondition } from '../../../../utils';
+import { activities as ACTIVITY, roles } from '../../../../../server/constants/index.js';
+import FEATURE from '../../../../../server/constants/feature.js';
+import POLICIES from '../../../../../server/constants/policies.js';
+import { idEncode } from '../../../../../server/graphql/v2/identifiers.js';
+import emailLib from '../../../../../server/lib/email.js';
+import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib.js';
+import * as yubikeyOtp from '../../../../../server/lib/two-factor-authentication/yubikey-otp.js';
+import models from '../../../../../server/models/index.js';
+import { fakeCollective, fakeEvent, fakeHost, fakeProject, fakeUser } from '../../../../test-helpers/fake-data.js';
+import { graphqlQueryV2, resetTestDB, waitForCondition } from '../../../../utils.js';
 
 const editSettingsMutation = gqlV2/* GraphQL */ `
   mutation EditSettings($account: AccountReferenceInput!, $key: AccountSettingsKey!, $value: JSON!) {

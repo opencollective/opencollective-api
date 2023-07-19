@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
 
-import { fakeCollective, fakeUser, randStr } from '../../../../test-helpers/fake-data';
-import * as utils from '../../../../utils';
+import { fakeCollective, fakeUser, randStr } from '../../../../test-helpers/fake-data.js';
+import * as utils from '../../../../utils.js';
 
 const createProjectMutation = gqlV2/* GraphQL */ `
   mutation CreateProject($project: ProjectCreateInput!, $parent: AccountReferenceInput!) {

@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { fakeConnectedAccount } from '../../test-helpers/fake-data';
+import { fakeConnectedAccount } from '../../test-helpers/fake-data.js';
 
 describe('server/models/ConnectedAccount', () => {
   describe('encryption', () => {

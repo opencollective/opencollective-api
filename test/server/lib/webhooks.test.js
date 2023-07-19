@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 
-import { activities } from '../../../server/constants';
-import { enrichActivity, sanitizeActivity } from '../../../server/lib/webhooks';
+import { activities } from '../../../server/constants/index.js';
+import { enrichActivity, sanitizeActivity } from '../../../server/lib/webhooks.js';
 
 describe('server/lib/webhooks', () => {
   describe('sanitizeActivity', () => {

@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 import nock from 'nock';
 
-import { generateConvertToCurrencyLoader } from '../../../../server/graphql/loaders/currency-exchange-rate';
-import { nockFixerRates, resetTestDB } from '../../../utils';
+import { generateConvertToCurrencyLoader } from '../../../../server/graphql/loaders/currency-exchange-rate.js';
+import { nockFixerRates, resetTestDB } from '../../../utils.js';
 
 const RATES = {
   USD: { EUR: 0.84, NGN: 110.94 },

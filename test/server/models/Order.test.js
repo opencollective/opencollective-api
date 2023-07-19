@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 
-import models from '../../../server/models';
-import { randEmail } from '../../stores';
-import * as utils from '../../utils';
+import models from '../../../server/models/index.js';
+import { randEmail } from '../../stores/index.js';
+import * as utils from '../../utils.js';
 
 describe('server/models/Order', () => {
   let user, collective, tier, order;

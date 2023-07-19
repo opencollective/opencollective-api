@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 import moment from 'moment';
 
-import models from '../../../server/models';
-import * as utils from '../../utils';
+import models from '../../../server/models/index.js';
+import * as utils from '../../utils.js';
 
 const { LegalDocument, User, Collective } = models;
 

@@ -4,15 +4,12 @@ import { expect } from 'chai';
 import nock from 'nock';
 import { assert, createSandbox } from 'sinon';
 
-import OrderStatuses from '../../../../server/constants/order_status';
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
-import * as PaypalAPI from '../../../../server/paymentProviders/paypal/api';
-import {
-  cancelPaypalSubscription,
-  setupPaypalSubscriptionForOrder,
-} from '../../../../server/paymentProviders/paypal/subscription';
-import { nockPayPalGetCredentials } from '../../../mocks/paypal.nock';
-import { randEmail } from '../../../stores';
+import OrderStatuses from '../../../../server/constants/order_status.js';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods.js';
+import * as PaypalAPI from '../../../../server/paymentProviders/paypal/api.js';
+import { cancelPaypalSubscription, setupPaypalSubscriptionForOrder } from '../../../../server/paymentProviders/paypal/subscription.js';
+import { nockPayPalGetCredentials } from '../../../mocks/paypal.nock.js';
+import { randEmail } from '../../../stores/index.js';
 import {
   fakeConnectedAccount,
   fakeHost,
@@ -20,8 +17,8 @@ import {
   fakePaymentMethod,
   fakePaypalPlan,
   randStr,
-} from '../../../test-helpers/fake-data';
-import { resetTestDB } from '../../../utils';
+} from '../../../test-helpers/fake-data.js';
+import { resetTestDB } from '../../../utils.js';
 
 const fakePaypalSubscriptionPm = subscription => {
   return fakePaymentMethod({

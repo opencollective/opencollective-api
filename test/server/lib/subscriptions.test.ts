@@ -2,12 +2,12 @@ import { expect } from 'chai';
 import moment from 'moment';
 import sinon from 'sinon';
 
-import INTERVALS from '../../../server/constants/intervals';
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../server/constants/paymentMethods';
-import { updatePaymentMethodForSubscription } from '../../../server/lib/subscriptions';
-import * as PaypalSubscriptionAPI from '../../../server/paymentProviders/paypal/subscription';
-import { fakeOrder, fakePaymentMethod } from '../../test-helpers/fake-data';
-import { resetTestDB } from '../../utils';
+import INTERVALS from '../../../server/constants/intervals.js';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../server/constants/paymentMethods.js';
+import { updatePaymentMethodForSubscription } from '../../../server/lib/subscriptions.js';
+import * as PaypalSubscriptionAPI from '../../../server/paymentProviders/paypal/subscription.js';
+import { fakeOrder, fakePaymentMethod } from '../../test-helpers/fake-data.js';
+import { resetTestDB } from '../../utils.js';
 
 describe('server/lib/subscriptions', () => {
   let sandbox;

@@ -2,11 +2,11 @@ import { expect } from 'chai';
 import moment from 'moment';
 import sinon, { useFakeTimers } from 'sinon';
 
-import { run as invoicePlatformFees } from '../../../cron/monthly/host-settlement';
-import { TransactionKind } from '../../../server/constants/transaction-kind';
-import { refundTransaction } from '../../../server/lib/payments';
-import { getTaxesSummary } from '../../../server/lib/transactions';
-import models, { sequelize } from '../../../server/models';
+import { run as invoicePlatformFees } from '../../../cron/monthly/host-settlement.js';
+import { TransactionKind } from '../../../server/constants/transaction-kind.js';
+import { refundTransaction } from '../../../server/lib/payments.js';
+import { getTaxesSummary } from '../../../server/lib/transactions.js';
+import models, { sequelize } from '../../../server/models/index.js';
 import {
   fakeCollective,
   fakeConnectedAccount,
@@ -17,8 +17,8 @@ import {
   fakeTransaction,
   fakeUser,
   fakeUUID,
-} from '../../test-helpers/fake-data';
-import * as utils from '../../utils';
+} from '../../test-helpers/fake-data.js';
+import * as utils from '../../utils.js';
 
 describe('cron/monthly/host-settlement', () => {
   const lastMonth = moment.utc().subtract(1, 'month').startOf('month');

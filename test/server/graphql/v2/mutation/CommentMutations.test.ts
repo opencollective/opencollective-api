@@ -3,22 +3,15 @@ import gql from 'fake-tag';
 import { describe, it } from 'mocha';
 import { assert, createSandbox } from 'sinon';
 
-import { roles } from '../../../../../server/constants';
-import ActivityTypes from '../../../../../server/constants/activities';
-import ExpenseStatuses from '../../../../../server/constants/expense_status';
-import { idDecode, idEncode } from '../../../../../server/graphql/v2/identifiers';
-import emailLib from '../../../../../server/lib/email';
-import models from '../../../../../server/models';
-import { CommentType } from '../../../../../server/models/Comment';
-import {
-  fakeCollective,
-  fakeComment,
-  fakeExpense,
-  fakeHost,
-  fakeMember,
-  fakeUser,
-} from '../../../../test-helpers/fake-data';
-import * as utils from '../../../../utils';
+import { roles } from '../../../../../server/constants/index.js';
+import ActivityTypes from '../../../../../server/constants/activities.js';
+import ExpenseStatuses from '../../../../../server/constants/expense_status.js';
+import { idDecode, idEncode } from '../../../../../server/graphql/v2/identifiers.js';
+import emailLib from '../../../../../server/lib/email.js';
+import models from '../../../../../server/models/index.js';
+import { CommentType } from '../../../../../server/models/Comment.js';
+import { fakeCollective, fakeComment, fakeExpense, fakeHost, fakeMember, fakeUser } from '../../../../test-helpers/fake-data.js';
+import * as utils from '../../../../utils.js';
 
 const gqlV2 = gql;
 

@@ -4,20 +4,20 @@ import { expect } from 'chai';
 import { Request } from 'express';
 import { createSandbox } from 'sinon';
 
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
-import * as PaypalLib from '../../../../server/lib/paypal';
-import * as Sentry from '../../../../server/lib/sentry';
-import models from '../../../../server/models';
-import { OrderModelInterface } from '../../../../server/models/Order';
-import paypalWebhook from '../../../../server/paymentProviders/paypal/webhook';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods.js';
+import * as PaypalLib from '../../../../server/lib/paypal.js';
+import * as Sentry from '../../../../server/lib/sentry.js';
+import models from '../../../../server/models/index.js';
+import { OrderModelInterface } from '../../../../server/models/Order.js';
+import paypalWebhook from '../../../../server/paymentProviders/paypal/webhook.js';
 import {
   fakeCollective,
   fakeConnectedAccount,
   fakeHost,
   fakeOrder,
   fakePaymentMethod,
-} from '../../../test-helpers/fake-data';
-import { resetTestDB } from '../../../utils';
+} from '../../../test-helpers/fake-data.js';
+import { resetTestDB } from '../../../utils.js';
 
 const createOrderWithSubscription = async (params = {}): Promise<OrderModelInterface> => {
   const paymentMethod = await fakePaymentMethod({

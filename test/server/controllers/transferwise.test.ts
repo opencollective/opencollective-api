@@ -1,18 +1,18 @@
 import { expect } from 'chai';
 import { createSandbox } from 'sinon';
 
-import { expenseStatus } from '../../../server/constants';
-import * as transferwiseController from '../../../server/controllers/transferwise';
-import { idEncode, IDENTIFIER_TYPES } from '../../../server/graphql/v2/identifiers';
-import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
-import transferwise from '../../../server/paymentProviders/transferwise';
+import { expenseStatus } from '../../../server/constants/index.js';
+import * as transferwiseController from '../../../server/controllers/transferwise.js';
+import { idEncode, IDENTIFIER_TYPES } from '../../../server/graphql/v2/identifiers.js';
+import { PayoutMethodTypes } from '../../../server/models/PayoutMethod.js';
+import transferwise from '../../../server/paymentProviders/transferwise/index.js';
 import {
   fakeCollective,
   fakeConnectedAccount,
   fakeExpense,
   fakePayoutMethod,
   fakeUser,
-} from '../../test-helpers/fake-data';
+} from '../../test-helpers/fake-data.js';
 
 describe('server/controllers/transferwise', () => {
   const sandbox = createSandbox();

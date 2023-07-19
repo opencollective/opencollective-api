@@ -1,9 +1,9 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
 
-import ActivityTypes from '../../../../../server/constants/activities';
-import { fakeActivity, fakeExpense, fakeUser } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2 } from '../../../../utils';
+import ActivityTypes from '../../../../../server/constants/activities.js';
+import { fakeActivity, fakeExpense, fakeUser } from '../../../../test-helpers/fake-data.js';
+import { graphqlQueryV2 } from '../../../../utils.js';
 
 const expenseQuery = gqlV2/* GraphQL */ `
   query Expense($id: Int!) {

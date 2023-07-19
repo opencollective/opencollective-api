@@ -1,6 +1,6 @@
 import { assert } from 'chai';
 
-import { sanitizeTags } from '../../../server/lib/tags';
+import { sanitizeTags } from '../../../server/lib/tags.js';
 
 describe('server/lib/tags', () => {
   it('sanitize tags', () => {

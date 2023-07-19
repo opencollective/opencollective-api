@@ -1,11 +1,11 @@
 import { expect } from 'chai';
 import { createSandbox, stub } from 'sinon';
 
-import { buildLoaderForAssociation } from '../../../../server/graphql/loaders/helpers';
-import models from '../../../../server/models';
-import Collective from '../../../../server/models/Collective';
-import { fakeCollective, fakeHost } from '../../../test-helpers/fake-data';
-import { resetTestDB } from '../../../utils';
+import { buildLoaderForAssociation } from '../../../../server/graphql/loaders/helpers.js';
+import models from '../../../../server/models/index.js';
+import Collective from '../../../../server/models/Collective.js';
+import { fakeCollective, fakeHost } from '../../../test-helpers/fake-data.js';
+import { resetTestDB } from '../../../utils.js';
 
 describe('server/graphql/loaders/helpers', () => {
   let sandbox;

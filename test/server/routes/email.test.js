@@ -4,11 +4,11 @@ import nock from 'nock';
 import { createSandbox } from 'sinon';
 import request from 'supertest';
 
-import app from '../../../server/index';
-import { md5 } from '../../../server/lib/utils';
-import models from '../../../server/models';
-import { randEmail } from '../../stores';
-import * as utils from '../../utils';
+import app from '../../../server/index.js';
+import { md5 } from '../../../server/lib/utils.js';
+import models from '../../../server/models/index.js';
+import { randEmail } from '../../stores/index.js';
+import * as utils from '../../utils.js';
 
 const generateToken = (email, slug, template) => {
   const uid = `${email}.${slug}.${template}.${config.keys.opencollective.jwtSecret}`;

@@ -2,13 +2,13 @@ import { expect } from 'chai';
 import config from 'config';
 import { createSandbox } from 'sinon';
 
-import * as budget from '../../../../server/lib/budget';
-import emailLib from '../../../../server/lib/email';
-import stripe from '../../../../server/lib/stripe';
-import { processAuthorization } from '../../../../server/paymentProviders/stripe/virtual-cards';
-import * as utils from '../../../../server/paymentProviders/utils';
-import { fakeCollective, fakeConnectedAccount, fakeUser, fakeVirtualCard } from '../../../test-helpers/fake-data';
-import * as testUtils from '../../../utils';
+import * as budget from '../../../../server/lib/budget.js';
+import emailLib from '../../../../server/lib/email.js';
+import stripe from '../../../../server/lib/stripe.js';
+import { processAuthorization } from '../../../../server/paymentProviders/stripe/virtual-cards.js';
+import * as utils from '../../../../server/paymentProviders/utils.js';
+import { fakeCollective, fakeConnectedAccount, fakeUser, fakeVirtualCard } from '../../../test-helpers/fake-data.js';
+import * as testUtils from '../../../utils.js';
 
 describe('server/paymentProviders/stripe/virtual-cards', () => {
   const sandbox = createSandbox();

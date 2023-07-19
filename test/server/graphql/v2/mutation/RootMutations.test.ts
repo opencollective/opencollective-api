@@ -1,11 +1,11 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
-import { times } from 'lodash';
+import { times } from 'lodash-es';
 
-import { activities as ACTIVITY } from '../../../../../server/constants';
-import roles from '../../../../../server/constants/roles';
-import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
-import models from '../../../../../server/models';
+import { activities as ACTIVITY } from '../../../../../server/constants/index.js';
+import roles from '../../../../../server/constants/roles.js';
+import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib.js';
+import models from '../../../../../server/models/index.js';
 import {
   fakeActivity,
   fakeCollective,
@@ -15,8 +15,8 @@ import {
   fakeRecurringExpense,
   fakeTransaction,
   fakeUser,
-} from '../../../../test-helpers/fake-data';
-import { generateValid2FAHeader, graphqlQueryV2, resetTestDB } from '../../../../utils';
+} from '../../../../test-helpers/fake-data.js';
+import { generateValid2FAHeader, graphqlQueryV2, resetTestDB } from '../../../../utils.js';
 
 const MOVE_EXPENSES_MUTATION = gqlV2/* GraphQL */ `
   mutation MoveExpensesMutation($destinationAccount: AccountReferenceInput!, $expenses: [ExpenseReferenceInput!]!) {

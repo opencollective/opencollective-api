@@ -3,16 +3,16 @@ import gqlV2 from 'fake-tag';
 import moment from 'moment';
 import { createSandbox } from 'sinon';
 
-import { activities, roles } from '../../../../../server/constants';
-import OrderStatuses from '../../../../../server/constants/order_status';
-import { TransactionKind } from '../../../../../server/constants/transaction-kind';
-import VirtualCardProviders from '../../../../../server/constants/virtual_card_providers';
-import { GraphQLProcessHostApplicationAction } from '../../../../../server/graphql/v2/enum';
-import emailLib from '../../../../../server/lib/email';
-import models from '../../../../../server/models';
-import { VirtualCardStatus } from '../../../../../server/models/VirtualCard';
-import * as stripeVirtualCardService from '../../../../../server/paymentProviders/stripe/virtual-cards';
-import { randEmail } from '../../../../stores';
+import { activities, roles } from '../../../../../server/constants/index.js';
+import OrderStatuses from '../../../../../server/constants/order_status.js';
+import { TransactionKind } from '../../../../../server/constants/transaction-kind.js';
+import VirtualCardProviders from '../../../../../server/constants/virtual_card_providers.js';
+import { GraphQLProcessHostApplicationAction } from '../../../../../server/graphql/v2/enum/index.js';
+import emailLib from '../../../../../server/lib/email.js';
+import models from '../../../../../server/models/index.js';
+import { VirtualCardStatus } from '../../../../../server/models/VirtualCard.js';
+import * as stripeVirtualCardService from '../../../../../server/paymentProviders/stripe/virtual-cards.js';
+import { randEmail } from '../../../../stores/index.js';
 import {
   fakeCollective,
   fakeEvent,
@@ -24,8 +24,8 @@ import {
   fakeTransaction,
   fakeUser,
   fakeVirtualCard,
-} from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, resetTestDB, waitForCondition } from '../../../../utils';
+} from '../../../../test-helpers/fake-data.js';
+import { graphqlQueryV2, resetTestDB, waitForCondition } from '../../../../utils.js';
 
 const APPLY_TO_HOST_MUTATION = gqlV2/* GraphQL */ `
   mutation ApplyToHost(

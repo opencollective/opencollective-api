@@ -1,9 +1,9 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
 
-import OrderStatuses from '../../../../../server/constants/order_status';
-import { fakeOrder, fakeUser } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, resetTestDB } from '../../../../utils';
+import OrderStatuses from '../../../../../server/constants/order_status.js';
+import { fakeOrder, fakeUser } from '../../../../test-helpers/fake-data.js';
+import { graphqlQueryV2, resetTestDB } from '../../../../utils.js';
 
 const orderQuery = gqlV2/* GraphQL */ `
   query Order($legacyId: Int!) {

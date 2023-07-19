@@ -1,11 +1,11 @@
 import { expect } from 'chai';
 import { useFakeTimers } from 'sinon';
 
-import { roles } from '../../../../server/constants';
-import { TransactionKind } from '../../../../server/constants/transaction-kind';
-import { canDownloadInvoice, canRefund, canReject } from '../../../../server/graphql/common/transactions';
-import { fakeCollective, fakeOrder, fakeTransaction, fakeUser } from '../../../test-helpers/fake-data';
-import { makeRequest } from '../../../utils';
+import { roles } from '../../../../server/constants/index.js';
+import { TransactionKind } from '../../../../server/constants/transaction-kind.js';
+import { canDownloadInvoice, canRefund, canReject } from '../../../../server/graphql/common/transactions.js';
+import { fakeCollective, fakeOrder, fakeTransaction, fakeUser } from '../../../test-helpers/fake-data.js';
+import { makeRequest } from '../../../utils.js';
 
 describe('server/graphql/common/transactions', () => {
   let collective,

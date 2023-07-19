@@ -5,27 +5,24 @@
 
 import { expect } from 'chai';
 import express from 'express';
-import { set } from 'lodash';
+import { set } from 'lodash-es';
 import moment from 'moment';
 import nock from 'nock';
 import { createSandbox } from 'sinon';
 import Stripe from 'stripe';
 
-import { run as runSettlementScript } from '../../cron/monthly/host-settlement';
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../server/constants/paymentMethods';
-import { TransactionKind } from '../../server/constants/transaction-kind';
-import {
-  PLATFORM_TIP_TRANSACTION_PROPERTIES,
-  SETTLEMENT_EXPENSE_PROPERTIES,
-} from '../../server/constants/transactions';
-import { markExpenseAsUnpaid, payExpense } from '../../server/graphql/common/expenses';
-import { createRefundTransaction, executeOrder } from '../../server/lib/payments';
-import * as libPayments from '../../server/lib/payments';
-import models from '../../server/models';
-import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
-import paymentProviders from '../../server/paymentProviders';
-import * as webhook from '../../server/paymentProviders/stripe/webhook';
-import stripeMocks from '../mocks/stripe';
+import { run as runSettlementScript } from '../../cron/monthly/host-settlement.js';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../server/constants/paymentMethods.js';
+import { TransactionKind } from '../../server/constants/transaction-kind.js';
+import { PLATFORM_TIP_TRANSACTION_PROPERTIES, SETTLEMENT_EXPENSE_PROPERTIES } from '../../server/constants/transactions.js';
+import { markExpenseAsUnpaid, payExpense } from '../../server/graphql/common/expenses.js';
+import { createRefundTransaction, executeOrder } from '../../server/lib/payments.js';
+import * as libPayments from '../../server/lib/payments.js';
+import models from '../../server/models/index.js';
+import { PayoutMethodTypes } from '../../server/models/PayoutMethod.js';
+import paymentProviders from '../../server/paymentProviders/index.js';
+import * as webhook from '../../server/paymentProviders/stripe/webhook.js';
+import stripeMocks from '../mocks/stripe.js';
 import {
   fakeCollective,
   fakeExpense,
@@ -33,8 +30,8 @@ import {
   fakeOrder,
   fakePayoutMethod,
   fakeUser,
-} from '../test-helpers/fake-data';
-import { nockFixerRates, resetTestDB, snapshotLedger } from '../utils';
+} from '../test-helpers/fake-data.js';
+import { nockFixerRates, resetTestDB, snapshotLedger } from '../utils.js';
 
 const SNAPSHOT_COLUMNS = [
   'kind',

@@ -1,9 +1,9 @@
-import '../../../server/lib/emailTemplates'; // To make sure templates are loaded
+import '../../../server/lib/emailTemplates.js';
 
 import { expect } from 'chai';
 
-import handlebars from '../../../server/lib/handlebars';
-import { fakeCollective } from '../../test-helpers/fake-data';
+import handlebars from '../../../server/lib/handlebars.js';
+import { fakeCollective } from '../../test-helpers/fake-data.js';
 
 const template = handlebars.compile('{{> linkCollective collective=collective}}');
 

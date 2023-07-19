@@ -1,6 +1,6 @@
 import { assert } from 'chai';
 
-import { memoize } from '../../../../server/lib/cache';
+import { memoize } from '../../../../server/lib/cache/index.js';
 
 describe('server/lib/cache', () => {
   describe('memoize', () => {

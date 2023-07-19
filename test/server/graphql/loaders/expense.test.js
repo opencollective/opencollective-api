@@ -1,12 +1,12 @@
 import { expect } from 'chai';
 import moment from 'moment';
 
-import { loaders } from '../../../../server/graphql/loaders';
-import { taxFormRequiredBeforePayment } from '../../../../server/graphql/loaders/expenses';
-import models from '../../../../server/models';
-import { LEGAL_DOCUMENT_TYPE } from '../../../../server/models/LegalDocument';
-import { fakeCollective, fakeExpense, fakeHost, fakePayoutMethod, fakeUser } from '../../../test-helpers/fake-data';
-import { resetTestDB } from '../../../utils';
+import { loaders } from '../../../../server/graphql/loaders/index.js';
+import { taxFormRequiredBeforePayment } from '../../../../server/graphql/loaders/expenses.js';
+import models from '../../../../server/models/index.js';
+import { LEGAL_DOCUMENT_TYPE } from '../../../../server/models/LegalDocument.js';
+import { fakeCollective, fakeExpense, fakeHost, fakePayoutMethod, fakeUser } from '../../../test-helpers/fake-data.js';
+import { resetTestDB } from '../../../utils.js';
 
 const US_TAX_FORM_THRESHOLD = 600e2;
 

@@ -6,7 +6,7 @@ import {
   generateSummaryForHTML,
   sanitizeHTML,
   stripHTML,
-} from '../../../server/lib/sanitize-html';
+} from '../../../server/lib/sanitize-html.js';
 
 const fullContent = `
 <h1>Ergo illi intellegunt quid Epicurus dicat, ego non intellego?</h1>

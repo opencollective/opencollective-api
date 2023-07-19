@@ -1,9 +1,9 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
 
-import * as libpayments from '../../../../server/lib/payments';
-import * as store from '../../../stores';
-import * as utils from '../../../utils';
+import * as libpayments from '../../../../server/lib/payments.js';
+import * as store from '../../../stores/index.js';
+import * as utils from '../../../utils.js';
 
 const collectiveQuery = gql`
   query Collective($slug: String) {

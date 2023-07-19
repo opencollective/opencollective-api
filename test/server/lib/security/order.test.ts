@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import config from 'config';
 import type Express from 'express';
 
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods.js';
 import {
   checkEmail,
   checkIP,
@@ -11,9 +11,9 @@ import {
   getIpStats,
   getUserStats,
   orderFraudProtection,
-} from '../../../../server/lib/security/order';
-import { fakeOrder, fakePaymentMethod, fakeUser, multiple } from '../../../test-helpers/fake-data';
-import { resetTestDB } from '../../../utils';
+} from '../../../../server/lib/security/order.js';
+import { fakeOrder, fakePaymentMethod, fakeUser, multiple } from '../../../test-helpers/fake-data.js';
+import { resetTestDB } from '../../../utils.js';
 
 describe('lib/security/order', () => {
   describe('helper functions', () => {

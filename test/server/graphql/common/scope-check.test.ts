@@ -16,7 +16,7 @@ import {
   checkRemoteUserCanUseWebhooks,
   checkScope,
   enforceScope,
-} from '../../../../server/graphql/common/scope-check';
+} from '../../../../server/graphql/common/scope-check.js';
 import {
   fakeApplication,
   fakeComment,
@@ -25,8 +25,8 @@ import {
   fakeUpdate,
   fakeUser,
   fakeUserToken,
-} from '../../../test-helpers/fake-data';
-import { makeRequest } from '../../../utils';
+} from '../../../test-helpers/fake-data.js';
+import { makeRequest } from '../../../utils.js';
 
 describe('server/graphql/common/scope-check', () => {
   let req, userToken, application, userOwningTheToken, randomUser;

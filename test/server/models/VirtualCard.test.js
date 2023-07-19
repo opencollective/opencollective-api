@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import moment from 'moment';
 
-import { fakeExpense, fakeVirtualCard } from '../../test-helpers/fake-data';
+import { fakeExpense, fakeVirtualCard } from '../../test-helpers/fake-data.js';
 
 describe('server/models/VirtualCard', () => {
   describe('getExpensesMissingDetails()', () => {

@@ -1,19 +1,19 @@
 import { expect } from 'chai';
 import config from 'config';
 import gql from 'fake-tag';
-import { cloneDeep } from 'lodash';
+import { cloneDeep } from 'lodash-es';
 import nock from 'nock';
 import { createSandbox } from 'sinon';
 import { v4 as uuid } from 'uuid';
 
-import { maxInteger } from '../../../../server/constants/math';
-import emailLib from '../../../../server/lib/email';
-import stripe from '../../../../server/lib/stripe';
-import twitter from '../../../../server/lib/twitter';
-import models from '../../../../server/models';
-import * as store from '../../../stores';
-import { fakeTier } from '../../../test-helpers/fake-data';
-import * as utils from '../../../utils';
+import { maxInteger } from '../../../../server/constants/math.js';
+import emailLib from '../../../../server/lib/email.js';
+import stripe from '../../../../server/lib/stripe.js';
+import twitter from '../../../../server/lib/twitter.js';
+import models from '../../../../server/models/index.js';
+import * as store from '../../../stores/index.js';
+import { fakeTier } from '../../../test-helpers/fake-data.js';
+import * as utils from '../../../utils.js';
 
 const baseOrder = Object.freeze({
   quantity: 1,

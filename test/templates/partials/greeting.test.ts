@@ -1,8 +1,8 @@
-import '../../../server/lib/emailTemplates'; // To make sure templates are loaded
+import '../../../server/lib/emailTemplates.js';
 
 import { expect } from 'chai';
 
-import handlebars from '../../../server/lib/handlebars';
+import handlebars from '../../../server/lib/handlebars.js';
 
 const template = handlebars.compile('{{> greeting}}');
 const templateWithRecipient = handlebars.compile('{{> greeting recipient=recipient}}');

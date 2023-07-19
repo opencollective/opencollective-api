@@ -5,26 +5,23 @@ import {
   InvalidGrantError,
   InvalidTokenError,
   Token,
-} from '@node-oauth/oauth2-server';
+} from '@node-oauth/oauth2-server/index.js';
 import { expect } from 'chai';
 import config from 'config';
 import moment from 'moment';
 import { stub } from 'sinon';
 
-import { activities } from '../../../../server/constants';
-import OAuthModel, {
-  dbApplicationToClient,
-  dbOAuthAuthorizationCodeToAuthorizationCode,
-} from '../../../../server/lib/oauth/model';
-import models from '../../../../server/models';
+import { activities } from '../../../../server/constants/index.js';
+import OAuthModel, { dbApplicationToClient, dbOAuthAuthorizationCodeToAuthorizationCode } from '../../../../server/lib/oauth/model.js';
+import models from '../../../../server/models/index.js';
 import {
   fakeApplication,
   fakeOAuthAuthorizationCode,
   fakeUser,
   fakeUserToken,
   randStr,
-} from '../../../test-helpers/fake-data';
-import { resetTestDB } from '../../../utils';
+} from '../../../test-helpers/fake-data.js';
+import { resetTestDB } from '../../../utils.js';
 
 /**
  * Partially covers the OAuth model methods. For more comprehensive tests,

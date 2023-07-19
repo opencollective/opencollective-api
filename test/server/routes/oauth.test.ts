@@ -5,9 +5,9 @@ import jwt from 'jsonwebtoken';
 import { useFakeTimers } from 'sinon';
 import request from 'supertest';
 
-import { fakeApplication, fakeOAuthAuthorizationCode, fakeUser } from '../../test-helpers/fake-data';
-import { startTestServer, stopTestServer } from '../../test-helpers/server';
-import { resetTestDB } from '../../utils';
+import { fakeApplication, fakeOAuthAuthorizationCode, fakeUser } from '../../test-helpers/fake-data.js';
+import { startTestServer, stopTestServer } from '../../test-helpers/server.js';
+import { resetTestDB } from '../../utils.js';
 
 describe('server/routes/oauth', () => {
   let expressApp, clock;

@@ -3,8 +3,8 @@ import * as Sentry from '@sentry/node';
 import { expect } from 'chai';
 import sinon from 'sinon';
 
-import * as SentryLib from '../../../server/lib/sentry';
-import { makeRequest } from '../../utils';
+import * as SentryLib from '../../../server/lib/sentry.js';
+import { makeRequest } from '../../utils.js';
 
 describe('server/lib/sentry', () => {
   let sandbox;

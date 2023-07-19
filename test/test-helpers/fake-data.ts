@@ -7,22 +7,22 @@
 // to use in loops and repeated tests.
 
 import config from 'config';
-import { get, kebabCase, padStart, sample } from 'lodash';
+import { get, kebabCase, padStart, sample } from 'lodash-es';
 import moment from 'moment';
 import type { CreateOptions, InferCreationAttributes } from 'sequelize';
 import speakeasy from 'speakeasy';
 import { v4 as uuid } from 'uuid';
 
-import { activities, channels, roles } from '../../server/constants';
-import { types as CollectiveType, types } from '../../server/constants/collectives';
-import OAuthScopes from '../../server/constants/oauth-scopes';
-import OrderStatuses from '../../server/constants/order_status';
-import { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPES } from '../../server/constants/paymentMethods';
-import { REACTION_EMOJI } from '../../server/constants/reaction-emoji';
-import MemberRoles from '../../server/constants/roles';
-import { TransactionKind } from '../../server/constants/transaction-kind';
-import { crypto } from '../../server/lib/encryption';
-import { TwoFactorMethod } from '../../server/lib/two-factor-authentication';
+import { activities, channels, roles } from '../../server/constants/index.js';
+import { types as CollectiveType, types } from '../../server/constants/collectives.js';
+import OAuthScopes from '../../server/constants/oauth-scopes.js';
+import OrderStatuses from '../../server/constants/order_status.js';
+import { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPES } from '../../server/constants/paymentMethods.js';
+import { REACTION_EMOJI } from '../../server/constants/reaction-emoji.js';
+import MemberRoles from '../../server/constants/roles.js';
+import { TransactionKind } from '../../server/constants/transaction-kind.js';
+import { crypto } from '../../server/lib/encryption.js';
+import { TwoFactorMethod } from '../../server/lib/two-factor-authentication/index.js';
 import models, {
   Collective,
   ConnectedAccount,
@@ -38,29 +38,25 @@ import models, {
   Update,
   UploadedFile,
   VirtualCard,
-} from '../../server/models';
-import Application, { ApplicationType } from '../../server/models/Application';
-import Comment from '../../server/models/Comment';
-import Conversation from '../../server/models/Conversation';
-import { HostApplicationStatus } from '../../server/models/HostApplication';
-import { LegalDocumentModelInterface } from '../../server/models/LegalDocument';
-import { MemberModelInterface } from '../../server/models/Member';
-import { MemberInvitationModelInterface } from '../../server/models/MemberInvitation';
-import { OrderModelInterface } from '../../server/models/Order';
-import { PaymentMethodModelInterface } from '../../server/models/PaymentMethod';
-import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
-import RecurringExpense, { RecurringExpenseIntervals } from '../../server/models/RecurringExpense';
-import { AssetType } from '../../server/models/SuspendedAsset';
-import {
-  SUPPORTED_FILE_EXTENSIONS,
-  SUPPORTED_FILE_KINDS,
-  SUPPORTED_FILE_TYPES,
-} from '../../server/models/UploadedFile';
-import User from '../../server/models/User';
-import { TokenType } from '../../server/models/UserToken';
-import UserTwoFactorMethod from '../../server/models/UserTwoFactorMethod';
-import { VirtualCardStatus } from '../../server/models/VirtualCard';
-import { randEmail, randUrl } from '../stores';
+} from '../../server/models/index.js';
+import Application, { ApplicationType } from '../../server/models/Application.js';
+import Comment from '../../server/models/Comment.js';
+import Conversation from '../../server/models/Conversation.js';
+import { HostApplicationStatus } from '../../server/models/HostApplication.js';
+import { LegalDocumentModelInterface } from '../../server/models/LegalDocument.js';
+import { MemberModelInterface } from '../../server/models/Member.js';
+import { MemberInvitationModelInterface } from '../../server/models/MemberInvitation.js';
+import { OrderModelInterface } from '../../server/models/Order.js';
+import { PaymentMethodModelInterface } from '../../server/models/PaymentMethod.js';
+import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod.js';
+import RecurringExpense, { RecurringExpenseIntervals } from '../../server/models/RecurringExpense.js';
+import { AssetType } from '../../server/models/SuspendedAsset.js';
+import { SUPPORTED_FILE_EXTENSIONS, SUPPORTED_FILE_KINDS, SUPPORTED_FILE_TYPES } from '../../server/models/UploadedFile.js';
+import User from '../../server/models/User.js';
+import { TokenType } from '../../server/models/UserToken.js';
+import UserTwoFactorMethod from '../../server/models/UserTwoFactorMethod.js';
+import { VirtualCardStatus } from '../../server/models/VirtualCard.js';
+import { randEmail, randUrl } from '../stores/index.js';
 
 export { randEmail, sequelize };
 export const randStr = (prefix = '') => `${prefix}${uuid().split('-')[0]}`;

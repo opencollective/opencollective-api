@@ -2,11 +2,11 @@ import { expect } from 'chai';
 import { stub } from 'sinon';
 import request from 'supertest';
 
-import app from '../../../server/index';
-import models from '../../../server/models';
-import paypalAdaptive from '../../../server/paymentProviders/paypal/adaptiveGateway';
-import paypalMock from '../../mocks/paypal';
-import * as utils from '../../utils';
+import app from '../../../server/index.js';
+import models from '../../../server/models/index.js';
+import paypalAdaptive from '../../../server/paymentProviders/paypal/adaptiveGateway.js';
+import paypalMock from '../../mocks/paypal.js';
+import * as utils from '../../utils.js';
 
 const application = utils.data('application');
 

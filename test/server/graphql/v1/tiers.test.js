@@ -3,12 +3,12 @@ import gql from 'fake-tag';
 import { describe, it } from 'mocha';
 import { createSandbox } from 'sinon';
 
-import { VAT_OPTIONS } from '../../../../server/constants/vat';
-import stripe from '../../../../server/lib/stripe';
-import models from '../../../../server/models';
-import { randEmail } from '../../../stores';
-import { fakeCollective, fakeHost, fakeTier, fakeUser, randStr } from '../../../test-helpers/fake-data';
-import * as utils from '../../../utils';
+import { VAT_OPTIONS } from '../../../../server/constants/vat.js';
+import stripe from '../../../../server/lib/stripe.js';
+import models from '../../../../server/models/index.js';
+import { randEmail } from '../../../stores/index.js';
+import { fakeCollective, fakeHost, fakeTier, fakeUser, randStr } from '../../../test-helpers/fake-data.js';
+import * as utils from '../../../utils.js';
 
 describe('server/graphql/v1/tiers', () => {
   let user1, user2, host, collective1, collective2, tier1, tierWithCustomFields, tierProduct, paymentMethod1;

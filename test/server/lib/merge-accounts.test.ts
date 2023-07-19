@@ -1,14 +1,14 @@
 import { expect } from 'chai';
-import { mergeWith } from 'lodash';
+import { mergeWith } from 'lodash-es';
 
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../server/constants/paymentMethods';
-import { getMovableItemsCounts, mergeAccounts, simulateMergeAccounts } from '../../../server/lib/merge-accounts';
-import models from '../../../server/models';
-import { LEGAL_DOCUMENT_TYPE } from '../../../server/models/LegalDocument';
-import { MigrationLogDataForMergeAccounts, MigrationLogType } from '../../../server/models/MigrationLog';
-import { getOrCreateDBSnapshot } from '../../test-helpers/data-snapshot';
-import * as Faker from '../../test-helpers/fake-data';
-import { resetTestDB } from '../../utils';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../server/constants/paymentMethods.js';
+import { getMovableItemsCounts, mergeAccounts, simulateMergeAccounts } from '../../../server/lib/merge-accounts.js';
+import models from '../../../server/models/index.js';
+import { LEGAL_DOCUMENT_TYPE } from '../../../server/models/LegalDocument.js';
+import { MigrationLogDataForMergeAccounts, MigrationLogType } from '../../../server/models/MigrationLog.js';
+import { getOrCreateDBSnapshot } from '../../test-helpers/data-snapshot.js';
+import * as Faker from '../../test-helpers/fake-data.js';
+import { resetTestDB } from '../../utils.js';
 
 /** Helper to create an account with many associations */
 const addFakeDataToAccount = async (account): Promise<void> => {

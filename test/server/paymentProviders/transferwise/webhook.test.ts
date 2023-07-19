@@ -1,16 +1,16 @@
 /* eslint-disable camelcase */
 
 import { expect } from 'chai';
-import { defaultsDeep } from 'lodash';
+import { defaultsDeep } from 'lodash-es';
 import { assert, createSandbox } from 'sinon';
 import request from 'supertest';
 
-import { roles } from '../../../../server/constants';
-import status from '../../../../server/constants/expense_status';
-import app from '../../../../server/index';
-import emailLib from '../../../../server/lib/email';
-import * as transferwiseLib from '../../../../server/lib/transferwise';
-import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
+import { roles } from '../../../../server/constants/index.js';
+import status from '../../../../server/constants/expense_status.js';
+import app from '../../../../server/index.js';
+import emailLib from '../../../../server/lib/email.js';
+import * as transferwiseLib from '../../../../server/lib/transferwise.js';
+import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod.js';
 import {
   fakeCollective,
   fakeConnectedAccount,
@@ -18,8 +18,8 @@ import {
   fakeMember,
   fakePayoutMethod,
   fakeUser,
-} from '../../../test-helpers/fake-data';
-import * as utils from '../../../utils';
+} from '../../../test-helpers/fake-data.js';
+import * as utils from '../../../utils.js';
 
 describe('server/paymentProviders/transferwise/webhook', () => {
   let expressApp, api;

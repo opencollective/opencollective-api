@@ -1,11 +1,11 @@
 import { expect } from 'chai';
 import { createSandbox } from 'sinon';
 
-import * as libcurrency from '../../../server/lib/currency';
-import * as libhost from '../../../server/lib/hostlib';
-import { Op } from '../../../server/models';
-import * as store from '../../stores';
-import * as utils from '../../utils';
+import * as libcurrency from '../../../server/lib/currency.js';
+import * as libhost from '../../../server/lib/hostlib.js';
+import { Op } from '../../../server/models/index.js';
+import * as store from '../../stores/index.js';
+import * as utils from '../../utils.js';
 
 async function donation(collective, user, amount, currency, createdAt) {
   return store.stripeOneTimeDonation({

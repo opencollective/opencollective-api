@@ -3,11 +3,11 @@ import config from 'config';
 import gql from 'fake-tag';
 import { describe, it } from 'mocha';
 
-import { activities, roles } from '../../../../server/constants';
-import channels from '../../../../server/constants/channels';
-import models from '../../../../server/models';
-import { randUrl } from '../../../stores';
-import * as utils from '../../../utils';
+import { activities, roles } from '../../../../server/constants/index.js';
+import channels from '../../../../server/constants/channels.js';
+import models from '../../../../server/models/index.js';
+import { randUrl } from '../../../stores/index.js';
+import * as utils from '../../../utils.js';
 
 describe('server/graphql/v1/notifications', () => {
   let user1, user2, collective1, notification;

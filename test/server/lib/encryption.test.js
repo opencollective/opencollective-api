@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { generateKey, secretbox } from '../../../server/lib/encryption';
+import { generateKey, secretbox } from '../../../server/lib/encryption.js';
 
 describe('server/lib/encryption', () => {
   describe('secretbox', () => {

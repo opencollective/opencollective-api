@@ -1,10 +1,10 @@
 import { expect } from 'chai';
 
-import * as libpayments from '../../../../server/lib/payments';
-import models from '../../../../server/models';
-import prepaid from '../../../../server/paymentProviders/opencollective/prepaid';
-import * as store from '../../../stores';
-import * as utils from '../../../utils';
+import * as libpayments from '../../../../server/lib/payments.js';
+import models from '../../../../server/models/index.js';
+import prepaid from '../../../../server/paymentProviders/opencollective/prepaid.js';
+import * as store from '../../../stores/index.js';
+import * as utils from '../../../utils.js';
 
 describe('server/graphql/v1/createOrder.opencollective', () => {
   describe('prepaid', () => {

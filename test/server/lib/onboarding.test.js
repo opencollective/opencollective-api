@@ -1,10 +1,10 @@
 import { expect } from 'chai';
 import { createSandbox } from 'sinon';
 
-import emailLib from '../../../server/lib/email';
-import { processOnBoardingTemplate } from '../../../server/lib/onboarding';
-import models from '../../../server/models';
-import * as utils from '../../utils';
+import emailLib from '../../../server/lib/email.js';
+import { processOnBoardingTemplate } from '../../../server/lib/onboarding.js';
+import models from '../../../server/models/index.js';
+import * as utils from '../../utils.js';
 
 describe('server/lib/onboarding', () => {
   let admins, sandbox, emailLibSendSpy;

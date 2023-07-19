@@ -1,13 +1,13 @@
 import { expect } from 'chai';
 import { assert, createSandbox } from 'sinon';
 
-import { run as checkPendingTransfers } from '../../../cron/daily/check-pending-transferwise-transactions';
-import { roles } from '../../../server/constants';
-import status from '../../../server/constants/expense_status';
-import emailLib from '../../../server/lib/email';
-import logger from '../../../server/lib/logger';
-import * as transferwiseLib from '../../../server/lib/transferwise';
-import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
+import { run as checkPendingTransfers } from '../../../cron/daily/check-pending-transferwise-transactions.js';
+import { roles } from '../../../server/constants/index.js';
+import status from '../../../server/constants/expense_status.js';
+import emailLib from '../../../server/lib/email.js';
+import logger from '../../../server/lib/logger.js';
+import * as transferwiseLib from '../../../server/lib/transferwise.js';
+import { PayoutMethodTypes } from '../../../server/models/PayoutMethod.js';
 import {
   fakeCollective,
   fakeConnectedAccount,
@@ -16,8 +16,8 @@ import {
   fakePayoutMethod,
   fakeTransaction,
   fakeUser,
-} from '../../test-helpers/fake-data';
-import * as utils from '../../utils';
+} from '../../test-helpers/fake-data.js';
+import * as utils from '../../utils.js';
 
 describe('cron/daily/check-pending-transferwise-transactions', () => {
   const sandbox = createSandbox();

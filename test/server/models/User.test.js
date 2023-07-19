@@ -5,12 +5,12 @@ import config from 'config';
 import { SequelizeValidationError } from 'sequelize';
 import { stub, useFakeTimers } from 'sinon';
 
-import { Service } from '../../../server/constants/connected_account';
-import * as auth from '../../../server/lib/auth';
-import models from '../../../server/models';
-import { randEmail } from '../../stores';
-import { fakeConnectedAccount, fakeUser, multiple } from '../../test-helpers/fake-data';
-import * as utils from '../../utils';
+import { Service } from '../../../server/constants/connected_account.js';
+import * as auth from '../../../server/lib/auth.js';
+import models from '../../../server/models/index.js';
+import { randEmail } from '../../stores/index.js';
+import { fakeConnectedAccount, fakeUser, multiple } from '../../test-helpers/fake-data.js';
+import * as utils from '../../utils.js';
 const userData = utils.data('user1');
 
 const { User } = models;

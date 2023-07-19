@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { moveSection, removeSection } from '../../../migrations/lib/helpers';
+import { moveSection, removeSection } from '../../../migrations/lib/helpers.js';
 
 describe('migrations/lib/helpers', () => {
   describe('moveSection', () => {

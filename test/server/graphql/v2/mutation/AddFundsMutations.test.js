@@ -1,11 +1,11 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
-import { groupBy } from 'lodash';
+import { groupBy } from 'lodash-es';
 
-import { roles } from '../../../../../server/constants';
-import { fakeCollective, fakeProject, fakeTier, fakeUser, fakeUserToken } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, oAuthGraphqlQueryV2 } from '../../../../utils';
-import * as utils from '../../../../utils';
+import { roles } from '../../../../../server/constants/index.js';
+import { fakeCollective, fakeProject, fakeTier, fakeUser, fakeUserToken } from '../../../../test-helpers/fake-data.js';
+import { graphqlQueryV2, oAuthGraphqlQueryV2 } from '../../../../utils.js';
+import * as utils from '../../../../utils.js';
 
 const addFundsMutation = gqlV2/* GraphQL */ `
   mutation AddFunds(
