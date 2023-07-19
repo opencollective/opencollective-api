@@ -1,5 +1,5 @@
 #!/bin/sh
-# This script wraps the sequelize command with ts-node and passes
+# This script wraps the sequelize command with babel-node and passes
 # parameters required in every single call.
 
 # Important paths
@@ -9,7 +9,7 @@ PATH=${PATH}:$NODEBIN
 
 # Parameters & Command
 SEQUELIZE_CONFIG="--models-path server/models/ --config config/sequelize-cli.js"
-COMMAND="ts-node $NODEBIN/sequelize ${SEQUELIZE_CONFIG} $@"
+COMMAND="babel-node --no-babelrc --config-file ./migrations.babel.config.json --extensions .js,.ts,.cjs $NODEBIN/sequelize ${SEQUELIZE_CONFIG} $@"
 
 # Variables exported for the exec
 export CUSTOM_DB PATH
