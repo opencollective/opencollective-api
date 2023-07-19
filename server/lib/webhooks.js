@@ -1,8 +1,8 @@
-import { pick } from 'lodash';
+import { pick } from 'lodash-es';
 
-import { activities } from '../constants';
+import { activities } from '../constants/index.js';
 
-import { formatCurrency } from './utils';
+import { formatCurrency } from './utils.js';
 
 /**
  * Filter collective public information, returning a minimal subset for incognito users

@@ -1,23 +1,23 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { pick } from 'lodash';
+import { pick } from 'lodash-es';
 
-import { types as CollectiveTypes } from '../../../constants/collectives';
-import FEATURE from '../../../constants/feature';
-import POLICIES from '../../../constants/policies';
-import MemberRoles from '../../../constants/roles';
-import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models from '../../../models';
-import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation';
-import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
-import { Forbidden, Unauthorized } from '../../errors';
-import { GraphQLMemberRole } from '../enum';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import { types as CollectiveTypes } from '../../../constants/collectives.js';
+import FEATURE from '../../../constants/feature.js';
+import POLICIES from '../../../constants/policies.js';
+import MemberRoles from '../../../constants/roles.js';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication/index.js';
+import models from '../../../models/index.js';
+import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation.js';
+import { checkRemoteUserCanUseAccount } from '../../common/scope-check.js';
+import { Forbidden, Unauthorized } from '../../errors.js';
+import { GraphQLMemberRole } from '../enum/index.js';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput.js';
 import {
   fetchMemberInvitationWithReference,
   GraphQLMemberInvitationReferenceInput,
-} from '../input/MemberInvitationReferenceInput';
-import { GraphQLMemberInvitation } from '../object/MemberInvitation';
+} from '../input/MemberInvitationReferenceInput.js';
+import { GraphQLMemberInvitation } from '../object/MemberInvitation.js';
 
 const memberInvitationMutations = {
   inviteMember: {

@@ -1,7 +1,7 @@
 import { GraphQLBoolean, GraphQLInputObjectType, GraphQLInt } from 'graphql';
 
-import POLICIES from '../../../constants/policies';
-import { GraphQLPolicyApplication } from '../enum/PolicyApplication';
+import POLICIES from '../../../constants/policies.js';
+import { GraphQLPolicyApplication } from '../enum/PolicyApplication.js';
 
 export const GraphQLPoliciesInput = new GraphQLInputObjectType({
   name: 'PoliciesInput',

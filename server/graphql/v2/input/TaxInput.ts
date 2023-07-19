@@ -1,11 +1,11 @@
 import { TaxType } from '@opencollective/taxes';
 import { GraphQLFloat, GraphQLInputFieldConfig, GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
 
-import { GraphQLCountryISO } from '../enum';
-import { COUNTRY_CODES } from '../enum/CountryISO';
-import { GraphQLTaxType as GraphQLTaxType } from '../enum/TaxType';
+import { GraphQLCountryISO } from '../enum/index.js';
+import { COUNTRY_CODES } from '../enum/CountryISO.js';
+import { GraphQLTaxType as GraphQLTaxType } from '../enum/TaxType.js';
 
-import { AmountInputType, GraphQLAmountInput } from './AmountInput';
+import { AmountInputType, GraphQLAmountInput } from './AmountInput.js';
 
 export type TaxInput = {
   type: TaxType;

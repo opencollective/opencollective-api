@@ -1,16 +1,16 @@
 import crypto from 'crypto';
 
 import config from 'config';
-import { pick } from 'lodash';
+import { pick } from 'lodash-es';
 import fetch from 'node-fetch';
 
-import orderStatus from '../../constants/order_status';
-import { TransactionTypes } from '../../constants/transactions';
-import { getFxRate } from '../../lib/currency';
-import logger from '../../lib/logger';
-import { getHostFee, getHostFeeSharePercent } from '../../lib/payments';
-import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
-import models from '../../models';
+import orderStatus from '../../constants/order_status.js';
+import { TransactionTypes } from '../../constants/transactions.js';
+import { getFxRate } from '../../lib/currency.js';
+import logger from '../../lib/logger.js';
+import { getHostFee, getHostFeeSharePercent } from '../../lib/payments.js';
+import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry.js';
+import models from '../../models/index.js';
 
 const AES_ENCRYPTION_KEY = config.thegivingblock.aesEncryptionKey;
 const AES_ENCRYPTION_IV = config.thegivingblock.aesEncryptionIv;

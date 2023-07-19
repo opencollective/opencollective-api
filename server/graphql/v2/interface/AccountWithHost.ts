@@ -1,19 +1,19 @@
 import { GraphQLBoolean, GraphQLFloat, GraphQLInterfaceType, GraphQLNonNull } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { clamp, isNumber } from 'lodash';
+import { clamp, isNumber } from 'lodash-es';
 
-import { roles } from '../../../constants';
-import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
-import { Collective } from '../../../models';
-import Agreement from '../../../models/Agreement';
-import { hostResolver } from '../../common/collective';
-import { GraphQLAgreementCollection } from '../collection/AgreementCollection';
-import { GraphQLHostFeeStructure } from '../enum/HostFeeStructure';
-import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
-import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType';
-import { GraphQLHost } from '../object/Host';
+import { roles } from '../../../constants/index.js';
+import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure.js';
+import { Collective } from '../../../models/index.js';
+import Agreement from '../../../models/Agreement.js';
+import { hostResolver } from '../../common/collective.js';
+import { GraphQLAgreementCollection } from '../collection/AgreementCollection.js';
+import { GraphQLHostFeeStructure } from '../enum/HostFeeStructure.js';
+import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService.js';
+import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType.js';
+import { GraphQLHost } from '../object/Host.js';
 
-import { getCollectionArgs } from './Collection';
+import { getCollectionArgs } from './Collection.js';
 
 export const AccountWithHostFields = {
   host: {

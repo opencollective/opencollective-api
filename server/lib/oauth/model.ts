@@ -3,7 +3,7 @@
 
 import crypto from 'crypto';
 
-import type OAuth2Server from '@node-oauth/oauth2-server';
+import OAuth2Server from '@node-oauth/oauth2-server/index.js';
 import {
   AuthorizationCode,
   AuthorizationCodeModel,
@@ -14,16 +14,16 @@ import {
   RefreshToken,
   RefreshTokenModel,
   Token,
-} from '@node-oauth/oauth2-server';
+} from '@node-oauth/oauth2-server/index.js';
 import config from 'config';
 import debugLib from 'debug';
 
-import activities from '../../constants/activities';
-import models from '../../models';
-import Application from '../../models/Application';
-import type OAuthAuthorizationCode from '../../models/OAuthAuthorizationCode';
-import User from '../../models/User';
-import UserToken, { TokenType } from '../../models/UserToken';
+import activities from '../../constants/activities.js';
+import models from '../../models/index.js';
+import Application from '../../models/Application.js';
+import OAuthAuthorizationCode from '../../models/OAuthAuthorizationCode.js';
+import User from '../../models/User.js';
+import UserToken, { TokenType } from '../../models/UserToken.js';
 
 const debug = debugLib('oAuth');
 

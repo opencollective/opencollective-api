@@ -1,4 +1,4 @@
-import { groupBy } from 'lodash';
+import { groupBy } from 'lodash-es';
 import {
   BelongsToGetAssociationMixin,
   CreationOptional,
@@ -8,13 +8,13 @@ import {
   QueryTypes,
 } from 'sequelize';
 
-import expenseType from '../constants/expense_type';
-import { TransactionKind } from '../constants/transaction-kind';
-import sequelize, { DataTypes, Model, Op, Transaction as SQLTransaction } from '../lib/sequelize';
+import expenseType from '../constants/expense_type.js';
+import { TransactionKind } from '../constants/transaction-kind.js';
+import sequelize, { DataTypes, Model, Op, Transaction as SQLTransaction } from '../lib/sequelize.js';
 
-import Collective from './Collective';
-import Expense from './Expense';
-import Transaction from './Transaction';
+import Collective from './Collective.js';
+import Expense from './Expense.js';
+import Transaction from './Transaction.js';
 
 export enum TransactionSettlementStatus {
   OWED = 'OWED',

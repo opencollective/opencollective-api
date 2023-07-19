@@ -1,6 +1,6 @@
 import { GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
 
-import { GraphQLCurrency } from '../enum/Currency';
+import { GraphQLCurrency } from '../enum/Currency.js';
 
 export const GraphQLAccountUpdateInput = new GraphQLInputObjectType({
   name: 'AccountUpdateInput',

@@ -1,10 +1,11 @@
+import url from 'url';
+const __dirname = url.fileURLToPath(new url.URL('.', import.meta.url));
 import { readFileSync } from 'fs';
 import path from 'path';
 
-import { pick, startCase } from 'lodash';
-
-import models, { Collective, Op, sequelize } from '../models';
-import { MigrationLogType } from '../models/MigrationLog';
+import { pick, startCase } from 'lodash-es';
+import models, { Collective, Op, sequelize } from '../models/index.js';
+import { MigrationLogType } from '../models/MigrationLog.js';
 
 /**
  * From a given account, returns its entire network of accounts: administrated profiles,

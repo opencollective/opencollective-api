@@ -1,10 +1,10 @@
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import { GraphQLTransactionSettlementStatus } from '../enum/TransactionSettlementStatus';
-import { getTimeSeriesFields, GraphQLTimeSeries } from '../interface/TimeSeries';
+import { GraphQLTransactionSettlementStatus } from '../enum/TransactionSettlementStatus.js';
+import { getTimeSeriesFields, GraphQLTimeSeries } from '../interface/TimeSeries.js';
 
-import { GraphQLAmount } from './Amount';
+import { GraphQLAmount } from './Amount.js';
 
 const GraphQLTimeSeriesAmountWithSettlementNodes = new GraphQLObjectType({
   name: 'TimeSeriesAmountWithSettlementNode',

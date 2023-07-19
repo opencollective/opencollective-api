@@ -1,7 +1,7 @@
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 
-import { CollectionFields, GraphQLCollection } from '../interface/Collection';
-import GraphQLUpdate from '../object/Update';
+import { CollectionFields, GraphQLCollection } from '../interface/Collection.js';
+import GraphQLUpdate from '../object/Update.js';
 
 export const GraphQLUpdateCollection = new GraphQLObjectType({
   name: 'UpdateCollection',

@@ -1,15 +1,15 @@
-import { get } from 'lodash';
+import { get } from 'lodash-es';
 
-import MemberRoles from '../../constants/roles';
-import cache, { purgeCacheForCollective } from '../../lib/cache';
-import twoFactorAuthLib from '../../lib/two-factor-authentication';
-import models from '../../models';
-import { UPDATE_NOTIFICATION_AUDIENCE } from '../../models/Update';
-import { Forbidden, NotFound, ValidationFailed } from '../errors';
-import { idDecode, IDENTIFIER_TYPES } from '../v2/identifiers';
-import { fetchAccountWithReference } from '../v2/input/AccountReferenceInput';
+import MemberRoles from '../../constants/roles.js';
+import cache, { purgeCacheForCollective } from '../../lib/cache/index.js';
+import twoFactorAuthLib from '../../lib/two-factor-authentication/index.js';
+import models from '../../models/index.js';
+import { UPDATE_NOTIFICATION_AUDIENCE } from '../../models/Update.js';
+import { Forbidden, NotFound, ValidationFailed } from '../errors.js';
+import { idDecode, IDENTIFIER_TYPES } from '../v2/identifiers.js';
+import { fetchAccountWithReference } from '../v2/input/AccountReferenceInput.js';
 
-import { checkRemoteUserCanUseUpdates } from './scope-check';
+import { checkRemoteUserCanUseUpdates } from './scope-check.js';
 
 export async function createUpdate(_, args, req) {
   checkRemoteUserCanUseUpdates(req);

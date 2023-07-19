@@ -1,8 +1,8 @@
 import type { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
 
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import sequelize, { DataTypes, Model } from '../lib/sequelize.js';
 
-import Collective from './Collective';
+import Collective from './Collective.js';
 
 export enum SocialLinkType {
   TWITTER = 'TWITTER',

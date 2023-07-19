@@ -1,8 +1,8 @@
 import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
-import { GraphQLConnectedAccountService } from '../enum/ConnectedAccountService';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { GraphQLConnectedAccountService } from '../enum/ConnectedAccountService.js';
+import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers.js';
 
 export const GraphQLConnectedAccount = new GraphQLObjectType({
   name: 'ConnectedAccount',

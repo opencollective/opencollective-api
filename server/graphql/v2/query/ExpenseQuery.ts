@@ -1,9 +1,9 @@
 import { GraphQLString } from 'graphql';
 
-import expenseStatus from '../../../constants/expense_status';
-import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
-import { fetchExpenseWithReference, GraphQLExpenseReferenceInput } from '../input/ExpenseReferenceInput';
-import { GraphQLExpense } from '../object/Expense';
+import expenseStatus from '../../../constants/expense_status.js';
+import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions.js';
+import { fetchExpenseWithReference, GraphQLExpenseReferenceInput } from '../input/ExpenseReferenceInput.js';
+import { GraphQLExpense } from '../object/Expense.js';
 
 const ExpenseQuery = {
   type: GraphQLExpense,

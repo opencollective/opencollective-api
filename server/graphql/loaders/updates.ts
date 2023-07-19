@@ -1,9 +1,9 @@
 import DataLoader from 'dataloader';
 import express from 'express';
-import { set } from 'lodash';
+import { set } from 'lodash-es';
 
-import { ReactionEmoji } from '../../constants/reaction-emoji';
-import models, { Op, sequelize } from '../../models';
+import { ReactionEmoji } from '../../constants/reaction-emoji.js';
+import models, { Op, sequelize } from '../../models/index.js';
 
 type ReactionsCount = Partial<Record<ReactionEmoji, number>>;
 

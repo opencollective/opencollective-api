@@ -1,8 +1,8 @@
 import DataLoader from 'dataloader';
 
-import { sequelize } from '../../models';
+import { sequelize } from '../../models/index.js';
 
-import { sortResultsSimple } from './helpers';
+import { sortResultsSimple } from './helpers.js';
 
 export const generateTotalAccountHostAgreementsLoader = () =>
   new DataLoader<number, number>(async (collectiveIds: number[]) => {

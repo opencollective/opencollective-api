@@ -1,11 +1,11 @@
 import DataLoader from 'dataloader';
-import { first, groupBy, uniq } from 'lodash';
+import { first, groupBy, uniq } from 'lodash-es';
 
-import { roles } from '../../constants';
-import { types as CollectiveType } from '../../constants/collectives';
-import models, { Collective, Op, sequelize } from '../../models';
+import { roles } from '../../constants/index.js';
+import { types as CollectiveType } from '../../constants/collectives.js';
+import models, { Collective, Op, sequelize } from '../../models/index.js';
 
-import { sortResultsSimple } from './helpers';
+import { sortResultsSimple } from './helpers.js';
 
 export default {
   /**

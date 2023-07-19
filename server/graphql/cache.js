@@ -1,4 +1,4 @@
-import { md5 } from '../lib/utils';
+import { md5 } from '../lib/utils.js';
 
 export function getGraphqlCacheProperties(req) {
   if (req.remoteUser) {

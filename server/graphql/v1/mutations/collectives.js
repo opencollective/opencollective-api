@@ -1,21 +1,21 @@
 import config from 'config';
 import slugify from 'limax';
-import { cloneDeep, get, isEqual, isNil, isUndefined, omit, pick, truncate, uniqWith } from 'lodash';
+import { cloneDeep, get, isEqual, isNil, isUndefined, omit, pick, truncate, uniqWith } from 'lodash-es';
 import { v4 as uuid } from 'uuid';
 
-import activities from '../../../constants/activities';
-import { types } from '../../../constants/collectives';
-import roles from '../../../constants/roles';
-import { purgeCacheForCollective } from '../../../lib/cache';
-import * as collectivelib from '../../../lib/collectivelib';
-import * as github from '../../../lib/github';
-import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
-import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import { defaultHostCollective } from '../../../lib/utils';
-import models, { sequelize } from '../../../models';
-import { SocialLinkType } from '../../../models/SocialLink';
-import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
-import { CollectiveInputType } from '../inputTypes';
+import activities from '../../../constants/activities.js';
+import { types } from '../../../constants/collectives.js';
+import roles from '../../../constants/roles.js';
+import { purgeCacheForCollective } from '../../../lib/cache/index.js';
+import * as collectivelib from '../../../lib/collectivelib.js';
+import * as github from '../../../lib/github.js';
+import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit.js';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication/index.js';
+import { defaultHostCollective } from '../../../lib/utils.js';
+import models, { sequelize } from '../../../models/index.js';
+import { SocialLinkType } from '../../../models/SocialLink.js';
+import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors.js';
+import { CollectiveInputType } from '../inputTypes.js';
 
 const DEFAULT_COLLECTIVE_SETTINGS = {
   features: { conversations: true },

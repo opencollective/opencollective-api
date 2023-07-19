@@ -8,20 +8,20 @@ import {
   GraphQLNonNull,
   GraphQLString,
 } from 'graphql';
-import { pick, size } from 'lodash';
+import { pick, size } from 'lodash-es';
 import { v4 as uuid } from 'uuid';
 
-import activities from '../../../constants/activities';
-import { types as collectiveTypes } from '../../../constants/collectives';
-import expenseStatus from '../../../constants/expense_status';
-import logger from '../../../lib/logger';
-import RateLimit from '../../../lib/rate-limit';
-import { reportErrorToSentry } from '../../../lib/sentry';
-import twoFactorAuthLib from '../../../lib/two-factor-authentication/lib';
-import models from '../../../models';
-import { CommentType } from '../../../models/Comment';
-import ExpenseModel from '../../../models/Expense';
-import { createComment } from '../../common/comment';
+import activities from '../../../constants/activities.js';
+import { types as collectiveTypes } from '../../../constants/collectives.js';
+import expenseStatus from '../../../constants/expense_status.js';
+import logger from '../../../lib/logger.js';
+import RateLimit from '../../../lib/rate-limit.js';
+import { reportErrorToSentry } from '../../../lib/sentry.js';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication/lib.js';
+import models from '../../../models/index.js';
+import { CommentType } from '../../../models/Comment.js';
+import ExpenseModel from '../../../models/Expense.js';
+import { createComment } from '../../common/comment.js';
 import {
   approveExpense,
   canDeleteExpense,
@@ -41,23 +41,23 @@ import {
   scheduleExpenseForPayment,
   unapproveExpense,
   unscheduleExpensePayment,
-} from '../../common/expenses';
-import { checkRemoteUserCanUseExpenses, enforceScope } from '../../common/scope-check';
-import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
-import { GraphQLExpenseProcessAction } from '../enum/ExpenseProcessAction';
-import { GraphQLFeesPayer } from '../enum/FeesPayer';
-import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
-import { GraphQLExpenseCreateInput } from '../input/ExpenseCreateInput';
-import { GraphQLExpenseInviteDraftInput } from '../input/ExpenseInviteDraftInput';
+} from '../../common/expenses.js';
+import { checkRemoteUserCanUseExpenses, enforceScope } from '../../common/scope-check.js';
+import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors.js';
+import { GraphQLExpenseProcessAction } from '../enum/ExpenseProcessAction.js';
+import { GraphQLFeesPayer } from '../enum/FeesPayer.js';
+import { idDecode, IDENTIFIER_TYPES } from '../identifiers.js';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput.js';
+import { GraphQLExpenseCreateInput } from '../input/ExpenseCreateInput.js';
+import { GraphQLExpenseInviteDraftInput } from '../input/ExpenseInviteDraftInput.js';
 import {
   fetchExpenseWithReference,
   getDatabaseIdFromExpenseReference,
   GraphQLExpenseReferenceInput,
-} from '../input/ExpenseReferenceInput';
-import { GraphQLExpenseUpdateInput } from '../input/ExpenseUpdateInput';
-import { GraphQLRecurringExpenseInput } from '../input/RecurringExpenseInput';
-import { GraphQLExpense } from '../object/Expense';
+} from '../input/ExpenseReferenceInput.js';
+import { GraphQLExpenseUpdateInput } from '../input/ExpenseUpdateInput.js';
+import { GraphQLRecurringExpenseInput } from '../input/RecurringExpenseInput.js';
+import { GraphQLExpense } from '../object/Expense.js';
 
 const expenseMutations = {
   createExpense: {

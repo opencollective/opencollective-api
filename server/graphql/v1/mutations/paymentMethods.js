@@ -1,16 +1,16 @@
 import { URLSearchParams } from 'url';
 
-import { pick } from 'lodash';
+import { pick } from 'lodash-es';
 
-import { activities } from '../../../constants';
-import ORDER_STATUS from '../../../constants/order_status';
-import { PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
-import logger from '../../../lib/logger';
-import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models, { Op } from '../../../models';
-import GiftCard from '../../../paymentProviders/opencollective/giftcard';
-import { setupCreditCard } from '../../../paymentProviders/stripe/creditcard';
-import { Forbidden, ValidationFailed } from '../../errors';
+import { activities } from '../../../constants/index.js';
+import ORDER_STATUS from '../../../constants/order_status.js';
+import { PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods.js';
+import logger from '../../../lib/logger.js';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication/index.js';
+import models, { Op } from '../../../models/index.js';
+import GiftCard from '../../../paymentProviders/opencollective/giftcard.js';
+import { setupCreditCard } from '../../../paymentProviders/stripe/creditcard.js';
+import { Forbidden, ValidationFailed } from '../../errors.js';
 
 /** Create a Payment Method through a collective(organization or user)
  *

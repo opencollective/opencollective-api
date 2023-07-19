@@ -1,8 +1,8 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
-import VirtualCardRequest from '../../../models/VirtualCardRequest';
-import { NotFound } from '../../errors';
-import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
+import VirtualCardRequest from '../../../models/VirtualCardRequest.js';
+import { NotFound } from '../../errors.js';
+import { idDecode, IDENTIFIER_TYPES } from '../identifiers.js';
 
 export const GraphQLVirtualCardRequestReferenceInput = new GraphQLInputObjectType({
   name: 'VirtualCardRequestReferenceInput',

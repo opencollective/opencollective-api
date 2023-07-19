@@ -1,26 +1,23 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { cloneDeep, flatten, isEmpty, isNil, pick, uniq } from 'lodash';
+import { cloneDeep, flatten, isEmpty, isNil, pick, uniq } from 'lodash-es';
 
-import { buildSearchConditions } from '../../../../lib/search';
-import models, { Op, sequelize } from '../../../../models';
-import { checkScope } from '../../../common/scope-check';
-import { GraphQLTransactionCollection } from '../../collection/TransactionCollection';
-import { GraphQLPaymentMethodType } from '../../enum/PaymentMethodType';
-import { GraphQLTransactionKind } from '../../enum/TransactionKind';
-import { GraphQLTransactionType } from '../../enum/TransactionType';
+import { buildSearchConditions } from '../../../../lib/search.js';
+import models, { Op, sequelize } from '../../../../models/index.js';
+import { checkScope } from '../../../common/scope-check.js';
+import { GraphQLTransactionCollection } from '../../collection/TransactionCollection.js';
+import { GraphQLPaymentMethodType } from '../../enum/PaymentMethodType.js';
+import { GraphQLTransactionKind } from '../../enum/TransactionKind.js';
+import { GraphQLTransactionType } from '../../enum/TransactionType.js';
 import {
   fetchAccountsWithReferences,
   fetchAccountWithReference,
   GraphQLAccountReferenceInput,
-} from '../../input/AccountReferenceInput';
-import {
-  CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
-  GraphQLChronologicalOrderInput,
-} from '../../input/ChronologicalOrderInput';
-import { GraphQLVirtualCardReferenceInput } from '../../input/VirtualCardReferenceInput';
-import { CollectionArgs, TransactionsCollectionReturnType } from '../../interface/Collection';
+} from '../../input/AccountReferenceInput.js';
+import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, GraphQLChronologicalOrderInput } from '../../input/ChronologicalOrderInput.js';
+import { GraphQLVirtualCardReferenceInput } from '../../input/VirtualCardReferenceInput.js';
+import { CollectionArgs, TransactionsCollectionReturnType } from '../../interface/Collection.js';
 
 export const TransactionsCollectionArgs = {
   limit: { ...CollectionArgs.limit, defaultValue: 100 },

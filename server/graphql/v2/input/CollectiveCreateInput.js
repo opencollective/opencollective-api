@@ -1,7 +1,7 @@
 import { GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
 
-import { GraphQLLocationInput } from './LocationInput';
+import { GraphQLLocationInput } from './LocationInput.js';
 
 export const GraphQLCollectiveCreateInput = new GraphQLInputObjectType({
   name: 'CollectiveCreateInput',

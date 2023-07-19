@@ -1,17 +1,17 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { isNil } from 'lodash';
+import { isNil } from 'lodash-es';
 
-import FEATURE_STATUS from '../../constants/feature-status';
-import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../lib/rate-limit';
-import twoFactorAuthLib from '../../lib/two-factor-authentication';
-import models from '../../models';
-import { bulkCreateGiftCards, createGiftCardsForEmails } from '../../paymentProviders/opencollective/giftcard';
-import { checkCanEmitGiftCards } from '../common/features';
-import { editPublicMessage } from '../common/members';
-import { createUser } from '../common/user';
-import { NotFound, RateLimitExceeded, Unauthorized } from '../errors';
+import FEATURE_STATUS from '../../constants/feature-status.js';
+import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../lib/rate-limit.js';
+import twoFactorAuthLib from '../../lib/two-factor-authentication/index.js';
+import models from '../../models/index.js';
+import { bulkCreateGiftCards, createGiftCardsForEmails } from '../../paymentProviders/opencollective/giftcard.js';
+import { checkCanEmitGiftCards } from '../common/features.js';
+import { editPublicMessage } from '../common/members.js';
+import { createUser } from '../common/user.js';
+import { NotFound, RateLimitExceeded, Unauthorized } from '../errors.js';
 
-import * as backyourstackMutations from './mutations/backyourstack';
+import * as backyourstackMutations from './mutations/backyourstack.js';
 import {
   activateBudget,
   activateCollectiveAsHost,
@@ -23,14 +23,14 @@ import {
   deleteCollective,
   editCollective,
   unarchiveCollective,
-} from './mutations/collectives';
-import { editConnectedAccount } from './mutations/connectedAccounts';
-import { createWebhook, deleteNotification, editWebhooks } from './mutations/notifications';
-import { createOrder } from './mutations/orders';
-import * as paymentMethodsMutation from './mutations/paymentMethods';
-import { editTier, editTiers } from './mutations/tiers';
-import { confirmUserEmail, updateUserEmail } from './mutations/users';
-import { CollectiveInterfaceType } from './CollectiveInterface';
+} from './mutations/collectives.js';
+import { editConnectedAccount } from './mutations/connectedAccounts.js';
+import { createWebhook, deleteNotification, editWebhooks } from './mutations/notifications.js';
+import { createOrder } from './mutations/orders.js';
+import * as paymentMethodsMutation from './mutations/paymentMethods.js';
+import { editTier, editTiers } from './mutations/tiers.js';
+import { confirmUserEmail, updateUserEmail } from './mutations/users.js';
+import { CollectiveInterfaceType } from './CollectiveInterface.js';
 import {
   CollectiveInputType,
   ConnectedAccountInputType,
@@ -40,7 +40,7 @@ import {
   StripeCreditCardDataInputType,
   TierInputType,
   UserInputType,
-} from './inputTypes';
+} from './inputTypes.js';
 import {
   ConnectedAccountType,
   MemberType,
@@ -49,7 +49,7 @@ import {
   PaymentMethodType,
   TierType,
   UserType,
-} from './types';
+} from './types.js';
 
 const mutations = {
   createCollective: {

@@ -1,6 +1,6 @@
 import { DataTypes, InferAttributes, InferCreationAttributes, Model, ModelStatic } from 'sequelize';
 
-import sequelize from '../lib/sequelize';
+import sequelize from '../lib/sequelize.js';
 
 export const LEGAL_DOCUMENT_TYPE = {
   US_TAX_FORM: 'US_TAX_FORM',

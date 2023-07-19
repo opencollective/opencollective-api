@@ -1,13 +1,13 @@
 import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import models, { Op } from '../../../models';
-import { GraphQLAccountCollection } from '../collection/AccountCollection';
-import { CommentCollection } from '../collection/CommentCollection';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
-import { GraphQLAccount } from '../interface/Account';
+import models, { Op } from '../../../models/index.js';
+import { GraphQLAccountCollection } from '../collection/AccountCollection.js';
+import { CommentCollection } from '../collection/CommentCollection.js';
+import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers.js';
+import { GraphQLAccount } from '../interface/Account.js';
 
-import { GraphQLComment } from './Comment';
+import { GraphQLComment } from './Comment.js';
 
 const GraphQLConversation = new GraphQLObjectType({
   name: 'Conversation',

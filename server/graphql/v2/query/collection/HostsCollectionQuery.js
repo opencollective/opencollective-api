@@ -1,10 +1,10 @@
 import { GraphQLList, GraphQLString } from 'graphql';
 
-import { searchCollectivesInDB } from '../../../../lib/search';
-import { GraphQLHostCollection } from '../../collection/HostCollection';
-import { CollectionArgs } from '../../interface/Collection';
+import { searchCollectivesInDB } from '../../../../lib/search.js';
+import { GraphQLHostCollection } from '../../collection/HostCollection.js';
+import { CollectionArgs } from '../../interface/Collection.js';
 
-import { CommonAccountsCollectionQueryArgs } from './AccountsCollectionQuery';
+import { CommonAccountsCollectionQueryArgs } from './AccountsCollectionQuery.js';
 
 const HostsCollectionQuery = {
   type: GraphQLHostCollection,

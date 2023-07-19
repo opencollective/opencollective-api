@@ -1,9 +1,11 @@
+import url from 'url';
+const __dirname = url.fileURLToPath(new url.URL('.', import.meta.url));
 import fs from 'fs';
 import path from 'path';
 
 import debug from 'debug';
 import dotenv from 'dotenv';
-import { get, has, last } from 'lodash';
+import { get, has, last } from 'lodash-es';
 
 if (!process.env.NODE_ENV) {
   process.env.NODE_ENV = 'development';

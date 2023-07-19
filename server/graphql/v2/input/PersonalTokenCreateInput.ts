@@ -1,8 +1,8 @@
 import { GraphQLInputObjectType, GraphQLList, GraphQLString } from 'graphql';
 
-import { GraphQLOAuthScope } from '../enum/OAuthScope';
+import { GraphQLOAuthScope } from '../enum/OAuthScope.js';
 
-import { GraphQLAccountReferenceInput } from './AccountReferenceInput';
+import { GraphQLAccountReferenceInput } from './AccountReferenceInput.js';
 
 export const GraphQLPersonalTokenCreateInput = new GraphQLInputObjectType({
   name: 'PersonalTokenCreateInput',

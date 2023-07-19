@@ -1,9 +1,9 @@
 import { GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
 
-import { GraphQLApplicationType } from '../enum';
-import URL from '../scalar/URL';
+import { GraphQLApplicationType } from '../enum/index.js';
+import URL from '../scalar/URL.js';
 
-import { GraphQLAccountReferenceInput } from './AccountReferenceInput';
+import { GraphQLAccountReferenceInput } from './AccountReferenceInput.js';
 
 export const GraphQLApplicationCreateInput = new GraphQLInputObjectType({
   name: 'ApplicationCreateInput',

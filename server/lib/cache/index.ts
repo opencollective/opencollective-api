@@ -1,15 +1,15 @@
 import config from 'config';
 import debug from 'debug';
-import { get } from 'lodash';
+import { get } from 'lodash-es';
 
-import models from '../../models';
-import { purgeCacheForPage } from '../cloudflare';
-import { invalidateContributorsCache } from '../contributors';
-import logger from '../logger';
-import { md5 } from '../utils';
+import models from '../../models/index.js';
+import { purgeCacheForPage } from '../cloudflare.js';
+import { invalidateContributorsCache } from '../contributors.js';
+import logger from '../logger.js';
+import { md5 } from '../utils.js';
 
-import makeMemoryProvider from './memory';
-import makeRedisProvider from './redis';
+import makeMemoryProvider from './memory.js';
+import makeRedisProvider from './redis.js';
 
 export const PROVIDER_TYPES = {
   MEMORY: 'MEMORY',

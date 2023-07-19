@@ -1,6 +1,6 @@
-import { GraphQLEvent } from '../object/Event';
+import { GraphQLEvent } from '../object/Event.js';
 
-import { buildAccountQuery } from './AccountQuery';
+import { buildAccountQuery } from './AccountQuery.js';
 
 const EventQuery = buildAccountQuery({ objectType: GraphQLEvent });
 

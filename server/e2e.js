@@ -1,10 +1,10 @@
-import './index';
+import './index.js';
 
 // eslint-disable-next-line node/no-unpublished-import
 import { stub } from 'sinon';
 
-import * as github from './lib/github';
-import * as pdf from './lib/pdf';
+import * as github from './lib/github.js';
+import * as pdf from './lib/pdf.js';
 
 // GitHub
 stub(github, 'checkGithubAdmin');

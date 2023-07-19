@@ -9,16 +9,16 @@ import {
   GraphQLNonNull,
   GraphQLString,
 } from 'graphql';
-import { isNil, omit } from 'lodash';
+import { isNil, omit } from 'lodash-es';
 import { OrderItem } from 'sequelize';
 
-import { filterContributors } from '../../../lib/contributors';
-import models, { Collective } from '../../../models';
-import { GraphQLContributorCollection } from '../collection/ContributorCollection';
-import { GraphQLTierCollection } from '../collection/TierCollection';
-import { GraphQLAccountType, GraphQLMemberRole } from '../enum';
+import { filterContributors } from '../../../lib/contributors.js';
+import models, { Collective } from '../../../models/index.js';
+import { GraphQLContributorCollection } from '../collection/ContributorCollection.js';
+import { GraphQLTierCollection } from '../collection/TierCollection.js';
+import { GraphQLAccountType, GraphQLMemberRole } from '../enum/index.js';
 
-import { CollectionArgs } from './Collection';
+import { CollectionArgs } from './Collection.js';
 
 export const AccountWithContributionsFields = {
   totalFinancialContributors: {

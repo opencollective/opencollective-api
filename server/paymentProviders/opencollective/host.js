@@ -1,10 +1,10 @@
-import { maxInteger } from '../../constants/math';
-import { TransactionKind } from '../../constants/transaction-kind';
-import { TransactionTypes } from '../../constants/transactions';
-import { getFxRate } from '../../lib/currency';
-import { createRefundTransaction, getHostFee, getHostFeeSharePercent } from '../../lib/payments';
-import { formatCurrency } from '../../lib/utils';
-import models from '../../models';
+import { maxInteger } from '../../constants/math.js';
+import { TransactionKind } from '../../constants/transaction-kind.js';
+import { TransactionTypes } from '../../constants/transactions.js';
+import { getFxRate } from '../../lib/currency.js';
+import { createRefundTransaction, getHostFee, getHostFeeSharePercent } from '../../lib/payments.js';
+import { formatCurrency } from '../../lib/utils.js';
+import models from '../../models/index.js';
 
 const paymentMethodProvider = {};
 

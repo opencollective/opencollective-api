@@ -10,29 +10,29 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLJSON, GraphQLNonEmptyString } from 'graphql-scalars';
-import { cloneDeep, isNull, omitBy, set } from 'lodash';
+import { cloneDeep, isNull, omitBy, set } from 'lodash-es';
 
-import activities from '../../../constants/activities';
-import { types as COLLECTIVE_TYPE } from '../../../constants/collectives';
-import * as collectivelib from '../../../lib/collectivelib';
-import { crypto } from '../../../lib/encryption';
-import TwoFactorAuthLib, { TwoFactorMethod } from '../../../lib/two-factor-authentication';
-import { validateYubikeyOTP } from '../../../lib/two-factor-authentication/yubikey-otp';
-import models, { sequelize } from '../../../models';
-import UserTwoFactorMethod from '../../../models/UserTwoFactorMethod';
-import { sendMessage } from '../../common/collective';
-import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseHost } from '../../common/scope-check';
-import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
-import { AccountTypeToModelMapping } from '../enum/AccountType';
-import { GraphQLTwoFactorMethodEnum } from '../enum/TwoFactorMethodEnum';
-import { idDecode } from '../identifiers';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
-import { GraphQLAccountUpdateInput } from '../input/AccountUpdateInput';
-import { GraphQLPoliciesInput } from '../input/PoliciesInput';
-import { GraphQLAccount } from '../interface/Account';
-import { GraphQLHost } from '../object/Host';
-import { GraphQLIndividual } from '../object/Individual';
-import GraphQLAccountSettingsKey from '../scalar/AccountSettingsKey';
+import activities from '../../../constants/activities.js';
+import { types as COLLECTIVE_TYPE } from '../../../constants/collectives.js';
+import * as collectivelib from '../../../lib/collectivelib.js';
+import { crypto } from '../../../lib/encryption.js';
+import TwoFactorAuthLib, { TwoFactorMethod } from '../../../lib/two-factor-authentication/index.js';
+import { validateYubikeyOTP } from '../../../lib/two-factor-authentication/yubikey-otp.js';
+import models, { sequelize } from '../../../models/index.js';
+import UserTwoFactorMethod from '../../../models/UserTwoFactorMethod.js';
+import { sendMessage } from '../../common/collective.js';
+import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseHost } from '../../common/scope-check.js';
+import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors.js';
+import { AccountTypeToModelMapping } from '../enum/AccountType.js';
+import { GraphQLTwoFactorMethodEnum } from '../enum/TwoFactorMethodEnum.js';
+import { idDecode } from '../identifiers.js';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput.js';
+import { GraphQLAccountUpdateInput } from '../input/AccountUpdateInput.js';
+import { GraphQLPoliciesInput } from '../input/PoliciesInput.js';
+import { GraphQLAccount } from '../interface/Account.js';
+import { GraphQLHost } from '../object/Host.js';
+import { GraphQLIndividual } from '../object/Individual.js';
+import GraphQLAccountSettingsKey from '../scalar/AccountSettingsKey.js';
 
 const GraphQLAddTwoFactorAuthTokenToIndividualResponse = new GraphQLObjectType({
   name: 'AddTwoFactorAuthTokenToIndividualResponse',

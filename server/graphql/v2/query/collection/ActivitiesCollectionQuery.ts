@@ -1,16 +1,16 @@
 import { GraphQLList, GraphQLNonNull } from 'graphql';
-import { GraphQLBoolean } from 'graphql/type';
+import { GraphQLBoolean } from 'graphql/type/index.mjs';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { flatten, uniq } from 'lodash';
+import { flatten, uniq } from 'lodash-es';
 import { Order } from 'sequelize';
 
-import ActivityTypes, { ActivitiesPerClass } from '../../../../constants/activities';
-import models, { Op } from '../../../../models';
-import { checkRemoteUserCanUseAccount } from '../../../common/scope-check';
-import { GraphQLActivityCollection } from '../../collection/ActivityCollection';
-import { GraphQLActivityAndClassesType } from '../../enum/ActivityType';
-import { fetchAccountsWithReferences, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
-import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
+import ActivityTypes, { ActivitiesPerClass } from '../../../../constants/activities.js';
+import models, { Op } from '../../../../models/index.js';
+import { checkRemoteUserCanUseAccount } from '../../../common/scope-check.js';
+import { GraphQLActivityCollection } from '../../collection/ActivityCollection.js';
+import { GraphQLActivityAndClassesType } from '../../enum/ActivityType.js';
+import { fetchAccountsWithReferences, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput.js';
+import { CollectionArgs, CollectionReturnType } from '../../interface/Collection.js';
 
 const IGNORED_ACTIVITIES: string[] = [ActivityTypes.COLLECTIVE_TRANSACTION_CREATED]; // This activity is creating a lot of noise, is usually covered already by orders/expenses activities and is not properly categorized (see https://github.com/opencollective/opencollective/issues/5903)
 

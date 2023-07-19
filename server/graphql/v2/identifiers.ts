@@ -1,9 +1,9 @@
 import crypto from 'crypto';
 
 import config from 'config';
-import Hashids from 'hashids/cjs';
+import Hashids from 'hashids/cjs/index.js';
 
-import { BadRequest } from '../errors';
+import { BadRequest } from '../errors.js';
 
 const alphabet = '1234567890abcdefghijklmnopqrstuvwxyz';
 

@@ -9,41 +9,41 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { pick, round, takeRightWhile, uniq } from 'lodash';
+import { pick, round, takeRightWhile, uniq } from 'lodash-es';
 
-import ActivityTypes from '../../../constants/activities';
-import expenseStatus from '../../../constants/expense_status';
-import models, { Activity } from '../../../models';
-import { CommentType } from '../../../models/Comment';
-import ExpenseModel from '../../../models/Expense';
-import { LEGAL_DOCUMENT_TYPE } from '../../../models/LegalDocument';
-import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
-import * as ExpenseLib from '../../common/expenses';
-import { CommentCollection } from '../collection/CommentCollection';
-import { GraphQLCurrency } from '../enum';
-import { GraphQLExpenseCurrencySource } from '../enum/ExpenseCurrencySource';
-import GraphQLExpenseStatus from '../enum/ExpenseStatus';
-import { GraphQLExpenseType } from '../enum/ExpenseType';
-import { GraphQLFeesPayer } from '../enum/FeesPayer';
-import { GraphQLLegalDocumentType } from '../enum/LegalDocumentType';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
-import { GraphQLChronologicalOrderInput } from '../input/ChronologicalOrderInput';
-import { GraphQLAccount } from '../interface/Account';
-import { CollectionArgs } from '../interface/Collection';
+import ActivityTypes from '../../../constants/activities.js';
+import expenseStatus from '../../../constants/expense_status.js';
+import models, { Activity } from '../../../models/index.js';
+import { CommentType } from '../../../models/Comment.js';
+import ExpenseModel from '../../../models/Expense.js';
+import { LEGAL_DOCUMENT_TYPE } from '../../../models/LegalDocument.js';
+import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions.js';
+import * as ExpenseLib from '../../common/expenses.js';
+import { CommentCollection } from '../collection/CommentCollection.js';
+import { GraphQLCurrency } from '../enum/index.js';
+import { GraphQLExpenseCurrencySource } from '../enum/ExpenseCurrencySource.js';
+import GraphQLExpenseStatus from '../enum/ExpenseStatus.js';
+import { GraphQLExpenseType } from '../enum/ExpenseType.js';
+import { GraphQLFeesPayer } from '../enum/FeesPayer.js';
+import { GraphQLLegalDocumentType } from '../enum/LegalDocumentType.js';
+import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers.js';
+import { GraphQLChronologicalOrderInput } from '../input/ChronologicalOrderInput.js';
+import { GraphQLAccount } from '../interface/Account.js';
+import { CollectionArgs } from '../interface/Collection.js';
 
-import { GraphQLActivity } from './Activity';
-import { GraphQLAmount } from './Amount';
-import GraphQLExpenseAttachedFile from './ExpenseAttachedFile';
-import GraphQLExpenseItem from './ExpenseItem';
-import GraphQLExpensePermissions from './ExpensePermissions';
-import GraphQLExpenseQuote from './ExpenseQuote';
-import { GraphQLHost } from './Host';
-import { GraphQLLocation } from './Location';
-import GraphQLPayoutMethod from './PayoutMethod';
-import GraphQLRecurringExpense from './RecurringExpense';
-import { GraphQLSecurityCheck } from './SecurityCheck';
-import { GraphQLTaxInfo } from './TaxInfo';
-import { GraphQLVirtualCard } from './VirtualCard';
+import { GraphQLActivity } from './Activity.js';
+import { GraphQLAmount } from './Amount.js';
+import GraphQLExpenseAttachedFile from './ExpenseAttachedFile.js';
+import GraphQLExpenseItem from './ExpenseItem.js';
+import GraphQLExpensePermissions from './ExpensePermissions.js';
+import GraphQLExpenseQuote from './ExpenseQuote.js';
+import { GraphQLHost } from './Host.js';
+import { GraphQLLocation } from './Location.js';
+import GraphQLPayoutMethod from './PayoutMethod.js';
+import GraphQLRecurringExpense from './RecurringExpense.js';
+import { GraphQLSecurityCheck } from './SecurityCheck.js';
+import { GraphQLTaxInfo } from './TaxInfo.js';
+import { GraphQLVirtualCard } from './VirtualCard.js';
 
 const EXPENSE_DRAFT_PUBLIC_FIELDS = [
   'taxes',

@@ -1,11 +1,13 @@
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
 /* eslint-disable node/no-extraneous-require */
 /* eslint-disable node/no-unpublished-require */
 /* eslint-disable @typescript-eslint/no-var-requires */
 
 import config from 'config';
 
-import logger from './lib/logger';
-import { parseToBoolean } from './lib/utils';
+import logger from './lib/logger.js';
+import { parseToBoolean } from './lib/utils.js';
 
 if (parseToBoolean(config.opentelemetry.enabled)) {
   logger.info('opentelemetry tracing enabled');

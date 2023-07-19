@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
-import { ExpenseFeesPayer } from '../../../constants/expense-fees-payer';
+import { ExpenseFeesPayer } from '../../../constants/expense-fees-payer.js';
 
 export const GraphQLFeesPayer = new GraphQLEnumType({
   name: 'FeesPayer',

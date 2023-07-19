@@ -1,6 +1,6 @@
 import { GraphQLInt, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 
-import { GraphQLAmount } from './Amount';
+import { GraphQLAmount } from './Amount.js';
 
 export const GraphQLExpenseStats = new GraphQLObjectType({
   name: 'ExpenseStats',

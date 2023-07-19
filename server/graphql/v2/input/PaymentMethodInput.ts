@@ -1,17 +1,17 @@
 import { GraphQLBoolean, GraphQLInputFieldConfigMap, GraphQLInputObjectType, GraphQLString } from 'graphql';
-import { pick } from 'lodash';
+import { pick } from 'lodash-es';
 import moment from 'moment';
 
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
-import stripe from '../../../lib/stripe';
-import { GraphQLPaymentMethodLegacyType } from '../enum';
-import { getServiceTypeFromLegacyPaymentMethodType } from '../enum/PaymentMethodLegacyType';
-import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
-import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods.js';
+import stripe from '../../../lib/stripe.js';
+import { GraphQLPaymentMethodLegacyType } from '../enum/index.js';
+import { getServiceTypeFromLegacyPaymentMethodType } from '../enum/PaymentMethodLegacyType.js';
+import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService.js';
+import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType.js';
 
-import { GraphQLCreditCardCreateInput } from './CreditCardCreateInput';
-import { fetchPaymentMethodWithReference } from './PaymentMethodReferenceInput';
-import { GraphQLPaypalPaymentInput } from './PaypalPaymentInput';
+import { GraphQLCreditCardCreateInput } from './CreditCardCreateInput.js';
+import { fetchPaymentMethodWithReference } from './PaymentMethodReferenceInput.js';
+import { GraphQLPaypalPaymentInput } from './PaypalPaymentInput.js';
 
 export const GraphQLPaymentMethodInput = new GraphQLInputObjectType({
   name: 'PaymentMethodInput',

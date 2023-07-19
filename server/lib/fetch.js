@@ -1,7 +1,7 @@
-import { get } from 'lodash';
+import { get } from 'lodash-es';
 import fetch from 'node-fetch';
 
-import logger from './logger';
+import logger from './logger.js';
 
 /**
  * Make a fetch call with a timeout. Returns a thenable Promise.

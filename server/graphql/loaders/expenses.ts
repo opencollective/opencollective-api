@@ -1,17 +1,17 @@
 import DataLoader from 'dataloader';
-import { groupBy } from 'lodash';
+import { groupBy } from 'lodash-es';
 
-import ACTIVITY from '../../constants/activities';
-import { TransactionKind } from '../../constants/transaction-kind';
-import queries from '../../lib/queries';
-import { checkExpensesBatch } from '../../lib/security/expense';
-import models, { Op, sequelize } from '../../models';
-import { Activity } from '../../models/Activity';
-import Expense from '../../models/Expense';
-import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile';
-import { ExpenseItem } from '../../models/ExpenseItem';
+import ACTIVITY from '../../constants/activities.js';
+import { TransactionKind } from '../../constants/transaction-kind.js';
+import queries from '../../lib/queries.js';
+import { checkExpensesBatch } from '../../lib/security/expense.js';
+import models, { Op, sequelize } from '../../models/index.js';
+import { Activity } from '../../models/Activity.js';
+import Expense from '../../models/Expense.js';
+import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile.js';
+import { ExpenseItem } from '../../models/ExpenseItem.js';
 
-import { populateModelAssociations, sortResultsArray } from './helpers';
+import { populateModelAssociations, sortResultsArray } from './helpers.js';
 
 /**
  * Loader for expense's items.

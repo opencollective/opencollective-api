@@ -1,7 +1,7 @@
 import { GraphQLNonNull } from 'graphql';
 
-import { fetchOrderWithReference, GraphQLOrderReferenceInput } from '../input/OrderReferenceInput';
-import { GraphQLOrder } from '../object/Order';
+import { fetchOrderWithReference, GraphQLOrderReferenceInput } from '../input/OrderReferenceInput.js';
+import { GraphQLOrder } from '../object/Order.js';
 
 const OrderQuery = {
   type: GraphQLOrder,

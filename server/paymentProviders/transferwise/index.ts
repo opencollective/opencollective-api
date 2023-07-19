@@ -4,23 +4,35 @@ import crypto from 'crypto';
 import { isMemberOfTheEuropeanUnion } from '@opencollective/taxes';
 import config from 'config';
 import express from 'express';
-import { cloneDeep, compact, difference, find, get, has, omit, pick, set, split, toNumber } from 'lodash';
+import {
+  cloneDeep,
+  compact,
+  difference,
+  find,
+  get,
+  has,
+  omit,
+  pick,
+  set,
+  split,
+  toNumber,
+} from 'lodash-es';
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
-import activities from '../../constants/activities';
-import status from '../../constants/expense_status';
-import { TransferwiseError } from '../../graphql/errors';
-import cache from '../../lib/cache';
-import { getFxRate } from '../../lib/currency';
-import logger from '../../lib/logger';
-import { centsAmountToFloat } from '../../lib/math';
-import { reportErrorToSentry } from '../../lib/sentry';
-import * as transferwise from '../../lib/transferwise';
-import models, { Collective, sequelize } from '../../models';
-import { ConnectedAccount } from '../../models/ConnectedAccount';
-import Expense from '../../models/Expense';
-import PayoutMethod from '../../models/PayoutMethod';
+import activities from '../../constants/activities.js';
+import status from '../../constants/expense_status.js';
+import { TransferwiseError } from '../../graphql/errors.js';
+import cache from '../../lib/cache/index.js';
+import { getFxRate } from '../../lib/currency.js';
+import logger from '../../lib/logger.js';
+import { centsAmountToFloat } from '../../lib/math.js';
+import { reportErrorToSentry } from '../../lib/sentry.js';
+import * as transferwise from '../../lib/transferwise.js';
+import models, { Collective, sequelize } from '../../models/index.js';
+import { ConnectedAccount } from '../../models/ConnectedAccount.js';
+import Expense from '../../models/Expense.js';
+import PayoutMethod from '../../models/PayoutMethod.js';
 import {
   BalanceV4,
   BatchGroup,
@@ -30,9 +42,9 @@ import {
   RecipientAccount,
   TransactionRequirementsType,
   Transfer,
-} from '../../types/transferwise';
+} from '../../types/transferwise.js';
 
-import { handleTransferStateChange } from './webhook';
+import { handleTransferStateChange } from './webhook.js';
 
 const PROVIDER_NAME = 'transferwise';
 

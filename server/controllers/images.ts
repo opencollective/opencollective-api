@@ -1,7 +1,7 @@
-import s3 from '../lib/awsS3';
-import errors from '../lib/errors';
-import UploadedFile, { SUPPORTED_FILE_KINDS, SUPPORTED_FILE_TYPES } from '../models/UploadedFile';
-import { MulterFile } from '../types/Multer';
+import s3 from '../lib/awsS3.js';
+import errors from '../lib/errors.js';
+import UploadedFile, { SUPPORTED_FILE_KINDS, SUPPORTED_FILE_TYPES } from '../models/UploadedFile.js';
+import { MulterFile } from '../types/Multer.js';
 
 // Use a 2 minutes timeout for image upload requests as the default 25 seconds
 // often leads to failing requests.

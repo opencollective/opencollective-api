@@ -1,3 +1,5 @@
+import url from 'url';
+const __dirname = url.fileURLToPath(new url.URL('.', import.meta.url));
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -6,12 +8,11 @@ import { URL } from 'url';
 import config from 'config';
 import fastRedact from 'fast-redact';
 import pdf from 'html-pdf';
-import { filter, get, isEqual, padStart, sumBy } from 'lodash';
+import { filter, get, isEqual, padStart, sumBy } from 'lodash-es';
 import pFilter from 'p-filter';
 
-import { ZERO_DECIMAL_CURRENCIES } from '../constants/currencies';
-
-import handlebars from './handlebars';
+import { ZERO_DECIMAL_CURRENCIES } from '../constants/currencies.js';
+import handlebars from './handlebars.js';
 
 export function addParamsToUrl(url, obj) {
   const u = new URL(url);

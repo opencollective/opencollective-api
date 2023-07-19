@@ -1,9 +1,9 @@
 import { GraphQLFloat, GraphQLObjectType } from 'graphql';
-import { isNil } from 'lodash';
+import { isNil } from 'lodash-es';
 
-import { GraphQLCurrency } from '../enum/Currency';
+import { GraphQLCurrency } from '../enum/Currency.js';
 
-import GraphQLCurrencyExchangeRate from './CurrencyExchangeRate';
+import GraphQLCurrencyExchangeRate from './CurrencyExchangeRate.js';
 
 export const GraphQLAmount = new GraphQLObjectType({
   name: 'Amount',

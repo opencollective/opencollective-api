@@ -1,7 +1,7 @@
-import models from '../models';
-import { OrderModelInterface } from '../models/Order';
-import User from '../models/User';
-import VirtualCardModel from '../models/VirtualCard';
+import models from '../models/index.js';
+import { OrderModelInterface } from '../models/Order.js';
+import User from '../models/User.js';
+import VirtualCardModel from '../models/VirtualCard.js';
 
 export interface PaymentProvider {
   /**

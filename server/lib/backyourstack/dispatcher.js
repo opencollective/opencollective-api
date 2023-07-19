@@ -1,15 +1,15 @@
 import debugLib from 'debug';
-import { pick } from 'lodash';
+import { pick } from 'lodash-es';
 import moment from 'moment';
 import fetch from 'node-fetch';
 import map from 'p-map';
 import { v4 as uuid } from 'uuid';
 
-import activities from '../../constants/activities';
-import status from '../../constants/order_status';
-import models from '../../models';
-import * as paymentsLib from '../payments';
-import { reportErrorToSentry } from '../sentry';
+import activities from '../../constants/activities.js';
+import status from '../../constants/order_status.js';
+import models from '../../models/index.js';
+import * as paymentsLib from '../payments.js';
+import { reportErrorToSentry } from '../sentry.js';
 
 const debug = debugLib('backyourstack');
 

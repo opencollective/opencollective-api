@@ -22,52 +22,55 @@ import {
   size,
   sumBy,
   uniq,
-} from 'lodash';
+} from 'lodash-es';
 import moment from 'moment';
 
-import { activities, roles } from '../../constants';
-import ActivityTypes from '../../constants/activities';
-import { types as collectiveTypes } from '../../constants/collectives';
-import statuses from '../../constants/expense_status';
-import EXPENSE_TYPE from '../../constants/expense_type';
-import { ExpenseFeesPayer } from '../../constants/expense-fees-payer';
-import FEATURE from '../../constants/feature';
-import { EXPENSE_PERMISSION_ERROR_CODES } from '../../constants/permissions';
-import POLICIES from '../../constants/policies';
-import { TransactionKind } from '../../constants/transaction-kind';
-import cache from '../../lib/cache';
-import { convertToCurrency, getFxRate } from '../../lib/currency';
-import { simulateDBEntriesDiff } from '../../lib/data';
-import errors from '../../lib/errors';
-import { formatAddress } from '../../lib/format-address';
-import logger from '../../lib/logger';
-import { floatAmountToCents } from '../../lib/math';
-import * as libPayments from '../../lib/payments';
-import { listPayPalTransactions } from '../../lib/paypal';
-import { getPolicy } from '../../lib/policies';
-import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
-import { notifyTeamAboutSpamExpense } from '../../lib/spam';
-import { createTransactionsForManuallyPaidExpense, createTransactionsFromPaidExpense } from '../../lib/transactions';
-import twoFactorAuthLib from '../../lib/two-factor-authentication';
-import { canUseFeature } from '../../lib/user-permissions';
-import { formatCurrency, parseToBoolean } from '../../lib/utils';
-import models, { Collective, sequelize } from '../../models';
-import Expense from '../../models/Expense';
-import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile';
-import { ExpenseItem } from '../../models/ExpenseItem';
-import { MigrationLogType } from '../../models/MigrationLog';
-import { PayoutMethodTypes } from '../../models/PayoutMethod';
-import User from '../../models/User';
-import paymentProviders from '../../paymentProviders';
-import paypalAdaptive from '../../paymentProviders/paypal/adaptiveGateway';
-import { Location } from '../../types/Location';
+import { activities, roles } from '../../constants/index.js';
+import ActivityTypes from '../../constants/activities.js';
+import { types as collectiveTypes } from '../../constants/collectives.js';
+import statuses from '../../constants/expense_status.js';
+import EXPENSE_TYPE from '../../constants/expense_type.js';
+import { ExpenseFeesPayer } from '../../constants/expense-fees-payer.js';
+import FEATURE from '../../constants/feature.js';
+import { EXPENSE_PERMISSION_ERROR_CODES } from '../../constants/permissions.js';
+import POLICIES from '../../constants/policies.js';
+import { TransactionKind } from '../../constants/transaction-kind.js';
+import cache from '../../lib/cache/index.js';
+import { convertToCurrency, getFxRate } from '../../lib/currency.js';
+import { simulateDBEntriesDiff } from '../../lib/data.js';
+import errors from '../../lib/errors.js';
+import { formatAddress } from '../../lib/format-address.js';
+import logger from '../../lib/logger.js';
+import { floatAmountToCents } from '../../lib/math.js';
+import * as libPayments from '../../lib/payments.js';
+import { listPayPalTransactions } from '../../lib/paypal.js';
+import { getPolicy } from '../../lib/policies.js';
+import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry.js';
+import { notifyTeamAboutSpamExpense } from '../../lib/spam.js';
+import {
+  createTransactionsForManuallyPaidExpense,
+  createTransactionsFromPaidExpense,
+} from '../../lib/transactions.js';
+import twoFactorAuthLib from '../../lib/two-factor-authentication/index.js';
+import { canUseFeature } from '../../lib/user-permissions.js';
+import { formatCurrency, parseToBoolean } from '../../lib/utils.js';
+import models, { Collective, sequelize } from '../../models/index.js';
+import Expense from '../../models/Expense.js';
+import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile.js';
+import { ExpenseItem } from '../../models/ExpenseItem.js';
+import { MigrationLogType } from '../../models/MigrationLog.js';
+import { PayoutMethodTypes } from '../../models/PayoutMethod.js';
+import User from '../../models/User.js';
+import paymentProviders from '../../paymentProviders/index.js';
+import paypalAdaptive from '../../paymentProviders/paypal/adaptiveGateway.js';
+import { Location } from '../../types/Location.js';
 import {
   Quote as WiseQuote,
   QuoteV2 as WiseQuoteV2,
   RecipientAccount as BankAccountPayoutMethodData,
   Transfer as WiseTransfer,
-} from '../../types/transferwise';
-import { createUser } from '../common/user';
+} from '../../types/transferwise.js';
+import { createUser } from '../common/user.js';
 import {
   BadRequest,
   FeatureNotAllowedForUser,
@@ -76,11 +79,11 @@ import {
   NotFound,
   Unauthorized,
   ValidationFailed,
-} from '../errors';
-import { CurrencyExchangeRateSourceTypeEnum } from '../v2/enum/CurrencyExchangeRateSourceType';
+} from '../errors.js';
+import { CurrencyExchangeRateSourceTypeEnum } from '../v2/enum/CurrencyExchangeRateSourceType.js';
 
-import { getContextPermission, PERMISSION_TYPE } from './context-permissions';
-import { checkRemoteUserCanRoot } from './scope-check';
+import { getContextPermission, PERMISSION_TYPE } from './context-permissions.js';
+import { checkRemoteUserCanRoot } from './scope-check.js';
 
 const debug = debugLib('expenses');
 

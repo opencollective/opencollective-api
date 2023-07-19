@@ -1,6 +1,6 @@
-import { GraphQLHost } from '../object/Host';
+import { GraphQLHost } from '../object/Host.js';
 
-import { buildAccountQuery } from './AccountQuery';
+import { buildAccountQuery } from './AccountQuery.js';
 
 const HostQuery = buildAccountQuery({ objectType: GraphQLHost });
 

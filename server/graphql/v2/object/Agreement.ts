@@ -2,12 +2,12 @@ import express from 'express';
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import AgreementModel from '../../../models/Agreement';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
-import { GraphQLAccount } from '../interface/Account';
-import { GraphQLFileInfo } from '../interface/FileInfo';
+import AgreementModel from '../../../models/Agreement.js';
+import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers.js';
+import { GraphQLAccount } from '../interface/Account.js';
+import { GraphQLFileInfo } from '../interface/FileInfo.js';
 
-import { GraphQLHost } from './Host';
+import { GraphQLHost } from './Host.js';
 
 export const GraphQLAgreement = new GraphQLObjectType<AgreementModel, express.Request>({
   name: 'Agreement',

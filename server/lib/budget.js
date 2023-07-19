@@ -1,12 +1,12 @@
 import config from 'config';
-import { difference } from 'lodash';
+import { difference } from 'lodash-es';
 
-import expenseStatus from '../constants/expense_status';
-import { TransactionTypes } from '../constants/transactions';
-import models, { Op, sequelize } from '../models';
+import expenseStatus from '../constants/expense_status.js';
+import { TransactionTypes } from '../constants/transactions.js';
+import models, { Op, sequelize } from '../models/index.js';
 
-import { getFxRate } from './currency';
-import { parseToBoolean } from './utils';
+import { getFxRate } from './currency.js';
+import { parseToBoolean } from './utils.js';
 
 const { CREDIT, DEBIT } = TransactionTypes;
 const { PROCESSING, SCHEDULED_FOR_PAYMENT } = expenseStatus;

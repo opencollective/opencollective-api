@@ -1,6 +1,6 @@
 import { InferAttributes } from 'sequelize';
 
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import sequelize, { DataTypes, Model } from '../lib/sequelize.js';
 
 export interface PaypalProductCreateAttributes {
   id: string;

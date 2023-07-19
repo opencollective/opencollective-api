@@ -1,4 +1,4 @@
-import { compact, mapValues, values } from 'lodash';
+import { compact, mapValues, values } from 'lodash-es';
 
 const plans = {
   // Legacy Plans (automatically set for accounts created before 2020)

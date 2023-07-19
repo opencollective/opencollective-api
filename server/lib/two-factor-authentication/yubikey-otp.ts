@@ -1,10 +1,10 @@
 import crypto from 'crypto';
 
-import { ApolloError } from '../../graphql/errors';
-import User from '../../models/User';
-import UserTwoFactorMethod from '../../models/UserTwoFactorMethod';
+import { ApolloError } from '../../graphql/errors.js';
+import User from '../../models/User.js';
+import UserTwoFactorMethod from '../../models/UserTwoFactorMethod.js';
 
-import { Token, TwoFactorMethod } from './lib';
+import { Token, TwoFactorMethod } from './lib.js';
 
 export default {
   async validateToken(user: User, token: Token): Promise<void> {

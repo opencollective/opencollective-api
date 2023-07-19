@@ -1,17 +1,17 @@
-import { isEmpty, keys, pick } from 'lodash';
+import { isEmpty, keys, pick } from 'lodash-es';
 import moment from 'moment';
 
-import INTERVALS from '../constants/intervals';
-import OrderStatus from '../constants/order_status';
-import { Unauthorized } from '../graphql/errors';
-import { sequelize } from '../models';
-import { MemberModelInterface } from '../models/Member';
-import { OrderModelInterface } from '../models/Order';
-import { PaymentMethodModelInterface } from '../models/PaymentMethod';
-import Tier from '../models/Tier';
-import User from '../models/User';
+import INTERVALS from '../constants/intervals.js';
+import OrderStatus from '../constants/order_status.js';
+import { Unauthorized } from '../graphql/errors.js';
+import { sequelize } from '../models/index.js';
+import { MemberModelInterface } from '../models/Member.js';
+import { OrderModelInterface } from '../models/Order.js';
+import { PaymentMethodModelInterface } from '../models/PaymentMethod.js';
+import Tier from '../models/Tier.js';
+import User from '../models/User.js';
 
-import { findPaymentMethodProvider } from './payments';
+import { findPaymentMethodProvider } from './payments.js';
 
 const getIsSubscriptionManagedExternally = pm => {
   const provider = findPaymentMethodProvider(pm);

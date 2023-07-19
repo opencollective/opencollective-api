@@ -1,4 +1,4 @@
-import { TransactionKind } from './transaction-kind';
+import { TransactionKind } from './transaction-kind.js';
 
 /** Types of Transactions */
 export const TransactionTypes = {

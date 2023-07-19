@@ -2,10 +2,10 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
 
-import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
-import { checkScope } from '../../common/scope-check';
-import { GraphQLPayoutMethodType } from '../enum/PayoutMethodType';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions.js';
+import { checkScope } from '../../common/scope-check.js';
+import { GraphQLPayoutMethodType } from '../enum/PayoutMethodType.js';
+import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers.js';
 
 const GraphQLPayoutMethod = new GraphQLObjectType({
   name: 'PayoutMethod',

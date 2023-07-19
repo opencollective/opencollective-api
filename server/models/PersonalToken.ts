@@ -2,11 +2,11 @@ import { randomBytes } from 'crypto';
 
 import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
 
-import oAuthScopes from '../constants/oauth-scopes';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import oAuthScopes from '../constants/oauth-scopes.js';
+import sequelize, { DataTypes, Model } from '../lib/sequelize.js';
 
-import User from './User';
-import models from '.';
+import User from './User.js';
+import models from './index.js';
 
 class PersonalToken extends Model<InferAttributes<PersonalToken>, InferCreationAttributes<PersonalToken>> {
   public declare readonly id: CreationOptional<number>;

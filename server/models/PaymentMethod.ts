@@ -1,27 +1,27 @@
 import config from 'config';
 import debugLib from 'debug';
-import { get, intersection } from 'lodash';
+import { get, intersection } from 'lodash-es';
 import { InferAttributes, InferCreationAttributes, Model, ModelStatic } from 'sequelize';
 
-import { maxInteger } from '../constants/math';
+import { maxInteger } from '../constants/math.js';
 import {
   PAYMENT_METHOD_SERVICE,
   PAYMENT_METHOD_SERVICES,
   PAYMENT_METHOD_TYPE,
   PAYMENT_METHOD_TYPES,
-} from '../constants/paymentMethods';
-import { TransactionTypes } from '../constants/transactions';
-import { getFxRate } from '../lib/currency';
-import { sumTransactions } from '../lib/hostlib';
-import * as libpayments from '../lib/payments';
-import { reportMessageToSentry } from '../lib/sentry';
-import sequelize, { DataTypes, Op } from '../lib/sequelize';
-import { isTestToken } from '../lib/stripe';
-import { sanitizeTags } from '../lib/tags';
-import { formatArrayToString, formatCurrency } from '../lib/utils';
+} from '../constants/paymentMethods.js';
+import { TransactionTypes } from '../constants/transactions.js';
+import { getFxRate } from '../lib/currency.js';
+import { sumTransactions } from '../lib/hostlib.js';
+import * as libpayments from '../lib/payments.js';
+import { reportMessageToSentry } from '../lib/sentry.js';
+import sequelize, { DataTypes, Op } from '../lib/sequelize.js';
+import { isTestToken } from '../lib/stripe.js';
+import { sanitizeTags } from '../lib/tags.js';
+import { formatArrayToString, formatCurrency } from '../lib/utils.js';
 
-import Collective from './Collective';
-import CustomDataTypes from './DataTypes';
+import Collective from './Collective.js';
+import CustomDataTypes from './DataTypes.js';
 
 const debug = debugLib('models:PaymentMethod');
 

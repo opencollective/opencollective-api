@@ -1,9 +1,9 @@
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 
-import models from '../../../models';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
-import { CollectionArgs, CollectionFields, GraphQLCollection } from '../interface/Collection';
-import { GraphQLWebhook } from '../object/Webhook';
+import models from '../../../models/index.js';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput.js';
+import { CollectionArgs, CollectionFields, GraphQLCollection } from '../interface/Collection.js';
+import { GraphQLWebhook } from '../object/Webhook.js';
 
 export const GraphQLWebhookCollection = new GraphQLObjectType({
   name: 'WebhookCollection',

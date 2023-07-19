@@ -7,15 +7,15 @@ import {
 } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
 
-import { GraphQLCurrency } from '../enum';
-import { GraphQLExpenseType } from '../enum/ExpenseType';
+import { GraphQLCurrency } from '../enum/index.js';
+import { GraphQLExpenseType } from '../enum/ExpenseType.js';
 
-import { GraphQLAccountReferenceInput } from './AccountReferenceInput';
-import { GraphQLExpenseAttachedFileInput } from './ExpenseAttachedFileInput';
-import { GraphQLExpenseItemCreateInput } from './ExpenseItemCreateInput';
-import { GraphQLExpenseTaxInput } from './ExpenseTaxInput';
-import { GraphQLLocationInput } from './LocationInput';
-import { GraphQLPayoutMethodInput } from './PayoutMethodInput';
+import { GraphQLAccountReferenceInput } from './AccountReferenceInput.js';
+import { GraphQLExpenseAttachedFileInput } from './ExpenseAttachedFileInput.js';
+import { GraphQLExpenseItemCreateInput } from './ExpenseItemCreateInput.js';
+import { GraphQLExpenseTaxInput } from './ExpenseTaxInput.js';
+import { GraphQLLocationInput } from './LocationInput.js';
+import { GraphQLPayoutMethodInput } from './PayoutMethodInput.js';
 
 export const getExpenseCreateInputFields = (): GraphQLInputFieldConfigMap => ({
   description: {

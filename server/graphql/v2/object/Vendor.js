@@ -1,9 +1,12 @@
 import { GraphQLObjectType } from 'graphql';
 
-import { types as collectiveTypes } from '../../../constants/collectives';
-import { AccountFields, GraphQLAccount } from '../interface/Account';
-import { AccountWithContributionsFields, GraphQLAccountWithContributions } from '../interface/AccountWithContributions';
-import { AccountWithHostFields, GraphQLAccountWithHost } from '../interface/AccountWithHost';
+import { types as collectiveTypes } from '../../../constants/collectives.js';
+import { AccountFields, GraphQLAccount } from '../interface/Account.js';
+import {
+  AccountWithContributionsFields,
+  GraphQLAccountWithContributions,
+} from '../interface/AccountWithContributions.js';
+import { AccountWithHostFields, GraphQLAccountWithHost } from '../interface/AccountWithHost.js';
 
 export const GraphQLVendor = new GraphQLObjectType({
   name: 'Vendor',

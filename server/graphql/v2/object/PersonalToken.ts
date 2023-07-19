@@ -1,10 +1,10 @@
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import { GraphQLOAuthScope } from '../enum/OAuthScope';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { GraphQLOAuthScope } from '../enum/OAuthScope.js';
+import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers.js';
 
-import { GraphQLIndividual } from './Individual';
+import { GraphQLIndividual } from './Individual.js';
 
 export const GraphQLPersonalToken = new GraphQLObjectType({
   name: 'PersonalToken',

@@ -1,9 +1,9 @@
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 
-import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType';
-import { GraphQLTransactionKind } from '../enum/TransactionKind';
-import { CollectionFields, GraphQLCollection } from '../interface/Collection';
-import { GraphQLTransaction } from '../interface/Transaction';
+import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType.js';
+import { GraphQLTransactionKind } from '../enum/TransactionKind.js';
+import { CollectionFields, GraphQLCollection } from '../interface/Collection.js';
+import { GraphQLTransaction } from '../interface/Transaction.js';
 
 export const GraphQLTransactionCollection = new GraphQLObjectType({
   name: 'TransactionCollection',

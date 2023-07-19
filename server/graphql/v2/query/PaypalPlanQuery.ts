@@ -1,15 +1,15 @@
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
-import RateLimit from '../../../lib/rate-limit';
-import PaypalPlanModel from '../../../models/PaypalPlan';
-import Tier from '../../../models/Tier';
-import { getOrCreatePlan } from '../../../paymentProviders/paypal/subscription';
-import { RateLimitExceeded } from '../../errors';
-import { GraphQLContributionFrequency } from '../enum';
-import { getIntervalFromContributionFrequency } from '../enum/ContributionFrequency';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
-import { getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/AmountInput';
-import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput';
+import RateLimit from '../../../lib/rate-limit.js';
+import PaypalPlanModel from '../../../models/PaypalPlan.js';
+import Tier from '../../../models/Tier.js';
+import { getOrCreatePlan } from '../../../paymentProviders/paypal/subscription.js';
+import { RateLimitExceeded } from '../../errors.js';
+import { GraphQLContributionFrequency } from '../enum/index.js';
+import { getIntervalFromContributionFrequency } from '../enum/ContributionFrequency.js';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput.js';
+import { getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/AmountInput.js';
+import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput.js';
 
 const GraphQLPaypalPlan = new GraphQLObjectType({
   name: 'PaypalPlan',

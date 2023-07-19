@@ -1,15 +1,15 @@
 import config from 'config';
 import debugLib from 'debug';
 import { IntlMessageFormat } from 'intl-messageformat';
-import { get, has } from 'lodash';
+import { get, has } from 'lodash-es';
 import Twitter from 'twitter';
 
-import activityType from '../constants/activities';
-import models from '../models';
+import activityType from '../constants/activities.js';
+import models from '../models/index.js';
 
-import logger from './logger';
-import { reportMessageToSentry } from './sentry';
-import { formatCurrency } from './utils';
+import logger from './logger.js';
+import { reportMessageToSentry } from './sentry.js';
+import { formatCurrency } from './utils.js';
 
 const debug = debugLib('twitter');
 

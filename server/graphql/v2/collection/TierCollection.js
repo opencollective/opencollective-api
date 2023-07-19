@@ -1,7 +1,7 @@
 import { GraphQLList, GraphQLObjectType } from 'graphql';
 
-import { CollectionFields, GraphQLCollection } from '../interface/Collection';
-import { GraphQLTier } from '../object/Tier';
+import { CollectionFields, GraphQLCollection } from '../interface/Collection.js';
+import { GraphQLTier } from '../object/Tier.js';
 
 export const GraphQLTierCollection = new GraphQLObjectType({
   name: 'TierCollection',

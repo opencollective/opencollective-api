@@ -1,5 +1,5 @@
-import models from '../models';
-import { FileKind } from '../models/UploadedFile';
+import models from '../models/index.js';
+import { FileKind } from '../models/UploadedFile.js';
 
 /**
  * Defines all the other places where files can be used. In the future, we might want to

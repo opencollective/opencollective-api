@@ -1,24 +1,24 @@
 import config from 'config';
-import { get, result, toUpper } from 'lodash';
+import { get, result, toUpper } from 'lodash-es';
 import type { CreateOptions } from 'sequelize';
 import Stripe from 'stripe';
 
-import { Service } from '../../constants/connected_account';
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
-import * as constants from '../../constants/transactions';
-import logger from '../../lib/logger';
+import { Service } from '../../constants/connected_account.js';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods.js';
+import * as constants from '../../constants/transactions.js';
+import logger from '../../lib/logger.js';
 import {
   createRefundTransaction,
   getHostFee,
   getHostFeeSharePercent,
   getPlatformTip,
   isPlatformTipEligible,
-} from '../../lib/payments';
-import stripe, { convertFromStripeAmount, extractFees, retrieveChargeWithRefund } from '../../lib/stripe';
-import models, { Collective } from '../../models';
-import { OrderModelInterface } from '../../models/Order';
-import PaymentMethod, { PaymentMethodModelInterface } from '../../models/PaymentMethod';
-import User from '../../models/User';
+} from '../../lib/payments.js';
+import stripe, { convertFromStripeAmount, extractFees, retrieveChargeWithRefund } from '../../lib/stripe.js';
+import models, { Collective } from '../../models/index.js';
+import { OrderModelInterface } from '../../models/Order.js';
+import PaymentMethod, { PaymentMethodModelInterface } from '../../models/PaymentMethod.js';
+import User from '../../models/User.js';
 
 export const APPLICATION_FEE_INCOMPATIBLE_CURRENCIES = ['BRL'];
 

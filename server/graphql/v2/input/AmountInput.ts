@@ -1,8 +1,8 @@
 import { GraphQLFloat, GraphQLInputObjectType, GraphQLInt } from 'graphql';
-import { isNil } from 'lodash';
+import { isNil } from 'lodash-es';
 
-import { floatAmountToCents } from '../../../lib/math';
-import { GraphQLCurrency } from '../enum/Currency';
+import { floatAmountToCents } from '../../../lib/math.js';
+import { GraphQLCurrency } from '../enum/Currency.js';
 
 export type AmountInputType = {
   value?: number;

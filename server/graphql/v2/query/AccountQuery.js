@@ -1,10 +1,10 @@
 import { GraphQLBoolean, GraphQLString } from 'graphql';
 
-import { getGithubHandleFromUrl, getGithubUrlFromHandle } from '../../../lib/github';
-import models from '../../../models';
-import { NotFound } from '../../errors';
-import { idDecode } from '../identifiers';
-import { GraphQLAccount } from '../interface/Account';
+import { getGithubHandleFromUrl, getGithubUrlFromHandle } from '../../../lib/github.js';
+import models from '../../../models/index.js';
+import { NotFound } from '../../errors.js';
+import { idDecode } from '../identifiers.js';
+import { GraphQLAccount } from '../interface/Account.js';
 
 export const buildAccountQuery = ({ objectType }) => ({
   type: objectType,

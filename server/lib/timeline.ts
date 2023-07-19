@@ -1,17 +1,17 @@
 import debugLib from 'debug';
-import { flatten, toInteger, toString } from 'lodash';
+import { flatten, toInteger, toString } from 'lodash-es';
 import { InferAttributes, Op, Order, WhereOptions } from 'sequelize';
 
-import ActivityTypes, { ActivitiesPerClass, ActivityClasses } from '../constants/activities';
-import { types as AccountTypes } from '../constants/collectives';
-import MemberRoles from '../constants/roles';
-import { createRedisClient } from '../lib/redis';
-import models, { Collective } from '../models';
-import { Activity } from '../models/Activity';
-import { MemberModelInterface } from '../models/Member';
+import ActivityTypes, { ActivitiesPerClass, ActivityClasses } from '../constants/activities.js';
+import { types as AccountTypes } from '../constants/collectives.js';
+import MemberRoles from '../constants/roles.js';
+import { createRedisClient } from '../lib/redis.js';
+import models, { Collective } from '../models/index.js';
+import { Activity } from '../models/Activity.js';
+import { MemberModelInterface } from '../models/Member.js';
 
-import cache from './cache';
-import { utils } from './statsd';
+import cache from './cache/index.js';
+import { utils } from './statsd.js';
 
 const debug = debugLib('timeline');
 

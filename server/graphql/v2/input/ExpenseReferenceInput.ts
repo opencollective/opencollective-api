@@ -1,11 +1,11 @@
 import { GraphQLInputFieldConfig, GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
-import { uniq } from 'lodash';
+import { uniq } from 'lodash-es';
 import { Includeable } from 'sequelize';
 
-import models from '../../../models';
-import Expense from '../../../models/Expense';
-import { NotFound } from '../../errors';
-import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
+import models from '../../../models/index.js';
+import Expense from '../../../models/Expense.js';
+import { NotFound } from '../../errors.js';
+import { idDecode, IDENTIFIER_TYPES } from '../identifiers.js';
 
 interface ExpenseReferenceInputFields {
   id?: string;

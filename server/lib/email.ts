@@ -5,18 +5,18 @@ import config from 'config';
 import debugLib from 'debug';
 import { htmlToText } from 'html-to-text';
 import juice from 'juice';
-import { get, includes, isArray, merge, pick } from 'lodash';
+import { get, includes, isArray, merge, pick } from 'lodash-es';
 import nodemailer from 'nodemailer';
-import SMTPTransport from 'nodemailer/lib/smtp-transport';
+import SMTPTransport from 'nodemailer/lib/smtp-transport/index.js';
 
-import { activities } from '../constants';
-import models from '../models';
+import { activities } from '../constants/index.js';
+import models from '../models/index.js';
 
-import authorizedEmailDomains from './authorizedEmailDomains';
-import templates, { EmailTemplates } from './emailTemplates';
-import logger from './logger';
-import { reportErrorToSentry } from './sentry';
-import { isEmailInternal, md5, sha512 } from './utils';
+import authorizedEmailDomains from './authorizedEmailDomains.js';
+import templates, { EmailTemplates } from './emailTemplates.js';
+import logger from './logger.js';
+import { reportErrorToSentry } from './sentry.js';
+import { isEmailInternal, md5, sha512 } from './utils.js';
 
 const debug = debugLib('email');
 

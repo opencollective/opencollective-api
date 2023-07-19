@@ -1,7 +1,7 @@
 import { GraphQLEnumType } from 'graphql';
-import { invert } from 'lodash';
+import { invert } from 'lodash-es';
 
-import INTERVALS from '../../../constants/intervals';
+import INTERVALS from '../../../constants/intervals.js';
 
 export enum TierFrequencyKey {
   MONTHLY = 'MONTHLY',

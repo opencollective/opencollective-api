@@ -2,10 +2,10 @@ import hyperwatch from '@hyperwatch/hyperwatch';
 import config from 'config';
 import expressBasicAuth from 'express-basic-auth';
 import expressWs from 'express-ws';
-import { get, pick } from 'lodash';
+import { get, pick } from 'lodash-es';
 
-import { timing } from './statsd';
-import { md5, parseToBoolean } from './utils';
+import { timing } from './statsd.js';
+import { md5, parseToBoolean } from './utils.js';
 
 const computeMask = req => {
   const maskHeaders = pick(req.headers, [

@@ -1,11 +1,11 @@
 import config from 'config';
-import { pick } from 'lodash';
+import { pick } from 'lodash-es';
 
-import { channels } from '../../../constants';
-import { diffDBEntries } from '../../../lib/data';
-import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models, { Op } from '../../../models';
-import { Forbidden, NotFound, Unauthorized } from '../../errors';
+import { channels } from '../../../constants/index.js';
+import { diffDBEntries } from '../../../lib/data.js';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication/index.js';
+import models, { Op } from '../../../models/index.js';
+import { Forbidden, NotFound, Unauthorized } from '../../errors.js';
 
 const NotificationPermissionError = new Forbidden(
   "This notification does not exist or you don't have the permission to edit it.",

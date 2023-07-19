@@ -1,21 +1,18 @@
 import config from 'config';
 import express from 'express';
 import { GraphQLNonNull } from 'graphql';
-import { pick } from 'lodash';
+import { pick } from 'lodash-es';
 
-import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models from '../../../models';
-import PersonalTokenModel from '../../../models/PersonalToken';
-import { checkRemoteUserCanUseApplications } from '../../common/scope-check';
-import { Forbidden, NotFound, RateLimitExceeded } from '../../errors';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication/index.js';
+import models from '../../../models/index.js';
+import PersonalTokenModel from '../../../models/PersonalToken.js';
+import { checkRemoteUserCanUseApplications } from '../../common/scope-check.js';
+import { Forbidden, NotFound, RateLimitExceeded } from '../../errors.js';
 import { fetchAccountWithReference } from '../input/AccountReferenceInput.js';
-import { GraphQLPersonalTokenCreateInput } from '../input/PersonalTokenCreateInput';
-import {
-  fetchPersonalTokenWithReference,
-  GraphQLPersonalTokenReferenceInput,
-} from '../input/PersonalTokenReferenceInput';
-import { GraphQLPersonalTokenUpdateInput } from '../input/PersonalTokenUpdateInput';
-import { GraphQLPersonalToken } from '../object/PersonalToken';
+import { GraphQLPersonalTokenCreateInput } from '../input/PersonalTokenCreateInput.js';
+import { fetchPersonalTokenWithReference, GraphQLPersonalTokenReferenceInput } from '../input/PersonalTokenReferenceInput.js';
+import { GraphQLPersonalTokenUpdateInput } from '../input/PersonalTokenUpdateInput.js';
+import { GraphQLPersonalToken } from '../object/PersonalToken.js';
 
 const createPersonalToken = {
   type: GraphQLPersonalToken,

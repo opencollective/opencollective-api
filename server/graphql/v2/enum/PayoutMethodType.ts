@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
-import { PayoutMethodTypes } from '../../../models/PayoutMethod';
+import { PayoutMethodTypes } from '../../../models/PayoutMethod.js';
 
 export const GraphQLPayoutMethodType = new GraphQLEnumType({
   name: 'PayoutMethodType',

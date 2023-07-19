@@ -1,27 +1,27 @@
 import config from 'config';
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
-import { get, pick } from 'lodash';
+import { get, pick } from 'lodash-es';
 
-import POLICIES from '../../../constants/policies';
-import roles from '../../../constants/roles';
-import { purgeCacheForCollective } from '../../../lib/cache';
-import { isCollectiveSlugReserved } from '../../../lib/collectivelib';
-import * as github from '../../../lib/github';
-import { OSCValidator } from '../../../lib/osc-validator';
-import { getPolicy } from '../../../lib/policies';
-import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
-import { defaultHostCollective } from '../../../lib/utils';
-import models, { sequelize } from '../../../models';
-import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation';
-import { processInviteMembersInput } from '../../common/members';
-import { checkScope } from '../../common/scope-check';
-import { RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
-import { GraphQLCollectiveCreateInput } from '../input/CollectiveCreateInput';
-import { GraphQLIndividualCreateInput } from '../input/IndividualCreateInput';
-import { GraphQLInviteMemberInput } from '../input/InviteMemberInput';
-import { GraphQLCollective } from '../object/Collective';
+import POLICIES from '../../../constants/policies.js';
+import roles from '../../../constants/roles.js';
+import { purgeCacheForCollective } from '../../../lib/cache/index.js';
+import { isCollectiveSlugReserved } from '../../../lib/collectivelib.js';
+import * as github from '../../../lib/github.js';
+import { OSCValidator } from '../../../lib/osc-validator.js';
+import { getPolicy } from '../../../lib/policies.js';
+import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit.js';
+import { defaultHostCollective } from '../../../lib/utils.js';
+import models, { sequelize } from '../../../models/index.js';
+import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation.js';
+import { processInviteMembersInput } from '../../common/members.js';
+import { checkScope } from '../../common/scope-check.js';
+import { RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors.js';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput.js';
+import { GraphQLCollectiveCreateInput } from '../input/CollectiveCreateInput.js';
+import { GraphQLIndividualCreateInput } from '../input/IndividualCreateInput.js';
+import { GraphQLInviteMemberInput } from '../input/InviteMemberInput.js';
+import { GraphQLCollective } from '../object/Collective.js';
 
 const DEFAULT_COLLECTIVE_SETTINGS = {
   features: { conversations: true },

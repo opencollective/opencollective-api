@@ -1,8 +1,8 @@
-import AddressFormatter, { formatAddress as shopifyFormatAddress } from '@shopify/address';
+import AddressFormatter, { formatAddress as shopifyFormatAddress } from '@shopify/address/index.mjs';
 
-import { Location } from '../types/Location';
+import { Location } from '../types/Location.js';
 
-import { reportErrorToSentry } from './sentry';
+import { reportErrorToSentry } from './sentry.js';
 
 type Options = {
   includeCountry?: boolean;

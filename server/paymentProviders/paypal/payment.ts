@@ -1,25 +1,25 @@
-import { get, isUndefined, omit, pickBy, truncate } from 'lodash';
+import { get, isUndefined, omit, pickBy, truncate } from 'lodash-es';
 
-import FEATURE from '../../constants/feature';
-import * as constants from '../../constants/transactions';
-import { getFxRate } from '../../lib/currency';
-import { floatAmountToCents } from '../../lib/math';
+import FEATURE from '../../constants/feature.js';
+import * as constants from '../../constants/transactions.js';
+import { getFxRate } from '../../lib/currency.js';
+import { floatAmountToCents } from '../../lib/math.js';
 import {
   createRefundTransaction,
   getHostFee,
   getHostFeeSharePercent,
   getPlatformTip,
   isPlatformTipEligible,
-} from '../../lib/payments';
-import { paypalAmountToCents } from '../../lib/paypal';
-import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
-import { formatCurrency } from '../../lib/utils';
-import models from '../../models';
-import { OrderModelInterface } from '../../models/Order';
-import User from '../../models/User';
-import { PaypalCapture, PaypalSale, PaypalTransaction } from '../../types/paypal';
+} from '../../lib/payments.js';
+import { paypalAmountToCents } from '../../lib/paypal.js';
+import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry.js';
+import { formatCurrency } from '../../lib/utils.js';
+import models from '../../models/index.js';
+import { OrderModelInterface } from '../../models/Order.js';
+import User from '../../models/User.js';
+import { PaypalCapture, PaypalSale, PaypalTransaction } from '../../types/paypal.js';
 
-import { paypalRequestV2 } from './api';
+import { paypalRequestV2 } from './api.js';
 
 /** Create transaction in our database to reflect a PayPal charge */
 const recordTransaction = async (

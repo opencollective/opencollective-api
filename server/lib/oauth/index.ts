@@ -1,14 +1,14 @@
 import url from 'url';
 
-import OAuth2Server, { UnauthorizedRequestError } from '@node-oauth/oauth2-server';
-import InvalidArgumentError from '@node-oauth/oauth2-server/lib/errors/invalid-argument-error';
-import AuthorizeHandler from '@node-oauth/oauth2-server/lib/handlers/authorize-handler';
-import TokenHandler from '@node-oauth/oauth2-server/lib/handlers/token-handler';
-import { assign } from 'lodash';
+import OAuth2Server, { UnauthorizedRequestError } from '@node-oauth/oauth2-server/index.js';
+import InvalidArgumentError from '@node-oauth/oauth2-server/lib/errors/invalid-argument-error.js';
+import AuthorizeHandler from '@node-oauth/oauth2-server/lib/handlers/authorize-handler.js';
+import TokenHandler from '@node-oauth/oauth2-server/lib/handlers/token-handler.js';
+import { assign } from 'lodash-es';
 
-import * as auth from '../../lib/auth';
+import * as auth from '../../lib/auth.js';
 
-import model from './model';
+import model from './model.js';
 
 const Request = OAuth2Server.Request;
 const Response = OAuth2Server.Response;

@@ -1,8 +1,11 @@
 import { GraphQLObjectType } from 'graphql';
 
-import { AccountFields, GraphQLAccount } from '../interface/Account';
-import { AccountWithContributionsFields, GraphQLAccountWithContributions } from '../interface/AccountWithContributions';
-import { AccountWithHostFields, GraphQLAccountWithHost } from '../interface/AccountWithHost';
+import { AccountFields, GraphQLAccount } from '../interface/Account.js';
+import {
+  AccountWithContributionsFields,
+  GraphQLAccountWithContributions,
+} from '../interface/AccountWithContributions.js';
+import { AccountWithHostFields, GraphQLAccountWithHost } from '../interface/AccountWithHost.js';
 
 export const GraphQLFund = new GraphQLObjectType({
   name: 'Fund',

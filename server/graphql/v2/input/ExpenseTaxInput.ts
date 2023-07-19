@@ -1,6 +1,6 @@
 import { GraphQLFloat, GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
 
-import { GraphQLTaxType } from '../enum/TaxType';
+import { GraphQLTaxType } from '../enum/TaxType.js';
 
 export const GraphQLExpenseTaxInput = new GraphQLInputObjectType({
   name: 'ExpenseTaxInput',

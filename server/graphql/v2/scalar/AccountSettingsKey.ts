@@ -1,7 +1,7 @@
 import { GraphQLScalarType } from 'graphql';
 
-import { COLLECTIVE_SETTINGS_KEYS_LIST } from '../../../lib/collectivelib';
-import { ValidationFailed } from '../../errors';
+import { COLLECTIVE_SETTINGS_KEYS_LIST } from '../../../lib/collectivelib.js';
+import { ValidationFailed } from '../../errors.js';
 
 const GraphQLAccountSettingsKey = new GraphQLScalarType({
   name: 'AccountSettingsKey',

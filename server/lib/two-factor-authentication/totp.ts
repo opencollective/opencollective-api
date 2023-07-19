@@ -1,11 +1,11 @@
 import speakeasy from 'speakeasy';
 
-import { ApolloError } from '../../graphql/errors';
-import User from '../../models/User';
-import UserTwoFactorMethod from '../../models/UserTwoFactorMethod';
-import { crypto } from '../encryption';
+import { ApolloError } from '../../graphql/errors.js';
+import User from '../../models/User.js';
+import UserTwoFactorMethod from '../../models/UserTwoFactorMethod.js';
+import { crypto } from '../encryption.js';
 
-import { Token, TwoFactorMethod } from './lib';
+import { Token, TwoFactorMethod } from './lib.js';
 
 export default {
   async validateToken(user: User, token: Token): Promise<void> {

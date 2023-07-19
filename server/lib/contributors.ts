@@ -1,17 +1,8 @@
-/**
- * This file aims to group all the logic related to the concept of "IContributor".
- *
- * A contributor is a person or an entity that contributes financially or by any other
- * mean to the mission of the collective. While "Member" is dedicated to permissions
- * and can have multiple entries for the same collective (one for BACKER role, one  for ADMIN...etc)
- * contributors should surface only unique collectives.
- */
+import MemberRoles from '../constants/roles.js';
+import { sequelize } from '../models/index.js';
 
-import MemberRoles from '../constants/roles';
-import { sequelize } from '../models';
-
-import cache from './cache';
-import { filterUntil } from './utils';
+import cache from './cache/index.js';
+import { filterUntil } from './utils.js';
 
 /**
  * Represent a single contributor.

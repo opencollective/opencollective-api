@@ -1,70 +1,68 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { assign, get, invert, isEmpty, isNull, merge, omitBy } from 'lodash';
+import { assign, get, invert, isEmpty, isNull, merge, omitBy } from 'lodash-es';
 import { Order } from 'sequelize';
 
-import { types as CollectiveTypes } from '../../../constants/collectives';
-import FEATURE from '../../../constants/feature';
-import { buildSearchConditions } from '../../../lib/search';
-import { getCollectiveFeed } from '../../../lib/timeline';
-import { canSeeLegalName } from '../../../lib/user-permissions';
-import models, { Op } from '../../../models';
-import Application from '../../../models/Application';
-import { PayoutMethodTypes } from '../../../models/PayoutMethod';
-import { GraphQLCollectiveFeatures } from '../../common/CollectiveFeatures';
-import { allowContextPermission, getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
-import { checkRemoteUserCanUseAccount, checkScope } from '../../common/scope-check';
-import { BadRequest, ContentNotReady, Unauthorized } from '../../errors';
-import { GraphQLAccountCollection } from '../collection/AccountCollection';
-import { GraphQLConversationCollection } from '../collection/ConversationCollection';
-import { GraphQLMemberCollection, GraphQLMemberOfCollection } from '../collection/MemberCollection';
-import { GraphQLOAuthApplicationCollection } from '../collection/OAuthApplicationCollection';
-import { GraphQLOrderCollection } from '../collection/OrderCollection';
-import { GraphQLTransactionCollection } from '../collection/TransactionCollection';
-import { GraphQLUpdateCollection } from '../collection/UpdateCollection';
-import { GraphQLVirtualCardCollection } from '../collection/VirtualCardCollection';
+import { types as CollectiveTypes } from '../../../constants/collectives.js';
+import FEATURE from '../../../constants/feature.js';
+import { buildSearchConditions } from '../../../lib/search.js';
+import { getCollectiveFeed } from '../../../lib/timeline.js';
+import { canSeeLegalName } from '../../../lib/user-permissions.js';
+import models, { Op } from '../../../models/index.js';
+import Application from '../../../models/Application.js';
+import { PayoutMethodTypes } from '../../../models/PayoutMethod.js';
+import { GraphQLCollectiveFeatures } from '../../common/CollectiveFeatures.js';
+import { allowContextPermission, getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions.js';
+import { checkRemoteUserCanUseAccount, checkScope } from '../../common/scope-check.js';
+import { BadRequest, ContentNotReady, Unauthorized } from '../../errors.js';
+import { GraphQLAccountCollection } from '../collection/AccountCollection.js';
+import { GraphQLConversationCollection } from '../collection/ConversationCollection.js';
+import { GraphQLMemberCollection, GraphQLMemberOfCollection } from '../collection/MemberCollection.js';
+import { GraphQLOAuthApplicationCollection } from '../collection/OAuthApplicationCollection.js';
+import { GraphQLOrderCollection } from '../collection/OrderCollection.js';
+import { GraphQLTransactionCollection } from '../collection/TransactionCollection.js';
+import { GraphQLUpdateCollection } from '../collection/UpdateCollection.js';
+import { GraphQLVirtualCardCollection } from '../collection/VirtualCardCollection.js';
+import { GraphQLWebhookCollection, WebhookCollectionArgs, WebhookCollectionResolver } from '../collection/WebhookCollection.js';
 import {
-  GraphQLWebhookCollection,
-  WebhookCollectionArgs,
-  WebhookCollectionResolver,
-} from '../collection/WebhookCollection';
-import { AccountTypeToModelMapping, GraphQLAccountType, GraphQLImageFormat, GraphQLMemberRole } from '../enum';
-import { GraphQLActivityChannel } from '../enum/ActivityChannel';
-import { GraphQLActivityClassType } from '../enum/ActivityType';
-import { GraphQLExpenseType } from '../enum/ExpenseType';
-import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
-import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType';
-import { idEncode } from '../identifiers';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
-import { GraphQLChronologicalOrderInput } from '../input/ChronologicalOrderInput';
-import { GraphQLOrderByInput, ORDER_BY_PSEUDO_FIELDS } from '../input/OrderByInput';
+  AccountTypeToModelMapping,
+  GraphQLAccountType,
+  GraphQLImageFormat,
+  GraphQLMemberRole,
+} from '../enum/index.js';
+import { GraphQLActivityChannel } from '../enum/ActivityChannel.js';
+import { GraphQLActivityClassType } from '../enum/ActivityType.js';
+import { GraphQLExpenseType } from '../enum/ExpenseType.js';
+import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService.js';
+import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType.js';
+import { idEncode } from '../identifiers.js';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput.js';
+import { GraphQLChronologicalOrderInput } from '../input/ChronologicalOrderInput.js';
+import { GraphQLOrderByInput, ORDER_BY_PSEUDO_FIELDS } from '../input/OrderByInput.js';
 import {
   GraphQLUpdateChronologicalOrderInput,
   UPDATE_CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
-} from '../input/UpdateChronologicalOrderInput';
-import GraphQLAccountPermissions from '../object/AccountPermissions';
-import { GraphQLAccountStats } from '../object/AccountStats';
-import { GraphQLActivity } from '../object/Activity';
-import { GraphQLActivitySubscription } from '../object/ActivitySubscription';
-import { GraphQLConnectedAccount } from '../object/ConnectedAccount';
-import { GraphQLLocation } from '../object/Location';
-import { GraphQLMemberInvitation } from '../object/MemberInvitation';
-import { GraphQLPaymentMethod } from '../object/PaymentMethod';
-import GraphQLPayoutMethod from '../object/PayoutMethod';
-import { GraphQLPolicies } from '../object/Policies';
-import { GraphQLSocialLink } from '../object/SocialLink';
-import { GraphQLTagStats } from '../object/TagStats';
-import { GraphQLTransferWise } from '../object/TransferWise';
-import { OrdersCollectionArgs, OrdersCollectionResolver } from '../query/collection/OrdersCollectionQuery';
-import {
-  TransactionsCollectionArgs,
-  TransactionsCollectionResolver,
-} from '../query/collection/TransactionsCollectionQuery';
-import GraphQLEmailAddress from '../scalar/EmailAddress';
+} from '../input/UpdateChronologicalOrderInput.js';
+import GraphQLAccountPermissions from '../object/AccountPermissions.js';
+import { GraphQLAccountStats } from '../object/AccountStats.js';
+import { GraphQLActivity } from '../object/Activity.js';
+import { GraphQLActivitySubscription } from '../object/ActivitySubscription.js';
+import { GraphQLConnectedAccount } from '../object/ConnectedAccount.js';
+import { GraphQLLocation } from '../object/Location.js';
+import { GraphQLMemberInvitation } from '../object/MemberInvitation.js';
+import { GraphQLPaymentMethod } from '../object/PaymentMethod.js';
+import GraphQLPayoutMethod from '../object/PayoutMethod.js';
+import { GraphQLPolicies } from '../object/Policies.js';
+import { GraphQLSocialLink } from '../object/SocialLink.js';
+import { GraphQLTagStats } from '../object/TagStats.js';
+import { GraphQLTransferWise } from '../object/TransferWise.js';
+import { OrdersCollectionArgs, OrdersCollectionResolver } from '../query/collection/OrdersCollectionQuery.js';
+import { TransactionsCollectionArgs, TransactionsCollectionResolver } from '../query/collection/TransactionsCollectionQuery.js';
+import GraphQLEmailAddress from '../scalar/EmailAddress.js';
 
-import { CollectionArgs } from './Collection';
-import { HasMembersFields } from './HasMembers';
-import { IsMemberOfFields } from './IsMemberOf';
+import { CollectionArgs } from './Collection.js';
+import { HasMembersFields } from './HasMembers.js';
+import { IsMemberOfFields } from './IsMemberOf.js';
 
 const accountFieldsDefinition = () => ({
   id: {

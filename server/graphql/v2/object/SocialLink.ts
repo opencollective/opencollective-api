@@ -1,8 +1,8 @@
 import { GraphQLNonNull, GraphQLObjectType } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import { GraphQLSocialLinkTypeEnum } from '../enum/SocialLinkTypeEnum';
-import URL from '../scalar/URL';
+import { GraphQLSocialLinkTypeEnum } from '../enum/SocialLinkTypeEnum.js';
+import URL from '../scalar/URL.js';
 
 export const GraphQLSocialLink = new GraphQLObjectType({
   name: 'SocialLink',

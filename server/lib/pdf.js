@@ -1,14 +1,14 @@
 import config from 'config';
-import { get } from 'lodash';
+import { get } from 'lodash-es';
 import moment from 'moment';
 
-import models, { Op } from '../models';
+import models, { Op } from '../models/index.js';
 
-import { TOKEN_EXPIRATION_PDF } from './auth';
-import { fetchWithTimeout } from './fetch';
-import logger from './logger';
-import { reportErrorToSentry } from './sentry';
-import { parseToBoolean } from './utils';
+import { TOKEN_EXPIRATION_PDF } from './auth.js';
+import { fetchWithTimeout } from './fetch.js';
+import logger from './logger.js';
+import { reportErrorToSentry } from './sentry.js';
+import { parseToBoolean } from './utils.js';
 
 export const getTransactionPdf = async (transaction, user) => {
   if (parseToBoolean(config.pdfService.fetchTransactionsReceipts) === false) {

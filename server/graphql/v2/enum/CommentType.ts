@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
-import { CommentType as CommentTypeEnum } from '../../../models/Comment';
+import { CommentType as CommentTypeEnum } from '../../../models/Comment.js';
 
 export const GraphQLCommentType = new GraphQLEnumType({
   name: 'CommentType',

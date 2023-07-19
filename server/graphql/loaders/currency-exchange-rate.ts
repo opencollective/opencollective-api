@@ -1,7 +1,7 @@
 import DataLoader from 'dataloader';
-import { groupBy, mapValues, uniq } from 'lodash';
+import { groupBy, mapValues, uniq } from 'lodash-es';
 
-import { getFxRates } from '../../lib/currency';
+import { getFxRates } from '../../lib/currency.js';
 
 interface CurrencyFxRateRequest {
   fromCurrency: string;

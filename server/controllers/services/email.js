@@ -1,11 +1,11 @@
 import prependHttp from 'prepend-http';
 import sanitizeHtml from 'sanitize-html';
 
-import { checkCaptcha } from '../../lib/check-captcha';
-import emailLib from '../../lib/email';
-import errors from '../../lib/errors';
-import logger from '../../lib/logger';
-import models from '../../models';
+import { checkCaptcha } from '../../lib/check-captcha.js';
+import emailLib from '../../lib/email.js';
+import errors from '../../lib/errors.js';
+import logger from '../../lib/logger.js';
+import models from '../../models/index.js';
 
 export const unsubscribe = async (req, res, next) => {
   const { type, email, slug, token } = req.params;

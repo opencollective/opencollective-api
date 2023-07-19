@@ -1,9 +1,9 @@
 import debugLib from 'debug';
-import { map } from 'lodash';
+import { map } from 'lodash-es';
 
-import errors from '../lib/errors';
-import logger from '../lib/logger';
-import { HandlerType, reportErrorToSentry } from '../lib/sentry';
+import errors from '../lib/errors.js';
+import logger from '../lib/logger.js';
+import { HandlerType, reportErrorToSentry } from '../lib/sentry.js';
 
 const debug = debugLib('error-handler');
 

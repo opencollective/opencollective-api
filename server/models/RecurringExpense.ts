@@ -1,16 +1,16 @@
 import config from 'config';
-import { pick } from 'lodash';
+import { pick } from 'lodash-es';
 import moment from 'moment';
 import { DataTypes, Model } from 'sequelize';
 import { v4 as uuid } from 'uuid';
 
-import { activities } from '../constants';
-import expenseStatus from '../constants/expense_status';
-import { reportErrorToSentry } from '../lib/sentry';
-import sequelize from '../lib/sequelize';
+import { activities } from '../constants/index.js';
+import expenseStatus from '../constants/expense_status.js';
+import { reportErrorToSentry } from '../lib/sentry.js';
+import sequelize from '../lib/sequelize.js';
 
-import Expense from './Expense';
-import models, { Op } from '.';
+import Expense from './Expense.js';
+import models, { Op } from './index.js';
 
 export enum RecurringExpenseIntervals {
   DAY = 'day',

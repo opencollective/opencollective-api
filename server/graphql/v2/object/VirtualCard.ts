@@ -1,19 +1,19 @@
 import { GraphQLInt, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSONObject } from 'graphql-scalars';
 
-import ExpenseStatus from '../../../constants/expense_status';
-import { VirtualCardLimitIntervals } from '../../../constants/virtual-cards';
-import { getSpendingLimitIntervalDates } from '../../../lib/stripe';
-import models, { Op, VirtualCard } from '../../../models';
-import { checkScope } from '../../common/scope-check';
-import { GraphQLCurrency } from '../enum';
-import { GraphQLVirtualCardLimitInterval } from '../enum/VirtualCardLimitInterval';
-import { GraphQLVirtualCardStatusEnum } from '../enum/VirtualCardStatus';
-import { GraphQLAccount } from '../interface/Account';
+import ExpenseStatus from '../../../constants/expense_status.js';
+import { VirtualCardLimitIntervals } from '../../../constants/virtual-cards.js';
+import { getSpendingLimitIntervalDates } from '../../../lib/stripe.js';
+import models, { Op, VirtualCard } from '../../../models/index.js';
+import { checkScope } from '../../common/scope-check.js';
+import { GraphQLCurrency } from '../enum/index.js';
+import { GraphQLVirtualCardLimitInterval } from '../enum/VirtualCardLimitInterval.js';
+import { GraphQLVirtualCardStatusEnum } from '../enum/VirtualCardStatus.js';
+import { GraphQLAccount } from '../interface/Account.js';
 
-import { GraphQLHost } from './Host';
-import { GraphQLIndividual } from './Individual';
-import { GraphQLVirtualCardRequest } from './VirtualCardRequest';
+import { GraphQLHost } from './Host.js';
+import { GraphQLIndividual } from './Individual.js';
+import { GraphQLVirtualCardRequest } from './VirtualCardRequest.js';
 
 const canSeeVirtualCardPrivateInfo = (req, collective) =>
   req.remoteUser?.isAdminOfCollectiveOrHost(collective) && checkScope(req, 'virtualCards');

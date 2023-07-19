@@ -1,26 +1,26 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
-import { uniq } from 'lodash';
+import { uniq } from 'lodash-es';
 import { isEmail } from 'validator';
 
-import { roles } from '../../constants';
-import { types as CollectiveTypes } from '../../constants/collectives';
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
-import { fetchCollectiveId } from '../../lib/cache';
-import logger from '../../lib/logger';
-import { getConsolidatedInvoicesData } from '../../lib/pdf';
-import rawQueries from '../../lib/queries';
-import { searchCollectivesByEmail, searchCollectivesInDB } from '../../lib/search';
-import models, { Op, sequelize } from '../../models';
-import { NotFound, Unauthorized } from '../errors';
+import { roles } from '../../constants/index.js';
+import { types as CollectiveTypes } from '../../constants/collectives.js';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods.js';
+import { fetchCollectiveId } from '../../lib/cache/index.js';
+import logger from '../../lib/logger.js';
+import { getConsolidatedInvoicesData } from '../../lib/pdf.js';
+import rawQueries from '../../lib/queries.js';
+import { searchCollectivesByEmail, searchCollectivesInDB } from '../../lib/search.js';
+import models, { Op, sequelize } from '../../models/index.js';
+import { NotFound, Unauthorized } from '../errors.js';
 
 import {
   CollectiveInterfaceType,
   CollectiveSearchResultsType,
   HostCollectiveOrderFieldType,
   TypeOfCollectiveType,
-} from './CollectiveInterface';
-import { TransactionInterfaceType } from './TransactionInterface';
-import { InvoiceType, MemberType, OrderDirectionType, PaymentMethodType, TierType, UserType } from './types';
+} from './CollectiveInterface.js';
+import { TransactionInterfaceType } from './TransactionInterface.js';
+import { InvoiceType, MemberType, OrderDirectionType, PaymentMethodType, TierType, UserType } from './types.js';
 
 const queries = {
   Collective: {

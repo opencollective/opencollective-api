@@ -1,18 +1,18 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
-import { types as collectiveTypes } from '../../../constants/collectives';
-import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models from '../../../models';
-import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
-import { checkScope } from '../../common/scope-check';
-import { hasSeenLatestChangelogEntry } from '../../common/user';
-import { GraphQLOAuthAuthorizationCollection } from '../collection/OAuthAuthorizationCollection';
-import { GraphQLPersonalTokenCollection } from '../collection/PersonalTokenCollection';
-import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
-import { AccountFields, GraphQLAccount } from '../interface/Account';
-import { CollectionArgs } from '../interface/Collection';
+import { types as collectiveTypes } from '../../../constants/collectives.js';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication/index.js';
+import models from '../../../models/index.js';
+import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions.js';
+import { checkScope } from '../../common/scope-check.js';
+import { hasSeenLatestChangelogEntry } from '../../common/user.js';
+import { GraphQLOAuthAuthorizationCollection } from '../collection/OAuthAuthorizationCollection.js';
+import { GraphQLPersonalTokenCollection } from '../collection/PersonalTokenCollection.js';
+import { idDecode, IDENTIFIER_TYPES } from '../identifiers.js';
+import { AccountFields, GraphQLAccount } from '../interface/Account.js';
+import { CollectionArgs } from '../interface/Collection.js';
 
-import { GraphQLHost } from './Host';
+import { GraphQLHost } from './Host.js';
 
 export const GraphQLIndividual = new GraphQLObjectType({
   name: 'Individual',

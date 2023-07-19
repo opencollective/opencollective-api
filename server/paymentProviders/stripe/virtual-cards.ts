@@ -1,17 +1,17 @@
-import { omit, pick } from 'lodash';
+import { omit, pick } from 'lodash-es';
 import type Stripe from 'stripe';
 
-import { activities } from '../../constants';
-import ExpenseStatus from '../../constants/expense_status';
-import ExpenseType from '../../constants/expense_type';
-import VirtualCardProviders from '../../constants/virtual_card_providers';
-import { VirtualCardLimitIntervals } from '../../constants/virtual-cards';
-import logger from '../../lib/logger';
-import { reportMessageToSentry } from '../../lib/sentry';
-import stripe, { convertToStripeAmount, StripeCustomToken } from '../../lib/stripe';
-import models from '../../models';
-import VirtualCard from '../../models/VirtualCard';
-import { getOrCreateVendor, getVirtualCardForTransaction, persistTransaction } from '../utils';
+import { activities } from '../../constants/index.js';
+import ExpenseStatus from '../../constants/expense_status.js';
+import ExpenseType from '../../constants/expense_type.js';
+import VirtualCardProviders from '../../constants/virtual_card_providers.js';
+import { VirtualCardLimitIntervals } from '../../constants/virtual-cards.js';
+import logger from '../../lib/logger.js';
+import { reportMessageToSentry } from '../../lib/sentry.js';
+import stripe, { convertToStripeAmount, StripeCustomToken } from '../../lib/stripe.js';
+import models from '../../models/index.js';
+import VirtualCard from '../../models/VirtualCard.js';
+import { getOrCreateVendor, getVirtualCardForTransaction, persistTransaction } from '../utils.js';
 
 export const assignCardToCollective = async (cardNumber, expiryDate, cvv, name, collectiveId, host, userId) => {
   const stripe = await getStripeClient(host);

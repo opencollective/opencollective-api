@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
-import { RecurringExpenseIntervals } from '../../../models/RecurringExpense';
+import { RecurringExpenseIntervals } from '../../../models/RecurringExpense.js';
 
 export const GraphQLRecurringExpenseInterval = new GraphQLEnumType({
   name: 'RecurringExpenseInterval',

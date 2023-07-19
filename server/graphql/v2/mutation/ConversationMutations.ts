@@ -1,11 +1,11 @@
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 
-import models from '../../../models';
-import { createConversation, editConversation } from '../../common/conversations';
-import { checkRemoteUserCanUseConversations } from '../../common/scope-check';
-import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
-import GraphQLConversation from '../object/Conversation';
+import models from '../../../models/index.js';
+import { createConversation, editConversation } from '../../common/conversations.js';
+import { checkRemoteUserCanUseConversations } from '../../common/scope-check.js';
+import { idDecode, IDENTIFIER_TYPES } from '../identifiers.js';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput.js';
+import GraphQLConversation from '../object/Conversation.js';
 
 const conversationMutations = {
   createConversation: {

@@ -1,6 +1,6 @@
-import { GraphQLOrganization } from '../object/Organization';
+import { GraphQLOrganization } from '../object/Organization.js';
 
-import { buildAccountQuery } from './AccountQuery';
+import { buildAccountQuery } from './AccountQuery.js';
 
 const OrganizationQuery = buildAccountQuery({ objectType: GraphQLOrganization });
 

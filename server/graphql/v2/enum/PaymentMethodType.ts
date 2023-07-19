@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
-import { PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
+import { PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods.js';
 
 export const GraphQLPaymentMethodType = new GraphQLEnumType({
   name: 'PaymentMethodType',

@@ -1,17 +1,17 @@
-import { pick } from 'lodash';
+import { pick } from 'lodash-es';
 
-import ActivityTypes from '../../constants/activities';
-import { mustBeLoggedInTo } from '../../lib/auth';
-import models from '../../models';
-import Comment, { CommentType } from '../../models/Comment';
-import Conversation from '../../models/Conversation';
-import Expense, { ExpenseStatus } from '../../models/Expense';
-import Update from '../../models/Update';
-import { NotFound, Unauthorized, ValidationFailed } from '../errors';
+import ActivityTypes from '../../constants/activities.js';
+import { mustBeLoggedInTo } from '../../lib/auth.js';
+import models from '../../models/index.js';
+import Comment, { CommentType } from '../../models/Comment.js';
+import Conversation from '../../models/Conversation.js';
+import Expense, { ExpenseStatus } from '../../models/Expense.js';
+import Update from '../../models/Update.js';
+import { NotFound, Unauthorized, ValidationFailed } from '../errors.js';
 
-import { canComment, canUsePrivateNotes as canSeeExpensePrivateNotes } from './expenses';
-import { checkRemoteUserCanUseComment } from './scope-check';
-import { canSeeUpdate } from './update';
+import { canComment, canUsePrivateNotes as canSeeExpensePrivateNotes } from './expenses.js';
+import { checkRemoteUserCanUseComment } from './scope-check.js';
+import { canSeeUpdate } from './update.js';
 
 type CommentableEntity = Update | Expense | Conversation;
 

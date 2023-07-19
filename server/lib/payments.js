@@ -1,33 +1,33 @@
 /** @module lib/payments */
 import config from 'config';
 import debugLib from 'debug';
-import { find, get, includes, isNil, isNumber, omit, pick } from 'lodash';
+import { find, get, includes, isNil, isNumber, omit, pick } from 'lodash-es';
 import { v4 as uuid } from 'uuid';
 
-import activities from '../constants/activities';
-import { ExpenseFeesPayer } from '../constants/expense-fees-payer';
-import status from '../constants/order_status';
-import { PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
-import roles from '../constants/roles';
-import tiers from '../constants/tiers';
-import { TransactionKind } from '../constants/transaction-kind';
-import { TransactionTypes } from '../constants/transactions';
-import models, { Op } from '../models';
-import TransactionSettlement, { TransactionSettlementStatus } from '../models/TransactionSettlement';
-import paymentProviders from '../paymentProviders';
+import activities from '../constants/activities.js';
+import { ExpenseFeesPayer } from '../constants/expense-fees-payer.js';
+import status from '../constants/order_status.js';
+import { PAYMENT_METHOD_TYPE } from '../constants/paymentMethods.js';
+import roles from '../constants/roles.js';
+import tiers from '../constants/tiers.js';
+import { TransactionKind } from '../constants/transaction-kind.js';
+import { TransactionTypes } from '../constants/transactions.js';
+import models, { Op } from '../models/index.js';
+import TransactionSettlement, { TransactionSettlementStatus } from '../models/TransactionSettlement.js';
+import paymentProviders from '../paymentProviders/index.js';
 
-import { notify } from './notifications/email';
-import { getFxRate } from './currency';
-import emailLib from './email';
-import logger from './logger';
-import { getTransactionPdf } from './pdf';
-import { createPrepaidPaymentMethod, isPrepaidBudgetOrder } from './prepaid-budget';
-import { getNextChargeAndPeriodStartDates } from './recurring-contributions';
-import { stripHTML } from './sanitize-html';
-import { reportMessageToSentry } from './sentry';
-import { formatAccountDetails } from './transferwise';
-import { getEditRecurringContributionsUrl } from './url-utils';
-import { formatCurrency, toIsoDateStr } from './utils';
+import { notify } from './notifications/email.js';
+import { getFxRate } from './currency.js';
+import emailLib from './email.js';
+import logger from './logger.js';
+import { getTransactionPdf } from './pdf.js';
+import { createPrepaidPaymentMethod, isPrepaidBudgetOrder } from './prepaid-budget.js';
+import { getNextChargeAndPeriodStartDates } from './recurring-contributions.js';
+import { stripHTML } from './sanitize-html.js';
+import { reportMessageToSentry } from './sentry.js';
+import { formatAccountDetails } from './transferwise.js';
+import { getEditRecurringContributionsUrl } from './url-utils.js';
+import { formatCurrency, toIsoDateStr } from './utils.js';
 
 const { CREDIT, DEBIT } = TransactionTypes;
 

@@ -8,11 +8,11 @@ import {
 } from 'graphql';
 import { GraphQLNonEmptyString } from 'graphql-scalars';
 
-import { GraphQLTierAmountType, GraphQLTierType } from '../enum';
-import { GraphQLTierFrequency } from '../enum/TierFrequency';
+import { GraphQLTierAmountType, GraphQLTierType } from '../enum/index.js';
+import { GraphQLTierFrequency } from '../enum/TierFrequency.js';
 
-import { GraphQLAmountInput } from './AmountInput';
-import { TierCreateInputFields } from './TierCreateInput';
+import { GraphQLAmountInput } from './AmountInput.js';
+import { TierCreateInputFields } from './TierCreateInput.js';
 
 export type TierUpdateInputFields = { id: string } & Partial<TierCreateInputFields>;
 

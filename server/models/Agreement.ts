@@ -9,11 +9,11 @@ import {
   NonAttribute,
 } from 'sequelize';
 
-import sequelize from '../lib/sequelize';
+import sequelize from '../lib/sequelize.js';
 
-import Collective from './Collective';
-import UploadedFile from './UploadedFile';
-import User from './User';
+import Collective from './Collective.js';
+import UploadedFile from './UploadedFile.js';
+import User from './User.js';
 
 export default class Agreement extends Model<InferAttributes<Agreement>, InferCreationAttributes<Agreement>> {
   declare id: CreationOptional<number>;

@@ -1,8 +1,8 @@
 import type { InferAttributes } from 'sequelize';
 
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import sequelize, { DataTypes, Model } from '../lib/sequelize.js';
 
-import { PaypalProductCreateAttributes } from './PaypalProduct';
+import { PaypalProductCreateAttributes } from './PaypalProduct.js';
 
 interface PaypalPlanCommonCreateAttributes {
   id: string;

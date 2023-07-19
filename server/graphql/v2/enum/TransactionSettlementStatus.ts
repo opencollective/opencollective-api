@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
-import { TransactionSettlementStatus as TransactionSettlementStatusEnum } from '../../../models/TransactionSettlement';
+import { TransactionSettlementStatus as TransactionSettlementStatusEnum } from '../../../models/TransactionSettlement.js';
 
 export const GraphQLTransactionSettlementStatus = new GraphQLEnumType({
   name: 'TransactionSettlementStatus',

@@ -1,8 +1,8 @@
 import { GraphQLFloat, GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import { GraphQLAmountInput } from './AmountInput';
-import { GraphQLTaxInput } from './TaxInput';
+import { GraphQLAmountInput } from './AmountInput.js';
+import { GraphQLTaxInput } from './TaxInput.js';
 
 export const GraphQLOrderUpdateInput = new GraphQLInputObjectType({
   name: 'OrderUpdateInput',

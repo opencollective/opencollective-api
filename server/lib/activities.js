@@ -1,11 +1,11 @@
 import config from 'config';
-import { lowerCase } from 'lodash';
+import { lowerCase } from 'lodash-es';
 
-import activities from '../constants/activities';
-import { TransactionTypes } from '../constants/transactions';
+import activities from '../constants/activities.js';
+import { TransactionTypes } from '../constants/transactions.js';
 
-import { formatCurrency } from './currency';
-import { capitalize } from './utils';
+import { formatCurrency } from './currency.js';
+import { capitalize } from './utils.js';
 
 export default {
   /**

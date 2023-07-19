@@ -1,13 +1,13 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
 
-import VirtualCardRequest from '../../../models/VirtualCardRequest';
-import { checkScope } from '../../common/scope-check';
+import VirtualCardRequest from '../../../models/VirtualCardRequest.js';
+import { checkScope } from '../../common/scope-check.js';
 import {
   fetchVirtualCardRequestWithReference,
   GraphQLVirtualCardRequestReferenceInput,
-} from '../input/VirtualCardRequestReferenceInput';
-import { GraphQLVirtualCardRequest } from '../object/VirtualCardRequest';
+} from '../input/VirtualCardRequestReferenceInput.js';
+import { GraphQLVirtualCardRequest } from '../object/VirtualCardRequest.js';
 
 const VirtualCardRequestQuery = {
   type: GraphQLVirtualCardRequest,

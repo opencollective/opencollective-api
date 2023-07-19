@@ -1,14 +1,14 @@
-import { get } from 'lodash';
+import { get } from 'lodash-es';
 import { QueryOptions } from 'sequelize';
 
-import { types } from '../../constants/collectives';
-import FEATURE from '../../constants/feature';
-import FEATURE_STATUS from '../../constants/feature-status';
-import { hasFeature, isFeatureAllowedForCollectiveType } from '../../lib/allowed-features';
-import { isPastEvent } from '../../lib/collectivelib';
-import { Collective, sequelize } from '../../models';
+import { types } from '../../constants/collectives.js';
+import FEATURE from '../../constants/feature.js';
+import FEATURE_STATUS from '../../constants/feature-status.js';
+import { hasFeature, isFeatureAllowedForCollectiveType } from '../../lib/allowed-features.js';
+import { isPastEvent } from '../../lib/collectivelib.js';
+import { Collective, sequelize } from '../../models/index.js';
 
-import { hasMultiCurrency } from './expenses';
+import { hasMultiCurrency } from './expenses.js';
 
 /**
  * Wraps the given query in a `EXISTS` call and returns the result as a boolean.

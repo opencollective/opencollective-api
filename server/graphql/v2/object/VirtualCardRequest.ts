@@ -1,16 +1,16 @@
 import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import VirtualCardRequest from '../../../models/VirtualCardRequest';
-import { GraphQLCurrency } from '../enum';
-import { GraphQLVirtualCardLimitInterval } from '../enum/VirtualCardLimitInterval';
-import { GraphQLVirtualCardRequestStatus } from '../enum/VirtualCardRequestStatus';
-import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
-import GraphQLAccount from '../interface/Account';
+import VirtualCardRequest from '../../../models/VirtualCardRequest.js';
+import { GraphQLCurrency } from '../enum/index.js';
+import { GraphQLVirtualCardLimitInterval } from '../enum/VirtualCardLimitInterval.js';
+import { GraphQLVirtualCardRequestStatus } from '../enum/VirtualCardRequestStatus.js';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers.js';
+import GraphQLAccount from '../interface/Account.js';
 
-import { GraphQLAmount } from './Amount';
-import { GraphQLHost } from './Host';
-import GraphQLIndividual from './Individual';
+import { GraphQLAmount } from './Amount.js';
+import { GraphQLHost } from './Host.js';
+import GraphQLIndividual from './Individual.js';
 
 export const GraphQLVirtualCardRequest = new GraphQLObjectType({
   name: 'VirtualCardRequest',

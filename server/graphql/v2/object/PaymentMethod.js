@@ -1,18 +1,18 @@
 import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { get, omit, pick } from 'lodash';
+import { get, omit, pick } from 'lodash-es';
 
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
-import { checkScope } from '../../common/scope-check';
-import { GraphQLOrderCollection } from '../collection/OrderCollection';
-import { getLegacyPaymentMethodType, GraphQLPaymentMethodLegacyType } from '../enum/PaymentMethodLegacyType';
-import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
-import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType';
-import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
-import { GraphQLAccount } from '../interface/Account';
-import { GraphQLAmount } from '../object/Amount';
-import { GraphQLHost } from '../object/Host';
-import { OrdersCollectionArgs, OrdersCollectionResolver } from '../query/collection/OrdersCollectionQuery';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods.js';
+import { checkScope } from '../../common/scope-check.js';
+import { GraphQLOrderCollection } from '../collection/OrderCollection.js';
+import { getLegacyPaymentMethodType, GraphQLPaymentMethodLegacyType } from '../enum/PaymentMethodLegacyType.js';
+import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService.js';
+import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType.js';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers.js';
+import { GraphQLAccount } from '../interface/Account.js';
+import { GraphQLAmount } from '../object/Amount.js';
+import { GraphQLHost } from '../object/Host.js';
+import { OrdersCollectionArgs, OrdersCollectionResolver } from '../query/collection/OrdersCollectionQuery.js';
 
 export const GraphQLPaymentMethod = new GraphQLObjectType({
   name: 'PaymentMethod',

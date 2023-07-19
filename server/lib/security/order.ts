@@ -1,15 +1,15 @@
 import config from 'config';
 import debugLib from 'debug';
 import Express from 'express';
-import { pick, toLower, toString } from 'lodash';
+import { pick, toLower, toString } from 'lodash-es';
 
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
-import { ValidationFailed } from '../../graphql/errors';
-import { sequelize } from '../../models';
-import SuspendedAsset, { AssetType } from '../../models/SuspendedAsset';
-import User from '../../models/User';
-import logger from '../logger';
-import { ifStr, parseToBoolean } from '../utils';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods.js';
+import { ValidationFailed } from '../../graphql/errors.js';
+import { sequelize } from '../../models/index.js';
+import SuspendedAsset, { AssetType } from '../../models/SuspendedAsset.js';
+import User from '../../models/User.js';
+import logger from '../logger.js';
+import { ifStr, parseToBoolean } from '../utils.js';
 
 const debug = debugLib('security/fraud');
 

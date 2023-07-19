@@ -1,7 +1,7 @@
 import { GraphQLInputObjectType, GraphQLNonNull } from 'graphql';
 
-import { GraphQLDateTimeField } from '../enum/DateTimeField';
-import { GraphQLOrderDirectionType } from '../enum/OrderDirectionType';
+import { GraphQLDateTimeField } from '../enum/DateTimeField.js';
+import { GraphQLOrderDirectionType } from '../enum/OrderDirectionType.js';
 
 export const GraphQLChronologicalOrderInput = new GraphQLInputObjectType({
   name: 'ChronologicalOrderInput',

@@ -1,8 +1,8 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
-import models from '../../../models';
-import { NotFound } from '../../errors';
-import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
+import models from '../../../models/index.js';
+import { NotFound } from '../../errors.js';
+import { idDecode, IDENTIFIER_TYPES } from '../identifiers.js';
 
 /**
  * An input for referencing Conversations

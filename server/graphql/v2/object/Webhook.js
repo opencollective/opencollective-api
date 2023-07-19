@@ -1,9 +1,9 @@
 import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
-import { GraphQLActivityType } from '../enum';
-import { idEncode } from '../identifiers';
-import { GraphQLAccount } from '../interface/Account';
-import URL from '../scalar/URL';
+import { GraphQLActivityType } from '../enum/index.js';
+import { idEncode } from '../identifiers.js';
+import { GraphQLAccount } from '../interface/Account.js';
+import URL from '../scalar/URL.js';
 
 export const GraphQLWebhook = new GraphQLObjectType({
   name: 'Webhook',

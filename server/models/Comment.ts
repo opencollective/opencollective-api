@@ -1,12 +1,12 @@
 import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes, NonAttribute, Op } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
-import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html.js';
+import sequelize, { DataTypes, Model } from '../lib/sequelize.js';
 
-import Expense from './Expense';
-import User from './User';
-import models, { Collective } from '.';
+import Expense from './Expense.js';
+import User from './User.js';
+import models, { Collective } from './index.js';
 
 // Options for sanitizing comment's body
 const sanitizeOptions = buildSanitizerOptions({

@@ -1,8 +1,8 @@
-import { pick } from 'lodash';
+import { pick } from 'lodash-es';
 import type { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
 
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods.js';
+import sequelize, { DataTypes, Model } from '../lib/sequelize.js';
 
 export enum AssetType {
   USER = 'USER',

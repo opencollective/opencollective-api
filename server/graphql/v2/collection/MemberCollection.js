@@ -1,8 +1,8 @@
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 
-import { GraphQLAccountType, GraphQLMemberRole } from '../enum';
-import { CollectionFields, GraphQLCollection } from '../interface/Collection';
-import { GraphQLMember, GraphQLMemberOf } from '../object/Member';
+import { GraphQLAccountType, GraphQLMemberRole } from '../enum/index.js';
+import { CollectionFields, GraphQLCollection } from '../interface/Collection.js';
+import { GraphQLMember, GraphQLMemberOf } from '../object/Member.js';
 
 export const GraphQLMemberCollection = new GraphQLObjectType({
   name: 'MemberCollection',

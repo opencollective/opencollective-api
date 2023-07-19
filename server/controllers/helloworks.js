@@ -1,12 +1,12 @@
 import config from 'config';
 import HelloWorks from 'helloworks-sdk';
-import { get } from 'lodash';
+import { get } from 'lodash-es';
 
-import { uploadToS3 } from '../lib/awsS3';
-import { secretbox } from '../lib/encryption';
-import logger from '../lib/logger';
-import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
-import models from '../models';
+import { uploadToS3 } from '../lib/awsS3.js';
+import { secretbox } from '../lib/encryption.js';
+import logger from '../lib/logger.js';
+import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry.js';
+import models from '../models/index.js';
 
 const { User, LegalDocument, RequiredLegalDocument } = models;
 const {

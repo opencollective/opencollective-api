@@ -1,8 +1,8 @@
 import type { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes } from 'sequelize';
 
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import sequelize, { DataTypes, Model } from '../lib/sequelize.js';
 
-import User from './User';
+import User from './User.js';
 
 export enum MigrationLogType {
   MIGRATION = 'MIGRATION',

@@ -1,15 +1,15 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
-import { types as CollectiveType } from '../../../constants/collectives';
-import models from '../../../models';
-import { canSeeUpdate } from '../../common/update';
-import { CommentCollection } from '../collection/CommentCollection';
-import { GraphQLUpdateAudienceType } from '../enum';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
-import { GraphQLAccount } from '../interface/Account';
+import { types as CollectiveType } from '../../../constants/collectives.js';
+import models from '../../../models/index.js';
+import { canSeeUpdate } from '../../common/update.js';
+import { CommentCollection } from '../collection/CommentCollection.js';
+import { GraphQLUpdateAudienceType } from '../enum/index.js';
+import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers.js';
+import { GraphQLAccount } from '../interface/Account.js';
 
-import { GraphQLUpdateAudienceStats } from './UpdateAudienceStats';
+import { GraphQLUpdateAudienceStats } from './UpdateAudienceStats.js';
 
 const GraphQLUpdate = new GraphQLObjectType({
   name: 'Update',

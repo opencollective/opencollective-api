@@ -1,23 +1,20 @@
 import express from 'express';
 import { GraphQLNonNull } from 'graphql';
-import { pick } from 'lodash';
+import { pick } from 'lodash-es';
 
-import { Service } from '../../../constants/connected_account';
-import { crypto } from '../../../lib/encryption';
-import * as paypal from '../../../lib/paypal';
-import * as transferwise from '../../../lib/transferwise';
-import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models from '../../../models';
-import type { ConnectedAccount as ConnectedAccountModel } from '../../../models/ConnectedAccount';
-import { checkRemoteUserCanUseConnectedAccounts } from '../../common/scope-check';
-import { Unauthorized, ValidationFailed } from '../../errors';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
-import { GraphQLConnectedAccountCreateInput } from '../input/ConnectedAccountCreateInput';
-import {
-  fetchConnectedAccountWithReference,
-  GraphQLConnectedAccountReferenceInput,
-} from '../input/ConnectedAccountReferenceInput';
-import { GraphQLConnectedAccount } from '../object/ConnectedAccount';
+import { Service } from '../../../constants/connected_account.js';
+import { crypto } from '../../../lib/encryption.js';
+import * as paypal from '../../../lib/paypal.js';
+import * as transferwise from '../../../lib/transferwise.js';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication/index.js';
+import models from '../../../models/index.js';
+import { ConnectedAccount as ConnectedAccountModel } from '../../../models/ConnectedAccount.js';
+import { checkRemoteUserCanUseConnectedAccounts } from '../../common/scope-check.js';
+import { Unauthorized, ValidationFailed } from '../../errors.js';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput.js';
+import { GraphQLConnectedAccountCreateInput } from '../input/ConnectedAccountCreateInput.js';
+import { fetchConnectedAccountWithReference, GraphQLConnectedAccountReferenceInput } from '../input/ConnectedAccountReferenceInput.js';
+import { GraphQLConnectedAccount } from '../object/ConnectedAccount.js';
 
 const connectedAccountMutations = {
   createConnectedAccount: {

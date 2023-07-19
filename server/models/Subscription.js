@@ -1,9 +1,9 @@
 import Temporal from 'sequelize-temporal';
 
-import sequelize, { DataTypes } from '../lib/sequelize';
-import { cancelPaypalSubscription } from '../paymentProviders/paypal/subscription';
+import sequelize, { DataTypes } from '../lib/sequelize.js';
+import { cancelPaypalSubscription } from '../paymentProviders/paypal/subscription.js';
 
-import CustomDataTypes from './DataTypes';
+import CustomDataTypes from './DataTypes.js';
 
 const Subscription = sequelize.define(
   'Subscription',

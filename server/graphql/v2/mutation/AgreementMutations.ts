@@ -3,17 +3,17 @@ import { GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLNonEmptyString } from 'graphql-scalars';
 import GraphQLUpload from 'graphql-upload/GraphQLUpload.js';
 import type { FileUpload } from 'graphql-upload/Upload.js';
-import { pick } from 'lodash';
+import { pick } from 'lodash-es';
 
-import ActivityTypes from '../../../constants/activities';
-import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import { Activity, UploadedFile } from '../../../models';
-import AgreementModel from '../../../models/Agreement';
-import { checkRemoteUserCanUseHost } from '../../common/scope-check';
-import { Unauthorized } from '../../errors';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
-import { fetchAgreementWithReference, GraphQLAgreementReferenceInput } from '../input/AgreementReferenceInput';
-import { GraphQLAgreement } from '../object/Agreement';
+import ActivityTypes from '../../../constants/activities.js';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication/index.js';
+import { Activity, UploadedFile } from '../../../models/index.js';
+import AgreementModel from '../../../models/Agreement.js';
+import { checkRemoteUserCanUseHost } from '../../common/scope-check.js';
+import { Unauthorized } from '../../errors.js';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput.js';
+import { fetchAgreementWithReference, GraphQLAgreementReferenceInput } from '../input/AgreementReferenceInput.js';
+import { GraphQLAgreement } from '../object/Agreement.js';
 
 export default {
   addAgreement: {

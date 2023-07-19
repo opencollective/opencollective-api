@@ -1,7 +1,7 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
-import models from '../../../models';
-import { NotFound } from '../../errors';
+import models from '../../../models/index.js';
+import { NotFound } from '../../errors.js';
 
 const GraphQLTransactionReferenceInput = new GraphQLInputObjectType({
   name: 'TransactionReferenceInput',

@@ -1,15 +1,15 @@
 import config from 'config';
-import { omit, toUpper } from 'lodash';
+import { omit, toUpper } from 'lodash-es';
 import type Stripe from 'stripe';
 
-import logger from '../../lib/logger';
-import { getApplicationFee } from '../../lib/payments';
-import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
-import stripe, { convertToStripeAmount } from '../../lib/stripe';
-import { Collective } from '../../models';
-import { OrderModelInterface } from '../../models/Order';
-import { PaymentMethodModelInterface } from '../../models/PaymentMethod';
-import User from '../../models/User';
+import logger from '../../lib/logger.js';
+import { getApplicationFee } from '../../lib/payments.js';
+import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry.js';
+import stripe, { convertToStripeAmount } from '../../lib/stripe.js';
+import { Collective } from '../../models/index.js';
+import { OrderModelInterface } from '../../models/Order.js';
+import { PaymentMethodModelInterface } from '../../models/PaymentMethod.js';
+import User from '../../models/User.js';
 
 import {
   APPLICATION_FEE_INCOMPATIBLE_CURRENCIES,
@@ -18,7 +18,7 @@ import {
   refundTransaction,
   refundTransactionOnlyInDatabase,
   resolvePaymentMethodForOrder,
-} from './common';
+} from './common.js';
 
 const UNKNOWN_ERROR_MSG = 'Something went wrong with the payment, please contact support@opencollective.com.';
 

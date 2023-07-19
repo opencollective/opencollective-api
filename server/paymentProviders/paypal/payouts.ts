@@ -2,19 +2,19 @@
 
 import { createHash } from 'crypto';
 
-import { isNil, round, toNumber } from 'lodash';
+import { isNil, round, toNumber } from 'lodash-es';
 
-import activities from '../../constants/activities';
-import status from '../../constants/expense_status';
-import { getFxRate } from '../../lib/currency';
-import logger from '../../lib/logger';
-import { floatAmountToCents } from '../../lib/math';
-import * as paypal from '../../lib/paypal';
-import { reportMessageToSentry } from '../../lib/sentry';
-import { createTransactionsFromPaidExpense } from '../../lib/transactions';
-import models, { Collective } from '../../models';
-import Expense from '../../models/Expense';
-import { PayoutItemDetails } from '../../types/paypal';
+import activities from '../../constants/activities.js';
+import status from '../../constants/expense_status.js';
+import { getFxRate } from '../../lib/currency.js';
+import logger from '../../lib/logger.js';
+import { floatAmountToCents } from '../../lib/math.js';
+import * as paypal from '../../lib/paypal.js';
+import { reportMessageToSentry } from '../../lib/sentry.js';
+import { createTransactionsFromPaidExpense } from '../../lib/transactions.js';
+import models, { Collective } from '../../models/index.js';
+import Expense from '../../models/Expense.js';
+import { PayoutItemDetails } from '../../types/paypal.js';
 
 const providerName = 'paypal';
 

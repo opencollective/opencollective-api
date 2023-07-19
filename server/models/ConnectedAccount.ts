@@ -1,10 +1,10 @@
 import config from 'config';
-import { isNil } from 'lodash';
+import { isNil } from 'lodash-es';
 import { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
 
-import { supportedServices } from '../constants/connected_account';
-import { crypto } from '../lib/encryption';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import { supportedServices } from '../constants/connected_account.js';
+import { crypto } from '../lib/encryption.js';
+import sequelize, { DataTypes, Model } from '../lib/sequelize.js';
 
 export class ConnectedAccount extends Model<
   InferAttributes<ConnectedAccount, { omit: 'info' | 'activity' | 'paypalConfig' }>,

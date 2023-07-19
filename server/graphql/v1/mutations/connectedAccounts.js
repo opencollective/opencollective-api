@@ -1,8 +1,8 @@
-import { pick } from 'lodash';
+import { pick } from 'lodash-es';
 
-import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models from '../../../models';
-import { Unauthorized } from '../../errors';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication/index.js';
+import models from '../../../models/index.js';
+import { Unauthorized } from '../../errors.js';
 
 const editableAttributes = ['settings'];
 

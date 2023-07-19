@@ -1,6 +1,6 @@
 import { GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
 
-import { GraphQLCaptchaProvider } from '../enum/CaptchaProvider';
+import { GraphQLCaptchaProvider } from '../enum/CaptchaProvider.js';
 
 export const GraphQLCaptchaInput = new GraphQLInputObjectType({
   name: 'CaptchaInput',

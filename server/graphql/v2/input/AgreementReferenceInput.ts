@@ -1,8 +1,8 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
-import Agreement from '../../../models/Agreement';
-import { NotFound } from '../../errors';
-import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
+import Agreement from '../../../models/Agreement.js';
+import { NotFound } from '../../errors.js';
+import { idDecode, IDENTIFIER_TYPES } from '../identifiers.js';
 
 export const GraphQLAgreementReferenceInput = new GraphQLInputObjectType({
   name: 'AgreementReferenceInput',

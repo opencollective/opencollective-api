@@ -1,5 +1,5 @@
-import EXPENSE_STATUS from './expense_status';
-import EXPENSE_TYPE from './expense_type';
+import EXPENSE_STATUS from './expense_status.js';
+import EXPENSE_TYPE from './expense_type.js';
 
 export const US_TAX_FORM_THRESHOLD = 600e2; // $600
 export const US_TAX_FORM_THRESHOLD_FOR_PAYPAL = 100000e2; // $100,000

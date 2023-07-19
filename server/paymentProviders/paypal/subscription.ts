@@ -1,25 +1,25 @@
 import config from 'config';
-import { get, pick } from 'lodash';
+import { get, pick } from 'lodash-es';
 import moment from 'moment';
 
-import INTERVALS from '../../constants/intervals';
-import ORDER_STATUS from '../../constants/order_status';
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
-import TierType from '../../constants/tiers';
-import logger from '../../lib/logger';
-import { createRefundTransaction } from '../../lib/payments';
-import { reportErrorToSentry } from '../../lib/sentry';
-import models, { Collective } from '../../models';
-import { OrderModelInterface } from '../../models/Order';
-import { PaymentMethodModelInterface } from '../../models/PaymentMethod';
-import PaypalPlan from '../../models/PaypalPlan';
-import Tier from '../../models/Tier';
-import User from '../../models/User';
-import { SubscriptionTransactions } from '../../types/paypal';
-import { PaymentProviderService } from '../types';
+import INTERVALS from '../../constants/intervals.js';
+import ORDER_STATUS from '../../constants/order_status.js';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods.js';
+import TierType from '../../constants/tiers.js';
+import logger from '../../lib/logger.js';
+import { createRefundTransaction } from '../../lib/payments.js';
+import { reportErrorToSentry } from '../../lib/sentry.js';
+import models, { Collective } from '../../models/index.js';
+import { OrderModelInterface } from '../../models/Order.js';
+import { PaymentMethodModelInterface } from '../../models/PaymentMethod.js';
+import PaypalPlan from '../../models/PaypalPlan.js';
+import Tier from '../../models/Tier.js';
+import User from '../../models/User.js';
+import { SubscriptionTransactions } from '../../types/paypal.js';
+import { PaymentProviderService } from '../types.js';
 
-import { paypalRequest } from './api';
-import { getCaptureIdFromPaypalTransaction, refundPaypalCapture } from './payment';
+import { paypalRequest } from './api.js';
+import { getCaptureIdFromPaypalTransaction, refundPaypalCapture } from './payment.js';
 
 export const CANCEL_PAYPAL_EDITED_SUBSCRIPTION_REASON = 'Updated subscription';
 

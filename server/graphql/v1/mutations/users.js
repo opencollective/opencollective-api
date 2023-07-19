@@ -2,11 +2,11 @@ import crypto from 'crypto';
 
 import config from 'config';
 
-import { activities } from '../../../constants';
-import cache from '../../../lib/cache';
-import emailLib from '../../../lib/email';
-import models from '../../../models';
-import { InvalidToken, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
+import { activities } from '../../../constants/index.js';
+import cache from '../../../lib/cache/index.js';
+import emailLib from '../../../lib/email.js';
+import models from '../../../models/index.js';
+import { InvalidToken, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors.js';
 
 const oneHourInSeconds = 60 * 60;
 

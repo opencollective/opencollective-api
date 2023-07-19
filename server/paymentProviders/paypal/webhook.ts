@@ -1,26 +1,26 @@
 import Debug from 'debug';
 import { Request } from 'express';
-import { get, toNumber } from 'lodash';
+import { get, toNumber } from 'lodash-es';
 import moment from 'moment';
 
-import FEATURE from '../../constants/feature';
-import OrderStatus from '../../constants/order_status';
-import { PAYMENT_METHOD_SERVICE } from '../../constants/paymentMethods';
-import { TransactionKind } from '../../constants/transaction-kind';
-import { TransactionTypes } from '../../constants/transactions';
-import logger from '../../lib/logger';
-import { floatAmountToCents } from '../../lib/math';
-import { createRefundTransaction } from '../../lib/payments';
-import { validateWebhookEvent } from '../../lib/paypal';
-import { sendThankYouEmail } from '../../lib/recurring-contributions';
-import { reportMessageToSentry } from '../../lib/sentry';
-import models, { Op } from '../../models';
-import { PayoutWebhookRequest } from '../../types/paypal';
+import FEATURE from '../../constants/feature.js';
+import OrderStatus from '../../constants/order_status.js';
+import { PAYMENT_METHOD_SERVICE } from '../../constants/paymentMethods.js';
+import { TransactionKind } from '../../constants/transaction-kind.js';
+import { TransactionTypes } from '../../constants/transactions.js';
+import logger from '../../lib/logger.js';
+import { floatAmountToCents } from '../../lib/math.js';
+import { createRefundTransaction } from '../../lib/payments.js';
+import { validateWebhookEvent } from '../../lib/paypal.js';
+import { sendThankYouEmail } from '../../lib/recurring-contributions.js';
+import { reportMessageToSentry } from '../../lib/sentry.js';
+import models, { Op } from '../../models/index.js';
+import { PayoutWebhookRequest } from '../../types/paypal.js';
 
-import { paypalRequestV2 } from './api';
-import { findTransactionByPaypalId, recordPaypalCapture, recordPaypalSale } from './payment';
-import { checkBatchItemStatus } from './payouts';
-import { CANCEL_PAYPAL_EDITED_SUBSCRIPTION_REASON } from './subscription';
+import { paypalRequestV2 } from './api.js';
+import { findTransactionByPaypalId, recordPaypalCapture, recordPaypalSale } from './payment.js';
+import { checkBatchItemStatus } from './payouts.js';
+import { CANCEL_PAYPAL_EDITED_SUBSCRIPTION_REASON } from './subscription.js';
 
 const debug = Debug('paypal:webhook');
 

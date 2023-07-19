@@ -1,15 +1,15 @@
 import config from 'config';
-import { pick } from 'lodash';
+import { pick } from 'lodash-es';
 
-import { activities } from '../../constants';
-import { types } from '../../constants/collectives';
-import roles from '../../constants/roles';
-import cache, { fetchCollectiveId } from '../../lib/cache';
-import emailLib from '../../lib/email';
-import logger from '../../lib/logger';
-import models, { Collective, Op, sequelize } from '../../models';
-import User from '../../models/User';
-import { ValidationFailed } from '../errors';
+import { activities } from '../../constants/index.js';
+import { types } from '../../constants/collectives.js';
+import roles from '../../constants/roles.js';
+import cache, { fetchCollectiveId } from '../../lib/cache/index.js';
+import emailLib from '../../lib/email.js';
+import logger from '../../lib/logger.js';
+import models, { Collective, Op, sequelize } from '../../models/index.js';
+import User from '../../models/User.js';
+import { ValidationFailed } from '../errors.js';
 
 type CreateUserOptions = {
   organizationData?: {

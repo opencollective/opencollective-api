@@ -1,10 +1,10 @@
-import type OAuth2Server from '@node-oauth/oauth2-server';
+import OAuth2Server from '@node-oauth/oauth2-server/index.js';
 import type { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
 
-import oAuthScopes from '../constants/oauth-scopes';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import oAuthScopes from '../constants/oauth-scopes.js';
+import sequelize, { DataTypes, Model } from '../lib/sequelize.js';
 
-import User from './User';
+import User from './User.js';
 
 export enum TokenType {
   OAUTH = 'OAUTH',

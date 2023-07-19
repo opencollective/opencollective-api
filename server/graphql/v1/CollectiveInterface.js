@@ -10,29 +10,29 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
-import { get, has, isNil, isNull, merge, omitBy, sortBy } from 'lodash';
+import { get, has, isNil, isNull, merge, omitBy, sortBy } from 'lodash-es';
 import moment from 'moment';
 import sequelize from 'sequelize';
-import SqlString from 'sequelize/lib/sql-string';
+import SqlString from 'sequelize/lib/sql-string.js';
 
-import { types } from '../../constants/collectives';
-import FEATURE from '../../constants/feature';
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
-import roles from '../../constants/roles';
-import { isCollectiveDeletable } from '../../lib/collectivelib';
-import { filterContributors } from '../../lib/contributors';
-import logger from '../../lib/logger';
-import queries from '../../lib/queries';
-import { canSeeLegalName } from '../../lib/user-permissions';
-import models, { Op } from '../../models';
-import { hostResolver } from '../common/collective';
-import { GraphQLCollectiveFeatures } from '../common/CollectiveFeatures';
-import { getContextPermission, PERMISSION_TYPE } from '../common/context-permissions';
-import { GraphQLPolicies } from '../v2/object/Policies';
-import { GraphQLSocialLink } from '../v2/object/SocialLink';
+import { types } from '../../constants/collectives.js';
+import FEATURE from '../../constants/feature.js';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods.js';
+import roles from '../../constants/roles.js';
+import { isCollectiveDeletable } from '../../lib/collectivelib.js';
+import { filterContributors } from '../../lib/contributors.js';
+import logger from '../../lib/logger.js';
+import queries from '../../lib/queries.js';
+import { canSeeLegalName } from '../../lib/user-permissions.js';
+import models, { Op } from '../../models/index.js';
+import { hostResolver } from '../common/collective.js';
+import { GraphQLCollectiveFeatures } from '../common/CollectiveFeatures.js';
+import { getContextPermission, PERMISSION_TYPE } from '../common/context-permissions.js';
+import { GraphQLPolicies } from '../v2/object/Policies.js';
+import { GraphQLSocialLink } from '../v2/object/SocialLink.js';
 
-import { ApplicationType } from './Application';
-import { TransactionInterfaceType } from './TransactionInterface';
+import { ApplicationType } from './Application.js';
+import { TransactionInterfaceType } from './TransactionInterface.js';
 import {
   ConnectedAccountType,
   ContributorRoleEnum,
@@ -53,7 +53,7 @@ import {
   TierType,
   UpdateType,
   UserType,
-} from './types';
+} from './types.js';
 
 export const TypeOfCollectiveType = new GraphQLEnumType({
   name: 'TypeOfCollective',

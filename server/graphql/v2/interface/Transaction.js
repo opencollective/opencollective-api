@@ -9,26 +9,26 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { isNil, round } from 'lodash';
+import { isNil, round } from 'lodash-es';
 
-import orderStatus from '../../../constants/order_status';
-import roles from '../../../constants/roles';
-import { TransactionKind as TransactionKinds } from '../../../constants/transaction-kind';
-import { generateDescription } from '../../../lib/transactions';
-import models from '../../../models';
-import { allowContextPermission, getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
-import * as TransactionLib from '../../common/transactions';
-import { GraphQLTransactionKind } from '../enum/TransactionKind';
-import { GraphQLTransactionType } from '../enum/TransactionType';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
-import { GraphQLAmount } from '../object/Amount';
-import { GraphQLExpense } from '../object/Expense';
-import { GraphQLOrder } from '../object/Order';
-import { GraphQLPaymentMethod } from '../object/PaymentMethod';
-import GraphQLPayoutMethod from '../object/PayoutMethod';
-import { GraphQLTaxInfo } from '../object/TaxInfo';
+import orderStatus from '../../../constants/order_status.js';
+import roles from '../../../constants/roles.js';
+import { TransactionKind as TransactionKinds } from '../../../constants/transaction-kind.js';
+import { generateDescription } from '../../../lib/transactions.js';
+import models from '../../../models/index.js';
+import { allowContextPermission, getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions.js';
+import * as TransactionLib from '../../common/transactions.js';
+import { GraphQLTransactionKind } from '../enum/TransactionKind.js';
+import { GraphQLTransactionType } from '../enum/TransactionType.js';
+import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers.js';
+import { GraphQLAmount } from '../object/Amount.js';
+import { GraphQLExpense } from '../object/Expense.js';
+import { GraphQLOrder } from '../object/Order.js';
+import { GraphQLPaymentMethod } from '../object/PaymentMethod.js';
+import GraphQLPayoutMethod from '../object/PayoutMethod.js';
+import { GraphQLTaxInfo } from '../object/TaxInfo.js';
 
-import { GraphQLAccount } from './Account';
+import { GraphQLAccount } from './Account.js';
 
 const GraphQLTransactionPermissions = new GraphQLObjectType({
   name: 'TransactionPermissions',

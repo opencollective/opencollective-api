@@ -1,15 +1,15 @@
 import { GraphQLList, GraphQLNonNull } from 'graphql';
-import { pick } from 'lodash';
+import { pick } from 'lodash-es';
 
-import roles from '../../../constants/roles';
-import { isCollectiveSlugReserved } from '../../../lib/collectivelib';
-import models from '../../../models';
-import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation';
-import { processInviteMembersInput } from '../../common/members';
-import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
-import { GraphQLInviteMemberInput } from '../input/InviteMemberInput';
-import { GraphQLOrganizationCreateInput } from '../input/OrganizationCreateInput';
-import { GraphQLOrganization } from '../object/Organization';
+import roles from '../../../constants/roles.js';
+import { isCollectiveSlugReserved } from '../../../lib/collectivelib.js';
+import models from '../../../models/index.js';
+import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation.js';
+import { processInviteMembersInput } from '../../common/members.js';
+import { checkRemoteUserCanUseAccount } from '../../common/scope-check.js';
+import { GraphQLInviteMemberInput } from '../input/InviteMemberInput.js';
+import { GraphQLOrganizationCreateInput } from '../input/OrganizationCreateInput.js';
+import { GraphQLOrganization } from '../object/Organization.js';
 
 const DEFAULT_ORGANIZATION_SETTINGS = {
   features: { conversations: true },

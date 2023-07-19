@@ -1,13 +1,13 @@
 import crypto from 'crypto';
 
-import { isEmpty } from 'lodash';
+import { isEmpty } from 'lodash-es';
 import { v4 as uuid } from 'uuid';
 
-import { types as COLLECTIVE_TYPE } from '../constants/collectives';
-import { BadRequest, InvalidToken, NotFound } from '../graphql/errors';
-import models, { Collective, sequelize } from '../models';
-import User from '../models/User';
-import { Location } from '../types/Location';
+import { types as COLLECTIVE_TYPE } from '../constants/collectives.js';
+import { BadRequest, InvalidToken, NotFound } from '../graphql/errors.js';
+import models, { Collective, sequelize } from '../models/index.js';
+import User from '../models/User.js';
+import { Location } from '../types/Location.js';
 
 export const DEFAULT_GUEST_NAME = 'Guest';
 

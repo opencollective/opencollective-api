@@ -1,14 +1,14 @@
 import { GraphQLNonNull } from 'graphql';
-import { pick } from 'lodash';
+import { pick } from 'lodash-es';
 
-import roles from '../../../constants/roles';
-import { isCollectiveSlugReserved } from '../../../lib/collectivelib';
-import models from '../../../models';
-import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
-import { Forbidden, NotFound } from '../../errors';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
-import { GraphQLProjectCreateInput } from '../input/ProjectCreateInput';
-import { GraphQLProject } from '../object/Project';
+import roles from '../../../constants/roles.js';
+import { isCollectiveSlugReserved } from '../../../lib/collectivelib.js';
+import models from '../../../models/index.js';
+import { checkRemoteUserCanUseAccount } from '../../common/scope-check.js';
+import { Forbidden, NotFound } from '../../errors.js';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput.js';
+import { GraphQLProjectCreateInput } from '../input/ProjectCreateInput.js';
+import { GraphQLProject } from '../object/Project.js';
 
 const DEFAULT_PROJECT_SETTINGS = {
   collectivePage: {

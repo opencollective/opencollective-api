@@ -1,4 +1,4 @@
-import { forEach as lodashEach } from 'lodash';
+import { forEach as lodashEach } from 'lodash-es';
 import sanitize from 'sanitize-html';
 
 export default () => {

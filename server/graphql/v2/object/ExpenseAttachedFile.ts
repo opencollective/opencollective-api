@@ -1,9 +1,9 @@
 import express from 'express';
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
-import { GraphQLFileInfo } from '../interface/FileInfo';
-import URL from '../scalar/URL';
+import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers.js';
+import { GraphQLFileInfo } from '../interface/FileInfo.js';
+import URL from '../scalar/URL.js';
 
 const GraphQLExpenseAttachedFile = new GraphQLObjectType({
   name: 'ExpenseAttachedFile',

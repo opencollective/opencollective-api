@@ -3,18 +3,18 @@ import { URLSearchParams } from 'url';
 import config from 'config';
 import debugLib from 'debug';
 import gqlmin from 'gqlmin';
-import { get, isNil, omitBy } from 'lodash';
+import { get, isNil, omitBy } from 'lodash-es';
 import moment from 'moment';
 import passport from 'passport';
 
-import * as connectedAccounts from '../controllers/connectedAccounts';
-import { verifyJwt } from '../lib/auth';
-import errors from '../lib/errors';
-import logger from '../lib/logger';
-import { reportMessageToSentry } from '../lib/sentry';
-import { getBearerTokenFromRequestHeaders, parseToBoolean } from '../lib/utils';
-import models from '../models';
-import paymentProviders from '../paymentProviders';
+import * as connectedAccounts from '../controllers/connectedAccounts.js';
+import { verifyJwt } from '../lib/auth.js';
+import errors from '../lib/errors.js';
+import logger from '../lib/logger.js';
+import { reportMessageToSentry } from '../lib/sentry.js';
+import { getBearerTokenFromRequestHeaders, parseToBoolean } from '../lib/utils.js';
+import models from '../models/index.js';
+import paymentProviders from '../paymentProviders/index.js';
 
 const { User, UserToken } = models;
 

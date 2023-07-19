@@ -1,10 +1,10 @@
 import { GraphQLObjectType, GraphQLString } from 'graphql';
 
-import { reportErrorToSentry } from '../../../lib/sentry';
-import stripe from '../../../lib/stripe';
-import { ConnectedAccount } from '../../../models';
+import { reportErrorToSentry } from '../../../lib/sentry.js';
+import stripe from '../../../lib/stripe.js';
+import { ConnectedAccount } from '../../../models/index.js';
 
-import { GraphQLAmount } from './Amount';
+import { GraphQLAmount } from './Amount.js';
 
 export const GraphQLStripeConnectedAccount = new GraphQLObjectType({
   name: 'StripeConnectedAccount',

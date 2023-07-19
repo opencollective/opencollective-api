@@ -1,39 +1,39 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { cloneDeep, isNil, omit, uniqBy } from 'lodash';
+import { cloneDeep, isNil, omit, uniqBy } from 'lodash-es';
 
-import { types as collectiveTypes } from '../../../constants/collectives';
-import roles from '../../../constants/roles';
-import { purgeAllCachesForAccount, purgeGraphqlCacheForCollective } from '../../../lib/cache';
-import { purgeCacheForPage } from '../../../lib/cloudflare';
-import { invalidateContributorsCache } from '../../../lib/contributors';
-import { mergeAccounts, simulateMergeAccounts } from '../../../lib/merge-accounts';
+import { types as collectiveTypes } from '../../../constants/collectives.js';
+import roles from '../../../constants/roles.js';
+import { purgeAllCachesForAccount, purgeGraphqlCacheForCollective } from '../../../lib/cache/index.js';
+import { purgeCacheForPage } from '../../../lib/cloudflare.js';
+import { invalidateContributorsCache } from '../../../lib/contributors.js';
+import { mergeAccounts, simulateMergeAccounts } from '../../../lib/merge-accounts.js';
 import {
   banAccounts,
   getAccountsNetwork,
   getBanSummary,
   stringifyBanResult,
   stringifyBanSummary,
-} from '../../../lib/moderation';
-import { setTaxForm } from '../../../lib/tax-forms';
-import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models, { sequelize } from '../../../models';
-import UserTwoFactorMethod from '../../../models/UserTwoFactorMethod';
-import { moveExpenses } from '../../common/expenses';
-import { checkRemoteUserCanRoot } from '../../common/scope-check';
-import { Forbidden } from '../../errors';
-import { archiveCollective, unarchiveCollective } from '../../v1/mutations/collectives';
-import { GraphQLAccountCacheType } from '../enum/AccountCacheType';
+} from '../../../lib/moderation.js';
+import { setTaxForm } from '../../../lib/tax-forms.js';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication/index.js';
+import models, { sequelize } from '../../../models/index.js';
+import UserTwoFactorMethod from '../../../models/UserTwoFactorMethod.js';
+import { moveExpenses } from '../../common/expenses.js';
+import { checkRemoteUserCanRoot } from '../../common/scope-check.js';
+import { Forbidden } from '../../errors.js';
+import { archiveCollective, unarchiveCollective } from '../../v1/mutations/collectives.js';
+import { GraphQLAccountCacheType } from '../enum/AccountCacheType.js';
 import {
   fetchAccountsWithReferences,
   fetchAccountWithReference,
   GraphQLAccountReferenceInput,
-} from '../input/AccountReferenceInput';
-import { fetchExpensesWithReferences, GraphQLExpenseReferenceInput } from '../input/ExpenseReferenceInput';
-import { GraphQLAccount } from '../interface/Account';
-import { GraphQLExpense } from '../object/Expense';
-import { GraphQLMergeAccountsResponse } from '../object/MergeAccountsResponse';
-import URL from '../scalar/URL';
+} from '../input/AccountReferenceInput.js';
+import { fetchExpensesWithReferences, GraphQLExpenseReferenceInput } from '../input/ExpenseReferenceInput.js';
+import { GraphQLAccount } from '../interface/Account.js';
+import { GraphQLExpense } from '../object/Expense.js';
+import { GraphQLMergeAccountsResponse } from '../object/MergeAccountsResponse.js';
+import URL from '../scalar/URL.js';
 
 const GraphQLBanAccountResponse = new GraphQLObjectType({
   name: 'BanAccountResponse',

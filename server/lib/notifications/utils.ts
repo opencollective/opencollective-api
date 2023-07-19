@@ -1,6 +1,6 @@
 import sanitizeHtml from 'sanitize-html';
 
-import { sanitizerOptions as updateSanitizerOptions } from '../../models/Update';
+import { sanitizerOptions as updateSanitizerOptions } from '../../models/Update.js';
 
 const constructPreviewImageURL = (service: string, id: string) => {
   if (service === 'youtube' && id.match('[a-zA-Z0-9_-]{11}')) {

@@ -8,9 +8,9 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
-import { mapValues } from 'lodash';
+import { mapValues } from 'lodash-es';
 
-import { getExpenseCreateInputFields } from './ExpenseCreateInput';
+import { getExpenseCreateInputFields } from './ExpenseCreateInput.js';
 
 const GraphQLExpenseInviteeOrganizationInput = new GraphQLInputObjectType({
   name: 'ExpenseInviteeOrganizationInput',

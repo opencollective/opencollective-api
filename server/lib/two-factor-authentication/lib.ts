@@ -1,19 +1,19 @@
 import { Request } from 'express';
-import { isNil, pick } from 'lodash';
+import { isNil, pick } from 'lodash-es';
 
-import { activities } from '../../constants';
-import POLICIES from '../../constants/policies';
-import { ApolloError, Unauthorized } from '../../graphql/errors';
-import { Activity, Collective } from '../../models';
-import User from '../../models/User';
-import UserTwoFactorMethod from '../../models/UserTwoFactorMethod';
-import cache from '../cache';
-import { hasPolicy } from '../policies';
+import { activities } from '../../constants/index.js';
+import POLICIES from '../../constants/policies.js';
+import { ApolloError, Unauthorized } from '../../graphql/errors.js';
+import { Activity, Collective } from '../../models/index.js';
+import User from '../../models/User.js';
+import UserTwoFactorMethod from '../../models/UserTwoFactorMethod.js';
+import cache from '../cache/index.js';
+import { hasPolicy } from '../policies.js';
 
-import recoveryCode from './recovery-code';
-import totp from './totp';
-import { TwoFactorMethod } from './two-factor-methods';
-import yubikeyOTP from './yubikey-otp';
+import recoveryCode from './recovery-code.js';
+import totp from './totp.js';
+import { TwoFactorMethod } from './two-factor-methods.js';
+import yubikeyOTP from './yubikey-otp.js';
 
 export { TwoFactorMethod };
 

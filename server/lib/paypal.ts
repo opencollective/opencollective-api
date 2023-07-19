@@ -1,13 +1,12 @@
-/* eslint-disable camelcase */
-import paypal from '@paypal/payouts-sdk';
+import paypal from '@paypal/payouts-sdk/index.js';
 import config from 'config';
 import express from 'express';
-import { difference, find } from 'lodash';
+import { difference, find } from 'lodash-es';
 import moment from 'moment';
 
-import models, { Collective, Op, sequelize } from '../models';
-import { ConnectedAccount } from '../models/ConnectedAccount';
-import { paypalRequest } from '../paymentProviders/paypal/api';
+import models, { Collective, Op, sequelize } from '../models/index.js';
+import { ConnectedAccount } from '../models/ConnectedAccount.js';
+import { paypalRequest } from '../paymentProviders/paypal/api.js';
 import {
   PayoutBatchDetails,
   PayoutRequestBody,
@@ -16,10 +15,10 @@ import {
   PaypalWebhook,
   PaypalWebhookEventType,
   PaypalWebhookPatch,
-} from '../types/paypal';
+} from '../types/paypal.js';
 
-import logger from './logger';
-import { floatAmountToCents } from './math';
+import logger from './logger.js';
+import { floatAmountToCents } from './math.js';
 
 const getPaypalWebhookUrl = host => {
   if (config.env === 'development') {

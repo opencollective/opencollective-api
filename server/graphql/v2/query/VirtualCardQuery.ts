@@ -1,11 +1,11 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
 
-import VirtualCard from '../../../models/VirtualCard';
-import { checkScope } from '../../common/scope-check';
-import { NotFound } from '../../errors';
-import { GraphQLVirtualCardReferenceInput } from '../input/VirtualCardReferenceInput';
-import { GraphQLVirtualCard } from '../object/VirtualCard';
+import VirtualCard from '../../../models/VirtualCard.js';
+import { checkScope } from '../../common/scope-check.js';
+import { NotFound } from '../../errors.js';
+import { GraphQLVirtualCardReferenceInput } from '../input/VirtualCardReferenceInput.js';
+import { GraphQLVirtualCard } from '../object/VirtualCard.js';
 
 const VirtualCardQuery = {
   type: GraphQLVirtualCard,

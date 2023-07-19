@@ -1,8 +1,8 @@
 import config from 'config';
 
-import UploadedFile from '../models/UploadedFile';
+import UploadedFile from '../models/UploadedFile.js';
 
-import { getHostname } from './url-utils';
+import { getHostname } from './url-utils.js';
 
 const TRUSTED_IMAGE_PROVIDERS = [
   'gravatar.com',

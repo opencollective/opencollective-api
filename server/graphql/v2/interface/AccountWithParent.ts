@@ -1,9 +1,9 @@
 import { GraphQLInterfaceType } from 'graphql';
 
-import { types as COLLECTIVE_TYPE } from '../../../constants/collectives';
-import { Collective } from '../../../models';
+import { types as COLLECTIVE_TYPE } from '../../../constants/collectives.js';
+import { Collective } from '../../../models/index.js';
 
-import { GraphQLAccount } from './Account';
+import { GraphQLAccount } from './Account.js';
 
 export const AccountWithParentFields = {
   parent: {

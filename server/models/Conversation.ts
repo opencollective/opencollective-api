@@ -1,15 +1,15 @@
 import slugify from 'limax';
 import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
 
-import { activities } from '../constants';
-import { idEncode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
-import { generateSummaryForHTML } from '../lib/sanitize-html';
-import sequelize, { DataTypes, Model, QueryTypes } from '../lib/sequelize';
-import { sanitizeTags, validateTags } from '../lib/tags';
+import { activities } from '../constants/index.js';
+import { idEncode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers.js';
+import { generateSummaryForHTML } from '../lib/sanitize-html.js';
+import sequelize, { DataTypes, Model, QueryTypes } from '../lib/sequelize.js';
+import { sanitizeTags, validateTags } from '../lib/tags.js';
 
-import Comment from './Comment';
-import User from './User';
-import models, { Collective } from '.';
+import Comment from './Comment.js';
+import User from './User.js';
+import models, { Collective } from './index.js';
 
 class Conversation extends Model<InferAttributes<Conversation>, InferCreationAttributes<Conversation>> {
   public declare readonly id: CreationOptional<number>;

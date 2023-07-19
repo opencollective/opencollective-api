@@ -1,6 +1,6 @@
-import { get, isUndefined } from 'lodash';
+import { get, isUndefined } from 'lodash-es';
 
-import POLICIES, { DEFAULT_POLICIES, Policies } from '../constants/policies';
+import POLICIES, { DEFAULT_POLICIES, Policies } from '../constants/policies.js';
 
 export const hasPolicy = async (collective, policy: POLICIES): Promise<boolean> => {
   let account = collective;

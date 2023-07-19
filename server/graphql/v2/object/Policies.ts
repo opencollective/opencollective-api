@@ -1,13 +1,13 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLObjectType } from 'graphql';
-import { get } from 'lodash';
+import { get } from 'lodash-es';
 
-import POLICIES from '../../../constants/policies';
-import { VirtualCardLimitIntervals } from '../../../constants/virtual-cards';
-import { getPolicy } from '../../../lib/policies';
-import { checkScope } from '../../common/scope-check';
-import { GraphQLPolicyApplication } from '../enum/PolicyApplication';
+import POLICIES from '../../../constants/policies.js';
+import { VirtualCardLimitIntervals } from '../../../constants/virtual-cards.js';
+import { getPolicy } from '../../../lib/policies.js';
+import { checkScope } from '../../common/scope-check.js';
+import { GraphQLPolicyApplication } from '../enum/PolicyApplication.js';
 
-import { GraphQLAmount } from './Amount';
+import { GraphQLAmount } from './Amount.js';
 
 export const GraphQLPolicies = new GraphQLObjectType({
   name: 'Policies',

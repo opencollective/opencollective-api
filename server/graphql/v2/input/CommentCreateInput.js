@@ -1,11 +1,11 @@
 import { GraphQLInputObjectType, GraphQLString } from 'graphql';
 
-import { CommentType as CommentTypeEnum } from '../../../models/Comment';
-import { GraphQLCommentType } from '../enum/CommentType';
+import { CommentType as CommentTypeEnum } from '../../../models/Comment.js';
+import { GraphQLCommentType } from '../enum/CommentType.js';
 
-import { GraphQLConversationReferenceInput } from './ConversationReferenceInput';
-import { GraphQLExpenseReferenceInput } from './ExpenseReferenceInput';
-import { GraphQLUpdateReferenceInput } from './UpdateReferenceInput';
+import { GraphQLConversationReferenceInput } from './ConversationReferenceInput.js';
+import { GraphQLExpenseReferenceInput } from './ExpenseReferenceInput.js';
+import { GraphQLUpdateReferenceInput } from './UpdateReferenceInput.js';
 
 /**
  * Input type to use as the type for the comment input in createComment mutation.

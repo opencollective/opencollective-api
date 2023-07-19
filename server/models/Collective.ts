@@ -26,7 +26,7 @@ import {
   sumBy,
   trim,
   unset,
-} from 'lodash';
+} from 'lodash-es';
 import moment from 'moment';
 import fetch from 'node-fetch';
 import pMap from 'p-map';
@@ -45,17 +45,17 @@ import Temporal from 'sequelize-temporal';
 import { v4 as uuid } from 'uuid';
 import validator from 'validator';
 
-import activities from '../constants/activities';
-import { CollectiveTypesList, types } from '../constants/collectives';
-import { Service } from '../constants/connected_account';
-import expenseStatus from '../constants/expense_status';
-import expenseTypes from '../constants/expense_type';
-import FEATURE from '../constants/feature';
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
-import plans from '../constants/plans';
-import POLICIES from '../constants/policies';
-import roles, { MemberRoleLabels } from '../constants/roles';
-import { hasOptedOutOfFeature, isFeatureAllowedForCollectiveType } from '../lib/allowed-features';
+import activities from '../constants/activities.js';
+import { CollectiveTypesList, types } from '../constants/collectives.js';
+import { Service } from '../constants/connected_account.js';
+import expenseStatus from '../constants/expense_status.js';
+import expenseTypes from '../constants/expense_type.js';
+import FEATURE from '../constants/feature.js';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods.js';
+import plans from '../constants/plans.js';
+import POLICIES from '../constants/policies.js';
+import roles, { MemberRoleLabels } from '../constants/roles.js';
+import { hasOptedOutOfFeature, isFeatureAllowedForCollectiveType } from '../lib/allowed-features.js';
 import {
   getBalanceAmount,
   getContributionsAndContributorsCount,
@@ -65,50 +65,50 @@ import {
   getTotalAmountSpentAmount,
   getTotalMoneyManagedAmount,
   getYearlyBudgetAmount,
-} from '../lib/budget';
-import { purgeCacheForCollective } from '../lib/cache';
+} from '../lib/budget.js';
+import { purgeCacheForCollective } from '../lib/cache/index.js';
 import {
   collectiveSlugReservedList,
   filterCollectiveSettings,
   getCollectiveAvatarUrl,
   isCollectiveSlugReserved,
   validateSettings,
-} from '../lib/collectivelib';
-import { invalidateContributorsCache } from '../lib/contributors';
-import { getFxRate } from '../lib/currency';
-import emailLib from '../lib/email';
-import { formatAddress } from '../lib/format-address';
-import { getGithubHandleFromUrl, getGithubUrlFromHandle } from '../lib/github';
+} from '../lib/collectivelib.js';
+import { invalidateContributorsCache } from '../lib/contributors.js';
+import { getFxRate } from '../lib/currency.js';
+import emailLib from '../lib/email.js';
+import { formatAddress } from '../lib/format-address.js';
+import { getGithubHandleFromUrl, getGithubUrlFromHandle } from '../lib/github.js';
 import {
   getHostFees,
   getHostFeeShare,
   getPendingHostFeeShare,
   getPendingPlatformTips,
   getPlatformTips,
-} from '../lib/host-metrics';
-import { isValidUploadedImage } from '../lib/images';
-import { mustUpdateLocation } from '../lib/location';
-import logger from '../lib/logger';
-import { getPolicy } from '../lib/policies';
-import queries from '../lib/queries';
-import { buildSanitizerOptions, sanitizeHTML, stripHTML } from '../lib/sanitize-html';
-import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
-import sequelize, { DataTypes, Op, Sequelize, Transaction } from '../lib/sequelize';
-import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective } from '../lib/spam';
-import { sanitizeTags, validateTags } from '../lib/tags';
-import { canUseFeature } from '../lib/user-permissions';
-import userlib from '../lib/userlib';
-import { capitalize, formatCurrency, getDomain, md5 } from '../lib/utils';
-import { Location as LocationType } from '../types/Location';
+} from '../lib/host-metrics.js';
+import { isValidUploadedImage } from '../lib/images.js';
+import { mustUpdateLocation } from '../lib/location.js';
+import logger from '../lib/logger.js';
+import { getPolicy } from '../lib/policies.js';
+import queries from '../lib/queries.js';
+import { buildSanitizerOptions, sanitizeHTML, stripHTML } from '../lib/sanitize-html.js';
+import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry.js';
+import sequelize, { DataTypes, Op, Sequelize, Transaction } from '../lib/sequelize.js';
+import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective } from '../lib/spam.js';
+import { sanitizeTags, validateTags } from '../lib/tags.js';
+import { canUseFeature } from '../lib/user-permissions.js';
+import userlib from '../lib/userlib.js';
+import { capitalize, formatCurrency, getDomain, md5 } from '../lib/utils.js';
+import { Location as LocationType } from '../types/Location.js';
 
-import ConnectedAccount from './ConnectedAccount';
-import CustomDataTypes from './DataTypes';
-import { HostApplicationStatus } from './HostApplication';
-import { LegalDocumentModelInterface } from './LegalDocument';
-import Location from './Location';
-import Order from './Order';
-import { PayoutMethodTypes } from './PayoutMethod';
-import SocialLink, { SocialLinkType } from './SocialLink';
+import ConnectedAccount from './ConnectedAccount.js';
+import CustomDataTypes from './DataTypes.js';
+import { HostApplicationStatus } from './HostApplication.js';
+import { LegalDocumentModelInterface } from './LegalDocument.js';
+import Location from './Location.js';
+import Order from './Order.js';
+import { PayoutMethodTypes } from './PayoutMethod.js';
+import SocialLink, { SocialLinkType } from './SocialLink.js';
 
 const debug = debugLib('models:Collective');
 

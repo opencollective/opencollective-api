@@ -3,7 +3,7 @@ import path from 'path';
 import { encode } from 'blurhash';
 import config from 'config';
 import type { FileUpload as GraphQLFileUpload } from 'graphql-upload/Upload.js';
-import { kebabCase } from 'lodash';
+import { kebabCase } from 'lodash-es';
 import {
   BelongsToGetAssociationMixin,
   CreationOptional,
@@ -14,13 +14,13 @@ import {
 import sharp from 'sharp';
 import { v4 as uuid } from 'uuid';
 
-import s3, { uploadToS3 } from '../lib/awsS3';
-import logger from '../lib/logger';
-import { reportErrorToSentry } from '../lib/sentry';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
-import streamToBuffer from '../lib/stream-to-buffer';
+import s3, { uploadToS3 } from '../lib/awsS3.js';
+import logger from '../lib/logger.js';
+import { reportErrorToSentry } from '../lib/sentry.js';
+import sequelize, { DataTypes, Model } from '../lib/sequelize.js';
+import streamToBuffer from '../lib/stream-to-buffer.js';
 
-import User from './User';
+import User from './User.js';
 
 // Types
 type SUPPORTED_FILE_TYPES_UNION = (typeof SUPPORTED_FILE_TYPES)[number];

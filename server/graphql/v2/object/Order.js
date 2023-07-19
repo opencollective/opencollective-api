@@ -8,26 +8,26 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { pick, round } from 'lodash';
+import { pick, round } from 'lodash-es';
 
-import roles from '../../../constants/roles';
-import { getHostFeePercent } from '../../../lib/payments';
-import models from '../../../models';
-import { PRIVATE_ORDER_ACTIVITIES } from '../../loaders/order';
-import { ORDER_PUBLIC_DATA_FIELDS } from '../../v1/mutations/orders';
-import { GraphQLActivityCollection } from '../collection/ActivityCollection';
-import { GraphQLContributionFrequency, GraphQLOrderStatus } from '../enum';
-import { idEncode } from '../identifiers';
-import { GraphQLAccount } from '../interface/Account';
-import { GraphQLTransaction } from '../interface/Transaction';
-import { GraphQLAmount } from '../object/Amount';
-import { GraphQLPaymentMethod } from '../object/PaymentMethod';
-import { GraphQLTier } from '../object/Tier';
+import roles from '../../../constants/roles.js';
+import { getHostFeePercent } from '../../../lib/payments.js';
+import models from '../../../models/index.js';
+import { PRIVATE_ORDER_ACTIVITIES } from '../../loaders/order.js';
+import { ORDER_PUBLIC_DATA_FIELDS } from '../../v1/mutations/orders.js';
+import { GraphQLActivityCollection } from '../collection/ActivityCollection.js';
+import { GraphQLContributionFrequency, GraphQLOrderStatus } from '../enum/index.js';
+import { idEncode } from '../identifiers.js';
+import { GraphQLAccount } from '../interface/Account.js';
+import { GraphQLTransaction } from '../interface/Transaction.js';
+import { GraphQLAmount } from '../object/Amount.js';
+import { GraphQLPaymentMethod } from '../object/PaymentMethod.js';
+import { GraphQLTier } from '../object/Tier.js';
 
-import { GraphQLMemberOf } from './Member';
-import GraphQLOrderPermissions, { canSeeOrderPrivateActivities } from './OrderPermissions';
-import { GraphQLOrderTax } from './OrderTax';
-import { GraphQLTaxInfo } from './TaxInfo';
+import { GraphQLMemberOf } from './Member.js';
+import GraphQLOrderPermissions, { canSeeOrderPrivateActivities } from './OrderPermissions.js';
+import { GraphQLOrderTax } from './OrderTax.js';
+import { GraphQLTaxInfo } from './TaxInfo.js';
 
 const GraphQLPendingOrderFromAccountInfo = new GraphQLObjectType({
   name: 'PendingOrderFromAccountInfo',

@@ -1,7 +1,7 @@
 import DataLoader from 'dataloader';
-import { uniq, zipObject } from 'lodash';
+import { uniq, zipObject } from 'lodash-es';
 
-import { ContributorsCacheEntry, getContributorsForCollective } from '../../lib/contributors';
+import { ContributorsCacheEntry, getContributorsForCollective } from '../../lib/contributors.js';
 
 export default {
   forCollectiveId: (): DataLoader<number, ContributorsCacheEntry> =>

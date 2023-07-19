@@ -1,13 +1,13 @@
 import { GraphQLNonNull, GraphQLObjectType } from 'graphql';
 
-import { TransactionKind } from '../../../constants/transaction-kind';
-import { TransactionTypes } from '../../../constants/transactions';
-import * as HostMetricsLib from '../../../lib/host-metrics';
-import { getTimeSeriesFields } from '../interface/TimeSeries';
+import { TransactionKind } from '../../../constants/transaction-kind.js';
+import { TransactionTypes } from '../../../constants/transactions.js';
+import * as HostMetricsLib from '../../../lib/host-metrics.js';
+import { getTimeSeriesFields } from '../interface/TimeSeries.js';
 
-import { GraphQLTimeSeriesAmount } from './TimeSeriesAmount';
-import { GraphQLTimeSeriesAmountWithKind } from './TimeSeriesAmountWithKind';
-import { GraphQLTimeSeriesAmountWithSettlement } from './TimeSeriesAmountWithSettlement';
+import { GraphQLTimeSeriesAmount } from './TimeSeriesAmount.js';
+import { GraphQLTimeSeriesAmountWithKind } from './TimeSeriesAmountWithKind.js';
+import { GraphQLTimeSeriesAmountWithSettlement } from './TimeSeriesAmountWithSettlement.js';
 
 export const resultsToAmountNode = results => {
   return results.map(result => ({

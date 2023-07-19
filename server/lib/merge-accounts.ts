@@ -1,12 +1,12 @@
-import { flatten, isEmpty, keyBy, mapValues, some } from 'lodash';
+import { flatten, isEmpty, keyBy, mapValues, some } from 'lodash-es';
 import { Model, ModelStatic } from 'sequelize';
 
-import { types as CollectiveTypes } from '../constants/collectives';
-import models, { Collective, Op, sequelize } from '../models';
-import { MigrationLogType } from '../models/MigrationLog';
-import User from '../models/User';
+import { types as CollectiveTypes } from '../constants/collectives.js';
+import models, { Collective, Op, sequelize } from '../models/index.js';
+import { MigrationLogType } from '../models/MigrationLog.js';
+import User from '../models/User.js';
 
-import { DEFAULT_GUEST_NAME } from './guest-accounts';
+import { DEFAULT_GUEST_NAME } from './guest-accounts.js';
 
 const countEntities = async (fieldsConfig, entityId) => {
   const resultsList = await Promise.all(

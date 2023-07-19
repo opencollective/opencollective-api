@@ -1,19 +1,19 @@
 import debugLib from 'debug';
 import slugify from 'limax';
-import { defaults, isNil, min, uniq } from 'lodash';
+import { defaults, isNil, min, uniq } from 'lodash-es';
 import pMap from 'p-map';
 import { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
-import { maxInteger } from '../constants/math';
-import orderStatus from '../constants/order_status';
-import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
-import sequelize, { DataTypes, Model, Op } from '../lib/sequelize';
-import { capitalize, days, formatCurrency } from '../lib/utils';
-import { isSupportedVideoProvider, supportedVideoProviders } from '../lib/validators';
+import { maxInteger } from '../constants/math.js';
+import orderStatus from '../constants/order_status.js';
+import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html.js';
+import sequelize, { DataTypes, Model, Op } from '../lib/sequelize.js';
+import { capitalize, days, formatCurrency } from '../lib/utils.js';
+import { isSupportedVideoProvider, supportedVideoProviders } from '../lib/validators.js';
 
-import CustomDataTypes from './DataTypes';
-import models, { Collective } from '.';
+import CustomDataTypes from './DataTypes.js';
+import models, { Collective } from './index.js';
 
 const debug = debugLib('models:Tier');
 

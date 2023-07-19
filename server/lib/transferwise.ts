@@ -1,3 +1,5 @@
+import url from 'url';
+const __dirname = url.fileURLToPath(new url.URL('.', import.meta.url));
 /* eslint-disable camelcase */
 import crypto from 'crypto';
 import fs from 'fs';
@@ -8,13 +10,14 @@ import axios, { AxiosError, AxiosResponse } from 'axios';
 import config from 'config';
 import Debug from 'debug';
 import { Request } from 'express';
-import { cloneDeep, isNull, omitBy, pick, set, startCase, toUpper } from 'lodash';
+import { cloneDeep, isNull, omitBy, pick, set, startCase, toUpper } from 'lodash-es';
 import moment from 'moment';
 
-import ActivityTypes from '../constants/activities';
-import { TransferwiseError } from '../graphql/errors';
-import models from '../models';
-import { ConnectedAccount } from '../models/ConnectedAccount';
+import ActivityTypes from '../constants/activities.js';
+import { TransferwiseError } from '../graphql/errors.js';
+import models from '../models/index.js';
+import { ConnectedAccount } from '../models/ConnectedAccount.js';
+
 import {
   AccessToken,
   BalanceV4,
@@ -29,12 +32,12 @@ import {
   Webhook,
   WebhookCreateInput,
   WebhookEvent,
-} from '../types/transferwise';
+} from '../types/transferwise.js';
 
-import { FEATURE } from './allowed-features';
-import logger from './logger';
-import { reportErrorToSentry } from './sentry';
-import { sleep } from './utils';
+import { FEATURE } from './allowed-features.js';
+import logger from './logger.js';
+import { reportErrorToSentry } from './sentry.js';
+import { sleep } from './utils.js';
 
 const debug = Debug('transferwise');
 

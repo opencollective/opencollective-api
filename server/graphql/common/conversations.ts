@@ -1,13 +1,13 @@
 import { Request } from 'express';
-import { pick } from 'lodash';
+import { pick } from 'lodash-es';
 
-import FEATURE from '../../constants/feature';
-import { hasFeature } from '../../lib/allowed-features';
-import models from '../../models';
-import Conversation from '../../models/Conversation';
-import { FeatureNotSupportedForCollective, NotFound, Unauthorized } from '../errors';
+import FEATURE from '../../constants/feature.js';
+import { hasFeature } from '../../lib/allowed-features.js';
+import models from '../../models/index.js';
+import Conversation from '../../models/Conversation.js';
+import { FeatureNotSupportedForCollective, NotFound, Unauthorized } from '../errors.js';
 
-import { checkRemoteUserCanUseConversations } from './scope-check';
+import { checkRemoteUserCanUseConversations } from './scope-check.js';
 
 /** Params given to create a new conversation */
 interface CreateConversationParams {

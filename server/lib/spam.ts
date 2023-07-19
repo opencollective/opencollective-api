@@ -1,15 +1,17 @@
+import url from 'url';
+const __dirname = url.fileURLToPath(new url.URL('.', import.meta.url));
 import fs from 'fs';
 import path from 'path';
 
 import bayes from 'bayes';
 import config from 'config';
 import getUrls from 'get-urls';
-import { clamp } from 'lodash';
+import { clamp } from 'lodash-es';
 import sanitizeHtml from 'sanitize-html';
 
-import slackLib, { OPEN_COLLECTIVE_SLACK_CHANNEL } from '../lib/slack';
-import { Collective } from '../models';
-import { Activity } from '../models/Activity';
+import slackLib, { OPEN_COLLECTIVE_SLACK_CHANNEL } from '../lib/slack.js';
+import { Collective } from '../models/index.js';
+import { Activity } from '../models/Activity.js';
 
 /** Return type when running a spam analysis */
 export type SpamAnalysisReport = {

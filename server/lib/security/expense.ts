@@ -1,16 +1,29 @@
 import type { Request } from 'express';
-import { capitalize, compact, filter, find, first, isEqual, isNil, keyBy, max, startCase, uniq, uniqBy } from 'lodash';
+import {
+  capitalize,
+  compact,
+  filter,
+  find,
+  first,
+  isEqual,
+  isNil,
+  keyBy,
+  max,
+  startCase,
+  uniq,
+  uniqBy,
+} from 'lodash-es';
 import moment from 'moment';
 
-import status from '../../constants/expense_status';
-import expenseType from '../../constants/expense_type';
-import type { ConvertToCurrencyArgs } from '../../graphql/loaders/currency-exchange-rate';
-import models, { Op, sequelize } from '../../models';
-import Expense from '../../models/Expense';
-import { PayoutMethodTypes } from '../../models/PayoutMethod';
-import { RecipientAccount as BankAccountPayoutMethodData } from '../../types/transferwise';
-import { expenseMightBeSubjectToTaxForm } from '../tax-forms';
-import { formatCurrency } from '../utils';
+import status from '../../constants/expense_status.js';
+import expenseType from '../../constants/expense_type.js';
+import { ConvertToCurrencyArgs } from '../../graphql/loaders/currency-exchange-rate.js';
+import models, { Op, sequelize } from '../../models/index.js';
+import Expense from '../../models/Expense.js';
+import { PayoutMethodTypes } from '../../models/PayoutMethod.js';
+import { RecipientAccount as BankAccountPayoutMethodData } from '../../types/transferwise.js';
+import { expenseMightBeSubjectToTaxForm } from '../tax-forms.js';
+import { formatCurrency } from '../utils.js';
 
 export enum Scope {
   USER = 'USER',

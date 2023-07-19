@@ -1,7 +1,7 @@
 import { GraphQLInputObjectType, GraphQLNonNull } from 'graphql';
 
-import { GraphQLSocialLinkTypeEnum } from '../enum/SocialLinkTypeEnum';
-import URL from '../scalar/URL';
+import { GraphQLSocialLinkTypeEnum } from '../enum/SocialLinkTypeEnum.js';
+import URL from '../scalar/URL.js';
 
 export const GraphQLSocialLinkInput = new GraphQLInputObjectType({
   name: 'SocialLinkInput',

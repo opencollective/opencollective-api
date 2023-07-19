@@ -1,10 +1,10 @@
 import config from 'config';
-import { get } from 'lodash';
+import { get } from 'lodash-es';
 import moment from 'moment';
 import Stripe from 'stripe';
 
-import { ZERO_DECIMAL_CURRENCIES } from '../constants/currencies';
-import { VirtualCardLimitIntervals } from '../constants/virtual-cards';
+import { ZERO_DECIMAL_CURRENCIES } from '../constants/currencies.js';
+import { VirtualCardLimitIntervals } from '../constants/virtual-cards.js';
 
 // Starting on stripe@v12, the default API version is set by the stripe package.
 // We need to hardcode the API version that we are compatible with.

@@ -1,15 +1,15 @@
 import { GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
 
-import { GraphQLCurrency } from '../enum';
-import { GraphQLExpenseType } from '../enum/ExpenseType';
+import { GraphQLCurrency } from '../enum/index.js';
+import { GraphQLExpenseType } from '../enum/ExpenseType.js';
 
-import { GraphQLNewAccountOrReferenceInput } from './AccountReferenceInput';
-import { GraphQLExpenseAttachedFileInput } from './ExpenseAttachedFileInput';
-import { GraphQLExpenseItemInput } from './ExpenseItemInput';
-import { GraphQLExpenseTaxInput } from './ExpenseTaxInput';
-import { GraphQLLocationInput } from './LocationInput';
-import { GraphQLPayoutMethodInput } from './PayoutMethodInput';
+import { GraphQLNewAccountOrReferenceInput } from './AccountReferenceInput.js';
+import { GraphQLExpenseAttachedFileInput } from './ExpenseAttachedFileInput.js';
+import { GraphQLExpenseItemInput } from './ExpenseItemInput.js';
+import { GraphQLExpenseTaxInput } from './ExpenseTaxInput.js';
+import { GraphQLLocationInput } from './LocationInput.js';
+import { GraphQLPayoutMethodInput } from './PayoutMethodInput.js';
 
 /**
  * Input type to use as the type for the comment input in editComment mutation.

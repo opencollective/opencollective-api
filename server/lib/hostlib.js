@@ -1,8 +1,8 @@
-import { intersection, sum } from 'lodash';
+import { intersection, sum } from 'lodash-es';
 import pMap from 'p-map';
 
-import { convertToCurrency } from '../lib/currency';
-import models, { Op, sequelize } from '../models';
+import { convertToCurrency } from '../lib/currency.js';
+import models, { Op, sequelize } from '../models/index.js';
 
 export function getHostedCollectives(hostid, startDate, endDate = new Date()) {
   return sequelize.query(

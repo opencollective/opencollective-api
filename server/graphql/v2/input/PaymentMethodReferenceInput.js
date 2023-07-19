@@ -1,8 +1,8 @@
 import { GraphQLInputObjectType, GraphQLString } from 'graphql';
 
-import models from '../../../models';
-import { NotFound } from '../../errors';
-import { idDecode } from '../identifiers';
+import models from '../../../models/index.js';
+import { NotFound } from '../../errors.js';
+import { idDecode } from '../identifiers.js';
 
 export const GraphQLPaymentMethodReferenceInput = new GraphQLInputObjectType({
   name: 'PaymentMethodReferenceInput',

@@ -1,12 +1,12 @@
 import { GraphQLList, GraphQLNonNull } from 'graphql';
-import { isEmpty } from 'lodash';
+import { isEmpty } from 'lodash-es';
 import { Order } from 'sequelize';
 
-import models from '../../../../models';
-import { GraphQLVirtualCardRequestCollection } from '../../collection/VirtualCardRequestCollection';
-import { GraphQLVirtualCardRequestStatus } from '../../enum/VirtualCardRequestStatus';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
-import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
+import models from '../../../../models/index.js';
+import { GraphQLVirtualCardRequestCollection } from '../../collection/VirtualCardRequestCollection.js';
+import { GraphQLVirtualCardRequestStatus } from '../../enum/VirtualCardRequestStatus.js';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput.js';
+import { CollectionArgs, CollectionReturnType } from '../../interface/Collection.js';
 
 const VirtualCardRequestsCollectionQuery = {
   type: new GraphQLNonNull(GraphQLVirtualCardRequestCollection),

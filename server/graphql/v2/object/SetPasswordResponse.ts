@@ -1,6 +1,6 @@
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
-import { GraphQLIndividual } from '../object/Individual';
+import { GraphQLIndividual } from '../object/Individual.js';
 
 export const GraphQLSetPasswordResponse = new GraphQLObjectType({
   name: 'SetPasswordResponse',

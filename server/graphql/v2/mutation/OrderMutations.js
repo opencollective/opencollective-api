@@ -15,66 +15,66 @@ import {
   pick,
   uniq,
   uniqBy,
-} from 'lodash';
+} from 'lodash-es';
 
-import { roles } from '../../../constants';
-import activities from '../../../constants/activities';
-import { Service } from '../../../constants/connected_account';
-import FEATURE from '../../../constants/feature';
-import OrderStatuses from '../../../constants/order_status';
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
-import { purgeAllCachesForAccount } from '../../../lib/cache';
-import { checkCaptcha } from '../../../lib/check-captcha';
-import logger from '../../../lib/logger';
-import { checkGuestContribution, checkOrdersLimit } from '../../../lib/security/limit';
-import { orderFraudProtection } from '../../../lib/security/order';
-import { reportErrorToSentry } from '../../../lib/sentry';
-import stripe, { convertToStripeAmount } from '../../../lib/stripe';
+import { roles } from '../../../constants/index.js';
+import activities from '../../../constants/activities.js';
+import { Service } from '../../../constants/connected_account.js';
+import FEATURE from '../../../constants/feature.js';
+import OrderStatuses from '../../../constants/order_status.js';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods.js';
+import { purgeAllCachesForAccount } from '../../../lib/cache/index.js';
+import { checkCaptcha } from '../../../lib/check-captcha.js';
+import logger from '../../../lib/logger.js';
+import { checkGuestContribution, checkOrdersLimit } from '../../../lib/security/limit.js';
+import { orderFraudProtection } from '../../../lib/security/order.js';
+import { reportErrorToSentry } from '../../../lib/sentry.js';
+import stripe, { convertToStripeAmount } from '../../../lib/stripe.js';
 import {
   updateOrderSubscription,
   updatePaymentMethodForSubscription,
   updateSubscriptionDetails,
-} from '../../../lib/subscriptions';
-import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import { canUseFeature } from '../../../lib/user-permissions';
-import models, { Op, sequelize } from '../../../models';
-import { MigrationLogType } from '../../../models/MigrationLog';
-import { updateSubscriptionWithPaypal } from '../../../paymentProviders/paypal/subscription';
-import { checkRemoteUserCanRoot, checkRemoteUserCanUseOrders, checkScope } from '../../common/scope-check';
-import { BadRequest, FeatureNotAllowedForUser, NotFound, Unauthorized, ValidationFailed } from '../../errors';
+} from '../../../lib/subscriptions.js';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication/index.js';
+import { canUseFeature } from '../../../lib/user-permissions.js';
+import models, { Op, sequelize } from '../../../models/index.js';
+import { MigrationLogType } from '../../../models/MigrationLog.js';
+import { updateSubscriptionWithPaypal } from '../../../paymentProviders/paypal/subscription.js';
+import { checkRemoteUserCanRoot, checkRemoteUserCanUseOrders, checkScope } from '../../common/scope-check.js';
+import { BadRequest, FeatureNotAllowedForUser, NotFound, Unauthorized, ValidationFailed } from '../../errors.js';
 import {
   confirmOrder as confirmOrderLegacy,
   createOrder as createOrderLegacy,
   getOrderTaxInfoFromTaxInput,
-} from '../../v1/mutations/orders';
-import { getIntervalFromContributionFrequency } from '../enum/ContributionFrequency';
-import { GraphQLProcessOrderAction } from '../enum/ProcessOrderAction';
-import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
-import { assertAmountInputCurrency, getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/AmountInput';
-import { GraphQLGuestInfoInput } from '../input/GuestInfoInput';
+} from '../../v1/mutations/orders.js';
+import { getIntervalFromContributionFrequency } from '../enum/ContributionFrequency.js';
+import { GraphQLProcessOrderAction } from '../enum/ProcessOrderAction.js';
+import { idDecode, IDENTIFIER_TYPES } from '../identifiers.js';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput.js';
+import { assertAmountInputCurrency, getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/AmountInput.js';
+import { GraphQLGuestInfoInput } from '../input/GuestInfoInput.js';
 import {
   GraphQLOrderCreateInput,
   GraphQLPendingOrderCreateInput,
   GraphQLPendingOrderEditInput,
-} from '../input/OrderCreateInput';
+} from '../input/OrderCreateInput.js';
 import {
   fetchOrdersWithReferences,
   fetchOrderWithReference,
   GraphQLOrderReferenceInput,
-} from '../input/OrderReferenceInput';
-import { GraphQLOrderUpdateInput } from '../input/OrderUpdateInput';
-import GraphQLPaymentIntentInput from '../input/PaymentIntentInput';
-import { getLegacyPaymentMethodFromPaymentMethodInput } from '../input/PaymentMethodInput';
+} from '../input/OrderReferenceInput.js';
+import { GraphQLOrderUpdateInput } from '../input/OrderUpdateInput.js';
+import GraphQLPaymentIntentInput from '../input/PaymentIntentInput.js';
+import { getLegacyPaymentMethodFromPaymentMethodInput } from '../input/PaymentMethodInput.js';
 import {
   fetchPaymentMethodWithReference,
   GraphQLPaymentMethodReferenceInput,
-} from '../input/PaymentMethodReferenceInput';
-import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput';
-import { GraphQLOrder } from '../object/Order';
-import { canEdit, canMarkAsExpired, canMarkAsPaid } from '../object/OrderPermissions';
-import GraphQLPaymentIntent from '../object/PaymentIntent';
-import { GraphQLStripeError } from '../object/StripeError';
+} from '../input/PaymentMethodReferenceInput.js';
+import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput.js';
+import { GraphQLOrder } from '../object/Order.js';
+import { canEdit, canMarkAsExpired, canMarkAsPaid } from '../object/OrderPermissions.js';
+import GraphQLPaymentIntent from '../object/PaymentIntent.js';
+import { GraphQLStripeError } from '../object/StripeError.js';
 
 const GraphQLOrderWithPayment = new GraphQLObjectType({
   name: 'OrderWithPayment',

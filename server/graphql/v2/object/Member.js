@@ -1,12 +1,12 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import { checkScope } from '../../common/scope-check';
-import { GraphQLMemberRole } from '../enum/MemberRole';
-import { idEncode } from '../identifiers';
-import { GraphQLAccount } from '../interface/Account';
-import { GraphQLAmount } from '../object/Amount';
-import { GraphQLTier } from '../object/Tier';
+import { checkScope } from '../../common/scope-check.js';
+import { GraphQLMemberRole } from '../enum/MemberRole.js';
+import { idEncode } from '../identifiers.js';
+import { GraphQLAccount } from '../interface/Account.js';
+import { GraphQLAmount } from '../object/Amount.js';
+import { GraphQLTier } from '../object/Tier.js';
 
 const getMemberFields = () => ({
   // _internal_id: {

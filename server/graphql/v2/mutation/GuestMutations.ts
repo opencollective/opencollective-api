@@ -1,14 +1,14 @@
 import config from 'config';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
-import { TOKEN_EXPIRATION_SESSION } from '../../../lib/auth';
-import emailLib from '../../../lib/email';
-import { confirmGuestAccountByEmail } from '../../../lib/guest-accounts';
-import RateLimit from '../../../lib/rate-limit';
-import models, { Collective } from '../../../models';
-import { BadRequest, NotFound, RateLimitExceeded } from '../../errors';
-import { GraphQLAccount } from '../interface/Account';
-import GraphQLEmailAddress from '../scalar/EmailAddress';
+import { TOKEN_EXPIRATION_SESSION } from '../../../lib/auth.js';
+import emailLib from '../../../lib/email.js';
+import { confirmGuestAccountByEmail } from '../../../lib/guest-accounts.js';
+import RateLimit from '../../../lib/rate-limit.js';
+import models, { Collective } from '../../../models/index.js';
+import { BadRequest, NotFound, RateLimitExceeded } from '../../errors.js';
+import { GraphQLAccount } from '../interface/Account.js';
+import GraphQLEmailAddress from '../scalar/EmailAddress.js';
 
 const GraphQLConfirmGuestAccountResponse = new GraphQLObjectType({
   name: 'ConfirmGuestAccountResponse',

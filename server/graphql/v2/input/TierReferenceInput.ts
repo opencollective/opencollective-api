@@ -1,8 +1,8 @@
 import { GraphQLBoolean, GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
-import Tier from '../../../models/Tier';
-import { NotFound } from '../../errors';
-import { idDecode } from '../identifiers';
+import Tier from '../../../models/Tier.js';
+import { NotFound } from '../../errors.js';
+import { idDecode } from '../identifiers.js';
 
 export const GraphQLTierReferenceInput = new GraphQLInputObjectType({
   name: 'TierReferenceInput',

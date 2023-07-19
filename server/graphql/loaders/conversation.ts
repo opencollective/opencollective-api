@@ -1,6 +1,6 @@
 import DataLoader from 'dataloader';
 
-import models, { sequelize } from '../../models';
+import models, { sequelize } from '../../models/index.js';
 
 export default {
   followers: (): DataLoader<number, object> =>

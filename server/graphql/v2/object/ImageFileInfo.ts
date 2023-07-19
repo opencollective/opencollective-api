@@ -1,7 +1,7 @@
 import { GraphQLInt, GraphQLObjectType, GraphQLString } from 'graphql';
-import { get } from 'lodash';
+import { get } from 'lodash-es';
 
-import { fileInfoFields, GraphQLFileInfo } from '../interface/FileInfo';
+import { fileInfoFields, GraphQLFileInfo } from '../interface/FileInfo.js';
 
 export const GraphQLImageFileInfo = new GraphQLObjectType({
   name: 'ImageFileInfo',

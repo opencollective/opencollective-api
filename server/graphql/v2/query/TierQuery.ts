@@ -1,9 +1,9 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
 
-import TierModel from '../../../models/Tier';
-import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput';
-import { GraphQLTier } from '../object/Tier';
+import TierModel from '../../../models/Tier.js';
+import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput.js';
+import { GraphQLTier } from '../object/Tier.js';
 
 const TierQuery = {
   type: GraphQLTier,

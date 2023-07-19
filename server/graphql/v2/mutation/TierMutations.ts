@@ -1,20 +1,20 @@
 import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
-import { isNil, isUndefined, omitBy, pick, uniq } from 'lodash';
+import { isNil, isUndefined, omitBy, pick, uniq } from 'lodash-es';
 
-import { purgeCacheForCollective } from '../../../lib/cache';
-import { purgeCacheForPage } from '../../../lib/cloudflare';
-import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models, { Tier as TierModel } from '../../../models';
-import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
-import { NotFound, Unauthorized } from '../../errors';
-import { getIntervalFromTierFrequency } from '../enum/TierFrequency';
-import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
-import { getValueInCentsFromAmountInput } from '../input/AmountInput';
-import { GraphQLTierCreateInput, TierCreateInputFields } from '../input/TierCreateInput';
-import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput';
-import { GraphQLTierUpdateInput, TierUpdateInputFields } from '../input/TierUpdateInput';
-import { GraphQLTier } from '../object/Tier';
+import { purgeCacheForCollective } from '../../../lib/cache/index.js';
+import { purgeCacheForPage } from '../../../lib/cloudflare.js';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication/index.js';
+import models, { Tier as TierModel } from '../../../models/index.js';
+import { checkRemoteUserCanUseAccount } from '../../common/scope-check.js';
+import { NotFound, Unauthorized } from '../../errors.js';
+import { getIntervalFromTierFrequency } from '../enum/TierFrequency.js';
+import { idDecode, IDENTIFIER_TYPES } from '../identifiers.js';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput.js';
+import { getValueInCentsFromAmountInput } from '../input/AmountInput.js';
+import { GraphQLTierCreateInput, TierCreateInputFields } from '../input/TierCreateInput.js';
+import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput.js';
+import { GraphQLTierUpdateInput, TierUpdateInputFields } from '../input/TierUpdateInput.js';
+import { GraphQLTier } from '../object/Tier.js';
 
 // Makes sure we default to `undefined` if the amount is not set to not override existing values with `null`
 const getAmountWithDefault = (amountInput, existingAmount = undefined) =>

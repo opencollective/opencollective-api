@@ -1,8 +1,8 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
-import ORDER_STATUS from '../../../constants/order_status';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import ORDER_STATUS from '../../../constants/order_status.js';
+import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers.js';
 
 const isHostAdmin = async (req: express.Request, order): Promise<boolean> => {
   if (!req.remoteUser) {

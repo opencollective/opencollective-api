@@ -1,6 +1,6 @@
 import config from 'config';
 import debug from 'debug';
-import { get } from 'lodash';
+import { get } from 'lodash-es';
 import Paypal from 'paypal-adaptive';
 
 const debugPaypal = debug('paypal');

@@ -1,10 +1,10 @@
 import config from 'config';
 import moment from 'moment';
 
-import { TOKEN_EXPIRATION_CSV } from './auth';
-import { fetchWithTimeout } from './fetch';
-import logger from './logger';
-import { parseToBoolean } from './utils';
+import { TOKEN_EXPIRATION_CSV } from './auth.js';
+import { fetchWithTimeout } from './fetch.js';
+import logger from './logger.js';
+import { parseToBoolean } from './utils.js';
 
 export const getTransactionsCsvUrl = (type, collective, options = {}) => {
   const url = new URL(`${config.host.rest}/v2/${collective.slug}/${type}.csv`);

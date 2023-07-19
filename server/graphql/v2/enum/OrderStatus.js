@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
-import statuses from '../../../constants/order_status';
+import statuses from '../../../constants/order_status.js';
 
 export const GraphQLOrderStatus = new GraphQLEnumType({
   name: 'OrderStatus',

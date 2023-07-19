@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
-import { LEGAL_DOCUMENT_TYPE } from '../../../models/LegalDocument';
+import { LEGAL_DOCUMENT_TYPE } from '../../../models/LegalDocument.js';
 
 export const GraphQLLegalDocumentType = new GraphQLEnumType({
   name: 'LegalDocumentType',

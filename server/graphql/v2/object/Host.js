@@ -8,57 +8,60 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { find, get, isEmpty, isNil, keyBy, mapValues, uniq } from 'lodash';
+import { find, get, isEmpty, isNil, keyBy, mapValues, uniq } from 'lodash-es';
 import moment from 'moment';
 
-import { roles } from '../../../constants';
-import { types as CollectiveType, types as CollectiveTypes } from '../../../constants/collectives';
-import expenseType from '../../../constants/expense_type';
-import OrderStatuses from '../../../constants/order_status';
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
-import { TransactionKind } from '../../../constants/transaction-kind';
-import { TransactionTypes } from '../../../constants/transactions';
-import { FEATURE, hasFeature } from '../../../lib/allowed-features';
-import { buildSearchConditions } from '../../../lib/search';
-import sequelize from '../../../lib/sequelize';
-import { ifStr } from '../../../lib/utils';
-import models, { Collective, Op } from '../../../models';
-import Agreement from '../../../models/Agreement';
-import { PayoutMethodTypes } from '../../../models/PayoutMethod';
-import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
-import { Unauthorized } from '../../errors';
-import { GraphQLAccountCollection } from '../collection/AccountCollection';
-import { GraphQLAgreementCollection } from '../collection/AgreementCollection';
-import { GraphQLHostApplicationCollection } from '../collection/HostApplicationCollection';
-import { GraphQLVirtualCardCollection } from '../collection/VirtualCardCollection';
-import { GraphQLPaymentMethodLegacyType, GraphQLPayoutMethodType } from '../enum';
-import { PaymentMethodLegacyTypeEnum } from '../enum/PaymentMethodLegacyType';
-import { GraphQLTimeUnit } from '../enum/TimeUnit';
-import { GraphQLVirtualCardStatusEnum } from '../enum/VirtualCardStatus';
+import { roles } from '../../../constants/index.js';
+import { types as CollectiveType, types as CollectiveTypes } from '../../../constants/collectives.js';
+import expenseType from '../../../constants/expense_type.js';
+import OrderStatuses from '../../../constants/order_status.js';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods.js';
+import { TransactionKind } from '../../../constants/transaction-kind.js';
+import { TransactionTypes } from '../../../constants/transactions.js';
+import { FEATURE, hasFeature } from '../../../lib/allowed-features.js';
+import { buildSearchConditions } from '../../../lib/search.js';
+import sequelize from '../../../lib/sequelize.js';
+import { ifStr } from '../../../lib/utils.js';
+import models, { Collective, Op } from '../../../models/index.js';
+import Agreement from '../../../models/Agreement.js';
+import { PayoutMethodTypes } from '../../../models/PayoutMethod.js';
+import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions.js';
+import { Unauthorized } from '../../errors.js';
+import { GraphQLAccountCollection } from '../collection/AccountCollection.js';
+import { GraphQLAgreementCollection } from '../collection/AgreementCollection.js';
+import { GraphQLHostApplicationCollection } from '../collection/HostApplicationCollection.js';
+import { GraphQLVirtualCardCollection } from '../collection/VirtualCardCollection.js';
+import { GraphQLPaymentMethodLegacyType, GraphQLPayoutMethodType } from '../enum/index.js';
+import { PaymentMethodLegacyTypeEnum } from '../enum/PaymentMethodLegacyType.js';
+import { GraphQLTimeUnit } from '../enum/TimeUnit.js';
+import { GraphQLVirtualCardStatusEnum } from '../enum/VirtualCardStatus.js';
 import {
   fetchAccountsIdsWithReference,
   fetchAccountsWithReferences,
   fetchAccountWithReference,
   GraphQLAccountReferenceInput,
-} from '../input/AccountReferenceInput';
-import { getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/AmountInput';
+} from '../input/AccountReferenceInput.js';
+import { getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/AmountInput.js';
 import {
   CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   GraphQLChronologicalOrderInput,
-} from '../input/ChronologicalOrderInput';
-import { AccountFields, GraphQLAccount } from '../interface/Account';
-import { AccountWithContributionsFields, GraphQLAccountWithContributions } from '../interface/AccountWithContributions';
-import { CollectionArgs } from '../interface/Collection';
-import URL from '../scalar/URL';
+} from '../input/ChronologicalOrderInput.js';
+import { AccountFields, GraphQLAccount } from '../interface/Account.js';
+import {
+  AccountWithContributionsFields,
+  GraphQLAccountWithContributions,
+} from '../interface/AccountWithContributions.js';
+import { CollectionArgs } from '../interface/Collection.js';
+import URL from '../scalar/URL.js';
 
-import { GraphQLContributionStats } from './ContributionStats';
-import { GraphQLExpenseStats } from './ExpenseStats';
-import { GraphQLHostMetrics } from './HostMetrics';
-import { GraphQLHostMetricsTimeSeries } from './HostMetricsTimeSeries';
-import { GraphQLHostPlan } from './HostPlan';
-import { GraphQLPaymentMethod } from './PaymentMethod';
-import GraphQLPayoutMethod from './PayoutMethod';
-import { GraphQLStripeConnectedAccount } from './StripeConnectedAccount';
+import { GraphQLContributionStats } from './ContributionStats.js';
+import { GraphQLExpenseStats } from './ExpenseStats.js';
+import { GraphQLHostMetrics } from './HostMetrics.js';
+import { GraphQLHostMetricsTimeSeries } from './HostMetricsTimeSeries.js';
+import { GraphQLHostPlan } from './HostPlan.js';
+import { GraphQLPaymentMethod } from './PaymentMethod.js';
+import GraphQLPayoutMethod from './PayoutMethod.js';
+import { GraphQLStripeConnectedAccount } from './StripeConnectedAccount.js';
 
 const getFilterDateRange = (startDate, endDate) => {
   let dateRange;

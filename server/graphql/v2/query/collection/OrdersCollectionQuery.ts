@@ -3,24 +3,18 @@ import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString 
 import { GraphQLDateTime } from 'graphql-scalars';
 import { Includeable, Order } from 'sequelize';
 
-import { buildSearchConditions } from '../../../../lib/search';
-import models, { Op } from '../../../../models';
-import { checkScope } from '../../../common/scope-check';
-import { NotFound, Unauthorized } from '../../../errors';
-import { GraphQLOrderCollection } from '../../collection/OrderCollection';
-import { GraphQLAccountOrdersFilter } from '../../enum/AccountOrdersFilter';
-import { GraphQLContributionFrequency } from '../../enum/ContributionFrequency';
-import { GraphQLOrderStatus } from '../../enum/OrderStatus';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
-import {
-  CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
-  GraphQLChronologicalOrderInput,
-} from '../../input/ChronologicalOrderInput';
-import {
-  fetchPaymentMethodWithReference,
-  GraphQLPaymentMethodReferenceInput,
-} from '../../input/PaymentMethodReferenceInput';
-import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
+import { buildSearchConditions } from '../../../../lib/search.js';
+import models, { Op } from '../../../../models/index.js';
+import { checkScope } from '../../../common/scope-check.js';
+import { NotFound, Unauthorized } from '../../../errors.js';
+import { GraphQLOrderCollection } from '../../collection/OrderCollection.js';
+import { GraphQLAccountOrdersFilter } from '../../enum/AccountOrdersFilter.js';
+import { GraphQLContributionFrequency } from '../../enum/ContributionFrequency.js';
+import { GraphQLOrderStatus } from '../../enum/OrderStatus.js';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput.js';
+import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, GraphQLChronologicalOrderInput } from '../../input/ChronologicalOrderInput.js';
+import { fetchPaymentMethodWithReference, GraphQLPaymentMethodReferenceInput } from '../../input/PaymentMethodReferenceInput.js';
+import { CollectionArgs, CollectionReturnType } from '../../interface/Collection.js';
 
 type OrderAssociation = 'fromCollective' | 'collective';
 

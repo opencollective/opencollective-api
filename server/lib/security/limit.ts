@@ -1,11 +1,11 @@
 import config from 'config';
 import debugLib from 'debug';
-import { get } from 'lodash';
+import { get } from 'lodash-es';
 import validator from 'validator';
 
-import { BadRequest } from '../../graphql/errors';
-import cache from '../cache';
-import { md5, sleep } from '../utils';
+import { BadRequest } from '../../graphql/errors.js';
+import cache from '../cache/index.js';
+import { md5, sleep } from '../utils.js';
 
 const debug = debugLib('security/limit');
 

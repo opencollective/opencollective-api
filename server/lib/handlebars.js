@@ -1,5 +1,5 @@
 import handlebars from 'handlebars';
-import { isNil, lowerCase } from 'lodash';
+import { isNil, lowerCase } from 'lodash-es';
 import moment from 'moment-timezone';
 
 import {
@@ -9,7 +9,7 @@ import {
   getDefaultCurrencyPrecision,
   pluralize,
   resizeImage,
-} from './utils';
+} from './utils.js';
 
 // from https://stackoverflow.com/questions/8853396/logical-operator-in-a-handlebars-js-if-conditional
 handlebars.registerHelper('ifCond', function (v1, operator, v2, options) {

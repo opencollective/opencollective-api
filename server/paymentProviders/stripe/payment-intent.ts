@@ -1,16 +1,20 @@
 import config from 'config';
-import { pick, toUpper } from 'lodash';
+import { pick, toUpper } from 'lodash-es';
 import type Stripe from 'stripe';
 
-import { Service } from '../../constants/connected_account';
-import logger from '../../lib/logger';
-import { getApplicationFee } from '../../lib/payments';
-import { reportMessageToSentry } from '../../lib/sentry';
-import stripe, { convertToStripeAmount } from '../../lib/stripe';
-import models from '../../models';
-import { OrderModelInterface } from '../../models/Order';
+import { Service } from '../../constants/connected_account.js';
+import logger from '../../lib/logger.js';
+import { getApplicationFee } from '../../lib/payments.js';
+import { reportMessageToSentry } from '../../lib/sentry.js';
+import stripe, { convertToStripeAmount } from '../../lib/stripe.js';
+import models from '../../models/index.js';
+import { OrderModelInterface } from '../../models/Order.js';
 
-import { APPLICATION_FEE_INCOMPATIBLE_CURRENCIES, refundTransaction, refundTransactionOnlyInDatabase } from './common';
+import {
+  APPLICATION_FEE_INCOMPATIBLE_CURRENCIES,
+  refundTransaction,
+  refundTransactionOnlyInDatabase,
+} from './common.js';
 
 const processOrder = async (order: OrderModelInterface): Promise<void> => {
   if (order.SubscriptionId) {

@@ -1,7 +1,7 @@
 import { GraphQLInputObjectType, GraphQLString } from 'graphql';
 
-import { ApplicationReferenceFields } from '../input/ApplicationReferenceInput';
-import URL from '../scalar/URL';
+import { ApplicationReferenceFields } from '../input/ApplicationReferenceInput.js';
+import URL from '../scalar/URL.js';
 
 export const GraphQLApplicationUpdateInput = new GraphQLInputObjectType({
   name: 'ApplicationUpdateInput',

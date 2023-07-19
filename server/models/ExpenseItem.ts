@@ -1,14 +1,14 @@
-import { pick } from 'lodash';
+import { pick } from 'lodash-es';
 import type { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes } from 'sequelize';
 import { DataTypes, Model, Transaction } from 'sequelize';
 
-import { diffDBEntries } from '../lib/data';
-import { isValidUploadedImage } from '../lib/images';
-import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
-import sequelize from '../lib/sequelize';
+import { diffDBEntries } from '../lib/data.js';
+import { isValidUploadedImage } from '../lib/images.js';
+import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html.js';
+import sequelize from '../lib/sequelize.js';
 
-import Expense from './Expense';
-import User from './User';
+import Expense from './Expense.js';
+import User from './User.js';
 
 // Expense items diff as [newEntries, removedEntries, updatedEntries]
 type ExpenseItemsDiff = [Record<string, unknown>[], ExpenseItem[], Record<string, unknown>[]];

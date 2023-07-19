@@ -1,14 +1,14 @@
 import config from 'config';
 import debugLib from 'debug';
-import { difference, get, has, keys, merge, uniq, zipObject } from 'lodash';
+import { difference, get, has, keys, merge, uniq, zipObject } from 'lodash-es';
 import fetch from 'node-fetch';
 
-import { currencyFormats, SUPPORTED_CURRENCIES } from '../constants/currencies';
-import models from '../models';
+import { currencyFormats, SUPPORTED_CURRENCIES } from '../constants/currencies.js';
+import models from '../models/index.js';
 
-import cache from './cache';
-import logger from './logger';
-import { reportErrorToSentry, reportMessageToSentry } from './sentry';
+import cache from './cache/index.js';
+import logger from './logger.js';
+import { reportErrorToSentry, reportMessageToSentry } from './sentry.js';
 
 const debug = debugLib('currency');
 

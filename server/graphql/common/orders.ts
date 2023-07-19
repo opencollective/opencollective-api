@@ -1,13 +1,13 @@
-import { isNil } from 'lodash';
+import { isNil } from 'lodash-es';
 import { InferCreationAttributes } from 'sequelize';
 
-import status from '../../constants/order_status';
-import { purgeCacheForCollective } from '../../lib/cache';
-import * as libPayments from '../../lib/payments';
-import models, { Collective, Tier, User } from '../../models';
-import { OrderModelInterface } from '../../models/Order';
-import { getOrderTaxInfoFromTaxInput } from '../v1/mutations/orders';
-import { TaxInput } from '../v2/input/TaxInput';
+import status from '../../constants/order_status.js';
+import { purgeCacheForCollective } from '../../lib/cache/index.js';
+import * as libPayments from '../../lib/payments.js';
+import models, { Collective, Tier, User } from '../../models/index.js';
+import { OrderModelInterface } from '../../models/Order.js';
+import { getOrderTaxInfoFromTaxInput } from '../v1/mutations/orders.js';
+import { TaxInput } from '../v2/input/TaxInput.js';
 
 type AddFundsInput = {
   totalAmount: number;

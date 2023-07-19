@@ -8,14 +8,14 @@ import type {
   NonAttribute,
 } from 'sequelize';
 
-import VirtualCardProviders from '../constants/virtual_card_providers';
-import { crypto } from '../lib/encryption';
-import sequelize, { DataTypes, Model, Op } from '../lib/sequelize';
-import * as stripeVirtualCards from '../paymentProviders/stripe/virtual-cards';
+import VirtualCardProviders from '../constants/virtual_card_providers.js';
+import { crypto } from '../lib/encryption.js';
+import sequelize, { DataTypes, Model, Op } from '../lib/sequelize.js';
+import * as stripeVirtualCards from '../paymentProviders/stripe/virtual-cards.js';
 
-import Collective from './Collective';
-import User from './User';
-import VirtualCardRequest from './VirtualCardRequest';
+import Collective from './Collective.js';
+import User from './User.js';
+import VirtualCardRequest from './VirtualCardRequest.js';
 
 export enum VirtualCardStatus {
   ACTIVE = 'active',

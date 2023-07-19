@@ -1,6 +1,6 @@
 import { CreationOptional, InferAttributes, Model } from 'sequelize';
 
-import sequelize, { DataTypes } from '../lib/sequelize';
+import sequelize, { DataTypes } from '../lib/sequelize.js';
 
 type US_TAX_FORM = 'US_TAX_FORM';
 

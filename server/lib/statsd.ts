@@ -1,8 +1,8 @@
 import config from 'config';
 import StatsD from 'node-statsd';
 
-import logger from './logger';
-import { parseToBoolean } from './utils';
+import logger from './logger.js';
+import { parseToBoolean } from './utils.js';
 
 let statsdClient = null;
 

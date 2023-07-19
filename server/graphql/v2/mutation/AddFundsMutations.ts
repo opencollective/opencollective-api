@@ -2,15 +2,15 @@ import express from 'express';
 import { GraphQLFloat, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import { addFunds } from '../../common/orders';
-import { checkRemoteUserCanUseHost } from '../../common/scope-check';
-import { ValidationFailed } from '../../errors';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
-import { AmountInputType, getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/AmountInput';
-import { GraphQLTaxInput, TaxInput } from '../input/TaxInput';
-import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput';
-import { GraphQLOrder } from '../object/Order';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication/index.js';
+import { addFunds } from '../../common/orders.js';
+import { checkRemoteUserCanUseHost } from '../../common/scope-check.js';
+import { ValidationFailed } from '../../errors.js';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput.js';
+import { AmountInputType, getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/AmountInput.js';
+import { GraphQLTaxInput, TaxInput } from '../input/TaxInput.js';
+import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput.js';
+import { GraphQLOrder } from '../object/Order.js';
 
 type AddFundsMutationArgs = {
   fromAccount: Record<string, unknown>;

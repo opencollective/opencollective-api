@@ -1,12 +1,12 @@
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 
-import { searchCollectivesInDB } from '../../../../lib/search';
-import { GraphQLAccountCollection } from '../../collection/AccountCollection';
-import { AccountTypeToModelMapping, GraphQLAccountType, GraphQLCountryISO } from '../../enum';
-import { GraphQLTagSearchOperator } from '../../enum/TagSearchOperator';
-import { fetchAccountsIdsWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
-import { GraphQLOrderByInput } from '../../input/OrderByInput';
-import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
+import { searchCollectivesInDB } from '../../../../lib/search.js';
+import { GraphQLAccountCollection } from '../../collection/AccountCollection.js';
+import { AccountTypeToModelMapping, GraphQLAccountType, GraphQLCountryISO } from '../../enum/index.js';
+import { GraphQLTagSearchOperator } from '../../enum/TagSearchOperator.js';
+import { fetchAccountsIdsWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput.js';
+import { GraphQLOrderByInput } from '../../input/OrderByInput.js';
+import { CollectionArgs, CollectionReturnType } from '../../interface/Collection.js';
 
 export const CommonAccountsCollectionQueryArgs = {
   searchTerm: {

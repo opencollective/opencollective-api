@@ -1,10 +1,10 @@
 import DataLoader from 'dataloader';
 
-import ACTIVITY from '../../constants/activities';
-import models from '../../models';
-import { Activity } from '../../models/Activity';
+import ACTIVITY from '../../constants/activities.js';
+import models from '../../models/index.js';
+import { Activity } from '../../models/Activity.js';
 
-import { sortResultsArray } from './helpers';
+import { sortResultsArray } from './helpers.js';
 
 export const PUBLIC_ORDER_ACTIVITIES = [
   ACTIVITY.COLLECTIVE_TRANSACTION_CREATED,

@@ -1,9 +1,9 @@
-import collective from './collective';
-import giftcard from './giftcard';
-import host from './host';
-import manual from './manual';
-import prepaid from './prepaid';
-import test from './test';
+import collective from './collective.js';
+import giftcard from './giftcard.js';
+import host from './host.js';
+import manual from './manual.js';
+import prepaid from './prepaid.js';
+import test from './test.js';
 
 /** Process orders from Open Collective payment method types */
 async function processOrder(order) {

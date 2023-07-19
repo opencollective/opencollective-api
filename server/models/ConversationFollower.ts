@@ -1,9 +1,9 @@
 import { InferAttributes, InferCreationAttributes, Model, ModelStatic } from 'sequelize';
 
-import sequelize, { DataTypes } from '../lib/sequelize';
+import sequelize, { DataTypes } from '../lib/sequelize.js';
 
-import Conversation from './Conversation';
-import User from './User';
+import Conversation from './Conversation.js';
+import User from './User.js';
 
 interface ConversationFollowerModelStaticInterface {
   isFollowing(UserId: number, ConversationId: number): Promise<boolean>;

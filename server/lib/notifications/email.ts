@@ -1,26 +1,26 @@
 import config from 'config';
 import debugLib from 'debug';
-import { cloneDeep, compact, get } from 'lodash';
+import { cloneDeep, compact, get } from 'lodash-es';
 import PQueue from 'p-queue';
 
-import { roles } from '../../constants';
-import ActivityTypes, { TransactionalActivities } from '../../constants/activities';
-import Channels from '../../constants/channels';
-import { types as CollectiveType } from '../../constants/collectives';
-import { TransactionKind } from '../../constants/transaction-kind';
-import { TransactionTypes } from '../../constants/transactions';
-import models, { Collective } from '../../models';
-import { Activity } from '../../models/Activity';
-import { CommentType } from '../../models/Comment';
-import User from '../../models/User';
-import emailLib from '../email';
-import logger from '../logger';
-import { getTransactionPdf } from '../pdf';
-import { reportMessageToSentry } from '../sentry';
-import twitter from '../twitter';
-import { toIsoDateStr } from '../utils';
+import { roles } from '../../constants/index.js';
+import ActivityTypes, { TransactionalActivities } from '../../constants/activities.js';
+import Channels from '../../constants/channels.js';
+import { types as CollectiveType } from '../../constants/collectives.js';
+import { TransactionKind } from '../../constants/transaction-kind.js';
+import { TransactionTypes } from '../../constants/transactions.js';
+import models, { Collective } from '../../models/index.js';
+import { Activity } from '../../models/Activity.js';
+import { CommentType } from '../../models/Comment.js';
+import User from '../../models/User.js';
+import emailLib from '../email.js';
+import logger from '../logger.js';
+import { getTransactionPdf } from '../pdf.js';
+import { reportMessageToSentry } from '../sentry.js';
+import twitter from '../twitter.js';
+import { toIsoDateStr } from '../utils.js';
 
-import { replaceVideosByImagePreviews } from './utils';
+import { replaceVideosByImagePreviews } from './utils.js';
 
 const debug = debugLib('notifications');
 

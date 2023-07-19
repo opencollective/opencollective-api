@@ -1,10 +1,10 @@
 import config from 'config';
 
-import { maxInteger } from '../../constants/math';
-import { TransactionTypes } from '../../constants/transactions';
-import { getFxRate } from '../../lib/currency';
-import { getHostFee, getHostFeeSharePercent, getPlatformTip, isPlatformTipEligible } from '../../lib/payments';
-import models from '../../models';
+import { maxInteger } from '../../constants/math.js';
+import { TransactionTypes } from '../../constants/transactions.js';
+import { getFxRate } from '../../lib/currency.js';
+import { getHostFee, getHostFeeSharePercent, getPlatformTip, isPlatformTipEligible } from '../../lib/payments.js';
+import models from '../../models/index.js';
 
 const paymentMethodProvider = {};
 

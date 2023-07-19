@@ -7,16 +7,16 @@ import errorHandler from 'errorhandler';
 import express from 'express';
 import session from 'express-session';
 import helmet from 'helmet';
-import { get, has } from 'lodash';
+import { get, has } from 'lodash-es';
 import passport from 'passport';
 import { Strategy as GitHubStrategy } from 'passport-github';
 import { Strategy as TwitterStrategy } from 'passport-twitter';
 
-import { loadersMiddleware } from '../graphql/loaders';
+import { loadersMiddleware } from '../graphql/loaders/index.js';
 
-import hyperwatch from './hyperwatch';
-import logger from './logger';
-import { createRedisClient } from './redis';
+import hyperwatch from './hyperwatch.js';
+import logger from './logger.js';
+import { createRedisClient } from './redis.js';
 
 export default async function (app) {
   app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal'].concat(cloudflareIps));

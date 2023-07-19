@@ -1,11 +1,11 @@
 import { GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { Order } from 'sequelize';
 
-import models, { Op } from '../../../../models';
-import { GraphQLUpdateCollection } from '../../collection/UpdateCollection';
-import { AccountTypeToModelMapping, GraphQLAccountType } from '../../enum';
-import { fetchAccountsIdsWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
-import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
+import models, { Op } from '../../../../models/index.js';
+import { GraphQLUpdateCollection } from '../../collection/UpdateCollection.js';
+import { AccountTypeToModelMapping, GraphQLAccountType } from '../../enum/index.js';
+import { fetchAccountsIdsWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput.js';
+import { CollectionArgs, CollectionReturnType } from '../../interface/Collection.js';
 
 const UpdatesCollectionQuery = {
   type: new GraphQLNonNull(GraphQLUpdateCollection),

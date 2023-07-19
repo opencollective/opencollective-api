@@ -1,17 +1,17 @@
 import axios, { AxiosError } from 'axios';
 import config from 'config';
 
-import { activities, channels } from '../../constants';
-import ActivityTypes from '../../constants/activities';
-import models from '../../models';
-import { Activity } from '../../models/Activity';
-import { reportErrorToSentry } from '../sentry';
-import slackLib from '../slack';
-import twitter from '../twitter';
-import { parseToBoolean } from '../utils';
-import { enrichActivity, sanitizeActivity } from '../webhooks';
+import { activities, channels } from '../../constants/index.js';
+import ActivityTypes from '../../constants/activities.js';
+import models from '../../models/index.js';
+import { Activity } from '../../models/Activity.js';
+import { reportErrorToSentry } from '../sentry.js';
+import slackLib from '../slack.js';
+import twitter from '../twitter.js';
+import { parseToBoolean } from '../utils.js';
+import { enrichActivity, sanitizeActivity } from '../webhooks.js';
 
-import { notifyByEmail } from './email';
+import { notifyByEmail } from './email.js';
 
 const shouldSkipActivity = (activity: Activity) => {
   if (activity.type === ActivityTypes.COLLECTIVE_TRANSACTION_CREATED) {

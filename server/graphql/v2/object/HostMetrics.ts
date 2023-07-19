@@ -1,6 +1,6 @@
 import { GraphQLFloat, GraphQLObjectType } from 'graphql';
 
-import { GraphQLAmount } from './Amount';
+import { GraphQLAmount } from './Amount.js';
 
 export const GraphQLHostMetrics = new GraphQLObjectType({
   name: 'HostMetrics',

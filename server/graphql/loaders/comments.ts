@@ -1,10 +1,10 @@
 import DataLoader from 'dataloader';
 import express from 'express';
-import { set } from 'lodash';
+import { set } from 'lodash-es';
 
-import { ReactionEmoji } from '../../constants/reaction-emoji';
-import models, { Op, sequelize } from '../../models';
-import EmojiReaction from '../../models/EmojiReaction';
+import { ReactionEmoji } from '../../constants/reaction-emoji.js';
+import models, { Op, sequelize } from '../../models/index.js';
+import EmojiReaction from '../../models/EmojiReaction.js';
 
 type CommentCountByExpenseIdAndType = {
   ExpenseId: number;

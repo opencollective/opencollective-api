@@ -1,4 +1,4 @@
-import { uniq } from 'lodash';
+import { uniq } from 'lodash-es';
 
 /**
  * Tags that should be transformed to another tag (only for common tags that refer to the same thing but with a different formatting)

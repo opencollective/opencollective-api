@@ -1,11 +1,11 @@
 import express from 'express';
 import moment from 'moment';
 
-import FEATURE from '../../constants/feature';
-import OAuthScopes from '../../constants/oauth-scopes';
-import { canUseFeature } from '../../lib/user-permissions';
-import Comment from '../../models/Comment';
-import { FeatureNotAllowedForUser, Forbidden, Unauthorized } from '../errors';
+import FEATURE from '../../constants/feature.js';
+import OAuthScopes from '../../constants/oauth-scopes.js';
+import { canUseFeature } from '../../lib/user-permissions.js';
+import Comment from '../../models/Comment.js';
+import { FeatureNotAllowedForUser, Forbidden, Unauthorized } from '../errors.js';
 
 export const checkRemoteUserCanUseVirtualCards = (req: express.Request): void => {
   if (!req.remoteUser) {

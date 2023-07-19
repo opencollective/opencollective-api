@@ -1,4 +1,4 @@
-import { get, isEmpty, omit, pick } from 'lodash';
+import { get, isEmpty, omit, pick } from 'lodash-es';
 import {
   CreationOptional,
   DataTypes,
@@ -10,15 +10,15 @@ import {
   NonAttribute,
   Transaction,
 } from 'sequelize';
-import isEmail from 'validator/lib/isEmail';
+import isEmail from 'validator/lib/isEmail.js';
 
-import logger from '../lib/logger';
-import sequelize, { Op } from '../lib/sequelize';
-import { objHasOnlyKeys } from '../lib/utils';
-import { RecipientAccount as BankAccountPayoutMethodData } from '../types/transferwise';
+import logger from '../lib/logger.js';
+import sequelize, { Op } from '../lib/sequelize.js';
+import { objHasOnlyKeys } from '../lib/utils.js';
+import { RecipientAccount as BankAccountPayoutMethodData } from '../types/transferwise.js';
 
-import Collective from './Collective';
-import User from './User';
+import Collective from './Collective.js';
+import User from './User.js';
 
 /**
  * Match the Postgres enum defined for `PayoutMethods` > `type`

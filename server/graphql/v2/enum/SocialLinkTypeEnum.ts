@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
-import { SocialLinkType } from '../../../models/SocialLink';
+import { SocialLinkType } from '../../../models/SocialLink.js';
 
 export const GraphQLSocialLinkTypeEnum = new GraphQLEnumType({
   name: 'SocialLinkType',

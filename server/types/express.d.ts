@@ -1,8 +1,8 @@
 import DataLoader from 'dataloader';
 
-import PersonalToken from '../models/PersonalToken';
-import User from '../models/User';
-import UserToken from '../models/UserToken';
+import PersonalToken from '../models/PersonalToken.js';
+import User from '../models/User.js';
+import UserToken from '../models/UserToken.js';
 
 declare global {
   namespace Express {

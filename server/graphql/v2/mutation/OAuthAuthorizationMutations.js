@@ -1,12 +1,12 @@
 import { GraphQLNonNull } from 'graphql';
 
-import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
-import { NotFound } from '../../errors';
+import { checkRemoteUserCanUseAccount } from '../../common/scope-check.js';
+import { NotFound } from '../../errors.js';
 import {
   fetchOAuthAuthorizationWithReference,
   GraphQLOAuthAuthorizationReferenceInput,
-} from '../input/OAuthAuthorizationReferenceInput';
-import { GraphQLOAuthAuthorization } from '../object/OAuthAuthorization';
+} from '../input/OAuthAuthorizationReferenceInput.js';
+import { GraphQLOAuthAuthorization } from '../object/OAuthAuthorization.js';
 
 const oAuthAuthorizationMutations = {
   revokeOAuthAuthorization: {

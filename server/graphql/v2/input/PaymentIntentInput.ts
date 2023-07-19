@@ -1,7 +1,7 @@
 import { GraphQLInputObjectType, GraphQLNonNull } from 'graphql';
 
-import { GraphQLAccountReferenceInput } from './AccountReferenceInput';
-import { GraphQLAmountInput } from './AmountInput';
+import { GraphQLAccountReferenceInput } from './AccountReferenceInput.js';
+import { GraphQLAmountInput } from './AmountInput.js';
 
 const GraphQLPaymentIntentInput = new GraphQLInputObjectType({
   name: 'PaymentIntentInput',

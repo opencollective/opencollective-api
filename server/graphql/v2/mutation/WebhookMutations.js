@@ -1,14 +1,14 @@
 import { GraphQLNonNull } from 'graphql';
 
-import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models from '../../../models';
-import { checkRemoteUserCanUseWebhooks } from '../../common/scope-check';
-import { Forbidden, NotFound } from '../../errors';
-import { fetchAccountWithReference } from '../input/AccountReferenceInput';
-import { GraphQLWebhookCreateInput } from '../input/WebhookCreateInput';
-import { fetchWebhookWithReference, GraphQLWebhookReferenceInput } from '../input/WebhookReferenceInput';
-import { GraphQLWebhookUpdateInput } from '../input/WebhookUpdateInput';
-import { GraphQLWebhook } from '../object/Webhook';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication/index.js';
+import models from '../../../models/index.js';
+import { checkRemoteUserCanUseWebhooks } from '../../common/scope-check.js';
+import { Forbidden, NotFound } from '../../errors.js';
+import { fetchAccountWithReference } from '../input/AccountReferenceInput.js';
+import { GraphQLWebhookCreateInput } from '../input/WebhookCreateInput.js';
+import { fetchWebhookWithReference, GraphQLWebhookReferenceInput } from '../input/WebhookReferenceInput.js';
+import { GraphQLWebhookUpdateInput } from '../input/WebhookUpdateInput.js';
+import { GraphQLWebhook } from '../object/Webhook.js';
 
 const createWebhook = {
   type: GraphQLWebhook,

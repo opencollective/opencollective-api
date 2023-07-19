@@ -1,31 +1,28 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { isEmpty, isNil, uniq } from 'lodash';
+import { isEmpty, isNil, uniq } from 'lodash-es';
 import { OrderItem } from 'sequelize';
 
-import { expenseStatus } from '../../../../constants';
-import { types as CollectiveType } from '../../../../constants/collectives';
-import { getBalances } from '../../../../lib/budget';
-import { buildSearchConditions } from '../../../../lib/search';
-import { expenseMightBeSubjectToTaxForm } from '../../../../lib/tax-forms';
-import models, { Op, sequelize } from '../../../../models';
-import { ExpenseType } from '../../../../models/Expense';
-import { PayoutMethodTypes } from '../../../../models/PayoutMethod';
-import { validateExpenseCustomData } from '../../../common/expenses';
-import { Unauthorized } from '../../../errors';
-import { loadFxRatesMap } from '../../../loaders/currency-exchange-rate';
-import { GraphQLExpenseCollection } from '../../collection/ExpenseCollection';
-import GraphQLExpenseStatusFilter from '../../enum/ExpenseStatusFilter';
-import { GraphQLExpenseType } from '../../enum/ExpenseType';
-import { GraphQLPayoutMethodType } from '../../enum/PayoutMethodType';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
-import {
-  CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
-  GraphQLChronologicalOrderInput,
-} from '../../input/ChronologicalOrderInput';
-import { GraphQLVirtualCardReferenceInput } from '../../input/VirtualCardReferenceInput';
-import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
+import { expenseStatus } from '../../../../constants/index.js';
+import { types as CollectiveType } from '../../../../constants/collectives.js';
+import { getBalances } from '../../../../lib/budget.js';
+import { buildSearchConditions } from '../../../../lib/search.js';
+import { expenseMightBeSubjectToTaxForm } from '../../../../lib/tax-forms.js';
+import models, { Op, sequelize } from '../../../../models/index.js';
+import { ExpenseType } from '../../../../models/Expense.js';
+import { PayoutMethodTypes } from '../../../../models/PayoutMethod.js';
+import { validateExpenseCustomData } from '../../../common/expenses.js';
+import { Unauthorized } from '../../../errors.js';
+import { loadFxRatesMap } from '../../../loaders/currency-exchange-rate.js';
+import { GraphQLExpenseCollection } from '../../collection/ExpenseCollection.js';
+import GraphQLExpenseStatusFilter from '../../enum/ExpenseStatusFilter.js';
+import { GraphQLExpenseType } from '../../enum/ExpenseType.js';
+import { GraphQLPayoutMethodType } from '../../enum/PayoutMethodType.js';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput.js';
+import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, GraphQLChronologicalOrderInput } from '../../input/ChronologicalOrderInput.js';
+import { GraphQLVirtualCardReferenceInput } from '../../input/VirtualCardReferenceInput.js';
+import { CollectionArgs, CollectionReturnType } from '../../interface/Collection.js';
 
 const updateFilterConditionsForReadyToPay = async (where, include, host, loaders): Promise<void> => {
   where['status'] = expenseStatus.APPROVED;

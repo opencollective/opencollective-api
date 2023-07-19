@@ -9,16 +9,16 @@ import {
 } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
-import { GraphQLContributionFrequency } from '../enum';
+import { GraphQLContributionFrequency } from '../enum/index.js';
 
-import { GraphQLAccountReferenceInput } from './AccountReferenceInput';
-import { GraphQLAmountInput } from './AmountInput';
-import { GraphQLGuestInfoInput } from './GuestInfoInput';
-import { GraphQLLocationInput } from './LocationInput';
-import { GraphQLOrderTaxInput } from './OrderTaxInput';
-import { GraphQLPaymentMethodInput } from './PaymentMethodInput';
-import { GraphQLTaxInput } from './TaxInput';
-import { GraphQLTierReferenceInput } from './TierReferenceInput';
+import { GraphQLAccountReferenceInput } from './AccountReferenceInput.js';
+import { GraphQLAmountInput } from './AmountInput.js';
+import { GraphQLGuestInfoInput } from './GuestInfoInput.js';
+import { GraphQLLocationInput } from './LocationInput.js';
+import { GraphQLOrderTaxInput } from './OrderTaxInput.js';
+import { GraphQLPaymentMethodInput } from './PaymentMethodInput.js';
+import { GraphQLTaxInput } from './TaxInput.js';
+import { GraphQLTierReferenceInput } from './TierReferenceInput.js';
 
 const GraphQLOrderContextInput = new GraphQLInputObjectType({
   name: 'OrderContextInput',

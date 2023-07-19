@@ -1,8 +1,8 @@
 import { GraphQLEnumType } from 'graphql';
 
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
-import logger from '../../../lib/logger';
-import { PaymentMethod } from '../../../types/PaymentMethod';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods.js';
+import logger from '../../../lib/logger.js';
+import { PaymentMethod } from '../../../types/PaymentMethod.js';
 
 export enum PaymentMethodLegacyTypeEnum {
   ALIPAY = 'ALIPAY',

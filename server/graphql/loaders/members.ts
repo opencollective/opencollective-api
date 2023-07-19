@@ -1,8 +1,8 @@
 import DataLoader from 'dataloader';
-import _, { groupBy, partition, uniq } from 'lodash';
+import _, { groupBy, partition, uniq } from 'lodash-es';
 
-import MemberRoles from '../../constants/roles';
-import models, { Collective, sequelize } from '../../models';
+import MemberRoles from '../../constants/roles.js';
+import models, { Collective, sequelize } from '../../models/index.js';
 
 export const generateAdminUsersEmailsForCollectiveLoader = () => {
   return new DataLoader(
