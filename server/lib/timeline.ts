@@ -185,7 +185,9 @@ export const getCollectiveFeed = async ({
     return null;
   }
 
-  const stopWatch = utils.stopwatch(dateTo ? 'timeline.readPage.cached' : 'timeline.readFirstPage.cached', { log: debug });
+  const stopWatch = utils.stopwatch(dateTo ? 'timeline.readPage.cached' : 'timeline.readFirstPage.cached', {
+    log: debug,
+  });
   const wantedTypes = flatten(classes.map(c => ActivitiesPerClass[c]));
   const ids = [];
   let offset = 0;
