@@ -75,7 +75,13 @@ const parsePaypalError = async (
 };
 
 /** Assemble POST requests for communicating with PayPal API */
-export async function paypalRequest(urlPath, body, hostCollective, method = 'POST'): Promise<Record<string, unknown>> {
+export async function paypalRequest(
+  urlPath,
+  body,
+  hostCollective,
+  method = 'POST',
+  { shouldReportErrors = true } = {},
+): Promise<Record<string, unknown>> {
   const paypal = await getHostPaypalAccount(hostCollective);
   if (!paypal) {
     throw new Error(`Host ${hostCollective.name} doesn't support PayPal payments.`);
@@ -95,10 +101,13 @@ export async function paypalRequest(urlPath, body, hostCollective, method = 'POS
   const result: Response = await fetch(url, params);
   if (!result.ok) {
     const { message, metadata } = await parsePaypalError(result);
-    logger.error('PayPal request failed', metadata);
-    reportMessageToSentry('PayPal request failed', { extra: metadata });
     const error = new Error(message);
     error['metadata'] = metadata;
+    if (shouldReportErrors) {
+      logger.error('PayPal request failed', metadata);
+      reportMessageToSentry('PayPal request failed', { extra: metadata });
+    }
+
     throw error;
   } else if (result.status === 204) {
     return null;

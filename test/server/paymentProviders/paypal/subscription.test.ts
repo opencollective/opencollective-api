@@ -208,18 +208,16 @@ describe('server/paymentProviders/paypal/subscription', () => {
       const paypalNock = nock('https://api.sandbox.paypal.com:443')
         .post(`/v1/billing/subscriptions/${paymentMethod.token}/cancel`, { reason: 'Test cancellation' })
         .reply(422, {
-          body: {
-            details: [
-              {
-                description:
-                  'Invalid subscription status for cancel action; subscription status should be active or suspended.',
-                issue: 'SUBSCRIPTION_STATUS_INVALID',
-              },
-            ],
-            message:
-              'The requested action could not be performed, semantically incorrect, or failed business validation.',
-            name: 'UNPROCESSABLE_ENTITY',
-          },
+          details: [
+            {
+              description:
+                'Invalid subscription status for cancel action; subscription status should be active or suspended.',
+              issue: 'SUBSCRIPTION_STATUS_INVALID',
+            },
+          ],
+          message:
+            'The requested action could not be performed, semantically incorrect, or failed business validation.',
+          name: 'UNPROCESSABLE_ENTITY',
           status: 422,
         });
 
