@@ -141,7 +141,9 @@ export const sanitizeDB = async () => {
 };
 
 // Only run script if called directly (to allow unit tests)
-if (!module.parent) {
+import { pathToFileURL } from 'url'
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   sanitizeDB().then(() => {
     console.log('Done!');
     process.exit();

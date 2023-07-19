@@ -16,6 +16,8 @@ const run = () => {
   console.log(decrypt ? crypto.decrypt(string) : crypto.encrypt(string));
 };
 
-if (!module.parent) {
+import { pathToFileURL } from 'url';
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   run();
 }

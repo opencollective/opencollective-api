@@ -138,7 +138,9 @@ export const main = async (argv = process.argv) => {
 };
 
 // Only run script if called directly (to allow unit tests)
-if (!module.parent) {
+import { pathToFileURL } from 'url'
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   main()
     .then(() => process.exit())
     .catch(e => {
