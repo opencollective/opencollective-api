@@ -37,9 +37,11 @@ export const cancelPaypalSubscription = async (
       `billing/subscriptions/${subscription.paypalSubscriptionId}/cancel`,
       { reason },
       hostCollective,
+      'POST',
+      { shouldReportErrors: false },
     );
   } catch (e) {
-    const paypalIssue = get(e, 'metadata.error.body.details.0.issue');
+    const paypalIssue = get(e, 'metadata.error.details.0.issue');
     if (paypalIssue === 'SUBSCRIPTION_STATUS_INVALID') {
       // Subscription is already cancelled, we can ignore this error
       return;
