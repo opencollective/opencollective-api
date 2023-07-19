@@ -1,18 +1,18 @@
 #!/usr/bin/env node
-import '../../server/env';
+import '../../server/env.js';
 
 process.env.PORT = 3066;
 
 import config from 'config';
 import debugLib from 'debug';
-import { get, pick, set, uniq } from 'lodash';
+import { get, pick, set, uniq } from 'lodash-es';
 
-import { types as collectiveTypes } from '../../server/constants/collectives';
-import { reportErrorToSentry } from '../../server/lib/sentry';
-import slackLib from '../../server/lib/slack';
-import twitter from '../../server/lib/twitter';
-import { pluralize } from '../../server/lib/utils';
-import models, { Op, sequelize } from '../../server/models';
+import { types as collectiveTypes } from '../../server/constants/collectives.js';
+import { reportErrorToSentry } from '../../server/lib/sentry.js';
+import slackLib from '../../server/lib/slack.js';
+import twitter from '../../server/lib/twitter.js';
+import { pluralize } from '../../server/lib/utils.js';
+import models, { Op, sequelize } from '../../server/models/index.js';
 
 const TenMinutesAgo = new Date();
 TenMinutesAgo.setMinutes(TenMinutesAgo.getMinutes() - 10);

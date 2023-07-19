@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-import '../../server/env';
+import '../../server/env.js';
 
-import { get } from 'lodash';
+import { get } from 'lodash-es';
 
-import emailLib from '../../server/lib/email';
-import models, { Op } from '../../server/models';
+import emailLib from '../../server/lib/email.js';
+import models, { Op } from '../../server/models/index.js';
 
 let totalEvents = 0;
 

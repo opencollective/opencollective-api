@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-import '../../server/env';
+import '../../server/env.js';
 
-import email from '../../server/lib/email';
-import { reportErrorToSentry } from '../../server/lib/sentry';
+import email from '../../server/lib/email.js';
+import { reportErrorToSentry } from '../../server/lib/sentry.js';
 
 const recipients = 'ops@opencollective.com';
 

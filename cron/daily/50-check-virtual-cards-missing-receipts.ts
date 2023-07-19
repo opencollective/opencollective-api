@@ -1,16 +1,16 @@
-import '../../server/env';
+import '../../server/env.js';
 
 import config from 'config';
-import { groupBy, minBy, values } from 'lodash';
+import { groupBy, minBy, values } from 'lodash-es';
 import moment from 'moment';
 
-import { activities as activityTypes } from '../../server/constants';
-import VirtualCardProviders from '../../server/constants/virtual_card_providers';
-import logger from '../../server/lib/logger';
-import { reportErrorToSentry } from '../../server/lib/sentry';
-import models, { Op, sequelize } from '../../server/models';
-import Expense from '../../server/models/Expense';
-import VirtualCard from '../../server/models/VirtualCard';
+import { activities as activityTypes } from '../../server/constants/index.js';
+import VirtualCardProviders from '../../server/constants/virtual_card_providers.js';
+import logger from '../../server/lib/logger.js';
+import { reportErrorToSentry } from '../../server/lib/sentry.js';
+import models, { Op, sequelize } from '../../server/models/index.js';
+import Expense from '../../server/models/Expense.js';
+import VirtualCard from '../../server/models/VirtualCard.js';
 
 const processVirtualCard = async (expenses: Array<Expense>) => {
   const virtualCard = expenses[0].virtualCard as VirtualCard;

@@ -1,15 +1,15 @@
 #!/usr/bin/env node
-import '../../server/env';
+import '../../server/env.js';
 
 import config from 'config';
-import { omit } from 'lodash';
+import { omit } from 'lodash-es';
 import Stripe from 'stripe';
 
-import { Service as ConnectedAccountServices } from '../../server/constants/connected_account';
-import logger from '../../server/lib/logger';
-import { reportErrorToSentry } from '../../server/lib/sentry';
-import models from '../../server/models';
-import { processTransaction } from '../../server/paymentProviders/stripe/virtual-cards';
+import { Service as ConnectedAccountServices } from '../../server/constants/connected_account.js';
+import logger from '../../server/lib/logger.js';
+import { reportErrorToSentry } from '../../server/lib/sentry.js';
+import models from '../../server/models/index.js';
+import { processTransaction } from '../../server/paymentProviders/stripe/virtual-cards.js';
 
 const DRY = process.env.DRY;
 

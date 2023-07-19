@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 
-import '../../server/env';
+import '../../server/env.js';
 
-import { groupBy, size, uniq } from 'lodash';
+import { groupBy, size, uniq } from 'lodash-es';
 
-import { activities } from '../../server/constants';
-import FEATURE from '../../server/constants/feature';
-import OrderStatuses from '../../server/constants/order_status';
-import logger from '../../server/lib/logger';
-import { reportErrorToSentry } from '../../server/lib/sentry';
-import { sleep } from '../../server/lib/utils';
-import models, { Op } from '../../server/models';
-import { OrderModelInterface } from '../../server/models/Order';
+import { activities } from '../../server/constants/index.js';
+import FEATURE from '../../server/constants/feature.js';
+import OrderStatuses from '../../server/constants/order_status.js';
+import logger from '../../server/lib/logger.js';
+import { reportErrorToSentry } from '../../server/lib/sentry.js';
+import { sleep } from '../../server/lib/utils.js';
+import models, { Op } from '../../server/models/index.js';
+import { OrderModelInterface } from '../../server/models/Order.js';
 
 /**
  * Since the collective has been archived, its HostCollectiveId has been set to null.

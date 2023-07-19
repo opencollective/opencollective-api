@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-import '../../server/env';
+import '../../server/env.js';
 
-import status from '../../server/constants/order_status';
-import logger from '../../server/lib/logger';
-import * as libPayments from '../../server/lib/payments';
-import models, { Op } from '../../server/models';
+import status from '../../server/constants/order_status.js';
+import logger from '../../server/lib/logger.js';
+import * as libPayments from '../../server/lib/payments.js';
+import models, { Op } from '../../server/models/index.js';
 
 const REMINDER_DAYS = 4;
 

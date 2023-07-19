@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-import '../../server/env';
+import '../../server/env.js';
 
-import { sequelize } from '../../server/models';
+import { sequelize } from '../../server/models/index.js';
 
 const cancelPendingChargeExpenseAuthorizations = async () => {
   console.log('Canceling pending Charge Expense authorizations older than 1 week...');

@@ -1,17 +1,17 @@
 #!/usr/bin/env node
-import '../../server/env';
+import '../../server/env.js';
 
 import moment from 'moment';
 import { Op } from 'sequelize';
 
-import status from '../../server/constants/expense_status';
-import logger from '../../server/lib/logger';
-import { reportErrorToSentry } from '../../server/lib/sentry';
-import * as transferwiseLib from '../../server/lib/transferwise';
-import models from '../../server/models';
-import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
-import { handleTransferStateChange } from '../../server/paymentProviders/transferwise/webhook';
-import { TransferStateChangeEvent } from '../../server/types/transferwise';
+import status from '../../server/constants/expense_status.js';
+import logger from '../../server/lib/logger.js';
+import { reportErrorToSentry } from '../../server/lib/sentry.js';
+import * as transferwiseLib from '../../server/lib/transferwise.js';
+import models from '../../server/models/index.js';
+import { PayoutMethodTypes } from '../../server/models/PayoutMethod.js';
+import { handleTransferStateChange } from '../../server/paymentProviders/transferwise/webhook.js';
+import { TransferStateChangeEvent } from '../../server/types/transferwise.js';
 
 async function processExpense(expense) {
   logger.info(`Processing expense #${expense.id}...`);

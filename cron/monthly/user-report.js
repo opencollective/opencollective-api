@@ -1,21 +1,21 @@
 #!/usr/bin/env node
-import '../../server/env';
+import '../../server/env.js';
 
 import fs from 'fs';
 import path from 'path';
 
 import config from 'config';
 import debugLib from 'debug';
-import { groupBy, isEmpty, pick, uniq } from 'lodash';
+import { groupBy, isEmpty, pick, uniq } from 'lodash-es';
 import moment from 'moment';
 
-import ORDER_STATUS from '../../server/constants/order_status';
-import roles from '../../server/constants/roles';
-import emailLib from '../../server/lib/email';
-import { getConsolidatedInvoicePdfs } from '../../server/lib/pdf';
-import { reportErrorToSentry } from '../../server/lib/sentry';
-import { formatCurrencyObject, parseToBoolean } from '../../server/lib/utils';
-import models, { Op } from '../../server/models';
+import ORDER_STATUS from '../../server/constants/order_status.js';
+import roles from '../../server/constants/roles.js';
+import emailLib from '../../server/lib/email.js';
+import { getConsolidatedInvoicePdfs } from '../../server/lib/pdf.js';
+import { reportErrorToSentry } from '../../server/lib/sentry.js';
+import { formatCurrencyObject, parseToBoolean } from '../../server/lib/utils.js';
+import models, { Op } from '../../server/models/index.js';
 
 if (parseToBoolean(process.env.SKIP_USER_REPORT) && !process.env.OFFCYCLE) {
   console.log('Skipping because SKIP_USER_REPORT is set.');

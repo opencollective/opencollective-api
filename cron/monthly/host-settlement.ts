@@ -1,22 +1,22 @@
 #!/usr/bin/env node
-import '../../server/env';
+import '../../server/env.js';
 
 import config from 'config';
 import { parse as json2csv } from 'json2csv';
-import { groupBy, sumBy } from 'lodash';
+import { groupBy, sumBy } from 'lodash-es';
 import moment from 'moment';
 
-import activityType from '../../server/constants/activities';
-import expenseStatus from '../../server/constants/expense_status';
-import expenseTypes from '../../server/constants/expense_type';
-import { TransactionKind } from '../../server/constants/transaction-kind';
-import { SETTLEMENT_EXPENSE_PROPERTIES } from '../../server/constants/transactions';
-import { getTransactionsCsvUrl } from '../../server/lib/csv';
-import { getPendingHostFeeShare, getPendingPlatformTips } from '../../server/lib/host-metrics';
-import { reportErrorToSentry, reportMessageToSentry } from '../../server/lib/sentry';
-import { parseToBoolean } from '../../server/lib/utils';
-import models, { sequelize } from '../../server/models';
-import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
+import activityType from '../../server/constants/activities.js';
+import expenseStatus from '../../server/constants/expense_status.js';
+import expenseTypes from '../../server/constants/expense_type.js';
+import { TransactionKind } from '../../server/constants/transaction-kind.js';
+import { SETTLEMENT_EXPENSE_PROPERTIES } from '../../server/constants/transactions.js';
+import { getTransactionsCsvUrl } from '../../server/lib/csv.js';
+import { getPendingHostFeeShare, getPendingPlatformTips } from '../../server/lib/host-metrics.js';
+import { reportErrorToSentry, reportMessageToSentry } from '../../server/lib/sentry.js';
+import { parseToBoolean } from '../../server/lib/utils.js';
+import models, { sequelize } from '../../server/models/index.js';
+import { PayoutMethodTypes } from '../../server/models/PayoutMethod.js';
 
 const today = moment.utc();
 

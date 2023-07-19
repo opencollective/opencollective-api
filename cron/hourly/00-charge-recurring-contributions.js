@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import '../../server/env';
+import '../../server/env.js';
 
 import fs from 'fs';
 
@@ -7,16 +7,16 @@ import { ArgumentParser } from 'argparse';
 import { parse as json2csv } from 'json2csv';
 import PQueue from 'p-queue';
 
-import FEATURE from '../../server/constants/feature';
-import emailLib from '../../server/lib/email';
+import FEATURE from '../../server/constants/feature.js';
+import emailLib from '../../server/lib/email.js';
 import {
   groupProcessedOrders,
   ordersWithPendingCharges,
   processOrderWithSubscription,
-} from '../../server/lib/recurring-contributions';
-import { reportErrorToSentry } from '../../server/lib/sentry';
-import { parseToBoolean } from '../../server/lib/utils';
-import { sequelize } from '../../server/models';
+} from '../../server/lib/recurring-contributions.js';
+import { reportErrorToSentry } from '../../server/lib/sentry.js';
+import { parseToBoolean } from '../../server/lib/utils.js';
+import { sequelize } from '../../server/models/index.js';
 
 const REPORT_EMAIL = 'ops@opencollective.com';
 

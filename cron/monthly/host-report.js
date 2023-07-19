@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import '../../server/env';
+import '../../server/env.js';
 
 import config from 'config';
 
@@ -15,8 +15,8 @@ if (config.env === 'production' && today.getDate() !== 1 && !process.env.OFFCYCL
 
 process.env.PORT = 3066;
 
-import HostReport from '../../reports/host-report';
-import { parseToBoolean } from '../../server/lib/utils';
+import HostReport from '../../reports/host-report.js';
+import { parseToBoolean } from '../../server/lib/utils.js';
 
 const hostId = process.env.HOST_ID;
 

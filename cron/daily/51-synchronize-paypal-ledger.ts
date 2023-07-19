@@ -1,22 +1,17 @@
-/**
- * A script to reconcile PayPal ledgers with the database. Implemented as a CRON job, bu can safely be run manually;
- * especially on longer period of time (we actually ran it to reconcile the ledger of 2022).
- */
+import '../../server/env.js';
 
-import '../../server/env';
-
-import { groupBy } from 'lodash';
+import { groupBy } from 'lodash-es';
 import moment from 'moment';
 
-import FEATURE from '../../server/constants/feature';
-import logger from '../../server/lib/logger';
-import { getHostsWithPayPalConnected, listPayPalTransactions } from '../../server/lib/paypal';
-import { reportErrorToSentry } from '../../server/lib/sentry';
-import { parseToBoolean } from '../../server/lib/utils';
-import models, { Collective, sequelize } from '../../server/models';
-import { paypalRequestV2 } from '../../server/paymentProviders/paypal/api';
-import { recordPaypalCapture } from '../../server/paymentProviders/paypal/payment';
-import { PaypalCapture, PaypalTransactionSearchResult } from '../../server/types/paypal';
+import FEATURE from '../../server/constants/feature.js';
+import logger from '../../server/lib/logger.js';
+import { getHostsWithPayPalConnected, listPayPalTransactions } from '../../server/lib/paypal.js';
+import { reportErrorToSentry } from '../../server/lib/sentry.js';
+import { parseToBoolean } from '../../server/lib/utils.js';
+import models, { Collective, sequelize } from '../../server/models/index.js';
+import { paypalRequestV2 } from '../../server/paymentProviders/paypal/api.js';
+import { recordPaypalCapture } from '../../server/paymentProviders/paypal/payment.js';
+import { PaypalCapture, PaypalTransactionSearchResult } from '../../server/types/paypal.js';
 
 const LIMITED_TO_HOST_SLUGS = process.env.HOST ? process.env.HOST.split(',') : null;
 const EXCLUDED_HOST_SLUGS = process.env.EXCLUDED_HOST ? process.env.EXCLUDED_HOST.split(',') : null;

@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 
-import '../../server/env';
+import '../../server/env.js';
 
-import { groupBy, values } from 'lodash';
+import { groupBy, values } from 'lodash-es';
 
-import status from '../../server/constants/expense_status';
-import logger from '../../server/lib/logger';
-import { reportErrorToSentry } from '../../server/lib/sentry';
-import models from '../../server/models';
-import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
-import * as paypal from '../../server/paymentProviders/paypal/payouts';
+import status from '../../server/constants/expense_status.js';
+import logger from '../../server/lib/logger.js';
+import { reportErrorToSentry } from '../../server/lib/sentry.js';
+import models from '../../server/models/index.js';
+import { PayoutMethodTypes } from '../../server/models/PayoutMethod.js';
+import * as paypal from '../../server/paymentProviders/paypal/payouts.js';
 
 export async function run() {
   const expenses = await models.Expense.findAll({

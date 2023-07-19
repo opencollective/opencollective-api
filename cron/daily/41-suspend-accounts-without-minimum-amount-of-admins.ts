@@ -1,12 +1,12 @@
-import '../../server/env';
+import '../../server/env.js';
 
-import { roles } from '../../server/constants';
-import FEATURE from '../../server/constants/feature';
-import POLICIES from '../../server/constants/policies';
-import logger from '../../server/lib/logger';
-import { getPolicy } from '../../server/lib/policies';
-import { reportErrorToSentry } from '../../server/lib/sentry';
-import models, { sequelize } from '../../server/models';
+import { roles } from '../../server/constants/index.js';
+import FEATURE from '../../server/constants/feature.js';
+import POLICIES from '../../server/constants/policies.js';
+import logger from '../../server/lib/logger.js';
+import { getPolicy } from '../../server/lib/policies.js';
+import { reportErrorToSentry } from '../../server/lib/sentry.js';
+import models, { sequelize } from '../../server/models/index.js';
 
 const run = async () => {
   const collectives = await models.Collective.findAll({

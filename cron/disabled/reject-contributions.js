@@ -1,17 +1,17 @@
 #!/usr/bin/env node
-import '../../server/env';
+import '../../server/env.js';
 
 import { ArgumentParser } from 'argparse';
-import { get, intersection } from 'lodash';
+import { get, intersection } from 'lodash-es';
 
-import { activities } from '../../server/constants';
-import { MODERATION_CATEGORIES_ALIASES } from '../../server/constants/moderation-categories';
-import orderStatus from '../../server/constants/order_status';
-import { purgeCacheForCollective } from '../../server/lib/cache';
-import logger from '../../server/lib/logger';
-import * as libPayments from '../../server/lib/payments';
-import { reportErrorToSentry } from '../../server/lib/sentry';
-import models, { Op, sequelize } from '../../server/models';
+import { activities } from '../../server/constants/index.js';
+import { MODERATION_CATEGORIES_ALIASES } from '../../server/constants/moderation-categories.js';
+import orderStatus from '../../server/constants/order_status.js';
+import { purgeCacheForCollective } from '../../server/lib/cache/index.js';
+import logger from '../../server/lib/logger.js';
+import * as libPayments from '../../server/lib/payments.js';
+import { reportErrorToSentry } from '../../server/lib/sentry.js';
+import models, { Op, sequelize } from '../../server/models/index.js';
 
 // Fetch all orders potentially affected: contributor flagged AND recipient setup rejection
 

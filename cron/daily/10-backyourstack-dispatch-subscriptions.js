@@ -1,13 +1,13 @@
 #!/usr/bin/env node
-import '../../server/env';
+import '../../server/env.js';
 
 import { Op } from 'sequelize';
 
-import activities from '../../server/constants/activities';
-import status from '../../server/constants/order_status';
-import { dispatchFunds, needsDispatching } from '../../server/lib/backyourstack/dispatcher';
-import { reportErrorToSentry } from '../../server/lib/sentry';
-import models from '../../server/models';
+import activities from '../../server/constants/activities.js';
+import status from '../../server/constants/order_status.js';
+import { dispatchFunds, needsDispatching } from '../../server/lib/backyourstack/dispatcher.js';
+import { reportErrorToSentry } from '../../server/lib/sentry.js';
+import models from '../../server/models/index.js';
 
 async function run() {
   const tiers = await models.Tier.findAll({

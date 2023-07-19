@@ -1,20 +1,20 @@
 #!/usr/bin/env node
-import '../../server/env';
+import '../../server/env.js';
 
 import config from 'config';
-import { omit, pick } from 'lodash';
+import { omit, pick } from 'lodash-es';
 import moment from 'moment';
 import pMap from 'p-map';
 
-import { roles } from '../../server/constants';
-import ActivityTypes from '../../server/constants/activities';
-import { TransactionKind } from '../../server/constants/transaction-kind';
-import { generateHostFeeAmountForTransactionLoader } from '../../server/graphql/loaders/transactions';
-import { getCollectiveTransactionsCsv } from '../../server/lib/csv';
-import { notify } from '../../server/lib/notifications/email';
-import { reportErrorToSentry } from '../../server/lib/sentry';
-import { getTiersStats, parseToBoolean } from '../../server/lib/utils';
-import models, { Op } from '../../server/models';
+import { roles } from '../../server/constants/index.js';
+import ActivityTypes from '../../server/constants/activities.js';
+import { TransactionKind } from '../../server/constants/transaction-kind.js';
+import { generateHostFeeAmountForTransactionLoader } from '../../server/graphql/loaders/transactions.js';
+import { getCollectiveTransactionsCsv } from '../../server/lib/csv.js';
+import { notify } from '../../server/lib/notifications/email.js';
+import { reportErrorToSentry } from '../../server/lib/sentry.js';
+import { getTiersStats, parseToBoolean } from '../../server/lib/utils.js';
+import models, { Op } from '../../server/models/index.js';
 
 // Only run on the first of the month
 const today = new Date();

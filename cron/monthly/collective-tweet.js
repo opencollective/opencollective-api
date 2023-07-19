@@ -1,14 +1,14 @@
 #!/usr/bin/env node
-import '../../server/env';
+import '../../server/env.js';
 
 import config from 'config';
 import debugLib from 'debug';
-import _, { get, pick, set } from 'lodash';
+import _, { get, pick, set } from 'lodash-es';
 import moment from 'moment';
 
-import { reportErrorToSentry } from '../../server/lib/sentry';
-import twitter from '../../server/lib/twitter';
-import models from '../../server/models';
+import { reportErrorToSentry } from '../../server/lib/sentry.js';
+import twitter from '../../server/lib/twitter.js';
+import models from '../../server/models/index.js';
 
 // Only run on the first of the month
 const today = new Date();

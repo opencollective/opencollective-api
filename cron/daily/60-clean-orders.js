@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-import '../../server/env';
+import '../../server/env.js';
 
-import { sequelize } from '../../server/models';
+import { sequelize } from '../../server/models/index.js';
 
 // we have to use raw sql query today
 // https://github.com/sequelize/sequelize/issues/3957

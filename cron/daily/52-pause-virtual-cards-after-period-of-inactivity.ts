@@ -1,12 +1,12 @@
-import '../../server/env';
+import '../../server/env.js';
 
 import PQueue from 'p-queue';
 
-import { activities } from '../../server/constants';
-import { reportErrorToSentry } from '../../server/lib/sentry';
-import { parseToBoolean } from '../../server/lib/utils';
-import models, { Op, sequelize } from '../../server/models';
-import VirtualCard, { VirtualCardStatus } from '../../server/models/VirtualCard';
+import { activities } from '../../server/constants/index.js';
+import { reportErrorToSentry } from '../../server/lib/sentry.js';
+import { parseToBoolean } from '../../server/lib/utils.js';
+import models, { Op, sequelize } from '../../server/models/index.js';
+import VirtualCard, { VirtualCardStatus } from '../../server/models/VirtualCard.js';
 
 const DRY_RUN = process.env.DRY_RUN ? parseToBoolean(process.env.DRY_RUN) : false;
 

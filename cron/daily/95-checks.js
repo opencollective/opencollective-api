@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-import '../../server/env';
+import '../../server/env.js';
 
-import { checkAllModels } from '../../checks/model';
-import email from '../../server/lib/email';
+import { checkAllModels } from '../../checks/model/index.js';
+import email from '../../server/lib/email.js';
 
 const recipients = 'ops@opencollective.com';
 

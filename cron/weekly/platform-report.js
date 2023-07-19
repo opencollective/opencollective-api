@@ -1,19 +1,19 @@
 #!/usr/bin/env node
-import '../../server/env';
+import '../../server/env.js';
 
 import config from 'config';
 import merge from 'deepmerge';
-import _ from 'lodash';
+import _ from 'lodash-es';
 import moment from 'moment-timezone';
 import fetch from 'node-fetch';
 import showdown from 'showdown';
 
-import activities from '../../server/constants/activities';
-import expenseStatus from '../../server/constants/expense_status';
-import { reduceArrayToCurrency } from '../../server/lib/currency';
-import emailLib from '../../server/lib/email';
-import { formatCurrency, pluralize } from '../../server/lib/utils';
-import models, { Op } from '../../server/models';
+import activities from '../../server/constants/activities.js';
+import expenseStatus from '../../server/constants/expense_status.js';
+import { reduceArrayToCurrency } from '../../server/lib/currency.js';
+import emailLib from '../../server/lib/email.js';
+import { formatCurrency, pluralize } from '../../server/lib/utils.js';
+import models, { Op } from '../../server/models/index.js';
 
 const markdownConverter = new showdown.Converter();
 
