@@ -578,9 +578,6 @@ describe('server/graphql/v1/collective', () => {
             ... on User {
               email
             }
-            ... on Organization {
-              email
-            }
           }
           tier {
             id

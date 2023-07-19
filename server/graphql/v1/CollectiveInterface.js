@@ -521,17 +521,6 @@ export const CollectiveStatsType = new GraphQLObjectType({
           return collective.getYearlyBudget({ loaders: req.loaders });
         },
       },
-      yearlyBudgetManaged: {
-        type: GraphQLInt,
-        deprecationReason: '2023-03-01: This field will be removed soon, please use totalMoneyManaged from GraphQL V2',
-        resolve(collective) {
-          if (collective.isHostAccount) {
-            return queries.getTotalAnnualBudgetForHost(collective.id);
-          } else {
-            return 0;
-          }
-        },
-      },
       activeRecurringContributions: {
         type: GraphQLJSON,
         resolve(collective, args, req) {
@@ -1996,6 +1985,7 @@ export const UserCollectiveType = new GraphQLObjectType({
       },
       applications: {
         type: new GraphQLList(ApplicationType),
+        deprecationReason: '2023-07-19: Use GraphQL V2',
         resolve(userCollective, _, req) {
           if (req.remoteUser && req.remoteUser.isAdmin(userCollective.id)) {
             return models.Application.findAll({
@@ -2012,16 +2002,7 @@ export const OrganizationCollectiveType = new GraphQLObjectType({
   name: 'Organization',
   description: 'This represents a Organization Collective',
   interfaces: [CollectiveInterfaceType],
-  fields: () => {
-    return {
-      ...CollectiveFields(),
-      email: {
-        type: GraphQLString,
-        deprecationReason: '2022-07-18: This field is deprecated and will return null',
-        resolve: () => null,
-      },
-    };
-  },
+  fields: CollectiveFields,
 });
 
 export const EventCollectiveType = new GraphQLObjectType({
