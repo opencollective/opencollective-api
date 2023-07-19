@@ -30,7 +30,9 @@ export async function run() {
   logger.info('Done!');
 }
 
-if (require.main === module && process.env.SKIP_PAYPAL_PAYOUTS_WORKER !== 'true') {
+import { pathToFileURL } from 'url';
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href && process.env.SKIP_PAYPAL_PAYOUTS_WORKER !== 'true') {
   run()
     .then(() => {
       setTimeout(() => process.exit(0), 10000);

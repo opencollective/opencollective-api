@@ -37,7 +37,9 @@ export async function run() {
   }
 }
 
-if (require.main === module) {
+import { pathToFileURL } from 'url';
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   run()
     .then(() => process.exit(0))
     .catch(e => {

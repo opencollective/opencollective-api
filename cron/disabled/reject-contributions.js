@@ -240,7 +240,9 @@ function parseCommandLineArguments() {
 
 /* eslint-enable camelcase */
 
-if (require.main === module) {
+import { pathToFileURL } from 'url';
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   run(parseCommandLineArguments())
     .then(() => {
       process.exit(0);
