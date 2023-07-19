@@ -8,8 +8,8 @@ import sequelize, { DataTypes, Model, QueryTypes } from '../lib/sequelize.js';
 import { sanitizeTags, validateTags } from '../lib/tags.js';
 
 import Comment from './Comment.js';
-import User from './User.js';
 import models, { Collective } from './index.js';
+import User from './User.js';
 
 class Conversation extends Model<InferAttributes<Conversation>, InferCreationAttributes<Conversation>> {
   public declare readonly id: CreationOptional<number>;

@@ -10,8 +10,8 @@ import { ValidationFailed } from '../graphql/errors.js';
 import sequelize, { DataTypes, Model, Op } from '../lib/sequelize.js';
 import { getRootDomain } from '../lib/url-utils.js';
 
-import User from './User.js';
 import models, { Collective } from './index.js';
+import User from './User.js';
 
 const debug = debugLib('models:Notification');
 

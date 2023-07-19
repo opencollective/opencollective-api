@@ -1,9 +1,9 @@
 import { omit, pick } from 'lodash-es';
 import type Stripe from 'stripe';
 
-import { activities } from '../../constants/index.js';
 import ExpenseStatus from '../../constants/expense_status.js';
 import ExpenseType from '../../constants/expense_type.js';
+import { activities } from '../../constants/index.js';
 import VirtualCardProviders from '../../constants/virtual_card_providers.js';
 import { VirtualCardLimitIntervals } from '../../constants/virtual-cards.js';
 import logger from '../../lib/logger.js';

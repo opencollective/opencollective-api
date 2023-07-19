@@ -2,8 +2,8 @@ import { expect } from 'chai';
 import { pick } from 'lodash-es';
 
 import { expenseStatus, expenseTypes } from '../../../server/constants/index.js';
-import models from '../../../server/models/index.js';
 import Expense from '../../../server/models/Expense.js';
+import models from '../../../server/models/index.js';
 import {
   fakeCollective,
   fakeExpense,

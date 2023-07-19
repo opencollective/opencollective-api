@@ -17,10 +17,10 @@ import {
   uniqBy,
 } from 'lodash-es';
 
-import { roles } from '../../../constants/index.js';
 import activities from '../../../constants/activities.js';
 import { Service } from '../../../constants/connected_account.js';
 import FEATURE from '../../../constants/feature.js';
+import { roles } from '../../../constants/index.js';
 import OrderStatuses from '../../../constants/order_status.js';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods.js';
 import { purgeAllCachesForAccount } from '../../../lib/cache/index.js';

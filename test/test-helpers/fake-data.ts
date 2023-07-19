@@ -13,8 +13,8 @@ import type { CreateOptions, InferCreationAttributes } from 'sequelize';
 import speakeasy from 'speakeasy';
 import { v4 as uuid } from 'uuid';
 
-import { activities, channels, roles } from '../../server/constants/index.js';
 import { types as CollectiveType, types } from '../../server/constants/collectives.js';
+import { activities, channels, roles } from '../../server/constants/index.js';
 import OAuthScopes from '../../server/constants/oauth-scopes.js';
 import OrderStatuses from '../../server/constants/order_status.js';
 import { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPES } from '../../server/constants/paymentMethods.js';
@@ -23,6 +23,10 @@ import MemberRoles from '../../server/constants/roles.js';
 import { TransactionKind } from '../../server/constants/transaction-kind.js';
 import { crypto } from '../../server/lib/encryption.js';
 import { TwoFactorMethod } from '../../server/lib/two-factor-authentication/index.js';
+import Application, { ApplicationType } from '../../server/models/Application.js';
+import Comment from '../../server/models/Comment.js';
+import Conversation from '../../server/models/Conversation.js';
+import { HostApplicationStatus } from '../../server/models/HostApplication.js';
 import models, {
   Collective,
   ConnectedAccount,
@@ -39,10 +43,6 @@ import models, {
   UploadedFile,
   VirtualCard,
 } from '../../server/models/index.js';
-import Application, { ApplicationType } from '../../server/models/Application.js';
-import Comment from '../../server/models/Comment.js';
-import Conversation from '../../server/models/Conversation.js';
-import { HostApplicationStatus } from '../../server/models/HostApplication.js';
 import { LegalDocumentModelInterface } from '../../server/models/LegalDocument.js';
 import { MemberModelInterface } from '../../server/models/Member.js';
 import { MemberInvitationModelInterface } from '../../server/models/MemberInvitation.js';

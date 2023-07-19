@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import '../../server/env.js';
-import '../../server/lib/sentry.js';
+
+import { reportErrorToSentry } from '../../server/lib/sentry.js';
 
 process.env.PORT = 3066;
 
@@ -9,7 +10,6 @@ import debugLib from 'debug';
 import { get, pick, set, uniq } from 'lodash-es';
 
 import { types as collectiveTypes } from '../../server/constants/collectives.js';
-import { reportErrorToSentry } from '../../server/lib/sentry.js';
 import slackLib from '../../server/lib/slack.js';
 import twitter from '../../server/lib/twitter.js';
 import { pluralize } from '../../server/lib/utils.js';

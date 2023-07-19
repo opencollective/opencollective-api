@@ -1,9 +1,8 @@
-import url from 'url';
+import url, { URL } from 'url';
 const __dirname = url.fileURLToPath(new url.URL('.', import.meta.url));
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { URL } from 'url';
 
 import config from 'config';
 import fastRedact from 'fast-redact';
@@ -12,6 +11,7 @@ import { filter, get, isEqual, padStart, sumBy } from 'lodash-es';
 import pFilter from 'p-filter';
 
 import { ZERO_DECIMAL_CURRENCIES } from '../constants/currencies.js';
+
 import handlebars from './handlebars.js';
 
 export function addParamsToUrl(url, obj) {

@@ -7,9 +7,9 @@ import path from 'path';
 import { expect } from 'chai';
 import { readFileSync } from 'fs-extra';
 import { times } from 'lodash-es';
+
 import { PLATFORM_TIP_TRANSACTION_PROPERTIES } from '../../server/constants/transactions.js';
 import models, { sequelize } from '../../server/models/index.js';
-
 import {
   fakeCollective,
   fakeComment,
@@ -20,7 +20,6 @@ import {
   fakeUpdate,
   fakeUser,
 } from '../test-helpers/fake-data.js';
-
 import { resetTestDB } from '../utils.js';
 
 const banCollectivesQuery = readFileSync(path.join(__dirname, '../../sql/ban-collectives.sql'), 'utf8');

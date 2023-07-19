@@ -29,9 +29,9 @@ import logger from '../../lib/logger.js';
 import { centsAmountToFloat } from '../../lib/math.js';
 import { reportErrorToSentry } from '../../lib/sentry.js';
 import * as transferwise from '../../lib/transferwise.js';
-import models, { Collective, sequelize } from '../../models/index.js';
 import { ConnectedAccount } from '../../models/ConnectedAccount.js';
 import Expense from '../../models/Expense.js';
+import models, { Collective, sequelize } from '../../models/index.js';
 import PayoutMethod from '../../models/PayoutMethod.js';
 import {
   BalanceV4,

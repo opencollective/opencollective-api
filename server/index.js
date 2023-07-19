@@ -1,5 +1,3 @@
-import { createRequire } from 'node:module';
-const require = createRequire(import.meta.url);
 import './env.js';
 import './open-telemetry.js';
 

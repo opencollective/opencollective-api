@@ -10,8 +10,8 @@ import { clamp } from 'lodash-es';
 import sanitizeHtml from 'sanitize-html';
 
 import slackLib, { OPEN_COLLECTIVE_SLACK_CHANNEL } from '../lib/slack.js';
-import { Collective } from '../models/index.js';
 import { Activity } from '../models/Activity.js';
+import { Collective } from '../models/index.js';
 
 /** Return type when running a spam analysis */
 export type SpamAnalysisReport = {

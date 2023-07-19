@@ -12,8 +12,8 @@ import { floatAmountToCents } from '../../lib/math.js';
 import * as paypal from '../../lib/paypal.js';
 import { reportMessageToSentry } from '../../lib/sentry.js';
 import { createTransactionsFromPaidExpense } from '../../lib/transactions.js';
-import models, { Collective } from '../../models/index.js';
 import Expense from '../../models/Expense.js';
+import models, { Collective } from '../../models/index.js';
 import { PayoutItemDetails } from '../../types/paypal.js';
 
 const providerName = 'paypal';

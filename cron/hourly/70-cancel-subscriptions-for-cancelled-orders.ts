@@ -1,12 +1,11 @@
 #!/usr/bin/env node
 
 import '../../server/env.js';
-import '../../server/lib/sentry.js';
 
 import { groupBy, size, uniq } from 'lodash-es';
 
-import { activities } from '../../server/constants/index.js';
 import FEATURE from '../../server/constants/feature.js';
+import { activities } from '../../server/constants/index.js';
 import OrderStatuses from '../../server/constants/order_status.js';
 import logger from '../../server/lib/logger.js';
 import { reportErrorToSentry } from '../../server/lib/sentry.js';

@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import '../../server/env.js';
-import '../../server/lib/sentry.js';
 
 import { ArgumentParser } from 'argparse';
 import { get, intersection } from 'lodash-es';

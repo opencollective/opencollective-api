@@ -1,10 +1,10 @@
 import axios, { AxiosError } from 'axios';
 import config from 'config';
 
-import { activities, channels } from '../../constants/index.js';
 import ActivityTypes from '../../constants/activities.js';
-import models from '../../models/index.js';
+import { activities, channels } from '../../constants/index.js';
 import { Activity } from '../../models/Activity.js';
+import models from '../../models/index.js';
 import { reportErrorToSentry } from '../sentry.js';
 import slackLib from '../slack.js';
 import twitter from '../twitter.js';

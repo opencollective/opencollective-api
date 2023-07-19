@@ -3,8 +3,8 @@ import gqlV2 from 'fake-tag';
 import { createSandbox } from 'sinon';
 import speakeasy from 'speakeasy';
 
-import { activities as ACTIVITY, roles } from '../../../../../server/constants/index.js';
 import FEATURE from '../../../../../server/constants/feature.js';
+import { activities as ACTIVITY, roles } from '../../../../../server/constants/index.js';
 import POLICIES from '../../../../../server/constants/policies.js';
 import { idEncode } from '../../../../../server/graphql/v2/identifiers.js';
 import emailLib from '../../../../../server/lib/email.js';

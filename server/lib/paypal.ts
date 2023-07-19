@@ -4,8 +4,8 @@ import express from 'express';
 import { difference, find } from 'lodash-es';
 import moment from 'moment';
 
-import models, { Collective, Op, sequelize } from '../models/index.js';
 import { ConnectedAccount } from '../models/ConnectedAccount.js';
+import models, { Collective, Op, sequelize } from '../models/index.js';
 import { paypalRequest } from '../paymentProviders/paypal/api.js';
 import {
   PayoutBatchDetails,

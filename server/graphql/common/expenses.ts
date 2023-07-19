@@ -25,13 +25,13 @@ import {
 } from 'lodash-es';
 import moment from 'moment';
 
-import { activities, roles } from '../../constants/index.js';
 import ActivityTypes from '../../constants/activities.js';
 import { types as collectiveTypes } from '../../constants/collectives.js';
 import statuses from '../../constants/expense_status.js';
 import EXPENSE_TYPE from '../../constants/expense_type.js';
 import { ExpenseFeesPayer } from '../../constants/expense-fees-payer.js';
 import FEATURE from '../../constants/feature.js';
+import { activities, roles } from '../../constants/index.js';
 import { EXPENSE_PERMISSION_ERROR_CODES } from '../../constants/permissions.js';
 import POLICIES from '../../constants/policies.js';
 import { TransactionKind } from '../../constants/transaction-kind.js';
@@ -54,10 +54,10 @@ import {
 import twoFactorAuthLib from '../../lib/two-factor-authentication/index.js';
 import { canUseFeature } from '../../lib/user-permissions.js';
 import { formatCurrency, parseToBoolean } from '../../lib/utils.js';
-import models, { Collective, sequelize } from '../../models/index.js';
 import Expense from '../../models/Expense.js';
 import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile.js';
 import { ExpenseItem } from '../../models/ExpenseItem.js';
+import models, { Collective, sequelize } from '../../models/index.js';
 import { MigrationLogType } from '../../models/MigrationLog.js';
 import { PayoutMethodTypes } from '../../models/PayoutMethod.js';
 import User from '../../models/User.js';

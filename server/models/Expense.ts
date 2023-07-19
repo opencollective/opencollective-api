@@ -11,10 +11,10 @@ import {
 import Temporal from 'sequelize-temporal';
 import validator from 'validator/es/index.js';
 
-import { roles } from '../constants/index.js';
 import ActivityTypes from '../constants/activities.js';
 import ExpenseStatus from '../constants/expense_status.js';
 import ExpenseType from '../constants/expense_type.js';
+import { roles } from '../constants/index.js';
 import { reduceArrayToCurrency } from '../lib/currency.js';
 import logger from '../lib/logger.js';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html.js';

@@ -3,8 +3,8 @@ import { pick } from 'lodash-es';
 
 import FEATURE from '../../constants/feature.js';
 import { hasFeature } from '../../lib/allowed-features.js';
-import models from '../../models/index.js';
 import Conversation from '../../models/Conversation.js';
+import models from '../../models/index.js';
 import { FeatureNotSupportedForCollective, NotFound, Unauthorized } from '../errors.js';
 
 import { checkRemoteUserCanUseConversations } from './scope-check.js';

@@ -2,8 +2,8 @@ import { expect } from 'chai';
 import { assert, createSandbox } from 'sinon';
 
 import { run as checkPendingTransfers } from '../../../cron/daily/check-pending-transferwise-transactions.js';
-import { roles } from '../../../server/constants/index.js';
 import status from '../../../server/constants/expense_status.js';
+import { roles } from '../../../server/constants/index.js';
 import emailLib from '../../../server/lib/email.js';
 import logger from '../../../server/lib/logger.js';
 import * as transferwiseLib from '../../../server/lib/transferwise.js';

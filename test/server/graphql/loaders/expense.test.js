@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 import moment from 'moment';
 
-import { loaders } from '../../../../server/graphql/loaders/index.js';
 import { taxFormRequiredBeforePayment } from '../../../../server/graphql/loaders/expenses.js';
+import { loaders } from '../../../../server/graphql/loaders/index.js';
 import models from '../../../../server/models/index.js';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../server/models/LegalDocument.js';
 import { fakeCollective, fakeExpense, fakeHost, fakePayoutMethod, fakeUser } from '../../../test-helpers/fake-data.js';

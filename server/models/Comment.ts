@@ -5,8 +5,8 @@ import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html.js';
 import sequelize, { DataTypes, Model } from '../lib/sequelize.js';
 
 import Expense from './Expense.js';
-import User from './User.js';
 import models, { Collective } from './index.js';
+import User from './User.js';
 
 // Options for sanitizing comment's body
 const sanitizeOptions = buildSanitizerOptions({

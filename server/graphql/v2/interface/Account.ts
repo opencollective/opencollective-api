@@ -8,8 +8,8 @@ import FEATURE from '../../../constants/feature.js';
 import { buildSearchConditions } from '../../../lib/search.js';
 import { getCollectiveFeed } from '../../../lib/timeline.js';
 import { canSeeLegalName } from '../../../lib/user-permissions.js';
-import models, { Op } from '../../../models/index.js';
 import Application from '../../../models/Application.js';
+import models, { Op } from '../../../models/index.js';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod.js';
 import { GraphQLCollectiveFeatures } from '../../common/CollectiveFeatures.js';
 import { allowContextPermission, getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions.js';
@@ -24,15 +24,15 @@ import { GraphQLTransactionCollection } from '../collection/TransactionCollectio
 import { GraphQLUpdateCollection } from '../collection/UpdateCollection.js';
 import { GraphQLVirtualCardCollection } from '../collection/VirtualCardCollection.js';
 import { GraphQLWebhookCollection, WebhookCollectionArgs, WebhookCollectionResolver } from '../collection/WebhookCollection.js';
+import { GraphQLActivityChannel } from '../enum/ActivityChannel.js';
+import { GraphQLActivityClassType } from '../enum/ActivityType.js';
+import { GraphQLExpenseType } from '../enum/ExpenseType.js';
 import {
   AccountTypeToModelMapping,
   GraphQLAccountType,
   GraphQLImageFormat,
   GraphQLMemberRole,
 } from '../enum/index.js';
-import { GraphQLActivityChannel } from '../enum/ActivityChannel.js';
-import { GraphQLActivityClassType } from '../enum/ActivityType.js';
-import { GraphQLExpenseType } from '../enum/ExpenseType.js';
 import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService.js';
 import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType.js';
 import { idEncode } from '../identifiers.js';

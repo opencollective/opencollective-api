@@ -5,8 +5,8 @@ import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes,
 import oAuthScopes from '../constants/oauth-scopes.js';
 import sequelize, { DataTypes, Model } from '../lib/sequelize.js';
 
-import User from './User.js';
 import models from './index.js';
+import User from './User.js';
 
 class PersonalToken extends Model<InferAttributes<PersonalToken>, InferCreationAttributes<PersonalToken>> {
   public declare readonly id: CreationOptional<number>;

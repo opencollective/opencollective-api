@@ -7,8 +7,8 @@ import { pick } from 'lodash-es';
 
 import ActivityTypes from '../../../constants/activities.js';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication/index.js';
-import { Activity, UploadedFile } from '../../../models/index.js';
 import AgreementModel from '../../../models/Agreement.js';
+import { Activity, UploadedFile } from '../../../models/index.js';
 import { checkRemoteUserCanUseHost } from '../../common/scope-check.js';
 import { Unauthorized } from '../../errors.js';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput.js';

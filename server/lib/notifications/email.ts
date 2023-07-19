@@ -3,15 +3,15 @@ import debugLib from 'debug';
 import { cloneDeep, compact, get } from 'lodash-es';
 import PQueue from 'p-queue';
 
-import { roles } from '../../constants/index.js';
 import ActivityTypes, { TransactionalActivities } from '../../constants/activities.js';
 import Channels from '../../constants/channels.js';
 import { types as CollectiveType } from '../../constants/collectives.js';
+import { roles } from '../../constants/index.js';
 import { TransactionKind } from '../../constants/transaction-kind.js';
 import { TransactionTypes } from '../../constants/transactions.js';
-import models, { Collective } from '../../models/index.js';
 import { Activity } from '../../models/Activity.js';
 import { CommentType } from '../../models/Comment.js';
+import models, { Collective } from '../../models/index.js';
 import User from '../../models/User.js';
 import emailLib from '../email.js';
 import logger from '../logger.js';

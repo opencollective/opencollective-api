@@ -7,8 +7,8 @@ import { round } from 'lodash-es';
 import ExpenseStatuses from '../../server/constants/expense_status.js';
 import { payExpense } from '../../server/graphql/common/expenses.js';
 import cache from '../../server/lib/cache/index.js';
-import models from '../../server/models/index.js';
 import Expense from '../../server/models/Expense.js';
+import models from '../../server/models/index.js';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod.js';
 import { handleTransferStateChange } from '../../server/paymentProviders/transferwise/webhook.js';
 import {

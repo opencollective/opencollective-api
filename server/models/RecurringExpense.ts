@@ -4,8 +4,8 @@ import moment from 'moment';
 import { DataTypes, Model } from 'sequelize';
 import { v4 as uuid } from 'uuid';
 
-import { activities } from '../constants/index.js';
 import expenseStatus from '../constants/expense_status.js';
+import { activities } from '../constants/index.js';
 import { reportErrorToSentry } from '../lib/sentry.js';
 import sequelize from '../lib/sequelize.js';
 

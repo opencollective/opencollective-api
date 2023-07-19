@@ -2,10 +2,10 @@ import { pick } from 'lodash-es';
 
 import ActivityTypes from '../../constants/activities.js';
 import { mustBeLoggedInTo } from '../../lib/auth.js';
-import models from '../../models/index.js';
 import Comment, { CommentType } from '../../models/Comment.js';
 import Conversation from '../../models/Conversation.js';
 import Expense, { ExpenseStatus } from '../../models/Expense.js';
+import models from '../../models/index.js';
 import Update from '../../models/Update.js';
 import { NotFound, Unauthorized, ValidationFailed } from '../errors.js';
 

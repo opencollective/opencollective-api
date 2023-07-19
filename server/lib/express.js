@@ -1,5 +1,6 @@
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
+// eslint-disable-next-line import/no-commonjs
 const cloudflareIps = require('cloudflare-ip/ips.json');
 
 import config from 'config';

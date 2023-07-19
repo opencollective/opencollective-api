@@ -1,8 +1,8 @@
 import config from 'config';
 import { pick } from 'lodash-es';
 
-import { activities } from '../../constants/index.js';
 import { types } from '../../constants/collectives.js';
+import { activities } from '../../constants/index.js';
 import roles from '../../constants/roles.js';
 import cache, { fetchCollectiveId } from '../../lib/cache/index.js';
 import emailLib from '../../lib/email.js';

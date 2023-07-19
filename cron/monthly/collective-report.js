@@ -1,14 +1,13 @@
 #!/usr/bin/env node
 import '../../server/env.js';
-import '../../server/lib/sentry.js';
 
 import config from 'config';
 import { omit, pick } from 'lodash-es';
 import moment from 'moment';
 import pMap from 'p-map';
 
-import { roles } from '../../server/constants/index.js';
 import ActivityTypes from '../../server/constants/activities.js';
+import { roles } from '../../server/constants/index.js';
 import { TransactionKind } from '../../server/constants/transaction-kind.js';
 import { generateHostFeeAmountForTransactionLoader } from '../../server/graphql/loaders/transactions.js';
 import { getCollectiveTransactionsCsv } from '../../server/lib/csv.js';

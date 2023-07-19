@@ -14,8 +14,8 @@ import moment from 'moment';
 
 import ActivityTypes from '../constants/activities.js';
 import { TransferwiseError } from '../graphql/errors.js';
-import models from '../models/index.js';
 import { ConnectedAccount } from '../models/ConnectedAccount.js';
+import models from '../models/index.js';
 import {
   AccessToken,
   BalanceV4,

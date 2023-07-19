@@ -2,8 +2,8 @@ import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString 
 import { uniq } from 'lodash-es';
 import isEmail from 'validator/lib/isEmail.js';
 
-import { roles } from '../../constants/index.js';
 import { types as CollectiveTypes } from '../../constants/collectives.js';
+import { roles } from '../../constants/index.js';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods.js';
 import { fetchCollectiveId } from '../../lib/cache/index.js';
 import logger from '../../lib/logger.js';

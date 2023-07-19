@@ -2,10 +2,10 @@ import { GraphQLBoolean, GraphQLFloat, GraphQLInterfaceType, GraphQLNonNull } fr
 import { GraphQLDateTime } from 'graphql-scalars';
 import { clamp, isNumber } from 'lodash-es';
 
-import { roles } from '../../../constants/index.js';
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure.js';
-import { Collective } from '../../../models/index.js';
+import { roles } from '../../../constants/index.js';
 import Agreement from '../../../models/Agreement.js';
+import { Collective } from '../../../models/index.js';
 import { hostResolver } from '../../common/collective.js';
 import { GraphQLAgreementCollection } from '../collection/AgreementCollection.js';
 import { GraphQLHostFeeStructure } from '../enum/HostFeeStructure.js';

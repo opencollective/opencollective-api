@@ -1,8 +1,8 @@
 import DataLoader from 'dataloader';
 import { first, groupBy, uniq } from 'lodash-es';
 
-import { roles } from '../../constants/index.js';
 import { types as CollectiveType } from '../../constants/collectives.js';
+import { roles } from '../../constants/index.js';
 import models, { Collective, Op, sequelize } from '../../models/index.js';
 
 import { sortResultsSimple } from './helpers.js';

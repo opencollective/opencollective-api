@@ -1,8 +1,8 @@
 import { GraphQLBoolean, GraphQLFloat, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import { GraphQLCurrency } from '../enum/index.js';
 import { GraphQLCurrencyExchangeRateSourceType } from '../enum/CurrencyExchangeRateSourceType.js';
+import { GraphQLCurrency } from '../enum/index.js';
 
 const GraphQLCurrencyExchangeRate = new GraphQLObjectType({
   name: 'CurrencyExchangeRate',

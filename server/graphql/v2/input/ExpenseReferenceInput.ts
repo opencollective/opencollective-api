@@ -2,8 +2,8 @@ import { GraphQLInputFieldConfig, GraphQLInputObjectType, GraphQLInt, GraphQLStr
 import { uniq } from 'lodash-es';
 import { Includeable } from 'sequelize';
 
-import models from '../../../models/index.js';
 import Expense from '../../../models/Expense.js';
+import models from '../../../models/index.js';
 import { NotFound } from '../../errors.js';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers.js';
 

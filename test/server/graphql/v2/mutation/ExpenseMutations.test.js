@@ -6,8 +6,8 @@ import { defaultsDeep, omit, pick, round, sumBy } from 'lodash-es';
 import { createSandbox } from 'sinon';
 import speakeasy from 'speakeasy';
 
-import { expenseStatus, expenseTypes } from '../../../../../server/constants/index.js';
 import ExpenseTypes from '../../../../../server/constants/expense_type.js';
+import { expenseStatus, expenseTypes } from '../../../../../server/constants/index.js';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind.js';
 import { payExpense } from '../../../../../server/graphql/common/expenses.js';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers.js';

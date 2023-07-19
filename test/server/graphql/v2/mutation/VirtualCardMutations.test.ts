@@ -2,8 +2,8 @@ import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
 import { createSandbox, match } from 'sinon';
 
-import { frequencies } from '../../../../../server/constants/index.js';
 import ActivityTypes from '../../../../../server/constants/activities.js';
+import { frequencies } from '../../../../../server/constants/index.js';
 import VirtualCardProviders from '../../../../../server/constants/virtual_card_providers.js';
 import { VirtualCardLimitIntervals } from '../../../../../server/constants/virtual-cards.js';
 import models from '../../../../../server/models/index.js';

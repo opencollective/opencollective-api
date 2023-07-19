@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import '../../server/env.js';
-import '../../server/lib/sentry.js';
 
 import { groupBy, values } from 'lodash-es';
 import moment from 'moment';

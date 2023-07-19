@@ -2,8 +2,8 @@ import { expect } from 'chai';
 import { createSandbox, stub } from 'sinon';
 
 import { buildLoaderForAssociation } from '../../../../server/graphql/loaders/helpers.js';
-import models from '../../../../server/models/index.js';
 import Collective from '../../../../server/models/Collective.js';
+import models from '../../../../server/models/index.js';
 import { fakeCollective, fakeHost } from '../../../test-helpers/fake-data.js';
 import { resetTestDB } from '../../../utils.js';
 

@@ -5,8 +5,8 @@ import { defaultsDeep } from 'lodash-es';
 import { assert, createSandbox } from 'sinon';
 import request from 'supertest';
 
-import { roles } from '../../../../server/constants/index.js';
 import status from '../../../../server/constants/expense_status.js';
+import { roles } from '../../../../server/constants/index.js';
 import app from '../../../../server/index.js';
 import emailLib from '../../../../server/lib/email.js';
 import * as transferwiseLib from '../../../../server/lib/transferwise.js';

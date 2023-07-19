@@ -3,8 +3,7 @@
 
 import crypto from 'crypto';
 
-import OAuth2Server from '@node-oauth/oauth2-server/index.js';
-import {
+import OAuth2Server, {
   AuthorizationCode,
   AuthorizationCodeModel,
   Client,
@@ -19,8 +18,8 @@ import config from 'config';
 import debugLib from 'debug';
 
 import activities from '../../constants/activities.js';
-import models from '../../models/index.js';
 import Application from '../../models/Application.js';
+import models from '../../models/index.js';
 import OAuthAuthorizationCode from '../../models/OAuthAuthorizationCode.js';
 import User from '../../models/User.js';
 import UserToken, { TokenType } from '../../models/UserToken.js';

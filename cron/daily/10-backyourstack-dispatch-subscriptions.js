@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import '../../server/env.js';
-import '../../server/lib/sentry.js';
 
 import { Op } from 'sequelize';
 

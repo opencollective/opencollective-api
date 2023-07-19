@@ -1,5 +1,4 @@
 import '../../server/env.js';
-import '../../server/lib/sentry.js';
 
 import config from 'config';
 import { groupBy, minBy, values } from 'lodash-es';
@@ -9,8 +8,8 @@ import { activities as activityTypes } from '../../server/constants/index.js';
 import VirtualCardProviders from '../../server/constants/virtual_card_providers.js';
 import logger from '../../server/lib/logger.js';
 import { reportErrorToSentry } from '../../server/lib/sentry.js';
-import models, { Op, sequelize } from '../../server/models/index.js';
 import Expense from '../../server/models/Expense.js';
+import models, { Op, sequelize } from '../../server/models/index.js';
 import VirtualCard from '../../server/models/VirtualCard.js';
 
 const processVirtualCard = async (expenses: Array<Expense>) => {

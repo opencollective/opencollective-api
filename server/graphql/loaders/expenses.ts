@@ -5,11 +5,11 @@ import ACTIVITY from '../../constants/activities.js';
 import { TransactionKind } from '../../constants/transaction-kind.js';
 import queries from '../../lib/queries.js';
 import { checkExpensesBatch } from '../../lib/security/expense.js';
-import models, { Op, sequelize } from '../../models/index.js';
 import { Activity } from '../../models/Activity.js';
 import Expense from '../../models/Expense.js';
 import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile.js';
 import { ExpenseItem } from '../../models/ExpenseItem.js';
+import models, { Op, sequelize } from '../../models/index.js';
 
 import { populateModelAssociations, sortResultsArray } from './helpers.js';
 

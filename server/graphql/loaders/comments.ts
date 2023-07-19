@@ -3,8 +3,8 @@ import express from 'express';
 import { set } from 'lodash-es';
 
 import { ReactionEmoji } from '../../constants/reaction-emoji.js';
-import models, { Op, sequelize } from '../../models/index.js';
 import EmojiReaction from '../../models/EmojiReaction.js';
+import models, { Op, sequelize } from '../../models/index.js';
 
 type CommentCountByExpenseIdAndType = {
   ExpenseId: number;

@@ -1,8 +1,7 @@
 import '../../server/env.js';
-import '../../server/lib/sentry.js';
 
-import { roles } from '../../server/constants/index.js';
 import FEATURE from '../../server/constants/feature.js';
+import { roles } from '../../server/constants/index.js';
 import POLICIES from '../../server/constants/policies.js';
 import logger from '../../server/lib/logger.js';
 import { getPolicy } from '../../server/lib/policies.js';

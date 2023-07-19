@@ -3,12 +3,12 @@ import { expect } from 'chai';
 import { before } from 'mocha';
 import { assert, createSandbox } from 'sinon';
 
-import { activities } from '../../../server/constants/index.js';
 import channels from '../../../server/constants/channels.js';
+import { activities } from '../../../server/constants/index.js';
 import roles from '../../../server/constants/roles.js';
 import emailLib from '../../../server/lib/email.js';
-import notifyLib from '../../../server/lib/notifications/index.js';
 import { notify } from '../../../server/lib/notifications/email.js';
+import notifyLib from '../../../server/lib/notifications/index.js';
 import slackLib from '../../../server/lib/slack.js';
 import {
   fakeActivity,

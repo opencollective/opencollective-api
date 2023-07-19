@@ -3,8 +3,8 @@ import { repeat } from 'lodash-es';
 import moment from 'moment';
 import { createSandbox } from 'sinon';
 
-import { expenseStatus, roles } from '../../../server/constants/index.js';
 import FEATURE from '../../../server/constants/feature.js';
+import { expenseStatus, roles } from '../../../server/constants/index.js';
 import plans from '../../../server/constants/plans.js';
 import POLICIES from '../../../server/constants/policies.js';
 import { TransactionKind } from '../../../server/constants/transaction-kind.js';

@@ -1,8 +1,8 @@
 import { GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
 
-import { GraphQLCurrency } from '../enum/index.js';
 import { GraphQLExpenseType } from '../enum/ExpenseType.js';
+import { GraphQLCurrency } from '../enum/index.js';
 
 import { GraphQLNewAccountOrReferenceInput } from './AccountReferenceInput.js';
 import { GraphQLExpenseAttachedFileInput } from './ExpenseAttachedFileInput.js';

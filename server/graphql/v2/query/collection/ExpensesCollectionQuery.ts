@@ -4,13 +4,13 @@ import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { isEmpty, isNil, uniq } from 'lodash-es';
 import { OrderItem } from 'sequelize';
 
-import { expenseStatus } from '../../../../constants/index.js';
 import { types as CollectiveType } from '../../../../constants/collectives.js';
+import { expenseStatus } from '../../../../constants/index.js';
 import { getBalances } from '../../../../lib/budget.js';
 import { buildSearchConditions } from '../../../../lib/search.js';
 import { expenseMightBeSubjectToTaxForm } from '../../../../lib/tax-forms.js';
-import models, { Op, sequelize } from '../../../../models/index.js';
 import { ExpenseType } from '../../../../models/Expense.js';
+import models, { Op, sequelize } from '../../../../models/index.js';
 import { PayoutMethodTypes } from '../../../../models/PayoutMethod.js';
 import { validateExpenseCustomData } from '../../../common/expenses.js';
 import { Unauthorized } from '../../../errors.js';

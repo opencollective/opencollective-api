@@ -6,8 +6,8 @@ import ActivityTypes, { ActivitiesPerClass, ActivityClasses } from '../constants
 import { types as AccountTypes } from '../constants/collectives.js';
 import MemberRoles from '../constants/roles.js';
 import { createRedisClient } from '../lib/redis.js';
-import models, { Collective } from '../models/index.js';
 import { Activity } from '../models/Activity.js';
+import models, { Collective } from '../models/index.js';
 import { MemberModelInterface } from '../models/Member.js';
 
 import cache from './cache/index.js';

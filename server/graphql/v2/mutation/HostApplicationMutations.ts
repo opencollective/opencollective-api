@@ -3,9 +3,9 @@ import express from 'express';
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
 
-import { activities } from '../../../constants/index.js';
 import { types as CollectiveType } from '../../../constants/collectives.js';
 import FEATURE from '../../../constants/feature.js';
+import { activities } from '../../../constants/index.js';
 import POLICIES from '../../../constants/policies.js';
 import MemberRoles from '../../../constants/roles.js';
 import { purgeAllCachesForAccount, purgeCacheForCollective } from '../../../lib/cache/index.js';
@@ -15,9 +15,9 @@ import { OSCValidator, ValidatedRepositoryInfo } from '../../../lib/osc-validato
 import { getPolicy, hasPolicy } from '../../../lib/policies.js';
 import { stripHTML } from '../../../lib/sanitize-html.js';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication/index.js';
-import models, { sequelize } from '../../../models/index.js';
 import ConversationModel from '../../../models/Conversation.js';
 import { HostApplicationStatus } from '../../../models/HostApplication.js';
+import models, { sequelize } from '../../../models/index.js';
 import { processInviteMembersInput } from '../../common/members.js';
 import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseHost, checkScope } from '../../common/scope-check.js';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors.js';

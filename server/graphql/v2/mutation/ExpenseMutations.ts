@@ -18,9 +18,9 @@ import logger from '../../../lib/logger.js';
 import RateLimit from '../../../lib/rate-limit.js';
 import { reportErrorToSentry } from '../../../lib/sentry.js';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication/lib.js';
-import models from '../../../models/index.js';
 import { CommentType } from '../../../models/Comment.js';
 import ExpenseModel from '../../../models/Expense.js';
+import models from '../../../models/index.js';
 import { createComment } from '../../common/comment.js';
 import {
   approveExpense,
