@@ -87,7 +87,7 @@ export const AccountWithContributionsFields = {
         offset,
         limit,
         totalCount: filteredContributors.length,
-        nodes: filteredContributors.slice(offset, limit),
+        nodes: filteredContributors.slice(offset, limit + offset),
       };
     },
   },
