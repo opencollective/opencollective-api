@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import '../../server/env.js';
+import '../../server/lib/sentry.js';
 
 import config from 'config';
 import { parse as json2csv } from 'json2csv';

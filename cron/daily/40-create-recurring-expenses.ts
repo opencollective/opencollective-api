@@ -1,4 +1,5 @@
 import '../../server/env.js';
+import '../../server/lib/sentry.js';
 
 import logger from '../../server/lib/logger.js';
 import { reportErrorToSentry } from '../../server/lib/sentry.js';

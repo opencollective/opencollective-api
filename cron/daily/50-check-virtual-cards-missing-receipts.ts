@@ -1,4 +1,5 @@
 import '../../server/env.js';
+import '../../server/lib/sentry.js';
 
 import config from 'config';
 import { groupBy, minBy, values } from 'lodash-es';

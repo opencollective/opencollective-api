@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import '../../server/env.js';
+import '../../server/lib/sentry.js';
 
 import config from 'config';
 import { omit, pick } from 'lodash-es';

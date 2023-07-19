@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import '../../server/env.js';
+import '../../server/lib/sentry.js';
 
 import { groupBy, size, uniq } from 'lodash-es';
 

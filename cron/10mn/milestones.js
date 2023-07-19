@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import '../../server/env.js';
+import '../../server/lib/sentry.js';
 
 process.env.PORT = 3066;
 

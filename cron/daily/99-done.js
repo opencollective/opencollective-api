@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import '../../server/env.js';
+import '../../server/lib/sentry.js';
 
 import email from '../../server/lib/email.js';
 import { reportErrorToSentry } from '../../server/lib/sentry.js';

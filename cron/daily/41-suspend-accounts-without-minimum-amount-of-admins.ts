@@ -1,4 +1,5 @@
 import '../../server/env.js';
+import '../../server/lib/sentry.js';
 
 import { roles } from '../../server/constants/index.js';
 import FEATURE from '../../server/constants/feature.js';
