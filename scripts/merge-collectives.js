@@ -1,11 +1,11 @@
 #!/usr/bin/env ./node_modules/.bin/babel-node
-import '../server/env';
+import '../server/env.js';
 
-import { mergeAccounts, simulateMergeAccounts } from '../server/lib/merge-accounts';
-import { parseToBoolean } from '../server/lib/utils';
-import models from '../server/models';
+import { mergeAccounts, simulateMergeAccounts } from '../server/lib/merge-accounts.js';
+import { parseToBoolean } from '../server/lib/utils.js';
+import models from '../server/models/index.js';
 
-import { confirm } from './common/helpers';
+import { confirm } from './common/helpers.js';
 
 const printMergeSummary = async (fromCollective, intoCollective) => {
   console.log('==============================================================');

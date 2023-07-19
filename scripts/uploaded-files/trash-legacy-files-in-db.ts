@@ -1,20 +1,15 @@
 #!/usr/bin/env ./node_modules/.bin/babel-node
 
-/**
- * This script will mark all files from fields like "ExpenseItem.url", "Update.html", etc. as deleted
- * when their corresponding record is marked as deleted.
- */
-
-import '../../server/env';
+import '../../server/env.js';
 
 import { Command } from 'commander';
-import { toPath } from 'lodash';
+import { toPath } from 'lodash-es';
 import moment from 'moment';
 
-import logger from '../../server/lib/logger';
-import { FileFieldsDefinition } from '../../server/lib/uploaded-files';
-import { parseToBoolean } from '../../server/lib/utils';
-import { sequelize } from '../../server/models';
+import logger from '../../server/lib/logger.js';
+import { FileFieldsDefinition } from '../../server/lib/uploaded-files.js';
+import { parseToBoolean } from '../../server/lib/utils.js';
+import { sequelize } from '../../server/models/index.js';
 
 const DRY_RUN = process.env.DRY_RUN ? parseToBoolean(process.env.DRY_RUN) : true;
 

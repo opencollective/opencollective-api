@@ -1,11 +1,6 @@
 #!/usr/bin/env ./node_modules/.bin/babel-node
 
-/**
- * This script assumes that all files still being used have been recorded to the `UploadedFile` table (using `scripts/uploaded-files/record-existing-files.ts`).
- * It will move all files that are in S3 but not in the database to a trash folder by prepending `trash/` to the key.
- */
-
-import '../../server/env';
+import '../../server/env.js';
 
 import fs from 'fs';
 
@@ -15,9 +10,9 @@ import config from 'config';
 import moment from 'moment';
 import PQueue from 'p-queue';
 
-import { listFilesInS3, S3_TRASH_PREFIX, trashFileFromS3 } from '../../server/lib/awsS3';
-import logger from '../../server/lib/logger';
-import { sequelize } from '../../server/models';
+import { listFilesInS3, S3_TRASH_PREFIX, trashFileFromS3 } from '../../server/lib/awsS3.js';
+import logger from '../../server/lib/logger.js';
+import { sequelize } from '../../server/models/index.js';
 
 const DRY_RUN = process.env.DRY_RUN !== 'false';
 const LOCAL_CACHE_FILE = 'output/s3-files.json';

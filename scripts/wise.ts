@@ -1,16 +1,11 @@
-/**
- * Small helper to encode/decode GQLV2 identifiers with command-line.
- * The corresponding `HASHID_SALT` must be set in the environment (i.e. `.env.prod`, `.env` ...etc)
- */
-
-import '../server/env';
+import '../server/env.js';
 
 import { Command } from 'commander';
-import { toNumber } from 'lodash';
+import { toNumber } from 'lodash-es';
 
-import { Service } from '../server/constants/connected_account';
-import * as transferwiseLib from '../server/lib/transferwise';
-import models, { sequelize } from '../server/models';
+import { Service } from '../server/constants/connected_account.js';
+import * as transferwiseLib from '../server/lib/transferwise.js';
+import models, { sequelize } from '../server/models/index.js';
 
 const program = new Command();
 

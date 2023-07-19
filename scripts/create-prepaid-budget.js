@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-import '../server/env';
+import '../server/env.js';
 
-import { createPrepaidPaymentMethod } from '../server/lib/prepaid-budget';
-import models, { sequelize } from '../server/models';
+import { createPrepaidPaymentMethod } from '../server/lib/prepaid-budget.js';
+import models, { sequelize } from '../server/models/index.js';
 
 async function run() {
   if (process.argv.length < 3) {

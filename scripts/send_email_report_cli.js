@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import '../server/env';
+import '../server/env.js';
 
 console.log('This script is being deprecated.');
 console.log('To re-enable it, remove this message with a Pull Request explaining the use case.');

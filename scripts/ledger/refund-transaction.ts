@@ -1,12 +1,12 @@
 #!/usr/bin/env ./node_modules/.bin/babel-node
-import '../../server/env';
+import '../../server/env.js';
 
 import { Command } from 'commander';
-import { toNumber } from 'lodash';
+import { toNumber } from 'lodash-es';
 
-import { findPaymentMethodProvider, refundTransaction } from '../../server/lib/payments';
-import models from '../../server/models';
-import { PaymentProviderService } from '../../server/paymentProviders/types';
+import { findPaymentMethodProvider, refundTransaction } from '../../server/lib/payments.js';
+import models from '../../server/models/index.js';
+import { PaymentProviderService } from '../../server/paymentProviders/types.js';
 
 const DRY_RUN = process.env.DRY_RUN !== 'false';
 

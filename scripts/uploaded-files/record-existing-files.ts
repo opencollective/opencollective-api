@@ -1,22 +1,17 @@
 #!/usr/bin/env ./node_modules/.bin/babel-node
 
-/**
- * This script will record all existing files from fields like "Expense.item.url", "Update.html", etc.
- * to the "UploadedFile" table.
- */
-
-import '../../server/env';
+import '../../server/env.js';
 
 import { Command } from 'commander';
-import { pickBy, toPath } from 'lodash';
+import { pickBy, toPath } from 'lodash-es';
 import PQueue from 'p-queue';
 
-import { getFileInfoFromS3 } from '../../server/lib/awsS3';
-import logger from '../../server/lib/logger';
-import { FileFieldsDefinition } from '../../server/lib/uploaded-files';
-import { parseToBoolean } from '../../server/lib/utils';
-import models, { sequelize } from '../../server/models';
-import UploadedFile, { FileKind, SUPPORTED_FILE_TYPES } from '../../server/models/UploadedFile';
+import { getFileInfoFromS3 } from '../../server/lib/awsS3.js';
+import logger from '../../server/lib/logger.js';
+import { FileFieldsDefinition } from '../../server/lib/uploaded-files.js';
+import { parseToBoolean } from '../../server/lib/utils.js';
+import models, { sequelize } from '../../server/models/index.js';
+import UploadedFile, { FileKind, SUPPORTED_FILE_TYPES } from '../../server/models/UploadedFile.js';
 
 const DRY_RUN = process.env.DRY_RUN ? parseToBoolean(process.env.DRY_RUN) : true;
 

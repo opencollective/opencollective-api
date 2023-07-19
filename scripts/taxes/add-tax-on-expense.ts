@@ -1,11 +1,11 @@
 #!/usr/bin/env ./node_modules/.bin/babel-node
 
-import '../../server/env';
+import '../../server/env.js';
 
 import { Command } from 'commander';
-import { sum } from 'lodash';
+import { sum } from 'lodash-es';
 
-import models, { sequelize } from '../../server/models';
+import models, { sequelize } from '../../server/models/index.js';
 
 const program = new Command()
   .description('Helper to add a tax on an existing expense')

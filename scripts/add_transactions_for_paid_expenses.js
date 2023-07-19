@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import '../server/env';
+import '../server/env.js';
 
 /*
  * This script finds all expenses that are paid and don't have a transaction

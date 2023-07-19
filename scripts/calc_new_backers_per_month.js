@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import '../server/env';
+import '../server/env.js';
 
 /*
  * This script calculates how many new backers and old backers we have added by calendar months

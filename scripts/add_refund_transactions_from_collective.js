@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import '../server/env';
+import '../server/env.js';
 
 /*
  * Given an array of fromCollective Ids(field FromCollectiveId from Transactions model),
@@ -12,9 +12,9 @@ import '../server/env';
  */
 import debug from 'debug';
 
-import { purgeCacheForCollective } from '../server/lib/cache';
-import * as libPayments from '../server/lib/payments';
-import models from '../server/models';
+import { purgeCacheForCollective } from '../server/lib/cache/index.js';
+import * as libPayments from '../server/lib/payments.js';
+import models from '../server/models/index.js';
 
 // the user id of the one who's running this script, will be set on the field `CreatedByUserId`.
 const UPDATER_USER_ID = parseInt(process.env.UPDATER_USER_ID);

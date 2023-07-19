@@ -1,13 +1,13 @@
 #!/usr/bin/env node
-import '../server/env';
+import '../server/env.js';
 
 import config from 'config';
 import { parse as json2csv } from 'json2csv';
-import { entries, groupBy, pick, round, sumBy } from 'lodash';
+import { entries, groupBy, pick, round, sumBy } from 'lodash-es';
 import moment from 'moment';
 
-import { SHARED_REVENUE_PLANS } from '../server/constants/plans';
-import models, { sequelize } from '../server/models';
+import { SHARED_REVENUE_PLANS } from '../server/constants/plans.js';
+import models, { sequelize } from '../server/models/index.js';
 
 const date = process.env.START_DATE ? moment.utc(process.env.START_DATE) : moment.utc();
 const DRY = process.env.DRY;

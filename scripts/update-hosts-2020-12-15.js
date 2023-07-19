@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-import '../server/env';
+import '../server/env.js';
 
 import { ArgumentParser } from 'argparse';
 
-import { PLANS_COLLECTIVE_SLUG } from '../server/constants/plans';
-import models, { Op } from '../server/models';
+import { PLANS_COLLECTIVE_SLUG } from '../server/constants/plans.js';
+import models, { Op } from '../server/models/index.js';
 
 async function run({ dryRun } = {}) {
   const hosts = await models.Collective.findAll({

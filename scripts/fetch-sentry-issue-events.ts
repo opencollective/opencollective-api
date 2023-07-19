@@ -8,7 +8,7 @@ import fs from 'fs';
 import { Command } from 'commander';
 import fetch from 'node-fetch';
 
-import { sleep } from '../server/lib/utils';
+import { sleep } from '../server/lib/utils.js';
 
 const fetchIssueEvents = (issueId: string, cursor: number) => {
   return fetch(`https://sentry.io/api/0/issues/${issueId}/events/?full=true&cursor=0:${cursor}:0`, {

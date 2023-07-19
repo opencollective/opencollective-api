@@ -1,10 +1,10 @@
 #!/usr/bin/env ./node_modules/.bin/babel-node
-import '../../server/env';
+import '../../server/env.js';
 
-import { result, toNumber } from 'lodash';
+import { result, toNumber } from 'lodash-es';
 
-import stripe from '../../server/lib/stripe';
-import models from '../../server/models';
+import stripe from '../../server/lib/stripe.js';
+import models from '../../server/models/index.js';
 
 const IS_DRY = !!process.env.DRY;
 

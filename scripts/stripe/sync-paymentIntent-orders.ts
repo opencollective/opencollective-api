@@ -1,12 +1,12 @@
 #!/usr/bin/env ./node_modules/.bin/babel-node
-import '../../server/env';
+import '../../server/env.js';
 
-import { compact, toNumber } from 'lodash';
+import { compact, toNumber } from 'lodash-es';
 import type Stripe from 'stripe';
 
-import stripe from '../../server/lib/stripe';
-import models from '../../server/models';
-import { paymentIntentFailed, paymentIntentSucceeded } from '../../server/paymentProviders/stripe/webhook';
+import stripe from '../../server/lib/stripe.js';
+import models from '../../server/models/index.js';
+import { paymentIntentFailed, paymentIntentSucceeded } from '../../server/paymentProviders/stripe/webhook.js';
 
 const IS_DRY = !!process.env.DRY;
 

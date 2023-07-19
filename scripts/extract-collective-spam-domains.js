@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-import '../server/env';
+import '../server/env.js';
 
 import getUrls from 'get-urls'; // eslint-disable-line node/no-unpublished-import
-import { union } from 'lodash';
+import { union } from 'lodash-es';
 import moment from 'moment';
 
-import { NON_SPAMMERS_DOMAINS, resolveRedirect, SPAMMERS_DOMAINS } from '../server/lib/spam';
-import models, { Op, sequelize } from '../server/models';
+import { NON_SPAMMERS_DOMAINS, resolveRedirect, SPAMMERS_DOMAINS } from '../server/lib/spam.js';
+import models, { Op, sequelize } from '../server/models/index.js';
 
 const domains = {};
 

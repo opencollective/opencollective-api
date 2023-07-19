@@ -1,13 +1,13 @@
 #!/usr/bin/env ./node_modules/.bin/babel-node
 
-import '../../server/env';
+import '../../server/env.js';
 
 import assert from 'assert';
 
 import { Command } from 'commander';
 
-import logger from '../../server/lib/logger';
-import models, { sequelize } from '../../server/models';
+import logger from '../../server/lib/logger.js';
+import models, { sequelize } from '../../server/models/index.js';
 
 const program = new Command()
   .description('Helper to remove a tax on an existing order and all its transactions')

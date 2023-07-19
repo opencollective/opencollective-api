@@ -1,6 +1,6 @@
-import '../server/env';
+import '../server/env.js';
 
-import models, { Op } from '../server/models';
+import models, { Op } from '../server/models/index.js';
 
 async function main() {
   const collectives = await models.Collective.findAll({

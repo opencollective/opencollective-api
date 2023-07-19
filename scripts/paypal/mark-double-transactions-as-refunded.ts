@@ -1,13 +1,8 @@
-/**
- * This script can be used whenever PayPal webhooks event types change to update
- * Host's connected accounts.
- */
+import '../../server/env.js';
 
-import '../../server/env';
-
-import logger from '../../server/lib/logger';
-import { createRefundTransaction } from '../../server/lib/payments';
-import models, { sequelize } from '../../server/models';
+import logger from '../../server/lib/logger.js';
+import { createRefundTransaction } from '../../server/lib/payments.js';
+import models, { sequelize } from '../../server/models/index.js';
 
 /**
  * Refund the wrongly recorded double transactions for PayPal payment, to make sure

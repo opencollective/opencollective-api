@@ -1,6 +1,6 @@
-import '../server/env';
+import '../server/env.js';
 
-import models, { sequelize } from '../server/models';
+import models, { sequelize } from '../server/models/index.js';
 
 async function run() {
   console.log(process.argv);

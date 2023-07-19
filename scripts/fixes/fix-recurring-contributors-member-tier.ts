@@ -1,7 +1,7 @@
 #!/usr/bin/env ./node_modules/.bin/babel-node
-import '../../server/env';
+import '../../server/env.js';
 
-import models, { sequelize } from '../../server/models';
+import models, { sequelize } from '../../server/models/index.js';
 
 const migrate = async () => {
   const members = await sequelize.query(

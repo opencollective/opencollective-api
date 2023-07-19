@@ -1,6 +1,6 @@
-import '../../server/env';
+import '../../server/env.js';
 
-import { sequelize } from '../../server/models';
+import { sequelize } from '../../server/models/index.js';
 
 async function run() {
   // Un-save all non-deleted duplicate credit cards, but not the latest

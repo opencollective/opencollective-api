@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import '../server/env';
+import '../server/env.js';
 
 /**
  * Script for setting up user & database.
@@ -15,8 +15,8 @@ import '../server/env';
  */
 import format from 'pg-format';
 
-import * as libdb from '../server/lib/db';
-import { sequelize } from '../server/models';
+import * as libdb from '../server/lib/db.js';
+import { sequelize } from '../server/models/index.js';
 
 /** Create a user in postgres if it doesn't exist.
  *

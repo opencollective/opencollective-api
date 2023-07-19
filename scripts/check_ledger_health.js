@@ -1,15 +1,9 @@
 #!/usr/bin/env node
-import '../server/env';
+import '../server/env.js';
 
-/*
- * This script runs through a few checks and lets us know if something is off
- */
-// import { parse as json2csv } from 'json2csv';
-// import moment from 'moment';
-import emailLib from '../server/lib/email';
-// import * as transactionsLib from '../../server/lib/transactions';
-import { formatCurrency } from '../server/lib/utils';
-import models, { Op, sequelize } from '../server/models';
+import emailLib from '../server/lib/email.js';
+import { formatCurrency } from '../server/lib/utils.js';
+import models, { Op, sequelize } from '../server/models/index.js';
 
 const VERBOSE = true;
 const attachments = [];
@@ -259,6 +253,7 @@ const checkTransactions = () => {
 
   // Check every transaction has a "FromCollectiveId"
   return (
+    // Check that various fees and amounts add up
     models.Transaction.count({
       where: {
         FromCollectiveId: {
@@ -376,8 +371,6 @@ const checkTransactions = () => {
         // if (VERBOSE)
         // txnsWithoutOrderOrExpenses.map(t => Object.assign({id: t.id}));
       })
-
-    // Check that various fees and amounts add up
     /*
       .then(async () => {
         const allTransactions = await models.Transaction.findAll({

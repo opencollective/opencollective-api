@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
-import '../../server/env';
+import '../../server/env.js';
 
-import { groupBy } from 'lodash';
+import { groupBy } from 'lodash-es';
 
-import models, { sequelize } from '../../server/models';
+import models, { sequelize } from '../../server/models/index.js';
 
 const IS_DRY = process.env.DRY !== 'false';
 

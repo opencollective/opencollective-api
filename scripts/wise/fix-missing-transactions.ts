@@ -1,9 +1,9 @@
-import '../../server/env';
+import '../../server/env.js';
 
-import { get, toNumber } from 'lodash';
+import { get, toNumber } from 'lodash-es';
 
-import { checkHasBalanceToPayExpense, setTransferWiseExpenseAsProcessing } from '../../server/graphql/common/expenses';
-import models from '../../server/models';
+import { checkHasBalanceToPayExpense, setTransferWiseExpenseAsProcessing } from '../../server/graphql/common/expenses.js';
+import models from '../../server/models/index.js';
 
 const IS_DRY = process.env.DRY !== 'false';
 const checkPathIsUndefined = (object, path) => get(object, path) === undefined;

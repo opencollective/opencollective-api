@@ -1,11 +1,11 @@
 #!/usr/bin/env ./node_modules/.bin/babel-node
-import '../../server/env';
+import '../../server/env.js';
 
 import { Command } from 'commander';
 import { v4 as uuid } from 'uuid';
 
-import { refundHostFee } from '../../server/lib/payments';
-import models from '../../server/models';
+import { refundHostFee } from '../../server/lib/payments.js';
+import models from '../../server/models/index.js';
 
 const DRY_RUN = process.env.DRY_RUN !== 'false';
 

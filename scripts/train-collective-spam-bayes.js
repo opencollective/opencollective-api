@@ -1,15 +1,15 @@
-#!/usr/bin/env node
-import '../server/env';
+#!/usr/bin/env nodeimport url from 'url';
+const __dirname = url.fileURLToPath(new url.URL('.', import.meta.url));
+import '../server/env.js';
 
 import fs from 'fs';
 import path from 'path';
 
 import bayes from 'bayes';
 import geoip from 'geoip-lite'; // eslint-disable-line node/no-unpublished-import
-import { get } from 'lodash';
-
-import { collectiveBayesContent } from '../server/lib/spam';
-import models, { Op, sequelize } from '../server/models';
+import { get } from 'lodash-es';
+import { collectiveBayesContent } from '../server/lib/spam.js';
+import models, { Op, sequelize } from '../server/models/index.js';
 
 const classifier = bayes();
 

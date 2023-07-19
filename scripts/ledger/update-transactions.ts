@@ -1,16 +1,12 @@
 #!/usr/bin/env ./node_modules/.bin/babel-node
 
-/**
- * This script aims to provide a command-line interface to update transactions in a safe way.
- */
-
-import '../../server/env';
+import '../../server/env.js';
 
 import { Command } from 'commander';
-import { groupBy, pick } from 'lodash';
+import { groupBy, pick } from 'lodash-es';
 
-import models, { Op } from '../../server/models';
-import { confirm } from '../common/helpers';
+import models, { Op } from '../../server/models/index.js';
+import { confirm } from '../common/helpers.js';
 
 // Some local caches to optimize the process
 let accountsCache = {};

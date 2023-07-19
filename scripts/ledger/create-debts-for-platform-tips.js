@@ -1,10 +1,10 @@
 #!/usr/bin/env ./node_modules/.bin/babel-node
-import '../../server/env';
+import '../../server/env.js';
 
-import { partition } from 'lodash';
+import { partition } from 'lodash-es';
 
-import models, { sequelize } from '../../server/models';
-import { TransactionSettlementStatus } from '../../server/models/TransactionSettlement';
+import models, { sequelize } from '../../server/models/index.js';
+import { TransactionSettlementStatus } from '../../server/models/TransactionSettlement.js';
 
 const startDate = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date('2021-05-01');
 

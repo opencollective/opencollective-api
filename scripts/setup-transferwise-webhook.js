@@ -1,7 +1,7 @@
-import '../server/env';
+import '../server/env.js';
 
-import { deleteApplicationWebhook, listApplicationWebhooks } from '../server/lib/transferwise';
-import transferwise from '../server/paymentProviders/transferwise';
+import { deleteApplicationWebhook, listApplicationWebhooks } from '../server/lib/transferwise.js';
+import transferwise from '../server/paymentProviders/transferwise/index.js';
 
 const run = async () => {
   const action = process.argv?.[2];

@@ -1,29 +1,26 @@
 #!/usr/bin/env ./node_modules/.bin/babel-node
 
-import '../../server/env';
+import '../../server/env.js';
 
 import { Command } from 'commander';
-import { get } from 'lodash';
+import { get } from 'lodash-es';
 import moment from 'moment';
 
-import OrderStatus from '../../server/constants/order_status';
-import { TransactionKind } from '../../server/constants/transaction-kind';
-import logger from '../../server/lib/logger';
-import { getHostsWithPayPalConnected } from '../../server/lib/paypal';
-import { parseToBoolean } from '../../server/lib/utils';
-import models, { Op, sequelize } from '../../server/models';
-import { paypalRequest, paypalRequestV2 } from '../../server/paymentProviders/paypal/api';
+import OrderStatus from '../../server/constants/order_status.js';
+import { TransactionKind } from '../../server/constants/transaction-kind.js';
+import logger from '../../server/lib/logger.js';
+import { getHostsWithPayPalConnected } from '../../server/lib/paypal.js';
+import { parseToBoolean } from '../../server/lib/utils.js';
+import models, { Op, sequelize } from '../../server/models/index.js';
+import { paypalRequest, paypalRequestV2 } from '../../server/paymentProviders/paypal/api.js';
 import {
   findTransactionByPaypalId,
   recordPaypalCapture,
   recordPaypalTransaction,
   refundPaypalCapture,
-} from '../../server/paymentProviders/paypal/payment';
-import {
-  fetchPaypalSubscription,
-  fetchPaypalTransactionsForSubscription,
-} from '../../server/paymentProviders/paypal/subscription';
-import { PaypalCapture, PaypalTransaction, PaypalTransactionSearchResult } from '../../server/types/paypal';
+} from '../../server/paymentProviders/paypal/payment.js';
+import { fetchPaypalSubscription, fetchPaypalTransactionsForSubscription } from '../../server/paymentProviders/paypal/subscription.js';
+import { PaypalCapture, PaypalTransaction, PaypalTransactionSearchResult } from '../../server/types/paypal.js';
 
 // TODO: Move these to command-line options
 const START_DATE = new Date(process.env.START_DATE || '2022-02-01');

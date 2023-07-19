@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-import '../server/env';
+import '../server/env.js';
 
 import config from 'config';
 
-import channels from '../server/constants/channels';
-import models, { Op, sequelize } from '../server/models';
+import channels from '../server/constants/channels.js';
+import models, { Op, sequelize } from '../server/models/index.js';
 
 export const testStripeAccounts = {
   // Open Source Collective 501c6

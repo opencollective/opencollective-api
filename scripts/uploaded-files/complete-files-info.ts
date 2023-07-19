@@ -1,18 +1,14 @@
 #!/usr/bin/env ./node_modules/.bin/babel-node
 
-/**
- * This script can be use to complete missing information from S3 on the "UploadedFile" table.
- */
+import '../../server/env.js';
 
-import '../../server/env';
-
-import { round } from 'lodash';
+import { round } from 'lodash-es';
 import PQueue from 'p-queue';
 
-import { getFileInfoFromS3 } from '../../server/lib/awsS3';
-import logger from '../../server/lib/logger';
-import { parseToBoolean } from '../../server/lib/utils';
-import UploadedFile, { SUPPORTED_FILE_TYPES } from '../../server/models/UploadedFile';
+import { getFileInfoFromS3 } from '../../server/lib/awsS3.js';
+import logger from '../../server/lib/logger.js';
+import { parseToBoolean } from '../../server/lib/utils.js';
+import UploadedFile, { SUPPORTED_FILE_TYPES } from '../../server/models/UploadedFile.js';
 
 const DRY_RUN = process.env.DRY_RUN ? parseToBoolean(process.env.DRY_RUN) : true;
 

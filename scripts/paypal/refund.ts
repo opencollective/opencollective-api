@@ -1,15 +1,15 @@
 #!/usr/bin/env ./node_modules/.bin/babel-node
 
-import '../../server/env';
+import '../../server/env.js';
 
 import { Command } from 'commander';
-import { truncate } from 'lodash';
+import { truncate } from 'lodash-es';
 
-import logger from '../../server/lib/logger';
-import { sleep } from '../../server/lib/utils';
-import models from '../../server/models';
-import { paypalRequestV2 } from '../../server/paymentProviders/paypal/api';
-import { findTransactionByPaypalId, refundPaypalCapture } from '../../server/paymentProviders/paypal/payment';
+import logger from '../../server/lib/logger.js';
+import { sleep } from '../../server/lib/utils.js';
+import models from '../../server/models/index.js';
+import { paypalRequestV2 } from '../../server/paymentProviders/paypal/api.js';
+import { findTransactionByPaypalId, refundPaypalCapture } from '../../server/paymentProviders/paypal/payment.js';
 
 const main = async () => {
   const program = new Command();

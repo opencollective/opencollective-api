@@ -1,12 +1,12 @@
 #!/usr/bin/env ./node_modules/.bin/babel-node
-import '../../server/env';
+import '../../server/env.js';
 
-import { omit } from 'lodash';
+import { omit } from 'lodash-es';
 
-import models, { sequelize } from '../../server/models';
-import { paypalRequestV2 } from '../../server/paymentProviders/paypal/api';
-import { recordPaypalCapture } from '../../server/paymentProviders/paypal/payment';
-import { PaypalCapture } from '../../server/types/paypal';
+import models, { sequelize } from '../../server/models/index.js';
+import { paypalRequestV2 } from '../../server/paymentProviders/paypal/api.js';
+import { recordPaypalCapture } from '../../server/paymentProviders/paypal/payment.js';
+import { PaypalCapture } from '../../server/types/paypal.js';
 
 const migrate = async () => {
   const orders = await sequelize.query(

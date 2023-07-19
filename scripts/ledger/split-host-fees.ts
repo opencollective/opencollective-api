@@ -1,10 +1,10 @@
 #!/usr/bin/env ./node_modules/.bin/babel-node
-import '../../server/env';
+import '../../server/env.js';
 
-import { groupBy, omit, pick } from 'lodash';
+import { groupBy, omit, pick } from 'lodash-es';
 
-import * as PaymentLib from '../../server/lib/payments';
-import models, { Op, sequelize } from '../../server/models';
+import * as PaymentLib from '../../server/lib/payments.js';
+import models, { Op, sequelize } from '../../server/models/index.js';
 
 const startDate = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date('2021-06-01');
 

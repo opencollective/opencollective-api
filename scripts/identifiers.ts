@@ -1,13 +1,8 @@
-/**
- * Small helper to encode/decode GQLV2 identifiers with command-line.
- * The corresponding `HASHID_SALT` must be set in the environment (i.e. `.env.prod`, `.env` ...etc)
- */
-
-import '../server/env';
+import '../server/env.js';
 
 import { Command, InvalidArgumentError } from 'commander';
 
-import { idDecode, idEncode } from '../server/graphql/v2/identifiers';
+import { idDecode, idEncode } from '../server/graphql/v2/identifiers.js';
 
 const program = new Command();
 

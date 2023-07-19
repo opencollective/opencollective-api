@@ -1,13 +1,13 @@
 #!/usr/bin/env ./node_modules/.bin/babel-node
 
-import '../../server/env';
+import '../../server/env.js';
 
 import { Command } from 'commander';
-import { groupBy, mapValues, pick, sumBy } from 'lodash';
+import { groupBy, mapValues, pick, sumBy } from 'lodash-es';
 
-import logger from '../../server/lib/logger';
-import { formatCurrency } from '../../server/lib/utils';
-import models, { sequelize } from '../../server/models';
+import logger from '../../server/lib/logger.js';
+import { formatCurrency } from '../../server/lib/utils.js';
+import models, { sequelize } from '../../server/models/index.js';
 
 const DRY_RUN = process.env.DRY_RUN !== 'false';
 

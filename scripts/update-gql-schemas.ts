@@ -1,9 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { buildClientSchema } from 'graphql/utilities/buildClientSchema';
-import { getIntrospectionQuery } from 'graphql/utilities/getIntrospectionQuery';
-import { printSchema } from 'graphql/utilities/printSchema';
+import { buildClientSchema } from 'graphql/utilities/buildClientSchema.mjs';
+import { getIntrospectionQuery } from 'graphql/utilities/getIntrospectionQuery.mjs';
+import { printSchema } from 'graphql/utilities/printSchema.mjs';
 import fetch from 'node-fetch';
 
 /**

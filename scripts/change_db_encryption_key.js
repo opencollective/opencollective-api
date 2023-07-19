@@ -3,7 +3,7 @@ import { ArgumentParser } from 'argparse';
 import config from 'config';
 import cryptojs from 'crypto-js';
 
-import { sequelize } from '../server/models';
+import { sequelize } from '../server/models/index.js';
 
 const CIPHER = config.dbEncryption.cipher;
 const SECRET_KEY = config.dbEncryption.secretKey;

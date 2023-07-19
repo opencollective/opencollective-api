@@ -1,17 +1,17 @@
-import '../server/env';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+import '../server/env.js';
 
 import { execSync } from 'child_process';
 
 import { Command } from 'commander';
 import { readJsonSync, writeJsonSync } from 'fs-extra';
-import { cloneDeepWith, compact, concat, flatten, repeat, set, uniqBy } from 'lodash';
-
-import { md5 } from '../server/lib/utils';
-import models, { Op, sequelize } from '../server/models';
-import { IDENTIFIABLE_DATA_FIELDS } from '../server/models/PayoutMethod';
-import { randEmail, randStr } from '../test/test-helpers/fake-data';
-
-import { testStripeAccounts } from './sanitize-db';
+import { cloneDeepWith, compact, concat, flatten, repeat, set, uniqBy } from 'lodash-es';
+import { md5 } from '../server/lib/utils.js';
+import models, { Op, sequelize } from '../server/models/index.js';
+import { IDENTIFIABLE_DATA_FIELDS } from '../server/models/PayoutMethod.js';
+import { randEmail, randStr } from '../test/test-helpers/fake-data.js';
+import { testStripeAccounts } from './sanitize-db.js';
 
 const program = new Command();
 const nop = () => undefined;

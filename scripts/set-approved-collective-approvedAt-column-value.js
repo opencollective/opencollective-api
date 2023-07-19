@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-import '../server/env';
+import '../server/env.js';
 
-import { sequelize } from '../server/models';
+import { sequelize } from '../server/models/index.js';
 
 /**
  * This script updates the value of Collectives approvedAt

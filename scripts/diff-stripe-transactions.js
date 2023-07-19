@@ -1,10 +1,10 @@
 #!/usr/bin/env ./node_modules/.bin/babel-node
-import '../server/env';
+import '../server/env.js';
 
-import { get, last } from 'lodash';
+import { get, last } from 'lodash-es';
 
-import stripe from '../server/lib/stripe';
-import models from '../server/models';
+import stripe from '../server/lib/stripe.js';
+import models from '../server/models/index.js';
 
 if (process.argv.length < 3) {
   console.error('Usage: ./scripts/diff-stripe-transactions.js HOST_SLUG [NB_CHARGES_TO_CHECK=100] [LAST_CHARGE_ID]');

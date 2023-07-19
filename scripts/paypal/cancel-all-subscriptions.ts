@@ -1,31 +1,21 @@
 #!/usr/bin/env ./node_modules/.bin/babel-node
 
-/**
- * A script to cancel all subscriptions for a given collective.
- *
- * Before https://github.com/opencollective/opencollective-api/pull/8004, unhosted collectives
- * would not get their PayPal contributions cancelled. This script:
- * - Finds all active PayPal subscriptions for a given collective
- * - Cancels them
- * - Refunds the payments made since the unhosting date
- */
-
-import '../../server/env';
+import '../../server/env.js';
 
 import { Command } from 'commander';
-import { flatten, get, uniq } from 'lodash';
+import { flatten, get, uniq } from 'lodash-es';
 
-import OrderStatuses from '../../server/constants/order_status';
-import logger from '../../server/lib/logger';
-import models, { Op, Subscription } from '../../server/models';
-import { OrderModelInterface } from '../../server/models/Order';
-import { paypalRequestV2 } from '../../server/paymentProviders/paypal/api';
-import { getCaptureIdFromPaypalTransaction } from '../../server/paymentProviders/paypal/payment';
+import OrderStatuses from '../../server/constants/order_status.js';
+import logger from '../../server/lib/logger.js';
+import models, { Op, Subscription } from '../../server/models/index.js';
+import { OrderModelInterface } from '../../server/models/Order.js';
+import { paypalRequestV2 } from '../../server/paymentProviders/paypal/api.js';
+import { getCaptureIdFromPaypalTransaction } from '../../server/paymentProviders/paypal/payment.js';
 import {
   cancelPaypalSubscription,
   fetchPaypalSubscription,
   fetchPaypalTransactionsForSubscription,
-} from '../../server/paymentProviders/paypal/subscription';
+} from '../../server/paymentProviders/paypal/subscription.js';
 
 const getUnrecordedTransactions = async (host, order) => {
   const paypalSubscriptionId = order.Subscription.paypalSubscriptionId;

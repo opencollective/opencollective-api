@@ -1,11 +1,11 @@
 #!/usr/bin/env ./node_modules/.bin/babel-node
-import '../../server/env';
+import '../../server/env.js';
 
-import { get, groupBy } from 'lodash';
+import { get, groupBy } from 'lodash-es';
 
-import { getFxRate } from '../../server/lib/currency';
-import { paypalAmountToCents } from '../../server/lib/paypal';
-import models, { sequelize } from '../../server/models';
+import { getFxRate } from '../../server/lib/currency.js';
+import { paypalAmountToCents } from '../../server/lib/paypal.js';
+import models, { sequelize } from '../../server/models/index.js';
 
 const migrate = async () => {
   // Update credits, should update transactions:

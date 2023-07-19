@@ -1,8 +1,8 @@
 #!/usr/bin/env ./node_modules/.bin/babel-node
 
-import '../server/env';
+import '../server/env.js';
 
-import { crypto } from '../server/lib/encryption';
+import { crypto } from '../server/lib/encryption.js';
 
 if (process.argv.length < 2) {
   console.error('Usage: npm run script ./scripts/encrypt.js [+d] CONTENT');

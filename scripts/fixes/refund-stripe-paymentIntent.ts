@@ -1,7 +1,7 @@
 #!/usr/bin/env ./node_modules/.bin/babel-node
-import '../../server/env';
+import '../../server/env.js';
 
-import stripe from '../../server/lib/stripe';
+import stripe from '../../server/lib/stripe.js';
 
 const IS_DRY = !!process.env.DRY;
 
