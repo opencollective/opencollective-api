@@ -23,16 +23,15 @@ import { GraphQLOrderCollection } from '../collection/OrderCollection.js';
 import { GraphQLTransactionCollection } from '../collection/TransactionCollection.js';
 import { GraphQLUpdateCollection } from '../collection/UpdateCollection.js';
 import { GraphQLVirtualCardCollection } from '../collection/VirtualCardCollection.js';
-import { GraphQLWebhookCollection, WebhookCollectionArgs, WebhookCollectionResolver } from '../collection/WebhookCollection.js';
+import {
+  GraphQLWebhookCollection,
+  WebhookCollectionArgs,
+  WebhookCollectionResolver,
+} from '../collection/WebhookCollection.js';
 import { GraphQLActivityChannel } from '../enum/ActivityChannel.js';
 import { GraphQLActivityClassType } from '../enum/ActivityType.js';
 import { GraphQLExpenseType } from '../enum/ExpenseType.js';
-import {
-  AccountTypeToModelMapping,
-  GraphQLAccountType,
-  GraphQLImageFormat,
-  GraphQLMemberRole,
-} from '../enum/index.js';
+import { AccountTypeToModelMapping, GraphQLAccountType, GraphQLImageFormat, GraphQLMemberRole } from '../enum/index.js';
 import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService.js';
 import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType.js';
 import { idEncode } from '../identifiers.js';
@@ -57,7 +56,10 @@ import { GraphQLSocialLink } from '../object/SocialLink.js';
 import { GraphQLTagStats } from '../object/TagStats.js';
 import { GraphQLTransferWise } from '../object/TransferWise.js';
 import { OrdersCollectionArgs, OrdersCollectionResolver } from '../query/collection/OrdersCollectionQuery.js';
-import { TransactionsCollectionArgs, TransactionsCollectionResolver } from '../query/collection/TransactionsCollectionQuery.js';
+import {
+  TransactionsCollectionArgs,
+  TransactionsCollectionResolver,
+} from '../query/collection/TransactionsCollectionQuery.js';
 import GraphQLEmailAddress from '../scalar/EmailAddress.js';
 
 import { CollectionArgs } from './Collection.js';

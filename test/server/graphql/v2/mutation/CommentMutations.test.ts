@@ -10,7 +10,14 @@ import { idDecode, idEncode } from '../../../../../server/graphql/v2/identifiers
 import emailLib from '../../../../../server/lib/email.js';
 import { CommentType } from '../../../../../server/models/Comment.js';
 import models from '../../../../../server/models/index.js';
-import { fakeCollective, fakeComment, fakeExpense, fakeHost, fakeMember, fakeUser } from '../../../../test-helpers/fake-data.js';
+import {
+  fakeCollective,
+  fakeComment,
+  fakeExpense,
+  fakeHost,
+  fakeMember,
+  fakeUser,
+} from '../../../../test-helpers/fake-data.js';
 import * as utils from '../../../../utils.js';
 
 const gqlV2 = gql;

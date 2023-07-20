@@ -12,7 +12,10 @@ import moment from 'moment';
 import { stub } from 'sinon';
 
 import { activities } from '../../../../server/constants/index.js';
-import OAuthModel, { dbApplicationToClient, dbOAuthAuthorizationCodeToAuthorizationCode } from '../../../../server/lib/oauth/model.js';
+import OAuthModel, {
+  dbApplicationToClient,
+  dbOAuthAuthorizationCodeToAuthorizationCode,
+} from '../../../../server/lib/oauth/model.js';
 import models from '../../../../server/models/index.js';
 import {
   fakeApplication,

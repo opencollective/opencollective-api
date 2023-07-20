@@ -51,7 +51,11 @@ import { PaymentMethodModelInterface } from '../../server/models/PaymentMethod.j
 import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod.js';
 import RecurringExpense, { RecurringExpenseIntervals } from '../../server/models/RecurringExpense.js';
 import { AssetType } from '../../server/models/SuspendedAsset.js';
-import { SUPPORTED_FILE_EXTENSIONS, SUPPORTED_FILE_KINDS, SUPPORTED_FILE_TYPES } from '../../server/models/UploadedFile.js';
+import {
+  SUPPORTED_FILE_EXTENSIONS,
+  SUPPORTED_FILE_KINDS,
+  SUPPORTED_FILE_TYPES,
+} from '../../server/models/UploadedFile.js';
 import User from '../../server/models/User.js';
 import { TokenType } from '../../server/models/UserToken.js';
 import UserTwoFactorMethod from '../../server/models/UserTwoFactorMethod.js';

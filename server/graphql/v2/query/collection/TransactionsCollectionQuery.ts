@@ -15,7 +15,10 @@ import {
   fetchAccountWithReference,
   GraphQLAccountReferenceInput,
 } from '../../input/AccountReferenceInput.js';
-import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, GraphQLChronologicalOrderInput } from '../../input/ChronologicalOrderInput.js';
+import {
+  CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
+  GraphQLChronologicalOrderInput,
+} from '../../input/ChronologicalOrderInput.js';
 import { GraphQLVirtualCardReferenceInput } from '../../input/VirtualCardReferenceInput.js';
 import { CollectionArgs, TransactionsCollectionReturnType } from '../../interface/Collection.js';
 

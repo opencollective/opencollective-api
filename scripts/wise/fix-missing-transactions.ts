@@ -2,7 +2,10 @@ import '../../server/env.js';
 
 import { get, toNumber } from 'lodash-es';
 
-import { checkHasBalanceToPayExpense, setTransferWiseExpenseAsProcessing } from '../../server/graphql/common/expenses.js';
+import {
+  checkHasBalanceToPayExpense,
+  setTransferWiseExpenseAsProcessing,
+} from '../../server/graphql/common/expenses.js';
 import models from '../../server/models/index.js';
 
 const IS_DRY = process.env.DRY !== 'false';

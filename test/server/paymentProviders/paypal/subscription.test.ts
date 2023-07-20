@@ -7,7 +7,10 @@ import { assert, createSandbox } from 'sinon';
 import OrderStatuses from '../../../../server/constants/order_status.js';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods.js';
 import * as PaypalAPI from '../../../../server/paymentProviders/paypal/api.js';
-import { cancelPaypalSubscription, setupPaypalSubscriptionForOrder } from '../../../../server/paymentProviders/paypal/subscription.js';
+import {
+  cancelPaypalSubscription,
+  setupPaypalSubscriptionForOrder,
+} from '../../../../server/paymentProviders/paypal/subscription.js';
 import { nockPayPalGetCredentials } from '../../../mocks/paypal.nock.js';
 import { randEmail } from '../../../stores/index.js';
 import {

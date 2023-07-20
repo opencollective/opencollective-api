@@ -10,7 +10,10 @@ import { checkRemoteUserCanUseApplications } from '../../common/scope-check.js';
 import { Forbidden, NotFound, RateLimitExceeded } from '../../errors.js';
 import { fetchAccountWithReference } from '../input/AccountReferenceInput.js';
 import { GraphQLPersonalTokenCreateInput } from '../input/PersonalTokenCreateInput.js';
-import { fetchPersonalTokenWithReference, GraphQLPersonalTokenReferenceInput } from '../input/PersonalTokenReferenceInput.js';
+import {
+  fetchPersonalTokenWithReference,
+  GraphQLPersonalTokenReferenceInput,
+} from '../input/PersonalTokenReferenceInput.js';
 import { GraphQLPersonalTokenUpdateInput } from '../input/PersonalTokenUpdateInput.js';
 import { GraphQLPersonalToken } from '../object/PersonalToken.js';
 

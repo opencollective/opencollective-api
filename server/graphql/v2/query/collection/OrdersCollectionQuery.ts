@@ -12,8 +12,14 @@ import { GraphQLAccountOrdersFilter } from '../../enum/AccountOrdersFilter.js';
 import { GraphQLContributionFrequency } from '../../enum/ContributionFrequency.js';
 import { GraphQLOrderStatus } from '../../enum/OrderStatus.js';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput.js';
-import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, GraphQLChronologicalOrderInput } from '../../input/ChronologicalOrderInput.js';
-import { fetchPaymentMethodWithReference, GraphQLPaymentMethodReferenceInput } from '../../input/PaymentMethodReferenceInput.js';
+import {
+  CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
+  GraphQLChronologicalOrderInput,
+} from '../../input/ChronologicalOrderInput.js';
+import {
+  fetchPaymentMethodWithReference,
+  GraphQLPaymentMethodReferenceInput,
+} from '../../input/PaymentMethodReferenceInput.js';
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection.js';
 
 type OrderAssociation = 'fromCollective' | 'collective';

@@ -47,10 +47,7 @@ import { listPayPalTransactions } from '../../lib/paypal.js';
 import { getPolicy } from '../../lib/policies.js';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry.js';
 import { notifyTeamAboutSpamExpense } from '../../lib/spam.js';
-import {
-  createTransactionsForManuallyPaidExpense,
-  createTransactionsFromPaidExpense,
-} from '../../lib/transactions.js';
+import { createTransactionsForManuallyPaidExpense, createTransactionsFromPaidExpense } from '../../lib/transactions.js';
 import twoFactorAuthLib from '../../lib/two-factor-authentication/index.js';
 import { canUseFeature } from '../../lib/user-permissions.js';
 import { formatCurrency, parseToBoolean } from '../../lib/utils.js';

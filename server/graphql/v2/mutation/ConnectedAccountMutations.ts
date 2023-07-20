@@ -13,7 +13,10 @@ import { checkRemoteUserCanUseConnectedAccounts } from '../../common/scope-check
 import { Unauthorized, ValidationFailed } from '../../errors.js';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput.js';
 import { GraphQLConnectedAccountCreateInput } from '../input/ConnectedAccountCreateInput.js';
-import { fetchConnectedAccountWithReference, GraphQLConnectedAccountReferenceInput } from '../input/ConnectedAccountReferenceInput.js';
+import {
+  fetchConnectedAccountWithReference,
+  GraphQLConnectedAccountReferenceInput,
+} from '../input/ConnectedAccountReferenceInput.js';
 import { GraphQLConnectedAccount } from '../object/ConnectedAccount.js';
 
 const connectedAccountMutations = {

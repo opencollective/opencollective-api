@@ -8,7 +8,11 @@ import { TransactionTypes } from '../../../../../server/constants/transactions.j
 import * as TransactionMutationHelpers from '../../../../../server/graphql/common/transactions.js';
 import emailLib from '../../../../../server/lib/email.js';
 import * as payments from '../../../../../server/lib/payments.js';
-import stripe, { convertFromStripeAmount, convertToStripeAmount, extractFees } from '../../../../../server/lib/stripe.js';
+import stripe, {
+  convertFromStripeAmount,
+  convertToStripeAmount,
+  extractFees,
+} from '../../../../../server/lib/stripe.js';
 import models from '../../../../../server/models/index.js';
 import stripeMocks from '../../../../mocks/stripe.js';
 import { fakeCollective, fakeOrder, fakeUser, randStr } from '../../../../test-helpers/fake-data.js';

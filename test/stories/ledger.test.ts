@@ -14,7 +14,10 @@ import Stripe from 'stripe';
 import { run as runSettlementScript } from '../../cron/monthly/host-settlement.js';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../server/constants/paymentMethods.js';
 import { TransactionKind } from '../../server/constants/transaction-kind.js';
-import { PLATFORM_TIP_TRANSACTION_PROPERTIES, SETTLEMENT_EXPENSE_PROPERTIES } from '../../server/constants/transactions.js';
+import {
+  PLATFORM_TIP_TRANSACTION_PROPERTIES,
+  SETTLEMENT_EXPENSE_PROPERTIES,
+} from '../../server/constants/transactions.js';
 import { markExpenseAsUnpaid, payExpense } from '../../server/graphql/common/expenses.js';
 import { createRefundTransaction, executeOrder } from '../../server/lib/payments.js';
 import * as libPayments from '../../server/lib/payments.js';

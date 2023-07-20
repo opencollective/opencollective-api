@@ -19,7 +19,10 @@ import {
   recordPaypalTransaction,
   refundPaypalCapture,
 } from '../../server/paymentProviders/paypal/payment.js';
-import { fetchPaypalSubscription, fetchPaypalTransactionsForSubscription } from '../../server/paymentProviders/paypal/subscription.js';
+import {
+  fetchPaypalSubscription,
+  fetchPaypalTransactionsForSubscription,
+} from '../../server/paymentProviders/paypal/subscription.js';
 import { PaypalCapture, PaypalTransaction, PaypalTransactionSearchResult } from '../../server/types/paypal.js';
 
 // TODO: Move these to command-line options

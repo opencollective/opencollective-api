@@ -4,7 +4,11 @@ import prependHttp from 'prepend-http';
 import { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
 import validator from 'validator';
 
-import ActivityTypes, { ActivitiesPerClass, ActivityClasses, TransactionalActivities } from '../constants/activities.js';
+import ActivityTypes, {
+  ActivitiesPerClass,
+  ActivityClasses,
+  TransactionalActivities,
+} from '../constants/activities.js';
 import channels from '../constants/channels.js';
 import { ValidationFailed } from '../graphql/errors.js';
 import sequelize, { DataTypes, Model, Op } from '../lib/sequelize.js';

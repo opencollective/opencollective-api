@@ -4,19 +4,7 @@ import crypto from 'crypto';
 import { isMemberOfTheEuropeanUnion } from '@opencollective/taxes';
 import config from 'config';
 import express from 'express';
-import {
-  cloneDeep,
-  compact,
-  difference,
-  find,
-  get,
-  has,
-  omit,
-  pick,
-  set,
-  split,
-  toNumber,
-} from 'lodash-es';
+import { cloneDeep, compact, difference, find, get, has, omit, pick, set, split, toNumber } from 'lodash-es';
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
