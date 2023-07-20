@@ -1,11 +1,39 @@
+import { InferAttributes, InferCreationAttributes, Model, ModelStatic } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
 import sequelize, { DataTypes } from '../lib/sequelize';
 import { cancelPaypalSubscription } from '../paymentProviders/paypal/subscription';
 
+import Collective from './Collective';
 import CustomDataTypes from './DataTypes';
 
-const Subscription = sequelize.define(
+export interface SubscriptionInterface
+  extends Model<InferAttributes<SubscriptionInterface>, InferCreationAttributes<SubscriptionInterface>> {
+  id: number;
+  amount: number;
+  currency: string;
+  interval: 'month' | 'year' | null;
+  isActive: boolean;
+  nextChargeDate: Date;
+  nextPeriodStart: Date;
+  chargeRetryCount: number;
+  quantity: number;
+  chargeNumber: number;
+  data: Record<string, unknown>;
+  stripeSubscriptionId: string;
+  paypalSubscriptionId: string;
+  isManagedExternally: boolean;
+  activatedAt: Date;
+  deactivatedAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date;
+
+  activate(): Promise<SubscriptionInterface>;
+  deactivate(reason?: string, host?: Collective): Promise<SubscriptionInterface>;
+}
+
+const Subscription: ModelStatic<SubscriptionInterface> = sequelize.define(
   'Subscription',
   {
     amount: {
@@ -51,6 +79,8 @@ const Subscription = sequelize.define(
     activatedAt: DataTypes.DATE,
 
     deactivatedAt: DataTypes.DATE,
+
+    deletedAt: DataTypes.DATE,
   },
   {
     paranoid: true,
@@ -64,7 +94,7 @@ Subscription.prototype.activate = function () {
   return this.save();
 };
 
-Subscription.prototype.deactivate = async function (reason, host) {
+Subscription.prototype.deactivate = async function (reason = undefined, host = undefined) {
   // If subscription exists on a third party, cancel it there
   if (this.paypalSubscriptionId) {
     const order = await this.getOrder();

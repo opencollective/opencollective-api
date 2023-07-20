@@ -17,7 +17,7 @@ import { flatten, get, uniq } from 'lodash';
 
 import OrderStatuses from '../../server/constants/order_status';
 import logger from '../../server/lib/logger';
-import models, { Op, Subscription } from '../../server/models';
+import models, { Op } from '../../server/models';
 import { OrderModelInterface } from '../../server/models/Order';
 import { paypalRequestV2 } from '../../server/paymentProviders/paypal/api';
 import { getCaptureIdFromPaypalTransaction } from '../../server/paymentProviders/paypal/payment';
@@ -64,9 +64,7 @@ const main = async () => {
     throw new Error(`Collective ${collectiveSlug} not found`);
   }
 
-  const orders = await models.Order.findAll<
-    OrderModelInterface & { Transaction?: typeof models.Transaction; Subscription?: typeof Subscription }
-  >({
+  const orders = await models.Order.findAll<OrderModelInterface & { Transaction?: typeof models.Transaction }>({
     order: [['createdAt', 'DESC']],
     where: {
       CollectiveId: collective.id,

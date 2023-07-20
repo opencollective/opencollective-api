@@ -334,7 +334,7 @@ const reconcileSubscription = async (paypalSubscriptionId: string, _, commander)
       // And it is not using another payment method
       order.paymentMethod?.service === 'paypal' &&
       order.paymentMethod.type === 'subscription' &&
-      order.paymentMethod.token === subscription.id
+      order.paymentMethod.token === subscription.paypalSubscriptionId
     ) {
       console.log(`Order #${order.id} cancelled in PayPal but not in DB`);
       if (options['fix']) {
