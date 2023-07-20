@@ -150,7 +150,7 @@ export const checkGuestContribution = async (
 
   if (!guestInfo) {
     throw new BadRequest('You need to provide a guest profile with an email for logged out contributions');
-  } else if (!guestInfo.email || !validator.isEmail(guestInfo.email)) {
+  } else if (!guestInfo.email || !validator.default.isEmail(guestInfo.email)) {
     throw new BadRequest('You need to provide a valid email');
   } else if (order.fromCollective) {
     throw new BadRequest('You need to be logged in to specify a contributing profile');

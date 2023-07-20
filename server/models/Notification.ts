@@ -2,7 +2,7 @@ import debugLib from 'debug';
 import { compact, defaults, isNil, keys, pick, pickBy, reject, uniq } from 'lodash-es';
 import prependHttp from 'prepend-http';
 import { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
-import isIP from 'validator/lib/isIP.js';
+import validator from 'validator';
 
 import ActivityTypes, { ActivitiesPerClass, ActivityClasses, TransactionalActivities } from '../constants/activities.js';
 import channels from '../constants/channels.js';
@@ -393,7 +393,7 @@ Notification.init(
         },
         notAnIPAddress: (url: string) => {
           const parsedURL = new URL(url);
-          if (isIP(parsedURL.hostname)) {
+          if (validator.default.isIP(parsedURL.hostname)) {
             throw new Error('IP addresses cannot be used as webhooks');
           }
         },

@@ -3555,7 +3555,7 @@ Collective.init(
       validate: {
         len: [2, 2],
         isCountryISO(value) {
-          if (!(isNull(value) || validator.isISO31661Alpha2(value))) {
+          if (!(isNull(value) || validator.default.isISO31661Alpha2(value))) {
             throw new Error('Invalid Country ISO.');
           }
         },

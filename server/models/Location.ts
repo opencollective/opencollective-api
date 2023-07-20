@@ -50,7 +50,7 @@ Location.init(
       validate: {
         len: [2, 2],
         isCountryISO(value) {
-          if (!(isNil(value) || validator.isISO31661Alpha2(value))) {
+          if (!(isNil(value) || validator.default.isISO31661Alpha2(value))) {
             throw new Error('Invalid Country ISO.');
           }
         },

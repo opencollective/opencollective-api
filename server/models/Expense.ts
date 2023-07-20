@@ -525,7 +525,7 @@ Expense.init(
           });
 
           // Validate values
-          if (value.country && !validator.isISO31661Alpha2(value.country)) {
+          if (value.country && !validator.default.isISO31661Alpha2(value.country)) {
             throw new Error('Invalid Country ISO');
           }
         },

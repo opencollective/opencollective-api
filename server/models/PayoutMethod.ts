@@ -10,7 +10,7 @@ import {
   NonAttribute,
   Transaction,
 } from 'sequelize';
-import isEmail from 'validator/lib/isEmail.js';
+import validator from 'validator';
 
 import logger from '../lib/logger.js';
 import sequelize, { Op } from '../lib/sequelize.js';
@@ -147,7 +147,7 @@ export class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCrea
     let existingPm = null;
     if (payoutMethodData['type'] === PayoutMethodTypes.PAYPAL) {
       const email = get(payoutMethodData, 'data.email');
-      if (email && typeof email === 'string' && isEmail(email)) {
+      if (email && typeof email === 'string' && validator.default.isEmail(email)) {
         existingPm = await PayoutMethod.scope('paypal').findOne({
           where: {
             CollectiveId: collective.id,
@@ -228,7 +228,7 @@ PayoutMethod.init(
       validate: {
         isValidValue(value): void {
           if (this.type === PayoutMethodTypes.PAYPAL) {
-            if (!value || !value.email || !isEmail(value.email)) {
+            if (!value || !value.email || !validator.default.isEmail(value.email)) {
               throw new Error('Invalid PayPal email address');
             } else if (!objHasOnlyKeys(value, ['email'])) {
               throw new Error('Data for this payout method contains too much information');

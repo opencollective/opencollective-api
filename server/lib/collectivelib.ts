@@ -2,7 +2,7 @@ import * as LibTaxes from '@opencollective/taxes';
 import config from 'config';
 import { get, pick } from 'lodash-es';
 import map from 'p-map';
-import isURL from 'validator/lib/isURL.js';
+import validator from 'validator';
 
 import activities from '../constants/activities.js';
 import { types as CollectiveTypes } from '../constants/collectives.js';
@@ -173,7 +173,7 @@ export function validateSettings(settings: any): string | boolean {
     }
   }
 
-  if (settings?.tos && !isURL(settings.tos)) {
+  if (settings?.tos && !validator.default.isURL(settings.tos)) {
     return 'Enter a valid URL. The URL should have the format https://opencollective.com/';
   }
 
