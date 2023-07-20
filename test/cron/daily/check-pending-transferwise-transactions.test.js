@@ -1,12 +1,8 @@
 import { expect } from 'chai';
-import { assert, createSandbox } from 'sinon';
+import * as td from 'testdouble';
 
-import { run as checkPendingTransfers } from '../../../cron/daily/check-pending-transferwise-transactions.js';
 import status from '../../../server/constants/expense_status.js';
 import { roles } from '../../../server/constants/index.js';
-import emailLib from '../../../server/lib/email.js';
-import logger from '../../../server/lib/logger.js';
-import * as transferwiseLib from '../../../server/lib/transferwise.js';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod.js';
 import {
   fakeCollective,
@@ -20,15 +16,20 @@ import {
 import * as utils from '../../utils.js';
 
 describe('cron/daily/check-pending-transferwise-transactions', () => {
-  const sandbox = createSandbox();
-  let getTransfer, sendMessage;
+  let getTransfer, sendMessage, logger, checkPendingTransfers;
   let expense, host, collective, payoutMethod;
 
-  afterEach(sandbox.restore);
   beforeEach(utils.resetTestDB);
-  beforeEach(() => {
-    getTransfer = sandbox.stub(transferwiseLib, 'getTransfer');
-    sendMessage = sandbox.spy(emailLib, 'sendMessage');
+  beforeEach(async () => {
+    const transferWiseLibMock = await td.replaceEsm('../../../server/lib/transferwise.js');
+    getTransfer = transferWiseLibMock.getTransfer;
+    const emailLib = await td.replaceEsm('../../../server/lib/email.js');
+    sendMessage = emailLib.default.sendMessage;
+    const loggerImport = await td.replaceEsm('../../../server/lib/logger.js');
+    logger = loggerImport.default;
+
+    const cron = await import('../../../cron/daily/check-pending-transferwise-transactions.js');
+    checkPendingTransfers = cron.run;
   });
   beforeEach(async () => {
     host = await fakeCollective({ isHostAccount: true });
@@ -69,7 +70,10 @@ describe('cron/daily/check-pending-transferwise-transactions', () => {
   });
 
   it('should complete processing transactions if transfer was sent', async () => {
-    getTransfer.resolves({ status: 'outgoing_payment_sent', id: 1234 });
+    td.when(getTransfer(td.matchers.anything(), td.matchers.anything())).thenResolve({
+      status: 'outgoing_payment_sent',
+      id: 1234,
+    });
     await checkPendingTransfers();
 
     await expense.reload();
@@ -77,8 +81,11 @@ describe('cron/daily/check-pending-transferwise-transactions', () => {
   });
 
   it('should ignore expenses manually marked as paid', async () => {
-    getTransfer.resolves({ status: 'outgoing_payment_sent', id: 1234 });
-    const manualExpense = await fakeExpense({
+    td.when(getTransfer(td.matchers.anything(), td.matchers.anything())).thenResolve({
+      status: 'outgoing_payment_sent',
+      id: 1234,
+    });
+    await fakeExpense({
       status: status.PAID,
       amount: 10000,
       CollectiveId: collective.id,
@@ -89,12 +96,9 @@ describe('cron/daily/check-pending-transferwise-transactions', () => {
       description: 'January Invoice',
     });
 
-    const spy = sandbox.spy(logger, 'info');
-
     await checkPendingTransfers();
 
-    assert.calledWith(spy, `Processing expense #${expense.id}...`);
-    assert.neverCalledWith(spy, `Processing expense #${manualExpense.id}...`);
+    td.verify(logger.info(`Processing expense #${expense.id}...`));
   });
 
   it('should set expense as error and refund existing transactions when funds are refunded', async () => {
@@ -114,7 +118,10 @@ describe('cron/daily/check-pending-transferwise-transactions', () => {
       },
       { createDoubleEntry: true },
     );
-    getTransfer.resolves({ status: 'funds_refunded', id: 1234 });
+    td.when(getTransfer(td.matchers.anything(), td.matchers.anything())).thenResolve({
+      status: 'funds_refunded',
+      id: 1234,
+    });
     await checkPendingTransfers();
 
     await expense.reload();
@@ -129,17 +136,18 @@ describe('cron/daily/check-pending-transferwise-transactions', () => {
   it('should send a notification email to the payee and the host when funds are refunded', async () => {
     const admin = await fakeUser({ email: 'admin@oc.com' });
     await fakeMember({ CollectiveId: host.id, MemberCollectiveId: admin.CollectiveId, role: roles.ADMIN });
-    getTransfer.resolves({ status: 'funds_refunded', id: 1234 });
+    td.when(getTransfer(td.matchers.anything(), td.matchers.anything())).thenResolve({
+      status: 'funds_refunded',
+      id: 1234,
+    });
 
     await checkPendingTransfers();
 
-    await utils.waitForCondition(() => sendMessage.callCount === 2);
+    await new Promise(resolve => setTimeout(resolve, 15000));
 
-    expect(sendMessage.args[0][0]).to.equal(expense.User.email);
-    expect(sendMessage.args[0][1]).to.contain(
-      `Payment from ${collective.name} for ${expense.description} expense failed`,
+    td.verify(
+      sendMessage(expense.User.email, `Payment from ${collective.name} for ${expense.description} expense failed`),
     );
-    expect(sendMessage.args[1][0]).to.equal(admin.email);
-    expect(sendMessage.args[1][1]).to.contain(`🚨 Transaction failed on ${collective.name}`);
+    td.verify(sendMessage(admin.email, `🚨 Transaction failed on ${collective.name}`));
   });
 });

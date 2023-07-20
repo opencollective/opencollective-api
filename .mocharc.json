@@ -1,7 +1,7 @@
 {
   "timeout": 20000,
   "extension": ["js", "ts"],
-  "loader": "ts-node/esm",
+  "node-option": ["loader=ts-node/esm", "loader=testdouble"],
   "file": ["./test/setup.js", "./server/env.js"],
   "ignore": [
     "test/dbdumps/**",
