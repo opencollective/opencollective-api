@@ -1,11 +1,11 @@
-#!/usr/bin/env ./node_modules/.bin/babel-node
-import '../../server/env';
+#!/usr/bin/env ./node_modules/.bin/ts-node
+import '../../server/env.js';
 
 import { Command } from 'commander';
 import { v4 as uuid } from 'uuid';
 
-import { refundHostFee } from '../../server/lib/payments';
-import models from '../../server/models';
+import { refundHostFee } from '../../server/lib/payments.js';
+import models from '../../server/models/index.js';
 
 const DRY_RUN = process.env.DRY_RUN !== 'false';
 
@@ -55,7 +55,9 @@ const main = async () => {
 };
 
 // Only run script if called directly (to allow unit tests)
-if (!module.parent) {
+import { pathToFileURL } from 'url';
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   main()
     .then(() => process.exit(0))
     .catch(e => {

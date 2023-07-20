@@ -1,6 +1,6 @@
 import { GraphQLEnumType, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
-import { Level, Scope } from '../../../lib/security/expense';
+import { Level, Scope } from '../../../lib/security/expense.js';
 
 export const GraphQLSecurityCheckScope = new GraphQLEnumType({
   name: 'SecurityCheckScope',

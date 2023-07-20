@@ -7,28 +7,26 @@ import { expect } from 'chai';
 import config from 'config';
 import debug from 'debug';
 import { graphql } from 'graphql';
-import { cloneDeep, get, groupBy, isArray, omit, values } from 'lodash';
+import { cloneDeep, get, groupBy, isArray, omit, values } from 'lodash-es';
 import markdownTable from 'markdown-table';
 import nock from 'nock';
 import { assert } from 'sinon';
 import speakeasy from 'speakeasy';
 
-import * as dbRestore from '../scripts/db_restore';
-import { loaders } from '../server/graphql/loaders';
-import schemaV1 from '../server/graphql/v1/schema';
-import schemaV2 from '../server/graphql/v2/schema';
-import cache from '../server/lib/cache';
-import { crypto } from '../server/lib/encryption';
-import logger from '../server/lib/logger';
-import * as libpayments from '../server/lib/payments';
-/* Server code being used */
-import stripe, { convertToStripeAmount } from '../server/lib/stripe';
-import { formatCurrency } from '../server/lib/utils';
-import models, { sequelize } from '../server/models';
+import * as dbRestore from '../scripts/db_restore.js';
+import { loaders } from '../server/graphql/loaders/index.js';
+import schemaV1 from '../server/graphql/v1/schema.js';
+import schemaV2 from '../server/graphql/v2/schema.js';
+import cache from '../server/lib/cache/index.js';
+import { crypto } from '../server/lib/encryption.js';
+import logger from '../server/lib/logger.js';
+import * as libpayments from '../server/lib/payments.js';
+import stripe, { convertToStripeAmount } from '../server/lib/stripe.js';
+import { formatCurrency } from '../server/lib/utils.js';
+import models, { sequelize } from '../server/models/index.js';
 
-/* Test data */
-import jsonData from './mocks/data';
-import { randStr } from './test-helpers/fake-data';
+import jsonData from './mocks/data.js';
+import { randStr } from './test-helpers/fake-data.js';
 
 jsonData.application = {
   name: 'client',

@@ -2,13 +2,13 @@ import { expect } from 'chai';
 import config from 'config';
 import crypto from 'crypto-js';
 import gqlV2 from 'fake-tag';
-import { times } from 'lodash';
+import { times } from 'lodash-es';
 import moment from 'moment';
 import speakeasy from 'speakeasy';
 
-import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
-import { fakePersonalToken, fakeUser } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, resetTestDB } from '../../../../utils';
+import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib.js';
+import { fakePersonalToken, fakeUser } from '../../../../test-helpers/fake-data.js';
+import { graphqlQueryV2, resetTestDB } from '../../../../utils.js';
 
 const SECRET_KEY = config.dbEncryption.secretKey;
 const CIPHER = config.dbEncryption.cipher;

@@ -1,4 +1,8 @@
-import cloudflareIps from 'cloudflare-ip/ips.json';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+// eslint-disable-next-line import/no-commonjs
+const cloudflareIps = require('cloudflare-ip/ips.json');
+
 import config from 'config';
 import RedisStore from 'connect-redis';
 import cookieParser from 'cookie-parser';
@@ -7,16 +11,16 @@ import errorHandler from 'errorhandler';
 import express from 'express';
 import session from 'express-session';
 import helmet from 'helmet';
-import { get, has } from 'lodash';
+import { get, has } from 'lodash-es';
 import passport from 'passport';
 import { Strategy as GitHubStrategy } from 'passport-github';
 import { Strategy as TwitterStrategy } from 'passport-twitter';
 
-import { loadersMiddleware } from '../graphql/loaders';
+import { loadersMiddleware } from '../graphql/loaders/index.js';
 
-import hyperwatch from './hyperwatch';
-import logger from './logger';
-import { createRedisClient } from './redis';
+import hyperwatch from './hyperwatch.js';
+import logger from './logger.js';
+import { createRedisClient } from './redis.js';
 
 export default async function (app) {
   app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal'].concat(cloudflareIps));

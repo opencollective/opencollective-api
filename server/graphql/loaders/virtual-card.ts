@@ -1,9 +1,9 @@
 import DataLoader from 'dataloader';
 
-import models, { Op } from '../../models';
-import VirtualCard from '../../models/VirtualCard';
+import models, { Op } from '../../models/index.js';
+import VirtualCard from '../../models/VirtualCard.js';
 
-import { sortResultsArray } from './helpers';
+import { sortResultsArray } from './helpers.js';
 
 export const generateCollectiveVirtualCardLoader = (): DataLoader<number, VirtualCard[]> => {
   return new DataLoader(async (collectiveIds: number[]) => {

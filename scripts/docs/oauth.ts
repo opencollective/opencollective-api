@@ -1,4 +1,4 @@
-import { GraphQLOAuthScope } from '../../server/graphql/v2/enum/OAuthScope';
+import { GraphQLOAuthScope } from '../../server/graphql/v2/enum/OAuthScope.js';
 
 type FieldDefinition = { description: string; deprecationReason: string | null };
 const fieldsDefinition: Record<string, FieldDefinition> = GraphQLOAuthScope['_nameLookup'];

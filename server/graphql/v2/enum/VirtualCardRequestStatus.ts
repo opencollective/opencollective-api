@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
-import { VirtualCardRequestStatus } from '../../../models/VirtualCardRequest';
+import { VirtualCardRequestStatus } from '../../../models/VirtualCardRequest.js';
 
 export const GraphQLVirtualCardRequestStatus = new GraphQLEnumType({
   name: 'VirtualCardRequestStatus',

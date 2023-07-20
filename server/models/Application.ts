@@ -1,12 +1,12 @@
 import { randomBytes } from 'crypto';
 
-import { isNil, merge } from 'lodash';
+import { isNil, merge } from 'lodash-es';
 import type { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
 
-import { crypto } from '../lib/encryption';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import { crypto } from '../lib/encryption.js';
+import sequelize, { DataTypes, Model } from '../lib/sequelize.js';
 
-import User from './User';
+import User from './User.js';
 
 export type ApplicationType = 'apiKey' | 'oAuth';
 

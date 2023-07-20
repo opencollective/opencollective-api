@@ -1,5 +1,5 @@
-import './env';
-import './open-telemetry';
+import './env.js';
+import './open-telemetry.js';
 
 import os from 'os';
 
@@ -7,9 +7,9 @@ import config from 'config';
 import express from 'express';
 import throng from 'throng';
 
-import expressLib from './lib/express';
-import logger from './lib/logger';
-import routes from './routes';
+import expressLib from './lib/express.js';
+import logger from './lib/logger.js';
+import routes from './routes.js';
 
 const workers = process.env.WEB_CONCURRENCY || 1;
 
@@ -26,7 +26,7 @@ async function start(i) {
   /**
    * Start server
    */
-  const server = expressApp.listen(config.port, () => {
+  const server = expressApp.listen(config.port, async () => {
     const host = os.hostname();
     logger.info(
       'Open Collective API listening at http://%s:%s in %s environment. Worker #%s',
@@ -36,7 +36,7 @@ async function start(i) {
       i,
     );
     if (config.maildev.server) {
-      const maildev = require('./maildev'); // eslint-disable-line @typescript-eslint/no-var-requires
+      const { default: maildev } = await import('./maildev.js'); // eslint-disable-line @typescript-eslint/no-var-requires
       maildev.listen();
     }
   });

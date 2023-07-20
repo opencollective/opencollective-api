@@ -1,6 +1,6 @@
 import { GraphQLFloat, GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
-import { GraphQLOrderTaxType } from '../enum/OrderTaxType';
+import { GraphQLOrderTaxType } from '../enum/OrderTaxType.js';
 
 export const GraphQLTaxInfo = new GraphQLObjectType({
   name: 'TaxInfo',

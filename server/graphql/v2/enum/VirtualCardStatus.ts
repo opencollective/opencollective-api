@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
-import { VirtualCardStatus } from '../../../models/VirtualCard';
+import { VirtualCardStatus } from '../../../models/VirtualCard.js';
 
 export const GraphQLVirtualCardStatusEnum = new GraphQLEnumType({
   name: 'VirtualCardStatus',

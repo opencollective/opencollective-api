@@ -1,17 +1,17 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
-import { cloneDeep, invert, isNil } from 'lodash';
+import { cloneDeep, invert, isNil } from 'lodash-es';
 
-import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
-import { buildSearchConditions } from '../../../lib/search';
-import models, { Op, sequelize } from '../../../models';
-import { checkScope } from '../../common/scope-check';
-import { ValidationFailed } from '../../errors';
-import { GraphQLMemberOfCollection } from '../collection/MemberCollection';
-import { AccountTypeToModelMapping, GraphQLAccountType } from '../enum/AccountType';
-import { GraphQLHostFeeStructure } from '../enum/HostFeeStructure';
-import { GraphQLMemberRole } from '../enum/MemberRole';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
-import { GraphQLOrderByInput, ORDER_BY_PSEUDO_FIELDS } from '../input/OrderByInput';
+import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure.js';
+import { buildSearchConditions } from '../../../lib/search.js';
+import models, { Op, sequelize } from '../../../models/index.js';
+import { checkScope } from '../../common/scope-check.js';
+import { ValidationFailed } from '../../errors.js';
+import { GraphQLMemberOfCollection } from '../collection/MemberCollection.js';
+import { AccountTypeToModelMapping, GraphQLAccountType } from '../enum/AccountType.js';
+import { GraphQLHostFeeStructure } from '../enum/HostFeeStructure.js';
+import { GraphQLMemberRole } from '../enum/MemberRole.js';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput.js';
+import { GraphQLOrderByInput, ORDER_BY_PSEUDO_FIELDS } from '../input/OrderByInput.js';
 
 export const IsMemberOfFields = {
   memberOf: {

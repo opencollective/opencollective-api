@@ -3,24 +3,24 @@ import { isEmailBurner } from 'burner-email-providers';
 import config from 'config';
 import debugLib from 'debug';
 import slugify from 'limax';
-import { defaults, get, intersection, isEmpty, pick } from 'lodash';
+import { defaults, get, intersection, isEmpty, pick } from 'lodash-es';
 import { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
-import activities from '../constants/activities';
-import { types } from '../constants/collectives';
-import { Service } from '../constants/connected_account';
-import OrderStatuses from '../constants/order_status';
-import roles from '../constants/roles';
-import * as auth from '../lib/auth';
-import emailLib from '../lib/email';
-import logger from '../lib/logger';
-import sequelize, { DataTypes, Model, Op } from '../lib/sequelize';
-import twoFactorAuthLib from '../lib/two-factor-authentication';
-import { isValidEmail, parseToBoolean } from '../lib/utils';
+import activities from '../constants/activities.js';
+import { types } from '../constants/collectives.js';
+import { Service } from '../constants/connected_account.js';
+import OrderStatuses from '../constants/order_status.js';
+import roles from '../constants/roles.js';
+import * as auth from '../lib/auth.js';
+import emailLib from '../lib/email.js';
+import logger from '../lib/logger.js';
+import sequelize, { DataTypes, Model, Op } from '../lib/sequelize.js';
+import twoFactorAuthLib from '../lib/two-factor-authentication/index.js';
+import { isValidEmail, parseToBoolean } from '../lib/utils.js';
 
-import Collective from './Collective';
-import models from '.';
+import Collective from './Collective.js';
+import models from './index.js';
 
 const debug = debugLib('models:User');
 

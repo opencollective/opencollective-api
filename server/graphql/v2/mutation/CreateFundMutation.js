@@ -1,15 +1,15 @@
 import { GraphQLNonNull } from 'graphql';
-import { get, pick } from 'lodash';
+import { get, pick } from 'lodash-es';
 
-import roles from '../../../constants/roles';
-import { purgeCacheForCollective } from '../../../lib/cache';
-import { isCollectiveSlugReserved } from '../../../lib/collectivelib';
-import models from '../../../models';
-import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
-import { ValidationFailed } from '../../errors';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
-import { GraphQLFundCreateInput } from '../input/FundCreateInput';
-import { GraphQLFund } from '../object/Fund';
+import roles from '../../../constants/roles.js';
+import { purgeCacheForCollective } from '../../../lib/cache/index.js';
+import { isCollectiveSlugReserved } from '../../../lib/collectivelib.js';
+import models from '../../../models/index.js';
+import { checkRemoteUserCanUseAccount } from '../../common/scope-check.js';
+import { ValidationFailed } from '../../errors.js';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput.js';
+import { GraphQLFundCreateInput } from '../input/FundCreateInput.js';
+import { GraphQLFund } from '../object/Fund.js';
 
 const DEFAULT_COLLECTIVE_SETTINGS = {
   features: { conversations: false },

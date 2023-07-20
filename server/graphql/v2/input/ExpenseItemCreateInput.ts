@@ -1,7 +1,7 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import URL from '../scalar/URL';
+import URL from '../scalar/URL.js';
 
 /**
  * Input type to use as the type for the expense input in createExpense mutation.

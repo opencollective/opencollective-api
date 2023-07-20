@@ -4,14 +4,10 @@ import config from 'config';
 import nock from 'nock';
 import { stub } from 'sinon';
 
-// import request from 'supertest';
-// import { v4 as uuid } from 'uuid';
-// import app from '../../../../server/index';
-import models from '../../../../server/models';
-import * as paypalPayment from '../../../../server/paymentProviders/paypal/payment';
-// import * as store from '../../../stores';
-import { fakeCollective, fakeHost, fakeOrder, fakePaymentMethod } from '../../../test-helpers/fake-data';
-import * as utils from '../../../utils';
+import models from '../../../../server/models/index.js';
+import * as paypalPayment from '../../../../server/paymentProviders/paypal/payment.js';
+import { fakeCollective, fakeHost, fakeOrder, fakePaymentMethod } from '../../../test-helpers/fake-data.js';
+import * as utils from '../../../utils.js';
 
 // const application = utils.data('application');
 

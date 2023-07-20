@@ -1,9 +1,10 @@
 #!/usr/bin/env node
-import '../../server/env';
+import '../../server/env.js';
+import '../../server/lib/sentry.js';
 
 import config from 'config';
 
-import HostReport from '../../reports/host-report';
+import HostReport from '../../reports/host-report.js';
 
 // Only run on the first of the month
 const today = new Date();

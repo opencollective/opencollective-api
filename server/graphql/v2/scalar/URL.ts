@@ -2,7 +2,7 @@ import { URL } from 'url';
 
 import { GraphQLScalarType } from 'graphql';
 
-import { ValidationFailed } from '../../errors';
+import { ValidationFailed } from '../../errors.js';
 
 const GraphQLURL = new GraphQLScalarType({
   name: 'URL',

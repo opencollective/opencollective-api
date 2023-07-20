@@ -1,9 +1,9 @@
-import OrderStatus from '../../constants/order_status';
-import logger from '../../lib/logger';
-import { sendThankYouEmail } from '../../lib/recurring-contributions';
-import models from '../../models';
+import OrderStatus from '../../constants/order_status.js';
+import logger from '../../lib/logger.js';
+import { sendThankYouEmail } from '../../lib/recurring-contributions.js';
+import models from '../../models/index.js';
 
-import { confirmOrder, decryptPayload } from './index';
+import { confirmOrder, decryptPayload } from './index.js';
 
 export async function webhook(req) {
   logger.info('The Giving Block webhook');

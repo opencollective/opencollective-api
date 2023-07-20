@@ -1,17 +1,17 @@
 import config from 'config';
-import { get, isEmpty, sum, times } from 'lodash';
+import { get, isEmpty, sum, times } from 'lodash-es';
 import moment from 'moment';
 import sanitize from 'sanitize-html';
 import { v4 as uuid } from 'uuid';
 
-import { activities } from '../../constants';
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
-import { ValidationFailed } from '../../graphql/errors';
-import cache from '../../lib/cache';
-import * as currency from '../../lib/currency';
-import * as libpayments from '../../lib/payments';
-import { formatCurrency, isValidEmail } from '../../lib/utils';
-import models, { Op, sequelize } from '../../models';
+import { activities } from '../../constants/index.js';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods.js';
+import { ValidationFailed } from '../../graphql/errors.js';
+import cache from '../../lib/cache/index.js';
+import * as currency from '../../lib/currency.js';
+import * as libpayments from '../../lib/payments.js';
+import { formatCurrency, isValidEmail } from '../../lib/utils.js';
+import models, { Op, sequelize } from '../../models/index.js';
 
 /**
  * Gift Card Payment method - This payment Method works basically as an alias

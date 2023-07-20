@@ -1,17 +1,17 @@
 import assert from 'assert';
 
-import { get, groupBy, mapValues, round, set, sumBy, truncate } from 'lodash';
+import { get, groupBy, mapValues, round, set, sumBy, truncate } from 'lodash-es';
 
-import ExpenseType from '../constants/expense_type';
-import TierType from '../constants/tiers';
-import { TransactionKind } from '../constants/transaction-kind';
-import { TransactionTypes } from '../constants/transactions';
-import { toNegative } from '../lib/math';
-import { exportToCSV, sumByWhen } from '../lib/utils';
-import models, { Op } from '../models';
-import Tier from '../models/Tier';
+import ExpenseType from '../constants/expense_type.js';
+import TierType from '../constants/tiers.js';
+import { TransactionKind } from '../constants/transaction-kind.js';
+import { TransactionTypes } from '../constants/transactions.js';
+import { toNegative } from '../lib/math.js';
+import { exportToCSV, sumByWhen } from '../lib/utils.js';
+import models, { Op } from '../models/index.js';
+import Tier from '../models/Tier.js';
 
-import { getFxRate } from './currency';
+import { getFxRate } from './currency.js';
 
 const { CREDIT, DEBIT } = TransactionTypes;
 const { ADDED_FUNDS, CONTRIBUTION, EXPENSE } = TransactionKind;

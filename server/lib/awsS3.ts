@@ -1,11 +1,11 @@
 import fs from 'fs';
 
-import S3, { ManagedUpload, PutObjectRequest } from 'aws-sdk/clients/s3';
+import S3, { ManagedUpload, PutObjectRequest } from 'aws-sdk/clients/s3.js';
 import config from 'config';
 
-import logger from '../lib/logger';
+import logger from '../lib/logger.js';
 
-import { reportErrorToSentry } from './sentry';
+import { reportErrorToSentry } from './sentry.js';
 
 export const S3_TRASH_PREFIX = 'trash/';
 

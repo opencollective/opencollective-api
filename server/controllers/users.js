@@ -1,17 +1,17 @@
 import bcrypt from 'bcrypt';
 import config from 'config';
 
-import { activities } from '../constants';
-import { BadRequest } from '../graphql/errors';
-import * as auth from '../lib/auth';
-import emailLib from '../lib/email';
-import errors from '../lib/errors';
-import { confirmGuestAccount } from '../lib/guest-accounts';
-import logger from '../lib/logger';
-import RateLimit, { ONE_HOUR_IN_SECONDS } from '../lib/rate-limit';
-import twoFactorAuthLib, { TwoFactorMethod } from '../lib/two-factor-authentication';
-import { isValidEmail, parseToBoolean } from '../lib/utils';
-import models from '../models';
+import { activities } from '../constants/index.js';
+import { BadRequest } from '../graphql/errors.js';
+import * as auth from '../lib/auth.js';
+import emailLib from '../lib/email.js';
+import errors from '../lib/errors.js';
+import { confirmGuestAccount } from '../lib/guest-accounts.js';
+import logger from '../lib/logger.js';
+import RateLimit, { ONE_HOUR_IN_SECONDS } from '../lib/rate-limit.js';
+import twoFactorAuthLib, { TwoFactorMethod } from '../lib/two-factor-authentication/index.js';
+import { isValidEmail, parseToBoolean } from '../lib/utils.js';
+import models from '../models/index.js';
 
 const { Unauthorized, TooManyRequests } = errors;
 

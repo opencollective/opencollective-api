@@ -1,7 +1,7 @@
-import { get } from 'lodash';
+import { get } from 'lodash-es';
 
-import { TransactionTypes } from '../../constants/transactions';
-import { getFxRate } from '../../lib/currency';
+import { TransactionTypes } from '../../constants/transactions.js';
+import { getFxRate } from '../../lib/currency.js';
 import {
   createRefundTransaction,
   getHostFee,
@@ -9,8 +9,8 @@ import {
   getPlatformTip,
   isPlatformTipEligible,
   isProvider,
-} from '../../lib/payments';
-import models, { Op } from '../../models';
+} from '../../lib/payments.js';
+import models, { Op } from '../../models/index.js';
 
 /** Get the balance of a prepaid credit card
  *

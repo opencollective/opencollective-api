@@ -1,23 +1,23 @@
 import * as LibTaxes from '@opencollective/taxes';
 import config from 'config';
-import { get, pick } from 'lodash';
+import { get, pick } from 'lodash-es';
 import map from 'p-map';
-import isURL from 'validator/lib/isURL';
+import validator from 'validator';
 
-import activities from '../constants/activities';
-import { types as CollectiveTypes } from '../constants/collectives';
-import { MODERATION_CATEGORIES } from '../constants/moderation-categories';
-import { VAT_OPTIONS } from '../constants/vat';
-import models, { Collective, Member, Op, sequelize } from '../models';
-import Expense from '../models/Expense';
-import { MemberModelInterface } from '../models/Member';
-import { MemberInvitationModelInterface } from '../models/MemberInvitation';
-import { OrderModelInterface } from '../models/Order';
-import { PaymentMethodModelInterface } from '../models/PaymentMethod';
+import activities from '../constants/activities.js';
+import { types as CollectiveTypes } from '../constants/collectives.js';
+import { MODERATION_CATEGORIES } from '../constants/moderation-categories.js';
+import { VAT_OPTIONS } from '../constants/vat.js';
+import Expense from '../models/Expense.js';
+import models, { Collective, Member, Op, sequelize } from '../models/index.js';
+import { MemberModelInterface } from '../models/Member.js';
+import { MemberInvitationModelInterface } from '../models/MemberInvitation.js';
+import { OrderModelInterface } from '../models/Order.js';
+import { PaymentMethodModelInterface } from '../models/PaymentMethod.js';
 
-import logger from './logger';
-import { stripHTML } from './sanitize-html';
-import { md5 } from './utils';
+import logger from './logger.js';
+import { stripHTML } from './sanitize-html.js';
+import { md5 } from './utils.js';
 
 const { USER } = CollectiveTypes;
 
@@ -173,7 +173,7 @@ export function validateSettings(settings: any): string | boolean {
     }
   }
 
-  if (settings?.tos && !isURL(settings.tos)) {
+  if (settings?.tos && !validator.default.isURL(settings.tos)) {
     return 'Enter a valid URL. The URL should have the format https://opencollective.com/';
   }
 

@@ -1,7 +1,7 @@
 import { GraphQLInputObjectType, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
 
-import { GraphQLConnectedAccountService } from '../enum/ConnectedAccountService';
+import { GraphQLConnectedAccountService } from '../enum/ConnectedAccountService.js';
 
 /**
  * An input for ConnectedAccount that can be used for either editing or creating.

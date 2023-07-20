@@ -1,10 +1,13 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import { AccountFields, GraphQLAccount } from '../interface/Account';
-import { AccountWithContributionsFields, GraphQLAccountWithContributions } from '../interface/AccountWithContributions';
-import { AccountWithHostFields, GraphQLAccountWithHost } from '../interface/AccountWithHost';
-import { AccountWithParentFields, GraphQLAccountWithParent } from '../interface/AccountWithParent';
+import { AccountFields, GraphQLAccount } from '../interface/Account.js';
+import {
+  AccountWithContributionsFields,
+  GraphQLAccountWithContributions,
+} from '../interface/AccountWithContributions.js';
+import { AccountWithHostFields, GraphQLAccountWithHost } from '../interface/AccountWithHost.js';
+import { AccountWithParentFields, GraphQLAccountWithParent } from '../interface/AccountWithParent.js';
 
 export const GraphQLEvent = new GraphQLObjectType({
   name: 'Event',

@@ -1,7 +1,7 @@
 import { GraphQLList, GraphQLObjectType } from 'graphql';
 
-import { CollectionFields, GraphQLCollection } from '../interface/Collection';
-import GraphQLConversation from '../object/Conversation';
+import { CollectionFields, GraphQLCollection } from '../interface/Collection.js';
+import GraphQLConversation from '../object/Conversation.js';
 
 export const GraphQLConversationCollection = new GraphQLObjectType({
   name: 'ConversationCollection',

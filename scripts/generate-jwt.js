@@ -1,10 +1,10 @@
-import '../server/env';
+import '../server/env.js';
 
 import { ArgumentParser } from 'argparse';
 import config from 'config';
 import moment from 'moment';
 
-import models from '../server/models';
+import models from '../server/models/index.js';
 
 /** Help on how to use this script */
 function usage() {

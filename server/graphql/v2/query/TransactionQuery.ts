@@ -1,8 +1,8 @@
 import { GraphQLString } from 'graphql';
 
-import models from '../../../models';
-import { NotFound } from '../../errors';
-import { GraphQLTransaction } from '../interface/Transaction';
+import models from '../../../models/index.js';
+import { NotFound } from '../../errors.js';
+import { GraphQLTransaction } from '../interface/Transaction.js';
 
 const TransactionQuery = {
   type: GraphQLTransaction,

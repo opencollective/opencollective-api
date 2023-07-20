@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
-import INTERVALS from '../../../constants/intervals';
+import INTERVALS from '../../../constants/intervals.js';
 
 export const GraphQLContributionFrequency = new GraphQLEnumType({
   name: 'ContributionFrequency',

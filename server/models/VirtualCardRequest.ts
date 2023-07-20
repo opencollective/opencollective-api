@@ -9,12 +9,12 @@ import {
   NonAttribute,
 } from 'sequelize';
 
-import { VirtualCardLimitIntervals } from '../constants/virtual-cards';
-import sequelize from '../lib/sequelize';
+import { VirtualCardLimitIntervals } from '../constants/virtual-cards.js';
+import sequelize from '../lib/sequelize.js';
 
-import Collective from './Collective';
-import User from './User';
-import VirtualCard from './VirtualCard';
+import Collective from './Collective.js';
+import User from './User.js';
+import VirtualCard from './VirtualCard.js';
 
 export enum VirtualCardRequestStatus {
   APPROVED = 'APPROVED',

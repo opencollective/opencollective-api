@@ -1,3 +1,5 @@
+import url from 'url';
+const __dirname = url.fileURLToPath(new url.URL('.', import.meta.url));
 /** db.js -- Provide utilities to manage postgres databases
  *
  * This library provides features that are out of the scope of our
@@ -9,7 +11,7 @@ import path from 'path';
 import { promisify } from 'util';
 
 import config from 'config';
-import { get, has } from 'lodash';
+import { get, has } from 'lodash-es';
 import pg from 'pg';
 import pgConnectionString from 'pg-connection-string';
 import format from 'pg-format';

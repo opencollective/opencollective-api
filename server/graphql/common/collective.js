@@ -1,14 +1,14 @@
 import config from 'config';
 import sanitize from 'sanitize-html';
 
-import activities from '../../constants/activities';
-import FEATURE from '../../constants/feature';
-import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../lib/rate-limit';
-import { canUseFeature } from '../../lib/user-permissions';
-import models from '../../models';
-import { FeatureNotAllowedForUser, NotFound, RateLimitExceeded, Unauthorized } from '../errors';
+import activities from '../../constants/activities.js';
+import FEATURE from '../../constants/feature.js';
+import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../lib/rate-limit.js';
+import { canUseFeature } from '../../lib/user-permissions.js';
+import models from '../../models/index.js';
+import { FeatureNotAllowedForUser, NotFound, RateLimitExceeded, Unauthorized } from '../errors.js';
 
-import { checkRemoteUserCanUseAccount } from './scope-check';
+import { checkRemoteUserCanUseAccount } from './scope-check.js';
 
 /**
  * Resolver function for host field on Collective type.

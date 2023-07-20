@@ -10,31 +10,31 @@ import {
   GraphQLScalarType,
   GraphQLString,
 } from 'graphql';
-import { Kind } from 'graphql/language';
+import { Kind } from 'graphql/language/index.mjs';
 import { GraphQLJSON } from 'graphql-scalars';
-import { omit, pick } from 'lodash';
+import { omit, pick } from 'lodash-es';
 import moment from 'moment';
 
-import FEATURE from '../../constants/feature';
-import INTERVALS from '../../constants/intervals';
-import { maxInteger } from '../../constants/math';
-import orderStatus from '../../constants/order_status';
-import { PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
-import roles from '../../constants/roles';
-import { getCollectiveAvatarUrl } from '../../lib/collectivelib';
-import { filterContributors } from '../../lib/contributors';
-import { reportMessageToSentry } from '../../lib/sentry';
-import twoFactorAuthLib from '../../lib/two-factor-authentication';
-import models, { Op, sequelize } from '../../models';
-import { PayoutMethodTypes } from '../../models/PayoutMethod';
-import * as commonComment from '../common/comment';
-import { canSeeExpenseAttachments, canSeeExpensePayoutMethod } from '../common/expenses';
-import { canSeeUpdate } from '../common/update';
-import { hasSeenLatestChangelogEntry } from '../common/user';
-import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
+import FEATURE from '../../constants/feature.js';
+import INTERVALS from '../../constants/intervals.js';
+import { maxInteger } from '../../constants/math.js';
+import orderStatus from '../../constants/order_status.js';
+import { PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods.js';
+import roles from '../../constants/roles.js';
+import { getCollectiveAvatarUrl } from '../../lib/collectivelib.js';
+import { filterContributors } from '../../lib/contributors.js';
+import { reportMessageToSentry } from '../../lib/sentry.js';
+import twoFactorAuthLib from '../../lib/two-factor-authentication/index.js';
+import models, { Op, sequelize } from '../../models/index.js';
+import { PayoutMethodTypes } from '../../models/PayoutMethod.js';
+import * as commonComment from '../common/comment.js';
+import { canSeeExpenseAttachments, canSeeExpensePayoutMethod } from '../common/expenses.js';
+import { canSeeUpdate } from '../common/update.js';
+import { hasSeenLatestChangelogEntry } from '../common/user.js';
+import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers.js';
 
-import { CollectiveInterfaceType, CollectiveSearchResultsType } from './CollectiveInterface';
-import { TransactionInterfaceType } from './TransactionInterface';
+import { CollectiveInterfaceType, CollectiveSearchResultsType } from './CollectiveInterface.js';
+import { TransactionInterfaceType } from './TransactionInterface.js';
 
 /**
  * Take a graphql type and return a wrapper type that adds pagination. The pagination

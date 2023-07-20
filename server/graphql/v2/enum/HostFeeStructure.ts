@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
-import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
+import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure.js';
 
 export const GraphQLHostFeeStructure = new GraphQLEnumType({
   name: 'HostFeeStructure',

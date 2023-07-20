@@ -1,25 +1,18 @@
-/**
- * This file wraps Sentry for our API server. We are plugging it in 3 places:
- * 1. For the GraphQL API, in `server/routes.js` > GraphQL server plugin
- * 2. For all other REST endpoints, in `server/middleware/error_handler.js`
- * 3. As a fallback for the entire APP (esp. CRON jobs), in this own file (see `.on('unhandledRejection')`)
- */
-
-import '../env';
+import '../env.js';
 
 import { ApolloServerPlugin } from '@apollo/server';
 import * as Sentry from '@sentry/node';
 import type { SeverityLevel } from '@sentry/types';
 import axios, { AxiosError } from 'axios';
 import config from 'config';
-import { get, isEmpty, isEqual, pick } from 'lodash';
+import { get, isEmpty, isEqual, pick } from 'lodash-es';
 
-import FEATURE from '../constants/feature';
-import { User } from '../models';
+import FEATURE from '../constants/feature.js';
+import { User } from '../models/index.js';
 
-import logger from './logger';
-import { safeJsonStringify, sanitizeObjectForJSON } from './safe-json-stringify';
-import * as utils from './utils';
+import logger from './logger.js';
+import { safeJsonStringify, sanitizeObjectForJSON } from './safe-json-stringify.js';
+import * as utils from './utils.js';
 
 const TRACES_SAMPLE_RATE = parseFloat(config.sentry.tracesSampleRate) || 0;
 const MIN_EXECUTION_TIME_TO_SAMPLE = parseInt(config.sentry.minExecutionTimeToSample);

@@ -1,7 +1,7 @@
 import { GraphQLEnumType } from 'graphql';
-import { mapValues } from 'lodash';
+import { mapValues } from 'lodash-es';
 
-import { SupportedCurrencies, TransferWiseCurrencies } from '../../../constants/currencies';
+import { SupportedCurrencies, TransferWiseCurrencies } from '../../../constants/currencies.js';
 
 const convertToEnumType = a => mapValues(a, description => ({ description }));
 

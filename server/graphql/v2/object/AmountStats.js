@@ -1,6 +1,6 @@
 import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
-import { GraphQLAmount } from '../object/Amount';
+import { GraphQLAmount } from '../object/Amount.js';
 
 export const GraphQLAmountStats = new GraphQLObjectType({
   name: 'AmountStats',

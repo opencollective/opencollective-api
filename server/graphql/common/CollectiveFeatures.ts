@@ -1,10 +1,10 @@
 import { GraphQLEnumType, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
-import { FeaturesList } from '../../constants/feature';
-import FEATURE_STATUS from '../../constants/feature-status';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../v2/identifiers';
+import { FeaturesList } from '../../constants/feature.js';
+import FEATURE_STATUS from '../../constants/feature-status.js';
+import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../v2/identifiers.js';
 
-import { getFeatureStatusResolver } from './features';
+import { getFeatureStatusResolver } from './features.js';
 
 const GraphQLCollectiveFeatureStatus = new GraphQLEnumType({
   name: 'CollectiveFeatureStatus',

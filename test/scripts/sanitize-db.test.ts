@@ -1,9 +1,9 @@
 import { expect } from 'chai';
 import config from 'config';
 
-import { sanitizeDB } from '../../scripts/sanitize-db';
-import models, { Op } from '../../server/models';
-import { fakeExpenseAttachedFile, fakeExpenseItem, fakeUploadedFile } from '../test-helpers/fake-data';
+import { sanitizeDB } from '../../scripts/sanitize-db.js';
+import models, { Op } from '../../server/models/index.js';
+import { fakeExpenseAttachedFile, fakeExpenseItem, fakeUploadedFile } from '../test-helpers/fake-data.js';
 
 describe('scripts/sanitize-db', () => {
   before(async () => {

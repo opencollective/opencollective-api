@@ -1,10 +1,10 @@
 import config from 'config';
-import { get, isNil } from 'lodash';
+import { get, isNil } from 'lodash-es';
 import { v1 as uuid } from 'uuid';
 
-import errors from '../../lib/errors';
+import errors from '../../lib/errors.js';
 
-import paypalAdaptive from './adaptiveGateway';
+import paypalAdaptive from './adaptiveGateway.js';
 
 /**
  * PayPal paymentProvider

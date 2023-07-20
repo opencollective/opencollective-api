@@ -1,6 +1,6 @@
 import config from 'config';
 
-import { types as CollectiveType } from '../constants/collectives';
+import { types as CollectiveType } from '../constants/collectives.js';
 
 export const getEditRecurringContributionsUrl = collective => {
   if (collective.type === CollectiveType.USER) {

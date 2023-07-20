@@ -1,22 +1,22 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { get, has, pick } from 'lodash';
+import { get, has, pick } from 'lodash-es';
 import moment from 'moment';
 
-import { getCollectiveIds } from '../../../lib/budget';
-import { getFxRate } from '../../../lib/currency';
-import queries from '../../../lib/queries';
-import sequelize, { QueryTypes } from '../../../lib/sequelize';
-import { computeDatesAsISOStrings } from '../../../lib/utils';
-import models from '../../../models';
-import { GraphQLContributionFrequency } from '../enum/ContributionFrequency';
-import { GraphQLCurrency } from '../enum/Currency';
-import { GraphQLExpenseType } from '../enum/ExpenseType';
-import { GraphQLTransactionKind } from '../enum/TransactionKind';
-import { idEncode } from '../identifiers';
-import { GraphQLAmount } from '../object/Amount';
-import { GraphQLAmountStats } from '../object/AmountStats';
-import { getNumberOfDays, getTimeUnit, GraphQLTimeSeriesAmount, TimeSeriesArgs } from '../object/TimeSeriesAmount';
+import { getCollectiveIds } from '../../../lib/budget.js';
+import { getFxRate } from '../../../lib/currency.js';
+import queries from '../../../lib/queries.js';
+import sequelize, { QueryTypes } from '../../../lib/sequelize.js';
+import { computeDatesAsISOStrings } from '../../../lib/utils.js';
+import models from '../../../models/index.js';
+import { GraphQLContributionFrequency } from '../enum/ContributionFrequency.js';
+import { GraphQLCurrency } from '../enum/Currency.js';
+import { GraphQLExpenseType } from '../enum/ExpenseType.js';
+import { GraphQLTransactionKind } from '../enum/TransactionKind.js';
+import { idEncode } from '../identifiers.js';
+import { GraphQLAmount } from '../object/Amount.js';
+import { GraphQLAmountStats } from '../object/AmountStats.js';
+import { getNumberOfDays, getTimeUnit, GraphQLTimeSeriesAmount, TimeSeriesArgs } from '../object/TimeSeriesAmount.js';
 
 const TransactionArgs = {
   net: {

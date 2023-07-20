@@ -1,12 +1,12 @@
 import config from 'config';
 import { DataTypes, ForeignKey, Model, Transaction } from 'sequelize';
 
-import { diffDBEntries } from '../lib/data';
-import { isValidUploadedImage } from '../lib/images';
-import sequelize from '../lib/sequelize';
+import { diffDBEntries } from '../lib/data.js';
+import { isValidUploadedImage } from '../lib/images.js';
+import sequelize from '../lib/sequelize.js';
 
-import Expense from './Expense';
-import User from './User';
+import Expense from './Expense.js';
+import User from './User.js';
 
 /**
  * Sequelize model to represent an ExpenseAttachedFile, linked to the `ExpenseAttachedFiles` table.

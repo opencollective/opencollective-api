@@ -1,9 +1,9 @@
 import { GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
 
-import { GraphQLCountryISO } from '../enum';
-import { GraphQLOrderTaxType } from '../enum/OrderTaxType';
+import { GraphQLCountryISO } from '../enum/index.js';
+import { GraphQLOrderTaxType } from '../enum/OrderTaxType.js';
 
-import { GraphQLAmountInput } from './AmountInput';
+import { GraphQLAmountInput } from './AmountInput.js';
 
 export const GraphQLOrderTaxInput = new GraphQLInputObjectType({
   name: 'OrderTaxInput',

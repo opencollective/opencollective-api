@@ -1,18 +1,18 @@
 import { expect } from 'chai';
 import config from 'config';
-import { times } from 'lodash';
+import { times } from 'lodash-es';
 
-import { CollectiveType } from '../../../server/graphql/v1/CollectiveInterface';
+import { CollectiveType } from '../../../server/graphql/v1/CollectiveInterface.js';
 import {
   buildSearchConditions,
   parseSearchTerm,
   searchCollectivesByEmail,
   searchCollectivesInDB,
-} from '../../../server/lib/search';
-import { Op } from '../../../server/models';
-import { newUser } from '../../stores';
-import { fakeCollective, fakeHost, fakeUser, randStr } from '../../test-helpers/fake-data';
-import { resetTestDB } from '../../utils';
+} from '../../../server/lib/search.js';
+import { Op } from '../../../server/models/index.js';
+import { newUser } from '../../stores/index.js';
+import { fakeCollective, fakeHost, fakeUser, randStr } from '../../test-helpers/fake-data.js';
+import { resetTestDB } from '../../utils.js';
 
 describe('server/lib/search', () => {
   before(async () => {

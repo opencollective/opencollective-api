@@ -1,20 +1,20 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { pick } from 'lodash';
+import { pick } from 'lodash-es';
 
-import ACTIVITY from '../../../constants/activities';
-import * as ExpenseLib from '../../common/expenses';
-import { GraphQLActivityType } from '../enum';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
-import { GraphQLAccount } from '../interface/Account';
-import { GraphQLTransaction } from '../interface/Transaction';
+import ACTIVITY from '../../../constants/activities.js';
+import * as ExpenseLib from '../../common/expenses.js';
+import { GraphQLActivityType } from '../enum/index.js';
+import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers.js';
+import { GraphQLAccount } from '../interface/Account.js';
+import { GraphQLTransaction } from '../interface/Transaction.js';
 
-import { GraphQLExpense } from './Expense';
-import { GraphQLHost } from './Host';
-import { GraphQLIndividual } from './Individual';
-import { GraphQLOrder } from './Order';
-import GraphQLUpdate from './Update';
+import { GraphQLExpense } from './Expense.js';
+import { GraphQLHost } from './Host.js';
+import { GraphQLIndividual } from './Individual.js';
+import { GraphQLOrder } from './Order.js';
+import GraphQLUpdate from './Update.js';
 
 export const GraphQLActivity = new GraphQLObjectType({
   name: 'Activity',

@@ -1,10 +1,10 @@
 import { GraphQLNonNull, GraphQLString } from 'graphql';
 
-import { createUpdate, deleteUpdate, editUpdate, publishUpdate, unpublishUpdate } from '../../common/update';
-import { GraphQLUpdateAudienceType } from '../enum';
-import { GraphQLUpdateCreateInput } from '../input/UpdateCreateInput';
-import { GraphQLUpdateUpdateInput } from '../input/UpdateUpdateInput';
-import GraphQLUpdate from '../object/Update';
+import { createUpdate, deleteUpdate, editUpdate, publishUpdate, unpublishUpdate } from '../../common/update.js';
+import { GraphQLUpdateAudienceType } from '../enum/index.js';
+import { GraphQLUpdateCreateInput } from '../input/UpdateCreateInput.js';
+import { GraphQLUpdateUpdateInput } from '../input/UpdateUpdateInput.js';
+import GraphQLUpdate from '../object/Update.js';
 
 const updateMutations = {
   createUpdate: {

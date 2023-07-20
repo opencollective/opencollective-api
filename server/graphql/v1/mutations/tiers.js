@@ -1,5 +1,5 @@
-import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import { Unauthorized } from '../../errors';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication/index.js';
+import { Unauthorized } from '../../errors.js';
 
 export function editTiers(_, args, req) {
   let collective;

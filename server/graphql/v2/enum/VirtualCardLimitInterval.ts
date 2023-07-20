@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
-import { VirtualCardLimitIntervals } from '../../../constants/virtual-cards';
+import { VirtualCardLimitIntervals } from '../../../constants/virtual-cards.js';
 
 export const GraphQLVirtualCardLimitInterval = new GraphQLEnumType({
   name: 'VirtualCardLimitInterval',

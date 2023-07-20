@@ -1,8 +1,8 @@
 import AddressFormatter, { formatAddress as shopifyFormatAddress } from '@shopify/address';
 
-import { Location } from '../types/Location';
+import { Location } from '../types/Location.js';
 
-import { reportErrorToSentry } from './sentry';
+import { reportErrorToSentry } from './sentry.js';
 
 type Options = {
   includeCountry?: boolean;
@@ -28,7 +28,7 @@ export async function formatAddress(
    */
   try {
     // Locale is only affecting language, not formatting
-    const addressFormatter = new AddressFormatter(locale);
+    const addressFormatter = new AddressFormatter.default(locale);
     const formattingCountry = await addressFormatter.getCountry(country);
     addressLines = shopifyFormatAddress(
       {

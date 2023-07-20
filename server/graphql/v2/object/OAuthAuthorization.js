@@ -1,11 +1,11 @@
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import models from '../../../models';
-import { GraphQLOAuthScope } from '../enum/OAuthScope';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
-import { GraphQLApplication } from '../object/Application';
-import { GraphQLIndividual } from '../object/Individual';
+import models from '../../../models/index.js';
+import { GraphQLOAuthScope } from '../enum/OAuthScope.js';
+import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers.js';
+import { GraphQLApplication } from '../object/Application.js';
+import { GraphQLIndividual } from '../object/Individual.js';
 
 export const GraphQLOAuthAuthorization = new GraphQLObjectType({
   name: 'OAuthAuthorization',

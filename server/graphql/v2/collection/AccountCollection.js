@@ -1,7 +1,7 @@
 import { GraphQLList, GraphQLObjectType } from 'graphql';
 
-import { GraphQLAccount } from '../interface/Account';
-import { CollectionFields, GraphQLCollection } from '../interface/Collection';
+import { GraphQLAccount } from '../interface/Account.js';
+import { CollectionFields, GraphQLCollection } from '../interface/Collection.js';
 
 export const GraphQLAccountCollection = new GraphQLObjectType({
   name: 'AccountCollection',

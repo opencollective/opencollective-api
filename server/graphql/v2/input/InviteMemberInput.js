@@ -1,10 +1,10 @@
 import { GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import { GraphQLMemberRole } from '../enum';
+import { GraphQLMemberRole } from '../enum/index.js';
 
-import { GraphQLAccountReferenceInput } from './AccountReferenceInput';
-import { GraphQLIndividualCreateInput } from './IndividualCreateInput';
+import { GraphQLAccountReferenceInput } from './AccountReferenceInput.js';
+import { GraphQLIndividualCreateInput } from './IndividualCreateInput.js';
 
 export const GraphQLInviteMemberInput = new GraphQLInputObjectType({
   name: 'InviteMemberInput',

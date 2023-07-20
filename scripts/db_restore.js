@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-import '../server/env';
+import '../server/env.js';
 
 import { ArgumentParser } from 'argparse';
 
-import * as libdb from '../server/lib/db';
+import * as libdb from '../server/lib/db.js';
 
 /** Help on how to use this script */
 function usage() {
@@ -65,6 +65,8 @@ function parseCommandLineArguments() {
 }
 /* eslint-enable camelcase */
 
-if (!module.parent) {
+import { pathToFileURL } from 'url';
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   main(parseCommandLineArguments());
 }

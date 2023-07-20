@@ -2,13 +2,13 @@ import { expect } from 'chai';
 import gql from 'fake-tag';
 import { createSandbox, stub } from 'sinon';
 
-import roles from '../../../../server/constants/roles';
-import { TransactionKind } from '../../../../server/constants/transaction-kind';
-import * as libcurrency from '../../../../server/lib/currency';
-import models from '../../../../server/models';
-import paypalAdaptive from '../../../../server/paymentProviders/paypal/adaptiveGateway';
-import paypalMock from '../../../mocks/paypal';
-import * as utils from '../../../utils';
+import roles from '../../../../server/constants/roles.js';
+import { TransactionKind } from '../../../../server/constants/transaction-kind.js';
+import * as libcurrency from '../../../../server/lib/currency.js';
+import models from '../../../../server/models/index.js';
+import paypalAdaptive from '../../../../server/paymentProviders/paypal/adaptiveGateway.js';
+import paypalMock from '../../../mocks/paypal.js';
+import * as utils from '../../../utils.js';
 
 let host, admin, user, collective, paypalPaymentMethod;
 

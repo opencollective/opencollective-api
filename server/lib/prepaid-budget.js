@@ -1,8 +1,8 @@
-import { pick } from 'lodash';
+import { pick } from 'lodash-es';
 import { v4 as uuid } from 'uuid';
 
-import { TransactionKind } from '../constants/transaction-kind';
-import models from '../models';
+import { TransactionKind } from '../constants/transaction-kind.js';
+import models from '../models/index.js';
 
 export function isPrepaidBudgetOrder(order) {
   return (

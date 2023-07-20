@@ -6,14 +6,14 @@ import {
   GraphQLObjectType,
   GraphQLString,
 } from 'graphql';
-import { get, round } from 'lodash';
+import { get, round } from 'lodash-es';
 
-import models from '../../models';
-import { getContextPermission, PERMISSION_TYPE } from '../common/context-permissions';
-import { GraphQLTaxInfo } from '../v2/object/TaxInfo';
+import models from '../../models/index.js';
+import { getContextPermission, PERMISSION_TYPE } from '../common/context-permissions.js';
+import { GraphQLTaxInfo } from '../v2/object/TaxInfo.js';
 
-import { CollectiveInterfaceType, UserCollectiveType } from './CollectiveInterface';
-import { DateString, ExpenseType, OrderType, PaymentMethodType, SubscriptionType, UserType } from './types';
+import { CollectiveInterfaceType, UserCollectiveType } from './CollectiveInterface.js';
+import { DateString, ExpenseType, OrderType, PaymentMethodType, SubscriptionType, UserType } from './types.js';
 
 export const TransactionInterfaceType = new GraphQLInterfaceType({
   name: 'Transaction',

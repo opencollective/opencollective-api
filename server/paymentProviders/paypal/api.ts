@@ -1,10 +1,10 @@
 import config from 'config';
 import fetch, { Response } from 'node-fetch';
 
-import logger from '../../lib/logger';
-import { getHostPaypalAccount } from '../../lib/paypal';
-import { reportMessageToSentry } from '../../lib/sentry';
-import { Collective } from '../../models';
+import logger from '../../lib/logger.js';
+import { getHostPaypalAccount } from '../../lib/paypal.js';
+import { reportMessageToSentry } from '../../lib/sentry.js';
+import { Collective } from '../../models/index.js';
 
 /** Build an URL for the PayPal API */
 export function paypalUrl(path: string, version = 'v1'): string {
@@ -29,7 +29,7 @@ export async function retrieveOAuthToken({ clientId, clientSecret }): Promise<st
   const headers = { Authorization: `Basic ${basicAuth}` };
   /* Execute the request and unpack the token */
   const response = await fetch(url, { method: 'post', body, headers });
-  const jsonOutput = await response.json();
+  const jsonOutput = <any>await response.json();
   return jsonOutput.access_token;
 }
 
@@ -112,7 +112,7 @@ export async function paypalRequest(
   } else if (result.status === 204) {
     return null;
   } else {
-    return result.json();
+    return <any>result.json();
   }
 }
 
@@ -147,6 +147,6 @@ export async function paypalRequestV2(
   } else if (result.status === 204) {
     return null;
   } else {
-    return result.json();
+    return <any>result.json();
   }
 }

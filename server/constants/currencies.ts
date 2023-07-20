@@ -1,4 +1,4 @@
-import { pick } from 'lodash';
+import { pick } from 'lodash-es';
 
 const IBANCurrencies = {
   AED: 'UAE Dirham',

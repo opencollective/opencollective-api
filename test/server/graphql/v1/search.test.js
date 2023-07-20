@@ -2,8 +2,8 @@ import { expect } from 'chai';
 import gql from 'fake-tag';
 import { describe, it } from 'mocha';
 
-import { fakeCollective, randStr } from '../../../test-helpers/fake-data';
-import * as utils from '../../../utils';
+import { fakeCollective, randStr } from '../../../test-helpers/fake-data.js';
+import * as utils from '../../../utils.js';
 
 describe('server/graphql/v1/search', () => {
   let collectives, commonKeyword;

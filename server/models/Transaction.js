@@ -1,27 +1,27 @@
 import assert from 'assert';
 
 import debugLib from 'debug';
-import { get, isNil, isNull, isUndefined, omit, pick } from 'lodash';
+import { get, isNil, isNull, isUndefined, omit, pick } from 'lodash-es';
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
-import activities from '../constants/activities';
-import { TransactionKind } from '../constants/transaction-kind';
+import activities from '../constants/activities.js';
+import { TransactionKind } from '../constants/transaction-kind.js';
 import {
   HOST_FEE_SHARE_TRANSACTION_PROPERTIES,
   PLATFORM_TIP_TRANSACTION_PROPERTIES,
   TransactionTypes,
-} from '../constants/transactions';
-import { getFxRate } from '../lib/currency';
-import { toNegative } from '../lib/math';
-import { calcFee, getHostFeeSharePercent, getPlatformTip } from '../lib/payments';
-import { stripHTML } from '../lib/sanitize-html';
-import { reportErrorToSentry } from '../lib/sentry';
-import sequelize, { DataTypes, Op } from '../lib/sequelize';
-import { exportToCSV } from '../lib/utils';
+} from '../constants/transactions.js';
+import { getFxRate } from '../lib/currency.js';
+import { toNegative } from '../lib/math.js';
+import { calcFee, getHostFeeSharePercent, getPlatformTip } from '../lib/payments.js';
+import { stripHTML } from '../lib/sanitize-html.js';
+import { reportErrorToSentry } from '../lib/sentry.js';
+import sequelize, { DataTypes, Op } from '../lib/sequelize.js';
+import { exportToCSV } from '../lib/utils.js';
 
-import CustomDataTypes from './DataTypes';
-import { TransactionSettlementStatus } from './TransactionSettlement';
+import CustomDataTypes from './DataTypes.js';
+import { TransactionSettlementStatus } from './TransactionSettlement.js';
 
 const { CREDIT, DEBIT } = TransactionTypes;
 

@@ -3,33 +3,33 @@
 import config from 'config';
 import debugLib from 'debug';
 import { Request } from 'express';
-import { get, omit } from 'lodash';
+import { get, omit } from 'lodash-es';
 import type Stripe from 'stripe';
 import { v4 as uuid } from 'uuid';
 
-import { Service } from '../../constants/connected_account';
-import FEATURE from '../../constants/feature';
-import OrderStatuses from '../../constants/order_status';
-import { PAYMENT_METHOD_TYPE, PAYMENT_METHOD_TYPES } from '../../constants/paymentMethods';
-import { TransactionKind } from '../../constants/transaction-kind';
-import { TransactionTypes } from '../../constants/transactions';
-import { getFxRate } from '../../lib/currency';
-import logger from '../../lib/logger';
-import { toNegative } from '../../lib/math';
+import { Service } from '../../constants/connected_account.js';
+import FEATURE from '../../constants/feature.js';
+import OrderStatuses from '../../constants/order_status.js';
+import { PAYMENT_METHOD_TYPE, PAYMENT_METHOD_TYPES } from '../../constants/paymentMethods.js';
+import { TransactionKind } from '../../constants/transaction-kind.js';
+import { TransactionTypes } from '../../constants/transactions.js';
+import { getFxRate } from '../../lib/currency.js';
+import logger from '../../lib/logger.js';
+import { toNegative } from '../../lib/math.js';
 import {
   createRefundTransaction,
   createSubscription,
   sendEmailNotifications,
   sendOrderFailedEmail,
-} from '../../lib/payments';
-import stripe from '../../lib/stripe';
-import models, { sequelize } from '../../models';
-import { OrderModelInterface } from '../../models/Order';
-import { PaymentMethodModelInterface } from '../../models/PaymentMethod';
+} from '../../lib/payments.js';
+import stripe from '../../lib/stripe.js';
+import models, { sequelize } from '../../models/index.js';
+import { OrderModelInterface } from '../../models/Order.js';
+import { PaymentMethodModelInterface } from '../../models/PaymentMethod.js';
 
-import { getVirtualCardForTransaction } from './../utils';
-import { createChargeTransactions, createPaymentMethod } from './common';
-import * as virtualcard from './virtual-cards';
+import { getVirtualCardForTransaction } from './../utils.js';
+import { createChargeTransactions, createPaymentMethod } from './common.js';
+import * as virtualcard from './virtual-cards.js';
 
 const debug = debugLib('stripe');
 

@@ -3,13 +3,13 @@ import gql from 'fake-tag';
 import { describe, it } from 'mocha';
 import sinon, { createSandbox } from 'sinon';
 
-import { activities as ACTIVITY } from '../../../../server/constants';
-import * as expenses from '../../../../server/graphql/common/expenses';
-import cache from '../../../../server/lib/cache';
-import * as ContributorsLib from '../../../../server/lib/contributors';
-import * as currency from '../../../../server/lib/currency';
-import models, { Op } from '../../../../server/models';
-import * as store from '../../../stores';
+import { activities as ACTIVITY } from '../../../../server/constants/index.js';
+import * as expenses from '../../../../server/graphql/common/expenses.js';
+import cache from '../../../../server/lib/cache/index.js';
+import * as ContributorsLib from '../../../../server/lib/contributors.js';
+import * as currency from '../../../../server/lib/currency.js';
+import models, { Op } from '../../../../server/models/index.js';
+import * as store from '../../../stores/index.js';
 import {
   fakeCollective,
   fakeHost,
@@ -17,8 +17,8 @@ import {
   fakeOrganization,
   fakeTier,
   fakeUser,
-} from '../../../test-helpers/fake-data';
-import * as utils from '../../../utils';
+} from '../../../test-helpers/fake-data.js';
+import * as utils from '../../../utils.js';
 
 const collectiveQuery = gql`
   query Collective($slug: String) {

@@ -4,13 +4,13 @@
 
 import config from 'config';
 import slugify from 'limax';
-import { get } from 'lodash';
+import { get } from 'lodash-es';
 
-import { RateLimitExceeded } from '../graphql/errors';
-import models, { Op, sequelize } from '../models';
+import { RateLimitExceeded } from '../graphql/errors.js';
+import models, { Op, sequelize } from '../models/index.js';
 
-import { floatAmountToCents } from './math';
-import RateLimit, { ONE_HOUR_IN_SECONDS } from './rate-limit';
+import { floatAmountToCents } from './math.js';
+import RateLimit, { ONE_HOUR_IN_SECONDS } from './rate-limit.js';
 
 // Returned when there's no result for a search
 const EMPTY_SEARCH_RESULT = [[], 0];

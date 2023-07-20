@@ -1,10 +1,10 @@
 import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
 
-import oAuthScopes from '../constants/oauth-scopes';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import oAuthScopes from '../constants/oauth-scopes.js';
+import sequelize, { DataTypes, Model } from '../lib/sequelize.js';
 
-import Application from './Application';
-import User from './User';
+import Application from './Application.js';
+import User from './User.js';
 
 class OAuthAuthorizationCode extends Model<
   InferAttributes<OAuthAuthorizationCode>,

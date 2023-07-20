@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 import { stub } from 'sinon';
 
-import { TransactionKind } from '../../../server/constants/transaction-kind';
-import models from '../../../server/models';
+import { TransactionKind } from '../../../server/constants/transaction-kind.js';
+import models from '../../../server/models/index.js';
 import {
   fakeCollective,
   fakeHost,
@@ -10,8 +10,8 @@ import {
   fakePaymentMethod,
   fakeTransaction,
   fakeUser,
-} from '../../test-helpers/fake-data';
-import * as utils from '../../utils';
+} from '../../test-helpers/fake-data.js';
+import * as utils from '../../utils.js';
 
 const { Transaction } = models;
 

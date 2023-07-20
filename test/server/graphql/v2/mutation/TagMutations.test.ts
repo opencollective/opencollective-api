@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
 
-import { fakeCollective, fakeExpense, fakeHost, fakeOrder, fakeUser } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2 } from '../../../../utils';
+import { fakeCollective, fakeExpense, fakeHost, fakeOrder, fakeUser } from '../../../../test-helpers/fake-data.js';
+import { graphqlQueryV2 } from '../../../../utils.js';
 
 const SET_TAGS_MUTATION = gqlV2/* GraphQL */ `
   mutation SetTags($expense: ExpenseReferenceInput, $order: OrderReferenceInput, $tags: [String!]!) {

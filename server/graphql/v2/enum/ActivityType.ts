@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
-import ACTIVITY, { ActivityClasses } from '../../../constants/activities';
+import ACTIVITY, { ActivityClasses } from '../../../constants/activities.js';
 
 const Activities = Object.keys(ACTIVITY).reduce((values, key) => {
   return {

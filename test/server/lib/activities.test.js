@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 
-import constants from '../../../server/constants/activities';
-import activitiesLib from '../../../server/lib/activities';
-import * as utils from '../../utils';
+import constants from '../../../server/constants/activities.js';
+import activitiesLib from '../../../server/lib/activities.js';
+import * as utils from '../../utils.js';
 
 const activitiesData = utils.data('activities1').activities;
 

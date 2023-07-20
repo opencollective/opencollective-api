@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 
-import FEATURE from '../../../server/constants/feature';
-import { hasFeature, isFeatureAllowedForCollectiveType } from '../../../server/lib/allowed-features';
-import { fakeCollective } from '../../test-helpers/fake-data';
+import FEATURE from '../../../server/constants/feature.js';
+import { hasFeature, isFeatureAllowedForCollectiveType } from '../../../server/lib/allowed-features.js';
+import { fakeCollective } from '../../test-helpers/fake-data.js';
 
 describe('server/lib/allowed-features', () => {
   describe('isFeatureAllowedForCollectiveType', () => {

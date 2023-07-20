@@ -1,4 +1,4 @@
-import errors from '../lib/errors';
+import errors from '../lib/errors.js';
 
 /**
  *  Parameters required for a route (POST, GET or headers params)

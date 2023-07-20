@@ -1,6 +1,6 @@
-import { GraphQLFund } from '../object/Fund';
+import { GraphQLFund } from '../object/Fund.js';
 
-import { buildAccountQuery } from './AccountQuery';
+import { buildAccountQuery } from './AccountQuery.js';
 
 const FundQuery = buildAccountQuery({ objectType: GraphQLFund });
 

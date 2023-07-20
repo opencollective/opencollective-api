@@ -1,7 +1,7 @@
 import { GraphQLBoolean, GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import { GraphQLAccountReferenceInput } from './AccountReferenceInput';
+import { GraphQLAccountReferenceInput } from './AccountReferenceInput.js';
 
 export const GraphQLUpdateUpdateInput = new GraphQLInputObjectType({
   name: 'UpdateUpdateInput',

@@ -1,7 +1,7 @@
 import { GraphQLFloat, GraphQLInputObjectType, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
 
-import { GraphQLCountryISO } from '../enum';
+import { GraphQLCountryISO } from '../enum/index.js';
 
 export const GraphQLLocationInput = new GraphQLInputObjectType({
   name: 'LocationInput',

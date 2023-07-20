@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import sequelize, { QueryTypes } from '../../../server/lib/sequelize';
+import sequelize, { QueryTypes } from '../../../server/lib/sequelize.js';
 
 const getTableColumns = tableName => {
   return sequelize.query(

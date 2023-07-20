@@ -1,10 +1,6 @@
-/**
- * Defines what users are allowed to do on the platform.
- */
-
-import FEATURE from '../constants/feature';
-import { Collective } from '../models';
-import User from '../models/User';
+import FEATURE from '../constants/feature.js';
+import { Collective } from '../models/index.js';
+import User from '../models/User.js';
 
 /**
  * Returns true if the given user can use the passed feature. Will always return false

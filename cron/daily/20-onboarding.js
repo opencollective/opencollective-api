@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-import '../../server/env';
+import '../../server/env.js';
+import '../../server/lib/sentry.js';
 
-import { get } from 'lodash';
+import { get } from 'lodash-es';
 
-import { processOnBoardingTemplate } from '../../server/lib/onboarding';
-import models, { Op } from '../../server/models';
+import { processOnBoardingTemplate } from '../../server/lib/onboarding.js';
+import models, { Op } from '../../server/models/index.js';
 
 const XDaysAgo = days => {
   const d = new Date();

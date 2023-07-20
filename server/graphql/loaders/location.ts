@@ -1,8 +1,8 @@
 import DataLoader from 'dataloader';
 
-import models, { Location } from '../../models';
+import models, { Location } from '../../models/index.js';
 
-import { sortResultsSimple } from './helpers';
+import { sortResultsSimple } from './helpers.js';
 
 export default {
   /**

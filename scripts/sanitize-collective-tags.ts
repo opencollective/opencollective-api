@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-import '../server/env';
+import '../server/env.js';
 
-import { sanitizeTags } from '../server/lib/tags';
-import models, { Op } from '../server/models';
+import { sanitizeTags } from '../server/lib/tags.js';
+import models, { Op } from '../server/models/index.js';
 
 export const sanitizeAllCollectiveTags = async () => {
   console.log('Sanitizing all Collective tags...');

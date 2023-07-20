@@ -1,18 +1,18 @@
 import config from 'config';
-import { get, pick } from 'lodash';
+import { get, pick } from 'lodash-es';
 
 import {
   TAX_FORM_IGNORED_EXPENSE_STATUSES,
   TAX_FORM_IGNORED_EXPENSE_TYPES,
   US_TAX_FORM_VALIDITY_IN_YEARS,
-} from '../constants/tax-form';
-import { PayoutMethodTypes } from '../models/PayoutMethod';
+} from '../constants/tax-form.js';
+import { PayoutMethodTypes } from '../models/PayoutMethod.js';
 
-import { memoize } from './cache';
-import { convertToCurrency } from './currency';
-import sequelize from './sequelize';
-import { amountsRequireTaxForm } from './tax-forms';
-import { ifStr } from './utils';
+import { memoize } from './cache/index.js';
+import { convertToCurrency } from './currency.js';
+import sequelize from './sequelize.js';
+import { amountsRequireTaxForm } from './tax-forms.js';
+import { ifStr } from './utils.js';
 
 const twoHoursInSeconds = 2 * 60 * 60;
 const models = sequelize.models;

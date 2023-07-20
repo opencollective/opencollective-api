@@ -9,10 +9,10 @@ import {
 } from 'sequelize';
 import * as z from 'zod';
 
-import sequelize from '../lib/sequelize';
-import { TwoFactorMethod } from '../lib/two-factor-authentication/two-factor-methods';
+import sequelize from '../lib/sequelize.js';
+import { TwoFactorMethod } from '../lib/two-factor-authentication/two-factor-methods.js';
 
-import User from './User';
+import User from './User.js';
 
 const TOTPDataSchema = z.object({
   secret: z.string(),

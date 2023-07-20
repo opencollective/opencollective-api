@@ -1,15 +1,11 @@
-#!/usr/bin/env ./node_modules/.bin/babel-node
+#!/usr/bin/env ./node_modules/.bin/ts-node
 
-/**
- * A simple wrapper script around `Transaction.validate` to validate a list of transactions.
- */
-
-import '../../server/env';
+import '../../server/env.js';
 
 import { Command } from 'commander';
-import { uniq } from 'lodash';
+import { uniq } from 'lodash-es';
 
-import models, { Op } from '../../server/models';
+import models, { Op } from '../../server/models/index.js';
 
 const program = new Command()
   .description('Helper to validate transactions')
@@ -57,7 +53,9 @@ const main = async () => {
 };
 
 // Only run script if called directly (to allow unit tests)
-if (!module.parent) {
+import { pathToFileURL } from 'url';
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   main()
     .then(() => process.exit(0))
     .catch(e => {

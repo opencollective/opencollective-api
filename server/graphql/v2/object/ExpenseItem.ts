@@ -2,10 +2,10 @@ import express from 'express';
 import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
-import { GraphQLFileInfo } from '../interface/FileInfo';
-import URL from '../scalar/URL';
+import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions.js';
+import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers.js';
+import { GraphQLFileInfo } from '../interface/FileInfo.js';
+import URL from '../scalar/URL.js';
 
 const GraphQLExpenseItem = new GraphQLObjectType({
   name: 'ExpenseItem',

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import '../server/env';
+import '../server/env.js';
 
 /**
  * Use ./scripts/watch_email_template.sh [template] to compile an email template
@@ -8,8 +8,8 @@ import config from 'config';
 import { htmlToText } from 'html-to-text';
 import juice from 'juice';
 
-import { getMailer } from '../server/lib/email';
-import libEmailTemplates from '../server/lib/emailTemplates';
+import { getMailer } from '../server/lib/email.js';
+import libEmailTemplates from '../server/lib/emailTemplates.js';
 
 const templateName = process.argv[2];
 const data = {};

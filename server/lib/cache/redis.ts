@@ -1,6 +1,6 @@
 import debug from 'debug';
 
-import { createRedisClient } from '../redis';
+import { createRedisClient } from '../redis.js';
 
 const makeRedisProvider = async () => {
   const debugCache = debug('cache');

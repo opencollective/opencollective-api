@@ -1,14 +1,14 @@
 import assert from 'assert';
 
 import config from 'config';
-import { get } from 'lodash';
+import { get } from 'lodash-es';
 
-import { mustBeLoggedInTo } from '../lib/auth';
-import errors from '../lib/errors';
-import * as github from '../lib/github';
-import logger from '../lib/logger';
-import models from '../models';
-import paymentProviders from '../paymentProviders';
+import { mustBeLoggedInTo } from '../lib/auth.js';
+import errors from '../lib/errors.js';
+import * as github from '../lib/github.js';
+import logger from '../lib/logger.js';
+import models from '../models/index.js';
+import paymentProviders from '../paymentProviders/index.js';
 
 export const createOrUpdate = async (req, res, next, accessToken, data) => {
   if (!req.remoteUser) {

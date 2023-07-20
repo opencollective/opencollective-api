@@ -3,7 +3,7 @@ import config from 'config';
 import jwt from 'jsonwebtoken';
 import { useFakeTimers } from 'sinon';
 
-import * as auth from '../../../server/lib/auth';
+import * as auth from '../../../server/lib/auth.js';
 
 describe('server/lib/auth', () => {
   it('should generate valid tokens', () => {

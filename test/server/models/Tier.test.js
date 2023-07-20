@@ -1,11 +1,11 @@
 import { expect } from 'chai';
-import { random, times } from 'lodash';
-import { SequelizeValidationError } from 'sequelize';
+import { random, times } from 'lodash-es';
+import { ValidationError } from 'sequelize';
 
-import models from '../../../server/models';
-import { newCollectiveWithHost, randEmail } from '../../stores';
-import { fakeTier } from '../../test-helpers/fake-data';
-import * as utils from '../../utils';
+import models from '../../../server/models/index.js';
+import { newCollectiveWithHost, randEmail } from '../../stores/index.js';
+import { fakeTier } from '../../test-helpers/fake-data.js';
+import * as utils from '../../utils.js';
 
 const { Collective, User } = models;
 
@@ -98,7 +98,7 @@ describe('server/models/Tier', () => {
           interval: 'year',
           CollectiveId: collective.id,
         }),
-      ).to.be.rejectedWith(SequelizeValidationError, 'Validation min on amount failed');
+      ).to.be.rejectedWith(ValidationError, 'Validation min on amount failed');
     });
 
     it('can have a 0 value', () => {

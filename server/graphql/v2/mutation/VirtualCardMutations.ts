@@ -2,30 +2,30 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
 
-import { activities } from '../../../constants';
-import POLICIES from '../../../constants/policies';
-import { VirtualCardLimitIntervals } from '../../../constants/virtual-cards';
-import logger from '../../../lib/logger';
-import { getPolicy } from '../../../lib/policies';
-import { reportErrorToSentry } from '../../../lib/sentry';
-import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models from '../../../models';
-import VirtualCardModel, { VirtualCardStatus } from '../../../models/VirtualCard';
-import VirtualCardRequest, { VirtualCardRequestStatus } from '../../../models/VirtualCardRequest';
-import * as stripe from '../../../paymentProviders/stripe/virtual-cards';
-import { checkRemoteUserCanUseVirtualCards } from '../../common/scope-check';
-import { BadRequest, NotFound, Unauthorized } from '../../errors';
-import { GraphQLVirtualCardLimitInterval } from '../enum/VirtualCardLimitInterval';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
-import { getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/AmountInput';
-import { GraphQLVirtualCardInput } from '../input/VirtualCardInput';
-import { GraphQLVirtualCardReferenceInput } from '../input/VirtualCardReferenceInput';
+import { activities } from '../../../constants/index.js';
+import POLICIES from '../../../constants/policies.js';
+import { VirtualCardLimitIntervals } from '../../../constants/virtual-cards.js';
+import logger from '../../../lib/logger.js';
+import { getPolicy } from '../../../lib/policies.js';
+import { reportErrorToSentry } from '../../../lib/sentry.js';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication/index.js';
+import models from '../../../models/index.js';
+import VirtualCardModel, { VirtualCardStatus } from '../../../models/VirtualCard.js';
+import VirtualCardRequest, { VirtualCardRequestStatus } from '../../../models/VirtualCardRequest.js';
+import * as stripe from '../../../paymentProviders/stripe/virtual-cards.js';
+import { checkRemoteUserCanUseVirtualCards } from '../../common/scope-check.js';
+import { BadRequest, NotFound, Unauthorized } from '../../errors.js';
+import { GraphQLVirtualCardLimitInterval } from '../enum/VirtualCardLimitInterval.js';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput.js';
+import { getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/AmountInput.js';
+import { GraphQLVirtualCardInput } from '../input/VirtualCardInput.js';
+import { GraphQLVirtualCardReferenceInput } from '../input/VirtualCardReferenceInput.js';
 import {
   fetchVirtualCardRequestWithReference,
   GraphQLVirtualCardRequestReferenceInput,
-} from '../input/VirtualCardRequestReferenceInput';
-import { GraphQLVirtualCard } from '../object/VirtualCard';
-import { GraphQLVirtualCardRequest } from '../object/VirtualCardRequest';
+} from '../input/VirtualCardRequestReferenceInput.js';
+import { GraphQLVirtualCard } from '../object/VirtualCard.js';
+import { GraphQLVirtualCardRequest } from '../object/VirtualCardRequest.js';
 
 const virtualCardMutations = {
   assignNewVirtualCard: {

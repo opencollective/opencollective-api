@@ -3,7 +3,7 @@ import { ArgumentParser } from 'argparse';
 import config from 'config';
 import cryptojs from 'crypto-js';
 
-import { sequelize } from '../server/models';
+import { sequelize } from '../server/models/index.js';
 
 const CIPHER = config.dbEncryption.cipher;
 const SECRET_KEY = config.dbEncryption.secretKey;
@@ -94,6 +94,8 @@ function parseCommandLineArguments() {
 }
 /* eslint-enable camelcase */
 
-if (!module.parent) {
+import { pathToFileURL } from 'url';
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   main(parseCommandLineArguments());
 }

@@ -2,11 +2,11 @@ import { expect } from 'chai';
 import gql from 'fake-tag';
 import { createSandbox } from 'sinon';
 
-import models from '../../../../server/models';
-import collectivePaymentProvider from '../../../../server/paymentProviders/opencollective/collective';
-import testPaymentProvider from '../../../../server/paymentProviders/opencollective/test';
-import * as store from '../../../stores';
-import * as utils from '../../../utils';
+import models from '../../../../server/models/index.js';
+import collectivePaymentProvider from '../../../../server/paymentProviders/opencollective/collective.js';
+import testPaymentProvider from '../../../../server/paymentProviders/opencollective/test.js';
+import * as store from '../../../stores/index.js';
+import * as utils from '../../../utils.js';
 
 const ORDER_TOTAL_AMOUNT = 1000;
 const STRIPE_FEE_STUBBED_VALUE = 300;

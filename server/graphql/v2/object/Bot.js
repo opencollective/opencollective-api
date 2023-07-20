@@ -1,6 +1,6 @@
 import { GraphQLObjectType } from 'graphql';
 
-import { AccountFields, GraphQLAccount } from '../interface/Account';
+import { AccountFields, GraphQLAccount } from '../interface/Account.js';
 
 export const GraphQLBot = new GraphQLObjectType({
   name: 'Bot',

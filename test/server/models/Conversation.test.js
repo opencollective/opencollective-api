@@ -1,8 +1,8 @@
 import { expect } from 'chai';
-import { SequelizeValidationError } from 'sequelize';
+import { ValidationError } from 'sequelize';
 
-import models from '../../../server/models';
-import { newCollectiveWithHost, randEmail } from '../../stores';
+import models from '../../../server/models/index.js';
+import { newCollectiveWithHost, randEmail } from '../../stores/index.js';
 
 describe('server/models/Conversation', () => {
   let collective, user, validConversationParams;
@@ -23,7 +23,7 @@ describe('server/models/Conversation', () => {
   describe('summary', () => {
     it('Must be set', () => {
       expect(models.Conversation.create({ ...validConversationParams, summary: '' })).to.be.rejectedWith(
-        SequelizeValidationError,
+        ValidationError,
         'Conversation.summary cannot be null',
       );
     });
@@ -63,7 +63,7 @@ describe('server/models/Conversation', () => {
           tags: ['TOOOOOOOOOOOOOOOOOOOOO LOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOONG'],
         }),
       ).to.be.rejectedWith(
-        SequelizeValidationError,
+        ValidationError,
         'Validation error: Tag TOOOOOOOOOOOOOOOOOOOOO LOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOONG is too long, must me shorter than 32 characters',
       );
     });

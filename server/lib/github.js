@@ -1,11 +1,11 @@
 import { createOAuthAppAuth } from '@octokit/auth-oauth-app';
 import { Octokit } from '@octokit/rest';
 import config from 'config';
-import { get, has, pick, trim, trimEnd, trimStart } from 'lodash';
+import { get, has, pick, trim, trimEnd, trimStart } from 'lodash-es';
 
-import cache from './cache';
-import logger from './logger';
-import { reportMessageToSentry } from './sentry';
+import cache from './cache/index.js';
+import logger from './logger.js';
+import { reportMessageToSentry } from './sentry.js';
 
 const compactRepo = repo => {
   repo = pick(repo, [

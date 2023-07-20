@@ -1,15 +1,15 @@
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
-import { mustBeLoggedInTo } from '../../../lib/auth';
-import models from '../../../models';
-import { canComment } from '../../common/expenses';
-import { checkRemoteUserCanUseComment, checkRemoteUserCanUseUpdates } from '../../common/scope-check';
-import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
-import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
-import { GraphQLCommentReferenceInput } from '../input/CommentReferenceInput';
-import { GraphQLUpdateReferenceInput } from '../input/UpdateReferenceInput';
-import { GraphQLComment } from '../object/Comment';
-import GraphQLUpdate from '../object/Update';
+import { mustBeLoggedInTo } from '../../../lib/auth.js';
+import models from '../../../models/index.js';
+import { canComment } from '../../common/expenses.js';
+import { checkRemoteUserCanUseComment, checkRemoteUserCanUseUpdates } from '../../common/scope-check.js';
+import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors.js';
+import { idDecode, IDENTIFIER_TYPES } from '../identifiers.js';
+import { GraphQLCommentReferenceInput } from '../input/CommentReferenceInput.js';
+import { GraphQLUpdateReferenceInput } from '../input/UpdateReferenceInput.js';
+import { GraphQLComment } from '../object/Comment.js';
+import GraphQLUpdate from '../object/Update.js';
 
 /**
  * Object type for EmojiReaction mutation.

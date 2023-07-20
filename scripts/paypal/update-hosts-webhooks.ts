@@ -1,13 +1,8 @@
-/**
- * This script can be used whenever PayPal webhooks event types change to update
- * Host's connected accounts.
- */
+import '../../server/env.js';
 
-import '../../server/env';
-
-import logger from '../../server/lib/logger';
-import * as PaypalLib from '../../server/lib/paypal';
-import models, { Op, sequelize } from '../../server/models';
+import logger from '../../server/lib/logger.js';
+import * as PaypalLib from '../../server/lib/paypal.js';
+import models, { Op, sequelize } from '../../server/models/index.js';
 
 const getAllHostsWithPaypalAccounts = () => {
   return models.Collective.findAll({

@@ -1,7 +1,7 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import URL from '../scalar/URL';
+import URL from '../scalar/URL.js';
 
 /**
  * To create or edit an expense item

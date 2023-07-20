@@ -1,12 +1,13 @@
 #!/usr/bin/env node
-import '../../server/env';
+import '../../server/env.js';
+import '../../server/lib/sentry.js';
 
 import config from 'config';
 import moment from 'moment';
 
-import logger from '../../server/lib/logger';
-import * as libPayments from '../../server/lib/payments';
-import models, { Op } from '../../server/models';
+import logger from '../../server/lib/logger.js';
+import * as libPayments from '../../server/lib/payments.js';
+import models, { Op } from '../../server/models/index.js';
 
 // Run on the 7th and 21st of the month
 const today = new Date();
@@ -98,6 +99,8 @@ const run = async () => {
   process.exit();
 };
 
-if (require.main === module) {
+import { pathToFileURL } from 'url';
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   run();
 }

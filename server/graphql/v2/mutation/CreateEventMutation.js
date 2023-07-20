@@ -1,16 +1,16 @@
 import { GraphQLNonNull } from 'graphql';
 import slugify from 'limax';
-import { pick } from 'lodash';
+import { pick } from 'lodash-es';
 import { v4 as uuid } from 'uuid';
 
-import roles from '../../../constants/roles';
-import { isCollectiveSlugReserved } from '../../../lib/collectivelib';
-import models from '../../../models';
-import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
-import { BadRequest, NotFound, Unauthorized } from '../../errors';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
-import { GraphQLEventCreateInput } from '../input/EventCreateInput';
-import { GraphQLEvent } from '../object/Event';
+import roles from '../../../constants/roles.js';
+import { isCollectiveSlugReserved } from '../../../lib/collectivelib.js';
+import models from '../../../models/index.js';
+import { checkRemoteUserCanUseAccount } from '../../common/scope-check.js';
+import { BadRequest, NotFound, Unauthorized } from '../../errors.js';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput.js';
+import { GraphQLEventCreateInput } from '../input/EventCreateInput.js';
+import { GraphQLEvent } from '../object/Event.js';
 
 const DEFAULT_EVENT_SETTINGS = {};
 

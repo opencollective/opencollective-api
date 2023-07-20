@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
-import { times } from 'lodash';
+import { times } from 'lodash-es';
 
-import MemberRoles from '../../../../../server/constants/roles';
+import MemberRoles from '../../../../../server/constants/roles.js';
 import {
   fakeCollective,
   fakeEmojiReaction,
@@ -12,8 +12,8 @@ import {
   fakeProject,
   fakeUpdate,
   fakeUser,
-} from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2 } from '../../../../utils';
+} from '../../../../test-helpers/fake-data.js';
+import { graphqlQueryV2 } from '../../../../utils.js';
 
 const updateQuery = gqlV2/* GraphQL */ `
   query Update($accountSlug: String!, $slug: String!, $audience: UpdateAudience) {

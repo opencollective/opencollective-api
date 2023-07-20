@@ -1,6 +1,6 @@
 import { GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
 
-import URL from '../scalar/URL';
+import URL from '../scalar/URL.js';
 
 /**
  * To create or edit an optional expense file attachment

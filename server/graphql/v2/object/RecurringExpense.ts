@@ -1,11 +1,11 @@
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import { GraphQLRecurringExpenseInterval } from '../enum/RecurringExpenseInterval';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
-import { GraphQLAccount } from '../interface/Account';
+import { GraphQLRecurringExpenseInterval } from '../enum/RecurringExpenseInterval.js';
+import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers.js';
+import { GraphQLAccount } from '../interface/Account.js';
 
-import { GraphQLExpense } from './Expense';
+import { GraphQLExpense } from './Expense.js';
 
 const GraphQLRecurringExpense = new GraphQLObjectType({
   name: 'RecurringExpense',

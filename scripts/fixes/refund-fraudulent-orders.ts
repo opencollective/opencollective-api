@@ -1,10 +1,10 @@
-#!/usr/bin/env ./node_modules/.bin/babel-node
-import '../../server/env';
+#!/usr/bin/env ./node_modules/.bin/ts-node
+import '../../server/env.js';
 
 import { ArgumentParser } from 'argparse';
 
-import { refundTransaction } from '../../server/lib/payments';
-import models, { sequelize } from '../../server/models';
+import { refundTransaction } from '../../server/lib/payments.js';
+import models, { sequelize } from '../../server/models/index.js';
 
 const refundOrder = async (order, { dryRun }) => {
   const transactions = await order.getTransactions();
@@ -117,7 +117,9 @@ function parseCommandLineArguments() {
 }
 /* eslint-enable camelcase */
 
-if (require.main === module) {
+import { pathToFileURL } from 'url';
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   main(parseCommandLineArguments())
     .then(() => {
       process.exit(0);

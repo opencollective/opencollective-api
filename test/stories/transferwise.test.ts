@@ -1,16 +1,18 @@
 /* eslint-disable camelcase */
 
+import { URL } from 'url'; // in Browser, the URL in native accessible on window
+
 import { expect } from 'chai';
 import config from 'config';
-import { round } from 'lodash';
+import { round } from 'lodash-es';
 
-import ExpenseStatuses from '../../server/constants/expense_status';
-import { payExpense } from '../../server/graphql/common/expenses';
-import cache from '../../server/lib/cache';
-import models from '../../server/models';
-import Expense from '../../server/models/Expense';
-import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
-import { handleTransferStateChange } from '../../server/paymentProviders/transferwise/webhook';
+import ExpenseStatuses from '../../server/constants/expense_status.js';
+import { payExpense } from '../../server/graphql/common/expenses.js';
+import cache from '../../server/lib/cache/index.js';
+import Expense from '../../server/models/Expense.js';
+import models from '../../server/models/index.js';
+import { PayoutMethodTypes } from '../../server/models/PayoutMethod.js';
+import { handleTransferStateChange } from '../../server/paymentProviders/transferwise/webhook.js';
 import {
   fakeCollective,
   fakeConnectedAccount,
@@ -18,9 +20,10 @@ import {
   fakePayoutMethod,
   fakeTransaction,
   fakeUser,
-} from '../test-helpers/fake-data';
-import { resetTestDB, snapshotLedger, useIntegrationTestRecorder } from '../utils';
+} from '../test-helpers/fake-data.js';
+import { resetTestDB, snapshotLedger, useIntegrationTestRecorder } from '../utils.js';
 
+const __filename = new URL('', import.meta.url).pathname;
 describe('/test/stories/transferwise.test.ts', () => {
   useIntegrationTestRecorder(config.transferwise.apiUrl, __filename, nock => {
     // Ignore our randomly generated customerTransactionId

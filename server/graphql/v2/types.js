@@ -1,20 +1,20 @@
-import { GraphQLAccount } from './interface/Account';
-import { GraphQLFileInfo } from './interface/FileInfo';
-import { GraphQLAmount } from './object/Amount';
-import { GraphQLApplication } from './object/Application';
-import { GraphQLBot } from './object/Bot';
-import { GraphQLCollective } from './object/Collective';
-import { GraphQLCredit } from './object/Credit';
-import { GraphQLDebit } from './object/Debit';
-import { GraphQLEvent } from './object/Event';
-import { GraphQLGenericFileInfo } from './object/GenericFileInfo';
-import { GraphQLImageFileInfo } from './object/ImageFileInfo';
-import { GraphQLIndividual } from './object/Individual';
-import { GraphQLMember, GraphQLMemberOf } from './object/Member';
-import { GraphQLOrganization } from './object/Organization';
-import { GraphQLTransferWise } from './object/TransferWise';
-import { GraphQLVendor } from './object/Vendor';
-import { GraphQLVirtualCard } from './object/VirtualCard';
+import { GraphQLAccount } from './interface/Account.js';
+import { GraphQLFileInfo } from './interface/FileInfo.js';
+import { GraphQLAmount } from './object/Amount.js';
+import { GraphQLApplication } from './object/Application.js';
+import { GraphQLBot } from './object/Bot.js';
+import { GraphQLCollective } from './object/Collective.js';
+import { GraphQLCredit } from './object/Credit.js';
+import { GraphQLDebit } from './object/Debit.js';
+import { GraphQLEvent } from './object/Event.js';
+import { GraphQLGenericFileInfo } from './object/GenericFileInfo.js';
+import { GraphQLImageFileInfo } from './object/ImageFileInfo.js';
+import { GraphQLIndividual } from './object/Individual.js';
+import { GraphQLMember, GraphQLMemberOf } from './object/Member.js';
+import { GraphQLOrganization } from './object/Organization.js';
+import { GraphQLTransferWise } from './object/TransferWise.js';
+import { GraphQLVendor } from './object/Vendor.js';
+import { GraphQLVirtualCard } from './object/VirtualCard.js';
 
 const types = [
   GraphQLApplication,

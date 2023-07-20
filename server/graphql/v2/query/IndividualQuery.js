@@ -1,6 +1,6 @@
-import { GraphQLIndividual } from '../object/Individual';
+import { GraphQLIndividual } from '../object/Individual.js';
 
-import { buildAccountQuery } from './AccountQuery';
+import { buildAccountQuery } from './AccountQuery.js';
 
 const IndividualQuery = buildAccountQuery({ objectType: GraphQLIndividual });
 

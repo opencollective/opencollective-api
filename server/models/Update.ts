@@ -1,6 +1,6 @@
 import config from 'config';
 import slugify from 'limax';
-import { pick } from 'lodash';
+import { pick } from 'lodash-es';
 import {
   BelongsToGetAssociationMixin,
   CreationOptional,
@@ -10,17 +10,17 @@ import {
 } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
-import activities from '../constants/activities';
-import MemberRoles from '../constants/roles';
-import * as errors from '../graphql/errors';
-import logger from '../lib/logger';
-import * as SQLQueries from '../lib/queries';
-import { buildSanitizerOptions, generateSummaryForHTML, sanitizeHTML } from '../lib/sanitize-html';
-import sequelize, { DataTypes, Model, Op, QueryTypes } from '../lib/sequelize';
-import { sanitizeTags, validateTags } from '../lib/tags';
+import activities from '../constants/activities.js';
+import MemberRoles from '../constants/roles.js';
+import * as errors from '../graphql/errors.js';
+import logger from '../lib/logger.js';
+import * as SQLQueries from '../lib/queries.js';
+import { buildSanitizerOptions, generateSummaryForHTML, sanitizeHTML } from '../lib/sanitize-html.js';
+import sequelize, { DataTypes, Model, Op, QueryTypes } from '../lib/sequelize.js';
+import { sanitizeTags, validateTags } from '../lib/tags.js';
 
-import Collective from './Collective';
-import User from './User';
+import Collective from './Collective.js';
+import User from './User.js';
 
 export const sanitizerOptions = buildSanitizerOptions({
   titles: true,

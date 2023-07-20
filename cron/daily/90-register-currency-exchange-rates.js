@@ -1,13 +1,13 @@
 #!/usr/bin/env node
-import '../../server/env';
+import '../../server/env.js';
 
-import { keys, without } from 'lodash';
+import { keys, without } from 'lodash-es';
 
-import { SUPPORTED_CURRENCIES } from '../../server/constants/currencies';
-import { fetchFxRates } from '../../server/lib/currency';
-import logger from '../../server/lib/logger';
-import { reportMessageToSentry } from '../../server/lib/sentry';
-import models from '../../server/models';
+import { SUPPORTED_CURRENCIES } from '../../server/constants/currencies.js';
+import { fetchFxRates } from '../../server/lib/currency.js';
+import logger from '../../server/lib/logger.js';
+import { reportMessageToSentry } from '../../server/lib/sentry.js';
+import models from '../../server/models/index.js';
 
 const PLATFORM_BASE_CURRENCY = 'USD';
 const CURRENCIES_TO_FETCH = without(SUPPORTED_CURRENCIES, PLATFORM_BASE_CURRENCY);

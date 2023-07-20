@@ -1,16 +1,16 @@
 import config from 'config';
 import { GraphQLNonNull } from 'graphql';
-import { pick } from 'lodash';
+import { pick } from 'lodash-es';
 
-import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models from '../../../models';
-import { checkRemoteUserCanUseApplications } from '../../common/scope-check';
-import { Forbidden, NotFound, RateLimitExceeded } from '../../errors';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication/index.js';
+import models from '../../../models/index.js';
+import { checkRemoteUserCanUseApplications } from '../../common/scope-check.js';
+import { Forbidden, NotFound, RateLimitExceeded } from '../../errors.js';
 import { fetchAccountWithReference } from '../input/AccountReferenceInput.js';
-import { GraphQLApplicationCreateInput } from '../input/ApplicationCreateInput';
-import { fetchApplicationWithReference, GraphQLApplicationReferenceInput } from '../input/ApplicationReferenceInput';
-import { GraphQLApplicationUpdateInput } from '../input/ApplicationUpdateInput';
-import { GraphQLApplication } from '../object/Application';
+import { GraphQLApplicationCreateInput } from '../input/ApplicationCreateInput.js';
+import { fetchApplicationWithReference, GraphQLApplicationReferenceInput } from '../input/ApplicationReferenceInput.js';
+import { GraphQLApplicationUpdateInput } from '../input/ApplicationUpdateInput.js';
+import { GraphQLApplication } from '../object/Application.js';
 
 const createApplication = {
   type: GraphQLApplication,

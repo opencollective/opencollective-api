@@ -3,9 +3,9 @@ import config from 'config';
 import nock from 'nock';
 import { useFakeTimers } from 'sinon';
 
-import models from '../../../server/models';
-import { randEmail } from '../../stores';
-import * as utils from '../../utils';
+import models from '../../../server/models/index.js';
+import { randEmail } from '../../stores/index.js';
+import * as utils from '../../utils.js';
 
 describe('server/models/PaymentMethod', () => {
   let timer, user, collective, organization, paymentMethod;

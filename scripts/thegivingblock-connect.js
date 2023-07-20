@@ -1,9 +1,9 @@
-import '../server/env';
+import '../server/env.js';
 
 import config from 'config';
 
-import models, { sequelize } from '../server/models';
-import { login } from '../server/paymentProviders/thegivingblock';
+import models, { sequelize } from '../server/models/index.js';
+import { login } from '../server/paymentProviders/thegivingblock/index.js';
 
 const HOST_ID = process.env.HOST_ID || 11004;
 

@@ -1,4 +1,4 @@
-import { differenceBy, isEqual, merge } from 'lodash';
+import { differenceBy, isEqual, merge } from 'lodash-es';
 import { Model } from 'sequelize';
 
 /** A diff as [newEntries, removedEntries, updatedEntries] */

@@ -1,9 +1,9 @@
 import DataLoader from 'dataloader';
 
-import models, { sequelize } from '../../models';
-import User from '../../models/User';
+import models, { sequelize } from '../../models/index.js';
+import User from '../../models/User.js';
 
-import { sortResultsSimple } from './helpers';
+import { sortResultsSimple } from './helpers.js';
 
 export const generateUserByCollectiveIdLoader = (): DataLoader<number, User> => {
   return new DataLoader(async (collectiveIds: number[]) => {

@@ -10,13 +10,13 @@ import {
   GraphQLScalarType,
   GraphQLString,
 } from 'graphql';
-import { Kind } from 'graphql/language';
+import { Kind } from 'graphql/language/index.mjs';
 import { GraphQLJSON } from 'graphql-scalars';
 
-import { GraphQLCaptchaInput } from '../v2/input/CaptchaInput';
-import { GraphQLSocialLinkInput } from '../v2/input/SocialLinkInput';
+import { GraphQLCaptchaInput } from '../v2/input/CaptchaInput.js';
+import { GraphQLSocialLinkInput } from '../v2/input/SocialLinkInput.js';
 
-import { DateString } from './types';
+import { DateString } from './types.js';
 
 const EmailType = new GraphQLScalarType({
   name: 'Email',

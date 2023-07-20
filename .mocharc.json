@@ -1,7 +1,7 @@
 {
   "timeout": 20000,
   "extension": ["js", "ts"],
-  "require": ["./test/setup-babel.js"],
+  "loader": "ts-node/esm",
   "file": ["./test/setup.js", "./server/env.js"],
   "ignore": [
     "test/dbdumps/**",

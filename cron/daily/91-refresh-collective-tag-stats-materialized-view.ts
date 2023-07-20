@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
-import '../../server/env';
+import '../../server/env.js';
 
-import logger from '../../server/lib/logger';
-import { reportErrorToSentry } from '../../server/lib/sentry';
-import { sequelize } from '../../server/models';
+import logger from '../../server/lib/logger.js';
+import { reportErrorToSentry } from '../../server/lib/sentry.js';
+import { sequelize } from '../../server/models/index.js';
 
 /**
  * Refresh the collective tag stats materialized view.
@@ -20,7 +20,9 @@ export async function run() {
   logger.info(`CollectiveTagStats materialized view refreshed in ${runSeconds}.${runMilliSeconds} seconds`);
 }
 
-if (require.main === module) {
+import { pathToFileURL } from 'url';
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   run()
     .then(() => process.exit(0))
     .catch(e => {

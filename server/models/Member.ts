@@ -1,16 +1,16 @@
-import { pick } from 'lodash';
+import { pick } from 'lodash-es';
 import { InferAttributes, InferCreationAttributes, Model, ModelStatic } from 'sequelize';
 
-import { types as CollectiveType } from '../constants/collectives';
-import roles from '../constants/roles';
-import MemberRoles from '../constants/roles';
-import { invalidateContributorsCache } from '../lib/contributors';
-import sequelize, { DataTypes } from '../lib/sequelize';
-import { days } from '../lib/utils';
+import { types as CollectiveType } from '../constants/collectives.js';
+import roles from '../constants/roles.js';
+import MemberRoles from '../constants/roles.js';
+import { invalidateContributorsCache } from '../lib/contributors.js';
+import sequelize, { DataTypes } from '../lib/sequelize.js';
+import { days } from '../lib/utils.js';
 
-import Collective from './Collective';
-import Tier from './Tier';
-import User from './User';
+import Collective from './Collective.js';
+import Tier from './Tier.js';
+import User from './User.js';
 
 const invalidateContributorsCacheUsingInstance = instance => {
   if (instance.role !== roles.FOLLOWER) {

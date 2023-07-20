@@ -1,9 +1,9 @@
 import { GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
-import { pick } from 'lodash';
+import { pick } from 'lodash-es';
 
-import { getTagFrequencies } from '../../../../lib/search';
-import { GraphQLTagStatsCollection } from '../../collection/TagStatsCollection';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
+import { getTagFrequencies } from '../../../../lib/search.js';
+import { GraphQLTagStatsCollection } from '../../collection/TagStatsCollection.js';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput.js';
 
 const TagStatsCollectionQuery = {
   type: new GraphQLNonNull(GraphQLTagStatsCollection),

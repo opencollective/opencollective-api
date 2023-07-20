@@ -3,20 +3,20 @@
 import { expect } from 'chai';
 import { assert, createSandbox } from 'sinon';
 
-import { Service } from '../../../../server/constants/connected_account';
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
-import cache from '../../../../server/lib/cache';
-import stripe from '../../../../server/lib/stripe';
-import * as common from '../../../../server/paymentProviders/stripe/common';
-import creditcard from '../../../../server/paymentProviders/stripe/creditcard';
+import { Service } from '../../../../server/constants/connected_account.js';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods.js';
+import cache from '../../../../server/lib/cache/index.js';
+import stripe from '../../../../server/lib/stripe.js';
+import * as common from '../../../../server/paymentProviders/stripe/common.js';
+import creditcard from '../../../../server/paymentProviders/stripe/creditcard.js';
 import {
   fakeCollective,
   fakeConnectedAccount,
   fakeOrder,
   fakePaymentMethod,
   randStr,
-} from '../../../test-helpers/fake-data';
-import * as utils from '../../../utils';
+} from '../../../test-helpers/fake-data.js';
+import * as utils from '../../../utils.js';
 
 describe('server/paymentProviders/stripe/creditcard', () => {
   describe('#processOrder()', async () => {

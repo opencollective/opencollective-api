@@ -2,11 +2,11 @@ import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
 import nock from 'nock';
 
-import { activities } from '../../../../../server/constants';
-import models from '../../../../../server/models';
-import { randEmail } from '../../../../stores';
-import { fakeUser } from '../../../../test-helpers/fake-data';
-import * as utils from '../../../../utils';
+import { activities } from '../../../../../server/constants/index.js';
+import models from '../../../../../server/models/index.js';
+import { randEmail } from '../../../../stores/index.js';
+import { fakeUser } from '../../../../test-helpers/fake-data.js';
+import * as utils from '../../../../utils.js';
 
 const createCollectiveMutation = gqlV2/* GraphQL */ `
   mutation CreateCollective(

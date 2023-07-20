@@ -1,10 +1,10 @@
 import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes } from 'sequelize';
 
-import ActivityTypes from '../constants/activities';
-import dispatch from '../lib/notifications';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import ActivityTypes from '../constants/activities.js';
+import dispatch from '../lib/notifications/index.js';
+import sequelize, { DataTypes, Model } from '../lib/sequelize.js';
 
-import Expense from './Expense';
+import Expense from './Expense.js';
 
 export class Activity extends Model<InferAttributes<Activity>, InferCreationAttributes<Activity>> {
   public declare readonly id: CreationOptional<number>;

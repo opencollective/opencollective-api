@@ -7,12 +7,11 @@
 import { createSandbox } from 'sinon';
 import { v4 as uuid } from 'uuid';
 
-import * as expenses from '../../server/graphql/common/expenses';
-import * as libpayments from '../../server/lib/payments';
-/* Libraries that create the objects */
-import models from '../../server/models';
-import { randStr } from '../test-helpers/fake-data';
-import * as utils from '../utils';
+import * as expenses from '../../server/graphql/common/expenses.js';
+import * as libpayments from '../../server/lib/payments.js';
+import models from '../../server/models/index.js';
+import { randStr } from '../test-helpers/fake-data.js';
+import * as utils from '../utils.js';
 
 /** Randomize email since it's a unique key in the database
  *

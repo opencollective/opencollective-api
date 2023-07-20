@@ -1,7 +1,7 @@
 import { GraphQLInputObjectType, GraphQLString } from 'graphql';
 import { GraphQLJSONObject } from 'graphql-scalars';
 
-import { GraphQLVirtualCardProvider } from '../enum/VirtualCardProvider';
+import { GraphQLVirtualCardProvider } from '../enum/VirtualCardProvider.js';
 
 export const GraphQLVirtualCardInput = new GraphQLInputObjectType({
   name: 'VirtualCardInput',

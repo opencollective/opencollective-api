@@ -174,6 +174,8 @@ export async function checkIndepedentCollectives({ fix = false } = {}) {
   await checkHostFeePercent({ fix });
 }
 
-if (!module.parent) {
+import { pathToFileURL } from 'url';
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   checkIndepedentCollectives();
 }

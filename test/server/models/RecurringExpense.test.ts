@@ -2,10 +2,10 @@ import { expect } from 'chai';
 import moment from 'moment';
 import { createSandbox } from 'sinon';
 
-import emailLib from '../../../server/lib/email';
-import models from '../../../server/models';
-import { fakeExpense, fakeRecurringExpense } from '../../test-helpers/fake-data';
-import * as utils from '../../utils';
+import emailLib from '../../../server/lib/email.js';
+import models from '../../../server/models/index.js';
+import { fakeExpense, fakeRecurringExpense } from '../../test-helpers/fake-data.js';
+import * as utils from '../../utils.js';
 
 describe('server/models/RecurringExpense', () => {
   let sandbox, emailSendMessageSpy;

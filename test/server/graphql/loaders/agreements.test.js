@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 
-import { generateTotalAccountHostAgreementsLoader } from '../../../../server/graphql/loaders/agreements';
-import Agreement from '../../../../server/models/Agreement';
-import { fakeCollective, fakeHost } from '../../../test-helpers/fake-data';
+import { generateTotalAccountHostAgreementsLoader } from '../../../../server/graphql/loaders/agreements.js';
+import Agreement from '../../../../server/models/Agreement.js';
+import { fakeCollective, fakeHost } from '../../../test-helpers/fake-data.js';
 
 describe('server/graphql/loaders/agreements', () => {
   describe('generateTotalAccountHostAgreementsLoader', () => {

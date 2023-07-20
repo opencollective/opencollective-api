@@ -1,11 +1,11 @@
 import config from 'config';
 import * as hcaptcha from 'hcaptcha';
 
-import CAPTCHA_PROVIDERS from '../constants/captcha-providers';
+import CAPTCHA_PROVIDERS from '../constants/captcha-providers.js';
 
-import logger from './logger';
-import recaptcha from './recaptcha';
-import { parseToBoolean } from './utils';
+import logger from './logger.js';
+import recaptcha from './recaptcha.js';
+import { parseToBoolean } from './utils.js';
 
 export async function checkCaptcha(captcha: { token: string; provider: CAPTCHA_PROVIDERS }, reqIp: string) {
   const isCaptchaEnabled = parseToBoolean(config.captcha?.enabled);

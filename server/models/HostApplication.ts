@@ -1,10 +1,10 @@
-import { pick } from 'lodash';
+import { pick } from 'lodash-es';
 import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes } from 'sequelize';
 
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import sequelize, { DataTypes, Model } from '../lib/sequelize.js';
 
-import Collective from './Collective';
-import User from './User';
+import Collective from './Collective.js';
+import User from './User.js';
 
 export enum HostApplicationStatus {
   PENDING = 'PENDING',

@@ -2,9 +2,9 @@ import config from 'config';
 import jwt from 'jsonwebtoken';
 import moment from 'moment';
 
-import * as errors from '../graphql/errors';
+import * as errors from '../graphql/errors.js';
 
-import { crypto, generateKey } from './encryption';
+import { crypto, generateKey } from './encryption.js';
 
 // Helper
 const daysToSeconds = days => moment.duration({ days }).asSeconds();

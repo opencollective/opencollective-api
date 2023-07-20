@@ -1,7 +1,7 @@
 import { GraphQLNonNull, GraphQLObjectType } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import { GraphQLAmount } from './Amount';
+import { GraphQLAmount } from './Amount.js';
 
 const GraphQLExpenseQuote = new GraphQLObjectType({
   name: 'ExpenseQuote',

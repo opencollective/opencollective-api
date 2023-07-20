@@ -23,7 +23,7 @@
  */
 
 import express from 'express';
-import { get, has, isNil, set } from 'lodash';
+import { get, has, isNil, set } from 'lodash-es';
 
 /**
  * Context permissions types to use with `allowContextPermission` and `getContextPermission`

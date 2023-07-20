@@ -1,17 +1,17 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull } from 'graphql';
-import { intersection, isNil } from 'lodash';
+import { intersection, isNil } from 'lodash-es';
 
-import { types as CollectiveTypes } from '../../../constants/collectives';
-import MemberRoles from '../../../constants/roles';
-import models, { Op, sequelize } from '../../../models';
-import { checkScope } from '../../common/scope-check';
-import { BadRequest } from '../../errors';
-import { GraphQLMemberCollection } from '../collection/MemberCollection';
-import { AccountTypeToModelMapping, GraphQLAccountType } from '../enum/AccountType';
-import { GraphQLMemberRole } from '../enum/MemberRole';
-import { GraphQLChronologicalOrderInput } from '../input/ChronologicalOrderInput';
-import MemberInvitationsQuery from '../query/MemberInvitationsQuery';
-import EmailAddress from '../scalar/EmailAddress';
+import { types as CollectiveTypes } from '../../../constants/collectives.js';
+import MemberRoles from '../../../constants/roles.js';
+import models, { Op, sequelize } from '../../../models/index.js';
+import { checkScope } from '../../common/scope-check.js';
+import { BadRequest } from '../../errors.js';
+import { GraphQLMemberCollection } from '../collection/MemberCollection.js';
+import { AccountTypeToModelMapping, GraphQLAccountType } from '../enum/AccountType.js';
+import { GraphQLMemberRole } from '../enum/MemberRole.js';
+import { GraphQLChronologicalOrderInput } from '../input/ChronologicalOrderInput.js';
+import MemberInvitationsQuery from '../query/MemberInvitationsQuery.js';
+import EmailAddress from '../scalar/EmailAddress.js';
 
 export const HasMembersFields = {
   members: {

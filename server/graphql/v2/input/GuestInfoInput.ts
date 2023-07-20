@@ -1,9 +1,9 @@
 import { GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
 
-import GraphQLEmailAddress from '../scalar/EmailAddress';
+import GraphQLEmailAddress from '../scalar/EmailAddress.js';
 
-import { GraphQLCaptchaInput } from './CaptchaInput';
-import { GraphQLLocationInput } from './LocationInput';
+import { GraphQLCaptchaInput } from './CaptchaInput.js';
+import { GraphQLLocationInput } from './LocationInput.js';
 
 export const GraphQLGuestInfoInput = new GraphQLInputObjectType({
   name: 'GuestInfoInput',

@@ -1,10 +1,10 @@
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
-import { collectiveResolver, fromCollectiveResolver } from '../../common/comment';
-import { GraphQLCommentType } from '../enum/CommentType';
-import { getIdEncodeResolver } from '../identifiers';
-import { GraphQLAccount } from '../interface/Account';
+import { collectiveResolver, fromCollectiveResolver } from '../../common/comment.js';
+import { GraphQLCommentType } from '../enum/CommentType.js';
+import { getIdEncodeResolver } from '../identifiers.js';
+import { GraphQLAccount } from '../interface/Account.js';
 
 export const GraphQLComment = new GraphQLObjectType({
   name: 'Comment',

@@ -1,6 +1,6 @@
 import config from 'config';
 
-import { VirtualCardLimitIntervals } from './virtual-cards';
+import { VirtualCardLimitIntervals } from './virtual-cards.js';
 
 enum POLICIES {
   // When enabled, the author (the user that submitted and not necessarily the benefactor) of an Expense, cannot Approve the same expense.

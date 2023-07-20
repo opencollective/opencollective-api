@@ -1,9 +1,9 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
 
-import Agreement from '../../../../../server/models/Agreement';
-import { fakeCollective, fakeHost, fakeUploadedFile, fakeUser } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2 } from '../../../../utils';
+import Agreement from '../../../../../server/models/Agreement.js';
+import { fakeCollective, fakeHost, fakeUploadedFile, fakeUser } from '../../../../test-helpers/fake-data.js';
+import { graphqlQueryV2 } from '../../../../utils.js';
 
 const accountQuery = gqlV2/* GraphQL */ `
   query Account($slug: String!) {

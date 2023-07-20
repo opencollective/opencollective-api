@@ -1,10 +1,10 @@
 import axios from 'axios';
 import { expect } from 'chai';
-import _ from 'lodash';
+import _ from 'lodash-es';
 import { createSandbox, stub } from 'sinon';
 
-import activitiesLib from '../../../server/lib/activities';
-import slackLib from '../../../server/lib/slack';
+import activitiesLib from '../../../server/lib/activities.js';
+import slackLib from '../../../server/lib/slack.js';
 
 describe('server/lib/slack', () => {
   describe('calling postMessage', () => {

@@ -1,7 +1,7 @@
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 
-import { CollectionFields, GraphQLCollection } from '../interface/Collection';
-import { GraphQLVirtualCardRequest } from '../object/VirtualCardRequest';
+import { CollectionFields, GraphQLCollection } from '../interface/Collection.js';
+import { GraphQLVirtualCardRequest } from '../object/VirtualCardRequest.js';
 
 export const GraphQLVirtualCardRequestCollection = new GraphQLObjectType({
   name: 'VirtualCardRequestCollection',

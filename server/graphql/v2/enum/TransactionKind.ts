@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
-import { TransactionKind as TransactionKindEnum } from '.././../../constants/transaction-kind';
+import { TransactionKind as TransactionKindEnum } from '.././../../constants/transaction-kind.js';
 
 export const GraphQLTransactionKind = new GraphQLEnumType({
   name: 'TransactionKind',

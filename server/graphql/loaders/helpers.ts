@@ -1,9 +1,9 @@
 import DataLoader from 'dataloader';
 import type { Request } from 'express';
-import { get } from 'lodash';
+import { get } from 'lodash-es';
 import { Model, ModelStatic } from 'sequelize';
 
-import models from '../../models';
+import models from '../../models/index.js';
 
 /** A default getter that returns item's id */
 const defaultKeyGetter = (item): number | string => item.id;

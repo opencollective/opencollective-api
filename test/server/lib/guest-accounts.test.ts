@@ -1,10 +1,10 @@
 import { expect } from 'chai';
 
-import { confirmGuestAccountByEmail, getOrCreateGuestProfile } from '../../../server/lib/guest-accounts';
-import models from '../../../server/models';
-import { randEmail } from '../../stores';
-import { fakeUser, randStr } from '../../test-helpers/fake-data';
-import { resetTestDB } from '../../utils';
+import { confirmGuestAccountByEmail, getOrCreateGuestProfile } from '../../../server/lib/guest-accounts.js';
+import models from '../../../server/models/index.js';
+import { randEmail } from '../../stores/index.js';
+import { fakeUser, randStr } from '../../test-helpers/fake-data.js';
+import { resetTestDB } from '../../utils.js';
 
 describe('server/lib/guest-accounts.ts', () => {
   before(resetTestDB);

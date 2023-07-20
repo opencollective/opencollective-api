@@ -1,8 +1,8 @@
 import config from 'config';
-import { get } from 'lodash';
+import { get } from 'lodash-es';
 import { createClient, RedisClientType } from 'redis';
 
-import logger from './logger';
+import logger from './logger.js';
 
 let redisClient;
 

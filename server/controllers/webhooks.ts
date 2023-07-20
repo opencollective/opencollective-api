@@ -1,11 +1,11 @@
 import { NextFunction, Request, Response } from 'express';
 
-import logger from '../lib/logger';
-import { reportErrorToSentry } from '../lib/sentry';
-import paymentProviders from '../paymentProviders';
-import paypalWebhookHandler from '../paymentProviders/paypal/webhook';
-import thegivingblockWebhookHandler from '../paymentProviders/thegivingblock/webhook';
-import transferwiseWebhookHandler from '../paymentProviders/transferwise/webhook';
+import logger from '../lib/logger.js';
+import { reportErrorToSentry } from '../lib/sentry.js';
+import paymentProviders from '../paymentProviders/index.js';
+import paypalWebhookHandler from '../paymentProviders/paypal/webhook.js';
+import thegivingblockWebhookHandler from '../paymentProviders/thegivingblock/webhook.js';
+import transferwiseWebhookHandler from '../paymentProviders/transferwise/webhook.js';
 
 export async function stripeWebhook(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {

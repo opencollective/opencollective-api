@@ -1,15 +1,15 @@
 import type { Request } from 'express';
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
-import models from '../../../models';
-import { canEditExpenseTags } from '../../common/expenses';
-import { checkRemoteUserCanUseExpenses, checkRemoteUserCanUseOrders } from '../../common/scope-check';
-import { Unauthorized } from '../../errors';
-import { fetchExpenseWithReference, GraphQLExpenseReferenceInput } from '../input/ExpenseReferenceInput';
-import { fetchOrderWithReference, GraphQLOrderReferenceInput } from '../input/OrderReferenceInput';
-import { GraphQLExpense } from '../object/Expense';
-import { GraphQLOrder } from '../object/Order';
-import { canSetOrderTags } from '../object/OrderPermissions';
+import models from '../../../models/index.js';
+import { canEditExpenseTags } from '../../common/expenses.js';
+import { checkRemoteUserCanUseExpenses, checkRemoteUserCanUseOrders } from '../../common/scope-check.js';
+import { Unauthorized } from '../../errors.js';
+import { fetchExpenseWithReference, GraphQLExpenseReferenceInput } from '../input/ExpenseReferenceInput.js';
+import { fetchOrderWithReference, GraphQLOrderReferenceInput } from '../input/OrderReferenceInput.js';
+import { GraphQLExpense } from '../object/Expense.js';
+import { GraphQLOrder } from '../object/Order.js';
+import { canSetOrderTags } from '../object/OrderPermissions.js';
 
 const GraphQLTagResponse = new GraphQLObjectType({
   name: 'TagResponse',

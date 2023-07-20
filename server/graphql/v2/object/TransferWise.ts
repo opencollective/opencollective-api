@@ -1,11 +1,11 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLJSON, GraphQLJSONObject } from 'graphql-scalars';
 
-import models, { Op } from '../../../models';
-import transferwise from '../../../paymentProviders/transferwise';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import models, { Op } from '../../../models/index.js';
+import transferwise from '../../../paymentProviders/transferwise/index.js';
+import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers.js';
 
-import { GraphQLAmount } from './Amount';
+import { GraphQLAmount } from './Amount.js';
 
 const GraphQLTransferWiseFieldGroupValuesAllowed = new GraphQLObjectType({
   name: 'TransferWiseFieldVatvkluesAllowed',

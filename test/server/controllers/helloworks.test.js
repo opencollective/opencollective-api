@@ -1,12 +1,12 @@
 import { expect } from 'chai';
 import config from 'config';
-import { get } from 'lodash';
+import { get } from 'lodash-es';
 import { assert, createSandbox, spy } from 'sinon';
 
-import helloworksController from '../../../server/controllers/helloworks';
-import * as awsS3Lib from '../../../server/lib/awsS3';
-import models from '../../../server/models';
-import { randEmail, randUrl } from '../../stores';
+import helloworksController from '../../../server/controllers/helloworks.js';
+import * as awsS3Lib from '../../../server/lib/awsS3.js';
+import models from '../../../server/models/index.js';
+import { randEmail, randUrl } from '../../stores/index.js';
 import {
   fakeCollective,
   fakeExpense,
@@ -14,7 +14,7 @@ import {
   fakeLegalDocument,
   fakeOrganization,
   fakeUser,
-} from '../../test-helpers/fake-data';
+} from '../../test-helpers/fake-data.js';
 
 const HELLO_WORKS_WORKFLOW_ID = get(config, 'helloworks.workflowId');
 

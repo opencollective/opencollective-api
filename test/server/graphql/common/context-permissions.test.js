@@ -4,8 +4,8 @@ import {
   allowContextPermission,
   getContextPermission,
   PERMISSION_TYPE,
-} from '../../../../server/graphql/common/context-permissions';
-import { makeRequest } from '../../../utils';
+} from '../../../../server/graphql/common/context-permissions.js';
+import { makeRequest } from '../../../utils.js';
 
 describe('server/graphql/common/context-permissions', () => {
   let req;

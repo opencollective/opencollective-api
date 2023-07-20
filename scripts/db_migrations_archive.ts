@@ -1,4 +1,4 @@
-import '../server/env';
+import '../server/env.js';
 
 import { execSync } from 'child_process';
 import fs from 'fs';
@@ -6,7 +6,7 @@ import fs from 'fs';
 import { Command } from 'commander';
 import moment from 'moment';
 
-import { confirm } from './common/helpers';
+import { confirm } from './common/helpers.js';
 
 const options = new Command()
   .description('Helper to archive old migrations')

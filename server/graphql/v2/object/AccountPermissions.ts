@@ -1,10 +1,10 @@
 import express from 'express';
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
-import { checkScope } from '../../common/scope-check';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { checkScope } from '../../common/scope-check.js';
+import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers.js';
 
-import { GraphQLPermission, PermissionFields } from './Permission';
+import { GraphQLPermission, PermissionFields } from './Permission.js';
 
 const GraphQLAccountPermissions = new GraphQLObjectType({
   name: 'AccountPermissions',

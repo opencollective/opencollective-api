@@ -2,7 +2,7 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
 
-import * as ExpenseLib from '../../common/expenses';
+import * as ExpenseLib from '../../common/expenses.js';
 
 export const GraphQLPermission = new GraphQLObjectType({
   name: 'Permission',

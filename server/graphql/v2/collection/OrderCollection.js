@@ -1,7 +1,7 @@
 import { GraphQLList, GraphQLObjectType } from 'graphql';
 
-import { CollectionFields, GraphQLCollection } from '../interface/Collection';
-import { GraphQLOrder } from '../object/Order';
+import { CollectionFields, GraphQLCollection } from '../interface/Collection.js';
+import { GraphQLOrder } from '../object/Order.js';
 
 export const GraphQLOrderCollection = new GraphQLObjectType({
   name: 'OrderCollection',

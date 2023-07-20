@@ -1,7 +1,7 @@
 import { GraphQLInterfaceType, GraphQLNonNull } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import { GraphQLTimeUnit } from '../enum/TimeUnit';
+import { GraphQLTimeUnit } from '../enum/TimeUnit.js';
 
 export const getTimeSeriesFields = () => ({
   dateFrom: {

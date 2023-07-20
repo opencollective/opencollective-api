@@ -1,7 +1,7 @@
-import { pick } from 'lodash';
+import { pick } from 'lodash-es';
 
-import { ApplicationReferenceFields, fetchApplicationWithReference } from '../input/ApplicationReferenceInput';
-import { GraphQLApplication } from '../object/Application';
+import { ApplicationReferenceFields, fetchApplicationWithReference } from '../input/ApplicationReferenceInput.js';
+import { GraphQLApplication } from '../object/Application.js';
 
 const ApplicationQuery = {
   type: GraphQLApplication,

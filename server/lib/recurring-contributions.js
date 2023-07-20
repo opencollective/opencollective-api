@@ -1,24 +1,24 @@
 import config from 'config';
-import { get, omit } from 'lodash';
+import { get, omit } from 'lodash-es';
 import moment from 'moment';
 import { Op } from 'sequelize';
 
-import activities from '../constants/activities';
-import intervals from '../constants/intervals';
-import status from '../constants/order_status';
-import { PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
-import roles from '../constants/roles';
-import models from '../models';
+import activities from '../constants/activities.js';
+import intervals from '../constants/intervals.js';
+import status from '../constants/order_status.js';
+import { PAYMENT_METHOD_TYPE } from '../constants/paymentMethods.js';
+import roles from '../constants/roles.js';
+import models from '../models/index.js';
 
-import { notify } from './notifications/email';
-import { FEATURE } from './allowed-features';
-import emailLib from './email';
-import logger from './logger';
-import * as paymentsLib from './payments';
-import { getTransactionPdf } from './pdf';
-import { reportErrorToSentry } from './sentry';
-import { getEditRecurringContributionsUrl } from './url-utils';
-import { sleep, toIsoDateStr } from './utils';
+import { notify } from './notifications/email.js';
+import { FEATURE } from './allowed-features.js';
+import emailLib from './email.js';
+import logger from './logger.js';
+import * as paymentsLib from './payments.js';
+import { getTransactionPdf } from './pdf.js';
+import { reportErrorToSentry } from './sentry.js';
+import { getEditRecurringContributionsUrl } from './url-utils.js';
+import { sleep, toIsoDateStr } from './utils.js';
 
 /** Maximum number of attempts before an order gets cancelled. */
 export const MAX_RETRIES = 6;

@@ -1,18 +1,18 @@
 import config from 'config';
 import debug from 'debug';
-import { get } from 'lodash';
+import { get } from 'lodash-es';
 import moment from 'moment';
 
-import ActivityTypes from '../../constants/activities';
-import { convertToCurrency } from '../../lib/currency';
-import errors from '../../lib/errors';
-import { formatCurrency } from '../../lib/utils';
-import models, { Op } from '../../models';
+import ActivityTypes from '../../constants/activities.js';
+import { convertToCurrency } from '../../lib/currency.js';
+import errors from '../../lib/errors.js';
+import { formatCurrency } from '../../lib/utils.js';
+import models, { Op } from '../../models/index.js';
 
-import adaptive from './adaptive';
-import paypalAdaptive from './adaptiveGateway';
-import payment from './payment';
-import subscription from './subscription';
+import adaptive from './adaptive.js';
+import paypalAdaptive from './adaptiveGateway.js';
+import payment from './payment.js';
+import subscription from './subscription.js';
 
 const debugPaypal = debug('paypal');
 

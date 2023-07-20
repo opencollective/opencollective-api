@@ -1,10 +1,10 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
-import * as ExpenseLib from '../../common/expenses';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import * as ExpenseLib from '../../common/expenses.js';
+import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers.js';
 
-import { GraphQLPermission, parsePermissionFromEvaluator } from './Permission';
+import { GraphQLPermission, parsePermissionFromEvaluator } from './Permission.js';
 
 const GraphQLExpensePermissions = new GraphQLObjectType({
   name: 'ExpensePermissions',

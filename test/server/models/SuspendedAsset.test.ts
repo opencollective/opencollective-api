@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 
-import SuspendedAsset, { AssetType } from '../../../server/models/SuspendedAsset';
-import { fakeSuspendedAsset, multiple } from '../../test-helpers/fake-data';
+import SuspendedAsset, { AssetType } from '../../../server/models/SuspendedAsset.js';
+import { fakeSuspendedAsset, multiple } from '../../test-helpers/fake-data.js';
 
 describe('server/models/SuspendedAsset', () => {
   describe('assertAssetIsNotSuspended', () => {

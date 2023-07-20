@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
-import channels from '../../../constants/channels';
+import channels from '../../../constants/channels.js';
 
 export const GraphQLActivityChannel = new GraphQLEnumType({
   name: 'ActivityChannel',

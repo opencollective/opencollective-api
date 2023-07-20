@@ -1,8 +1,8 @@
 import cloudflare from 'cloudflare';
 import config from 'config';
 
-import logger from './logger';
-import { reportErrorToSentry } from './sentry';
+import logger from './logger.js';
+import { reportErrorToSentry } from './sentry.js';
 
 // Load config
 const cfConfig = config.cloudflare || {};

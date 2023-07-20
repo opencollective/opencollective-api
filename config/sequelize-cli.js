@@ -1,9 +1,9 @@
-import '../server/env';
+import '../server/env.js';
 
 import config from 'config';
-import { get } from 'lodash';
+import { get } from 'lodash-es';
 
-import { getDBConf } from '../server/lib/db';
+import { getDBConf } from '../server/lib/db.js';
 
 const dbConfig = getDBConf('database');
 

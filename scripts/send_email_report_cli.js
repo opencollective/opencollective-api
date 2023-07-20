@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import '../server/env';
+import '../server/env.js';
 
 console.log('This script is being deprecated.');
 console.log('To re-enable it, remove this message with a Pull Request explaining the use case.');
@@ -95,7 +95,7 @@ async function runReport(responses) {
     env.SLUGS = slugs.join(',');
   }
 
-  const command = `./node_modules/.bin/babel-node ${responses.command}`;
+  const command = `./node_modules/.bin/ts-node ${responses.command}`;
   console.log('>>> command', command);
   return new Promise(resolve => {
     const cmd = exec(command, { env });

@@ -1,14 +1,14 @@
 #!/usr/bin/env node
-import '../../server/env';
+import '../../server/env.js';
 
 import config from 'config';
-import _ from 'lodash';
+import _ from 'lodash-es';
 
-import emailLib from '../../server/lib/email';
-import queries from '../../server/lib/queries';
-import { reportErrorToSentry } from '../../server/lib/sentry';
-import { formatArrayToString, formatCurrency, formatCurrencyObject } from '../../server/lib/utils';
-import models, { Op, sequelize } from '../../server/models';
+import emailLib from '../../server/lib/email.js';
+import queries from '../../server/lib/queries.js';
+import { reportErrorToSentry } from '../../server/lib/sentry.js';
+import { formatArrayToString, formatCurrency, formatCurrencyObject } from '../../server/lib/utils.js';
+import models, { Op, sequelize } from '../../server/models/index.js';
 
 // Only run on the first of the year
 const today = new Date();

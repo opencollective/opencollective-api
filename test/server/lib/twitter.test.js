@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import twitter from '../../../server/lib/twitter';
+import twitter from '../../../server/lib/twitter.js';
 
 /**
  * The goal here is to test a host with collectives in multiple currencies

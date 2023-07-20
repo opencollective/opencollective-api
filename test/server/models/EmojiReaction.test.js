@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 
-import models from '../../../server/models';
-import { fakeComment, fakeUser } from '../../test-helpers/fake-data';
+import models from '../../../server/models/index.js';
+import { fakeComment, fakeUser } from '../../test-helpers/fake-data.js';
 
 describe('test/server/models/Expense', () => {
   describe('Create', () => {

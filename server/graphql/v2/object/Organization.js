@@ -1,11 +1,14 @@
 import { GraphQLObjectType, GraphQLString } from 'graphql';
 
-import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
-import { checkScope } from '../../common/scope-check';
-import { AccountFields, GraphQLAccount } from '../interface/Account';
-import { AccountWithContributionsFields, GraphQLAccountWithContributions } from '../interface/AccountWithContributions';
+import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions.js';
+import { checkScope } from '../../common/scope-check.js';
+import { AccountFields, GraphQLAccount } from '../interface/Account.js';
+import {
+  AccountWithContributionsFields,
+  GraphQLAccountWithContributions,
+} from '../interface/AccountWithContributions.js';
 
-import { GraphQLHost } from './Host';
+import { GraphQLHost } from './Host.js';
 
 export const GraphQLOrganization = new GraphQLObjectType({
   name: 'Organization',

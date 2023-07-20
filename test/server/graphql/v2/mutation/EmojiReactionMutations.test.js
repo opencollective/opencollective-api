@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
 
-import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers.js';
 import {
   fakeCollective,
   fakeComment,
@@ -9,9 +9,9 @@ import {
   fakeExpense,
   fakeUpdate,
   fakeUser,
-} from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2 } from '../../../../utils';
-import * as utils from '../../../../utils';
+} from '../../../../test-helpers/fake-data.js';
+import { graphqlQueryV2 } from '../../../../utils.js';
+import * as utils from '../../../../utils.js';
 
 describe('server/graphql/v2/mutation/EmojiReactionMutations', () => {
   before(utils.resetTestDB);

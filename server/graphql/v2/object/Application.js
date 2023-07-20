@@ -1,12 +1,12 @@
 import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
-import models from '../../../models';
-import { checkScope } from '../../common/scope-check';
-import { GraphQLApplicationType } from '../enum';
-import { idEncode } from '../identifiers';
-import { GraphQLAccount } from '../interface/Account';
-import { GraphQLOAuthAuthorization } from '../object/OAuthAuthorization';
-import URL from '../scalar/URL';
+import models from '../../../models/index.js';
+import { checkScope } from '../../common/scope-check.js';
+import { GraphQLApplicationType } from '../enum/index.js';
+import { idEncode } from '../identifiers.js';
+import { GraphQLAccount } from '../interface/Account.js';
+import { GraphQLOAuthAuthorization } from '../object/OAuthAuthorization.js';
+import URL from '../scalar/URL.js';
 
 export const GraphQLApplication = new GraphQLObjectType({
   name: 'Application',

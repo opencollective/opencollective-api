@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 import request from 'supertest';
 
-import app from '../../../server/index';
-import * as utils from '../../utils';
+import app from '../../../server/index.js';
+import * as utils from '../../utils.js';
 
 const application = utils.data('application');
 

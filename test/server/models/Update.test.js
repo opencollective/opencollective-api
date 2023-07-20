@@ -1,10 +1,10 @@
 import { expect } from 'chai';
-import { flatten, reduce, times } from 'lodash';
+import { flatten, reduce, times } from 'lodash-es';
 
-import models, { Op } from '../../../server/models';
-import { randEmail } from '../../stores';
-import { fakeCollective, fakeMember, fakeOrganization, fakeUpdate, fakeUser } from '../../test-helpers/fake-data';
-import * as utils from '../../utils';
+import models, { Op } from '../../../server/models/index.js';
+import { randEmail } from '../../stores/index.js';
+import { fakeCollective, fakeMember, fakeOrganization, fakeUpdate, fakeUser } from '../../test-helpers/fake-data.js';
+import * as utils from '../../utils.js';
 
 const addRandomMemberUsers = (collective, count, role) => {
   return Promise.all(

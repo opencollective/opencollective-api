@@ -3,13 +3,13 @@ import HelloWorks from 'helloworks-sdk';
 import moment from 'moment';
 import { assert, fake, replace, restore, spy } from 'sinon';
 
-import expenseTypes from '../../../server/constants/expense_type';
-import { US_TAX_FORM_THRESHOLD } from '../../../server/constants/tax-form';
-import emailLib from '../../../server/lib/email';
-import { findAccountsThatNeedToBeSentTaxForm, sendHelloWorksUsTaxForm } from '../../../server/lib/tax-forms';
-import models from '../../../server/models';
-import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
-import { randEmail } from '../../stores';
+import expenseTypes from '../../../server/constants/expense_type.js';
+import { US_TAX_FORM_THRESHOLD } from '../../../server/constants/tax-form.js';
+import emailLib from '../../../server/lib/email.js';
+import { findAccountsThatNeedToBeSentTaxForm, sendHelloWorksUsTaxForm } from '../../../server/lib/tax-forms.js';
+import models from '../../../server/models/index.js';
+import { PayoutMethodTypes } from '../../../server/models/PayoutMethod.js';
+import { randEmail } from '../../stores/index.js';
 import {
   fakeCollective,
   fakeExpense,
@@ -18,8 +18,8 @@ import {
   fakePayoutMethod,
   fakeUser,
   randStr,
-} from '../../test-helpers/fake-data';
-import * as utils from '../../utils';
+} from '../../test-helpers/fake-data.js';
+import * as utils from '../../utils.js';
 const { RECEIPT, INVOICE } = expenseTypes;
 
 const { RequiredLegalDocument, LegalDocument, Collective, User, Expense } = models;

@@ -3,30 +3,30 @@ import crypto from 'crypto';
 import * as LibTaxes from '@opencollective/taxes';
 import config from 'config';
 import debugLib from 'debug';
-import { get, isEmpty, isNil, omit, pick, set } from 'lodash';
+import { get, isEmpty, isNil, omit, pick, set } from 'lodash-es';
 
-import activities from '../../../constants/activities';
-import { types } from '../../../constants/collectives';
-import FEATURE from '../../../constants/feature';
-import status from '../../../constants/order_status';
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
-import roles from '../../../constants/roles';
-import { VAT_OPTIONS } from '../../../constants/vat';
-import { purgeCacheForCollective } from '../../../lib/cache';
-import { checkCaptcha } from '../../../lib/check-captcha';
-import * as github from '../../../lib/github';
-import { getOrCreateGuestProfile } from '../../../lib/guest-accounts';
-import { mustUpdateLocation } from '../../../lib/location';
-import logger from '../../../lib/logger';
-import * as libPayments from '../../../lib/payments';
-import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../lib/recurring-contributions';
-import { checkGuestContribution, checkOrdersLimit, cleanOrdersLimit } from '../../../lib/security/limit';
-import { orderFraudProtection } from '../../../lib/security/order';
-import { reportErrorToSentry } from '../../../lib/sentry';
-import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import { canUseFeature } from '../../../lib/user-permissions';
-import { formatCurrency } from '../../../lib/utils';
-import models, { Op } from '../../../models';
+import activities from '../../../constants/activities.js';
+import { types } from '../../../constants/collectives.js';
+import FEATURE from '../../../constants/feature.js';
+import status from '../../../constants/order_status.js';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods.js';
+import roles from '../../../constants/roles.js';
+import { VAT_OPTIONS } from '../../../constants/vat.js';
+import { purgeCacheForCollective } from '../../../lib/cache/index.js';
+import { checkCaptcha } from '../../../lib/check-captcha.js';
+import * as github from '../../../lib/github.js';
+import { getOrCreateGuestProfile } from '../../../lib/guest-accounts.js';
+import { mustUpdateLocation } from '../../../lib/location.js';
+import logger from '../../../lib/logger.js';
+import * as libPayments from '../../../lib/payments.js';
+import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../lib/recurring-contributions.js';
+import { checkGuestContribution, checkOrdersLimit, cleanOrdersLimit } from '../../../lib/security/limit.js';
+import { orderFraudProtection } from '../../../lib/security/order.js';
+import { reportErrorToSentry } from '../../../lib/sentry.js';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication/index.js';
+import { canUseFeature } from '../../../lib/user-permissions.js';
+import { formatCurrency } from '../../../lib/utils.js';
+import models, { Op } from '../../../models/index.js';
 import {
   BadRequest,
   FeatureNotAllowedForUser,
@@ -34,7 +34,7 @@ import {
   NotFound,
   Unauthorized,
   ValidationFailed,
-} from '../../errors';
+} from '../../errors.js';
 const debug = debugLib('orders');
 
 export const ORDER_PUBLIC_DATA_FIELDS = {

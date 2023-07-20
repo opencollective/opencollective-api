@@ -1,18 +1,18 @@
 import express from 'express';
 import { GraphQLNonNull, GraphQLString } from 'graphql';
-import { pick } from 'lodash';
+import { pick } from 'lodash-es';
 
-import logger from '../../../lib/logger';
-import { reportErrorToSentry } from '../../../lib/sentry';
-import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models from '../../../models';
-import PayoutMethodModel from '../../../models/PayoutMethod';
-import { checkRemoteUserCanUseExpenses } from '../../common/scope-check';
-import { Forbidden, NotFound, Unauthorized } from '../../errors';
-import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
-import { GraphQLPayoutMethodInput } from '../input/PayoutMethodInput';
-import GraphQLPayoutMethod from '../object/PayoutMethod';
+import logger from '../../../lib/logger.js';
+import { reportErrorToSentry } from '../../../lib/sentry.js';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication/index.js';
+import models from '../../../models/index.js';
+import PayoutMethodModel from '../../../models/PayoutMethod.js';
+import { checkRemoteUserCanUseExpenses } from '../../common/scope-check.js';
+import { Forbidden, NotFound, Unauthorized } from '../../errors.js';
+import { idDecode, IDENTIFIER_TYPES } from '../identifiers.js';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput.js';
+import { GraphQLPayoutMethodInput } from '../input/PayoutMethodInput.js';
+import GraphQLPayoutMethod from '../object/PayoutMethod.js';
 
 const payoutMethodMutations = {
   createPayoutMethod: {

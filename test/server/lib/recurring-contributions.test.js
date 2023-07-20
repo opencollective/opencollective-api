@@ -3,10 +3,10 @@ import config from 'config';
 import moment from 'moment';
 import { createSandbox, stub, useFakeTimers } from 'sinon';
 
-import activities from '../../../server/constants/activities';
-import status from '../../../server/constants/order_status';
-import emailLib from '../../../server/lib/email';
-import * as paymentsLib from '../../../server/lib/payments';
+import activities from '../../../server/constants/activities.js';
+import status from '../../../server/constants/order_status.js';
+import emailLib from '../../../server/lib/email.js';
+import * as paymentsLib from '../../../server/lib/payments.js';
 import {
   getChargeRetryCount,
   getNextChargeAndPeriodStartDates,
@@ -15,11 +15,11 @@ import {
   MAX_RETRIES,
   ordersWithPendingCharges,
   processOrderWithSubscription,
-} from '../../../server/lib/recurring-contributions';
-import models from '../../../server/models';
-import { randEmail } from '../../stores';
-import { fakeOrder } from '../../test-helpers/fake-data';
-import * as utils from '../../utils';
+} from '../../../server/lib/recurring-contributions.js';
+import models from '../../../server/models/index.js';
+import { randEmail } from '../../stores/index.js';
+import { fakeOrder } from '../../test-helpers/fake-data.js';
+import * as utils from '../../utils.js';
 
 async function createOrderWithSubscription(interval, date, quantity = 1) {
   const payment = { amount: 1000, currency: 'USD', interval };

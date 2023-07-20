@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { getGithubHandleFromUrl, getGithubUrlFromHandle } from '../../../server/lib/github';
+import { getGithubHandleFromUrl, getGithubUrlFromHandle } from '../../../server/lib/github.js';
 
 const VALID_GITHUB_PROFILES = {
   'https://github.com/opencollective': 'opencollective',

@@ -1,21 +1,21 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { compact, pick } from 'lodash';
+import { compact, pick } from 'lodash-es';
 import { Op } from 'sequelize';
 
-import ActivityTypes from '../../../constants/activities';
-import POLICIES from '../../../constants/policies';
-import MemberRoles from '../../../constants/roles';
-import { purgeCacheForCollective } from '../../../lib/cache';
-import { getPolicy } from '../../../lib/policies';
-import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models from '../../../models';
-import { editPublicMessage } from '../../common/members';
-import { checkRemoteUserCanRoot, checkRemoteUserCanUseAccount } from '../../common/scope-check';
-import { BadRequest, Forbidden, Unauthorized, ValidationFailed } from '../../errors';
-import { GraphQLMemberRole } from '../enum';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
-import { GraphQLMember } from '../object/Member';
+import ActivityTypes from '../../../constants/activities.js';
+import POLICIES from '../../../constants/policies.js';
+import MemberRoles from '../../../constants/roles.js';
+import { purgeCacheForCollective } from '../../../lib/cache/index.js';
+import { getPolicy } from '../../../lib/policies.js';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication/index.js';
+import models from '../../../models/index.js';
+import { editPublicMessage } from '../../common/members.js';
+import { checkRemoteUserCanRoot, checkRemoteUserCanUseAccount } from '../../common/scope-check.js';
+import { BadRequest, Forbidden, Unauthorized, ValidationFailed } from '../../errors.js';
+import { GraphQLMemberRole } from '../enum/index.js';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput.js';
+import { GraphQLMember } from '../object/Member.js';
 
 const isLastAdmin = async (account, memberAccount) => {
   // When checking if the member is the last admin for Minimum Amount of Admins policy,

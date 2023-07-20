@@ -1,8 +1,8 @@
-import '../server/env';
+import '../server/env.js';
 
 import fetch from 'node-fetch';
 
-import models, { Op } from '../server/models';
+import models, { Op } from '../server/models/index.js';
 
 const searchPattern = process.argv[2];
 if (!searchPattern) {

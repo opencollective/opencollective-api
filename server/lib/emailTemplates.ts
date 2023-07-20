@@ -1,6 +1,8 @@
+import url from 'url';
+const __dirname = url.fileURLToPath(new url.URL('.', import.meta.url));
 import fs from 'fs';
 
-import handlebars from './handlebars';
+import handlebars from './handlebars.js';
 
 /*
  * Loads all the email templates

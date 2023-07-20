@@ -1,9 +1,9 @@
 import { GraphQLString } from 'graphql';
 
-import models from '../../../models';
-import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
-import GraphQLUpdate from '../object/Update';
+import models from '../../../models/index.js';
+import { idDecode, IDENTIFIER_TYPES } from '../identifiers.js';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput.js';
+import GraphQLUpdate from '../object/Update.js';
 
 const UpdateQuery = {
   type: GraphQLUpdate,

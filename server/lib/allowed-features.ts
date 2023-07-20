@@ -1,8 +1,8 @@
-import { get } from 'lodash';
+import { get } from 'lodash-es';
 
-import { types } from '../constants/collectives';
-import FEATURE from '../constants/feature';
-import { Collective } from '../models';
+import { types } from '../constants/collectives.js';
+import FEATURE from '../constants/feature.js';
+import { Collective } from '../models/index.js';
 
 const HOST_TYPES = [types.USER, types.ORGANIZATION];
 

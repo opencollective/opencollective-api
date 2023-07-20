@@ -1,6 +1,6 @@
-import { main } from '../../../scripts/ledger/update-transactions';
-import { fakeTransaction } from '../../test-helpers/fake-data';
-import { resetTestDB, snapshotLedger } from '../../utils';
+import { main } from '../../../scripts/ledger/update-transactions.js';
+import { fakeTransaction } from '../../test-helpers/fake-data.js';
+import { resetTestDB, snapshotLedger } from '../../utils.js';
 
 const SNAPSHOT_COLUMNS = ['kind', 'type', 'amount', 'CollectiveId', 'FromCollectiveId', 'HostCollectiveId'];
 

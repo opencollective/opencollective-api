@@ -2,9 +2,9 @@ import { expect } from 'chai';
 import config from 'config';
 import request from 'supertest';
 
-import app from '../../../server/index';
-import models from '../../../server/models';
-import * as utils from '../../utils';
+import app from '../../../server/index.js';
+import models from '../../../server/models/index.js';
+import * as utils from '../../utils.js';
 
 const clientId = config.github.clientID;
 const application = utils.data('application');

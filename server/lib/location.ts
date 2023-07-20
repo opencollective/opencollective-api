@@ -1,6 +1,6 @@
-import { isEqual } from 'lodash';
+import { isEqual } from 'lodash-es';
 
-import { Location } from '../types/Location';
+import { Location } from '../types/Location.js';
 
 export const mustUpdateLocation = (existingLocation: Location, newLocation: Location) => {
   const fields = ['country', 'name', 'address', 'lat', 'long', 'structured'];

@@ -1,6 +1,6 @@
 import { TaxType } from '@opencollective/taxes';
 import debugLib from 'debug';
-import { get } from 'lodash';
+import { get } from 'lodash-es';
 import {
   HasManyGetAssociationsMixin,
   HasOneGetAssociationMixin,
@@ -11,23 +11,23 @@ import {
 } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
-import { roles } from '../constants';
-import OrderStatus from '../constants/order_status';
-import TierType from '../constants/tiers';
-import { PLATFORM_TIP_TRANSACTION_PROPERTIES, TransactionTypes } from '../constants/transactions';
-import * as libPayments from '../lib/payments';
-import sequelize, { DataTypes, Op, QueryTypes } from '../lib/sequelize';
-import { sanitizeTags, validateTags } from '../lib/tags';
-import { capitalize } from '../lib/utils';
+import { roles } from '../constants/index.js';
+import OrderStatus from '../constants/order_status.js';
+import TierType from '../constants/tiers.js';
+import { PLATFORM_TIP_TRANSACTION_PROPERTIES, TransactionTypes } from '../constants/transactions.js';
+import * as libPayments from '../lib/payments.js';
+import sequelize, { DataTypes, Op, QueryTypes } from '../lib/sequelize.js';
+import { sanitizeTags, validateTags } from '../lib/tags.js';
+import { capitalize } from '../lib/utils.js';
 
-import Collective from './Collective';
-import CustomDataTypes from './DataTypes';
-import { MemberModelInterface } from './Member';
-import PaymentMethod, { PaymentMethodModelInterface } from './PaymentMethod';
-import Subscription from './Subscription';
-import Tier from './Tier';
-import Transaction from './Transaction';
-import User from './User';
+import Collective from './Collective.js';
+import CustomDataTypes from './DataTypes.js';
+import { MemberModelInterface } from './Member.js';
+import PaymentMethod, { PaymentMethodModelInterface } from './PaymentMethod.js';
+import Subscription from './Subscription.js';
+import Tier from './Tier.js';
+import Transaction from './Transaction.js';
+import User from './User.js';
 
 const { models } = sequelize;
 

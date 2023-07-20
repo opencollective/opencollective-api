@@ -2,11 +2,11 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import { GraphQLActivityChannel } from '../enum/ActivityChannel';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
-import { GraphQLAccount } from '../interface/Account';
+import { GraphQLActivityChannel } from '../enum/ActivityChannel.js';
+import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers.js';
+import { GraphQLAccount } from '../interface/Account.js';
 
-import { GraphQLIndividual } from './Individual';
+import { GraphQLIndividual } from './Individual.js';
 
 export const GraphQLActivitySubscription = new GraphQLObjectType({
   name: 'ActivitySubscription',

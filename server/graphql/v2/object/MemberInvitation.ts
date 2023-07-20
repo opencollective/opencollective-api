@@ -2,12 +2,12 @@ import express from 'express';
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import { GraphQLMemberRole } from '../enum/MemberRole';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
-import { GraphQLAccount } from '../interface/Account';
+import { GraphQLMemberRole } from '../enum/MemberRole.js';
+import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers.js';
+import { GraphQLAccount } from '../interface/Account.js';
 
-import { GraphQLIndividual } from './Individual';
-import { GraphQLTier } from './Tier';
+import { GraphQLIndividual } from './Individual.js';
+import { GraphQLTier } from './Tier.js';
 
 export const GraphQLMemberInvitation = new GraphQLObjectType({
   name: 'MemberInvitation',

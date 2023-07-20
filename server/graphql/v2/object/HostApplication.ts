@@ -1,9 +1,9 @@
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
-import { GraphQLHostApplicationStatus } from '../enum/HostApplicationStatus';
-import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
-import { GraphQLAccount } from '../interface/Account';
+import { GraphQLHostApplicationStatus } from '../enum/HostApplicationStatus.js';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers.js';
+import { GraphQLAccount } from '../interface/Account.js';
 
 const GraphQLHostApplication = new GraphQLObjectType({
   name: 'HostApplication',

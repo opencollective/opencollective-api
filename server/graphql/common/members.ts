@@ -1,12 +1,12 @@
-import { pick } from 'lodash';
+import { pick } from 'lodash-es';
 
-import { invalidateContributorsCache } from '../../lib/contributors';
-import twoFactorAuthLib from '../../lib/two-factor-authentication';
-import models, { Collective } from '../../models';
-import { Forbidden, NotFound, Unauthorized } from '../errors';
-import { fetchAccountWithReference } from '../v2/input/AccountReferenceInput';
+import { invalidateContributorsCache } from '../../lib/contributors.js';
+import twoFactorAuthLib from '../../lib/two-factor-authentication/index.js';
+import models, { Collective } from '../../models/index.js';
+import { Forbidden, NotFound, Unauthorized } from '../errors.js';
+import { fetchAccountWithReference } from '../v2/input/AccountReferenceInput.js';
 
-import { checkRemoteUserCanUseAccount } from './scope-check';
+import { checkRemoteUserCanUseAccount } from './scope-check.js';
 
 /** A mutation to edit the public message of all matching members. */
 export async function editPublicMessage(_, { fromAccount, toAccount, FromCollectiveId, CollectiveId, message }, req) {

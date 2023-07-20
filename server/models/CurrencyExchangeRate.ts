@@ -1,6 +1,6 @@
 import type { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
 
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import sequelize, { DataTypes, Model } from '../lib/sequelize.js';
 
 /**
  * Sequelize model to represent an CurrencyExchangeRate, linked to the `CurrencyExchangeRates` table.

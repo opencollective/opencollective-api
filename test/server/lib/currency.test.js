@@ -3,9 +3,9 @@ import config from 'config';
 import moment from 'moment';
 import nock from 'nock';
 
-import * as CurrencyLib from '../../../server/lib/currency';
-import { fakeCurrencyExchangeRate } from '../../test-helpers/fake-data';
-import { resetTestDB } from '../../utils';
+import * as CurrencyLib from '../../../server/lib/currency.js';
+import { fakeCurrencyExchangeRate } from '../../test-helpers/fake-data.js';
+import { resetTestDB } from '../../utils.js';
 
 describe('server/lib/currency', () => {
   describe('getRatesFromDb', () => {

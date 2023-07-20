@@ -1,17 +1,17 @@
 import assert from 'assert';
 
 import { Request } from 'express';
-import { pick, toString } from 'lodash';
+import { pick, toString } from 'lodash-es';
 
-import activities from '../../constants/activities';
-import expenseStatus from '../../constants/expense_status';
-import { TransactionKind } from '../../constants/transaction-kind';
-import logger from '../../lib/logger';
-import * as libPayments from '../../lib/payments';
-import { createTransactionsFromPaidExpense } from '../../lib/transactions';
-import { verifyEvent } from '../../lib/transferwise';
-import models from '../../models';
-import { QuoteV2PaymentOption, TransferStateChangeEvent } from '../../types/transferwise';
+import activities from '../../constants/activities.js';
+import expenseStatus from '../../constants/expense_status.js';
+import { TransactionKind } from '../../constants/transaction-kind.js';
+import logger from '../../lib/logger.js';
+import * as libPayments from '../../lib/payments.js';
+import { createTransactionsFromPaidExpense } from '../../lib/transactions.js';
+import { verifyEvent } from '../../lib/transferwise.js';
+import models from '../../models/index.js';
+import { QuoteV2PaymentOption, TransferStateChangeEvent } from '../../types/transferwise.js';
 
 export async function handleTransferStateChange(event: TransferStateChangeEvent): Promise<void> {
   const expense = await models.Expense.findOne({

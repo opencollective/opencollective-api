@@ -1,9 +1,9 @@
 import { describe } from 'mocha';
 import { createSandbox } from 'sinon';
 
-import models from '../../../../server/models';
-import { randEmail } from '../../../stores';
-import * as utils from '../../../utils';
+import models from '../../../../server/models/index.js';
+import { randEmail } from '../../../stores/index.js';
+import * as utils from '../../../utils.js';
 
 describe('server/graphql/v1/orders', () => {
   const backers = [],

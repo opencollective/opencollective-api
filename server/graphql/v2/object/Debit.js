@@ -1,8 +1,8 @@
 import { GraphQLObjectType } from 'graphql';
 
-import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
-import { GraphQLAccount } from '../interface/Account';
-import { GraphQLTransaction, TransactionFields } from '../interface/Transaction';
+import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions.js';
+import { GraphQLAccount } from '../interface/Account.js';
+import { GraphQLTransaction, TransactionFields } from '../interface/Transaction.js';
 
 export const GraphQLDebit = new GraphQLObjectType({
   name: 'Debit',

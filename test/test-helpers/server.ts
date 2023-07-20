@@ -1,6 +1,6 @@
 import config from 'config';
 
-import app from '../../server/index';
+import app from '../../server/index.js';
 
 /**
  * Starts the server and returns a promise that resolves when the server is listening.

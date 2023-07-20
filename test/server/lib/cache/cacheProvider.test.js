@@ -1,8 +1,8 @@
 import { assert } from 'chai';
 import config from 'config';
-import { has } from 'lodash';
+import { has } from 'lodash-es';
 
-import { getProvider, PROVIDER_TYPES } from '../../../../server/lib/cache';
+import { getProvider, PROVIDER_TYPES } from '../../../../server/lib/cache/index.js';
 
 const providersToTest = [PROVIDER_TYPES.MEMORY];
 if (has(config, 'redis.serverUrl')) {

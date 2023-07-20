@@ -4,21 +4,21 @@ import { URLSearchParams } from 'url';
 import config from 'config';
 import debugLib from 'debug';
 import jwt from 'jsonwebtoken';
-import { get } from 'lodash';
+import { get } from 'lodash-es';
 
-import FEATURE from '../../constants/feature';
-import errors from '../../lib/errors';
-import logger from '../../lib/logger';
-import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
-import stripe from '../../lib/stripe';
-import { addParamsToUrl } from '../../lib/utils';
-import models from '../../models';
+import FEATURE from '../../constants/feature.js';
+import errors from '../../lib/errors.js';
+import logger from '../../lib/logger.js';
+import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry.js';
+import stripe from '../../lib/stripe.js';
+import { addParamsToUrl } from '../../lib/utils.js';
+import models from '../../models/index.js';
 
-import bacsdebit from './bacsdebit';
-import bancontact from './bancontact';
-import creditcard from './creditcard';
-import paymentintent from './payment-intent';
-import { webhook } from './webhook';
+import bacsdebit from './bacsdebit.js';
+import bancontact from './bancontact.js';
+import creditcard from './creditcard.js';
+import paymentintent from './payment-intent.js';
+import { webhook } from './webhook.js';
 
 const debug = debugLib('stripe');
 

@@ -1,14 +1,14 @@
 import express from 'express';
 import moment from 'moment';
 
-import { roles } from '../../constants';
-import orderStatus from '../../constants/order_status';
-import { TransactionKind } from '../../constants/transaction-kind';
-import { TransactionTypes } from '../../constants/transactions';
-import * as libPayments from '../../lib/payments';
-import twoFactorAuthLib from '../../lib/two-factor-authentication';
-import models from '../../models';
-import { Forbidden, NotFound } from '../errors';
+import { roles } from '../../constants/index.js';
+import orderStatus from '../../constants/order_status.js';
+import { TransactionKind } from '../../constants/transaction-kind.js';
+import { TransactionTypes } from '../../constants/transactions.js';
+import * as libPayments from '../../lib/payments.js';
+import twoFactorAuthLib from '../../lib/two-factor-authentication/index.js';
+import models from '../../models/index.js';
+import { Forbidden, NotFound } from '../errors.js';
 
 const getPayee = async (req, transaction) => {
   let column;

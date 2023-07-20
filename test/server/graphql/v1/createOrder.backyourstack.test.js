@@ -1,15 +1,15 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
-import { cloneDeep } from 'lodash';
+import { cloneDeep } from 'lodash-es';
 import moment from 'moment';
 import nock from 'nock';
 import { createSandbox } from 'sinon';
 
-import { dispatch } from '../../../../server/lib/backyourstack/dispatcher';
-import models from '../../../../server/models';
-import initNock from '../../../nocks/graphql.createOrder.backyourstack.nock';
-import * as store from '../../../stores';
-import * as utils from '../../../utils';
+import { dispatch } from '../../../../server/lib/backyourstack/dispatcher.js';
+import models from '../../../../server/models/index.js';
+import initNock from '../../../nocks/graphql.createOrder.backyourstack.nock.js';
+import * as store from '../../../stores/index.js';
+import * as utils from '../../../utils.js';
 
 const baseOrder = Object.freeze({
   quantity: 1,

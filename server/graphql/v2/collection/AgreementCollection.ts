@@ -1,7 +1,7 @@
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 
-import { CollectionFields, GraphQLCollection } from '../interface/Collection';
-import { GraphQLAgreement } from '../object/Agreement';
+import { CollectionFields, GraphQLCollection } from '../interface/Collection.js';
+import { GraphQLAgreement } from '../object/Agreement.js';
 
 export const GraphQLAgreementCollection = new GraphQLObjectType({
   name: 'AgreementCollection',

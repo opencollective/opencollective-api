@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
 
-import { fakeActivity, fakeCollective, fakeHost, fakeOrder, fakeUser } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, resetTestDB } from '../../../../utils';
+import { fakeActivity, fakeCollective, fakeHost, fakeOrder, fakeUser } from '../../../../test-helpers/fake-data.js';
+import { graphqlQueryV2, resetTestDB } from '../../../../utils.js';
 
 describe('server/graphql/v2/query/ExpenseQuery', () => {
   before(resetTestDB);

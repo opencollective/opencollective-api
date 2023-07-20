@@ -1,19 +1,14 @@
-/**
- * This script can be used whenever PayPal webhooks event types change to update
- * Host's connected accounts.
- */
+import '../../server/env.js';
 
-import '../../server/env';
-
-import { get, reverse } from 'lodash';
+import { get, reverse } from 'lodash-es';
 import moment from 'moment';
 
-import logger from '../../server/lib/logger';
-import { listPayPalTransactions } from '../../server/lib/paypal';
-import models, { Op, sequelize } from '../../server/models';
-import paypalAdaptive from '../../server/paymentProviders/paypal/adaptiveGateway';
-import { paypalRequest, paypalRequestV2 } from '../../server/paymentProviders/paypal/api';
-import { PaypalCapture } from '../../server/types/paypal';
+import logger from '../../server/lib/logger.js';
+import { listPayPalTransactions } from '../../server/lib/paypal.js';
+import models, { Op, sequelize } from '../../server/models/index.js';
+import paypalAdaptive from '../../server/paymentProviders/paypal/adaptiveGateway.js';
+import { paypalRequest, paypalRequestV2 } from '../../server/paymentProviders/paypal/api.js';
+import { PaypalCapture } from '../../server/types/paypal.js';
 
 const checkOrder = async orderId => {
   const order = await models.Order.findByPk(orderId);

@@ -1,20 +1,20 @@
 /* eslint-disable camelcase */
 
 import { expect } from 'chai';
-import { set } from 'lodash';
+import { set } from 'lodash-es';
 import { assert, createSandbox } from 'sinon';
 import Stripe from 'stripe';
 
-import { Service } from '../../../../server/constants/connected_account';
-import FEATURE from '../../../../server/constants/feature';
-import OrderStatuses from '../../../../server/constants/order_status';
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
-import * as libPayments from '../../../../server/lib/payments';
-import stripe from '../../../../server/lib/stripe';
-import models from '../../../../server/models';
-import * as common from '../../../../server/paymentProviders/stripe/common';
-import * as webhook from '../../../../server/paymentProviders/stripe/webhook';
-import stripeMocks from '../../../mocks/stripe';
+import { Service } from '../../../../server/constants/connected_account.js';
+import FEATURE from '../../../../server/constants/feature.js';
+import OrderStatuses from '../../../../server/constants/order_status.js';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods.js';
+import * as libPayments from '../../../../server/lib/payments.js';
+import stripe from '../../../../server/lib/stripe.js';
+import models from '../../../../server/models/index.js';
+import * as common from '../../../../server/paymentProviders/stripe/common.js';
+import * as webhook from '../../../../server/paymentProviders/stripe/webhook.js';
+import stripeMocks from '../../../mocks/stripe.js';
 import {
   fakeCollective,
   fakeConnectedAccount,
@@ -23,8 +23,8 @@ import {
   fakeTransaction,
   fakeUser,
   randStr,
-} from '../../../test-helpers/fake-data';
-import * as utils from '../../../utils';
+} from '../../../test-helpers/fake-data.js';
+import * as utils from '../../../utils.js';
 
 describe('webhook', () => {
   describe('chargeDisputeCreated()', () => {

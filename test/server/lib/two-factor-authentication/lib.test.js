@@ -3,14 +3,14 @@ import { fail } from 'assert';
 import { expect } from 'chai';
 import { createSandbox, stub } from 'sinon';
 
-import { activities } from '../../../../server/constants';
-import cache from '../../../../server/lib/cache';
-import twoFactorAuthLib from '../../../../server/lib/two-factor-authentication';
-import { TwoFactorAuthenticationHeader } from '../../../../server/lib/two-factor-authentication/lib';
-import totpProvider from '../../../../server/lib/two-factor-authentication/totp';
-import models from '../../../../server/models';
-import { fakeUser } from '../../../test-helpers/fake-data';
-import { waitForCondition } from '../../../utils';
+import { activities } from '../../../../server/constants/index.js';
+import cache from '../../../../server/lib/cache/index.js';
+import twoFactorAuthLib from '../../../../server/lib/two-factor-authentication/index.js';
+import { TwoFactorAuthenticationHeader } from '../../../../server/lib/two-factor-authentication/lib.js';
+import totpProvider from '../../../../server/lib/two-factor-authentication/totp.js';
+import models from '../../../../server/models/index.js';
+import { fakeUser } from '../../../test-helpers/fake-data.js';
+import { waitForCondition } from '../../../utils.js';
 
 describe('lib/two-factor-authentication', () => {
   describe('validateToken', () => {

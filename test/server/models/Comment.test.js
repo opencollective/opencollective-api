@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 
-import { sleep } from '../../../server/lib/utils';
-import models from '../../../server/models';
-import { newCollectiveWithHost, randEmail } from '../../stores';
+import { sleep } from '../../../server/lib/utils.js';
+import models from '../../../server/models/index.js';
+import { newCollectiveWithHost, randEmail } from '../../stores/index.js';
 
 let collective, user, validCommentParams, validConversationParams;
 

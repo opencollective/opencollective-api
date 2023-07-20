@@ -1,7 +1,7 @@
 import { GraphQLInputObjectType, GraphQLNonNull } from 'graphql';
 
-import { GraphQLOrderByFieldType, ORDER_BY_PSEUDO_FIELDS } from '../enum/OrderByFieldType';
-import { GraphQLOrderDirectionType } from '../enum/OrderDirectionType';
+import { GraphQLOrderByFieldType, ORDER_BY_PSEUDO_FIELDS } from '../enum/OrderByFieldType.js';
+import { GraphQLOrderDirectionType } from '../enum/OrderDirectionType.js';
 
 export { ORDER_BY_PSEUDO_FIELDS };
 

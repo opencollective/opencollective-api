@@ -1,9 +1,9 @@
 import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes } from 'sequelize';
 
-import { REACTION_EMOJI, ReactionEmoji } from '../constants/reaction-emoji';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import { REACTION_EMOJI, ReactionEmoji } from '../constants/reaction-emoji.js';
+import sequelize, { DataTypes, Model } from '../lib/sequelize.js';
 
-import User from './User';
+import User from './User.js';
 
 const { models } = sequelize;
 

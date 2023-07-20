@@ -1,9 +1,9 @@
 import { GraphQLBoolean, GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
-import { intersection, uniq } from 'lodash';
+import { intersection, uniq } from 'lodash-es';
 
-import models, { Op } from '../../../models';
-import { NotFound } from '../../errors';
-import { idDecode } from '../identifiers';
+import models, { Op } from '../../../models/index.js';
+import { NotFound } from '../../errors.js';
+import { idDecode } from '../identifiers.js';
 
 const AccountReferenceInputFields = {
   id: {

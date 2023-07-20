@@ -1,15 +1,19 @@
 import config from 'config';
-import { pick, toUpper } from 'lodash';
+import { pick, toUpper } from 'lodash-es';
 import type Stripe from 'stripe';
 
-import OrderStatuses from '../../constants/order_status';
-import logger from '../../lib/logger';
-import { getApplicationFee } from '../../lib/payments';
-import { reportMessageToSentry } from '../../lib/sentry';
-import stripe, { convertToStripeAmount } from '../../lib/stripe';
-import { OrderModelInterface } from '../../models/Order';
+import OrderStatuses from '../../constants/order_status.js';
+import logger from '../../lib/logger.js';
+import { getApplicationFee } from '../../lib/payments.js';
+import { reportMessageToSentry } from '../../lib/sentry.js';
+import stripe, { convertToStripeAmount } from '../../lib/stripe.js';
+import { OrderModelInterface } from '../../models/Order.js';
 
-import { APPLICATION_FEE_INCOMPATIBLE_CURRENCIES, refundTransaction, refundTransactionOnlyInDatabase } from './common';
+import {
+  APPLICATION_FEE_INCOMPATIBLE_CURRENCIES,
+  refundTransaction,
+  refundTransactionOnlyInDatabase,
+} from './common.js';
 
 const processOrder = async (order: OrderModelInterface): Promise<void> => {
   const generatedSepaDebit = order.paymentMethod?.data?.generated_sepa_debit;

@@ -1,9 +1,9 @@
 import DataLoader from 'dataloader';
 
-import models, { Op } from '../../models';
-import { PayoutMethod } from '../../models/PayoutMethod';
+import models, { Op } from '../../models/index.js';
+import { PayoutMethod } from '../../models/PayoutMethod.js';
 
-import { sortResultsArray } from './helpers';
+import { sortResultsArray } from './helpers.js';
 
 /**
  * Loader for collective's paypal payout methods

@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 
-import models from '../../../server/models';
-import { fakeOpenCollectiveS3URL } from '../../test-helpers/fake-data';
+import models from '../../../server/models/index.js';
+import { fakeOpenCollectiveS3URL } from '../../test-helpers/fake-data.js';
 
 describe('server/models/UploadedFile', () => {
   let validParams;

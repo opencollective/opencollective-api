@@ -3,14 +3,14 @@
 import { expect } from 'chai';
 import { assert, createSandbox } from 'sinon';
 
-import { Service } from '../../../../server/constants/connected_account';
-import OrderStatuses from '../../../../server/constants/order_status';
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
-import stripe from '../../../../server/lib/stripe';
-import models from '../../../../server/models';
-import paymentIntent from '../../../../server/paymentProviders/stripe/payment-intent';
-import { fakeConnectedAccount, fakeOrder, fakePaymentMethod, randStr } from '../../../test-helpers/fake-data';
-import * as utils from '../../../utils';
+import { Service } from '../../../../server/constants/connected_account.js';
+import OrderStatuses from '../../../../server/constants/order_status.js';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods.js';
+import stripe from '../../../../server/lib/stripe.js';
+import models from '../../../../server/models/index.js';
+import paymentIntent from '../../../../server/paymentProviders/stripe/payment-intent.js';
+import { fakeConnectedAccount, fakeOrder, fakePaymentMethod, randStr } from '../../../test-helpers/fake-data.js';
+import * as utils from '../../../utils.js';
 
 describe('stripe/payment-intent', () => {
   before(utils.resetTestDB);

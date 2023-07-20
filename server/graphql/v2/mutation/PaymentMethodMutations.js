@@ -1,22 +1,22 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { omit, pick } from 'lodash';
+import { omit, pick } from 'lodash-es';
 
-import FEATURE_STATUS from '../../../constants/feature-status';
-import stripe from '../../../lib/stripe';
-import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models from '../../../models';
-import { setupCreditCard } from '../../../paymentProviders/stripe/creditcard';
-import { checkCanUsePaymentMethods } from '../../common/features';
-import { checkRemoteUserCanUseOrders } from '../../common/scope-check';
-import { Forbidden } from '../../errors';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
-import { GraphQLCreditCardCreateInput } from '../input/CreditCardCreateInput';
+import FEATURE_STATUS from '../../../constants/feature-status.js';
+import stripe from '../../../lib/stripe.js';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication/index.js';
+import models from '../../../models/index.js';
+import { setupCreditCard } from '../../../paymentProviders/stripe/creditcard.js';
+import { checkCanUsePaymentMethods } from '../../common/features.js';
+import { checkRemoteUserCanUseOrders } from '../../common/scope-check.js';
+import { Forbidden } from '../../errors.js';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput.js';
+import { GraphQLCreditCardCreateInput } from '../input/CreditCardCreateInput.js';
 import {
   fetchPaymentMethodWithReference,
   GraphQLPaymentMethodReferenceInput,
-} from '../input/PaymentMethodReferenceInput';
-import { GraphQLPaymentMethod } from '../object/PaymentMethod';
-import { GraphQLStripeError } from '../object/StripeError';
+} from '../input/PaymentMethodReferenceInput.js';
+import { GraphQLPaymentMethod } from '../object/PaymentMethod.js';
+import { GraphQLStripeError } from '../object/StripeError.js';
 
 const GraphQLCreditCardWithStripeError = new GraphQLObjectType({
   name: 'CreditCardWithStripeError',

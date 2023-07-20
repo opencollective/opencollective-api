@@ -1,10 +1,10 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
-import { times } from 'lodash';
+import { times } from 'lodash-es';
 
-import ActivityTypes from '../../../../../server/constants/activities';
-import { fakeActivity, fakeCollective, fakeHost, fakeUser } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, resetTestDB } from '../../../../utils';
+import ActivityTypes from '../../../../../server/constants/activities.js';
+import { fakeActivity, fakeCollective, fakeHost, fakeUser } from '../../../../test-helpers/fake-data.js';
+import { graphqlQueryV2, resetTestDB } from '../../../../utils.js';
 
 const activitiesCollectionQuery = gqlV2/* GraphQL */ `
   query Activities(

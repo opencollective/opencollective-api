@@ -2,13 +2,13 @@ import { expect } from 'chai';
 import moment from 'moment';
 import { createSandbox } from 'sinon';
 
-import { run as runCron } from '../../../cron/daily/52-pause-virtual-cards-after-period-of-inactivity';
-import VirtualCardProviders from '../../../server/constants/virtual_card_providers';
-import { VirtualCard } from '../../../server/models';
-import { VirtualCardStatus } from '../../../server/models/VirtualCard';
-import * as stripeVirtualCards from '../../../server/paymentProviders/stripe/virtual-cards';
-import { fakeExpense, fakeHost, fakeVirtualCard } from '../../test-helpers/fake-data';
-import { resetTestDB } from '../../utils';
+import { run as runCron } from '../../../cron/daily/52-pause-virtual-cards-after-period-of-inactivity.js';
+import VirtualCardProviders from '../../../server/constants/virtual_card_providers.js';
+import { VirtualCard } from '../../../server/models/index.js';
+import { VirtualCardStatus } from '../../../server/models/VirtualCard.js';
+import * as stripeVirtualCards from '../../../server/paymentProviders/stripe/virtual-cards.js';
+import { fakeExpense, fakeHost, fakeVirtualCard } from '../../test-helpers/fake-data.js';
+import { resetTestDB } from '../../utils.js';
 
 describe('cron/daily/pause-virtual-cards-after-period-of-inactivity', () => {
   const sandbox = createSandbox();

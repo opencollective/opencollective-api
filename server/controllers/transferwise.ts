@@ -1,14 +1,14 @@
 import { Request, Response } from 'express';
 
-import expenseStatus from '../constants/expense_status';
-import { getExpenseFees, setTransferWiseExpenseAsProcessing } from '../graphql/common/expenses';
-import { idDecode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
-import errors from '../lib/errors';
-import logger from '../lib/logger';
-import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
-import models, { Op } from '../models';
-import transferwise from '../paymentProviders/transferwise';
-import { BatchGroup } from '../types/transferwise';
+import expenseStatus from '../constants/expense_status.js';
+import { getExpenseFees, setTransferWiseExpenseAsProcessing } from '../graphql/common/expenses.js';
+import { idDecode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers.js';
+import errors from '../lib/errors.js';
+import logger from '../lib/logger.js';
+import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry.js';
+import models, { Op } from '../models/index.js';
+import transferwise from '../paymentProviders/transferwise/index.js';
+import { BatchGroup } from '../types/transferwise.js';
 
 const processPaidExpense = (host, remoteUser, batchGroup: BatchGroup) => async expense => {
   await expense.reload();

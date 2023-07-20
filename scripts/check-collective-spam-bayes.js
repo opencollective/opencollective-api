@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-import '../server/env';
+import '../server/env.js';
 
 import geoip from 'geoip-lite'; // eslint-disable-line node/no-unpublished-import
-import { get, padEnd } from 'lodash';
+import { get, padEnd } from 'lodash-es';
 import moment from 'moment';
 
-import { collectiveBayesCheck } from '../server/lib/spam';
-import models, { Op, sequelize } from '../server/models';
+import { collectiveBayesCheck } from '../server/lib/spam.js';
+import models, { Op, sequelize } from '../server/models/index.js';
 
 async function getIpString(collective) {
   let user = await models.User.findByPk(collective.CreatedByUserId, { paranoid: false });

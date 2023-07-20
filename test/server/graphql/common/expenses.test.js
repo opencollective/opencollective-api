@@ -1,11 +1,11 @@
 import { expect } from 'chai';
-import { cloneDeep } from 'lodash';
+import { cloneDeep } from 'lodash-es';
 import moment from 'moment';
 
-import { expenseStatus } from '../../../../server/constants';
-import { EXPENSE_PERMISSION_ERROR_CODES } from '../../../../server/constants/permissions';
-import POLICIES from '../../../../server/constants/policies';
-import { allowContextPermission, PERMISSION_TYPE } from '../../../../server/graphql/common/context-permissions';
+import { expenseStatus } from '../../../../server/constants/index.js';
+import { EXPENSE_PERMISSION_ERROR_CODES } from '../../../../server/constants/permissions.js';
+import POLICIES from '../../../../server/constants/policies.js';
+import { allowContextPermission, PERMISSION_TYPE } from '../../../../server/graphql/common/context-permissions.js';
 import {
   canApprove,
   canComment,
@@ -26,10 +26,10 @@ import {
   checkHasBalanceToPayExpense,
   getExpenseAmountInDifferentCurrency,
   isAccountHolderNameAndLegalNameMatch,
-} from '../../../../server/graphql/common/expenses';
-import { createTransactionsFromPaidExpense } from '../../../../server/lib/transactions';
-import models from '../../../../server/models';
-import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
+} from '../../../../server/graphql/common/expenses.js';
+import { createTransactionsFromPaidExpense } from '../../../../server/lib/transactions.js';
+import models from '../../../../server/models/index.js';
+import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod.js';
 import {
   fakeCollective,
   fakeCurrencyExchangeRate,
@@ -38,8 +38,8 @@ import {
   fakePayoutMethod,
   fakeTransaction,
   fakeUser,
-} from '../../../test-helpers/fake-data';
-import { getApolloErrorCode, makeRequest } from '../../../utils';
+} from '../../../test-helpers/fake-data.js';
+import { getApolloErrorCode, makeRequest } from '../../../utils.js';
 
 describe('server/graphql/common/expenses', () => {
   const contextShape = {

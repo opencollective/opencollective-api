@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import URLResolver from '../../../../../server/graphql/v2/scalar/URL';
+import URLResolver from '../../../../../server/graphql/v2/scalar/URL.js';
 
 /** testing only parseValue because that is where the validation occurs
  * picked testcases from https://github.com/Urigo/graphql-scalars/blob/master/tests/URL.test.ts

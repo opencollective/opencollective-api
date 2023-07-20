@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-import '../server/env';
+import '../server/env.js';
 
-import { padEnd } from 'lodash';
+import { padEnd } from 'lodash-es';
 import moment from 'moment';
 
-import { getGithubHandleFromUrl, getOrg, getRepo, getUser } from '../server/lib/github';
-import models, { Op, sequelize } from '../server/models';
+import { getGithubHandleFromUrl, getOrg, getRepo, getUser } from '../server/lib/github.js';
+import models, { Op, sequelize } from '../server/models/index.js';
 
 function report(collective, context) {
   console.log(

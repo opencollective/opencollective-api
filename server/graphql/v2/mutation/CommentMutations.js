@@ -1,14 +1,14 @@
 import { GraphQLNonNull, GraphQLString } from 'graphql';
 
-import { mustBeLoggedInTo } from '../../../lib/auth';
-import { createComment, deleteComment, editComment } from '../../common/comment';
-import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
-import { GraphQLCommentCreateInput } from '../input/CommentCreateInput';
-import { GraphQLCommentUpdateInput } from '../input/CommentUpdateInput';
-import { getConversationDatabaseIdFromReference } from '../input/ConversationReferenceInput';
-import { getDatabaseIdFromExpenseReference } from '../input/ExpenseReferenceInput';
-import { getDatabaseIdFromUpdateReference } from '../input/UpdateReferenceInput';
-import { GraphQLComment } from '../object/Comment';
+import { mustBeLoggedInTo } from '../../../lib/auth.js';
+import { createComment, deleteComment, editComment } from '../../common/comment.js';
+import { idDecode, IDENTIFIER_TYPES } from '../identifiers.js';
+import { GraphQLCommentCreateInput } from '../input/CommentCreateInput.js';
+import { GraphQLCommentUpdateInput } from '../input/CommentUpdateInput.js';
+import { getConversationDatabaseIdFromReference } from '../input/ConversationReferenceInput.js';
+import { getDatabaseIdFromExpenseReference } from '../input/ExpenseReferenceInput.js';
+import { getDatabaseIdFromUpdateReference } from '../input/UpdateReferenceInput.js';
+import { GraphQLComment } from '../object/Comment.js';
 
 const commentMutations = {
   editComment: {

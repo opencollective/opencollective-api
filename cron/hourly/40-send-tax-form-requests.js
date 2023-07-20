@@ -1,14 +1,14 @@
 #!/usr/bin/env node
-import '../../server/env';
+import '../../server/env.js';
 
 import config from 'config';
 import HelloWorks from 'helloworks-sdk';
 import moment from 'moment';
 import pThrottle from 'p-throttle';
 
-import { reportErrorToSentry } from '../../server/lib/sentry';
-import { findAccountsThatNeedToBeSentTaxForm, sendHelloWorksUsTaxForm } from '../../server/lib/tax-forms';
-import { sequelize } from '../../server/models';
+import { reportErrorToSentry } from '../../server/lib/sentry.js';
+import { findAccountsThatNeedToBeSentTaxForm, sendHelloWorksUsTaxForm } from '../../server/lib/tax-forms.js';
+import { sequelize } from '../../server/models/index.js';
 
 const MAX_REQUESTS_PER_SECOND = 1;
 const ONE_SECOND_IN_MILLISECONDS = 1000;

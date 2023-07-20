@@ -1,11 +1,11 @@
 import config from 'config';
-import { orderBy } from 'lodash';
+import { orderBy } from 'lodash-es';
 
-import { sequelize } from '../models';
+import { sequelize } from '../models/index.js';
 
-import { getTotalMoneyManagedAmount } from './budget';
-import { getFxRate } from './currency';
-import { computeDatesAsISOStrings } from './utils';
+import { getTotalMoneyManagedAmount } from './budget.js';
+import { getFxRate } from './currency.js';
+import { computeDatesAsISOStrings } from './utils.js';
 
 function oppositeTotal(total) {
   return total !== 0 ? -total : total;

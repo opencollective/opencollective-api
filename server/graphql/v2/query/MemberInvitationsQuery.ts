@@ -1,10 +1,10 @@
 import { GraphQLList } from 'graphql';
 
-import models, { Op } from '../../../models';
-import { Forbidden, ValidationFailed } from '../../errors';
-import { GraphQLMemberRole } from '../enum/MemberRole';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
-import { GraphQLMemberInvitation } from '../object/MemberInvitation';
+import models, { Op } from '../../../models/index.js';
+import { Forbidden, ValidationFailed } from '../../errors.js';
+import { GraphQLMemberRole } from '../enum/MemberRole.js';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput.js';
+import { GraphQLMemberInvitation } from '../object/MemberInvitation.js';
 
 const MemberInvitationsQuery = {
   type: new GraphQLList(GraphQLMemberInvitation),

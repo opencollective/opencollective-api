@@ -1,8 +1,8 @@
 import DataLoader from 'dataloader';
-import { groupBy } from 'lodash';
+import { groupBy } from 'lodash-es';
 
-import { TransactionKind } from '../../constants/transaction-kind';
-import models, { Op } from '../../models';
+import { TransactionKind } from '../../constants/transaction-kind.js';
+import models, { Op } from '../../models/index.js';
 
 export const generateHostFeeAmountForTransactionLoader = (): DataLoader<typeof models.Transaction, number> =>
   new DataLoader(

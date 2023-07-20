@@ -1,9 +1,9 @@
-import { isNil } from 'lodash';
+import { isNil } from 'lodash-es';
 import type { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes } from 'sequelize';
 import validator from 'validator';
 
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
-import { StructuredAddress } from '../types/Location';
+import sequelize, { DataTypes, Model } from '../lib/sequelize.js';
+import { StructuredAddress } from '../types/Location.js';
 
 type GeoLocationLatLong = {
   type: 'Point';
@@ -50,7 +50,7 @@ Location.init(
       validate: {
         len: [2, 2],
         isCountryISO(value) {
-          if (!(isNil(value) || validator.isISO31661Alpha2(value))) {
+          if (!(isNil(value) || validator.default.isISO31661Alpha2(value))) {
             throw new Error('Invalid Country ISO.');
           }
         },

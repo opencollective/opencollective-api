@@ -1,17 +1,17 @@
 import slugify from 'limax';
 
-import activities from '../constants/activities';
-import { types as CollectiveTypes } from '../constants/collectives';
-import ExpenseStatus from '../constants/expense_status';
-import ExpenseType from '../constants/expense_type';
-import { TransactionKind } from '../constants/transaction-kind';
-import { TransactionTypes } from '../constants/transactions';
-import { getFxRate } from '../lib/currency';
-import { crypto } from '../lib/encryption';
-import logger from '../lib/logger';
-import { toNegative } from '../lib/math';
-import { createRefundTransaction } from '../lib/payments';
-import models, { Op } from '../models';
+import activities from '../constants/activities.js';
+import { types as CollectiveTypes } from '../constants/collectives.js';
+import ExpenseStatus from '../constants/expense_status.js';
+import ExpenseType from '../constants/expense_type.js';
+import { TransactionKind } from '../constants/transaction-kind.js';
+import { TransactionTypes } from '../constants/transactions.js';
+import { getFxRate } from '../lib/currency.js';
+import { crypto } from '../lib/encryption.js';
+import logger from '../lib/logger.js';
+import { toNegative } from '../lib/math.js';
+import { createRefundTransaction } from '../lib/payments.js';
+import models, { Op } from '../models/index.js';
 
 export const getVirtualCardForTransaction = async cardId => {
   return models.VirtualCard.findOne({

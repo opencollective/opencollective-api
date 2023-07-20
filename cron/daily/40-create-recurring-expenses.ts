@@ -1,8 +1,8 @@
-import '../../server/env';
+import '../../server/env.js';
 
-import logger from '../../server/lib/logger';
-import { reportErrorToSentry } from '../../server/lib/sentry';
-import models, { sequelize } from '../../server/models';
+import logger from '../../server/lib/logger.js';
+import { reportErrorToSentry } from '../../server/lib/sentry.js';
+import models, { sequelize } from '../../server/models/index.js';
 
 const run = async () => {
   const recurringExpensesDue = await models.RecurringExpense.getRecurringExpensesDue();
@@ -18,7 +18,9 @@ const run = async () => {
   }
 };
 
-if (require.main === module) {
+import { pathToFileURL } from 'url';
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   run()
     .catch(e => {
       logger.error(e);

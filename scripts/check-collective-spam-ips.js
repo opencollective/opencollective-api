@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-import '../server/env';
+import '../server/env.js';
 
-import { get, padEnd, uniq } from 'lodash';
+import { get, padEnd, uniq } from 'lodash-es';
 import moment from 'moment';
 
-import models, { Op, sequelize } from '../server/models';
+import models, { Op, sequelize } from '../server/models/index.js';
 
 function report(collective, context) {
   console.log(

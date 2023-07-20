@@ -1,8 +1,8 @@
 import { GraphQLInputObjectType, GraphQLNonNull } from 'graphql';
 
-import { GraphQLActivityType } from '../enum';
-import { GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
-import URL from '../scalar/URL';
+import { GraphQLActivityType } from '../enum/index.js';
+import { GraphQLAccountReferenceInput } from '../input/AccountReferenceInput.js';
+import URL from '../scalar/URL.js';
 
 export const GraphQLWebhookCreateInput = new GraphQLInputObjectType({
   name: 'WebhookCreateInput',

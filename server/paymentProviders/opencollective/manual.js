@@ -1,17 +1,17 @@
-import { pick } from 'lodash';
+import { pick } from 'lodash-es';
 
-import { maxInteger } from '../../constants/math';
-import { TransactionTypes } from '../../constants/transactions';
-import { FEATURE, hasOptedInForFeature } from '../../lib/allowed-features';
-import { getFxRate } from '../../lib/currency';
+import { maxInteger } from '../../constants/math.js';
+import { TransactionTypes } from '../../constants/transactions.js';
+import { FEATURE, hasOptedInForFeature } from '../../lib/allowed-features.js';
+import { getFxRate } from '../../lib/currency.js';
 import {
   createRefundTransaction,
   getHostFee,
   getHostFeeSharePercent,
   getPlatformTip,
   isPlatformTipEligible,
-} from '../../lib/payments';
-import models from '../../models';
+} from '../../lib/payments.js';
+import models from '../../models/index.js';
 
 /**
  * Manual Payment method

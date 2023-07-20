@@ -1,18 +1,18 @@
 import express from 'express';
 import { GraphQLNonNull, GraphQLString } from 'graphql';
 
-import { activities } from '../../../constants';
-import orderStatus from '../../../constants/order_status';
-import { TransactionKind } from '../../../constants/transaction-kind';
-import { purgeCacheForCollective } from '../../../lib/cache';
-import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models from '../../../models';
-import { checkRemoteUserCanUseTransactions } from '../../common/scope-check';
-import { canReject, refundTransaction } from '../../common/transactions';
-import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
-import { getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/AmountInput';
-import { fetchTransactionWithReference, GraphQLTransactionReferenceInput } from '../input/TransactionReferenceInput';
-import { GraphQLTransaction } from '../interface/Transaction';
+import { activities } from '../../../constants/index.js';
+import orderStatus from '../../../constants/order_status.js';
+import { TransactionKind } from '../../../constants/transaction-kind.js';
+import { purgeCacheForCollective } from '../../../lib/cache/index.js';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication/index.js';
+import models from '../../../models/index.js';
+import { checkRemoteUserCanUseTransactions } from '../../common/scope-check.js';
+import { canReject, refundTransaction } from '../../common/transactions.js';
+import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors.js';
+import { getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/AmountInput.js';
+import { fetchTransactionWithReference, GraphQLTransactionReferenceInput } from '../input/TransactionReferenceInput.js';
+import { GraphQLTransaction } from '../interface/Transaction.js';
 
 const transactionMutations = {
   addPlatformTipToTransaction: {

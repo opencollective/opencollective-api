@@ -1,6 +1,6 @@
 import { GraphQLBoolean, GraphQLFloat, GraphQLInt, GraphQLObjectType, GraphQLString } from 'graphql';
 
-import { idEncode } from '../identifiers';
+import { idEncode } from '../identifiers.js';
 
 export const GraphQLHostPlan = new GraphQLObjectType({
   name: 'HostPlan',

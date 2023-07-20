@@ -1,14 +1,14 @@
 import { expect } from 'chai';
-import _ from 'lodash';
+import _ from 'lodash-es';
 import { createSandbox } from 'sinon';
 import request from 'supertest';
 
-import { Service } from '../../../server/constants/connected_account';
-import app from '../../../server/index';
-import stripe from '../../../server/lib/stripe';
-import originalStripeMock from '../../mocks/stripe';
-import { fakeConnectedAccount } from '../../test-helpers/fake-data';
-import { resetTestDB } from '../../utils';
+import { Service } from '../../../server/constants/connected_account.js';
+import app from '../../../server/index.js';
+import stripe from '../../../server/lib/stripe.js';
+import originalStripeMock from '../../mocks/stripe.js';
+import { fakeConnectedAccount } from '../../test-helpers/fake-data.js';
+import { resetTestDB } from '../../utils.js';
 
 describe('server/routes/webhooks.stripe', () => {
   let sandbox, expressApp;

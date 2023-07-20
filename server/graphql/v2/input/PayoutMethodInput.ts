@@ -1,7 +1,7 @@
 import { GraphQLBoolean, GraphQLInputObjectType, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
 
-import { GraphQLPayoutMethodType } from '../enum/PayoutMethodType';
+import { GraphQLPayoutMethodType } from '../enum/PayoutMethodType.js';
 
 /**
  * An input for PayoutMethod that can be used for either editing or creating payout methods.

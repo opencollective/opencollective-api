@@ -1,41 +1,41 @@
 import DataLoader from 'dataloader';
 import { createContext } from 'dataloader-sequelize';
-import { get, groupBy } from 'lodash';
+import { get, groupBy } from 'lodash-es';
 import moment from 'moment';
 
-import { types as CollectiveType } from '../../constants/collectives';
-import orderStatus from '../../constants/order_status';
-import { TransactionTypes } from '../../constants/transactions';
+import { types as CollectiveType } from '../../constants/collectives.js';
+import orderStatus from '../../constants/order_status.js';
+import { TransactionTypes } from '../../constants/transactions.js';
 import {
   getBalances,
   getSumCollectivesAmountReceived,
   getSumCollectivesAmountSpent,
   getYearlyBudgets,
   sumCollectivesTransactions,
-} from '../../lib/budget';
-import { getFxRate } from '../../lib/currency';
-import models, { Op, sequelize } from '../../models';
+} from '../../lib/budget.js';
+import { getFxRate } from '../../lib/currency.js';
+import models, { Op, sequelize } from '../../models/index.js';
 
-import { generateTotalAccountHostAgreementsLoader } from './agreements';
-import collectiveLoaders from './collective';
-import commentsLoader from './comments';
-import contributorsLoaders from './contributors';
-import conversationLoaders from './conversation';
-import { generateConvertToCurrencyLoader, generateFxRateLoader } from './currency-exchange-rate';
-import * as expenseLoaders from './expenses';
-import { buildLoaderForAssociation, sortResults, sortResultsArray, sortResultsSimple } from './helpers';
-import locationLoaders from './location';
+import { generateTotalAccountHostAgreementsLoader } from './agreements.js';
+import collectiveLoaders from './collective.js';
+import commentsLoader from './comments.js';
+import contributorsLoaders from './contributors.js';
+import conversationLoaders from './conversation.js';
+import { generateConvertToCurrencyLoader, generateFxRateLoader } from './currency-exchange-rate.js';
+import * as expenseLoaders from './expenses.js';
+import { buildLoaderForAssociation, sortResults, sortResultsArray, sortResultsSimple } from './helpers.js';
+import locationLoaders from './location.js';
 import {
   generateAdminUsersEmailsForCollectiveLoader,
   generateCountAdminMembersOfCollective,
   generateRemoteUserIsAdminOfHostedAccountLoader,
-} from './members';
-import * as orderLoaders from './order';
-import { generateCollectivePayoutMethodsLoader, generateCollectivePaypalPayoutMethodsLoader } from './payout-method';
-import * as transactionLoaders from './transactions';
-import updatesLoader from './updates';
-import { generateUserByCollectiveIdLoader, generateUserHasTwoFactorAuthEnabled } from './user';
-import { generateCollectiveVirtualCardLoader, generateHostCollectiveVirtualCardLoader } from './virtual-card';
+} from './members.js';
+import * as orderLoaders from './order.js';
+import { generateCollectivePayoutMethodsLoader, generateCollectivePaypalPayoutMethodsLoader } from './payout-method.js';
+import * as transactionLoaders from './transactions.js';
+import updatesLoader from './updates.js';
+import { generateUserByCollectiveIdLoader, generateUserHasTwoFactorAuthEnabled } from './user.js';
+import { generateCollectiveVirtualCardLoader, generateHostCollectiveVirtualCardLoader } from './virtual-card.js';
 
 export const loaders = req => {
   const cache = {};

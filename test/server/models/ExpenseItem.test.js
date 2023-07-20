@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 
-import models from '../../../server/models';
-import { randUrl } from '../../stores';
-import { fakeExpense, fakeUser } from '../../test-helpers/fake-data';
+import models from '../../../server/models/index.js';
+import { randUrl } from '../../stores/index.js';
+import { fakeExpense, fakeUser } from '../../test-helpers/fake-data.js';
 
 describe('test/server/models/ExpenseItem', () => {
   describe('createFromData', () => {

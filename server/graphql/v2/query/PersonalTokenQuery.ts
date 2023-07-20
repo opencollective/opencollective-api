@@ -1,10 +1,10 @@
 import express from 'express';
 
-import PersonalTokenModel from '../../../models/PersonalToken';
-import { checkRemoteUserCanUseApplications } from '../../common/scope-check';
-import { Forbidden, NotFound } from '../../errors';
-import { fetchPersonalTokenWithReference, PersonalTokenReferenceFields } from '../input/PersonalTokenReferenceInput';
-import { GraphQLPersonalToken } from '../object/PersonalToken';
+import PersonalTokenModel from '../../../models/PersonalToken.js';
+import { checkRemoteUserCanUseApplications } from '../../common/scope-check.js';
+import { Forbidden, NotFound } from '../../errors.js';
+import { fetchPersonalTokenWithReference, PersonalTokenReferenceFields } from '../input/PersonalTokenReferenceInput.js';
+import { GraphQLPersonalToken } from '../object/PersonalToken.js';
 
 const PersonalTokenQuery = {
   type: GraphQLPersonalToken,

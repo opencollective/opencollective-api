@@ -2,11 +2,11 @@ import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
 import { createSandbox, stub } from 'sinon';
 
-import * as transferwise from '../../../../../server/lib/transferwise';
-import models from '../../../../../server/models';
-import { fakeCollective, fakeConnectedAccount, fakeUser } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2 } from '../../../../utils';
-import * as utils from '../../../../utils';
+import * as transferwise from '../../../../../server/lib/transferwise.js';
+import models from '../../../../../server/models/index.js';
+import { fakeCollective, fakeConnectedAccount, fakeUser } from '../../../../test-helpers/fake-data.js';
+import { graphqlQueryV2 } from '../../../../utils.js';
+import * as utils from '../../../../utils.js';
 
 describe('server/graphql/v2/mutation/ConnectedAccountMutations', () => {
   const sandbox = createSandbox();

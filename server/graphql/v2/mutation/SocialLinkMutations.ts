@@ -1,12 +1,12 @@
 import express from 'express';
 import { GraphQLFieldConfigMap, GraphQLList, GraphQLNonNull } from 'graphql';
 
-import type { default as SocialLinkModel } from '../../../models/SocialLink';
-import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
-import { Unauthorized } from '../../errors';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
-import { GraphQLSocialLinkInput } from '../input/SocialLinkInput';
-import { GraphQLSocialLink } from '../object/SocialLink';
+import { default as SocialLinkModel } from '../../../models/SocialLink.js';
+import { checkRemoteUserCanUseAccount } from '../../common/scope-check.js';
+import { Unauthorized } from '../../errors.js';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput.js';
+import { GraphQLSocialLinkInput } from '../input/SocialLinkInput.js';
+import { GraphQLSocialLink } from '../object/SocialLink.js';
 
 const socialLinkMutations: GraphQLFieldConfigMap<void, express.Request> = {
   updateSocialLinks: {

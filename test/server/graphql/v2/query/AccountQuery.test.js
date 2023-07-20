@@ -1,9 +1,9 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
-import { shuffle, times } from 'lodash';
+import { shuffle, times } from 'lodash-es';
 
-import { roles } from '../../../../../server/constants';
-import { randEmail } from '../../../../stores';
+import { roles } from '../../../../../server/constants/index.js';
+import { randEmail } from '../../../../stores/index.js';
 import {
   fakeCollective,
   fakeHost,
@@ -15,8 +15,8 @@ import {
   fakeUpdate,
   fakeUser,
   multiple,
-} from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, resetTestDB } from '../../../../utils';
+} from '../../../../test-helpers/fake-data.js';
+import { graphqlQueryV2, resetTestDB } from '../../../../utils.js';
 
 const accountQuery = gqlV2/* GraphQL */ `
   query Account($slug: String!, $updatesOrder: UpdateChronologicalOrderInput) {

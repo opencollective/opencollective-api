@@ -1,4 +1,4 @@
-import { isNaN, isNil, round } from 'lodash';
+import { isNaN, isNil, round } from 'lodash-es';
 
 /** Convert `v` to negative if possitive, don't touch it otherwise. */
 export function toNegative(v: number) {

@@ -1,14 +1,14 @@
 import config from 'config';
-import { pick } from 'lodash';
+import { pick } from 'lodash-es';
 import { InferAttributes, InferCreationAttributes, Model, ModelStatic, Transaction } from 'sequelize';
 
-import ActivityTypes from '../constants/activities';
-import { types } from '../constants/collectives';
-import roles, { MemberRoleLabels } from '../constants/roles';
-import { purgeCacheForCollective } from '../lib/cache';
-import sequelize, { DataTypes } from '../lib/sequelize';
+import ActivityTypes from '../constants/activities.js';
+import { types } from '../constants/collectives.js';
+import roles, { MemberRoleLabels } from '../constants/roles.js';
+import { purgeCacheForCollective } from '../lib/cache/index.js';
+import sequelize, { DataTypes } from '../lib/sequelize.js';
 
-import Collective from './Collective';
+import Collective from './Collective.js';
 
 const { models } = sequelize;
 

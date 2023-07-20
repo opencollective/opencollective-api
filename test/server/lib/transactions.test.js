@@ -1,9 +1,9 @@
 import { expect } from 'chai';
 
-import * as libtransactions from '../../../server/lib/transactions';
-import models from '../../../server/models';
-import * as store from '../../stores';
-import * as utils from '../../utils';
+import * as libtransactions from '../../../server/lib/transactions.js';
+import models from '../../../server/models/index.js';
+import * as store from '../../stores/index.js';
+import * as utils from '../../utils.js';
 
 describe('server/lib/transactions', () => {
   beforeEach(utils.resetTestDB);

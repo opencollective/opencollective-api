@@ -5,10 +5,10 @@
 import axios from 'axios';
 import config from 'config';
 
-import activitiesLib from '../lib/activities';
+import activitiesLib from '../lib/activities.js';
 
-import logger from './logger';
-import { reportErrorToSentry } from './sentry';
+import logger from './logger.js';
+import { reportErrorToSentry } from './sentry.js';
 
 export const OPEN_COLLECTIVE_SLACK_CHANNEL = {
   ABUSE: 'abuse',

@@ -1,8 +1,8 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
-import models, { Op } from '../../../models';
-import { NotFound } from '../../errors';
-import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
+import models, { Op } from '../../../models/index.js';
+import { NotFound } from '../../errors.js';
+import { idDecode, IDENTIFIER_TYPES } from '../identifiers.js';
 
 export const GraphQLOrderReferenceInput = new GraphQLInputObjectType({
   name: 'OrderReferenceInput',

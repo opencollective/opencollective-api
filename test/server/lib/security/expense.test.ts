@@ -1,9 +1,9 @@
 import { expect } from 'chai';
-import { pick } from 'lodash';
+import { pick } from 'lodash-es';
 
-import { Service } from '../../../../server/constants/connected_account';
-import { checkExpense, checkExpensesBatch } from '../../../../server/lib/security/expense';
-import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
+import { Service } from '../../../../server/constants/connected_account.js';
+import { checkExpense, checkExpensesBatch } from '../../../../server/lib/security/expense.js';
+import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod.js';
 import {
   fakeConnectedAccount,
   fakeExpense,
@@ -13,8 +13,8 @@ import {
   multiple,
   randStr,
   sequelize,
-} from '../../../test-helpers/fake-data';
-import { makeRequest, resetTestDB } from '../../../utils';
+} from '../../../test-helpers/fake-data.js';
+import { makeRequest, resetTestDB } from '../../../utils.js';
 
 const snapshotChecks = checks => checks.map(c => pick(c, ['scope', 'level', 'message']));
 

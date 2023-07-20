@@ -25,6 +25,8 @@ export async function checkUsers() {
   await checkDeletedCollectives();
 }
 
-if (!module.parent) {
+import { pathToFileURL } from 'url';
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   checkUsers();
 }

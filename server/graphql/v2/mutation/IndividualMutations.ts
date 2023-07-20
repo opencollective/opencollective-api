@@ -3,12 +3,12 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
-import TwoFactorAuthLib from '../../../lib/two-factor-authentication';
-import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
-import { RateLimitExceeded, Unauthorized } from '../../errors';
-import { GraphQLIndividual } from '../object/Individual';
-import { GraphQLSetPasswordResponse } from '../object/SetPasswordResponse';
+import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit.js';
+import TwoFactorAuthLib from '../../../lib/two-factor-authentication/index.js';
+import { checkRemoteUserCanUseAccount } from '../../common/scope-check.js';
+import { RateLimitExceeded, Unauthorized } from '../../errors.js';
+import { GraphQLIndividual } from '../object/Individual.js';
+import { GraphQLSetPasswordResponse } from '../object/SetPasswordResponse.js';
 
 const individualMutations = {
   setChangelogViewDate: {

@@ -1,4 +1,4 @@
-import { get, isEmpty, omit, pick } from 'lodash';
+import { get, isEmpty, omit, pick } from 'lodash-es';
 import {
   CreationOptional,
   DataTypes,
@@ -10,15 +10,15 @@ import {
   NonAttribute,
   Transaction,
 } from 'sequelize';
-import isEmail from 'validator/lib/isEmail';
+import validator from 'validator';
 
-import logger from '../lib/logger';
-import sequelize, { Op } from '../lib/sequelize';
-import { objHasOnlyKeys } from '../lib/utils';
-import { RecipientAccount as BankAccountPayoutMethodData } from '../types/transferwise';
+import logger from '../lib/logger.js';
+import sequelize, { Op } from '../lib/sequelize.js';
+import { objHasOnlyKeys } from '../lib/utils.js';
+import { RecipientAccount as BankAccountPayoutMethodData } from '../types/transferwise.js';
 
-import Collective from './Collective';
-import User from './User';
+import Collective from './Collective.js';
+import User from './User.js';
 
 /**
  * Match the Postgres enum defined for `PayoutMethods` > `type`
@@ -147,7 +147,7 @@ export class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCrea
     let existingPm = null;
     if (payoutMethodData['type'] === PayoutMethodTypes.PAYPAL) {
       const email = get(payoutMethodData, 'data.email');
-      if (email && typeof email === 'string' && isEmail(email)) {
+      if (email && typeof email === 'string' && validator.default.isEmail(email)) {
         existingPm = await PayoutMethod.scope('paypal').findOne({
           where: {
             CollectiveId: collective.id,
@@ -228,7 +228,7 @@ PayoutMethod.init(
       validate: {
         isValidValue(value): void {
           if (this.type === PayoutMethodTypes.PAYPAL) {
-            if (!value || !value.email || !isEmail(value.email)) {
+            if (!value || !value.email || !validator.default.isEmail(value.email)) {
               throw new Error('Invalid PayPal email address');
             } else if (!objHasOnlyKeys(value, ['email'])) {
               throw new Error('Data for this payout method contains too much information');

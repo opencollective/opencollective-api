@@ -1,6 +1,6 @@
 import config from 'config';
 
-import cache from './cache';
+import cache from './cache/index.js';
 
 export const ONE_HOUR_IN_SECONDS = 60 * 60;
 

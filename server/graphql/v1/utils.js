@@ -1,9 +1,9 @@
 import debugLib from 'debug';
 import { graphql } from 'graphql';
 
-import { loaders } from '../loaders';
+import { loaders } from '../loaders/index.js';
 
-import schema from './schema';
+import schema from './schema.js';
 
 const debug = debugLib('graphql');
 

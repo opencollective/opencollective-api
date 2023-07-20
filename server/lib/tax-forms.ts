@@ -1,26 +1,26 @@
 import config from 'config';
 import deepMerge from 'deepmerge';
 import HelloWorks from 'helloworks-sdk';
-import { truncate } from 'lodash';
+import { truncate } from 'lodash-es';
 
-import { activities } from '../constants';
+import { activities } from '../constants/index.js';
 import {
   TAX_FORM_IGNORED_EXPENSE_STATUSES,
   TAX_FORM_IGNORED_EXPENSE_TYPES,
   US_TAX_FORM_THRESHOLD,
   US_TAX_FORM_THRESHOLD_FOR_PAYPAL,
-} from '../constants/tax-form';
-import models, { Collective, Expense, Op, sequelize } from '../models';
+} from '../constants/tax-form.js';
+import models, { Collective, Expense, Op, sequelize } from '../models/index.js';
 import {
   LEGAL_DOCUMENT_REQUEST_STATUS,
   LEGAL_DOCUMENT_TYPE,
   LegalDocumentModelInterface,
-} from '../models/LegalDocument';
+} from '../models/LegalDocument.js';
 
-import logger from './logger';
-import queries from './queries';
-import { reportErrorToSentry, reportMessageToSentry } from './sentry';
-import { isEmailInternal } from './utils';
+import logger from './logger.js';
+import queries from './queries.js';
+import { reportErrorToSentry, reportMessageToSentry } from './sentry.js';
+import { isEmailInternal } from './utils.js';
 
 /**
  * @returns {Collective} all the accounts that need to be sent a tax form (both users and orgs)

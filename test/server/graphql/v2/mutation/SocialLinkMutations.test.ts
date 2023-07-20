@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
 
-import { fakeCollective, fakeUser } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, resetTestDB } from '../../../../utils';
+import { fakeCollective, fakeUser } from '../../../../test-helpers/fake-data.js';
+import { graphqlQueryV2, resetTestDB } from '../../../../utils.js';
 
 const UPDATE_SOCIAL_LINKS_MUTATION = gqlV2/* GraphQL */ `
   mutation UpdateSocialLinksMutation($socialLinks: [SocialLinkInput!]!, $account: AccountReferenceInput!) {

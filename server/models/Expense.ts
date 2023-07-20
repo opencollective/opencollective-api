@@ -1,4 +1,4 @@
-import { get, isEmpty, pick } from 'lodash';
+import { get, isEmpty, pick } from 'lodash-es';
 import {
   BelongsToGetAssociationMixin,
   CreationOptional,
@@ -11,27 +11,27 @@ import {
 import Temporal from 'sequelize-temporal';
 import validator from 'validator';
 
-import { roles } from '../constants';
-import ActivityTypes from '../constants/activities';
-import ExpenseStatus from '../constants/expense_status';
-import ExpenseType from '../constants/expense_type';
-import { reduceArrayToCurrency } from '../lib/currency';
-import logger from '../lib/logger';
-import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
-import { reportErrorToSentry } from '../lib/sentry';
-import sequelize, { DataTypes, Model, Op, QueryTypes } from '../lib/sequelize';
-import { sanitizeTags, validateTags } from '../lib/tags';
-import { computeDatesAsISOStrings } from '../lib/utils';
-import CustomDataTypes from '../models/DataTypes';
-import { BatchGroup, ExpenseDataQuoteV2 } from '../types/transferwise';
+import ActivityTypes from '../constants/activities.js';
+import ExpenseStatus from '../constants/expense_status.js';
+import ExpenseType from '../constants/expense_type.js';
+import { roles } from '../constants/index.js';
+import { reduceArrayToCurrency } from '../lib/currency.js';
+import logger from '../lib/logger.js';
+import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html.js';
+import { reportErrorToSentry } from '../lib/sentry.js';
+import sequelize, { DataTypes, Model, Op, QueryTypes } from '../lib/sequelize.js';
+import { sanitizeTags, validateTags } from '../lib/tags.js';
+import { computeDatesAsISOStrings } from '../lib/utils.js';
+import CustomDataTypes from '../models/DataTypes.js';
+import { BatchGroup, ExpenseDataQuoteV2 } from '../types/transferwise.js';
 
-import Collective from './Collective';
-import { ExpenseAttachedFile } from './ExpenseAttachedFile';
-import { ExpenseItem } from './ExpenseItem';
-import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
-import { RecurringExpense } from './RecurringExpense';
-import User from './User';
-import VirtualCard from './VirtualCard';
+import Collective from './Collective.js';
+import { ExpenseAttachedFile } from './ExpenseAttachedFile.js';
+import { ExpenseItem } from './ExpenseItem.js';
+import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod.js';
+import { RecurringExpense } from './RecurringExpense.js';
+import User from './User.js';
+import VirtualCard from './VirtualCard.js';
 
 export { ExpenseStatus, ExpenseType };
 
@@ -525,7 +525,7 @@ Expense.init(
           });
 
           // Validate values
-          if (value.country && !validator.isISO31661Alpha2(value.country)) {
+          if (value.country && !validator.default.isISO31661Alpha2(value.country)) {
             throw new Error('Invalid Country ISO');
           }
         },

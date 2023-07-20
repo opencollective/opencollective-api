@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
-import { Service } from '../../../constants/connected_account';
+import { Service } from '../../../constants/connected_account.js';
 
 const deprecatedValues = new Set([Service.MEETUP, Service.PRIVACY]);
 

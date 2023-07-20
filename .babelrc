@@ -3,6 +3,7 @@
     [
       "@babel/preset-env",
       {
+        "modules": false,
         "targets": {
           "node": true
         }
@@ -16,9 +17,7 @@
         "allowDeclareFields": true
       }
     ],
-    "add-module-exports",
-    "@babel/plugin-proposal-class-properties",
-    "@babel/plugin-transform-async-to-generator"
+    "add-module-exports"
   ],
   "env": {
     "test": {

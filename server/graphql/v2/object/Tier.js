@@ -1,13 +1,13 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
-import models, { Op } from '../../../models';
-import { GraphQLOrderCollection } from '../collection/OrderCollection';
-import { GraphQLOrderStatus, GraphQLTierAmountType, GraphQLTierInterval, GraphQLTierType } from '../enum';
-import { getTierFrequencyFromInterval, GraphQLTierFrequency } from '../enum/TierFrequency';
-import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
+import models, { Op } from '../../../models/index.js';
+import { GraphQLOrderCollection } from '../collection/OrderCollection.js';
+import { GraphQLOrderStatus, GraphQLTierAmountType, GraphQLTierInterval, GraphQLTierType } from '../enum/index.js';
+import { getTierFrequencyFromInterval, GraphQLTierFrequency } from '../enum/TierFrequency.js';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers.js';
 
-import { GraphQLAmount } from './Amount';
+import { GraphQLAmount } from './Amount.js';
 
 export const GraphQLTier = new GraphQLObjectType({
   name: 'Tier',

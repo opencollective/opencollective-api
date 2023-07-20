@@ -1,8 +1,8 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import { getCollectiveAvatarUrl } from '../../../lib/collectivelib';
-import { GraphQLImageFormat, GraphQLMemberRole } from '../enum';
+import { getCollectiveAvatarUrl } from '../../../lib/collectivelib.js';
+import { GraphQLImageFormat, GraphQLMemberRole } from '../enum/index.js';
 
 export const GraphQLContributor = new GraphQLObjectType({
   name: 'Contributor',

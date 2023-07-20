@@ -1,12 +1,12 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
 
-import Channels from '../../../constants/channels';
-import models from '../../../models';
-import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
-import { GraphQLActivityAndClassesType } from '../enum/ActivityType';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
-import { GraphQLActivitySubscription } from '../object/ActivitySubscription';
+import Channels from '../../../constants/channels.js';
+import models from '../../../models/index.js';
+import { checkRemoteUserCanUseAccount } from '../../common/scope-check.js';
+import { GraphQLActivityAndClassesType } from '../enum/ActivityType.js';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput.js';
+import { GraphQLActivitySubscription } from '../object/ActivitySubscription.js';
 
 const notificationMutations = {
   setEmailNotification: {

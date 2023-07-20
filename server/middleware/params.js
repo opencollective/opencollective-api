@@ -1,8 +1,8 @@
-import { isNaN } from 'lodash';
+import { isNaN } from 'lodash-es';
 
-import errors from '../lib/errors';
-import { isUUID } from '../lib/utils';
-import models from '../models';
+import errors from '../lib/errors.js';
+import { isUUID } from '../lib/utils.js';
+import models from '../models/index.js';
 
 const { User, Collective, Transaction, Expense } = models;
 

@@ -1,8 +1,8 @@
 import { GraphQLInt, GraphQLInterfaceType, GraphQLNonNull, GraphQLString } from 'graphql';
 
-import { UploadedFile } from '../../../models';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
-import URL from '../scalar/URL';
+import { UploadedFile } from '../../../models/index.js';
+import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers.js';
+import URL from '../scalar/URL.js';
 
 export const fileInfoFields = {
   id: {

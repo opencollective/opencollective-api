@@ -1,12 +1,12 @@
-import { get } from 'lodash';
+import { get } from 'lodash-es';
 import pMap from 'p-map';
 
-import logger from '../lib/logger';
-import models, { Op } from '../models';
+import logger from '../lib/logger.js';
+import models, { Op } from '../models/index.js';
 
-import emailLib from './email';
-import { templateNames } from './emailTemplates';
-import { reportErrorToSentry } from './sentry';
+import emailLib from './email.js';
+import { templateNames } from './emailTemplates.js';
+import { reportErrorToSentry } from './sentry.js';
 
 const emailOptions = {
   from: 'Open Collective <support@opencollective.com>',

@@ -2,10 +2,10 @@ import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'g
 import { GraphQLDateTime } from 'graphql-scalars';
 import moment from 'moment';
 
-import { GraphQLTimeUnit } from '../enum/TimeUnit';
-import { getTimeSeriesFields, GraphQLTimeSeries } from '../interface/TimeSeries';
+import { GraphQLTimeUnit } from '../enum/TimeUnit.js';
+import { getTimeSeriesFields, GraphQLTimeSeries } from '../interface/TimeSeries.js';
 
-import { GraphQLAmount } from './Amount';
+import { GraphQLAmount } from './Amount.js';
 
 export const getNumberOfDays = (startDate, endDate, collective) => {
   return Math.abs(moment(startDate || collective.createdAt).diff(moment(endDate || undefined), 'days'));
