@@ -1,5 +1,4 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { isNil } from 'lodash';
 
 import FEATURE_STATUS from '../../constants/feature-status';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../lib/rate-limit';
@@ -26,7 +25,6 @@ import {
 } from './mutations/collectives';
 import { editConnectedAccount } from './mutations/connectedAccounts';
 import { createWebhook, deleteNotification, editWebhooks } from './mutations/notifications';
-import { createOrder } from './mutations/orders';
 import * as paymentMethodsMutation from './mutations/paymentMethods';
 import { editTier, editTiers } from './mutations/tiers';
 import { confirmUserEmail, updateUserEmail } from './mutations/users';
@@ -36,20 +34,11 @@ import {
   ConnectedAccountInputType,
   MemberInputType,
   NotificationInputType,
-  OrderInputType,
   StripeCreditCardDataInputType,
   TierInputType,
   UserInputType,
 } from './inputTypes';
-import {
-  ConnectedAccountType,
-  MemberType,
-  NotificationType,
-  OrderType,
-  PaymentMethodType,
-  TierType,
-  UserType,
-} from './types';
+import { ConnectedAccountType, MemberType, NotificationType, PaymentMethodType, TierType, UserType } from './types';
 
 const mutations = {
   createCollective: {
@@ -269,47 +258,6 @@ const mutations = {
       message: { type: GraphQLString },
     },
     resolve: editPublicMessage,
-  },
-  createOrder: {
-    type: OrderType,
-    deprecationReason: '2020-10-13: This mutation has been moved to GQLV2',
-    args: {
-      order: {
-        type: new GraphQLNonNull(OrderInputType),
-      },
-    },
-    async resolve(_, args, req) {
-      // On this legacy mutation, the `totalAmount` could be omitted when ordering for a fixed tier
-      if (isNil(args.order.totalAmount)) {
-        const tier = args.order.tier?.id && (await models.Tier.findByPk(args.order.tier.id));
-        if (!tier) {
-          throw new NotFound('A tier must be provided when totalAmount is not set');
-        } else if (isNil(tier.amount) || tier.presets) {
-          throw new Error('Cannot calculate totalAmount for a flexible tier');
-        }
-        args.order.totalAmount = Math.round((args.order.quantity || 1) * tier.amount + (args.order.taxAmount || 0));
-      }
-
-      // Pass the gross amount for a single item
-      const amount =
-        (args.order.totalAmount - (args.order.taxAmount || 0) - (args.order.platformFee || 0)) /
-        (args.order.quantity || 1);
-
-      // We're not supposed to call this mutation with taxes; but keeping it backward-compatible for tests
-      let tax;
-      if (args.order.taxAmount || args.order.taxIDNumber) {
-        tax = {
-          country: args.order.countryISO,
-          amount: args.order.taxAmount || 0,
-          rate: Math.round((args.order.taxAmount || 0) / args.order.totalAmount),
-          idNumber: args.order.taxIDNumber,
-          type: null,
-        };
-      }
-
-      const { order } = await createOrder({ ...args.order, amount, tax }, req);
-      return order;
-    },
   },
   updatePaymentMethod: {
     type: PaymentMethodType,
