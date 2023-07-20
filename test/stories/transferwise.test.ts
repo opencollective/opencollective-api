@@ -1,5 +1,7 @@
 /* eslint-disable camelcase */
 
+import { URL } from 'url'; // in Browser, the URL in native accessible on window
+
 import { expect } from 'chai';
 import config from 'config';
 import { round } from 'lodash-es';
@@ -21,6 +23,7 @@ import {
 } from '../test-helpers/fake-data.js';
 import { resetTestDB, snapshotLedger, useIntegrationTestRecorder } from '../utils.js';
 
+const __filename = new URL('', import.meta.url).pathname;
 describe('/test/stories/transferwise.test.ts', () => {
   useIntegrationTestRecorder(config.transferwise.apiUrl, __filename, nock => {
     // Ignore our randomly generated customerTransactionId

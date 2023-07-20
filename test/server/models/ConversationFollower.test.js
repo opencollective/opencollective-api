@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { SequelizeUniqueConstraintError } from 'sequelize';
+import { UniqueConstraintError } from 'sequelize';
 
 import models from '../../../server/models/index.js';
 import { newCollectiveWithHost, randEmail } from '../../stores/index.js';
@@ -23,7 +23,7 @@ describe('server/models/ConversationFollower', () => {
     const follower = await models.ConversationFollower.create({ UserId: user.id, ConversationId: conversation.id });
     expect(follower).to.exist;
     expect(models.ConversationFollower.create({ UserId: user.id, ConversationId: conversation.id })).to.be.rejectedWith(
-      SequelizeUniqueConstraintError,
+      UniqueConstraintError,
     );
   });
 });

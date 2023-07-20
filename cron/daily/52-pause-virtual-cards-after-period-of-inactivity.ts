@@ -89,7 +89,9 @@ export async function run({ concurrency = 20 } = {}) {
   await queue.addAll(unusedVirtualCards.map(vc => () => pauseVirtualCardDueToInactivity(vc)));
 }
 
-if (require.main === module) {
+import { pathToFileURL } from 'url';
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   run()
     .catch(e => {
       console.error(e);

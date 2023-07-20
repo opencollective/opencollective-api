@@ -10,7 +10,7 @@ import {
   NonAttribute,
   Transaction,
 } from 'sequelize';
-import { isEmail } from 'validator/es/index.js';
+import isEmail from 'validator/lib/isEmail.js';
 
 import logger from '../lib/logger.js';
 import sequelize, { Op } from '../lib/sequelize.js';

@@ -224,7 +224,9 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
   }
 }
 
-if (require.main === module) {
+import { pathToFileURL } from 'url';
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   run(defaultDate)
     .catch(e => {
       console.error(e);

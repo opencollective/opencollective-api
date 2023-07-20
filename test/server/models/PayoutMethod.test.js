@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { SequelizeValidationError, ValidationError } from 'sequelize';
+import { ValidationError } from 'sequelize';
 
 import models from '../../../server/models/index.js';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod.js';
@@ -120,7 +120,7 @@ describe('server/models/PayoutMethod', () => {
 
         // Invalid
         const promise = models.PayoutMethod.create({ ...baseData, data: { email: 'Nope' } });
-        await expect(promise).to.be.rejectedWith(SequelizeValidationError, 'Invalid PayPal email address');
+        await expect(promise).to.be.rejectedWith(ValidationError, 'Invalid PayPal email address');
 
         // Valid
         const pm = await models.PayoutMethod.create({ ...baseData, data: { email: randEmail() } });

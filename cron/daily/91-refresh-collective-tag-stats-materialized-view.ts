@@ -20,7 +20,9 @@ export async function run() {
   logger.info(`CollectiveTagStats materialized view refreshed in ${runSeconds}.${runMilliSeconds} seconds`);
 }
 
-if (require.main === module) {
+import { pathToFileURL } from 'url';
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   run()
     .then(() => process.exit(0))
     .catch(e => {

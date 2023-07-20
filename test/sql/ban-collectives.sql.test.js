@@ -2,10 +2,10 @@ import url from 'url';
 const __dirname = url.fileURLToPath(new url.URL('.', import.meta.url));
 /* eslint-disable camelcase */
 
+import { readFileSync } from 'fs';
 import path from 'path';
 
 import { expect } from 'chai';
-import { readFileSync } from 'fs-extra';
 import { times } from 'lodash-es';
 
 import { PLATFORM_TIP_TRANSACTION_PROPERTIES } from '../../server/constants/transactions.js';

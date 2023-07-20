@@ -117,8 +117,9 @@ export async function run() {
     }
   }
 }
+import { pathToFileURL } from 'url';
 
-if (require.main === module) {
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   run()
     .then(() => process.exit(0))
     .catch(e => {

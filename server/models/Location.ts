@@ -1,6 +1,6 @@
 import { isNil } from 'lodash-es';
 import type { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes } from 'sequelize';
-import validator from 'validator/es/index.js';
+import validator from 'validator';
 
 import sequelize, { DataTypes, Model } from '../lib/sequelize.js';
 import { StructuredAddress } from '../types/Location.js';

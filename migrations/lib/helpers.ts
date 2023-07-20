@@ -1,4 +1,4 @@
-import { cloneDeep, remove } from 'lodash';
+import { cloneDeep, remove } from 'lodash-es';
 import { QueryInterface } from 'sequelize';
 
 /**

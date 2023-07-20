@@ -2,7 +2,7 @@ import debugLib from 'debug';
 import { compact, defaults, isNil, keys, pick, pickBy, reject, uniq } from 'lodash-es';
 import prependHttp from 'prepend-http';
 import { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
-import { isIP } from 'validator/es/index.js';
+import isIP from 'validator/lib/isIP.js';
 
 import ActivityTypes, { ActivitiesPerClass, ActivityClasses, TransactionalActivities } from '../constants/activities.js';
 import channels from '../constants/channels.js';

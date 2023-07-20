@@ -2,7 +2,7 @@ import { URL } from 'url';
 
 import { expect } from 'chai';
 import config from 'config';
-import { SequelizeValidationError } from 'sequelize';
+import { ValidationError } from 'sequelize';
 import { stub, useFakeTimers } from 'sinon';
 
 import { Service } from '../../../server/constants/connected_account.js';
@@ -24,7 +24,7 @@ describe('server/models/User', () => {
   describe('#create', () => {
     it('fails without email', () => {
       return expect(User.create({})).to.be.rejectedWith(
-        SequelizeValidationError,
+        ValidationError,
         'notNull Violation: User.email cannot be null',
       );
     });

@@ -43,7 +43,7 @@ import {
 } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 import { v4 as uuid } from 'uuid';
-import validator from 'validator/es/index.js';
+import validator from 'validator';
 
 import activities from '../constants/activities.js';
 import { CollectiveTypesList, types } from '../constants/collectives.js';
