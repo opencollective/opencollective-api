@@ -68,7 +68,6 @@ import {
 } from '../lib/budget.js';
 import { purgeCacheForCollective } from '../lib/cache/index.js';
 import {
-  collectiveSlugReservedList,
   filterCollectiveSettings,
   getCollectiveAvatarUrl,
   isCollectiveSlugReserved,
@@ -3353,9 +3352,10 @@ Collective.init(
       validate: {
         len: [1, 255],
         isLowercase: true,
-        notIn: {
-          args: [collectiveSlugReservedList],
-          msg: 'The slug given for this collective is a reserved keyword',
+        isNotReserved(value) {
+          if (isCollectiveSlugReserved(value)) {
+            throw new Error('The slug given for this collective is a reserved keyword');
+          }
         },
         isValid(value) {
           if (!/^[\w-]+$/.test(value)) {
