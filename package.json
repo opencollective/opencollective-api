@@ -195,10 +195,9 @@
     "typescript": "^5.1.3"
   },
   "scripts": {
-    "build": "npm run build:clean && npm run build:updates && npm run build:server",
+    "build": "npm run build:clean && npm run build:server",
     "build:clean": "rm -rf dist && mkdir dist",
     "build:server": "babel server --extensions .js,.mjs,.cjs,.ts,.mts,.cts -d ./dist",
-    "build:updates": "npm --prefix node_modules/cloudflare-ip run update-list",
     "clean": "npm run build:clean && npm run test:clean",
     "codemod:run": "jscodeshift --extensions=js,cjs,mjs,ts,cts,mts --parser=ts -t",
     "codemod:run:dry": "jscodeshift --extensions=js,cjs,mjs,ts,cts,mts --parser=ts -d -p -t",
