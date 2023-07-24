@@ -1068,6 +1068,9 @@ const orderMutations = {
         throw new Unauthorized('Only host admins can edit pending orders');
       }
 
+      if (order.data?.isPendingContribution !== true) {
+        throw new ValidationFailed(`Only pending contributions created by fiscal-host admins can be editted`);
+      }
       if (!(await canEdit(req, order))) {
         throw new ValidationFailed(`Only pending orders can be edited, this one is ${order.status}`);
       }
