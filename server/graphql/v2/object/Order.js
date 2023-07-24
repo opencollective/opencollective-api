@@ -13,19 +13,23 @@ import { pick, round } from 'lodash';
 import roles from '../../../constants/roles';
 import { getHostFeePercent } from '../../../lib/payments';
 import models from '../../../models';
+import { CommentType } from '../../../models/Comment';
 import { PRIVATE_ORDER_ACTIVITIES } from '../../loaders/order';
 import { ORDER_PUBLIC_DATA_FIELDS } from '../../v1/mutations/orders';
 import { GraphQLActivityCollection } from '../collection/ActivityCollection';
+import { CommentCollection } from '../collection/CommentCollection';
 import { GraphQLContributionFrequency, GraphQLOrderStatus } from '../enum';
 import { idEncode } from '../identifiers';
+import { GraphQLChronologicalOrderInput } from '../input/ChronologicalOrderInput';
 import { GraphQLAccount } from '../interface/Account';
+import { CollectionArgs } from '../interface/Collection';
 import { GraphQLTransaction } from '../interface/Transaction';
 import { GraphQLAmount } from '../object/Amount';
 import { GraphQLPaymentMethod } from '../object/PaymentMethod';
 import { GraphQLTier } from '../object/Tier';
 
 import { GraphQLMemberOf } from './Member';
-import GraphQLOrderPermissions, { canSeeOrderPrivateActivities } from './OrderPermissions';
+import GraphQLOrderPermissions, { canComment, canSeeOrderPrivateActivities } from './OrderPermissions';
 import { GraphQLOrderTax } from './OrderTax';
 import { GraphQLTaxInfo } from './TaxInfo';
 
@@ -380,6 +384,37 @@ export const GraphQLOrder = new GraphQLObjectType({
           return Boolean(
             ['REQUIRE_CLIENT_CONFIRMATION', 'ERROR', 'PENDING'].includes(order.status) && order.data?.needsConfirmation,
           );
+        },
+      },
+      comments: {
+        type: CommentCollection,
+        description: 'Returns the list of comments for this expense, or `null` if user is not allowed to see them',
+        args: {
+          ...CollectionArgs,
+          orderBy: {
+            type: GraphQLChronologicalOrderInput,
+            defaultValue: { field: 'createdAt', direction: 'ASC' },
+          },
+        },
+        async resolve(expense, { limit, offset, orderBy }, req) {
+          if (!(await canComment(req, expense))) {
+            return null;
+          }
+
+          const type = [CommentType.PRIVATE_NOTE];
+
+          return {
+            offset,
+            limit,
+            totalCount: async () => req.loaders.Comment.countByExpenseAndType.load({ ExpenseId: expense.id, type }),
+            nodes: async () =>
+              models.Comment.findAll({
+                where: { ExpenseId: expense.id, type },
+                order: [[orderBy.field, orderBy.direction]],
+                offset,
+                limit,
+              }),
+          };
         },
       },
     };
