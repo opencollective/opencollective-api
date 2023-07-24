@@ -27,6 +27,7 @@ class Comment extends Model<InferAttributes<Comment>, InferCreationAttributes<Co
   public declare FromCollectiveId: number;
   public declare CreatedByUserId: ForeignKey<User['id']>;
   public declare ExpenseId: ForeignKey<Expense['id']>;
+  public declare OrderId: number;
   public declare UpdateId: number;
   public declare ConversationId: number;
   public declare html: string;
@@ -115,6 +116,17 @@ Comment.init(
       type: DataTypes.INTEGER,
       references: {
         model: 'Expenses',
+        key: 'id',
+      },
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE',
+      allowNull: true,
+    },
+
+    OrderId: {
+      type: DataTypes.INTEGER,
+      references: {
+        model: 'Orders',
         key: 'id',
       },
       onDelete: 'SET NULL',
