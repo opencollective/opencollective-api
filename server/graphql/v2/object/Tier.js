@@ -2,12 +2,15 @@ import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectT
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
 import models, { Op } from '../../../models';
+import { GraphQLContributorCollection } from '../collection/ContributorCollection';
 import { GraphQLOrderCollection } from '../collection/OrderCollection';
 import { GraphQLOrderStatus, GraphQLTierAmountType, GraphQLTierInterval, GraphQLTierType } from '../enum';
 import { getTierFrequencyFromInterval, GraphQLTierFrequency } from '../enum/TierFrequency';
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
+import { getCollectionArgs } from '../interface/Collection';
 
 import { GraphQLAmount } from './Amount';
+import { GraphQLTierStats } from './TierStats';
 
 export const GraphQLTier = new GraphQLObjectType({
   name: 'Tier',
@@ -34,6 +37,14 @@ export const GraphQLTier = new GraphQLObjectType({
       },
       description: {
         type: GraphQLString,
+      },
+      longDescription: {
+        type: GraphQLString,
+        description: 'A long, html-formatted description.',
+      },
+      videoUrl: {
+        type: GraphQLString,
+        description: 'Link to a video (YouTube, Vimeo).',
       },
       orders: {
         description: 'Get all orders',
@@ -62,6 +73,9 @@ export const GraphQLTier = new GraphQLObjectType({
         resolve(tier) {
           return { value: tier.amount, currency: tier.currency };
         },
+      },
+      currency: {
+        type: GraphQLString,
       },
       button: {
         type: GraphQLString,
@@ -136,6 +150,31 @@ export const GraphQLTier = new GraphQLObjectType({
         type: new GraphQLNonNull(GraphQLBoolean),
         async resolve(tier) {
           return Boolean(tier.data?.requireAddress);
+        },
+      },
+      contributors: {
+        type: new GraphQLNonNull(GraphQLContributorCollection),
+        description: 'Returns a list of all the contributors for this tier',
+        args: {
+          ...getCollectionArgs({ limit: 100 }),
+        },
+        async resolve(tier, args, req) {
+          const offset = args.offset || 0;
+          const limit = args.limit || 100;
+          const contributorsCache = await req.loaders.Contributors.forCollectiveId.load(tier.CollectiveId);
+          const tierContributors = contributorsCache?.tiers?.[tier.id.toString()] || [];
+          return {
+            offset,
+            limit,
+            totalCount: tierContributors.length,
+            nodes: tierContributors.slice(offset, offset + limit),
+          };
+        },
+      },
+      stats: {
+        type: GraphQLTierStats,
+        resolve(tier) {
+          return tier;
         },
       },
     };
