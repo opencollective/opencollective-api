@@ -150,9 +150,7 @@ export const canRefund = async (transaction: TransactionInterface, _: void, req:
     }
 
     const host = payee.host || (await req.loaders.Collective.byId.load(payee.HostCollectiveId));
-    const getRefundPolicy = getPolicy<POLICIES.COLLECTIVE_ADMINS_CAN_REFUND>;
-    const collectiveAdminsCanRefund = await getRefundPolicy(host, POLICIES.COLLECTIVE_ADMINS_CAN_REFUND);
-    return collectiveAdminsCanRefund === true;
+    return await getPolicy(host, POLICIES.COLLECTIVE_ADMINS_CAN_REFUND);
   } else {
     return false;
   }
