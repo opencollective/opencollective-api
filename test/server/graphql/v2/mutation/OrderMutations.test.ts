@@ -713,6 +713,9 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         CollectiveId: collective.id,
         totalAmount: 1000,
         currency: 'USD',
+        data: {
+          isPendingContribution: true,
+        },
       });
     });
 
@@ -758,7 +761,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
     });
 
     it('must be a PENDING order', async () => {
-      const paidOrder = await fakeOrder({ status: OrderStatuses.PAID });
+      const paidOrder = await fakeOrder({ status: OrderStatuses.PAID, data: { isPendingContribution: true } });
       const hostAdmin = await fakeUser();
       await paidOrder.collective.host.addUserWithRole(hostAdmin, 'ADMIN');
       const result = await callEditPendingOrder(
@@ -773,6 +776,26 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal('Only pending orders can be edited, this one is PAID');
+    });
+
+    it('must be a fiscal-host created pending contribution', async () => {
+      const paidOrder = await fakeOrder({ status: OrderStatuses.PAID });
+      const hostAdmin = await fakeUser();
+      await paidOrder.collective.host.addUserWithRole(hostAdmin, 'ADMIN');
+      const result = await callEditPendingOrder(
+        {
+          order: {
+            legacyId: paidOrder.id,
+            amount: { valueInCents: 150e2, currency: 'USD' },
+          },
+        },
+        hostAdmin,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(
+        'Only pending contributions created by fiscal-host admins can be editted',
+      );
     });
 
     it('edits a pending order', async () => {
