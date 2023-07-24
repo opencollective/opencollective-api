@@ -1,6 +1,7 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
+import { Includeable } from 'sequelize';
 
-import models, { Op } from '../../../models';
+import models from '../../../models';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
@@ -18,54 +19,48 @@ export const GraphQLOrderReferenceInput = new GraphQLInputObjectType({
   }),
 });
 
-/**
- * Retrieves an order
- *
- * @param {object} input - id of the order
- */
-export const fetchOrderWithReference = async (input, { include, throwIfMissing = true } = {}) => {
+type ObjectReference = { id?: string; legacyId?: number };
+
+export const getDatabaseIdFromOrderReference = (input: ObjectReference): number => {
+  if (input.id) {
+    return idDecode(input.id, IDENTIFIER_TYPES.ORDER);
+  } else if (input.legacyId) {
+    return input.legacyId;
+  } else {
+    throw new Error(`Please provide an id or a legacyId (got ${JSON.stringify(input)})`);
+  }
+};
+
+export const fetchOrderWithReference = async (
+  input: ObjectReference,
+  {
+    include = undefined,
+    throwIfMissing = true,
+  }: { include?: Includeable | Includeable[]; throwIfMissing?: boolean } = {},
+) => {
   const loadOrderById = id => {
     return models.Order.findByPk(id, { include });
   };
 
-  let order;
-  if (input.id) {
-    const id = idDecode(input.id, IDENTIFIER_TYPES.ORDER);
-    order = await loadOrderById(id);
-  } else if (input.legacyId) {
-    order = await loadOrderById(input.legacyId);
-  } else {
-    throw new Error('Please provide an id');
-  }
+  const id = getDatabaseIdFromOrderReference(input);
+  const order = await loadOrderById(id);
   if (!order && throwIfMissing) {
     throw new NotFound('Order Not Found');
   }
   return order;
 };
 
-/**
- * Retrieves multiple orders from a list of references
- *
- * @param {object} input - id of the order
- */
-export const fetchOrdersWithReferences = async (inputs, { include }) => {
+export const fetchOrdersWithReferences = async (
+  inputs: ObjectReference[],
+  { include }: { include?: Includeable | Includeable[] },
+) => {
   if (inputs.length === 0) {
     return [];
   }
 
-  const getConditionFromInput = input => {
-    if (input.id) {
-      return { id: idDecode(input.id, IDENTIFIER_TYPES.ORDER) };
-    } else if (input.legacyId) {
-      return { id: input.legacyId };
-    } else {
-      throw new Error(`Please provide an id or a legacyId (got ${JSON.stringify(input)})`);
-    }
-  };
-
   // Fetch orders
   const orders = await models.Order.findAll({
-    where: { [Op.or]: inputs.map(getConditionFromInput) },
+    where: { id: inputs.map(getDatabaseIdFromOrderReference) },
     include,
   });
 

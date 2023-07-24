@@ -6,14 +6,16 @@ import models from '../../models';
 import Comment, { CommentType } from '../../models/Comment';
 import Conversation from '../../models/Conversation';
 import Expense, { ExpenseStatus } from '../../models/Expense';
+import { OrderModelInterface } from '../../models/Order';
 import Update from '../../models/Update';
 import { NotFound, Unauthorized, ValidationFailed } from '../errors';
+import { canComment as canCommentOrder } from '../v2/object/OrderPermissions';
 
-import { canComment, canUsePrivateNotes as canSeeExpensePrivateNotes } from './expenses';
+import { canComment as canCommentExpense, canUsePrivateNotes as canUseExpensePrivateNotes } from './expenses';
 import { checkRemoteUserCanUseComment } from './scope-check';
 import { canSeeUpdate } from './update';
 
-type CommentableEntity = Update | Expense | Conversation;
+type CommentableEntity = Update | Expense | Conversation | OrderModelInterface;
 
 const loadCommentedEntity = async (commentValues): Promise<[CommentableEntity, ActivityTypes]> => {
   const include = { association: 'collective', required: true };
@@ -29,6 +31,9 @@ const loadCommentedEntity = async (commentValues): Promise<[CommentableEntity, A
   } else if (commentValues.UpdateId) {
     entity = (await Update.findByPk(commentValues.UpdateId, { include })) as Update;
     activityType = ActivityTypes.UPDATE_COMMENT_CREATED;
+  } else if (commentValues.OrderId) {
+    entity = (await models.Order.findByPk(commentValues.OrderId, { include })) as OrderModelInterface;
+    activityType = ActivityTypes.ORDER_COMMENT_CREATED;
   }
 
   return [entity, activityType];
@@ -92,10 +97,10 @@ async function createComment(commentData, req): Promise<Comment> {
     throw new ValidationFailed('Comment is empty');
   }
 
-  const { ConversationId, ExpenseId, UpdateId, html, type } = commentData;
+  const { ConversationId, ExpenseId, UpdateId, OrderId, html, type } = commentData;
 
   // Ensure at least (and only) one entity to comment is specified
-  if ([ConversationId, ExpenseId, UpdateId].filter(Boolean).length !== 1) {
+  if ([ConversationId, ExpenseId, UpdateId, OrderId].filter(Boolean).length !== 1) {
     throw new ValidationFailed('You must specify one entity to comment');
   }
 
@@ -107,15 +112,22 @@ async function createComment(commentData, req): Promise<Comment> {
 
   if (ExpenseId) {
     const expense = commentedEntity as Expense;
-    if (!(await canComment(req, expense))) {
+    if (!(await canCommentExpense(req, expense))) {
       throw new ValidationFailed('You are not allowed to comment on this expense');
     }
-    if (type === CommentType.PRIVATE_NOTE && !(await canSeeExpensePrivateNotes(req, expense))) {
+    if (type === CommentType.PRIVATE_NOTE && !(await canUseExpensePrivateNotes(req, expense))) {
       throw new Unauthorized('You need to be a host admin to post comments in this context');
     }
   } else if (UpdateId) {
     if (!(await canSeeUpdate(commentedEntity, req))) {
       throw new Unauthorized('You do not have the permission to post comments on this update');
+    }
+  } else if (OrderId) {
+    if (!(await canCommentOrder(req, OrderId))) {
+      throw new Unauthorized('You do not have the permission to post comments on this order');
+    }
+    if (type !== CommentType.PRIVATE_NOTE) {
+      throw new Unauthorized('Only private notes are allowed on orders');
     }
   }
 
@@ -139,12 +151,14 @@ async function createComment(commentData, req): Promise<Comment> {
     FromCollectiveId: comment.FromCollectiveId,
     HostCollectiveId: commentedEntity.collective.approvedAt ? commentedEntity.collective.HostCollectiveId : null,
     ExpenseId: comment.ExpenseId,
+    OrderId: comment.OrderId,
     data: {
       CommentId: comment.id,
       comment: { id: comment.id, html: comment.html, type: comment.type },
       FromCollectiveId: comment.FromCollectiveId,
       ExpenseId: comment.ExpenseId,
       UpdateId: comment.UpdateId,
+      OrderId: comment.OrderId,
       ConversationId: comment.ConversationId,
     },
   });
@@ -155,9 +169,7 @@ async function createComment(commentData, req): Promise<Comment> {
       await expense.update({ status: ExpenseStatus.APPROVED });
       await expense.createActivity(ActivityTypes.COLLECTIVE_EXPENSE_APPROVED);
     }
-  }
-
-  if (ConversationId) {
+  } else if (ConversationId) {
     models.ConversationFollower.follow(remoteUser.id, ConversationId);
   }
 

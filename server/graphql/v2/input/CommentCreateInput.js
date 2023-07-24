@@ -5,6 +5,7 @@ import { GraphQLCommentType } from '../enum/CommentType';
 
 import { GraphQLConversationReferenceInput } from './ConversationReferenceInput';
 import { GraphQLExpenseReferenceInput } from './ExpenseReferenceInput';
+import { GraphQLOrderReferenceInput } from './OrderReferenceInput';
 import { GraphQLUpdateReferenceInput } from './UpdateReferenceInput';
 
 /**
@@ -18,6 +19,10 @@ export const GraphQLCommentCreateInput = new GraphQLInputObjectType({
     expense: {
       type: GraphQLExpenseReferenceInput,
       description: 'If your comment is linked to an expense, set it here',
+    },
+    order: {
+      type: GraphQLOrderReferenceInput,
+      description: 'If your comment is linked to an order, set it here',
     },
     ConversationId: { type: GraphQLString, deprecationReason: '2022-08-26: Please use "conversation"' },
     conversation: { type: GraphQLConversationReferenceInput },
