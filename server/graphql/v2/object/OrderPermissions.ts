@@ -23,7 +23,7 @@ export const canMarkAsExpired = async (req: express.Request, order): Promise<boo
 };
 
 export const canEdit = async (req: express.Request, order): Promise<boolean> => {
-  return order.status === ORDER_STATUS.PENDING && isHostAdmin(req, order);
+  return order.status === ORDER_STATUS.PENDING && isHostAdmin(req, order) && order.data?.isPendingContribution;
 };
 
 export const canSeeOrderPrivateActivities = async (req: express.Request, order): Promise<boolean> => {
