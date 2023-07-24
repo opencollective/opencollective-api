@@ -36,6 +36,14 @@ export const GraphQLPolicies = new GraphQLObjectType({
         }
       },
     },
+    [POLICIES.COLLECTIVE_ADMINS_CAN_REFUND]: {
+      type: GraphQLBoolean,
+      async resolve(account, _, req) {
+        if (req.remoteUser?.isAdminOfCollectiveOrHost(account) && checkScope(req, 'account')) {
+          return await getPolicy(account, POLICIES.COLLECTIVE_ADMINS_CAN_REFUND);
+        }
+      },
+    },
     [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: {
       type: new GraphQLObjectType({
         name: POLICIES.COLLECTIVE_MINIMUM_ADMINS,
