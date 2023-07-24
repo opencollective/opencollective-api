@@ -1022,27 +1022,37 @@ const checkExpenseItems = (expenseType, items: (ExpenseItem | Record<string, unk
 };
 
 const checkExpenseType = (
-  type: EXPENSE_TYPE,
+  newType: EXPENSE_TYPE,
   account: Collective,
   parent: Collective | null,
   host: Collective | null,
+  existingExpense: Expense | null = null,
 ): void => {
+  // Prevent changing the type in certain cases
+  if (existingExpense && newType && existingExpense.type !== newType) {
+    if (existingExpense.type === EXPENSE_TYPE.CHARGE) {
+      throw new ValidationFailed('Cannot change the type for this expense');
+    } else if (newType === EXPENSE_TYPE.CHARGE) {
+      throw new ValidationFailed('Cannot manually change the type of an expense to "Charge"');
+    }
+  }
+
   // Check flag in settings in the priority order of collective > parent > host
   const accounts = { account, parent, host };
   for (const level of ['account', 'parent', 'host']) {
     const account = accounts[level];
-    const value = account?.settings?.expenseTypes?.[type];
+    const value = account?.settings?.expenseTypes?.[newType];
     if (isBoolean(value)) {
       if (value) {
         return; // Flag is explicitly set to true, we're good
       } else {
-        throw new ValidationFailed(`Expenses of type ${type.toLowerCase()} are not allowed by the ${level}`);
+        throw new ValidationFailed(`Expenses of type ${newType.toLowerCase()} are not allowed by the ${level}`);
       }
     }
   }
 
   // Fallback on default values
-  if (type === EXPENSE_TYPE.GRANT) {
+  if (newType === EXPENSE_TYPE.GRANT) {
     // TODO: enforce this to resolve https://github.com/opencollective/opencollective/issues/5395
   }
 };
@@ -1488,7 +1498,7 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
 
   // When changing the type, we must make sure that the new type is allowed
   if (expenseData.type && expenseData.type !== expense.type) {
-    checkExpenseType(expenseData.type, collective, collective.parent, collective.host);
+    checkExpenseType(expenseData.type, collective, collective.parent, collective.host, expense);
   }
 
   const [hasItemChanges, itemsDiff] = await getItemsChanges(expense.items, expenseData);
