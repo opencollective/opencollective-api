@@ -8,6 +8,7 @@ import { TransactionTypes } from '../../constants/transactions';
 import * as libPayments from '../../lib/payments';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import models from '../../models';
+import { TransactionInterface } from '../../models/Transaction';
 import { Forbidden, NotFound } from '../errors';
 
 const getPayee = async (req, transaction) => {
@@ -117,11 +118,7 @@ const remoteUserMeetsOneCondition = async (req, transaction, conditions): Promis
 };
 
 /** Checks if the user can refund this transaction */
-export const canRefund = async (
-  transaction: typeof models.Transaction,
-  _: void,
-  req: express.Request,
-): Promise<boolean> => {
+export const canRefund = async (transaction: TransactionInterface, _: void, req: express.Request): Promise<boolean> => {
   if (transaction.type !== TransactionTypes.CREDIT || transaction.OrderId === null || transaction.isRefund === true) {
     return false;
   }
@@ -142,7 +139,7 @@ export const canRefund = async (
 };
 
 export const canDownloadInvoice = async (
-  transaction: typeof models.Transaction,
+  transaction: TransactionInterface,
   _: void,
   req: express.Request,
 ): Promise<boolean> => {
@@ -161,11 +158,7 @@ export const canDownloadInvoice = async (
 };
 
 /** Checks if the user can reject this transaction */
-export const canReject = async (
-  transaction: typeof models.Transaction,
-  _: void,
-  req: express.Request,
-): Promise<boolean> => {
+export const canReject = async (transaction: TransactionInterface, _: void, req: express.Request): Promise<boolean> => {
   if (transaction.type !== TransactionTypes.CREDIT || transaction.OrderId === null) {
     return false;
   }
@@ -180,7 +173,7 @@ export const canReject = async (
 };
 
 export async function refundTransaction(
-  passedTransaction: typeof models.Transaction,
+  passedTransaction: TransactionInterface,
   req: express.Request,
   args: { message?: string } = {},
 ) {

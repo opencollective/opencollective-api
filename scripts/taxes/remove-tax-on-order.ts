@@ -56,7 +56,7 @@ const main = async () => {
           continue;
         }
 
-        logger.info(`Removing tax ${transaction.data.tax.id} from transaction ${transaction.id}`);
+        logger.info(`Removing tax ${transaction.data.tax['id']} from transaction ${transaction.id}`);
         const taxAmount = transaction.taxAmount;
         const taxAmountInHostCurrency = Math.round(transaction.taxAmount * transaction.hostCurrencyFxRate);
         if (transaction.type === 'CREDIT') {

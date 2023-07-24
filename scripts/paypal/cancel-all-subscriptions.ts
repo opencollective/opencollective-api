@@ -19,6 +19,7 @@ import OrderStatuses from '../../server/constants/order_status';
 import logger from '../../server/lib/logger';
 import models, { Op } from '../../server/models';
 import { OrderModelInterface } from '../../server/models/Order';
+import { TransactionInterface } from '../../server/models/Transaction';
 import { paypalRequestV2 } from '../../server/paymentProviders/paypal/api';
 import { getCaptureIdFromPaypalTransaction } from '../../server/paymentProviders/paypal/payment';
 import {
@@ -64,7 +65,7 @@ const main = async () => {
     throw new Error(`Collective ${collectiveSlug} not found`);
   }
 
-  const orders = await models.Order.findAll<OrderModelInterface & { Transaction?: typeof models.Transaction }>({
+  const orders = await models.Order.findAll<OrderModelInterface & { Transaction?: TransactionInterface }>({
     order: [['createdAt', 'DESC']],
     where: {
       CollectiveId: collective.id,

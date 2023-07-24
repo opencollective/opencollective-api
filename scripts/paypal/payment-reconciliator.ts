@@ -308,7 +308,7 @@ const reconcileSubscription = async (paypalSubscriptionId: string, _, commander)
       );
     }
 
-    const hasPayPalSaleId = id => dbTransactions.find(dbTransaction => dbTransaction.data?.paypalSale?.id === id);
+    const hasPayPalSaleId = id => dbTransactions.find(dbTransaction => dbTransaction.data?.paypalSale?.['id'] === id);
     const notRecordedPaypalTransactions = paypalTransactions.filter(
       paypalTransaction => !hasPayPalSaleId(paypalTransaction.id),
     );
@@ -551,7 +551,7 @@ const findMissingPaypalTransactions = async (_, commander) => {
           const paypalSubscriptionId = <string>transactionInfo['paypal_reference_id'];
           const { order } = await loadDataForSubscription(paypalSubscriptionId);
           if (options['fix']) {
-            return recordPaypalCapture(order, captureDetails, {
+            await recordPaypalCapture(order, captureDetails, {
               data: { recordedFrom: 'scripts/paypal/payment-reconciliator.ts' },
               createdAt: new Date(captureDetails.create_time),
             });

@@ -7,6 +7,7 @@ import { TransactionKind } from '../../../constants/transaction-kind';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
+import { TransactionInterface } from '../../../models/Transaction';
 import { checkRemoteUserCanUseTransactions } from '../../common/scope-check';
 import { canReject, refundTransaction } from '../../common/transactions';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
@@ -69,9 +70,8 @@ const transactionMutations = {
       // Enforce 2FA
       await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });
 
-      const { platformTipTransaction } = await models.Transaction.createPlatformTipTransactions(transactionData, host);
-
-      return platformTipTransaction;
+      const result = await models.Transaction.createPlatformTipTransactions(transactionData, host);
+      return result?.['platformTipTransaction'];
     },
   },
   refundTransaction: {
@@ -103,7 +103,7 @@ const transactionMutations = {
         description: 'Message to send to the contributor whose contribution has been rejected',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<typeof GraphQLTransaction> {
+    async resolve(_: void, args, req: express.Request): Promise<TransactionInterface> {
       checkRemoteUserCanUseTransactions(req);
 
       // get transaction info
