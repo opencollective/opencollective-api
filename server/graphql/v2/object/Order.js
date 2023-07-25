@@ -388,7 +388,7 @@ export const GraphQLOrder = new GraphQLObjectType({
       },
       comments: {
         type: CommentCollection,
-        description: 'Returns the list of comments for this expense, or `null` if user is not allowed to see them',
+        description: 'Returns the list of comments for this order, or `null` if user is not allowed to see them',
         args: {
           ...CollectionArgs,
           orderBy: {
@@ -396,24 +396,25 @@ export const GraphQLOrder = new GraphQLObjectType({
             defaultValue: { field: 'createdAt', direction: 'ASC' },
           },
         },
-        async resolve(expense, { limit, offset, orderBy }, req) {
-          if (!(await canComment(req, expense))) {
+        async resolve(order, { limit, offset, orderBy }, req) {
+          if (!(await canComment(req, order))) {
             return null;
           }
 
           const type = [CommentType.PRIVATE_NOTE];
 
+          const { rows: nodes, count: totalCount } = await models.Comment.findAndCountAll({
+            where: { OrderId: order.id, type },
+            order: [[orderBy.field, orderBy.direction]],
+            offset,
+            limit,
+          });
+
           return {
             offset,
             limit,
-            totalCount: async () => req.loaders.Comment.countByExpenseAndType.load({ ExpenseId: expense.id, type }),
-            nodes: async () =>
-              models.Comment.findAll({
-                where: { ExpenseId: expense.id, type },
-                order: [[orderBy.field, orderBy.direction]],
-                offset,
-                limit,
-              }),
+            totalCount,
+            nodes,
           };
         },
       },
