@@ -1,5 +1,7 @@
 'use strict';
 
+import { Op } from 'sequelize';
+
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
@@ -14,6 +16,13 @@ module.exports = {
       allowNull: true,
     });
 
+    await queryInterface.addIndex('Comments', ['OrderId'], {
+      concurrently: true,
+      where: {
+        OrderId: { [Op.ne]: null },
+      },
+    });
+
     await queryInterface.addColumn('CommentHistories', 'OrderId', {
       type: Sequelize.INTEGER,
       allowNull: true,
@@ -21,6 +30,7 @@ module.exports = {
   },
 
   async down(queryInterface) {
+    await queryInterface.removeIndex('Comments', ['OrderId']);
     queryInterface.removeColumn('Comments', 'OrderId');
     queryInterface.removeColumn('CommentHistories', 'OrderId');
   },
