@@ -1,6 +1,7 @@
 import config from 'config';
 import slugify from 'limax';
 import { cloneDeep, get, isEqual, isNil, isUndefined, omit, pick, truncate, uniqWith } from 'lodash';
+import { Op, QueryTypes } from 'sequelize';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../../../constants/activities';
@@ -487,6 +488,32 @@ export function editCollective(_, args, req) {
   );
 }
 
+/**
+ * When archiving a collective, this function will mark all expenses that are not in a final state (paid, rejected, etc) as "CANCELED".
+ */
+const cancelUnprocessedExpenses = async (collectivesIds, remoteUser) => {
+  return models.Expense.update(
+    {
+      status: 'CANCELED',
+      lastEditedById: remoteUser.id,
+      data: sequelize.literal(`
+        JSONB_SET(
+          COALESCE(data, '{}'::JSONB),
+          '{cancelledWhileArchivedFromCollective}',
+          'true'
+        )
+      `),
+    },
+    {
+      returning: false,
+      where: {
+        status: ['DRAFT', 'UNVERIFIED', 'PENDING', 'INCOMPLETE', 'APPROVED', 'ERROR'],
+        [Op.or]: [{ CollectiveId: collectivesIds }, { FromCollectiveId: collectivesIds }],
+      },
+    },
+  );
+};
+
 export async function archiveCollective(_, args, req) {
   if (!req.remoteUser) {
     throw new Unauthorized('You need to be logged in to archive a collective');
@@ -519,21 +546,28 @@ export async function archiveCollective(_, args, req) {
 
   const isChildren = collective.type === types.EVENT || collective.type === types.PROJECT;
   const slugsToClearCacheFor = [collective.slug];
+  let children = [];
   if (!isChildren) {
     // Mark all children as archived, with a special `data.archivedFromParent` flag for later un-archive
     const deactivatedAt = new Date();
-    await sequelize.query(
+    [children] = await sequelize.query(
       `UPDATE "Collectives"
     SET "deactivatedAt" = :deactivatedAt,
     "data" = JSONB_SET(COALESCE("data", '{}'), '{archivedFromParent}', 'true')
     WHERE "ParentCollectiveId" = :collectiveId
     AND "deletedAt" IS NULL
     AND "deactivatedAt" IS NULL
+    RETURNING *
     `,
       {
+        type: QueryTypes.UPDATE,
         replacements: { collectiveId: collective.id, deactivatedAt },
+        model: models.Collective,
+        mapToModel: true,
       },
     );
+
+    slugsToClearCacheFor.push(...children.map(c => c.slug));
   } else {
     // Purge cache for parent to make sure the card gets updated on the collective page
     const parent = await collective.getParentCollective();
@@ -542,14 +576,18 @@ export async function archiveCollective(_, args, req) {
     }
   }
 
-  // Cancel all subscriptions which the collective is contributing
-  await models.Order.cancelActiveOrdersByCollective(collective.id);
-
   // Resets the host, which marks orders as CANCELLED and recursively unhost children
   await collective.changeHost(null, req.remoteUser, { isChildren });
 
   // Mark main account as archived
   await collective.update({ isActive: false, deactivatedAt: new Date() });
+
+  // Cancel all subscriptions which the collective is contributing
+  const allAccountIds = [collective.id, ...children.map(c => c.id)];
+  await models.Order.cancelActiveOrdersByCollective(allAccountIds);
+
+  // Cancel all unprocessed expenses
+  await cancelUnprocessedExpenses(allAccountIds, req.remoteUser);
 
   // Clear caches
   slugsToClearCacheFor.map(purgeCacheForCollective);
