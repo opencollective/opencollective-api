@@ -175,7 +175,8 @@ const hasPaymentMethod = order => {
     return Boolean(paymentMethod.data?.orderId);
   } else {
     return Boolean(
-      paymentMethod.uuid ||
+      paymentMethod.id ||
+        paymentMethod.uuid ||
         paymentMethod.token ||
         paymentMethod.type === 'manual' ||
         paymentMethod.type === 'crypto' ||
@@ -194,6 +195,29 @@ export const getOrderTaxInfoFromTaxInput = (tax, fromCollective, collective, hos
     taxerCountry: (collective.type === 'EVENT' && collective.countryISO) || host.countryISO,
   };
 };
+
+// A skeleton of the order object to move it to typescript
+// type OrderInputType = {
+//   quantity: number;
+//   amount: number;
+//   platformTipAmount: number;
+//   taxAmount: number;
+//   totalAmount: number;
+//   currency: string;
+//   interval: string;
+//   tax: any;
+//   paymentMethod: any;
+//   fromCollective: any;
+//   fromAccountInfo: any;
+//   collective: any;
+//   data: any;
+//   customData: any;
+//   isBalanceTransfer: boolean;
+//   tier?: any;
+//   guestInfo?: any;
+//   context: any;
+//   tags: string[];
+// };
 
 export async function createOrder(order, req) {
   debug('Beginning creation of order', order);
@@ -229,12 +253,6 @@ export async function createOrder(order, req) {
     order.quantity = order.quantity || 1;
     order.taxAmount = order.taxAmount || 0;
 
-    // Some tests are relying on this check being done at that point
-    // Could be moved below at some point (see commented code)
-    if (order.platformFeePercent && !remoteUser?.isRoot()) {
-      throw new Error('Only a root can change the platformFeePercent');
-    }
-
     // Check the existence of the recipient Collective
     if (!order.collective?.id) {
       throw new Error('Collective not found');
@@ -252,11 +270,6 @@ export async function createOrder(order, req) {
     const host = await collective.getHostCollective({ loaders: req.loaders });
     if (!host) {
       throw new Error('This collective has no host and cannot accept financial contributions at this time.');
-    }
-    if (order.hostFeePercent) {
-      if (!remoteUser?.isAdmin(host.id)) {
-        throw new Error('Only an admin of the host can change the hostFeePercent');
-      }
     }
     if (order.paymentMethod?.type === PAYMENT_METHOD_TYPE.CRYPTO && host.settings?.cryptoEnabled !== true) {
       throw new Error('This host does not accept crypto payments.');
@@ -389,10 +402,9 @@ export async function createOrder(order, req) {
       throw new Error(`Invalid total amount: ${order.totalAmount}`);
     }
 
-    const platformFee = order.platformFee || 0;
     const tipAmount = order.platformTipAmount || 0;
     const expectedGrossUnitAmount = tier?.amountType === 'FIXED' ? tier.amount || 0 : order.amount;
-    const netAmountForCollective = Math.round(order.totalAmount - order.taxAmount - platformFee - tipAmount);
+    const netAmountForCollective = Math.round(order.totalAmount - order.taxAmount - tipAmount);
     const expectedAmountForCollective = Math.round(order.quantity * expectedGrossUnitAmount); // order.amount is always set when called from GraphQL v2
     const expectedTaxAmount = Math.round((expectedAmountForCollective * taxPercent) / 100);
 
@@ -401,9 +413,8 @@ export async function createOrder(order, req) {
       const prettyTotalAmount = formatCurrency(order.totalAmount, currency, 2);
       const prettyExpectedAmount = formatCurrency(expectedAmountForCollective, currency, 2);
       const taxInfoStr = expectedTaxAmount ? ` + ${formatCurrency(expectedTaxAmount, currency, 2)} tax` : '';
-      const platformFeeInfo = platformFee ? ` + ${formatCurrency(platformFee, currency, 2)} fees` : '';
       throw new Error(
-        `This tier uses a fixed amount. Order total must be ${prettyExpectedAmount}${taxInfoStr}${platformFeeInfo}. You set: ${prettyTotalAmount}`,
+        `This tier uses a fixed amount. Order total must be ${prettyExpectedAmount}${taxInfoStr}. You set: ${prettyTotalAmount}`,
       );
     }
 
@@ -416,9 +427,6 @@ export async function createOrder(order, req) {
         throw new Error(`The amount you set is below minimum tier value, it should be at least ${prettyMinTotal}`);
       }
     }
-
-    const defaultDescription = models.Order.generateDescription(collective, order.totalAmount, order.interval, tier);
-    debug('defaultDescription', defaultDescription, 'collective.type', collective.type);
 
     // Default status, will get updated after the order is processed
     let orderStatus = status.NEW;
@@ -444,9 +452,7 @@ export async function createOrder(order, req) {
       currency,
       taxAmount: taxInfo ? order.taxAmount : null,
       interval: order.interval,
-      description: order.description || defaultDescription,
-      publicMessage: order.publicMessage, // deprecated: '2019-07-03: This info is now stored at the Member level'
-      privateMessage: order.privateMessage,
+      description: models.Order.generateDescription(collective, order.totalAmount, order.interval, tier),
       processedAt: paymentRequired || !collective.isActive ? null : new Date(),
       tags: order.tags,
       platformTipAmount: order.platformTipAmount,
@@ -473,9 +479,7 @@ export async function createOrder(order, req) {
     // Handle specific fees
     // we use data instead of a column for now because it's an edge/experimental case
     // should be moved to a column if it starts to be widely used
-    if (!isNil(order.hostFeePercent)) {
-      orderData.data.hostFeePercent = order.hostFeePercent;
-    } else if (!isNil(tier?.data?.hostFeePercent)) {
+    if (!isNil(tier?.data?.hostFeePercent)) {
       orderData.data.hostFeePercent = tier.data.hostFeePercent;
     }
 

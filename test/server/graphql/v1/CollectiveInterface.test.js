@@ -50,7 +50,7 @@ const collectiveQuery = gql`
   }
 `;
 
-describe('server/graphql/v1/createOrder.incognito', () => {
+describe('server/graphql/v1/CollectiveInterface', () => {
   let adminUser, backerUser, user, incognitoCollective, hostCollective, collective, hostAdmin;
 
   before(async () => {
@@ -62,7 +62,7 @@ describe('server/graphql/v1/createOrder.incognito', () => {
     ({ hostCollective, collective, hostAdmin } = await store.newCollectiveWithHost('test', 'USD', 'USD', 10));
     await collective.addUserWithRole(adminUser, 'ADMIN');
     await collective.addUserWithRole(backerUser, 'BACKER');
-  }); /* End of "beforeEach" */
+  });
 
   describe('making an incognito donation ', async () => {
     before(async () => {

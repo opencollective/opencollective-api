@@ -336,11 +336,3 @@ export const GuestInfoInput = new GraphQLInputObjectType({
     },
   }),
 });
-
-export const ConfirmOrderInputType = new GraphQLInputObjectType({
-  name: 'ConfirmOrderInputType',
-  description: 'Input type for ConfirmOrderType',
-  fields: () => ({
-    id: { type: GraphQLInt },
-  }),
-});

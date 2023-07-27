@@ -1,10 +1,12 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
+import gqlV2 from 'fake-tag';
 import moment from 'moment';
 import nock from 'nock';
 import { createSandbox, stub } from 'sinon';
 
 import { maxInteger } from '../../../../server/constants/math';
+import { idEncode, IDENTIFIER_TYPES } from '../../../../server/graphql/v2/identifiers';
 import emailLib from '../../../../server/lib/email';
 import models from '../../../../server/models';
 import giftcard from '../../../../server/paymentProviders/opencollective/giftcard';
@@ -72,28 +74,27 @@ const claimPaymentMethodMutation = gql`
   }
 `;
 
-const createOrderMutation = gql`
-  mutation CreateOrder($order: OrderInputType!) {
+const createOrderMutation = gqlV2/* GraphQL */ `
+  mutation CreateOrder($order: OrderCreateInput!) {
     createOrder(order: $order) {
-      id
-      fromCollective {
+      order {
         id
-        slug
+        legacyId
+        fromAccount {
+          id
+          slug
+        }
+        toAccount {
+          id
+          slug
+        }
+        frequency
+        totalAmount {
+          valueInCents
+          currency
+        }
+        description
       }
-      collective {
-        id
-        slug
-      }
-      subscription {
-        id
-        amount
-        interval
-        isActive
-        stripeSubscriptionId
-      }
-      totalAmount
-      currency
-      description
     }
   }
 `;
@@ -1056,13 +1057,14 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
       it('Order should NOT be executed because its amount exceeds the balance of the gift card', async () => {
         // Setting up order
         const order = {
-          fromCollective: { id: userGiftCard.CollectiveId },
-          collective: { id: collective1.id },
-          paymentMethod: { uuid: giftCardPaymentMethod.uuid },
-          totalAmount: 1000000,
+          fromAccount: { legacyId: userGiftCard.CollectiveId },
+          toAccount: { legacyId: collective1.id },
+          paymentMethod: { id: idEncode(giftCardPaymentMethod.id, IDENTIFIER_TYPES.PAYMENT_METHOD) },
+          amount: { valueInCents: 1000000, currency: 'USD' },
+          frequency: 'ONETIME',
         };
         // Executing queries
-        const gqlResult = await utils.graphqlQuery(createOrderMutation, { order }, userGiftCard);
+        const gqlResult = await utils.graphqlQueryV2(createOrderMutation, { order }, userGiftCard);
         expect(gqlResult.errors).to.be.an('array');
         expect(gqlResult.errors[0]).to.exist;
         expect(gqlResult.errors[0].toString()).to.contain("You don't have enough funds available");
@@ -1071,13 +1073,14 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
       it('Order should NOT be executed because the gift card is limited to be used on collectives with tag open source', async () => {
         // Setting up order
         const order = {
-          fromCollective: { id: userGiftCard.CollectiveId },
-          collective: { id: collective2.id },
-          paymentMethod: { uuid: giftCardPaymentMethod.uuid },
-          totalAmount: 1000,
+          fromAccount: { legacyId: userGiftCard.CollectiveId },
+          toAccount: { legacyId: collective2.id },
+          paymentMethod: { id: idEncode(giftCardPaymentMethod.id, IDENTIFIER_TYPES.PAYMENT_METHOD) },
+          amount: { valueInCents: 1000, currency: 'USD' },
+          frequency: 'ONETIME',
         };
         // Executing queries
-        const gqlResult = await utils.graphqlQuery(createOrderMutation, { order }, userGiftCard);
+        const gqlResult = await utils.graphqlQueryV2(createOrderMutation, { order }, userGiftCard);
         expect(gqlResult.errors).to.be.an('array');
         expect(gqlResult.errors[0]).to.exist;
         expect(gqlResult.errors[0].toString()).to.contain(
@@ -1089,13 +1092,14 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
         // Setting up order
         await giftCardPaymentMethod.update({ limitedToTags: null });
         const order = {
-          fromCollective: { id: userGiftCard.CollectiveId },
-          collective: { id: collective2.id },
-          paymentMethod: { uuid: giftCardPaymentMethod.uuid },
-          totalAmount: 1000,
+          fromAccount: { legacyId: userGiftCard.CollectiveId },
+          toAccount: { legacyId: collective2.id },
+          paymentMethod: { id: idEncode(giftCardPaymentMethod.id, IDENTIFIER_TYPES.PAYMENT_METHOD) },
+          amount: { valueInCents: 1000, currency: 'USD' },
+          frequency: 'ONETIME',
         };
         // Executing queries
-        const gqlResult = await utils.graphqlQuery(createOrderMutation, { order }, userGiftCard);
+        const gqlResult = await utils.graphqlQueryV2(createOrderMutation, { order }, userGiftCard);
         expect(gqlResult.errors).to.be.an('array');
         expect(gqlResult.errors[0]).to.exist;
         expect(gqlResult.errors[0].toString()).to.contain(
@@ -1106,21 +1110,20 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
       it('Process order of a gift card', async () => {
         // Setting up order
         const order = {
-          fromCollective: { id: userGiftCard.CollectiveId },
-          collective: { id: collective1.id },
-          paymentMethod: { uuid: giftCardPaymentMethod.uuid },
-          totalAmount: ORDER_TOTAL_AMOUNT,
+          fromAccount: { legacyId: userGiftCard.CollectiveId },
+          toAccount: { legacyId: collective1.id },
+          paymentMethod: { id: idEncode(giftCardPaymentMethod.id, IDENTIFIER_TYPES.PAYMENT_METHOD) },
+          amount: { valueInCents: ORDER_TOTAL_AMOUNT, currency: 'USD' },
+          frequency: 'ONETIME',
         };
         // Executing queries
-        const gqlResult = await utils.graphqlQuery(createOrderMutation, { order }, userGiftCard);
+        const gqlResult = await utils.graphqlQueryV2(createOrderMutation, { order }, userGiftCard);
 
         gqlResult.errors && console.error(gqlResult.errors[0]);
         expect(gqlResult.errors).to.be.undefined;
 
         const transactions = await models.Transaction.findAll({
-          where: {
-            OrderId: gqlResult.data.createOrder.id,
-          },
+          where: { OrderId: gqlResult.data.createOrder.order.legacyId },
           order: [['id', 'DESC']],
           limit: 2,
         });
@@ -1143,15 +1146,16 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
       it('should fail when multiple orders exceed the balance of the gift card', async () => {
         // Setting up order
         const order = {
-          fromCollective: { id: userGiftCard.CollectiveId },
-          collective: { id: collective1.id },
-          paymentMethod: { uuid: giftCardPaymentMethod.uuid },
-          totalAmount: ORDER_TOTAL_AMOUNT,
+          fromAccount: { legacyId: userGiftCard.CollectiveId },
+          toAccount: { legacyId: collective1.id },
+          paymentMethod: { id: idEncode(giftCardPaymentMethod.id, IDENTIFIER_TYPES.PAYMENT_METHOD) },
+          amount: { valueInCents: ORDER_TOTAL_AMOUNT, currency: 'USD' },
+          frequency: 'ONETIME',
         };
         // Executing queries that overstep gift card balance
-        await utils.graphqlQuery(createOrderMutation, { order }, userGiftCard);
-        await utils.graphqlQuery(createOrderMutation, { order }, userGiftCard);
-        const gqlResult = await utils.graphqlQuery(createOrderMutation, { order }, userGiftCard);
+        await utils.graphqlQueryV2(createOrderMutation, { order }, userGiftCard);
+        await utils.graphqlQueryV2(createOrderMutation, { order }, userGiftCard);
+        const gqlResult = await utils.graphqlQueryV2(createOrderMutation, { order }, userGiftCard);
 
         expect(gqlResult.errors).to.be.an('array');
         expect(gqlResult.errors[0]).to.exist;
