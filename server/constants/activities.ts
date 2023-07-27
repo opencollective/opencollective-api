@@ -24,6 +24,7 @@ enum ActivityTypes {
   UPDATE_COMMENT_CREATED = 'update.comment.created',
   EXPENSE_COMMENT_CREATED = 'expense.comment.created',
   CONVERSATION_COMMENT_CREATED = 'conversation.comment.created',
+  ORDER_COMMENT_CREATED = 'order.comment.created',
   // Expenses
   COLLECTIVE_EXPENSE_CREATED = 'collective.expense.created',
   COLLECTIVE_EXPENSE_DELETED = 'collective.expense.deleted',

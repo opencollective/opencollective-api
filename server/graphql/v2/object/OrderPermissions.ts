@@ -28,6 +28,10 @@ export const canEdit = async (req: express.Request, order): Promise<boolean> => 
   );
 };
 
+export const canComment = async (req: express.Request, order): Promise<boolean> => {
+  return isHostAdmin(req, order);
+};
+
 export const canSeeOrderPrivateActivities = async (req: express.Request, order): Promise<boolean> => {
   return isHostAdmin(req, order);
 };
@@ -68,6 +72,13 @@ const GraphQLOrderPermissions = new GraphQLObjectType({
       description: 'Whether the current user can edit this pending order',
       async resolve(order, _, req: express.Request): Promise<boolean> {
         return canEdit(req, order);
+      },
+    },
+    canComment: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can comment on this order',
+      async resolve(order, _, req: express.Request): Promise<boolean> {
+        return canComment(req, order);
       },
     },
     canSeePrivateActivities: {
