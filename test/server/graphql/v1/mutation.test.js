@@ -452,10 +452,10 @@ describe('server/graphql/v1/mutation', () => {
         const collective = await fakeCollective({ admin });
         const project = await fakeProject({ admin, ParentCollectiveId: collective.id });
         const projectPaidExpense = await fakeExpense({ status: 'PAID', CollectiveId: project.id });
-        const projectPendingExpense = await fakeExpense({ status: 'PENDING', CollectiveId: project.id });
+        const projectApprovedExpense = await fakeExpense({ status: 'APPROVED', CollectiveId: project.id });
         const randomPendingExpense = await fakeExpense({ status: 'PENDING' });
         const parentPendingExpense = await fakeExpense({ status: 'PENDING', CollectiveId: collective.id });
-        const allExpenses = [projectPaidExpense, projectPendingExpense, randomPendingExpense, parentPendingExpense];
+        const allExpenses = [projectPaidExpense, projectApprovedExpense, randomPendingExpense, parentPendingExpense];
 
         // Call mutation
         const response = await utils.graphqlQuery(archiveCollectiveMutation, { id: collective.id }, admin);
@@ -477,13 +477,16 @@ describe('server/graphql/v1/mutation', () => {
         expect(project.deactivatedAt).to.be.a('date');
 
         // -- Expenses
-        expect(projectPaidExpense.status).to.equal('PAID'); // No change
-        expect(projectPendingExpense.status).to.equal('CANCELED');
-        expect(projectPendingExpense.data.cancelledWhileArchivedFromCollective).to.be.true;
+        expect(projectPaidExpense.status).to.equal('PAID'); // No change for paid expenses
+        expect(randomPendingExpense.status).to.equal('PENDING'); // No change for expenses not related to the archived collective
 
-        expect(randomPendingExpense.status).to.equal('PENDING'); // No change
+        expect(projectApprovedExpense.status).to.equal('CANCELED');
+        expect(projectApprovedExpense.data.cancelledWhileArchivedFromCollective).to.be.true;
+        expect(projectApprovedExpense.data.previousStatus).to.equal('APPROVED');
+
         expect(parentPendingExpense.status).to.equal('CANCELED');
         expect(parentPendingExpense.data.cancelledWhileArchivedFromCollective).to.be.true;
+        expect(parentPendingExpense.data.previousStatus).to.equal('PENDING');
       });
     });
   });

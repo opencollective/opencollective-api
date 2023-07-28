@@ -497,11 +497,9 @@ const cancelUnprocessedExpenses = async (collectivesIds, remoteUser) => {
       status: 'CANCELED',
       lastEditedById: remoteUser.id,
       data: sequelize.literal(`
-        JSONB_SET(
-          COALESCE(data, '{}'::JSONB),
-          '{cancelledWhileArchivedFromCollective}',
-          'true'
-        )
+        COALESCE(data, '{}'::JSONB)
+        || JSONB_BUILD_OBJECT('previousStatus', status)
+        || JSONB_BUILD_OBJECT('cancelledWhileArchivedFromCollective', TRUE)
       `),
     },
     {
