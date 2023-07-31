@@ -47,7 +47,7 @@
     "@sentry/types": "7.60.1",
     "@shopify/address": "4.1.0",
     "argparse": "2.0.1",
-    "aws-sdk": "2.1425.0",
+    "aws-sdk": "2.1426.0",
     "axios": "1.4.0",
     "babel-plugin-add-module-exports": "1.0.4",
     "bayes": "1.0.0",
