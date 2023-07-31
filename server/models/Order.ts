@@ -66,7 +66,10 @@ export interface OrderModelInterface
   getCollective: HasOneGetAssociationMixin<Collective>;
 
   TierId: number;
+  /** @deprecated: We're using both `tier` and `Tier` depending on the places. The association is defined as `Tier` (uppercase). We should consolidate to one or the other. */
   tier?: Tier;
+  /** @deprecated: We're using both `tier` and `Tier` depending on the places. The association is defined as `Tier` (uppercase). We should consolidate to one or the other. */
+  Tier?: Tier;
   getTier: Promise<Tier>;
 
   quantity: number;

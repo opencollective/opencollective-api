@@ -257,6 +257,7 @@ const orderMutations = {
           { model: models.Subscription },
           { model: models.Collective, as: 'collective' },
           { model: models.Collective, as: 'fromCollective' },
+          { model: models.Tier, as: 'Tier', required: false },
         ],
       });
 
@@ -293,6 +294,8 @@ const orderMutations = {
           fromCollective: order.fromCollective.minimal,
           reason: args.reason,
           reasonCode: args.reasonCode,
+          order: order.info,
+          tier: order.Tier?.info,
         },
       });
 

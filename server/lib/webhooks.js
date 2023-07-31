@@ -115,6 +115,10 @@ export const sanitizeActivity = activity => {
     cleanActivity.data = pick(activity.data, ['recipient.name']);
     cleanActivity.data.tier = getTierInfo(activity.data.tier);
     cleanActivity.data.order = getOrderInfo(activity.data.order);
+  } else if (type === activities.SUBSCRIPTION_CANCELED) {
+    cleanActivity.data = pick(activity.data, ['subscription.id']);
+    cleanActivity.data.order = getOrderInfo(activity.data.order);
+    cleanActivity.data.tier = getTierInfo(activity.data.tier);
   }
 
   return cleanActivity;
