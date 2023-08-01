@@ -7,7 +7,7 @@ module.exports = {
       `
       UPDATE "Expenses" e
       SET
-        "status" = 'REJECTED',
+        "status" = 'CANCELED',
         "data" =
         COALESCE(e."data"::jsonb, '{}')
           || JSONB_BUILD_OBJECT('previousStatus', e.status)
@@ -40,6 +40,7 @@ module.exports = {
         "status" = "data"->>'previousStatus',
         "data" = "data" - 'cancelledWhileArchivedFromCollective' - 'cancelledFromMigration' - 'previousStatus'
       WHERE "data"->>'cancelledFromMigration' = '20230728063957'
+      AND "status" = 'CANCELED'
     `,
       {
         type: queryInterface.sequelize.QueryTypes.UPDATE,
