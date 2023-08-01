@@ -24,6 +24,8 @@ import * as utils from './utils';
 const TRACES_SAMPLE_RATE = parseFloat(config.sentry.tracesSampleRate) || 0;
 const MIN_EXECUTION_TIME_TO_SAMPLE = parseInt(config.sentry.minExecutionTimeToSample);
 
+const checkIfSentryConfigured = () => Boolean(config.sentry?.dsn);
+
 const redactSensitiveDataFromRequest = request => {
   if (!request) {
     return;
@@ -72,7 +74,7 @@ Sentry.init({
   },
 });
 
-if (config.sentry?.dsn) {
+if (checkIfSentryConfigured()) {
   logger.info('Initializing Sentry');
 
   // Catch all errors that haven't been caught anywhere else
@@ -213,7 +215,17 @@ export const reportErrorToSentry = (err: Error, params: CaptureErrorParams = {})
       enhanceScopeWithAxiosError(scope, err, params);
     }
 
-    Sentry.captureException(err);
+    if (checkIfSentryConfigured()) {
+      Sentry.captureException(err);
+    } else {
+      logger.error(
+        `[Sentry disabled] The following error would be reported: ${err.message} (${JSON.stringify({
+          err,
+          params,
+          stacktrace: err.stack,
+        })})`,
+      );
+    }
   });
 };
 
@@ -222,7 +234,11 @@ export const reportErrorToSentry = (err: Error, params: CaptureErrorParams = {})
  */
 export const reportMessageToSentry = (message: string, params: CaptureErrorParams = undefined) => {
   withScopeFromCaptureErrorParams(params, () => {
-    Sentry.captureMessage(message, params?.severity || 'error');
+    if (checkIfSentryConfigured()) {
+      Sentry.captureMessage(message, params?.severity || 'error');
+    } else {
+      logger.error(`[Sentry disabled] The following message would be reported: ${message} (${JSON.stringify(params)})`);
+    }
   });
 };
 

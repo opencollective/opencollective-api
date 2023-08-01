@@ -1,6 +1,7 @@
 import { BaseContext, GraphQLRequestContext } from '@apollo/server';
 import * as Sentry from '@sentry/node';
 import { expect } from 'chai';
+import config from 'config';
 import sinon from 'sinon';
 
 import * as SentryLib from '../../../server/lib/sentry';
@@ -11,6 +12,7 @@ describe('server/lib/sentry', () => {
 
   before(() => {
     sandbox = sinon.createSandbox();
+    sandbox.stub(config, 'sentry').value({ dsn: 'https://sentry.io/123' });
   });
 
   afterEach(() => {
