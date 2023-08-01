@@ -57,6 +57,8 @@ export async function run() {
     include: [
       {
         model: models.Tier,
+        as: 'Tier',
+        required: false,
       },
       {
         model: models.Subscription,
@@ -102,6 +104,8 @@ export async function run() {
               fromCollective: order.fromCollective.minimal,
               reasonCode: reasonCode,
               reason: reason,
+              order: order.info,
+              tier: order.Tier?.info,
             },
           });
           await sleep(500); // To prevent rate-limiting issues when calling 3rd party payment processor APIs
