@@ -1,12 +1,15 @@
 /* eslint-disable camelcase */
 import { execSync } from 'child_process';
 import fs from 'fs';
+import path from 'path';
 import querystring from 'querystring';
+import { Readable } from 'stream';
 
 import { expect } from 'chai';
 import config from 'config';
 import debug from 'debug';
 import { graphql } from 'graphql';
+import Upload from 'graphql-upload/Upload.js';
 import { cloneDeep, get, groupBy, isArray, omit, values } from 'lodash';
 import markdownTable from 'markdown-table';
 import nock from 'nock';
@@ -566,4 +569,23 @@ export const useIntegrationTestRecorder = (baseUrl, testFileName, preProcessNock
     nock.cleanAll();
     nock.restore();
   });
+};
+
+export const getMockFileUpload = ({ mockFile = 'camera.png' } = {}) => {
+  const file = new Upload();
+  file.promise = Promise.resolve({
+    filename: mockFile,
+    mimetype: 'image/png',
+    encoding: 'binary',
+    createReadStream: () => {
+      const stream = new Readable();
+      const imagePath = path.join(__dirname, `./mocks/images/${mockFile}`);
+      const fileContent = fs.readFileSync(imagePath);
+      stream.push(fileContent);
+      stream.push(null);
+      return stream;
+    },
+  });
+
+  return file;
 };

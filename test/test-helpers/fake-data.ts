@@ -15,6 +15,7 @@ import { v4 as uuid } from 'uuid';
 
 import { activities, channels, roles } from '../../server/constants';
 import { types as CollectiveType, types } from '../../server/constants/collectives';
+import { SUPPORTED_FILE_KINDS } from '../../server/constants/file-kind';
 import OAuthScopes from '../../server/constants/oauth-scopes';
 import OrderStatuses from '../../server/constants/order_status';
 import { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPES } from '../../server/constants/paymentMethods';
@@ -51,11 +52,7 @@ import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMetho
 import RecurringExpense, { RecurringExpenseIntervals } from '../../server/models/RecurringExpense';
 import { AssetType } from '../../server/models/SuspendedAsset';
 import { TransactionCreationAttributes, TransactionInterface } from '../../server/models/Transaction';
-import {
-  SUPPORTED_FILE_EXTENSIONS,
-  SUPPORTED_FILE_KINDS,
-  SUPPORTED_FILE_TYPES,
-} from '../../server/models/UploadedFile';
+import { SUPPORTED_FILE_EXTENSIONS, SUPPORTED_FILE_TYPES } from '../../server/models/UploadedFile';
 import User from '../../server/models/User';
 import { TokenType } from '../../server/models/UserToken';
 import UserTwoFactorMethod from '../../server/models/UserTwoFactorMethod';
