@@ -1,4 +1,4 @@
-import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLFieldConfig, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDate } from 'graphql-scalars';
 
 import { GraphQLStrictPercentage } from '../scalar/StrictPercentage';
@@ -14,9 +14,20 @@ const GraphQLExpenseParsedFileInfo = new GraphQLObjectType({
   }),
 });
 
+export type ParseUploadedFileResult = {
+  success: boolean;
+  message?: string;
+  confidence?: number;
+  expense?: {
+    description: string;
+    amount: { value: number; currency: string };
+    incurredAt: Date;
+  };
+};
+
 export const GraphQLParseUploadedFileResult = new GraphQLObjectType({
   name: 'ParseUploadedFileResult',
-  fields: () => ({
+  fields: (): Record<keyof ParseUploadedFileResult, GraphQLFieldConfig<any, any>> => ({
     success: {
       description: 'Whether the parsing was successful',
       type: new GraphQLNonNull(GraphQLBoolean),
@@ -36,14 +47,3 @@ export const GraphQLParseUploadedFileResult = new GraphQLObjectType({
     },
   }),
 });
-
-export type ParseUploadedFileResult = {
-  success: boolean;
-  message?: string;
-  confidence?: number;
-  expense?: {
-    description: string;
-    amount: { value: number; currency: string };
-    incurredAt: Date;
-  };
-};
