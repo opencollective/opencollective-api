@@ -14,6 +14,7 @@ import {
 import sharp from 'sharp';
 import { v4 as uuid } from 'uuid';
 
+import { FileKind, SUPPORTED_FILE_KINDS } from '../constants/file-kind';
 import s3, { uploadToS3 } from '../lib/awsS3';
 import logger from '../lib/logger';
 import { reportErrorToSentry } from '../lib/sentry';
@@ -56,26 +57,6 @@ export const SUPPORTED_FILE_EXTENSIONS: Record<SUPPORTED_FILE_TYPES_UNION, strin
   'image/webp': '.webp',
   'application/pdf': '.pdf',
 } as const;
-
-/**
- * Any kind added here will need to be added to `server/lib/uploaded-files.ts` as well.
- */
-export const SUPPORTED_FILE_KINDS = [
-  // Base fields
-  'ACCOUNT_AVATAR',
-  'ACCOUNT_BANNER',
-  'EXPENSE_ATTACHED_FILE',
-  'EXPENSE_ITEM',
-  // Rich text fields
-  'ACCOUNT_LONG_DESCRIPTION',
-  'UPDATE',
-  'COMMENT',
-  'TIER_LONG_DESCRIPTION',
-  'ACCOUNT_CUSTOM_EMAIL',
-  'AGREEMENT_ATTACHMENT',
-] as const;
-
-export type FileKind = (typeof SUPPORTED_FILE_KINDS)[number];
 
 /**
  * A file uploaded to our S3 bucket.

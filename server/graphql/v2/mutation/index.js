@@ -29,6 +29,7 @@ import tagMutations from './TagMutations';
 import tierMutations from './TierMutations';
 import transactionMutations from './TransactionMutations';
 import updateMutations from './UpdateMutations';
+import uploadedFileMutations from './UploadedFileMutations';
 import virtualCardMutations from './VirtualCardMutations';
 import webhookMutations from './WebhookMutations';
 
@@ -58,6 +59,7 @@ const mutation = {
   ...rootMutations,
   ...transactionMutations,
   ...updateMutations,
+  ...uploadedFileMutations,
   ...virtualCardMutations,
   ...webhookMutations,
   ...activitySubscriptionsMutations,

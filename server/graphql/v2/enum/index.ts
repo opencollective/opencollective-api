@@ -19,3 +19,4 @@ export { GraphQLTierInterval } from './TierInterval';
 export { GraphQLTierType } from './TierType';
 export { GraphQLTransactionType } from './TransactionType';
 export { GraphQLUpdateAudienceType } from './UpdateAudienceType';
+export { GraphQLUploadedFileKind } from './UploadedFileKind';
