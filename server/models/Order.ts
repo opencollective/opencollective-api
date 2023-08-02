@@ -527,12 +527,12 @@ Order.prototype.getSubscriptionForUser = function (user) {
 /**
  * Cancels all subscription orders for the given collective
  */
-Order.cancelActiveOrdersByCollective = function (collectiveId) {
+Order.cancelActiveOrdersByCollective = function (collectiveIds: number | number[]) {
   return Order.update(
     { status: OrderStatus.CANCELLED },
     {
       where: {
-        FromCollectiveId: collectiveId,
+        FromCollectiveId: collectiveIds,
         SubscriptionId: { [Op.not]: null },
         status: {
           [Op.not]: [OrderStatus.PAID, OrderStatus.CANCELLED, OrderStatus.REJECTED, OrderStatus.EXPIRED],

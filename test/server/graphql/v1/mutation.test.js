@@ -8,7 +8,14 @@ import * as CacheLib from '../../../../server/lib/cache';
 import emailLib from '../../../../server/lib/email';
 import * as payments from '../../../../server/lib/payments';
 import models from '../../../../server/models';
-import { fakeOrder, fakePaymentMethod, fakeProject, fakeUser } from '../../../test-helpers/fake-data';
+import {
+  fakeCollective,
+  fakeExpense,
+  fakeOrder,
+  fakePaymentMethod,
+  fakeProject,
+  fakeUser,
+} from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
 let host, user1, user2, user3, collective1, event1, ticket1;
@@ -437,6 +444,49 @@ describe('server/graphql/v1/mutation', () => {
         expect(purgeCacheSpy.callCount).to.equal(2);
         expect(purgeCacheSpy.firstCall.args[0]).to.equal(project.slug);
         expect(purgeCacheSpy.secondCall.args[0]).to.equal((await project.getParentCollective()).slug);
+      });
+
+      it('should mark all unprocessed expenses as canceled', async () => {
+        // Setup test data
+        const admin = await fakeUser();
+        const collective = await fakeCollective({ admin });
+        const project = await fakeProject({ admin, ParentCollectiveId: collective.id });
+        const projectPaidExpense = await fakeExpense({ status: 'PAID', CollectiveId: project.id });
+        const projectApprovedExpense = await fakeExpense({ status: 'APPROVED', CollectiveId: project.id });
+        const randomPendingExpense = await fakeExpense({ status: 'PENDING' });
+        const parentPendingExpense = await fakeExpense({ status: 'PENDING', CollectiveId: collective.id });
+        const allExpenses = [projectPaidExpense, projectApprovedExpense, randomPendingExpense, parentPendingExpense];
+
+        // Call mutation
+        const response = await utils.graphqlQuery(archiveCollectiveMutation, { id: collective.id }, admin);
+        response.errors && console.error(response.errors[0]);
+        expect(response.errors).to.not.exist;
+        expect(response.data.archiveCollective.isArchived).to.be.true;
+
+        // Check DB entries
+        await project.reload();
+        await collective.reload();
+        await Promise.all(allExpenses.map(e => e.reload()));
+
+        // -- Accounts
+        expect(collective.isActive).to.be.false;
+        expect(collective.HostCollectiveId).to.be.null;
+        expect(collective.deactivatedAt).to.be.a('date');
+        expect(project.isActive).to.be.false;
+        expect(project.HostCollectiveId).to.be.null;
+        expect(project.deactivatedAt).to.be.a('date');
+
+        // -- Expenses
+        expect(projectPaidExpense.status).to.equal('PAID'); // No change for paid expenses
+        expect(randomPendingExpense.status).to.equal('PENDING'); // No change for expenses not related to the archived collective
+
+        expect(projectApprovedExpense.status).to.equal('CANCELED');
+        expect(projectApprovedExpense.data.cancelledWhileArchivedFromCollective).to.be.true;
+        expect(projectApprovedExpense.data.previousStatus).to.equal('APPROVED');
+
+        expect(parentPendingExpense.status).to.equal('CANCELED');
+        expect(parentPendingExpense.data.cancelledWhileArchivedFromCollective).to.be.true;
+        expect(parentPendingExpense.data.previousStatus).to.equal('PENDING');
       });
     });
   });
