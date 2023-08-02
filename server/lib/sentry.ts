@@ -283,6 +283,10 @@ const IGNORED_GQL_ERRORS = [
     message: /^Your card was declined.$/,
     path: [['createOrder']],
   },
+  {
+    message: /The slug .+ is already taken/,
+    path: [['createOrganization'], ['createCollective'], ['createFund'], ['createProject']],
+  },
 ];
 
 const isIgnoredGQLError = (err): boolean => {
