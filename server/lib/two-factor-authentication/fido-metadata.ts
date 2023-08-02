@@ -30,7 +30,21 @@ type MetadataStatement = {
 const mutex = new Mutex();
 let cachedMetadata: Metadata = sourceCachedMetadata;
 let nextUpdate = cachedMetadata.nextUpdate;
-let cachedEntriesByAaguid: Record<string, MetadataEntry> = {};
+let cachedEntriesByAaguid: Record<string, MetadataEntry> = cachedMetadata.entries.reduce(
+  (acc, current) => {
+    if (!current.aaguid) {
+      return acc;
+    }
+
+    return {
+      ...acc,
+      [current.aaguid]: {
+        ...current,
+      },
+    };
+  },
+  {} as Record<string, MetadataEntry>,
+);
 
 export async function downloadFidoMetadata(): Promise<Metadata> {
   const fidoAlianceMetadataUrl = 'https://mds3.fidoalliance.org';

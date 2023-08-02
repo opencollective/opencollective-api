@@ -18,6 +18,9 @@ export const UserTwoFactorMethod = new GraphQLObjectType({
       method: {
         type: new GraphQLNonNull(GraphQLTwoFactorMethodEnum),
       },
+      name: {
+        type: new GraphQLNonNull(GraphQLString),
+      },
       createdAt: {
         type: new GraphQLNonNull(GraphQLDateTime),
       },
@@ -34,7 +37,7 @@ export const UserTwoFactorMethod = new GraphQLObjectType({
             return userTwoFactorMethod.data.description;
           }
 
-          return userTwoFactorMethod.method;
+          return null;
         },
       },
       icon: <
@@ -50,7 +53,7 @@ export const UserTwoFactorMethod = new GraphQLObjectType({
             return userTwoFactorMethod.data.icon;
           }
 
-          return userTwoFactorMethod.method;
+          return null;
         },
       },
     };

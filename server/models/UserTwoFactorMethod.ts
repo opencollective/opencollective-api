@@ -57,6 +57,7 @@ export default class UserTwoFactorMethod<
   declare User?: User;
   declare getUser: BelongsToGetAssociationMixin<User>;
 
+  declare name: string;
   declare data: CreationOptional<UserTwoFactorMethodData[T]>;
 
   declare createdAt: CreationOptional<Date>;
@@ -93,6 +94,14 @@ UserTwoFactorMethod.init(
       allowNull: false,
       validate: {
         isIn: [Object.values(TwoFactorMethod)],
+      },
+    },
+    name: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: {
+        notEmpty: true,
+        len: [0, 50],
       },
     },
     data: {
