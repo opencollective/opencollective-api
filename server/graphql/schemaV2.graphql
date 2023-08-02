@@ -8428,6 +8428,7 @@ User two factor authentication method
 type UserTwoFactorMethod {
   id: String!
   method: TwoFactorMethod!
+  name: String!
   createdAt: DateTime!
   description: String
   icon: String
@@ -13722,6 +13723,11 @@ type Mutation {
   """
   removeTwoFactorAuthTokenFromIndividual(
     """
+    Method to remove from this account
+    """
+    userTwoFactorMethod: UserTwoFactorMethodReferenceInput
+
+    """
     Account that will have 2FA removed from it
     """
     account: AccountReferenceInput!
@@ -13730,11 +13736,12 @@ type Mutation {
     The two factor method to remove. Removes all if empty
     """
     type: TwoFactorMethod
+      @deprecated(reason: "2023-08-01: Use the two factor method reference to specify method to remove")
 
     """
     The 6-digit 2FA code
     """
-    code: String @deprecated(reason: "2FA code to validate this action must be set via 2FA header")
+    code: String @deprecated(reason: "2023-08-01: 2FA code to validate this action must be set via 2FA header")
   ): Individual!
 
   """
@@ -15143,6 +15150,11 @@ type AddTwoFactorAuthTokenToIndividualResponse {
   The recovery codes for the Individual to write down
   """
   recoveryCodes: [String]
+}
+
+input UserTwoFactorMethodReferenceInput {
+  id: String
+  legacyId: Int
 }
 
 input AccountUpdateInput {
