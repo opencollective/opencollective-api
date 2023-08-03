@@ -9,8 +9,8 @@ import { fakeUser } from '../../../../test-helpers/fake-data';
 import { getMockFileUpload, graphqlQueryV2 } from '../../../../utils';
 
 const uploadFileMutation = gqlV2/* GraphQL */ `
-  mutation UploadFile($file: Upload!, $kind: UploadedFileKind!, $parseDocument: Boolean) {
-    uploadFile(file: $file, kind: $kind, parseDocument: $parseDocument) {
+  mutation UploadFile($files: [UploadFileInput!]!) {
+    uploadFile(files: $files) {
       file {
         id
         url
@@ -48,20 +48,21 @@ describe('server/graphql/v2/mutation/UploadedFileMutations', () => {
 
   describe('uploadFile', () => {
     it('must be logged in', async () => {
-      const result = await graphqlQueryV2(uploadFileMutation, { kind: 'EXPENSE_ITEM', file: getMockFileUpload() });
+      const args = { files: [{ kind: 'EXPENSE_ITEM', file: getMockFileUpload() }] };
+      const result = await graphqlQueryV2(uploadFileMutation, args);
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.eq('You need to be logged in to upload files');
     });
 
     it('simply uploads a file', async () => {
       const user = await fakeUser();
-      const args = { kind: 'EXPENSE_ITEM', file: getMockFileUpload() };
+      const args = { files: [{ kind: 'EXPENSE_ITEM', file: getMockFileUpload() }] };
       const result = await graphqlQueryV2(uploadFileMutation, args, user);
       expect(result.errors).to.not.exist;
-      expect(result.data.uploadFile.parsingResult).to.be.null;
-      expect(result.data.uploadFile.file.name).to.eq('camera.png');
-      expect(result.data.uploadFile.file.type).to.eq('image/png');
-      expect(result.data.uploadFile.file.size).to.eq(3628);
+      expect(result.data.uploadFile[0].parsingResult).to.be.null;
+      expect(result.data.uploadFile[0].file.name).to.eq('camera.png');
+      expect(result.data.uploadFile[0].file.type).to.eq('image/png');
+      expect(result.data.uploadFile[0].file.size).to.eq(3628);
     });
 
     describe('with parseDocument', () => {
@@ -71,11 +72,11 @@ describe('server/graphql/v2/mutation/UploadedFileMutations', () => {
           k => k !== 'EXPENSE_ITEM' && k !== 'EXPENSE_ATTACHED_FILE',
         );
         for (const kind of unsupportedKinds) {
-          const args = { file: getMockFileUpload(), kind, parseDocument: true };
+          const args = { files: [{ file: getMockFileUpload(), kind, parseDocument: true }] };
           const result = await graphqlQueryV2(uploadFileMutation, args, user);
           expect(result.errors).to.exist;
           expect(result.errors[0].message).to.eq(
-            `parseDocument is only supported for EXPENSE_ITEM and EXPENSE_ATTACHED_FILE`,
+            `This mutation only supports the following kinds: EXPENSE_ITEM, EXPENSE_ATTACHED_FILE`,
           );
         }
       });
@@ -92,10 +93,10 @@ describe('server/graphql/v2/mutation/UploadedFileMutations', () => {
         });
 
         const user = await fakeUser();
-        const args = { kind: 'EXPENSE_ITEM', file: getMockFileUpload(), parseDocument: true };
+        const args = { files: [{ kind: 'EXPENSE_ITEM', file: getMockFileUpload(), parseDocument: true }] };
         const result = await graphqlQueryV2(uploadFileMutation, args, user);
         expect(result.errors).to.not.exist;
-        expect(result.data.uploadFile.parsingResult).to.deep.eq({
+        expect(result.data.uploadFile[0].parsingResult).to.deep.eq({
           success: false,
           message: 'Could not parse document: OCR parsing failed on purpose for test',
           confidence: null,
@@ -107,11 +108,11 @@ describe('server/graphql/v2/mutation/UploadedFileMutations', () => {
       describe('mocked service', () => {
         it('is used by default', async () => {
           const user = await fakeUser();
-          const args = { kind: 'EXPENSE_ITEM', file: getMockFileUpload(), parseDocument: true };
+          const args = { files: [{ kind: 'EXPENSE_ITEM', file: getMockFileUpload(), parseDocument: true }] };
           const result = await graphqlQueryV2(uploadFileMutation, args, user);
           expect(result.errors).to.not.exist;
-          expect(result.data.uploadFile.parsingResult).to.not.be.null;
-          expect(result.data.uploadFile.parsingResult).to.deep.eq({
+          expect(result.data.uploadFile[0].parsingResult).to.not.be.null;
+          expect(result.data.uploadFile[0].parsingResult).to.deep.eq({
             success: true,
             message: null,
             confidence: 100,
@@ -126,10 +127,10 @@ describe('server/graphql/v2/mutation/UploadedFileMutations', () => {
         it('is not used in production', async () => {
           sandbox.stub(config, 'env').value('production');
           const user = await fakeUser();
-          const args = { kind: 'EXPENSE_ITEM', file: getMockFileUpload(), parseDocument: true };
+          const args = { files: [{ kind: 'EXPENSE_ITEM', file: getMockFileUpload(), parseDocument: true }] };
           const result = await graphqlQueryV2(uploadFileMutation, args, user);
           expect(result.errors).to.not.exist;
-          expect(result.data.uploadFile.parsingResult).to.deep.eq({
+          expect(result.data.uploadFile[0].parsingResult).to.deep.eq({
             success: false,
             message: 'OCR parsing is not available',
             confidence: null,

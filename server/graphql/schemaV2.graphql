@@ -14605,20 +14605,10 @@ type Mutation {
   deleteUpdate(id: String!): Update!
   uploadFile(
     """
-    The file to upload
+    The files to upload
     """
-    file: Upload!
-
-    """
-    The kind of file to uploaded
-    """
-    kind: UploadedFileKind!
-
-    """
-    Whether to run OCR on the document. Note that this feature is only available to selected accounts.
-    """
-    parseDocument: Boolean! = false
-  ): UploadFileResult!
+    files: [UploadFileInput!]!
+  ): [UploadFileResult!]!
 
   """
   Assign Virtual Card information to existing hosted collective. Scope: "virtualCards".
@@ -16515,6 +16505,23 @@ type ExpenseParsedFileInfo {
 A date string, such as 2007-12-03, compliant with the `full-date` format outlined in section 5.6 of the RFC 3339 profile of the ISO 8601 standard for representation of dates and times using the Gregorian calendar.
 """
 scalar Date
+
+input UploadFileInput {
+  """
+  The file to upload
+  """
+  file: Upload!
+
+  """
+  The kind of file to uploaded
+  """
+  kind: UploadedFileKind!
+
+  """
+  Whether to run OCR on the document. Note that this feature is only available to selected accounts.
+  """
+  parseDocument: Boolean! = false
+}
 
 """
 The `Upload` scalar type represents a file upload.

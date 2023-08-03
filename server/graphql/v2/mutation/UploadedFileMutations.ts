@@ -1,12 +1,12 @@
-import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType } from 'graphql';
-import GraphQLUpload from 'graphql-upload/GraphQLUpload.js';
+import { GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 import { FileUpload } from 'graphql-upload/Upload';
+import { difference } from 'lodash';
 
 import { FileKind } from '../../../constants/file-kind';
 import { getExpenseOCRParser } from '../../../lib/ocr';
 import models, { UploadedFile } from '../../../models';
 import { checkRemoteUserCanUseExpenses } from '../../common/scope-check';
-import { GraphQLUploadedFileKind } from '../enum/UploadedFileKind';
+import { GraphQLUploadFileInput } from '../input/UploadFileInput';
 import { GraphQLFileInfo } from '../interface/FileInfo';
 import { GraphQLParseUploadedFileResult, ParseUploadedFileResult } from '../object/ParseUploadedFileResult';
 
@@ -24,65 +24,71 @@ const GraphQLUploadFileResult = new GraphQLObjectType({
 
 const uploadedFileMutations = {
   uploadFile: {
-    type: new GraphQLNonNull(GraphQLUploadFileResult),
+    type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLUploadFileResult))),
     args: {
-      file: {
-        type: new GraphQLNonNull(GraphQLUpload),
-        description: 'The file to upload',
-      },
-      kind: {
-        type: new GraphQLNonNull(GraphQLUploadedFileKind),
-        description: 'The kind of file to uploaded',
-      },
-      parseDocument: {
-        type: new GraphQLNonNull(GraphQLBoolean),
-        description:
-          'Whether to run OCR on the document. Note that this feature is only available to selected accounts.',
-        defaultValue: false,
+      files: {
+        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLUploadFileInput))),
+        description: 'The files to upload',
       },
     },
     async resolve(
       _: void,
-      args: { file: Promise<FileUpload>; kind?: FileKind; parseDocument: boolean },
+      args: { files: Array<{ file: Promise<FileUpload>; kind?: FileKind; parseDocument: boolean }> },
       req: Express.Request,
-    ): Promise<{ file: UploadedFile; parsingResult?: ParseUploadedFileResult }> {
+    ): Promise<Array<{ file: UploadedFile; parsingResult?: ParseUploadedFileResult }>> {
       if (!req.remoteUser) {
         throw new Error('You need to be logged in to upload files');
-      } else if (!['EXPENSE_ITEM', 'EXPENSE_ATTACHED_FILE'].includes(args.kind)) {
-        throw new Error(`parseDocument is only supported for EXPENSE_ITEM and EXPENSE_ATTACHED_FILE`);
+      }
+
+      // Limit on `kind` for this first release. If removing this, remember to update the part about `parseDocument`
+      // as we don't want to support parsing for all kinds (e.g. Avatars).
+      const allKinds = args.files.map(f => f.kind);
+      const unSupportedKinds = difference(allKinds, ['EXPENSE_ITEM', 'EXPENSE_ATTACHED_FILE']);
+      if (unSupportedKinds.length > 0) {
+        throw new Error(`This mutation only supports the following kinds: EXPENSE_ITEM, EXPENSE_ATTACHED_FILE`);
       }
 
       // Since we're only supporting for expense at the moment, we check the expenses scope
       checkRemoteUserCanUseExpenses(req);
 
-      // Upload file to S3
-      const uploadedFile = await models.UploadedFile.uploadGraphQl(await args.file, args.kind, req.remoteUser);
-
-      // Parse document
-      let parsingResult: ParseUploadedFileResult | undefined;
-      if (args.parseDocument) {
-        const parser = getExpenseOCRParser();
-        if (parser) {
-          try {
-            const [result] = await parser.processUrl(uploadedFile.url);
-            parsingResult = {
-              success: true,
-              confidence: result.confidence,
-              expense: {
-                description: result.description,
-                amount: result.amount,
-                incurredAt: result.date,
-              },
-            };
-          } catch (e) {
-            parsingResult = { success: false, message: `Could not parse document: ${e.message}` };
-          }
-        } else {
-          parsingResult = { success: false, message: 'OCR parsing is not available' };
-        }
+      // Sanity checks
+      if (args.files.length === 0) {
+        throw new Error('No file provided');
+      } else if (args.files.length > 10) {
+        throw new Error('You can only upload up to 10 files at once');
       }
 
-      return { file: uploadedFile, parsingResult };
+      // Upload & parse files
+      const useOCR = args.files.some(r => r.parseDocument);
+      const parser = useOCR ? getExpenseOCRParser() : null;
+      return Promise.all(
+        args.files.map(async ({ file, kind, parseDocument }) => {
+          const uploadedFile = await models.UploadedFile.uploadGraphQl(await file, kind, req.remoteUser);
+          let parsingResult;
+          if (parseDocument) {
+            if (parser) {
+              try {
+                const [result] = await parser.processUrl(uploadedFile.url);
+                parsingResult = {
+                  success: true,
+                  confidence: result.confidence,
+                  expense: {
+                    description: result.description,
+                    amount: result.amount,
+                    incurredAt: result.date,
+                  },
+                };
+              } catch (e) {
+                parsingResult = { success: false, message: `Could not parse document: ${e.message}` };
+              }
+            } else {
+              parsingResult = { success: false, message: 'OCR parsing is not available' };
+            }
+          }
+
+          return { file: uploadedFile, parsingResult: parsingResult };
+        }),
+      );
     },
   },
 };
