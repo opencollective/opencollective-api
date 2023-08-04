@@ -136,7 +136,7 @@ const checkJwtScope = req => {
 const _authenticateUserByJwt = async (req, res, next) => {
   const userId = Number(req.jwtPayload.sub);
   const user = await User.findByPk(userId, {
-    include: [{ association: 'collective', required: false, attributes: ['id'] }],
+    include: [{ association: 'collective', required: false }],
   });
   if (!user) {
     logger.warn(`User id ${userId} not found`);
