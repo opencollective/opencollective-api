@@ -55,3 +55,5 @@
 | TRANSFERWISE_BLOCKED_CURRENCIES           | .transferwise.blockedCurrencies                    |                                                                                |
 | TRANSFERWISE_BLOCKED_CURRENCIES_BUSINESS  | .transferwise.blockedCurrenciesForBusinessProfiles |                                                                                |
 | TRANSFERWISE_BLOCKED_CURRENCIES_NONPROFIT | .transferwise.blockedCurrenciesForNonProfits       |                                                                                |
+| KLIPPA_API_KEY                            | .klippa.apiKey                                     | The API key for Klippa                                                         |
+| KLIPPA_ENABLED                            | .klippa.enabled                                    | Whether Klippa is enabled                                                      |

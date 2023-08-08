@@ -1,20 +1,25 @@
-export interface OCRParseResult {
+export interface ExpenseOCRParseResult {
   confidence: number;
   description: string;
   amount: { value: number; currency: string };
   date: Date;
+  raw: Record<string, any>;
+  items: Array<{
+    description: string;
+    amount: { value: number; currency: string };
+    url: string;
+    incurredAt: Date;
+  }>;
 }
 
 /**
  * An OCR service interface for expenses attachments (invoices, receipts, etc.)
  */
 export interface ExpenseOCRService {
-  /**
-   * Processes an image and returns the extracted content.
-   */
-  processImage: (images: Buffer | Buffer[]) => Promise<OCRParseResult[]>;
+  readonly PARSER_ID: 'Klippa' | 'Mock';
+
   /**
    * Processes a URL and returns the extracted content.
    */
-  processUrl: (urls: string | string[]) => Promise<OCRParseResult[]>;
+  processUrl: (urls: string | string[]) => Promise<ExpenseOCRParseResult[]>;
 }

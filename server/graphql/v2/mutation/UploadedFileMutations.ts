@@ -1,18 +1,21 @@
-import { GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
+import config from 'config';
+import { GraphQLFieldConfig, GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 import { FileUpload } from 'graphql-upload/Upload';
 import { difference } from 'lodash';
 
 import { FileKind } from '../../../constants/file-kind';
-import { getExpenseOCRParser } from '../../../lib/ocr';
+import { getExpenseOCRParser, runOCRForExpenseFile } from '../../../lib/ocr';
 import models, { UploadedFile } from '../../../models';
 import { checkRemoteUserCanUseExpenses } from '../../common/scope-check';
 import { GraphQLUploadFileInput } from '../input/UploadFileInput';
 import { GraphQLFileInfo } from '../interface/FileInfo';
 import { GraphQLParseUploadedFileResult, ParseUploadedFileResult } from '../object/ParseUploadedFileResult';
 
+type UploadFileResult = { file: UploadedFile; parsingResult?: ParseUploadedFileResult };
+
 const GraphQLUploadFileResult = new GraphQLObjectType({
   name: 'UploadFileResult',
-  fields: () => ({
+  fields: (): Record<keyof UploadFileResult, GraphQLFieldConfig<void, Express.Request>> => ({
     file: {
       type: new GraphQLNonNull(GraphQLFileInfo),
     },
@@ -35,7 +38,7 @@ const uploadedFileMutations = {
       _: void,
       args: { files: Array<{ file: Promise<FileUpload>; kind?: FileKind; parseDocument: boolean }> },
       req: Express.Request,
-    ): Promise<Array<{ file: UploadedFile; parsingResult?: ParseUploadedFileResult }>> {
+    ): Promise<Array<UploadFileResult>> {
       if (!req.remoteUser) {
         throw new Error('You need to be logged in to upload files');
       }
@@ -59,34 +62,18 @@ const uploadedFileMutations = {
       }
 
       // Upload & parse files
-      const useOCR = args.files.some(r => r.parseDocument);
+      const canUseOCR = config.env.OC_ENV !== 'production' || req.remoteUser.isRoot();
+      const useOCR = canUseOCR && args.files.some(r => r.parseDocument);
       const parser = useOCR ? getExpenseOCRParser() : null;
       return Promise.all(
         args.files.map(async ({ file, kind, parseDocument }) => {
-          const uploadedFile = await models.UploadedFile.uploadGraphQl(await file, kind, req.remoteUser);
-          let parsingResult;
+          const result: UploadFileResult = { file: null, parsingResult: null };
+          result.file = await models.UploadedFile.uploadGraphQl(await file, kind, req.remoteUser);
           if (parseDocument) {
-            if (parser) {
-              try {
-                const [result] = await parser.processUrl(uploadedFile.url);
-                parsingResult = {
-                  success: true,
-                  confidence: result.confidence,
-                  expense: {
-                    description: result.description,
-                    amount: result.amount,
-                    incurredAt: result.date,
-                  },
-                };
-              } catch (e) {
-                parsingResult = { success: false, message: `Could not parse document: ${e.message}` };
-              }
-            } else {
-              parsingResult = { success: false, message: 'OCR parsing is not available' };
-            }
+            result.parsingResult = await runOCRForExpenseFile(parser, result.file);
           }
 
-          return { file: uploadedFile, parsingResult: parsingResult };
+          return result;
         }),
       );
     },

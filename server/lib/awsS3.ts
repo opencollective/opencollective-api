@@ -177,4 +177,6 @@ export const restoreFileFromS3Trash = (s3Url: string, trashType: TrashType): Pro
   return moveFileInS3(s3Url, originalKey, { StorageClass: 'STANDARD' });
 };
 
+export const checkS3Configured = (): boolean => Boolean(s3);
+
 export default s3;
