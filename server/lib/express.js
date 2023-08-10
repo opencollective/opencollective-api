@@ -1,3 +1,4 @@
+import { Strategy as TwitterStrategy } from '@superfaceai/passport-twitter-oauth2';
 import cloudflareIps from 'cloudflare-ip/ips.json';
 import config from 'config';
 import RedisStore from 'connect-redis';
@@ -10,7 +11,6 @@ import helmet from 'helmet';
 import { get, has } from 'lodash';
 import passport from 'passport';
 import { Strategy as GitHubStrategy } from 'passport-github';
-import { Strategy as TwitterStrategy } from 'passport-twitter';
 
 import { loadersMiddleware } from '../graphql/loaders';
 
@@ -61,13 +61,26 @@ export default async function (app) {
 
   const verify = (accessToken, tokenSecret, profile, done) => done(null, accessToken, { tokenSecret, profile });
 
+  // Github
   if (has(config, 'github.clientID') && has(config, 'github.clientSecret')) {
     passport.use(new GitHubStrategy(get(config, 'github'), verify));
   } else {
     logger.info('Configuration missing for passport GitHubStrategy, skipping.');
   }
-  if (has(config, 'twitter.consumerKey') && has(config, 'twitter.consumerSecret')) {
-    passport.use(new TwitterStrategy(get(config, 'twitter'), verify));
+
+  // Twitter
+  const twitterConfig = get(config, 'twitter');
+  if (has(twitterConfig, 'consumerKey') && has(twitterConfig, 'consumerSecret')) {
+    passport.use(
+      new TwitterStrategy(
+        {
+          clientType: 'confidential',
+          clientID: twitterConfig.consumerKey,
+          clientSecret: twitterConfig.consumerSecret,
+        },
+        verify,
+      ),
+    );
   } else {
     logger.info('Configuration missing for passport TwitterStrategy, skipping.');
   }
@@ -77,9 +90,8 @@ export default async function (app) {
   // Setup session (required by passport)
 
   const redisClient = await createRedisClient();
-  if (redisClient) {
-    const store = new RedisStore({ client: redisClient });
-
+  if (redisClient || process.env.OC_ENV === 'development') {
+    const store = !redisClient ? undefined : new RedisStore({ client: redisClient });
     app.use(
       session({
         store,

@@ -89,9 +89,9 @@ export const createOrUpdate = async (req, res, next, accessToken, data) => {
       connectedAccount = await createConnectedAccountForCollective(collective.id, service);
       await connectedAccount.update({
         username: data.profile.username,
-        clientId: accessToken,
-        token: data.tokenSecret,
-        data: data.profile._json,
+        clientId: null,
+        token: accessToken,
+        data: { ...data.profile._json, isOAuth2: true },
         CreatedByUserId: req.remoteUser.id,
       });
 

@@ -211,8 +211,10 @@ const sendTweet = async (tweet, twitterAccount, template) => {
     try {
       const res = await twitter.tweetStatus(twitterAccount, tweet, null, {
         // We thread the tweet with the previous milestone
-        // eslint-disable-next-line camelcase
-        in_reply_to_status_id: get(twitterAccount, 'settings.milestones.lastTweetId'),
+        reply: {
+          // eslint-disable-next-line camelcase
+          in_reply_to_tweet_id: get(twitterAccount, 'settings.milestones.lastTweetId'),
+        },
       });
 
       set(twitterAccount, 'settings.milestones.tweetId', res.id_str);

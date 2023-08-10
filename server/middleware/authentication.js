@@ -3,7 +3,7 @@ import { URLSearchParams } from 'url';
 import config from 'config';
 import debugLib from 'debug';
 import gqlmin from 'gqlmin';
-import { get, isNil, omitBy } from 'lodash';
+import { get, isNil, omitBy, pick } from 'lodash';
 import moment from 'moment';
 import passport from 'passport';
 
@@ -12,6 +12,7 @@ import { verifyJwt } from '../lib/auth';
 import errors from '../lib/errors';
 import logger from '../lib/logger';
 import { reportMessageToSentry } from '../lib/sentry';
+import { TWITTER_SCOPES } from '../lib/twitter';
 import { getBearerTokenFromRequestHeaders, parseToBoolean } from '../lib/utils';
 import models from '../models';
 import paymentProviders from '../paymentProviders';
@@ -265,6 +266,8 @@ export const authenticateService = (req, res, next) => {
     }
 
     return passport.authenticate(service, opts)(req, res, next);
+  } else if (service === 'twitter') {
+    opts.scope = TWITTER_SCOPES;
   }
 
   if (!req.remoteUser || !req.remoteUser.isAdmin(req.query.CollectiveId)) {
@@ -285,14 +288,30 @@ export const authenticateService = (req, res, next) => {
   return passport.authenticate(service, opts)(req, res, next);
 };
 
-export const authenticateServiceCallback = (req, res, next) => {
+export const authenticateServiceCallback = async (req, res, next) => {
   const { service } = req.params;
-
   if (get(paymentProviders, `${service}.oauth.callback`)) {
     return paymentProviders[service].oauth.callback(req, res, next);
   }
 
   const opts = { callbackURL: getOAuthCallbackUrl(req) };
+
+  // Twitter redirects us here, but we redirect to the frontend before authenticating to make
+  // sure the user is logged in.
+  if (service === 'twitter' && !req.remoteUser && req.query.CollectiveId) {
+    const collective = await models.Collective.findByPk(req.query.CollectiveId);
+    if (!collective) {
+      return next(new errors.NotFound('Collective not found'));
+    } else {
+      // Permissions will be checked in the callback
+      const redirectUrl = new URL(`${config.host.website}/${collective.slug}/admin/connected-accounts`);
+      redirectUrl.searchParams.set('service', service);
+      redirectUrl.searchParams.set('state', req.query.state);
+      redirectUrl.searchParams.set('code', req.query.code);
+      redirectUrl.searchParams.set('callback', 'true');
+      return res.redirect(redirectUrl.href);
+    }
+  }
 
   passport.authenticate(service, opts, async (err, accessToken, data) => {
     if (err) {
@@ -310,13 +329,15 @@ export const authenticateServiceDisconnect = (req, res) => {
 };
 
 function getOAuthCallbackUrl(req) {
-  // eslint-disable-next-line camelcase
-  const { CollectiveId, access_token, context } = req.query;
   const { service } = req.params;
 
-  // eslint-disable-next-line camelcase
-  const params = new URLSearchParams(omitBy({ CollectiveId, access_token, context }, isNil));
+  // TODO We should not pass `access_token` to 3rd party services. Github likely still relies on this, but we can already remove it for Twitter.
+  const params = new URLSearchParams(omitBy(pick(req.query, ['access_token', 'context', 'CollectiveId']), isNil));
+  if (service === 'twitter') {
+    params.delete('access_token');
+  }
 
+  // When testing with Twitter, makes sure `website` is set to `127.0.0.1`, not `locahost`
   if (params.toString().length > 0) {
     return `${config.host.website}/api/connected-accounts/${service}/callback?${params.toString()}`;
   } else {
