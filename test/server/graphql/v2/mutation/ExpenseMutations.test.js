@@ -170,8 +170,14 @@ const processExpenseMutation = gqlV2/* GraphQL */ `
     $expenseId: Int!
     $action: ExpenseProcessAction!
     $paymentParams: ProcessExpensePaymentParams
+    $message: String
   ) {
-    processExpense(expense: { legacyId: $expenseId }, action: $action, paymentParams: $paymentParams) {
+    processExpense(
+      expense: { legacyId: $expenseId }
+      action: $action
+      paymentParams: $paymentParams
+      message: $message
+    ) {
       id
       legacyId
       status
@@ -2479,6 +2485,48 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.eq('Expense is already scheduled for payment');
+      });
+    });
+
+    describe('MARK_AS_INCOMPLETE', () => {
+      let sandbox, emailSendMessageSpy;
+
+      beforeEach(() => {
+        sandbox = createSandbox();
+        emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage');
+      });
+
+      afterEach(() => {
+        emailSendMessageSpy.restore();
+        sandbox.restore();
+      });
+
+      it('marks expense as Incomplete sends user an email', async () => {
+        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'ERROR' });
+        const mutationParams = { expenseId: expense.id, action: 'MARK_AS_INCOMPLETE' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+
+        expect(result.data.processExpense.status).to.eq('INCOMPLETE');
+
+        await waitForCondition(() => emailSendMessageSpy.callCount > 0);
+        expect(emailSendMessageSpy.firstCall.args[2]).to.contain('flagged as incomplete and requires your attention');
+      });
+
+      it('adds comment to the expense', async () => {
+        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'ERROR' });
+        const mutationParams = {
+          expenseId: expense.id,
+          action: 'MARK_AS_INCOMPLETE',
+          message: 'You missed your address',
+        };
+        await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+        await expense.reload();
+        expect(expense.status).to.eq('INCOMPLETE');
+
+        const comments = await expense.getComments();
+        expect(comments.length).to.eq(1);
+        expect(comments[0].CreatedByUserId).to.eq(hostAdmin.id);
+        expect(comments[0].html).to.eq('You missed your address');
       });
     });
 

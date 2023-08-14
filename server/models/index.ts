@@ -274,6 +274,7 @@ models.Expense.belongsTo(models.RecurringExpense, {
 });
 models.Expense.hasMany(models.ExpenseAttachedFile, { as: 'attachedFiles' });
 models.Expense.hasMany(models.ExpenseItem, { as: 'items' });
+models.Expense.hasMany(models.Comment, { as: 'comments' });
 models.Expense.hasMany(models.Transaction);
 models.Expense.hasMany(models.Activity, { as: 'activities' });
 models.Transaction.belongsTo(models.Expense);

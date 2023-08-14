@@ -354,6 +354,7 @@ const expenseMutations = {
             type: ['HOLD', 'RELEASE'].includes(args.action) ? CommentType.PRIVATE_NOTE : CommentType.COMMENT,
           },
           req,
+          { triggerStatusChange: false },
         );
       }
 
