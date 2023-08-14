@@ -87,7 +87,7 @@ async function deleteComment(id: number, req): Promise<void> {
   return comment.destroy();
 }
 
-async function createComment(commentData, req): Promise<Comment> {
+async function createComment(commentData, req, options?: { triggerStatusChange?: boolean }): Promise<Comment> {
   const { remoteUser } = req;
   mustBeLoggedInTo(remoteUser, 'create a comment');
 
@@ -165,7 +165,11 @@ async function createComment(commentData, req): Promise<Comment> {
 
   if (ExpenseId) {
     const expense = commentedEntity as Expense;
-    if (remoteUser.isAdmin(expense.FromCollectiveId) && expense?.status === ExpenseStatus.INCOMPLETE) {
+    if (
+      options?.triggerStatusChange !== false &&
+      remoteUser.isAdmin(expense.FromCollectiveId) &&
+      expense?.status === ExpenseStatus.INCOMPLETE
+    ) {
       await expense.update({ status: ExpenseStatus.APPROVED });
       await expense.createActivity(ActivityTypes.COLLECTIVE_EXPENSE_APPROVED);
     }
