@@ -6,6 +6,7 @@ import {
   InferAttributes,
   InferCreationAttributes,
   Model,
+  NonAttribute,
 } from 'sequelize';
 import * as z from 'zod';
 
@@ -78,6 +79,23 @@ export default class UserTwoFactorMethod<
 
   isWebAuthn(): this is UserTwoFactorMethod<TwoFactorMethod.WEBAUTHN> {
     return this.method === TwoFactorMethod.WEBAUTHN;
+  }
+
+  get info(): NonAttribute<
+    Pick<
+      UserTwoFactorMethod<Exclude<TwoFactorMethod, TwoFactorMethod.RECOVERY_CODE>>,
+      'id' | 'UserId' | 'method' | 'name' | 'createdAt' | 'updatedAt' | 'deletedAt'
+    >
+  > {
+    return {
+      id: this.id,
+      UserId: this.UserId,
+      method: this.method,
+      name: this.name,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt,
+      deletedAt: this.deletedAt,
+    };
   }
 }
 

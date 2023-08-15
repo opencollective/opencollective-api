@@ -501,6 +501,9 @@ const accountMutations = {
         FromCollectiveId: user.CollectiveId,
         CollectiveId: user.CollectiveId,
         UserTokenId: req.userToken?.id,
+        data: {
+          userTwoFactorMethod: userTwoFactorMethod?.info,
+        },
       });
 
       return account;

@@ -191,7 +191,7 @@ async function validateRequest(
     const supportedMethods = await twoFactorMethodsSupportedByUser(remoteUser);
     const authenticationOptions: Partial<Record<TwoFactorMethod, unknown>> = {};
     for (const method of supportedMethods) {
-      if (typeof providers[method].authenticationOptions === 'function') {
+      if (providers[method].authenticationOptions) {
         authenticationOptions[method] = await providers[method].authenticationOptions(remoteUser, req);
       }
     }

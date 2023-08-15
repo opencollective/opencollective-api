@@ -222,11 +222,9 @@ export const GraphQLIndividual = new GraphQLObjectType({
             return null;
           }
 
-          const user = await req.loaders.User.byCollectiveId.load(collective.id);
-
           return UserTwoFactorMethod.findAll({
             where: {
-              UserId: user.id,
+              UserId: req.remoteUser.id,
             },
           });
         },

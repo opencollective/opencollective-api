@@ -54,10 +54,6 @@ export async function validateToken(user: User, token: Token, req): Promise<void
   await verifyAuthenticationResponse(user, authenticationResponse, req);
 }
 
-export async function authenticationOptions(user: User, req) {
-  return generateAuthenticationOptions(user, req);
-}
-
 export async function generateRegistrationOptions(user: User, req): Promise<PublicKeyCredentialCreationOptionsJSON> {
   const collective = user?.collective || (await user.getCollective());
 
@@ -131,7 +127,7 @@ export async function verifyRegistrationResponse(
   return verifyResponse;
 }
 
-export async function generateAuthenticationOptions(user: User, req) {
+export async function authenticationOptions(user: User, req) {
   const methods = await UserTwoFactorMethod.findAll<UserTwoFactorMethod<TwoFactorMethod.WEBAUTHN>>({
     where: {
       UserId: user.id,
