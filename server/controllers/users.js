@@ -100,10 +100,7 @@ export const signin = async (req, res, next) => {
 
       const twoFactorAuthenticationEnabled = parseToBoolean(config.twoFactorAuthentication.enabled);
       if (twoFactorAuthenticationEnabled && (await twoFactorAuthLib.userHasTwoFactorAuthEnabled(user))) {
-        const supported2FAMethods = [
-          TwoFactorMethod.RECOVERY_CODE,
-          ...(await twoFactorAuthLib.twoFactorMethodsSupportedByUser(user)),
-        ];
+        const supported2FAMethods = await twoFactorAuthLib.twoFactorMethodsSupportedByUser(user);
 
         const authenticationOptions = {};
 
@@ -204,10 +201,7 @@ export const exchangeLoginToken = async (req, res, next) => {
 
   const twoFactorAuthenticationEnabled = parseToBoolean(config.twoFactorAuthentication.enabled);
   if (twoFactorAuthenticationEnabled && (await twoFactorAuthLib.userHasTwoFactorAuthEnabled(req.remoteUser))) {
-    const supported2FAMethods = [
-      TwoFactorMethod.RECOVERY_CODE,
-      ...(await twoFactorAuthLib.twoFactorMethodsSupportedByUser(req.remoteUser)),
-    ];
+    const supported2FAMethods = await twoFactorAuthLib.twoFactorMethodsSupportedByUser(req.remoteUser);
 
     const authenticationOptions = {};
 

@@ -210,7 +210,11 @@ async function validateRequest(
 }
 
 async function twoFactorMethodsSupportedByUser(remoteUser: User): Promise<TwoFactorMethod[]> {
-  return await UserTwoFactorMethod.userMethods(remoteUser.id);
+  const methods = await UserTwoFactorMethod.userMethods(remoteUser.id);
+  if (methods.length > 0) {
+    methods.push(TwoFactorMethod.RECOVERY_CODE);
+  }
+  return methods;
 }
 
 async function userHasTwoFactorAuthEnabled(user: User) {
