@@ -343,7 +343,7 @@ export const chargeDisputeCreated = async (event: Stripe.Event) => {
   });
 
   // Block User from creating any new Orders
-  await user.limitFeature(FEATURE.ORDER, `Charge disputed for transaction #${chargeTransaction}`);
+  await user.limitFeature(FEATURE.ORDER, `Charge disputed for transaction #${chargeTransaction.id}`);
 
   await Promise.all(
     transactions.map(async transaction => {
