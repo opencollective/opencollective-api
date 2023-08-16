@@ -10,7 +10,7 @@ import type {
   PublicKeyCredentialCreationOptionsJSON,
   PublicKeyCredentialDescriptorFuture,
   RegistrationResponseJSON,
-// eslint-disable-next-line import/no-unresolved, node/no-missing-import
+  // eslint-disable-next-line import/no-unresolved, node/no-missing-import
 } from '@simplewebauthn/typescript-types';
 import config from 'config';
 
