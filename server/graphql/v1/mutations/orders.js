@@ -209,6 +209,10 @@ export async function createOrder(order, req) {
     await checkGuestContribution(order, loaders);
   }
 
+  if (order.interval && (!order.paymentMethod || order.paymentMethod?.type === PAYMENT_METHOD_TYPE.MANUAL)) {
+    throw new ValidationFailed('Manual payment methods cannot be used for subscriptions');
+  }
+
   await checkOrdersLimit(order, reqIp, reqMask);
   await orderFraudProtection(req, order).catch(error => {
     reportErrorToSentry(error, { transactionName: 'orderFraudProtection', user: req.remoteUser });
