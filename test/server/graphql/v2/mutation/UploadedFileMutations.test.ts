@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { expect } from 'chai';
 import config from 'config';
 import gqlV2 from 'fake-tag';
@@ -7,6 +8,7 @@ import { v4 as uuid } from 'uuid';
 import { SUPPORTED_FILE_KINDS } from '../../../../../server/constants/file-kind';
 import * as awsS3Lib from '../../../../../server/lib/awsS3';
 import * as ExpenseOCRLib from '../../../../../server/lib/ocr/index';
+import { klippaSuccessInvoice } from '../../../../../server/lib/ocr/klippa/mocks';
 import { fakeUser } from '../../../../test-helpers/fake-data';
 import { getMockFileUpload, graphqlQueryV2 } from '../../../../utils';
 
@@ -192,11 +194,52 @@ describe('server/graphql/v2/mutation/UploadedFileMutations', () => {
         });
       });
 
-      // TODO Mock Klippa service and make sure we call its endpoints here
-      // describe('using Klippa', () => {
-      //   it('does not call Klippa if the file was already parsed', async () => {});
-      //   it('calls Klippa with the file and formats the result', async () => {});
-      // });
+      describe('using Klippa', () => {
+        beforeEach(() => {
+          sandbox.stub(config, 'klippa').value({ enabled: true, apiKey: 'TEST' });
+        });
+
+        it('calls Klippa with the file and formats the result', async () => {
+          // Initialize nock
+          sandbox.stub(axios, 'post').resolves({ data: klippaSuccessInvoice, status: 200 });
+
+          // Trigger query
+          const user = await fakeUser();
+          const args = { files: [{ kind: 'EXPENSE_ITEM', file: getMockFileUpload(), parseDocument: true }] };
+          const result = await graphqlQueryV2(uploadFileMutation, args, user);
+
+          // Check response
+          expect(result.errors).to.not.exist;
+          expect(result.data.uploadFile[0].parsingResult).to.containSubset({
+            success: true,
+            expense: {
+              amount: { valueInCents: 65e2, currency: 'USD' },
+              confidence: 100,
+              date: '2023-08-01',
+              description: 'Render invoice',
+            },
+          });
+        });
+
+        it('returns a sanitized error when Klippa fails', async () => {
+          // Initialize nock
+          sandbox.stub(axios, 'post').resolves({ err: { msg: 'Not allowed' }, status: 401 });
+
+          // Trigger query
+          const user = await fakeUser();
+          const args = { files: [{ kind: 'EXPENSE_ITEM', file: getMockFileUpload(), parseDocument: true }] };
+          const result = await graphqlQueryV2(uploadFileMutation, args, user);
+          expect(result.errors).to.not.exist;
+          expect(result.data.uploadFile[0].parsingResult).to.deep.eq({
+            success: false,
+            message: 'Could not parse document: Unexpected Error while calling the AI service',
+            expense: null,
+          });
+        });
+
+        // TODO(OCR): Add test
+        // it('does not call Klippa if the file was already parsed', async () => {});
+      });
     });
   });
 });

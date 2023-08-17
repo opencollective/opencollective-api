@@ -5,7 +5,7 @@ import { ExpenseOCRParseResult, ExpenseOCRService } from '../ExpenseOCRService';
 
 import { KlippaParseAccountingDocumentResponse } from './types';
 
-const KLIPPA_BASE_URL = 'https://custom-ocr.klippa.com/api/v1';
+export const KLIPPA_BASE_URL = 'https://custom-ocr.klippa.com/api/v1';
 
 export class KlippaOCRService implements ExpenseOCRService {
   public readonly PARSER_ID = 'Klippa';
@@ -109,8 +109,10 @@ export class KlippaOCRService implements ExpenseOCRService {
     try {
       const fullUrl = `${KLIPPA_BASE_URL}${url}`;
       const response = await axios.post(fullUrl, formData, { headers });
-      if (response.statusText !== 'OK') {
-        reportMessageToSentry(`Unexpected status code from Klippa API: ${response.statusText}`, {});
+      if (response.status !== 200) {
+        reportMessageToSentry(`Unexpected status code from Klippa API: ${response.status}`, {
+          extra: { url, formData: Object.fromEntries(formData) },
+        });
         throw new Error('AI service failed to parse the document');
       }
 
