@@ -105,9 +105,9 @@ async function callback(req, res) {
       .getInstanceDocument({ instanceId: id, documentId })
       .then(buff => Promise.resolve(secretbox.encrypt(buff, ENCRYPTION_KEY)))
       .then(buffer => uploadTaxFormToS3(buffer, { id: collective.name, year, documentType: US_TAX_FORM }))
-      .then(({ Location: location }) => {
+      .then(({ url }) => {
         doc.requestStatus = RECEIVED;
-        doc.documentLink = location;
+        doc.documentLink = url;
         return doc.save();
       })
       .then(() => res.sendStatus(200))

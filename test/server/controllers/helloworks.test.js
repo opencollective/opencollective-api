@@ -75,7 +75,7 @@ describe('server/controllers/helloworks', () => {
     const requiredDoc = { HostCollectiveId: host.id, documentType: 'US_TAX_FORM' };
     await models.RequiredLegalDocument.create(requiredDoc);
     expectedDocLocation = randUrl();
-    s3Stub = sandbox.stub(awsS3Lib, 'uploadToS3').resolves({ Location: expectedDocLocation });
+    s3Stub = sandbox.stub(awsS3Lib, 'uploadToS3').resolves({ url: expectedDocLocation });
   });
 
   after(() => {

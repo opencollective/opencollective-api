@@ -1,6 +1,17 @@
 import fs from 'fs';
 
-import S3, { ManagedUpload, PutObjectRequest } from 'aws-sdk/clients/s3';
+import {
+  CopyObjectCommand,
+  CopyObjectRequest,
+  DeleteObjectCommand,
+  HeadObjectCommand,
+  HeadObjectOutput,
+  ListObjectsV2Command,
+  ListObjectsV2Output,
+  PutObjectCommand,
+  PutObjectCommandOutput,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import config from 'config';
 
 import logger from '../lib/logger';
@@ -10,41 +21,47 @@ import { reportErrorToSentry } from './sentry';
 export const S3_TRASH_PREFIX = 'trash/';
 
 // Create S3 service object & set credentials and region
-let s3: S3;
+let s3: S3Client;
 if (config.aws.s3.key) {
-  s3 = new S3({
-    s3ForcePathStyle: config.aws.s3.forcePathStyle,
+  s3 = new S3Client({
+    forcePathStyle: config.aws.s3.forcePathStyle,
     endpoint: config.aws.s3.endpoint,
-    sslEnabled: config.aws.s3.sslEnabled,
-    accessKeyId: config.aws.s3.key,
-    secretAccessKey: config.aws.s3.secret,
+    tls: config.aws.s3.sslEnabled,
     apiVersion: config.aws.s3.apiVersion,
     region: config.aws.s3.region,
+    credentials: {
+      accessKeyId: config.aws.s3.key,
+      secretAccessKey: config.aws.s3.secret,
+    },
   });
 }
 
-export const uploadToS3 = (
-  params: PutObjectRequest,
-): Promise<ManagedUpload.SendData | { Location: string; Bucket: string; Key: string }> =>
-  new Promise((resolve, reject) => {
-    if (s3) {
-      s3.upload(params, (err, data) => {
-        if (err) {
-          logger.error('Error uploading file to S3: ', err);
-          reportErrorToSentry(err);
-          reject(err);
-        } else {
-          resolve(data);
-        }
-      });
-    } else {
-      const Location = `/tmp/${params.Key}`;
-      logger.warn(`S3 is not set, saving file to ${Location}. This should only be done in development.`);
-      const isBuffer = params.Body instanceof Buffer;
-      fs.writeFile(Location, isBuffer ? <Buffer>params.Body : params.Body.toString('utf8'), logger.info);
-      resolve({ Location: `file://${Location}`, Bucket: 'local-tmp', Key: params.Key });
+export const uploadToS3 = async (
+  params: PutObjectCommand['input'],
+): Promise<{
+  s3Data?: PutObjectCommandOutput;
+  url: string;
+}> => {
+  if (s3) {
+    try {
+      const command = new PutObjectCommand(params);
+      const result = (await s3.send(command)) as PutObjectCommandOutput;
+      return { s3Data: result, url: getS3URL(params.Bucket, params.Key) };
+    } catch (err) {
+      if (err) {
+        logger.error('Error uploading file to S3: ', err);
+        reportErrorToSentry(err);
+        throw err;
+      }
     }
-  });
+  } else if (config.env === 'development') {
+    const filePath = `/tmp/${params.Key}`;
+    logger.warn(`S3 is not set, saving file to ${filePath}. This should only be done in development.`);
+    const isBuffer = params.Body instanceof Buffer;
+    fs.writeFile(filePath, isBuffer ? <Buffer>params.Body : params.Body.toString('utf8'), logger.info);
+    return { url: `file://${filePath}` };
+  }
+};
 
 /**
  * Parse S3 URL to get bucket and key. Throws if the URL is not a valid S3 URL.
@@ -61,44 +78,32 @@ export const parseS3Url = (s3Url: string): { bucket: string; key: string } => {
   };
 };
 
-export const getFileInfoFromS3 = (s3Url: string): Promise<S3.HeadObjectOutput> => {
-  return new Promise((resolve, reject) => {
-    if (s3) {
-      const { bucket, key } = parseS3Url(s3Url);
-      s3.headObject({ Bucket: bucket, Key: key }, (err, data) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(data);
-        }
-      });
-    } else {
-      reject(new Error('S3 is not set'));
-    }
-  });
+/**
+ * Generate an S3 URL from a bucket and key.
+ */
+const getS3URL = (bucket: string, key: string): string => {
+  return `https://${bucket}.s3.${config.aws.s3.region}.amazonaws.com/${key}`;
+};
+
+export const getFileInfoFromS3 = async (s3Url: string): Promise<HeadObjectOutput> => {
+  if (!s3) {
+    throw new Error('S3 is not set');
+  }
+
+  const { bucket, key } = parseS3Url(s3Url);
+  const command = new HeadObjectCommand({ Bucket: bucket, Key: key });
+  return s3.send(command) as Promise<HeadObjectOutput>;
 };
 
 /**
  * A wrapper around S3.listObjectsV2 that handles pagination to get more than 1000 files.
  */
-export const listFilesInS3 = async (bucket: string): Promise<S3.Object[]> => {
+export const listFilesInS3 = async (bucket: string): Promise<ListObjectsV2Output['Contents']> => {
   if (!s3) {
     throw new Error('S3 is not set');
   }
 
-  const listObjects = async (params: S3.ListObjectsV2Request): Promise<S3.ListObjectsV2Output> => {
-    return new Promise((resolve, reject) => {
-      s3.listObjectsV2(params, (err, data) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(data);
-        }
-      });
-    });
-  };
-
-  const allObjects: S3.Object[] = [];
+  const allObjects: ListObjectsV2Output['Contents'] = [];
   let continuationToken: string | undefined;
   do {
     logger.debug(
@@ -106,7 +111,9 @@ export const listFilesInS3 = async (bucket: string): Promise<S3.Object[]> => {
         continuationToken ? `with continuation token ${continuationToken}` : ''
       }`,
     );
-    const data = await listObjects({ Bucket: bucket, ContinuationToken: continuationToken });
+
+    const command = new ListObjectsV2Command({ Bucket: bucket, ContinuationToken: continuationToken });
+    const data = (await s3.send(command)) as ListObjectsV2Output;
     allObjects.push(...(data.Contents || []));
     continuationToken = data.NextContinuationToken;
   } while (continuationToken);
@@ -117,43 +124,42 @@ export const listFilesInS3 = async (bucket: string): Promise<S3.Object[]> => {
 /**
  * Move S3 file to a new key, within the same bucket.
  */
-export const moveFileInS3 = (
+export const moveFileInS3 = async (
   s3Url: string,
   newKey: string,
-  params: Omit<S3.Types.CopyObjectRequest, 'Bucket' | 'CopySource' | 'Key'> = {},
+  params: Omit<CopyObjectRequest, 'Bucket' | 'CopySource' | 'Key'> = {},
 ): Promise<void> => {
+  if (!s3) {
+    throw new Error('S3 is not set');
+  }
+
+  const { bucket, key } = parseS3Url(s3Url);
+  logger.debug(`Moving S3 file ${s3Url} (${key}) to ${newKey}`);
+
   // Unfortunately, s3 has no `moveObject` method, so we have to copy and delete. See https://docs.aws.amazon.com/sdk-for-java/v1/developer-guide/examples-s3-objects.html#copy-object
-  return new Promise((resolve, reject) => {
-    if (s3) {
-      const { bucket, key } = parseS3Url(s3Url);
-      logger.debug(`Moving S3 file ${s3Url} (${key}) to ${newKey}`);
-      // const storageType = 'GLACIER_IR' : 'STANDARD';
-      s3.copyObject(
-        {
-          MetadataDirective: 'COPY',
-          ...params,
-          Bucket: bucket,
-          CopySource: `${bucket}/${encodeURIComponent(key)}`,
-          Key: newKey,
-        },
-        err => {
-          if (err) {
-            reject(err);
-          } else {
-            s3.deleteObject({ Bucket: bucket, Key: key }, err => {
-              if (err) {
-                reject(err);
-              } else {
-                resolve();
-              }
-            });
-          }
-        },
-      );
-    } else {
-      reject(new Error('S3 is not set'));
-    }
-  });
+  try {
+    // Copy
+    await s3.send(
+      new CopyObjectCommand({
+        MetadataDirective: 'COPY',
+        Bucket: bucket,
+        CopySource: `${bucket}/${encodeURIComponent(key)}`,
+        Key: newKey,
+        ...params,
+      }),
+    );
+
+    // Delete old file
+    await s3.send(
+      new DeleteObjectCommand({
+        Bucket: bucket,
+        Key: key,
+      }),
+    );
+  } catch (e) {
+    logger.error(`Error moving S3 file ${s3Url} (${key}) to ${newKey}:`, e);
+    throw e;
+  }
 };
 
 // To differentiate between files that were deleted and files that were never recorded in the DB
