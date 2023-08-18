@@ -211,6 +211,8 @@ export async function createOrder(order, req) {
 
   if (order.interval && (!order.paymentMethod || order.paymentMethod?.type === PAYMENT_METHOD_TYPE.MANUAL)) {
     throw new ValidationFailed('Manual payment methods cannot be used for subscriptions');
+  } else if (order.interval && order.totalAmount === 0) {
+    throw new ValidationFailed('Subscriptions cannot be free');
   }
 
   await checkOrdersLimit(order, reqIp, reqMask);
