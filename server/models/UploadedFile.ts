@@ -15,8 +15,9 @@ import sharp from 'sharp';
 import { v4 as uuid } from 'uuid';
 
 import { FileKind, SUPPORTED_FILE_KINDS } from '../constants/file-kind';
-import s3, { uploadToS3 } from '../lib/awsS3';
+import { checkS3Configured, uploadToS3 } from '../lib/awsS3';
 import logger from '../lib/logger';
+import { ExpenseOCRParseResult, ExpenseOCRService } from '../lib/ocr/ExpenseOCRService';
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 import streamToBuffer from '../lib/stream-to-buffer';
@@ -30,6 +31,11 @@ type CommonDataShape = {
   /** A unique identified to record what part of the code uploaded this image. By convention, the default upload function doesn't set this */
   recordedFrom?: string;
   completedAt?: string;
+  ocrData?: {
+    type: 'Expense';
+    parser: ExpenseOCRService['PARSER_ID'];
+    result: ExpenseOCRParseResult;
+  };
 };
 
 type ImageDataShape = CommonDataShape & {
@@ -129,7 +135,7 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
     }
 
     // Should only happen in dev/test envs
-    if (!s3) {
+    if (!checkS3Configured()) {
       logger.error('No S3 client available');
       throw new Error('There was a problem while uploading the file');
     }

@@ -1,29 +1,52 @@
-import { GraphQLBoolean, GraphQLFieldConfig, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import {
+  GraphQLBoolean,
+  GraphQLFieldConfig,
+  GraphQLList,
+  GraphQLNonNull,
+  GraphQLObjectType,
+  GraphQLString,
+} from 'graphql';
 import { GraphQLDate } from 'graphql-scalars';
 
+import { ExpenseOCRParseResult } from '../../../lib/ocr/ExpenseOCRService';
 import { GraphQLStrictPercentage } from '../scalar/StrictPercentage';
 
 import { GraphQLAmount } from './Amount';
 
-const GraphQLExpenseParsedFileInfo = new GraphQLObjectType({
-  name: 'ExpenseParsedFileInfo',
-  fields: () => ({
-    description: { type: GraphQLString },
-    amount: { type: GraphQLAmount },
-    incurredAt: { type: GraphQLDate },
-  }),
-});
-
 export type ParseUploadedFileResult = {
   success: boolean;
   message?: string;
-  confidence?: number;
-  expense?: {
-    description: string;
-    amount: { value: number; currency: string };
-    incurredAt: Date;
-  };
+  expense?: ExpenseOCRParseResult;
 };
+
+const GraphQLExpenseItemParsedFileInfo = new GraphQLObjectType({
+  name: 'ExpenseItemParsedFileInfo',
+  fields: (): Record<
+    keyof ParseUploadedFileResult['expense']['items'][0],
+    GraphQLFieldConfig<any, Express.Request>
+  > => ({
+    description: { type: GraphQLString },
+    amount: { type: GraphQLAmount },
+    incurredAt: { type: GraphQLDate },
+    url: { type: GraphQLString },
+  }),
+});
+
+const GraphQLExpenseParsedFileInfo = new GraphQLObjectType({
+  name: 'ExpenseParsedFileInfo',
+  fields: (): Record<
+    keyof Omit<ParseUploadedFileResult['expense'], 'raw'>,
+    GraphQLFieldConfig<any, Express.Request>
+  > => ({
+    confidence: { type: GraphQLStrictPercentage },
+    description: { type: GraphQLString },
+    amount: { type: GraphQLAmount },
+    date: { type: GraphQLDate },
+    items: {
+      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLExpenseItemParsedFileInfo))),
+    },
+  }),
+});
 
 export const GraphQLParseUploadedFileResult = new GraphQLObjectType({
   name: 'ParseUploadedFileResult',
@@ -36,10 +59,6 @@ export const GraphQLParseUploadedFileResult = new GraphQLObjectType({
       description:
         'A message describing the parsing result, usually an error message (if parsing failed) or some warnings',
       type: GraphQLString,
-    },
-    confidence: {
-      description: 'The confidence of the parsing result',
-      type: GraphQLStrictPercentage,
     },
     expense: {
       description: 'The parsed expense information',

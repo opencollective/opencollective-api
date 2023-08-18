@@ -75,6 +75,10 @@
     "email": "CLOUDFLARE_EMAIL",
     "zone": "CLOUDFLARE_ZONE"
   },
+  "klippa": {
+    "apiKey": "KLIPPA_API_KEY",
+    "enabled": "KLIPPA_ENABLED"
+  },
   "paypal": {
     "classic": {
       "appId": "PAYPAL_APP_ID",

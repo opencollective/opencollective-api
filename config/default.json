@@ -92,6 +92,10 @@
       "sslEnabled": true
     }
   },
+  "klippa": {
+    "apiKey": null,
+    "enabled": true
+  },
   "paypal": {
     "classic": {
       "appId": "APP-80W284485P519543T",

@@ -14,7 +14,7 @@
     "esModuleInterop": true,
     "checkJs": false,
     "downlevelIteration": true,
-    "lib": ["esnext", "dom"],
+    "lib": ["esnext", "dom", "dom.iterable"],
     "module": "commonjs",
     "noUnusedLocals": true,
     "outDir": "dist",

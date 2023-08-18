@@ -120,3 +120,9 @@ export class ContentNotReady extends IdentifiableApolloError {
     super(message || 'Content not ready', code || 'ContentNotReady', additionalProperties);
   }
 }
+
+export class UnexpectedError extends IdentifiableApolloError {
+  constructor(message?: string, code?: string, additionalProperties?: Record<string, unknown>) {
+    super(message || 'An unexpected error happened', code || 'UnexpectedError', additionalProperties);
+  }
+}
