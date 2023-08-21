@@ -227,9 +227,8 @@ const TransactionFields = () => {
       },
       async resolve(transaction, args, req) {
         if (args.fetchHostFee && !transaction.hostFeeInHostCurrency) {
-          transaction.hostFeeInHostCurrency = await req.loaders.Transaction.hostFeeAmountForTransaction.load(
-            transaction,
-          );
+          transaction.hostFeeInHostCurrency =
+            await req.loaders.Transaction.hostFeeAmountForTransaction.load(transaction);
           return models.Transaction.calculateNetAmountInCollectiveCurrency(transaction);
         }
         return transaction.netAmountInCollectiveCurrency;
