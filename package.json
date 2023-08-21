@@ -45,7 +45,7 @@
     "@paypal/payouts-sdk": "1.1.1",
     "@sentry/node": "7.64.0",
     "@sentry/types": "7.64.0",
-    "@shopify/address": "4.1.0",
+    "@shopify/address": "4.2.0",
     "argparse": "2.0.1",
     "aws-sdk": "2.1440.0",
     "axios": "1.4.0",
