@@ -4,7 +4,7 @@
 
 import config from 'config';
 import slugify from 'limax';
-import { get } from 'lodash';
+import { get, words } from 'lodash';
 
 import { RateLimitExceeded } from '../graphql/errors';
 import models, { Op, sequelize } from '../models';
@@ -353,7 +353,7 @@ export const parseSearchTerm = fullSearchTerm => {
   } else if (searchTerm.match(/^\d+\.?\d*$/)) {
     return { type: 'number', term: parseFloat(searchTerm), isFloat: searchTerm.includes('.') };
   } else {
-    return { type: 'text', term: searchTerm };
+    return { type: 'text', term: searchTerm, words: words(searchTerm).length };
   }
 };
 
@@ -371,6 +371,7 @@ export const buildSearchConditions = (
     slugFields = [],
     idFields = [],
     textFields = [],
+    dataFields = [],
     amountFields = [],
     stringArrayFields = [],
     stringArrayTransformFn = null,
@@ -411,6 +412,10 @@ export const buildSearchConditions = (
     } else {
       stringArrayFields.forEach(field => conditions.push({ [field]: { [Op.overlap]: [preparedTerm] } }));
     }
+  }
+
+  if (dataFields?.length && parsedTerm.words === 1) {
+    conditions.push(...dataFields.map(field => ({ [field]: parsedTerm.term })));
   }
 
   // Conditions for numbers (ID, amount)
