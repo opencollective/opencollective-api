@@ -23,7 +23,9 @@ module.exports = {
   },
 
   async down(queryInterface) {
-    await queryInterface.sequelize.query(`DROP INDEX CONCURRENTLY IF EXISTS "expenses_data_transactionId";`);
-    await queryInterface.sequelize.query(`DROP INDEX CONCURRENTLY IF EXISTS "expenses_data_transaction_id";`);
+    await queryInterface.sequelize.query(
+      `DROP INDEX CONCURRENTLY IF EXISTS "expenses_data_stripe_virtual_card_transaction_id";`,
+    );
+    await queryInterface.sequelize.query(`DROP INDEX CONCURRENTLY IF EXISTS "expenses_data_paypal_transaction_id";`);
   },
 };
