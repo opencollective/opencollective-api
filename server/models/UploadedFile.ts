@@ -149,7 +149,7 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
     const fileName = UploadedFile.getFilename(file, args.fileName);
     const uploadParams: PutObjectCommand['input'] = {
       Bucket: config.aws.s3.bucket,
-      Key: `${kebabCase(kind)}/${uuid()}/${fileName ? encodeURIComponent(fileName) : uuid()}`,
+      Key: `${kebabCase(kind)}/${uuid()}/${fileName || uuid()}`,
       Body: file.buffer,
       ACL: 'public-read', // We're aware of the security implications of this and will be looking for a better solution in https://github.com/opencollective/opencollective/issues/6351
       ContentLength: file.size,
@@ -161,6 +161,7 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
       Metadata: {
         CreatedByUserId: `${user?.id}`,
         FileKind: kind,
+        FileName: fileName,
       },
     };
 
