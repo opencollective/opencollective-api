@@ -24,6 +24,7 @@ import sequelize from '../../../lib/sequelize';
 import { ifStr } from '../../../lib/utils';
 import models, { Collective, Op } from '../../../models';
 import Agreement from '../../../models/Agreement';
+import { HostApplicationStatus } from '../../../models/HostApplication';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { Unauthorized } from '../../errors';
@@ -32,6 +33,7 @@ import { GraphQLAgreementCollection } from '../collection/AgreementCollection';
 import { GraphQLHostApplicationCollection } from '../collection/HostApplicationCollection';
 import { GraphQLVirtualCardCollection } from '../collection/VirtualCardCollection';
 import { GraphQLPaymentMethodLegacyType, GraphQLPayoutMethodType } from '../enum';
+import { GraphQLHostApplicationStatus } from '../enum/HostApplicationStatus';
 import { PaymentMethodLegacyTypeEnum } from '../enum/PaymentMethodLegacyType';
 import { GraphQLTimeUnit } from '../enum/TimeUnit';
 import { GraphQLVirtualCardStatusEnum } from '../enum/VirtualCardStatus';
@@ -306,7 +308,7 @@ export const GraphQLHost = new GraphQLObjectType({
       },
       pendingApplications: {
         type: new GraphQLNonNull(GraphQLHostApplicationCollection),
-        description: 'Pending applications for this host',
+        description: 'Applications for this host (default status: PENDING)',
         args: {
           ...CollectionArgs,
           searchTerm: {
@@ -319,14 +321,18 @@ export const GraphQLHost = new GraphQLObjectType({
             defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
             description: 'Order of the results',
           },
+          status: {
+            type: GraphQLHostApplicationStatus,
+            defaultValue: HostApplicationStatus.PENDING,
+            description: 'Filter applications by status. PENDING by default.',
+          },
         },
         resolve: async (host, args, req) => {
           if (!req.remoteUser?.isAdmin(host.id)) {
             throw new Unauthorized('You need to be logged in as an admin of the host to see its pending application');
           }
 
-          const applyTypes = [CollectiveType.COLLECTIVE, CollectiveType.FUND];
-          const where = { HostCollectiveId: host.id, approvedAt: null, type: { [Op.in]: applyTypes } };
+          const collectiveWhere = {};
 
           const searchTermConditions = buildSearchConditions(args.searchTerm, {
             idFields: ['id'],
@@ -337,38 +343,21 @@ export const GraphQLHost = new GraphQLObjectType({
           });
 
           if (searchTermConditions.length) {
-            where[Op.or] = searchTermConditions;
+            collectiveWhere[Op.or] = searchTermConditions;
           }
 
-          const result = await models.Collective.findAndCountAll({
-            where,
-            limit: args.limit,
-            offset: args.offset,
+          const { rows, count } = await models.HostApplication.findAndCountAll({
             order: [[args.orderBy.field, args.orderBy.direction]],
-          });
-
-          // Link applications to collectives
-          const collectiveIds = result.rows.map(collective => collective.id);
-          const applications = await models.HostApplication.findAll({
-            order: [['updatedAt', 'DESC']],
             where: {
               HostCollectiveId: host.id,
-              status: 'PENDING',
-              CollectiveId: collectiveIds ? { [Op.in]: collectiveIds } : undefined,
+              status: args.status,
             },
-          });
-          const groupedApplications = keyBy(applications, 'CollectiveId');
-          const nodes = result.rows.map(collective => {
-            const application = groupedApplications[collective.id];
-            if (application) {
-              application.collective = collective;
-              return application;
-            } else {
-              return { collective };
-            }
+            limit: args.limit,
+            offset: args.offset,
+            include: [{ model: models.Collective, as: 'collective', where: collectiveWhere }],
           });
 
-          return { totalCount: result.count, limit: args.limit, offset: args.offset, nodes };
+          return { totalCount: count, limit: args.limit, offset: args.offset, nodes: rows };
         },
       },
       hostedVirtualCards: {

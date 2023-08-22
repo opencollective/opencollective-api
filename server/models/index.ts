@@ -439,6 +439,16 @@ Agreement.belongsTo(Collective, { foreignKey: 'HostCollectiveId', as: 'Host' });
 Agreement.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'Collective' });
 Agreement.belongsTo(User, { foreignKey: 'UserId', as: 'User' });
 
+// HostApplication
+models.HostApplication.belongsTo(models.Collective, {
+  foreignKey: 'CollectiveId',
+  as: 'collective',
+});
+Collective.hasMany(models.HostApplication, {
+  foreignKey: 'CollectiveId',
+  as: 'hostApplications'
+});
+
 export default models;
 
 export { sequelize, Op };
