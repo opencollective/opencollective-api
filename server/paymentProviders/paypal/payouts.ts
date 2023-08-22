@@ -10,6 +10,7 @@ import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { floatAmountToCents } from '../../lib/math';
 import * as paypal from '../../lib/paypal';
+import { safeJsonStringify } from '../../lib/safe-json-stringify';
 import { reportMessageToSentry } from '../../lib/sentry';
 import { createTransactionsFromPaidExpense } from '../../lib/transactions';
 import models, { Collective } from '../../models';
@@ -79,7 +80,7 @@ export const payExpensesBatch = async (expenses: Expense[]): Promise<Expense[]> 
       await e.update({ status: status.ERROR });
       const user = await models.User.findByPk(e.lastEditedById);
       await e.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, user, {
-        error: { message: error.message },
+        error: { message: error.message, details: safeJsonStringify(error) },
         isSystem: true,
       });
       return e;
