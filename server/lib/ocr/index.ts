@@ -1,15 +1,15 @@
 import config from 'config';
 
 import { ParseUploadedFileResult } from '../../graphql/v2/object/ParseUploadedFileResult';
-import { UploadedFile } from '../../models';
+import { UploadedFile, User } from '../../models';
 
 import { KlippaOCRService } from './klippa/KlippaOCRService';
 import type { ExpenseOCRService } from './ExpenseOCRService';
 import { MockExpenseOCRService } from './MockExpenseOCRService';
 
-export const getExpenseOCRParser = (): ExpenseOCRService => {
+export const getExpenseOCRParser = (user: User): ExpenseOCRService => {
   if (config.klippa.enabled && config.klippa.apiKey) {
-    return new KlippaOCRService(config.klippa.apiKey);
+    return new KlippaOCRService(config.klippa.apiKey, user);
   } else if (config.env !== 'production') {
     return new MockExpenseOCRService();
   } else {
@@ -28,6 +28,7 @@ export const runOCRForExpenseFile = async (
     return { success: false, message: 'OCR parsing is not available' };
   }
 
+  // Run OCR service
   try {
     const [result] = await parser.processUrl(uploadedFile.url);
     await uploadedFile.update({
@@ -41,4 +42,8 @@ export const runOCRForExpenseFile = async (
   } catch (e) {
     return { success: false, message: `Could not parse document: ${e.message}` };
   }
+};
+
+export const userCanUseOCR = (user: User | undefined | null): boolean => {
+  return Boolean(config.env.OC_ENV !== 'production' || user?.isRoot());
 };

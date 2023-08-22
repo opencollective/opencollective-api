@@ -17,7 +17,7 @@ export class MockExpenseOCRService implements ExpenseOCRService {
   public readonly PARSER_ID = 'Mock';
 
   async processUrl(urls: string | string[]): Promise<ExpenseOCRParseResult[]> {
-    const klippa = new KlippaOCRService('mock');
+    const klippa = new KlippaOCRService('mock', null);
     const urlsArray = Array.isArray(urls) ? urls : [urls];
     return urlsArray.map(url => {
       const mockContent = this.getMockedResult(url);

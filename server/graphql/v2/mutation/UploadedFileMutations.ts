@@ -1,10 +1,9 @@
-import config from 'config';
 import { GraphQLFieldConfig, GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 import { FileUpload } from 'graphql-upload/Upload';
 import { difference } from 'lodash';
 
 import { FileKind } from '../../../constants/file-kind';
-import { getExpenseOCRParser, runOCRForExpenseFile } from '../../../lib/ocr';
+import { getExpenseOCRParser, runOCRForExpenseFile, userCanUseOCR } from '../../../lib/ocr';
 import models, { UploadedFile } from '../../../models';
 import { checkRemoteUserCanUseExpenses } from '../../common/scope-check';
 import { GraphQLUploadFileInput } from '../input/UploadFileInput';
@@ -62,9 +61,9 @@ const uploadedFileMutations = {
       }
 
       // Upload & parse files
-      const canUseOCR = config.env.OC_ENV !== 'production' || req.remoteUser.isRoot();
+      const canUseOCR = userCanUseOCR(req.remoteUser);
       const useOCR = canUseOCR && args.files.some(r => r.parseDocument);
-      const parser = useOCR ? getExpenseOCRParser() : null;
+      const parser = useOCR ? getExpenseOCRParser(req.remoteUser) : null;
       return Promise.all(
         args.files.map(async ({ file, kind, parseDocument }) => {
           const result: UploadFileResult = { file: null, parsingResult: null };

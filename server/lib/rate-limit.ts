@@ -33,7 +33,7 @@ export default class RateLimit {
   }
 
   /** Register `nbCalls` in the cache. Returns false if limit has been reached. */
-  public async registerCall(): Promise<boolean> {
+  public async registerCall(nbCalls = 1): Promise<boolean> {
     if (
       this.ignoreTests &&
       (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'ci' || config.env === 'e2e')
@@ -44,7 +44,7 @@ export default class RateLimit {
     if (count >= this.limit) {
       return false;
     } else {
-      cache.set(this.cacheKey, count + 1, this.expiryTimeInSeconds);
+      cache.set(this.cacheKey, count + nbCalls, this.expiryTimeInSeconds);
       return true;
     }
   }
