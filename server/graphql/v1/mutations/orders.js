@@ -520,6 +520,7 @@ export async function createOrder(order, req) {
         savePaymentMethod: Boolean(!isGuest && order.paymentMethod?.save),
         guestToken, // For guest contributions, this token is a way to authenticate to confirm the order
         isEmbed: Boolean(order.context?.isEmbed),
+        isNewPlatformTipFlow: Boolean(order.context?.isNewPlatformTipFlow),
         isGuest,
         isBalanceTransfer: order.isBalanceTransfer,
         fromAccountInfo: order.fromAccountInfo,
