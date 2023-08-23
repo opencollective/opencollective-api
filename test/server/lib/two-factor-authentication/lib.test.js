@@ -251,7 +251,11 @@ describe('lib/two-factor-authentication', () => {
         await twoFactorAuthLib.validateRequest(req, { sessionKey: 'new-session' });
         fail('expected validateRequest to throw exception');
       } catch (e) {
-        expect(e.extensions).to.eql({ code: '2FA_REQUIRED', supportedMethods: ['totp'], authenticationOptions: {} });
+        expect(e.extensions).to.eql({
+          code: '2FA_REQUIRED',
+          supportedMethods: ['totp', 'recovery_code'],
+          authenticationOptions: {},
+        });
       }
     });
 
