@@ -211,9 +211,20 @@ export async function verifyAuthenticationResponse(user: User, response: Authent
   });
 }
 
+/**
+ * Attempts to get the authenticator metadata (model, manufactor, validity, icon, etc) from the registration response.
+ *
+ * This method will use the aaguid present on the registration information and if not present will attempt to parse the aaguid
+ * from the certificate of the attestation object.
+ *
+ * @param registrationResponse
+ * @returns a promise for the authenticator metadata or null if not metadata is found or the device aguid cannot be determined
+ */
 async function getAuthenticatorMetadata(
   registrationResponse: simplewebauthn.VerifiedRegistrationResponse,
 ): Promise<MetadataEntry | null> {
+  // if a aaguid (authenticator model identifier) is present and its not the default zero value,
+  // try to get the authenticator metadata from the fido database.
   if (
     registrationResponse.registrationInfo?.aaguid &&
     registrationResponse.registrationInfo?.aaguid !== '00000000-0000-0000-0000-000000000000'
@@ -221,10 +232,15 @@ async function getAuthenticatorMetadata(
     return await getFidoMetadata(registrationResponse.registrationInfo.aaguid);
   }
 
+  // if the aaguid is missing and we also dont have an attestation (certificate) from the
+  // authenticator, we can't get metadata from it.
   if (!registrationResponse.registrationInfo?.attestationObject) {
     return null;
   }
 
+  // Attempt to get the aaguid from the attestation x.509 certificate.
+  // The fido aaguid can be present on the Extension OID 1.3.6.1.4.1.45724.1.1.4 (id-fido-gen-ce-aaguid)
+  // https://www.w3.org/Submission/2015/SUBM-fido-key-attestation-20151120/
   const attestationObject = decodeAttestationObject(
     Buffer.from(registrationResponse.registrationInfo?.attestationObject),
   );
@@ -240,11 +256,13 @@ async function getAuthenticatorMetadata(
 
   const pemCert = new crypto.X509Certificate(certs[0]);
   const cert = AsnParser.parse(pemCert.raw, Certificate);
+  // get extension 1.3.6.1.4.1.45724.1.1.4 (id-fido-gen-ce-aaguid)
   const extension = cert.tbsCertificate.extensions.find(ext => ext.extnID === '1.3.6.1.4.1.45724.1.1.4');
   if (!extension) {
     return null;
   }
 
+  // convert the aaguid value from a binary format to a guid string
   const aaguidValue = AsnParser.parse(extension.extnValue.buffer, OctetString).buffer;
 
   const aauigHex = Buffer.from(aaguidValue).toString('hex');
