@@ -267,7 +267,7 @@ export function exportToPDF(template, data, options) {
 /**
  * Default host id, set this for new collectives created through our flow
  *
- * @param {"opensource" | null} category of the collective
+ * @param {"opensource" | "foundation" | "europe" | null} category of the collective
  */
 export const defaultHostCollective = category => {
   if (config.env === 'production' || config.env === 'staging') {
@@ -275,6 +275,10 @@ export const defaultHostCollective = category => {
       return { id: 772, CollectiveId: 11004, ParentCollectiveId: 83 }; // Open Source Host Collective
     } else if (category === 'foundation') {
       return { CollectiveId: 11049 };
+    } else if (category === 'europe') {
+      return { CollectiveId: 9807 };
+    } else if (category === 'opencollective') {
+      return { CollectiveId: 8686 };
     } else {
       return {}; // Don't automatically assign a host anymore
     }
@@ -284,11 +288,23 @@ export const defaultHostCollective = category => {
       return { CollectiveId: 9805, ParentCollectiveId: 83 }; // Open Source Host Collective
     } else if (category === 'foundation') {
       return { CollectiveId: 9805 };
+    } else if (category === 'opencollective') {
+      return { CollectiveId: 8686 };
     } else {
       return {}; // Don't automatically assign a host anymore
     }
   }
   return { id: 1, CollectiveId: 1 };
+};
+
+/**
+ * @returns {Array<Number>} the ids of the internal hosts
+ */
+export const getInternalHostsIds = () => {
+  return ['opencollective', 'opensource', 'foundation', 'europe']
+    .map(defaultHostCollective)
+    .map(result => result.CollectiveId)
+    .filter(Boolean);
 };
 
 export const isValidEmail = email => {
