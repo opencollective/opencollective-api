@@ -81,8 +81,12 @@ export const parseS3Url = (s3Url: string): { bucket: string; key: string } => {
 /**
  * Generate an S3 URL from a bucket and key.
  */
-const getS3URL = (bucket: string, key: string): string => {
-  return `https://${bucket}.s3.${config.aws.s3.region}.amazonaws.com/${key}`;
+export const getS3URL = (bucket: string, key: string): string => {
+  // Only the last part of the key should be encoded
+  const keyParts = key.split('/');
+  const encodedKeyLastPart = encodeURIComponent(keyParts.pop() || '');
+  const fullKey = [...keyParts, encodedKeyLastPart].join('/');
+  return `https://${bucket}.s3.${config.aws.s3.region}.amazonaws.com/${fullKey}`;
 };
 
 export const getFileInfoFromS3 = async (s3Url: string): Promise<HeadObjectOutput> => {
