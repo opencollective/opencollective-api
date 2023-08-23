@@ -180,11 +180,12 @@ export const trashFileFromS3 = async (s3Url: string, trashType: TrashType): Prom
 
 /**
  * Restore the file from the trash folder to its original location.
+ * Remember to specify the `ACL` to `public-read` if you want the file to be public.
  */
-export const restoreFileFromS3Trash = (s3Url: string, trashType: TrashType): Promise<void> => {
+export const restoreFileFromS3Trash = (s3Url: string, trashType: TrashType, acl: string): Promise<void> => {
   const { key } = parseS3Url(s3Url);
   const originalKey = key.replace(new RegExp(`^${S3_TRASH_PREFIX}${trashType}/`), '');
-  return moveFileInS3(s3Url, originalKey, { StorageClass: 'STANDARD' });
+  return moveFileInS3(s3Url, originalKey, { StorageClass: 'STANDARD', ACL: acl });
 };
 
 export const checkS3Configured = (): boolean => Boolean(s3);
