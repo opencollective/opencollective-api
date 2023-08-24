@@ -38,11 +38,18 @@ export const runOCRForExpenseFile = async (
 
   // Run OCR service
   try {
+    const start = performance.now();
     const [result] = await parser.processUrl(uploadedFile.url);
+    const end = performance.now();
     await uploadedFile.update({
       data: {
         ...uploadedFile.data,
-        ocrData: { parser: parser.PARSER_ID, type: 'Expense', result },
+        ocrData: {
+          parser: parser.PARSER_ID,
+          type: 'Expense',
+          result,
+          executionTime: (end - start) * 1000,
+        },
       },
     });
 
