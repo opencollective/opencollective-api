@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { isEmpty } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
-import { CollectiveType as COLLECTIVE_TYPE } from '../constants/collectives';
+import { CollectiveType } from '../constants/collectives';
 import { BadRequest, InvalidToken, NotFound } from '../graphql/errors';
 import models, { Collective, sequelize } from '../models';
 import User from '../models/User';
@@ -92,7 +92,7 @@ export const getOrCreateGuestProfile = async (
     if (!collective) {
       collective = await models.Collective.create(
         {
-          type: COLLECTIVE_TYPE.USER,
+          type: CollectiveType.USER,
           slug: `guest-${uuid().split('-')[0]}`,
           name: name || DEFAULT_GUEST_NAME,
           legalName,

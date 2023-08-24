@@ -1,7 +1,7 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull } from 'graphql';
 import { intersection, isNil } from 'lodash';
 
-import { CollectiveType as CollectiveTypes } from '../../../constants/collectives';
+import { CollectiveType } from '../../../constants/collectives';
 import MemberRoles from '../../../constants/roles';
 import models, { Op, sequelize } from '../../../models';
 import { checkScope } from '../../common/scope-check';
@@ -67,7 +67,7 @@ export const HasMembersFields = {
       }
 
       // Inherit Accountants and Admin from parent collective for Events and Projects
-      if (args.includeInherited && [CollectiveTypes.EVENT, CollectiveTypes.PROJECT].includes(collective.type)) {
+      if (args.includeInherited && [CollectiveType.EVENT, CollectiveType.PROJECT].includes(collective.type)) {
         const inheritedRoles = [MemberRoles.ACCOUNTANT, MemberRoles.ADMIN, MemberRoles.MEMBER];
         where = {
           [Op.or]: [

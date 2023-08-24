@@ -46,7 +46,7 @@ import { v4 as uuid } from 'uuid';
 import validator from 'validator';
 
 import activities from '../constants/activities';
-import { CollectiveTypesList, CollectiveType } from '../constants/collectives';
+import { CollectiveType, CollectiveTypesList } from '../constants/collectives';
 import { Service } from '../constants/connected_account';
 import expenseStatus from '../constants/expense_status';
 import expenseTypes from '../constants/expense_type';

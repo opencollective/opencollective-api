@@ -12,7 +12,7 @@ import { find, get, isEmpty, isNil, keyBy, mapValues, uniq } from 'lodash';
 import moment from 'moment';
 
 import { roles } from '../../../constants';
-import { CollectiveType as CollectiveType, CollectiveType as CollectiveTypes } from '../../../constants/collectives';
+import { CollectiveType } from '../../../constants/collectives';
 import expenseType from '../../../constants/expense_type';
 import OrderStatuses from '../../../constants/order_status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
@@ -576,7 +576,7 @@ export const GraphQLHost = new GraphQLObjectType({
           const result = await models.Collective.findAndCountAll({
             group: 'Collective.id',
             where: {
-              type: CollectiveTypes.VENDOR,
+              type: CollectiveType.VENDOR,
             },
             include: [
               {

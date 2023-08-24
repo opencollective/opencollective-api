@@ -5,7 +5,7 @@ import map from 'p-map';
 import isURL from 'validator/lib/isURL';
 
 import activities from '../constants/activities';
-import { CollectiveType as CollectiveTypes } from '../constants/collectives';
+import { CollectiveType } from '../constants/collectives';
 import { MODERATION_CATEGORIES } from '../constants/moderation-categories';
 import { VAT_OPTIONS } from '../constants/vat';
 import models, { Collective, Member, Op, sequelize } from '../models';
@@ -19,7 +19,7 @@ import logger from './logger';
 import { stripHTML } from './sanitize-html';
 import { md5 } from './utils';
 
-const { USER } = CollectiveTypes;
+const { USER } = CollectiveType;
 
 type AvatarUrlOpts = {
   height?: boolean;
@@ -37,7 +37,7 @@ type AvatarUrlOpts = {
  */
 export const getCollectiveAvatarUrl = (
   collectiveSlug: string,
-  collectiveType: CollectiveTypes,
+  collectiveType: CollectiveType,
   image: string,
   args: AvatarUrlOpts,
 ): string => {
@@ -47,7 +47,7 @@ export const getCollectiveAvatarUrl = (
     sections.push(md5(image).substring(0, 7));
   }
 
-  sections.push(collectiveType === CollectiveTypes.USER ? 'avatar' : 'logo');
+  sections.push(collectiveType === CollectiveType.USER ? 'avatar' : 'logo');
 
   if (args.height) {
     sections.push(args.height);

@@ -2,7 +2,7 @@ import DataLoader from 'dataloader';
 import { first, groupBy, uniq } from 'lodash';
 
 import { roles } from '../../constants';
-import { CollectiveType as CollectiveType } from '../../constants/collectives';
+import { CollectiveType } from '../../constants/collectives';
 import models, { Collective, Op, sequelize } from '../../models';
 
 import { sortResultsSimple } from './helpers';

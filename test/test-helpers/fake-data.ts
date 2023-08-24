@@ -14,7 +14,7 @@ import speakeasy from 'speakeasy';
 import { v4 as uuid } from 'uuid';
 
 import { activities, channels, roles } from '../../server/constants';
-import { CollectiveType as CollectiveType, CollectiveType } from '../../server/constants/collectives';
+import { CollectiveType } from '../../server/constants/collectives';
 import { SUPPORTED_FILE_KINDS } from '../../server/constants/file-kind';
 import OAuthScopes from '../../server/constants/oauth-scopes';
 import OrderStatuses from '../../server/constants/order_status';

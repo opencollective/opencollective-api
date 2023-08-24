@@ -7,7 +7,7 @@ import config from 'config';
 import debugLib from 'debug';
 import { get, pick, set, uniq } from 'lodash';
 
-import { CollectiveType as collectiveTypes } from '../../server/constants/collectives';
+import { CollectiveType } from '../../server/constants/collectives';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import slackLib from '../../server/lib/slack';
 import twitter from '../../server/lib/twitter';
@@ -33,7 +33,7 @@ const init = async () => {
     },
     limit: 30,
     group: ['CollectiveId', 'collective.id'],
-    include: [{ model: models.Collective, where: { type: { [Op.ne]: collectiveTypes.EVENT } }, as: 'collective' }],
+    include: [{ model: models.Collective, where: { type: { [Op.ne]: CollectiveType.EVENT } }, as: 'collective' }],
   });
 
   console.log(
