@@ -38,6 +38,7 @@ type CommonDataShape = {
     type: 'Expense';
     parser: ExpenseOCRService['PARSER_ID'];
     result: ExpenseOCRParseResult;
+    executionTime: number; // in seconds
   };
 };
 
