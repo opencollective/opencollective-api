@@ -15,7 +15,7 @@ import moment from 'moment';
 import sequelize from 'sequelize';
 import SqlString from 'sequelize/lib/sql-string';
 
-import { CollectiveType } from '../../constants/collectives';
+import { CollectiveType as CollectiveTypeEnum } from '../../constants/collectives';
 import FEATURE from '../../constants/feature';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import roles from '../../constants/roles';
@@ -213,7 +213,7 @@ export const CollectivesStatsType = new GraphQLObjectType({
           return models.Collective.count({
             where: {
               ParentCollectiveId: collective.id,
-              type: [CollectiveType.COLLECTIVE, CollectiveType.ORGANIZATION],
+              type: [CollectiveTypeEnum.COLLECTIVE, CollectiveTypeEnum.ORGANIZATION],
               isActive: true,
             },
           });
@@ -226,7 +226,7 @@ export const CollectivesStatsType = new GraphQLObjectType({
           return models.Collective.count({
             where: {
               ParentCollectiveId: collective.id,
-              type: CollectiveType.EVENT,
+              type: CollectiveTypeEnum.EVENT,
               isActive: true,
             },
           });
@@ -448,7 +448,7 @@ export const CollectiveStatsType = new GraphQLObjectType({
         type: GraphQLInt,
         resolve(collective) {
           return models.Collective.count({
-            where: { ParentCollectiveId: collective.id, type: CollectiveType.EVENT },
+            where: { ParentCollectiveId: collective.id, type: CollectiveTypeEnum.EVENT },
           });
         },
       },
@@ -536,26 +536,26 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
   description: 'Collective interface',
   resolveType: collective => {
     switch (collective.type) {
-      case CollectiveType.COLLECTIVE:
-      case CollectiveType.BOT:
+      case CollectiveTypeEnum.COLLECTIVE:
+      case CollectiveTypeEnum.BOT:
         return 'Collective';
 
-      case CollectiveType.USER:
+      case CollectiveTypeEnum.USER:
         return 'User';
 
-      case CollectiveType.ORGANIZATION:
+      case CollectiveTypeEnum.ORGANIZATION:
         return 'Organization';
 
-      case CollectiveType.EVENT:
+      case CollectiveTypeEnum.EVENT:
         return 'Event';
 
-      case CollectiveType.PROJECT:
+      case CollectiveTypeEnum.PROJECT:
         return 'Project';
 
-      case CollectiveType.FUND:
+      case CollectiveTypeEnum.FUND:
         return 'Fund';
 
-      case CollectiveType.VENDOR:
+      case CollectiveTypeEnum.VENDOR:
         return 'Vendor';
 
       default:
@@ -981,9 +981,9 @@ const CollectiveFields = () => {
       description: 'Name, address, lat, long of the location.',
       async resolve(collective, _, req) {
         const publicAddressesCollectiveTypes = [
-          CollectiveType.COLLECTIVE,
-          CollectiveType.EVENT,
-          CollectiveType.ORGANIZATION,
+          CollectiveTypeEnum.COLLECTIVE,
+          CollectiveTypeEnum.EVENT,
+          CollectiveTypeEnum.ORGANIZATION,
         ];
         if (publicAddressesCollectiveTypes.includes(collective.type)) {
           return req.loaders.Location.byCollectiveId.load(collective.id);
@@ -1119,7 +1119,7 @@ const CollectiveFields = () => {
       description: 'Private instructions related to an event',
       resolve(collective, _, req) {
         if (
-          collective.type === CollectiveType.EVENT &&
+          collective.type === CollectiveTypeEnum.EVENT &&
           (req.remoteUser?.isAdminOfCollective(collective) || req.remoteUser?.hasRole(roles.PARTICIPANT, collective))
         ) {
           return collective.data?.privateInstructions;
@@ -1161,7 +1161,7 @@ const CollectiveFields = () => {
       description: 'Returns whether this user has two factor authentication enabled',
       async resolve(collective, _, req) {
         if (req.remoteUser?.isAdmin(collective.id) || req.remoteUser?.isRoot()) {
-          if (collective.type === CollectiveType.USER) {
+          if (collective.type === CollectiveTypeEnum.USER) {
             return await req.remoteUser.hasTwoFactorAuthentication();
           }
           return false;
@@ -1218,7 +1218,7 @@ const CollectiveFields = () => {
       async resolve(collective, _, req) {
         if (!collective.HostCollectiveId) {
           return false;
-        } else if (collective.type === CollectiveType.EVENT) {
+        } else if (collective.type === CollectiveTypeEnum.EVENT) {
           const ParentCollectiveId = collective.ParentCollectiveId;
           const parentCollective = ParentCollectiveId && (await req.loaders.Collective.byId.load(ParentCollectiveId));
           // In the future, we should make it possible to directly read the approvedAt of the event
@@ -1405,7 +1405,7 @@ const CollectiveFields = () => {
         const query = {
           where: {
             HostCollectiveId: collective.id,
-            type: { [Op.in]: [CollectiveType.COLLECTIVE, CollectiveType.FUND] },
+            type: { [Op.in]: [CollectiveTypeEnum.COLLECTIVE, CollectiveTypeEnum.FUND] },
           },
           order: [[args.orderBy, args.orderDirection]],
           limit: args.limit,
