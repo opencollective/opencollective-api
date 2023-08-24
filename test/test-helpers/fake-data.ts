@@ -14,7 +14,7 @@ import speakeasy from 'speakeasy';
 import { v4 as uuid } from 'uuid';
 
 import { activities, channels, roles } from '../../server/constants';
-import { types as CollectiveType, types } from '../../server/constants/collectives';
+import { CollectiveType as CollectiveType, CollectiveType } from '../../server/constants/collectives';
 import { SUPPORTED_FILE_KINDS } from '../../server/constants/file-kind';
 import OAuthScopes from '../../server/constants/oauth-scopes';
 import OrderStatuses from '../../server/constants/order_status';
@@ -119,7 +119,7 @@ export const fakeUser = async (
   }
 
   const userCollective = await fakeCollective({
-    type: types.USER,
+    type: CollectiveType.USER,
     name: randStr('User Name'),
     slug: randStr('user-'),
     data: { UserId: user.id },
@@ -242,7 +242,7 @@ export const fakeOrganization = (organizationData: Record<string, unknown> = {})
     name: organizationData.isHostAccount ? randStr('Test Host ') : randStr('Test Organization '),
     slug: organizationData.isHostAccount ? randStr('host-') : randStr('org-'),
     ...organizationData,
-    type: types.ORGANIZATION,
+    type: CollectiveType.ORGANIZATION,
   });
 };
 
@@ -256,7 +256,7 @@ export const fakeEvent = async (collectiveData: Record<string, unknown> & { Pare
     name: randStr('Test Event '),
     slug: randStr('event-'),
     ...collectiveData,
-    type: types.EVENT,
+    type: CollectiveType.EVENT,
     ParentCollectiveId: ParentCollectiveId,
     HostCollectiveId: parentCollective.HostCollectiveId,
   });
@@ -272,7 +272,7 @@ export const fakeProject = async (collectiveData: Record<string, unknown> & { Pa
     name: randStr('Test Project '),
     slug: randStr('project-'),
     ...collectiveData,
-    type: types.PROJECT,
+    type: CollectiveType.PROJECT,
     ParentCollectiveId: ParentCollectiveId,
     HostCollectiveId: parentCollective.HostCollectiveId,
   });

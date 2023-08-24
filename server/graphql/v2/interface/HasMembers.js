@@ -1,7 +1,7 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull } from 'graphql';
 import { intersection, isNil } from 'lodash';
 
-import { types as CollectiveTypes } from '../../../constants/collectives';
+import { CollectiveType as CollectiveTypes } from '../../../constants/collectives';
 import MemberRoles from '../../../constants/roles';
 import models, { Op, sequelize } from '../../../models';
 import { checkScope } from '../../common/scope-check';

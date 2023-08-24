@@ -2,7 +2,7 @@ import { GraphQLBoolean, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { pick } from 'lodash';
 
-import { types as CollectiveTypes } from '../../../constants/collectives';
+import { CollectiveType as CollectiveTypes } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import POLICIES from '../../../constants/policies';
 import MemberRoles from '../../../constants/roles';

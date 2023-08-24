@@ -1,7 +1,7 @@
 import { get } from 'lodash';
 import { QueryOptions } from 'sequelize';
 
-import { types } from '../../constants/collectives';
+import { CollectiveType } from '../../constants/collectives';
 import FEATURE from '../../constants/feature';
 import FEATURE_STATUS from '../../constants/feature-status';
 import { hasFeature, isFeatureAllowedForCollectiveType } from '../../lib/allowed-features';
@@ -44,7 +44,7 @@ const checkReceiveFinancialContributions = async (collective, remoteUser) => {
   } else if (!collective.isActive) {
     return FEATURE_STATUS.UNSUPPORTED;
   } else if (
-    collective.type === types.EVENT &&
+    collective.type === CollectiveType.EVENT &&
     isPastEvent(collective) &&
     !remoteUser?.isAdminOfCollectiveOrHost(collective)
   ) {
@@ -115,7 +115,7 @@ export const checkCanUsePaymentMethods = async collective => {
 
   if (hasPaymentMethods) {
     return FEATURE_STATUS.ACTIVE;
-  } else if ([types.USER, types.ORGANIZATION].includes(collective.type)) {
+  } else if ([CollectiveType.USER, CollectiveType.ORGANIZATION].includes(collective.type)) {
     return FEATURE_STATUS.AVAILABLE;
   } else {
     return FEATURE_STATUS.UNSUPPORTED;
@@ -142,7 +142,7 @@ export const checkCanEmitGiftCards = async collective => {
 
   if (hasCreatedGiftCards) {
     return FEATURE_STATUS.ACTIVE;
-  } else if ([types.USER, types.ORGANIZATION].includes(collective.type)) {
+  } else if ([CollectiveType.USER, CollectiveType.ORGANIZATION].includes(collective.type)) {
     return FEATURE_STATUS.AVAILABLE;
   } else {
     return FEATURE_STATUS.UNSUPPORTED;

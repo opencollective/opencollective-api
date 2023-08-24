@@ -12,7 +12,7 @@ import { pick, size } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../../../constants/activities';
-import { types as collectiveTypes } from '../../../constants/collectives';
+import { CollectiveType as collectiveTypes } from '../../../constants/collectives';
 import expenseStatus from '../../../constants/expense_status';
 import logger from '../../../lib/logger';
 import RateLimit from '../../../lib/rate-limit';

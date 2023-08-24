@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { isEmpty } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
-import { types as COLLECTIVE_TYPE } from '../constants/collectives';
+import { CollectiveType as COLLECTIVE_TYPE } from '../constants/collectives';
 import { BadRequest, InvalidToken, NotFound } from '../graphql/errors';
 import models, { Collective, sequelize } from '../models';
 import User from '../models/User';

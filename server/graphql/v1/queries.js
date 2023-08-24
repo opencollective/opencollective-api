@@ -3,7 +3,7 @@ import { uniq } from 'lodash';
 import { isEmail } from 'validator';
 
 import { roles } from '../../constants';
-import { types as CollectiveTypes } from '../../constants/collectives';
+import { CollectiveType as CollectiveTypes } from '../../constants/collectives';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import { fetchCollectiveId } from '../../lib/cache';
 import logger from '../../lib/logger';

@@ -1,6 +1,6 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
-import { types as collectiveTypes } from '../../../constants/collectives';
+import { CollectiveType as collectiveTypes } from '../../../constants/collectives';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';

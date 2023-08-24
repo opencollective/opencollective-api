@@ -15,7 +15,7 @@ import moment from 'moment';
 import sequelize from 'sequelize';
 import SqlString from 'sequelize/lib/sql-string';
 
-import { types } from '../../constants/collectives';
+import { CollectiveType } from '../../constants/collectives';
 import FEATURE from '../../constants/feature';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import roles from '../../constants/roles';
@@ -213,7 +213,7 @@ export const CollectivesStatsType = new GraphQLObjectType({
           return models.Collective.count({
             where: {
               ParentCollectiveId: collective.id,
-              type: [types.COLLECTIVE, types.ORGANIZATION],
+              type: [CollectiveType.COLLECTIVE, CollectiveType.ORGANIZATION],
               isActive: true,
             },
           });
@@ -226,7 +226,7 @@ export const CollectivesStatsType = new GraphQLObjectType({
           return models.Collective.count({
             where: {
               ParentCollectiveId: collective.id,
-              type: types.EVENT,
+              type: CollectiveType.EVENT,
               isActive: true,
             },
           });
@@ -448,7 +448,7 @@ export const CollectiveStatsType = new GraphQLObjectType({
         type: GraphQLInt,
         resolve(collective) {
           return models.Collective.count({
-            where: { ParentCollectiveId: collective.id, type: types.EVENT },
+            where: { ParentCollectiveId: collective.id, type: CollectiveType.EVENT },
           });
         },
       },
@@ -536,26 +536,26 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
   description: 'Collective interface',
   resolveType: collective => {
     switch (collective.type) {
-      case types.COLLECTIVE:
-      case types.BOT:
+      case CollectiveType.COLLECTIVE:
+      case CollectiveType.BOT:
         return 'Collective';
 
-      case types.USER:
+      case CollectiveType.USER:
         return 'User';
 
-      case types.ORGANIZATION:
+      case CollectiveType.ORGANIZATION:
         return 'Organization';
 
-      case types.EVENT:
+      case CollectiveType.EVENT:
         return 'Event';
 
-      case types.PROJECT:
+      case CollectiveType.PROJECT:
         return 'Project';
 
-      case types.FUND:
+      case CollectiveType.FUND:
         return 'Fund';
 
-      case types.VENDOR:
+      case CollectiveType.VENDOR:
         return 'Vendor';
 
       default:
@@ -980,7 +980,11 @@ const CollectiveFields = () => {
       type: LocationType,
       description: 'Name, address, lat, long of the location.',
       async resolve(collective, _, req) {
-        const publicAddressesCollectiveTypes = [types.COLLECTIVE, types.EVENT, types.ORGANIZATION];
+        const publicAddressesCollectiveTypes = [
+          CollectiveType.COLLECTIVE,
+          CollectiveType.EVENT,
+          CollectiveType.ORGANIZATION,
+        ];
         if (publicAddressesCollectiveTypes.includes(collective.type)) {
           return req.loaders.Location.byCollectiveId.load(collective.id);
         } else if (!req.remoteUser) {
@@ -1115,7 +1119,7 @@ const CollectiveFields = () => {
       description: 'Private instructions related to an event',
       resolve(collective, _, req) {
         if (
-          collective.type === types.EVENT &&
+          collective.type === CollectiveType.EVENT &&
           (req.remoteUser?.isAdminOfCollective(collective) || req.remoteUser?.hasRole(roles.PARTICIPANT, collective))
         ) {
           return collective.data?.privateInstructions;
@@ -1157,7 +1161,7 @@ const CollectiveFields = () => {
       description: 'Returns whether this user has two factor authentication enabled',
       async resolve(collective, _, req) {
         if (req.remoteUser?.isAdmin(collective.id) || req.remoteUser?.isRoot()) {
-          if (collective.type === types.USER) {
+          if (collective.type === CollectiveType.USER) {
             return await req.remoteUser.hasTwoFactorAuthentication();
           }
           return false;
@@ -1214,7 +1218,7 @@ const CollectiveFields = () => {
       async resolve(collective, _, req) {
         if (!collective.HostCollectiveId) {
           return false;
-        } else if (collective.type === types.EVENT) {
+        } else if (collective.type === CollectiveType.EVENT) {
           const ParentCollectiveId = collective.ParentCollectiveId;
           const parentCollective = ParentCollectiveId && (await req.loaders.Collective.byId.load(ParentCollectiveId));
           // In the future, we should make it possible to directly read the approvedAt of the event
@@ -1399,7 +1403,10 @@ const CollectiveFields = () => {
       },
       async resolve(collective, args) {
         const query = {
-          where: { HostCollectiveId: collective.id, type: { [Op.in]: [types.COLLECTIVE, types.FUND] } },
+          where: {
+            HostCollectiveId: collective.id,
+            type: { [Op.in]: [CollectiveType.COLLECTIVE, CollectiveType.FUND] },
+          },
           order: [[args.orderBy, args.orderDirection]],
           limit: args.limit,
           offset: args.offset,

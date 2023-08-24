@@ -1,6 +1,6 @@
 import { GraphQLInterfaceType } from 'graphql';
 
-import { types as COLLECTIVE_TYPE } from '../../../constants/collectives';
+import { CollectiveType as COLLECTIVE_TYPE } from '../../../constants/collectives';
 import { Collective } from '../../../models';
 
 import { GraphQLAccount } from './Account';

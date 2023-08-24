@@ -1,37 +1,72 @@
 import { get } from 'lodash';
 
-import { types } from '../constants/collectives';
+import { CollectiveType } from '../constants/collectives';
 import FEATURE from '../constants/feature';
 import { Collective } from '../models';
 
-const HOST_TYPES = [types.USER, types.ORGANIZATION];
+const HOST_TYPES = [CollectiveType.USER, CollectiveType.ORGANIZATION];
 
 // Please refer to and update https://docs.google.com/spreadsheets/d/15ppKaZJCXBjvY7-AjjCj3w5D-4ebLQdEowynJksgDXE/edit#gid=0
 const FeatureAllowedForTypes = {
   [FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS]: [
-    types.ORGANIZATION,
-    types.COLLECTIVE,
-    types.EVENT,
-    types.FUND,
-    types.PROJECT,
+    CollectiveType.ORGANIZATION,
+    CollectiveType.COLLECTIVE,
+    CollectiveType.EVENT,
+    CollectiveType.FUND,
+    CollectiveType.PROJECT,
   ],
-  [FEATURE.RECURRING_CONTRIBUTIONS]: [types.USER, types.ORGANIZATION, types.COLLECTIVE, types.FUND],
+  [FEATURE.RECURRING_CONTRIBUTIONS]: [
+    CollectiveType.USER,
+    CollectiveType.ORGANIZATION,
+    CollectiveType.COLLECTIVE,
+    CollectiveType.FUND,
+  ],
   [FEATURE.RECEIVE_HOST_APPLICATIONS]: HOST_TYPES,
   [FEATURE.HOST_DASHBOARD]: HOST_TYPES,
-  [FEATURE.EVENTS]: [types.ORGANIZATION, types.COLLECTIVE],
-  [FEATURE.PROJECTS]: [types.FUND, types.COLLECTIVE, types.ORGANIZATION],
-  [FEATURE.USE_EXPENSES]: [types.ORGANIZATION, types.COLLECTIVE, types.EVENT, types.FUND, types.PROJECT],
-  [FEATURE.RECEIVE_EXPENSES]: [types.ORGANIZATION, types.COLLECTIVE, types.EVENT, types.FUND, types.PROJECT],
-  [FEATURE.COLLECTIVE_GOALS]: [types.COLLECTIVE, types.ORGANIZATION, types.PROJECT],
-  [FEATURE.TOP_FINANCIAL_CONTRIBUTORS]: [types.COLLECTIVE, types.ORGANIZATION, types.FUND],
-  [FEATURE.CONVERSATIONS]: [types.COLLECTIVE, types.ORGANIZATION],
-  [FEATURE.UPDATES]: [types.COLLECTIVE, types.ORGANIZATION, types.FUND, types.PROJECT, types.EVENT],
-  [FEATURE.TEAM]: [types.ORGANIZATION, types.COLLECTIVE, types.EVENT, types.FUND, types.PROJECT],
-  [FEATURE.CONTACT_FORM]: [types.COLLECTIVE, types.EVENT, types.ORGANIZATION, types.FUND, types.PROJECT],
-  [FEATURE.TRANSFERWISE]: [types.ORGANIZATION],
-  [FEATURE.PAYPAL_PAYOUTS]: [types.ORGANIZATION],
-  [FEATURE.PAYPAL_DONATIONS]: [types.ORGANIZATION],
-  [FEATURE.ALIPAY]: [types.ORGANIZATION],
+  [FEATURE.EVENTS]: [CollectiveType.ORGANIZATION, CollectiveType.COLLECTIVE],
+  [FEATURE.PROJECTS]: [CollectiveType.FUND, CollectiveType.COLLECTIVE, CollectiveType.ORGANIZATION],
+  [FEATURE.USE_EXPENSES]: [
+    CollectiveType.ORGANIZATION,
+    CollectiveType.COLLECTIVE,
+    CollectiveType.EVENT,
+    CollectiveType.FUND,
+    CollectiveType.PROJECT,
+  ],
+  [FEATURE.RECEIVE_EXPENSES]: [
+    CollectiveType.ORGANIZATION,
+    CollectiveType.COLLECTIVE,
+    CollectiveType.EVENT,
+    CollectiveType.FUND,
+    CollectiveType.PROJECT,
+  ],
+  [FEATURE.COLLECTIVE_GOALS]: [CollectiveType.COLLECTIVE, CollectiveType.ORGANIZATION, CollectiveType.PROJECT],
+  [FEATURE.TOP_FINANCIAL_CONTRIBUTORS]: [CollectiveType.COLLECTIVE, CollectiveType.ORGANIZATION, CollectiveType.FUND],
+  [FEATURE.CONVERSATIONS]: [CollectiveType.COLLECTIVE, CollectiveType.ORGANIZATION],
+  [FEATURE.UPDATES]: [
+    CollectiveType.COLLECTIVE,
+    CollectiveType.ORGANIZATION,
+    CollectiveType.FUND,
+    CollectiveType.PROJECT,
+    CollectiveType.EVENT,
+  ],
+  [FEATURE.TEAM]: [
+    CollectiveType.ORGANIZATION,
+    CollectiveType.COLLECTIVE,
+    CollectiveType.EVENT,
+    CollectiveType.FUND,
+    CollectiveType.PROJECT,
+  ],
+  [FEATURE.CONTACT_FORM]: [
+    CollectiveType.COLLECTIVE,
+    CollectiveType.EVENT,
+    CollectiveType.ORGANIZATION,
+    CollectiveType.FUND,
+    CollectiveType.PROJECT,
+  ],
+  [FEATURE.TRANSFERWISE]: [CollectiveType.ORGANIZATION],
+  [FEATURE.PAYPAL_PAYOUTS]: [CollectiveType.ORGANIZATION],
+  [FEATURE.PAYPAL_DONATIONS]: [CollectiveType.ORGANIZATION],
+  [FEATURE.ALIPAY]: [CollectiveType.ORGANIZATION],
 };
 
 /**
@@ -84,7 +119,7 @@ const FEATURES_ONLY_FOR_ACTIVE_HOSTS = new Set([
  * Returns true if feature is allowed for this collective type, false otherwise.
  */
 export const isFeatureAllowedForCollectiveType = (
-  collectiveType: types,
+  collectiveType: CollectiveType,
   feature: FEATURE,
   isHost?: boolean,
 ): boolean => {
@@ -96,9 +131,9 @@ export const isFeatureAllowedForCollectiveType = (
   }
 
   // Check if allowed for host orgs but not normal orgs
-  if (collectiveType === types.ORGANIZATION && FEATURES_ONLY_FOR_HOST_ORGS.has(feature) && !isHost) {
+  if (collectiveType === CollectiveType.ORGANIZATION && FEATURES_ONLY_FOR_HOST_ORGS.has(feature) && !isHost) {
     return false;
-  } else if (collectiveType === types.USER && FEATURES_ONLY_FOR_HOST_USERS.has(feature) && !isHost) {
+  } else if (collectiveType === CollectiveType.USER && FEATURES_ONLY_FOR_HOST_USERS.has(feature) && !isHost) {
     return false;
   }
 

@@ -6,7 +6,7 @@ import debugLib from 'debug';
 import { get, isEmpty, isNil, omit, pick, set } from 'lodash';
 
 import activities from '../../../constants/activities';
-import { types } from '../../../constants/collectives';
+import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import status from '../../../constants/order_status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
@@ -280,7 +280,7 @@ export async function createOrder(order, req) {
         const allowed = ['slug', 'name', 'company', 'description', 'website', 'twitterHandle', 'githubHandle', 'tags'];
         collective = await models.Collective.create({
           ...pick(order.collective, allowed),
-          type: types.COLLECTIVE,
+          type: CollectiveType.COLLECTIVE,
           isPledged: true,
           data: { hasBeenPledged: true },
         });
@@ -569,7 +569,7 @@ export async function createOrder(order, req) {
         await orderCreated.reload();
         return { order: orderCreated };
       }
-    } else if (!paymentRequired && order.interval && collective.type === types.COLLECTIVE) {
+    } else if (!paymentRequired && order.interval && collective.type === CollectiveType.COLLECTIVE) {
       // create inactive subscription to hold the interval info for the pledge
       const subscription = await models.Subscription.create({
         amount: order.totalAmount,
@@ -577,7 +577,7 @@ export async function createOrder(order, req) {
         currency: order.currency,
       });
       await orderCreated.update({ SubscriptionId: subscription.id });
-    } else if (collective.type === types.EVENT) {
+    } else if (collective.type === CollectiveType.EVENT) {
       // Free ticket, mark as processed and add user as an ATTENDEE
       await orderCreated.update({ status: 'PAID', processedAt: new Date() });
       await collective.addUserWithRole(remoteUser, roles.ATTENDEE, { TierId: tier?.id }, { order: orderCreated });

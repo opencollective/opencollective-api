@@ -4,7 +4,7 @@ import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'g
 import { GraphQLJSON } from 'graphql-scalars';
 
 import { activities } from '../../../constants';
-import { types as CollectiveType } from '../../../constants/collectives';
+import { CollectiveType as CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import POLICIES from '../../../constants/policies';
 import MemberRoles from '../../../constants/roles';

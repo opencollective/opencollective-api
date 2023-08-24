@@ -1,7 +1,7 @@
 import { flatten, isEmpty, keyBy, mapValues, some } from 'lodash';
 import { Model, ModelStatic } from 'sequelize';
 
-import { types as CollectiveTypes } from '../constants/collectives';
+import { CollectiveType as CollectiveTypes } from '../constants/collectives';
 import models, { Collective, Op, sequelize } from '../models';
 import { MigrationLogType } from '../models/MigrationLog';
 import User from '../models/User';

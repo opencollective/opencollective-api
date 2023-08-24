@@ -5,7 +5,7 @@ import map from 'p-map';
 import isURL from 'validator/lib/isURL';
 
 import activities from '../constants/activities';
-import { types as CollectiveTypes } from '../constants/collectives';
+import { CollectiveType as CollectiveTypes } from '../constants/collectives';
 import { MODERATION_CATEGORIES } from '../constants/moderation-categories';
 import { VAT_OPTIONS } from '../constants/vat';
 import models, { Collective, Member, Op, sequelize } from '../models';

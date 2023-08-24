@@ -1,6 +1,6 @@
 import { GraphQLObjectType } from 'graphql';
 
-import { types as collectiveTypes } from '../../../constants/collectives';
+import { CollectiveType as collectiveTypes } from '../../../constants/collectives';
 import { AccountFields, GraphQLAccount } from '../interface/Account';
 import { AccountWithContributionsFields, GraphQLAccountWithContributions } from '../interface/AccountWithContributions';
 import { AccountWithHostFields, GraphQLAccountWithHost } from '../interface/AccountWithHost';

@@ -5,7 +5,7 @@ import { isEmpty, isNil, uniq } from 'lodash';
 import { OrderItem } from 'sequelize';
 
 import { expenseStatus } from '../../../../constants';
-import { types as CollectiveType } from '../../../../constants/collectives';
+import { CollectiveType as CollectiveType } from '../../../../constants/collectives';
 import { getBalances } from '../../../../lib/budget';
 import { buildSearchConditions } from '../../../../lib/search';
 import { expenseMightBeSubjectToTaxForm } from '../../../../lib/tax-forms';

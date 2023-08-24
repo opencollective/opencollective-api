@@ -3,7 +3,7 @@ import { flatten, toInteger, toString } from 'lodash';
 import { InferAttributes, Op, Order, WhereOptions } from 'sequelize';
 
 import ActivityTypes, { ActivitiesPerClass, ActivityClasses } from '../constants/activities';
-import { types as AccountTypes } from '../constants/collectives';
+import { CollectiveType as AccountTypes } from '../constants/collectives';
 import MemberRoles from '../constants/roles';
 import { createRedisClient } from '../lib/redis';
 import models, { Collective } from '../models';

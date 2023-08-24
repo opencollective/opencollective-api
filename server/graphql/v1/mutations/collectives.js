@@ -5,7 +5,7 @@ import { Op, QueryTypes } from 'sequelize';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../../../constants/activities';
-import { types } from '../../../constants/collectives';
+import { CollectiveType } from '../../../constants/collectives';
 import roles from '../../../constants/roles';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import * as collectivelib from '../../../lib/collectivelib';
@@ -73,7 +73,7 @@ export async function createCollective(_, args, req) {
     collectiveData.currency = collectiveData.currency || parentCollective.currency;
     collectiveData.HostCollectiveId = parentCollective.HostCollectiveId;
 
-    if (collectiveData.type === types.EVENT) {
+    if (collectiveData.type === CollectiveType.EVENT) {
       collectiveData.platformFeePercent = parentCollective.platformFeePercent;
     }
   }
@@ -132,7 +132,7 @@ export async function createCollective(_, args, req) {
   }
 
   // We add the admins of the parent collective as admins
-  if (collectiveData.type === types.EVENT) {
+  if (collectiveData.type === CollectiveType.EVENT) {
     // Nothing needed, ADMINS of the Parent are Admins of the Event and that's it
   } else if (collectiveData.members) {
     promises.push(
@@ -351,14 +351,14 @@ export function editCollective(_, args, req) {
         if (!canEditCollective) {
           let errorMsg;
           switch (collective.type) {
-            case types.EVENT:
+            case CollectiveType.EVENT:
               errorMsg = `You must be logged in as admin of the ${parentCollective.slug} collective to edit this Event.`;
               break;
-            case types.PROJECT:
+            case CollectiveType.PROJECT:
               errorMsg = `You must be logged in as admin of the ${parentCollective.slug} collective to edit this Project.`;
               break;
 
-            case types.USER:
+            case CollectiveType.USER:
               errorMsg = `You must be logged in as ${newCollectiveData.name} to edit this User Collective`;
               break;
 
@@ -542,7 +542,7 @@ export async function archiveCollective(_, args, req) {
     }
   }
 
-  const isChildren = collective.type === types.EVENT || collective.type === types.PROJECT;
+  const isChildren = collective.type === CollectiveType.EVENT || collective.type === CollectiveType.PROJECT;
   const slugsToClearCacheFor = [collective.slug];
   let children = [];
   if (!isChildren) {
@@ -609,7 +609,7 @@ export async function unarchiveCollective(_, args, req) {
 
   await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
 
-  if (collective.type === types.EVENT || collective.type === types.PROJECT) {
+  if (collective.type === CollectiveType.EVENT || collective.type === CollectiveType.PROJECT) {
     const parentCollective = await req.loaders.Collective.byId.load(collective.ParentCollectiveId);
     const updatedCollective = collective.update({
       deactivatedAt: null,

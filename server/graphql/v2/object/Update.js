@@ -1,7 +1,7 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
-import { types as CollectiveType } from '../../../constants/collectives';
+import { CollectiveType as CollectiveType } from '../../../constants/collectives';
 import models from '../../../models';
 import { canSeeUpdate } from '../../common/update';
 import { CommentCollection } from '../collection/CommentCollection';

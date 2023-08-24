@@ -1,7 +1,7 @@
 import { pick } from 'lodash';
 import { InferAttributes, InferCreationAttributes, Model, ModelStatic } from 'sequelize';
 
-import { types as CollectiveType } from '../constants/collectives';
+import { CollectiveType as CollectiveType } from '../constants/collectives';
 import roles from '../constants/roles';
 import MemberRoles from '../constants/roles';
 import { invalidateContributorsCache } from '../lib/contributors';

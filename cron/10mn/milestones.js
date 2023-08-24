@@ -7,7 +7,7 @@ import config from 'config';
 import debugLib from 'debug';
 import { get, pick, set, uniq } from 'lodash';
 
-import { types as collectiveTypes } from '../../server/constants/collectives';
+import { CollectiveType as collectiveTypes } from '../../server/constants/collectives';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import slackLib from '../../server/lib/slack';
 import twitter from '../../server/lib/twitter';

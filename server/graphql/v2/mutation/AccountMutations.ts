@@ -13,7 +13,7 @@ import { GraphQLJSON, GraphQLNonEmptyString } from 'graphql-scalars';
 import { cloneDeep, isNull, omitBy, set } from 'lodash';
 
 import activities from '../../../constants/activities';
-import { types as COLLECTIVE_TYPE } from '../../../constants/collectives';
+import { CollectiveType as COLLECTIVE_TYPE } from '../../../constants/collectives';
 import * as collectivelib from '../../../lib/collectivelib';
 import { crypto } from '../../../lib/encryption';
 import TwoFactorAuthLib, { TwoFactorMethod } from '../../../lib/two-factor-authentication';

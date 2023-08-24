@@ -27,7 +27,7 @@ import moment from 'moment';
 
 import { activities, roles } from '../../constants';
 import ActivityTypes from '../../constants/activities';
-import { types as collectiveTypes } from '../../constants/collectives';
+import { CollectiveType as collectiveTypes } from '../../constants/collectives';
 import statuses from '../../constants/expense_status';
 import EXPENSE_TYPE from '../../constants/expense_type';
 import { ExpenseFeesPayer } from '../../constants/expense-fees-payer';
