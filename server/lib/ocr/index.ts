@@ -3,6 +3,7 @@ import { get } from 'lodash';
 
 import { ParseUploadedFileResult } from '../../graphql/v2/object/ParseUploadedFileResult';
 import { UploadedFile, User } from '../../models';
+import { getInternalHostsIds } from '../utils';
 
 import { KlippaOCRService } from './klippa/KlippaOCRService';
 import type { ExpenseOCRParseResult, ExpenseOCRService } from './ExpenseOCRService';
@@ -52,7 +53,10 @@ export const runOCRForExpenseFile = async (
 };
 
 export const userCanUseOCR = (user: User | undefined | null): boolean => {
-  return Boolean(config.env.OC_ENV !== 'production' || user?.isRoot());
+  return (
+    config.env.OC_ENV !== 'production' ||
+    Boolean(user && (user.isRoot() || getInternalHostsIds().some(id => user.isAdminOfCollective(id))))
+  );
 };
 
 export const lookForParserDataInCache = async (
