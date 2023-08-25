@@ -306,6 +306,58 @@ export const GraphQLHost = new GraphQLObjectType({
           }
         },
       },
+      hostApplications: {
+        type: new GraphQLNonNull(GraphQLHostApplicationCollection),
+        description: 'Applications for this host',
+        args: {
+          ...CollectionArgs,
+          searchTerm: {
+            type: GraphQLString,
+            description: 'Search term for collective tags, id, name, slug and description.',
+          },
+          orderBy: {
+            type: new GraphQLNonNull(GraphQLChronologicalOrderInput),
+            defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
+            description: 'Order of the results',
+          },
+          status: {
+            type: GraphQLHostApplicationStatus,
+            description: 'Filter applications by status',
+          },
+        },
+        resolve: async (host, args, req) => {
+          if (!req.remoteUser?.isAdmin(host.id)) {
+            throw new Unauthorized('You need to be logged in as an admin of the host to see its applications');
+          }
+
+          const searchTermConditions = buildSearchConditions(args.searchTerm, {
+            idFields: ['id'],
+            slugFields: ['slug'],
+            textFields: ['name', 'description', 'longDescription'],
+            stringArrayFields: ['tags'],
+            stringArrayTransformFn: str => str.toLowerCase(), // collective tags are stored lowercase
+          });
+
+          const { rows, count } = await models.HostApplication.findAndCountAll({
+            order: [[args.orderBy.field, args.orderBy.direction]],
+            where: {
+              HostCollectiveId: host.id,
+              status: args.status,
+            },
+            limit: args.limit,
+            offset: args.offset,
+            include: [
+              {
+                model: models.Collective,
+                as: 'collective',
+                ...(searchTermConditions.length && { where: { [Op.or]: searchTermConditions } }),
+              },
+            ],
+          });
+
+          return { totalCount: count, limit: args.limit, offset: args.offset, nodes: rows };
+        },
+      },
       pendingApplications: {
         type: new GraphQLNonNull(GraphQLHostApplicationCollection),
         description: 'Pending applications for this host',
