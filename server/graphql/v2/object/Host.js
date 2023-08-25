@@ -24,7 +24,6 @@ import sequelize from '../../../lib/sequelize';
 import { ifStr } from '../../../lib/utils';
 import models, { Collective, Op } from '../../../models';
 import Agreement from '../../../models/Agreement';
-import { HostApplicationStatus } from '../../../models/HostApplication';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { Unauthorized } from '../../errors';
