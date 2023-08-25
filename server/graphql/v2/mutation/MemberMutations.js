@@ -256,13 +256,16 @@ const memberMutations = {
       await twoFactorAuthLib.enforceForAccount(req, account);
 
       // Remove member
+      let members, invitations;
       if (args.isInvitation) {
-        await models.MemberInvitation.destroy({
+        members = await models.MemberInvitation.destroy({
           where: { MemberCollectiveId: memberAccount.id, CollectiveId: account.id, role: args.role },
+          returning: true,
         });
       } else {
-        await models.Member.destroy({
+        invitations = await models.Member.destroy({
           where: { MemberCollectiveId: memberAccount.id, CollectiveId: account.id, role: args.role },
+          returning: true,
         });
       }
       if ([MemberRoles.ACCOUNTANT, MemberRoles.ADMIN, MemberRoles.MEMBER].includes(args.role)) {
@@ -278,6 +281,8 @@ const memberMutations = {
             memberCollective: memberAccount.activity,
             collective: account.activity,
             user: req.remoteUser.info,
+            member: members?.[0]?.info,
+            invitation: invitations?.[0] && pick(invitations[0], ['id', 'role', 'description', 'since']),
           },
         });
       }
