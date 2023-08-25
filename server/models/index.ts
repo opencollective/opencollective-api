@@ -446,7 +446,7 @@ models.HostApplication.belongsTo(models.Collective, {
 });
 Collective.hasMany(models.HostApplication, {
   foreignKey: 'CollectiveId',
-  as: 'hostApplications'
+  as: 'hostApplications',
 });
 
 export default models;
