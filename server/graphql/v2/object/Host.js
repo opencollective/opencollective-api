@@ -308,7 +308,8 @@ export const GraphQLHost = new GraphQLObjectType({
       },
       pendingApplications: {
         type: new GraphQLNonNull(GraphQLHostApplicationCollection),
-        description: 'Applications for this host (default status: PENDING)',
+        description: 'Pending applications for this host',
+        deprecationReason: '2023-08-25: Deprecated in favour of host.hostApplications(status: PENDING).',
         args: {
           ...CollectionArgs,
           searchTerm: {
@@ -321,18 +322,14 @@ export const GraphQLHost = new GraphQLObjectType({
             defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
             description: 'Order of the results',
           },
-          status: {
-            type: GraphQLHostApplicationStatus,
-            defaultValue: HostApplicationStatus.PENDING,
-            description: 'Filter applications by status. PENDING by default.',
-          },
         },
         resolve: async (host, args, req) => {
           if (!req.remoteUser?.isAdmin(host.id)) {
             throw new Unauthorized('You need to be logged in as an admin of the host to see its pending application');
           }
 
-          const collectiveWhere = {};
+          const applyTypes = [CollectiveType.COLLECTIVE, CollectiveType.FUND];
+          const where = { HostCollectiveId: host.id, approvedAt: null, type: { [Op.in]: applyTypes } };
 
           const searchTermConditions = buildSearchConditions(args.searchTerm, {
             idFields: ['id'],
@@ -343,21 +340,38 @@ export const GraphQLHost = new GraphQLObjectType({
           });
 
           if (searchTermConditions.length) {
-            collectiveWhere[Op.or] = searchTermConditions;
+            where[Op.or] = searchTermConditions;
           }
 
-          const { rows, count } = await models.HostApplication.findAndCountAll({
-            order: [[args.orderBy.field, args.orderBy.direction]],
-            where: {
-              HostCollectiveId: host.id,
-              status: args.status,
-            },
+          const result = await models.Collective.findAndCountAll({
+            where,
             limit: args.limit,
             offset: args.offset,
-            include: [{ model: models.Collective, as: 'collective', where: collectiveWhere }],
+            order: [[args.orderBy.field, args.orderBy.direction]],
           });
 
-          return { totalCount: count, limit: args.limit, offset: args.offset, nodes: rows };
+          // Link applications to collectives
+          const collectiveIds = result.rows.map(collective => collective.id);
+          const applications = await models.HostApplication.findAll({
+            order: [['updatedAt', 'DESC']],
+            where: {
+              HostCollectiveId: host.id,
+              status: 'PENDING',
+              CollectiveId: collectiveIds ? { [Op.in]: collectiveIds } : undefined,
+            },
+          });
+          const groupedApplications = keyBy(applications, 'CollectiveId');
+          const nodes = result.rows.map(collective => {
+            const application = groupedApplications[collective.id];
+            if (application) {
+              application.collective = collective;
+              return application;
+            } else {
+              return { collective };
+            }
+          });
+
+          return { totalCount: result.count, limit: args.limit, offset: args.offset, nodes };
         },
       },
       hostedVirtualCards: {
