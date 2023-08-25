@@ -9,7 +9,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { pick, round, takeRightWhile, uniq } from 'lodash';
+import { pick, round, takeRightWhile, toString, uniq } from 'lodash';
 
 import ActivityTypes from '../../../constants/activities';
 import expenseStatus from '../../../constants/expense_status';
@@ -487,6 +487,22 @@ const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Request>({
         async resolve(expense, _, req) {
           if (await ExpenseLib.canSeeExpenseCustomData(req, expense)) {
             return expense.data?.customData || null;
+          }
+        },
+      },
+      merchantId: {
+        type: GraphQLString,
+        description: 'The merchant ID for this expense',
+        async resolve(expense, _, req) {
+          if (await ExpenseLib.canSeeExpenseCustomData(req, expense)) {
+            return (
+              toString(
+                expense.data?.transactionId ||
+                  expense.data?.transfer?.id ||
+                  expense.data?.transaction_id ||
+                  expense.data?.batchGroup?.id,
+              ) || null
+            );
           }
         },
       },
