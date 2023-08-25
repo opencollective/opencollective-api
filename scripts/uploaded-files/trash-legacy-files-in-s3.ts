@@ -9,7 +9,6 @@ import '../../server/env';
 
 import fs from 'fs';
 
-import { S3 } from 'aws-sdk';
 import { Command } from 'commander';
 import config from 'config';
 import moment from 'moment';
@@ -24,7 +23,7 @@ const LOCAL_CACHE_FILE = 'output/s3-files.json';
 const IGNORED_FILES = ['robots.txt'];
 
 const getNonTrashedFilesFromS3 = async (ignoreCache: boolean) => {
-  let objects: S3.Object[] = [];
+  let objects: Awaited<ReturnType<typeof listFilesInS3>> = [];
   let message;
 
   if (!ignoreCache && fs.existsSync(LOCAL_CACHE_FILE)) {

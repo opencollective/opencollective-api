@@ -28,6 +28,10 @@ const GraphQLOrderContextInput = new GraphQLInputObjectType({
       type: GraphQLBoolean,
       description: 'Whether this order was created using the embedded contribution flow',
     },
+    isNewPlatformTipFlow: {
+      type: GraphQLBoolean,
+      description: 'Whether this order was created using the new platform tip flow',
+    },
   }),
 });
 

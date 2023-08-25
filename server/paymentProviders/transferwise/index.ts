@@ -15,6 +15,7 @@ import cache from '../../lib/cache';
 import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { centsAmountToFloat } from '../../lib/math';
+import { safeJsonStringify } from '../../lib/safe-json-stringify';
 import { reportErrorToSentry } from '../../lib/sentry';
 import * as transferwise from '../../lib/transferwise';
 import models, { Collective, sequelize } from '../../models';
@@ -221,7 +222,7 @@ async function createTransfer(
     await expense.update({ status: status.ERROR });
     const user = await models.User.findByPk(expense.lastEditedById);
     await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, user, {
-      error: { message: e.message },
+      error: { message: e.message, details: safeJsonStringify(e) },
       isSystem: true,
     });
     throw e;

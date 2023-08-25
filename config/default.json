@@ -55,6 +55,14 @@
     "giftCards": {
       "maxPerDay": 100
     },
+    "klippa": {
+      "perUser": {
+        "month": 100,
+        "week": 50,
+        "day": 30,
+        "hour": 15
+      }
+    },
     "changeEmailPerHour": {
       "update": 10,
       "confirmToken": 15

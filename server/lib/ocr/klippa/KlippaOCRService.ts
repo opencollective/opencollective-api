@@ -1,7 +1,11 @@
 import axios from 'axios';
+import config from 'config';
 
+import { sequelize, User } from '../../../models';
+import RateLimit from '../../rate-limit';
 import { reportErrorToSentry, reportMessageToSentry } from '../../sentry';
 import { ExpenseOCRParseResult, ExpenseOCRService } from '../ExpenseOCRService';
+import { userCanUseOCR } from '..';
 
 import { KlippaParseAccountingDocumentResponse } from './types';
 
@@ -10,8 +14,12 @@ export const KLIPPA_BASE_URL = 'https://custom-ocr.klippa.com/api/v1';
 export class KlippaOCRService implements ExpenseOCRService {
   public readonly PARSER_ID = 'Klippa';
 
-  constructor(private apiKey: string) {
+  constructor(
+    private apiKey: string,
+    private user: User,
+  ) {
     this.apiKey = apiKey;
+    this.user = user;
   }
 
   /**
@@ -21,7 +29,18 @@ export class KlippaOCRService implements ExpenseOCRService {
    * or different formats of the same document). To process separate documents, call this function multiple times.
    */
   public async processUrl(urls: string | string[]): Promise<ExpenseOCRParseResult[]> {
+    // Check permissions
+    if (!this.user) {
+      throw new Error('You must be logged in to use the OCR feature');
+    } else if (!userCanUseOCR(this.user)) {
+      throw new Error('You do not have permission to use the OCR feature');
+    }
+
+    // Check rate limits
     const allUrls = Array.isArray(urls) ? urls : [urls];
+    await this.checkRateLimits(allUrls);
+
+    // Process URLs
     const payload = new FormData();
     payload.append('pdf_text_extraction', 'full');
     allUrls.forEach(url => payload.append('url', url));
@@ -48,6 +67,62 @@ export class KlippaOCRService implements ExpenseOCRService {
       date: !parsedData.date ? null : new Date(parsedData.date),
       items: this.getItemsFromResult(url, result.data),
     };
+  }
+
+  private getHourlyRateLimit(): RateLimit {
+    const limitsPerUser: Record<string, number> = config.limits.klippa.perUser;
+    const oneHourInSeconds = 60 * 60;
+    return new RateLimit(`klippa-ocr-${this.user.id}`, limitsPerUser.hour, oneHourInSeconds);
+  }
+
+  private async checkRateLimits(urls: string[]): Promise<void> {
+    let failedLimit, ocrStats;
+    const nbFilesToParse = urls.length;
+    const limitsPerUser: Record<string, number> = config.limits.klippa.perUser;
+
+    // Check rate limit in memory first, since it's faster & more reliable with parallel requests
+    const hourlyRateLimit = this.getHourlyRateLimit();
+    if (!(await hourlyRateLimit.registerCall(nbFilesToParse))) {
+      failedLimit = 'hour';
+    } else {
+      // Check rate limit in DB
+      const ocrStats = await this.getUserKlippaOCRStats();
+      type statType = keyof typeof ocrStats;
+      const checkLimit = (key: statType) => (ocrStats[key] || 0) + nbFilesToParse <= limitsPerUser[key];
+      failedLimit = Object.keys(ocrStats).find(key => !checkLimit(key as statType));
+    }
+
+    if (failedLimit) {
+      reportMessageToSentry(`Klippa OCR rate limit reached for user ${this.user.id} (${this.user.email}).`, {
+        user: this.user,
+        severity: 'warning',
+        extra: { urls, ocrStats, limitsPerUser, failedLimit },
+      });
+
+      throw new Error(`You have reached the limit of ${limitsPerUser[failedLimit]} documents per ${failedLimit}`);
+    }
+  }
+
+  private getUserKlippaOCRStats(): Promise<{ month: number; week: number; day: number; hour: number }> {
+    // All the fields returned by this query must match `config/default.json` -> config.limits.klippa.perUser
+    return sequelize.query(
+      `
+      SELECT
+        COUNT(*) FILTER ( WHERE "createdAt" >= NOW() - INTERVAL '1 hour' ) AS "hour",
+        COUNT(*) FILTER ( WHERE "createdAt" >= NOW() - INTERVAL '1 day' ) AS "day",
+        COUNT(*) FILTER ( WHERE "createdAt" >= NOW() - INTERVAL '1 week' ) AS "week",
+        COUNT(*) AS "month"
+      FROM "UploadedFiles"
+      WHERE data -> 'ocrData' ->> 'parser' = 'Klippa'
+      AND "CreatedByUserId" = :userId
+      AND "createdAt" >= NOW() - INTERVAL '1 month'
+    `,
+      {
+        type: sequelize.QueryTypes.SELECT,
+        replacements: { userId: this.user.id },
+        plain: true,
+      },
+    );
   }
 
   private getItemsFromResult(

@@ -1,5 +1,6 @@
 import path from 'path';
 
+import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { encode } from 'blurhash';
 import config from 'config';
 import type { FileUpload as GraphQLFileUpload } from 'graphql-upload/Upload.js';
@@ -31,10 +32,13 @@ type CommonDataShape = {
   /** A unique identified to record what part of the code uploaded this image. By convention, the default upload function doesn't set this */
   recordedFrom?: string;
   completedAt?: string;
+  /** A checksum of the content as returned by Amazon S3 (cannot be computed locally since we use server-side encryption) */
+  s3SHA256?: string;
   ocrData?: {
     type: 'Expense';
     parser: ExpenseOCRService['PARSER_ID'];
     result: ExpenseOCRParseResult;
+    executionTime: number; // in seconds
   };
 };
 
@@ -144,28 +148,33 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
      * We will replace the name to avoid collisions
      */
     const fileName = UploadedFile.getFilename(file, args.fileName);
-    const uploadParams = {
+    const uploadParams: PutObjectCommand['input'] = {
       Bucket: config.aws.s3.bucket,
       Key: `${kebabCase(kind)}/${uuid()}/${fileName || uuid()}`,
       Body: file.buffer,
       ACL: 'public-read', // We're aware of the security implications of this and will be looking for a better solution in https://github.com/opencollective/opencollective/issues/6351
       ContentLength: file.size,
       ContentType: file.mimetype,
+      // Adding the checksum for S3 to validate the integrity of the file
+      // See https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html#API_PutObject_RequestSyntax
+      ChecksumAlgorithm: 'SHA256',
+      // Custom S3 metadata
       Metadata: {
         CreatedByUserId: `${user?.id}`,
         FileKind: kind,
+        FileName: fileName,
       },
     };
 
     try {
-      const s3Data = await uploadToS3(uploadParams);
+      const uploadResult = await uploadToS3(uploadParams);
       return UploadedFile.create({
         kind: kind,
         fileName,
         fileSize: file.size,
         fileType: file.mimetype as (typeof SUPPORTED_FILE_TYPES)[number],
-        url: s3Data.Location,
-        data: await UploadedFile.getData(file),
+        url: uploadResult.url,
+        data: await UploadedFile.getData(file, uploadResult.s3Data?.ChecksumSHA256),
         CreatedByUserId: user.id,
       });
     } catch (err) {
@@ -179,7 +188,7 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
     }
   }
 
-  private static async getData(file) {
+  private static async getData(file, s3SHA256: string = null) {
     if (UploadedFile.isSupportedImageMimeType(file.mimetype)) {
       const image = sharp(file.buffer);
       const { width, height } = await image.metadata();
@@ -198,9 +207,9 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
         });
       }
 
-      return { width, height, blurHash };
+      return { width, height, blurHash, s3SHA256 };
     } else {
-      return null;
+      return { s3SHA256 };
     }
   }
 
