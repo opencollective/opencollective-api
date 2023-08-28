@@ -48,7 +48,7 @@
     "@sentry/types": "7.64.0",
     "@shopify/address": "4.2.0",
     "argparse": "2.0.1",
-    "axios": "1.4.0",
+    "axios": "1.5.0",
     "babel-plugin-add-module-exports": "1.0.4",
     "bayes": "1.0.0",
     "bcrypt": "5.1.1",
