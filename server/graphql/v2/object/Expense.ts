@@ -203,8 +203,9 @@ const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Request>({
               ].includes(a.type),
           ).filter(a => a.type === ActivityTypes.COLLECTIVE_EXPENSE_APPROVED);
 
-          const approvingUserIds = uniq(approvalActivitiesSinceLastUnapprovedState.map(a => a.UserId));
-
+          const approvingUserIds = uniq(
+            approvalActivitiesSinceLastUnapprovedState.map(a => a.UserId).filter(userId => !!userId),
+          );
           if (approvingUserIds.length === 0) {
             return [];
           }
