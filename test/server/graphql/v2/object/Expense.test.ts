@@ -27,6 +27,7 @@ describe('server/graphql/v2/object/Expense', () => {
       await fakeActivity({ ExpenseId: expense.id, UserId: user1.id, type: ActivityTypes.COLLECTIVE_EXPENSE_APPROVED });
       await fakeActivity({ ExpenseId: expense.id, UserId: user2.id, type: ActivityTypes.COLLECTIVE_EXPENSE_APPROVED });
       await fakeActivity({ ExpenseId: expense.id, UserId: user3.id, type: ActivityTypes.COLLECTIVE_EXPENSE_APPROVED });
+      await fakeActivity({ ExpenseId: expense.id, UserId: null, type: ActivityTypes.COLLECTIVE_EXPENSE_APPROVED });
 
       const result = await graphqlQueryV2(expenseQuery, { id: expense.id });
       expect(result.data.expense.approvedBy.length).to.eql(3);
