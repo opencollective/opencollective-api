@@ -349,7 +349,7 @@ export const GraphQLHost = new GraphQLObjectType({
               {
                 model: models.Collective,
                 as: 'collective',
-                ...(searchTermConditions.length && { where: { [Op.or]: searchTermConditions } }),
+                where: { deletedAt: null, ...(searchTermConditions.length && { [Op.or]: searchTermConditions }) },
               },
             ],
           });
