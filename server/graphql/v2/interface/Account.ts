@@ -3,7 +3,7 @@ import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { assign, get, invert, isEmpty, isNull, merge, omitBy } from 'lodash';
 import { Order } from 'sequelize';
 
-import { types as CollectiveTypes } from '../../../constants/collectives';
+import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import { buildSearchConditions } from '../../../lib/search';
 import { getCollectiveFeed } from '../../../lib/timeline';
@@ -576,7 +576,7 @@ const accountFieldsDefinition = () => ({
       const result = await models.Collective.findAndCountAll({
         group: 'Collective.id',
         where: {
-          type: CollectiveTypes.VENDOR,
+          type: CollectiveType.VENDOR,
         },
         include: [
           {

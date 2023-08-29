@@ -2,7 +2,7 @@ import config from 'config';
 import { pick } from 'lodash';
 
 import { activities } from '../../constants';
-import { types } from '../../constants/collectives';
+import { CollectiveType } from '../../constants/collectives';
 import roles from '../../constants/roles';
 import cache, { fetchCollectiveId } from '../../lib/cache';
 import emailLib from '../../lib/email';
@@ -57,7 +57,7 @@ export const createUser = (
     // Create organization
     if (organizationData) {
       const organizationParams = {
-        type: types.ORGANIZATION,
+        type: CollectiveType.ORGANIZATION,
         CreatedByUserId: user.id,
         ...pick(organizationData, [
           'name',

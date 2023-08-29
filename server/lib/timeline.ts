@@ -3,7 +3,7 @@ import { flatten, toInteger, toString } from 'lodash';
 import { InferAttributes, Op, Order, WhereOptions } from 'sequelize';
 
 import ActivityTypes, { ActivitiesPerClass, ActivityClasses } from '../constants/activities';
-import { types as AccountTypes } from '../constants/collectives';
+import { CollectiveType } from '../constants/collectives';
 import MemberRoles from '../constants/roles';
 import { createRedisClient } from '../lib/redis';
 import models, { Collective } from '../models';
@@ -27,7 +27,7 @@ const makeTimelineQuery = async (
     ActivityClasses.ACTIVITIES_UPDATES,
   ],
 ): Promise<WhereOptions<InferAttributes<Activity, { omit: never }>>> => {
-  if (collective.type === AccountTypes.USER) {
+  if (collective.type === CollectiveType.USER) {
     const user = await collective.getUser();
     const memberships = await user.getMemberships();
     const conditionals = [];

@@ -2,7 +2,7 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { cloneDeep, isNil, omit, uniqBy } from 'lodash';
 
-import { types as collectiveTypes } from '../../../constants/collectives';
+import { CollectiveType } from '../../../constants/collectives';
 import roles from '../../../constants/roles';
 import { purgeAllCachesForAccount, purgeGraphqlCacheForCollective } from '../../../lib/cache';
 import { purgeCacheForPage } from '../../../lib/cloudflare';
@@ -126,7 +126,7 @@ export default {
 
       if (account.isHostAccount) {
         throw new Error('Cannot change type of host account');
-      } else if (account.type !== collectiveTypes.USER) {
+      } else if (account.type !== CollectiveType.USER) {
         throw new Error('editAccountType only works on individual profiles');
       } else if (account.data.isGuest) {
         throw new Error('editAccountType does not work on guest profiles');
@@ -146,7 +146,7 @@ export default {
         await user.update({ CollectiveId: collective.id }, { transaction });
 
         // Change the type of the original USER account to Organization
-        await account.update({ type: collectiveTypes.ORGANIZATION }, { transaction });
+        await account.update({ type: CollectiveType.ORGANIZATION }, { transaction });
       });
 
       // Add admin user for the new Organization

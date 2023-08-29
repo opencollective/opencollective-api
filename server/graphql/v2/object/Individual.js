@@ -1,6 +1,6 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
-import { types as collectiveTypes } from '../../../constants/collectives';
+import { CollectiveType } from '../../../constants/collectives';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
@@ -18,7 +18,7 @@ export const GraphQLIndividual = new GraphQLObjectType({
   name: 'Individual',
   description: 'This represents an Individual account',
   interfaces: () => [GraphQLAccount],
-  isTypeOf: collective => collective.type === collectiveTypes.USER,
+  isTypeOf: collective => collective.type === CollectiveType.USER,
   fields: () => {
     return {
       ...AccountFields,

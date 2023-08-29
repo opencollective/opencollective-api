@@ -8,7 +8,7 @@ import { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribut
 import Temporal from 'sequelize-temporal';
 
 import activities from '../constants/activities';
-import { types } from '../constants/collectives';
+import { CollectiveType } from '../constants/collectives';
 import { Service } from '../constants/connected_account';
 import OrderStatuses from '../constants/order_status';
 import roles from '../constants/roles';
@@ -435,7 +435,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     }
 
     const userCollectiveData = {
-      type: types.USER,
+      type: CollectiveType.USER,
       name: collectiveName,
       legalName: userData.legalName,
       image: userData.image,

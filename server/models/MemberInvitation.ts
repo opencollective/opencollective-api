@@ -3,7 +3,7 @@ import { pick } from 'lodash';
 import { InferAttributes, InferCreationAttributes, Model, ModelStatic, Transaction } from 'sequelize';
 
 import ActivityTypes from '../constants/activities';
-import { types } from '../constants/collectives';
+import { CollectiveType } from '../constants/collectives';
 import roles, { MemberRoleLabels } from '../constants/roles';
 import { purgeCacheForCollective } from '../lib/cache';
 import sequelize, { DataTypes } from '../lib/sequelize';
@@ -156,7 +156,7 @@ MemberInvitation.prototype.accept = async function () {
       model: models.Collective,
       as: 'collective',
       attributes: ['id'],
-      where: { type: types.USER, isIncognito: false },
+      where: { type: CollectiveType.USER, isIncognito: false },
     },
   });
 
@@ -261,7 +261,7 @@ MemberInvitation.invite = async function (
   // Check params
   if (!MEMBER_INVITATION_SUPPORTED_ROLES.includes(memberParams.role)) {
     throw new Error(`Member invitation roles can only be one of: ${MEMBER_INVITATION_SUPPORTED_ROLES.join(', ')}`);
-  } else if (collective.type === types.USER) {
+  } else if (collective.type === CollectiveType.USER) {
     throw new Error('Individual accounts do not support members');
   }
 

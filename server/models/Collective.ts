@@ -46,7 +46,7 @@ import { v4 as uuid } from 'uuid';
 import validator from 'validator';
 
 import activities from '../constants/activities';
-import { CollectiveTypesList, types } from '../constants/collectives';
+import { CollectiveType, CollectiveTypesList } from '../constants/collectives';
 import { Service } from '../constants/connected_account';
 import expenseStatus from '../constants/expense_status';
 import expenseTypes from '../constants/expense_type';
@@ -205,7 +205,7 @@ class Collective extends Model<
   InferCreationAttributes<Collective>
 > {
   public declare id: number;
-  public declare type: types;
+  public declare type: CollectiveType;
   public declare slug: string;
   public declare name: string;
   public declare legalName: string;
@@ -270,7 +270,7 @@ class Collective extends Model<
     const collective = await Collective.create({
       CreatedByUserId,
       ...collectiveData,
-      type: types.ORGANIZATION,
+      type: CollectiveType.ORGANIZATION,
       isActive: true,
     });
     await models.Member.create({
@@ -799,8 +799,8 @@ class Collective extends Model<
         role: roles.ADMIN,
       },
       include: [
-        { association: 'memberCollective', required: true, where: { type: types.USER, isIncognito: false } },
-        { association: 'collective', required: true, where: { type: types.USER, isIncognito: true } },
+        { association: 'memberCollective', required: true, where: { type: CollectiveType.USER, isIncognito: false } },
+        { association: 'collective', required: true, where: { type: CollectiveType.USER, isIncognito: true } },
       ],
     });
   };
@@ -810,7 +810,7 @@ class Collective extends Model<
    * Be careful: the link between an account and the incognito profile is a private information.
    */
   getIncognitoProfile = async function ({ transaction }: { transaction?: Transaction } = {}) {
-    if (this.type !== types.USER) {
+    if (this.type !== CollectiveType.USER) {
       return null;
     } else if (this.isIncognito) {
       return this;
@@ -824,7 +824,7 @@ class Collective extends Model<
    * Returns the incognito profile for this collective, creating it if necessary
    */
   getOrCreateIncognitoProfile = async function ({ transaction }: { transaction?: Transaction } = {}) {
-    if (this.type !== types.USER) {
+    if (this.type !== CollectiveType.USER) {
       throw new Error(`Incognito profiles can only be created for users (not ${this.type})`);
     }
 
@@ -840,7 +840,7 @@ class Collective extends Model<
         {
           name: 'Incognito',
           currency: this.currency,
-          type: types.USER,
+          type: CollectiveType.USER,
           isIncognito: true,
           settings: null,
           CreatedByUserId: user.id,
@@ -923,7 +923,7 @@ class Collective extends Model<
         FromCollectiveId: this.id,
         data: { collective: this.info },
       });
-    } else if (this.type === types.COLLECTIVE) {
+    } else if (this.type === CollectiveType.COLLECTIVE) {
       await models.Activity.create({
         type: activities.ACTIVATED_COLLECTIVE_AS_INDEPENDENT,
         CollectiveId: this.id,
@@ -1078,9 +1078,11 @@ class Collective extends Model<
   };
 
   hasBudget = function () {
-    if ([types.COLLECTIVE, types.EVENT, types.PROJECT, types.FUND].includes(this.type)) {
+    if (
+      [CollectiveType.COLLECTIVE, CollectiveType.EVENT, CollectiveType.PROJECT, CollectiveType.FUND].includes(this.type)
+    ) {
       return true;
-    } else if (this.type === types.ORGANIZATION) {
+    } else if (this.type === CollectiveType.ORGANIZATION) {
       return this.isHostAccount && this.isActive;
     } else {
       return false;
@@ -1093,7 +1095,7 @@ class Collective extends Model<
   activateBudget = async function () {
     if (
       !this.isHostAccount ||
-      ![types.ORGANIZATION].includes(this.type) ||
+      ![CollectiveType.ORGANIZATION].includes(this.type) ||
       (this.HostCollectiveId && this.HostCollectiveId !== this.id)
     ) {
       return;
@@ -1189,7 +1191,7 @@ class Collective extends Model<
    * `isApproved` of the `parentCollective` instead.
    */
   isApproved = function () {
-    if (this.type === types.EVENT) {
+    if (this.type === CollectiveType.EVENT) {
       throw new Error("isApproved must be called on event's parent collective");
     } else if (this.id === this.HostCollectiveId) {
       return true;
@@ -1201,11 +1203,11 @@ class Collective extends Model<
   // This is quite ugly, and only needed for events.
   // I'd argue that we should store the event slug as `${parentCollectiveSlug}/events/${eventSlug}`
   getUrlPath = async function () {
-    if (this.type === types.EVENT || this.type === types.PROJECT) {
+    if (this.type === CollectiveType.EVENT || this.type === CollectiveType.PROJECT) {
       const parent = await this.getParentCollective({ attributes: ['id', 'slug'] });
       const pathType = {
-        [types.EVENT]: 'events',
-        [types.PROJECT]: 'projects',
+        [CollectiveType.EVENT]: 'events',
+        [CollectiveType.PROJECT]: 'projects',
       };
       if (!parent) {
         logger.error(`${this.type} (${this.id}) with an invalid parent (${this.ParentCollectiveId}).`);
@@ -1220,7 +1222,7 @@ class Collective extends Model<
 
   // Returns the User model of the User that created this collective
   getUser = async function (queryParams = undefined) {
-    if (this.type === types.USER) {
+    if (this.type === CollectiveType.USER) {
       return models.User.findOne({ where: { CollectiveId: this.id }, ...queryParams });
     } else {
       return null;
@@ -1334,7 +1336,7 @@ class Collective extends Model<
         ['id', 'DESC'],
       ],
       ...query,
-      where: { ...query.where, type: types.EVENT },
+      where: { ...query.where, type: CollectiveType.EVENT },
     });
   };
 
@@ -1346,7 +1348,7 @@ class Collective extends Model<
         ['createdAt', 'DESC'],
         ['id', 'DESC'],
       ],
-      where: { ...query.where, type: types.PROJECT },
+      where: { ...query.where, type: CollectiveType.PROJECT },
     });
   };
 
@@ -1711,7 +1713,7 @@ class Collective extends Model<
       case roles.MEMBER:
       case roles.ACCOUNTANT:
       case roles.ADMIN: {
-        if (![types.FUND, types.PROJECT, types.EVENT].includes(this.type)) {
+        if (![CollectiveType.FUND, CollectiveType.PROJECT, CollectiveType.EVENT].includes(this.type)) {
           await this.sendNewMemberEmail(user, role, member, sequelizeParams);
         }
 
@@ -1751,7 +1753,7 @@ class Collective extends Model<
     const memberCollective = await models.Collective.findByPk(member.MemberCollectiveId, sequelizeParams);
 
     let memberCollectiveUser;
-    if (memberCollective.type === types.USER && !memberCollective.isIncognito) {
+    if (memberCollective.type === CollectiveType.USER && !memberCollective.isIncognito) {
       memberCollectiveUser = await models.User.findOne({ where: { CollectiveId: memberCollective.id } });
     }
 
@@ -1942,7 +1944,9 @@ class Collective extends Model<
     if (typeof hostFeePercent === 'undefined' || !remoteUser || hostFeePercent === this.hostFeePercent) {
       return;
     }
-    if ([types.COLLECTIVE, types.EVENT, types.FUND, types.PROJECT].includes(this.type)) {
+    if (
+      [CollectiveType.COLLECTIVE, CollectiveType.EVENT, CollectiveType.FUND, CollectiveType.PROJECT].includes(this.type)
+    ) {
       // only an admin of the host of the collective can edit `hostFeePercent` of a COLLECTIVE
       if (!remoteUser || !remoteUser.isAdmin(this.HostCollectiveId)) {
         throw new Error('Only an admin of the host collective can edit the host fee for this collective');
@@ -1980,7 +1984,9 @@ class Collective extends Model<
     if (typeof platformFeePercent === 'undefined' || !remoteUser || platformFeePercent === this.platformFeePercent) {
       return;
     }
-    if ([types.COLLECTIVE, types.EVENT, types.FUND, types.PROJECT].includes(this.type)) {
+    if (
+      [CollectiveType.COLLECTIVE, CollectiveType.EVENT, CollectiveType.FUND, CollectiveType.PROJECT].includes(this.type)
+    ) {
       // only an admin of the host of the collective can edit `platformFeePercent` of a COLLECTIVE
       if (!remoteUser || !remoteUser.isAdmin(this.HostCollectiveId)) {
         throw new Error('Only an admin of the host collective can edit the host fee for this collective');
@@ -2024,7 +2030,7 @@ class Collective extends Model<
       return this;
     }
 
-    if ([types.COLLECTIVE, types.FUND].includes(this.type) && this.isActive) {
+    if ([CollectiveType.COLLECTIVE, CollectiveType.FUND].includes(this.type) && this.isActive) {
       throw new Error(
         `Active Collectives or Funds can't edit their currency. Contact support@opencollective.com if it's an issue.`,
       );
@@ -2162,7 +2168,7 @@ class Collective extends Model<
     };
 
     // events should take the currency of their parent collective, not necessarily the one from their host.
-    if ([types.COLLECTIVE, types.FUND].includes(this.type)) {
+    if ([CollectiveType.COLLECTIVE, CollectiveType.FUND].includes(this.type)) {
       updatedValues.currency = hostCollective.currency;
     }
 
@@ -2192,7 +2198,9 @@ class Collective extends Model<
     });
 
     // Create the new payment method with host's currency
-    if ([types.COLLECTIVE, types.FUND, types.EVENT, types.PROJECT].includes(this.type)) {
+    if (
+      [CollectiveType.COLLECTIVE, CollectiveType.FUND, CollectiveType.EVENT, CollectiveType.PROJECT].includes(this.type)
+    ) {
       promises.push(
         models.PaymentMethod.create({
           CollectiveId: this.id,
@@ -2205,7 +2213,7 @@ class Collective extends Model<
       );
     }
 
-    if ([types.COLLECTIVE, types.FUND].includes(this.type)) {
+    if ([CollectiveType.COLLECTIVE, CollectiveType.FUND].includes(this.type)) {
       let tiers = await this.getTiers();
       if (!tiers || tiers.length === 0) {
         tiers = defaultTiers(hostCollective.currency);
@@ -2487,7 +2495,11 @@ class Collective extends Model<
       } else if (member.member?.email) {
         // Add user by email
         const user = await models.User.findOne({
-          include: { model: models.Collective, as: 'collective', where: { type: types.USER, isIncognito: false } },
+          include: {
+            model: models.Collective,
+            as: 'collective',
+            where: { type: CollectiveType.USER, isIncognito: false },
+          },
           where: { email: member.member.email },
         });
 
@@ -3057,7 +3069,7 @@ class Collective extends Model<
     return models.Collective.count({
       where: {
         HostCollectiveId: this.id,
-        type: [types.COLLECTIVE, types.FUND],
+        type: [CollectiveType.COLLECTIVE, CollectiveType.FUND],
         isActive: true,
         approvedAt: { [Op.not]: null },
       },
@@ -3233,7 +3245,7 @@ class Collective extends Model<
    * @param {[Integer]} [collectiveIds] Optional, a list of collective ids for which the metrics are returned.
    */
   getHostMetrics = async function (from, to, collectiveIds) {
-    if (!this.isHostAccount || !this.isActive || this.type !== types.ORGANIZATION) {
+    if (!this.isHostAccount || !this.isActive || this.type !== CollectiveType.ORGANIZATION) {
       return null;
     }
     from = from ? moment(from) : null;
@@ -3798,7 +3810,11 @@ Collective.init(
       },
       afterCreate: async (instance, options) => {
         instance.findImage();
-        if ([types.COLLECTIVE, types.FUND, types.EVENT, types.PROJECT].includes(instance.type)) {
+        if (
+          [CollectiveType.COLLECTIVE, CollectiveType.FUND, CollectiveType.EVENT, CollectiveType.PROJECT].includes(
+            instance.type,
+          )
+        ) {
           await models.PaymentMethod.create(
             {
               CollectiveId: instance.id,

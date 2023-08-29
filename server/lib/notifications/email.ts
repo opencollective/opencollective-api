@@ -6,7 +6,7 @@ import PQueue from 'p-queue';
 import { roles } from '../../constants';
 import ActivityTypes, { TransactionalActivities } from '../../constants/activities';
 import Channels from '../../constants/channels';
-import { types as CollectiveType } from '../../constants/collectives';
+import { CollectiveType } from '../../constants/collectives';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
 import models, { Collective } from '../../models';

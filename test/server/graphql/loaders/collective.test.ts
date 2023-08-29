@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { types } from '../../../../server/constants/collectives';
+import { CollectiveType } from '../../../../server/constants/collectives';
 import MemberRoles from '../../../../server/constants/roles';
 import CollectiveLoaders from '../../../../server/graphql/loaders/collective';
 import { fakeCollective, fakeMember, fakeUser } from '../../../test-helpers/fake-data';
@@ -67,7 +67,7 @@ describe('server/graphql/loaders/collective', () => {
         collectiveAdmin = await fakeUser();
         hostAdmin = await fakeUser();
         incognitoProfile = await fakeCollective({
-          type: types.USER,
+          type: CollectiveType.USER,
           isIncognito: true,
           name: 'Incognito',
           HostCollectiveId: null,

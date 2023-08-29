@@ -3,7 +3,7 @@ import { createContext } from 'dataloader-sequelize';
 import { get, groupBy } from 'lodash';
 import moment from 'moment';
 
-import { types as CollectiveType } from '../../constants/collectives';
+import { CollectiveType } from '../../constants/collectives';
 import orderStatus from '../../constants/order_status';
 import { TransactionTypes } from '../../constants/transactions';
 import {

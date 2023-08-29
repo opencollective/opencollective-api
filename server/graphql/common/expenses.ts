@@ -27,7 +27,7 @@ import moment from 'moment';
 
 import { activities, roles } from '../../constants';
 import ActivityTypes from '../../constants/activities';
-import { types as collectiveTypes } from '../../constants/collectives';
+import { CollectiveType } from '../../constants/collectives';
 import statuses from '../../constants/expense_status';
 import EXPENSE_TYPE from '../../constants/expense_type';
 import { ExpenseFeesPayer } from '../../constants/expense-fees-payer';
@@ -1215,12 +1215,12 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
   }
 
   const isAllowedType = [
-    collectiveTypes.COLLECTIVE,
-    collectiveTypes.EVENT,
-    collectiveTypes.FUND,
-    collectiveTypes.PROJECT,
+    CollectiveType.COLLECTIVE,
+    CollectiveType.EVENT,
+    CollectiveType.FUND,
+    CollectiveType.PROJECT,
   ].includes(collective.type);
-  const isActiveHost = collective.type === collectiveTypes.ORGANIZATION && collective.isActive;
+  const isActiveHost = collective.type === CollectiveType.ORGANIZATION && collective.isActive;
   if (!isAllowedType && !isActiveHost) {
     throw new ValidationFailed(
       'Expenses can only be submitted to Collectives, Events, Funds, Projects and active Hosts.',
@@ -2548,7 +2548,7 @@ export const moveExpenses = async (req: express.Request, expenses: Expense[], de
   checkRemoteUserCanRoot(req);
   if (!expenses.length) {
     return [];
-  } else if (destinationAccount.type === collectiveTypes.USER) {
+  } else if (destinationAccount.type === CollectiveType.USER) {
     throw new ValidationFailed('The "destinationAccount" must not be an USER account');
   }
 

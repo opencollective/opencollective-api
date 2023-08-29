@@ -12,7 +12,7 @@ import { pick, size } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../../../constants/activities';
-import { types as collectiveTypes } from '../../../constants/collectives';
+import { CollectiveType } from '../../../constants/collectives';
 import expenseStatus from '../../../constants/expense_status';
 import logger from '../../../lib/logger';
 import RateLimit from '../../../lib/rate-limit';
@@ -395,12 +395,12 @@ const expenseMutations = {
       }
 
       const isAllowedType = [
-        collectiveTypes.COLLECTIVE,
-        collectiveTypes.EVENT,
-        collectiveTypes.FUND,
-        collectiveTypes.PROJECT,
+        CollectiveType.COLLECTIVE,
+        CollectiveType.EVENT,
+        CollectiveType.FUND,
+        CollectiveType.PROJECT,
       ].includes(collective.type);
-      const isActiveHost = collective.type === collectiveTypes.ORGANIZATION && collective.isActive;
+      const isActiveHost = collective.type === CollectiveType.ORGANIZATION && collective.isActive;
       if (!isAllowedType && !isActiveHost) {
         throw new ValidationFailed(
           'Expenses can only be submitted to Collectives, Events, Funds, Projects and active Hosts.',

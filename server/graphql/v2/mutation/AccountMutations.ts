@@ -13,7 +13,7 @@ import { GraphQLJSON, GraphQLNonEmptyString } from 'graphql-scalars';
 import { cloneDeep, isNull, omitBy, set } from 'lodash';
 
 import activities from '../../../constants/activities';
-import { types as COLLECTIVE_TYPE } from '../../../constants/collectives';
+import { CollectiveType } from '../../../constants/collectives';
 import * as collectivelib from '../../../lib/collectivelib';
 import { crypto } from '../../../lib/encryption';
 import TwoFactorAuthLib, { TwoFactorMethod } from '../../../lib/two-factor-authentication';
@@ -245,7 +245,7 @@ const accountMutations = {
         throw new ValidationFailed('Cannot find the host of this account');
       } else if (!req.remoteUser.isAdminOfCollective(account.host)) {
         throw new Unauthorized();
-      } else if (![COLLECTIVE_TYPE.COLLECTIVE, COLLECTIVE_TYPE.FUND].includes(account.type)) {
+      } else if (![CollectiveType.COLLECTIVE, CollectiveType.FUND].includes(account.type)) {
         throw new ValidationFailed(
           'Only collective and funds can be frozen. To freeze children accounts (projects, events) you need to freeze the parent account.',
         );
