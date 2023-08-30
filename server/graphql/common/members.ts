@@ -9,7 +9,11 @@ import { fetchAccountWithReference } from '../v2/input/AccountReferenceInput';
 import { checkRemoteUserCanUseAccount } from './scope-check';
 
 /** A mutation to edit the public message of all matching members. */
-export async function editPublicMessage(_, { fromAccount, toAccount, FromCollectiveId, CollectiveId, message }, req) {
+export async function editPublicMessage(
+  _,
+  { fromAccount, toAccount, FromCollectiveId = null, CollectiveId = null, message },
+  req,
+) {
   checkRemoteUserCanUseAccount(req);
 
   if (!fromAccount && FromCollectiveId) {

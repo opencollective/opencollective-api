@@ -260,11 +260,13 @@ const memberMutations = {
       if (args.isInvitation) {
         members = await models.MemberInvitation.destroy({
           where: { MemberCollectiveId: memberAccount.id, CollectiveId: account.id, role: args.role },
+          // @ts-expect-error returning does not exist on destroy type, but works since this is really a bulk update to set deletedAt
           returning: true,
         });
       } else {
         invitations = await models.Member.destroy({
           where: { MemberCollectiveId: memberAccount.id, CollectiveId: account.id, role: args.role },
+          // @ts-expect-error returning does not exist on destroy type, but works since this is really a bulk update to set deletedAt
           returning: true,
         });
       }

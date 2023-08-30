@@ -40,12 +40,29 @@ export interface MemberModelInterface
   description: string;
   publicMessage: string;
 
+  since: Date;
+
   createdAt: Date;
   updatedAt: Date;
+  deletedAt?: Date;
 
   tier?: Tier;
   memberCollective?: Collective;
   collective?: Collective;
+
+  info(): Pick<
+    MemberModelInterface,
+    | 'role'
+    | 'description'
+    | 'publicMessage'
+    | 'CreatedByUserId'
+    | 'CollectiveId'
+    | 'MemberCollectiveId'
+    | 'createdAt'
+    | 'updatedAt'
+    | 'deletedAt'
+    | 'since'
+  >;
 }
 
 const Member: ModelStatic<MemberModelInterface> & MemberModelStaticInterface = sequelize.define(
