@@ -1,6 +1,6 @@
 import debugLib from 'debug';
-import { flatten, toInteger, toString } from 'lodash';
-import { InferAttributes, Op, Order, WhereOptions } from 'sequelize';
+import { flatten, isEmpty, toInteger, toString } from 'lodash';
+import { InferAttributes, Op, Order, Sequelize, WhereOptions } from 'sequelize';
 
 import ActivityTypes, { ActivitiesPerClass, ActivityClasses } from '../constants/activities';
 import { CollectiveType } from '../constants/collectives';
@@ -81,13 +81,27 @@ const makeTimelineQuery = async (
         type: ActivityTypes.COLLECTIVE_UPDATE_PUBLISHED,
         CollectiveId: getCollectiveIdsForRole(memberships, [
           MemberRoles.BACKER,
-          MemberRoles.FOLLOWER,
           MemberRoles.MEMBER,
           MemberRoles.CONTRIBUTOR,
           MemberRoles.ATTENDEE,
           MemberRoles.ADMIN,
         ]),
       });
+
+      const followingCollectives = getCollectiveIdsForRole(memberships, [MemberRoles.FOLLOWER]);
+      if (!isEmpty(followingCollectives)) {
+        conditionals.push({
+          [Op.and]: [
+            {
+              type: ActivityTypes.COLLECTIVE_UPDATE_PUBLISHED,
+              CollectiveId: followingCollectives,
+            },
+            Sequelize.literal(
+              `EXISTS (SELECT FROM "Updates" u where u.id = ("Activity"."data"#>'{update,id}')::integer AND NOT u."isPrivate")`,
+            ),
+          ],
+        });
+      }
     }
     return { [Op.or]: conditionals };
   } else {
