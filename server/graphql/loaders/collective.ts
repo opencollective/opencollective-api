@@ -3,6 +3,7 @@ import { first, groupBy, uniq } from 'lodash';
 
 import { roles } from '../../constants';
 import { CollectiveType } from '../../constants/collectives';
+import MemberRoles from '../../constants/roles';
 import models, { Collective, Op, sequelize } from '../../models';
 
 import { sortResultsSimple } from './helpers';
@@ -99,7 +100,7 @@ export default {
           group: ['MemberCollectiveId'],
           raw: true,
           mapToModel: false,
-          where: { MemberCollectiveId: otherAccountsCollectiveIds },
+          where: { MemberCollectiveId: otherAccountsCollectiveIds, role: { [Op.ne]: MemberRoles.FOLLOWER } },
           include: {
             association: 'collective',
             required: true,
