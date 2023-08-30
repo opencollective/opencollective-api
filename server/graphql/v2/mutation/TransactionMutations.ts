@@ -3,77 +3,17 @@ import { GraphQLNonNull, GraphQLString } from 'graphql';
 
 import { activities } from '../../../constants';
 import orderStatus from '../../../constants/order_status';
-import { TransactionKind } from '../../../constants/transaction-kind';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import { TransactionInterface } from '../../../models/Transaction';
 import { checkRemoteUserCanUseTransactions } from '../../common/scope-check';
 import { canReject, refundTransaction } from '../../common/transactions';
-import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
-import { getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/AmountInput';
+import { Forbidden, NotFound } from '../../errors';
 import { fetchTransactionWithReference, GraphQLTransactionReferenceInput } from '../input/TransactionReferenceInput';
 import { GraphQLTransaction } from '../interface/Transaction';
 
 const transactionMutations = {
-  addPlatformTipToTransaction: {
-    type: new GraphQLNonNull(GraphQLTransaction),
-    description: 'Add platform tips to a transaction. Scope: "transactions".',
-    deprecationReason: "2022-07-06: This feature will not be supported in the future. Please don't rely on it.",
-    args: {
-      transaction: {
-        type: new GraphQLNonNull(GraphQLTransactionReferenceInput),
-        description: 'Reference to the transaction in the platform tip',
-      },
-      amount: {
-        type: new GraphQLNonNull(GraphQLAmountInput),
-        description: 'Amount of the platform tip',
-      },
-    },
-    async resolve(_: void, args, req: express.Request): Promise<typeof GraphQLTransaction> {
-      checkRemoteUserCanUseTransactions(req);
-
-      const transaction = await fetchTransactionWithReference(args.transaction, { throwIfMissing: true });
-
-      if (!req.remoteUser.isAdmin(transaction.HostCollectiveId)) {
-        throw new Unauthorized('Only host admins can add platform tips');
-      } else if (transaction.kind !== TransactionKind.ADDED_FUNDS) {
-        throw new ValidationFailed('Platform tips can only be added on added funds');
-      }
-
-      const existingPlatformTip = await transaction.getPlatformTipTransaction();
-      if (existingPlatformTip) {
-        throw new Error('Platform tip is already set for this transaction group');
-      }
-
-      const expectedCurrency = transaction.currency;
-      const platformTipInCents = getValueInCentsFromAmountInput(args.amount, { expectedCurrency });
-      if (!platformTipInCents) {
-        throw new ValidationFailed('Platform tip amount must be greater than 0');
-      }
-
-      // We fake a transactionData object to pass to createPlatformTipTransactions
-      // It's not ideal but it's how it is
-      const transactionData = {
-        ...transaction.dataValues,
-        CreatedByUserId: req.remoteUser.id,
-        FromCollectiveId: transaction.HostCollectiveId,
-        data: {
-          ...transaction.dataValues.data,
-          hasPlatformTip: true,
-          platformTip: platformTipInCents,
-        },
-      };
-
-      const host = await req.loaders.Collective.byId.load(transaction.HostCollectiveId);
-
-      // Enforce 2FA
-      await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });
-
-      const result = await models.Transaction.createPlatformTipTransactions(transactionData, host);
-      return result?.['platformTipTransaction'];
-    },
-  },
   refundTransaction: {
     type: GraphQLTransaction,
     description: 'Refunds a transaction. Scope: "transactions".',
