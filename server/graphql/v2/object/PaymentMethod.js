@@ -74,7 +74,7 @@ export const GraphQLPaymentMethod = new GraphQLObjectType({
             return { value: 0, currency: paymentMethod.currency };
           } else {
             const balance = await paymentMethod.getBalanceForUser(req.remoteUser);
-            return { value: balance.amount, currency: paymentMethod.currency };
+            return { value: balance?.amount || 0, currency: paymentMethod.currency };
           }
         },
       },
