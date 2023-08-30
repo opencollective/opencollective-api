@@ -1366,6 +1366,11 @@ type Expense {
   Custom data for this expense
   """
   customData: JSON
+
+  """
+  The merchant ID for this expense
+  """
+  merchantId: String
 }
 
 """
@@ -2904,6 +2909,36 @@ type Host implements Account & AccountWithContributions {
   stripe: StripeConnectedAccount
 
   """
+  Applications for this host
+  """
+  hostApplications(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+
+    """
+    Search term for collective tags, id, name, slug and description.
+    """
+    searchTerm: String
+
+    """
+    Order of the results
+    """
+    orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
+
+    """
+    Filter applications by status
+    """
+    status: HostApplicationStatus
+  ): HostApplicationCollection!
+
+  """
   Pending applications for this host
   """
   pendingApplications(
@@ -2927,6 +2962,7 @@ type Host implements Account & AccountWithContributions {
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
   ): HostApplicationCollection!
+    @deprecated(reason: "2023-08-25: Deprecated in favour of host.hostApplications(status: PENDING).")
   hostedVirtualCards(
     """
     Search term (card name, card last four digits)
@@ -14157,6 +14193,26 @@ type Mutation {
   ): Boolean!
 
   """
+  Follows a given Collective. Scope: "account"
+  """
+  follow(
+    """
+    user will follow this account
+    """
+    account: AccountReferenceInput!
+  ): FollowResult!
+
+  """
+  Unfollows a given Collective. Scope: "account"
+  """
+  unfollow(
+    """
+    account to unfollow
+    """
+    account: AccountReferenceInput!
+  ): UnfollowResult!
+
+  """
   Edit the public message for the given Member of a Collective. Scope: "account".
   """
   editPublicMessage(
@@ -14537,22 +14593,6 @@ type Mutation {
     """
     year: Int!
   ): SetTaxFormResult
-
-  """
-  Add platform tips to a transaction. Scope: "transactions".
-  """
-  addPlatformTipToTransaction(
-    """
-    Reference to the transaction in the platform tip
-    """
-    transaction: TransactionReferenceInput!
-
-    """
-    Amount of the platform tip
-    """
-    amount: AmountInput!
-  ): Transaction!
-    @deprecated(reason: "2022-07-06: This feature will not be supported in the future. Please don't rely on it.")
 
   """
   Refunds a transaction. Scope: "transactions".
@@ -15880,6 +15920,16 @@ input MemberInvitationReferenceInput {
   The internal id of the invitation (ie: 580)
   """
   legacyId: Int
+}
+
+type FollowResult {
+  individual: Individual!
+  member: Member!
+}
+
+type UnfollowResult {
+  individual: Individual!
+  member: Member
 }
 
 input OAuthAuthorizationReferenceInput {
