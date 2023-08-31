@@ -91,18 +91,7 @@ const tweetActivity = async activity => {
 type TweetParams = Partial<Parameters<TwitterApi['v2']['tweet']>[0]>;
 
 const getClientFromConnectedAccount = (twitterAccount): TwitterApi => {
-  return new TwitterApi(
-    twitterAccount.clientId
-      ? // OAuth V1
-        {
-          appKey: get(config, 'twitter.consumerKey'),
-          appSecret: get(config, 'twitter.consumerSecret'),
-          accessToken: twitterAccount.clientId,
-          accessSecret: twitterAccount.token,
-        }
-      : // OAuth V2
-        twitterAccount.token,
-  );
+  return new TwitterApi(twitterAccount.token);
 };
 
 const tweetStatus = async (
@@ -124,7 +113,7 @@ const tweetStatus = async (
   debug('tweeting status: ', status, 'with options:', options);
 
   if (twitterAccount.clientId) {
-    logger.info(`Tweet not sent for ${twitterAccount.username}: Using legacy OAuth1.0 credentials`);
+    logger.debug(`Tweet not sent for ${twitterAccount.username}: Using legacy OAuth1.0 credentials`);
   } else if (!get(config, 'twitter.disable')) {
     try {
       const client = getClientFromConnectedAccount(twitterAccount);
