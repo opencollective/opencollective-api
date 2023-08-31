@@ -129,7 +129,8 @@
   },
   "twitter": {
     "consumerKey": "TWITTER_CONSUMER_KEY",
-    "consumerSecret": "TWITTER_CONSUMER_SECRET"
+    "consumerSecret": "TWITTER_CONSUMER_SECRET",
+    "disable": "TWITTER_DISABLE"
   },
   "fixer": {
     "accessKey": "FIXER_ACCESS_KEY"

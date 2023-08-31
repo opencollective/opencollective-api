@@ -174,8 +174,10 @@ const sendTweet = async (twitterAccount, data) => {
   try {
     const res = await twitter.tweetStatus(twitterAccount, tweet, `https://opencollective.com/${data.collective.slug}`, {
       // We thread the tweet with the previous monthly stats
-      // eslint-disable-next-line camelcase
-      in_reply_to_status_id: get(twitterAccount, 'settings.monthlyStats.lastTweetId'),
+      reply: {
+        // eslint-disable-next-line camelcase
+        in_reply_to_tweet_id: get(twitterAccount, 'settings.monthlyStats.lastTweetId'),
+      },
     });
     set(twitterAccount, 'settings.monthlyStats.lastTweetId', res.id_str);
     set(twitterAccount, 'settings.monthlyStats.lastTweetSentAt', new Date(res.created_at));
