@@ -12,7 +12,7 @@ module.exports = {
         "ConnectedAccounts"
       SET
         "deletedAt" = NOW(),
-        "data" = JSONB_SET("data", '{isArchivedLegacyTwitterOAuth}', 'true')
+        "data" = JSONB_SET(COALESCE("data", '{}'), '{isArchivedLegacyTwitterOAuth}', 'true')
       WHERE
         "service" = 'twitter'
         AND "deletedAt" IS NULL
@@ -26,7 +26,7 @@ module.exports = {
         "ConnectedAccounts"
       SET
         "deletedAt" = NULL,
-        "data" = JSONB_SET("data", '{isArchivedLegacyTwitterOAuth}', 'false')
+        "data" = JSONB_SET(COALESCE("data", '{}'), '{isArchivedLegacyTwitterOAuth}', 'false')
       WHERE
         "service" = 'twitter'
         AND "deletedAt" IS NOT NULL
