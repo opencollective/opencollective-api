@@ -166,6 +166,7 @@ export const GraphQLActivity = new GraphQLObjectType({
           ].includes(activity.type)
         ) {
           toPick.push('member.role');
+          toPick.push('invitation.role');
         } else if (activity.type === ACTIVITY.COLLECTIVE_EDITED) {
           const collective = await req.loaders.Collective.byId.load(activity.CollectiveId);
           if (req.remoteUser?.isAdminOfCollectiveOrHost(collective)) {
