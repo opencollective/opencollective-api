@@ -8,7 +8,7 @@ module.exports = {
         "ConnectedAccounts"
       SET
         "deletedAt" = NULL,
-        "settings" = JSONB_SET("data", '{needsReconnect}', 'true')
+        "settings" = JSONB_SET(COALESCE("settings", '{}'), '{needsReconnect}', 'true')
       WHERE
         "service" = 'twitter'
         AND "deletedAt" IS NOT NULL
@@ -22,7 +22,7 @@ module.exports = {
         "ConnectedAccounts"
       SET
         "deletedAt" = NOW(),
-        "settings" = JSONB_SET("data", '{needsReconnect}', 'false')
+        "settings" = JSONB_SET(COALESCE("settings", '{}'), '{needsReconnect}', 'false')
       WHERE
         "service" = 'twitter'
         AND "deletedAt" IS NULL
