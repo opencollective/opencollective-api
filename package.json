@@ -267,7 +267,7 @@
   },
   "engines": {
     "node": "18.x",
-    "npm": "9.x"
+    "npm": "10.x"
   },
   "husky": {
     "hooks": {
