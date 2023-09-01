@@ -125,8 +125,9 @@ describe('server/graphql/v2/mutation/UploadedFileMutations', () => {
         const user = await fakeUser();
         const args = { files: [{ kind: 'EXPENSE_ITEM', file: getMockFileUpload(), parseDocument: true }] };
         const result = await graphqlQueryV2(uploadFileMutation, args, user);
-        expect(uploadToS3Stub.callCount).to.eq(1);
+        result.errors && console.error(result.errors);
         expect(result.errors).to.not.exist;
+        expect(uploadToS3Stub.callCount).to.eq(1);
         expect(result.data.uploadFile[0].parsingResult).to.deep.eq({
           success: false,
           message: 'Could not parse document: OCR parsing failed on purpose for test',
@@ -140,6 +141,7 @@ describe('server/graphql/v2/mutation/UploadedFileMutations', () => {
           const user = await fakeUser();
           const args = { files: [{ kind: 'EXPENSE_ITEM', file: getMockFileUpload(), parseDocument: true }] };
           const result = await graphqlQueryV2(uploadFileMutation, args, user);
+          result.errors && console.error(result.errors);
           expect(result.errors).to.not.exist;
           expect(uploadToS3Stub.callCount).to.eq(1);
           expect(result.data.uploadFile[0].parsingResult).to.not.be.null;
