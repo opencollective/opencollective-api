@@ -20,11 +20,34 @@ export const getExpenseOCRParser = (user: User): ExpenseOCRService => {
 };
 
 /**
+ * Runs the OCR service on the file and updates the uploaded file with the result.
+ */
+const processFile = async (parser: ExpenseOCRService, uploadedFile: UploadedFile): Promise<ExpenseOCRParseResult> => {
+  const start = performance.now();
+  const [result] = await parser.processUrl(uploadedFile.url);
+  const end = performance.now();
+  await uploadedFile.update({
+    data: {
+      ...uploadedFile.data,
+      ocrData: {
+        parser: parser.PARSER_ID,
+        type: 'Expense',
+        result,
+        executionTime: (end - start) * 1000,
+      },
+    },
+  });
+
+  return result;
+};
+
+/**
  * Runs OCR on the document and updates the uploaded file with the result.
  */
 export const runOCRForExpenseFile = async (
   parser: ExpenseOCRService,
   uploadedFile: UploadedFile,
+  { timeoutInMs = undefined } = {},
 ): Promise<ParseUploadedFileResult> => {
   if (!parser) {
     return { success: false, message: 'OCR parsing is not available' };
@@ -38,22 +61,17 @@ export const runOCRForExpenseFile = async (
 
   // Run OCR service
   try {
-    const start = performance.now();
-    const [result] = await parser.processUrl(uploadedFile.url);
-    const end = performance.now();
-    await uploadedFile.update({
-      data: {
-        ...uploadedFile.data,
-        ocrData: {
-          parser: parser.PARSER_ID,
-          type: 'Expense',
-          result,
-          executionTime: (end - start) * 1000,
-        },
-      },
-    });
+    const promises: Array<Promise<ExpenseOCRParseResult | 'TIMEOUT'>> = [processFile(parser, uploadedFile)];
+    if (timeoutInMs) {
+      promises.push(new Promise<'TIMEOUT'>(resolve => setTimeout(() => resolve('TIMEOUT'), timeoutInMs)));
+    }
 
-    return { success: true, expense: result };
+    const result = await Promise.race(promises);
+    if (result === 'TIMEOUT') {
+      return { success: false, message: 'OCR parsing timed out' };
+    } else {
+      return { success: true, expense: result };
+    }
   } catch (e) {
     return { success: false, message: `Could not parse document: ${e.message}` };
   }
