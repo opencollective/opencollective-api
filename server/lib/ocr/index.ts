@@ -33,7 +33,7 @@ const processFile = async (parser: ExpenseOCRService, uploadedFile: UploadedFile
         parser: parser.PARSER_ID,
         type: 'Expense',
         result,
-        executionTime: (end - start) * 1000,
+        executionTime: (end - start) / 1000, // Convert MS to seconds
       },
     },
   });

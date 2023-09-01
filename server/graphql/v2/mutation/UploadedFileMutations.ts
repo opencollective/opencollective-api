@@ -70,8 +70,8 @@ const uploadedFileMutations = {
           const result: UploadFileResult = { file: null, parsingResult: null };
           result.file = await models.UploadedFile.uploadGraphQl(await file, kind, req.remoteUser);
           const uploadDuration = (performance.now() - uploadStart) / 1000.0;
-          const timeLeftForParsing = 25e3 - uploadDuration; // GraphQL queries timeout after 25s.
-          if (parseDocument && timeLeftForParsing > 2000e3) {
+          const timeLeftForParsing = 25e3 - uploadDuration; // GraphQL queries timeout after 25s
+          if (parseDocument && timeLeftForParsing > 2e3) {
             result.parsingResult = await runOCRForExpenseFile(parser, result.file, { timeoutInMs: timeLeftForParsing });
           }
 
