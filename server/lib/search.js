@@ -4,7 +4,7 @@
 
 import config from 'config';
 import slugify from 'limax';
-import { get, words } from 'lodash';
+import { get, toString, words } from 'lodash';
 
 import { RateLimitExceeded } from '../graphql/errors';
 import models, { Op, sequelize } from '../models';
@@ -414,8 +414,8 @@ export const buildSearchConditions = (
     }
   }
 
-  if (dataFields?.length && parsedTerm.words === 1) {
-    conditions.push(...dataFields.map(field => ({ [field]: parsedTerm.term })));
+  if (dataFields?.length && (parsedTerm.words === 1 || (parsedTerm.type === 'number' && !parsedTerm.isFloat))) {
+    conditions.push(...dataFields.map(field => ({ [field]: toString(parsedTerm.term) })));
   }
 
   // Conditions for numbers (ID, amount)
