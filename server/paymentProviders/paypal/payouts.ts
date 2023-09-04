@@ -6,12 +6,13 @@ import { isNil, round, toNumber } from 'lodash';
 
 import activities from '../../constants/activities';
 import status from '../../constants/expense_status';
+import FEATURE from '../../constants/feature';
 import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { floatAmountToCents } from '../../lib/math';
 import * as paypal from '../../lib/paypal';
 import { safeJsonStringify } from '../../lib/safe-json-stringify';
-import { reportMessageToSentry } from '../../lib/sentry';
+import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
 import { createTransactionsFromPaidExpense } from '../../lib/transactions';
 import models, { Collective } from '../../models';
 import Expense from '../../models/Expense';
@@ -76,6 +77,7 @@ export const payExpensesBatch = async (expenses: Expense[]): Promise<Expense[]> 
     });
     return Promise.all(updateExpenses);
   } catch (error) {
+    reportErrorToSentry(error, { feature: FEATURE.PAYPAL_PAYOUTS });
     const updateExpenses = expenses.map(async e => {
       await e.update({ status: status.ERROR });
       const user = await models.User.findByPk(e.lastEditedById);
