@@ -96,9 +96,7 @@ const makeTimelineQuery = async (
               type: ActivityTypes.COLLECTIVE_UPDATE_PUBLISHED,
               CollectiveId: followingCollectives,
             },
-            
-            
-            .literal(
+            Sequelize.literal(
               `EXISTS (SELECT FROM "Updates" u where u.id = ("Activity"."data"#>'{update,id}')::integer AND NOT u."isPrivate")`,
             ),
           ],
