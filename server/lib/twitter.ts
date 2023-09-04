@@ -1,22 +1,23 @@
 import config from 'config';
 import debugLib from 'debug';
 import { IntlMessageFormat } from 'intl-messageformat';
-import { get, has } from 'lodash';
-import Twitter from 'twitter';
+import { get } from 'lodash';
+import { TwitterApi } from 'twitter-api-v2';
 
 import activityType from '../constants/activities';
 import models from '../models';
 
 import logger from './logger';
-import { reportMessageToSentry } from './sentry';
+import { reportErrorToSentry, reportMessageToSentry } from './sentry';
 import { formatCurrency } from './utils';
 
 const debug = debugLib('twitter');
 
+// We're only using `tweet.write`, but OAuth2 connection fails if `tweet.read` and `users.read` are not included
+export const TWITTER_SCOPES = ['tweet.write', 'users.read', 'tweet.read'];
+
 const tweetUpdate = async activity => {
-  const tweet = twitterLib.compileTweet('updatePublished', {
-    title: activity.data.update.title,
-  });
+  const tweet = twitterLib.compileTweet('updatePublished', { title: activity.data.update.title });
   const twitterAccount = await models.ConnectedAccount.findOne({
     where: { CollectiveId: activity.CollectiveId, service: 'twitter' },
   });
@@ -87,7 +88,18 @@ const tweetActivity = async activity => {
   }
 };
 
-const tweetStatus = (twitterAccount, status, url, options = {}) => {
+type TweetParams = Partial<Parameters<TwitterApi['v2']['tweet']>[0]>;
+
+const getClientFromConnectedAccount = (twitterAccount): TwitterApi => {
+  return new TwitterApi(twitterAccount.token);
+};
+
+const tweetStatus = async (
+  twitterAccount,
+  status,
+  url = null,
+  options: TweetParams = {},
+): Promise<ReturnType<TwitterApi['v2']['tweet']>> => {
   // collectives without twitter credentials are ignored
   if (!twitterAccount) {
     debug('>>> tweetStatus: no twitter account connected');
@@ -99,27 +111,20 @@ const tweetStatus = (twitterAccount, status, url, options = {}) => {
   }
 
   debug('tweeting status: ', status, 'with options:', options);
-  if (has(config, 'twitter.consumerKey') && has(config, 'twitter.consumerSecret')) {
-    /* eslint-disable camelcase */
-    const client = new Twitter({
-      consumer_key: get(config, 'twitter.consumerKey'),
-      consumer_secret: get(config, 'twitter.consumerSecret'),
-      access_token_key: twitterAccount.clientId,
-      access_token_secret: twitterAccount.token,
-    });
-    /* eslint-enable camelcase */
 
-    return client.post('statuses/update', { status, ...options }).catch(err => {
-      err = Array.isArray(err) ? err.shift() : err;
-      logger.info(`Tweet not sent: ${err.message}`);
-    });
-  } else {
-    logger.info('Tweet not sent: missing twitter consumerKey or consumerSecret configuration');
-    return Promise.resolve();
+  if (twitterAccount.clientId) {
+    logger.debug(`Tweet not sent for ${twitterAccount.username}: Using legacy OAuth1.0 credentials`);
+  } else if (!get(config, 'twitter.disable')) {
+    try {
+      const client = getClientFromConnectedAccount(twitterAccount);
+      return client.v2.tweet(status, options);
+    } catch (err) {
+      reportErrorToSentry(err, { extra: { status, options } });
+    }
   }
 };
 
-const compileTweet = (template, data, message) => {
+const compileTweet = (template, data, message = undefined) => {
   const messages = {
     'en-US': {
       tenBackers: `🎉 {collective} just reached 10 financial contributors! Thank you {topBackersTwitterHandles} 🙌
@@ -166,7 +171,7 @@ Become a financial contributor! 😃`,
 
   if (template === 'monthlyStats') {
     // A URL always takes 23 chars (+ space)
-    if (tweet.length < 280 - 24 - thankyou.length) {
+    if (!tweet || tweet.length < 280 - 24 - thankyou.length) {
       tweet += thankyou;
     }
   }

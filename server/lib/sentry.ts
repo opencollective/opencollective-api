@@ -205,6 +205,29 @@ const withScopeFromCaptureErrorParams = (
   });
 };
 
+const simplifyReq = req =>
+  !req
+    ? undefined
+    : pick(req, [
+        'method',
+        'url',
+        'isGraphQL',
+        'query',
+        'params',
+        'session',
+        'jwtPayload',
+        'path',
+        'cacheKey',
+        'cacheSlug',
+        'startAt',
+        'endAt',
+        'remoteUser.id',
+        'userToken.id',
+        'personalToken.id',
+        'clientApp.id',
+        'rawBody',
+      ]);
+
 /**
  * Helper to capture an error on Sentry
  */
@@ -219,11 +242,15 @@ export const reportErrorToSentry = (err: Error, params: CaptureErrorParams = {})
       Sentry.captureException(err);
     } else {
       logger.error(
-        `[Sentry disabled] The following error would be reported: ${err.message} (${JSON.stringify({
-          err,
-          params,
-          stacktrace: err.stack,
-        })})`,
+        `[Sentry disabled] The following error would be reported: ${err.message} (${safeJsonStringify(
+          {
+            err,
+            params: { ...params, req: simplifyReq(params.req) },
+            stacktrace: err.stack,
+          },
+          null,
+          2,
+        )})`,
       );
     }
   });

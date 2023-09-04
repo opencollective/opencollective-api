@@ -162,7 +162,6 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
       Metadata: {
         CreatedByUserId: `${user?.id}`,
         FileKind: kind,
-        FileName: fileName,
       },
     };
 

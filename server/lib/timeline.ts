@@ -96,7 +96,9 @@ const makeTimelineQuery = async (
               type: ActivityTypes.COLLECTIVE_UPDATE_PUBLISHED,
               CollectiveId: followingCollectives,
             },
-            Sequelize.literal(
+            
+            
+            .literal(
               `EXISTS (SELECT FROM "Updates" u where u.id = ("Activity"."data"#>'{update,id}')::integer AND NOT u."isPrivate")`,
             ),
           ],
@@ -113,6 +115,7 @@ type SerializedActivity = { id: number; type: ActivityTypes };
 const order: Order = [['createdAt', 'DESC']];
 const TTL = 60 * 60 * 24 * 3; // 3 days
 const FEED_LIMIT = 1000;
+const EMPTY_FLAG = 'EMPTY';
 
 const createOrUpdateFeed = async (collective: Collective, sinceId?: number) => {
   const cacheKey = `timeline-${collective.slug}`;
@@ -129,25 +132,24 @@ const createOrUpdateFeed = async (collective: Collective, sinceId?: number) => {
     order,
     limit: FEED_LIMIT,
   });
-  if (result.length > 0) {
-    const activities = result.map(({ id, type, createdAt }) => {
-      const value: SerializedActivity = { id, type };
-      return {
-        score: toInteger(createdAt.getTime() / 1000),
-        value: JSON.stringify(value),
-      };
-    });
-    debug(`Generated timeline for ${collective.slug} with ${activities.length} activities`);
-    await redis.zAdd(cacheKey, activities);
-    // Set initial TTL or bump existing Cache TTL
-    await redis.expire(cacheKey, TTL);
+  const activities = result.map(({ id, type, createdAt }) => {
+    const value: SerializedActivity = { id, type };
+    return {
+      score: toInteger(createdAt.getTime() / 1000),
+      value: JSON.stringify(value),
+    };
+  });
+  const hasActivities = !isEmpty(activities);
+  debug(`Generated timeline for ${collective.slug} with ${activities.length} activities`);
+  await redis.zAdd(cacheKey, hasActivities ? activities : [{ score: 0, value: EMPTY_FLAG }]);
+  // Set initial TTL or bump existing Cache TTL
+  await redis.expire(cacheKey, hasActivities ? TTL : 60);
 
-    // Trim the cache if updating with new activities
-    if (sinceId) {
-      const count = await redis.zCount(cacheKey, '0', '+inf');
-      if (count > FEED_LIMIT) {
-        await redis.zRemRangeByRank(cacheKey, 0, count - FEED_LIMIT - 1);
-      }
+  // Trim the cache if updating with new activities
+  if (sinceId) {
+    const count = await redis.zCount(cacheKey, '0', '+inf');
+    if (count > FEED_LIMIT) {
+      await redis.zRemRangeByRank(cacheKey, 0, count - FEED_LIMIT - 1);
     }
   }
   stopWatch();
@@ -195,7 +197,7 @@ export const getCollectiveFeed = async ({
     cache.set(lockKey, true, 60);
 
     // If we don't have a cache, generate it asynchronously
-    createOrUpdateFeed(collective).then(() => cache.delete(lockKey));
+    createOrUpdateFeed(collective).finally(() => cache.delete(lockKey));
     return null;
   }
 
@@ -223,6 +225,9 @@ export const getCollectiveFeed = async ({
   // If we're not paginating, first update cache
   if (!dateTo) {
     const [latest] = await redis.zRange(cacheKey, -1, -1);
+    if (latest === EMPTY_FLAG) {
+      return [];
+    }
     const activity = JSON.parse(latest) as SerializedActivity;
     debug(`Updating timeline for ${collective.slug} from id ${activity.id}`);
     await createOrUpdateFeed(collective, activity.id);

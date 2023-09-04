@@ -15,7 +15,7 @@ paymentMethodProvider.features = {
 // Returns the balance in the currency of the paymentMethod (ie. currency of the Collective)
 paymentMethodProvider.getBalance = (paymentMethod, parameters = {}) => {
   return paymentMethod.getCollective().then(collective => {
-    return collective.getBalance({ ...parameters, withBlockedFunds: true });
+    return collective?.getBalance({ ...parameters, withBlockedFunds: true });
   });
 };
 
