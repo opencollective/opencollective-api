@@ -13,6 +13,7 @@ import { pick, round, takeRightWhile, toString, uniq } from 'lodash';
 
 import ActivityTypes from '../../../constants/activities';
 import expenseStatus from '../../../constants/expense_status';
+import ExpenseTypes from '../../../constants/expense_type';
 import models, { Activity } from '../../../models';
 import { CommentType } from '../../../models/Comment';
 import ExpenseModel from '../../../models/Expense';
@@ -477,7 +478,9 @@ const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Request>({
         type: new GraphQLList(GraphQLSecurityCheck),
         description: '[Admin only] Security checks for this expense. Only available to expenses under trusted hosts.',
         async resolve(expense, _, req) {
-          if (await ExpenseLib.canSeeExpenseSecurityChecks(req, expense)) {
+          if (expense.type === ExpenseTypes.CHARGE) {
+            return null;
+          } else if (await ExpenseLib.canSeeExpenseSecurityChecks(req, expense)) {
             return req.loaders.Expense.securityChecks.load(expense);
           }
         },
