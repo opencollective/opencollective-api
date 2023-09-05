@@ -272,7 +272,7 @@ describe('memberMutations', () => {
   describe('follow', () => {
     const followMutation = gqlV2`
       mutation FollowCollective($account: AccountReferenceInput!) {
-        follow(account: $account) {
+        followAccount(account: $account) {
           member {
             id
             role
@@ -301,8 +301,8 @@ describe('memberMutations', () => {
       );
 
       expect(result.errors).to.not.exist;
-      expect(result.data.follow.member.role).to.equal(MemberRoles.FOLLOWER);
-      expect(result.data.follow.individual.memberOf.nodes).to.have.length(1);
+      expect(result.data.followAccount.member.role).to.equal(MemberRoles.FOLLOWER);
+      expect(result.data.followAccount.individual.memberOf.nodes).to.have.length(1);
 
       const followers = await Member.findAll({
         where: {
@@ -334,11 +334,13 @@ describe('memberMutations', () => {
       );
 
       expect(result.errors).to.not.exist;
-      expect(result.data.follow.member.role).to.equal(MemberRoles.FOLLOWER);
-      expect(result.data.follow.member.id).to.equal(idEncode(member.id, IDENTIFIER_TYPES.MEMBER));
+      expect(result.data.followAccount.member.role).to.equal(MemberRoles.FOLLOWER);
+      expect(result.data.followAccount.member.id).to.equal(idEncode(member.id, IDENTIFIER_TYPES.MEMBER));
 
-      expect(result.data.follow.individual.memberOf.nodes).to.have.length(1);
-      expect(result.data.follow.individual.memberOf.nodes[0].id).to.equal(idEncode(member.id, IDENTIFIER_TYPES.MEMBER));
+      expect(result.data.followAccount.individual.memberOf.nodes).to.have.length(1);
+      expect(result.data.followAccount.individual.memberOf.nodes[0].id).to.equal(
+        idEncode(member.id, IDENTIFIER_TYPES.MEMBER),
+      );
 
       const followers = await Member.findAll({
         where: {
@@ -350,12 +352,71 @@ describe('memberMutations', () => {
 
       expect(followers).to.have.length(1);
     });
+
+    it('creates only one follow member', async () => {
+      const collective = await fakeCollective();
+      const user = await fakeUser();
+
+      const member = await fakeMember({
+        CollectiveId: collective.id,
+        MemberCollectiveId: user.collective.id,
+        role: MemberRoles.FOLLOWER,
+        deletedAt: new Date(),
+      });
+
+      let memberRecords = await Member.findAll({
+        where: {
+          MemberCollectiveId: user.collective.id,
+          CollectiveId: collective.id,
+          role: MemberRoles.FOLLOWER,
+        },
+        paranoid: false,
+      });
+      expect(memberRecords).to.have.length(1);
+
+      const result = await utils.graphqlQueryV2(
+        followMutation,
+        {
+          account: { id: idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT) },
+        },
+        user,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.followAccount.member.role).to.equal(MemberRoles.FOLLOWER);
+      expect(result.data.followAccount.member.id).to.equal(idEncode(member.id, IDENTIFIER_TYPES.MEMBER));
+
+      expect(result.data.followAccount.individual.memberOf.nodes).to.have.length(1);
+      expect(result.data.followAccount.individual.memberOf.nodes[0].id).to.equal(
+        idEncode(member.id, IDENTIFIER_TYPES.MEMBER),
+      );
+
+      const followers = await Member.findAll({
+        where: {
+          MemberCollectiveId: user.collective.id,
+          CollectiveId: collective.id,
+          role: MemberRoles.FOLLOWER,
+        },
+      });
+
+      expect(followers).to.have.length(1);
+
+      memberRecords = await Member.findAll({
+        where: {
+          MemberCollectiveId: user.collective.id,
+          CollectiveId: collective.id,
+          role: MemberRoles.FOLLOWER,
+        },
+        paranoid: false,
+      });
+      expect(memberRecords).to.have.length(1);
+    });
   });
 
   describe('unfollow', () => {
     const unfollowMutation = gqlV2`
       mutation UnfollowCollective($account: AccountReferenceInput!) {
-        unfollow(account: $account) {
+        unfollowAccount(account: $account) {
           member {
             id
           }
@@ -397,8 +458,10 @@ describe('memberMutations', () => {
       );
 
       expect(result.errors).to.not.exist;
-      expect(result.data.unfollow.individual.memberOf.nodes).to.have.length(1);
-      expect(result.data.unfollow.individual.memberOf.nodes[0].id).to.eq(idEncode(member2.id, IDENTIFIER_TYPES.MEMBER));
+      expect(result.data.unfollowAccount.individual.memberOf.nodes).to.have.length(1);
+      expect(result.data.unfollowAccount.individual.memberOf.nodes[0].id).to.eq(
+        idEncode(member2.id, IDENTIFIER_TYPES.MEMBER),
+      );
     });
 
     it('handles unfollowing account without follow', async () => {
@@ -414,7 +477,7 @@ describe('memberMutations', () => {
       );
 
       expect(result.errors).to.not.exist;
-      expect(result.data.unfollow.individual.memberOf.nodes).to.have.length(0);
+      expect(result.data.unfollowAccount.individual.memberOf.nodes).to.have.length(0);
 
       const followers = await Member.findAll({
         where: {

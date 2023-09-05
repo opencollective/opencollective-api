@@ -14195,22 +14195,22 @@ type Mutation {
   """
   Follows a given Collective. Scope: "account"
   """
-  follow(
+  followAccount(
     """
     user will follow this account
     """
     account: AccountReferenceInput!
-  ): FollowResult!
+  ): FollowAccountResult!
 
   """
   Unfollows a given Collective. Scope: "account"
   """
-  unfollow(
+  unfollowAccount(
     """
     account to unfollow
     """
     account: AccountReferenceInput!
-  ): UnfollowResult!
+  ): UnfollowAccountResult!
 
   """
   Edit the public message for the given Member of a Collective. Scope: "account".
@@ -15922,12 +15922,12 @@ input MemberInvitationReferenceInput {
   legacyId: Int
 }
 
-type FollowResult {
+type FollowAccountResult {
   individual: Individual!
   member: Member!
 }
 
-type UnfollowResult {
+type UnfollowAccountResult {
   individual: Individual!
   member: Member
 }

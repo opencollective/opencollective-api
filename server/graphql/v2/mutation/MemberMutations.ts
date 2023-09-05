@@ -9,7 +9,7 @@ import MemberRoles from '../../../constants/roles';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import { getPolicy } from '../../../lib/policies';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models, { Member } from '../../../models';
+import models, { Member, sequelize } from '../../../models';
 import { editPublicMessage } from '../../common/members';
 import { checkRemoteUserCanRoot, checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { BadRequest, Forbidden, Unauthorized, ValidationFailed } from '../../errors';
@@ -32,8 +32,8 @@ const isLastAdmin = async (account, memberAccount) => {
   return admins.length === 1 && admins[0].MemberCollectiveId === memberAccount.id;
 };
 
-const GraphQLFollowResult = new GraphQLObjectType({
-  name: 'FollowResult',
+const GraphQLFollowAccountResult = new GraphQLObjectType({
+  name: 'FollowAccountResult',
   fields: {
     individual: {
       type: new GraphQLNonNull(GraphQLIndividual),
@@ -44,8 +44,8 @@ const GraphQLFollowResult = new GraphQLObjectType({
   },
 });
 
-const GraphQLUnfollowResult = new GraphQLObjectType({
-  name: 'UnfollowResult',
+const GraphQLUnfollowAccountResult = new GraphQLObjectType({
+  name: 'UnfollowAccountResult',
   fields: {
     individual: {
       type: new GraphQLNonNull(GraphQLIndividual),
@@ -57,8 +57,8 @@ const GraphQLUnfollowResult = new GraphQLObjectType({
 });
 
 const memberMutations = {
-  follow: {
-    type: new GraphQLNonNull(GraphQLFollowResult),
+  followAccount: {
+    type: new GraphQLNonNull(GraphQLFollowAccountResult),
     description: 'Follows a given Collective. Scope: "account"',
     args: {
       account: {
@@ -71,22 +71,43 @@ const memberMutations = {
 
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
 
-      const [member] = await Member.findOrCreate({
-        where: {
-          MemberCollectiveId: req.remoteUser.CollectiveId,
-          CollectiveId: account.id,
-          role: MemberRoles.FOLLOWER,
-        },
-        defaults: {
-          CreatedByUserId: req.remoteUser.id,
-        },
+      const member = await sequelize.transaction(async transaction => {
+        const member = await Member.findOne({
+          where: {
+            MemberCollectiveId: req.remoteUser.CollectiveId,
+            CollectiveId: account.id,
+            role: MemberRoles.FOLLOWER,
+          },
+          paranoid: false,
+          transaction,
+        });
+
+        if (member) {
+          if (member.deletedAt) {
+            await member.restore({ transaction });
+          }
+
+          return member;
+        }
+
+        return await Member.create(
+          {
+            MemberCollectiveId: req.remoteUser.CollectiveId,
+            CollectiveId: account.id,
+            role: MemberRoles.FOLLOWER,
+            CreatedByUserId: req.remoteUser.id,
+          },
+          {
+            transaction,
+          },
+        );
       });
 
-      return { member, individual: req.remoteUser.getCollective() };
+      return { member, individual: req.remoteUser.collective };
     },
   },
-  unfollow: {
-    type: new GraphQLNonNull(GraphQLUnfollowResult),
+  unfollowAccount: {
+    type: new GraphQLNonNull(GraphQLUnfollowAccountResult),
     description: 'Unfollows a given Collective. Scope: "account"',
     args: {
       account: {
@@ -111,7 +132,7 @@ const memberMutations = {
         await member.destroy();
       }
 
-      return { member, individual: req.remoteUser.getCollective() };
+      return { member, individual: req.remoteUser.collective };
     },
   },
   editPublicMessage: {
