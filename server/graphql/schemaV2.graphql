@@ -1366,6 +1366,11 @@ type Expense {
   Custom data for this expense
   """
   customData: JSON
+
+  """
+  The merchant ID for this expense
+  """
+  merchantId: String
 }
 
 """
@@ -2904,6 +2909,36 @@ type Host implements Account & AccountWithContributions {
   stripe: StripeConnectedAccount
 
   """
+  Applications for this host
+  """
+  hostApplications(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+
+    """
+    Search term for collective tags, id, name, slug and description.
+    """
+    searchTerm: String
+
+    """
+    Order of the results
+    """
+    orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
+
+    """
+    Filter applications by status
+    """
+    status: HostApplicationStatus
+  ): HostApplicationCollection!
+
+  """
   Pending applications for this host
   """
   pendingApplications(
@@ -2927,6 +2962,7 @@ type Host implements Account & AccountWithContributions {
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
   ): HostApplicationCollection!
+    @deprecated(reason: "2023-08-25: Deprecated in favour of host.hostApplications(status: PENDING).")
   hostedVirtualCards(
     """
     Search term (card name, card last four digits)
@@ -13745,6 +13781,21 @@ type Mutation {
   ): Individual!
 
   """
+  Edit 2FA method
+  """
+  editTwoFactorAuthenticationMethod(
+    """
+    Method to edit
+    """
+    userTwoFactorMethod: UserTwoFactorMethodReferenceInput!
+
+    """
+    New name for the method
+    """
+    name: String
+  ): Individual!
+
+  """
   Edit key properties of an account. Scope: "account".
   """
   editAccount(
@@ -13794,6 +13845,11 @@ type Mutation {
     message: NonEmptyString!
     subject: String
   ): SendMessageResult
+
+  """
+  Regenerate two factor authentication recovery codes
+  """
+  regenerateRecoveryCodes: [String!]
   createApplication(application: ApplicationCreateInput!): Application
   updateApplication(application: ApplicationUpdateInput!): Application
   deleteApplication(application: ApplicationReferenceInput!): Application
@@ -14579,22 +14635,6 @@ type Mutation {
     """
     year: Int!
   ): SetTaxFormResult
-
-  """
-  Add platform tips to a transaction. Scope: "transactions".
-  """
-  addPlatformTipToTransaction(
-    """
-    Reference to the transaction in the platform tip
-    """
-    transaction: TransactionReferenceInput!
-
-    """
-    Amount of the platform tip
-    """
-    amount: AmountInput!
-  ): Transaction!
-    @deprecated(reason: "2022-07-06: This feature will not be supported in the future. Please don't rely on it.")
 
   """
   Refunds a transaction. Scope: "transactions".

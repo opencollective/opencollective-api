@@ -23,7 +23,7 @@ import models, { sequelize } from '../../../models';
 import UserTwoFactorMethod from '../../../models/UserTwoFactorMethod';
 import { sendMessage } from '../../common/collective';
 import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseHost } from '../../common/scope-check';
-import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
+import { BadRequest, Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { AccountTypeToModelMapping } from '../enum/AccountType';
 import { GraphQLTwoFactorMethodEnum } from '../enum/TwoFactorMethodEnum';
 import { idDecode } from '../identifiers';
@@ -700,6 +700,30 @@ const accountMutations = {
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
 
       return sendMessage({ req, args, collective: account, isGqlV2: true });
+    },
+  },
+  regenerateRecoveryCodes: {
+    type: new GraphQLList(new GraphQLNonNull(GraphQLString)),
+    description: 'Regenerate two factor authentication recovery codes',
+    async resolve(_, args, req) {
+      checkRemoteUserCanUseAccount(req);
+
+      const hasTwoFactorEnabled = await TwoFactorAuthLib.userHasTwoFactorAuthEnabled(req.remoteUser);
+      if (!hasTwoFactorEnabled) {
+        throw new BadRequest('User does not have two factor authetication enabled');
+      }
+
+      await TwoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true });
+
+      const recoveryCodesArray = Array.from({ length: 6 }, () =>
+        cryptoRandomString({ length: 16, type: 'distinguishable' }),
+      );
+      const hashedRecoveryCodesArray = recoveryCodesArray.map(code => {
+        return crypto.hash(code);
+      });
+      await req.remoteUser.update({ twoFactorAuthRecoveryCodes: hashedRecoveryCodesArray });
+
+      return recoveryCodesArray;
     },
   },
 };
