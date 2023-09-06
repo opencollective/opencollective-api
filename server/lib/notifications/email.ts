@@ -12,6 +12,7 @@ import { TransactionTypes } from '../../constants/transactions';
 import models, { Collective } from '../../models';
 import { Activity } from '../../models/Activity';
 import { CommentType } from '../../models/Comment';
+import { UpdateChannel } from '../../models/Update';
 import User from '../../models/User';
 import emailLib from '../email';
 import logger from '../logger';
@@ -312,7 +313,7 @@ export const notifyByEmail = async (activity: Activity) => {
       const update = await models.Update.findByPk(activity.data.update.id);
 
       // Updates can have many subscribers (e.g. OSC has 6000+). We only load the ID and defer the rest to the email functions.
-      const usersIdsToNotify = await update.getUsersIdsToNotify();
+      const usersIdsToNotify = await update.getUsersIdsToNotify(UpdateChannel.EMAIL);
       await notify.users(usersIdsToNotify, activity, emailOpts);
       break;
     }

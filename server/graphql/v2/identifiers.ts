@@ -23,6 +23,7 @@ export const IDENTIFIER_TYPES = {
   COMMENT_REACTION: 'comment-reaction',
   CONVERSATION: 'conversation',
   HOST_APPLICATION: 'host-application',
+  MEMBER: 'member',
   MEMBER_INVITATION: 'member-invitation',
   PAYOUT_METHOD: 'payout-method',
   PAYMENT_METHOD: 'paymentMethod',

@@ -39,6 +39,10 @@ export const UPDATE_NOTIFICATION_AUDIENCE = {
   NO_ONE: 'NO_ONE',
 } as const;
 
+export const enum UpdateChannel {
+  EMAIL = 'EMAIL',
+}
+
 /**
  * Defines the roles targeted by an update notification. Admins of the parent collective are
  * always included, regardless of the values in this array.
@@ -160,13 +164,17 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
     return Boolean(this.collective.isHostAccount && audiencesForHostedAccounts.includes(audience));
   };
 
-  getTargetMembersRoles = function (notificationAudience) {
+  getTargetMembersRoles = function (notificationAudience, channel?: UpdateChannel) {
     const audience = notificationAudience || this.notificationAudience || 'ALL';
     if (audience === 'COLLECTIVE_ADMINS') {
       return ['__NONE__'];
     } else if (this.isPrivate) {
       return PRIVATE_UPDATE_TARGET_ROLES;
     } else {
+      // dont notify followers by email.
+      if (channel === UpdateChannel.EMAIL) {
+        return PRIVATE_UPDATE_TARGET_ROLES;
+      }
       return PUBLIC_UPDATE_TARGET_ROLES;
     }
   };
@@ -174,7 +182,7 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
   /**
    * Get the member users to notify for this update.
    */
-  getUsersIdsToNotify = async function (): Promise<Array<number>> {
+  getUsersIdsToNotify = async function (channel?: UpdateChannel): Promise<Array<number>> {
     const audience = this.notificationAudience || 'ALL';
 
     if (audience === 'NO_ONE') {
@@ -185,7 +193,7 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
       type: sequelize.QueryTypes.SELECT,
       replacements: {
         collectiveId: this.CollectiveId,
-        targetRoles: this.getTargetMembersRoles(),
+        targetRoles: this.getTargetMembersRoles(audience, channel),
         includeHostedAccounts: await this.includeHostedAccountsInNotification(),
         includeMembers: audience !== 'COLLECTIVE_ADMINS',
       },
@@ -199,7 +207,7 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
    *
    * @argument notificationAudience - to override the update audience
    */
-  countUsersToNotify = async function (notificationAudience) {
+  countUsersToNotify = async function (notificationAudience, channel?: UpdateChannel) {
     this.collective = this.collective || (await this.getCollective());
     const audience = notificationAudience || this.notificationAudience || 'ALL';
 
@@ -211,7 +219,7 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
       type: sequelize.QueryTypes.SELECT,
       replacements: {
         collectiveId: this.CollectiveId,
-        targetRoles: this.getTargetMembersRoles(audience),
+        targetRoles: this.getTargetMembersRoles(audience, channel),
         includeHostedAccounts: await this.includeHostedAccountsInNotification(audience),
         includeMembers: audience !== 'COLLECTIVE_ADMINS',
       },
@@ -223,12 +231,12 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
   /**
    * Gets a summary of who will be notified about this update
    */
-  getAudienceMembersStats = async function (audience) {
+  getAudienceMembersStats = async function (audience, channel?: UpdateChannel) {
     const result = await sequelize.query(SQLQueries.countMembersToNotifyForUpdateSQLQuery, {
       type: sequelize.QueryTypes.SELECT,
       replacements: {
         collectiveId: this.CollectiveId,
-        targetRoles: this.getTargetMembersRoles(audience),
+        targetRoles: this.getTargetMembersRoles(audience, channel),
       },
     });
 
