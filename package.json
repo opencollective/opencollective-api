@@ -49,7 +49,7 @@
     "@sentry/node": "7.67.0",
     "@sentry/types": "7.67.0",
     "@shopify/address": "4.2.0",
-    "@simplewebauthn/server": "7.4.0",
+    "@simplewebauthn/server": "8.1.1",
     "@simplewebauthn/typescript-types": "7.4.0",
     "@superfaceai/passport-twitter-oauth2": "1.2.3",
     "argparse": "2.0.1",
