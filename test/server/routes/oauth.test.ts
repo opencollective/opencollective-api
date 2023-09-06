@@ -70,7 +70,7 @@ describe('server/routes/oauth', () => {
     const oauthToken = tokenResponse.body.access_token;
     expect(oauthToken).to.exist;
 
-    const decodedToken = jwt.verify(oauthToken, config.keys.opencollective.jwtSecret);
+    const decodedToken = jwt.verify(oauthToken, config.keys.opencollective.jwtSecret) as jwt.JwtPayload;
     expect(decodedToken.sub).to.eq(application.CreatedByUserId.toString());
     expect(decodedToken.access_token.startsWith('test_oauth_')).to.be.true;
     const iat = fakeNow.getTime() / 1000;

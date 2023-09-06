@@ -9,6 +9,7 @@ import throng from 'throng';
 
 import expressLib from './lib/express';
 import logger from './lib/logger';
+import { updateCachedFidoMetadata } from './lib/two-factor-authentication/fido-metadata';
 import routes from './routes';
 
 const workers = process.env.WEB_CONCURRENCY || 1;
@@ -16,6 +17,7 @@ const workers = process.env.WEB_CONCURRENCY || 1;
 async function start(i) {
   const expressApp = express();
 
+  await updateCachedFidoMetadata();
   await expressLib(expressApp);
 
   /**

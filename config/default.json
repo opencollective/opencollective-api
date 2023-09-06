@@ -248,5 +248,10 @@
     "url": "localhost",
     "port": 8125,
     "prefix": ""
+  },
+  "webauthn": {
+    "rpName": "[Test] Open Collective",
+    "rpId": "localhost",
+    "expectedOrigins": ["http://localhost:3000"]
   }
 }

@@ -12,6 +12,7 @@ describe('server/graphql/loaders/user', () => {
       await UserTwoFactorMethod.create({
         UserId: userWith2FA.id,
         method: TwoFactorMethod.TOTP,
+        name: 'TOTP',
         data: {
           secret: 'secret',
         },
@@ -22,6 +23,7 @@ describe('server/graphql/loaders/user', () => {
       await UserTwoFactorMethod.create({
         UserId: userWithDeleted2FA.id,
         method: TwoFactorMethod.TOTP,
+        name: 'TOTP',
         data: {
           secret: 'secret',
         },

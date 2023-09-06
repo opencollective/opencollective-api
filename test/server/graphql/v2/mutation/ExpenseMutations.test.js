@@ -2695,6 +2695,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       await UserTwoFactorMethod.create({
         UserId: hostAdmin.id,
         method: TwoFactorMethod.TOTP,
+        name: 'TOTP',
         data: {
           secret: encryptedToken,
         },
@@ -2768,6 +2769,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       await UserTwoFactorMethod.create({
         UserId: hostAdmin.id,
         method: TwoFactorMethod.TOTP,
+        name: 'TOTP',
         data: {
           secret: encryptedToken,
         },

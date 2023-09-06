@@ -6,6 +6,7 @@ import {
   InferAttributes,
   InferCreationAttributes,
   Model,
+  NonAttribute,
 } from 'sequelize';
 import * as z from 'zod';
 
@@ -26,9 +27,25 @@ const YubikeyOTPSchema = z.object({
 
 export type UserTwoFactorMethodYubikeyOTPData = z.infer<typeof YubikeyOTPSchema>;
 
+const WebAuthnSchema = z.object({
+  aaguid: z.string(),
+  icon: z.string().optional(),
+  description: z.string().optional(),
+  credentialPublicKey: z.string(),
+  credentialId: z.string(),
+  counter: z.number(),
+  credentialDeviceType: z.string(),
+  credentialType: z.string(),
+  fmt: z.string(),
+  attestationObject: z.string(),
+});
+
+export type UserTwoFactorMethodWebAuthnData = z.infer<typeof WebAuthnSchema>;
+
 export type UserTwoFactorMethodData = {
   [TwoFactorMethod.TOTP]: UserTwoFactorMethodTOTPData;
   [TwoFactorMethod.YUBIKEY_OTP]: UserTwoFactorMethodYubikeyOTPData;
+  [TwoFactorMethod.WEBAUTHN]: UserTwoFactorMethodWebAuthnData;
 };
 
 export default class UserTwoFactorMethod<
@@ -41,6 +58,7 @@ export default class UserTwoFactorMethod<
   declare User?: User;
   declare getUser: BelongsToGetAssociationMixin<User>;
 
+  declare name: string;
   declare data: CreationOptional<UserTwoFactorMethodData[T]>;
 
   declare createdAt: CreationOptional<Date>;
@@ -57,6 +75,27 @@ export default class UserTwoFactorMethod<
     });
 
     return result.map(r => r.method);
+  }
+
+  isWebAuthn(): this is UserTwoFactorMethod<TwoFactorMethod.WEBAUTHN> {
+    return this.method === TwoFactorMethod.WEBAUTHN;
+  }
+
+  get info(): NonAttribute<
+    Pick<
+      UserTwoFactorMethod<Exclude<TwoFactorMethod, TwoFactorMethod.RECOVERY_CODE>>,
+      'id' | 'UserId' | 'method' | 'name' | 'createdAt' | 'updatedAt' | 'deletedAt'
+    >
+  > {
+    return {
+      id: this.id,
+      UserId: this.UserId,
+      method: this.method,
+      name: this.name,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt,
+      deletedAt: this.deletedAt,
+    };
   }
 }
 
@@ -75,11 +114,22 @@ UserTwoFactorMethod.init(
         isIn: [Object.values(TwoFactorMethod)],
       },
     },
+    name: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: {
+        notEmpty: true,
+        len: [0, 50],
+      },
+    },
     data: {
       type: DataTypes.JSONB,
       allowNull: true,
       validate: {
-        schema(this: UserTwoFactorMethod<TwoFactorMethod.TOTP | TwoFactorMethod.YUBIKEY_OTP>, value: unknown) {
+        schema(
+          this: UserTwoFactorMethod<TwoFactorMethod.TOTP | TwoFactorMethod.YUBIKEY_OTP | TwoFactorMethod.WEBAUTHN>,
+          value: unknown,
+        ) {
           switch (this.method) {
             case TwoFactorMethod.TOTP: {
               TOTPDataSchema.parse(value);
@@ -87,6 +137,10 @@ UserTwoFactorMethod.init(
             }
             case TwoFactorMethod.YUBIKEY_OTP: {
               YubikeyOTPSchema.parse(value);
+              break;
+            }
+            case TwoFactorMethod.WEBAUTHN: {
+              WebAuthnSchema.parse(value);
               break;
             }
             default: {

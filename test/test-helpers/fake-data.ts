@@ -114,6 +114,7 @@ export const fakeUser = async (
     await UserTwoFactorMethod.create({
       UserId: user.id,
       method: TwoFactorMethod.TOTP,
+      name: 'TOTP',
       data: { secret: user.twoFactorAuthToken },
     });
   }

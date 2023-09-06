@@ -10,6 +10,7 @@ import { confirmGuestAccount } from '../lib/guest-accounts';
 import logger from '../lib/logger';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../lib/rate-limit';
 import twoFactorAuthLib, { TwoFactorMethod } from '../lib/two-factor-authentication';
+import * as webauthn from '../lib/two-factor-authentication/webauthn';
 import { isValidEmail, parseToBoolean } from '../lib/utils';
 import models from '../models';
 
@@ -99,14 +100,20 @@ export const signin = async (req, res, next) => {
 
       const twoFactorAuthenticationEnabled = parseToBoolean(config.twoFactorAuthentication.enabled);
       if (twoFactorAuthenticationEnabled && (await twoFactorAuthLib.userHasTwoFactorAuthEnabled(user))) {
+        const supported2FAMethods = await twoFactorAuthLib.twoFactorMethodsSupportedByUser(user);
+
+        const authenticationOptions = {};
+
+        if (supported2FAMethods.includes(TwoFactorMethod.WEBAUTHN)) {
+          authenticationOptions.webauthn = await webauthn.authenticationOptions(user, req);
+        }
+
         // Send 2FA token, can only be used to get a long term token
         const token = user.jwt(
           {
             scope: 'twofactorauth',
-            supported2FAMethods: [
-              TwoFactorMethod.RECOVERY_CODE,
-              ...(await twoFactorAuthLib.twoFactorMethodsSupportedByUser(user)),
-            ],
+            supported2FAMethods,
+            authenticationOptions,
           },
           auth.TOKEN_EXPIRATION_2FA,
         );
@@ -194,16 +201,23 @@ export const exchangeLoginToken = async (req, res, next) => {
 
   const twoFactorAuthenticationEnabled = parseToBoolean(config.twoFactorAuthentication.enabled);
   if (twoFactorAuthenticationEnabled && (await twoFactorAuthLib.userHasTwoFactorAuthEnabled(req.remoteUser))) {
+    const supported2FAMethods = await twoFactorAuthLib.twoFactorMethodsSupportedByUser(req.remoteUser);
+
+    const authenticationOptions = {};
+
+    if (supported2FAMethods.includes(TwoFactorMethod.WEBAUTHN)) {
+      authenticationOptions.webauthn = await webauthn.authenticationOptions(req.remoteUser, req);
+    }
+
     const token = req.remoteUser.jwt(
       {
         scope: 'twofactorauth',
-        supported2FAMethods: [
-          TwoFactorMethod.RECOVERY_CODE,
-          ...(await twoFactorAuthLib.twoFactorMethodsSupportedByUser(req.remoteUser)),
-        ],
+        supported2FAMethods,
+        authenticationOptions,
       },
       auth.TOKEN_EXPIRATION_2FA,
     );
+
     res.send({ token });
   } else {
     // Context: this is token generation after using a signin link (magic link) and no 2FA
@@ -301,10 +315,14 @@ export const twoFactorAuthAndUpdateToken = async (req, res, next) => {
   }
 
   try {
-    await twoFactorAuthLib.validateToken(user, {
-      code: code,
-      type: type,
-    });
+    await twoFactorAuthLib.validateToken(
+      user,
+      {
+        code: code,
+        type: type,
+      },
+      req,
+    );
   } catch (e) {
     return fail(new Unauthorized('Two-factor authentication code failed. Please try again'));
   }

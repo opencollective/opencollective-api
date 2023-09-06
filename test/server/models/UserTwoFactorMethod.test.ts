@@ -17,6 +17,7 @@ describe('server/models/UserTwoFactorMethod', () => {
 
     await UserTwoFactorMethod.create({
       method: TwoFactorMethod.TOTP,
+      name: 'TOTP',
       UserId: user.id,
       data: {
         secret: 'secret',
@@ -25,6 +26,7 @@ describe('server/models/UserTwoFactorMethod', () => {
 
     await UserTwoFactorMethod.create({
       method: TwoFactorMethod.TOTP,
+      name: 'TOTP',
       UserId: user.id,
       data: {
         secret: 'secret',
@@ -33,6 +35,7 @@ describe('server/models/UserTwoFactorMethod', () => {
 
     await UserTwoFactorMethod.create({
       method: TwoFactorMethod.YUBIKEY_OTP,
+      name: 'YUBIKEY_OTP',
       UserId: user.id,
       data: {
         yubikeyDeviceId: 'yubikeyDeviceId',
@@ -49,6 +52,7 @@ describe('server/models/UserTwoFactorMethod', () => {
 
     await UserTwoFactorMethod.create({
       method: TwoFactorMethod.TOTP,
+      name: 'TOTP',
       UserId: user.id,
       data: {
         secret: 'secret',
@@ -57,6 +61,7 @@ describe('server/models/UserTwoFactorMethod', () => {
 
     await UserTwoFactorMethod.create({
       method: TwoFactorMethod.TOTP,
+      name: 'TOTP',
       UserId: user.id,
       data: {
         secret: 'secret',
@@ -65,6 +70,7 @@ describe('server/models/UserTwoFactorMethod', () => {
 
     const toDelete = await UserTwoFactorMethod.create({
       method: TwoFactorMethod.YUBIKEY_OTP,
+      name: 'YUBIKEY_OTP',
       UserId: user.id,
       data: {
         yubikeyDeviceId: 'yubikeyDeviceId',
