@@ -2,6 +2,7 @@ import crypto from 'crypto';
 
 import { Mutex } from 'async-mutex';
 import jwt from 'jsonwebtoken';
+import { keyBy } from 'lodash';
 import moment from 'moment';
 import fetch from 'node-fetch';
 
@@ -56,8 +57,6 @@ let cachedEntriesByAaguid: Record<string, MetadataEntry> = cachedMetadata.entrie
 export async function downloadFidoMetadata(): Promise<Metadata> {
   const fidoAlianceMetadataUrl = 'https://mds3.fidoalliance.org';
 
-  // const response = await axios.get<string>(fidoAlianceMetadataUrl);
-
   const response = await fetch(fidoAlianceMetadataUrl);
   const text = await response.text();
   const decodedMetadataJwt = jwt.decode(text, { complete: true });
@@ -79,20 +78,9 @@ export async function updateCachedFidoMetadata() {
 
       const newMetadata = await downloadFidoMetadata();
       nextUpdate = newMetadata.nextUpdate;
-      cachedEntriesByAaguid = newMetadata.entries.reduce(
-        (acc, current) => {
-          if (!current.aaguid) {
-            return acc;
-          }
-
-          return {
-            ...acc,
-            [current.aaguid]: {
-              ...current,
-            },
-          };
-        },
-        {} as Record<string, MetadataEntry>,
+      cachedEntriesByAaguid = keyBy(
+        newMetadata.entries.filter(e => e.aaguid),
+        'aaguid',
       );
 
       cachedMetadata = newMetadata;
