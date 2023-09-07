@@ -42,8 +42,46 @@ async function checkHostFeePercent({ fix = false } = {}) {
   }
 }
 
+async function checkPendingHostApplications({ fix = false } = {}) {
+  const message = 'Host Applications with status PENDING but Collective is approved to Host';
+
+  const results = await sequelize.query(
+    `SELECT COUNT(*) AS count
+     FROM "HostApplications"
+     INNER JOIN "Collectives" 
+         ON "Collectives"."id" = "HostApplications"."CollectiveId" 
+         AND "Collectives"."HostCollectiveId" = "HostApplications"."HostCollectiveId"
+         AND "Collectives"."deletedAt" IS NULL
+         AND "Collectives"."approvedAt" IS NOT NULL
+     WHERE "HostApplications"."deletedAt" IS NULL 
+         AND "HostApplications"."status" = 'PENDING';`,
+    { type: sequelize.QueryTypes.SELECT, raw: true },
+  );
+
+  if (results[0].count > 0) {
+    if (!fix) {
+      throw new Error(message);
+    }
+    if (fix) {
+      logger.warn(`Fixing: ${message}`);
+      await sequelize.query(
+        `UPDATE "HostApplications"
+         SET "status" = 'APPROVED'
+         FROM "Collectives"
+         WHERE "Collectives"."id" = "HostApplications"."CollectiveId" 
+             AND "Collectives"."HostCollectiveId" = "HostApplications"."HostCollectiveId"
+             AND "Collectives"."deletedAt" IS NULL
+             AND "Collectives"."approvedAt" IS NOT NULL
+             AND "HostApplications"."deletedAt" IS NULL 
+             AND "HostApplications"."status" = 'PENDING';`,
+      );
+    }
+  }
+}
+
 export async function checkHostedCollectives({ fix = false } = {}) {
   await checkHostFeePercent({ fix });
+  await checkPendingHostApplications({ fix });
 }
 
 if (!module.parent) {
