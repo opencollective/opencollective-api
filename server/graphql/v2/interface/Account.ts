@@ -696,8 +696,7 @@ const accountFieldsDefinition = () => ({
       },
     },
     async resolve(collective, args, req) {
-      const isRoot = req.remoteUser.isRoot();
-      if (!req.remoteUser?.isAdminOfCollective(collective) && !isRoot) {
+      if (!req.remoteUser?.isAdminOfCollective(collective) && !req.remoteUser?.isRoot()) {
         throw new Unauthorized('You need to be logged in as an admin of this collective to see its activity');
       }
 
