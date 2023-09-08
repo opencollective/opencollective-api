@@ -72,7 +72,7 @@ export async function generateRegistrationOptions(user: User, req): Promise<Publ
       },
   );
 
-  const options = simplewebauthn.generateRegistrationOptions({
+  const options = await simplewebauthn.generateRegistrationOptions({
     rpName: config.webauthn.rpName,
     rpID: config.webauthn.rpId,
     userID: idEncode(user.id, IDENTIFIER_TYPES.USER),
@@ -143,7 +143,7 @@ export async function authenticationOptions(user: User, req) {
       },
   );
 
-  const options = simplewebauthn.generateAuthenticationOptions({
+  const options = await simplewebauthn.generateAuthenticationOptions({
     allowCredentials,
     rpID: config.webauthn.rpId,
     userVerification: 'discouraged',
