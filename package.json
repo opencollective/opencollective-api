@@ -83,7 +83,7 @@
     "fs-extra": "11.1.1",
     "get-urls": "10.0.1",
     "gqlmin": "0.1.1",
-    "graphql": "16.8.0",
+    "graphql": "16.8.1",
     "graphql-scalars": "1.22.2",
     "graphql-upload": "15.0.2",
     "handlebars": "4.7.8",
