@@ -1,4 +1,4 @@
-import { GraphQLBoolean, GraphQLInt, GraphQLObjectType } from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLObjectType, GraphQLString } from 'graphql';
 import { get } from 'lodash';
 
 import POLICIES from '../../../constants/policies';
@@ -6,12 +6,17 @@ import { VirtualCardLimitIntervals } from '../../../constants/virtual-cards';
 import { getPolicy } from '../../../lib/policies';
 import { checkScope } from '../../common/scope-check';
 import { GraphQLPolicyApplication } from '../enum/PolicyApplication';
+import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
 import { GraphQLAmount } from './Amount';
 
 export const GraphQLPolicies = new GraphQLObjectType({
   name: 'Policies',
   fields: () => ({
+    id: {
+      type: GraphQLString,
+      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.ACCOUNT),
+    },
     [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: {
       type: new GraphQLObjectType({
         name: POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE,
