@@ -74,7 +74,11 @@ const getFilterDateRange = (startDate, endDate) => {
 };
 
 const getNumberOfDays = (startDate, endDate, host) => {
-  return Math.abs(moment(startDate || host.createdAt).diff(moment(endDate), 'days'));
+  const momentStartDate = startDate && moment(startDate);
+  const momentCreated = moment(host.createdAt);
+  const momentFrom = momentStartDate?.isAfter(momentCreated) ? momentStartDate : momentCreated; // We bound the date range to the host creation date
+  const momentTo = moment(endDate || undefined); // Defaults to Today
+  return Math.abs(momentFrom.diff(momentTo, 'days'));
 };
 
 const getTimeUnit = numberOfDays => {
