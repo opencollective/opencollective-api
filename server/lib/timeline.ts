@@ -138,18 +138,26 @@ const createOrUpdateFeed = async (collective: Collective, sinceId?: number) => {
     };
   });
   const hasActivities = !isEmpty(activities);
-  debug(`Generated timeline for ${collective.slug} with ${activities.length} activities`);
-  await redis.zAdd(cacheKey, hasActivities ? activities : [{ score: 0, value: EMPTY_FLAG }]);
-  // Set initial TTL or bump existing Cache TTL
-  await redis.expire(cacheKey, hasActivities ? TTL : 60);
 
-  // Trim the cache if updating with new activities
-  if (sinceId) {
+  debug(`${sinceId ? 'Updated' : 'Generated'} timeline for ${collective.slug} with ${activities.length} activities`);
+  // If not updating the cache, add new activities or add an EMPTY_FLAG
+  if (!sinceId) {
+    await redis.zAdd(cacheKey, hasActivities ? activities : [{ score: 0, value: EMPTY_FLAG }]);
+    // Set initial TTL or set EMPTY_FLAG duration to 1 minute
+    await redis.expire(cacheKey, hasActivities ? TTL : 60);
+  }
+  // If we're updating the cache, make sure we only add activities and bump the TTL if there are any
+  else if (sinceId && hasActivities) {
+    // Add new activities to the cache and bump TTL
+    await redis.zAdd(cacheKey, activities);
+    await redis.expire(cacheKey, TTL);
+    // Trim the cache if updating with new activities
     const count = await redis.zCount(cacheKey, '0', '+inf');
     if (count > FEED_LIMIT) {
       await redis.zRemRangeByRank(cacheKey, 0, count - FEED_LIMIT - 1);
     }
   }
+
   stopWatch();
 };
 
