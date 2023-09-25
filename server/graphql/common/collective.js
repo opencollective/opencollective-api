@@ -42,7 +42,7 @@ async function sendMessage({ req, collective, args, isGqlV2 }) {
     throw new NotFound(`${isGqlV2 ? 'Account' : 'Collective'} not found`);
   }
 
-  if (!(await collective.canContact())) {
+  if (!collective.canContact()) {
     throw new Unauthorized(`You can't contact this ${isGqlV2 ? 'account' : 'collective'}`);
   }
 

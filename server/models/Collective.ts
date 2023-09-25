@@ -1175,13 +1175,13 @@ class Collective extends Model<
   /**
    *  Checks if the collective can be contacted.
    */
-  canContact = async function () {
+  canContact = function () {
     if (!this.isActive) {
       return false;
     } else if (hasOptedOutOfFeature(this, FEATURE.CONTACT_FORM)) {
       return false;
     } else {
-      return isFeatureAllowedForCollectiveType(this.type, FEATURE.CONTACT_FORM) || (await this.isHost());
+      return isFeatureAllowedForCollectiveType(this.type, FEATURE.CONTACT_FORM) || this.isHostAccount;
     }
   };
 
