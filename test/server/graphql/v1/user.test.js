@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
+import gqlV2 from 'fake-tag';
 import { describe, it } from 'mocha';
 import { createSandbox } from 'sinon';
 
@@ -7,6 +8,24 @@ import * as payments from '../../../../server/lib/payments';
 import models from '../../../../server/models';
 import * as store from '../../../stores';
 import * as utils from '../../../utils';
+
+const TIER_QUERY = gqlV2/** GraphQL */ `
+  query Tier($id: Int!) {
+    tier(tier: {legacyId: $id}) {
+      id
+      name
+      orders {
+        nodes {
+          id
+          description
+          paymentMethod {
+            name
+          }
+        }
+      }
+    }
+  }
+`;
 
 describe('server/graphql/v1/user', () => {
   let user1, user2, host, collective1, collective2, tier1, ticket1, sandbox;
@@ -199,32 +218,14 @@ describe('server/graphql/v1/user', () => {
           remoteUser,
         );
 
-        const tierQuery = gql`
-          query Tier($id: Int!) {
-            Tier(id: $id) {
-              id
-              name
-              orders {
-                id
-                description
-                createdByUser {
-                  id
-                }
-                paymentMethod {
-                  name
-                }
-              }
-            }
-          }
-        `;
-        const result = await utils.graphqlQuery(tierQuery, { id: ticket1.id });
+        const result = await utils.graphqlQueryV2(TIER_QUERY, { id: ticket1.id });
         result.errors && console.error(result.errors);
-        const orders = result.data.Tier.orders;
+        const orders = result.data.tier.orders.nodes;
         expect(orders).to.have.length(1);
         expect(orders[0].paymentMethod).to.be.null;
-        const result2 = await utils.graphqlQuery(tierQuery, { id: ticket1.id }, user2);
+        const result2 = await utils.graphqlQueryV2(TIER_QUERY, { id: ticket1.id }, user2);
         result2.errors && console.error(result2.errors);
-        const orders2 = result2.data.Tier.orders;
+        const orders2 = result2.data.tier.orders.nodes;
         expect(orders2).to.have.length(1);
         expect(orders2[0].paymentMethod).to.be.null;
       });
@@ -242,26 +243,9 @@ describe('server/graphql/v1/user', () => {
         await utils.graphqlQuery(createOrderMutation, { order }, user1);
         await models.PaymentMethod.update({ confirmedAt: new Date() }, { where: { CreatedByUserId: user1.id } });
 
-        const tierQuery = gql`
-          query Tier($id: Int!) {
-            Tier(id: $id) {
-              name
-              orders {
-                id
-                description
-                createdByUser {
-                  id
-                }
-                paymentMethod {
-                  name
-                }
-              }
-            }
-          }
-        `;
-        const result = await utils.graphqlQuery(tierQuery, { id: tier1.id }, user1);
+        const result = await utils.graphqlQueryV2(TIER_QUERY, { id: tier1.id }, user1);
         result.errors && console.error(result.errors);
-        const orders = result.data.Tier.orders;
+        const orders = result.data.tier.orders.nodes;
         expect(orders).to.have.length(1);
         expect(orders[0].paymentMethod.name).to.equal('4242');
       });

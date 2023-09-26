@@ -29,7 +29,6 @@ import models, { Op, sequelize } from '../../models';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import * as commonComment from '../common/comment';
 import { canSeeExpenseAttachments, canSeeExpensePayoutMethod } from '../common/expenses';
-import { canSeeUpdate } from '../common/update';
 import { hasSeenLatestChangelogEntry } from '../common/user';
 import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
 
@@ -90,25 +89,6 @@ export const PayoutMethodTypeEnum = new GraphQLEnumType({
   values: Object.keys(PayoutMethodTypes).reduce((values, key) => {
     return { ...values, [key]: { value: PayoutMethodTypes[key] } };
   }, {}),
-});
-
-export const UpdateAudienceTypeEnum = new GraphQLEnumType({
-  name: 'UpdateAudienceTypeEnum',
-  description: 'Defines targets for an update',
-  values: {
-    ALL: {
-      description: 'Will be sent to collective admins and financial contributors',
-    },
-    COLLECTIVE_ADMINS: {
-      description: 'Will be sent to collective admins',
-    },
-    FINANCIAL_CONTRIBUTORS: {
-      description: 'Will be sent to financial contributors',
-    },
-    NO_ONE: {
-      description: 'Will be sent to no one',
-    },
-  },
 });
 
 export const PayoutMethodType = new GraphQLObjectType({
@@ -884,145 +864,6 @@ export const ExpenseType = new GraphQLObjectType({
   },
 });
 
-export const UpdateType = new GraphQLObjectType({
-  name: 'UpdateType',
-  description: 'This represents an Update',
-  deprecationReason: '2022-09-09: Updates moved to GQLV2',
-  fields: () => {
-    return {
-      id: {
-        type: GraphQLInt,
-        resolve(expense) {
-          return expense.id;
-        },
-      },
-      views: {
-        type: GraphQLInt,
-        resolve(update) {
-          return update.views;
-        },
-      },
-      slug: {
-        type: GraphQLString,
-        resolve(update) {
-          return update.slug;
-        },
-      },
-      image: {
-        type: GraphQLString,
-        resolve(update) {
-          return update.image;
-        },
-      },
-      isPrivate: {
-        type: GraphQLBoolean,
-        resolve(update) {
-          return update.isPrivate;
-        },
-      },
-      isChangelog: {
-        type: new GraphQLNonNull(GraphQLBoolean),
-        resolve(update) {
-          return update.isChangelog;
-        },
-      },
-      notificationAudience: {
-        type: UpdateAudienceTypeEnum,
-        resolve(update) {
-          return update.notificationAudience;
-        },
-      },
-      makePublicOn: {
-        type: IsoDateString,
-        resolve(update) {
-          return update.makePublicOn;
-        },
-      },
-      userCanSeeUpdate: {
-        description: 'Indicates whether or not the user is allowed to see the content of this update',
-        type: GraphQLBoolean,
-        async resolve(update, _, req) {
-          return canSeeUpdate(update, req);
-        },
-      },
-      title: {
-        type: GraphQLString,
-        resolve(update) {
-          return update.title;
-        },
-      },
-      createdAt: {
-        type: DateString,
-        resolve(update) {
-          return update.createdAt;
-        },
-      },
-      updatedAt: {
-        type: DateString,
-        resolve(update) {
-          return update.updatedAt;
-        },
-      },
-      publishedAt: {
-        type: DateString,
-        resolve(update) {
-          return update.publishedAt;
-        },
-      },
-      summary: {
-        type: GraphQLString,
-        async resolve(update, _, req) {
-          if (!(await canSeeUpdate(update, req))) {
-            return null;
-          } else {
-            return update.summary || '';
-          }
-        },
-      },
-      html: {
-        type: GraphQLString,
-        async resolve(update, _, req) {
-          if (!(await canSeeUpdate(update, req))) {
-            return null;
-          } else {
-            return update.html;
-          }
-        },
-      },
-      tags: {
-        type: new GraphQLList(GraphQLString),
-        resolve(update) {
-          return update.tags;
-        },
-      },
-      createdByUser: {
-        type: UserType,
-        resolve(update) {
-          return update.getUser();
-        },
-      },
-      fromCollective: {
-        type: CollectiveInterfaceType,
-        resolve(update, args, req) {
-          return req.loaders.Collective.byId.load(update.FromCollectiveId);
-        },
-      },
-      collective: {
-        type: CollectiveInterfaceType,
-        resolve(update, args, req) {
-          return req.loaders.Collective.byId.load(update.CollectiveId);
-        },
-      },
-      tier: {
-        type: TierType,
-        resolve(update, args, req) {
-          return req.loaders.Tier.byId.load(update.TierId);
-        },
-      },
-    };
-  },
-});
-
 export const CommentType = new GraphQLObjectType({
   name: 'CommentType',
   description: 'This represents a Comment',
@@ -1068,14 +909,6 @@ export const CommentType = new GraphQLObjectType({
         resolve(comment) {
           if (comment.ExpenseId) {
             return models.Expense.findByPk(comment.ExpenseId);
-          }
-        },
-      },
-      update: {
-        type: UpdateType,
-        resolve(comment) {
-          if (comment.UpdateId) {
-            return models.Update.findByPk(comment.UpdateId);
           }
         },
       },
