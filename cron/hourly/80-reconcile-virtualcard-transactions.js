@@ -2,7 +2,7 @@
 import '../../server/env';
 
 import config from 'config';
-import { omit } from 'lodash';
+import { compact, omit } from 'lodash';
 import Stripe from 'stripe';
 
 import { Service as ConnectedAccountServices } from '../../server/constants/connected_account';
@@ -24,13 +24,14 @@ async function reconcileConnectedAccount(connectedAccount) {
       if (card.provider === 'STRIPE') {
         logger.info(`\nReconciling card ${card.id}: fetching STRIPE transactions`);
 
-        const synchronizedTransactionIds = await models.Expense.findAll({
+        const expenses = await models.Expense.findAll({
           where: {
             VirtualCardId: card.id,
             status: 'PAID',
           },
-        }).then(expenses =>
-          expenses.map(expense => expense.data?.transactionId).filter(transactionId => !!transactionId),
+        });
+        const synchronizedTransactionIds = compact(
+          expenses.map(expense => expense.data?.transactionId || expense.data?.refundTransactionId),
         );
 
         const stripe = Stripe(host.slug === 'opencollective' ? config.stripe.secret : connectedAccount.token);
