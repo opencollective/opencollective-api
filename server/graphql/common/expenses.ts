@@ -1397,7 +1397,7 @@ export const isAccountHolderNameAndLegalNameMatch = (accountHolderName: string, 
   );
 };
 
-export async function editExpenseDraft(
+export async function submitExpenseDraft(
   req: express.Request,
   expenseData: ExpenseData,
   { args }: { args?: Record<string, any> } = {},
@@ -1450,6 +1450,47 @@ export async function editExpenseDraft(
   });
 
   return existingExpense;
+}
+
+export const DRAFT_EXPENSE_FIELDS = [
+  'description',
+  'longDescription',
+  'tags',
+  'type',
+  'privateMessage',
+  'invoiceInfo',
+] as const;
+
+export async function editExpenseDraft(req: express.Request, expenseData: ExpenseData) {
+  const existingExpense = await models.Expense.findByPk(expenseData.id, {
+    include: [
+      { model: models.Collective, as: 'collective' },
+      { model: models.Collective, as: 'fromCollective' },
+    ],
+  });
+  if (!existingExpense) {
+    throw new NotFound('Expense not found.');
+  }
+
+  if (existingExpense.status !== statuses.DRAFT) {
+    throw new Unauthorized('Expense can not be edited.');
+  }
+  if (!req.remoteUser || !(await req.remoteUser.isAdminOfCollective(existingExpense.fromCollective))) {
+    throw new Unauthorized('Only the author of the draft can edit it');
+  }
+
+  return await existingExpense.update({
+    ...pick(expenseData, DRAFT_EXPENSE_FIELDS),
+    amount: computeTotalAmountForExpense(expenseData.items, expenseData.tax),
+    lastEditedById: req.remoteUser.id,
+    UserId: req.remoteUser.id,
+    data: {
+      ...existingExpense.data,
+      items: expenseData.items,
+      taxes: expenseData.tax,
+      attachedFiles: expenseData.attachedFiles,
+    },
+  });
 }
 
 export async function editExpense(req: express.Request, expenseData: ExpenseData, options = {}): Promise<Expense> {

@@ -28,6 +28,7 @@ import {
   canVerifyDraftExpense,
   computeTotalAmountForExpense,
   createExpense,
+  DRAFT_EXPENSE_FIELDS,
   editExpense,
   editExpenseDraft,
   holdExpense,
@@ -39,6 +40,7 @@ import {
   releaseExpense,
   requestExpenseReApproval,
   scheduleExpenseForPayment,
+  submitExpenseDraft,
   unapproveExpense,
   unscheduleExpensePayment,
 } from '../../common/expenses';
@@ -140,6 +142,8 @@ const expenseMutations = {
       const expense = args.expense;
       const payeeExists = expense.payee?.id || expense.payee?.legacyId;
 
+      const existingExpense = await fetchExpenseWithReference(expense, { loaders: req.loaders, throwIfMissing: true });
+
       const expenseData = {
         id: idDecode(expense.id, IDENTIFIER_TYPES.EXPENSE),
         description: expense.description,
@@ -173,7 +177,9 @@ const expenseMutations = {
       };
 
       if (args.draftKey) {
-        return editExpenseDraft(req, expenseData, { args });
+        return submitExpenseDraft(req, expenseData, { args });
+      } else if (existingExpense.status === expenseStatus.DRAFT) {
+        return editExpenseDraft(req, expenseData);
       }
 
       return editExpense(req, expenseData);
@@ -408,7 +414,6 @@ const expenseMutations = {
       }
 
       const draftKey = process.env.OC_ENV === 'e2e' || process.env.OC_ENV === 'ci' ? 'draft-key' : uuid();
-      const expenseFields = ['description', 'longDescription', 'tags', 'type', 'privateMessage', 'invoiceInfo'];
 
       const fromCollective = await remoteUser.getCollective({ loaders: req.loaders });
       const payeeLegacyId = expenseData.payee?.legacyId || expenseData.payee?.id;
@@ -416,7 +421,7 @@ const expenseMutations = {
         ? (await fetchAccountWithReference({ legacyId: payeeLegacyId }, { throwIfMissing: true }))?.minimal
         : expenseData.payee;
       const expense = await models.Expense.create({
-        ...pick(expenseData, expenseFields),
+        ...pick(expenseData, DRAFT_EXPENSE_FIELDS),
         CollectiveId: collective.id,
         FromCollectiveId: fromCollective.id,
         lastEditedById: remoteUser.id,
