@@ -306,10 +306,10 @@ const approveApplication = async (host, collective, req) => {
     });
 
     // Convert all active tiers to host currency
-    const tiers = await models.Tier.findAll({ where: { CollectiveId: collective.id, deletedAt: null }, transaction });
-    tiers.map(tier => {
-      tier.update({ currency: host.currency }, { transaction });
-    });
+    await models.Tier.update(
+      { currency: host.currency },
+      { where: { CollectiveId: collective.id }, validate: false, transaction },
+    );
 
     // Approve the collective
     await collective.update(newAccountData, { transaction });
