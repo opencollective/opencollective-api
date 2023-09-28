@@ -706,7 +706,8 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
     });
 
     describe('DRAFT', () => {
-      it('lets another user edit and submit a draft if the right key is provided', async () => {
+      it('allows a logged in user to submit a DRAFT intended for them', async () => {
+        const anotherUser = await fakeUser();
         const collective = await fakeCollective({ currency: 'EUR', settings: { VAT: { type: 'OWN' } } });
         const expense = await fakeExpense({
           status: expenseStatus.DRAFT,
@@ -717,39 +718,34 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
             draftKey: 'fake-key',
             customData: { customField: 'customValue' },
             taxes: [{ type: 'VAT', rate: 0.055 }],
+            payee: anotherUser.collective.minimal,
           },
         });
-        const anotherUser = await fakeUser();
 
         const updatedExpenseData = {
           id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
           description: 'This is a test.',
           payee: {
-            legacyId: anotherUser.id,
+            legacyId: anotherUser.collective.id,
           },
         };
-
-        const { errors } = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, anotherUser);
-        expect(errors).to.exist;
-        expect(errors[0]).to.have.nested.property('extensions.code', 'Unauthorized');
 
         const result = await graphqlQueryV2(
           editExpenseMutation,
           {
             expense: updatedExpenseData,
-            draftKey: 'fake-key',
           },
           anotherUser,
         );
         result.errors && console.error(result.errors);
         expect(result.errors).to.not.exist;
         expect(result.data.editExpense.description).to.equal(updatedExpenseData.description);
-        expect(result.data.editExpense.payee.legacyId).to.equal(anotherUser.id);
+        expect(result.data.editExpense.payee.legacyId).to.equal(anotherUser.collective.id);
         expect(result.data.editExpense.customData).to.deep.equal(expense.data.customData);
         expect(result.data.editExpense.taxes).to.deep.equal([{ id: 'VAT', type: 'VAT', rate: 0.055 }]);
       });
 
-      it('creates new user and organization if draft payee does not exist', async () => {
+      it('allows a new user/organization to submit the DRAFT if the draft key is provided', async () => {
         const expense = await fakeExpense({ data: { draftKey: 'fake-key' }, status: expenseStatus.DRAFT });
         const anotherUser = await fakeUser();
 
@@ -788,7 +784,46 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(user).to.exist;
       });
 
-      it('can be edited by fiscal-host admin and/or original author', async () => {
+      it('allows the original user to submit a recurring expense', async () => {
+        const collective = await fakeCollective({ currency: 'EUR', settings: { VAT: { type: 'OWN' } } });
+        const author = await fakeUser();
+        const expense = await fakeExpense({
+          status: expenseStatus.DRAFT,
+          type: ExpenseTypes.INVOICE,
+          description: 'June Invoice',
+          currency: 'USD',
+          CollectiveId: collective.id,
+          FromCollectiveId: author.CollectiveId,
+          UserId: author.id,
+          lastEditedById: author.id,
+        });
+        await models.RecurringExpense.createFromExpense(expense, 'month');
+
+        const updatedExpenseData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          description: 'July Invoice',
+          payee: { legacyId: author.CollectiveId },
+          items: [
+            {
+              amount: 10000,
+              incurredAt: '2023-09-26T00:00:00.000Z',
+              description: 'Item 1',
+            },
+          ],
+        };
+
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, author);
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+
+        await expense.reload();
+        expect(expense.status).to.equal(expenseStatus.PENDING);
+        expect(expense.description).to.equal(updatedExpenseData.description);
+        expect(expense.amount).to.equal(10000);
+        expect(expense.FromCollectiveId).to.equal(author.CollectiveId);
+      });
+
+      it('allows invited DRAFT to be edited by original author', async () => {
         const collective = await fakeCollective({ currency: 'EUR', settings: { VAT: { type: 'OWN' } } });
         const draftAuthor = await fakeUser();
         const payee = await fakeUser();
@@ -811,6 +846,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
           description: 'This is a test.',
           invoiceInfo: 'This is an invoice',
+          payee: { legacyId: payee.collective.id },
           tags: ['newtag'],
           items: [
             {

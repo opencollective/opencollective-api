@@ -1400,25 +1400,39 @@ export const isAccountHolderNameAndLegalNameMatch = (accountHolderName: string, 
 export async function submitExpenseDraft(
   req: express.Request,
   expenseData: ExpenseData,
-  { args }: { args?: Record<string, any> } = {},
+  {
+    args,
+    requestedPayee,
+    originalPayee,
+  }: { args?: Record<string, any>; originalPayee?: Collective; requestedPayee?: Collective } = {},
 ) {
   // It is a submit on behalf being completed
   let existingExpense = await models.Expense.findByPk(expenseData.id, {
-    include: [{ model: models.Collective, as: 'collective' }],
+    include: [
+      { model: models.Collective, as: 'collective' },
+      { model: models.Collective, as: 'fromCollective' },
+    ],
   });
+
   if (!existingExpense) {
     throw new NotFound('Expense not found.');
   }
   if (existingExpense.status !== statuses.DRAFT) {
     throw new Unauthorized('Expense can not be edited.');
   }
-  if (existingExpense.data.draftKey !== args.draftKey) {
+
+  const userIsOriginalPayee = originalPayee && req.remoteUser?.isAdminOfCollective(originalPayee);
+  const userIsAuthor = req.remoteUser?.id === existingExpense.UserId;
+  if (existingExpense.data?.draftKey !== args.draftKey && !userIsOriginalPayee && !userIsAuthor) {
     throw new Unauthorized('You need to submit the right draft key to edit this expense');
   }
 
-  const payeeExists = args.expense.payee?.id || args.expense.payee?.legacyId;
   const options = { overrideRemoteUser: undefined, skipPermissionCheck: true };
-  if (!payeeExists) {
+  if (requestedPayee) {
+    if (!req.remoteUser?.isAdminOfCollective(requestedPayee)) {
+      throw new Unauthorized('User needs to be the admin of the payee to submit an expense on their behalf');
+    }
+  } else {
     const { organization: organizationData, ...payee } = args.expense.payee;
     const { user, organization } = await createUser(
       {
@@ -1462,12 +1476,7 @@ export const DRAFT_EXPENSE_FIELDS = [
 ] as const;
 
 export async function editExpenseDraft(req: express.Request, expenseData: ExpenseData) {
-  const existingExpense = await models.Expense.findByPk(expenseData.id, {
-    include: [
-      { model: models.Collective, as: 'collective' },
-      { model: models.Collective, as: 'fromCollective' },
-    ],
-  });
+  const existingExpense = await models.Expense.findByPk(expenseData.id);
   if (!existingExpense) {
     throw new NotFound('Expense not found.');
   }
@@ -1475,7 +1484,7 @@ export async function editExpenseDraft(req: express.Request, expenseData: Expens
   if (existingExpense.status !== statuses.DRAFT) {
     throw new Unauthorized('Expense can not be edited.');
   }
-  if (!req.remoteUser || !(await req.remoteUser.isAdminOfCollective(existingExpense.fromCollective))) {
+  if (!req.remoteUser || req.remoteUser?.id !== existingExpense.UserId) {
     throw new Unauthorized('Only the author of the draft can edit it');
   }
 
