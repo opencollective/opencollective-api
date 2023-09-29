@@ -311,6 +311,18 @@ const approveApplication = async (host, collective, req) => {
       { where: { CollectiveId: collective.id }, validate: false, transaction },
     );
 
+    // Convert all active tiers of child collectives to host currency
+    const childCollectives = await models.Collective.findAll({
+      where: { ParentCollectiveId: collective.id },
+      transaction,
+    });
+    childCollectives.map(childCollective => {
+      models.Tier.update(
+        { currency: host.currency },
+        { where: { CollectiveId: childCollective.id }, validate: false, transaction },
+      );
+    });
+
     // Approve the collective
     await collective.update(newAccountData, { transaction });
   });
