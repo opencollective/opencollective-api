@@ -21,6 +21,7 @@ import {
   fakeMember,
   fakeOrder,
   fakeProject,
+  fakeTier,
   fakeTransaction,
   fakeUser,
   fakeVirtualCard,
@@ -118,7 +119,15 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
   });
 
   describe('processHostApplication', () => {
-    let host, collective, hostAdmin, application, collectiveAdmin, sandbox, children, sendEmailSpy;
+    let host,
+      collective,
+      hostAdmin,
+      application,
+      collectiveAdmin,
+      sandbox,
+      children,
+      sendEmailSpy,
+      tiersInDifferentCurrency;
     const callProcessAction = (params, loggedInUser = null) => {
       return graphqlQueryV2(
         PROCESS_HOST_APPLICATION_MUTATION,
@@ -153,6 +162,10 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
         HostCollectiveId: host.id,
         status: 'PENDING',
       });
+      tiersInDifferentCurrency = await Promise.all([
+        fakeTier({ CollectiveId: collective.id, currency: 'ZWL' }),
+        ...children.map(child => fakeTier({ CollectiveId: child.id, currency: 'ZWL' })),
+      ]);
     });
 
     after(() => {
@@ -233,6 +246,12 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
         for (const child of resultData.account.childrenAccounts.nodes) {
           expect(child.host.slug).to.eq(host.slug);
           expect(child.currency).to.eq(host.currency);
+        }
+
+        // Ensure all tiers are converted to the host's currency
+        for (const tier of tiersInDifferentCurrency) {
+          await tier.reload();
+          expect(tier.currency).to.eq(host.currency);
         }
 
         // Ensure application gets updated
