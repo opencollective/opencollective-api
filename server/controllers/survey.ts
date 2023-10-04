@@ -22,6 +22,10 @@ export async function sendInAppSurveyResponse(
     return next(new errors.BadRequest('Missing survey response id'));
   }
   const CODA_TOKEN = process.env.CODA_IN_APP_SURVEY_TOKEN;
+
+  if (!CODA_TOKEN) {
+    return next(new errors.ServerError('Missing CODA_IN_APP_SURVEY_TOKEN'));
+  }
   const CODA_DOC_ID = 'nHLKv7oLV0';
   const CODA_TABLE_ID = 'grid-MhR5NN0eU6';
   const COLUMNS = {
