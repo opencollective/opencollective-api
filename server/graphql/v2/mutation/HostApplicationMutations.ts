@@ -15,7 +15,7 @@ import { OSCValidator, ValidatedRepositoryInfo } from '../../../lib/osc-validato
 import { getPolicy, hasPolicy } from '../../../lib/policies';
 import { stripHTML } from '../../../lib/sanitize-html';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models, { sequelize } from '../../../models';
+import models, { Op, sequelize } from '../../../models';
 import ConversationModel from '../../../models/Conversation';
 import { HostApplicationStatus } from '../../../models/HostApplication';
 import { processInviteMembersInput } from '../../common/members';
@@ -304,6 +304,20 @@ const approveApplication = async (host, collective, req) => {
       hooks: false,
       transaction,
     });
+
+    // Convert all active tiers to host currency
+    const children = await collective.getChildren({ attributes: ['id'] });
+    await models.Tier.update(
+      { currency: host.currency },
+      {
+        validate: false,
+        transaction,
+        where: {
+          CollectiveId: [collective.id, ...children.map(c => c.id)],
+          currency: { [Op.not]: host.currency },
+        },
+      },
+    );
 
     // Approve the collective
     await collective.update(newAccountData, { transaction });
