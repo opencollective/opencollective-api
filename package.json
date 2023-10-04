@@ -136,7 +136,7 @@
     "uuid": "9.0.1",
     "validator": "13.11.0",
     "winston": "3.10.0",
-    "zod": "3.22.3"
+    "zod": "3.22.4"
   },
   "devDependencies": {
     "@babel/cli": "^7.22.5",
