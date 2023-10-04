@@ -265,7 +265,7 @@ const orderMutations = {
         throw new NotFound('Recurring contribution not found');
       }
 
-      if (!req.remoteUser.isAdminOfCollective(order.fromCollective)) {
+      if (!req.remoteUser.isAdminOfCollective(order.fromCollective) && !req.remoteUser.isRoot()) {
         throw new Unauthorized("You don't have permission to cancel this recurring contribution");
       } else if (!order.Subscription?.isActive && order.status === OrderStatuses.CANCELLED) {
         throw new Error('Recurring contribution already canceled');
@@ -347,7 +347,7 @@ const orderMutations = {
 
       if (!order) {
         throw new ValidationFailed('This order does not seem to exist');
-      } else if (!req.remoteUser.isAdminOfCollective(order.fromCollective)) {
+      } else if (!req.remoteUser.isAdminOfCollective(order.fromCollective) && !req.remoteUser.isRoot()) {
         throw new Unauthorized("You don't have permission to update this order");
       } else if (!order.Subscription.isActive) {
         throw new Error('Order must be active to be updated');
