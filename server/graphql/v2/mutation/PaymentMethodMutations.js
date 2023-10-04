@@ -58,7 +58,7 @@ const addCreditCard = {
     checkRemoteUserCanUseOrders(req);
 
     const collective = await fetchAccountWithReference(args.account, { throwIfMissing: true });
-    if (!req.remoteUser?.isAdminOfCollective(collective) && !req.remoteUser?.isRoot()) {
+    if (!req.remoteUser?.isAdminOfCollective(collective)) {
       throw new Forbidden(`Must be an admin of ${collective.name}`);
     } else if ((await checkCanUsePaymentMethods(collective)) === FEATURE_STATUS.UNSUPPORTED) {
       throw new Forbidden('This collective cannot use payment methods');
