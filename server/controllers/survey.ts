@@ -6,14 +6,14 @@ export async function sendInAppSurveyResponse(
   req: Request<
     any,
     any,
-    { responseId: string; score: string; text?: string; question: string; activity: string; okToContact?: boolean }
+    { surveyKey: string; responseId: string; score: string; text?: string; okToContact?: boolean }
   >,
   res: Response,
   next,
 ) {
   const {
     remoteUser,
-    body: { score, text, question, activity, okToContact, responseId },
+    body: { surveyKey, responseId, score, text, okToContact },
   } = req;
   if (!remoteUser) {
     return next(new errors.Unauthorized());
@@ -25,12 +25,11 @@ export async function sendInAppSurveyResponse(
   const CODA_DOC_ID = 'nHLKv7oLV0';
   const CODA_TABLE_ID = 'grid-MhR5NN0eU6';
   const COLUMNS = {
-    Question: 'c-ivi1LcQmBv',
-    Experience: 'c-IpWdMM0NdP',
-    TextArea: 'c-yQHg7ZQE1s',
-    AccountSlug: 'c-tJXqDf6PYR',
-    Activity: 'c-hFDJoezlOg',
+    SurveyKey: 'c-hFDJoezlOg',
     ResponseId: 'c-K0P6anONBT',
+    Score: 'c-IpWdMM0NdP',
+    Text: 'c-yQHg7ZQE1s',
+    AccountSlug: 'c-tJXqDf6PYR',
     OkToContact: 'c-hv9_LpI7WD',
     Environment: 'c-QCFYWyH3Dq',
   };
@@ -56,12 +55,11 @@ export async function sendInAppSurveyResponse(
         rows: [
           {
             cells: [
-              { column: COLUMNS.Question, value: question ?? '' },
-              { column: COLUMNS.Experience, value: score ?? '' },
-              { column: COLUMNS.TextArea, value: text ?? '' },
-              { column: COLUMNS.AccountSlug, value: remoteUser.collective.slug },
-              { column: COLUMNS.Activity, value: activity ?? '' },
+              { column: COLUMNS.SurveyKey, value: surveyKey ?? '' },
               { column: COLUMNS.ResponseId, value: responseId ?? '' },
+              { column: COLUMNS.Score, value: score ?? '' },
+              { column: COLUMNS.Text, value: text ?? '' },
+              { column: COLUMNS.AccountSlug, value: remoteUser.collective.slug },
               { column: COLUMNS.OkToContact, value: okToContact ?? false },
               { column: COLUMNS.Environment, value: process.env.NODE_ENV },
             ],
