@@ -566,7 +566,10 @@ Order.cancelActiveOrdersByTierId = function (tierId: number) {
 Order.cancelNonTransferableActiveOrdersByCollectiveId = function (collectiveId: number) {
   return sequelize.query(
     `
-        UPDATE public."Orders" SET status = 'CANCELLED'
+        UPDATE public."Orders"
+        SET
+          status = 'CANCELLED',
+          "updatedAt" = NOW()
         WHERE id IN (
           SELECT "Orders".id FROM public."Orders"
           INNER JOIN public."Subscriptions" ON "Subscriptions".id = "Orders"."SubscriptionId"
