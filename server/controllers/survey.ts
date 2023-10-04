@@ -35,14 +35,16 @@ export async function sendInAppSurveyResponse(
     Environment: 'c-QCFYWyH3Dq',
   };
 
-  const cols = await fetch(`https://coda.io/apis/v1/docs/${CODA_DOC_ID}/tables/${CODA_TABLE_ID}/columns`, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${CODA_TOKEN}`,
-      'Content-Type': 'application/json',
-    },
-  });
-  console.log(await cols.json());
+  // Getting column ids:
+  // const cols = await fetch(`https://coda.io/apis/v1/docs/${CODA_DOC_ID}/tables/${CODA_TABLE_ID}/columns`, {
+  //   method: 'GET',
+  //   headers: {
+  //     Authorization: `Bearer ${CODA_TOKEN}`,
+  //     'Content-Type': 'application/json',
+  //   },
+  // });
+  // console.log(await cols.json());
+
   try {
     await fetch(`https://coda.io/apis/v1/docs/${CODA_DOC_ID}/tables/${CODA_TABLE_ID}/rows`, {
       method: 'POST',
@@ -68,10 +70,8 @@ export async function sendInAppSurveyResponse(
         keyColumns: [COLUMNS.ResponseId],
       }),
     });
-
-    res.send({});
+    res.send({ status: 200 });
   } catch (error) {
-    console.log(error);
-    res.sendStatus(500);
+    next(new errors.ServerError(error));
   }
 }
