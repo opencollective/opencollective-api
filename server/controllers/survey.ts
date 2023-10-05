@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 
 import errors from '../lib/errors';
+import RateLimit, { ONE_HOUR_IN_SECONDS } from '../lib/rate-limit';
 
 export async function sendInAppSurveyResponse(
   req: Request<
@@ -26,6 +27,13 @@ export async function sendInAppSurveyResponse(
   if (!CODA_TOKEN) {
     return next(new errors.ServerError('Missing CODA_IN_APP_SURVEY_TOKEN'));
   }
+
+  const rateLimit = new RateLimit(`survey-response-${remoteUser.id}`, 60, ONE_HOUR_IN_SECONDS);
+
+  if (!(await rateLimit.registerCall())) {
+    return next(new errors.TooManyRequests('Rate limit exceeded', null));
+  }
+
   const CODA_DOC_ID = 'nHLKv7oLV0';
   const CODA_TABLE_ID = 'grid-MhR5NN0eU6';
   const COLUMNS = {
