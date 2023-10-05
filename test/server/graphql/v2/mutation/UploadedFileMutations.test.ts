@@ -152,14 +152,14 @@ describe('server/graphql/v2/mutation/UploadedFileMutations', () => {
               amount: { valueInCents: 65e2, currency: 'USD' },
               confidence: 100,
               date: '2023-08-01',
-              description: 'Render invoice',
+              description: 'TestMerchant invoice',
               items: [
                 {
                   amount: {
                     currency: 'USD',
                     valueInCents: 0,
                   },
-                  description: 'Static Sites - 743h 59m 59s - 1 instance',
+                  description: 'Mocked test item 1',
                   incurredAt: '2023-08-01',
                 },
                 {
@@ -167,7 +167,7 @@ describe('server/graphql/v2/mutation/UploadedFileMutations', () => {
                     currency: 'USD',
                     valueInCents: 3200,
                   },
-                  description: 'Servers - 2,231h 59m 57s - 3 instances',
+                  description: 'Mocked test item 2',
                   incurredAt: '2023-08-01',
                 },
                 {
@@ -175,7 +175,7 @@ describe('server/graphql/v2/mutation/UploadedFileMutations', () => {
                     currency: 'USD',
                     valueInCents: 1400,
                   },
-                  description: 'PostgresDB - 1,487h 59m 58s - 2 instances',
+                  description: 'Mocked test item 3',
                   incurredAt: '2023-08-01',
                 },
                 {
@@ -183,7 +183,7 @@ describe('server/graphql/v2/mutation/UploadedFileMutations', () => {
                     currency: 'USD',
                     valueInCents: 1900,
                   },
-                  description: 'Team Plan - 1 user',
+                  description: 'Mocked test item 4',
                   incurredAt: '2023-08-01',
                 },
               ],
@@ -227,7 +227,7 @@ describe('server/graphql/v2/mutation/UploadedFileMutations', () => {
               amount: { valueInCents: 65e2, currency: 'USD' },
               confidence: 100,
               date: '2023-08-01',
-              description: 'Render invoice',
+              description: 'TestMerchant invoice',
             },
           });
 
@@ -273,7 +273,7 @@ describe('server/graphql/v2/mutation/UploadedFileMutations', () => {
                 amount: { valueInCents: 65e2, currency: 'USD' },
                 confidence: 100,
                 date: '2023-08-01',
-                description: 'Render invoice',
+                description: 'TestMerchant invoice',
               },
             });
           });
@@ -319,7 +319,7 @@ describe('server/graphql/v2/mutation/UploadedFileMutations', () => {
                 amount: { valueInCents: 65e2, currency: 'USD' },
                 confidence: 100,
                 date: '2023-08-01',
-                description: 'Render invoice',
+                description: 'TestMerchant invoice',
               },
             });
           });

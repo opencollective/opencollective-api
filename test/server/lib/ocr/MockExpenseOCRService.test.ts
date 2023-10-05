@@ -8,7 +8,7 @@ describe('server/lib/ocr/MockExpenseOCRService.ts', () => {
       const [result] = await new MockExpenseOCRService().processUrl('https://example.com/image.jpg');
       expect(result).to.containSubset({
         confidence: 100,
-        description: 'Render invoice',
+        description: 'TestMerchant invoice',
         amount: { value: 65e2, currency: 'USD' },
         date: new Date(2023, 7, 1),
       });
@@ -34,7 +34,7 @@ describe('server/lib/ocr/MockExpenseOCRService.ts', () => {
 
       expect(resultInvoice).to.containSubset({
         confidence: 100,
-        description: 'Render invoice',
+        description: 'TestMerchant invoice',
         amount: { value: 65e2, currency: 'USD' },
         date: new Date(2023, 7, 1),
       });
