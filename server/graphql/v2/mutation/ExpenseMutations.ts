@@ -28,6 +28,7 @@ import {
   canVerifyDraftExpense,
   computeTotalAmountForExpense,
   createExpense,
+  DRAFT_EXPENSE_FIELDS,
   editExpense,
   editExpenseDraft,
   holdExpense,
@@ -39,6 +40,7 @@ import {
   releaseExpense,
   requestExpenseReApproval,
   scheduleExpenseForPayment,
+  submitExpenseDraft,
   unapproveExpense,
   unscheduleExpensePayment,
 } from '../../common/expenses';
@@ -135,10 +137,17 @@ const expenseMutations = {
       // NOTE(oauth-scope): Ok for non-authenticated users, we only check scope
       enforceScope(req, 'expenses');
 
+      const getId = (reference: { id?: string | number; legacyId?: number }) => reference?.id || reference?.legacyId;
+
       // Support deprecated `attachments` field
       const items = args.expense.items || args.expense.attachments;
       const expense = args.expense;
-      const payeeExists = expense.payee?.id || expense.payee?.legacyId;
+      const existingExpense = await fetchExpenseWithReference(expense, { loaders: req.loaders, throwIfMissing: true });
+      const requestedPayee =
+        getId(expense.payee) && (await fetchAccountWithReference(expense.payee, { throwIfMissing: false }));
+      const originalPayee =
+        getId(existingExpense.data?.payee) &&
+        (await fetchAccountWithReference(existingExpense.data.payee, { throwIfMissing: false }));
 
       const expenseData = {
         id: idDecode(expense.id, IDENTIFIER_TYPES.EXPENSE),
@@ -169,14 +178,22 @@ const expenseMutations = {
           id: attachedFile.id && idDecode(attachedFile.id, IDENTIFIER_TYPES.EXPENSE_ITEM),
           url: attachedFile.url,
         })),
-        fromCollective: payeeExists && (await fetchAccountWithReference(expense.payee, { throwIfMissing: true })),
+        fromCollective: requestedPayee,
       };
 
-      if (args.draftKey) {
-        return editExpenseDraft(req, expenseData, { args });
+      const userIsOriginalPayee = originalPayee && req.remoteUser?.isAdminOfCollective(originalPayee);
+      const userIsAuthor = req.remoteUser?.id === existingExpense.UserId;
+      const isRecurring = Boolean(existingExpense.RecurringExpenseId);
+      // Draft can be edited by the author of the expense if the expense is not recurring
+      if (!args.draftKey && userIsAuthor && !isRecurring && existingExpense.status === expenseStatus.DRAFT) {
+        return editExpenseDraft(req, expenseData);
       }
-
-      return editExpense(req, expenseData);
+      // Draft can be submitted by: new user with draft-key, payee of the original expense or author of the original expense (in the case of Recurring Expense draft)
+      else if (args.draftKey || userIsOriginalPayee || (userIsAuthor && isRecurring)) {
+        return submitExpenseDraft(req, expenseData, { args, requestedPayee, originalPayee });
+      } else {
+        return editExpense(req, expenseData);
+      }
     },
   },
   deleteExpense: {
@@ -408,7 +425,6 @@ const expenseMutations = {
       }
 
       const draftKey = process.env.OC_ENV === 'e2e' || process.env.OC_ENV === 'ci' ? 'draft-key' : uuid();
-      const expenseFields = ['description', 'longDescription', 'tags', 'type', 'privateMessage', 'invoiceInfo'];
 
       const fromCollective = await remoteUser.getCollective({ loaders: req.loaders });
       const payeeLegacyId = expenseData.payee?.legacyId || expenseData.payee?.id;
@@ -416,7 +432,7 @@ const expenseMutations = {
         ? (await fetchAccountWithReference({ legacyId: payeeLegacyId }, { throwIfMissing: true }))?.minimal
         : expenseData.payee;
       const expense = await models.Expense.create({
-        ...pick(expenseData, expenseFields),
+        ...pick(expenseData, DRAFT_EXPENSE_FIELDS),
         CollectiveId: collective.id,
         FromCollectiveId: fromCollective.id,
         lastEditedById: remoteUser.id,

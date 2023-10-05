@@ -71,6 +71,8 @@ export class RecurringExpense extends Model<RecurringExpenseAttributes, Recurrin
 
     const draftKey = process.env.OC_ENV === 'e2e' || process.env.OC_ENV === 'ci' ? 'draft-key' : uuid();
     const expenseFields = [
+      'amount',
+      'currency',
       'description',
       'longDescription',
       'tags',
@@ -90,8 +92,6 @@ export class RecurringExpense extends Model<RecurringExpenseAttributes, Recurrin
       CollectiveId: this.CollectiveId,
       lastEditedById: expense.UserId,
       incurredAt,
-      amount: expense.amount,
-      currency: expense.currency,
       data: {
         items: expense.items?.map(item => ({ ...pick(item, ['amount', 'description', 'url']), incurredAt })),
         payee: { id: expense.FromCollectiveId },
