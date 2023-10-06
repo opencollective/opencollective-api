@@ -6,8 +6,9 @@ import logger from '../../lib/logger';
 import { getApplicationFee } from '../../lib/payments';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
 import stripe, { convertToStripeAmount } from '../../lib/stripe';
-import models from '../../models';
-import Order from '../../models/Order';
+import { Collective } from '../../models';
+import { OrderModelInterface } from '../../models/Order';
+import { PaymentMethodModelInterface } from '../../models/PaymentMethod';
 import User from '../../models/User';
 
 import {
@@ -27,7 +28,7 @@ const UNKNOWN_ERROR_MSG = 'Something went wrong with the payment, please contact
  */
 const createChargeAndTransactions = async (
   hostStripeAccount,
-  { order, stripePaymentMethod }: { order: typeof Order; stripePaymentMethod: { id: string; customer: string } },
+  { order, stripePaymentMethod }: { order: OrderModelInterface; stripePaymentMethod: { id: string; customer: string } },
 ) => {
   const host = await order.collective.getHostCollective();
   const isPlatformRevenueDirectlyCollected = APPLICATION_FEE_INCOMPATIBLE_CURRENCIES.includes(toUpper(host.currency))
@@ -35,7 +36,7 @@ const createChargeAndTransactions = async (
     : host?.settings?.isPlatformRevenueDirectlyCollected ?? true;
 
   // Compute Application Fee (Shared Revenue + Platform Tip)
-  const applicationFee = await getApplicationFee(order, host);
+  const applicationFee = await getApplicationFee(order, { host });
 
   // Make sure data is available (breaking in some old tests)
   order.data = order.data || {};
@@ -84,7 +85,7 @@ const createChargeAndTransactions = async (
 
   paymentIntent = await stripe.paymentIntents.confirm(
     paymentIntent.id,
-    { payment_method: stripePaymentMethod.id },
+    { payment_method: stripePaymentMethod.id, expand: ['latest_charge'] },
     { stripeAccount: hostStripeAccount.username },
   );
 
@@ -112,15 +113,13 @@ const createChargeAndTransactions = async (
     },
   });
 
-  // Recently, Stripe updated their library and removed the 'charges' property in favor of 'latest_charge',
-  // but this is something that only makes sense in the LatestApiVersion, and that's not the one we're using.
-  const charge = (paymentIntent as any).charges.data[0] as Stripe.Charge;
+  const charge = paymentIntent.latest_charge || ((paymentIntent as any).charges.data[0] as Stripe.Charge);
   return createChargeTransactions(charge, { order });
 };
 
 export const setupCreditCard = async (
-  paymentMethod: typeof models.PaymentMethod,
-  { user, collective }: { user?: User; collective?: typeof models.Collective } = {},
+  paymentMethod: PaymentMethodModelInterface,
+  { user, collective }: { user?: User; collective?: Collective } = {},
 ) => {
   paymentMethod = await attachCardToPlatformCustomer(paymentMethod, collective, user);
 

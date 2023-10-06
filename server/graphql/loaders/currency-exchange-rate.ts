@@ -1,4 +1,3 @@
-import Promise from 'bluebird';
 import DataLoader from 'dataloader';
 import { groupBy, mapValues, uniq } from 'lodash';
 
@@ -12,7 +11,9 @@ interface CurrencyFxRateRequest {
 /**
  * Group requests by `fromCurrency`, since fx rate APIs support having multiple `toCurrency`.
  */
-export const loadFxRatesMap = (requests: CurrencyFxRateRequest[]): Promise<Record<string, Record<string, number>>> => {
+export const loadFxRatesMap = async (
+  requests: CurrencyFxRateRequest[],
+): Promise<Record<string, Record<string, number>>> => {
   // The goal here is to convert a list of requests like this:
   // [{ from: 'USD', to: 'EUR' }, { from: 'USD', to: 'GBP' }, { from: 'EUR', to: 'GBP' }]
   // To a map like this:
@@ -24,11 +25,12 @@ export const loadFxRatesMap = (requests: CurrencyFxRateRequest[]): Promise<Recor
 
   // Fetch FX rates to get a map like:
   // { USD: { EUR: 0.8, GBP: 0.5 }, EUR: { GBP: 0.5 } }
-  return Promise.props(
-    mapValues(conversionsMap, (toCurrencies, fromCurrency) => {
-      return getFxRates(fromCurrency, toCurrencies);
-    }),
-  );
+  const result: Record<string, Record<string, number>> = {};
+  for (const key of Object.keys(conversionsMap)) {
+    const value = conversionsMap[key];
+    result[key] = await getFxRates(key, value);
+  }
+  return result;
 };
 
 export const generateFxRateLoader = (): DataLoader<CurrencyFxRateRequest, number> => {
@@ -44,7 +46,7 @@ export const generateFxRateLoader = (): DataLoader<CurrencyFxRateRequest, number
   );
 };
 
-type ConvertToCurrencyArgs = {
+export type ConvertToCurrencyArgs = {
   amount: number;
   fromCurrency: string;
   toCurrency: string;

@@ -37,6 +37,7 @@
 | GITHUB_CLIENT_SECRET                      | .github.clientSecret                               | github client secret                                                           |
 | TWITTER_CONSUMER_KEY                      | .twitter.consumerKey                               | twitter key                                                                    |
 | TWITTER_CONSUMER_SECRET                   | .twitter.consumerSecret                            | twitter secret                                                                 |
+| TWITTER_DISABLE                           | .twitter.disable                                   | disable twitter integration                                                    |
 | FOREST_AUTH_SECRET                        |                                                    | forest auth secret                                                             |
 | FOREST_ENV_SECRET                         |                                                    | forest environment secret                                                      |
 |                                           | .stripe.redirectUri                                |                                                                                |
@@ -55,3 +56,5 @@
 | TRANSFERWISE_BLOCKED_CURRENCIES           | .transferwise.blockedCurrencies                    |                                                                                |
 | TRANSFERWISE_BLOCKED_CURRENCIES_BUSINESS  | .transferwise.blockedCurrenciesForBusinessProfiles |                                                                                |
 | TRANSFERWISE_BLOCKED_CURRENCIES_NONPROFIT | .transferwise.blockedCurrenciesForNonProfits       |                                                                                |
+| KLIPPA_API_KEY                            | .klippa.apiKey                                     | The API key for Klippa                                                         |
+| KLIPPA_ENABLED                            | .klippa.enabled                                    | Whether Klippa is enabled                                                      |

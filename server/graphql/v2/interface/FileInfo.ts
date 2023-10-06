@@ -31,7 +31,7 @@ export const fileInfoFields = {
   },
 };
 
-export const FileInfo = new GraphQLInterfaceType({
+export const GraphQLFileInfo = new GraphQLInterfaceType({
   name: 'FileInfo',
   description: 'Exposes information about an uploaded file (image, pdf, etc.)',
   fields: () => fileInfoFields,

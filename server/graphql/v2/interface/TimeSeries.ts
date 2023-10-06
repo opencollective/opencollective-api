@@ -1,7 +1,7 @@
 import { GraphQLInterfaceType, GraphQLNonNull } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import { TimeUnit } from '../enum/TimeUnit';
+import { GraphQLTimeUnit } from '../enum/TimeUnit';
 
 export const getTimeSeriesFields = () => ({
   dateFrom: {
@@ -13,12 +13,12 @@ export const getTimeSeriesFields = () => ({
     description: 'The end date of the time series',
   },
   timeUnit: {
-    type: new GraphQLNonNull(TimeUnit),
+    type: new GraphQLNonNull(GraphQLTimeUnit),
     description: 'The interval between two data points',
   },
 });
 
-export const TimeSeries = new GraphQLInterfaceType({
+export const GraphQLTimeSeries = new GraphQLInterfaceType({
   name: 'TimeSeries',
   fields: getTimeSeriesFields,
 });

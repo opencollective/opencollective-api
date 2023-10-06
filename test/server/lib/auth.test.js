@@ -24,7 +24,7 @@ describe('server/lib/auth', () => {
   });
 
   it('should automatically attribute a session id', () => {
-    const token = auth.createJwt('subject', {}, 5);
+    const token = auth.createJwt('subject', { scope: 'session' }, 5);
 
     const decoded = jwt.verify(token, config.keys.opencollective.jwtSecret);
     expect(decoded).to.have.property('sessionId');

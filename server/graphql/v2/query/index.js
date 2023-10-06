@@ -1,5 +1,4 @@
-import models from '../../../models';
-import { Individual } from '../object/Individual';
+import { GraphQLIndividual } from '../object/Individual';
 
 import AccountsCollectionQuery from './collection/AccountsCollectionQuery';
 import ActivitiesCollectionQuery from './collection/ActivitiesCollectionQuery';
@@ -9,6 +8,7 @@ import getOrdersCollectionQuery from './collection/OrdersCollectionQuery';
 import TagStatsCollectionQuery from './collection/TagStatsCollectionQuery';
 import TransactionsCollectionQuery from './collection/TransactionsCollectionQuery';
 import UpdatesCollectionQuery from './collection/UpdatesCollectionQuery';
+import VirtualCardRequestsCollectionQuery from './collection/VirtualCardRequestsCollectionQuery';
 import AccountQuery from './AccountQuery';
 import ApplicationQuery from './ApplicationQuery';
 import CollectiveQuery from './CollectiveQuery';
@@ -25,7 +25,10 @@ import PaypalPlanQuery from './PaypalPlanQuery';
 import PersonalTokenQuery from './PersonalTokenQuery';
 import ProjectQuery from './ProjectQuery';
 import TierQuery from './TierQuery';
+import TransactionQuery from './TransactionQuery';
 import UpdateQuery from './UpdateQuery';
+import VirtualCardQuery from './VirtualCardQuery';
+import VirtualCardRequestQuery from './VirtualCardRequestQuery';
 
 const query = {
   account: AccountQuery,
@@ -48,28 +51,32 @@ const query = {
   project: ProjectQuery,
   tagStats: TagStatsCollectionQuery,
   tier: TierQuery,
+  transaction: TransactionQuery,
   transactions: TransactionsCollectionQuery,
   update: UpdateQuery,
   updates: UpdatesCollectionQuery,
   paypalPlan: PaypalPlanQuery,
   personalToken: PersonalTokenQuery,
+  virtualCard: VirtualCardQuery,
+  virtualCardRequest: VirtualCardRequestQuery,
+  virtualCardRequests: VirtualCardRequestsCollectionQuery,
   loggedInAccount: {
-    type: Individual,
+    type: GraphQLIndividual,
     resolve(_, args, req) {
       if (!req.remoteUser) {
         return null;
       } else {
-        return models.Collective.findByPk(req.remoteUser.CollectiveId);
+        return req.loaders.Collective.byId.load(req.remoteUser.CollectiveId);
       }
     },
   },
   me: {
-    type: Individual,
+    type: GraphQLIndividual,
     resolve(_, args, req) {
       if (!req.remoteUser) {
         return null;
       } else {
-        return models.Collective.findByPk(req.remoteUser.CollectiveId);
+        return req.loaders.Collective.byId.load(req.remoteUser.CollectiveId);
       }
     },
   },

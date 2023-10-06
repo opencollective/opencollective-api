@@ -1,17 +1,24 @@
-import { ApolloError } from 'apollo-server-errors';
 import { Request } from 'express';
-import { isNil } from 'lodash';
+import { isNil, pick } from 'lodash';
 
+import { activities } from '../../constants';
 import POLICIES from '../../constants/policies';
-import { Unauthorized } from '../../graphql/errors';
-import models from '../../models';
+import { ApolloError, Unauthorized } from '../../graphql/errors';
+import { Activity, Collective } from '../../models';
 import User from '../../models/User';
+import UserTwoFactorMethod from '../../models/UserTwoFactorMethod';
 import cache from '../cache';
 import { hasPolicy } from '../policies';
 
+import recoveryCode from './recovery-code';
 import totp from './totp';
+import { TwoFactorMethod } from './two-factor-methods';
+import * as webauthn from './webauthn';
+import yubikeyOTP from './yubikey-otp';
 
-const DEFAULT_TWO_FACTOR_AUTH_SESSION_DURATION = 4 * 60 * 60; // 1 hour
+export { TwoFactorMethod };
+
+const DEFAULT_TWO_FACTOR_AUTH_SESSION_DURATION = 24 * 60 * 60; // 24 hour
 
 type ValidateRequestOptions = {
   // require user configured 2FA
@@ -24,15 +31,20 @@ type ValidateRequestOptions = {
   sessionDuration?: number;
   // identifier for the session, defaults to use the JWT token's session key
   sessionKey?: (() => string) | string;
+  // to document which account requested the 2FA token. Defaults to the user's account
+  FromCollectiveId?: number;
+  // Some additional data to be stored in the activity
+  customData?: Record<string, unknown>;
 };
-
-export enum TwoFactorMethod {
-  TOTP = 'totp',
-}
 
 export const TwoFactorAuthenticationHeader = 'x-two-factor-authentication';
 
-export const SupportedTwoFactorMethods = [TwoFactorMethod.TOTP];
+export const SupportedTwoFactorMethods = [
+  TwoFactorMethod.TOTP,
+  TwoFactorMethod.YUBIKEY_OTP,
+  TwoFactorMethod.RECOVERY_CODE,
+  TwoFactorMethod.WEBAUTHN,
+];
 
 export type Token = {
   type: TwoFactorMethod;
@@ -40,11 +52,15 @@ export type Token = {
 };
 
 export interface TwoFactorAuthProvider {
-  validateToken(user: User, token: Token): Promise<void>;
+  validateToken(user: User, token: Token, req?): Promise<void>;
+  authenticationOptions?(user: User, req): Promise<unknown>;
 }
 
 export const providers: { [method in TwoFactorMethod]: TwoFactorAuthProvider } = {
   [TwoFactorMethod.TOTP]: totp,
+  [TwoFactorMethod.YUBIKEY_OTP]: yubikeyOTP,
+  [TwoFactorMethod.RECOVERY_CODE]: recoveryCode,
+  [TwoFactorMethod.WEBAUTHN]: webauthn,
 };
 
 function getTwoFactorAuthTokenFromRequest(req: Request): Token {
@@ -67,12 +83,12 @@ function getTwoFactorAuthTokenFromRequest(req: Request): Token {
   };
 }
 
-async function validateToken(user: User, token: Token): Promise<void> {
+async function validateToken(user: User, token: Token, req): Promise<void> {
   if (!SupportedTwoFactorMethods.includes(token.type)) {
     throw new Error(`Unsupported 2FA type ${token.type}`);
   }
 
-  return providers[token.type].validateToken(user, token);
+  return providers[token.type].validateToken(user, token, req);
 }
 
 const DefaultValidateRequestOptions: ValidateRequestOptions = {
@@ -108,12 +124,18 @@ async function hasValidTwoFactorSession(
   return true;
 }
 
-async function storeTwoFactorSession(
-  req: Request,
-  options: ValidateRequestOptions = DefaultValidateRequestOptions,
-): Promise<void> {
+async function storeTwoFactorSession(req: Request, options: ValidateRequestOptions = DefaultValidateRequestOptions) {
   const sessionKey = getSessionKey(req, options);
   return cache.set(sessionKey, {}, options.sessionDuration);
+}
+
+function inferContextFromRequest(req: Request) {
+  if (req.isGraphQL && req.body) {
+    const operation = req.body.operationName || 'Request';
+    return `GraphQL: ${operation}`;
+  }
+
+  return 'default';
 }
 
 /**
@@ -132,7 +154,7 @@ async function validateRequest(
 
   const remoteUser = req.remoteUser;
 
-  const userHasTwoFactorAuth = userHasTwoFactorAuthEnabled(remoteUser);
+  const userHasTwoFactorAuth = await userHasTwoFactorAuthEnabled(remoteUser);
   if (options.requireTwoFactorAuthEnabled && !userHasTwoFactorAuth) {
     throw new ApolloError('Two factor authentication must be configured', '2FA_REQUIRED');
   }
@@ -148,51 +170,75 @@ async function validateRequest(
   }
 
   const token = getTwoFactorAuthTokenFromRequest(req);
+
+  // If there's no OAuth token, throw an error that will ask the user to provide one and document
+  // the request through an entry in the `Activities` table.
   if (!token) {
+    Activity.create({
+      type: activities.TWO_FACTOR_CODE_REQUESTED,
+      UserId: remoteUser.id,
+      CollectiveId: remoteUser.CollectiveId,
+      FromCollectiveId: options.FromCollectiveId || remoteUser.CollectiveId,
+      UserTokenId: req.userToken?.id,
+      data: {
+        ip: req.ip,
+        userAgent: req.get('user-agent'),
+        context: inferContextFromRequest(req),
+        ...pick(options, ['alwaysAskForToken', 'sessionDuration', 'customData']),
+      },
+    });
+
+    const supportedMethods = await twoFactorMethodsSupportedByUser(remoteUser);
+    const authenticationOptions: Partial<Record<TwoFactorMethod, unknown>> = {};
+    for (const method of supportedMethods) {
+      if (providers[method].authenticationOptions) {
+        authenticationOptions[method] = await providers[method].authenticationOptions(remoteUser, req);
+      }
+    }
+
     throw new ApolloError('Two-factor authentication required', '2FA_REQUIRED', {
-      supportedMethods: twoFactorMethodsSupportedByUser(req.remoteUser),
+      supportedMethods,
+      authenticationOptions,
     });
   }
 
-  await validateToken(remoteUser, token);
+  await validateToken(remoteUser, token, req);
 
   await storeTwoFactorSession(req, options);
 
   return true;
 }
 
-function twoFactorMethodsSupportedByUser(remoteUser: User): TwoFactorMethod[] {
-  const methods = [];
-  if (remoteUser.twoFactorAuthToken) {
-    methods.push(TwoFactorMethod.TOTP);
+async function twoFactorMethodsSupportedByUser(remoteUser: User): Promise<TwoFactorMethod[]> {
+  const methods = await UserTwoFactorMethod.userMethods(remoteUser.id);
+  if (methods.length > 0) {
+    methods.push(TwoFactorMethod.RECOVERY_CODE);
   }
-
   return methods;
 }
 
-function userHasTwoFactorAuthEnabled(user: User) {
-  return Boolean(user.twoFactorAuthToken);
+async function userHasTwoFactorAuthEnabled(user: User) {
+  const methods = await UserTwoFactorMethod.userMethods(user.id);
+  return methods.length !== 0;
 }
-
 /**
  * Returns true if this request / account should enforce 2FA.
  * The parent account, if any, is always the source of truth
  */
-async function shouldEnforceForAccount(req, account?: typeof models.Collective): Promise<boolean> {
+async function shouldEnforceForAccount(req, account?: Collective): Promise<boolean> {
   return await hasPolicy(account, POLICIES.REQUIRE_2FA_FOR_ADMINS);
 }
 
 /**
- * Enforce 2FA if the remote user is an admin of `account` (or root) and this account has
- * the `REQUIRE_2FA_FOR_ADMINS policy` set on itself or its parent.
+ * Enforce 2FA if enabled on `account` and this account has the `REQUIRE_2FA_FOR_ADMINS policy` set on itself or its parent.
  *
- * Otherwise, this function will still check for 2FA if it's enabled on the user account.
+ * Otherwise, this function will still check for 2FA for root users or if it's already enabled on the user account.
  *
  * @returns true if 2FA was validated, false if not required
  */
-async function enforceForAccountAdmins(
+async function enforceForAccount(
   req: Request,
-  account: typeof models.Collective,
+  account: Collective,
   options: Omit<ValidateRequestOptions, 'requireTwoFactorAuthEnabled'> = undefined,
 ): Promise<boolean | undefined> {
   if (!req.remoteUser) {
@@ -200,17 +246,42 @@ async function enforceForAccountAdmins(
   }
 
   // See if we need to enforce 2FA for admins of this account
-  if (userHasTwoFactorAuthEnabled(req.remoteUser) || (await shouldEnforceForAccount(req, account))) {
-    return validateRequest(req, { ...options, requireTwoFactorAuthEnabled: true });
+  if ((await userHasTwoFactorAuthEnabled(req.remoteUser)) || (await shouldEnforceForAccount(req, account))) {
+    return validateRequest(req, { ...options, requireTwoFactorAuthEnabled: true, FromCollectiveId: account.id });
   }
+}
+
+/**
+ * Enforces 2FA with `enforceForAccount` for accounts user is admin of. Stops as soon as a 2FA verification succeeds.
+ *
+ * @returns true if 2FA was validated, false if not required
+ */
+async function enforceForAccountsUserIsAdminOf(
+  req: Request,
+  accounts: Collective | Array<Collective>,
+  options: Omit<ValidateRequestOptions, 'requireTwoFactorAuthEnabled'> = undefined,
+): Promise<boolean | undefined> {
+  accounts = Array.isArray(accounts) ? accounts : [accounts];
+  for (const account of accounts) {
+    if (req.remoteUser?.isAdminOfCollective(account)) {
+      const result = await enforceForAccount(req, account, options);
+      if (result) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 const twoFactorAuthLib = {
   validateRequest,
-  enforceForAccountAdmins,
+  enforceForAccount,
+  enforceForAccountsUserIsAdminOf,
   validateToken,
   getTwoFactorAuthTokenFromRequest,
   userHasTwoFactorAuthEnabled,
+  twoFactorMethodsSupportedByUser,
 };
 
 export default twoFactorAuthLib;

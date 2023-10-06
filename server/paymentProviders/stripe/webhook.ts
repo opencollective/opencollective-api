@@ -10,7 +10,7 @@ import { v4 as uuid } from 'uuid';
 import { Service } from '../../constants/connected_account';
 import FEATURE from '../../constants/feature';
 import OrderStatuses from '../../constants/order_status';
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
+import { PAYMENT_METHOD_TYPE, PAYMENT_METHOD_TYPES } from '../../constants/paymentMethods';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
@@ -24,18 +24,20 @@ import {
 } from '../../lib/payments';
 import stripe from '../../lib/stripe';
 import models, { sequelize } from '../../models';
+import { OrderModelInterface } from '../../models/Order';
+import { PaymentMethodModelInterface } from '../../models/PaymentMethod';
 
 import { getVirtualCardForTransaction } from './../utils';
-import { createChargeTransactions } from './common';
+import { createChargeTransactions, createPaymentMethod } from './common';
 import * as virtualcard from './virtual-cards';
 
 const debug = debugLib('stripe');
 
 async function createOrUpdateOrderStripePaymentMethod(
-  order: typeof models.Order,
+  order: OrderModelInterface,
   stripeAccount: string,
   paymentIntent: Stripe.PaymentIntent,
-): typeof models.PaymentMethod {
+): Promise<PaymentMethodModelInterface> {
   const stripePaymentMethodId =
     typeof paymentIntent.payment_method === 'string' ? paymentIntent.payment_method : paymentIntent.payment_method?.id;
 
@@ -67,22 +69,21 @@ async function createOrUpdateOrderStripePaymentMethod(
     stripeAccount,
   });
 
-  // new payment method
-  const pm = await models.PaymentMethod.create({
-    type: stripePaymentMethod.type === 'card' ? PAYMENT_METHOD_TYPE.CREDITCARD : stripePaymentMethod.type,
-    service: PAYMENT_METHOD_SERVICE.STRIPE,
-    name: formatPaymentMethodName(stripePaymentMethod),
-    token: stripePaymentMethod.id,
-    customerId: stripePaymentMethod.customer,
-    CreatedByUserId: order.CreatedByUserId,
+  const stripeCustomer = stripePaymentMethod.customer
+    ? typeof stripePaymentMethod.customer === 'string'
+      ? stripePaymentMethod.customer
+      : stripePaymentMethod.customer?.id
+    : typeof paymentIntent.customer === 'string'
+    ? paymentIntent.customer
+    : paymentIntent.customer?.id;
+
+  const pm = await createPaymentMethod({
+    stripeAccount,
+    stripePaymentMethod,
+    stripeCustomer,
+    originPaymentIntent: paymentIntent,
     CollectiveId: order.FromCollectiveId,
-    saved: paymentIntent.setup_future_usage === 'off_session',
-    confirmedAt: new Date(),
-    data: {
-      stripePaymentMethodId: stripePaymentMethod.id,
-      stripeAccount,
-      ...mapStripePaymentMethodExtraData(stripePaymentMethod),
-    },
+    CreatedByUserId: order.CreatedByUserId,
   });
 
   await order.update({
@@ -116,23 +117,23 @@ export const mandateUpdated = async (event: Stripe.Event) => {
         stripeAccount,
       });
 
-      await models.PaymentMethod.create(
+      if (!PAYMENT_METHOD_TYPES.includes(stripePaymentMethod.type as PAYMENT_METHOD_TYPE)) {
+        return;
+      }
+
+      await createPaymentMethod(
         {
-          name: formatPaymentMethodName(stripePaymentMethod),
-          service: PAYMENT_METHOD_SERVICE.STRIPE,
-          type: stripePaymentMethod.type,
-          confirmedAt: new Date(),
-          saved: stripeMandate.type === 'multi_use' && stripeMandate.status !== 'inactive',
-          data: {
-            stripePaymentMethodId: stripePaymentMethod.id,
-            stripeAccount,
-            ...mapStripePaymentMethodExtraData(stripePaymentMethod),
+          stripePaymentMethod,
+          stripeCustomer:
+            typeof stripePaymentMethod.customer === 'string'
+              ? stripePaymentMethod.customer
+              : stripePaymentMethod.customer?.id,
+          stripeAccount,
+          extraData: {
             stripeMandate,
           },
         },
-        {
-          transaction,
-        },
+        { transaction },
       );
 
       return;
@@ -157,7 +158,12 @@ export const mandateUpdated = async (event: Stripe.Event) => {
 export const paymentIntentSucceeded = async (event: Stripe.Event) => {
   const stripeAccount = event.account ?? config.stripe.accountId;
   const paymentIntent = event.data.object as Stripe.PaymentIntent;
-  const charge = (paymentIntent as any).charges.data[0] as Stripe.Charge;
+
+  let charge = paymentIntent.latest_charge || ((paymentIntent as any).charges?.data?.[0] as Stripe.Charge);
+  if (typeof charge === 'string') {
+    charge = await stripe.charges.retrieve(charge, { stripeAccount });
+  }
+
   const order = await models.Order.findOne({
     where: {
       data: { paymentIntent: { id: paymentIntent.id } },
@@ -170,7 +176,7 @@ export const paymentIntentSucceeded = async (event: Stripe.Event) => {
   });
 
   if (!order) {
-    logger.warn(`Stripe Webhook: Could not find Order for Payment Intent ${paymentIntent.id}`);
+    logger.debug(`Stripe Webhook: Could not find Order for Payment Intent ${paymentIntent.id}`);
     return;
   }
 
@@ -185,8 +191,6 @@ export const paymentIntentSucceeded = async (event: Stripe.Event) => {
 
   await createOrUpdateOrderStripePaymentMethod(order, stripeAccount, paymentIntent);
 
-  // Recently, Stripe updated their library and removed the 'charges' property in favor of 'latest_charge',
-  // but this is something that only makes sense in the LatestApiVersion, and that's not the one we're using.
   const transaction = await createChargeTransactions(charge, { order });
 
   // after successful first payment of a recurring subscription where the payment confirmation is async
@@ -227,7 +231,7 @@ export const paymentIntentProcessing = async (event: Stripe.Event) => {
     });
 
     if (!order) {
-      logger.warn(`Stripe Webhook: Could not find Order for Payment Intent ${paymentIntent.id}`);
+      logger.debug(`Stripe Webhook: Could not find Order for Payment Intent ${paymentIntent.id}`);
       return;
     }
 
@@ -246,20 +250,22 @@ export const paymentIntentProcessing = async (event: Stripe.Event) => {
         stripeAccount,
       });
 
-      pm = await models.PaymentMethod.create(
+      const stripeCustomer = stripePaymentMethod.customer
+        ? typeof stripePaymentMethod.customer === 'string'
+          ? stripePaymentMethod.customer
+          : stripePaymentMethod.customer?.id
+        : typeof paymentIntent.customer === 'string'
+        ? paymentIntent.customer
+        : paymentIntent.customer?.id;
+
+      pm = await createPaymentMethod(
         {
-          name: formatPaymentMethodName(stripePaymentMethod),
-          customerId: paymentIntent.customer,
+          stripePaymentMethod,
+          stripeAccount,
+          stripeCustomer,
+          originPaymentIntent: paymentIntent,
           CollectiveId: order.FromCollectiveId,
-          service: PAYMENT_METHOD_SERVICE.STRIPE,
-          type: stripePaymentMethod.type,
-          confirmedAt: new Date(),
-          saved: paymentIntent.setup_future_usage === 'off_session',
-          data: {
-            stripePaymentMethodId: paymentIntent.payment_method,
-            stripeAccount,
-            ...stripePaymentMethod[stripePaymentMethod.type],
-          },
+          CreatedByUserId: order.CreatedByUserId,
         },
         { transaction },
       );
@@ -290,7 +296,7 @@ export const paymentIntentFailed = async (event: Stripe.Event) => {
   });
 
   if (!order) {
-    logger.warn(`Stripe Webhook: Could not find Order for Payment Intent ${paymentIntent.id}`);
+    logger.debug(`Stripe Webhook: Could not find Order for Payment Intent ${paymentIntent.id}`);
     return;
   }
 
@@ -337,7 +343,7 @@ export const chargeDisputeCreated = async (event: Stripe.Event) => {
   });
 
   // Block User from creating any new Orders
-  await user.limitFeature(FEATURE.ORDER);
+  await user.limitFeature(FEATURE.ORDER, `Charge disputed for transaction #${chargeTransaction.id}`);
 
   await Promise.all(
     transactions.map(async transaction => {
@@ -581,9 +587,9 @@ export const reviewClosed = async (event: Stripe.Event) => {
     if (closedReason === 'refunded_as_fraud' || closedReason === 'refunded') {
       if (order.status === OrderStatuses.IN_REVIEW) {
         if (order.SubscriptionId) {
-          await order.update({ status: OrderStatuses.CANCELLED });
+          await order.update({ status: OrderStatuses.CANCELLED, data: { ...order.data, closedReason } });
         } else {
-          await order.update({ status: OrderStatuses.REFUNDED });
+          await order.update({ status: OrderStatuses.REFUNDED, data: { ...order.data, closedReason } });
         }
       }
 
@@ -603,7 +609,10 @@ export const reviewClosed = async (event: Stripe.Event) => {
 
       // charge review was determined to be fraudulent
       if (closedReason === 'refunded_as_fraud') {
-        await user.limitFeature(FEATURE.ORDER);
+        await user.limitFeature(
+          FEATURE.ORDER,
+          `Transactions for group #${paymentIntentTransaction.TransactionGroup} refunded as fraud`,
+        );
       } else if (closedReason === 'refunded') {
         await Promise.all(
           transactions.map(async transaction => {
@@ -630,42 +639,6 @@ export const reviewClosed = async (event: Stripe.Event) => {
   }
 };
 
-function formatPaymentMethodName(paymentMethod: Stripe.PaymentMethod) {
-  switch (paymentMethod.type) {
-    case PAYMENT_METHOD_TYPE.US_BANK_ACCOUNT: {
-      return `${paymentMethod.us_bank_account.bank_name} ****${paymentMethod.us_bank_account.last4}`;
-    }
-    case PAYMENT_METHOD_TYPE.SEPA_DEBIT: {
-      return `${paymentMethod.sepa_debit.bank_code} ****${paymentMethod.sepa_debit.last4}`;
-    }
-    case 'card': {
-      return paymentMethod.card.last4;
-    }
-    case PAYMENT_METHOD_TYPE.BACS_DEBIT: {
-      return `${paymentMethod.bacs_debit.sort_code} ****${paymentMethod.bacs_debit.last4}`;
-    }
-    default: {
-      return '';
-    }
-  }
-}
-
-function mapStripePaymentMethodExtraData(pm: Stripe.PaymentMethod): object {
-  if (pm.type === 'card') {
-    return {
-      brand: pm.card.brand,
-      country: pm.card.country,
-      expYear: pm.card.exp_year,
-      expMonth: pm.card.exp_month,
-      funding: pm.card.funding,
-      fingerprint: pm.card.fingerprint,
-      wallet: pm.card.wallet,
-    };
-  }
-
-  return pm[pm.type];
-}
-
 export async function paymentMethodAttached(event: Stripe.Event) {
   const stripePaymentMethod = event.data.object as Stripe.PaymentMethod;
 
@@ -675,13 +648,14 @@ export async function paymentMethodAttached(event: Stripe.Event) {
 
   const stripeAccount = event.account ?? config.stripe.accountId;
 
-  const stripeCustomerId = stripePaymentMethod.customer;
+  const stripeCustomerId =
+    typeof stripePaymentMethod.customer === 'string' ? stripePaymentMethod.customer : stripePaymentMethod.customer?.id;
 
   await sequelize.transaction(async transaction => {
     const stripeCustomerAccount = await models.ConnectedAccount.findOne({
       where: {
         clientId: stripeAccount,
-        username: stripeCustomerId as string,
+        username: stripeCustomerId,
         service: Service.STRIPE_CUSTOMER,
       },
       transaction,
@@ -716,22 +690,17 @@ export async function paymentMethodAttached(event: Stripe.Event) {
       return;
     }
 
-    await models.PaymentMethod.create(
+    await createPaymentMethod(
       {
-        name: formatPaymentMethodName(stripePaymentMethod),
-        customerId: stripeCustomerId,
+        stripeAccount,
+        stripeCustomer: stripeCustomerId,
+        stripePaymentMethod,
+        attachedToCustomer: true,
         CollectiveId: stripeCustomerAccount.CollectiveId,
-        service: PAYMENT_METHOD_SERVICE.STRIPE,
-        type: stripePaymentMethod.type,
-        confirmedAt: new Date(),
-        saved: true,
-        data: {
-          stripePaymentMethodId: stripePaymentMethod.id,
-          stripeAccount,
-          ...mapStripePaymentMethodExtraData(stripePaymentMethod),
-        },
       },
-      { transaction },
+      {
+        transaction,
+      },
     );
   });
 }
@@ -754,7 +723,7 @@ async function handleIssuingWebhooks(request: Request<unknown, Stripe.Event>) {
   } else if (event.type.startsWith('issuing_card')) {
     virtualCardId = (<Stripe.Issuing.Card>event.data.object).id;
   } else {
-    logger.warn(`Stripe: Webhooks: Received an unsupported issuing event type: ${event.type}`);
+    logger.debug(`Stripe: Webhooks: Received an unsupported issuing event type: ${event.type}`);
     return;
   }
 
@@ -764,7 +733,7 @@ async function handleIssuingWebhooks(request: Request<unknown, Stripe.Event>) {
 
   const virtualCard = await getVirtualCardForTransaction(virtualCardId);
   if (!virtualCard) {
-    logger.warn(`Stripe: Webhooks: Received an event for a virtual card that does not exist: ${virtualCardId}`);
+    logger.debug(`Stripe: Webhooks: Received an event for a virtual card that does not exist: ${virtualCardId}`);
     return;
   }
 
@@ -792,7 +761,7 @@ async function handleIssuingWebhooks(request: Request<unknown, Stripe.Event>) {
     case 'issuing_card.updated':
       return virtualcard.processCardUpdate(event);
     default:
-      logger.warn(`Stripe: Webhooks: Received an unsupported issuing event type: ${event.type}`);
+      logger.debug(`Stripe: Webhooks: Received an unsupported issuing event type: ${event.type}`);
       return;
   }
 }
@@ -845,7 +814,7 @@ export const webhook = async (request: Request<unknown, Stripe.Event>) => {
       return mandateUpdated(event);
     default:
       // console.log(JSON.stringify(event, null, 4));
-      logger.warn(`Stripe: Webhooks: Received an unsupported event type: ${event.type}`);
+      logger.debug(`Stripe: Webhooks: Received an unsupported event type: ${event.type}`);
       return;
   }
 };

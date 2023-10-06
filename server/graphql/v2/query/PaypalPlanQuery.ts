@@ -5,13 +5,13 @@ import PaypalPlanModel from '../../../models/PaypalPlan';
 import Tier from '../../../models/Tier';
 import { getOrCreatePlan } from '../../../paymentProviders/paypal/subscription';
 import { RateLimitExceeded } from '../../errors';
-import { ContributionFrequency } from '../enum';
+import { GraphQLContributionFrequency } from '../enum';
 import { getIntervalFromContributionFrequency } from '../enum/ContributionFrequency';
-import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
-import { AmountInput, getValueInCentsFromAmountInput } from '../input/AmountInput';
-import { fetchTierWithReference, TierReferenceInput } from '../input/TierReferenceInput';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import { getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/AmountInput';
+import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput';
 
-const PaypalPlan = new GraphQLObjectType({
+const GraphQLPaypalPlan = new GraphQLObjectType({
   name: 'PaypalPlan',
   description: 'A PayPal plan to associate with a contribution',
   fields: () => ({
@@ -22,21 +22,21 @@ const PaypalPlan = new GraphQLObjectType({
 });
 
 const PaypalPlanQuery = {
-  type: new GraphQLNonNull(PaypalPlan),
+  type: new GraphQLNonNull(GraphQLPaypalPlan),
   args: {
     account: {
-      type: new GraphQLNonNull(AccountReferenceInput),
+      type: new GraphQLNonNull(GraphQLAccountReferenceInput),
       description: 'The account that serves as a payment target',
     },
     amount: {
-      type: new GraphQLNonNull(AmountInput),
+      type: new GraphQLNonNull(GraphQLAmountInput),
       description: 'The contribution amount for 1 quantity, without platform contribution and taxes',
     },
     frequency: {
-      type: new GraphQLNonNull(ContributionFrequency),
+      type: new GraphQLNonNull(GraphQLContributionFrequency),
     },
     tier: {
-      type: TierReferenceInput,
+      type: GraphQLTierReferenceInput,
       description: 'The tier you are contributing to',
     },
   },
@@ -57,7 +57,7 @@ const PaypalPlanQuery = {
     const expectedCurrency = tier?.currency || collective?.currency;
     const amount = getValueInCentsFromAmountInput(args.amount, { expectedCurrency, allowNilCurrency: false });
     const currency = args.amount.currency;
-    const host = await collective.getHostCollective();
+    const host = await collective.getHostCollective({ loaders: req.loaders });
     return getOrCreatePlan(host, collective, interval, amount, currency, tier);
   },
 };

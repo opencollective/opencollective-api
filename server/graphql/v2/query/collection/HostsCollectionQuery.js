@@ -1,35 +1,43 @@
 import { GraphQLList, GraphQLString } from 'graphql';
-import { pick } from 'lodash';
 
-import rawQueries from '../../../../lib/queries';
-import { HostCollection } from '../../collection/HostCollection';
+import { searchCollectivesInDB } from '../../../../lib/search';
+import { GraphQLHostCollection } from '../../collection/HostCollection';
 import { CollectionArgs } from '../../interface/Collection';
 
+import { CommonAccountsCollectionQueryArgs } from './AccountsCollectionQuery';
+
 const HostsCollectionQuery = {
-  type: HostCollection,
+  type: GraphQLHostCollection,
   args: {
     ...CollectionArgs,
+    ...CommonAccountsCollectionQueryArgs,
+    currency: {
+      type: GraphQLString,
+    },
     tags: {
       type: new GraphQLList(GraphQLString),
       description: 'Filter hosts by tags (multiple = OR)',
       deprecationReason: '2020-06-30: Please use tag (singular)',
     },
-    tag: {
-      type: new GraphQLList(GraphQLString),
-      description: 'Filter hosts by tags (multiple = OR)',
-    },
   },
   async resolve(_, args) {
-    const { collectives, total } = await rawQueries.getHosts({
-      ...pick(args, ['limit', 'offset']),
-      tags: args.tag || args.tags,
+    const searchParams = {
+      orderBy: { field: 'HOST_RANK', direction: 'DESC' },
+      isHost: true,
       onlyOpenHosts: true,
-      minNbCollectivesHosted: 0,
-      orderBy: 'collectives',
-      orderDirection: 'DESC',
-    });
+      onlyActive: args.isActive ? true : null,
+      skipRecentAccounts: args.skipRecentAccounts,
+      countries: args.country,
+      tags: args.tag ?? args.tags,
+      tagSearchOperator: args.tagSearchOperator,
+      includeArchived: args.includeArchived,
+      currency: args.currency,
+    };
 
-    return { nodes: collectives, totalCount: total, limit: args.limit, offset: args.offset };
+    const cleanTerm = args.searchTerm?.trim();
+    const [accounts, totalCount] = await searchCollectivesInDB(cleanTerm, args.offset, args.limit, searchParams);
+
+    return { nodes: accounts, totalCount, limit: args.limit, offset: args.offset };
   },
 };
 

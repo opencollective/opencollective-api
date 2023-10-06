@@ -72,6 +72,21 @@ describe('migrations/lib/helpers', () => {
       expect(removeSection(settings, 'test')).to.eq(settings);
     });
 
+    it('Returns original settings if no change in nested section', () => {
+      const settings = {
+        collectivePage: {
+          sections: [
+            {
+              type: 'CATEGORY',
+              name: 'BUDGET',
+              sections: [{ type: 'SECTION', name: 'test' }],
+            },
+          ],
+        },
+      };
+      expect(removeSection(settings, 'test')).to.eq(settings);
+    });
+
     it('Removes the section', () => {
       const settings = {
         collectivePage: {
@@ -85,6 +100,26 @@ describe('migrations/lib/helpers', () => {
       expect(removeSection(settings, 'newSection')).to.deep.eq({
         collectivePage: {
           sections: [{ type: 'CATEGORY', name: 'BUDGET', sections: [{ type: 'SECTION', name: 'test' }] }],
+        },
+      });
+    });
+
+    it('Removes the nested section', () => {
+      const settings = {
+        collectivePage: {
+          sections: [
+            { type: 'CATEGORY', name: 'BUDGET', sections: [{ type: 'SECTION', name: 'test' }] },
+            { type: 'SECTION', name: 'newSection' },
+          ],
+        },
+      };
+
+      expect(removeSection(settings, 'test', 'BUDGET')).to.deep.eq({
+        collectivePage: {
+          sections: [
+            { type: 'CATEGORY', name: 'BUDGET', sections: [] },
+            { type: 'SECTION', name: 'newSection' },
+          ],
         },
       });
     });

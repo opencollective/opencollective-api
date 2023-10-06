@@ -4,10 +4,10 @@ import PersonalTokenModel from '../../../models/PersonalToken';
 import { checkRemoteUserCanUseApplications } from '../../common/scope-check';
 import { Forbidden, NotFound } from '../../errors';
 import { fetchPersonalTokenWithReference, PersonalTokenReferenceFields } from '../input/PersonalTokenReferenceInput';
-import { PersonalToken } from '../object/PersonalToken';
+import { GraphQLPersonalToken } from '../object/PersonalToken';
 
 const PersonalTokenQuery = {
-  type: PersonalToken,
+  type: GraphQLPersonalToken,
   description: 'Get a personal token by reference',
   args: {
     ...PersonalTokenReferenceFields,

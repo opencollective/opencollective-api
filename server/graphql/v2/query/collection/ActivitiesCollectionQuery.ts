@@ -7,9 +7,9 @@ import { Order } from 'sequelize';
 import ActivityTypes, { ActivitiesPerClass } from '../../../../constants/activities';
 import models, { Op } from '../../../../models';
 import { checkRemoteUserCanUseAccount } from '../../../common/scope-check';
-import { ActivityCollection } from '../../collection/ActivityCollection';
-import { ActivityAndClassesType } from '../../enum/ActivityType';
-import { AccountReferenceInput, fetchAccountsWithReferences } from '../../input/AccountReferenceInput';
+import { GraphQLActivityCollection } from '../../collection/ActivityCollection';
+import { GraphQLActivityAndClassesType } from '../../enum/ActivityType';
+import { fetchAccountsWithReferences, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
 
 const IGNORED_ACTIVITIES: string[] = [ActivityTypes.COLLECTIVE_TRANSACTION_CREATED]; // This activity is creating a lot of noise, is usually covered already by orders/expenses activities and is not properly categorized (see https://github.com/opencollective/opencollective/issues/5903)
@@ -18,7 +18,7 @@ const ActivitiesCollectionArgs = {
   limit: { ...CollectionArgs.limit, defaultValue: 100 },
   offset: CollectionArgs.offset,
   account: {
-    type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(AccountReferenceInput))),
+    type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLAccountReferenceInput))),
     description: 'The accounts associated with the Activity',
   },
   includeChildrenAccounts: {
@@ -48,14 +48,19 @@ const ActivitiesCollectionArgs = {
     description: 'Only return activities that were created before this date',
   },
   type: {
-    type: new GraphQLList(new GraphQLNonNull(ActivityAndClassesType)),
+    type: new GraphQLList(new GraphQLNonNull(GraphQLActivityAndClassesType)),
     defaultValue: null,
     description: 'Only return activities that are of this class/type',
+  },
+  timeline: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    defaultValue: false,
+    description: 'If true, return the timeline of activities for this account',
   },
 };
 
 const ActivitiesCollectionQuery = {
-  type: new GraphQLNonNull(ActivityCollection),
+  type: new GraphQLNonNull(GraphQLActivityCollection),
   args: ActivitiesCollectionArgs,
   async resolve(_: void, args, req): Promise<CollectionReturnType> {
     const { offset, limit } = args;
@@ -78,7 +83,6 @@ const ActivitiesCollectionQuery = {
 
     // Build accounts conditions
     const accountOrConditions = [];
-    const where = { [Op.or]: accountOrConditions };
     const allowedAccounts = isRoot ? accounts : accounts.filter(a => req.remoteUser.isAdminOfCollectiveOrHost(a));
     for (const account of allowedAccounts) {
       // Include all activities related to the account itself
@@ -98,6 +102,7 @@ const ActivitiesCollectionQuery = {
       const childrenAccounts = await models.Collective.findAll({
         attributes: ['id'],
         where: { ParentCollectiveId: parentIds, id: { [Op.notIn]: parentIds } },
+        raw: true,
       });
 
       childrenAccounts.forEach(childAccount => {
@@ -109,6 +114,7 @@ const ActivitiesCollectionQuery = {
       return { nodes: null, totalCount: 0, limit, offset };
     }
 
+    const where = { [Op.or]: accountOrConditions };
     if (args.dateFrom) {
       where['createdAt'] = { [Op.gte]: args.dateFrom };
     }
@@ -123,10 +129,10 @@ const ActivitiesCollectionQuery = {
     }
 
     const order: Order = [['createdAt', 'DESC']];
-    const result = await models.Activity.findAndCountAll({ where, order, offset, limit });
+    const result = await models.Activity.findAll({ where, order, offset, limit });
     return {
-      nodes: result.rows,
-      totalCount: result.count,
+      nodes: result,
+      totalCount: () => models.Activity.count({ where }),
       limit: args.limit,
       offset: args.offset,
     };

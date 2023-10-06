@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 import '../../server/env';
 
-import Promise from 'bluebird';
 import config from 'config';
 import { omit, pick } from 'lodash';
 import moment from 'moment';
+import pMap from 'p-map';
 
 import { roles } from '../../server/constants';
 import ActivityTypes from '../../server/constants/activities';
@@ -27,7 +27,6 @@ if (config.env === 'production' && today.getDate() !== 1 && !process.env.OFFCYCL
 }
 
 process.env.PORT = 3066;
-
 const CONCURRENCY = process.env.CONCURRENCY || 1;
 
 const d = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date();
@@ -42,7 +41,7 @@ const endDate = new Date(d.getFullYear(), d.getMonth() + 1, 1);
 console.log('startDate', startDate, 'endDate', endDate);
 
 const processCollectives = collectives => {
-  return Promise.mapSeries(collectives, processCollective, { concurrency: CONCURRENCY });
+  return pMap(collectives, processCollective, { concurrency: CONCURRENCY });
 };
 
 const hostFeeAmountForTransactionLoader = generateHostFeeAmountForTransactionLoader();
@@ -123,7 +122,6 @@ const processCollective = async collective => {
     collective.getTotalTransactions(startDate, endDate, 'donation'),
     collective.getTotalTransactions(startDate, endDate, 'expense'),
     collective.getExpenses(null, startDate, endDate),
-    collective.getRelatedCollectives(3, 0, 'c."createdAt"', 'DESC'),
     collective.getBackersStats(startDate, endDate),
     collective.getNewOrders(startDate, endDate, { status: { [Op.or]: ['ACTIVE', 'PAID'] } }),
     collective.getCancelledOrders(startDate, endDate),
@@ -163,17 +161,16 @@ const processCollective = async collective => {
           activeBackers: tier.activeBackers,
         }));
         data.collective.backers = res.backers;
-        data.collective.stats = results[6];
-        data.collective.newOrders = results[7];
-        data.collective.cancelledOrders = results[8];
+        data.collective.stats = results[5];
+        data.collective.newOrders = results[6];
+        data.collective.cancelledOrders = results[7];
         data.collective.stats.balance = results[1];
         data.collective.stats.totalDonations = results[2];
         data.collective.stats.totalExpenses = results[3];
         data.collective.expenses = results[4].map(expense => expense.info);
-        data.relatedCollectives = results[5] || [];
-        data.collective.updates = results[9].map(u => u.info);
-        data.collective.transactions = await enrichTransactionsWithHostFee(results[11]);
-        const nextGoal = results[10];
+        data.collective.updates = results[8].map(u => u.info);
+        data.collective.transactions = await enrichTransactionsWithHostFee(results[10]);
+        const nextGoal = results[9];
         if (nextGoal) {
           nextGoal.tweet = `🚀 ${collective.twitterHandle ? `@${collective.twitterHandle}` : collective.name} is at ${
             nextGoal.percentage

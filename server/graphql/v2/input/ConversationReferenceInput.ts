@@ -7,7 +7,7 @@ import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 /**
  * An input for referencing Conversations
  */
-export const ConversationReferenceInput = new GraphQLInputObjectType({
+export const GraphQLConversationReferenceInput = new GraphQLInputObjectType({
   name: 'ConversationReferenceInput',
   fields: () => ({
     id: {

@@ -2,7 +2,7 @@ import { GraphQLEnumType } from 'graphql';
 
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import logger from '../../../lib/logger';
-import { PaymentMethod } from '../../../types/PaymentMethod';
+import { PaymentMethodModelInterface } from '../../../models/PaymentMethod';
 
 export enum PaymentMethodLegacyTypeEnum {
   ALIPAY = 'ALIPAY',
@@ -18,9 +18,10 @@ export enum PaymentMethodLegacyTypeEnum {
   US_BANK_ACCOUNT = 'US_BANK_ACCOUNT',
   SEPA_DEBIT = 'SEPA_DEBIT',
   BACS_DEBIT = 'BACS_DEBIT',
+  BANCONTACT = 'BANCONTACT',
 }
 
-export const PaymentMethodLegacyType = new GraphQLEnumType({
+export const GraphQLPaymentMethodLegacyType = new GraphQLEnumType({
   name: 'PaymentMethodLegacyType',
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore `deprecationReason` is not yet exposed by graphql but it does exist
@@ -30,7 +31,10 @@ export const PaymentMethodLegacyType = new GraphQLEnumType({
   }, {}),
 });
 
-export const getLegacyPaymentMethodType = ({ service, type }: PaymentMethod): PaymentMethodLegacyTypeEnum => {
+export const getLegacyPaymentMethodType = ({
+  service,
+  type,
+}: PaymentMethodModelInterface): PaymentMethodLegacyTypeEnum => {
   if (service === PAYMENT_METHOD_SERVICE.STRIPE) {
     if (type === PAYMENT_METHOD_TYPE.CREDITCARD) {
       return PaymentMethodLegacyTypeEnum.CREDIT_CARD;
@@ -40,6 +44,8 @@ export const getLegacyPaymentMethodType = ({ service, type }: PaymentMethod): Pa
       return PaymentMethodLegacyTypeEnum.SEPA_DEBIT;
     } else if (type === PAYMENT_METHOD_TYPE.BACS_DEBIT) {
       return PaymentMethodLegacyTypeEnum.BACS_DEBIT;
+    } else if (type === PAYMENT_METHOD_TYPE.BANCONTACT) {
+      return PaymentMethodLegacyTypeEnum.BANCONTACT;
     }
   } else if (service === PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE) {
     if (type === PAYMENT_METHOD_TYPE.GIFTCARD) {

@@ -42,7 +42,7 @@ async function sendMessage({ req, collective, args, isGqlV2 }) {
     throw new NotFound(`${isGqlV2 ? 'Account' : 'Collective'} not found`);
   }
 
-  if (!(await collective.canContact())) {
+  if (!collective.canContact()) {
     throw new Unauthorized(`You can't contact this ${isGqlV2 ? 'account' : 'collective'}`);
   }
 
@@ -55,7 +55,7 @@ async function sendMessage({ req, collective, args, isGqlV2 }) {
     args.subject && sanitize(args.subject, { allowedTags: [], allowedAttributes: {} }).trim().slice(0, 60);
 
   // User sending the email must have an associated collective
-  const fromCollective = await models.Collective.findByPk(user.CollectiveId);
+  const fromCollective = await req.loaders.Collective.byId.load(user.CollectiveId);
   if (!fromCollective) {
     throw new Error("Your user account doesn't have any profile associated. Please contact support");
   }

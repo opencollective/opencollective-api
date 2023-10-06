@@ -1,6 +1,7 @@
 import accountMutations from './AccountMutations';
 import activitySubscriptionsMutations from './ActivitySubscriptionsMutations';
 import { addFundsMutation } from './AddFundsMutations';
+import agreementMutations from './AgreementMutations';
 import applicationMutations from './ApplicationMutations';
 import commentMutations from './CommentMutations';
 import connectedAccountMutations from './ConnectedAccountMutations';
@@ -24,9 +25,11 @@ import payoutMethodMutations from './PayoutMethodMutations';
 import personalTokenMutations from './PersonalTokenMutations';
 import rootMutations from './RootMutations';
 import socialLinkMutations from './SocialLinkMutations';
+import tagMutations from './TagMutations';
 import tierMutations from './TierMutations';
 import transactionMutations from './TransactionMutations';
 import updateMutations from './UpdateMutations';
+import uploadedFileMutations from './UploadedFileMutations';
 import virtualCardMutations from './VirtualCardMutations';
 import webhookMutations from './WebhookMutations';
 
@@ -56,12 +59,15 @@ const mutation = {
   ...rootMutations,
   ...transactionMutations,
   ...updateMutations,
+  ...uploadedFileMutations,
   ...virtualCardMutations,
   ...webhookMutations,
   ...activitySubscriptionsMutations,
   ...tierMutations,
   ...personalTokenMutations,
   ...socialLinkMutations,
+  ...tagMutations,
+  ...agreementMutations,
 };
 
 export default mutation;

@@ -3,30 +3,29 @@ import crypto from 'crypto';
 import * as LibTaxes from '@opencollective/taxes';
 import config from 'config';
 import debugLib from 'debug';
-import * as hcaptcha from 'hcaptcha';
-import { get, isEmpty, isEqual, isNil, omit, pick, set } from 'lodash';
+import { get, isEmpty, isNil, omit, pick, set } from 'lodash';
 
 import activities from '../../../constants/activities';
-import CAPTCHA_PROVIDERS from '../../../constants/captcha-providers';
-import { types } from '../../../constants/collectives';
+import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import status from '../../../constants/order_status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import roles from '../../../constants/roles';
 import { VAT_OPTIONS } from '../../../constants/vat';
 import { purgeCacheForCollective } from '../../../lib/cache';
+import { checkCaptcha } from '../../../lib/check-captcha';
 import * as github from '../../../lib/github';
 import { getOrCreateGuestProfile } from '../../../lib/guest-accounts';
+import { mustUpdateLocation } from '../../../lib/location';
 import logger from '../../../lib/logger';
 import * as libPayments from '../../../lib/payments';
-import recaptcha from '../../../lib/recaptcha';
 import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../lib/recurring-contributions';
 import { checkGuestContribution, checkOrdersLimit, cleanOrdersLimit } from '../../../lib/security/limit';
 import { orderFraudProtection } from '../../../lib/security/order';
 import { reportErrorToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { canUseFeature } from '../../../lib/user-permissions';
-import { formatCurrency, parseToBoolean } from '../../../lib/utils';
+import { formatCurrency } from '../../../lib/utils';
 import models, { Op } from '../../../models';
 import {
   BadRequest,
@@ -36,18 +35,11 @@ import {
   Unauthorized,
   ValidationFailed,
 } from '../../errors';
-
 const debug = debugLib('orders');
 
 export const ORDER_PUBLIC_DATA_FIELDS = {
   pledgeCurrency: 'thegivingblock.pledgeCurrency',
   pledgeAmount: 'thegivingblock.pledgeAmount',
-};
-
-const mustUpdateLocation = (existingLocation, newLocation) => {
-  const simpleFields = ['country', 'name', 'address'];
-  const hasUpdatedSimpleField = field => newLocation[field] && newLocation[field] !== existingLocation[field];
-  return simpleFields.some(hasUpdatedSimpleField) || !isEqual(existingLocation.structured, newLocation.structured);
 };
 
 const mustUpdateNames = (fromAccount, fromAccountInfo) => {
@@ -61,14 +53,15 @@ const mustUpdateNames = (fromAccount, fromAccountInfo) => {
 const checkAndUpdateProfileInfo = async (order, fromAccount, isGuest, currency) => {
   const { totalAmount, fromAccountInfo, guestInfo } = order;
   const accountUpdatePayload = {};
-  const location = fromAccountInfo?.location || guestInfo?.location || fromAccount.location;
+  const existingLocation = await fromAccount.getLocation();
+  const location = fromAccountInfo?.location || guestInfo?.location || existingLocation;
   const isContributingFromSameHost = fromAccount.HostCollectiveId === order.collective.HostCollectiveId;
 
   // Only enforce profile checks for guests and USD contributions at the moment
   if (isGuest && currency === 'USD' && !isContributingFromSameHost) {
     // Contributions that are more than $5000 must have an address attached
     if (totalAmount > 5000e2) {
-      if (!location.structured && (!location.address || !location.country)) {
+      if (!location?.structured && (!location?.address || !location?.country)) {
         throw new BadRequest('Contributions that are more than $5000 must have an address attached');
       }
     }
@@ -86,11 +79,8 @@ const checkAndUpdateProfileInfo = async (order, fromAccount, isGuest, currency) 
   // (we don't want to let guests update the profile of an existing account that they may not own)
   const isVerifiedProfile = !fromAccount.data?.isGuest;
   if (!isGuest || !isVerifiedProfile) {
-    if (mustUpdateLocation(fromAccount.location, location)) {
-      accountUpdatePayload.data = { ...fromAccount.data, address: location.structured || fromAccount.data?.structured };
-      accountUpdatePayload.locationName = location.name || fromAccount.locationName;
-      accountUpdatePayload.address = location.address || fromAccount.address;
-      accountUpdatePayload.countryISO = location.country || fromAccount.countryISO;
+    if (mustUpdateLocation(existingLocation, location)) {
+      await fromAccount.setLocation(location);
     }
     if (mustUpdateNames(fromAccount, fromAccountInfo)) {
       accountUpdatePayload.name = fromAccountInfo.name || fromAccountInfo.name;
@@ -102,49 +92,10 @@ const checkAndUpdateProfileInfo = async (order, fromAccount, isGuest, currency) 
   }
 };
 
-async function checkCaptcha(order, remoteUser, reqIp) {
-  const requestedProvider = order.guestInfo?.captcha?.provider;
-  const isCaptchaEnabled = parseToBoolean(config.captcha?.enabled);
-  const isCreditCardOrder = order.paymentMethod?.type === PAYMENT_METHOD_TYPE.CREDITCARD;
-
-  // We're just enforcing Captcha if it's enabled and if the order is using Credit Card
-  if (!isCaptchaEnabled || !isCreditCardOrder) {
-    return;
-  }
-
-  if (!order.guestInfo?.captcha?.token) {
-    throw new BadRequest('You need to inform a valid captcha token');
-  }
-  let response;
-  if (requestedProvider === CAPTCHA_PROVIDERS.HCAPTCHA && config.hcaptcha?.secret) {
-    response = await hcaptcha.verify(
-      config.hcaptcha.secret,
-      order.guestInfo.captcha.token,
-      reqIp,
-      config.hcaptcha.sitekey,
-    );
-  } else if (
-    requestedProvider === CAPTCHA_PROVIDERS.RECAPTCHA &&
-    config.recaptcha &&
-    parseToBoolean(config.recaptcha.enable)
-  ) {
-    response = await recaptcha.verify(order.guestInfo.captcha.token, reqIp);
-  } else {
-    throw new BadRequest('Could not find requested Captcha provider', undefined, order.guestInfo?.captcha);
-  }
-
-  if (response.success !== true) {
-    logger.warn('Captcha verification failed:', response);
-    throw new BadRequest('Captcha verification failed');
-  }
-
-  return response;
-}
-
 /**
  * Check the taxes for order, returns the tax info
  */
-const getTaxInfo = async (order, collective, host, tier, loaders) => {
+const getOrderTaxInfo = async (order, collective, host, tier, loaders) => {
   // Load optional data
   if (collective.ParentCollectiveId && !collective.parentCollective) {
     collective.parentCollective = await loaders.Collective.byId.load(collective.ParentCollectiveId);
@@ -177,37 +128,42 @@ const getTaxInfo = async (order, collective, host, tier, loaders) => {
 
       // Adapt tax based on country / tax ID number
       if (taxFromCountry) {
-        if (!order.countryISO) {
+        if (!order.tax) {
+          throw Error('This contribution should have a tax attached');
+        } else if (!order.tax.country) {
           throw Error('This order has a tax attached, you must set a country');
-        } else if (order.taxIDNumber && !LibTaxes.checkVATNumberFormat(order.taxIDNumber).isValid) {
+        } else if (order.tax.idNumber && !LibTaxes.checkVATNumberFormat(order.tax.idNumber).isValid) {
           throw Error('Invalid VAT number');
         }
 
-        const hasVatNumber = Boolean(order.taxIDNumber);
-        taxPercent = LibTaxes.getVatPercentage(tier.type, taxFromCountry, order.countryISO, hasVatNumber);
+        const hasVatNumber = Boolean(order.tax.idNumber);
+        taxPercent = LibTaxes.getVatPercentage(tier.type, taxFromCountry, order.tax.country, hasVatNumber);
       }
     }
 
     return {
       id: LibTaxes.TaxType.VAT,
       taxerCountry: taxFromCountry,
-      taxedCountry: order.countryISO,
+      taxedCountry: order.tax?.country,
       percentage: taxPercent,
-      taxIDNumber: order.taxIDNumber,
+      taxIDNumber: order.tax?.idNumber,
       taxIDNumberFrom: vatSettings.number,
     };
   } else if (taxes.some(({ type }) => type === LibTaxes.TaxType.GST)) {
     const hostGSTNumber = get(host, 'settings.GST.number');
+    let taxPercent = LibTaxes.GST_RATE_PERCENT;
     if (!hostGSTNumber) {
       throw new Error('GST tax is not enabled for this host');
+    } else if (order.tax.country && order.tax.country !== 'NZ') {
+      taxPercent = 0;
     }
 
     return {
       id: LibTaxes.TaxType.GST,
       taxerCountry: host.countryISO,
-      taxedCountry: order.countryISO,
-      percentage: LibTaxes.GST_RATE_PERCENT,
-      taxIDNumber: order.taxIDNumber,
+      taxedCountry: order.tax?.country,
+      percentage: taxPercent,
+      taxIDNumber: order.tax?.idNumber,
       taxIDNumberFrom: hostGSTNumber,
     };
   }
@@ -231,6 +187,16 @@ const hasPaymentMethod = order => {
   }
 };
 
+export const getOrderTaxInfoFromTaxInput = (tax, fromCollective, collective, host) => {
+  return {
+    id: tax.type,
+    percentage: Math.round(tax.rate * 100),
+    idNumber: tax.idNumber,
+    taxedCountry: tax.country || fromCollective.countryISO,
+    taxerCountry: (collective.type === 'EVENT' && collective.countryISO) || host.countryISO,
+  };
+};
+
 export async function createOrder(order, req) {
   debug('Beginning creation of order', order);
   const { loaders, ip: reqIp, mask: reqMask } = req;
@@ -241,6 +207,12 @@ export async function createOrder(order, req) {
     throw new FeatureNotAllowedForUser();
   } else if (!remoteUser) {
     await checkGuestContribution(order, loaders);
+  }
+
+  if (order.interval && (!order.paymentMethod || order.paymentMethod?.type === PAYMENT_METHOD_TYPE.MANUAL)) {
+    throw new ValidationFailed('Manual payment methods cannot be used for subscriptions');
+  } else if (order.interval && order.totalAmount === 0) {
+    throw new ValidationFailed('Subscriptions cannot be free');
   }
 
   await checkOrdersLimit(order, reqIp, reqMask);
@@ -308,7 +280,7 @@ export async function createOrder(order, req) {
         const allowed = ['slug', 'name', 'company', 'description', 'website', 'twitterHandle', 'githubHandle', 'tags'];
         collective = await models.Collective.create({
           ...pick(order.collective, allowed),
-          type: types.COLLECTIVE,
+          type: CollectiveType.COLLECTIVE,
           isPledged: true,
           data: { hasBeenPledged: true },
         });
@@ -323,11 +295,17 @@ export async function createOrder(order, req) {
       throw new Error('Orders cannot be created for a collective by that same collective.');
     }
 
-    const host = await collective.getHostCollective();
+    const host = await collective.getHostCollective({ loaders: req.loaders });
+    if (!host && !collective.isPledged) {
+      throw new Error('This collective has no host and cannot accept financial contributions at this time.');
+    }
     if (order.hostFeePercent) {
       if (!remoteUser?.isAdmin(host.id)) {
         throw new Error('Only an admin of the host can change the hostFeePercent');
       }
+    }
+    if (order.paymentMethod?.type === PAYMENT_METHOD_TYPE.CRYPTO && host.settings?.cryptoEnabled !== true) {
+      throw new Error('This host does not accept crypto payments.');
     }
 
     order.collective = collective;
@@ -394,9 +372,9 @@ export async function createOrder(order, req) {
 
       // We only allow to add funds on behalf of a collective if the user is an admin of that collective or an admin of the host of the collective that receives the money
       if (remoteUser?.isAdminOfCollective(fromCollective)) {
-        await twoFactorAuthLib.enforceForAccountAdmins(req, fromCollective, { onlyAskOnLogin: true });
+        await twoFactorAuthLib.enforceForAccount(req, fromCollective, { onlyAskOnLogin: true });
       } else if (remoteUser?.isAdminOfCollective(host)) {
-        await twoFactorAuthLib.enforceForAccountAdmins(req, host, { onlyAskOnLogin: true });
+        await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });
       } else {
         throw new Error(
           `You don't have sufficient permissions to create an order on behalf of the ${
@@ -415,7 +393,16 @@ export async function createOrder(order, req) {
       } else {
         // Create or retrieve guest profile from GUEST_TOKEN
         const creationRequest = { ip: reqIp, userAgent, mask: reqMask };
-        captchaResponse = await checkCaptcha(order, remoteUser, reqIp);
+
+        // We're just enforcing Captcha if the order is using Credit Card
+        const isCreditCardOrder = order.paymentMethod?.type === PAYMENT_METHOD_TYPE.CREDITCARD;
+        if (isCreditCardOrder) {
+          try {
+            captchaResponse = await checkCaptcha(order.guestInfo?.captcha, reqIp);
+          } catch (err) {
+            throw new BadRequest(err.message, undefined, order.guestInfo?.captcha);
+          }
+        }
         const guestProfile = await getOrCreateGuestProfile(order.guestInfo, creationRequest);
         if (!canUseFeature(guestProfile.user, FEATURE.ORDER)) {
           throw new FeatureNotAllowedForUser();
@@ -438,7 +425,7 @@ export async function createOrder(order, req) {
     }
 
     // ---- Taxes ----
-    const taxInfo = await getTaxInfo(order, collective, host, tier, loaders);
+    const taxInfo = await getOrderTaxInfo(order, collective, host, tier, loaders);
     const taxPercent = taxInfo?.percentage || 0;
 
     // Ensure tax amount is not out-of-bound
@@ -533,6 +520,7 @@ export async function createOrder(order, req) {
         savePaymentMethod: Boolean(!isGuest && order.paymentMethod?.save),
         guestToken, // For guest contributions, this token is a way to authenticate to confirm the order
         isEmbed: Boolean(order.context?.isEmbed),
+        isNewPlatformTipFlow: Boolean(order.context?.isNewPlatformTipFlow),
         isGuest,
         isBalanceTransfer: order.isBalanceTransfer,
         fromAccountInfo: order.fromAccountInfo,
@@ -581,7 +569,7 @@ export async function createOrder(order, req) {
         await orderCreated.reload();
         return { order: orderCreated };
       }
-    } else if (!paymentRequired && order.interval && collective.type === types.COLLECTIVE) {
+    } else if (!paymentRequired && order.interval && collective.type === CollectiveType.COLLECTIVE) {
       // create inactive subscription to hold the interval info for the pledge
       const subscription = await models.Subscription.create({
         amount: order.totalAmount,
@@ -589,7 +577,7 @@ export async function createOrder(order, req) {
         currency: order.currency,
       });
       await orderCreated.update({ SubscriptionId: subscription.id });
-    } else if (collective.type === types.EVENT) {
+    } else if (collective.type === CollectiveType.EVENT) {
       // Free ticket, mark as processed and add user as an ATTENDEE
       await orderCreated.update({ status: 'PAID', processedAt: new Date() });
       await collective.addUserWithRole(remoteUser, roles.ATTENDEE, { TierId: tier?.id }, { order: orderCreated });

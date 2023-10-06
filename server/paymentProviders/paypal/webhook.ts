@@ -46,6 +46,10 @@ async function handlePayoutTransactionUpdate(req: Request): Promise<void> {
   }
 
   const host = await expense.collective.getHostCollective();
+  if (!host) {
+    throw new Error(`No host found for collective ${expense.collective.slug}`);
+  }
+
   const paypalAccount = await getPaypalAccount(host);
   await validateWebhookEvent(paypalAccount, req);
 
@@ -91,6 +95,10 @@ const loadSubscriptionForWebhookEvent = async (
   }
 
   const host = await order.collective.getHostCollective();
+  if (!host) {
+    throw new Error(`No host found for collective ${order.collective.slug}`);
+  }
+
   const paypalAccount = await getPaypalAccount(host);
   await validateWebhookEvent(paypalAccount, req);
   return { host, order, paypalAccount };
@@ -122,7 +130,7 @@ async function handleSaleCompleted(req: Request): Promise<void> {
     await order.update({ status: OrderStatus.ACTIVE, processedAt: new Date() });
   }
 
-  const nextChargeDate = moment().add(1, order.interval);
+  const nextChargeDate = moment().add(1, order.interval as any);
   await order.Subscription.update({
     chargeNumber: (order.Subscription.chargeNumber || 0) + 1,
     nextChargeDate: nextChargeDate,
@@ -168,6 +176,10 @@ async function handleCaptureCompleted(req: Request): Promise<void> {
 
   // Validate webhook event
   const host = await order.collective.getHostCollective();
+  if (!host) {
+    throw new Error(`No host found for collective ${order.collective.slug}`);
+  }
+
   const paypalAccount = await getPaypalAccount(host);
   await validateWebhookEvent(paypalAccount, req);
 
@@ -203,6 +215,10 @@ async function handleCaptureRefunded(req: Request): Promise<void> {
 
   // Validate webhook event
   const host = await models.Collective.findByPk(req.params.hostId);
+  if (!host) {
+    throw new Error(`No host found for ID ${req.params.hostId}`);
+  }
+
   const paypalAccount = await getPaypalAccount(host);
   await validateWebhookEvent(paypalAccount, req);
 
@@ -255,7 +271,7 @@ async function handleCaptureRefunded(req: Request): Promise<void> {
   const rawRefundedPaypalFee = <string>get(refundDetails, 'seller_payable_breakdown.paypal_fee.value', '0.00');
   const refundedPaypalFee = floatAmountToCents(parseFloat(rawRefundedPaypalFee));
   const dataPayload = { paypalResponse: refundDetails, isRefundedFromPayPal: true };
-  return createRefundTransaction(transaction, refundedPaypalFee, dataPayload, null);
+  await createRefundTransaction(transaction, refundedPaypalFee, dataPayload, null);
 }
 
 /**

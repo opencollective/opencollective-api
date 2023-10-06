@@ -1,14 +1,14 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 
-import { Account, AccountFields } from '../interface/Account';
-import { AccountWithContributions, AccountWithContributionsFields } from '../interface/AccountWithContributions';
-import { AccountWithHost, AccountWithHostFields } from '../interface/AccountWithHost';
-import { AccountWithParent, AccountWithParentFields } from '../interface/AccountWithParent';
+import { AccountFields, GraphQLAccount } from '../interface/Account';
+import { AccountWithContributionsFields, GraphQLAccountWithContributions } from '../interface/AccountWithContributions';
+import { AccountWithHostFields, GraphQLAccountWithHost } from '../interface/AccountWithHost';
+import { AccountWithParentFields, GraphQLAccountWithParent } from '../interface/AccountWithParent';
 
-export const Project = new GraphQLObjectType({
+export const GraphQLProject = new GraphQLObjectType({
   name: 'Project',
   description: 'This represents an Project account',
-  interfaces: () => [Account, AccountWithHost, AccountWithContributions, AccountWithParent],
+  interfaces: () => [GraphQLAccount, GraphQLAccountWithHost, GraphQLAccountWithContributions, GraphQLAccountWithParent],
   isTypeOf: collective => collective.type === 'PROJECT',
   fields: () => {
     return {

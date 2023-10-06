@@ -4,13 +4,14 @@ import { groupBy } from 'lodash';
 import ACTIVITY from '../../constants/activities';
 import { TransactionKind } from '../../constants/transaction-kind';
 import queries from '../../lib/queries';
+import { checkExpensesBatch } from '../../lib/security/expense';
 import models, { Op, sequelize } from '../../models';
 import { Activity } from '../../models/Activity';
+import Expense from '../../models/Expense';
 import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile';
 import { ExpenseItem } from '../../models/ExpenseItem';
-import { LEGAL_DOCUMENT_TYPE } from '../../models/LegalDocument';
 
-import { sortResultsArray } from './helpers';
+import { populateModelAssociations, sortResultsArray } from './helpers';
 
 /**
  * Loader for expense's items.
@@ -44,6 +45,7 @@ export const generateExpenseActivitiesLoader = (): DataLoader<number, Activity[]
             ACTIVITY.COLLECTIVE_EXPENSE_UPDATED,
             ACTIVITY.COLLECTIVE_EXPENSE_INVITE_DRAFTED,
             ACTIVITY.COLLECTIVE_EXPENSE_REJECTED,
+            ACTIVITY.COLLECTIVE_EXPENSE_RE_APPROVAL_REQUESTED,
             ACTIVITY.COLLECTIVE_EXPENSE_APPROVED,
             ACTIVITY.COLLECTIVE_EXPENSE_MOVED,
             ACTIVITY.COLLECTIVE_EXPENSE_UNAPPROVED,
@@ -54,6 +56,8 @@ export const generateExpenseActivitiesLoader = (): DataLoader<number, Activity[]
             ACTIVITY.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT,
             ACTIVITY.COLLECTIVE_EXPENSE_MARKED_AS_SPAM,
             ACTIVITY.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE,
+            ACTIVITY.COLLECTIVE_EXPENSE_PUT_ON_HOLD,
+            ACTIVITY.COLLECTIVE_EXPENSE_RELEASED_FROM_HOLD,
           ],
         },
       },
@@ -79,20 +83,10 @@ export const attachedFiles = (): DataLoader<number, ExpenseAttachedFile[]> => {
 /**
  * Expense loader to check if userTaxForm is required before expense payment
  */
-export const userTaxFormRequiredBeforePayment = (): DataLoader<number, boolean> => {
+export const taxFormRequiredBeforePayment = (): DataLoader<number, boolean> => {
   return new DataLoader<number, boolean>(async (expenseIds: number[]): Promise<boolean[]> => {
     const expenseIdsPendingTaxForm = await queries.getTaxFormsRequiredForExpenses(expenseIds);
     return expenseIds.map(id => expenseIdsPendingTaxForm.has(id));
-  });
-};
-
-/**
- * Loader for expense's requiredLegalDocuments.
- */
-export const requiredLegalDocuments = (): DataLoader<number, string[]> => {
-  return new DataLoader(async (expenseIds: number[]) => {
-    const expenseIdsPendingTaxForm = await queries.getTaxFormsRequiredForExpenses(expenseIds);
-    return expenseIds.map(id => (expenseIdsPendingTaxForm.has(id) ? [LEGAL_DOCUMENT_TYPE.US_TAX_FORM] : []));
   });
 };
 
@@ -104,7 +98,7 @@ export const generateExpenseToHostTransactionFxRateLoader = (): DataLoader<
   { rate: number; currency: string }
 > =>
   new DataLoader(async (expenseIds: number[]) => {
-    const transactions = await models.Transaction.findAll({
+    const transactions = (await models.Transaction.findAll({
       raw: true,
       attributes: ['ExpenseId', 'currency', [sequelize.json('data.expenseToHostFxRate'), 'expenseToHostFxRate']],
       where: {
@@ -115,7 +109,13 @@ export const generateExpenseToHostTransactionFxRateLoader = (): DataLoader<
         RefundTransactionId: null,
         data: { expenseToHostFxRate: { [Op.ne]: null } },
       },
-    });
+    })) as unknown as [
+      {
+        ExpenseId: number;
+        currency: string;
+        expenseToHostFxRate: string;
+      },
+    ];
 
     const groupedTransactions = groupBy(transactions, 'ExpenseId');
     return expenseIds.map(expenseId => {
@@ -124,3 +124,21 @@ export const generateExpenseToHostTransactionFxRateLoader = (): DataLoader<
       return isNaN(rate) ? null : { rate, currency: transactionData?.currency };
     });
   });
+
+export const generateExpensesSecurityCheckLoader = req => {
+  return new DataLoader(
+    async (expenses: Expense[]) => {
+      await populateModelAssociations(req, expenses, [
+        { fkField: 'CollectiveId', as: 'collective', modelName: 'Collective' },
+        { fkField: 'FromCollectiveId', as: 'fromCollective', modelName: 'Collective' },
+        { fkField: 'UserId', modelName: 'User' },
+        { fkField: 'PayoutMethodId', modelName: 'PayoutMethod' },
+      ]);
+
+      return checkExpensesBatch(req, expenses);
+    },
+    {
+      cacheKeyFn: (expense: Expense) => expense.id,
+    },
+  );
+};

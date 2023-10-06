@@ -125,7 +125,7 @@ describe('server/lib/notification', () => {
     before(async () => {
       collective = await fakeCollective();
       const user = await fakeUser();
-      await collective.addUserWithRole(user, 'FOLLOWER');
+      await collective.addUserWithRole(user, 'BACKER');
       fromCollective = await fakeCollective();
       activity = await generateCollectiveActivity(collective, activities.COLLECTIVE_UPDATE_PUBLISHED, fromCollective);
     });
@@ -157,7 +157,7 @@ describe('server/lib/notification', () => {
           activity.data.update = await fakeUpdate({ CollectiveId: collective.id, html });
           await notifyLib(activity);
           const modifiedHtml =
-            '<div>Testing valid html content for notification email<img src="https://img.youtube.com/vi/JODaYjDyjyQ/0.jpg" /></div>';
+            '<div>Testing valid html content for notification email<img src="https://img.youtube.com/vi/JODaYjDyjyQ/0.jpg" alt="youtube content" /></div>';
           await utils.waitForCondition(() => sendEmailSpy.callCount === 1);
           expect(sendEmailSpy.firstCall.args[2].update.html).to.equal(modifiedHtml);
         });

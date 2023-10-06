@@ -24,7 +24,7 @@ const CollectionFields = {
  * }
  * By convention the collection of types is called nodes.
  */
-const Collection = new GraphQLInterfaceType({
+const GraphQLCollection = new GraphQLInterfaceType({
   name: 'Collection',
   description: 'Collection interface shared by all collection types',
   fields: () => CollectionFields,
@@ -47,19 +47,25 @@ const CollectionArgs = {
   },
 };
 
+/**
+ * A helper to return `CollectionArgs` with custom defaults
+ */
+export const getCollectionArgs = ({ limit = 10, offset = 0 }) => ({
+  limit: {
+    ...CollectionArgs.limit,
+    defaultValue: limit || CollectionArgs.limit.defaultValue,
+  },
+  offset: {
+    ...CollectionArgs.offset,
+    defaultValue: offset || CollectionArgs.offset.defaultValue,
+  },
+});
+
 export interface CollectionReturnType {
   nodes: unknown[];
-  totalCount: number;
+  totalCount: number | Promise<number> | (() => Promise<number>);
   limit: number;
   offset: number;
 }
 
-export interface TransactionsCollectionReturnType {
-  nodes: Record<string, unknown>[];
-  totalCount: number;
-  limit: number;
-  offset: number;
-  kinds?: string[] | (() => string[]);
-}
-
-export { Collection, CollectionFields, CollectionArgs };
+export { GraphQLCollection, CollectionFields, CollectionArgs };

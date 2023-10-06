@@ -55,11 +55,6 @@ jobs:
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
 
     steps:
-      - name: Add stripe apt sources
-        run: |
-          curl -s https://packages.stripe.dev/api/security/keypair/stripe-cli-gpg/public | gpg --dearmor | sudo tee /usr/share/keyrings/stripe.gpg
-          echo "deb [signed-by=/usr/share/keyrings/stripe.gpg] https://packages.stripe.dev/stripe-cli-debian-local stable main" | sudo tee -a /etc/apt/sources.list.d/stripe.list
-
       - name: Update apt
         run: sudo apt-get update || exit 0
 
@@ -73,7 +68,10 @@ jobs:
         run: sudo apt-get install -y graphicsmagick
 
       - name: Install stripe-cli
-        run: sudo apt-get install -y stripe
+        run: |
+          sudo apt-get install -y wget
+          wget https://github.com/stripe/stripe-cli/releases/download/v1.13.9/stripe_1.13.9_linux_x86_64.tar.gz -O /tmp/stripe_1.13.9_linux_x86_64.tar.gz
+          sudo tar xzvf /tmp/stripe_1.13.9_linux_x86_64.tar.gz -C /bin/
 
       - name: Checkout
         uses: actions/checkout@v3
@@ -82,21 +80,7 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version-file: 'package.json'
-
-      - name: Force NPM version (this step can be moved once Vercel defaults to node 18.14)
-        shell: bash
-        run: npm install -g npm@8.19.2
-
-      # Npm cache
-
-      - name: Restore .npm cache
-        uses: actions/cache@v3
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-npm-cache-${{ github.sha }}
-          restore-keys: |
-            - ${{ runner.os }}-npm-cache-${{ github.sha }}
-            - ${{ runner.os }}-npm-cache-
+          cache: 'npm'
 
       # Checkouts
 

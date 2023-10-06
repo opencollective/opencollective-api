@@ -26,12 +26,14 @@ import express from 'express';
 import { get, has, isNil, set } from 'lodash';
 
 /**
- * Context permissions types to use with `setContextPermission` and `getContextPermission`
+ * Context permissions types to use with `allowContextPermission` and `getContextPermission`
  */
 export enum PERMISSION_TYPE {
   SEE_EXPENSE_ATTACHMENTS_URL = 'SEE_EXPENSE_ATTACHMENTS_URL',
   SEE_PAYOUT_METHOD_DETAILS = 'SEE_PAYOUT_METHOD_DETAILS',
-  SEE_ACCOUNT_LEGAL_NAME = 'SEE_ACCOUNT_LEGAL_NAME',
+  /** Private info: legal name, location, email, etc. */
+  SEE_ACCOUNT_PRIVATE_PROFILE_INFO = 'SEE_ACCOUNT_PRIVATE_PROFILE_INFO',
+  SEE_EXPENSE_DRAFT_PRIVATE_DETAILS = 'SEE_EXPENSE_DRAFT_PRIVATE_DETAILS',
 }
 
 /**

@@ -2,7 +2,7 @@ import { GraphQLEnumType, GraphQLNonNull, GraphQLObjectType, GraphQLString } fro
 
 import { Level, Scope } from '../../../lib/security/expense';
 
-export const SecurityCheckScope = new GraphQLEnumType({
+export const GraphQLSecurityCheckScope = new GraphQLEnumType({
   name: 'SecurityCheckScope',
   description: 'All supported SecurityCheck scopes',
   values: Object.values(Scope).reduce(
@@ -14,7 +14,7 @@ export const SecurityCheckScope = new GraphQLEnumType({
   ),
 });
 
-export const SecurityCheckLevel = new GraphQLEnumType({
+export const GraphQLSecurityCheckLevel = new GraphQLEnumType({
   name: 'SecurityCheckLevel',
   description: 'All supported SecurityCheck levels',
   values: Object.values(Level).reduce(
@@ -26,15 +26,15 @@ export const SecurityCheckLevel = new GraphQLEnumType({
   ),
 });
 
-export const SecurityCheck = new GraphQLObjectType({
+export const GraphQLSecurityCheck = new GraphQLObjectType({
   name: 'SecurityCheck',
   fields: () => ({
     scope: {
-      type: new GraphQLNonNull(SecurityCheckScope),
+      type: new GraphQLNonNull(GraphQLSecurityCheckScope),
       description: 'The SecurityCheck scope',
     },
     level: {
-      type: new GraphQLNonNull(SecurityCheckLevel),
+      type: new GraphQLNonNull(GraphQLSecurityCheckLevel),
       description: 'The SecurityCheck level',
     },
     message: {

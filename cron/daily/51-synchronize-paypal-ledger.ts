@@ -13,15 +13,16 @@ import logger from '../../server/lib/logger';
 import { getHostsWithPayPalConnected, listPayPalTransactions } from '../../server/lib/paypal';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import { parseToBoolean } from '../../server/lib/utils';
-import models, { sequelize } from '../../server/models';
+import models, { Collective, sequelize } from '../../server/models';
 import { paypalRequestV2 } from '../../server/paymentProviders/paypal/api';
 import { recordPaypalCapture } from '../../server/paymentProviders/paypal/payment';
 import { PaypalCapture, PaypalTransactionSearchResult } from '../../server/types/paypal';
 
 const LIMITED_TO_HOST_SLUGS = process.env.HOST ? process.env.HOST.split(',') : null;
+const EXCLUDED_HOST_SLUGS = process.env.EXCLUDED_HOST ? process.env.EXCLUDED_HOST.split(',') : null;
 const START_DATE = process.env.START_DATE ? moment.utc(process.env.START_DATE) : moment.utc().subtract(2, 'day');
 const END_DATE = process.env.END_DATE ? moment.utc(process.env.END_DATE) : moment(START_DATE).add(1, 'day');
-const DRY_RUN = process.env.DRY_RUN ? parseToBoolean(process.env.DRY_RUN) : true;
+const DRY_RUN = process.env.DRY_RUN ? parseToBoolean(process.env.DRY_RUN) : false;
 
 // Filter out transactions that are not related to contributions
 // See https://developer.paypal.com/docs/transaction-search/transaction-event-codes/
@@ -47,44 +48,33 @@ const IGNORED_HOSTS = [
   'better-together',
   'bruijnlogistics',
   'chesskeep',
+  'cct',
   'connectedpapers',
-  'deeptimewalk-cic',
   'dynamicpress',
   'gaianet1',
   'heroes-of-newerth-community',
   'hisham-bin-ateya',
-  'java-jda',
   'lucy-parsons-labs',
   'madeinjlm',
-  'momentum-mod',
   'monachelle',
   'nbgrp',
   'nfsc',
   'novastra',
   'openmiami-host',
   'osgeo-foundation',
-  'papertree',
   'ppy',
   'proofing-future',
   'queens-care-collective-host',
   'rollenspielmonster',
   'sacred-economy-llc',
+  'secdsm',
   'stroud-district-community-hubs',
-  'symbiosis-cooperation-tulsa-fund',
-  'tapetenresonanz',
   'the-book-haven-npc',
   'thecodebulbs',
-  'themuseumofhumanachievement',
   'thenewoilmedia',
-  'transition-network',
-  'treeoflight',
   'voltarails',
   'wildseed-society',
   'wujimacha',
-  // Not active anymore
-  'paris',
-  // Strange 401 errors
-  'ocnz',
 ];
 
 /**
@@ -194,7 +184,7 @@ const loadDataForSubscription = async (paypalSubscriptionId, expectedHost) => {
  * Subscriptions are an easy case, we only need to record the capture
  */
 const handleSubscriptionTransaction = async (
-  host: typeof models.Collective,
+  host: Collective,
   transaction: PaypalTransactionSearchResult['transaction_details'][0],
   captureDetails: PaypalCapture,
 ) => {
@@ -304,9 +294,10 @@ const run = async () => {
   const hostsWithPayPal = await getHostsWithPayPalConnected();
   const fromDate = START_DATE.startOf('day');
   const toDate = END_DATE.endOf('day');
+  const hostsToIgnore = [...IGNORED_HOSTS, ...(EXCLUDED_HOST_SLUGS || [])];
   const hostsToProcess = LIMITED_TO_HOST_SLUGS
     ? hostsWithPayPal.filter(h => LIMITED_TO_HOST_SLUGS.includes(h.slug))
-    : hostsWithPayPal.filter(h => !IGNORED_HOSTS.includes(h.slug));
+    : hostsWithPayPal.filter(h => !hostsToIgnore.includes(h.slug));
 
   if (!hostsToProcess.length) {
     logger.info('No hosts to process');
@@ -318,7 +309,7 @@ const run = async () => {
   logger.info(`Starting reconciliation job for PayPal transactions between ${fromDate} and ${toDate}`);
   for (let i = 0; i < hostsToProcess.length; i++) {
     const host = hostsToProcess[i];
-    logger.info(`==== Processing host ${i + 1}/${hostsToProcess.length}: ${host.slug} ====`);
+    logger.info(`\n==== Processing host ${i + 1}/${hostsToProcess.length}: ${host.slug} ====`);
     await processHost(host, fromDate, toDate);
   }
 };

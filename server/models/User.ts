@@ -4,16 +4,11 @@ import config from 'config';
 import debugLib from 'debug';
 import slugify from 'limax';
 import { defaults, get, intersection, isEmpty, pick } from 'lodash';
-import {
-  BelongsToGetAssociationMixin,
-  CreationOptional,
-  InferAttributes,
-  InferCreationAttributes,
-  NonAttribute,
-} from 'sequelize';
+import { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
 import activities from '../constants/activities';
+import { CollectiveType } from '../constants/collectives';
 import { Service } from '../constants/connected_account';
 import OrderStatuses from '../constants/order_status';
 import roles from '../constants/roles';
@@ -21,22 +16,36 @@ import * as auth from '../lib/auth';
 import emailLib from '../lib/email';
 import logger from '../lib/logger';
 import sequelize, { DataTypes, Model, Op } from '../lib/sequelize';
+import twoFactorAuthLib from '../lib/two-factor-authentication';
 import { isValidEmail, parseToBoolean } from '../lib/utils';
 
+import Collective from './Collective';
 import models from '.';
 
 const debug = debugLib('models:User');
+
+type UserData = {
+  creationRequest?: { ip: string };
+  lastSignInRequest?: { ip: string };
+};
 
 class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   public declare readonly id: CreationOptional<number>;
   public declare email: string;
   public declare emailWaitingForValidation: CreationOptional<string>;
   public declare emailConfirmationToken: CreationOptional<string>;
+  /**
+   * @deprecated use `UserTwoFactorAuthMethod`
+   */
   public declare twoFactorAuthToken: CreationOptional<string>;
+  /**
+   * @deprecated use `UserTwoFactorAuthMethod`
+   */
+  public declare yubikeyDeviceId: CreationOptional<string>;
   public declare twoFactorAuthRecoveryCodes: CreationOptional<string[]>;
   public declare CollectiveId: number;
   public declare newsletterOptIn: boolean;
-  public declare data: CreationOptional<Record<string, unknown>>;
+  public declare data: CreationOptional<Record<string, unknown> & UserData>;
   public declare createdAt: CreationOptional<Date>;
   public declare changelogViewDate: CreationOptional<Date>;
   public declare updatedAt: CreationOptional<Date>;
@@ -51,8 +60,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   public _emailWaitingForValidationChanged?: NonAttribute<boolean>;
 
   // Associations
-  public declare collective?: typeof models.Collective;
-  declare getCollective: BelongsToGetAssociationMixin<typeof models.Collective>;
+  public declare collective?: Collective;
 
   // Non-model attributes
   public rolesByCollectiveId?: NonAttribute<Record<string, string[]>>;
@@ -63,7 +71,6 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
    * Generate a JWT for user.
    *
    * @param {object} `payload` - data to attach to the token
-   * @param {Boolean} `payload.traceless` - if token should update lastLoginAt information
    * @param {Number} `expiration` - expiration period in seconds
    */
   jwt = function (payload = undefined, expiration = undefined) {
@@ -71,8 +78,14 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     return auth.createJwt(this.id, payload, expiration);
   };
 
-  generateSessionToken = async function ({ sessionId = null } = {}) {
-    if (!parseToBoolean(config.database.readOnly)) {
+  generateSessionToken = async function ({
+    sessionId = null,
+    createActivity = true,
+    updateLastLoginAt = false,
+    expiration = null,
+    req = null,
+  } = {}) {
+    if (createActivity && !parseToBoolean(config.database.readOnly)) {
       await models.Activity.create({
         type: activities.USER_SIGNIN,
         UserId: this.id,
@@ -82,15 +95,23 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
       });
     }
 
-    return this.jwt({ sessionId }, auth.TOKEN_EXPIRATION_SESSION);
+    if (updateLastLoginAt && req && !parseToBoolean(config.database.readOnly)) {
+      await this.update({
+        // The login was accepted, we can update lastLoginAt. This will invalidate all older login tokens.
+        lastLoginAt: new Date(),
+        data: { ...this.data, lastSignInRequest: { ip: req.ip, userAgent: req.header('user-agent') } },
+      });
+    }
+
+    return this.jwt({ scope: 'session', sessionId }, expiration || auth.TOKEN_EXPIRATION_SESSION);
   };
 
   generateLoginLink = function (redirect = '/', websiteUrl) {
     const lastLoginAt = this.lastLoginAt ? this.lastLoginAt.getTime() : null;
     const token = this.jwt({ scope: 'login', lastLoginAt }, auth.TOKEN_EXPIRATION_LOGIN);
     // if a different websiteUrl is passed
-    // we don't accept that in production to avoid fishing related issues
-    if (websiteUrl && config.env !== 'production') {
+    // we don't accept that in production or staging to avoid fishing related issues
+    if (websiteUrl && !['production', 'staging'].includes(config.env)) {
       return `${websiteUrl}/signin/${token}?next=${redirect}`;
     } else {
       return `${config.host.website}/signin/${token}?next=${redirect}`;
@@ -102,7 +123,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     const token = this.jwt({ scope: 'reset-password', passwordUpdatedAt }, auth.TOKEN_EXPIRATION_RESET_PASSWORD);
     // if a different websiteUrl is passed
     // we don't accept that in production to avoid fishing related issues
-    if (websiteUrl && config.env !== 'production') {
+    if (websiteUrl && !['production', 'staging'].includes(config.env)) {
       return `${websiteUrl}/reset-password/${token}`;
     } else {
       return `${config.host.website}/reset-password/${token}`;
@@ -110,6 +131,10 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   };
 
   setPassword = async function (password, { userToken = null } = {}) {
+    if (Buffer.from(password).length > 72) {
+      throw new Error('Password is too long, should not be more than 72 bytes.');
+    }
+
     const passwordHash = await bcrypt.hash(password, /* saltRounds */ 10);
 
     await this.update({ passwordHash, passwordUpdatedAt: new Date() });
@@ -269,14 +294,17 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
    * Limit the user account, preventing a specific feature
    * @param feature:the feature to limit. See `server/constants/feature.ts`.
    */
-  limitFeature = async function (feature) {
+  limitFeature = async function (feature, reason) {
     const features = get(this.data, 'features', {});
+    const limitReasons = get(this.data, 'limitReasons') || [];
+
     features[feature] = false;
+    limitReasons.push({ date: new Date().toISOString(), feature, reason });
 
     logger.info(`Limiting feature ${feature} for user account ${this.id}`);
 
     this.changed('data', true);
-    this.data = { ...this.data, features };
+    this.data = { ...this.data, features, limitReasons };
     return this.save();
   };
 
@@ -305,8 +333,12 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     return count > 0;
   };
 
+  getLastKnownIp = function (): string {
+    return this.data?.lastSignInRequest?.ip || this.data?.creationRequest?.ip;
+  };
+
   findRelatedUsersByIp = async function ({ include = undefined, where = null } = {}) {
-    const ip = this.data?.lastSignInRequest?.ip || this.data?.creationRequest?.ip;
+    const ip = this.getLastKnownIp();
     return User.findAll({
       where: {
         ...where,
@@ -351,6 +383,17 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     });
   };
 
+  getCollective = async function ({ loaders = null } = {}): Promise<Collective> {
+    if (this.CollectiveId) {
+      const collective = loaders
+        ? await loaders.Collective.byId.load(this.CollectiveId)
+        : await models.Collective.findByPk(this.CollectiveId);
+      if (collective) {
+        return collective;
+      }
+    }
+  };
+
   /**
    * Static Methods
    */
@@ -392,7 +435,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     }
 
     const userCollectiveData = {
-      type: 'USER',
+      type: CollectiveType.USER,
       name: collectiveName,
       legalName: userData.legalName,
       image: userData.image,
@@ -409,10 +452,12 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
       CreatedByUserId: userData.CreatedByUserId || user.id,
       data: { UserId: user.id },
       settings: userData.settings,
-      countryISO: userData.location?.country,
-      address: userData.location?.address,
     };
     user.collective = await models.Collective.create(userCollectiveData, sequelizeParams);
+
+    if (userData.location) {
+      await user.collective.setLocation(userData.location, transaction);
+    }
 
     // It's difficult to predict when the image will be updated by findImageForUser
     // So we skip that in test environment to make it more predictable
@@ -436,60 +481,49 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   };
 
   // Getters
-  // Collective of type USER corresponding to this user
-  // @deprecated use user.getCollective()
-  get userCollective(): NonAttribute<Promise<typeof models.Collective>> {
-    return models.Collective.findByPk(this.CollectiveId).then(userCollective => {
-      if (!userCollective) {
-        logger.info(`No Collective attached to this user id ${this.id} (User.CollectiveId: ${this.CollectiveId})`);
-        return {};
-      }
-      return userCollective;
-    });
-  }
 
-  get hasTwoFactorAuthentication(): NonAttribute<boolean> {
-    return this.twoFactorAuthToken !== null;
+  hasTwoFactorAuthentication(): NonAttribute<Promise<boolean>> {
+    return twoFactorAuthLib.userHasTwoFactorAuthEnabled(this);
   }
 
   // @deprecated
   get name(): NonAttribute<Promise<string>> {
-    return this.userCollective.then(c => c.name);
+    return this.getCollective().then(c => c.name);
   }
 
   // @deprecated
   get twitterHandle(): NonAttribute<Promise<string>> {
-    return this.userCollective.then(c => c.twitterHandle);
+    return this.getCollective().then(c => c.twitterHandle);
   }
 
   // @deprecated
   get githubHandle(): NonAttribute<Promise<string>> {
-    return this.userCollective.then(c => c.githubHandle);
+    return this.getCollective().then(c => c.githubHandle);
   }
 
   // @deprecated
   get repositoryUrl(): NonAttribute<Promise<string>> {
-    return this.userCollective.then(c => c.repositoryUrl);
+    return this.getCollective().then(c => c.repositoryUrl);
   }
 
   // @deprecated
   get website(): NonAttribute<Promise<string>> {
-    return this.userCollective.then(c => c.website);
+    return this.getCollective().then(c => c.website);
   }
 
   // @deprecated
   get description(): NonAttribute<Promise<string>> {
-    return this.userCollective.then(c => c.description);
+    return this.getCollective().then(c => c.description);
   }
 
   // @deprecated
   get longDescription(): NonAttribute<Promise<string>> {
-    return this.userCollective.then(c => c.longDescription);
+    return this.getCollective().then(c => c.longDescription);
   }
 
   // @deprecated
   get image(): NonAttribute<Promise<string>> {
-    return this.userCollective.then(c => c.image);
+    return this.getCollective().then(c => c.image);
   }
 
   // Info (private).
@@ -645,6 +679,11 @@ User.init(
     },
 
     twoFactorAuthToken: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+
+    yubikeyDeviceId: {
       type: DataTypes.STRING,
       allowNull: true,
     },

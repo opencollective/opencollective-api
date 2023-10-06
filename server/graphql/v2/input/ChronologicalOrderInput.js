@@ -1,26 +1,28 @@
 import { GraphQLInputObjectType, GraphQLNonNull } from 'graphql';
 
-import { DateTimeField } from '../enum/DateTimeField';
-import { OrderDirectionType } from '../enum/OrderDirectionType';
+import { GraphQLDateTimeField } from '../enum/DateTimeField';
+import { GraphQLOrderDirectionType } from '../enum/OrderDirectionType';
 
-export const ChronologicalOrderInput = new GraphQLInputObjectType({
+export const GraphQLChronologicalOrderInput = new GraphQLInputObjectType({
   name: 'ChronologicalOrderInput',
   description: 'Input to order results chronologically',
   fields: () => ({
     field: {
       description: 'Field to chronologically order by.',
       defaultValue: 'createdAt',
-      type: new GraphQLNonNull(DateTimeField),
+      type: new GraphQLNonNull(GraphQLDateTimeField),
     },
     direction: {
       description: 'Ordering direction.',
       defaultValue: 'DESC',
-      type: new GraphQLNonNull(OrderDirectionType),
+      type: new GraphQLNonNull(GraphQLOrderDirectionType),
     },
   }),
 });
 
-export const CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE = Object.entries(ChronologicalOrderInput.getFields()).reduce(
+export const CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE = Object.entries(
+  GraphQLChronologicalOrderInput.getFields(),
+).reduce(
   (values, [key, value]) => ({
     ...values,
     [key]: value.defaultValue,
@@ -28,4 +30,4 @@ export const CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE = Object.entries(Chronologi
   {},
 );
 
-ChronologicalOrderInput.defaultValue = CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE;
+GraphQLChronologicalOrderInput.defaultValue = CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE;

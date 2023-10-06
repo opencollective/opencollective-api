@@ -3,17 +3,15 @@ import fs from 'fs';
 import path from 'path';
 import { URL } from 'url';
 
-import Promise from 'bluebird';
 import config from 'config';
+import fastRedact from 'fast-redact';
 import pdf from 'html-pdf';
 import { filter, get, isEqual, padStart, sumBy } from 'lodash';
+import pFilter from 'p-filter';
 
 import { ZERO_DECIMAL_CURRENCIES } from '../constants/currencies';
 
-import errors from './errors';
 import handlebars from './handlebars';
-
-const { BadRequest } = errors;
 
 export function addParamsToUrl(url, obj) {
   const u = new URL(url);
@@ -119,62 +117,64 @@ export const getTiersStats = (tiers, startDate, endDate) => {
   // We sort tiers by number of users ASC
   tiers.sort((a, b) => b.amount - a.amount);
 
-  return Promise.map(tiers, tier => {
-    const backers = get(tier, 'dataValues.users');
-    let index = 0;
+  return Promise.all(
+    tiers.map(tier => {
+      const backers = get(tier, 'dataValues.users');
+      let index = 0;
 
-    // We sort backers by total donations DESC
-    backers.sort((a, b) => b.totalDonations - a.totalDonations);
+      // We sort backers by total donations DESC
+      backers.sort((a, b) => b.totalDonations - a.totalDonations);
 
-    return Promise.filter(backers, backer => {
-      if (backersIds[backer.id]) {
-        return false;
-      }
-      backersIds[backer.id] = true;
-
-      backer.index = index++;
-      return Promise.all([tier.isBackerActive(backer, endDate), tier.isBackerActive(backer, startDate)]).then(
-        results => {
-          backer.activeLastMonth = results[0];
-          backer.activePreviousMonth = backer.firstDonation < startDate && results[1];
-          if (tier.name.match(/sponsor/i)) {
-            backer.isSponsor = true;
-          }
-          if (backer.firstDonation > startDate) {
-            backer.isNew = true;
-            stats.backers.new++;
-          }
-          if (backer.activePreviousMonth && !backer.activeLastMonth) {
-            backer.isLost = true;
-            stats.backers.lost++;
-          }
-          if (backer.activePreviousMonth) {
-            stats.backers.previousMonth++;
-          }
-          if (backer.activeLastMonth) {
-            stats.backers.lastMonth++;
-            return true;
-          } else if (backer.isLost) {
-            return true;
-          }
-        },
-      );
-    }).then(backers => {
-      backers.sort((a, b) => {
-        if (rank(a) > rank(b)) {
-          return 1;
+      return pFilter(backers, backer => {
+        if (backersIds[backer.id]) {
+          return false;
         }
-        if (rank(a) < rank(b)) {
-          return -1;
-        }
-        return a.index - b.index; // make sure we keep the original order within a tier (typically totalDonations DESC)
+        backersIds[backer.id] = true;
+
+        backer.index = index++;
+        return Promise.all([tier.isBackerActive(backer, endDate), tier.isBackerActive(backer, startDate)]).then(
+          results => {
+            backer.activeLastMonth = results[0];
+            backer.activePreviousMonth = backer.firstDonation < startDate && results[1];
+            if (tier.name.match(/sponsor/i)) {
+              backer.isSponsor = true;
+            }
+            if (backer.firstDonation > startDate) {
+              backer.isNew = true;
+              stats.backers.new++;
+            }
+            if (backer.activePreviousMonth && !backer.activeLastMonth) {
+              backer.isLost = true;
+              stats.backers.lost++;
+            }
+            if (backer.activePreviousMonth) {
+              stats.backers.previousMonth++;
+            }
+            if (backer.activeLastMonth) {
+              stats.backers.lastMonth++;
+              return true;
+            } else if (backer.isLost) {
+              return true;
+            }
+          },
+        );
+      }).then(backers => {
+        backers.sort((a, b) => {
+          if (rank(a) > rank(b)) {
+            return 1;
+          }
+          if (rank(a) < rank(b)) {
+            return -1;
+          }
+          return a.index - b.index; // make sure we keep the original order within a tier (typically totalDonations DESC)
+        });
+
+        tier.activeBackers = backers.filter(b => !b.isLost);
+
+        return tier;
       });
-
-      tier.activeBackers = backers.filter(b => !b.isLost);
-
-      return tier;
-    });
-  }).then(tiers => {
+    }),
+  ).then(tiers => {
     return { stats, tiers };
   });
 };
@@ -267,7 +267,7 @@ export function exportToPDF(template, data, options) {
 /**
  * Default host id, set this for new collectives created through our flow
  *
- * @param {"opensource" | null} category of the collective
+ * @param {"opensource" | "foundation" | "europe" | null} category of the collective
  */
 export const defaultHostCollective = category => {
   if (config.env === 'production' || config.env === 'staging') {
@@ -275,6 +275,10 @@ export const defaultHostCollective = category => {
       return { id: 772, CollectiveId: 11004, ParentCollectiveId: 83 }; // Open Source Host Collective
     } else if (category === 'foundation') {
       return { CollectiveId: 11049 };
+    } else if (category === 'europe') {
+      return { CollectiveId: 9807 };
+    } else if (category === 'opencollective') {
+      return { CollectiveId: 8686 };
     } else {
       return {}; // Don't automatically assign a host anymore
     }
@@ -284,11 +288,23 @@ export const defaultHostCollective = category => {
       return { CollectiveId: 9805, ParentCollectiveId: 83 }; // Open Source Host Collective
     } else if (category === 'foundation') {
       return { CollectiveId: 9805 };
+    } else if (category === 'opencollective') {
+      return { CollectiveId: 8686 };
     } else {
       return {}; // Don't automatically assign a host anymore
     }
   }
   return { id: 1, CollectiveId: 1 };
+};
+
+/**
+ * @returns {Array<Number>} the ids of the internal hosts
+ */
+export const getInternalHostsIds = () => {
+  return ['opencollective', 'opensource', 'foundation', 'europe']
+    .map(defaultHostCollective)
+    .map(result => result.CollectiveId)
+    .filter(Boolean);
 };
 
 export const isValidEmail = email => {
@@ -383,7 +399,7 @@ export const getDefaultCurrencyPrecision = currency => {
   }
 };
 
-export function formatCurrency(amount, currency, precision = 2) {
+export function formatCurrency(amount, currency, precision = 2, isApproximate = false) {
   amount = amount / 100; // converting cents
   let locale;
   switch (currency) {
@@ -396,13 +412,18 @@ export function formatCurrency(amount, currency, precision = 2) {
     default:
       locale = 'en-US';
   }
-  return amount.toLocaleString(locale, {
-    style: 'currency',
-    currencyDisplay: 'symbol',
-    currency,
-    minimumFractionDigits: precision,
-    maximumFractionDigits: precision,
-  });
+
+  const prefix = isApproximate ? '~' : '';
+  return (
+    prefix +
+    amount.toLocaleString(locale, {
+      style: 'currency',
+      currencyDisplay: 'symbol',
+      currency,
+      minimumFractionDigits: precision,
+      maximumFractionDigits: precision,
+    })
+  );
 }
 
 /**
@@ -517,7 +538,7 @@ export const toIsoDateStr = date => {
   return `${year}-${padStart(month.toString(), 2, '0')}-${padStart(day.toString(), 2, '0')}`;
 };
 
-export const getTokenFromRequestHeaders = req => {
+export const getBearerTokenFromRequestHeaders = req => {
   const header = req.headers && req.headers.authorization;
   if (!header) {
     return null;
@@ -526,11 +547,9 @@ export const getTokenFromRequestHeaders = req => {
   const parts = header.split(' ');
   const scheme = parts[0];
   const token = parts[1];
-  if (!/^Bearer$/i.test(scheme) || !token) {
-    throw new BadRequest('Format is Authorization: Bearer [token]');
+  if (/^Bearer$/i.test(scheme)) {
+    return token;
   }
-
-  return token;
 };
 
 export const sumByWhen = (vector, iteratee, predicate) => sumBy(filter(vector, predicate), iteratee);
@@ -552,3 +571,23 @@ export const computeDatesAsISOStrings = (startDate, endDate) => {
  * @returns string
  */
 export const ifStr = (condition, expression) => (condition ? expression : '');
+
+export const redactSensitiveFields = fastRedact({
+  serialize: false,
+  paths: [
+    'authorization',
+    'Authorization',
+    'AUTHORIZATION',
+    'token',
+    'accessToken',
+    'access_token',
+    'refreshToken',
+    '["Personal-Token"]',
+    'password',
+    'newPassword',
+    'currentPassword',
+    'variables.password',
+    'variables.newPassword',
+    'variables.currentPassword',
+  ],
+});

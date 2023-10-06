@@ -85,7 +85,14 @@ export type RecipientAccount = {
   accountHolderName: string;
   legalType: 'PRIVATE' | 'BUSINESS';
   details: {
-    address?: string;
+    address?: {
+      country: string;
+      countryCode: string;
+      firstLine: string;
+      postCode: string;
+      city: string;
+      state: string;
+    };
     email?: string;
     accountNumber?: string;
     sortCode?: string;
@@ -344,6 +351,8 @@ export type TransactionRequiredFieldsGroup = {
   type: string;
   required: boolean;
   example: string;
+  minLength: number;
+  maxLength: number;
   validationRegexp: null | string;
   refreshRequirementsOnChange: boolean;
   valuesAllowed?: Array<{

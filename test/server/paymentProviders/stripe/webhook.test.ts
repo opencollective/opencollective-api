@@ -8,6 +8,7 @@ import Stripe from 'stripe';
 import { Service } from '../../../../server/constants/connected_account';
 import FEATURE from '../../../../server/constants/feature';
 import OrderStatuses from '../../../../server/constants/order_status';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
 import * as libPayments from '../../../../server/lib/payments';
 import stripe from '../../../../server/lib/stripe';
 import models from '../../../../server/models';
@@ -32,7 +33,10 @@ describe('webhook', () => {
     beforeEach(() => utils.resetTestDB());
 
     beforeEach(async () => {
-      const paymentMethod = await fakePaymentMethod({ service: 'stripe', type: 'creditcard' });
+      const paymentMethod = await fakePaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        type: PAYMENT_METHOD_TYPE.CREDITCARD,
+      });
       user = await fakeUser();
       order = await fakeOrder(
         {
@@ -92,7 +96,10 @@ describe('webhook', () => {
 
     beforeEach(async () => {
       const collective = await fakeCollective({ isHostAccount: true });
-      paymentMethod = await fakePaymentMethod({ service: 'stripe', type: 'creditcard' });
+      paymentMethod = await fakePaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        type: PAYMENT_METHOD_TYPE.CREDITCARD,
+      });
       user = await fakeUser();
       order = await fakeOrder(
         {
@@ -239,7 +246,10 @@ describe('webhook', () => {
     beforeEach(() => utils.resetTestDB());
 
     beforeEach(async () => {
-      const paymentMethod = await fakePaymentMethod({ service: 'stripe', type: 'creditcard' });
+      const paymentMethod = await fakePaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        type: PAYMENT_METHOD_TYPE.CREDITCARD,
+      });
       user = await fakeUser();
       order = await fakeOrder(
         {
@@ -295,7 +305,10 @@ describe('webhook', () => {
     beforeEach(() => utils.resetTestDB());
 
     beforeEach(async () => {
-      const paymentMethod = await fakePaymentMethod({ service: 'stripe', type: 'creditcard' });
+      const paymentMethod = await fakePaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        type: PAYMENT_METHOD_TYPE.CREDITCARD,
+      });
       user = await fakeUser();
       order = await fakeOrder(
         {
@@ -460,7 +473,10 @@ describe('webhook', () => {
     const sandbox = createSandbox();
 
     beforeEach(async () => {
-      const paymentMethod = await fakePaymentMethod({ type: 'paymentintent', service: 'stripe' });
+      const paymentMethod = await fakePaymentMethod({
+        type: PAYMENT_METHOD_TYPE.PAYMENT_INTENT,
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+      });
       order = await fakeOrder({
         PaymentMethodId: paymentMethod.id,
         FromCollectiveId: paymentMethod.CollectiveId,
@@ -601,8 +617,8 @@ describe('webhook', () => {
     it('saves mandate to payment method', async () => {
       const stripePaymentMethodId = randStr('pm_');
       const paymentMethod = await fakePaymentMethod({
-        type: 'sepa_debit',
-        service: 'stripe',
+        type: PAYMENT_METHOD_TYPE.SEPA_DEBIT,
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
         saved: true,
         data: {
           stripePaymentMethodId,
@@ -641,8 +657,8 @@ describe('webhook', () => {
     it('updates mandate to inactive', async () => {
       const stripePaymentMethodId = randStr('pm_');
       const paymentMethod = await fakePaymentMethod({
-        type: 'sepa_debit',
-        service: 'stripe',
+        type: PAYMENT_METHOD_TYPE.SEPA_DEBIT,
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
         saved: true,
         data: {
           stripePaymentMethodId,
@@ -818,6 +834,45 @@ describe('webhook', () => {
         status: 'active',
         payment_method: stripePaymentMethodId,
       });
+    });
+
+    it('ignores unknown Stripe payment method type', async () => {
+      const stripePaymentMethodId = randStr('pm_');
+
+      sandbox.stub(stripe.paymentMethods, 'retrieve').resolves({
+        id: stripePaymentMethodId,
+        type: 'link',
+        link: {},
+      });
+
+      await webhook.mandateUpdated({
+        id: 'evt_id',
+        type: 'mandate.updated',
+        object: 'event',
+        api_version: '',
+        livemode: true,
+        request: null,
+        created: 0,
+        pending_webhooks: 0,
+        data: {
+          object: {
+            id: 'mandate_1234',
+            type: 'multi_use',
+            status: 'active',
+            payment_method: stripePaymentMethodId,
+          } as Stripe.Mandate,
+        },
+      });
+
+      const paymentMethod = await models.PaymentMethod.findOne({
+        where: {
+          data: {
+            stripePaymentMethodId,
+          },
+        },
+      });
+
+      expect(paymentMethod).to.not.exist;
     });
   });
 });

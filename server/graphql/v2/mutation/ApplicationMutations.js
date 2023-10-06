@@ -7,16 +7,16 @@ import models from '../../../models';
 import { checkRemoteUserCanUseApplications } from '../../common/scope-check';
 import { Forbidden, NotFound, RateLimitExceeded } from '../../errors';
 import { fetchAccountWithReference } from '../input/AccountReferenceInput.js';
-import { ApplicationCreateInput } from '../input/ApplicationCreateInput';
-import { ApplicationReferenceInput, fetchApplicationWithReference } from '../input/ApplicationReferenceInput';
-import { ApplicationUpdateInput } from '../input/ApplicationUpdateInput';
-import { Application } from '../object/Application';
+import { GraphQLApplicationCreateInput } from '../input/ApplicationCreateInput';
+import { fetchApplicationWithReference, GraphQLApplicationReferenceInput } from '../input/ApplicationReferenceInput';
+import { GraphQLApplicationUpdateInput } from '../input/ApplicationUpdateInput';
+import { GraphQLApplication } from '../object/Application';
 
 const createApplication = {
-  type: Application,
+  type: GraphQLApplication,
   args: {
     application: {
-      type: new GraphQLNonNull(ApplicationCreateInput),
+      type: new GraphQLNonNull(GraphQLApplicationCreateInput),
     },
   },
   async resolve(_, args, req) {
@@ -27,7 +27,7 @@ const createApplication = {
       : req.remoteUser.collective;
 
     // Enforce 2FA
-    await twoFactorAuthLib.enforceForAccountAdmins(req, collective);
+    await twoFactorAuthLib.enforceForAccount(req, collective);
 
     if (!req.remoteUser.isAdminOfCollective(collective)) {
       throw new Forbidden();
@@ -50,10 +50,10 @@ const createApplication = {
 };
 
 const updateApplication = {
-  type: Application,
+  type: GraphQLApplication,
   args: {
     application: {
-      type: new GraphQLNonNull(ApplicationUpdateInput),
+      type: new GraphQLNonNull(GraphQLApplicationUpdateInput),
     },
   },
   async resolve(_, args, req) {
@@ -80,10 +80,10 @@ const updateApplication = {
 };
 
 const deleteApplication = {
-  type: Application,
+  type: GraphQLApplication,
   args: {
     application: {
-      type: new GraphQLNonNull(ApplicationReferenceInput),
+      type: new GraphQLNonNull(GraphQLApplicationReferenceInput),
     },
   },
   async resolve(_, args, req) {

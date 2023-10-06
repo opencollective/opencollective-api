@@ -177,7 +177,7 @@ export async function removePaymentMethod(paymentMethodId, req) {
     throw PaymentMethodPermissionError;
   }
 
-  await twoFactorAuthLib.enforceForAccountAdmins(req, paymentMethod.Collective);
+  await twoFactorAuthLib.enforceForAccount(req, paymentMethod.Collective);
 
   // Block the removal if the payment method has subscriptions linked
   const subscriptions = await paymentMethod.getOrders({
@@ -208,7 +208,7 @@ export async function updatePaymentMethod(args, req) {
     throw PaymentMethodPermissionError;
   }
 
-  await twoFactorAuthLib.enforceForAccountAdmins(req, paymentMethod.Collective, { onlyAskOnLogin: true });
+  await twoFactorAuthLib.enforceForAccount(req, paymentMethod.Collective, { onlyAskOnLogin: true });
 
   return paymentMethod.update(pick(args, allowedFields));
 }
@@ -223,7 +223,7 @@ export async function replaceCreditCard(args, req) {
     throw PaymentMethodPermissionError;
   }
 
-  await twoFactorAuthLib.enforceForAccountAdmins(req, oldPaymentMethod.Collective, { onlyAskOnLogin: true });
+  await twoFactorAuthLib.enforceForAccount(req, oldPaymentMethod.Collective, { onlyAskOnLogin: true });
 
   const createArgs = {
     ...pick(args, ['CollectiveId', 'name', 'token', 'data']),

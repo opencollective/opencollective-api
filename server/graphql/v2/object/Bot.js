@@ -1,11 +1,11 @@
 import { GraphQLObjectType } from 'graphql';
 
-import { Account, AccountFields } from '../interface/Account';
+import { AccountFields, GraphQLAccount } from '../interface/Account';
 
-export const Bot = new GraphQLObjectType({
+export const GraphQLBot = new GraphQLObjectType({
   name: 'Bot',
   description: 'This represents a Bot account',
-  interfaces: () => [Account],
+  interfaces: () => [GraphQLAccount],
   isTypeOf: collective => collective.type === 'BOT',
   fields: () => {
     return {

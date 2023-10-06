@@ -1,10 +1,10 @@
 import config from 'config';
 import express from 'express';
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { GraphQLJSON } from 'graphql-type-json';
+import { GraphQLJSON } from 'graphql-scalars';
 
 import { activities } from '../../../constants';
-import { types as CollectiveType } from '../../../constants/collectives';
+import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import POLICIES from '../../../constants/policies';
 import MemberRoles from '../../../constants/roles';
@@ -15,27 +15,27 @@ import { OSCValidator, ValidatedRepositoryInfo } from '../../../lib/osc-validato
 import { getPolicy, hasPolicy } from '../../../lib/policies';
 import { stripHTML } from '../../../lib/sanitize-html';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models, { sequelize } from '../../../models';
+import models, { Op, sequelize } from '../../../models';
 import ConversationModel from '../../../models/Conversation';
 import { HostApplicationStatus } from '../../../models/HostApplication';
 import { processInviteMembersInput } from '../../common/members';
 import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseHost, checkScope } from '../../common/scope-check';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
-import { ProcessHostApplicationAction } from '../enum/ProcessHostApplicationAction';
-import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
-import { InviteMemberInput } from '../input/InviteMemberInput';
-import { Account } from '../interface/Account';
-import Conversation from '../object/Conversation';
+import { GraphQLProcessHostApplicationAction } from '../enum/ProcessHostApplicationAction';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import { GraphQLInviteMemberInput } from '../input/InviteMemberInput';
+import { GraphQLAccount } from '../interface/Account';
+import GraphQLConversation from '../object/Conversation';
 
-const ProcessHostApplicationResponse = new GraphQLObjectType({
+const GraphQLProcessHostApplicationResponse = new GraphQLObjectType({
   name: 'ProcessHostApplicationResponse',
   fields: () => ({
     account: {
-      type: new GraphQLNonNull(Account),
+      type: new GraphQLNonNull(GraphQLAccount),
       description: 'The account that applied to the host',
     },
     conversation: {
-      type: Conversation,
+      type: GraphQLConversation,
       description: 'When sending a public message, this field will have the info about the conversation created',
     },
   }),
@@ -43,15 +43,15 @@ const ProcessHostApplicationResponse = new GraphQLObjectType({
 
 const HostApplicationMutations = {
   applyToHost: {
-    type: new GraphQLNonNull(Account),
+    type: new GraphQLNonNull(GraphQLAccount),
     description: 'Apply to an host with a collective. Scope: "account".',
     args: {
       collective: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Account applying to the host.',
       },
       host: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Host to apply to.',
       },
       message: {
@@ -63,7 +63,7 @@ const HostApplicationMutations = {
         description: 'Further information about collective applying to host',
       },
       inviteMembers: {
-        type: new GraphQLList(InviteMemberInput),
+        type: new GraphQLList(GraphQLInviteMemberInput),
         description: 'A list of members to invite when applying to the host',
       },
     },
@@ -81,7 +81,7 @@ const HostApplicationMutations = {
         throw new Forbidden('You need to be an Admin of the account');
       }
 
-      await twoFactorAuthLib.enforceForAccountAdmins(req, collective);
+      await twoFactorAuthLib.enforceForAccount(req, collective);
 
       const host = await fetchAccountWithReference(args.host);
       if (!host) {
@@ -109,8 +109,7 @@ const HostApplicationMutations = {
 
       // Trigger automated Github approval when repository is on github.com
       const repositoryUrl = args.applicationData?.repositoryUrl;
-      const { hostname } = repositoryUrl ? new URL(repositoryUrl) : { hostname: '' };
-      if (hostname === 'github.com') {
+      if (args.applicationData?.useGithubValidation) {
         const githubHandle = github.getGithubHandleFromUrl(repositoryUrl);
         try {
           // For e2e testing, we enable testuser+(admin|member|host)@opencollective.com to create collective without github validation
@@ -160,19 +159,19 @@ const HostApplicationMutations = {
     },
   },
   processHostApplication: {
-    type: new GraphQLNonNull(ProcessHostApplicationResponse),
+    type: new GraphQLNonNull(GraphQLProcessHostApplicationResponse),
     description: 'Reply to a host application. Scope: "host".',
     args: {
       account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'The account that applied to the host',
       },
       host: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'The host concerned by the application',
       },
       action: {
-        type: new GraphQLNonNull(ProcessHostApplicationAction),
+        type: new GraphQLNonNull(GraphQLProcessHostApplicationAction),
         description: 'What to do with the application',
       },
       message: {
@@ -195,7 +194,7 @@ const HostApplicationMutations = {
       }
 
       // Enforce 2FA
-      await twoFactorAuthLib.enforceForAccountAdmins(req, host, { onlyAskOnLogin: true });
+      await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });
 
       switch (args.action) {
         case 'APPROVE':
@@ -216,11 +215,11 @@ const HostApplicationMutations = {
     },
   },
   removeHost: {
-    type: new GraphQLNonNull(Account),
+    type: new GraphQLNonNull(GraphQLAccount),
     description: 'Removes the host for an account',
     args: {
       account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'The account to unhost',
       },
       message: {
@@ -244,7 +243,11 @@ const HostApplicationMutations = {
       }
 
       if (await hasPolicy(host, POLICIES.REQUIRE_2FA_FOR_ADMINS)) {
-        await twoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true, requireTwoFactorAuthEnabled: true });
+        await twoFactorAuthLib.validateRequest(req, {
+          alwaysAskForToken: true,
+          requireTwoFactorAuthEnabled: true,
+          FromCollectiveId: host.id,
+        });
       }
 
       await account.changeHost(null);
@@ -269,14 +272,15 @@ const HostApplicationMutations = {
 };
 
 const approveApplication = async (host, collective, req) => {
-  const where = {
+  // Check minimum number of admins
+  const countAdminsWhere = {
     CollectiveId: collective.id,
     role: MemberRoles.ADMIN,
   };
 
   const [adminCount, adminInvitationCount] = await Promise.all([
-    models.Member.count({ where }),
-    models.MemberInvitation.count({ where }),
+    models.Member.count({ where: countAdminsWhere }),
+    models.MemberInvitation.count({ where: countAdminsWhere }),
   ]);
 
   const minAdminsPolicy = await getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
@@ -287,13 +291,32 @@ const approveApplication = async (host, collective, req) => {
   }
   // Run updates in a transaction to make sure we don't end up approving half accounts if something goes wrong
   await sequelize.transaction(async transaction => {
-    const newAccountData = { isActive: true, approvedAt: new Date(), HostCollectiveId: host.id };
+    const newAccountData = {
+      isActive: true,
+      approvedAt: new Date(),
+      HostCollectiveId: host.id,
+      currency: host.currency,
+    };
 
     // Approve all events and projects created by this collective
-    await models.Collective.update(
-      newAccountData,
-      { where: { ParentCollectiveId: collective.id }, hooks: false },
-      { transaction },
+    await models.Collective.update(newAccountData, {
+      where: { ParentCollectiveId: collective.id },
+      hooks: false,
+      transaction,
+    });
+
+    // Convert all active tiers to host currency
+    const children = await collective.getChildren({ attributes: ['id'] });
+    await models.Tier.update(
+      { currency: host.currency },
+      {
+        validate: false,
+        transaction,
+        where: {
+          CollectiveId: [collective.id, ...children.map(c => c.id)],
+          currency: { [Op.not]: host.currency },
+        },
+      },
     );
 
     // Approve the collective

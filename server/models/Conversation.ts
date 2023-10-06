@@ -9,7 +9,7 @@ import { sanitizeTags, validateTags } from '../lib/tags';
 
 import Comment from './Comment';
 import User from './User';
-import models from '.';
+import models, { Collective } from '.';
 
 class Conversation extends Model<InferAttributes<Conversation>, InferCreationAttributes<Conversation>> {
   public declare readonly id: CreationOptional<number>;
@@ -24,6 +24,9 @@ class Conversation extends Model<InferAttributes<Conversation>, InferCreationAtt
   public declare createdAt: CreationOptional<Date>;
   public declare updatedAt: CreationOptional<Date>;
   public declare deletedAt: CreationOptional<Date>;
+
+  public declare collective?: Collective;
+  public declare fromCollective?: Collective;
 
   // ---- Static methods ----
 

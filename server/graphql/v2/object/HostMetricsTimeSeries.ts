@@ -5,9 +5,9 @@ import { TransactionTypes } from '../../../constants/transactions';
 import * as HostMetricsLib from '../../../lib/host-metrics';
 import { getTimeSeriesFields } from '../interface/TimeSeries';
 
-import { TimeSeriesAmount } from './TimeSeriesAmount';
-import { TimeSeriesAmountWithKind } from './TimeSeriesAmountWithKind';
-import { TimeSeriesAmountWithSettlement } from './TimeSeriesAmountWithSettlement';
+import { GraphQLTimeSeriesAmount } from './TimeSeriesAmount';
+import { GraphQLTimeSeriesAmountWithKind } from './TimeSeriesAmountWithKind';
+import { GraphQLTimeSeriesAmountWithSettlement } from './TimeSeriesAmountWithSettlement';
 
 export const resultsToAmountNode = results => {
   return results.map(result => ({
@@ -32,13 +32,13 @@ const resultsToAmountWithKindNode = results => {
   }));
 };
 
-export const HostMetricsTimeSeries = new GraphQLObjectType({
+export const GraphQLHostMetricsTimeSeries = new GraphQLObjectType({
   name: 'HostMetricsTimeSeries',
   description: 'Host metrics time series',
   fields: () => ({
     ...getTimeSeriesFields(),
     platformTips: {
-      type: new GraphQLNonNull(TimeSeriesAmount),
+      type: new GraphQLNonNull(GraphQLTimeSeriesAmount),
       description: 'History of the collected platform tips',
       resolve: async ({ host, dateFrom, dateTo, timeUnit }) => {
         const timeSeriesParams = { startDate: dateFrom, endDate: dateTo, groupTimeUnit: timeUnit };
@@ -47,7 +47,7 @@ export const HostMetricsTimeSeries = new GraphQLObjectType({
       },
     },
     hostFees: {
-      type: new GraphQLNonNull(TimeSeriesAmount),
+      type: new GraphQLNonNull(GraphQLTimeSeriesAmount),
       description: 'History of the host fees collected',
       resolve: async ({ host, dateFrom, dateTo, timeUnit }) => {
         const timeSeriesParams = { startDate: dateFrom, endDate: dateTo, timeUnit };
@@ -56,7 +56,7 @@ export const HostMetricsTimeSeries = new GraphQLObjectType({
       },
     },
     hostFeeShare: {
-      type: new GraphQLNonNull(TimeSeriesAmountWithSettlement),
+      type: new GraphQLNonNull(GraphQLTimeSeriesAmountWithSettlement),
       description: 'History of the share of host fees collected owed to Open Collective Inc.',
       resolve: async ({ host, dateFrom, dateTo, timeUnit }) => {
         const timeSeriesParams = { startDate: dateFrom, endDate: dateTo, timeUnit };
@@ -65,7 +65,7 @@ export const HostMetricsTimeSeries = new GraphQLObjectType({
       },
     },
     totalMoneyManaged: {
-      type: new GraphQLNonNull(TimeSeriesAmount),
+      type: new GraphQLNonNull(GraphQLTimeSeriesAmount),
       description: 'History of the total money managed by this host',
       resolve: async ({ host, collectiveIds, dateFrom, dateTo, timeUnit }) => {
         const timeSeriesParams = { startDate: dateFrom, endDate: dateTo, collectiveIds, timeUnit };
@@ -74,7 +74,7 @@ export const HostMetricsTimeSeries = new GraphQLObjectType({
       },
     },
     totalReceived: {
-      type: new GraphQLNonNull(TimeSeriesAmountWithKind),
+      type: new GraphQLNonNull(GraphQLTimeSeriesAmountWithKind),
       description: 'History of the total money received by this host',
       resolve: async ({ host, collectiveIds, dateFrom, dateTo, timeUnit }) => {
         const kind = [TransactionKind.CONTRIBUTION, TransactionKind.ADDED_FUNDS];
@@ -88,7 +88,7 @@ export const HostMetricsTimeSeries = new GraphQLObjectType({
       },
     },
     totalSpent: {
-      type: new GraphQLNonNull(TimeSeriesAmountWithKind),
+      type: new GraphQLNonNull(GraphQLTimeSeriesAmountWithKind),
       description: 'History of the total money spent by this host',
       resolve: async ({ host, collectiveIds, dateFrom, dateTo, timeUnit }) => {
         const kind = TransactionKind.EXPENSE;

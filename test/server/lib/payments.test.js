@@ -1,4 +1,3 @@
-import Promise from 'bluebird';
 import { expect } from 'chai';
 import config from 'config';
 import nock from 'nock';
@@ -133,10 +132,11 @@ describe('server/lib/payments', () => {
       currency: CURRENCY,
       TierId: tier.id,
     });
+
     order = await o.setPaymentMethod({ token: STRIPE_TOKEN });
   });
-  beforeEach('add host to collective', () => collective.addHost(host.collective, host));
-  beforeEach('add host to collective2', () => collective2.addHost(host.collective, host));
+  beforeEach('add host to collective', () => collective.addHost(host, user, { shouldAutomaticallyApprove: true }));
+  beforeEach('add host to collective2', () => collective2.addHost(host, user, { shouldAutomaticallyApprove: true }));
 
   beforeEach('create stripe account', async () => {
     await models.ConnectedAccount.create({
@@ -252,8 +252,6 @@ describe('server/lib/payments', () => {
               await utils.waitForCondition(() => emailSendSpy.callCount > 0);
               expect(emailSendSpy.lastCall.args[0]).to.equal(activities.ORDER_THANKYOU);
               expect(emailSendSpy.lastCall.args[1]).to.equal(user.email);
-              expect(emailSendSpy.lastCall.args[2].relatedCollectives).to.have.length(1);
-              expect(emailSendSpy.lastCall.args[2].relatedCollectives[0]).to.have.property('settings');
             });
           });
 
@@ -329,12 +327,10 @@ describe('server/lib/payments', () => {
               expect(subscription).to.have.property('currency', CURRENCY);
             }));
 
-          it('successfully sends out an email to donor', done => {
-            setTimeout(() => {
-              expect(emailSendSpy.lastCall.args[0]).to.equal(activities.ORDER_THANKYOU);
-              expect(emailSendSpy.lastCall.args[1]).to.equal(user2.email);
-              done();
-            }, 80);
+          it('successfully sends out an email to donor', async () => {
+            await utils.waitForCondition(() => emailSendSpy.callCount > 0);
+            expect(emailSendSpy.lastCall.args[0]).to.equal(activities.ORDER_THANKYOU);
+            expect(emailSendSpy.lastCall.args[1]).to.equal(user2.email);
           });
         });
       });

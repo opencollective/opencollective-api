@@ -3,7 +3,7 @@ import { GraphQLInputObjectType, GraphQLString } from 'graphql';
 /**
  * An input for referencing Comments.
  */
-export const CommentReferenceInput = new GraphQLInputObjectType({
+export const GraphQLCommentReferenceInput = new GraphQLInputObjectType({
   name: 'CommentReferenceInput',
   fields: () => ({
     id: {

@@ -24,12 +24,14 @@ enum ActivityTypes {
   UPDATE_COMMENT_CREATED = 'update.comment.created',
   EXPENSE_COMMENT_CREATED = 'expense.comment.created',
   CONVERSATION_COMMENT_CREATED = 'conversation.comment.created',
+  ORDER_COMMENT_CREATED = 'order.comment.created',
   // Expenses
   COLLECTIVE_EXPENSE_CREATED = 'collective.expense.created',
   COLLECTIVE_EXPENSE_DELETED = 'collective.expense.deleted',
   COLLECTIVE_EXPENSE_UPDATED = 'collective.expense.updated',
   COLLECTIVE_EXPENSE_REJECTED = 'collective.expense.rejected',
   COLLECTIVE_EXPENSE_APPROVED = 'collective.expense.approved',
+  COLLECTIVE_EXPENSE_RE_APPROVAL_REQUESTED = 'collective.expense.reApprovalRequested',
   COLLECTIVE_EXPENSE_UNAPPROVED = 'collective.expense.unapproved',
   COLLECTIVE_EXPENSE_MOVED = 'collective.expense.moved',
   COLLECTIVE_EXPENSE_PAID = 'collective.expense.paid',
@@ -37,6 +39,8 @@ enum ActivityTypes {
   COLLECTIVE_EXPENSE_MARKED_AS_SPAM = 'collective.expense.spam',
   COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE = 'collective.expense.incomplete',
   COLLECTIVE_EXPENSE_PROCESSING = 'collective.expense.processing',
+  COLLECTIVE_EXPENSE_PUT_ON_HOLD = 'collective.expense.putOnHold',
+  COLLECTIVE_EXPENSE_RELEASED_FROM_HOLD = 'collective.expense.releasedFromHold',
   COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT = 'collective.expense.scheduledForPayment',
   COLLECTIVE_EXPENSE_UNSCHEDULED_FOR_PAYMENT = 'collective.expense.unscheduledForPayment',
   COLLECTIVE_EXPENSE_ERROR = 'collective.expense.error',
@@ -48,7 +52,10 @@ enum ActivityTypes {
   COLLECTIVE_VIRTUAL_CARD_ADDED = 'collective.virtualcard.added',
   COLLECTIVE_VIRTUAL_CARD_MISSING_RECEIPTS = 'collective.virtualcard.missing.receipts',
   COLLECTIVE_VIRTUAL_CARD_SUSPENDED = 'collective.virtualcard.suspended',
+  COLLECTIVE_VIRTUAL_CARD_SUSPENDED_DUE_TO_INACTIVITY = 'collective.virtualcard.suspendedDueToInactivity',
   COLLECTIVE_VIRTUAL_CARD_DELETED = 'collective.virtualcard.deleted',
+  COLLECTIVE_VIRTUAL_CARD_REQUEST_APPROVED = 'collective.virtualcard.request.approved',
+  COLLECTIVE_VIRTUAL_CARD_REQUEST_REJECTED = 'collective.virtualcard.request.rejected',
   VIRTUAL_CARD_REQUESTED = 'virtual_card.requested',
   VIRTUAL_CARD_CHARGE_DECLINED = 'virtualcard.charge.declined',
   VIRTUAL_CARD_PURCHASE = 'virtualcard.purchase',
@@ -98,8 +105,9 @@ enum ActivityTypes {
   USER_SIGNIN = 'user.signin',
   USER_RESET_PASSWORD = 'user.resetPassword',
   OAUTH_APPLICATION_AUTHORIZED = 'oauth.application.authorized',
-  TWO_FACTOR_CODE_ADDED = 'user.new.two.factor.code',
-  TWO_FACTOR_CODE_DELETED = 'user.remove.two.factor.code',
+  TWO_FACTOR_METHOD_ADDED = 'user.new.two.factor.method',
+  TWO_FACTOR_METHOD_DELETED = 'user.remove.two.factor.method',
+  TWO_FACTOR_CODE_REQUESTED = 'user.requested.two.factor.code',
   // User edits
   USER_CHANGE_EMAIL = 'user.changeEmail',
   USER_PAYMENT_METHOD_CREATED = 'user.paymentMethod.created',
@@ -116,6 +124,12 @@ enum ActivityTypes {
   ACTIVATED_COLLECTIVE_AS_HOST = 'activated.collective.as.host',
   ACTIVATED_COLLECTIVE_AS_INDEPENDENT = 'activated.collective.as.independent',
   DEACTIVATED_COLLECTIVE_AS_HOST = 'deactivated.collective.as.host',
+
+  // Agreements
+
+  AGREEMENT_CREATED = 'agreement.created',
+  AGREEMENT_EDITED = 'agreement.edited',
+  AGREEMENT_DELETED = 'agreement.deleted',
 
   // Not used anymore, leaving for historical reference
   ADDED_FUND_TO_ORG = 'added.fund.to.org',
@@ -195,6 +209,7 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
     ActivityTypes.COLLECTIVE_EXPENSE_REJECTED,
     ActivityTypes.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT,
     ActivityTypes.COLLECTIVE_EXPENSE_UNAPPROVED,
+    ActivityTypes.COLLECTIVE_EXPENSE_RE_APPROVAL_REQUESTED,
     ActivityTypes.COLLECTIVE_EXPENSE_UPDATED,
     ActivityTypes.EXPENSE_COMMENT_CREATED,
     ActivityTypes.TAXFORM_REQUEST,
@@ -202,6 +217,7 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
   [ActivityClasses.CONTRIBUTIONS]: [
     ActivityTypes.COLLECTIVE_MEMBER_CREATED,
     ActivityTypes.CONTRIBUTION_REJECTED,
+    ActivityTypes.ORDER_PAYMENT_FAILED,
     ActivityTypes.ORDER_PENDING_CONTRIBUTION_NEW,
     ActivityTypes.ORDER_PENDING_CONTRIBUTION_REMINDER,
     ActivityTypes.ORDER_PENDING_CRYPTO,
@@ -233,8 +249,12 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
     ActivityTypes.COLLECTIVE_VIRTUAL_CARD_MISSING_RECEIPTS,
     ActivityTypes.COLLECTIVE_VIRTUAL_CARD_SUSPENDED,
     ActivityTypes.COLLECTIVE_VIRTUAL_CARD_DELETED,
+    ActivityTypes.COLLECTIVE_VIRTUAL_CARD_SUSPENDED_DUE_TO_INACTIVITY,
+    ActivityTypes.COLLECTIVE_VIRTUAL_CARD_REQUEST_APPROVED,
+    ActivityTypes.COLLECTIVE_VIRTUAL_CARD_REQUEST_REJECTED,
     ActivityTypes.VIRTUAL_CARD_CHARGE_DECLINED,
     ActivityTypes.VIRTUAL_CARD_REQUESTED,
+    ActivityTypes.VIRTUAL_CARD_PURCHASE,
   ],
   [ActivityClasses.REPORTS]: [ActivityTypes.COLLECTIVE_MONTHLY_REPORT],
 };

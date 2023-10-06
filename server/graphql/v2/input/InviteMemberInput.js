@@ -1,24 +1,24 @@
 import { GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import { MemberRole } from '../enum';
+import { GraphQLMemberRole } from '../enum';
 
-import { AccountReferenceInput } from './AccountReferenceInput';
-import { IndividualCreateInput } from './IndividualCreateInput';
+import { GraphQLAccountReferenceInput } from './AccountReferenceInput';
+import { GraphQLIndividualCreateInput } from './IndividualCreateInput';
 
-export const InviteMemberInput = new GraphQLInputObjectType({
+export const GraphQLInviteMemberInput = new GraphQLInputObjectType({
   name: 'InviteMemberInput',
   fields: () => ({
     memberAccount: {
-      type: AccountReferenceInput,
+      type: GraphQLAccountReferenceInput,
       description: 'Reference to an account for the invitee',
     },
     memberInfo: {
-      type: IndividualCreateInput,
+      type: GraphQLIndividualCreateInput,
       description: 'Email and name of the invitee if no reference.',
     },
     role: {
-      type: new GraphQLNonNull(MemberRole),
+      type: new GraphQLNonNull(GraphQLMemberRole),
       description: 'Role of the invitee',
     },
     description: {

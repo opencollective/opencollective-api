@@ -1,8 +1,8 @@
-import { map } from 'bluebird';
 import debugLib from 'debug';
 import { pick } from 'lodash';
 import moment from 'moment';
 import fetch from 'node-fetch';
+import map from 'p-map';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../../constants/activities';

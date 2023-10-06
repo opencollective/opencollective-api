@@ -1,12 +1,11 @@
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { GraphQLDateTime } from 'graphql-scalars';
-import { GraphQLJSON } from 'graphql-type-json';
+import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
-import { HostApplicationStatus } from '../enum/HostApplicationStatus';
+import { GraphQLHostApplicationStatus } from '../enum/HostApplicationStatus';
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
-import { Account } from '../interface/Account';
+import { GraphQLAccount } from '../interface/Account';
 
-const HostApplication = new GraphQLObjectType({
+const GraphQLHostApplication = new GraphQLObjectType({
   name: 'HostApplication',
   fields: () => ({
     id: {
@@ -20,7 +19,7 @@ const HostApplication = new GraphQLObjectType({
       },
     },
     account: {
-      type: new GraphQLNonNull(Account),
+      type: new GraphQLNonNull(GraphQLAccount),
       description: 'The account who applied to this host',
       async resolve(application, _, req) {
         return application.collective || req.loaders.Collective.byId.load(application.CollectiveId);
@@ -31,7 +30,7 @@ const HostApplication = new GraphQLObjectType({
       description: 'The date on which the item was created',
     },
     status: {
-      type: HostApplicationStatus,
+      type: GraphQLHostApplicationStatus,
     },
     message: {
       type: GraphQLString,
@@ -42,4 +41,4 @@ const HostApplication = new GraphQLObjectType({
   }),
 });
 
-export default HostApplication;
+export default GraphQLHostApplication;

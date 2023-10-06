@@ -11,10 +11,10 @@ import {
   GraphQLString,
 } from 'graphql';
 import { Kind } from 'graphql/language';
-import { GraphQLJSON } from 'graphql-type-json';
+import { GraphQLJSON } from 'graphql-scalars';
 
-import { CaptchaInput } from '../v2/input/CaptchaInput';
-import { SocialLinkInput } from '../v2/input/SocialLinkInput';
+import { GraphQLCaptchaInput } from '../v2/input/CaptchaInput';
+import { GraphQLSocialLinkInput } from '../v2/input/SocialLinkInput';
 
 import { DateString } from './types';
 
@@ -159,7 +159,7 @@ export const CollectiveInputType = new GraphQLInputObjectType({
     twitterHandle: { type: GraphQLString, deprecationReason: '2023-01-16: Please use socialLinks' },
     githubHandle: { type: GraphQLString, deprecationReason: '2022-06-03: Please use repositoryUrl' },
     repositoryUrl: { type: GraphQLString, deprecationReason: '2023-01-16: Please use socialLinks' },
-    socialLinks: { type: new GraphQLList(new GraphQLNonNull(SocialLinkInput)) },
+    socialLinks: { type: new GraphQLList(new GraphQLNonNull(GraphQLSocialLinkInput)) },
     description: { type: GraphQLString },
     longDescription: { type: GraphQLString },
     expensePolicy: { type: GraphQLString },
@@ -232,7 +232,7 @@ export const LocationInputType = new GraphQLInputObjectType({
   fields: () => ({
     name: {
       type: GraphQLString,
-      description: 'A short name for the location (eg. Google Headquarters)',
+      description: 'A short name for the location (eg. Open Collective Headquarters)',
     },
     address: {
       type: GraphQLString,
@@ -249,6 +249,10 @@ export const LocationInputType = new GraphQLInputObjectType({
     long: {
       type: GraphQLFloat,
       description: 'Longitude',
+    },
+    structured: {
+      type: GraphQLJSON,
+      description: 'Structured JSON address',
     },
   }),
 });
@@ -328,7 +332,7 @@ export const GuestInfoInput = new GraphQLInputObjectType({
       description: 'The unique guest token',
     },
     captcha: {
-      type: CaptchaInput,
+      type: GraphQLCaptchaInput,
       description: 'Captcha validation for creating an order',
     },
   }),
@@ -345,7 +349,7 @@ export const OrderInputType = new GraphQLInputObjectType({
     },
     totalAmount: { type: GraphQLInt },
     hostFeePercent: { type: GraphQLFloat },
-    platformFeePercent: { type: GraphQLInt },
+    platformFeePercent: { type: GraphQLFloat },
     platformFee: { type: GraphQLInt },
     isFeesOnTop: { type: GraphQLBoolean },
     currency: { type: GraphQLString },

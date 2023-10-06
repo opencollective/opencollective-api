@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
-export const ExpenseProcessAction = new GraphQLEnumType({
+export const GraphQLExpenseProcessAction = new GraphQLEnumType({
   name: 'ExpenseProcessAction',
   description: 'All supported expense types',
   values: {
@@ -9,6 +9,9 @@ export const ExpenseProcessAction = new GraphQLEnumType({
     },
     UNAPPROVE: {
       description: 'To mark the expense as pending after it has been approved',
+    },
+    REQUEST_RE_APPROVAL: {
+      description: 'To request re-approval of the expense, marking it as pending.',
     },
     REJECT: {
       description: 'To mark the expense as rejected',
@@ -30,6 +33,12 @@ export const ExpenseProcessAction = new GraphQLEnumType({
     },
     MARK_AS_INCOMPLETE: {
       description: 'To mark the expense as incomplete and notify the payee it requires more information',
+    },
+    HOLD: {
+      description: 'To put the expense on hold',
+    },
+    RELEASE: {
+      description: 'To release the expense from hold',
     },
   },
 });

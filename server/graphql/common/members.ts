@@ -2,14 +2,18 @@ import { pick } from 'lodash';
 
 import { invalidateContributorsCache } from '../../lib/contributors';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
-import models from '../../models';
+import models, { Collective } from '../../models';
 import { Forbidden, NotFound, Unauthorized } from '../errors';
 import { fetchAccountWithReference } from '../v2/input/AccountReferenceInput';
 
 import { checkRemoteUserCanUseAccount } from './scope-check';
 
 /** A mutation to edit the public message of all matching members. */
-export async function editPublicMessage(_, { fromAccount, toAccount, FromCollectiveId, CollectiveId, message }, req) {
+export async function editPublicMessage(
+  _,
+  { fromAccount, toAccount, FromCollectiveId = null, CollectiveId = null, message },
+  req,
+) {
   checkRemoteUserCanUseAccount(req);
 
   if (!fromAccount && FromCollectiveId) {
@@ -23,7 +27,7 @@ export async function editPublicMessage(_, { fromAccount, toAccount, FromCollect
     throw new Unauthorized("You don't have the permission to edit member public message");
   }
 
-  await twoFactorAuthLib.enforceForAccountAdmins(req, fromAccount, { onlyAskOnLogin: true });
+  await twoFactorAuthLib.enforceForAccount(req, fromAccount, { onlyAskOnLogin: true });
 
   const [quantityUpdated, updatedMembers] = await models.Member.update(
     {
@@ -51,7 +55,7 @@ export async function editPublicMessage(_, { fromAccount, toAccount, FromCollect
 }
 
 export async function processInviteMembersInput(
-  collective: typeof models.Collective,
+  collective: Collective,
   inviteMemberInputs: [{ memberAccount?; memberInfo?; role; description?; since? }],
   options: { skipDefaultAdmin?; transaction?; supportedRoles?: [string]; user? },
 ) {

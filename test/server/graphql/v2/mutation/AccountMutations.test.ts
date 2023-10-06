@@ -8,6 +8,8 @@ import FEATURE from '../../../../../server/constants/feature';
 import POLICIES from '../../../../../server/constants/policies';
 import { idEncode } from '../../../../../server/graphql/v2/identifiers';
 import emailLib from '../../../../../server/lib/email';
+import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
+import * as yubikeyOtp from '../../../../../server/lib/two-factor-authentication/yubikey-otp';
 import models from '../../../../../server/models';
 import { fakeCollective, fakeEvent, fakeHost, fakeProject, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB, waitForCondition } from '../../../../utils';
@@ -22,8 +24,8 @@ const editSettingsMutation = gqlV2/* GraphQL */ `
 `;
 
 const addTwoFactorAuthTokenMutation = gqlV2/* GraphQL */ `
-  mutation AddTwoFactorAuthToIndividual($account: AccountReferenceInput!, $token: String!) {
-    addTwoFactorAuthTokenToIndividual(account: $account, token: $token) {
+  mutation AddTwoFactorAuthToIndividual($account: AccountReferenceInput!, $token: String!, $type: TwoFactorMethod) {
+    addTwoFactorAuthTokenToIndividual(account: $account, token: $token, type: $type) {
       account {
         id
         ... on Individual {
@@ -31,6 +33,14 @@ const addTwoFactorAuthTokenMutation = gqlV2/* GraphQL */ `
         }
       }
       recoveryCodes
+    }
+  }
+`;
+
+const removeTwoFactorAuthTokenMutation = gqlV2`
+  mutation RemoveTwoFactorAuthTokenFromIndividual($account: AccountReferenceInput!, $type: TwoFactorMethod) {
+    removeTwoFactorAuthTokenFromIndividual(account: $account, type: $type) {
+      hasTwoFactorAuth
     }
   }
 `;
@@ -53,6 +63,12 @@ const editAccountFeeStructureMutation = gqlV2/* GraphQL */ `
       }
     }
   }
+`;
+
+const createWebAuthnRegistrationOptionsMutation = gqlV2`
+mutation AddTwoFactorAuthToIndividual($account: AccountReferenceInput!) {
+  createWebAuthnRegistrationOptions(account: $account)
+}
 `;
 
 describe('server/graphql/v2/mutation/AccountMutations', () => {
@@ -231,6 +247,9 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
   });
 
   describe('addTwoFactorAuthTokenToIndividual', () => {
+    const sandbox = createSandbox();
+    afterEach(sandbox.restore);
+
     const secret = speakeasy.generateSecret({ length: 64 });
     it('must be authenticated', async () => {
       const result = await graphqlQueryV2(addTwoFactorAuthTokenMutation, {
@@ -269,14 +288,14 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
       // Check activity
       const activity = await models.Activity.findOne({
-        where: { UserId: adminUser.id, type: ACTIVITY.TWO_FACTOR_CODE_ADDED },
+        where: { UserId: adminUser.id, type: ACTIVITY.TWO_FACTOR_METHOD_ADDED },
       });
 
       expect(activity).to.exist;
       expect(activity.CollectiveId).to.equal(adminUser.collective.id);
     });
 
-    it('fails if user already enabled 2FA', async () => {
+    it('asks for 2FA if user already has 2FA', async () => {
       const result = await graphqlQueryV2(
         addTwoFactorAuthTokenMutation,
         {
@@ -286,7 +305,177 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         adminUser,
       );
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.match(/This account already has 2FA enabled/);
+      expect(result.errors[0].message).to.match(/Two-factor authentication required/);
+    });
+
+    it('Adds multiple methods', async () => {
+      sandbox.stub(yubikeyOtp, 'validateYubikeyOTP').resolves(true);
+      sandbox.stub(yubikeyOtp.default, 'validateToken').resolves(true);
+      const user = await fakeUser();
+      let result = await graphqlQueryV2(
+        addTwoFactorAuthTokenMutation,
+        {
+          account: { id: idEncode(user.collective.id, 'account') },
+          token: 'cccc....',
+          type: 'YUBIKEY_OTP',
+        },
+        user,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.addTwoFactorAuthTokenToIndividual.account.hasTwoFactorAuth).to.eq(true);
+      expect(result.data.addTwoFactorAuthTokenToIndividual.recoveryCodes).to.have.lengthOf(6);
+
+      result = await graphqlQueryV2(
+        addTwoFactorAuthTokenMutation,
+        {
+          account: { id: idEncode(user.collective.id, 'account') },
+          token: secret.base32,
+          type: 'TOTP',
+        },
+        user,
+        null,
+        {
+          [TwoFactorAuthenticationHeader]: 'yubikey_otp 1234',
+        },
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.addTwoFactorAuthTokenToIndividual.account.hasTwoFactorAuth).to.eq(true);
+      expect(result.data.addTwoFactorAuthTokenToIndividual.recoveryCodes).to.be.null;
+    });
+  });
+
+  describe('removeTwoFactorAuthTokenFromIndividual', () => {
+    const sandbox = createSandbox();
+    afterEach(sandbox.restore);
+
+    let user;
+    const secret = speakeasy.generateSecret({ length: 64 });
+
+    beforeEach(async () => {
+      sandbox.stub(yubikeyOtp, 'validateYubikeyOTP').resolves(true);
+      sandbox.stub(yubikeyOtp.default, 'validateToken').resolves(true);
+      user = await fakeUser();
+      let result = await graphqlQueryV2(
+        addTwoFactorAuthTokenMutation,
+        {
+          account: { id: idEncode(user.collective.id, 'account') },
+          token: 'cccc....',
+          type: 'YUBIKEY_OTP',
+        },
+        user,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.addTwoFactorAuthTokenToIndividual.account.hasTwoFactorAuth).to.eq(true);
+      expect(result.data.addTwoFactorAuthTokenToIndividual.recoveryCodes).to.have.lengthOf(6);
+
+      result = await graphqlQueryV2(
+        addTwoFactorAuthTokenMutation,
+        {
+          account: { id: idEncode(user.collective.id, 'account') },
+          token: secret.base32,
+          type: 'TOTP',
+        },
+        user,
+        null,
+        {
+          [TwoFactorAuthenticationHeader]: `yubikey_otp 1234`,
+        },
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.addTwoFactorAuthTokenToIndividual.account.hasTwoFactorAuth).to.eq(true);
+      expect(result.data.addTwoFactorAuthTokenToIndividual.recoveryCodes).to.be.null;
+      await user.reload();
+    });
+
+    it('removes totp', async () => {
+      const result = await graphqlQueryV2(
+        removeTwoFactorAuthTokenMutation,
+        {
+          account: { id: idEncode(user.collective.id, 'account') },
+          type: 'TOTP',
+        },
+        user,
+        null,
+        {
+          [TwoFactorAuthenticationHeader]: `yubikey_otp 1234`,
+        },
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.removeTwoFactorAuthTokenFromIndividual.hasTwoFactorAuth).to.eq(true);
+    });
+
+    it('removes yubikey', async () => {
+      const result = await graphqlQueryV2(
+        removeTwoFactorAuthTokenMutation,
+        {
+          account: { id: idEncode(user.collective.id, 'account') },
+          type: 'YUBIKEY_OTP',
+        },
+        user,
+        null,
+        {
+          [TwoFactorAuthenticationHeader]: `yubikey_otp 1234`,
+        },
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.removeTwoFactorAuthTokenFromIndividual.hasTwoFactorAuth).to.eq(true);
+    });
+
+    it('removes all methods', async () => {
+      let result = await graphqlQueryV2(
+        removeTwoFactorAuthTokenMutation,
+        {
+          account: { id: idEncode(user.collective.id, 'account') },
+          type: 'TOTP',
+        },
+        user,
+        null,
+        {
+          [TwoFactorAuthenticationHeader]: `yubikey_otp 1234`,
+        },
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.removeTwoFactorAuthTokenFromIndividual.hasTwoFactorAuth).to.eq(true);
+
+      result = await graphqlQueryV2(
+        removeTwoFactorAuthTokenMutation,
+        {
+          account: { id: idEncode(user.collective.id, 'account') },
+          type: 'YUBIKEY_OTP',
+        },
+        user,
+        null,
+        {
+          [TwoFactorAuthenticationHeader]: `yubikey_otp 1234`,
+        },
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.removeTwoFactorAuthTokenFromIndividual.hasTwoFactorAuth).to.eq(false);
+    });
+
+    it('removes all methods once', async () => {
+      const result = await graphqlQueryV2(
+        removeTwoFactorAuthTokenMutation,
+        {
+          account: { id: idEncode(user.collective.id, 'account') },
+        },
+        user,
+        null,
+        {
+          [TwoFactorAuthenticationHeader]: `yubikey_otp 1234`,
+        },
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.removeTwoFactorAuthTokenFromIndividual.hasTwoFactorAuth).to.eq(false);
     });
   });
 
@@ -658,7 +847,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
     it('returns an error if the feature is blocked for user', async () => {
       const userWithoutContact = await fakeUser();
-      await userWithoutContact.limitFeature(FEATURE.CONTACT_COLLECTIVE);
+      await userWithoutContact.limitFeature(FEATURE.CONTACT_COLLECTIVE, 'Sent spam');
 
       const result = await graphqlQueryV2(
         sendMessageMutation,
@@ -673,6 +862,13 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(result.errors[0].message).to.equal(
         'You are not authorized to contact Collectives. Please contact support@opencollective.com if you think this is an error.',
       );
+
+      // Stores the reason
+      await userWithoutContact.reload();
+      const limitReasons = userWithoutContact.data.limitReasons as Array<Record<string, unknown>>;
+      expect(limitReasons.length).to.eq(1);
+      expect(limitReasons[0].reason).to.eq('Sent spam');
+      expect(limitReasons[0].feature).to.eq('CONTACT_COLLECTIVE');
     });
 
     it('returns an error if the message is invalid', async () => {
@@ -686,6 +882,66 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       );
       expect(result.errors).to.have.length(1);
       expect(result.errors[0].message).to.equal('Message is too short');
+    });
+  });
+
+  describe('createWebAuthnRegistrationOptions', () => {
+    it('must be authenticated', async () => {
+      const result = await graphqlQueryV2(createWebAuthnRegistrationOptionsMutation, {
+        account: { id: idEncode(adminUser.collective.id, 'account') },
+      });
+      expect(result.errors).to.exist;
+      expect(result.errors[0].extensions.code).to.equal('Unauthorized');
+    });
+
+    it('must be admin', async () => {
+      const result = await graphqlQueryV2(
+        createWebAuthnRegistrationOptionsMutation,
+        {
+          account: { id: idEncode(adminUser.collective.id, 'account') },
+        },
+        randomUser,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/You are authenticated but forbidden to perform this action/);
+    });
+
+    it('creates a public key request options', async () => {
+      const result = await graphqlQueryV2(
+        createWebAuthnRegistrationOptionsMutation,
+        {
+          account: { id: idEncode(adminUser.collective.id, 'account') },
+        },
+        adminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.createWebAuthnRegistrationOptions).to.containSubset({
+        attestation: 'direct',
+        excludeCredentials: [],
+        pubKeyCredParams: [
+          {
+            alg: -7,
+            type: 'public-key',
+          },
+          {
+            alg: -8,
+            type: 'public-key',
+          },
+          {
+            alg: -257,
+            type: 'public-key',
+          },
+        ],
+        rp: {
+          id: 'localhost',
+          name: '[Test] Open Collective',
+        },
+        user: {
+          displayName: 'Admin Name',
+          name: adminUser.collective.slug,
+        },
+      });
     });
   });
 });

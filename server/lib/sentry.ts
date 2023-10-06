@@ -7,9 +7,9 @@
 
 import '../env';
 
+import { ApolloServerPlugin } from '@apollo/server';
 import * as Sentry from '@sentry/node';
-import * as Tracing from '@sentry/tracing';
-import type { Integration, SeverityLevel } from '@sentry/types';
+import type { SeverityLevel } from '@sentry/types';
 import axios, { AxiosError } from 'axios';
 import config from 'config';
 import { get, isEmpty, isEqual, pick } from 'lodash';
@@ -19,29 +19,63 @@ import { User } from '../models';
 
 import logger from './logger';
 import { safeJsonStringify, sanitizeObjectForJSON } from './safe-json-stringify';
+import * as utils from './utils';
 
-const getIntegrations = (expressApp = null): Integration[] => {
-  const integrations: Integration[] = [new Sentry.Integrations.Http({ tracing: true })];
-  if (expressApp) {
-    integrations.push(new Tracing.Integrations.Express({ app: expressApp }));
+const TRACES_SAMPLE_RATE = parseFloat(config.sentry.tracesSampleRate) || 0;
+const MIN_EXECUTION_TIME_TO_SAMPLE = parseInt(config.sentry.minExecutionTimeToSample);
+
+const checkIfSentryConfigured = () => Boolean(config.sentry?.dsn);
+
+const redactSensitiveDataFromRequest = request => {
+  if (!request) {
+    return;
   }
-  return integrations;
+
+  // Redact from payload
+  try {
+    const reqBody = JSON.parse(request.data);
+    request.data = JSON.stringify(utils.redactSensitiveFields(reqBody));
+  } catch (e) {
+    // request data is not a json
+  }
+
+  // Redact from headers
+  if (request.headers) {
+    request.headers = utils.redactSensitiveFields(request.headers);
+  }
+
+  // Redact fom query string
+  if (request['query_string']) {
+    request['query_string'] = utils.redactSensitiveFields(request['query_string']);
+  }
 };
 
-export const initSentry = (expressApp = null) => {
-  Sentry.init({
-    dsn: config.sentry.dsn,
-    environment: config.env,
-    attachStacktrace: true,
-    enabled: config.env !== 'test',
-    tracesSampleRate: parseFloat(config.sentry.tracesSampleRate) || 0,
-    integrations: getIntegrations(expressApp),
-  });
-};
+Sentry.init({
+  beforeSend(event) {
+    redactSensitiveDataFromRequest(event.request);
+    return event;
+  },
+  beforeSendTransaction(event) {
+    redactSensitiveDataFromRequest(event.request);
+    return event;
+  },
+  dsn: config.sentry.dsn,
+  environment: config.env,
+  attachStacktrace: true,
+  enabled: config.env !== 'test',
+  tracesSampler: samplingContext => {
+    if (!TRACES_SAMPLE_RATE || !samplingContext) {
+      return 0;
+    } else if (samplingContext.request?.url?.match(/\/graphql(\/.*)?$/)) {
+      return 1; // GraphQL endpoints handle sampling manually in `server/routes.js`
+    } else {
+      return TRACES_SAMPLE_RATE;
+    }
+  },
+});
 
-if (config.sentry?.dsn) {
+if (checkIfSentryConfigured()) {
   logger.info('Initializing Sentry');
-  initSentry();
 
   // Catch all errors that haven't been caught anywhere else
   process
@@ -55,7 +89,7 @@ if (config.sentry?.dsn) {
 
 export enum HandlerType {
   GQL = 'GQL',
-  REST = 'REST',
+  EXPRESS = 'EXPRESS',
   CRON = 'CRON',
   FALLBACK = 'FALLBACK',
 }
@@ -71,9 +105,10 @@ type CaptureErrorParams = {
   transactionName?: string;
   /** Used to group Axios errors, when the URL includes parameters */
   requestPath?: string;
+  req?: Express.Request;
 };
 
-const dbUserToSentryUser = (user: User): Sentry.User => {
+export const dbUserToSentryUser = (user: User): Sentry.User => {
   if (!user) {
     return null;
   } else {
@@ -122,7 +157,7 @@ const enhanceScopeWithAxiosError = (scope: Sentry.Scope, err: AxiosError, params
 };
 
 const withScopeFromCaptureErrorParams = (
-  { severity = 'error', tags, handler, extra, user, breadcrumbs, feature, requestPath }: CaptureErrorParams = {},
+  { severity = 'error', tags, handler, extra, user, breadcrumbs, feature, requestPath, req }: CaptureErrorParams = {},
   callback: (scope: Sentry.Scope) => void,
 ) => {
   Sentry.withScope(scope => {
@@ -158,9 +193,40 @@ const withScopeFromCaptureErrorParams = (
       Object.entries(extra).forEach(([key, value]) => scope.setExtra(key, stringifyExtra(value)));
     }
 
+    // Add Request data to scope
+    if (req) {
+      scope.setSDKProcessingMetadata({ request: req });
+      if (req.remoteUser) {
+        scope.setUser(dbUserToSentryUser(req.remoteUser));
+      }
+    }
+
     callback(scope);
   });
 };
+
+const simplifyReq = req =>
+  !req
+    ? undefined
+    : pick(req, [
+        'method',
+        'url',
+        'isGraphQL',
+        'query',
+        'params',
+        'session',
+        'jwtPayload',
+        'path',
+        'cacheKey',
+        'cacheSlug',
+        'startAt',
+        'endAt',
+        'remoteUser.id',
+        'userToken.id',
+        'personalToken.id',
+        'clientApp.id',
+        'rawBody',
+      ]);
 
 /**
  * Helper to capture an error on Sentry
@@ -172,7 +238,21 @@ export const reportErrorToSentry = (err: Error, params: CaptureErrorParams = {})
       enhanceScopeWithAxiosError(scope, err, params);
     }
 
-    Sentry.captureException(err);
+    if (checkIfSentryConfigured()) {
+      Sentry.captureException(err);
+    } else {
+      logger.error(
+        `[Sentry disabled] The following error would be reported: ${err.message} (${safeJsonStringify(
+          {
+            err,
+            params: { ...params, req: simplifyReq(params.req) },
+            stacktrace: err.stack,
+          },
+          null,
+          2,
+        )})`,
+      );
+    }
   });
 };
 
@@ -181,8 +261,25 @@ export const reportErrorToSentry = (err: Error, params: CaptureErrorParams = {})
  */
 export const reportMessageToSentry = (message: string, params: CaptureErrorParams = undefined) => {
   withScopeFromCaptureErrorParams(params, () => {
-    Sentry.captureMessage(message, params?.severity || 'error');
+    if (checkIfSentryConfigured()) {
+      Sentry.captureMessage(message, params?.severity || 'error');
+    } else {
+      logger.error(`[Sentry disabled] The following message would be reported: ${message} (${JSON.stringify(params)})`);
+    }
   });
+};
+
+export const sentryHandleSlowRequests = (executionTime: number) => {
+  const sentryTransaction = Sentry.getCurrentHub().getScope()?.getTransaction();
+  if (sentryTransaction) {
+    if (sentryTransaction.status === 'deadline_exceeded' || executionTime >= MIN_EXECUTION_TIME_TO_SAMPLE) {
+      sentryTransaction.setTag('graphql.slow', 'true');
+      sentryTransaction.setTag('graphql.executionTime', executionTime);
+      sentryTransaction.sampled = true; // Make sure we always report timeouts and slow requests
+    } else if (Math.random() > TRACES_SAMPLE_RATE) {
+      sentryTransaction.sampled = false; // We explicitly set `sampled` to false if we don't want to sample, to handle cases we're it's forced to `1`
+    }
+  }
 };
 
 // GraphQL
@@ -213,6 +310,10 @@ const IGNORED_GQL_ERRORS = [
     message: /^Your card was declined.$/,
     path: [['createOrder']],
   },
+  {
+    message: /The slug .+ is already taken/,
+    path: [['createOrganization'], ['createCollective'], ['createFund'], ['createProject']],
+  },
 ];
 
 const isIgnoredGQLError = (err): boolean => {
@@ -222,30 +323,20 @@ const isIgnoredGQLError = (err): boolean => {
   });
 };
 
-export const SentryGraphQLPlugin = {
-  requestDidStart({ request }): Record<string, unknown> {
-    const transaction = Sentry.getCurrentHub()?.getScope()?.getTransaction();
-    if (request.operationName && transaction) {
-      transaction.setName(`GraphQL: ${request.operationName}`);
+export const SentryGraphQLPlugin: ApolloServerPlugin = {
+  async requestDidStart({ request }) {
+    // There's normally no parent transaction, but just in case there's one  - either because it was created in the parent context or
+    // if we go back to the default Sentry middleware, we want to make sure we don't create a new transaction
+    const transactionName = `GraphQL: ${request.operationName || 'Anonymous Operation'}`;
+    let transaction = Sentry.getCurrentHub()?.getScope()?.getTransaction();
+    if (transaction) {
+      transaction.setName(transactionName);
+    } else {
+      transaction = Sentry.startTransaction({ op: 'graphql', name: transactionName });
     }
 
     return {
-      executionDidStart() {
-        return {
-          willResolveField({ info }) {
-            // hook for each new resolver
-            const span = transaction.startChild({
-              op: 'resolver',
-              description: `${info.parentType.name}.${info.fieldName}`,
-            });
-            return () => {
-              // this will execute once the resolver is finished
-              span.finish();
-            };
-          },
-        };
-      },
-      didEncounterErrors(ctx): void {
+      async didEncounterErrors(ctx): Promise<void> {
         // If we couldn't parse the operation, don't do anything here
         if (!ctx.operation) {
           return;
@@ -258,17 +349,16 @@ export const SentryGraphQLPlugin = {
           }
 
           // Try to generate a User object for Sentry if logged in
-          let remoteUserForSentry: Sentry.User | undefined;
-          if (ctx.context.remoteUser) {
-            remoteUserForSentry = { id: ctx.context.remoteUser.id, CollectiveId: ctx.context.remoteUser.CollectiveId };
-          }
-
+          const req = ctx.contextValue as Express.Request;
           reportErrorToSentry(err, {
             handler: HandlerType.GQL,
             severity: 'error',
-            user: remoteUserForSentry,
             tags: { kind: ctx.operation.operation },
-            extra: { query: ctx.request.query, variables: JSON.stringify(ctx.request.variables) },
+            req,
+            extra: {
+              query: ctx.request.query,
+              variables: utils.redactSensitiveFields(ctx.request.variables || {}),
+            },
             breadcrumbs: err.path && [
               {
                 category: 'query-path',

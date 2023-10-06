@@ -7,8 +7,6 @@
  * contributors should surface only unique collectives.
  */
 
-import { omit } from 'lodash';
-
 import MemberRoles from '../constants/roles';
 import { sequelize } from '../models';
 
@@ -25,7 +23,6 @@ export interface Contributor {
   isAdmin: boolean;
   isCore: boolean;
   isBacker: boolean;
-  isFundraiser: boolean;
   isIncognito: boolean;
   isGuest: boolean;
   tiersIds: Array<number | null>;
@@ -41,7 +38,7 @@ export interface Contributor {
 /**
  * An entry in the cache to group contributors for a collective.
  */
-interface ContributorsCacheEntry {
+export interface ContributorsCacheEntry {
   all: ContributorsList;
   tiers: {
     [tierId: string]: ContributorsList;
@@ -52,10 +49,7 @@ interface ContributorsCacheEntry {
 type ContributorsList = Array<Contributor>;
 
 /** Time in seconds before contributors cache for a collective expires */
-const CACHE_VALIDITY = 3600; // 1h
-
-/** A special key to store contributors without tiers */
-const CONTRIBUTORS_WITHOUT_TIER_KEY = '__null__';
+const CACHE_VALIDITY = 60 * 60 * 12; // 12 hours
 
 /** Returns the contributors cache key for this collective */
 const getCacheKey = (collectiveId: number): string => {
@@ -63,15 +57,19 @@ const getCacheKey = (collectiveId: number): string => {
 };
 
 /**
- * Store contributors in cache as a `IContributorsCacheEntry`.
+ * Store contributors in cache as a `ContributorsCacheEntry`.
  */
 const storeContributorsInCache = (collectiveId: number, allContributors: ContributorsList) => {
   const cacheKey = getCacheKey(collectiveId);
 
-  // Store contributors by tier. TierId can be null (we also store contributors without tiers).
+  // Store contributors by tier. TierId can be null for custom donations.
   const contributorsByTier = allContributors.reduce((tiers, contributor) => {
     contributor.tiersIds.forEach(tierId => {
-      const key = tierId ? tierId.toString() : CONTRIBUTORS_WITHOUT_TIER_KEY;
+      if (!tierId) {
+        return;
+      }
+
+      const key = tierId.toString();
       if (!tiers[key]) {
         tiers[key] = [contributor];
       } else {
@@ -110,6 +108,7 @@ const contributorsQuery = `
     ON transactions."CollectiveId" = :collectiveId
     AND (transactions."FromCollectiveId" = c.id OR transactions."UsingGiftCardFromCollectiveId" = c.id)
     AND transactions."type" = 'CREDIT'
+    AND transactions."kind" NOT IN ('HOST_FEE', 'HOST_FEE_SHARE', 'HOST_FEE_SHARE_DEBT', 'PLATFORM_TIP_DEBT')
     AND transactions."deletedAt" IS NULL
     AND transactions."RefundTransactionId" IS NULL
   LEFT JOIN "Tiers" tiers
@@ -192,7 +191,10 @@ const getContributorsFilteringFuncForRoles = (roles: Array<MemberRoles>): Contri
 /**
  * Filter and slice a list of contributors.
  */
-const filterContributors = (contributors: ContributorsList, filters: ContributorsFilters | null): ContributorsList => {
+export const filterContributors = (
+  contributors: ContributorsList,
+  filters: ContributorsFilters | null,
+): ContributorsList => {
   if (!filters) {
     return contributors;
   }
@@ -219,67 +221,16 @@ const filterContributors = (contributors: ContributorsList, filters: Contributor
 // ---- Public API ----
 
 /**
- * Returns all the contributors for given collective
+ * Returns all the contributors for given collective.
+ * Prefer using the req.loaders.Contributors.forCollectiveId() from GraphQL resolvers.
  */
-export const getContributorsForCollective = async (
-  collectiveId: number,
-  filters: ContributorsFilters | null,
-): Promise<ContributorsList> => {
+export const getContributorsForCollective = async (collectiveId: number): Promise<ContributorsCacheEntry> => {
   const contributorsCache: ContributorsCacheEntry = await loadContributors(collectiveId);
-  const contributors = contributorsCache.all || [];
-  return filterContributors(contributors, filters);
-};
-
-/**
- * Returns all the contributors for given collective
- */
-export const getPaginatedContributorsForCollective = async (
-  collectiveId: number,
-  filters: ContributorsFilters | null,
-): Promise<{
-  offset: number;
-  limit: number;
-  totalCount: number;
-  nodes: ContributorsList;
-}> => {
-  const contributorsCache: ContributorsCacheEntry = await loadContributors(collectiveId);
-  const contributors = contributorsCache.all || [];
-  const filteredContributors = filterContributors(contributors, omit(filters, ['offset', 'limit']));
-  return {
-    offset: filters?.offset || 0,
-    limit: filters?.limit || 0,
-    totalCount: filteredContributors.length,
-    nodes: !filters ? filteredContributors : filteredContributors.slice(filters.offset || 0, filters.limit),
-  };
-};
-
-/**
- * Returns all the contributors for given tier
- */
-export const getContributorsForTier = async (
-  collectiveId: number,
-  tierId: number,
-  filters: ContributorsFilters | null,
-): Promise<ContributorsList> => {
-  const contributorsCache: ContributorsCacheEntry = await loadContributors(collectiveId);
-  const contributors = contributorsCache.tiers[tierId.toString()] || [];
-  return filterContributors(contributors, filters);
-};
-
-/**
- * Get all the contributors that are not part of any tier.
- */
-export const getContributorsWithoutTier = async (
-  collectiveId: number,
-  filters: ContributorsFilters | null,
-): Promise<ContributorsList> => {
-  const contributorsCache: ContributorsCacheEntry = await loadContributors(collectiveId);
-  const contributors = contributorsCache[CONTRIBUTORS_WITHOUT_TIER_KEY] || [];
-  return filterContributors(contributors, filters);
+  return contributorsCache;
 };
 
 /** Invalidates the contributors cache for this collective */
 export const invalidateContributorsCache = async (collectiveId: number): Promise<void> => {
   const cacheKey = getCacheKey(collectiveId);
-  return cache.delete(cacheKey);
+  await cache.delete(cacheKey);
 };

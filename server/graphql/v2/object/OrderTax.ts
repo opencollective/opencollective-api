@@ -1,13 +1,13 @@
 import { GraphQLInt, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 
-import { OrderTaxType } from '../enum/OrderTaxType';
+import { GraphQLOrderTaxType } from '../enum/OrderTaxType';
 
-export const OrderTax = new GraphQLObjectType({
+export const GraphQLOrderTax = new GraphQLObjectType({
   name: 'OrderTax',
   fields: () => {
     return {
       type: {
-        type: new GraphQLNonNull(OrderTaxType),
+        type: new GraphQLNonNull(GraphQLOrderTaxType),
       },
       percentage: {
         type: new GraphQLNonNull(GraphQLInt),

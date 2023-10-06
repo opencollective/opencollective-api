@@ -1,25 +1,26 @@
 import {
   GraphQLBoolean,
+  GraphQLFloat,
   GraphQLInputObjectType,
   GraphQLInt,
   GraphQLList,
   GraphQLNonNull,
   GraphQLString,
 } from 'graphql';
-import { GraphQLJSON } from 'graphql-type-json';
+import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
-import { DateString } from '../../v1/types';
-import { ContributionFrequency } from '../enum';
+import { GraphQLContributionFrequency } from '../enum';
 
-import { AccountReferenceInput } from './AccountReferenceInput';
-import { AmountInput } from './AmountInput';
-import { GuestInfoInput } from './GuestInfoInput';
-import { LocationInput } from './LocationInput';
-import { OrderTaxInput } from './OrderTaxInput';
-import { PaymentMethodInput } from './PaymentMethodInput';
-import { TierReferenceInput } from './TierReferenceInput';
+import { GraphQLAccountReferenceInput } from './AccountReferenceInput';
+import { GraphQLAmountInput } from './AmountInput';
+import { GraphQLGuestInfoInput } from './GuestInfoInput';
+import { GraphQLLocationInput } from './LocationInput';
+import { GraphQLOrderTaxInput } from './OrderTaxInput';
+import { GraphQLPaymentMethodInput } from './PaymentMethodInput';
+import { GraphQLTaxInput } from './TaxInput';
+import { GraphQLTierReferenceInput } from './TierReferenceInput';
 
-const OrderContextInput = new GraphQLInputObjectType({
+const GraphQLOrderContextInput = new GraphQLInputObjectType({
   name: 'OrderContextInput',
   description: 'Some context about how an order was created',
   fields: () => ({
@@ -27,15 +28,19 @@ const OrderContextInput = new GraphQLInputObjectType({
       type: GraphQLBoolean,
       description: 'Whether this order was created using the embedded contribution flow',
     },
+    isNewPlatformTipFlow: {
+      type: GraphQLBoolean,
+      description: 'Whether this order was created using the new platform tip flow',
+    },
   }),
 });
 
-const OrderFromAccountInfo = new GraphQLInputObjectType({
+const GraphQLOrderFromAccountInfo = new GraphQLInputObjectType({
   name: 'OrderFromAccountInfo',
   description: 'Some context about how an order was created',
   fields: () => ({
     location: {
-      type: LocationInput,
+      type: GraphQLLocationInput,
       description:
         'The location of the contributor. Account location will be updated with this address if different from the existing one.',
     },
@@ -51,7 +56,7 @@ const OrderFromAccountInfo = new GraphQLInputObjectType({
   }),
 });
 
-export const OrderCreateInput = new GraphQLInputObjectType({
+export const GraphQLOrderCreateInput = new GraphQLInputObjectType({
   name: 'OrderCreateInput',
   description: 'Input to create a new order',
   fields: () => ({
@@ -60,42 +65,47 @@ export const OrderCreateInput = new GraphQLInputObjectType({
       defaultValue: 1,
     },
     amount: {
-      type: new GraphQLNonNull(AmountInput),
+      type: new GraphQLNonNull(GraphQLAmountInput),
       description: 'The contribution amount for 1 quantity, without platform contribution and taxes',
     },
     frequency: {
-      type: new GraphQLNonNull(ContributionFrequency),
+      type: new GraphQLNonNull(GraphQLContributionFrequency),
     },
     fromAccount: {
-      type: AccountReferenceInput,
+      type: GraphQLAccountReferenceInput,
       description: 'The profile making the order. Can be null for guest contributions.',
     },
     fromAccountInfo: {
-      type: OrderFromAccountInfo,
+      type: GraphQLOrderFromAccountInfo,
       description: 'Additional information about the contributing profile',
     },
     toAccount: {
-      type: new GraphQLNonNull(AccountReferenceInput),
+      type: new GraphQLNonNull(GraphQLAccountReferenceInput),
       description: 'The profile you want to contribute to',
     },
     guestInfo: {
-      type: GuestInfoInput,
+      type: GraphQLGuestInfoInput,
       description: 'Use this when fromAccount is null to pass the guest info',
     },
     paymentMethod: {
       description: 'The payment method used for this order',
-      type: PaymentMethodInput,
+      type: GraphQLPaymentMethodInput,
     },
     platformTipAmount: {
-      type: AmountInput,
+      type: GraphQLAmountInput,
       description: 'Platform tip attached to this order',
     },
+    tax: {
+      type: GraphQLTaxInput,
+      description: 'The tax to apply to the order',
+    },
     taxes: {
-      type: new GraphQLList(OrderTaxInput),
+      type: new GraphQLList(GraphQLOrderTaxInput),
       description: 'Use this field to set the taxes associated to this order',
+      deprecationReason: '2023-04-11: Please use `tax` instead',
     },
     tier: {
-      type: TierReferenceInput,
+      type: GraphQLTierReferenceInput,
       description: 'The tier you are contributing to',
     },
     data: {
@@ -107,7 +117,7 @@ export const OrderCreateInput = new GraphQLInputObjectType({
       description: 'If the tier has some "customFields", use this field to set their values',
     },
     context: {
-      type: OrderContextInput,
+      type: GraphQLOrderContextInput,
       description: 'Some context about how this order was created',
     },
     isBalanceTransfer: {
@@ -121,53 +131,120 @@ export const OrderCreateInput = new GraphQLInputObjectType({
   }),
 });
 
-export const PendingOrderCreateInput = new GraphQLInputObjectType({
+export const GraphQLPendingOrderCreateInput = new GraphQLInputObjectType({
   name: 'PendingOrderCreateInput',
   description: 'Input to create a new pending order',
   fields: () => ({
     amount: {
-      type: new GraphQLNonNull(AmountInput),
+      type: new GraphQLNonNull(GraphQLAmountInput),
       description: 'The contribution amount, without platform contribution and taxes',
     },
     fromAccount: {
-      type: new GraphQLNonNull(AccountReferenceInput),
+      type: new GraphQLNonNull(GraphQLAccountReferenceInput),
       description: 'The profile making the contribution.',
     },
     fromAccountInfo: {
-      type: OrderFromAccountInfo,
+      type: GraphQLOrderFromAccountInfo,
       description: 'Additional information about the contributing profile',
     },
     toAccount: {
-      type: new GraphQLNonNull(AccountReferenceInput),
-      description: 'The collective/event/project you want to contribute to',
+      type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+      description: 'The collective you want to contribute to',
     },
-    platformTipAmount: {
-      type: AmountInput,
-      description: 'Platform tip attached to this order',
-    },
-    taxes: {
-      type: new GraphQLList(OrderTaxInput),
-      description: 'Use this field to set the taxes associated to this order',
+    tax: {
+      type: GraphQLTaxInput,
+      description: 'The tax to apply to the order',
     },
     tier: {
-      type: TierReferenceInput,
+      type: GraphQLTierReferenceInput,
       description: 'The tier you are contributing to',
     },
     description: {
       type: GraphQLString,
       description: 'Public order description',
     },
-    customData: {
-      type: GraphQLJSON,
-      description: 'Custom data related to the Pending Order',
+    memo: {
+      type: GraphQLString,
+      description: 'Private memo for the host',
+    },
+    ponumber: {
+      type: GraphQLString,
+      description: 'External identifier for the order',
+    },
+    paymentMethod: {
+      type: GraphQLString, // TODO: Should be a GraphQLEnum. Also maybe rename to `paymentMethodType`?
+      description: 'Payment method expected for this order',
     },
     expectedAt: {
-      type: DateString,
+      type: GraphQLDateTime,
       description: 'When is the money expected?',
     },
     hostFeePercent: {
+      type: GraphQLFloat,
+      description: 'Custom Host fee percent for this order',
+    },
+  }),
+});
+
+export const GraphQLPendingOrderEditInput = new GraphQLInputObjectType({
+  name: 'PendingOrderEditInput',
+  description: 'Input to edit an existing pending order',
+  fields: () => ({
+    id: {
+      type: GraphQLString,
+      description: 'The public id identifying the order (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
+    },
+    legacyId: {
       type: GraphQLInt,
-      decription: 'Custom Host fee percent for this order',
+      description: 'The legacy public id identifying the order (ie: 4242)',
+    },
+    amount: {
+      type: new GraphQLNonNull(GraphQLAmountInput),
+      description: 'The contribution amount, without platform contribution and taxes',
+    },
+    platformTipAmount: {
+      type: GraphQLAmountInput,
+      description: 'Platform tip attached to this order',
+    },
+    fromAccount: {
+      type: GraphQLAccountReferenceInput,
+      description: 'The profile making the contribution.',
+    },
+    fromAccountInfo: {
+      type: GraphQLOrderFromAccountInfo,
+      description: 'Additional information about the contributing profile',
+    },
+    tax: {
+      type: GraphQLTaxInput,
+      description: 'The tax to apply to the order',
+    },
+    tier: {
+      type: GraphQLTierReferenceInput,
+      description: 'The tier you are contributing to',
+    },
+    description: {
+      type: GraphQLString,
+      description: 'Public order description',
+    },
+    memo: {
+      type: GraphQLString,
+      description: 'Private memo for the host',
+    },
+    ponumber: {
+      type: GraphQLString,
+      description: 'External identifier for the order',
+    },
+    paymentMethod: {
+      type: GraphQLString, // TODO: Should be a GraphQLEnum. Also maybe rename to `paymentMethodType`?
+      description: 'Payment method expected for this order',
+    },
+    expectedAt: {
+      type: GraphQLDateTime,
+      description: 'When is the money expected?',
+    },
+    hostFeePercent: {
+      type: GraphQLFloat,
+      description: 'Custom Host fee percent for this order',
     },
   }),
 });

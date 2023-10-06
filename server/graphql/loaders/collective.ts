@@ -2,8 +2,9 @@ import DataLoader from 'dataloader';
 import { first, groupBy, uniq } from 'lodash';
 
 import { roles } from '../../constants';
-import { types as CollectiveType } from '../../constants/collectives';
-import models, { Op, sequelize } from '../../models';
+import { CollectiveType } from '../../constants/collectives';
+import MemberRoles from '../../constants/roles';
+import models, { Collective, Op, sequelize } from '../../models';
 
 import { sortResultsSimple } from './helpers';
 
@@ -11,7 +12,7 @@ export default {
   /**
    * Returns the collective (account) for this user ID, including incognito profiles
    */
-  byUserId: (): DataLoader<number, typeof models.Collective> => {
+  byUserId: (): DataLoader<number, Collective> => {
     return new DataLoader(async userIds => {
       const collectives = await sequelize.query(
         ` SELECT      c.*, u.id AS __user_id__
@@ -36,7 +37,7 @@ export default {
    * Be careful: the link between an account and the incognito profile is a private information and this helper
    * does not check permissions
    */
-  mainProfileFromIncognito: (): DataLoader<typeof models.Collective, typeof models.Collective> => {
+  mainProfileFromIncognito: (): DataLoader<number, Collective> => {
     return new DataLoader(async incognitoProfilesIds => {
       // Get all the admins for the incognito profiles
       const members = await models.Member.findAll({
@@ -99,7 +100,7 @@ export default {
           group: ['MemberCollectiveId'],
           raw: true,
           mapToModel: false,
-          where: { MemberCollectiveId: otherAccountsCollectiveIds },
+          where: { MemberCollectiveId: otherAccountsCollectiveIds, role: { [Op.ne]: MemberRoles.FOLLOWER } },
           include: {
             association: 'collective',
             required: true,

@@ -37,16 +37,44 @@ describe('server/models/Update', () => {
   before('create a collective', () => models.Collective.create({ name: 'Webpack' }).then(c => (collective = c)));
 
   before('create updates', async () => {
-    await models.Update.createMany(
-      [
-        { id: 1, title: 'update 1 - yesterday', isPrivate: true, makePublicOn: yesterday },
-        { id: 2, title: 'update 2 - today', isPrivate: true, makePublicOn: today },
-        { id: 3, title: 'update 3 - tomorrow', isPrivate: true, makePublicOn: tomorrow },
-        { id: 4, title: 'update 4', isPrivate: true, makePublicOn: null },
-        { id: 5, title: 'unique-slug', isPrivate: false, makePublicOn: null },
-      ],
-      { CreatedByUserId: user.id, FromCollectiveId: collective.id, CollectiveId: collective.id },
-    );
+    const commonAttributes = { CreatedByUserId: user.id, FromCollectiveId: collective.id, CollectiveId: collective.id };
+    await Promise.all([
+      models.Update.create({
+        ...commonAttributes,
+        id: 1,
+        title: 'update 1 - yesterday',
+        isPrivate: true,
+        makePublicOn: yesterday,
+      }),
+      models.Update.create({
+        ...commonAttributes,
+        id: 2,
+        title: 'update 2 - today',
+        isPrivate: true,
+        makePublicOn: today,
+      }),
+      models.Update.create({
+        ...commonAttributes,
+        id: 3,
+        title: 'update 3 - tomorrow',
+        isPrivate: true,
+        makePublicOn: tomorrow,
+      }),
+      models.Update.create({
+        ...commonAttributes,
+        id: 4,
+        title: 'update 4',
+        isPrivate: true,
+        makePublicOn: null,
+      }),
+      models.Update.create({
+        ...commonAttributes,
+        id: 5,
+        title: 'unique-slug',
+        isPrivate: false,
+        makePublicOn: null,
+      }),
+    ]);
   });
 
   before('run makeUpdatesPublic', async () => {
@@ -159,31 +187,32 @@ describe('server/models/Update', () => {
       );
     });
 
-    describe('getUsersToNotify', () => {
+    describe('getUsersIdsToNotify', () => {
       it('returns an empty array when the collective has no member', async () => {
         const emptyCollective = await fakeCollective();
         const update = await fakeUpdate({ CollectiveId: emptyCollective.id });
-        const usersToNotify = await update.getUsersToNotify();
-        expect(usersToNotify.length).to.eq(0);
+        const usersIdsToNotify = await update.getUsersIdsToNotify();
+        expect(usersIdsToNotify.length).to.eq(0);
       });
 
       it('returns an empty array when the audience in NO_ONE', async () => {
         const update = await fakeUpdate({ CollectiveId: collective.id, notificationAudience: 'NO_ONE' });
-        const usersToNotify = await update.getUsersToNotify();
-        expect(usersToNotify.length).to.eq(0);
+        const usersIdsToNotify = await update.getUsersIdsToNotify();
+        expect(usersIdsToNotify.length).to.eq(0);
       });
 
       it('notifies only the admin if there is only one', async () => {
         const collectiveWithOneAdmin = await fakeCollective();
         await addRandomMemberUsers(collectiveWithOneAdmin, 1, 'ADMIN');
         const update = await fakeUpdate({ CollectiveId: collectiveWithOneAdmin.id });
-        const usersToNotify = await update.getUsersToNotify();
-        expect(usersToNotify.length).to.eq(1);
+        const usersIdsToNotify = await update.getUsersIdsToNotify();
+        expect(usersIdsToNotify.length).to.eq(1);
       });
 
       it('Notifies everyone when the update is public', async () => {
         const update = await fakeUpdate({ CollectiveId: collective.id, isPrivate: false });
-        const usersToNotify = await update.getUsersToNotify();
+        const usersIdsToNotify = await update.getUsersIdsToNotify();
+        const usersToNotify = await models.User.findAll({ where: { id: usersIdsToNotify } });
         const receivedEmails = usersToNotify.map(u => u.email);
 
         expectAllEmailsFrom(parentCollectiveAdmins, receivedEmails);
@@ -191,24 +220,26 @@ describe('server/models/Update', () => {
         expectAllEmailsFrom(individualBackersUsers, receivedEmails);
         expectAllEmailsFrom(collectiveFollowers, receivedEmails);
         expectAllEmailsFrom(getOrganizationAdminUsers(), receivedEmails);
-        expect(usersToNotify.length).to.eq(expectedPublicTotal);
+        expect(usersIdsToNotify.length).to.eq(expectedPublicTotal);
       });
 
       it('Notifies only those allowed to see when private', async () => {
         const update = await fakeUpdate({ CollectiveId: collective.id, isPrivate: true });
-        const usersToNotify = await update.getUsersToNotify();
+        const usersIdsToNotify = await update.getUsersIdsToNotify();
+        const usersToNotify = await models.User.findAll({ where: { id: usersIdsToNotify } });
         const receivedEmails = usersToNotify.map(u => u.email);
 
         expectAllEmailsFrom(parentCollectiveAdmins, receivedEmails);
         expectAllEmailsFrom(collectiveAdmins, receivedEmails);
         expectAllEmailsFrom(individualBackersUsers, receivedEmails);
         expectAllEmailsFrom(getOrganizationAdminUsers(), receivedEmails);
-        expect(usersToNotify.length).to.eq(expectedPrivateTotal);
+        expect(usersIdsToNotify.length).to.eq(expectedPrivateTotal);
       });
 
       it('Notifies child collective users when parent collective public update is made', async () => {
         const update = await fakeUpdate({ CollectiveId: parentCollective.id, isPrivate: false });
-        const usersToNotify = await update.getUsersToNotify();
+        const usersIdsToNotify = await update.getUsersIdsToNotify();
+        const usersToNotify = await models.User.findAll({ where: { id: usersIdsToNotify } });
         const receivedEmails = usersToNotify.map(u => u.email);
 
         expectAllEmailsFrom(parentCollectiveAdmins, receivedEmails);
@@ -218,7 +249,7 @@ describe('server/models/Update', () => {
         expectAllEmailsFrom(individualBackersUsers, receivedEmails);
         expectAllEmailsFrom(getOrganizationAdminUsers(), receivedEmails);
 
-        expect(usersToNotify.length).to.eq(
+        expect(usersIdsToNotify.length).to.eq(
           parentCollectiveAdmins.length +
             parentCollectiveBackers.length +
             parentCollectiveFollowers.length +
@@ -231,7 +262,8 @@ describe('server/models/Update', () => {
 
       it('Notifies child collective users when parent collective private update is made', async () => {
         const update = await fakeUpdate({ CollectiveId: parentCollective.id, isPrivate: true });
-        const usersToNotify = await update.getUsersToNotify();
+        const usersIdsToNotify = await update.getUsersIdsToNotify();
+        const usersToNotify = await models.User.findAll({ where: { id: usersIdsToNotify } });
         const receivedEmails = usersToNotify.map(u => u.email);
 
         expectAllEmailsFrom(parentCollectiveAdmins, receivedEmails);
@@ -240,7 +272,7 @@ describe('server/models/Update', () => {
         expectAllEmailsFrom(individualBackersUsers, receivedEmails);
         expectAllEmailsFrom(getOrganizationAdminUsers(), receivedEmails);
 
-        expect(usersToNotify.length).to.eq(
+        expect(usersIdsToNotify.length).to.eq(
           parentCollectiveAdmins.length +
             parentCollectiveBackers.length +
             collectiveAdmins.length +

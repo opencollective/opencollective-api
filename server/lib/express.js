@@ -1,6 +1,7 @@
+import { Strategy as TwitterStrategy } from '@superfaceai/passport-twitter-oauth2';
 import cloudflareIps from 'cloudflare-ip/ips.json';
 import config from 'config';
-import connectRedis from 'connect-redis';
+import RedisStore from 'connect-redis';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import errorHandler from 'errorhandler';
@@ -10,13 +11,12 @@ import helmet from 'helmet';
 import { get, has } from 'lodash';
 import passport from 'passport';
 import { Strategy as GitHubStrategy } from 'passport-github';
-import { Strategy as TwitterStrategy } from 'passport-twitter';
-import redis from 'redis';
 
 import { loadersMiddleware } from '../graphql/loaders';
 
 import hyperwatch from './hyperwatch';
 import logger from './logger';
+import { createRedisClient } from './redis';
 
 export default async function (app) {
   app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal'].concat(cloudflareIps));
@@ -61,13 +61,26 @@ export default async function (app) {
 
   const verify = (accessToken, tokenSecret, profile, done) => done(null, accessToken, { tokenSecret, profile });
 
+  // Github
   if (has(config, 'github.clientID') && has(config, 'github.clientSecret')) {
     passport.use(new GitHubStrategy(get(config, 'github'), verify));
   } else {
     logger.info('Configuration missing for passport GitHubStrategy, skipping.');
   }
-  if (has(config, 'twitter.consumerKey') && has(config, 'twitter.consumerSecret')) {
-    passport.use(new TwitterStrategy(get(config, 'twitter'), verify));
+
+  // Twitter
+  const twitterConfig = get(config, 'twitter');
+  if (has(twitterConfig, 'consumerKey') && has(twitterConfig, 'consumerSecret')) {
+    passport.use(
+      new TwitterStrategy(
+        {
+          clientType: 'confidential',
+          clientID: twitterConfig.consumerKey,
+          clientSecret: twitterConfig.consumerSecret,
+        },
+        verify,
+      ),
+    );
   } else {
     logger.info('Configuration missing for passport TwitterStrategy, skipping.');
   }
@@ -76,26 +89,18 @@ export default async function (app) {
 
   // Setup session (required by passport)
 
-  let store;
-  if (get(config, 'redis.serverUrl')) {
-    const RedisStore = connectRedis(session);
-    const redisOptions = {};
-    if (get(config, 'redis.serverUrl').includes('rediss://')) {
-      redisOptions.tls = { rejectUnauthorized: false };
-    }
-    store = new RedisStore({
-      client: redis.createClient(get(config, 'redis.serverUrl'), redisOptions),
-    });
+  const redisClient = await createRedisClient();
+  if (redisClient || process.env.OC_ENV === 'development') {
+    const store = !redisClient ? undefined : new RedisStore({ client: redisClient });
+    app.use(
+      session({
+        store,
+        secret: config.keys.opencollective.sessionSecret,
+        resave: false,
+        saveUninitialized: false,
+      }),
+    );
+
+    app.use(passport.initialize());
   }
-
-  app.use(
-    session({
-      store,
-      secret: config.keys.opencollective.sessionSecret,
-      resave: false,
-      saveUninitialized: false,
-    }),
-  );
-
-  app.use(passport.initialize());
 }

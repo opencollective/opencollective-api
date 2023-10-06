@@ -1,7 +1,7 @@
+import axios from 'axios';
 import { expect } from 'chai';
 import _ from 'lodash';
-import Slack from 'node-slack';
-import { stub } from 'sinon';
+import { createSandbox, stub } from 'sinon';
 
 import activitiesLib from '../../../server/lib/activities';
 import slackLib from '../../../server/lib/slack';
@@ -17,8 +17,17 @@ describe('server/lib/slack', () => {
       attachments: [],
     };
 
+    let sandbox;
+    beforeEach(async () => {
+      sandbox = createSandbox();
+    });
+
+    afterEach(() => {
+      sandbox.restore();
+    });
+
     it('with message succeeds', done => {
-      expectPayload(basePayload);
+      expectPayload(sandbox, basePayload);
 
       callSlackLib(done, message, webhookUrl);
     });
@@ -26,7 +35,7 @@ describe('server/lib/slack', () => {
     it('with attachment succeeds', done => {
       const attachments = ['att1', 'att2'];
 
-      expectPayload(_.extend({}, basePayload, { attachments }));
+      expectPayload(sandbox, _.extend({}, basePayload, { attachments }));
 
       callSlackLib(done, message, webhookUrl, { attachments });
     });
@@ -34,7 +43,7 @@ describe('server/lib/slack', () => {
     it('with channel succeeds', done => {
       const channel = 'kewl channel';
 
-      expectPayload(_.extend({}, basePayload, { channel }));
+      expectPayload(sandbox, _.extend({}, basePayload, { channel }));
 
       callSlackLib(done, message, webhookUrl, { channel });
     });
@@ -69,11 +78,11 @@ describe('server/lib/slack', () => {
   });
 });
 
-function expectPayload(expectedPayload) {
-  Slack.prototype.send = (actualPayload, cb) => {
+function expectPayload(sandbox, expectedPayload) {
+  sandbox.stub(axios, 'post').callsFake((url, actualPayload) => {
     expect(actualPayload).to.deep.equal(expectedPayload);
-    cb();
-  };
+    return;
+  });
 }
 
 function callSlackLib(done, msg, webhookUrl, options) {

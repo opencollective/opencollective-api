@@ -1,7 +1,7 @@
 import slugify from 'limax';
 
 import activities from '../constants/activities';
-import { types as CollectiveTypes } from '../constants/collectives';
+import { CollectiveType } from '../constants/collectives';
 import ExpenseStatus from '../constants/expense_status';
 import ExpenseType from '../constants/expense_type';
 import { TransactionKind } from '../constants/transaction-kind';
@@ -61,7 +61,8 @@ export const persistTransaction = async (virtualCard, transaction) => {
   const description = `Virtual Card charge: ${vendor.name}`;
 
   // Case when expense is already created after the stripe authorization request event
-  if (transaction.fromAuthorizationId) {
+  // Double check if transaction is a refund because sometimes the refund event is sent before the charge event
+  if (transaction.fromAuthorizationId && !transaction.isRefund) {
     const processingExpense = await models.Expense.findOne({
       where: {
         status: ExpenseStatus.PROCESSING,
@@ -254,7 +255,7 @@ export const getOrCreateVendor = async (vendorProviderId, vendorName) => {
 
   const [vendor] = await models.Collective.findOrCreate({
     where: { [Op.or]: [{ slug }, { slug: uniqueSlug }] },
-    defaults: { name: vendorName, type: CollectiveTypes.VENDOR, slug: uniqueSlug },
+    defaults: { name: vendorName, type: CollectiveType.VENDOR, slug: uniqueSlug },
   });
 
   if (vendor && vendor.name !== vendorName) {

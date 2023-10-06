@@ -1,22 +1,26 @@
-import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
-import { types as collectiveTypes } from '../../../constants/collectives';
+import { CollectiveType } from '../../../constants/collectives';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
+import UserTwoFactorMethod from '../../../models/UserTwoFactorMethod';
+import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { checkScope } from '../../common/scope-check';
 import { hasSeenLatestChangelogEntry } from '../../common/user';
-import { OAuthAuthorizationCollection } from '../collection/OAuthAuthorizationCollection';
-import { PersonalTokenCollection } from '../collection/PersonalTokenCollection';
+import { GraphQLOAuthAuthorizationCollection } from '../collection/OAuthAuthorizationCollection';
+import { GraphQLPersonalTokenCollection } from '../collection/PersonalTokenCollection';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
-import { Account, AccountFields } from '../interface/Account';
+import { AccountFields, GraphQLAccount } from '../interface/Account';
 import { CollectionArgs } from '../interface/Collection';
+import { UserTwoFactorMethod as UserTwoFactorMethodObject } from '../object/UserTwoFactorMethod';
 
-import { Host } from './Host';
+import { GraphQLHost } from './Host';
 
-export const Individual = new GraphQLObjectType({
+export const GraphQLIndividual = new GraphQLObjectType({
   name: 'Individual',
   description: 'This represents an Individual account',
-  interfaces: () => [Account],
-  isTypeOf: collective => collective.type === collectiveTypes.USER,
+  interfaces: () => [GraphQLAccount],
+  isTypeOf: collective => collective.type === CollectiveType.USER,
   fields: () => {
     return {
       ...AccountFields,
@@ -72,32 +76,36 @@ export const Individual = new GraphQLObjectType({
             - Hosts can see the address of users submitting expenses to their collectives
         `,
         async resolve(individual, _, req) {
-          const isHost = await individual.isHost();
-          const canSeeLocation = isHost || (req.remoteUser?.isAdmin(individual.id) && checkScope(req, 'account'));
-          if (canSeeLocation) {
-            // For incognito profiles, we retrieve the location from the main user profile
-            if (individual.isIncognito) {
-              if (!checkScope(req, 'incognito')) {
-                return null;
-              }
-              const mainProfile = await req.loaders.Collective.mainProfileFromIncognito.load(individual.id);
-              if (mainProfile) {
-                return mainProfile.location;
-              }
-            }
+          const canSeeLocation =
+            (await individual.isHost()) ||
+            (checkScope(req, 'account') &&
+              (req.remoteUser?.isAdmin(individual.id) ||
+                getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, individual.id)));
 
-            return individual.location;
+          if (!canSeeLocation) {
+            return null;
           }
+
+          // For incognito profiles, we retrieve the location from the main user profile
+          if (individual.isIncognito) {
+            if (!checkScope(req, 'incognito')) {
+              return null;
+            }
+            const mainProfile = await req.loaders.Collective.mainProfileFromIncognito.load(individual.id);
+            if (mainProfile) {
+              return req.loaders.Location.byCollectiveId.load(mainProfile.id);
+            }
+          }
+
+          return req.loaders.Location.byCollectiveId.load(individual.id);
         },
       },
       hasTwoFactorAuth: {
         type: GraphQLBoolean,
         async resolve(collective, args, req) {
           const user = await req.loaders.User.byCollectiveId.load(collective.id);
-          if (user.twoFactorAuthToken) {
-            return true;
-          } else {
-            return false;
+          if (req.remoteUser?.id === user.id) {
+            return twoFactorAuthLib.userHasTwoFactorAuthEnabled(user);
           }
         },
       },
@@ -116,7 +124,7 @@ export const Individual = new GraphQLObjectType({
         },
       },
       host: {
-        type: Host,
+        type: GraphQLHost,
         description: 'If the individual is a host account, this will return the matching Host object',
         resolve(collective) {
           if (collective.isHostAccount) {
@@ -125,14 +133,17 @@ export const Individual = new GraphQLObjectType({
         },
       },
       hasSeenLatestChangelogEntry: {
-        type: new GraphQLNonNull(GraphQLBoolean),
+        type: GraphQLBoolean,
         async resolve(collective, args, req) {
           const user = await req.loaders.User.byCollectiveId.load(collective.id);
+          if (req.remoteUser?.id !== user.id) {
+            return null;
+          }
           return hasSeenLatestChangelogEntry(user);
         },
       },
       oAuthAuthorizations: {
-        type: OAuthAuthorizationCollection,
+        type: GraphQLOAuthAuthorizationCollection,
         args: {
           ...CollectionArgs,
         },
@@ -170,7 +181,7 @@ export const Individual = new GraphQLObjectType({
         },
       },
       personalTokens: {
-        type: PersonalTokenCollection,
+        type: GraphQLPersonalTokenCollection,
         description: 'The list of personal tokens created by this account. Admin only. Scope: "applications".',
         args: {
           ...CollectionArgs,
@@ -203,8 +214,23 @@ export const Individual = new GraphQLObjectType({
           return req.remoteUser.passwordHash ? true : false;
         },
       },
+      twoFactorMethods: {
+        type: new GraphQLList(UserTwoFactorMethodObject),
+        description: 'User two factor methods',
+        async resolve(collective, _, req) {
+          if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'account')) {
+            return null;
+          }
+
+          return UserTwoFactorMethod.findAll({
+            where: {
+              UserId: req.remoteUser.id,
+            },
+          });
+        },
+      },
     };
   },
 });
 
-export default Individual;
+export default GraphQLIndividual;

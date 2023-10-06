@@ -1,14 +1,16 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { isNil } from 'lodash';
 
+import FEATURE_STATUS from '../../constants/feature-status';
+import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../lib/rate-limit';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import models from '../../models';
 import { bulkCreateGiftCards, createGiftCardsForEmails } from '../../paymentProviders/opencollective/giftcard';
+import { checkCanEmitGiftCards } from '../common/features';
 import { editPublicMessage } from '../common/members';
 import { createUser } from '../common/user';
-import { NotFound, Unauthorized } from '../errors';
+import { NotFound, RateLimitExceeded, Unauthorized } from '../errors';
 
-import * as applicationMutations from './mutations/applications';
 import * as backyourstackMutations from './mutations/backyourstack';
 import {
   activateBudget,
@@ -28,7 +30,6 @@ import { createOrder } from './mutations/orders';
 import * as paymentMethodsMutation from './mutations/paymentMethods';
 import { editTier, editTiers } from './mutations/tiers';
 import { confirmUserEmail, updateUserEmail } from './mutations/users';
-import { ApplicationInputType, ApplicationType } from './Application';
 import { CollectiveInterfaceType } from './CollectiveInterface';
 import {
   CollectiveInputType,
@@ -153,7 +154,14 @@ const mutations = {
         defaultValue: true,
       },
     },
-    resolve(_, args, req) {
+    async resolve(_, args, req) {
+      const { remoteUser } = req;
+      const rateLimitKey = remoteUser ? `user_create_${remoteUser.id}` : `user_create_ip_${req.ip}`;
+      const rateLimit = new RateLimit(rateLimitKey, 60, ONE_HOUR_IN_SECONDS, true);
+      if (!(await rateLimit.registerCall())) {
+        throw new RateLimitExceeded();
+      }
+
       return createUser(args.user, {
         organizationData: args.organization,
         sendSignInLink: args.sendSignInLink,
@@ -235,13 +243,13 @@ const mutations = {
       members: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(MemberInputType))) },
     },
     async resolve(_, args, req) {
-      const collective = await models.Collective.findByPk(args.collectiveId);
+      const collective = await req.loaders.Collective.byId.load(args.collectiveId);
       if (!collective) {
         throw new NotFound();
       } else if (!req.remoteUser || !req.remoteUser.isAdminOfCollective(collective)) {
         throw new Unauthorized();
       } else {
-        await twoFactorAuthLib.enforceForAccountAdmins(req, collective, { onlyAskOnLogin: true });
+        await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
 
         await collective.editMembers(args.members, {
           CreatedByUserId: req.remoteUser.id,
@@ -286,32 +294,21 @@ const mutations = {
       const amount =
         (args.order.totalAmount - (args.order.taxAmount || 0) - (args.order.platformFee || 0)) /
         (args.order.quantity || 1);
-      const { order } = await createOrder({ ...args.order, amount }, req);
+
+      // We're not supposed to call this mutation with taxes; but keeping it backward-compatible for tests
+      let tax;
+      if (args.order.taxAmount || args.order.taxIDNumber) {
+        tax = {
+          country: args.order.countryISO,
+          amount: args.order.taxAmount || 0,
+          rate: Math.round((args.order.taxAmount || 0) / args.order.totalAmount),
+          idNumber: args.order.taxIDNumber,
+          type: null,
+        };
+      }
+
+      const { order } = await createOrder({ ...args.order, amount, tax }, req);
       return order;
-    },
-  },
-  createApplication: {
-    type: ApplicationType,
-    deprecationReason: '2023-01-03: Please use createPersonalToken from GQLV2',
-    args: {
-      application: {
-        type: new GraphQLNonNull(ApplicationInputType),
-      },
-    },
-    resolve(_, args, req) {
-      return applicationMutations.createApplication(_, args, req);
-    },
-  },
-  deleteApplication: {
-    type: ApplicationType,
-    deprecationReason: '2023-01-03: Please use deletePersonalToken from GQLV2',
-    args: {
-      id: {
-        type: new GraphQLNonNull(GraphQLInt),
-      },
-    },
-    resolve(_, args, req) {
-      return applicationMutations.deleteApplication(_, args, req);
     },
   },
   updatePaymentMethod: {
@@ -408,14 +405,16 @@ const mutations = {
         args.limitedToHostCollectiveIds = [openSourceHost.id];
       }
 
-      const collective = await models.Collective.findByPk(args.CollectiveId);
+      const collective = await req.loaders.Collective.byId.load(args.CollectiveId);
       if (!collective) {
         throw new Error('Collective does not exist');
       } else if (!req.remoteUser.isAdminOfCollective(collective)) {
         throw new Error('User must be admin of collective');
+      } else if ((await checkCanEmitGiftCards(collective, req.remoteUser)) === FEATURE_STATUS.UNSUPPORTED) {
+        throw new Error('Cannot create gift cards from this account');
       }
 
-      await twoFactorAuthLib.enforceForAccountAdmins(req, collective, { onlyAskOnLogin: true });
+      await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
 
       if (numberOfGiftCards) {
         return bulkCreateGiftCards(collective, args, req.remoteUser, numberOfGiftCards);

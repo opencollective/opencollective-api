@@ -381,20 +381,19 @@ export async function createPaymentFailedActivity(order, lastAttempt) {
 export async function sendThankYouEmail(order, transaction, isFirstPayment = false) {
   const attachments = [];
   const { collective, paymentMethod } = order;
-  const relatedCollectives = await order.collective.getRelatedCollectives(3, 0);
+
   const user = await order.getUserForActivity();
   const host = await order.collective.getHostCollective();
   const parentCollective = await collective.getParentCollective();
 
   const data = {
     order: order.info,
-    transaction: transaction ? transaction.info : null,
+    transaction: transaction ? transaction.info : { createdAt: new Date() },
     user: user.info,
     firstPayment: isFirstPayment,
     collective: order.collective.info,
     host: host ? host.info : {},
     fromCollective: order.fromCollective.minimal,
-    relatedCollectives,
     config: { host: config.host },
     interval: order.Subscription?.interval || order.interval,
     subscriptionsLink: getEditRecurringContributionsUrl(order.fromCollective),
@@ -449,7 +448,7 @@ export async function createPaymentCreditCardConfirmationActivity(order) {
       order: order.info,
       collective: order.collective.info,
       fromCollective: order.fromCollective.minimal,
-      confirmOrderLink: `${config.host.website}/${order.fromCollective.slug}/orders/${order.id}/confirm`,
+      confirmOrderLink: `${config.host.website}/${order.fromCollective.slug}/contributions/${order.id}/confirm`,
       paymentMethod: order.paymentMethod?.info,
     },
   });

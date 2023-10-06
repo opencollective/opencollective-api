@@ -1,15 +1,15 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import { Account, AccountFields } from '../interface/Account';
-import { AccountWithContributions, AccountWithContributionsFields } from '../interface/AccountWithContributions';
-import { AccountWithHost, AccountWithHostFields } from '../interface/AccountWithHost';
-import { AccountWithParent, AccountWithParentFields } from '../interface/AccountWithParent';
+import { AccountFields, GraphQLAccount } from '../interface/Account';
+import { AccountWithContributionsFields, GraphQLAccountWithContributions } from '../interface/AccountWithContributions';
+import { AccountWithHostFields, GraphQLAccountWithHost } from '../interface/AccountWithHost';
+import { AccountWithParentFields, GraphQLAccountWithParent } from '../interface/AccountWithParent';
 
-export const Event = new GraphQLObjectType({
+export const GraphQLEvent = new GraphQLObjectType({
   name: 'Event',
   description: 'This represents an Event account',
-  interfaces: () => [Account, AccountWithHost, AccountWithContributions, AccountWithParent],
+  interfaces: () => [GraphQLAccount, GraphQLAccountWithHost, GraphQLAccountWithContributions, GraphQLAccountWithParent],
   isTypeOf: collective => collective.type === 'EVENT',
   fields: () => {
     return {

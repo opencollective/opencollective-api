@@ -1,24 +1,32 @@
 import express from 'express';
+import { isNull } from 'lodash';
 import moment from 'moment';
 
 import { roles } from '../../constants';
 import orderStatus from '../../constants/order_status';
+import POLICIES from '../../constants/policies';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
 import * as libPayments from '../../lib/payments';
+import { getPolicy } from '../../lib/policies';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import models from '../../models';
+import { TransactionInterface } from '../../models/Transaction';
 import { Forbidden, NotFound } from '../errors';
 
 const getPayee = async (req, transaction) => {
-  let column;
-  if (transaction.type === 'CREDIT') {
-    column = !transaction.isRefund ? 'CollectiveId' : 'FromCollectiveId';
+  if (
+    (transaction.type === 'CREDIT' && !transaction.isRefund) ||
+    (transaction.type === 'DEBIT' && transaction.isRefund)
+  ) {
+    transaction.collective =
+      transaction.collective || (await req.loaders.Collective.byId.load(transaction.CollectiveId));
+    return transaction.collective;
   } else {
-    column = !transaction.isRefund ? 'FromCollectiveId' : 'CollectiveId';
+    transaction.fromCollective =
+      transaction.fromCollective || (await req.loaders.Collective.byId.load(transaction.FromCollectiveId));
+    return transaction.fromCollective;
   }
-
-  return req.loaders.Collective.byId.load(transaction[column]);
 };
 
 const getPayer = async (req, transaction) => {
@@ -117,32 +125,39 @@ const remoteUserMeetsOneCondition = async (req, transaction, conditions): Promis
 };
 
 /** Checks if the user can refund this transaction */
-export const canRefund = async (
-  transaction: typeof models.Transaction,
-  _: void,
-  req: express.Request,
-): Promise<boolean> => {
+export const canRefund = async (transaction: TransactionInterface, _: void, req: express.Request): Promise<boolean> => {
   if (transaction.type !== TransactionTypes.CREDIT || transaction.OrderId === null || transaction.isRefund === true) {
     return false;
   }
 
-  const timeLimit = moment().subtract(30, 'd');
-  const createdAtMoment = moment(transaction.createdAt);
-  const transactionIsOlderThanThirtyDays = createdAtMoment < timeLimit;
-  /*
-   * 1) We only allow the transaction to be refunded by Collective admins if it's within 30 days.
-   *
-   * 2) To ensure proper accounting, we only allow added funds to be refunded by Host admins and never by Collective admins.
-   */
-  if (transactionIsOlderThanThirtyDays || transaction.kind === TransactionKind.ADDED_FUNDS) {
-    return remoteUserMeetsOneCondition(req, transaction, [isRoot, isPayeeHostAdmin]);
+  // 1) We only allow the transaction to be refunded by Collective admins if it's within 30 days.
+  // 2) To ensure proper accounting, we only allow added funds to be refunded by Host admins and never by Collective admins.
+  if (await remoteUserMeetsOneCondition(req, transaction, [isRoot, isPayeeHostAdmin])) {
+    return true;
+  } else if (await isPayeeCollectiveAdmin(req, transaction)) {
+    const timeLimit = moment().subtract(30, 'd');
+    const createdAtMoment = moment(transaction.createdAt);
+    const transactionIsOlderThanThirtyDays = createdAtMoment < timeLimit;
+    const isManualPayment = transaction.kind === TransactionKind.ADDED_FUNDS || isNull(transaction.PaymentMethodId);
+    if (transactionIsOlderThanThirtyDays || isManualPayment) {
+      return false;
+    }
+
+    // Check host policies
+    const payee = await getPayee(req, transaction);
+    if (!payee.HostCollectiveId) {
+      return false;
+    }
+
+    const host = payee.host || (await req.loaders.Collective.byId.load(payee.HostCollectiveId));
+    return await getPolicy(host, POLICIES.COLLECTIVE_ADMINS_CAN_REFUND);
   } else {
-    return remoteUserMeetsOneCondition(req, transaction, [isRoot, isPayeeHostAdmin, isPayeeCollectiveAdmin]);
+    return false;
   }
 };
 
 export const canDownloadInvoice = async (
-  transaction: typeof models.Transaction,
+  transaction: TransactionInterface,
   _: void,
   req: express.Request,
 ): Promise<boolean> => {
@@ -161,26 +176,12 @@ export const canDownloadInvoice = async (
 };
 
 /** Checks if the user can reject this transaction */
-export const canReject = async (
-  transaction: typeof models.Transaction,
-  _: void,
-  req: express.Request,
-): Promise<boolean> => {
-  if (transaction.type !== TransactionTypes.CREDIT || transaction.OrderId === null) {
-    return false;
-  }
-  const timeLimit = moment().subtract(30, 'd');
-  const createdAtMoment = moment(transaction.createdAt);
-  const transactionIsOlderThanThirtyDays = createdAtMoment < timeLimit;
-  if (transactionIsOlderThanThirtyDays) {
-    return remoteUserMeetsOneCondition(req, transaction, [isRoot, isPayeeHostAdmin]);
-  } else {
-    return remoteUserMeetsOneCondition(req, transaction, [isRoot, isPayeeHostAdmin, isPayeeCollectiveAdmin]);
-  }
+export const canReject = async (transaction: TransactionInterface, _: void, req: express.Request): Promise<boolean> => {
+  return canRefund(transaction, _, req);
 };
 
 export async function refundTransaction(
-  passedTransaction: typeof models.Transaction,
+  passedTransaction: TransactionInterface,
   req: express.Request,
   args: { message?: string } = {},
 ) {
@@ -213,11 +214,14 @@ export async function refundTransaction(
   // Check 2FA
   const collective = transaction.type === 'CREDIT' ? transaction.collective : transaction.fromCollective;
   if (collective && req.remoteUser.isAdminOfCollective(collective)) {
-    await twoFactorAuthLib.enforceForAccountAdmins(req, collective);
+    await twoFactorAuthLib.enforceForAccount(req, collective);
   } else {
     const creditTransaction = transaction.type === 'CREDIT' ? transaction : await transaction.getOppositeTransaction();
     if (req.remoteUser.isAdmin(creditTransaction?.HostCollectiveId)) {
-      await twoFactorAuthLib.enforceForAccountAdmins(req, await creditTransaction.getHostCollective());
+      await twoFactorAuthLib.enforceForAccount(
+        req,
+        await creditTransaction.getHostCollective({ loaders: req.loaders }),
+      );
     }
   }
 

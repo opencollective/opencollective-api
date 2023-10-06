@@ -1,25 +1,30 @@
-import { GraphQLBoolean, GraphQLFloat, GraphQLInt, GraphQLInterfaceType, GraphQLNonNull } from 'graphql';
+import { GraphQLBoolean, GraphQLFloat, GraphQLInterfaceType, GraphQLNonNull } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { isNumber } from 'lodash';
+import { clamp, isNumber } from 'lodash';
 
+import { roles } from '../../../constants';
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
-import models from '../../../models';
+import { Collective } from '../../../models';
+import Agreement from '../../../models/Agreement';
 import { hostResolver } from '../../common/collective';
-import { HostFeeStructure } from '../enum/HostFeeStructure';
-import { PaymentMethodService } from '../enum/PaymentMethodService';
-import { PaymentMethodType } from '../enum/PaymentMethodType';
-import { Host } from '../object/Host';
+import { GraphQLAgreementCollection } from '../collection/AgreementCollection';
+import { GraphQLHostFeeStructure } from '../enum/HostFeeStructure';
+import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
+import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType';
+import { GraphQLHost } from '../object/Host';
+
+import { getCollectionArgs } from './Collection';
 
 export const AccountWithHostFields = {
   host: {
     description: 'Returns the Fiscal Host',
-    type: Host,
+    type: GraphQLHost,
     resolve: hostResolver,
   },
   hostFeesStructure: {
     description: 'Describe how the host charges the collective',
-    type: HostFeeStructure,
-    resolve: (account: typeof models.Collective): HOST_FEE_STRUCTURE | null => {
+    type: GraphQLHostFeeStructure,
+    resolve: (account: Collective): HOST_FEE_STRUCTURE | null => {
       if (!account.HostCollectiveId) {
         return null;
       } else if (account.data?.useCustomHostFee) {
@@ -33,10 +38,10 @@ export const AccountWithHostFields = {
     description: 'Fees percentage that the host takes for this collective',
     type: GraphQLFloat,
     args: {
-      paymentMethodService: { type: PaymentMethodService },
-      paymentMethodType: { type: PaymentMethodType },
+      paymentMethodService: { type: GraphQLPaymentMethodService },
+      paymentMethodType: { type: GraphQLPaymentMethodType },
     },
-    async resolve(account: typeof models.Collective, args, req): Promise<number> {
+    async resolve(account: Collective, args, req): Promise<number> {
       const parent = await req.loaders.Collective.parent.load(account);
       const host = await req.loaders.Collective.host.load(account);
       const possibleValues = [];
@@ -50,7 +55,7 @@ export const AccountWithHostFields = {
         if (parent?.data?.useCustomHostFee) {
           possibleValues.push(parent?.hostFeePercent);
         }
-        possibleValues.push(host.data?.addedFundsHostFeePercent);
+        possibleValues.push(host?.data?.addedFundsHostFeePercent);
       } else if (args.paymentMethodType === 'manual') {
         possibleValues.push(account.data?.bankTransfersHostFeePercent);
         possibleValues.push(parent?.data?.bankTransfersHostFeePercent);
@@ -60,7 +65,7 @@ export const AccountWithHostFields = {
         if (parent?.data?.useCustomHostFee) {
           possibleValues.push(parent?.hostFeePercent);
         }
-        possibleValues.push(host.data?.bankTransfersHostFeePercent);
+        possibleValues.push(host?.data?.bankTransfersHostFeePercent);
       } else if (args.paymentMethodService === 'stripe') {
         // the setting used to be named `creditCardHostFeePercent` but it's meant to be used for Stripe generally
         // to be removed once we don't have Hosts with `creditCardHostFeePercent`
@@ -74,8 +79,8 @@ export const AccountWithHostFields = {
         if (parent?.data?.useCustomHostFee) {
           possibleValues.push(parent?.hostFeePercent);
         }
-        possibleValues.push(host.data?.creditCardHostFeePercent);
-        possibleValues.push(host.data?.stripeHostFeePercent);
+        possibleValues.push(host?.data?.creditCardHostFeePercent);
+        possibleValues.push(host?.data?.stripeHostFeePercent);
       } else if (args.paymentMethodService === 'paypal') {
         possibleValues.push(account.data?.paypalHostFeePercent);
         possibleValues.push(parent?.data?.paypalHostFeePercent);
@@ -85,7 +90,7 @@ export const AccountWithHostFields = {
         if (parent?.data?.useCustomHostFee) {
           possibleValues.push(parent?.hostFeePercent);
         }
-        possibleValues.push(host.data?.paypalHostFeePercent);
+        possibleValues.push(host?.data?.paypalHostFeePercent);
       }
 
       possibleValues.push(account.hostFeePercent);
@@ -96,32 +101,71 @@ export const AccountWithHostFields = {
   },
   platformFeePercent: {
     description: 'Fees percentage that the platform takes for this collective',
-    type: GraphQLInt,
+    type: GraphQLFloat,
   },
   approvedAt: {
     description: 'Date of approval by the Fiscal Host.',
     type: GraphQLDateTime,
-    resolve(account: typeof models.Collective): Promise<Date> {
+    resolve(account: Collective): Date {
       return account.approvedAt;
     },
   },
   isApproved: {
     description: "Returns whether it's approved by the Fiscal Host",
     type: new GraphQLNonNull(GraphQLBoolean),
-    resolve(account: typeof models.Collective): boolean {
+    resolve(account: Collective): boolean {
       return account.isApproved();
     },
   },
   isActive: {
     description: "Returns whether it's active: can accept financial contributions and pay expenses.",
     type: new GraphQLNonNull(GraphQLBoolean),
-    resolve(account: typeof models.Collective): boolean {
+    resolve(account: Collective): boolean {
       return Boolean(account.isActive);
+    },
+  },
+  hostAgreements: {
+    type: GraphQLAgreementCollection,
+    description: 'Returns agreements this account has with its host, or null if not enough permissions.',
+    args: {
+      ...getCollectionArgs({ limit: 30 }),
+    },
+    async resolve(account, args, req) {
+      if (!account.HostCollectiveId) {
+        return { totalCount: 0, limit: args.limit, offset: args.offset, nodes: [] };
+      }
+
+      if (
+        !req.remoteUser?.isAdmin(account.HostCollectiveId) &&
+        !req.remoteUser?.hasRole(roles.ACCOUNTANT, account.HostCollectiveId)
+      ) {
+        return null;
+      }
+
+      const totalCount = await req.loaders.Agreement.totalAccountHostAgreements.load(account.id);
+      const offset = clamp(args.offset || 0, 0, totalCount);
+      const limit = clamp(args.limit || 30, 0, 100);
+      return {
+        totalCount,
+        limit: limit,
+        offset: offset,
+        nodes: () => {
+          return Agreement.findAll({
+            where: {
+              HostCollectiveId: account.HostCollectiveId,
+              CollectiveId: [account.id, account.ParentCollectiveId].filter(Boolean),
+            },
+            limit: limit,
+            offset: offset,
+            order: [['createdAt', 'desc']],
+          });
+        },
+      };
     },
   },
 };
 
-export const AccountWithHost = new GraphQLInterfaceType({
+export const GraphQLAccountWithHost = new GraphQLInterfaceType({
   name: 'AccountWithHost',
   description: 'An account that can be hosted by a Host',
   fields: () => AccountWithHostFields,

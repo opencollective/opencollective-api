@@ -55,7 +55,7 @@ async function convertCurrencyForTimeSeries(results, currency) {
 
 export async function getPlatformTips(
   host,
-  { startDate = null, endDate = null, groupTimeUnit, collectiveIds = null } = {},
+  { startDate = null, endDate = null, groupTimeUnit = null, collectiveIds = null } = {},
 ) {
   const timeUnitFragments = { select: '', groupBy: '', orderBy: '' };
   if (groupTimeUnit) {
@@ -273,7 +273,7 @@ export async function getTotalMoneyManagedTimeSeries(
   { startDate = null, endDate = null, collectiveIds = null, timeUnit } = {},
 ) {
   if (!collectiveIds) {
-    const collectives = await host.getHostedCollectives({ attributes: ['id'] });
+    const collectives = await host.getHostedCollectives({ attributes: ['id'], raw: true });
     collectiveIds = collectives.map(result => result.id);
     collectiveIds.push(host.id);
   }

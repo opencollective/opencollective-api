@@ -9,36 +9,42 @@ import {
   GraphQLObjectType,
   GraphQLString,
 } from 'graphql';
-import { GraphQLNonEmptyString } from 'graphql-scalars';
-import { GraphQLJSON } from 'graphql-type-json';
+import { GraphQLJSON, GraphQLNonEmptyString } from 'graphql-scalars';
 import { cloneDeep, isNull, omitBy, set } from 'lodash';
 
 import activities from '../../../constants/activities';
-import { types as COLLECTIVE_TYPE } from '../../../constants/collectives';
+import { CollectiveType } from '../../../constants/collectives';
 import * as collectivelib from '../../../lib/collectivelib';
 import { crypto } from '../../../lib/encryption';
-import TwoFactorAuthLib from '../../../lib/two-factor-authentication';
-import { validateTOTPToken } from '../../../lib/two-factor-authentication/totp';
+import TwoFactorAuthLib, { TwoFactorMethod } from '../../../lib/two-factor-authentication';
+import * as webauthn from '../../../lib/two-factor-authentication/webauthn';
+import { validateYubikeyOTP } from '../../../lib/two-factor-authentication/yubikey-otp';
 import models, { sequelize } from '../../../models';
+import UserTwoFactorMethod from '../../../models/UserTwoFactorMethod';
 import { sendMessage } from '../../common/collective';
 import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseHost } from '../../common/scope-check';
-import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
+import { BadRequest, Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { AccountTypeToModelMapping } from '../enum/AccountType';
+import { GraphQLTwoFactorMethodEnum } from '../enum/TwoFactorMethodEnum';
 import { idDecode } from '../identifiers';
-import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
-import { AccountUpdateInput } from '../input/AccountUpdateInput';
-import { PoliciesInput } from '../input/PoliciesInput';
-import { Account } from '../interface/Account';
-import { Host } from '../object/Host';
-import { Individual } from '../object/Individual';
-import AccountSettingsKey from '../scalar/AccountSettingsKey';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import { GraphQLAccountUpdateInput } from '../input/AccountUpdateInput';
+import { GraphQLPoliciesInput } from '../input/PoliciesInput';
+import {
+  fetchUserTwoFactorMethodWithReference,
+  GraphQLUserTwoFactorMethodReferenceInput,
+} from '../input/UserTwoFactorMethodReferenceInput';
+import { GraphQLAccount } from '../interface/Account';
+import { GraphQLHost } from '../object/Host';
+import { GraphQLIndividual } from '../object/Individual';
+import GraphQLAccountSettingsKey from '../scalar/AccountSettingsKey';
 
-const AddTwoFactorAuthTokenToIndividualResponse = new GraphQLObjectType({
+const GraphQLAddTwoFactorAuthTokenToIndividualResponse = new GraphQLObjectType({
   name: 'AddTwoFactorAuthTokenToIndividualResponse',
   description: 'Response for the addTwoFactorAuthTokenToIndividual mutation',
   fields: () => ({
     account: {
-      type: new GraphQLNonNull(Individual),
+      type: new GraphQLNonNull(GraphQLIndividual),
       description: 'The Individual that the 2FA has been enabled for',
     },
     recoveryCodes: {
@@ -50,15 +56,15 @@ const AddTwoFactorAuthTokenToIndividualResponse = new GraphQLObjectType({
 
 const accountMutations = {
   editAccountSetting: {
-    type: new GraphQLNonNull(Account),
+    type: new GraphQLNonNull(GraphQLAccount),
     description: 'Edit the settings for the given account. Scope: "account" or "host".',
     args: {
       account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Account where the settings will be updated',
       },
       key: {
-        type: new GraphQLNonNull(AccountSettingsKey),
+        type: new GraphQLNonNull(GraphQLAccountSettingsKey),
         description: 'The key that you want to edit in settings',
       },
       value: {
@@ -93,7 +99,11 @@ const accountMutations = {
 
         // Enforce 2FA if trying to change 2FA rolling limit settings while it's already enabled
         if (args.key.split('.')[0] === 'payoutsTwoFactorAuth' && account.settings?.payoutsTwoFactorAuth?.enabled) {
-          await TwoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true, requireTwoFactorAuthEnabled: true });
+          await TwoFactorAuthLib.validateRequest(req, {
+            alwaysAskForToken: true,
+            requireTwoFactorAuthEnabled: true,
+            FromCollectiveId: account.id,
+          });
         }
 
         if (
@@ -132,11 +142,11 @@ const accountMutations = {
     },
   },
   editAccountFeeStructure: {
-    type: new GraphQLNonNull(Account),
+    type: new GraphQLNonNull(GraphQLAccount),
     description: 'An endpoint for hosts to edit the fees structure of their hosted accounts. Scope: "host".',
     args: {
       account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Account where the settings will be updated',
       },
       hostFeePercent: {
@@ -214,11 +224,11 @@ const accountMutations = {
     },
   },
   editAccountFreezeStatus: {
-    type: new GraphQLNonNull(Account),
+    type: new GraphQLNonNull(GraphQLAccount),
     description: 'An endpoint for hosts to edit the freeze status of their hosted accounts. Scope: "host".',
     args: {
       account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Account to freeze',
       },
       action: {
@@ -235,12 +245,12 @@ const accountMutations = {
       checkRemoteUserCanUseHost(req);
 
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
-      account.host = await account.getHostCollective();
+      account.host = await account.getHostCollective({ loaders: req.loaders });
       if (!account.host) {
         throw new ValidationFailed('Cannot find the host of this account');
       } else if (!req.remoteUser.isAdminOfCollective(account.host)) {
         throw new Unauthorized();
-      } else if (![COLLECTIVE_TYPE.COLLECTIVE, COLLECTIVE_TYPE.FUND].includes(account.type)) {
+      } else if (![CollectiveType.COLLECTIVE, CollectiveType.FUND].includes(account.type)) {
         throw new ValidationFailed(
           'Only collective and funds can be frozen. To freeze children accounts (projects, events) you need to freeze the parent account.',
         );
@@ -255,20 +265,16 @@ const accountMutations = {
       return account.reload();
     },
   },
-  addTwoFactorAuthTokenToIndividual: {
-    type: new GraphQLNonNull(AddTwoFactorAuthTokenToIndividualResponse),
-    description: 'Add 2FA to the Individual if it does not have it. Scope: "account".',
+  createWebAuthnRegistrationOptions: {
+    type: new GraphQLNonNull(GraphQLJSON),
+    description: 'Create WebAuthn public key registration request options',
     args: {
       account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
-        description: 'Individual that will have 2FA added to it',
-      },
-      token: {
-        type: new GraphQLNonNull(GraphQLString),
-        description: 'The generated secret to save to the Individual',
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+        description: 'Account that will create a WebAuthn registration',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+    async resolve(_: void, args, req: express.Request) {
       checkRemoteUserCanUseAccount(req);
 
       const account = await fetchAccountWithReference(args.account);
@@ -283,35 +289,131 @@ const accountMutations = {
         throw new NotFound('Account not found.');
       }
 
-      if (user.twoFactorAuthToken !== null) {
-        throw new Unauthorized('This account already has 2FA enabled.');
+      const options = await webauthn.generateRegistrationOptions(user, req);
+      return options;
+    },
+  },
+  addTwoFactorAuthTokenToIndividual: {
+    type: new GraphQLNonNull(GraphQLAddTwoFactorAuthTokenToIndividualResponse),
+    description: 'Add 2FA to the Individual if it does not have it. Scope: "account".',
+    args: {
+      account: {
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+        description: 'Individual that will have 2FA added to it',
+      },
+      type: {
+        type: GraphQLTwoFactorMethodEnum,
+        description: 'The two factor method to add, defaults to TOTP',
+      },
+      token: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: 'The generated secret to save to the Individual',
+      },
+    },
+    async resolve(
+      _: void,
+      args: { account: Record<string, unknown>; type?: TwoFactorMethod; token: string },
+      req: express.Request,
+    ): Promise<Record<string, unknown>> {
+      checkRemoteUserCanUseAccount(req);
+
+      const account = await fetchAccountWithReference(args.account);
+
+      if (!req.remoteUser.isAdminOfCollective(account)) {
+        throw new Forbidden();
       }
 
-      /*
-      check that base32 secret is only capital letters, numbers (2-7), 103 chars long;
-      Our secret is 64 ascii characters which is encoded into 104 base32 characters
-      (base32 should be divisible by 8). But the last character is an = to pad, and
-      speakeasy library cuts out any = padding
-      **/
-      const verifyToken = args.token.match(/([A-Z2-7]){103}/);
-      if (!verifyToken) {
-        throw new ValidationFailed('Invalid 2FA token');
+      const user = await models.User.findOne({ where: { CollectiveId: account.id } });
+
+      if (!user) {
+        throw new NotFound('Account not found.');
       }
 
-      const encryptedText = crypto.encrypt(args.token);
+      const type = (args.type as TwoFactorMethod) || TwoFactorMethod.TOTP;
+      const userEnabledMethods = await TwoFactorAuthLib.twoFactorMethodsSupportedByUser(user);
 
-      /** Generate recovery codes, hash and store them in the table, and return them to the user to write down */
-      const recoveryCodesArray = Array.from({ length: 6 }, () =>
-        cryptoRandomString({ length: 16, type: 'distinguishable' }),
-      );
-      const hashedRecoveryCodesArray = recoveryCodesArray.map(code => {
-        return crypto.hash(code);
-      });
+      if (userEnabledMethods.length > 0) {
+        await TwoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true });
+      }
 
-      await user.update({ twoFactorAuthToken: encryptedText, twoFactorAuthRecoveryCodes: hashedRecoveryCodesArray });
+      switch (type) {
+        case TwoFactorMethod.TOTP: {
+          /*
+          check that base32 secret is only capital letters, numbers (2-7), 103 chars long;
+          Our secret is 64 ascii characters which is encoded into 104 base32 characters
+          (base32 should be divisible by 8). But the last character is an = to pad, and
+          speakeasy library cuts out any = padding
+          **/
+          const verifyToken = args.token.match(/([A-Z2-7]){103}/);
+          if (!verifyToken) {
+            throw new ValidationFailed('Invalid 2FA token');
+          }
+
+          const encryptedText = crypto.encrypt(args.token);
+          await UserTwoFactorMethod.create({
+            UserId: user.id,
+            method: TwoFactorMethod.TOTP,
+            name: 'Authenticator',
+            data: {
+              secret: encryptedText,
+            },
+          });
+          break;
+        }
+        case TwoFactorMethod.YUBIKEY_OTP: {
+          const validYubikeyOTP = await validateYubikeyOTP(args.token);
+
+          if (!validYubikeyOTP) {
+            throw new ValidationFailed('Invalid 2FA token');
+          }
+
+          await UserTwoFactorMethod.create({
+            UserId: user.id,
+            method: TwoFactorMethod.YUBIKEY_OTP,
+            name: `Yubikey ${args.token.substring(0, 12)}`,
+            data: {
+              yubikeyDeviceId: args.token.substring(0, 12),
+            },
+          });
+
+          break;
+        }
+        case TwoFactorMethod.WEBAUTHN: {
+          const registrationResult = JSON.parse(Buffer.from(args.token, 'base64').toString('utf8'));
+          const registrationResponse = await webauthn.verifyRegistrationResponse(user, req, registrationResult);
+
+          const data = await webauthn.getWebauthDeviceData(registrationResponse);
+
+          const name = data.description || 'U2F device';
+
+          await UserTwoFactorMethod.create({
+            UserId: user.id,
+            method: TwoFactorMethod.WEBAUTHN,
+            name,
+            data,
+          });
+
+          break;
+        }
+        default: {
+          throw new ValidationFailed('Unsupported 2FA method');
+        }
+      }
+
+      let recoveryCodesArray;
+      if (userEnabledMethods.length === 0) {
+        /** Generate recovery codes, hash and store them in the table, and return them to the user to write down */
+        recoveryCodesArray = Array.from({ length: 6 }, () =>
+          cryptoRandomString({ length: 16, type: 'distinguishable' }),
+        );
+        const hashedRecoveryCodesArray = recoveryCodesArray.map(code => {
+          return crypto.hash(code);
+        });
+        await user.update({ twoFactorAuthRecoveryCodes: hashedRecoveryCodesArray });
+      }
 
       await models.Activity.create({
-        type: activities.TWO_FACTOR_CODE_ADDED,
+        type: activities.TWO_FACTOR_METHOD_ADDED,
         UserId: user.id,
         FromCollectiveId: user.CollectiveId,
         CollectiveId: user.CollectiveId,
@@ -321,15 +423,25 @@ const accountMutations = {
     },
   },
   removeTwoFactorAuthTokenFromIndividual: {
-    type: new GraphQLNonNull(Individual),
+    type: new GraphQLNonNull(GraphQLIndividual),
     description: 'Remove 2FA from the Individual if it has been enabled. Scope: "account".',
     args: {
+      userTwoFactorMethod: {
+        type: GraphQLUserTwoFactorMethodReferenceInput,
+        description: 'Method to remove from this account',
+      },
       account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Account that will have 2FA removed from it',
       },
+      type: {
+        type: GraphQLTwoFactorMethodEnum,
+        deprecationReason: '2023-08-01: Use the two factor method reference to specify method to remove',
+        description: 'The two factor method to remove. Removes all if empty',
+      },
       code: {
-        type: new GraphQLNonNull(GraphQLString),
+        type: GraphQLString,
+        deprecationReason: '2023-08-01: 2FA code to validate this action must be set via 2FA header',
         description: 'The 6-digit 2FA code',
       },
     },
@@ -342,41 +454,97 @@ const accountMutations = {
         throw new Forbidden();
       }
 
+      let userTwoFactorMethod: UserTwoFactorMethod<Exclude<TwoFactorMethod, TwoFactorMethod.RECOVERY_CODE>>;
+      if (args.userTwoFactorMethod) {
+        userTwoFactorMethod = await fetchUserTwoFactorMethodWithReference(args.userTwoFactorMethod, {
+          throwIfMissing: true,
+        });
+
+        if (userTwoFactorMethod.UserId !== req.remoteUser.id) {
+          throw new Forbidden();
+        }
+      }
+
       const user = await models.User.findOne({ where: { CollectiveId: account.id } });
 
       if (!user) {
         throw new NotFound('Account not found.');
       }
 
-      if (!user.twoFactorAuthToken) {
+      if ((await TwoFactorAuthLib.twoFactorMethodsSupportedByUser(user)).length === 0) {
         throw new Unauthorized('This account already has 2FA disabled.');
       }
 
-      const verified = validateTOTPToken(user.twoFactorAuthToken, args.code);
+      await TwoFactorAuthLib.validateRequest(req, {
+        requireTwoFactorAuthEnabled: true,
+        alwaysAskForToken: true,
+      });
 
-      if (!verified) {
-        throw new Unauthorized('Two-factor authentication code failed. Please try again');
+      if (userTwoFactorMethod) {
+        await userTwoFactorMethod.destroy();
+      } else {
+        await UserTwoFactorMethod.destroy({
+          where: {
+            UserId: user.id,
+            ...(args.type ? { method: args.type as TwoFactorMethod } : {}),
+          },
+        });
       }
 
-      await user.update({ twoFactorAuthToken: null, twoFactorAuthRecoveryCodes: null });
+      if ((await TwoFactorAuthLib.twoFactorMethodsSupportedByUser(user)).length === 0) {
+        await user.update({ twoFactorAuthRecoveryCodes: null });
+      }
 
       await models.Activity.create({
-        type: activities.TWO_FACTOR_CODE_DELETED,
+        type: activities.TWO_FACTOR_METHOD_DELETED,
         UserId: user.id,
         FromCollectiveId: user.CollectiveId,
         CollectiveId: user.CollectiveId,
         UserTokenId: req.userToken?.id,
+        data: {
+          userTwoFactorMethod: userTwoFactorMethod?.info,
+        },
+      });
+
+      return account;
+    },
+  },
+  editTwoFactorAuthenticationMethod: {
+    type: new GraphQLNonNull(GraphQLIndividual),
+    description: 'Edit 2FA method',
+    args: {
+      userTwoFactorMethod: {
+        type: new GraphQLNonNull(GraphQLUserTwoFactorMethodReferenceInput),
+        description: 'Method to edit',
+      },
+      name: {
+        type: GraphQLString,
+        description: 'New name for the method',
+      },
+    },
+    async resolve(_: void, args, req: express.Request) {
+      const userTwoFactorMethod = await fetchUserTwoFactorMethodWithReference(args.userTwoFactorMethod, {
+        throwIfMissing: true,
+      });
+      const account = await req.remoteUser.getCollective({ loaders: req.loaders });
+
+      if (!req.remoteUser.isAdminOfCollective(account)) {
+        throw new Forbidden();
+      }
+
+      await userTwoFactorMethod.update({
+        name: args.name,
       });
 
       return account;
     },
   },
   editAccount: {
-    type: new GraphQLNonNull(Host),
+    type: new GraphQLNonNull(GraphQLHost),
     description: 'Edit key properties of an account. Scope: "account".',
     args: {
       account: {
-        type: new GraphQLNonNull(AccountUpdateInput),
+        type: new GraphQLNonNull(GraphQLAccountUpdateInput),
         description: 'Account to edit.',
       },
     },
@@ -393,7 +561,7 @@ const accountMutations = {
         throw new Forbidden();
       }
 
-      await TwoFactorAuthLib.enforceForAccountAdmins(req, account, { onlyAskOnLogin: true });
+      await TwoFactorAuthLib.enforceForAccount(req, account, { onlyAskOnLogin: true });
 
       for (const key of Object.keys(args.account)) {
         switch (key) {
@@ -417,15 +585,15 @@ const accountMutations = {
     },
   },
   setPolicies: {
-    type: new GraphQLNonNull(Account),
+    type: new GraphQLNonNull(GraphQLAccount),
     description: 'Adds or removes a policy on a given account. Scope: "account".',
     args: {
       account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Account where the policies are being set',
       },
       policies: {
-        type: new GraphQLNonNull(PoliciesInput),
+        type: new GraphQLNonNull(GraphQLPoliciesInput),
         description: 'The policy to be added',
       },
     },
@@ -449,7 +617,11 @@ const accountMutations = {
 
       // Enforce 2FA when trying to disable `REQUIRE_2FA_FOR_ADMINS`
       if (previousPolicies?.REQUIRE_2FA_FOR_ADMINS && !newPolicies.REQUIRE_2FA_FOR_ADMINS) {
-        await TwoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true, requireTwoFactorAuthEnabled: true });
+        await TwoFactorAuthLib.validateRequest(req, {
+          alwaysAskForToken: true,
+          requireTwoFactorAuthEnabled: true,
+          FromCollectiveId: account.id,
+        });
       }
 
       await account.setPolicies(newPolicies);
@@ -467,12 +639,12 @@ const accountMutations = {
     },
   },
   deleteAccount: {
-    type: Account,
+    type: GraphQLAccount,
     description: 'Adds or removes a policy on a given account. Scope: "account".',
     args: {
       account: {
         description: 'Reference to the Account to be deleted.',
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
       },
     },
     async resolve(_, args, req) {
@@ -488,7 +660,7 @@ const accountMutations = {
         throw new Unauthorized('You need to be logged in as an Admin of the account.');
       }
 
-      await TwoFactorAuthLib.enforceForAccountAdmins(req, account, { alwaysAskForToken: true });
+      await TwoFactorAuthLib.enforceForAccount(req, account, { alwaysAskForToken: true });
 
       if (await account.isHost()) {
         throw new Error(
@@ -515,7 +687,7 @@ const accountMutations = {
     description: 'Send a message to an account. Scope: "account"',
     args: {
       account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Reference to the Account to send message to.',
       },
       message: {
@@ -528,6 +700,30 @@ const accountMutations = {
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
 
       return sendMessage({ req, args, collective: account, isGqlV2: true });
+    },
+  },
+  regenerateRecoveryCodes: {
+    type: new GraphQLList(new GraphQLNonNull(GraphQLString)),
+    description: 'Regenerate two factor authentication recovery codes',
+    async resolve(_, args, req) {
+      checkRemoteUserCanUseAccount(req);
+
+      const hasTwoFactorEnabled = await TwoFactorAuthLib.userHasTwoFactorAuthEnabled(req.remoteUser);
+      if (!hasTwoFactorEnabled) {
+        throw new BadRequest('User does not have two factor authetication enabled');
+      }
+
+      await TwoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true });
+
+      const recoveryCodesArray = Array.from({ length: 6 }, () =>
+        cryptoRandomString({ length: 16, type: 'distinguishable' }),
+      );
+      const hashedRecoveryCodesArray = recoveryCodesArray.map(code => {
+        return crypto.hash(code);
+      });
+      await req.remoteUser.update({ twoFactorAuthRecoveryCodes: hashedRecoveryCodesArray });
+
+      return recoveryCodesArray;
     },
   },
 };

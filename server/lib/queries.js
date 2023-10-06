@@ -1,4 +1,3 @@
-import Promise from 'bluebird';
 import config from 'config';
 import { get, pick } from 'lodash';
 
@@ -11,7 +10,7 @@ import { PayoutMethodTypes } from '../models/PayoutMethod';
 
 import { memoize } from './cache';
 import { convertToCurrency } from './currency';
-import sequelize, { Op } from './sequelize';
+import sequelize from './sequelize';
 import { amountsRequireTaxForm } from './tax-forms';
 import { ifStr } from './utils';
 
@@ -245,65 +244,6 @@ const getTopBackers = (since, until, tags, limit) => {
   );
 };
 
-/**
- * Get top collectives ordered by available balance
- */
-const getCollectivesWithBalance = async (where = {}, options) => {
-  const orderDirection = options.orderDirection || 'DESC';
-  const orderBy = options.orderBy || 'balance';
-  const limit = options.limit || 20;
-  const offset = options.offset || 0;
-
-  let whereCondition = '';
-  Object.keys(where).forEach(key => {
-    if (key === 'tags') {
-      whereCondition += 'AND c.tags && $tags '; // && operator means "overlaps", e.g. ARRAY[1,4,3] && ARRAY[2,1] == true
-      where.tags = where.tags[Op.overlap];
-    } else {
-      whereCondition += `AND c."${key}"=$${key} `;
-    }
-  });
-
-  const params = {
-    bind: where,
-    model: models.Collective,
-  };
-
-  const allFields = 'c.*, td.*';
-
-  /* This version doesn't include limit/offset */
-  const sql = fields =>
-    `
-    with "balance" AS (
-      SELECT t."CollectiveId", SUM("netAmountInCollectiveCurrency") as "balance"
-      FROM "Collectives" c
-      LEFT JOIN "Transactions" t ON t."CollectiveId" = c.id
-      WHERE
-        c.type = 'COLLECTIVE'
-        AND t."deletedAt" IS NULL
-        AND c."isActive" IS TRUE
-        ${whereCondition}
-        AND c."deletedAt" IS NULL
-        GROUP BY t."CollectiveId"
-    )
-    SELECT ${fields} FROM "Collectives" c
-    LEFT JOIN "balance" td ON td."CollectiveId" = c.id
-    WHERE c."isActive" IS TRUE
-    ${whereCondition}
-    AND c."deletedAt" IS NULL
-    GROUP BY c.id, td."CollectiveId", td.balance
-    ORDER BY ${orderBy} ${orderDirection} NULLS LAST
-  `.replace(/\s\s+/g, ' '); // remove the new lines and save log space
-
-  const [[totalResult], collectives] = await Promise.all([
-    sequelize.query(`${sql('COUNT(c.*) OVER() as "total"')} LIMIT 1`, params),
-    sequelize.query(`${sql(allFields)} LIMIT ${limit} OFFSET ${offset}`, params),
-  ]);
-
-  const total = get(totalResult, 'dataValues.total', 0);
-  return { total, collectives };
-};
-
 export const usersToNotifyForUpdateSQLQuery = `
   WITH collective AS (
     SELECT c.*
@@ -373,7 +313,7 @@ export const usersToNotifyForUpdateSQLQuery = `
       AND mc."type" = 'USER'
     GROUP BY
       mc.id
-  ) SELECT u.*
+  ) SELECT u.id
   -- Get all user entries, either the direct members, the admins of member_collectives or the admins of parent collectives
   FROM "Users" u
   LEFT JOIN admins_of_members
@@ -382,8 +322,7 @@ export const usersToNotifyForUpdateSQLQuery = `
     ON (member_collectives."type" = 'USER' AND u."CollectiveId" = member_collectives.id)
   WHERE (admins_of_members.id IS NOT NULL OR member_collectives.id IS NOT NULL)
   AND u."deletedAt" IS NULL
-  GROUP BY
-    u.id
+  GROUP BY u.id
 `;
 
 export const countUsersToNotifyForUpdateSQLQuery = `
@@ -421,103 +360,6 @@ export const countMembersToNotifyForUpdateSQLQuery = `
   GROUP BY
     CASE WHEN is_core_contributor IS TRUE THEN 'CORE_CONTRIBUTOR' ELSE "type" END
 `;
-
-/**
- * Get top collectives based on total donations
- */
-const getCollectivesByTag = async (
-  tag,
-  limit,
-  excludeList,
-  minTotalDonationInCents,
-  randomOrder,
-  orderBy,
-  orderDir,
-  offset,
-) => {
-  let tagClause = '';
-  let excludeClause = '';
-  let minTotalDonationInCentsClause = '';
-  let orderClause = 'BY "totalDonations"';
-  const orderDirection = orderDir === 'asc' ? 'ASC' : 'DESC';
-  if (orderBy) {
-    orderClause = `BY ${orderBy}`;
-  } else if (randomOrder) {
-    orderClause = 'BY random()';
-  }
-  if (excludeList && excludeList.length > 0) {
-    excludeClause = `AND c.id not in (${excludeList})`;
-  }
-  if (minTotalDonationInCents && minTotalDonationInCents > 0) {
-    minTotalDonationInCentsClause = `WHERE "totalDonations" >= ${minTotalDonationInCents}`;
-  } else {
-    minTotalDonationInCentsClause = '';
-  }
-
-  if (tag) {
-    tagClause = 'AND c.tags && $tag'; // && operator means "overlaps", e.g. ARRAY[1,4,3] && ARRAY[2,1] == true
-  }
-
-  if (typeof tag === 'string') {
-    tag = [tag];
-  }
-
-  const params = {
-    bind: { tag },
-    model: models.Collective,
-  };
-
-  const allFields = 'c.*, td.*';
-
-  const sql = fields =>
-    `
-    WITH "totalDonations" AS (
-      SELECT t."CollectiveId", SUM("netAmountInCollectiveCurrency") as "totalDonations"
-      FROM "Collectives" c
-      LEFT JOIN "Transactions" t ON t."CollectiveId" = c.id
-      WHERE
-        c.type = 'COLLECTIVE'
-        AND c."isActive" IS TRUE
-        ${excludeClause}
-        AND c."deletedAt" IS NULL
-        AND t.type='CREDIT'
-        AND t."PaymentMethodId" IS NOT NULL
-        ${tagClause}
-        GROUP BY t."CollectiveId"
-    )
-    select ${fields} FROM "totalDonations" td LEFT JOIN "Collectives" c on td."CollectiveId" = c.id ${minTotalDonationInCentsClause}
-    ORDER ${orderClause} ${orderDirection} NULLS LAST
-  `.replace(/\s\s+/g, ' '); // this is to remove the new lines and save log space.
-
-  const [[totalResult], collectives] = await Promise.all([
-    sequelize.query(`${sql('COUNT(c.*) OVER() as "total"')} LIMIT 1`, params),
-    sequelize.query(`${sql(allFields)} LIMIT ${limit} OFFSET ${offset || 0}`, params),
-  ]);
-
-  const total = totalResult ? get(totalResult, 'dataValues.total') : 0;
-
-  return { total, collectives };
-};
-
-/**
- * Get list of all unique tags for collectives.
- */
-const getUniqueCollectiveTags = () => {
-  return sequelize
-    .query(
-      `
-    WITH
-      tags as (
-        SELECT UNNEST(tags) as tag FROM "Collectives" WHERE type='COLLECTIVE' AND ARRAY_LENGTH(tags, 1) > 0
-      ),
-      top_tags as (
-        SELECT tag, count(*) as count FROM tags GROUP BY tag ORDER BY count DESC
-      )
-    SELECT * FROM top_tags WHERE count > 20 ORDER BY tag ASC
-  `,
-    )
-    .then(results => results[0].map(x => x.tag));
-};
 
 /**
  * Get list of all unique batches for collective.
@@ -923,54 +765,6 @@ const getTotalNumberOfDonors = () => {
     .then(res => parseInt(res[0].count));
 };
 
-const getCollectivesWithMinBackersQuery = async ({
-  backerCount = 10,
-  orderBy = 'createdAt',
-  orderDirection = 'ASC',
-  limit = 0,
-  offset = 0,
-  where = {},
-}) => {
-  if (where.type) {
-    delete where.type;
-  }
-
-  const whereStatement = Object.keys(where).reduce((statement, key) => `${statement} AND c."${key}"=$${key}`, '');
-  const params = {
-    bind: where,
-    model: models.Collective,
-  };
-
-  const sql = fields =>
-    `
-    with "actives" as (
-      SELECT c.id
-      FROM "Collectives" c
-      LEFT JOIN "Members" m ON m."CollectiveId" = c.id
-      WHERE
-        c.type = 'COLLECTIVE'
-        AND c."isActive" IS TRUE
-        AND c."deletedAt" IS NULL
-        AND m.role = 'BACKER'
-        ${whereStatement}
-        GROUP BY c.id
-        HAVING count(m."MemberCollectiveId") >= ${backerCount}
-    )
-    SELECT ${fields} from "Collectives" c
-    INNER JOIN "actives" a on a.id = c.id
-    ORDER BY c."${orderBy}" ${orderDirection} NULLS LAST
-  `.replace(/\s\s+/g, ' ');
-
-  const [[totalResult], collectives] = await Promise.all([
-    sequelize.query(`${sql('COUNT(c.*) OVER() as "total"')} LIMIT 1`, params),
-    sequelize.query(`${sql('c.*')} LIMIT ${limit} OFFSET ${offset}`, params),
-  ]);
-
-  const total = totalResult ? get(totalResult, 'dataValues.total') : 0;
-
-  return { total, collectives };
-};
-
 /**
  * Goes through the results of a tax form query and returns the set of IDs (defined by `idKey`)
  * that require a tax form.
@@ -1140,20 +934,9 @@ const getCollectivesOrderedByMonthlySpending = memoize(getCollectivesOrderedByMo
   unserialize: unserializeCollectivesResult,
 });
 
-const getCollectivesWithMinBackers = memoize(getCollectivesWithMinBackersQuery, {
-  key: 'collectives_with_min_backers',
-  maxAge: twoHoursInSeconds,
-  serialize: serializeCollectivesResult,
-  unserialize: unserializeCollectivesResult,
-});
-
 const queries = {
-  getCollectivesByTag,
   getCollectivesOrderedByMonthlySpending,
   getCollectivesOrderedByMonthlySpendingQuery,
-  getCollectivesWithBalance,
-  getCollectivesWithMinBackers,
-  getCollectivesWithMinBackersQuery,
   getHosts,
   getMembersOfCollectiveWithRole,
   getMembersWithBalance,
@@ -1166,7 +949,6 @@ const queries = {
   getTotalAnnualBudgetForHost,
   getTotalNumberOfActiveCollectives,
   getTotalNumberOfDonors,
-  getUniqueCollectiveTags,
   getGiftCardBatchesForCollective,
 };
 

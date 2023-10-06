@@ -2,7 +2,7 @@ import { GraphQLEnumType } from 'graphql';
 
 import { PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 
-export const PaymentMethodType = new GraphQLEnumType({
+export const GraphQLPaymentMethodType = new GraphQLEnumType({
   name: 'PaymentMethodType',
   values: {
     ...Object.values(PAYMENT_METHOD_TYPE).reduce(

@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
-export const AccountOrdersFilter = new GraphQLEnumType({
+export const GraphQLAccountOrdersFilter = new GraphQLEnumType({
   name: 'AccountOrdersFilter',
   description: 'Account orders filter (INCOMING or OUTGOING)',
   values: {

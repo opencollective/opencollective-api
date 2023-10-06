@@ -1,20 +1,20 @@
 import { GraphQLList, GraphQLObjectType } from 'graphql';
 
-import { Collection, CollectionFields } from '../interface/Collection';
-import { Comment } from '../object/Comment';
+import { CollectionFields, GraphQLCollection } from '../interface/Collection';
+import { GraphQLComment } from '../object/Comment';
 
-const CommentCollection = new GraphQLObjectType({
+const GraphQLCommentCollection = new GraphQLObjectType({
   name: 'CommentCollection',
-  interfaces: [Collection],
+  interfaces: [GraphQLCollection],
   description: 'A collection of "Comments"',
   fields: () => {
     return {
       ...CollectionFields,
       nodes: {
-        type: new GraphQLList(Comment),
+        type: new GraphQLList(GraphQLComment),
       },
     };
   },
 });
 
-export { CommentCollection };
+export { GraphQLCommentCollection as CommentCollection };

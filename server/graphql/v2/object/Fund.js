@@ -1,13 +1,13 @@
 import { GraphQLObjectType } from 'graphql';
 
-import { Account, AccountFields } from '../interface/Account';
-import { AccountWithContributions, AccountWithContributionsFields } from '../interface/AccountWithContributions';
-import { AccountWithHost, AccountWithHostFields } from '../interface/AccountWithHost';
+import { AccountFields, GraphQLAccount } from '../interface/Account';
+import { AccountWithContributionsFields, GraphQLAccountWithContributions } from '../interface/AccountWithContributions';
+import { AccountWithHostFields, GraphQLAccountWithHost } from '../interface/AccountWithHost';
 
-export const Fund = new GraphQLObjectType({
+export const GraphQLFund = new GraphQLObjectType({
   name: 'Fund',
   description: 'This represents an Project account',
-  interfaces: () => [Account, AccountWithHost, AccountWithContributions],
+  interfaces: () => [GraphQLAccount, GraphQLAccountWithHost, GraphQLAccountWithContributions],
   isTypeOf: collective => collective.type === 'FUND',
   fields: () => {
     return {

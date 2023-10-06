@@ -4,7 +4,10 @@ import moment from 'moment';
 import INTERVALS from '../constants/intervals';
 import OrderStatus from '../constants/order_status';
 import { Unauthorized } from '../graphql/errors';
-import models, { sequelize } from '../models';
+import { sequelize } from '../models';
+import { MemberModelInterface } from '../models/Member';
+import { OrderModelInterface } from '../models/Order';
+import { PaymentMethodModelInterface } from '../models/PaymentMethod';
 import Tier from '../models/Tier';
 import User from '../models/User';
 
@@ -37,9 +40,9 @@ const getNextChargeDateForUpdateContribution = (baseNextChargeDate, newInterval)
 
 export const updatePaymentMethodForSubscription = async (
   user: User,
-  order: typeof models.Order,
-  newPaymentMethod: typeof models.PaymentMethod,
-): Promise<typeof models.Order> => {
+  order: OrderModelInterface,
+  newPaymentMethod: PaymentMethodModelInterface,
+): Promise<OrderModelInterface> => {
   const prevPaymentMethod = order.paymentMethod;
   const newPaymentMethodCollective = await newPaymentMethod.getCollective();
   if (!user.isAdminOfCollective(newPaymentMethodCollective)) {
@@ -96,7 +99,7 @@ const checkSubscriptionDetails = (order, tier: Tier, amountInCents) => {
 };
 
 type OrderSubscriptionUpdate = {
-  order: typeof models.Order;
+  order: OrderModelInterface;
   previousOrderValues: Record<string, unknown>;
   previousSubscriptionValues: Record<string, unknown>;
 };
@@ -106,8 +109,8 @@ type OrderSubscriptionUpdate = {
  * for each, to easily rollback if necessary.
  */
 export const updateOrderSubscription = async (
-  order: typeof models.Order,
-  member: typeof models.Member,
+  order: OrderModelInterface,
+  member: MemberModelInterface,
   newOrderData: Record<string, unknown>,
   newSubscriptionData: Record<string, unknown>,
   newMemberData: Record<string, unknown>,
@@ -137,9 +140,9 @@ export const updateOrderSubscription = async (
 };
 
 export const updateSubscriptionDetails = async (
-  order: typeof models.Order,
+  order: OrderModelInterface,
   tier: Tier,
-  member: typeof models.Member,
+  member: MemberModelInterface,
   amountInCents: number,
 ): Promise<OrderSubscriptionUpdate> => {
   // Make sure the new details are ok values, that match tier's minimum amount if there's one
@@ -153,6 +156,13 @@ export const updateSubscriptionDetails = async (
   if (amountInCents !== order.totalAmount) {
     newOrderData['totalAmount'] = amountInCents;
     newSubscriptionData['amount'] = amountInCents;
+    // If the order has taxes, we need to update the taxAmount
+    if (order.data?.tax?.percentage) {
+      const taxRate = order.data.tax.percentage / 100;
+      const amountWithoutTip = amountInCents - order.platformTipAmount;
+      const grossAmount = amountWithoutTip / (1 + taxRate);
+      newOrderData['taxAmount'] = Math.round(amountWithoutTip - grossAmount);
+    }
   }
 
   // Update interval

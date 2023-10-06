@@ -1,10 +1,10 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { GraphQLJSON } from 'graphql-type-json';
+import { GraphQLJSON } from 'graphql-scalars';
 
 import * as ExpenseLib from '../../common/expenses';
 
-export const Permission = new GraphQLObjectType({
+export const GraphQLPermission = new GraphQLObjectType({
   name: 'Permission',
   fields: () => ({
     allowed: { type: new GraphQLNonNull(GraphQLBoolean) },

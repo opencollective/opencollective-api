@@ -2,7 +2,7 @@ import { GraphQLBoolean, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { pick } from 'lodash';
 
-import { types as CollectiveTypes } from '../../../constants/collectives';
+import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import POLICIES from '../../../constants/policies';
 import MemberRoles from '../../../constants/roles';
@@ -11,29 +11,29 @@ import models from '../../../models';
 import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { Forbidden, Unauthorized } from '../../errors';
-import { MemberRole } from '../enum';
-import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
+import { GraphQLMemberRole } from '../enum';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import {
   fetchMemberInvitationWithReference,
-  MemberInvitationReferenceInput,
+  GraphQLMemberInvitationReferenceInput,
 } from '../input/MemberInvitationReferenceInput';
-import { MemberInvitation } from '../object/MemberInvitation';
+import { GraphQLMemberInvitation } from '../object/MemberInvitation';
 
 const memberInvitationMutations = {
   inviteMember: {
-    type: new GraphQLNonNull(MemberInvitation),
+    type: new GraphQLNonNull(GraphQLMemberInvitation),
     description: 'Invite a new member to the Collective. Scope: "account".',
     args: {
       memberAccount: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Reference to an account for the invitee',
       },
       account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Reference to an account for the inviting Collective',
       },
       role: {
-        type: new GraphQLNonNull(MemberRole),
+        type: new GraphQLNonNull(GraphQLMemberRole),
         description: 'Role of the invitee',
       },
       description: {
@@ -55,11 +55,11 @@ const memberInvitationMutations = {
         throw new Unauthorized('Only admins can send an invitation.');
       } else if (!MEMBER_INVITATION_SUPPORTED_ROLES.includes(args.role)) {
         throw new Forbidden('You can only invite accountants, admins, or members.');
-      } else if (memberAccount.type !== CollectiveTypes.USER) {
+      } else if (memberAccount.type !== CollectiveType.USER) {
         throw new Forbidden('You can only invite users.');
       }
 
-      await twoFactorAuthLib.enforceForAccountAdmins(req, account);
+      await twoFactorAuthLib.enforceForAccount(req, account);
 
       const memberParams = {
         ...pick(args, ['role', 'description', 'since']),
@@ -72,19 +72,19 @@ const memberInvitationMutations = {
     },
   },
   editMemberInvitation: {
-    type: MemberInvitation,
+    type: GraphQLMemberInvitation,
     description: 'Edit an existing member invitation of the Collective. Scope: "account".',
     args: {
       memberAccount: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Reference to an account for the member to edit.',
       },
       account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Reference to an account for the Collective',
       },
       role: {
-        type: MemberRole,
+        type: GraphQLMemberRole,
         description: 'Role of member',
       },
       description: {
@@ -110,7 +110,7 @@ const memberInvitationMutations = {
         throw new Forbidden('You can only edit accountants, admins, or members.');
       }
 
-      await twoFactorAuthLib.enforceForAccountAdmins(req, account);
+      await twoFactorAuthLib.enforceForAccount(req, account);
 
       // Edit member invitation
       const editableAttributes = pick(args, ['role', 'description', 'since']);
@@ -131,7 +131,7 @@ const memberInvitationMutations = {
     description: 'Endpoint to accept or reject an invitation to become a member. Scope: "account".',
     args: {
       invitation: {
-        type: new GraphQLNonNull(MemberInvitationReferenceInput),
+        type: new GraphQLNonNull(GraphQLMemberInvitationReferenceInput),
         description: 'Reference to the invitation',
       },
       accept: {
@@ -154,10 +154,10 @@ const memberInvitationMutations = {
         // Restore financial contributions if Collective now has enough admins to comply with host policy
         const collective = await invitation.getCollective();
         if (collective.data?.features?.[FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS] === false) {
-          const host = await collective.getHostCollective();
+          const host = await collective.getHostCollective({ loaders: req.loaders });
           const adminCount = await models.Member.count({
             where: {
-              CollectiveId: collective.id,
+              CollectiveId: collective.ParentCollectiveId || collective.id,
               role: MemberRoles.ADMIN,
             },
           });

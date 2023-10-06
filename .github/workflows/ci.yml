@@ -32,10 +32,7 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version-file: 'package.json'
-
-      - name: Force NPM version (this step can be moved once Vercel defaults to node 18.14)
-        shell: bash
-        run: npm install -g npm@8.19.2
+          cache: 'npm'
 
       - name: Restore node_modules
         uses: actions/cache@v3
@@ -43,16 +40,6 @@ jobs:
         with:
           path: node_modules
           key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-
-      - name: Restore .npm cache
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        uses: actions/cache@v3
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-          restore-keys: |
-            - ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-            - ${{ runner.os }}-api-npm-cache-
 
       - name: Install dependencies
         if: steps.api-node-modules.outputs.cache-hit != 'true'
@@ -72,10 +59,7 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version-file: 'package.json'
-
-      - name: Force NPM version (this step can be moved once Vercel defaults to node 18.14)
-        shell: bash
-        run: npm install -g npm@8.19.2
+          cache: 'npm'
 
       - name: Restore node_modules
         uses: actions/cache@v3
@@ -83,16 +67,6 @@ jobs:
         with:
           path: node_modules
           key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-
-      - name: Restore .npm cache
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        uses: actions/cache@v3
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-          restore-keys: |
-            - ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-            - ${{ runner.os }}-api-npm-cache-
 
       - name: Install dependencies
         if: steps.api-node-modules.outputs.cache-hit != 'true'
@@ -112,10 +86,7 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version-file: 'package.json'
-
-      - name: Force NPM version (this step can be moved once Vercel defaults to node 18.14)
-        shell: bash
-        run: npm install -g npm@8.19.2
+          cache: 'npm'
 
       - name: Restore node_modules
         uses: actions/cache@v3
@@ -123,16 +94,6 @@ jobs:
         with:
           path: node_modules
           key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-
-      - name: Restore .npm cache
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        uses: actions/cache@v3
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-          restore-keys: |
-            - ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-            - ${{ runner.os }}-api-npm-cache-
 
       - name: Install dependencies
         if: steps.api-node-modules.outputs.cache-hit != 'true'
@@ -189,10 +150,7 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version-file: 'package.json'
-
-      - name: Force NPM version (this step can be moved once Vercel defaults to node 18.14)
-        shell: bash
-        run: npm install -g npm@8.19.2
+          cache: 'npm'
 
       - name: Restore node_modules
         uses: actions/cache@v3
@@ -200,16 +158,6 @@ jobs:
         with:
           path: node_modules
           key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-
-      - name: Restore .npm cache
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        uses: actions/cache@v3
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-          restore-keys: |
-            - ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-            - ${{ runner.os }}-api-npm-cache-
 
       - name: Install dependencies
         if: steps.api-node-modules.outputs.cache-hit != 'true'
@@ -253,10 +201,7 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version-file: 'package.json'
-
-      - name: Force NPM version (this step can be moved once Vercel defaults to node 18.14)
-        shell: bash
-        run: npm install -g npm@8.19.2
+          cache: 'npm'
 
       - name: Restore node_modules
         uses: actions/cache@v3
@@ -265,16 +210,6 @@ jobs:
           path: node_modules
           key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
 
-      - name: Restore .npm cache
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        uses: actions/cache@v3
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-          restore-keys: |
-            - ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-            - ${{ runner.os }}-api-npm-cache-
-
       - name: Install dependencies
         if: steps.api-node-modules.outputs.cache-hit != 'true'
         run: npm ci --prefer-offline --no-audit
@@ -282,9 +217,10 @@ jobs:
       - run: npm run db:restore
       - run: npm run db:migrate
 
-      - run: npx nyc mocha --ignore "test/server/graphql/**"
+      - run: npm run test -- --ignore "test/server/graphql/**"
 
-      - run: npm run test:coverage
+      - name: Report coverage
+        run: npm run test:coverage -- -F Unit
 
   test-graphql:
     runs-on: ubuntu-latest
@@ -314,10 +250,7 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version-file: 'package.json'
-
-      - name: Force NPM version (this step can be moved once Vercel defaults to node 18.14)
-        shell: bash
-        run: npm install -g npm@8.19.2
+          cache: 'npm'
 
       - name: Restore node_modules
         uses: actions/cache@v3
@@ -325,16 +258,6 @@ jobs:
         with:
           path: node_modules
           key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-
-      - name: Restore .npm cache
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        uses: actions/cache@v3
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-          restore-keys: |
-            - ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-            - ${{ runner.os }}-api-npm-cache-
 
       - name: Install dependencies
         if: steps.api-node-modules.outputs.cache-hit != 'true'
@@ -345,10 +268,29 @@ jobs:
 
       - run: npm run test:graphql
 
-      - run: npm run test:coverage
+      - name: Report coverage
+        run: npm run test:coverage -- -F GraphQL
 
   schema-update:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
+        options: --entrypoint redis-server
+      postgres:
+        image: postgres:13.9
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_DB: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -357,10 +299,7 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version-file: 'package.json'
-
-      - name: Force NPM version (this step can be moved once Vercel defaults to node 18.14)
-        shell: bash
-        run: npm install -g npm@8.19.2
+          cache: 'npm'
 
       - name: Restore node_modules
         uses: actions/cache@v3
@@ -368,16 +307,6 @@ jobs:
         with:
           path: node_modules
           key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-
-      - name: Restore .npm cache
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        uses: actions/cache@v3
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-          restore-keys: |
-            - ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-            - ${{ runner.os }}-api-npm-cache-
 
       - name: Install dependencies
         if: steps.api-node-modules.outputs.cache-hit != 'true'

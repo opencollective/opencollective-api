@@ -1,10 +1,10 @@
 import config from 'config';
-import fetch from 'node-fetch';
+import fetch, { Response } from 'node-fetch';
 
 import logger from '../../lib/logger';
 import { getHostPaypalAccount } from '../../lib/paypal';
 import { reportMessageToSentry } from '../../lib/sentry';
-import models from '../../models';
+import { Collective } from '../../models';
 
 /** Build an URL for the PayPal API */
 export function paypalUrl(path: string, version = 'v1'): string {
@@ -59,9 +59,15 @@ const parsePaypalError = async (
   }
 
   // Known errors
-  if (error?.name === 'UNPROCESSABLE_ENTITY') {
-    if (error.details?.[0]?.issue === 'INSTRUMENT_DECLINED') {
+  if (error?.name === 'UNPROCESSABLE_ENTITY' && error.details?.[0]) {
+    const errorDetails = error.details[0];
+    if (errorDetails.issue === 'INSTRUMENT_DECLINED') {
       message = 'The payment method was declined by PayPal. Please try with a different payment method.';
+    } else if (errorDetails.issue === 'REFUND_FAILED_INSUFFICIENT_FUNDS') {
+      message =
+        'Capture could not be refunded due to insufficient funds. Please check to see if you have sufficient funds in your PayPal account or if the bank account linked to your PayPal account is verified and has sufficient funds.';
+    } else {
+      message = `${message} (${errorDetails.issue})`;
     }
   }
 
@@ -69,7 +75,13 @@ const parsePaypalError = async (
 };
 
 /** Assemble POST requests for communicating with PayPal API */
-export async function paypalRequest(urlPath, body, hostCollective, method = 'POST'): Promise<Record<string, unknown>> {
+export async function paypalRequest(
+  urlPath,
+  body,
+  hostCollective,
+  method = 'POST',
+  { shouldReportErrors = true } = {},
+): Promise<Record<string, unknown>> {
   const paypal = await getHostPaypalAccount(hostCollective);
   if (!paypal) {
     throw new Error(`Host ${hostCollective.name} doesn't support PayPal payments.`);
@@ -86,12 +98,17 @@ export async function paypalRequest(urlPath, body, hostCollective, method = 'POS
     },
   };
 
-  const result = await fetch(url, params);
+  const result: Response = await fetch(url, params);
   if (!result.ok) {
     const { message, metadata } = await parsePaypalError(result);
-    logger.error('PayPal request failed', metadata);
-    reportMessageToSentry('PayPal request failed', { extra: metadata });
-    throw new Error(message);
+    const error = new Error(message);
+    error['metadata'] = metadata;
+    if (shouldReportErrors) {
+      logger.error('PayPal request failed', metadata);
+      reportMessageToSentry('PayPal request failed', { extra: metadata });
+    }
+
+    throw error;
   } else if (result.status === 204) {
     return null;
   } else {
@@ -101,7 +118,7 @@ export async function paypalRequest(urlPath, body, hostCollective, method = 'POS
 
 export async function paypalRequestV2(
   urlPath: string,
-  hostCollective: typeof models.Collective,
+  hostCollective: Collective,
   method = 'POST',
   body = null,
 ): Promise<Record<string, unknown>> {
@@ -121,7 +138,7 @@ export async function paypalRequestV2(
     },
   };
 
-  const result = await fetch(url, params);
+  const result: Response = await fetch(url, params);
   if (!result.ok) {
     const { message, metadata } = await parsePaypalError(result);
     logger.error(`PayPal request V2 failed`, metadata);

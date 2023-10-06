@@ -1,10 +1,10 @@
+import type OAuth2Server from '@node-oauth/oauth2-server';
 import type { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
 
 import oAuthScopes from '../constants/oauth-scopes';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 import User from './User';
-import models from '.';
 
 export enum TokenType {
   OAUTH = 'OAUTH',
@@ -27,7 +27,7 @@ class UserToken extends Model<InferAttributes<UserToken>, InferCreationAttribute
   public declare lastUsedAt: CreationOptional<Date>;
 
   public declare user?: NonAttribute<User>;
-  public declare client?: NonAttribute<typeof models.Application>;
+  public declare client?: NonAttribute<OAuth2Server.Client>;
 
   hasScope(scope): boolean {
     return Boolean(this.scope && this.scope.includes(scope));

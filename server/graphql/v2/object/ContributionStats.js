@@ -1,8 +1,8 @@
 import { GraphQLInt, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 
-import { Amount } from './Amount';
+import { GraphQLAmount } from './Amount';
 
-export const ContributionStats = new GraphQLObjectType({
+export const GraphQLContributionStats = new GraphQLObjectType({
   name: 'ContributionStats',
   description: 'Contribution statistics related to the given accounts',
   fields: () => ({
@@ -15,6 +15,6 @@ export const ContributionStats = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLInt),
       description: 'Number of recurring contributions',
     },
-    dailyAverageIncomeAmount: { type: new GraphQLNonNull(Amount), description: 'The daily average income' },
+    dailyAverageIncomeAmount: { type: new GraphQLNonNull(GraphQLAmount), description: 'The daily average income' },
   }),
 });

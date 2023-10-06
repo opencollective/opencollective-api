@@ -1,19 +1,18 @@
 import {
   GraphQLBoolean,
+  GraphQLInputFieldConfig,
   GraphQLInputObjectType,
   GraphQLInt,
   GraphQLList,
   GraphQLNonNull,
   GraphQLString,
 } from 'graphql';
-import { GraphQLJSON } from 'graphql-type-json';
+import { GraphQLJSON } from 'graphql-scalars';
+import { mapValues } from 'lodash';
 
-import { ExpenseType } from '../enum/ExpenseType';
+import { getExpenseCreateInputFields } from './ExpenseCreateInput';
 
-import { LocationInput } from './LocationInput';
-import { PayoutMethodInput } from './PayoutMethodInput';
-
-const ExpenseInviteeOrganizationInput = new GraphQLInputObjectType({
+const GraphQLExpenseInviteeOrganizationInput = new GraphQLInputObjectType({
   name: 'ExpenseInviteeOrganizationInput',
   fields: () => ({
     description: { type: GraphQLString },
@@ -23,52 +22,44 @@ const ExpenseInviteeOrganizationInput = new GraphQLInputObjectType({
   }),
 });
 
-const ExpenseInvitee = new GraphQLInputObjectType({
+const GraphQLExpenseInvitee = new GraphQLInputObjectType({
   name: 'ExpenseInvitee',
   fields: () => ({
-    id: { type: GraphQLInt },
+    // TODO: This field is not matching the standard with have in other objects (id (string) + legacyId (number)) which forces us to use advanced conditions in the frontend
+    id: { type: GraphQLInt, deprecationReason: '2023-04-12: Please use legacyId' },
+    legacyId: { type: GraphQLInt },
     slug: { type: GraphQLString },
     name: { type: GraphQLString },
     email: { type: GraphQLString },
     isInvite: { type: GraphQLBoolean },
-    organization: { type: ExpenseInviteeOrganizationInput },
+    organization: { type: GraphQLExpenseInviteeOrganizationInput },
   }),
 });
+
+// Fields that we want to keep non-nullable
+const UNTOUCHED_FIELDS = ['type'];
 
 /**
  * Input type to use as the type for the expense input in createExpense mutation.
  */
-export const ExpenseInviteDraftInput = new GraphQLInputObjectType({
+export const GraphQLExpenseInviteDraftInput = new GraphQLInputObjectType({
   name: 'ExpenseInviteDraftInput',
   fields: () => ({
-    description: {
-      type: GraphQLString,
-      description: 'Main title of the expense',
-    },
-    longDescription: {
-      type: GraphQLString,
-      description: 'Longer text to attach to the expense',
-    },
-    tags: {
-      type: new GraphQLList(GraphQLString),
-      description: 'Tags associated to the expense (ie. Food, Engineering...)',
-    },
-    type: {
-      type: new GraphQLNonNull(ExpenseType),
-      description: 'The type of the expense',
-    },
-    privateMessage: {
-      type: GraphQLString,
-      description: 'A private note that will be attached to your invoice, as HTML',
-    },
-    invoiceInfo: {
-      type: GraphQLString,
-      description: 'Tax ID, VAT number...etc This information will be printed on your invoice.',
-    },
+    ...mapValues(getExpenseCreateInputFields(), (field: GraphQLInputFieldConfig, fieldName: string) => ({
+      ...field,
+      type:
+        field.type instanceof GraphQLNonNull && !UNTOUCHED_FIELDS.includes(fieldName) ? field.type.ofType : field.type,
+    })),
+    // Fields that are specific to invite expenses
     recipientNote: {
       type: GraphQLString,
       description: 'Note to be sent to the invited user through email.',
     },
+    payee: {
+      type: new GraphQLNonNull(GraphQLExpenseInvitee),
+      description: 'Account to reimburse',
+    },
+    // Override some fields to JSON to make their attributes optional
     items: {
       type: new GraphQLList(GraphQLJSON),
       description: 'The list of items for this expense. Total amount will be computed from them.',
@@ -76,18 +67,6 @@ export const ExpenseInviteDraftInput = new GraphQLInputObjectType({
     attachedFiles: {
       type: new GraphQLList(GraphQLJSON),
       description: '(Optional) A list of files that you want to attach to this expense',
-    },
-    payee: {
-      type: new GraphQLNonNull(ExpenseInvitee),
-      description: 'Account to reimburse',
-    },
-    payeeLocation: {
-      type: LocationInput,
-      description: 'The address of the payee',
-    },
-    payoutMethod: {
-      type: PayoutMethodInput,
-      description: 'The payout method that will be used to reimburse the expense',
     },
   }),
 });

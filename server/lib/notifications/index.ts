@@ -1,12 +1,10 @@
-import axios from 'axios';
-import Promise from 'bluebird';
+import axios, { AxiosError } from 'axios';
 import config from 'config';
 
 import { activities, channels } from '../../constants';
 import ActivityTypes from '../../constants/activities';
 import models from '../../models';
 import { Activity } from '../../models/Activity';
-import activitiesLib from '../activities';
 import { reportErrorToSentry } from '../sentry';
 import slackLib from '../slack';
 import twitter from '../twitter';
@@ -27,15 +25,6 @@ const shouldSkipActivity = (activity: Activity) => {
   return false;
 };
 
-const publishToGitter = (activity: Activity, notifConfig) => {
-  const { message } = activitiesLib.formatMessageForPublicChannel(activity, 'markdown');
-  if (message && config.env === 'production') {
-    return axios.post(notifConfig.webhookUrl, { message }, { maxRedirects: 0 });
-  } else {
-    Promise.resolve();
-  }
-};
-
 const publishToWebhook = (activity: Activity, webhookUrl: string) => {
   if (slackLib.isSlackWebhookUrl(webhookUrl)) {
     return slackLib.postActivityOnPublicChannel(activity, webhookUrl);
@@ -49,7 +38,7 @@ const publishToWebhook = (activity: Activity, webhookUrl: string) => {
 const dispatch = async (activity: Activity) => {
   notifyByEmail(activity).catch(console.log);
 
-  // process notification entries for slack, twitter, gitter
+  // process notification entries for slack, twitter, etc...
   if (!activity.CollectiveId || !activity.type) {
     return;
   }
@@ -71,23 +60,25 @@ const dispatch = async (activity: Activity) => {
   };
 
   const notificationChannels = await models.Notification.findAll({ where });
-  return Promise.map(notificationChannels, async notifConfig => {
-    if (notifConfig.channel === channels.GITTER) {
-      return publishToGitter(activity, notifConfig);
-    } else if (notifConfig.channel === channels.SLACK) {
-      return slackLib.postActivityOnPublicChannel(activity, notifConfig.webhookUrl);
-    } else if (notifConfig.channel === channels.TWITTER) {
-      return twitter.tweetActivity(activity);
-    } else if (notifConfig.channel === channels.WEBHOOK) {
-      return publishToWebhook(activity, notifConfig.webhookUrl);
-    }
-  }).catch(err => {
+  return Promise.all(
+    notificationChannels.map(notifConfig => {
+      if (notifConfig.channel === channels.SLACK) {
+        return slackLib.postActivityOnPublicChannel(activity, notifConfig.webhookUrl);
+      } else if (notifConfig.channel === channels.TWITTER) {
+        return twitter.tweetActivity(activity);
+      } else if (notifConfig.channel === channels.WEBHOOK) {
+        return publishToWebhook(activity, notifConfig.webhookUrl);
+      }
+    }),
+  ).catch(err => {
     reportErrorToSentry(err);
+    const stringifiedError =
+      err instanceof AxiosError ? `${err.response?.status} ${err.response?.statusText} ${err.config?.url}` : err;
     console.error(
       `Error while publishing activity type ${activity.type} for collective ${activity.CollectiveId}`,
       activity,
       'error: ',
-      err,
+      stringifiedError,
     );
   });
 };

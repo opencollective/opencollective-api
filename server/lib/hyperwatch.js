@@ -4,6 +4,7 @@ import expressBasicAuth from 'express-basic-auth';
 import expressWs from 'express-ws';
 import { get, pick } from 'lodash';
 
+import { timing } from './statsd';
 import { md5, parseToBoolean } from './utils';
 
 const computeMask = req => {
@@ -63,8 +64,12 @@ const load = async app => {
 
     req.mask = computeMask(req);
 
-    res.on('finish', async () => {
-      const { success, reject } = expressInput;
+    const finish = async () => {
+      if (req.finishedAt) {
+        return;
+      }
+
+      req.finishedAt = new Date();
       req.endAt = req.endAt || new Date();
       try {
         const executionTime = req.endAt - req.startAt;
@@ -73,7 +78,7 @@ const load = async app => {
         log = log.deleteIn(['request', 'headers', 'authorization']);
         log = log.deleteIn(['request', 'headers', 'cookie']);
 
-        if (req.body && req.body.query && req.body.variables) {
+        if (req.body && req.body.query) {
           log = log.set('graphql', req.body);
           if (res.servedFromGraphqlCache) {
             log = log.setIn(['graphql', 'servedFromCache'], true);
@@ -93,10 +98,20 @@ const load = async app => {
           }
         }
 
-        success(log);
+        expressInput.success(log);
       } catch (err) {
-        reject(err);
+        expressInput.reject(err);
       }
+    };
+
+    // 30s timeout
+    const finishTimeout = setTimeout(() => {
+      finish();
+    }, 30 * 1000);
+
+    res.on('finish', () => {
+      finish();
+      clearTimeout(finishTimeout);
     });
 
     next();
@@ -133,6 +148,13 @@ const load = async app => {
   };
 
   lib.logger.defaultFormatter.replaceFormat('request', formatRequest);
+
+  // GraphQL Metrics
+  pipeline.getNode('graphql').map(log => {
+    const application = log.getIn(['request', 'headers', 'oc-application']) || 'unknown';
+    const operationName = log.getIn(['graphql', 'operationName']) || 'unknown';
+    timing(`graphql.${application}.${operationName}.responseTime`, log.get('executionTime'));
+  });
 
   // Access Logs
 

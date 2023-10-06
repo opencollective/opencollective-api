@@ -1,4 +1,4 @@
-Subject: We've been notified of incoming funds to {{collective.name}}
+Subject: We've been notified of incoming funds to {{toCollective.name}}
 
 {{> header}}
 
@@ -6,7 +6,7 @@ Subject: We've been notified of incoming funds to {{collective.name}}
 
 <center>
   <h1>
-    We've been notified of incoming funds to {{collective.name}}
+    We've been notified of incoming funds to {{toCollective.name}}
   </h1>
 </center>
 
@@ -31,5 +31,15 @@ Subject: We've been notified of incoming funds to {{collective.name}}
   Info: <br /> {{order.memo}}<br />
   {{/if}}
 </p>
+
+<br />
+<br />
+<br />
+
+<center>
+  <a class="btn blue" href="{{config.host.website}}/{{toCollective.slug}}/contributions/{{order.id}}">
+    <div>Open Pending Contribution</div>
+  </a>
+</center>
 
 {{> footer}}

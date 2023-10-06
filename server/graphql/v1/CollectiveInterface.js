@@ -9,28 +9,27 @@ import {
   GraphQLObjectType,
   GraphQLString,
 } from 'graphql';
-import { GraphQLJSON } from 'graphql-type-json';
-import { get, has, isNull, merge, omitBy, sortBy } from 'lodash';
+import { GraphQLJSON } from 'graphql-scalars';
+import { get, has, isNil, isNull, merge, omitBy, sortBy } from 'lodash';
 import moment from 'moment';
 import sequelize from 'sequelize';
 import SqlString from 'sequelize/lib/sql-string';
 
-import { types } from '../../constants/collectives';
-import FEATURE, { FeaturesList } from '../../constants/feature';
-import FEATURE_STATUS from '../../constants/feature-status';
+import { CollectiveType as CollectiveTypeEnum } from '../../constants/collectives';
+import FEATURE from '../../constants/feature';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import roles from '../../constants/roles';
 import { isCollectiveDeletable } from '../../lib/collectivelib';
-import { getContributorsForCollective } from '../../lib/contributors';
+import { filterContributors } from '../../lib/contributors';
+import logger from '../../lib/logger';
 import queries from '../../lib/queries';
 import { canSeeLegalName } from '../../lib/user-permissions';
 import models, { Op } from '../../models';
 import { hostResolver } from '../common/collective';
+import { GraphQLCollectiveFeatures } from '../common/CollectiveFeatures';
 import { getContextPermission, PERMISSION_TYPE } from '../common/context-permissions';
-import { getFeatureStatusResolver } from '../common/features';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../v2/identifiers';
-import { Policies } from '../v2/object/Policies';
-import { SocialLink } from '../v2/object/SocialLink';
+import { GraphQLPolicies } from '../v2/object/Policies';
+import { GraphQLSocialLink } from '../v2/object/SocialLink';
 
 import { ApplicationType } from './Application';
 import { TransactionInterfaceType } from './TransactionInterface';
@@ -203,20 +202,8 @@ export const CollectivesStatsType = new GraphQLObjectType({
       hosted: {
         type: GraphQLInt,
         description: 'Returns the collectives hosted by this collective',
-        async resolve(collective) {
-          return models.Member.count({
-            where: {
-              MemberCollectiveId: collective.id,
-              role: roles.HOST,
-            },
-            include: [
-              {
-                model: models.Collective,
-                as: 'collective',
-                where: { type: { [Op.in]: [types.COLLECTIVE, types.FUND] }, isActive: true },
-              },
-            ],
-          });
+        async resolve(host, _, req) {
+          return req.loaders.Collective.hostedCollectivesCount.load(host.id);
         },
       },
       memberOf: {
@@ -226,7 +213,7 @@ export const CollectivesStatsType = new GraphQLObjectType({
           return models.Collective.count({
             where: {
               ParentCollectiveId: collective.id,
-              type: [types.COLLECTIVE, types.ORGANIZATION],
+              type: [CollectiveTypeEnum.COLLECTIVE, CollectiveTypeEnum.ORGANIZATION],
               isActive: true,
             },
           });
@@ -239,7 +226,7 @@ export const CollectivesStatsType = new GraphQLObjectType({
           return models.Collective.count({
             where: {
               ParentCollectiveId: collective.id,
-              type: types.EVENT,
+              type: CollectiveTypeEnum.EVENT,
               isActive: true,
             },
           });
@@ -461,7 +448,7 @@ export const CollectiveStatsType = new GraphQLObjectType({
         type: GraphQLInt,
         resolve(collective) {
           return models.Collective.count({
-            where: { ParentCollectiveId: collective.id, type: types.EVENT },
+            where: { ParentCollectiveId: collective.id, type: CollectiveTypeEnum.EVENT },
           });
         },
       },
@@ -530,18 +517,8 @@ export const CollectiveStatsType = new GraphQLObjectType({
       },
       yearlyBudget: {
         type: GraphQLInt,
-        resolve(collective) {
-          return collective.getYearlyIncome();
-        },
-      },
-      yearlyBudgetManaged: {
-        type: GraphQLInt,
-        resolve(collective) {
-          if (collective.isHostAccount) {
-            return queries.getTotalAnnualBudgetForHost(collective.id);
-          } else {
-            return 0;
-          }
+        resolve(collective, args, req) {
+          return collective.getYearlyBudget({ loaders: req.loaders });
         },
       },
       activeRecurringContributions: {
@@ -559,26 +536,26 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
   description: 'Collective interface',
   resolveType: collective => {
     switch (collective.type) {
-      case types.COLLECTIVE:
-      case types.BOT:
+      case CollectiveTypeEnum.COLLECTIVE:
+      case CollectiveTypeEnum.BOT:
         return 'Collective';
 
-      case types.USER:
+      case CollectiveTypeEnum.USER:
         return 'User';
 
-      case types.ORGANIZATION:
+      case CollectiveTypeEnum.ORGANIZATION:
         return 'Organization';
 
-      case types.EVENT:
+      case CollectiveTypeEnum.EVENT:
         return 'Event';
 
-      case types.PROJECT:
+      case CollectiveTypeEnum.PROJECT:
         return 'Project';
 
-      case types.FUND:
+      case CollectiveTypeEnum.FUND:
         return 'Fund';
 
-      case types.VENDOR:
+      case CollectiveTypeEnum.VENDOR:
         return 'Vendor';
 
       default:
@@ -609,7 +586,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       endsAt: { type: DateString },
       timezone: { type: GraphQLString },
       hostFeePercent: { type: GraphQLFloat },
-      platformFeePercent: { type: GraphQLInt },
+      platformFeePercent: { type: GraphQLFloat },
       currency: { type: GraphQLString },
       image: { type: GraphQLString },
       imageUrl: {
@@ -663,8 +640,8 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
         description:
           'List of all collectives that are related to this collective with their membership relationship. Can filter by role (BACKER/MEMBER/ADMIN/HOST/FOLLOWER)',
         args: {
-          limit: { type: GraphQLInt },
-          offset: { type: GraphQLInt },
+          limit: { type: GraphQLInt, defaultValue: 100 },
+          offset: { type: GraphQLInt, defaultValue: 0 },
           type: {
             type: GraphQLString,
             description: 'Type of User: USER/ORGANIZATION',
@@ -791,7 +768,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       repositoryUrl: { type: GraphQLString, deprecationReason: '2023-01-16: Please use socialLinks' },
       website: { type: GraphQLString, deprecationReason: '2023-01-16: Please use socialLinks' },
       socialLinks: {
-        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(SocialLink))),
+        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLSocialLink))),
       },
       updates: {
         type: new GraphQLList(UpdateType),
@@ -875,7 +852,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       },
       connectedAccounts: { type: new GraphQLList(ConnectedAccountType) },
       features: {
-        type: new GraphQLNonNull(CollectiveFeatures),
+        type: new GraphQLNonNull(GraphQLCollectiveFeatures),
         description: 'Describes the features enabled and available for this collective',
       },
       plan: { type: PlanType },
@@ -885,26 +862,13 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
         description: 'Categories set by Open Collective to help moderation.',
       },
       policies: {
-        type: new GraphQLNonNull(Policies),
+        type: new GraphQLNonNull(GraphQLPolicies),
         description:
           'Policies for the account. To see non-public policies you need to be admin and have the scope: "account".',
       },
     };
   },
 });
-
-const FeaturesFields = () => {
-  return FeaturesList.reduce(
-    (obj, feature) =>
-      Object.assign(obj, {
-        [feature]: {
-          type: CollectiveFeatureStatus,
-          resolve: getFeatureStatusResolver(feature),
-        },
-      }),
-    {},
-  );
-};
 
 const CollectiveFields = () => {
   return {
@@ -936,8 +900,8 @@ const CollectiveFields = () => {
     },
     parentCollective: {
       type: CollectiveInterfaceType,
-      resolve(collective) {
-        return models.Collective.findByPk(collective.ParentCollectiveId);
+      resolve(collective, args, req) {
+        return collective.getParentCollective({ loaders: req.loaders });
       },
     },
     children: {
@@ -969,7 +933,7 @@ const CollectiveFields = () => {
       async resolve(collective, _, req) {
         if (
           !canSeeLegalName(req.remoteUser, collective) &&
-          !getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_LEGAL_NAME, collective.id)
+          !getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, collective.id)
         ) {
           return null;
         } else if (collective.isIncognito) {
@@ -1016,9 +980,13 @@ const CollectiveFields = () => {
       type: LocationType,
       description: 'Name, address, lat, long of the location.',
       async resolve(collective, _, req) {
-        const publicAddressesCollectiveTypes = [types.COLLECTIVE, types.EVENT, types.ORGANIZATION];
+        const publicAddressesCollectiveTypes = [
+          CollectiveTypeEnum.COLLECTIVE,
+          CollectiveTypeEnum.EVENT,
+          CollectiveTypeEnum.ORGANIZATION,
+        ];
         if (publicAddressesCollectiveTypes.includes(collective.type)) {
-          return collective.location;
+          return req.loaders.Location.byCollectiveId.load(collective.id);
         } else if (!req.remoteUser) {
           return null;
         } else if (req.remoteUser.isAdminOfCollective(collective)) {
@@ -1026,13 +994,13 @@ const CollectiveFields = () => {
           if (collective.isIncognito) {
             const mainProfile = await req.loaders.Collective.mainProfileFromIncognito.load(collective.id);
             if (mainProfile) {
-              return mainProfile.location;
+              return req.loaders.Location.byCollectiveId.load(mainProfile.id);
             }
           }
 
-          return collective.location;
+          return req.loaders.Location.byCollectiveId.load(collective.id);
         } else if (await req.loaders.Collective.canSeePrivateInfo.load(collective.id)) {
-          return collective.location;
+          return req.loaders.Location.byCollectiveId.load(collective.id);
         }
       },
     },
@@ -1067,7 +1035,7 @@ const CollectiveFields = () => {
       },
     },
     platformFeePercent: {
-      type: GraphQLInt,
+      type: GraphQLFloat,
       resolve(collective) {
         return collective.platformFeePercent;
       },
@@ -1151,7 +1119,7 @@ const CollectiveFields = () => {
       description: 'Private instructions related to an event',
       resolve(collective, _, req) {
         if (
-          collective.type === types.EVENT &&
+          collective.type === CollectiveTypeEnum.EVENT &&
           (req.remoteUser?.isAdminOfCollective(collective) || req.remoteUser?.hasRole(roles.PARTICIPANT, collective))
         ) {
           return collective.data?.privateInstructions;
@@ -1193,14 +1161,8 @@ const CollectiveFields = () => {
       description: 'Returns whether this user has two factor authentication enabled',
       async resolve(collective, _, req) {
         if (req.remoteUser?.isAdmin(collective.id) || req.remoteUser?.isRoot()) {
-          if (collective.type === types.USER) {
-            const user = await models.User.findOne({
-              attributes: ['id', 'twoFactorAuthToken'],
-              where: { CollectiveId: collective.id },
-            });
-            if (user.twoFactorAuthToken) {
-              return true;
-            }
+          if (collective.type === CollectiveTypeEnum.USER) {
+            return await req.remoteUser.hasTwoFactorAuthentication();
           }
           return false;
         } else {
@@ -1256,7 +1218,7 @@ const CollectiveFields = () => {
       async resolve(collective, _, req) {
         if (!collective.HostCollectiveId) {
           return false;
-        } else if (collective.type === types.EVENT) {
+        } else if (collective.type === CollectiveTypeEnum.EVENT) {
           const ParentCollectiveId = collective.ParentCollectiveId;
           const parentCollective = ParentCollectiveId && (await req.loaders.Collective.byId.load(ParentCollectiveId));
           // In the future, we should make it possible to directly read the approvedAt of the event
@@ -1295,8 +1257,8 @@ const CollectiveFields = () => {
       description: 'Get all the members of this collective (admins, members, backers, followers)',
       type: new GraphQLList(MemberType),
       args: {
-        limit: { type: GraphQLInt },
-        offset: { type: GraphQLInt },
+        limit: { type: GraphQLInt, defaultValue: 100 },
+        offset: { type: GraphQLInt, defaultValue: 0 },
         type: { type: GraphQLString },
         role: { type: GraphQLString },
         TierId: { type: GraphQLInt },
@@ -1306,6 +1268,19 @@ const CollectiveFields = () => {
       resolve(collective, args, req) {
         if (collective.isIncognito && !req.remoteUser?.isAdmin(collective.id)) {
           return [];
+        }
+
+        // Check Pagination arguments
+        if (isNil(args.limit) || args.limit < 0) {
+          args.limit = 100;
+        }
+        if (isNil(args.offset) || args.offset < 0) {
+          args.offset = 0;
+        }
+        if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
+          logger.warn('GraphQL v1: members limit over 1,000, using 1,000 as maximum limit');
+          args.limit = 1000;
+          // throw new Error('Cannot fetch more than 1,000 members at the same time, please adjust the limit');
         }
 
         const query = {
@@ -1410,8 +1385,9 @@ const CollectiveFields = () => {
         limit: { type: GraphQLInt, defaultValue: 1000 },
         roles: { type: new GraphQLList(ContributorRoleEnum) },
       },
-      resolve(collective, args) {
-        return getContributorsForCollective(collective.id, args);
+      async resolve(collective, args, req) {
+        const contributors = await req.loaders.Contributors.forCollectiveId.load(collective.id);
+        return filterContributors(contributors.all, args);
       },
     },
     collectives: {
@@ -1427,7 +1403,10 @@ const CollectiveFields = () => {
       },
       async resolve(collective, args) {
         const query = {
-          where: { HostCollectiveId: collective.id, type: { [Op.in]: [types.COLLECTIVE, types.FUND] } },
+          where: {
+            HostCollectiveId: collective.id,
+            type: { [Op.in]: [CollectiveTypeEnum.COLLECTIVE, CollectiveTypeEnum.FUND] },
+          },
           order: [[args.orderBy, args.orderDirection]],
           limit: args.limit,
           offset: args.offset,
@@ -1692,7 +1671,7 @@ const CollectiveFields = () => {
       },
     },
     socialLinks: {
-      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(SocialLink))),
+      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLSocialLink))),
       async resolve(collective, _, req) {
         return req.loaders.SocialLink.byCollectiveId.load(collective.id);
       },
@@ -1933,12 +1912,18 @@ const CollectiveFields = () => {
     },
     connectedAccounts: {
       type: new GraphQLList(ConnectedAccountType),
-      resolve(collective, args, req) {
-        return req.loaders.Collective.connectedAccounts.load(collective.id);
+      async resolve(collective, args, req) {
+        const connectedAccounts = await req.loaders.Collective.connectedAccounts.load(collective.id);
+        if (collective?.settings?.transferwise?.isolateUsers === true) {
+          return connectedAccounts.filter(
+            ca => ca.service !== 'transferwise' || ca.CreatedByUserId === req.remoteUser.id,
+          );
+        }
+        return connectedAccounts;
       },
     },
     features: {
-      type: new GraphQLNonNull(CollectiveFeatures),
+      type: new GraphQLNonNull(GraphQLCollectiveFeatures),
       description: 'Describes the features enabled and available for this collective',
       resolve: collective => collective,
     },
@@ -1967,46 +1952,13 @@ const CollectiveFields = () => {
       },
     },
     policies: {
-      type: new GraphQLNonNull(Policies),
+      type: new GraphQLNonNull(GraphQLPolicies),
       resolve(account) {
         return account;
       },
     },
   };
 };
-
-export const CollectiveFeatureStatus = new GraphQLEnumType({
-  name: 'CollectiveFeatureStatus',
-  values: {
-    [FEATURE_STATUS.ACTIVE]: {
-      description: 'The feature is enabled and is actively used',
-    },
-    [FEATURE_STATUS.AVAILABLE]: {
-      description: 'The feature is enabled, but there is no data for it',
-    },
-    [FEATURE_STATUS.DISABLED]: {
-      description: 'The feature is disabled, but can be enabled by an admin',
-    },
-    [FEATURE_STATUS.UNSUPPORTED]: {
-      description: 'The feature is disabled and cannot be activated for this account',
-    },
-  },
-});
-
-export const CollectiveFeatures = new GraphQLObjectType({
-  name: 'CollectiveFeatures',
-  description: 'Describes the features enabled and available for this account',
-  fields: () => {
-    return {
-      id: {
-        type: new GraphQLNonNull(GraphQLString),
-        description: 'The id of the account',
-        resolve: getIdEncodeResolver(IDENTIFIER_TYPES.ACCOUNT),
-      },
-      ...FeaturesFields(),
-    };
-  },
-});
 
 export const CollectiveType = new GraphQLObjectType({
   name: 'Collective',
@@ -2040,6 +1992,7 @@ export const UserCollectiveType = new GraphQLObjectType({
       },
       applications: {
         type: new GraphQLList(ApplicationType),
+        deprecationReason: '2023-07-19: Use GraphQL V2',
         resolve(userCollective, _, req) {
           if (req.remoteUser && req.remoteUser.isAdmin(userCollective.id)) {
             return models.Application.findAll({
@@ -2056,16 +2009,7 @@ export const OrganizationCollectiveType = new GraphQLObjectType({
   name: 'Organization',
   description: 'This represents a Organization Collective',
   interfaces: [CollectiveInterfaceType],
-  fields: () => {
-    return {
-      ...CollectiveFields(),
-      email: {
-        type: GraphQLString,
-        deprecationReason: '2022-07-18: This field is deprecated and will return null',
-        resolve: () => null,
-      },
-    };
-  },
+  fields: CollectiveFields,
 });
 
 export const EventCollectiveType = new GraphQLObjectType({

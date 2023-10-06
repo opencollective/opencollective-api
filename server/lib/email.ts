@@ -1,13 +1,13 @@
 import fs from 'fs';
 import path from 'path';
 
-import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
 import { htmlToText } from 'html-to-text';
 import juice from 'juice';
 import { get, includes, isArray, merge, pick } from 'lodash';
 import nodemailer from 'nodemailer';
+import SMTPTransport from 'nodemailer/lib/smtp-transport';
 
 import { activities } from '../constants';
 import models from '../models';
@@ -123,7 +123,7 @@ const sendMessage = (
   subject: string,
   html: string,
   options: SendMessageOptions = {},
-) => {
+): Promise<SMTPTransport.SentMessageInfo | void> => {
   if (!isArray(recipients)) {
     recipients = [recipients];
   }
@@ -304,6 +304,12 @@ const generateEmailFromTemplate = (
 
   if (template === 'collective.approved') {
     if (['foundation', 'the-social-change-nest'].includes(hostSlug)) {
+      template = `${template}.${hostSlug}`;
+    }
+  }
+
+  if (template === 'collective.apply') {
+    if (hostSlug === 'foundation') {
       template = `${template}.${hostSlug}`;
     }
   }

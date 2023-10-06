@@ -2,7 +2,7 @@ import { GraphQLEnumType } from 'graphql';
 
 import channels from '../../../constants/channels';
 
-export const ActivityChannel = new GraphQLEnumType({
+export const GraphQLActivityChannel = new GraphQLEnumType({
   name: 'ActivityChannel',
   description: 'All supported Activity channels we can broadcast to',
   values: Object.values(channels).reduce(

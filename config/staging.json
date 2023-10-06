@@ -17,6 +17,7 @@
   "host": {
     "api": "https://api-staging.opencollective.com",
     "frontend": "https://frontend-staging.opencollective.com",
+    "images": "https://images-staging.opencollective.com",
     "website": "https://staging.opencollective.com"
   },
   "log": {
@@ -41,5 +42,24 @@
   "restService": {
     "fetchCollectiveTransactionsCsv": true,
     "fetchHostTransactionsCsv": true
+  },
+  "graphql": {
+    "cache": {
+      "enabled": true
+    }
+  },
+  "limits": {
+    "ordersPerHour": {
+      "perAccount": 300,
+      "perAccountForCollective": 300,
+      "perEmail": 300,
+      "perEmailForCollective": 300,
+      "perIp": 300
+    }
+  },
+  "webauthn": {
+    "rpName": "[Staging] Open Collective",
+    "rpId": "staging.opencollective.com",
+    "expectedOrigins": ["https://staging.opencollective.com"]
   }
 }

@@ -19,7 +19,7 @@ export async function run() {
       [Op.or]: [
         { status: status.PROCESSING },
         {
-          status: { [Op.notIn]: [status.PAID, status.ERROR, status.REJECTED, status.SPAM] },
+          status: { [Op.notIn]: [status.PAID, status.ERROR, status.REJECTED, status.SPAM, status.INCOMPLETE] },
           updatedAt: {
             // 40 so we can cover the 30 day limit
             [Op.gte]: moment().subtract(40, 'days').toDate(),

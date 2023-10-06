@@ -4,18 +4,18 @@ import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
 import Channels from '../../../constants/channels';
 import models from '../../../models';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
-import { ActivityAndClassesType } from '../enum/ActivityType';
-import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
-import { ActivitySubscription } from '../object/ActivitySubscription';
+import { GraphQLActivityAndClassesType } from '../enum/ActivityType';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import { GraphQLActivitySubscription } from '../object/ActivitySubscription';
 
 const notificationMutations = {
   setEmailNotification: {
-    type: ActivitySubscription,
+    type: GraphQLActivitySubscription,
     description: 'Set email notification subscription for requesting logged-in user',
     args: {
-      type: { type: new GraphQLNonNull(ActivityAndClassesType) },
+      type: { type: new GraphQLNonNull(GraphQLActivityAndClassesType) },
       account: {
-        type: AccountReferenceInput,
+        type: GraphQLAccountReferenceInput,
         description: 'Scope account which this notification preference is applied to',
       },
       active: { type: new GraphQLNonNull(GraphQLBoolean) },

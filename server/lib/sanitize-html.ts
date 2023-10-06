@@ -86,7 +86,7 @@ export const buildSanitizerOptions = (allowedContent: AllowedContentType = {}): 
   // Images
   if (allowedContent.images || allowedContent.imagesInternal) {
     allowedTags.push('img', 'figure', 'figcaption');
-    allowedAttributes['img'] = ['src'];
+    allowedAttributes['img'] = ['src', 'alt', 'title'];
     if (allowedContent.imagesInternal) {
       transformTags['img'] = function (tagName, attribs) {
         if (isValidUploadedImage(attribs.src, { ignoreInNonProductionEnv: false })) {

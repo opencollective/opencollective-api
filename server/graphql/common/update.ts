@@ -23,7 +23,7 @@ export async function createUpdate(_, args, req) {
     throw new Forbidden('Only root users can create changelog updates.');
   }
 
-  await twoFactorAuthLib.enforceForAccountAdmins(req, collective, { onlyAskOnLogin: true });
+  await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
 
   const update = await models.Update.create({
     title: args.update.title,
@@ -58,7 +58,7 @@ async function fetchUpdateForEdit(id, req) {
     throw new Forbidden("You don't have sufficient permissions to edit this update");
   }
 
-  await twoFactorAuthLib.enforceForAccountAdmins(req, update.collective, { onlyAskOnLogin: true });
+  await twoFactorAuthLib.enforceForAccount(req, update.collective, { onlyAskOnLogin: true });
 
   return update;
 }
@@ -78,7 +78,7 @@ export async function publishUpdate(_, args, req) {
   let update = await fetchUpdateForEdit(args.id, req);
   update = await update.publish(req.remoteUser, args.notificationAudience);
   if (update.isChangelog) {
-    cache.del('latest_changelog_publish_date');
+    cache.delete('latest_changelog_publish_date');
   }
   purgeCacheForCollective(update.collective.slug);
   return update;

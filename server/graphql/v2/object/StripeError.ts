@@ -1,7 +1,7 @@
 import { GraphQLObjectType, GraphQLString } from 'graphql';
-import { GraphQLJSON } from 'graphql-type-json';
+import { GraphQLJSON } from 'graphql-scalars';
 
-export const StripeError = new GraphQLObjectType({
+export const GraphQLStripeError = new GraphQLObjectType({
   name: 'StripeError',
   fields: () => {
     return {

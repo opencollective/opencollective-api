@@ -1,22 +1,22 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { GraphQLDateTime } from 'graphql-scalars';
-import { GraphQLJSON } from 'graphql-type-json';
+import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { pick } from 'lodash';
 
 import ACTIVITY from '../../../constants/activities';
 import * as ExpenseLib from '../../common/expenses';
-import { ActivityType } from '../enum';
+import { GraphQLActivityType } from '../enum';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
-import { Account } from '../interface/Account';
-import { Transaction } from '../interface/Transaction';
+import { GraphQLAccount } from '../interface/Account';
+import { GraphQLTransaction } from '../interface/Transaction';
 
-import { Expense } from './Expense';
-import { Host } from './Host';
-import { Individual } from './Individual';
-import { Order } from './Order';
+import { GraphQLExpense } from './Expense';
+import { GraphQLHost } from './Host';
+import { GraphQLIndividual } from './Individual';
+import { GraphQLOrder } from './Order';
+import GraphQLUpdate from './Update';
 
-export const Activity = new GraphQLObjectType({
+export const GraphQLActivity = new GraphQLObjectType({
   name: 'Activity',
   description: 'An activity describing something that happened on the platform',
   fields: () => ({
@@ -26,7 +26,7 @@ export const Activity = new GraphQLObjectType({
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.ACTIVITY),
     },
     type: {
-      type: new GraphQLNonNull(ActivityType),
+      type: new GraphQLNonNull(GraphQLActivityType),
       description: 'The type of the activity',
     },
     createdAt: {
@@ -34,7 +34,7 @@ export const Activity = new GraphQLObjectType({
       description: 'The date on which the ConnectedAccount was created',
     },
     fromAccount: {
-      type: Account,
+      type: GraphQLAccount,
       description: 'The account that authored by this activity, if any',
       resolve: async (activity, _, req: express.Request): Promise<Record<string, unknown>> => {
         if (activity.FromCollectiveId) {
@@ -43,7 +43,7 @@ export const Activity = new GraphQLObjectType({
       },
     },
     account: {
-      type: Account,
+      type: GraphQLAccount,
       description: 'The account targeted by this activity, if any',
       resolve: async (activity, _, req: express.Request): Promise<Record<string, unknown>> => {
         if (activity.CollectiveId) {
@@ -52,7 +52,7 @@ export const Activity = new GraphQLObjectType({
       },
     },
     host: {
-      type: Host,
+      type: GraphQLHost,
       description: 'The host under which this activity happened, if any',
       resolve: async (activity, _, req: express.Request): Promise<Record<string, unknown>> => {
         if (activity.HostCollectiveId) {
@@ -61,19 +61,36 @@ export const Activity = new GraphQLObjectType({
       },
     },
     individual: {
-      type: Individual,
+      type: GraphQLIndividual,
       description: 'The person who triggered the action, if any',
       resolve: async (activity, _, req: express.Request): Promise<Record<string, unknown>> => {
-        if (activity.UserId) {
-          const collective = await req.loaders.Collective.byUserId.load(activity.UserId);
-          if (!collective?.isIncognito) {
-            return collective;
-          }
+        if (!activity.UserId) {
+          return null;
         }
+
+        const userCollective = await req.loaders.Collective.byUserId.load(activity.UserId);
+        if (!userCollective) {
+          return null;
+        }
+
+        // We check this just in case, but in practice `Users` are not supposed to be linked to incognito profiles directly
+        let isIncognito = userCollective.isIncognito;
+
+        // Check if **the profile** who triggered the action is incognito
+        if (!isIncognito && activity.FromCollectiveId) {
+          const fromCollective = await req.loaders.Collective.byId.load(activity.FromCollectiveId);
+          isIncognito = Boolean(fromCollective?.isIncognito);
+        }
+
+        if (isIncognito && !req.remoteUser?.isRoot() && !req.remoteUser?.isAdminOfCollective(userCollective)) {
+          return null;
+        }
+
+        return userCollective;
       },
     },
     expense: {
-      type: Expense,
+      type: GraphQLExpense,
       description: 'The expense related to this activity, if any',
       resolve: async (activity, _, req: express.Request): Promise<Record<string, unknown>> => {
         if (activity.ExpenseId) {
@@ -82,7 +99,7 @@ export const Activity = new GraphQLObjectType({
       },
     },
     order: {
-      type: Order,
+      type: GraphQLOrder,
       description: 'The order related to this activity, if any',
       resolve: async (activity, _, req: express.Request): Promise<Record<string, unknown>> => {
         if (activity.OrderId) {
@@ -90,8 +107,18 @@ export const Activity = new GraphQLObjectType({
         }
       },
     },
+    update: {
+      type: GraphQLUpdate,
+      description: 'The update related to this activity, if any',
+      resolve: async (activity, _, req: express.Request): Promise<Record<string, unknown>> => {
+        const updateId = activity.data.update?.id;
+        if (updateId) {
+          return req.loaders.Update.byId.load(updateId);
+        }
+      },
+    },
     transaction: {
-      type: Transaction,
+      type: GraphQLTransaction,
       description: 'The transaction related to this activity, if any',
       resolve: async (activity, _, req: express.Request): Promise<Record<string, unknown>> => {
         if (activity.TransactionId) {
@@ -139,12 +166,20 @@ export const Activity = new GraphQLObjectType({
           ].includes(activity.type)
         ) {
           toPick.push('member.role');
+          toPick.push('invitation.role');
         } else if (activity.type === ACTIVITY.COLLECTIVE_EDITED) {
           const collective = await req.loaders.Collective.byId.load(activity.CollectiveId);
           if (req.remoteUser?.isAdminOfCollectiveOrHost(collective)) {
             toPick.push('previousData');
             toPick.push('newData');
           }
+        } else if (activity.type === ACTIVITY.EXPENSE_COMMENT_CREATED && activity.ExpenseId) {
+          const expense = await req.loaders.Expense.byId.load(activity.ExpenseId);
+          if (expense && (await ExpenseLib.canComment(req, expense))) {
+            toPick.push('comment');
+          }
+        } else if (activity.type === ACTIVITY.COLLECTIVE_UPDATE_PUBLISHED && !activity.data.update.isPrivate) {
+          toPick.push('update.title', 'update.html');
         }
 
         return pick(activity.data, toPick);

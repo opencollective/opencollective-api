@@ -7,14 +7,20 @@ import { createSandbox } from 'sinon';
 import speakeasy from 'speakeasy';
 
 import { expenseStatus, expenseTypes } from '../../../../../server/constants';
+import ExpenseTypes from '../../../../../server/constants/expense_type';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import { payExpense } from '../../../../../server/graphql/common/expenses';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import { getFxRate } from '../../../../../server/lib/currency';
+import * as LibCurrency from '../../../../../server/lib/currency';
 import emailLib from '../../../../../server/lib/email';
-import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
+import {
+  TwoFactorAuthenticationHeader,
+  TwoFactorMethod,
+} from '../../../../../server/lib/two-factor-authentication/lib';
 import models from '../../../../../server/models';
 import { PayoutMethodTypes } from '../../../../../server/models/PayoutMethod';
+import UserTwoFactorMethod from '../../../../../server/models/UserTwoFactorMethod';
 import paymentProviders from '../../../../../server/paymentProviders';
 import paypalAdaptive from '../../../../../server/paymentProviders/paypal/adaptiveGateway';
 import { randEmail, randUrl } from '../../../../stores';
@@ -90,6 +96,7 @@ const mutationExpenseFields = gqlV2/* GraphQL */ `
     status
     privateMessage
     invoiceInfo
+    customData
     taxes {
       id
       type
@@ -163,8 +170,14 @@ const processExpenseMutation = gqlV2/* GraphQL */ `
     $expenseId: Int!
     $action: ExpenseProcessAction!
     $paymentParams: ProcessExpensePaymentParams
+    $message: String
   ) {
-    processExpense(expense: { legacyId: $expenseId }, action: $action, paymentParams: $paymentParams) {
+    processExpense(
+      expense: { legacyId: $expenseId }
+      action: $action
+      paymentParams: $paymentParams
+      message: $message
+    ) {
       id
       legacyId
       status
@@ -200,6 +213,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       payoutMethod: { type: 'PAYPAL', data: { email: randEmail() } },
       items: [{ description: 'A first item', amount: 4200 }],
       payeeLocation: { address: '123 Potatoes street', country: 'BE' },
+      customData: { myCustomField: 'myCustomValue' },
     });
 
     beforeEach(() => {
@@ -265,11 +279,33 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(result.errors[0].message).to.eq('Expenses of type invoice are not allowed by the host');
     });
 
+    it('fails if the fromAccount requires 2FA', async () => {
+      const user = await fakeUser();
+      const collectiveAdmin = await fakeUser();
+      const collective = await fakeCollective({ admin: collectiveAdmin.collective });
+
+      const payee = await fakeCollective({
+        type: 'ORGANIZATION',
+        admin: user.collective,
+        address: null,
+        data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } },
+      });
+      const expenseData = { ...getValidExpenseData(), payee: { legacyId: payee.id } };
+      const result = await graphqlQueryV2(
+        createExpenseMutation,
+        { expense: expenseData, account: { legacyId: collective.id } },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('Two factor authentication must be configured');
+    });
+
     it('creates the expense with the linked items', async () => {
       const user = await fakeUser();
       const collectiveAdmin = await fakeUser();
       const collective = await fakeCollective({ admin: collectiveAdmin.collective });
-      const payee = await fakeCollective({ type: 'ORGANIZATION', admin: user.collective, address: null });
+      const payee = await fakeCollective({ type: 'ORGANIZATION', admin: user.collective, location: { address: null } });
       const expenseData = { ...getValidExpenseData(), payee: { legacyId: payee.id } };
 
       const result = await graphqlQueryV2(
@@ -288,10 +324,12 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(createdExpense.amount).to.eq(4200);
       expect(createdExpense.payee.legacyId).to.eq(payee.id);
       expect(createdExpense.payeeLocation).to.deep.equal(expenseData.payeeLocation);
+      expect(createdExpense.customData.myCustomField).to.eq('myCustomValue');
 
-      // Updates collective location
-      await payee.reload();
-      expect(payee.address).to.eq('123 Potatoes street');
+      // Should have updated collective's location
+      await payee.reload({ include: [{ association: 'location' }] });
+      expect(payee.location.address).to.eq('123 Potatoes street');
+      expect(payee.location.country).to.eq('BE');
       expect(payee.countryISO).to.eq('BE');
 
       // And then an email should have been sent to the admin. This
@@ -309,7 +347,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
     });
 
     it("use collective's location if not provided", async () => {
-      const user = await fakeUser({}, { address: '123 Potatoes Street', countryISO: 'BE' });
+      const user = await fakeUser({}, { location: { address: '123 Potatoes Street', country: 'BE' } });
       const collective = await fakeCollective();
       const expenseData = {
         ...getValidExpenseData(),
@@ -379,6 +417,22 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(resultExpense.taxes[0].type).to.equal('VAT');
       expect(resultExpense.taxes[0].rate).to.equal(0.2);
     });
+
+    it('fails if custom data exceeds a certain size', async () => {
+      const customData = { a: '🌞'.repeat(2500) }; // Each emoji is 4 bytes, 10kB is 2500 emojis
+      const user = await fakeUser();
+      const payee = await fakeCollective({ type: 'ORGANIZATION', admin: user.collective, address: null });
+      const expenseData = { ...getValidExpenseData(), payee: { legacyId: payee.id }, customData };
+      const collective = await fakeCollective();
+      const result = await graphqlQueryV2(
+        createExpenseMutation,
+        { expense: expenseData, account: { legacyId: collective.id } },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('Expense custom data cannot exceed 10kB. Current size: 10.008kB');
+    });
   });
 
   describe('editExpense', () => {
@@ -413,6 +467,82 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.errors).to.not.exist;
         expect(result.data.editExpense.status).to.equal('APPROVED');
         expect(result.data.editExpense.amount).to.equal(expense.amount);
+      });
+    });
+
+    describe('INCOMPLETE side effects', () => {
+      it('goes back to APPROVED if only Payout changes', async () => {
+        const expense2 = await fakeExpense({ status: 'INCOMPLETE', legacyPayoutMethod: 'other' });
+        const newPayoutMethod = await fakePayoutMethod({ CollectiveId: expense2.User.CollectiveId });
+        const newExpense2Data = {
+          id: idEncode(expense2.id, IDENTIFIER_TYPES.EXPENSE),
+          payoutMethod: { id: idEncode(newPayoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD) },
+        };
+        const result2 = await graphqlQueryV2(editExpenseMutation, { expense: newExpense2Data }, expense2.User);
+        expect(result2.errors).to.not.exist;
+        expect(result2.data.editExpense.status).to.equal('APPROVED');
+      });
+
+      it('goes back to PENDING if Item(s) are updated', async () => {
+        const expense = await fakeExpense({ status: 'INCOMPLETE' });
+        const newExpenseData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          items: { url: randUrl(), amount: 2000, description: randStr() },
+        };
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: newExpenseData }, expense.User);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.status).to.equal('PENDING');
+      });
+    });
+
+    describe('2FA', () => {
+      it('fails if required by the collective and not provided', async () => {
+        const collectiveAdminUser = await fakeUser();
+        const collective = await fakeCollective({
+          admin: collectiveAdminUser,
+          data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } },
+        });
+        const expense = await fakeExpense({ status: 'PENDING', CollectiveId: collective.id });
+        const newExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), description: randStr() };
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: newExpenseData }, collectiveAdminUser);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal('Two factor authentication must be configured');
+      });
+
+      it('fails if required by the host and not provided', async () => {
+        const hostAdminUser = await fakeUser();
+        const host = await fakeHost({ admin: hostAdminUser, data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } } });
+        const collective = await fakeCollective({ admin: hostAdminUser, HostCollectiveId: host.id });
+        const expense = await fakeExpense({ status: 'PENDING', CollectiveId: collective.id });
+        const newExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), description: randStr() };
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: newExpenseData }, hostAdminUser);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal('Two factor authentication must be configured');
+      });
+
+      it("doesn't ask if only admin of the collective, and 2FA is enforced on the host", async () => {
+        const host = await fakeHost({
+          data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } },
+          settings: { allowCollectiveAdminsToEditPrivateExpenseData: true },
+        });
+        const collectiveAdminUser = await fakeUser();
+        const collective = await fakeCollective({ admin: collectiveAdminUser, HostCollectiveId: host.id });
+        const expense = await fakeExpense({ status: 'PENDING', CollectiveId: collective.id });
+        const newExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), description: randStr() };
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: newExpenseData }, collectiveAdminUser);
+        expect(result.errors).to.not.exist;
+      });
+
+      it("doesn't ask for the payee, even if enforced by the host AND collective", async () => {
+        const host = await fakeCollective({ data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } } });
+        const collective = await fakeCollective({
+          HostCollectiveId: host.id,
+          data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } },
+        });
+        const expense = await fakeExpense({ status: 'PENDING', CollectiveId: collective.id });
+        const newExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), description: randStr() };
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: newExpenseData }, expense.User);
+        expect(result.errors).to.not.exist;
       });
     });
 
@@ -575,73 +705,169 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(result.data.editExpense.payeeLocation).to.deep.equal(updatedExpenseData.payeeLocation);
     });
 
-    it('lets another user edit and submit a draft if the right key is provided', async () => {
-      const expense = await fakeExpense({ data: { draftKey: 'fake-key' }, status: expenseStatus.DRAFT });
-      const anotherUser = await fakeUser();
-
-      const updatedExpenseData = {
-        id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
-        description: 'This is a test.',
-        payee: {
-          legacyId: anotherUser.id,
-        },
-      };
-
-      const { errors } = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, anotherUser);
-      expect(errors).to.exist;
-      expect(errors[0]).to.have.nested.property('extensions.code', 'Unauthorized');
-
-      const result = await graphqlQueryV2(
-        editExpenseMutation,
-        {
-          expense: updatedExpenseData,
-          draftKey: 'fake-key',
-        },
-        anotherUser,
-      );
-      result.errors && console.error(result.errors);
-      expect(result.errors).to.not.exist;
-      expect(result.data.editExpense.description).to.equal(updatedExpenseData.description);
-      expect(result.data.editExpense.payee.legacyId).to.equal(anotherUser.id);
-    });
-
-    it('creates new user and organization if draft payee does not exist', async () => {
-      const expense = await fakeExpense({ data: { draftKey: 'fake-key' }, status: expenseStatus.DRAFT });
-      const anotherUser = await fakeUser();
-
-      const updatedExpenseData = {
-        id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
-        description: 'This is a test.',
-        payee: {
-          name: 'New Folk',
-          email: randEmail(),
-          organization: {
-            name: 'Folk Ventures',
-            slug: randStr('folk-'),
+    describe('DRAFT', () => {
+      it('allows a logged in user to submit a DRAFT intended for them', async () => {
+        const anotherUser = await fakeUser();
+        const collective = await fakeCollective({ currency: 'EUR', settings: { VAT: { type: 'OWN' } } });
+        const expense = await fakeExpense({
+          status: expenseStatus.DRAFT,
+          type: ExpenseTypes.INVOICE,
+          currency: 'USD',
+          CollectiveId: collective.id,
+          data: {
+            draftKey: 'fake-key',
+            customData: { customField: 'customValue' },
+            taxes: [{ type: 'VAT', rate: 0.055 }],
+            payee: anotherUser.collective.minimal,
           },
-        },
-      };
+        });
 
-      const { errors } = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData });
-      expect(errors).to.exist;
-      expect(errors[0]).to.have.nested.property('extensions.code', 'Unauthorized');
+        const updatedExpenseData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          description: 'This is a test.',
+          payee: {
+            legacyId: anotherUser.collective.id,
+          },
+        };
 
-      const result = await graphqlQueryV2(
-        editExpenseMutation,
-        {
-          expense: updatedExpenseData,
-          draftKey: 'fake-key',
-        },
-        anotherUser,
-      );
-      result.errors && console.error(result.errors);
-      expect(result.errors).to.not.exist;
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          {
+            expense: updatedExpenseData,
+          },
+          anotherUser,
+        );
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.description).to.equal(updatedExpenseData.description);
+        expect(result.data.editExpense.payee.legacyId).to.equal(anotherUser.collective.id);
+        expect(result.data.editExpense.customData).to.deep.equal(expense.data.customData);
+        expect(result.data.editExpense.taxes).to.deep.equal([{ id: 'VAT', type: 'VAT', rate: 0.055 }]);
+      });
 
-      expect(result.data.editExpense.description).to.equal(updatedExpenseData.description);
-      expect(result.data.editExpense.payee.slug).to.equal(updatedExpenseData.payee.organization.slug);
+      it('allows a new user/organization to submit the DRAFT if the draft key is provided', async () => {
+        const expense = await fakeExpense({ data: { draftKey: 'fake-key' }, status: expenseStatus.DRAFT });
+        const anotherUser = await fakeUser();
 
-      const user = await models.User.findOne({ where: { email: updatedExpenseData.payee.email } });
-      expect(user).to.exist;
+        const updatedExpenseData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          description: 'This is a test.',
+          payee: {
+            name: 'New Folk',
+            email: randEmail(),
+            organization: {
+              name: 'Folk Ventures',
+              slug: randStr('folk-'),
+            },
+          },
+        };
+
+        const { errors } = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData });
+        expect(errors).to.exist;
+        expect(errors[0]).to.have.nested.property('extensions.code', 'Unauthorized');
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          {
+            expense: updatedExpenseData,
+            draftKey: 'fake-key',
+          },
+          anotherUser,
+        );
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+
+        expect(result.data.editExpense.description).to.equal(updatedExpenseData.description);
+        expect(result.data.editExpense.payee.slug).to.equal(updatedExpenseData.payee.organization.slug);
+
+        const user = await models.User.findOne({ where: { email: updatedExpenseData.payee.email } });
+        expect(user).to.exist;
+      });
+
+      it('allows the original user to submit a recurring expense', async () => {
+        const collective = await fakeCollective({ currency: 'EUR', settings: { VAT: { type: 'OWN' } } });
+        const author = await fakeUser();
+        const expense = await fakeExpense({
+          status: expenseStatus.DRAFT,
+          type: ExpenseTypes.INVOICE,
+          description: 'June Invoice',
+          currency: 'USD',
+          CollectiveId: collective.id,
+          FromCollectiveId: author.CollectiveId,
+          UserId: author.id,
+          lastEditedById: author.id,
+        });
+        await models.RecurringExpense.createFromExpense(expense, 'month');
+
+        const updatedExpenseData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          description: 'July Invoice',
+          payee: { legacyId: author.CollectiveId },
+          items: [
+            {
+              amount: 10000,
+              incurredAt: '2023-09-26T00:00:00.000Z',
+              description: 'Item 1',
+            },
+          ],
+        };
+
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, author);
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+
+        await expense.reload();
+        expect(expense.status).to.equal(expenseStatus.PENDING);
+        expect(expense.description).to.equal(updatedExpenseData.description);
+        expect(expense.amount).to.equal(10000);
+        expect(expense.FromCollectiveId).to.equal(author.CollectiveId);
+      });
+
+      it('allows invited DRAFT to be edited by original author', async () => {
+        const collective = await fakeCollective({ currency: 'EUR', settings: { VAT: { type: 'OWN' } } });
+        const draftAuthor = await fakeUser();
+        const payee = await fakeUser();
+        const expense = await fakeExpense({
+          status: expenseStatus.DRAFT,
+          type: ExpenseTypes.INVOICE,
+          currency: 'USD',
+          CollectiveId: collective.id,
+          UserId: draftAuthor.id,
+          invoiceInfo: 'old info',
+          data: {
+            draftKey: 'fake-key',
+            customData: { customField: 'customValue' },
+            taxes: [{ type: 'VAT', rate: 0.055 }],
+            payee: payee.collective.minimal,
+          },
+        });
+
+        const updatedExpenseData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          description: 'This is a test.',
+          invoiceInfo: 'This is an invoice',
+          payee: { legacyId: payee.collective.id },
+          tags: ['newtag'],
+          items: [
+            {
+              amount: 10000,
+              incurredAt: '2023-09-26T00:00:00.000Z',
+              description: 'Item 1',
+            },
+          ],
+        };
+
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, draftAuthor);
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        await expense.reload();
+        expect(expense.status).to.equal(expenseStatus.DRAFT);
+        expect(expense.description).to.equal(updatedExpenseData.description);
+        expect(expense.invoiceInfo).to.equal(updatedExpenseData.invoiceInfo);
+        expect(expense.tags).to.deep.equal(updatedExpenseData.tags);
+        expect(expense.data.items).to.deep.equal(updatedExpenseData.items);
+        expect(expense.data.payee).to.contain({ id: payee.collective.id });
+      });
     });
 
     it('resets paid card charge expense missing details status', async () => {
@@ -686,6 +912,15 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       // Ensure activity is created
       const activities = await expense.getActivities({ where: { type: 'collective.expense.updated' } });
       expect(activities).to.have.length(1);
+    });
+
+    it('fails if custom data exceeds a certain size', async () => {
+      const expense = await fakeExpense({ status: 'PENDING' });
+      const customData = { a: '🌞'.repeat(2500) }; // Each emoji is 4 bytes, 10kB is 2500 emojis
+      const updatedExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), customData };
+      const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, expense.User);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('Expense custom data cannot exceed 10kB. Current size: 10.008kB');
     });
   });
 
@@ -776,6 +1011,50 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.errors[0].message).to.eq(
           "You don't have permission to delete this expense or it needs to be rejected before being deleted",
         );
+      });
+    });
+
+    describe('2FA', () => {
+      it('fails if required by the collective and not provided', async () => {
+        const collectiveAdminUser = await fakeUser();
+        const collective = await fakeCollective({
+          admin: collectiveAdminUser,
+          data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } },
+        });
+        const expense = await fakeExpense({ status: 'REJECTED', CollectiveId: collective.id });
+        const result = await graphqlQueryV2(deleteExpenseMutation, prepareGQLParams(expense), collectiveAdminUser);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal('Two factor authentication must be configured');
+      });
+
+      it('fails if required by the host and not provided', async () => {
+        const hostAdminUser = await fakeUser();
+        const host = await fakeHost({ admin: hostAdminUser, data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } } });
+        const collective = await fakeCollective({ admin: hostAdminUser, HostCollectiveId: host.id });
+        const expense = await fakeExpense({ status: 'REJECTED', CollectiveId: collective.id });
+        const result = await graphqlQueryV2(deleteExpenseMutation, prepareGQLParams(expense), hostAdminUser);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal('Two factor authentication must be configured');
+      });
+
+      it("doesn't ask if only admin of the collective, and 2FA is enforced on the host", async () => {
+        const host = await fakeHost({ data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } } });
+        const collectiveAdminUser = await fakeUser();
+        const collective = await fakeCollective({ admin: collectiveAdminUser, HostCollectiveId: host.id });
+        const expense = await fakeExpense({ status: 'REJECTED', CollectiveId: collective.id });
+        const result = await graphqlQueryV2(deleteExpenseMutation, prepareGQLParams(expense), collectiveAdminUser);
+        expect(result.errors).to.not.exist;
+      });
+
+      it("doesn't ask for the payee, even if enforced by the host AND collective", async () => {
+        const host = await fakeCollective({ data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } } });
+        const collective = await fakeCollective({
+          HostCollectiveId: host.id,
+          data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } },
+        });
+        const expense = await fakeExpense({ status: 'REJECTED', CollectiveId: collective.id });
+        const result = await graphqlQueryV2(deleteExpenseMutation, prepareGQLParams(expense), expense.User);
+        expect(result.errors).to.not.exist;
       });
     });
   });
@@ -1551,7 +1830,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(await fromOrganization.getBalanceWithBlockedFunds()).to.eq(initialOrgBalance);
 
         // Check individual transactions
-        await Promise.all(allTransactions.map(t => t.validate()));
+        await Promise.all(allTransactions.map(t => models.Transaction.validate(t)));
         const getTransaction = type =>
           models.Transaction.findOne({ where: { type, ExpenseId: expense.id }, order: [['id', 'ASC']] });
 
@@ -1637,7 +1916,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(await fromOrganization.getBalanceWithBlockedFunds()).to.eq(initialOrgBalance);
 
         // Check transactions
-        await Promise.all(allTransactions.map(t => t.validate()));
+        await Promise.all(allTransactions.map(t => models.Transaction.validate(t)));
         const getTransaction = type =>
           models.Transaction.findOne({ where: { type, ExpenseId: expense.id }, order: [['id', 'ASC']] });
 
@@ -1858,10 +2137,12 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
             settings: { VAT: { type: 'OWN', idNumber: 'XXXXXX' } },
             HostCollectiveId: host.id,
           });
-          const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+          const payee = await fakeUser(null, { currency: 'EUR' });
+          const payoutMethod = await fakePayoutMethod({ type: 'OTHER', currency: 'EUR' });
           const expense = await fakeExpense({
             type: expenseTypes.INVOICE,
             amount: 100e2,
+            FromCollectiveId: payee.CollectiveId,
             CollectiveId: collective.id,
             status: 'APPROVED',
             currency: 'EUR',
@@ -1875,8 +2156,29 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
             data: { taxes: [{ id: 'VAT', type: 'VAT', rate }] },
           });
 
-          // Updates the collective balance and pay the expense
-          await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 1000e2 });
+          // Updates the collective balance
+          sandbox
+            .stub(LibCurrency, 'getFxRate')
+            .withArgs('EUR', 'USD')
+            .resolves(1.1)
+            .withArgs('USD', 'EUR')
+            .resolves(0.91)
+            .withArgs('USD', 'USD')
+            .resolves(1);
+          await fakeTransaction({
+            type: 'CREDIT',
+            CollectiveId: collective.id,
+            amountInHostCurrency: 1000e2,
+            amount: Math.round(1000e2 * 0.91),
+            netAmountInCollectiveCurrency: Math.round(1000e2 * 0.91),
+            currency: 'EUR',
+          });
+          expect(await getFxRate('EUR', 'USD')).to.equal(1.1);
+          expect(await getFxRate('USD', 'EUR')).to.equal(0.91);
+          expect(await collective.getBalance({ currency: 'USD' })).to.equal(1000e2);
+          expect(await collective.getBalance({ currency: 'EUR' })).to.equal(910e2); // 1000e2 x 0.91
+
+          // Pay the expense
           const mutationParams = { expenseId: expense.id, action: 'PAY' };
           const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
           result.errors && console.error(result.errors);
@@ -1884,22 +2186,131 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           expect(resultExpense.status).to.eq('PAID');
 
           // Check transactions
-          const transactions = await expense.getTransactions();
-          await Promise.all(transactions, t => t.validate());
+          const transactions = await expense.getTransactions({ order: [['id', 'ASC']] });
+          await Promise.all(transactions.map(t => models.Transaction.validate(t)));
           const credit = transactions.find(({ type }) => type === 'CREDIT');
           const debit = transactions.find(({ type }) => type === 'DEBIT');
-          expect(debit.amount).to.equal(-expense.amount); // Full amount in collective currency
-          expect(debit.netAmountInCollectiveCurrency).to.equal(-expense.amount);
-          expect(debit.amountInHostCurrency).to.equal(-13200); // expense amount converted to USD
+          expect(debit.currency).to.equal('EUR');
+          expect(debit.hostCurrency).to.equal('USD');
+          expect(debit.amount).to.equal(-100e2); // Gross amount (without VAT) in collective currency
+          expect(debit.netAmountInCollectiveCurrency).to.equal(-120e2); // Amount with VAT in collective currency
+          expect(debit.amountInHostCurrency).to.equal(-110e2); // expense amount converted to USD
           expect(debit.taxAmount).to.equal(-2000); // In collective currency
           expect(debit.data.tax.type).to.eq('VAT');
           expect(debit.data.tax.rate).to.eq(0.2);
-          expect(credit.amount).to.equal(expense.amount);
+          expect(credit.currency).to.equal('EUR');
+          expect(credit.hostCurrency).to.equal('USD');
+          expect(credit.amount).to.equal(120e2); // Amount with VAT in collective currency
           expect(credit.taxAmount).to.equal(-2000);
-          expect(debit.netAmountInCollectiveCurrency).to.equal(-expense.amount);
-          expect(debit.amountInHostCurrency).to.equal(-13200);
+          expect(credit.netAmountInCollectiveCurrency).to.equal(100e2);
+          expect(credit.amountInHostCurrency).to.equal(132e2);
           expect(credit.data.tax.type).to.eq('VAT');
           expect(credit.data.tax.rate).to.eq(0.2);
+          expect(await collective.getBalance({ currency: 'USD' })).to.equal(868e2); // = $1000 - $132 (€100 expense + 20€ VAT to USD at 1.1 fxrate)
+          expect(await collective.getBalance({ currency: 'EUR' })).to.equal(78988); // = €868 x 0.91
+        });
+
+        it('with VAT (manual payment)', async () => {
+          const collective = await fakeCollective({
+            name: 'Collective',
+            currency: 'EUR',
+            settings: { VAT: { type: 'OWN', idNumber: 'XXXXXX' } },
+            HostCollectiveId: host.id,
+          });
+          const payee = await fakeUser(null, { currency: 'EUR', name: 'User' });
+          const payoutMethod = await fakePayoutMethod({ type: 'OTHER', currency: 'EUR' });
+          const expense = await fakeExpense({
+            type: expenseTypes.INVOICE,
+            amount: 100e2,
+            FromCollectiveId: payee.CollectiveId,
+            CollectiveId: collective.id,
+            status: 'APPROVED',
+            currency: 'EUR',
+            PayoutMethodId: payoutMethod.id,
+          });
+
+          // Add VAT to expense
+          const rate = 0.2; // 20%
+          await expense.update({
+            amount: expense.amount * (1 + rate), // 120e2
+            data: { taxes: [{ id: 'VAT', type: 'VAT', rate }] },
+          });
+
+          // Updates the collective balance
+          sandbox
+            .stub(LibCurrency, 'getFxRate')
+            .withArgs('EUR', 'USD')
+            .resolves(1.1)
+            .withArgs('USD', 'EUR')
+            .resolves(0.91)
+            .withArgs('USD', 'USD')
+            .resolves(1);
+          await fakeTransaction({
+            type: 'CREDIT',
+            CollectiveId: collective.id,
+            amountInHostCurrency: 1000e2,
+            amount: Math.round(1000e2 * 0.91),
+            netAmountInCollectiveCurrency: Math.round(1000e2 * 0.91),
+            currency: 'EUR',
+          });
+          expect(await getFxRate('EUR', 'USD')).to.equal(1.1);
+          expect(await getFxRate('USD', 'EUR')).to.equal(0.91);
+          expect(await collective.getBalance({ currency: 'USD' })).to.equal(1000e2);
+          expect(await collective.getBalance({ currency: 'EUR' })).to.equal(910e2); // 1000e2 x 0.91
+
+          // Pay the expense
+          const mutationParams = {
+            expenseId: expense.id,
+            action: 'PAY',
+            paymentParams: {
+              forceManual: true,
+              totalAmountPaidInHostCurrency: 132e2, // 120€ converted to USD (x 1.1)
+              paymentProcessorFeeInHostCurrency: 0,
+            },
+          };
+          const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+          result.errors && console.error(result.errors);
+          const resultExpense = result.data.processExpense;
+          expect(resultExpense.status).to.eq('PAID');
+
+          // Check transactions
+          const transactions = await expense.getTransactions({ order: [['id', 'ASC']] });
+          await Promise.all(transactions.map(t => models.Transaction.validate(t)));
+          const snapshotColumns = [
+            'type',
+            'isRefund',
+            'CollectiveId',
+            'amount',
+            'taxAmount',
+            'netAmountInCollectiveCurrency',
+            'currency',
+            'amountInHostCurrency',
+            'hostCurrency',
+            'hostCurrencyFxRate',
+          ];
+          await preloadAssociationsForTransactions(transactions, snapshotColumns);
+          snapshotTransactions(transactions, { columns: snapshotColumns, prettyAmounts: true });
+
+          const credit = transactions.find(({ type }) => type === 'CREDIT');
+          const debit = transactions.find(({ type }) => type === 'DEBIT');
+          expect(debit.currency).to.equal('EUR');
+          expect(debit.hostCurrency).to.equal('USD');
+          expect(debit.taxAmount).to.equal(-2000); // In collective currency
+          expect(debit.amount).to.equal(-100e2); // Gross amount (without VAT) in collective currency
+          expect(debit.netAmountInCollectiveCurrency).to.equal(-120e2); // Amount with VAT in collective currency
+          expect(debit.amountInHostCurrency).to.equal(-110e2); // expense amount converted to USD
+          expect(debit.data.tax.type).to.eq('VAT');
+          expect(debit.data.tax.rate).to.eq(0.2);
+          expect(credit.currency).to.equal('EUR');
+          expect(credit.hostCurrency).to.equal('USD');
+          expect(credit.amount).to.equal(120e2); // Amount with VAT in collective currency
+          expect(credit.taxAmount).to.equal(-2000);
+          expect(credit.netAmountInCollectiveCurrency).to.equal(100e2);
+          expect(credit.amountInHostCurrency).to.equal(132e2);
+          expect(credit.data.tax.type).to.eq('VAT');
+          expect(credit.data.tax.rate).to.eq(0.2);
+          expect(await collective.getBalance({ currency: 'USD' })).to.equal(868e2); // = $1000 - $132 (€100 expense + 20€ VAT to USD at 1.1 fxrate)
+          expect(await collective.getBalance({ currency: 'EUR' })).to.equal(78988); // = €868 x 0.91
         });
       });
     });
@@ -1990,6 +2401,110 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.eq("You don't have permission to mark this expense as unpaid");
       });
+
+      describe('Taxes', () => {
+        let sandbox;
+
+        beforeEach(() => {
+          sandbox = createSandbox();
+        });
+
+        afterEach(() => {
+          sandbox.restore();
+        });
+
+        it('with VAT', async () => {
+          const collective = await fakeCollective({
+            name: 'Collective',
+            currency: 'EUR',
+            settings: { VAT: { type: 'OWN', idNumber: 'XXXXXX' } },
+            HostCollectiveId: host.id,
+          });
+          const payee = await fakeUser(null, { name: 'Payee', currency: 'EUR' });
+          const payoutMethod = await fakePayoutMethod({ type: 'OTHER', currency: 'EUR' });
+          const expense = await fakeExpense({
+            type: expenseTypes.INVOICE,
+            amount: 120e2,
+            FromCollectiveId: payee.CollectiveId,
+            CollectiveId: collective.id,
+            status: 'APPROVED',
+            currency: 'EUR',
+            PayoutMethodId: payoutMethod.id,
+            data: { taxes: [{ id: 'VAT', type: 'VAT', rate: 0.2 }] },
+          });
+
+          // Updates the collective balance
+          sandbox
+            .stub(LibCurrency, 'getFxRate')
+            .withArgs('EUR', 'USD')
+            .resolves(1.1)
+            .withArgs('USD', 'EUR')
+            .resolves(0.91)
+            .withArgs('USD', 'USD')
+            .resolves(1);
+
+          await fakeTransaction({
+            type: 'CREDIT',
+            CollectiveId: collective.id,
+            amountInHostCurrency: 1000e2,
+            amount: Math.round(1000e2 * 0.91),
+            netAmountInCollectiveCurrency: Math.round(1000e2 * 0.91),
+            currency: 'EUR',
+          });
+          expect(await getFxRate('EUR', 'USD')).to.equal(1.1);
+          expect(await getFxRate('USD', 'EUR')).to.equal(0.91);
+          expect(await collective.getBalance({ currency: 'USD' })).to.equal(1000e2);
+          expect(await collective.getBalance({ currency: 'EUR' })).to.equal(910e2); // 1000e2 x 0.91
+
+          // Pay the expense
+          const mutationParams = { expenseId: expense.id, action: 'PAY' };
+          const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+          result.errors && console.error(result.errors);
+          const resultExpense = result.data.processExpense;
+          expect(resultExpense.status).to.eq('PAID');
+
+          // Check transactions
+          expect(await collective.getBalance({ currency: 'USD' })).to.equal(868e2); // = $1000 - $132 (€100 expense + 20€ VAT to USD at 1.1 fxrate)
+          expect(await collective.getBalance({ currency: 'EUR' })).to.equal(78988); // = €868 x 0.91
+
+          // Mark as unpaid
+          const markAsUnpaidMutationParams = { expenseId: expense.id, action: 'MARK_AS_UNPAID' };
+          const markAsUnpaidResult = await graphqlQueryV2(
+            processExpenseMutation,
+            markAsUnpaidMutationParams,
+            hostAdmin,
+          );
+          markAsUnpaidResult.errors && console.error(markAsUnpaidResult.errors);
+          const markAsUnpaidResultExpense = markAsUnpaidResult.data.processExpense;
+          expect(markAsUnpaidResultExpense.status).to.eq('APPROVED');
+
+          // Check transactions
+          const transactions = await expense.getTransactions({ order: [['id', 'ASC']] });
+          await Promise.all(transactions.map(t => models.Transaction.validate(t)));
+          const snapshotColumns = [
+            'type',
+            'isRefund',
+            'CollectiveId',
+            'amount',
+            'taxAmount',
+            'netAmountInCollectiveCurrency',
+            'currency',
+            'amountInHostCurrency',
+            'hostCurrency',
+            'hostCurrencyFxRate',
+          ];
+          await preloadAssociationsForTransactions(transactions, snapshotColumns);
+          snapshotTransactions(transactions, { columns: snapshotColumns, prettyAmounts: true });
+          for (const transaction of transactions) {
+            expect(transaction.data.tax.type).to.eq('VAT');
+            expect(transaction.data.tax.rate).to.eq(0.2);
+          }
+
+          // Make sure balance goes back to its initial state
+          expect(await collective.getBalance({ currency: 'USD' })).to.equal(1000e2);
+          expect(await collective.getBalance({ currency: 'EUR' })).to.equal(910e2);
+        });
+      });
     });
 
     describe('SCHEDULE_FOR_PAYMENT', () => {
@@ -2053,6 +2568,48 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.eq('Expense is already scheduled for payment');
+      });
+    });
+
+    describe('MARK_AS_INCOMPLETE', () => {
+      let sandbox, emailSendMessageSpy;
+
+      beforeEach(() => {
+        sandbox = createSandbox();
+        emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage');
+      });
+
+      afterEach(() => {
+        emailSendMessageSpy.restore();
+        sandbox.restore();
+      });
+
+      it('marks expense as Incomplete sends user an email', async () => {
+        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'ERROR' });
+        const mutationParams = { expenseId: expense.id, action: 'MARK_AS_INCOMPLETE' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+
+        expect(result.data.processExpense.status).to.eq('INCOMPLETE');
+
+        await waitForCondition(() => emailSendMessageSpy.callCount > 0);
+        expect(emailSendMessageSpy.firstCall.args[2]).to.contain('flagged as incomplete and requires your attention');
+      });
+
+      it('adds comment to the expense', async () => {
+        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'ERROR' });
+        const mutationParams = {
+          expenseId: expense.id,
+          action: 'MARK_AS_INCOMPLETE',
+          message: 'You missed your address',
+        };
+        await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+        await expense.reload();
+        expect(expense.status).to.eq('INCOMPLETE');
+
+        const comments = await expense.getComments();
+        expect(comments.length).to.eq(1);
+        expect(comments[0].CreatedByUserId).to.eq(hostAdmin.id);
+        expect(comments[0].html).to.eq('You missed your address');
       });
     });
 
@@ -2218,7 +2775,15 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
     it('Pays multiple expenses - 2FA is asked for the first time and after the limit is exceeded', async () => {
       const secret = speakeasy.generateSecret({ length: 64 });
       const encryptedToken = crypto[CIPHER].encrypt(secret.base32, SECRET_KEY).toString();
-      await hostAdmin.update({ twoFactorAuthToken: encryptedToken });
+      await UserTwoFactorMethod.create({
+        UserId: hostAdmin.id,
+        method: TwoFactorMethod.TOTP,
+        name: 'TOTP',
+        data: {
+          secret: encryptedToken,
+        },
+      });
+
       const twoFactorAuthenticatorCode = speakeasy.totp({
         algorithm: 'SHA1',
         encoding: 'base32',
@@ -2284,7 +2849,15 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
       const secret = speakeasy.generateSecret({ length: 64 });
       const encryptedToken = crypto[CIPHER].encrypt(secret.base32, SECRET_KEY).toString();
-      await hostAdmin.update({ twoFactorAuthToken: encryptedToken });
+      await UserTwoFactorMethod.create({
+        UserId: hostAdmin.id,
+        method: TwoFactorMethod.TOTP,
+        name: 'TOTP',
+        data: {
+          secret: encryptedToken,
+        },
+      });
+
       const twoFactorAuthenticatorCode = speakeasy.totp({
         algorithm: 'SHA1',
         encoding: 'base32',
@@ -2380,6 +2953,9 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         },
       ],
       payeeLocation: { address: '123 Potatoes street', country: 'BE' },
+      currency: 'EUR',
+      customData: { customField: 'customValue' },
+      tax: [{ type: 'VAT', rate: 0.21 }],
     };
 
     after(() => sandbox.restore());
@@ -2407,11 +2983,14 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
     it('should create a new DRAFT expense with a draftKey', async () => {
       expect(expense.status).to.eq(expenseStatus.DRAFT);
-      expect(expense.amount).to.eq(4200);
+      expect(expense.amount).to.eq(5082); // 4200 + 0.21 * 4200 = 5082
       expect(expense.data.payeeLocation).to.deep.equal(invoice.payeeLocation);
       expect(expense.data.payee).to.deep.equal(invoice.payee);
       expect(expense.data.recipientNote).to.equal(invoice.recipientNote);
       expect(expense.data.draftKey).to.exist;
+      expect(expense.data.customData).to.deep.equal(invoice.customData);
+      expect(expense.data.taxes).to.deep.equal(invoice.tax);
+      expect(expense.currency).to.equal(invoice.currency);
     });
 
     it('should send an email notifying the invited user to submit the expense', async () => {
@@ -2427,7 +3006,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       );
       expect(body).to.include('<td>Hey pal, could you please submit this</td>');
       expect(body).to.include('<td>Goosebemps</td>');
-      expect(body).to.include('<td>$42.00</td>');
+      expect(body).to.include('<td>42,00 €</td>');
     });
 
     it('should resend the invite email', async () => {

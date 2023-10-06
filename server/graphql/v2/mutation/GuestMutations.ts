@@ -5,17 +5,17 @@ import { TOKEN_EXPIRATION_SESSION } from '../../../lib/auth';
 import emailLib from '../../../lib/email';
 import { confirmGuestAccountByEmail } from '../../../lib/guest-accounts';
 import RateLimit from '../../../lib/rate-limit';
-import models from '../../../models';
+import models, { Collective } from '../../../models';
 import { BadRequest, NotFound, RateLimitExceeded } from '../../errors';
-import { Account } from '../interface/Account';
-import EmailAddress from '../scalar/EmailAddress';
+import { GraphQLAccount } from '../interface/Account';
+import GraphQLEmailAddress from '../scalar/EmailAddress';
 
-const ConfirmGuestAccountResponse = new GraphQLObjectType({
+const GraphQLConfirmGuestAccountResponse = new GraphQLObjectType({
   name: 'ConfirmGuestAccountResponse',
   description: 'Response for the confirmGuestAccount mutation',
   fields: () => ({
     account: {
-      type: new GraphQLNonNull(Account),
+      type: new GraphQLNonNull(GraphQLAccount),
       description: 'The validated account',
     },
     accessToken: {
@@ -31,7 +31,7 @@ const guestMutations = {
     description: 'Sends an email for guest to confirm their emails and create their Open Collective account',
     args: {
       email: {
-        type: new GraphQLNonNull(EmailAddress),
+        type: new GraphQLNonNull(GraphQLEmailAddress),
         description: 'The email to validate',
       },
     },
@@ -47,7 +47,7 @@ const guestMutations = {
 
       // Make sure that this cannot be abused to guess email addresses
       const rateLimitOnIP = new RateLimit(
-        `send_guest_confirm_ip_${req.ip}}`,
+        `send_guest_confirm_ip_${req.ip}`,
         config.limits.sendGuestConfirmPerMinutePerIp,
         60,
       );
@@ -99,11 +99,11 @@ const guestMutations = {
     },
   },
   confirmGuestAccount: {
-    type: new GraphQLNonNull(ConfirmGuestAccountResponse),
+    type: new GraphQLNonNull(GraphQLConfirmGuestAccountResponse),
     description: 'Mark an account as confirmed',
     args: {
       email: {
-        type: new GraphQLNonNull(EmailAddress),
+        type: new GraphQLNonNull(GraphQLEmailAddress),
         description: 'The email to confirm',
       },
       emailConfirmationToken: {
@@ -115,12 +115,12 @@ const guestMutations = {
       _: void,
       args: Record<string, unknown>,
       req: Record<string, unknown>,
-    ): Promise<typeof models.Collective> {
+    ): Promise<{ account: Collective; accessToken: string }> {
       // NOTE(oauth-scope): No scope needed
 
       // Adding a rate limite here to prevent attackers from guessing email addresses
       const rateLimitOnIP = new RateLimit(
-        `confirm_guest_account_${req.ip}}`,
+        `confirm_guest_account_${req.ip}`,
         config.limits.confirmGuestAccountPerMinutePerIp,
         60,
       );

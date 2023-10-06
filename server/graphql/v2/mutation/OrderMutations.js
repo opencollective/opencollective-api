@@ -11,6 +11,7 @@ import {
   keyBy,
   keys,
   mapValues,
+  omitBy,
   pick,
   uniq,
   uniqBy,
@@ -19,10 +20,15 @@ import {
 import { roles } from '../../../constants';
 import activities from '../../../constants/activities';
 import { Service } from '../../../constants/connected_account';
+import FEATURE from '../../../constants/feature';
 import OrderStatuses from '../../../constants/order_status';
-import { PAYMENT_METHOD_SERVICE } from '../../../constants/paymentMethods';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import { purgeAllCachesForAccount } from '../../../lib/cache';
+import { checkCaptcha } from '../../../lib/check-captcha';
 import logger from '../../../lib/logger';
+import { checkGuestContribution, checkOrdersLimit } from '../../../lib/security/limit';
+import { orderFraudProtection } from '../../../lib/security/order';
+import { reportErrorToSentry } from '../../../lib/sentry';
 import stripe, { convertToStripeAmount } from '../../../lib/stripe';
 import {
   updateOrderSubscription,
@@ -30,34 +36,51 @@ import {
   updateSubscriptionDetails,
 } from '../../../lib/subscriptions';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
+import { canUseFeature } from '../../../lib/user-permissions';
 import models, { Op, sequelize } from '../../../models';
 import { MigrationLogType } from '../../../models/MigrationLog';
 import { updateSubscriptionWithPaypal } from '../../../paymentProviders/paypal/subscription';
 import { checkRemoteUserCanRoot, checkRemoteUserCanUseOrders, checkScope } from '../../common/scope-check';
-import { BadRequest, NotFound, Unauthorized, ValidationFailed } from '../../errors';
-import { confirmOrder as confirmOrderLegacy, createOrder as createOrderLegacy } from '../../v1/mutations/orders';
+import { BadRequest, FeatureNotAllowedForUser, NotFound, Unauthorized, ValidationFailed } from '../../errors';
+import {
+  confirmOrder as confirmOrderLegacy,
+  createOrder as createOrderLegacy,
+  getOrderTaxInfoFromTaxInput,
+} from '../../v1/mutations/orders';
 import { getIntervalFromContributionFrequency } from '../enum/ContributionFrequency';
-import { ProcessOrderAction } from '../enum/ProcessOrderAction';
+import { GraphQLProcessOrderAction } from '../enum/ProcessOrderAction';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
-import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
-import { AmountInput, assertAmountInputCurrency, getValueInCentsFromAmountInput } from '../input/AmountInput';
-import { OrderCreateInput, PendingOrderCreateInput } from '../input/OrderCreateInput';
-import { fetchOrdersWithReferences, fetchOrderWithReference, OrderReferenceInput } from '../input/OrderReferenceInput';
-import { OrderUpdateInput } from '../input/OrderUpdateInput';
-import PaymentIntentInput from '../input/PaymentIntentInput';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import { assertAmountInputCurrency, getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/AmountInput';
+import { GraphQLGuestInfoInput } from '../input/GuestInfoInput';
+import {
+  GraphQLOrderCreateInput,
+  GraphQLPendingOrderCreateInput,
+  GraphQLPendingOrderEditInput,
+} from '../input/OrderCreateInput';
+import {
+  fetchOrdersWithReferences,
+  fetchOrderWithReference,
+  GraphQLOrderReferenceInput,
+} from '../input/OrderReferenceInput';
+import { GraphQLOrderUpdateInput } from '../input/OrderUpdateInput';
+import GraphQLPaymentIntentInput from '../input/PaymentIntentInput';
 import { getLegacyPaymentMethodFromPaymentMethodInput } from '../input/PaymentMethodInput';
-import { fetchPaymentMethodWithReference, PaymentMethodReferenceInput } from '../input/PaymentMethodReferenceInput';
-import { fetchTierWithReference, TierReferenceInput } from '../input/TierReferenceInput';
-import { Order } from '../object/Order';
-import { canMarkAsExpired, canMarkAsPaid } from '../object/OrderPermissions';
-import PaymentIntent from '../object/PaymentIntent';
-import { StripeError } from '../object/StripeError';
+import {
+  fetchPaymentMethodWithReference,
+  GraphQLPaymentMethodReferenceInput,
+} from '../input/PaymentMethodReferenceInput';
+import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput';
+import { GraphQLOrder } from '../object/Order';
+import { canEdit, canMarkAsExpired, canMarkAsPaid } from '../object/OrderPermissions';
+import GraphQLPaymentIntent from '../object/PaymentIntent';
+import { GraphQLStripeError } from '../object/StripeError';
 
-const OrderWithPayment = new GraphQLObjectType({
+const GraphQLOrderWithPayment = new GraphQLObjectType({
   name: 'OrderWithPayment',
   fields: () => ({
     order: {
-      type: new GraphQLNonNull(Order),
+      type: new GraphQLNonNull(GraphQLOrder),
       description: 'The order created',
     },
     guestToken: {
@@ -65,20 +88,80 @@ const OrderWithPayment = new GraphQLObjectType({
       description: 'If donating as a guest, this will contain your guest token to confirm your order',
     },
     stripeError: {
-      type: StripeError,
+      type: GraphQLStripeError,
       description:
         'This field will be set if the order was created but there was an error with Stripe during the payment',
     },
   }),
 });
 
+const getTaxAmount = (baseAmount, tax) => {
+  if (tax) {
+    if (tax.amount) {
+      return getValueInCentsFromAmountInput(tax.amount);
+    } else if (tax.rate) {
+      return Math.round(tax.rate * baseAmount);
+    } else if (tax.percentage) {
+      return Math.round((tax.percentage / 100) * baseAmount);
+    }
+  }
+
+  return 0;
+};
+
+/**
+ * Computes the total amount for an order
+ * @param {number} baseAmount
+ * @param {number} platformTipAmount
+ * @param {OrderTaxInput | TaxInput | OrderTax} taxInput
+ */
+const getTotalAmountForOrderInput = (baseAmount, platformTipAmount, tax) => {
+  if (tax) {
+    baseAmount += getTaxAmount(baseAmount, tax);
+  }
+
+  if (platformTipAmount) {
+    baseAmount += platformTipAmount;
+  }
+
+  return baseAmount;
+};
+
+const getOrderBaseAmount = order => {
+  return order.totalAmount - (order.taxAmount || 0) - (order.platformTipAmount || 0);
+};
+
+/**
+ * A wrapper around `getOrderTaxInfoFromTaxInput` that will throw if the tax amount doesn't match the tax percentage.
+ */
+const getOrderTaxInfo = (taxInput, quantity, orderAmount, fromAccount, toAccount, host) => {
+  let taxInfo, taxAmount;
+  if (taxInput) {
+    const grossAmount = quantity * getValueInCentsFromAmountInput(orderAmount);
+    taxInfo = getOrderTaxInfoFromTaxInput(taxInput, fromAccount, toAccount, host);
+    taxAmount = getTaxAmount(grossAmount, taxInput);
+    const taxAmountFromInput = taxInput.amount && getValueInCentsFromAmountInput(taxInput.amount);
+    if (taxInfo?.percentage && taxAmountFromInput) {
+      const amountDiff = Math.abs(taxAmountFromInput - taxAmount);
+      if (amountDiff > 1) {
+        // We tolerate a diff by 1 cent to account for rounding. Example: with a contribution of 12$, 15% tax, the gross amount
+        // is $10.43 and the tax amount could be rounded either to $1.56 (14.95%) or $1.57 (15.05%). When that happens, the most important
+        // is to make sure that we respect the total amount of the order.
+        throw new Error(`Tax amount doesn't match tax percentage. Expected ${taxAmount}, got ${taxAmountFromInput}`);
+      }
+    }
+  }
+
+  return { taxInfo, taxAmount };
+};
+
 const orderMutations = {
   createOrder: {
-    type: new GraphQLNonNull(OrderWithPayment),
+    type: new GraphQLNonNull(GraphQLOrderWithPayment),
     description: 'To submit a new order. Scope: "orders".',
     args: {
       order: {
-        type: new GraphQLNonNull(OrderCreateInput),
+        type: new GraphQLNonNull(GraphQLOrderCreateInput),
       },
     },
     async resolve(_, args, req) {
@@ -91,15 +174,8 @@ const orderMutations = {
         throw new Error('Attaching multiple taxes is not supported yet');
       }
 
-      const getOrderTotalAmount = ({ platformTipAmount, taxes, quantity }) => {
-        let totalAmount = getValueInCentsFromAmountInput(order.amount) * quantity;
-        totalAmount += platformTipAmount ? getValueInCentsFromAmountInput(platformTipAmount) : 0;
-        totalAmount += taxes?.[0].amount ? getValueInCentsFromAmountInput(taxes[0].amount) : 0;
-        return totalAmount;
-      };
-
       const { order } = args;
-      const tax = order.taxes?.[0];
+      const tax = order.tax || order.taxes?.[0];
       const platformTip = order.platformTipAmount;
       const platformTipAmount = platformTip ? getValueInCentsFromAmountInput(platformTip) : 0;
       const loadersParams = { loaders: req.loaders, throwIfMissing: true };
@@ -121,21 +197,21 @@ const orderMutations = {
         }
       });
 
+      const amountInCents = getValueInCentsFromAmountInput(order.amount);
+      const quantity = order.quantity || 1;
       const legacyOrderObj = {
-        quantity: order.quantity,
-        amount: getValueInCentsFromAmountInput(order.amount),
+        quantity,
+        amount: amountInCents,
         currency: expectedCurrency,
         interval: getIntervalFromContributionFrequency(order.frequency),
         taxAmount: tax && getValueInCentsFromAmountInput(tax.amount),
-        taxType: tax?.type,
-        countryISO: tax?.country,
-        taxIDNumber: tax?.idNumber,
+        tax: tax,
         paymentMethod,
         fromCollective: fromCollective && { id: fromCollective.id },
         fromAccountInfo: order.fromAccountInfo,
         collective: { id: collective.id },
-        totalAmount: getOrderTotalAmount(order),
-        data: order.data,
+        totalAmount: getTotalAmountForOrderInput(amountInCents * quantity, platformTipAmount, tax),
+        data: order.data, // We're filtering data before saving it (see `ORDER_PUBLIC_DATA_FIELDS`)
         customData: order.customData,
         isBalanceTransfer: order.isBalanceTransfer,
         tier: tier && { id: tier.id },
@@ -147,7 +223,7 @@ const orderMutations = {
 
       // Check 2FA for non-guest contributions
       if (req.remoteUser) {
-        await twoFactorAuthLib.enforceForAccountAdmins(req, fromCollective, { onlyAskOnLogin: true });
+        await twoFactorAuthLib.enforceForAccount(req, fromCollective, { onlyAskOnLogin: true });
       }
 
       const result = await createOrderLegacy(legacyOrderObj, req);
@@ -155,11 +231,11 @@ const orderMutations = {
     },
   },
   cancelOrder: {
-    type: Order,
+    type: GraphQLOrder,
     description: 'Cancel an order. Scope: "orders".',
     args: {
       order: {
-        type: new GraphQLNonNull(OrderReferenceInput),
+        type: new GraphQLNonNull(GraphQLOrderReferenceInput),
         description: 'Object matching the OrderReferenceInput (id)',
       },
       reason: {
@@ -181,6 +257,7 @@ const orderMutations = {
           { model: models.Subscription },
           { model: models.Collective, as: 'collective' },
           { model: models.Collective, as: 'fromCollective' },
+          { model: models.Tier, as: 'Tier', required: false },
         ],
       });
 
@@ -188,7 +265,7 @@ const orderMutations = {
         throw new NotFound('Recurring contribution not found');
       }
 
-      if (!req.remoteUser.isAdminOfCollective(order.fromCollective)) {
+      if (!req.remoteUser.isAdminOfCollective(order.fromCollective) && !req.remoteUser.isRoot()) {
         throw new Unauthorized("You don't have permission to cancel this recurring contribution");
       } else if (!order.Subscription?.isActive && order.status === OrderStatuses.CANCELLED) {
         throw new Error('Recurring contribution already canceled');
@@ -197,7 +274,7 @@ const orderMutations = {
       }
 
       // Check 2FA
-      await twoFactorAuthLib.enforceForAccountAdmins(req, order.fromCollective, { onlyAskOnLogin: true });
+      await twoFactorAuthLib.enforceForAccount(req, order.fromCollective, { onlyAskOnLogin: true });
 
       await order.update({ status: OrderStatuses.CANCELLED });
       await order.Subscription.deactivate();
@@ -217,6 +294,8 @@ const orderMutations = {
           fromCollective: order.fromCollective.minimal,
           reason: args.reason,
           reasonCode: args.reasonCode,
+          order: order.info,
+          tier: order.Tier?.info,
         },
       });
 
@@ -224,15 +303,15 @@ const orderMutations = {
     },
   },
   updateOrder: {
-    type: Order,
+    type: GraphQLOrder,
     description: `Update an Order's amount, tier, or payment method. Scope: "orders".`,
     args: {
       order: {
-        type: new GraphQLNonNull(OrderReferenceInput),
+        type: new GraphQLNonNull(GraphQLOrderReferenceInput),
         description: 'Reference to the Order to update',
       },
       paymentMethod: {
-        type: PaymentMethodReferenceInput,
+        type: GraphQLPaymentMethodReferenceInput,
         description: 'Reference to a Payment Method to update the order with',
       },
       paypalSubscriptionId: {
@@ -240,11 +319,11 @@ const orderMutations = {
         description: 'To update the order with a PayPal subscription',
       },
       tier: {
-        type: TierReferenceInput,
+        type: GraphQLTierReferenceInput,
         description: 'Reference to a Tier to update the order with',
       },
       amount: {
-        type: AmountInput,
+        type: GraphQLAmountInput,
         description: 'An Amount to update the order to',
       },
     },
@@ -252,7 +331,7 @@ const orderMutations = {
       checkRemoteUserCanUseOrders(req);
 
       const decodedId = idDecode(args.order.id, IDENTIFIER_TYPES.ORDER);
-      const haveDetailsChanged = !isUndefined(args.amount) && !isUndefined(args.tier);
+      const haveDetailsChanged = !isUndefined(args.amount) || !isUndefined(args.tier);
       const hasPaymentMethodChanged = !isUndefined(args.paymentMethod);
 
       const order = await models.Order.findOne({
@@ -262,12 +341,13 @@ const orderMutations = {
           { association: 'collective', required: true },
           { association: 'fromCollective', required: true },
           { association: 'paymentMethod' },
+          { association: 'Tier' },
         ],
       });
 
       if (!order) {
         throw new ValidationFailed('This order does not seem to exist');
-      } else if (!req.remoteUser.isAdminOfCollective(order.fromCollective)) {
+      } else if (!req.remoteUser.isAdminOfCollective(order.fromCollective) && !req.remoteUser.isRoot()) {
         throw new Unauthorized("You don't have permission to update this order");
       } else if (!order.Subscription.isActive) {
         throw new Error('Order must be active to be updated');
@@ -283,12 +363,18 @@ const orderMutations = {
       }
 
       // Check 2FA
-      await twoFactorAuthLib.enforceForAccountAdmins(req, order.fromCollective, { onlyAskOnLogin: true });
+      await twoFactorAuthLib.enforceForAccount(req, order.fromCollective, { onlyAskOnLogin: true });
 
       let previousOrderValues, previousSubscriptionValues;
       if (haveDetailsChanged) {
         // Update details (eg. amount, tier)
-        const tier = !isNull(args.tier.id) && (await fetchTierWithReference(args.tier, { throwIfMissing: true }));
+        const tier =
+          isNull(args.tier) || args.tier?.isCustom
+            ? null
+            : args.tier
+            ? await fetchTierWithReference(args.tier, { throwIfMissing: true })
+            : order.Tier;
+
         const membership =
           !isNull(order) &&
           (await models.Member.findOne({
@@ -331,11 +417,11 @@ const orderMutations = {
     },
   },
   confirmOrder: {
-    type: new GraphQLNonNull(OrderWithPayment),
+    type: new GraphQLNonNull(GraphQLOrderWithPayment),
     description: 'Confirm an order (strong customer authentication). Scope: "orders".',
     args: {
       order: {
-        type: new GraphQLNonNull(OrderReferenceInput),
+        type: new GraphQLNonNull(GraphQLOrderReferenceInput),
       },
       guestToken: {
         type: GraphQLString,
@@ -358,43 +444,50 @@ const orderMutations = {
     },
   },
   processPendingOrder: {
-    type: new GraphQLNonNull(Order),
+    type: new GraphQLNonNull(GraphQLOrder),
     description: 'A mutation for the host to approve or reject an order. Scope: "orders".',
     args: {
       order: {
-        type: new GraphQLNonNull(OrderUpdateInput),
+        type: new GraphQLNonNull(GraphQLOrderUpdateInput),
       },
       action: {
-        type: new GraphQLNonNull(ProcessOrderAction),
+        type: new GraphQLNonNull(GraphQLProcessOrderAction),
       },
     },
     async resolve(_, args, req) {
       checkRemoteUserCanUseOrders(req);
 
       let order = await fetchOrderWithReference(args.order);
+      const fromAccount = await req.loaders.Collective.byId.load(order.FromCollectiveId);
       const toAccount = await req.loaders.Collective.byId.load(order.CollectiveId);
-      const host = await toAccount.getHostCollective();
+      if (toAccount.deactivatedAt) {
+        throw new ValidationFailed(`${toAccount.name} has been archived`);
+      }
+
+      const host = await toAccount.getHostCollective({ loaders: req.loaders });
 
       if (!req.remoteUser?.isAdminOfCollective(host)) {
-        throw new Unauthorized('Only host admins can process orders');
+        throw new Unauthorized('Only host admins can process pending contributions');
       }
 
       // Enforce 2FA
-      await twoFactorAuthLib.enforceForAccountAdmins(req, host, { onlyAskOnLogin: true });
+      await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });
 
       if (args.action === 'MARK_AS_PAID') {
         if (!(await canMarkAsPaid(req, order))) {
-          throw new ValidationFailed(`Only pending/expired orders can be marked as paid, this one is ${order.status}`);
+          throw new ValidationFailed(
+            `Only pending/expired contributions can be marked as paid, this one is ${order.status}`,
+          );
         }
 
-        const hasAmounts = !isEmpty(difference(keys(args.order), ['id', 'legacyId']));
-        if (hasAmounts) {
-          const { amount, paymentProcessorFee, platformTip, hostFeePercent, processedAt } = args.order;
+        const hasChanges = !isEmpty(difference(keys(args.order), ['id', 'legacyId']));
+        if (hasChanges) {
+          const { amount, paymentProcessorFee, platformTip, hostFeePercent, processedAt, tax } = args.order;
 
           // Ensure amounts are provided with the right currency
-          ['amount', 'paymentProcessorFee', 'platformTip'].forEach(field => {
-            if (!isNil(args.order[field])) {
-              assertAmountInputCurrency(args.order[field], order.currency, { name: field });
+          ['amount', 'paymentProcessorFee', 'platformTip', 'tax.amount'].forEach(field => {
+            if (!isNil(get(args.order, field))) {
+              assertAmountInputCurrency(get(args.order, field), order.currency, { name: field });
             }
           });
 
@@ -412,6 +505,19 @@ const orderMutations = {
             const paymentProcessorFeeInCents = getValueInCentsFromAmountInput(paymentProcessorFee);
             order.set('data.paymentProcessorFee', paymentProcessorFeeInCents);
           }
+          if (!isNil(tax)) {
+            const quantity = 1; // Not supported yet by OrderUpdateInput
+            const { taxInfo, taxAmount } = getOrderTaxInfo(
+              args.order.tax,
+              quantity,
+              args.order.amount,
+              fromAccount,
+              toAccount,
+              host,
+            );
+            order.set('taxAmount', taxAmount);
+            order.set('data.tax', taxInfo);
+          }
           if (!isNil(platformTip)) {
             const platformTipInCents = getValueInCentsFromAmountInput(platformTip);
             order.set('platformTipAmount', platformTipInCents);
@@ -423,6 +529,16 @@ const orderMutations = {
           if (!isNil(processedAt)) {
             order.set('processedAt', processedAt);
           }
+
+          // Re-compute total amount
+          const baseAmount = !isNil(args.order.amount)
+            ? getValueInCentsFromAmountInput(args.order.amount)
+            : getOrderBaseAmount(order);
+          order.set(
+            'totalAmount',
+            getTotalAmountForOrderInput(baseAmount, order.platformTipAmount, args.order.tax || order.data?.tax),
+          );
+
           await order.save();
         }
 
@@ -430,7 +546,6 @@ const orderMutations = {
 
         if (order.data.isPendingContribution) {
           const tier = order.TierId && (await req.loaders.Tier.byId.load(order.TierId));
-          const fromAccount = await req.loaders.Collective.byId.load(order.FromCollectiveId);
           await models.Activity.create({
             type: activities.ORDER_PENDING_RECEIVED,
             UserId: req.remoteUser.id,
@@ -452,7 +567,9 @@ const orderMutations = {
         return order;
       } else if (args.action === 'MARK_AS_EXPIRED') {
         if (!(await canMarkAsExpired(req, order))) {
-          throw new ValidationFailed(`Only pending orders can be marked as expired, this one is ${order.status}`);
+          throw new ValidationFailed(
+            `Only pending contributions can be marked as expired, this one is ${order.status}`,
+          );
         }
 
         return order.markAsExpired();
@@ -462,19 +579,19 @@ const orderMutations = {
     },
   },
   moveOrders: {
-    type: new GraphQLNonNull(new GraphQLList(Order)),
+    type: new GraphQLNonNull(new GraphQLList(GraphQLOrder)),
     description: '[Root only] A mutation to move orders from one account to another',
     args: {
       orders: {
-        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(OrderReferenceInput))),
+        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLOrderReferenceInput))),
         description: 'The orders to move',
       },
       fromAccount: {
-        type: AccountReferenceInput,
+        type: GraphQLAccountReferenceInput,
         description: 'The account to move the orders to. Set to null to keep existing',
       },
       tier: {
-        type: TierReferenceInput,
+        type: GraphQLTierReferenceInput,
         description:
           'The tier to move the orders to. Set to null to keep existing. Pass { id: "custom" } to reference the custom tier (/donate)',
       },
@@ -510,24 +627,47 @@ const orderMutations = {
       }
 
       if (args.tier) {
-        tier = await fetchTierWithReference(args.tier, { throwIfMissing: true, allowCustomTier: true });
+        if (args.tier.isCustom) {
+          tier = 'custom';
+        } else {
+          tier = await fetchTierWithReference(args.tier, { throwIfMissing: true });
+        }
       }
 
       const orders = await fetchOrdersWithReferences(args.orders, {
         include: [
           { association: 'paymentMethod' },
           { association: 'fromCollective', attributes: ['id', 'slug'] },
-          { association: 'collective', attributes: ['id', 'slug'] },
+          { association: 'collective', attributes: ['id', 'slug', 'HostCollectiveId'] },
         ],
       });
 
       // -- Some sanity checks to prevent issues --
-      const paymentMethodIds = uniq(orders.map(order => order.PaymentMethodId).filter(Boolean));
+      const isAddedFund = order =>
+        order.paymentMethod?.service === PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE &&
+        order.paymentMethod.type === PAYMENT_METHOD_TYPE.HOST;
+      const paymentMethodIds = uniq(
+        orders
+          .filter(order => !isAddedFund(order))
+          .map(order => order.PaymentMethodId)
+          .filter(Boolean),
+      );
       const ordersIds = orders.map(order => order.id);
+
       for (const order of orders) {
+        if (fromAccount) {
+          if (isAddedFund(order)) {
+            if (get(order, 'fromCollective.HostCollectiveId', null) !== get(fromAccount, 'HostCollectiveId', null)) {
+              throw new ValidationFailed(
+                `Moving Added Funds when the current source Account has a different Fiscal Host than the new source Account is not supported.`,
+              );
+            }
+          }
+        }
+
         const isUpdatingPaymentMethod = Boolean(fromAccount);
 
-        if (isUpdatingPaymentMethod) {
+        if (isUpdatingPaymentMethod && !isAddedFund(order)) {
           // Payment method can't be ACCOUNT_BALANCE - we're not ready to transfer these
           if (order.paymentMethod?.service === PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE) {
             throw new ValidationFailed(
@@ -640,6 +780,7 @@ const orderMutations = {
         if (tier) {
           descriptionDetails.push(tier === 'custom' ? 'custom tier' : `tier #${tier.id}`);
         }
+
         await models.MigrationLog.create(
           {
             type: MigrationLogType.MOVE_ORDERS,
@@ -674,14 +815,21 @@ const orderMutations = {
     },
   },
   createPaymentIntent: {
-    type: new GraphQLNonNull(PaymentIntent),
+    type: new GraphQLNonNull(GraphQLPaymentIntent),
     description: 'Creates a Stripe payment intent',
     args: {
       paymentIntent: {
-        type: new GraphQLNonNull(PaymentIntentInput),
+        type: new GraphQLNonNull(GraphQLPaymentIntentInput),
+      },
+      guestInfo: {
+        type: GraphQLGuestInfoInput,
       },
     },
     async resolve(_, args, req) {
+      if (req.remoteUser && !canUseFeature(req.remoteUser, FEATURE.ORDER)) {
+        throw new FeatureNotAllowedForUser();
+      }
+
       const paymentIntentInput = args.paymentIntent;
 
       const toAccount = await fetchAccountWithReference(paymentIntentInput.toAccount, { throwIfMissing: true });
@@ -724,7 +872,43 @@ const orderMutations = {
         }
 
         stripeCustomerId = stripeCustomerAccount.username;
+      } else {
+        await checkGuestContribution(
+          {
+            collective: toAccount,
+            fromCollective: fromAccount,
+            guestInfo: args.guestInfo,
+          },
+          req.loaders,
+        );
+
+        try {
+          await checkCaptcha(args.guestInfo?.captcha, req.ip);
+        } catch (err) {
+          throw new BadRequest(err.message, undefined, args.guestInfo?.captcha);
+        }
       }
+
+      await checkOrdersLimit(
+        {
+          user: req.remoteUser,
+          collective: toAccount,
+          fromCollective: fromAccount,
+          guestInfo: args.guestInfo,
+        },
+        req.ip,
+        req.mask,
+      );
+      await orderFraudProtection(req, {
+        guestInfo: args.guestInfo,
+      }).catch(error => {
+        reportErrorToSentry(error, { transactionName: 'orderFraudProtection', user: req.remoteUser });
+        throw new ValidationFailed(
+          "There's something wrong with the payment, please contact support@opencollective.com.",
+          undefined,
+          { includeId: true },
+        );
+      });
 
       const totalOrderAmount = getValueInCentsFromAmountInput(paymentIntentInput.amount);
 
@@ -764,11 +948,11 @@ const orderMutations = {
     },
   },
   createPendingOrder: {
-    type: new GraphQLNonNull(Order),
+    type: new GraphQLNonNull(GraphQLOrder),
     description: 'To submit a new order. Scope: "orders".',
     args: {
       order: {
-        type: new GraphQLNonNull(PendingOrderCreateInput),
+        type: new GraphQLNonNull(GraphQLPendingOrderCreateInput),
       },
     },
     async resolve(_, args, req) {
@@ -776,32 +960,58 @@ const orderMutations = {
         throw new Unauthorized('The User Token is not allowed for operations in scope "orders".');
       }
 
+      const fromAccount = await fetchAccountWithReference(args.order.fromAccount, { throwIfMissing: true });
       const toAccount = await fetchAccountWithReference(args.order.toAccount, { throwIfMissing: true });
-      const host = await toAccount.getHostCollective();
+      const host = await toAccount.getHostCollective({ loaders: req.loaders });
+      const tier = args.order.tier && (await fetchTierWithReference(args.order.tier, { throwIfMissing: true }));
 
       if (!req.remoteUser?.isAdminOfCollective(host)) {
-        throw new Unauthorized('Only host admins can process orders');
+        throw new Unauthorized('Only host admins can create pending orders');
       }
-      const fromAccount = await fetchAccountWithReference(args.order.fromAccount, { throwIfMissing: true });
 
+      // Ensure amounts are provided with the right currency
+      const expectedCurrency = tier?.currency || toAccount?.currency;
+      ['amount', 'tax.amount'].forEach(field => {
+        const amount = get(args.order, field);
+        if (amount) {
+          assertAmountInputCurrency(amount, expectedCurrency, { name: field });
+        }
+      });
+
+      // Get tax info
+      const quantity = 1; // Not supported yet by PendingOrderCreateInput
+      const { taxInfo, taxAmount } = getOrderTaxInfo(
+        args.order.tax,
+        quantity,
+        args.order.amount,
+        fromAccount,
+        toAccount,
+        host,
+      );
+
+      const baseAmountInCents = getValueInCentsFromAmountInput(args.order.amount);
       const orderProps = {
         CreatedByUserId: req.remoteUser.id,
         FromCollectiveId: fromAccount.id,
         CollectiveId: toAccount.id,
-        quantity: 1,
-        totalAmount: args.order.amount.valueInCents,
+        quantity,
+        totalAmount: getTotalAmountForOrderInput(baseAmountInCents, null, args.order.tax),
         currency: args.order.amount.currency,
         description: args.order.description || models.Order.generateDescription(toAccount, undefined, undefined),
+        taxAmount,
         data: {
-          ...(args.order.customData || {}),
           fromAccountInfo: args.order.fromAccountInfo,
           expectedAt: args.order.expectedAt,
+          ponumber: args.order.ponumber,
+          memo: args.order.memo,
+          paymentMethod: args.order.paymentMethod,
           isPendingContribution: true,
+          hostFeePercent: args.order?.hostFeePercent,
+          tax: taxInfo,
         },
         status: OrderStatuses.PENDING,
       };
 
-      const tier = args.order.tier && (await fetchTierWithReference(args.order.tier, { throwIfMissing: true }));
       if (tier) {
         if (!args.order.description) {
           orderProps.description = models.Order.generateDescription(toAccount, undefined, undefined, tier);
@@ -826,6 +1036,103 @@ const orderMutations = {
           toCollective: toAccount.info,
           tierName: tier?.name,
         },
+      });
+
+      return order;
+    },
+  },
+  editPendingOrder: {
+    type: new GraphQLNonNull(GraphQLOrder),
+    description: 'To edit a pending order. Scope: "orders".',
+    args: {
+      order: {
+        type: new GraphQLNonNull(GraphQLPendingOrderEditInput),
+      },
+    },
+    async resolve(_, args, req) {
+      if (!checkScope(req, 'orders')) {
+        throw new Unauthorized('The User Token is not allowed for operations in scope "orders".');
+      }
+
+      const order = await fetchOrderWithReference(args.order, {
+        throwIfMissing: true,
+        include: [
+          { model: models.Collective, as: 'collective', required: true },
+          { model: models.Tier, required: false },
+        ],
+      });
+
+      if (!order) {
+        throw new NotFound('Contribution not found');
+      }
+
+      const host = await order.collective.getHostCollective({ loaders: req.loaders });
+      if (!req.remoteUser?.isAdminOfCollective(host)) {
+        throw new Unauthorized('Only host admins can edit pending orders');
+      }
+
+      if (order.data?.isPendingContribution !== true) {
+        throw new ValidationFailed(`Only pending contributions created by fiscal-host admins can be editted`);
+      }
+      if (!(await canEdit(req, order))) {
+        throw new ValidationFailed(`Only pending orders can be edited, this one is ${order.status}`);
+      }
+
+      // Load data
+      const fromAccount = await fetchAccountWithReference(args.order.fromAccount);
+      const tier = args.order.tier
+        ? await fetchTierWithReference(args.order.tier, { throwIfMissing: true })
+        : order.tier;
+
+      // Ensure amounts are provided with the right currency
+      const expectedCurrency = tier?.currency || order.collective.currency;
+      ['amount', 'tax.amount', 'platformTipAmount'].forEach(field => {
+        const amount = get(args.order, field);
+        if (amount) {
+          assertAmountInputCurrency(amount, expectedCurrency, { name: field });
+        }
+      });
+
+      // Get tax info
+      const quantity = 1; // Not supported yet by PendingOrderCreateInput
+      const { taxInfo, taxAmount } = getOrderTaxInfo(
+        args.order.tax,
+        quantity,
+        args.order.amount,
+        fromAccount,
+        order.collective,
+        host,
+      );
+
+      const baseAmountInCents = getValueInCentsFromAmountInput(args.order.amount);
+      const tax = !isUndefined(args.order.tax) ? args.order.tax : order.data?.tax;
+      const platformTip = args.order.platformTipAmount;
+      const platformTipAmount = platformTip ? getValueInCentsFromAmountInput(platformTip) : 0;
+      await order.update({
+        FromCollectiveId: fromAccount?.id || undefined,
+        TierId: tier?.id || undefined,
+        totalAmount: getTotalAmountForOrderInput(baseAmountInCents, platformTipAmount, tax),
+        platformTipAmount,
+        taxAmount: taxAmount || null,
+        currency: args.order.amount.currency,
+        description: args.order.description,
+        data: {
+          ...order.data,
+          tax: taxInfo || null,
+          ...omitBy(
+            {
+              ponumber: args.order.ponumber,
+              memo: args.order.memo,
+              paymentMethod: args.order.paymentMethod,
+              fromAccountInfo: args.order.fromAccountInfo,
+              expectedAt: args.order.expectedAt,
+              isPendingContribution: true,
+              hostFeePercent: args.order?.hostFeePercent,
+            },
+            isUndefined,
+          ),
+        },
+        status: OrderStatuses.PENDING,
       });
 
       return order;

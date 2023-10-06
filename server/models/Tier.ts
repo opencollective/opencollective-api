@@ -1,7 +1,7 @@
-import Promise from 'bluebird';
 import debugLib from 'debug';
 import slugify from 'limax';
 import { defaults, isNil, min, uniq } from 'lodash';
+import pMap from 'p-map';
 import { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
@@ -13,7 +13,7 @@ import { capitalize, days, formatCurrency } from '../lib/utils';
 import { isSupportedVideoProvider, supportedVideoProviders } from '../lib/validators';
 
 import CustomDataTypes from './DataTypes';
-import models from '.';
+import models, { Collective } from '.';
 
 const debug = debugLib('models:Tier');
 
@@ -55,7 +55,7 @@ class Tier extends Model<InferAttributes<Tier>, InferCreationAttributes<Tier>> {
   public declare updatedAt: CreationOptional<Date>;
   public declare deletedAt: CreationOptional<Date>;
 
-  public declare Collective?: typeof models.Collective;
+  public declare Collective?: Collective;
 
   /**
    * Instance Methods
@@ -173,7 +173,7 @@ class Tier extends Model<InferAttributes<Tier>, InferCreationAttributes<Tier>> {
    * Class Methods
    */
   static createMany = (tiers, defaultValues = {}) => {
-    return Promise.map(tiers, t => Tier.create(defaults({}, t, defaultValues)), { concurrency: 1 });
+    return pMap(tiers, t => Tier.create(defaults({}, t, defaultValues)), { concurrency: 1 });
   };
 
   /**
@@ -191,7 +191,7 @@ class Tier extends Model<InferAttributes<Tier>, InferCreationAttributes<Tier>> {
     }).then(memberships => {
       const membershipsForBackerCollective = {};
       memberships.map(m => {
-        membershipsForBackerCollective[m.MemberCollectiveId] = m.Tier;
+        membershipsForBackerCollective[m.MemberCollectiveId] = (m as any).Tier;
       });
       return backerCollectives.map(backerCollective => {
         backerCollective.tier = membershipsForBackerCollective[backerCollective.id];

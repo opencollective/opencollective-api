@@ -1,8 +1,8 @@
-import { ApolloError } from 'apollo-server-express';
 import config from 'config';
+import { GraphQLError } from 'graphql';
 import { v4 as uuid } from 'uuid';
 
-class IdentifiableApolloError extends ApolloError {
+class IdentifiableApolloError extends GraphQLError {
   constructor(
     message?: string,
     code?: string,
@@ -15,7 +15,7 @@ class IdentifiableApolloError extends ApolloError {
     if (!['ci', 'test'].includes(config.env)) {
       additionalProperties = { ...additionalProperties, id };
     }
-    super(message, code, additionalProperties);
+    super(message, { extensions: { ...additionalProperties, code } });
   }
 }
 
@@ -112,5 +112,17 @@ export class TransferwiseError extends IdentifiableApolloError {
       code || 'transferwise.error.default',
       additionalProperties,
     );
+  }
+}
+
+export class ContentNotReady extends IdentifiableApolloError {
+  constructor(message?: string, code?: string, additionalProperties?: Record<string, unknown>) {
+    super(message || 'Content not ready', code || 'ContentNotReady', additionalProperties);
+  }
+}
+
+export class UnexpectedError extends IdentifiableApolloError {
+  constructor(message?: string, code?: string, additionalProperties?: Record<string, unknown>) {
+    super(message || 'An unexpected error happened', code || 'UnexpectedError', additionalProperties);
   }
 }

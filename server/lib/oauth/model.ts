@@ -20,6 +20,7 @@ import debugLib from 'debug';
 
 import activities from '../../constants/activities';
 import models from '../../models';
+import Application from '../../models/Application';
 import type OAuthAuthorizationCode from '../../models/OAuthAuthorizationCode';
 import User from '../../models/User';
 import UserToken, { TokenType } from '../../models/UserToken';
@@ -32,7 +33,7 @@ interface OauthModel extends AuthorizationCodeModel, RefreshTokenModel {}
 
 // Helpers to convert data from/to our model types to OAuth2Server types.
 
-export const dbApplicationToClient = (application: typeof models.Application): OAuth2Server.Client => ({
+export const dbApplicationToClient = (application: Application): OAuth2Server.Client => ({
   id: application.clientId,
   redirectUris: [application.callbackUrl],
   grants: ['authorization_code'],
@@ -161,13 +162,16 @@ const model: OauthModel = {
       where: { ApplicationId: application.id, UserId: user.id },
     });
 
-    // Look if extra scope are requested
-    let extraScope;
+    // Look if it's a new authorization, by default yes
+    let newAuthorization = true;
+    // Unless a token was already existing
     if (userToken) {
-      extraScope = Array.from(scope).filter(x => !Array.from(userToken.scope).includes(x)).length !== 0;
+      // And there more scopes being asked than what there is in token scope
+      newAuthorization =
+        Array.from(scope || []).filter(x => !Array.from(userToken.scope || []).includes(x)).length !== 0;
     }
 
-    if (!userToken || extraScope) {
+    if (newAuthorization) {
       await models.Activity.create({
         type: activities.OAUTH_APPLICATION_AUTHORIZED,
         UserId: user.id,

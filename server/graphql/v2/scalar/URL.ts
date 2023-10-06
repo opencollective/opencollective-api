@@ -4,7 +4,7 @@ import { GraphQLScalarType } from 'graphql';
 
 import { ValidationFailed } from '../../errors';
 
-export default new GraphQLScalarType({
+const GraphQLURL = new GraphQLScalarType({
   name: 'URL',
   description:
     'A field whose value conforms to the standard URL format as specified in RFC3986: https://www.ietf.org/rfc/rfc3986.txt.',
@@ -19,3 +19,5 @@ export default new GraphQLScalarType({
     return value;
   },
 });
+
+export default GraphQLURL;

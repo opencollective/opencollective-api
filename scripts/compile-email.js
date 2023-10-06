@@ -136,8 +136,10 @@ data['ticket.confirmed'] = {
     startsAt: '2019-06-19 17:15:00+00',
     endsAt: '2019-06-19 21:15:00+00',
     timezone: 'America/Los_Angeles',
-    locationName: 'Github HQ',
-    address: '88 Colin P Kelly Jr Street, San Francisco, CA',
+    location: {
+      name: 'Github HQ',
+      address: '88 Colin P Kelly Jr Street, San Francisco, CA',
+    },
   },
   collective: {
     slug: 'sustainoss',
@@ -477,44 +479,6 @@ data['user.monthlyreport'] = {
       },
     },
   ],
-  relatedCollectives: [
-    {
-      currency: 'USD',
-      image: 'http://opencollective.com/proxy/images/?src=https%3A%2F%2Fcldup.com%2F1Hzq0cyqgW.png&height=320',
-      backgroundImage: 'http://opencollective.com/proxy/images/?src=https://cldup.com/Gj243bgI0f.jpg&width=1024',
-      slug: 'cyclejs',
-      name: 'Cycle.js',
-      description: 'We are on a mission to provide a framework for clean code, easy debugging experience, and fun.',
-      // totalDonations: 41,
-      tier: 'backer',
-      yearlyIncome: 6271 * 100,
-      contributorsCount: 0,
-    },
-    {
-      currency: 'USD',
-      image: 'http://opencollective.com/proxy/images/?src=https%3A%2F%2Fcldup.com%2F1Hzq0cyqgW.png&height=320',
-      backgroundImage: 'http://opencollective.com/proxy/images/?src=https://cldup.com/Gj243bgI0f.jpg&width=1024',
-      slug: 'cyclejs',
-      name: 'Cycle.js',
-      description: 'We are on a mission to provide a framework for clean code, easy debugging experience, and fun.',
-      // totalDonations: 41,
-      tier: 'backer',
-      yearlyIncome: 6271 * 100,
-      contributorsCount: 0,
-    },
-    {
-      currency: 'USD',
-      image: 'http://opencollective.com/proxy/images/?src=https%3A%2F%2Fcldup.com%2F1Hzq0cyqgW.png&height=320',
-      backgroundImage: 'http://opencollective.com/proxy/images/?src=https://cldup.com/Gj243bgI0f.jpg&width=1024',
-      slug: 'cyclejs',
-      name: 'Cycle.js',
-      description: 'We are on a mission to provide a framework for clean code, easy debugging experience, and fun.',
-      // totalDonations: 41,
-      tier: 'backer',
-      yearlyIncome: 6271 * 100,
-      contributorsCount: 0,
-    },
-  ],
 };
 data['collective.member.created'] = {
   member: {
@@ -532,6 +496,15 @@ data['collective.member.created'] = {
     subscription: {
       interval: 'month',
     },
+  },
+};
+data['collective.apply.foundation'] = {
+  collective: {
+    name: 'TheCollective',
+  },
+  host: {
+    slug: 'foundation',
+    name: 'foundation',
   },
 };
 

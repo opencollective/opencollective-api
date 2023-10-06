@@ -16,12 +16,17 @@ const Classes = Object.keys(ActivityClasses).reduce((values, key) => {
   };
 }, {});
 
-export const ActivityType = new GraphQLEnumType({
+export const GraphQLActivityType = new GraphQLEnumType({
   name: 'ActivityType',
   values: Activities,
 });
 
-export const ActivityAndClassesType = new GraphQLEnumType({
+export const GraphQLActivityClassType = new GraphQLEnumType({
+  name: 'ActivityClassType',
+  values: Classes,
+});
+
+export const GraphQLActivityAndClassesType = new GraphQLEnumType({
   name: 'ActivityAndClassesType',
   values: { ...Activities, ...Classes },
 });

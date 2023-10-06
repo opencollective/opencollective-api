@@ -15,6 +15,7 @@ import { addParamsToUrl } from '../../lib/utils';
 import models from '../../models';
 
 import bacsdebit from './bacsdebit';
+import bancontact from './bancontact';
 import creditcard from './creditcard';
 import paymentintent from './payment-intent';
 import { webhook } from './webhook';
@@ -28,6 +29,7 @@ export default {
   types: {
     // eslint-disable-next-line camelcase
     bacs_debit: bacsdebit,
+    bancontact: bancontact,
     default: creditcard,
     creditcard,
     paymentintent,
@@ -123,22 +125,23 @@ export default {
         }
 
         const { account } = connectedAccount.data;
-        if (!collective.address && account.legal_entity) {
-          const { address } = account.legal_entity;
-          const addressLines = [address.line1];
-          if (address.line2) {
-            addressLines.push(address.line2);
-          }
-          if (address.country === 'US') {
-            addressLines.push(`${address.city} ${address.state} ${address.postal_code}`);
-          } else if (address.country === 'UK') {
-            addressLines.push(`${address.city} ${address.postal_code}`);
-          } else {
-            addressLines.push(`${address.postal_code} ${address.city}`);
-          }
+        const location = await collective.getLocation();
 
-          addressLines.push(address.country);
-          collective.address = addressLines.join('\n');
+        if (!location?.structured && account.legal_entity) {
+          const {
+            address: { line1: address1, line2: address2, country, state: zone, city, postal_code: postalCode },
+          } = account.legal_entity;
+
+          await collective.setLocation({
+            country,
+            structured: {
+              address1,
+              address2,
+              city,
+              zone,
+              postalCode,
+            },
+          });
         }
 
         try {

@@ -104,6 +104,35 @@ describe('server/graphql/v2/mutation/TierMutations', () => {
       const createdTier = await models.Tier.findByPk(result.data.createTier.legacyId);
       expect(createdTier).to.exist;
     });
+
+    it('Always creates tier with collective currency', async () => {
+      collective = await fakeCollective({ admin: adminUser, currency: 'EUR' });
+      await fakeMember({ CollectiveId: memberUser.id, MemberCollectiveId: collective.id, role: roles.MEMBER });
+
+      const result = await graphqlQueryV2(
+        CREATE_TIER_MUTATION,
+        {
+          account: { legacyId: collective.id },
+          tier: {
+            name: 'fake tier',
+            type: 'TIER',
+            amountType: 'FIXED',
+            frequency: 'ONETIME',
+            amount: {
+              valueInCents: 1000,
+              currency: 'USD',
+            },
+          },
+        },
+        adminUser,
+      );
+      expect(result.errors).to.not.exist;
+      expect(result.data.createTier.legacyId).to.exist;
+
+      const createdTier = await models.Tier.findByPk(result.data.createTier.legacyId);
+      expect(createdTier).to.exist;
+      expect(createdTier.currency).to.eql('EUR');
+    });
   });
 
   describe('editTierMutation', () => {
@@ -149,6 +178,43 @@ describe('server/graphql/v2/mutation/TierMutations', () => {
 
       // Partial updates: other fields must not have changed
       expect(editedTier.minimumAmount).to.equal(42);
+      expect(editedTier.interval).to.equal(existingTier.interval);
+    });
+
+    it('does not update tier currency', async () => {
+      collective = await fakeCollective({ admin: adminUser, currency: 'EUR' });
+
+      memberUser = await fakeUser();
+      existingTier = await fakeTier({ CollectiveId: collective.id, minimumAmount: 42, currency: 'EUR' });
+      await fakeMember({ CollectiveId: memberUser.id, MemberCollectiveId: collective.id, role: roles.MEMBER });
+
+      const result = await graphqlQueryV2(
+        EDIT_TIER_MUTATION,
+        {
+          tier: {
+            id: idEncode(existingTier.id, IDENTIFIER_TYPES.TIER),
+            name: 'New name',
+            amount: {
+              valueInCents: 5000,
+              currency: 'USD',
+            },
+          },
+        },
+        adminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.editTier.legacyId).to.exist;
+      expect(result.data.editTier.name).to.equal('New name');
+
+      const editedTier = await models.Tier.findByPk(result.data.editTier.legacyId);
+      expect(editedTier).to.exist;
+      expect(editedTier.name).to.equal('New name');
+
+      // Partial updates: other fields must not have changed
+      expect(editedTier.minimumAmount).to.equal(42);
+      expect(editedTier.amount).to.equal(5000);
+      expect(editedTier.currency).to.equal('EUR');
       expect(editedTier.interval).to.equal(existingTier.interval);
     });
   });

@@ -4,12 +4,22 @@ Subject: Getting started with Open Collective
 
 <h1>Hey {{collective.name}} 👋</h1>
 
-<p>Thanks for joining Open Source Collective, a nonprofit serving as Fiscal Host to thousands of open source projects on Open Collective. OSC will take care of holding money for your Collective, invoices, taxes, accounting, and admin, so you can keep focused on your code and your community.</p>
+<p>
+  {{#if hostPending}}
+    Your {{accountType}} is pending approval for Fiscal Hosting by (<a href="https://opencollective.com/{{host.slug}}">{{host.name}}</a>).
+    Your Host will hold money on behalf of your {{accountType}}.
+    Once approved, your {{accountType}} will be able to receive money.
+  {{else}}
+    Thanks for joining Open Source Collective, a nonprofit serving as Fiscal Host to thousands of open source projects on Open Collective. OSC will take care of holding money for your Collective, invoices, taxes, accounting, and admin, so you can keep focused on your code and your community.
+  {{/if}}
+</p>
 
 <p>To help you get up and running, we’ll email you tips over the next week, then leave you to it. But you’re welcome to ask us questions any time: <a href="mailto:hello@oscollective.org">hello@oscollective.org</a> or <a href="https://slack.opencollective.com">join our Slack</a>.</p>
 
-<p>Our top advice: Get your first financial contributors now! Reach out ask your community to give you an initial boost. Share your Collective link on social media, your blog, and raise an issue in your repo.
-Don’t be afraid of contacting potential supporters, especially companies who already use your project.</p>
+{{#unless hostPending}}
+  <p>Our top advice: Get your first financial contributors now! Reach out ask your community to give you an initial boost. Share your Collective link on social media, your blog, and raise an issue in your repo.
+  Don’t be afraid of contacting potential supporters, especially companies who already use your project.</p>
+{{/unless}}
 
 <p>Some helpful info:</p>
 

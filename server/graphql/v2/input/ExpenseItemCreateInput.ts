@@ -1,12 +1,12 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLDateTime } from 'graphql-scalars';
 
-import { DateString } from '../../v1/types';
 import URL from '../scalar/URL';
 
 /**
  * Input type to use as the type for the expense input in createExpense mutation.
  */
-export const ExpenseItemCreateInput = new GraphQLInputObjectType({
+export const GraphQLExpenseItemCreateInput = new GraphQLInputObjectType({
   name: 'ExpenseItemCreateInput',
   fields: () => ({
     amount: {
@@ -22,7 +22,7 @@ export const ExpenseItemCreateInput = new GraphQLInputObjectType({
       description: 'URL of the file linked to this item. Must be provided if the expense type is RECEIPT.',
     },
     incurredAt: {
-      type: DateString,
+      type: GraphQLDateTime,
       description: 'When was the money spent?',
     },
   }),

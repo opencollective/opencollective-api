@@ -2,18 +2,14 @@
 import '../../server/env';
 
 import config from 'config';
-import { omit } from 'lodash';
-import moment from 'moment';
+import { compact, omit } from 'lodash';
 import Stripe from 'stripe';
 
 import { Service as ConnectedAccountServices } from '../../server/constants/connected_account';
 import logger from '../../server/lib/logger';
-import * as privacyLib from '../../server/lib/privacy';
 import { reportErrorToSentry } from '../../server/lib/sentry';
-import models, { Op } from '../../server/models';
-import privacy from '../../server/paymentProviders/privacy';
+import models from '../../server/models';
 import { processTransaction } from '../../server/paymentProviders/stripe/virtual-cards';
-import { PrivacyVirtualCardLimitIntervalToOCInterval } from '../../server/types/privacy';
 
 const DRY = process.env.DRY;
 
@@ -25,64 +21,17 @@ async function reconcileConnectedAccount(connectedAccount) {
 
   for (const card of cards) {
     try {
-      if (card.provider === 'PRIVACY') {
-        const lastSyncedTransaction = await models.Expense.findOne({
-          where: { VirtualCardId: card.id },
-          order: [['createdAt', 'desc']],
-        });
-
-        const begin = lastSyncedTransaction
-          ? moment(lastSyncedTransaction.createdAt).add(1, 'second').toISOString()
-          : moment(card.createdAt).toISOString();
-
-        logger.info(`\nReconciling card ${card.id}: fetching PRIVACY transactions since ${begin}`);
-
-        const { data: transactions } = await privacyLib.listTransactions(
-          connectedAccount.token,
-          card.id,
-          {
-            begin,
-            // Assumption: We won't have more than 200 transactions out of sync.
-            // eslint-disable-next-line camelcase
-            page_size: 200,
-          },
-          'approvals',
-        );
-
-        if (DRY) {
-          logger.info(`Found ${transactions.length} pending transactions...`);
-          logger.debug(JSON.stringify(transactions, null, 2));
-        } else {
-          logger.info(`Syncing ${transactions.length} pending transactions...`);
-          await Promise.all(transactions.map(transaction => privacy.processTransaction(transaction)));
-
-          logger.info(`Refreshing card details'...`);
-          const [privacyCard] = await privacyLib.listCards(connectedAccount.token, card.id);
-          if (!privacyCard) {
-            throw new Error(`Could not find card ${card.id}`);
-          }
-          if (privacyCard.state === 'CLOSED') {
-            await card.destroy();
-          } else {
-            await card.update({
-              spendingLimitAmount: privacyCard['spend_limit'] === 0 ? null : privacyCard['spend_limit'],
-              spendingLimitInterval: PrivacyVirtualCardLimitIntervalToOCInterval[privacyCard['spend_limit_duration']],
-              data: omit(privacyCard, ['pan', 'cvv', 'exp_year', 'exp_month']),
-            });
-          }
-        }
-      }
-
       if (card.provider === 'STRIPE') {
         logger.info(`\nReconciling card ${card.id}: fetching STRIPE transactions`);
 
-        const synchronizedTransactionIds = await models.Expense.findAll({
+        const expenses = await models.Expense.findAll({
           where: {
             VirtualCardId: card.id,
             status: 'PAID',
           },
-        }).then(expenses =>
-          expenses.map(expense => expense.data?.transactionId).filter(transactionId => !!transactionId),
+        });
+        const synchronizedTransactionIds = compact(
+          expenses.map(expense => expense.data?.transactionId || expense.data?.refundTransactionId),
         );
 
         const stripe = Stripe(host.slug === 'opencollective' ? config.stripe.secret : connectedAccount.token);
@@ -113,6 +62,8 @@ async function reconcileConnectedAccount(connectedAccount) {
             });
           }
         }
+      } else {
+        logger.warn(`\nUnsupported provider ${card.provider} for card ${card.id}.`);
       }
     } catch (error) {
       logger.error(`Error while syncing card ${card.id}`, error);
@@ -128,7 +79,7 @@ export async function run() {
   }
 
   const connectedAccounts = await models.ConnectedAccount.findAll({
-    where: { service: { [Op.or]: [ConnectedAccountServices.PRIVACY, ConnectedAccountServices.STRIPE] } },
+    where: { service: ConnectedAccountServices.STRIPE },
     include: [
       {
         model: models.Collective,
@@ -144,7 +95,7 @@ export async function run() {
       },
     ],
   });
-  logger.info(`Found ${connectedAccounts.length} connected Privacy and Stripe accounts...`);
+  logger.info(`Found ${connectedAccounts.length} connected Stripe accounts...`);
 
   for (const connectedAccount of connectedAccounts) {
     await reconcileConnectedAccount(connectedAccount).catch(error => {

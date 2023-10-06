@@ -11,17 +11,24 @@ import type {
 import VirtualCardProviders from '../constants/virtual_card_providers';
 import { crypto } from '../lib/encryption';
 import sequelize, { DataTypes, Model, Op } from '../lib/sequelize';
-import privacyVirtualCards from '../paymentProviders/privacy';
 import * as stripeVirtualCards from '../paymentProviders/stripe/virtual-cards';
 
 import Collective from './Collective';
 import User from './User';
+import VirtualCardRequest from './VirtualCardRequest';
+
+export enum VirtualCardStatus {
+  ACTIVE = 'active',
+  INACTIVE = 'inactive',
+  CANCELED = 'canceled',
+}
 
 class VirtualCard extends Model<InferAttributes<VirtualCard, { omit: 'info' }>, InferCreationAttributes<VirtualCard>> {
   public declare id: CreationOptional<string>;
   public declare CollectiveId: number;
   public declare HostCollectiveId: number;
   public declare UserId: ForeignKey<User['id']>;
+  public declare VirtualCardRequestId: ForeignKey<VirtualCardRequest['id']>;
   public declare name: string;
   public declare last4: string;
   public declare data: Record<string, any>;
@@ -36,9 +43,12 @@ class VirtualCard extends Model<InferAttributes<VirtualCard, { omit: 'info' }>, 
 
   // Associations
   public declare collective?: NonAttribute<any>;
-  public declare host?: NonAttribute<typeof Collective>;
-  public declare getHost: BelongsToGetAssociationMixin<typeof Collective>;
+  public declare host?: NonAttribute<Collective>;
+  public declare getHost: BelongsToGetAssociationMixin<Collective>;
   public declare user?: NonAttribute<any>;
+
+  public declare virtualCardRequest?: NonAttribute<VirtualCardRequest>;
+  public declare getVirtualCardRequest?: BelongsToGetAssociationMixin<VirtualCardRequest>;
 
   async getExpensesMissingDetails(): Promise<Array<any>> {
     return sequelize.models.Expense.findPendingCardCharges({
@@ -51,12 +61,16 @@ class VirtualCard extends Model<InferAttributes<VirtualCard, { omit: 'info' }>, 
       case VirtualCardProviders.STRIPE:
         await stripeVirtualCards.pauseCard(this);
         break;
-      case VirtualCardProviders.PRIVACY:
-        await privacyVirtualCards.pauseCard(this);
-        break;
       default:
         throw new Error(`Can not suspend virtual card provided by ${this.provider}`);
     }
+
+    await this.update({
+      data: {
+        ...this.data,
+        status: VirtualCardStatus.INACTIVE,
+      },
+    });
 
     return this.reload();
   }
@@ -66,12 +80,16 @@ class VirtualCard extends Model<InferAttributes<VirtualCard, { omit: 'info' }>, 
       case VirtualCardProviders.STRIPE:
         await stripeVirtualCards.resumeCard(this);
         break;
-      case VirtualCardProviders.PRIVACY:
-        await privacyVirtualCards.resumeCard(this);
-        break;
       default:
         throw new Error(`Can not resume virtual card provided by ${this.provider}`);
     }
+
+    await this.update({
+      data: {
+        ...this.data,
+        status: VirtualCardStatus.ACTIVE,
+      },
+    });
 
     return this.reload();
   }
@@ -79,16 +97,20 @@ class VirtualCard extends Model<InferAttributes<VirtualCard, { omit: 'info' }>, 
   async delete() {
     switch (this.provider) {
       case VirtualCardProviders.STRIPE:
+        if (this.data.status === VirtualCardStatus.CANCELED) {
+          return;
+        }
         await stripeVirtualCards.deleteCard(this);
-        break;
-      case VirtualCardProviders.PRIVACY:
-        await privacyVirtualCards.deleteCard(this);
+        await this.update({
+          data: {
+            ...this.data,
+            status: VirtualCardStatus.CANCELED,
+          },
+        });
         break;
       default:
         throw new Error(`Can not delete virtual card provided by ${this.provider}`);
     }
-
-    await this.destroy();
   }
 
   isActive() {

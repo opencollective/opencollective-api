@@ -34,7 +34,7 @@ fi
 echo "DB dump saved in ${DBDUMPS_DIR}${FILENAME}"
 
 echo Restore...
-./scripts/db_restore.sh -d $LOCALDBNAME -U $LOCALDBUSER -f ${DBDUMPS_DIR}${FILENAME} --use-postgis
+./scripts/db_restore.sh -d $LOCALDBNAME -U $LOCALDBUSER -f ${DBDUMPS_DIR}${FILENAME}
 
 # cool trick: all stdout ignored in this block
 {

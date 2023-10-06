@@ -22,8 +22,8 @@ describe('lib/security/order', () => {
     before(async () => {
       user = await fakeUser({ email: 'crook@tempmail.com' });
       const pm = await fakePaymentMethod({
-        type: 'creditcard',
-        service: 'stripe',
+        type: PAYMENT_METHOD_TYPE.CREDITCARD,
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
         CollectiveId: user.collective.id,
         name: '4242',
         data: { expYear: 2022 },
@@ -138,8 +138,8 @@ describe('lib/security/order', () => {
       it('should throw if it fails IP verification', async () => {
         config.fraud.order.ip = '[["5 days", 3, 1, 0.1]]';
         const pm = await fakePaymentMethod({
-          type: 'creditcard',
-          service: 'stripe',
+          type: PAYMENT_METHOD_TYPE.CREDITCARD,
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
           name: '4242',
           data: { expYear: 2022 },
         });
@@ -170,8 +170,8 @@ describe('lib/security/order', () => {
 
       it('should throw if it fails User verification', async () => {
         const pm = await fakePaymentMethod({
-          type: 'creditcard',
-          service: 'stripe',
+          type: PAYMENT_METHOD_TYPE.CREDITCARD,
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
           CollectiveId: remoteUser.collective.id,
           name: '4242',
           data: { expYear: 2022, expMonth: 13, country: 'US' },

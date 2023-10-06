@@ -7,9 +7,9 @@ import { isCollectiveSlugReserved } from '../../../lib/collectivelib';
 import models from '../../../models';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { ValidationFailed } from '../../errors';
-import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
-import { FundCreateInput } from '../input/FundCreateInput';
-import { Fund } from '../object/Fund';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import { GraphQLFundCreateInput } from '../input/FundCreateInput';
+import { GraphQLFund } from '../object/Fund';
 
 const DEFAULT_COLLECTIVE_SETTINGS = {
   features: { conversations: false },
@@ -99,16 +99,16 @@ async function createFund(_, args, req) {
 }
 
 const createFundMutation = {
-  type: Fund,
+  type: GraphQLFund,
   description: 'Create a Fund. Scope: "account".',
   args: {
     fund: {
       description: 'Information about the collective to create (name, slug, description, tags, ...)',
-      type: new GraphQLNonNull(FundCreateInput),
+      type: new GraphQLNonNull(GraphQLFundCreateInput),
     },
     host: {
       description: 'Reference to the host to apply on creation.',
-      type: AccountReferenceInput,
+      type: GraphQLAccountReferenceInput,
     },
   },
   resolve: (_, args, req) => {

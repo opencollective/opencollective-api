@@ -6,23 +6,23 @@ import { canComment } from '../../common/expenses';
 import { checkRemoteUserCanUseComment, checkRemoteUserCanUseUpdates } from '../../common/scope-check';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
-import { CommentReferenceInput } from '../input/CommentReferenceInput';
-import { UpdateReferenceInput } from '../input/UpdateReferenceInput';
-import { Comment } from '../object/Comment';
-import Update from '../object/Update';
+import { GraphQLCommentReferenceInput } from '../input/CommentReferenceInput';
+import { GraphQLUpdateReferenceInput } from '../input/UpdateReferenceInput';
+import { GraphQLComment } from '../object/Comment';
+import GraphQLUpdate from '../object/Update';
 
 /**
  * Object type for EmojiReaction mutation.
  */
-const EmojiReactionsResponse = new GraphQLObjectType({
+const GraphQLEmojiReactionsResponse = new GraphQLObjectType({
   name: 'EmojiReactionResponse',
   fields: () => ({
     update: {
-      type: Update,
+      type: GraphQLUpdate,
       description: 'Reference to the update corresponding to the emojis',
     },
     comment: {
-      type: Comment,
+      type: GraphQLComment,
       description: 'Reference to the comment corresponding to the emojis',
     },
   }),
@@ -30,7 +30,7 @@ const EmojiReactionsResponse = new GraphQLObjectType({
 
 const emojiReactionMutations = {
   addEmojiReaction: {
-    type: new GraphQLNonNull(EmojiReactionsResponse),
+    type: new GraphQLNonNull(GraphQLEmojiReactionsResponse),
     description: 'Add an emoji reaction. Scope: "conversations", "expenses" or "updates".',
     args: {
       emoji: {
@@ -38,11 +38,11 @@ const emojiReactionMutations = {
         description: 'The emoji associated with the reaction',
       },
       comment: {
-        type: CommentReferenceInput,
+        type: GraphQLCommentReferenceInput,
         description: 'A unique identifier for the comment id associated with this reaction',
       },
       update: {
-        type: UpdateReferenceInput,
+        type: GraphQLUpdateReferenceInput,
         description: 'A unique identifier for the update id associated with this reaction',
       },
     },
@@ -63,14 +63,14 @@ const emojiReactionMutations = {
     },
   },
   removeEmojiReaction: {
-    type: new GraphQLNonNull(EmojiReactionsResponse),
+    type: new GraphQLNonNull(GraphQLEmojiReactionsResponse),
     description: 'Remove an emoji reaction. Scope: "conversations", "expenses" or "updates".',
     args: {
       comment: {
-        type: CommentReferenceInput,
+        type: GraphQLCommentReferenceInput,
       },
       update: {
-        type: UpdateReferenceInput,
+        type: GraphQLUpdateReferenceInput,
       },
       emoji: {
         type: new GraphQLNonNull(GraphQLString),

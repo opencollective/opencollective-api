@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
-export const ExpenseCurrencySource = new GraphQLEnumType({
+export const GraphQLExpenseCurrencySource = new GraphQLEnumType({
   name: 'ExpenseCurrencySource',
   description: 'All supported expense currency sources',
   values: {

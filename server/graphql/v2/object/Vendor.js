@@ -1,15 +1,15 @@
 import { GraphQLObjectType } from 'graphql';
 
-import { types as collectiveTypes } from '../../../constants/collectives';
-import { Account, AccountFields } from '../interface/Account';
-import { AccountWithContributions, AccountWithContributionsFields } from '../interface/AccountWithContributions';
-import { AccountWithHost, AccountWithHostFields } from '../interface/AccountWithHost';
+import { CollectiveType } from '../../../constants/collectives';
+import { AccountFields, GraphQLAccount } from '../interface/Account';
+import { AccountWithContributionsFields, GraphQLAccountWithContributions } from '../interface/AccountWithContributions';
+import { AccountWithHostFields, GraphQLAccountWithHost } from '../interface/AccountWithHost';
 
-export const Vendor = new GraphQLObjectType({
+export const GraphQLVendor = new GraphQLObjectType({
   name: 'Vendor',
   description: 'This represents a Vendor account',
-  interfaces: () => [Account, AccountWithHost, AccountWithContributions],
-  isTypeOf: collective => collective.type === collectiveTypes.VENDOR,
+  interfaces: () => [GraphQLAccount, GraphQLAccountWithHost, GraphQLAccountWithContributions],
+  isTypeOf: collective => collective.type === CollectiveType.VENDOR,
   fields: () => {
     return {
       ...AccountFields,

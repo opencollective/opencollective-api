@@ -1,12 +1,12 @@
 import { get } from 'lodash';
 import { QueryOptions } from 'sequelize';
 
-import { types } from '../../constants/collectives';
+import { CollectiveType } from '../../constants/collectives';
 import FEATURE from '../../constants/feature';
 import FEATURE_STATUS from '../../constants/feature-status';
 import { hasFeature, isFeatureAllowedForCollectiveType } from '../../lib/allowed-features';
 import { isPastEvent } from '../../lib/collectivelib';
-import models, { sequelize } from '../../models';
+import { Collective, sequelize } from '../../models';
 
 import { hasMultiCurrency } from './expenses';
 
@@ -44,7 +44,7 @@ const checkReceiveFinancialContributions = async (collective, remoteUser) => {
   } else if (!collective.isActive) {
     return FEATURE_STATUS.UNSUPPORTED;
   } else if (
-    collective.type === types.EVENT &&
+    collective.type === CollectiveType.EVENT &&
     isPastEvent(collective) &&
     !remoteUser?.isAdminOfCollectiveOrHost(collective)
   ) {
@@ -95,7 +95,7 @@ const checkVirtualCardFeatureStatus = async account => {
   return FEATURE_STATUS.DISABLED;
 };
 
-const checkCanUsePaymentMethods = async collective => {
+export const checkCanUsePaymentMethods = async collective => {
   // Ignore type if the account already has some payment methods setup. Useful for Organizations that were turned into Funds.
   const hasPaymentMethods = await checkExistsInDB(
     `
@@ -115,14 +115,14 @@ const checkCanUsePaymentMethods = async collective => {
 
   if (hasPaymentMethods) {
     return FEATURE_STATUS.ACTIVE;
-  } else if ([types.USER, types.ORGANIZATION].includes(collective.type)) {
+  } else if ([CollectiveType.USER, CollectiveType.ORGANIZATION].includes(collective.type)) {
     return FEATURE_STATUS.AVAILABLE;
   } else {
     return FEATURE_STATUS.UNSUPPORTED;
   }
 };
 
-const checkCanEmitGiftCards = async collective => {
+export const checkCanEmitGiftCards = async collective => {
   // Ignore type if the account already has some gift cards setup. Useful for Organizations that were turned into Funds.
 
   const hasCreatedGiftCards = await checkExistsInDB(
@@ -142,7 +142,7 @@ const checkCanEmitGiftCards = async collective => {
 
   if (hasCreatedGiftCards) {
     return FEATURE_STATUS.ACTIVE;
-  } else if ([types.USER, types.ORGANIZATION].includes(collective.type)) {
+  } else if ([CollectiveType.USER, CollectiveType.ORGANIZATION].includes(collective.type)) {
     return FEATURE_STATUS.AVAILABLE;
   } else {
     return FEATURE_STATUS.UNSUPPORTED;
@@ -167,7 +167,7 @@ const checkMultiCurrencyExpense = async (collective, req): Promise<FEATURE_STATU
  */
 export const getFeatureStatusResolver =
   (feature: FEATURE) =>
-  async (collective: typeof models.Collective, _, req): Promise<FEATURE_STATUS> => {
+  async (collective: Collective, _, req): Promise<FEATURE_STATUS> => {
     if (!collective) {
       return FEATURE_STATUS.UNSUPPORTED;
     } else if (!isFeatureAllowedForCollectiveType(collective.type, feature, collective.isHostAccount)) {
@@ -242,11 +242,11 @@ export const getFeatureStatusResolver =
       case FEATURE.VIRTUAL_CARDS:
         return checkVirtualCardFeatureStatus(collective);
       case FEATURE.REQUEST_VIRTUAL_CARDS: {
-        const host = await collective.getHostCollective();
+        const host = await collective.getHostCollective({ loaders: req.loaders });
         const balance = await collective.getBalance();
         return balance > 0 && // Collective has balance
           collective.isActive && // Collective is effectively being hosted
-          host.settings?.virtualcards?.requestcard
+          host?.settings?.virtualcards?.requestcard
           ? FEATURE_STATUS.ACTIVE // TODO: This flag is misused, there's a confusion between ACTIVE and AVAILABLE
           : FEATURE_STATUS.DISABLED;
       }

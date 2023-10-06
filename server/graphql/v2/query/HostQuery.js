@@ -1,7 +1,7 @@
-import { Host } from '../object/Host';
+import { GraphQLHost } from '../object/Host';
 
 import { buildAccountQuery } from './AccountQuery';
 
-const HostQuery = buildAccountQuery({ objectType: Host });
+const HostQuery = buildAccountQuery({ objectType: GraphQLHost });
 
 export default HostQuery;

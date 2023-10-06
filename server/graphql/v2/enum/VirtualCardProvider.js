@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
-export const VirtualCardProvider = new GraphQLEnumType({
+export const GraphQLVirtualCardProvider = new GraphQLEnumType({
   name: 'VirtualCardProvider',
   values: {
     PRIVACY: {},

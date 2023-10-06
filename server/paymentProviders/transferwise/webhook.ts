@@ -1,7 +1,7 @@
 import assert from 'assert';
 
 import { Request } from 'express';
-import { get, pick, toString } from 'lodash';
+import { pick, toString } from 'lodash';
 
 import activities from '../../constants/activities';
 import expenseStatus from '../../constants/expense_status';
@@ -11,7 +11,7 @@ import * as libPayments from '../../lib/payments';
 import { createTransactionsFromPaidExpense } from '../../lib/transactions';
 import { verifyEvent } from '../../lib/transferwise';
 import models from '../../models';
-import { QuoteV2, QuoteV2PaymentOption, Transfer, TransferStateChangeEvent } from '../../types/transferwise';
+import { QuoteV2PaymentOption, TransferStateChangeEvent } from '../../types/transferwise';
 
 export async function handleTransferStateChange(event: TransferStateChangeEvent): Promise<void> {
   const expense = await models.Expense.findOne({
@@ -48,27 +48,24 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
     await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID, user);
   } else if (expense.status === expenseStatus.PROCESSING && event.data.current_state === 'outgoing_payment_sent') {
     logger.info(`Wise: Transfer sent, marking expense as paid and creating transactions.`, event);
-    const feesInHostCurrency = expense.data.feesInHostCurrency as {
+    const feesInHostCurrency = (expense.data.feesInHostCurrency || {}) as {
       paymentProcessorFeeInHostCurrency: number;
       hostFeeInHostCurrency: number;
       platformFeeInHostCurrency: number;
     };
 
+    const paymentOption = expense.data.paymentOption as QuoteV2PaymentOption;
     if (expense.host?.settings?.transferwise?.ignorePaymentProcessorFees) {
       // TODO: We should not just ignore fees, they should be recorded as a transaction from the host to the collective
       // See https://github.com/opencollective/opencollective/issues/5113
       feesInHostCurrency.paymentProcessorFeeInHostCurrency = 0;
-    } else if (get(expense.data, 'paymentOption.fee.total')) {
-      feesInHostCurrency.paymentProcessorFeeInHostCurrency = Math.round(
-        expense.data.paymentOption['fee']['total'] * 100,
-      );
+    } else {
+      feesInHostCurrency.paymentProcessorFeeInHostCurrency = Math.round(paymentOption.fee.total * 100);
     }
 
     const hostAmount =
-      (expense.data?.transfer as Transfer)?.sourceValue ||
-      (expense.data?.quote as QuoteV2)?.sourceAmount -
-        ((expense.data?.paymentOption as QuoteV2PaymentOption)?.fee?.total || 0);
-    assert(hostAmount, 'Expense is missing transfer and quote information');
+      expense.feesPayer === 'PAYEE' ? paymentOption.sourceAmount : paymentOption.sourceAmount - paymentOption.fee.total;
+    assert(hostAmount, 'Expense is missing paymentOption information');
     const expenseToHostRate = hostAmount ? (hostAmount * 100) / expense.amount : 'auto';
 
     const user = await models.User.findByPk(expense.lastEditedById);
@@ -79,6 +76,8 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
       expenseToHostRate,
       pick(expense.data, ['fund', 'transfer']),
     );
+
+    await expense.update({ data: { ...expense.data, feesInHostCurrency } });
     await expense.setPaid(expense.lastEditedById);
     await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID, user);
   } else if (

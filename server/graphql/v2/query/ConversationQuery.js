@@ -2,10 +2,10 @@ import { GraphQLNonNull, GraphQLString } from 'graphql';
 
 import models from '../../../models';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
-import Conversation from '../object/Conversation';
+import GraphQLConversation from '../object/Conversation';
 
 const ConversationQuery = {
-  type: Conversation,
+  type: GraphQLConversation,
   args: {
     id: {
       type: new GraphQLNonNull(GraphQLString),

@@ -10,7 +10,7 @@ import { get, round } from 'lodash';
 
 import models from '../../models';
 import { getContextPermission, PERMISSION_TYPE } from '../common/context-permissions';
-import { TaxInfo } from '../v2/object/TaxInfo';
+import { GraphQLTaxInfo } from '../v2/object/TaxInfo';
 
 import { CollectiveInterfaceType, UserCollectiveType } from './CollectiveInterface';
 import { DateString, ExpenseType, OrderType, PaymentMethodType, SubscriptionType, UserType } from './types';
@@ -44,7 +44,7 @@ export const TransactionInterfaceType = new GraphQLInterfaceType({
           fetchHostFee: {
             type: GraphQLBoolean,
             defaultValue: false,
-            description: 'Fetch HOST_FEE transaction and integrate in calculation for retro-compatiblity.',
+            description: 'Fetch HOST_FEE transaction and integrate in calculation for retro-compatibility.',
           },
         },
       },
@@ -58,14 +58,14 @@ export const TransactionInterfaceType = new GraphQLInterfaceType({
           fetchHostFee: {
             type: GraphQLBoolean,
             defaultValue: false,
-            description: 'Fetch HOST_FEE transaction for retro-compatiblity.',
+            description: 'Fetch HOST_FEE transaction for retro-compatibility.',
           },
         },
       },
       platformFeeInHostCurrency: { type: GraphQLInt },
       paymentProcessorFeeInHostCurrency: { type: GraphQLInt },
       taxAmount: { type: GraphQLInt },
-      taxInfo: { type: TaxInfo },
+      taxInfo: { type: GraphQLTaxInfo },
       createdByUser: { type: UserType },
       host: { type: CollectiveInterfaceType },
       paymentMethod: { type: PaymentMethodType },
@@ -78,6 +78,7 @@ export const TransactionInterfaceType = new GraphQLInterfaceType({
       createdAt: { type: DateString },
       updatedAt: { type: DateString },
       refundTransaction: { type: TransactionInterfaceType },
+      isRefund: { type: GraphQLBoolean },
       invoiceTemplate: { type: GraphQLString },
     };
   },
@@ -101,6 +102,12 @@ const TransactionFields = () => {
       type: TransactionInterfaceType,
       resolve(transaction) {
         return transaction.getRefundTransaction();
+      },
+    },
+    isRefund: {
+      type: GraphQLBoolean,
+      resolve(transaction) {
+        return transaction.isRefund;
       },
     },
     uuid: {
@@ -184,7 +191,7 @@ const TransactionFields = () => {
       description: 'The amount paid in tax (for example VAT) for this transaction',
     },
     taxInfo: {
-      type: TaxInfo,
+      type: GraphQLTaxInfo,
       description: 'If taxAmount is set, this field will contain more info about the tax',
       resolve(transaction, _, req) {
         const tax = transaction.data?.tax;
@@ -220,9 +227,8 @@ const TransactionFields = () => {
       },
       async resolve(transaction, args, req) {
         if (args.fetchHostFee && !transaction.hostFeeInHostCurrency) {
-          transaction.hostFeeInHostCurrency = await req.loaders.Transaction.hostFeeAmountForTransaction.load(
-            transaction,
-          );
+          transaction.hostFeeInHostCurrency =
+            await req.loaders.Transaction.hostFeeAmountForTransaction.load(transaction);
           return models.Transaction.calculateNetAmountInCollectiveCurrency(transaction);
         }
         return transaction.netAmountInCollectiveCurrency;

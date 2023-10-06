@@ -71,6 +71,8 @@ export class RecurringExpense extends Model<RecurringExpenseAttributes, Recurrin
 
     const draftKey = process.env.OC_ENV === 'e2e' || process.env.OC_ENV === 'ci' ? 'draft-key' : uuid();
     const expenseFields = [
+      'amount',
+      'currency',
       'description',
       'longDescription',
       'tags',
@@ -90,13 +92,14 @@ export class RecurringExpense extends Model<RecurringExpenseAttributes, Recurrin
       CollectiveId: this.CollectiveId,
       lastEditedById: expense.UserId,
       incurredAt,
-      amount: expense.items?.reduce((total, item) => total + item.amount, 0) || expense.amount || 1,
       data: {
         items: expense.items?.map(item => ({ ...pick(item, ['amount', 'description', 'url']), incurredAt })),
         payee: { id: expense.FromCollectiveId },
         invitedByCollectiveId: this.FromCollectiveId,
         draftKey,
         payeeLocation: expense.payeeLocation,
+        customData: expense.data?.customData,
+        taxes: expense.data?.taxes,
       },
       status: expenseStatus.DRAFT,
     };
@@ -104,7 +107,8 @@ export class RecurringExpense extends Model<RecurringExpenseAttributes, Recurrin
     const draftedExpense = await models.Expense.create(draft);
     await this.update({ lastDraftedAt: incurredAt });
 
-    const inviteUrl = `${config.host.website}/${expense.collective.slug}/expenses/${draftedExpense.id}?key=${draft.data.draftKey}`;
+    // Payee is always an user of the website, we can redirect them to the signin page to make sure they're logged in
+    const inviteUrl = `${config.host.website}/signin?next=/${expense.collective.slug}/expenses/${draftedExpense.id}?key=${draft.data.draftKey}`;
     await draftedExpense
       .createActivity(activities.COLLECTIVE_EXPENSE_RECURRING_DRAFTED, expense.User, {
         ...draftedExpense.data,
