@@ -35,7 +35,7 @@ async function run() {
       const parsedUrl = resolveRedirect(new URL(url));
       if (SPAMMERS_DOMAINS.includes(parsedUrl.hostname)) {
         report(collective, 'NEW');
-        continue;
+        break;
       }
     }
   }
