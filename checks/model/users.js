@@ -21,8 +21,28 @@ async function checkDeletedCollectives() {
   }
 }
 
+async function checkDeletedUsers() {
+  const message = 'No Collectives type=USER without a matching User (no auto fix)';
+
+  const results = await sequelize.query(
+    `SELECT *
+     FROM "Collectives" c
+     LEFT JOIN "Users" u
+     ON c."id" = u."CollectiveId"
+     WHERE c."type" = 'USER' AND c."isIncognito" IS FALSE AND c."deletedAt" IS NULL
+     AND (u."deletedAt" IS NOT NULL OR u."id" IS NULL)`,
+    { type: sequelize.QueryTypes.SELECT, raw: true },
+  );
+
+  if (results[0].count > 0) {
+    // Not fixable
+    throw new Error(message);
+  }
+}
+
 export async function checkUsers() {
   await checkDeletedCollectives();
+  await checkDeletedUsers();
 }
 
 if (!module.parent) {

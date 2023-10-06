@@ -9,6 +9,7 @@ import { checkCollectives } from './collectives';
 import { checkHostedCollectives } from './hosted-collectives';
 import { checkHosts } from './hosts';
 import { checkIndepedentCollectives } from './independent-collectives';
+import { checkMembers } from './members';
 import { checkTransactions } from './transactions';
 import { checkUsers } from './users';
 
@@ -17,6 +18,7 @@ const allModelChecks = [
   checkHosts,
   checkHostedCollectives,
   checkIndepedentCollectives,
+  checkMembers,
   checkTransactions,
   checkUsers,
 ];
