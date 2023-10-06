@@ -11,7 +11,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { Kind } from 'graphql/language';
-import { GraphQLJSON } from 'graphql-type-json';
+import { GraphQLJSON } from 'graphql-scalars';
 import { omit, pick } from 'lodash';
 import moment from 'moment';
 
@@ -22,12 +22,13 @@ import orderStatus from '../../constants/order_status';
 import { PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import roles from '../../constants/roles';
 import { getCollectiveAvatarUrl } from '../../lib/collectivelib';
-import { getContributorsForTier } from '../../lib/contributors';
+import { filterContributors } from '../../lib/contributors';
 import { reportMessageToSentry } from '../../lib/sentry';
+import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import models, { Op, sequelize } from '../../models';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import * as commonComment from '../common/comment';
-import { canSeeExpenseAttachments, canSeeExpensePayoutMethod, getExpenseItems } from '../common/expenses';
+import { canSeeExpenseAttachments, canSeeExpensePayoutMethod } from '../common/expenses';
 import { canSeeUpdate } from '../common/update';
 import { hasSeenLatestChangelogEntry } from '../common/user';
 import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
@@ -160,13 +161,6 @@ export const UserType = new GraphQLObjectType({
           return req.loaders.Collective.byId.load(user.CollectiveId);
         },
       },
-      username: {
-        type: GraphQLString,
-        deprecationReason: '2022-01-13: Not used anymore. Will be ignored',
-        resolve() {
-          return null;
-        },
-      },
       name: {
         type: GraphQLString,
         deprecationReason: '2022-06-02: Please use collective.name',
@@ -247,16 +241,19 @@ export const UserType = new GraphQLObjectType({
         },
       },
       hasSeenLatestChangelogEntry: {
-        type: new GraphQLNonNull(GraphQLBoolean),
-        async resolve(user) {
+        type: GraphQLBoolean,
+        async resolve(user, args, req) {
+          if (req.remoteUser?.id !== user.id) {
+            return null;
+          }
           return hasSeenLatestChangelogEntry(user);
         },
       },
       hasTwoFactorAuth: {
         type: GraphQLBoolean,
         resolve(user, _, req) {
-          if (req.remoteUser.id === user.id) {
-            return Boolean(user.twoFactorAuthToken);
+          if (req.remoteUser?.id === user.id) {
+            return twoFactorAuthLib.userHasTwoFactorAuthEnabled(user);
           }
         },
       },
@@ -264,7 +261,7 @@ export const UserType = new GraphQLObjectType({
         type: GraphQLBoolean,
         description: 'Has the account a password set?',
         async resolve(user, args, req) {
-          if (req.remoteUser.id === user.id) {
+          if (req.remoteUser?.id === user.id) {
             return Boolean(user.passwordHash);
           }
         },
@@ -446,51 +443,6 @@ export const MemberType = new GraphQLObjectType({
   },
 });
 
-export const MemberInvitationType = new GraphQLObjectType({
-  name: 'MemberInvitation',
-  description: 'An invitation to join the members of a collective',
-  fields: () => {
-    return {
-      id: {
-        type: GraphQLInt,
-      },
-      createdAt: {
-        type: DateString,
-      },
-      collective: {
-        type: CollectiveInterfaceType,
-        resolve(member, args, req) {
-          return req.loaders.Collective.byId.load(member.CollectiveId);
-        },
-      },
-      member: {
-        type: CollectiveInterfaceType,
-        resolve(member, args, req) {
-          return req.loaders.Collective.byId.load(member.MemberCollectiveId);
-        },
-      },
-      role: {
-        type: GraphQLString,
-      },
-      description: {
-        type: GraphQLString,
-      },
-      tier: {
-        type: TierType,
-        resolve(member, args, req) {
-          return member.TierId && req.loaders.Tier.byId.load(member.TierId);
-        },
-      },
-      since: {
-        type: DateString,
-        resolve(member) {
-          return member.since;
-        },
-      },
-    };
-  },
-});
-
 export const ContributorRoleEnum = new GraphQLEnumType({
   name: 'ContributorRole',
   description: 'Possible roles for a contributor. Extends `Member.Role`.',
@@ -542,11 +494,6 @@ export const ContributorType = new GraphQLObjectType({
     isBacker: {
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'True if the contributor is a financial contributor',
-    },
-    isFundraiser: {
-      type: GraphQLBoolean,
-      description: 'True if the contributor is a fundraiser',
-      deprecationReason: '2022-09-12: This role does not exist anymore',
     },
     tiersIds: {
       type: new GraphQLNonNull(new GraphQLList(GraphQLInt)),
@@ -625,11 +572,7 @@ export const LocationType = new GraphQLObjectType({
     },
     name: {
       type: GraphQLString,
-      description: 'A short name for the location (eg. Google Headquarters)',
-    },
-    address: {
-      type: GraphQLString,
-      description: 'Postal address without country (eg. 12 opensource avenue, 7500 Paris)',
+      description: 'A short name for the location (eg. Open Collective Headquarters)',
     },
     country: {
       type: GraphQLString,
@@ -642,6 +585,10 @@ export const LocationType = new GraphQLObjectType({
     long: {
       type: GraphQLFloat,
       description: 'Longitude',
+    },
+    address: {
+      type: GraphQLString,
+      description: 'Postal address without country (eg. 12 opensource avenue, 7500 Paris)',
     },
     structured: {
       type: GraphQLJSON,
@@ -885,7 +832,7 @@ export const ExpenseType = new GraphQLObjectType({
         type: new GraphQLList(ExpenseItemType),
         async resolve(expense, _, req) {
           const canSeeAttachments = await canSeeExpenseAttachments(req, expense);
-          return (await getExpenseItems(expense.id, req)).map(async item => {
+          return (await req.loaders.Expense.items.load(expense.id)).map(async item => {
             if (canSeeAttachments) {
               return item;
             } else {
@@ -1497,8 +1444,10 @@ export const TierType = new GraphQLObjectType({
             defaultValue: 3000,
           },
         },
-        resolve(tier, args) {
-          return getContributorsForTier(tier.CollectiveId, tier.id, { limit: args.limit });
+        async resolve(tier, args, req) {
+          const contributorsCache = await req.loaders.Contributors.forCollectiveId.load(tier.CollectiveId);
+          const tierContributors = contributorsCache?.tiers?.[tier.id.toString()];
+          return tierContributors ? filterContributors(tierContributors, args) : [];
         },
       },
       stats: {

@@ -12,6 +12,7 @@ import { createSandbox } from 'sinon';
 import Stripe from 'stripe';
 
 import { run as runSettlementScript } from '../../cron/monthly/host-settlement';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../server/constants/paymentMethods';
 import { TransactionKind } from '../../server/constants/transaction-kind';
 import {
   PLATFORM_TIP_TRANSACTION_PROPERTIES,
@@ -21,6 +22,7 @@ import { markExpenseAsUnpaid, payExpense } from '../../server/graphql/common/exp
 import { createRefundTransaction, executeOrder } from '../../server/lib/payments';
 import * as libPayments from '../../server/lib/payments';
 import models from '../../server/models';
+import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import paymentProviders from '../../server/paymentProviders';
 import * as webhook from '../../server/paymentProviders/stripe/webhook';
 import stripeMocks from '../mocks/stripe';
@@ -80,7 +82,7 @@ const setupTestData = async (
     plan: 'grow-plan-2021', // Use a plan with 15% host share
   });
   await hostAdmin.populateRoles();
-  await host.update({ HostCollectiveId: host.id, isActive: true });
+  await host.update({ HostCollectiveId: host.id, isActive: true, approvedAt: new Date() });
   const collective = await fakeCollective({
     HostCollectiveId: host.id,
     name: 'ESLint',
@@ -90,7 +92,13 @@ const setupTestData = async (
   const contributorUser = await fakeUser(undefined, { name: 'Ben' });
   const contributorCollective = await fakeCollective({ name: 'Webpack', HostCollectiveId: host.id });
   const ocInc = await fakeHost({ name: 'OC Inc', id: PLATFORM_TIP_TRANSACTION_PROPERTIES.CollectiveId });
-  await fakePayoutMethod({ type: 'OTHER', CollectiveId: ocInc.id }); // For the settlement expense
+  await fakePayoutMethod({ type: PayoutMethodTypes.OTHER, CollectiveId: ocInc.id }); // For the settlement expense
+  await fakePayoutMethod({
+    type: PayoutMethodTypes.BANK_ACCOUNT,
+    CollectiveId: ocInc.id,
+    data: { currency: 'USD' },
+    isSaved: true,
+  }); // For the settlement expense
   await fakeUser({ id: SETTLEMENT_EXPENSE_PROPERTIES.UserId, name: 'Pia' });
   let FromCollectiveId;
   if (selfContribution) {
@@ -167,7 +175,11 @@ describe('test/stories/ledger', () => {
     it('1. Simple contribution without host fees', async () => {
       await collective.update({ hostFeePercent: 0 });
       const order = await fakeOrder(baseOrderData);
-      order.paymentMethod = { service: 'opencollective', type: 'manual', paid: true };
+      order.paymentMethod = {
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.MANUAL,
+        paid: true,
+      } as any;
       await executeOrder(contributorUser, order);
 
       await snapshotLedger(SNAPSHOT_COLUMNS);
@@ -181,7 +193,11 @@ describe('test/stories/ledger', () => {
 
     it('2. Simple contribution with 5% host fees', async () => {
       const order = await fakeOrder(baseOrderData);
-      order.paymentMethod = { service: 'opencollective', type: 'manual', paid: true };
+      order.paymentMethod = {
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.MANUAL,
+        paid: true,
+      } as any;
       await executeOrder(contributorUser, order);
 
       await snapshotLedger(SNAPSHOT_COLUMNS);
@@ -195,7 +211,11 @@ describe('test/stories/ledger', () => {
 
     it('3. Simple contribution with 5% host fees and indirect platform tip (unsettled)', async () => {
       const order = await fakeOrder({ ...baseOrderData, platformTipAmount: 1000 });
-      order.paymentMethod = { service: 'opencollective', type: 'manual', paid: true };
+      order.paymentMethod = {
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.MANUAL,
+        paid: true,
+      } as any;
       await executeOrder(contributorUser, order);
 
       await snapshotLedger(SNAPSHOT_COLUMNS);
@@ -212,7 +232,11 @@ describe('test/stories/ledger', () => {
     it('4. Simple contribution with 5% host fees and indirect platform tip (settled)', async () => {
       // Create initial order
       const order = await fakeOrder({ ...baseOrderData, platformTipAmount: 1000 });
-      order.paymentMethod = { service: 'opencollective', type: 'manual', paid: true };
+      order.paymentMethod = {
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.MANUAL,
+        paid: true,
+      } as any;
       await executeOrder(contributorUser, order);
 
       // Run host settlement
@@ -237,7 +261,11 @@ describe('test/stories/ledger', () => {
         platformTipAmount: 1000,
         data: { paymentProcessorFeeInHostCurrency: 200 },
       });
-      order.paymentMethod = { service: 'opencollective', type: 'manual', paid: true };
+      order.paymentMethod = {
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.MANUAL,
+        paid: true,
+      } as any;
       await executeOrder(contributorUser, order);
 
       // Run host settlement
@@ -304,7 +332,11 @@ describe('test/stories/ledger', () => {
     it('6. Expense with Payment Processor fees marked as unpaid', async () => {
       await collective.update({ hostFeePercent: 0 });
       const order = await fakeOrder({ ...baseOrderData, totalAmount: 150000 });
-      order.paymentMethod = { service: 'opencollective', type: 'manual', paid: true };
+      order.paymentMethod = {
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.MANUAL,
+        paid: true,
+      } as any;
       await executeOrder(contributorUser, order);
 
       const expense = await fakeExpense({
@@ -353,7 +385,11 @@ describe('test/stories/ledger', () => {
         platformTipAmount: 1000,
         data: { paymentProcessorFeeInHostCurrency: 200 },
       });
-      order.paymentMethod = { service: 'opencollective', type: 'manual', paid: true };
+      order.paymentMethod = {
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.MANUAL,
+        paid: true,
+      } as any;
       await executeOrder(contributorUser, order);
 
       // Run host settlement
@@ -457,7 +493,11 @@ describe('test/stories/ledger', () => {
           paymentProcessorFeeInHostCurrency: processorFeeInHostCurrency,
         },
       });
-      order.paymentMethod = { service: 'opencollective', type: 'manual', paid: true };
+      order.paymentMethod = {
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.MANUAL,
+        paid: true,
+      } as any;
       await executeOrder(contributorUser, order);
 
       // Run host settlement
@@ -564,7 +604,11 @@ describe('test/stories/ledger', () => {
     const refundTransaction = async (collective, host, contributorUser, baseOrderData) => {
       const order = await fakeOrder(baseOrderData);
       set(order, 'data.hostFeePercent', 0);
-      order.paymentMethod = { service: 'opencollective', type: 'host', CollectiveId: host.id };
+      order.paymentMethod = {
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.HOST,
+        CollectiveId: host.id,
+      } as any;
       await executeOrder(contributorUser, order);
 
       expect(await collective.getBalance()).to.eq(10000);
@@ -575,7 +619,7 @@ describe('test/stories/ledger', () => {
         where: { OrderId: order.id, kind: TransactionKind.ADDED_FUNDS, type: 'CREDIT' },
       });
 
-      const paymentMethod = libPayments.findPaymentMethodProvider(order.PaymentMethod);
+      const paymentMethod = libPayments.findPaymentMethodProvider(order.paymentMethod);
       await paymentMethod.refundTransaction(contributionTransaction, 0, null, null);
       await snapshotLedger(SNAPSHOT_COLUMNS);
       expect(await collective.getBalance()).to.eq(0);
@@ -597,7 +641,11 @@ describe('test/stories/ledger', () => {
   describe('Level 5: Refund Expenses️', async () => {
     const refundTransaction = async (collective, fromCollective, host, hostAdmin, contributorUser, baseOrderData) => {
       const order = await fakeOrder(baseOrderData);
-      order.paymentMethod = { service: 'opencollective', type: 'manual', paid: true };
+      order.paymentMethod = {
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.MANUAL,
+        paid: true,
+      } as any;
       await executeOrder(contributorUser, order);
 
       expect(await collective.getBalance()).to.eq(9500);
@@ -661,7 +709,11 @@ describe('test/stories/ledger', () => {
   describe('Level 6: Disputed Transactions', async () => {
     const disputeTransaction = async (collective, fromCollective, host, hostAdmin, contributorUser, baseOrderData) => {
       const order = await fakeOrder(baseOrderData);
-      order.paymentMethod = { service: 'opencollective', type: 'manual', paid: true };
+      order.paymentMethod = {
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.MANUAL,
+        paid: true,
+      } as any;
       await executeOrder(contributorUser, order);
 
       await models.Transaction.update(

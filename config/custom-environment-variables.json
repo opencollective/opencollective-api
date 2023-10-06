@@ -23,11 +23,10 @@
     "readOnly": "DATABASE_READ_ONLY"
   },
   "graphql": {
-    "apolloEngineAPIKey": "APOLLO_ENGINE_API_KEY",
-    "apolloEngineAPIKeyV2": "APOLLO_ENGINE_API_KEY_V2",
     "cache": {
       "enabled": "GRAPHQL_CACHE_ENABLED",
-      "ttl": "GRAPHQL_CACHE_TTL"
+      "ttl": "GRAPHQL_CACHE_TTL",
+      "minExecutionTimeToCache": "GRAPHQL_CACHE_MIN_EXECUTION_TIME_TO_CACHE"
     }
   },
   "memcache": {
@@ -75,6 +74,10 @@
     "key": "CLOUDFLARE_KEY",
     "email": "CLOUDFLARE_EMAIL",
     "zone": "CLOUDFLARE_ZONE"
+  },
+  "klippa": {
+    "apiKey": "KLIPPA_API_KEY",
+    "enabled": "KLIPPA_ENABLED"
   },
   "paypal": {
     "classic": {
@@ -126,7 +129,8 @@
   },
   "twitter": {
     "consumerKey": "TWITTER_CONSUMER_KEY",
-    "consumerSecret": "TWITTER_CONSUMER_SECRET"
+    "consumerSecret": "TWITTER_CONSUMER_SECRET",
+    "disable": "TWITTER_DISABLE"
   },
   "fixer": {
     "accessKey": "FIXER_ACCESS_KEY"
@@ -188,10 +192,8 @@
   },
   "sentry": {
     "dsn": "SENTRY_DSN",
-    "tracesSampleRate": "SENTRY_TRACES_SAMPLE_RATE"
-  },
-  "privacy": {
-    "apiUrl": "PRIVACY_API_URL"
+    "tracesSampleRate": "SENTRY_TRACES_SAMPLE_RATE",
+    "minExecutionTimeToSample": "SENTRY_MIN_EXECUTION_TIME_TO_SAMPLE"
   },
   "ledger": {
     "fastBalance": "LEDGER_FAST_BALANCE"
@@ -218,5 +220,17 @@
       "ip": "FRAUD_ORDER_IP"
     },
     "enforceSuspendedAsset": "FRAUD_PROTECTION_SUSPEND_ASSET"
+  },
+  "gitbook": {
+    "apiKey": "GITBOOK_API_KEY"
+  },
+  "opentelemetry": {
+    "enabled": "OPENTELEMETRY_ENABLED"
+  },
+  "statsd": {
+    "enabled": "STATSD_ENABLED",
+    "url": "STATSD_URL",
+    "port": "STATSD_PORT",
+    "prefix": "STATSD_PREFIX"
   }
 }

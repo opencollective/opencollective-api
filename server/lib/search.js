@@ -4,7 +4,7 @@
 
 import config from 'config';
 import slugify from 'limax';
-import { get } from 'lodash';
+import { get, toString, words } from 'lodash';
 
 import { RateLimitExceeded } from '../graphql/errors';
 import models, { Op, sequelize } from '../models';
@@ -153,6 +153,33 @@ const getSortSubQuery = (searchTermConditions, orderBy = null) => {
       END`,
 
     CREATED_AT: `c."createdAt"`,
+    HOSTED_COLLECTIVES_COUNT: `
+      SELECT COUNT(1) FROM "Collectives" hosted
+      WHERE hosted."HostCollectiveId" = c.id
+      AND hosted."deletedAt" IS NULL
+      AND hosted."isActive" = TRUE
+      AND hosted."type" IN ('COLLECTIVE', 'FUND')
+    `,
+    HOST_RANK: `
+        SELECT
+          ARRAY [
+            -- is host trusted or first party
+            (
+              CASE
+                WHEN ((c.data#>'{isFirstPartyHost}')::boolean) THEN 2
+                WHEN ((c.data#>'{isTrustedHost}')::boolean) THEN 1
+                ELSE 0
+              END
+            ),
+
+            -- hosted collective count
+            (SELECT COUNT(1) FROM "Collectives" hosted
+            WHERE hosted."HostCollectiveId" = c.id
+            AND hosted."deletedAt" IS NULL
+            AND hosted."isActive" = TRUE
+            AND hosted."type" IN ('COLLECTIVE', 'FUND'))
+          ]
+    `,
   };
 
   let sortQueryType = orderBy?.field || 'RANK';
@@ -188,6 +215,7 @@ export const searchCollectivesInDB = async (
     countries,
     tags,
     tagSearchOperator,
+    ...args
   } = {},
 ) => {
   // Build dynamic conditions based on arguments
@@ -209,6 +237,9 @@ export const searchCollectivesInDB = async (
 
   if (isHost) {
     dynamicConditions += `AND c."isHostAccount" IS TRUE AND c."type" = 'ORGANIZATION' `;
+    if (args.onlyOpenHosts) {
+      dynamicConditions += ` AND c."settings" #>> '{apply}' IS NOT NULL AND (c."settings" #>> '{apply}') != 'false'`;
+    }
   }
 
   if (types?.length) {
@@ -229,6 +260,10 @@ export const searchCollectivesInDB = async (
 
   if (skipGuests) {
     dynamicConditions += `AND (c."data" ->> 'isGuest')::boolean IS NOT TRUE `;
+  }
+
+  if (args.currency) {
+    dynamicConditions += `AND (c."currency" = :currency)`;
   }
 
   if (typeof hasCustomContributionsEnabled === 'boolean') {
@@ -292,6 +327,7 @@ export const searchCollectivesInDB = async (
         hostCollectiveIds,
         parentCollectiveIds,
         isHost,
+        currency: args.currency,
       },
     },
   );
@@ -317,7 +353,7 @@ export const parseSearchTerm = fullSearchTerm => {
   } else if (searchTerm.match(/^\d+\.?\d*$/)) {
     return { type: 'number', term: parseFloat(searchTerm), isFloat: searchTerm.includes('.') };
   } else {
-    return { type: 'text', term: searchTerm };
+    return { type: 'text', term: searchTerm, words: words(searchTerm).length };
   }
 };
 
@@ -335,6 +371,7 @@ export const buildSearchConditions = (
     slugFields = [],
     idFields = [],
     textFields = [],
+    dataFields = [],
     amountFields = [],
     stringArrayFields = [],
     stringArrayTransformFn = null,
@@ -375,6 +412,10 @@ export const buildSearchConditions = (
     } else {
       stringArrayFields.forEach(field => conditions.push({ [field]: { [Op.overlap]: [preparedTerm] } }));
     }
+  }
+
+  if (dataFields?.length && (parsedTerm.words === 1 || (parsedTerm.type === 'number' && !parsedTerm.isFloat))) {
+    conditions.push(...dataFields.map(field => ({ [field]: toString(parsedTerm.term) })));
   }
 
   // Conditions for numbers (ID, amount)

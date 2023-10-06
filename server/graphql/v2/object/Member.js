@@ -2,11 +2,11 @@ import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from
 import { GraphQLDateTime } from 'graphql-scalars';
 
 import { checkScope } from '../../common/scope-check';
-import { MemberRole } from '../enum/MemberRole';
+import { GraphQLMemberRole } from '../enum/MemberRole';
 import { idEncode } from '../identifiers';
-import { Account } from '../interface/Account';
-import { Amount } from '../object/Amount';
-import { Tier } from '../object/Tier';
+import { GraphQLAccount } from '../interface/Account';
+import { GraphQLAmount } from '../object/Amount';
+import { GraphQLTier } from '../object/Tier';
 
 const getMemberFields = () => ({
   // _internal_id: {
@@ -22,13 +22,13 @@ const getMemberFields = () => ({
     },
   },
   role: {
-    type: MemberRole,
+    type: GraphQLMemberRole,
     resolve(member) {
       return member.role;
     },
   },
   tier: {
-    type: Tier,
+    type: GraphQLTier,
     resolve(member, args, req) {
       if (member.tier) {
         return member.tier;
@@ -57,7 +57,7 @@ const getMemberFields = () => ({
     },
   },
   totalDonations: {
-    type: new GraphQLNonNull(Amount),
+    type: new GraphQLNonNull(GraphQLAmount),
     description: 'Total amount donated',
     async resolve(member, args, req) {
       if (member.totalDonations) {
@@ -104,28 +104,28 @@ const getMemberAccountResolver = field => async (member, args, req) => {
   }
 };
 
-export const Member = new GraphQLObjectType({
+export const GraphQLMember = new GraphQLObjectType({
   name: 'Member',
   description: 'This represents a Member relationship (ie: Organization backing a Collective)',
   fields: () => {
     return {
       ...getMemberFields(),
       account: {
-        type: Account,
+        type: GraphQLAccount,
         resolve: getMemberAccountResolver('memberCollective'),
       },
     };
   },
 });
 
-export const MemberOf = new GraphQLObjectType({
+export const GraphQLMemberOf = new GraphQLObjectType({
   name: 'MemberOf',
   description: 'This represents a MemberOf relationship (ie: Collective backed by an Organization)',
   fields: () => {
     return {
       ...getMemberFields(),
       account: {
-        type: Account,
+        type: GraphQLAccount,
         resolve: getMemberAccountResolver('collective'),
       },
     };

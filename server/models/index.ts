@@ -1,6 +1,7 @@
 import sequelize, { Op } from '../lib/sequelize';
 
 import { Activity } from './Activity';
+import Agreement from './Agreement';
 import Application from './Application';
 import Collective from './Collective';
 import Comment from './Comment';
@@ -14,6 +15,7 @@ import { ExpenseAttachedFile } from './ExpenseAttachedFile';
 import { ExpenseItem } from './ExpenseItem';
 import { HostApplication } from './HostApplication';
 import LegalDocument from './LegalDocument';
+import Location from './Location';
 import Member from './Member';
 import MemberInvitation from './MemberInvitation';
 import MigrationLog from './MigrationLog';
@@ -37,13 +39,16 @@ import Update from './Update';
 import UploadedFile from './UploadedFile';
 import User from './User';
 import UserToken from './UserToken';
+import UserTwoFactorMethod from './UserTwoFactorMethod';
 import VirtualCard from './VirtualCard';
+import VirtualCardRequest from './VirtualCardRequest';
 
 /**
  * Models.
  */
 const models = {
   Activity,
+  Agreement,
   Application: Application,
   Collective: Collective,
   Comment: Comment,
@@ -57,6 +62,7 @@ const models = {
   ExpenseItem: ExpenseItem,
   HostApplication: HostApplication,
   LegalDocument: LegalDocument,
+  Location: Location,
   Member: Member,
   MemberInvitation: MemberInvitation,
   MigrationLog: MigrationLog,
@@ -79,6 +85,7 @@ const models = {
   User: User,
   UserToken: UserToken,
   VirtualCard: VirtualCard,
+  VirtualCardRequest: VirtualCardRequest,
   PersonalToken: PersonalToken,
   SocialLink,
 } as const;
@@ -101,10 +108,10 @@ models.Collective.belongsToMany(models.Collective, {
     model: models.Member,
     unique: false,
     foreignKey: 'MemberCollectiveId',
-  },
+  } as any,
 });
 models.Collective.belongsToMany(models.Collective, {
-  through: { model: models.Member, unique: false, foreignKey: 'CollectiveId' },
+  through: { model: models.Member, unique: false, foreignKey: 'CollectiveId' } as any,
   as: 'memberOfCollectives',
 });
 models.Collective.hasMany(models.Member, { foreignKey: 'MemberCollectiveId', as: 'memberships' });
@@ -267,6 +274,7 @@ models.Expense.belongsTo(models.RecurringExpense, {
 });
 models.Expense.hasMany(models.ExpenseAttachedFile, { as: 'attachedFiles' });
 models.Expense.hasMany(models.ExpenseItem, { as: 'items' });
+models.Expense.hasMany(models.Comment, { as: 'comments' });
 models.Expense.hasMany(models.Transaction);
 models.Expense.hasMany(models.Activity, { as: 'activities' });
 models.Transaction.belongsTo(models.Expense);
@@ -322,8 +330,6 @@ models.Collective.hasOne(models.User, {
   as: 'user',
   foreignKey: 'CollectiveId',
   constraints: false,
-  allowNull: true,
-  defaultValue: null,
 });
 models.Transaction.belongsTo(models.Order);
 models.Order.hasMany(models.Transaction);
@@ -331,6 +337,10 @@ models.Tier.hasMany(models.Order);
 
 // Legal documents
 models.LegalDocument.belongsTo(models.Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+
+// Location
+models.Location.belongsTo(models.Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+models.Collective.hasOne(models.Location, { foreignKey: 'CollectiveId', as: 'location' });
 
 // RequiredLegalDocument
 models.RequiredLegalDocument.belongsTo(models.Collective, { foreignKey: 'HostCollectiveId', as: 'hostCollective' });
@@ -388,9 +398,32 @@ models.VirtualCard.belongsTo(models.User, {
   foreignKey: 'UserId',
   as: 'user',
 });
+
+models.VirtualCard.belongsTo(models.VirtualCardRequest, {
+  foreignKey: 'VirtualCardRequestId',
+  as: 'virtualCardRequest',
+});
 models.VirtualCard.hasMany(models.Expense, { foreignKey: 'VirtualCardId', as: 'expenses' });
 models.Collective.hasMany(models.VirtualCard, { foreignKey: 'HostCollectiveId', as: 'virtualCards' });
 models.Collective.hasMany(models.VirtualCard, { foreignKey: 'CollectiveId', as: 'virtualCardCollectives' });
+
+// VirtualCardRequest
+models.VirtualCardRequest.belongsTo(models.Collective, {
+  foreignKey: 'CollectiveId',
+  as: 'collective',
+});
+models.VirtualCardRequest.belongsTo(models.Collective, {
+  foreignKey: 'HostCollectiveId',
+  as: 'host',
+});
+models.VirtualCardRequest.belongsTo(models.User, {
+  foreignKey: 'UserId',
+  as: 'user',
+});
+models.VirtualCardRequest.belongsTo(models.VirtualCard, {
+  foreignKey: 'VirtualCardId',
+  as: 'virtualCard',
+});
 
 // SocialLink
 models.SocialLink.belongsTo(models.Collective, {
@@ -398,6 +431,23 @@ models.SocialLink.belongsTo(models.Collective, {
   as: 'collective',
 });
 models.Collective.hasMany(models.SocialLink, { foreignKey: 'CollectiveId', as: 'socialLinks' });
+
+UserTwoFactorMethod.belongsTo(User);
+User.hasMany(UserTwoFactorMethod);
+
+Agreement.belongsTo(Collective, { foreignKey: 'HostCollectiveId', as: 'Host' });
+Agreement.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'Collective' });
+Agreement.belongsTo(User, { foreignKey: 'UserId', as: 'User' });
+
+// HostApplication
+models.HostApplication.belongsTo(models.Collective, {
+  foreignKey: 'CollectiveId',
+  as: 'collective',
+});
+Collective.hasMany(models.HostApplication, {
+  foreignKey: 'CollectiveId',
+  as: 'hostApplications',
+});
 
 export default models;
 
@@ -418,6 +468,7 @@ export {
   ExpenseItem,
   HostApplication,
   LegalDocument,
+  Location,
   Member,
   MemberInvitation,
   MigrationLog,

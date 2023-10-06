@@ -1,6 +1,6 @@
 import { GraphQLInputObjectType, GraphQLString } from 'graphql';
 
-const RecurringExpenseReferenceInput = new GraphQLInputObjectType({
+export const GraphQLRecurringExpenseReferenceInput = new GraphQLInputObjectType({
   name: 'RecurringExpenseReferenceInput',
   fields: () => ({
     id: {
@@ -9,5 +9,3 @@ const RecurringExpenseReferenceInput = new GraphQLInputObjectType({
     },
   }),
 });
-
-export { RecurringExpenseReferenceInput };

@@ -1,4 +1,4 @@
-import { differenceBy, merge } from 'lodash';
+import { differenceBy, isEqual, merge } from 'lodash';
 import { Model } from 'sequelize';
 
 /** A diff as [newEntries, removedEntries, updatedEntries] */
@@ -36,7 +36,7 @@ export function diffDBEntries<T extends Model>(
         throw new Error(
           "One of the entity you're trying to update doesn't exist or has changes. Please refresh the page.",
         );
-      } else if (!diffedFields.every(field => existingEntry[field] === entry[field])) {
+      } else if (!diffedFields.every(field => isEqual(existingEntry[field], entry[field]))) {
         toUpdate.push(entry);
       }
     }

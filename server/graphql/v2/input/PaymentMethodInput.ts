@@ -4,16 +4,16 @@ import moment from 'moment';
 
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import stripe from '../../../lib/stripe';
-import { PaymentMethodLegacyType } from '../enum';
+import { GraphQLPaymentMethodLegacyType } from '../enum';
 import { getServiceTypeFromLegacyPaymentMethodType } from '../enum/PaymentMethodLegacyType';
-import { PaymentMethodService } from '../enum/PaymentMethodService';
-import { PaymentMethodType } from '../enum/PaymentMethodType';
+import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
+import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType';
 
-import { CreditCardCreateInput } from './CreditCardCreateInput';
+import { GraphQLCreditCardCreateInput } from './CreditCardCreateInput';
 import { fetchPaymentMethodWithReference } from './PaymentMethodReferenceInput';
-import { PaypalPaymentInput } from './PaypalPaymentInput';
+import { GraphQLPaypalPaymentInput } from './PaypalPaymentInput';
 
-export const PaymentMethodInput = new GraphQLInputObjectType({
+export const GraphQLPaymentMethodInput = new GraphQLInputObjectType({
   name: 'PaymentMethodInput',
   description: 'An input to use for creating or retrieving payment methods',
   fields: (): GraphQLInputFieldConfigMap => ({
@@ -22,22 +22,22 @@ export const PaymentMethodInput = new GraphQLInputObjectType({
       description: 'The id assigned to the payment method',
     },
     service: {
-      type: PaymentMethodService,
+      type: GraphQLPaymentMethodService,
       description: 'Service of this payment method',
     },
     type: {
-      type: PaymentMethodType,
+      type: GraphQLPaymentMethodType,
       description: 'Type of this payment method',
     },
     legacyType: {
-      type: PaymentMethodLegacyType,
+      type: GraphQLPaymentMethodLegacyType,
       description: 'Type of this payment method',
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore `deprecationReason` is not yet exposed by graphql but it does exist
       deprecationReason: '2021-03-02: Please use service + type',
     },
     newType: {
-      type: PaymentMethodType,
+      type: GraphQLPaymentMethodType,
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore `deprecationReason` is not yet exposed by graphql but it does exist
       deprecationReason: '2021-08-20: Please use type instead',
@@ -51,11 +51,11 @@ export const PaymentMethodInput = new GraphQLInputObjectType({
       description: 'Whether this payment method should be saved for future payments',
     },
     creditCardInfo: {
-      type: CreditCardCreateInput,
+      type: GraphQLCreditCardCreateInput,
       description: 'When creating a credit card, use this field to set its info',
     },
     paypalInfo: {
-      type: PaypalPaymentInput,
+      type: GraphQLPaypalPaymentInput,
       description: 'To pass when type is PAYPAL',
     },
     paymentIntentId: {
@@ -71,7 +71,7 @@ export const PaymentMethodInput = new GraphQLInputObjectType({
  */
 export const getLegacyPaymentMethodFromPaymentMethodInput = async (
   pm: Record<string, any>,
-): Promise<Record<string, unknown>> => {
+): Promise<Record<string, unknown> | { service: string; type: PAYMENT_METHOD_TYPE }> => {
   if (!pm) {
     return null;
   } else if (pm.id) {

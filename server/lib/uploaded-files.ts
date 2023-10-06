@@ -1,12 +1,12 @@
+import { FileKind } from '../constants/file-kind';
 import models from '../models';
-import { FileKind } from '../models/UploadedFile';
 
 /**
  * Defines all the other places where files can be used. In the future, we might want to
  * replace this by real DB associations.
  */
 export const FileFieldsDefinition: Record<
-  FileKind,
+  Exclude<FileKind, 'AGREEMENT_ATTACHMENT'>,
   {
     model;
     field: string;

@@ -1,7 +1,7 @@
 import { GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
-import { GraphQLJSON } from 'graphql-type-json';
+import { GraphQLJSON } from 'graphql-scalars';
 
-export const ProjectCreateInput = new GraphQLInputObjectType({
+export const GraphQLProjectCreateInput = new GraphQLInputObjectType({
   name: 'ProjectCreateInput',
   fields: () => ({
     name: { type: new GraphQLNonNull(GraphQLString) },

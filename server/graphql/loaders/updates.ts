@@ -1,11 +1,11 @@
-import { ReactionEmoji } from 'aws-sdk/clients/codecommit';
 import DataLoader from 'dataloader';
 import express from 'express';
 import { set } from 'lodash';
 
+import { ReactionEmoji } from '../../constants/reaction-emoji';
 import models, { Op, sequelize } from '../../models';
 
-type ReactionsCount = Record<ReactionEmoji, number>;
+type ReactionsCount = Partial<Record<ReactionEmoji, number>>;
 
 export default {
   reactionsByUpdateId: (): DataLoader<number, ReactionsCount> => {
@@ -14,7 +14,7 @@ export default {
       const reactionsList = (await models.EmojiReaction.count({
         where: { UpdateId: { [Op.in]: updateIds } },
         group: ['UpdateId', 'emoji'],
-      })) as unknown as ReactionsListQueryResult;
+      })) as ReactionsListQueryResult;
 
       type UpdateReactionsCount = Record<number, Record<ReactionEmoji, number>>;
       const reactionsMap: UpdateReactionsCount = {};

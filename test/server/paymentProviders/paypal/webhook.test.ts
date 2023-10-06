@@ -4,9 +4,11 @@ import { expect } from 'chai';
 import { Request } from 'express';
 import { createSandbox } from 'sinon';
 
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
 import * as PaypalLib from '../../../../server/lib/paypal';
 import * as Sentry from '../../../../server/lib/sentry';
 import models from '../../../../server/models';
+import { OrderModelInterface } from '../../../../server/models/Order';
 import paypalWebhook from '../../../../server/paymentProviders/paypal/webhook';
 import {
   fakeCollective,
@@ -17,8 +19,11 @@ import {
 } from '../../../test-helpers/fake-data';
 import { resetTestDB } from '../../../utils';
 
-const createOrderWithSubscription = async (params = {}): Promise<typeof models.PaymentMethod> => {
-  const paymentMethod = await fakePaymentMethod({ service: 'paypal', type: 'subscription' });
+const createOrderWithSubscription = async (params = {}): Promise<OrderModelInterface> => {
+  const paymentMethod = await fakePaymentMethod({
+    service: PAYMENT_METHOD_SERVICE.PAYPAL,
+    type: PAYMENT_METHOD_TYPE.SUBSCRIPTION,
+  });
   return fakeOrder(
     {
       PaymentMethodId: paymentMethod.id,
@@ -62,7 +67,7 @@ describe('server/paymentProviders/paypal/webhook', () => {
       const order = await createOrderWithSubscription({ CollectiveId: collective.id });
       await expect(
         callPaymentSaleCompleted({ resource: { billing_agreement_id: order.paymentMethod.token } }),
-      ).to.be.rejectedWith('PayPal webhook: no host found');
+      ).to.be.rejectedWith(`No host found for collective ${collective.slug}`);
     });
 
     it('fails if host does not have PayPal', async () => {
@@ -107,7 +112,7 @@ describe('server/paymentProviders/paypal/webhook', () => {
       const transaction = await models.Transaction.findOne({
         where: { OrderId: order.id, type: 'CREDIT', kind: 'CONTRIBUTION' },
       });
-      await transaction.validate();
+      await models.Transaction.validate(transaction);
       expect(transaction.amount).to.eq(1200);
       expect(transaction.paymentProcessorFeeInHostCurrency).to.eq(-120);
       await order.reload();
@@ -142,7 +147,7 @@ describe('server/paymentProviders/paypal/webhook', () => {
       const collective = await fakeCollective({ HostCollectiveId: null });
       const order = await createOrderWithSubscription({ CollectiveId: collective.id });
       await expect(callSubscriptionCancelled({ resource: { id: order.paymentMethod.token } })).to.be.rejectedWith(
-        'PayPal webhook: no host found',
+        `No host found for collective ${collective.slug}`,
       );
     });
 

@@ -2,9 +2,9 @@ import { GraphQLEnumType } from 'graphql';
 
 import { Service } from '../../../constants/connected_account';
 
-const deprecatedValues = new Set([Service.MEETUP]);
+const deprecatedValues = new Set([Service.MEETUP, Service.PRIVACY]);
 
-export const ConnectedAccountService = new GraphQLEnumType({
+export const GraphQLConnectedAccountService = new GraphQLEnumType({
   name: 'ConnectedAccountService',
   description: 'All supported services a user can connect with',
   values: Object.values(Service).reduce(

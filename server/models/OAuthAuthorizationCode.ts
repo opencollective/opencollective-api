@@ -3,8 +3,8 @@ import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes,
 import oAuthScopes from '../constants/oauth-scopes';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
+import Application from './Application';
 import User from './User';
-import models from '.';
 
 class OAuthAuthorizationCode extends Model<
   InferAttributes<OAuthAuthorizationCode>,
@@ -22,7 +22,7 @@ class OAuthAuthorizationCode extends Model<
   public declare UserId: ForeignKey<User['id']>;
   public declare scope: string[];
 
-  public declare application?: NonAttribute<typeof models.Application>;
+  public declare application?: NonAttribute<Application>;
   public declare user?: NonAttribute<User>;
 }
 

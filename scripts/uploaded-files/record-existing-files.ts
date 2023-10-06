@@ -11,12 +11,13 @@ import { Command } from 'commander';
 import { pickBy, toPath } from 'lodash';
 import PQueue from 'p-queue';
 
+import { FileKind } from '../../server/constants/file-kind';
 import { getFileInfoFromS3 } from '../../server/lib/awsS3';
 import logger from '../../server/lib/logger';
 import { FileFieldsDefinition } from '../../server/lib/uploaded-files';
 import { parseToBoolean } from '../../server/lib/utils';
 import models, { sequelize } from '../../server/models';
-import UploadedFile, { FileKind, SUPPORTED_FILE_TYPES } from '../../server/models/UploadedFile';
+import UploadedFile, { SUPPORTED_FILE_TYPES } from '../../server/models/UploadedFile';
 
 const DRY_RUN = process.env.DRY_RUN ? parseToBoolean(process.env.DRY_RUN) : true;
 

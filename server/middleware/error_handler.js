@@ -59,7 +59,15 @@ export default (err, req, res, next) => {
 
   // Log unknown errors to Sentry
   if (!isKnownError(err)) {
-    reportErrorToSentry(err, { handler: HandlerType.REST });
+    try {
+      reportErrorToSentry(err, {
+        handler: HandlerType.EXPRESS,
+        req,
+      });
+    } catch (e) {
+      // Ignore errors from Sentry reporting to make sure we keep returning a real error
+      logger.error(`Reporting error to Sentry failed: ${JSON.stringify(e)}`);
+    }
   }
 
   res.status(err.code).send({ error: err });

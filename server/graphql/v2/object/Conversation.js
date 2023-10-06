@@ -2,14 +2,14 @@ import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLStri
 import { GraphQLDateTime } from 'graphql-scalars';
 
 import models, { Op } from '../../../models';
-import { AccountCollection } from '../collection/AccountCollection';
+import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { CommentCollection } from '../collection/CommentCollection';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
-import { Account } from '../interface/Account';
+import { GraphQLAccount } from '../interface/Account';
 
-import { Comment } from './Comment';
+import { GraphQLComment } from './Comment';
 
-const Conversation = new GraphQLObjectType({
+const GraphQLConversation = new GraphQLObjectType({
   name: 'Conversation',
   description: 'A conversation thread',
   fields: () => {
@@ -25,19 +25,19 @@ const Conversation = new GraphQLObjectType({
       tags: { type: new GraphQLList(GraphQLString) },
       summary: { type: new GraphQLNonNull(GraphQLString) },
       account: {
-        type: Account,
+        type: GraphQLAccount,
         resolve(conversation, args, req) {
           return req.loaders.Collective.byId.load(conversation.CollectiveId);
         },
       },
       fromAccount: {
-        type: Account,
+        type: GraphQLAccount,
         resolve(conversation, args, req) {
           return req.loaders.Collective.byId.load(conversation.FromCollectiveId);
         },
       },
       body: {
-        type: Comment,
+        type: GraphQLComment,
         description: 'The root comment / starter for this conversation',
         resolve(conversation) {
           return models.Comment.findByPk(conversation.RootCommentId);
@@ -67,7 +67,7 @@ const Conversation = new GraphQLObjectType({
         },
       },
       followers: {
-        type: new GraphQLNonNull(AccountCollection),
+        type: new GraphQLNonNull(GraphQLAccountCollection),
         args: {
           limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 10 },
           offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
@@ -107,4 +107,4 @@ const Conversation = new GraphQLObjectType({
   },
 });
 
-export default Conversation;
+export default GraphQLConversation;

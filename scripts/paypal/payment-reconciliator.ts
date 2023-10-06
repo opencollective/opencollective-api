@@ -308,7 +308,7 @@ const reconcileSubscription = async (paypalSubscriptionId: string, _, commander)
       );
     }
 
-    const hasPayPalSaleId = id => dbTransactions.find(dbTransaction => dbTransaction.data?.paypalSale?.id === id);
+    const hasPayPalSaleId = id => dbTransactions.find(dbTransaction => dbTransaction.data?.paypalSale?.['id'] === id);
     const notRecordedPaypalTransactions = paypalTransactions.filter(
       paypalTransaction => !hasPayPalSaleId(paypalTransaction.id),
     );
@@ -334,7 +334,7 @@ const reconcileSubscription = async (paypalSubscriptionId: string, _, commander)
       // And it is not using another payment method
       order.paymentMethod?.service === 'paypal' &&
       order.paymentMethod.type === 'subscription' &&
-      order.paymentMethod.token === subscription.id
+      order.paymentMethod.token === subscription.paypalSubscriptionId
     ) {
       console.log(`Order #${order.id} cancelled in PayPal but not in DB`);
       if (options['fix']) {
@@ -551,13 +551,13 @@ const findMissingPaypalTransactions = async (_, commander) => {
           const paypalSubscriptionId = <string>transactionInfo['paypal_reference_id'];
           const { order } = await loadDataForSubscription(paypalSubscriptionId);
           if (options['fix']) {
-            return recordPaypalCapture(order, captureDetails, {
+            await recordPaypalCapture(order, captureDetails, {
               data: { recordedFrom: 'scripts/paypal/payment-reconciliator.ts' },
               createdAt: new Date(captureDetails.create_time),
             });
           } else {
             console.log(
-              `Would have recorded transaction ${paypalTransactionId} in ledger for order ${order.id} (${order.slug})`,
+              `Would have recorded transaction ${paypalTransactionId} in ledger for order ${order.id} (${order.collective.slug})`,
             );
           }
         }

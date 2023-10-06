@@ -24,22 +24,22 @@ function safeGetValueFromPropertyOnObject(obj, property) {
  * Handles circular references and prevents defined getters from throwing errors.
  */
 export const sanitizeObjectForJSON = obj => {
-  const seen = []; // store references to objects we have seen before
+  const seen = new Set(); // store references to objects we have seen before
 
   function visit(obj) {
     if (obj === null || typeof obj !== 'object') {
       return obj;
     }
 
-    if (seen.indexOf(obj) !== -1) {
+    if (seen.has(obj)) {
       return '[Circular]';
     }
-    seen.push(obj);
+    seen.add(obj);
 
     if (typeof obj.toJSON === 'function') {
       try {
         const fResult = visit(obj.toJSON());
-        seen.pop();
+        seen.delete(obj);
         return fResult;
       } catch (err) {
         return throwsMessage(err);
@@ -48,7 +48,7 @@ export const sanitizeObjectForJSON = obj => {
 
     if (Array.isArray(obj)) {
       const aResult = obj.map(visit);
-      seen.pop();
+      seen.delete(obj);
       return aResult;
     }
 
@@ -57,7 +57,7 @@ export const sanitizeObjectForJSON = obj => {
       result[prop] = visit(safeGetValueFromPropertyOnObject(obj, prop));
       return result;
     }, {});
-    seen.pop();
+    seen.delete(obj);
     return result;
   }
 

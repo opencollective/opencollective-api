@@ -8,15 +8,15 @@ import {
 } from 'graphql';
 import { GraphQLNonEmptyString } from 'graphql-scalars';
 
-import { TierAmountType, TierType } from '../enum';
-import { TierFrequency } from '../enum/TierFrequency';
+import { GraphQLTierAmountType, GraphQLTierType } from '../enum';
+import { GraphQLTierFrequency } from '../enum/TierFrequency';
 
-import { AmountInput } from './AmountInput';
+import { GraphQLAmountInput } from './AmountInput';
 import { TierCreateInputFields } from './TierCreateInput';
 
 export type TierUpdateInputFields = { id: string } & Partial<TierCreateInputFields>;
 
-export const TierUpdateInput = new GraphQLInputObjectType({
+export const GraphQLTierUpdateInput = new GraphQLInputObjectType({
   name: 'TierUpdateInput',
   fields: () => ({
     id: {
@@ -24,7 +24,7 @@ export const TierUpdateInput = new GraphQLInputObjectType({
       description: 'The public id identifying the tier (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
     },
     amount: {
-      type: AmountInput,
+      type: GraphQLAmountInput,
     },
     name: {
       type: GraphQLNonEmptyString,
@@ -36,16 +36,16 @@ export const TierUpdateInput = new GraphQLInputObjectType({
       type: GraphQLString,
     },
     goal: {
-      type: AmountInput,
+      type: GraphQLAmountInput,
     },
     type: {
-      type: TierType,
+      type: GraphQLTierType,
     },
     amountType: {
-      type: TierAmountType,
+      type: GraphQLTierAmountType,
     },
     frequency: {
-      type: TierFrequency,
+      type: GraphQLTierFrequency,
     },
     presets: {
       type: new GraphQLList(new GraphQLNonNull(GraphQLInt)),
@@ -54,7 +54,7 @@ export const TierUpdateInput = new GraphQLInputObjectType({
       type: GraphQLInt,
     },
     minimumAmount: {
-      type: AmountInput,
+      type: GraphQLAmountInput,
     },
     useStandalonePage: {
       type: GraphQLBoolean,

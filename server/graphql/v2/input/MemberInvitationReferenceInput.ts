@@ -7,7 +7,7 @@ import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 /**
  * An input for referencing MemberInvitations.
  */
-export const MemberInvitationReferenceInput = new GraphQLInputObjectType({
+export const GraphQLMemberInvitationReferenceInput = new GraphQLInputObjectType({
   name: 'MemberInvitationReferenceInput',
   fields: () => ({
     id: {

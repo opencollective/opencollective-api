@@ -18,11 +18,11 @@ Subject: {{ order.quantity }} {{pluralize "ticket" n=order.quantity}} confirmed 
 <div style="color: #494B4D; font-size: 14px; line-height: 18px; padding-left: 10px; margin-top: 10px; border-left: 5px solid #F1F2F3">{{{customMessage}}}</div>
 {{/if}}
 
-{{#if event.address}}
+{{#if event.location.address}}
   {{#if isOffline }}
-    The location is {{ event.locationName }} ({{event.address}}).
+    The location is {{ event.location.name }} ({{event.location.address}}).
   {{else}}
-    Join us at {{event.address}}.
+    Join us at {{event.location.address}}.
   {{/if}}
 {{/if}}
 </p>

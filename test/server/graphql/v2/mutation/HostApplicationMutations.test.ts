@@ -6,9 +6,11 @@ import { createSandbox } from 'sinon';
 import { activities, roles } from '../../../../../server/constants';
 import OrderStatuses from '../../../../../server/constants/order_status';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
-import { ProcessHostApplicationAction } from '../../../../../server/graphql/v2/enum';
+import VirtualCardProviders from '../../../../../server/constants/virtual_card_providers';
+import { GraphQLProcessHostApplicationAction } from '../../../../../server/graphql/v2/enum';
 import emailLib from '../../../../../server/lib/email';
 import models from '../../../../../server/models';
+import { VirtualCardStatus } from '../../../../../server/models/VirtualCard';
 import * as stripeVirtualCardService from '../../../../../server/paymentProviders/stripe/virtual-cards';
 import { randEmail } from '../../../../stores';
 import {
@@ -19,6 +21,7 @@ import {
   fakeMember,
   fakeOrder,
   fakeProject,
+  fakeTier,
   fakeTransaction,
   fakeUser,
   fakeVirtualCard,
@@ -35,6 +38,7 @@ const APPLY_TO_HOST_MUTATION = gqlV2/* GraphQL */ `
     applyToHost(collective: $collective, host: $host, message: $message, inviteMembers: $inviteMembers) {
       id
       isActive
+      currency
       ... on AccountWithHost {
         isApproved
         host {
@@ -57,6 +61,7 @@ const PROCESS_HOST_APPLICATION_MUTATION = gqlV2/* GraphQL */ `
       account {
         id
         isActive
+        currency
         ... on AccountWithHost {
           approvedAt
           host {
@@ -67,6 +72,7 @@ const PROCESS_HOST_APPLICATION_MUTATION = gqlV2/* GraphQL */ `
         childrenAccounts {
           nodes {
             id
+            currency
             ... on AccountWithHost {
               approvedAt
               host {
@@ -113,7 +119,15 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
   });
 
   describe('processHostApplication', () => {
-    let host, collective, hostAdmin, application, collectiveAdmin, sandbox, children, sendEmailSpy;
+    let host,
+      collective,
+      hostAdmin,
+      application,
+      collectiveAdmin,
+      sandbox,
+      children,
+      sendEmailSpy,
+      tiersInDifferentCurrency;
     const callProcessAction = (params, loggedInUser = null) => {
       return graphqlQueryV2(
         PROCESS_HOST_APPLICATION_MUTATION,
@@ -131,22 +145,27 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
       sendEmailSpy = sandbox.spy(emailLib, 'sendMessage');
       hostAdmin = await fakeUser();
       collectiveAdmin = await fakeUser();
-      host = await fakeHost({ admin: hostAdmin });
+      host = await fakeHost({ admin: hostAdmin, currency: 'USD' });
       collective = await fakeCollective({
         HostCollectiveId: host.id,
         admin: collectiveAdmin,
         isActive: false,
         approvedAt: null,
+        currency: 'ZWL',
       });
       children = await Promise.all([
-        fakeProject({ ParentCollectiveId: collective.id }),
-        fakeEvent({ ParentCollectiveId: collective.id }),
+        fakeProject({ ParentCollectiveId: collective.id, currency: 'ZWL' }),
+        fakeEvent({ ParentCollectiveId: collective.id, currency: 'ZWL' }),
       ]);
       application = await fakeHostApplication({
         CollectiveId: collective.id,
         HostCollectiveId: host.id,
         status: 'PENDING',
       });
+      tiersInDifferentCurrency = await Promise.all([
+        fakeTier({ CollectiveId: collective.id, currency: 'ZWL' }),
+        ...children.map(child => fakeTier({ CollectiveId: child.id, currency: 'ZWL' })),
+      ]);
     });
 
     after(() => {
@@ -164,7 +183,7 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
         const randomUser = await fakeUser();
         const unauthorizedUsers = [null, randomUser, collectiveAdmin];
 
-        const actionsDetails = ProcessHostApplicationAction['_values'];
+        const actionsDetails = GraphQLProcessHostApplicationAction['_values'];
         for (const actionDetails of actionsDetails) {
           const action = actionDetails.value;
           for (const unauthorizedUser of unauthorizedUsers) {
@@ -184,7 +203,7 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
         // Initialize the collective to not have an active application
         await collective.update({ isActive: false, approvedAt: new Date(), HostCollectiveId: null });
 
-        const actionsDetails = ProcessHostApplicationAction['_values'];
+        const actionsDetails = GraphQLProcessHostApplicationAction['_values'];
         for (const actionDetails of actionsDetails) {
           const action = actionDetails.value;
           const result = await callProcessAction({ action }, hostAdmin);
@@ -198,7 +217,7 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
         await collective.update({ isActive: true, approvedAt: new Date(), HostCollectiveId: host.id });
         await application.update({ status: 'APPROVED' });
 
-        const actionsDetails = ProcessHostApplicationAction['_values'];
+        const actionsDetails = GraphQLProcessHostApplicationAction['_values'];
         for (const actionDetails of actionsDetails) {
           const action = actionDetails.value;
           const result = await callProcessAction({ action }, hostAdmin);
@@ -221,10 +240,18 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
         // Check that the collective & its children are now active
         const resultData = result.data.processHostApplication;
         expect(resultData.account.isActive).to.be.true;
+        expect(resultData.account.currency).to.eq(host.currency); // Updated to host's currency
         expect(resultData.account.host.slug).to.eq(host.slug);
         expect(resultData.account.childrenAccounts.nodes).to.have.length(children.length);
         for (const child of resultData.account.childrenAccounts.nodes) {
           expect(child.host.slug).to.eq(host.slug);
+          expect(child.currency).to.eq(host.currency);
+        }
+
+        // Ensure all tiers are converted to the host's currency
+        for (const tier of tiersInDifferentCurrency) {
+          await tier.reload();
+          expect(tier.currency).to.eq(host.currency);
         }
 
         // Ensure application gets updated
@@ -473,18 +500,13 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
       const host = await fakeHost();
       const collective = await fakeCollective({ HostCollectiveId: host.id });
 
-      const transactionProps = {
+      await fakeTransaction({
         type: 'CREDIT',
-        kind: TransactionKind.CONTRIBUTION,
         CollectiveId: collective.id,
         currency: 'USD',
         hostCurrency: 'USD',
         HostCollectiveId: host.id,
-        createdAt: moment.utc(),
-      };
-
-      await fakeTransaction({
-        ...transactionProps,
+        createdAt: moment.utc().toDate(),
         kind: TransactionKind.CONTRIBUTION,
         amount: 3000,
         amountInHostCurrency: 3000,
@@ -545,7 +567,7 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
       const virtualCard = await fakeVirtualCard({
         HostCollectiveId: host.id,
         CollectiveId: collective.id,
-        provider: 'STRIPE',
+        provider: VirtualCardProviders.STRIPE,
       });
       const result = await graphqlQueryV2(
         REMOVE_HOST_MUTATION,
@@ -575,7 +597,8 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
       await orderWithInternalSubscription.reload();
       expect(orderWithInternalSubscription.status).to.eq(OrderStatuses.ACTIVE);
 
-      expect(await models.VirtualCard.findByPk(virtualCard.id)).to.not.exist;
+      await virtualCard.reload();
+      expect(virtualCard.data.status).to.eq(VirtualCardStatus.CANCELED);
     });
   });
 });

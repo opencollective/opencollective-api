@@ -1,0 +1,22 @@
+Subject: Expense re-approval requested on {{{collective.name}}}: {{currency expense.amount currency=expense.currency}} for {{{escapeForSubject expense.description}}}
+
+{{> header}}
+
+<center>
+  <h3>An expense for {{collective.name}} requires your re-approval.</h3>
+  <h2><a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{expense.description}}</a></h2>
+  <div>
+    Payee: <a href="{{config.host.website}}/{{fromCollective.slug}}"> {{fromCollective.name}} </a>
+  </div>
+
+  <br />
+  <br />
+  <br />
+  <a class="btn blue" href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">
+    <div>View Expense</div>
+  </a>
+
+  <br /><br />
+</center>
+
+{{> footer}}

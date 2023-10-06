@@ -7,7 +7,7 @@ import models, { Op } from '../server/models';
 export const sanitizeAllCollectiveTags = async () => {
   console.log('Sanitizing all Collective tags...');
   const collectives = await models.Collective.findAll({
-    select: ['id', 'tags'],
+    attributes: ['id', 'tags'],
     where: {
       tags: {
         [Op.ne]: null,

@@ -2,26 +2,26 @@ import { GraphQLList } from 'graphql';
 
 import models, { Op } from '../../../models';
 import { Forbidden, ValidationFailed } from '../../errors';
-import { MemberRole } from '../enum/MemberRole';
-import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
-import { MemberInvitation } from '../object/MemberInvitation';
+import { GraphQLMemberRole } from '../enum/MemberRole';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import { GraphQLMemberInvitation } from '../object/MemberInvitation';
 
 const MemberInvitationsQuery = {
-  type: new GraphQLList(MemberInvitation),
+  type: new GraphQLList(GraphQLMemberInvitation),
   description: '[AUTHENTICATED] Returns the pending invitations',
   args: {
     memberAccount: {
-      type: AccountReferenceInput,
+      type: GraphQLAccountReferenceInput,
       description:
         'A reference to an account (usually Individual). Will return invitations sent to the account to join as a member',
     },
     account: {
-      type: AccountReferenceInput,
+      type: GraphQLAccountReferenceInput,
       description:
         'A reference to an account (usually Collective, Fund or Organization). Will return invitations sent to join this account as a member.',
     },
     role: {
-      type: new GraphQLList(MemberRole),
+      type: new GraphQLList(GraphQLMemberRole),
       description: 'An array of Member roles to filter for',
     },
   },

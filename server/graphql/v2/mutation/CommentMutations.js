@@ -3,20 +3,21 @@ import { GraphQLNonNull, GraphQLString } from 'graphql';
 import { mustBeLoggedInTo } from '../../../lib/auth';
 import { createComment, deleteComment, editComment } from '../../common/comment';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
-import { CommentCreateInput } from '../input/CommentCreateInput';
-import { CommentUpdateInput } from '../input/CommentUpdateInput';
+import { GraphQLCommentCreateInput } from '../input/CommentCreateInput';
+import { GraphQLCommentUpdateInput } from '../input/CommentUpdateInput';
 import { getConversationDatabaseIdFromReference } from '../input/ConversationReferenceInput';
 import { getDatabaseIdFromExpenseReference } from '../input/ExpenseReferenceInput';
+import { getDatabaseIdFromOrderReference } from '../input/OrderReferenceInput';
 import { getDatabaseIdFromUpdateReference } from '../input/UpdateReferenceInput';
-import { Comment } from '../object/Comment';
+import { GraphQLComment } from '../object/Comment';
 
 const commentMutations = {
   editComment: {
-    type: Comment,
+    type: GraphQLComment,
     description: 'Edit a comment. Scope: "conversations", "expenses" or "updates".',
     args: {
       comment: {
-        type: new GraphQLNonNull(CommentUpdateInput),
+        type: new GraphQLNonNull(GraphQLCommentUpdateInput),
       },
     },
     resolve(_, { comment }, req) {
@@ -25,7 +26,7 @@ const commentMutations = {
     },
   },
   deleteComment: {
-    type: Comment,
+    type: GraphQLComment,
     args: {
       id: {
         type: new GraphQLNonNull(GraphQLString),
@@ -37,11 +38,11 @@ const commentMutations = {
     },
   },
   createComment: {
-    type: Comment,
+    type: GraphQLComment,
     description: 'Create a comment. Scope: "conversations", "expenses" or "updates".',
     args: {
       comment: {
-        type: new GraphQLNonNull(CommentCreateInput),
+        type: new GraphQLNonNull(GraphQLCommentCreateInput),
       },
     },
     resolve: async (_, { comment }, req) => {
@@ -50,15 +51,16 @@ const commentMutations = {
       // Associate the comment with the correct entity
       if (comment.ConversationId) {
         comment.ConversationId = idDecode(comment.ConversationId, IDENTIFIER_TYPES.CONVERSATION);
-      }
-      if (comment.conversation) {
+      } else if (comment.conversation) {
         comment.ConversationId = getConversationDatabaseIdFromReference(comment.conversation);
-      }
-      if (comment.update) {
+      } else if (comment.update) {
         comment.UpdateId = getDatabaseIdFromUpdateReference(comment.update);
-      }
-      if (comment.expense) {
+      } else if (comment.expense) {
         comment.ExpenseId = getDatabaseIdFromExpenseReference(comment.expense);
+      } else if (comment.order) {
+        comment.OrderId = getDatabaseIdFromOrderReference(comment.order);
+      } else {
+        throw new Error('Please provide a conversation, update, expense or order');
       }
 
       return createComment(comment, req);

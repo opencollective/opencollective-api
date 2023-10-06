@@ -1,21 +1,25 @@
 import * as LibTaxes from '@opencollective/taxes';
-import { map } from 'bluebird';
 import config from 'config';
 import { get, pick } from 'lodash';
+import map from 'p-map';
 import isURL from 'validator/lib/isURL';
 
 import activities from '../constants/activities';
-import { types as CollectiveTypes } from '../constants/collectives';
+import { CollectiveType } from '../constants/collectives';
 import { MODERATION_CATEGORIES } from '../constants/moderation-categories';
 import { VAT_OPTIONS } from '../constants/vat';
-import models, { Op, sequelize } from '../models';
+import models, { Collective, Member, Op, sequelize } from '../models';
 import Expense from '../models/Expense';
+import { MemberModelInterface } from '../models/Member';
+import { MemberInvitationModelInterface } from '../models/MemberInvitation';
+import { OrderModelInterface } from '../models/Order';
+import { PaymentMethodModelInterface } from '../models/PaymentMethod';
 
 import logger from './logger';
 import { stripHTML } from './sanitize-html';
 import { md5 } from './utils';
 
-const { USER } = CollectiveTypes;
+const { USER } = CollectiveType;
 
 type AvatarUrlOpts = {
   height?: boolean;
@@ -33,7 +37,7 @@ type AvatarUrlOpts = {
  */
 export const getCollectiveAvatarUrl = (
   collectiveSlug: string,
-  collectiveType: CollectiveTypes,
+  collectiveType: CollectiveType,
   image: string,
   args: AvatarUrlOpts,
 ): string => {
@@ -43,7 +47,7 @@ export const getCollectiveAvatarUrl = (
     sections.push(md5(image).substring(0, 7));
   }
 
-  sections.push(collectiveType === CollectiveTypes.USER ? 'avatar' : 'logo');
+  sections.push(collectiveType === CollectiveType.USER ? 'avatar' : 'logo');
 
   if (args.height) {
     sections.push(args.height);
@@ -53,6 +57,7 @@ export const getCollectiveAvatarUrl = (
 };
 
 export const COLLECTIVE_SETTINGS_KEYS_LIST = [
+  'allowCollectiveAdminsToEditPrivateExpenseData',
   'apply',
   'applyMessage',
   'disablePublicExpenseSubmission',
@@ -64,6 +69,7 @@ export const COLLECTIVE_SETTINGS_KEYS_LIST = [
   'disableCustomContributions',
   'dismissedHelpMessages',
   'disableCryptoContributions',
+  'earlyAccess',
   'editor',
   'enableWebhooks',
   'features',
@@ -180,6 +186,9 @@ export const collectiveSlugReservedList = [
   'about',
   'accept-financial-contributions',
   'admin',
+  'admin-panel',
+  'agreement',
+  'agreements',
   'api',
   'applications',
   'apply',
@@ -195,6 +204,7 @@ export const collectiveSlugReservedList = [
   'conversations',
   'create',
   'create-account',
+  'dashboard',
   'delete',
   'deleteCollective',
   'discover',
@@ -225,6 +235,8 @@ export const collectiveSlugReservedList = [
   'join-free',
   'learn-more',
   'login',
+  'me',
+  'my-account',
   'member',
   'member-invitations',
   'members',
@@ -255,6 +267,8 @@ export const collectiveSlugReservedList = [
   'tos',
   'transactions',
   'updates',
+  'virtualcards',
+  'virtual-cards',
   'website',
   'widgets',
 ];
@@ -275,7 +289,7 @@ export function isCollectiveSlugReserved(slug: string): boolean {
 /**
  * Returns true if the event is passed
  */
-export const isPastEvent = (event: typeof models.Collective): boolean => {
+export const isPastEvent = (event: Collective): boolean => {
   if (!event.endsAt) {
     return false;
   } else {
@@ -374,12 +388,12 @@ export async function deleteCollective(collective) {
     user = await models.User.findOne({ where: { CollectiveId: collective.id } });
   }
 
-  const members = models.Member.findAll({
+  const members = await Member.findAll({
     where: {
       [Op.or]: [{ CollectiveId: collective.id }, { MemberCollectiveId: collective.id }],
     },
   });
-  await map(members, (member: typeof models.Member) => member.destroy(), { concurrency: 3 });
+  await map(members, (member: MemberModelInterface) => member.destroy(), { concurrency: 3 });
 
   const orders = await models.Order.findAll({
     where: {
@@ -387,7 +401,7 @@ export async function deleteCollective(collective) {
       status: { [Op.not]: ['PAID', 'ACTIVE', 'CANCELLED'] },
     },
   });
-  await map(orders, (order: typeof models.Order) => order.destroy(), { concurrency: 3 });
+  await map(orders, (order: OrderModelInterface) => order.destroy(), { concurrency: 3 });
 
   const expenses = await models.Expense.findAll({
     where: {
@@ -405,7 +419,7 @@ export async function deleteCollective(collective) {
   const paymentMethods = await models.PaymentMethod.findAll({
     where: { CollectiveId: collective.id },
   });
-  await map(paymentMethods, (paymentMethod: typeof models.PaymentMethod) => paymentMethod.destroy(), {
+  await map(paymentMethods, (paymentMethod: PaymentMethodModelInterface) => paymentMethod.destroy(), {
     concurrency: 3,
   });
 
@@ -417,7 +431,7 @@ export async function deleteCollective(collective) {
   const memberInvitations = await models.MemberInvitation.findAll({
     where: { CollectiveId: collective.id },
   });
-  await map(memberInvitations, (memberInvitation: typeof models.MemberInvitation) => memberInvitation.destroy(), {
+  await map(memberInvitations, (memberInvitation: MemberInvitationModelInterface) => memberInvitation.destroy(), {
     concurrency: 3,
   });
 

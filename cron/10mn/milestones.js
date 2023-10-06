@@ -3,12 +3,11 @@ import '../../server/env';
 
 process.env.PORT = 3066;
 
-import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
 import { get, pick, set, uniq } from 'lodash';
 
-import { types as collectiveTypes } from '../../server/constants/collectives';
+import { CollectiveType } from '../../server/constants/collectives';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import slackLib from '../../server/lib/slack';
 import twitter from '../../server/lib/twitter';
@@ -34,14 +33,14 @@ const init = async () => {
     },
     limit: 30,
     group: ['CollectiveId', 'collective.id'],
-    include: [{ model: models.Collective, where: { type: { [Op.ne]: collectiveTypes.EVENT } }, as: 'collective' }],
+    include: [{ model: models.Collective, where: { type: { [Op.ne]: CollectiveType.EVENT } }, as: 'collective' }],
   });
 
   console.log(
     `${transactionsGroups.length} different collectives got new financial contributors since ${TenMinutesAgo}`,
   );
 
-  return Promise.map(transactionsGroups, processNewMembersCount).then(() => {
+  return Promise.all(transactionsGroups.map(processNewMembersCount)).then(() => {
     const timeLapsed = new Date() - startTime;
     console.log(`Total run time: ${timeLapsed}ms`);
     process.exit(0);
@@ -212,8 +211,10 @@ const sendTweet = async (tweet, twitterAccount, template) => {
     try {
       const res = await twitter.tweetStatus(twitterAccount, tweet, null, {
         // We thread the tweet with the previous milestone
-        // eslint-disable-next-line camelcase
-        in_reply_to_status_id: get(twitterAccount, 'settings.milestones.lastTweetId'),
+        reply: {
+          // eslint-disable-next-line camelcase
+          in_reply_to_tweet_id: get(twitterAccount, 'settings.milestones.lastTweetId'),
+        },
       });
 
       set(twitterAccount, 'settings.milestones.tweetId', res.id_str);

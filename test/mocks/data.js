@@ -6,7 +6,7 @@ export default {
     description: 'engineer',
     longDescription: 'This is a long description with some *markdown* **style**',
     twitterHandle: 'wwcode',
-    address: 'Paradize street\nSan Francisco CA 94100\nUSA',
+    location: { address: 'Paradize street\nSan Francisco CA 94100\nUSA' },
     currency: 'USD',
     isHostAccount: true,
     settings: { apply: true },
@@ -33,7 +33,7 @@ export default {
   user3: {
     name: 'Xavier Damman',
     email: 'user3@opencollective.com',
-    address: 'Rue du paradis\n1000 Brussels\nBelgium',
+    location: { address: 'Rue du paradis\n1000 Brussels\nBelgium' },
   },
 
   user4: {
@@ -64,6 +64,7 @@ export default {
     hostFeePercent: 10,
     tags: ['open source', 'test'],
     isActive: true,
+    approvedAt: new Date(2020, 1, 1),
   },
 
   collective2: {
@@ -77,6 +78,7 @@ export default {
     hostFeePercent: 0,
     tags: ['meetup', 'test'],
     isActive: true,
+    approvedAt: new Date(2020, 1, 1),
   },
 
   collective3: {
@@ -98,40 +100,6 @@ export default {
       superCollectiveTag: '#brusselstogether',
     },
   },
-
-  relatedCollectives: [
-    {
-      name: 'Reinventing Brussels',
-      slug: 'reinventingbrussels',
-      description: 'connect all the initiatives that create a welcoming &amp; sustainable city with deep human values',
-      image: 'https://opencollective-production.s3-us-west-1.amazonaws.com/1738fae0-9a20-11e6-8650-f92e594d5de8.png',
-      currency: 'EUR',
-      settings: {
-        style: { hero: { cover: { background: 'rgb(36,189,213)' } } },
-      },
-      tags: ['#brusselstogether'],
-      isActive: true,
-    },
-    {
-      name: 'Refugees Got Talent',
-      slug: 'refugeesgottalent',
-      description: 'offer a space and artistic material to refugees artists, so they can practice their art again.',
-      image: 'https://cl.ly/0Q3N193Z1e3u/BrusselsTogetherLogo.png',
-      currency: 'EUR',
-      tags: ['#brusselstogether'],
-      isActive: true,
-    },
-    {
-      name: 'Brussels Smart City',
-      slug: 'brusselssmartcity',
-      description: 'improve the life of Brussels Citizens by the use of technology',
-      image: 'https://cl.ly/0Q3N193Z1e3u/BrusselsTogetherLogo.png',
-      currency: 'EUR',
-      tags: ['#brusselstogether'],
-      backgroundImage: 'http://www.hiddendistrict.be/wp-content/uploads/2015/01/Brussels_view-1000x500.jpg',
-      isActive: true,
-    },
-  ],
 
   paymentMethod1: {
     token: 'PA-1B0110758V169653C',
@@ -647,15 +615,18 @@ export default {
     type: 'EVENT',
     name: 'January meetup',
     isActive: true,
+    approvedAt: new Date(2020, 1, 1),
     slug: 'jan-meetup',
     description: 'January monthly meetup',
     startsAt: '2017-01-06 UTC+0300',
     timezone: 'America/New_York',
     endsAt: '2017-01-07 UTC+300',
-    locationName: 'Balanced NYC',
-    address: '547 Broadway, NY 10012',
+    location: {
+      name: 'Balanced NYC',
+      address: '547 Broadway, NY 10012',
+      geoLocationLatLong: { type: 'Point', coordinates: [39.807222, -76.984722] },
+    },
     backgroundImage: 'http://opencollective.com/backgroundimage.png',
-    geoLocationLatLong: { type: 'Point', coordinates: [39.807222, -76.984722] },
   },
 
   event2: {
@@ -665,8 +636,10 @@ export default {
     description: 'February monthly meetup',
     startsAt: '2017-02-06 UTC+0300',
     endsAt: '2017-02-07 UTC+300',
-    locationName: 'Puck Fair',
-    address: '505 Broadway, NY 10012',
+    location: {
+      name: 'Puck Fair',
+      address: '505 Broadway, NY 10012',
+    },
   },
 
   tier1: {

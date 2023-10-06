@@ -7,11 +7,11 @@ import logger from '../../lib/logger';
 import { getApplicationFee } from '../../lib/payments';
 import { reportMessageToSentry } from '../../lib/sentry';
 import stripe, { convertToStripeAmount } from '../../lib/stripe';
-import models from '../../models';
+import { OrderModelInterface } from '../../models/Order';
 
 import { APPLICATION_FEE_INCOMPATIBLE_CURRENCIES, refundTransaction, refundTransactionOnlyInDatabase } from './common';
 
-const processOrder = async (order: typeof models.Order): Promise<void> => {
+const processOrder = async (order: OrderModelInterface): Promise<void> => {
   const generatedSepaDebit = order.paymentMethod?.data?.generated_sepa_debit;
   if (!generatedSepaDebit) {
     throw new Error(
@@ -28,7 +28,7 @@ const processOrder = async (order: typeof models.Order): Promise<void> => {
   const isPlatformRevenueDirectlyCollected = APPLICATION_FEE_INCOMPATIBLE_CURRENCIES.includes(toUpper(host.currency))
     ? false
     : host?.settings?.isPlatformRevenueDirectlyCollected ?? true;
-  const applicationFee = await getApplicationFee(order, host);
+  const applicationFee = await getApplicationFee(order, { host });
 
   const paymentIntentParams: Stripe.PaymentIntentCreateParams = {
     customer: order.paymentMethod.customerId,

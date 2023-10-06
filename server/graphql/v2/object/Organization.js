@@ -1,14 +1,16 @@
 import { GraphQLObjectType, GraphQLString } from 'graphql';
 
-import { Account, AccountFields } from '../interface/Account';
-import { AccountWithContributions, AccountWithContributionsFields } from '../interface/AccountWithContributions';
+import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
+import { checkScope } from '../../common/scope-check';
+import { AccountFields, GraphQLAccount } from '../interface/Account';
+import { AccountWithContributionsFields, GraphQLAccountWithContributions } from '../interface/AccountWithContributions';
 
-import { Host } from './Host';
+import { GraphQLHost } from './Host';
 
-export const Organization = new GraphQLObjectType({
+export const GraphQLOrganization = new GraphQLObjectType({
   name: 'Organization',
   description: 'This represents an Organization account',
-  interfaces: () => [Account, AccountWithContributions],
+  interfaces: () => [GraphQLAccount, GraphQLAccountWithContributions],
   isTypeOf: collective => collective.type === 'ORGANIZATION',
   fields: () => {
     return {
@@ -27,17 +29,23 @@ export const Organization = new GraphQLObjectType({
             - Hosts can see the address of organizations submitting expenses to their collectives.
         `,
         async resolve(organization, _, req) {
-          const canSeeLocation = req.remoteUser?.isAdmin(organization.id) || (await organization.isHost());
+          const location = await req.loaders.Location.byCollectiveId.load(organization.id);
+          const canSeeLocation =
+            (await organization.isHost()) ||
+            (checkScope(req, 'account') &&
+              (req.remoteUser?.isAdmin(organization.id) ||
+                getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, organization.id)));
+
           if (canSeeLocation) {
-            return organization.location;
+            return location;
           } else {
-            return { country: organization.location?.country };
+            return { country: location?.country };
           }
         },
       },
       host: {
-        type: Host,
-        description: 'If the organization if a host account, this will return the matching Host object',
+        type: GraphQLHost,
+        description: 'If the organization is a host account, this will return the matching Host object',
         resolve(collective) {
           if (collective.isHostAccount) {
             return collective;

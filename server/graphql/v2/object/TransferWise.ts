@@ -1,10 +1,13 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { GraphQLJSON, GraphQLJSONObject } from 'graphql-type-json';
+import { GraphQLJSON, GraphQLJSONObject } from 'graphql-scalars';
 
+import models, { Op } from '../../../models';
 import transferwise from '../../../paymentProviders/transferwise';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
-const TransferWiseFieldGroupValuesAllowed = new GraphQLObjectType({
+import { GraphQLAmount } from './Amount';
+
+const GraphQLTransferWiseFieldGroupValuesAllowed = new GraphQLObjectType({
   name: 'TransferWiseFieldVatvkluesAllowed',
   fields: () => ({
     key: { type: GraphQLString },
@@ -12,7 +15,7 @@ const TransferWiseFieldGroupValuesAllowed = new GraphQLObjectType({
   }),
 });
 
-const TransferWiseFieldGroup = new GraphQLObjectType({
+const GraphQLTransferWiseFieldGroup = new GraphQLObjectType({
   name: 'TransferWiseFieldGroup',
   fields: () => ({
     key: { type: GraphQLString },
@@ -26,28 +29,28 @@ const TransferWiseFieldGroup = new GraphQLObjectType({
     maxLength: { type: GraphQLInt },
     validationRegexp: { type: GraphQLString },
     validationAsync: { type: GraphQLString },
-    valuesAllowed: { type: new GraphQLList(TransferWiseFieldGroupValuesAllowed) },
+    valuesAllowed: { type: new GraphQLList(GraphQLTransferWiseFieldGroupValuesAllowed) },
   }),
 });
 
-const TransferWiseField = new GraphQLObjectType({
+const GraphQLTransferWiseField = new GraphQLObjectType({
   name: 'TransferWiseField',
   fields: () => ({
     name: { type: GraphQLString },
-    group: { type: new GraphQLList(TransferWiseFieldGroup) },
+    group: { type: new GraphQLList(GraphQLTransferWiseFieldGroup) },
   }),
 });
 
-const TransferWiseRequiredField = new GraphQLObjectType({
+const GraphQLTransferWiseRequiredField = new GraphQLObjectType({
   name: 'TransferWiseRequiredField',
   fields: () => ({
     type: { type: GraphQLString },
     title: { type: GraphQLString },
-    fields: { type: new GraphQLList(TransferWiseField) },
+    fields: { type: new GraphQLList(GraphQLTransferWiseField) },
   }),
 });
 
-export const TransferWise = new GraphQLObjectType({
+export const GraphQLTransferWise = new GraphQLObjectType({
   name: 'TransferWise',
   description: 'TransferWise related properties for bank transfer.',
   fields: () => ({
@@ -67,7 +70,7 @@ export const TransferWise = new GraphQLObjectType({
           description: 'The account JSON object being validated',
         },
       },
-      type: new GraphQLList(TransferWiseRequiredField),
+      type: new GraphQLList(GraphQLTransferWiseRequiredField),
       async resolve(host, args) {
         if (host) {
           return await transferwise.getRequiredBankInformation(host, args.currency, args.accountDetails);
@@ -93,6 +96,60 @@ export const TransferWise = new GraphQLObjectType({
           }
         } else {
           return null;
+        }
+      },
+    },
+    balances: {
+      type: new GraphQLList(GraphQLAmount),
+      description: 'Transferwise balances. Returns null if Transferwise account is not connected.',
+      resolve: async host => {
+        return transferwise
+          .getAccountBalances(host)
+          .then(balances => {
+            return balances.map(balance => ({
+              value: Math.round(balance.amount.value * 100),
+              currency: balance.amount.currency,
+            }));
+          })
+          .catch(() => {
+            return null;
+          });
+      },
+    },
+    amountBatched: {
+      type: GraphQLAmount,
+      resolve: async (host, _, req) => {
+        if (!req.remoteUser?.isAdminOfCollective(host)) {
+          return null;
+        }
+        const scheduledExpenses = await models.Expense.findAll({
+          where: {
+            status: 'SCHEDULED_FOR_PAYMENT',
+            data: { quote: { [Op.not]: null } },
+          },
+          include: [
+            {
+              association: 'collective',
+              attributes: [],
+              required: true,
+              where: { HostCollectiveId: host.id, approvedAt: { [Op.not]: null } },
+            },
+          ],
+        });
+
+        if (!scheduledExpenses.length) {
+          return null;
+        }
+
+        const sourceAmount = scheduledExpenses.reduce((total, expense) => {
+          return total + expense.data.quote.paymentOption.sourceAmount;
+        }, 0);
+
+        if (sourceAmount) {
+          return {
+            value: sourceAmount * 100,
+            currency: scheduledExpenses[0].data.quote.sourceCurrency,
+          };
         }
       },
     },

@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
-export const ProcessHostApplicationAction = new GraphQLEnumType({
+export const GraphQLProcessHostApplicationAction = new GraphQLEnumType({
   name: 'ProcessHostApplicationAction',
   description: 'Action taken for an account application to the host',
   values: {

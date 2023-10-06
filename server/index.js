@@ -9,7 +9,7 @@ import throng from 'throng';
 
 import expressLib from './lib/express';
 import logger from './lib/logger';
-import { initSentry, Sentry } from './lib/sentry';
+import { updateCachedFidoMetadata } from './lib/two-factor-authentication/fido-metadata';
 import routes from './routes';
 
 const workers = process.env.WEB_CONCURRENCY || 1;
@@ -17,13 +17,7 @@ const workers = process.env.WEB_CONCURRENCY || 1;
 async function start(i) {
   const expressApp = express();
 
-  // Re-initializing Sentry with express app
-  initSentry(expressApp);
-
-  // Sentry's request handler must be the first middleware on the app
-  expressApp.use(Sentry.Handlers.requestHandler());
-  expressApp.use(Sentry.Handlers.tracingHandler());
-
+  await updateCachedFidoMetadata();
   await expressLib(expressApp);
 
   /**

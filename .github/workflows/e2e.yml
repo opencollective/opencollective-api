@@ -80,21 +80,7 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version-file: 'package.json'
-
-      - name: Force NPM version (this step can be moved once Vercel defaults to node 18.14)
-        shell: bash
-        run: npm install -g npm@8.19.2
-
-      # Npm cache
-
-      - name: Restore .npm cache
-        uses: actions/cache@v3
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-npm-cache-${{ github.sha }}
-          restore-keys: |
-            - ${{ runner.os }}-npm-cache-${{ github.sha }}
-            - ${{ runner.os }}-npm-cache-
+          cache: 'npm'
 
       # Checkouts
 

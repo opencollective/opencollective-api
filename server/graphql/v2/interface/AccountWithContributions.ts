@@ -9,14 +9,14 @@ import {
   GraphQLNonNull,
   GraphQLString,
 } from 'graphql';
-import { isNil } from 'lodash';
+import { isNil, omit } from 'lodash';
 import { OrderItem } from 'sequelize';
 
-import { getPaginatedContributorsForCollective } from '../../../lib/contributors';
-import models from '../../../models';
-import { ContributorCollection } from '../collection/ContributorCollection';
-import { TierCollection } from '../collection/TierCollection';
-import { AccountType, MemberRole } from '../enum';
+import { filterContributors } from '../../../lib/contributors';
+import models, { Collective } from '../../../models';
+import { GraphQLContributorCollection } from '../collection/ContributorCollection';
+import { GraphQLTierCollection } from '../collection/TierCollection';
+import { GraphQLAccountType, GraphQLMemberRole } from '../enum';
 
 import { CollectionArgs } from './Collection';
 
@@ -26,11 +26,11 @@ export const AccountWithContributionsFields = {
     type: new GraphQLNonNull(GraphQLInt),
     args: {
       accountType: {
-        type: AccountType,
+        type: GraphQLAccountType,
         description: 'Type of account (COLLECTIVE/EVENT/ORGANIZATION/INDIVIDUAL)',
       },
     },
-    async resolve(account: typeof models.Collective, args, req: express.Request): Promise<number> {
+    async resolve(account: Collective, args, req: express.Request): Promise<number> {
       if (!account.hasBudget()) {
         return 0;
       }
@@ -46,7 +46,7 @@ export const AccountWithContributionsFields = {
     },
   },
   tiers: {
-    type: new GraphQLNonNull(TierCollection),
+    type: new GraphQLNonNull(GraphQLTierCollection),
     args: {
       ...CollectionArgs,
       limit: {
@@ -55,7 +55,7 @@ export const AccountWithContributionsFields = {
         defaultValue: 100,
       },
     },
-    async resolve(account: typeof models.Collective, args: Record<string, unknown>): Promise<Record<string, unknown>> {
+    async resolve(account: Collective, args: Record<string, unknown>): Promise<Record<string, unknown>> {
       if (!account.hasBudget()) {
         return { nodes: [], totalCount: 0 };
       }
@@ -71,20 +71,30 @@ export const AccountWithContributionsFields = {
     },
   },
   contributors: {
-    type: new GraphQLNonNull(ContributorCollection),
+    type: new GraphQLNonNull(GraphQLContributorCollection),
     description: 'All the persons and entities that contribute to this account',
     args: {
       ...CollectionArgs,
-      roles: { type: new GraphQLList(MemberRole) },
+      roles: { type: new GraphQLList(GraphQLMemberRole) },
     },
-    resolve(collective: typeof models.Collective, args): Promise<Record<string, unknown>> {
-      return getPaginatedContributorsForCollective(collective.id, args);
+    async resolve(collective: Collective, args, req): Promise<Record<string, unknown>> {
+      const contributorsCache = await req.loaders.Contributors.forCollectiveId.load(collective.id);
+      const contributors = contributorsCache.all || [];
+      const filteredContributors = filterContributors(contributors, omit(args, ['offset', 'limit']));
+      const offset = args.offset || 0;
+      const limit = args.limit || 50;
+      return {
+        offset,
+        limit,
+        totalCount: filteredContributors.length,
+        nodes: filteredContributors.slice(offset, limit + offset),
+      };
     },
   },
   platformFeePercent: {
     type: new GraphQLNonNull(GraphQLFloat),
     description: 'How much platform fees are charged for this account',
-    resolve(account: typeof models.Collective): number {
+    resolve(account: Collective): number {
       return isNil(account.platformFeePercent) ? config.fees.default.platformPercent : account.platformFeePercent;
     },
   },
@@ -92,7 +102,7 @@ export const AccountWithContributionsFields = {
     type: new GraphQLNonNull(GraphQLBoolean),
     description:
       'Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account',
-    async resolve(account: typeof models.Collective, _, req: express.Request): Promise<boolean> {
+    async resolve(account: Collective, _, req: express.Request): Promise<boolean> {
       if (!isNil(account.data?.platformTips)) {
         return account.data.platformTips;
       }
@@ -109,7 +119,7 @@ export const AccountWithContributionsFields = {
   },
 };
 
-export const AccountWithContributions = new GraphQLInterfaceType({
+export const GraphQLAccountWithContributions = new GraphQLInterfaceType({
   name: 'AccountWithContributions',
   description: 'An account that can receive financial contributions',
   fields: () => AccountWithContributionsFields,

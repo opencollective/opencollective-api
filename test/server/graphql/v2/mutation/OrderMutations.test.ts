@@ -5,6 +5,8 @@ import moment from 'moment';
 import { createSandbox, useFakeTimers } from 'sinon';
 
 import { roles } from '../../../../../server/constants';
+import OrderStatuses from '../../../../../server/constants/order_status';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../server/constants/paymentMethods';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import * as payments from '../../../../../server/lib/payments';
 import stripe from '../../../../../server/lib/stripe';
@@ -67,6 +69,84 @@ const CREATE_ORDER_MUTATION = gqlV2/* GraphQL */ `
       }
     }
   }
+`;
+
+const PENDING_ORDER_FIELDS_FRAGMENT = gqlV2/* GraphQL */ `
+  fragment PendingOrderFields on Order {
+    id
+    legacyId
+    status
+    quantity
+    description
+    frequency
+    tags
+    memo
+    customData
+    hostFeePercent
+    pendingContributionData {
+      expectedAt
+      paymentMethod
+      ponumber
+      memo
+      fromAccountInfo {
+        name
+        email
+      }
+    }
+    tier {
+      legacyId
+    }
+    taxes {
+      type
+      percentage
+    }
+    amount {
+      valueInCents
+      currency
+    }
+    fromAccount {
+      id
+      legacyId
+      slug
+      name
+      legalName
+      ... on Individual {
+        isGuest
+      }
+    }
+    tier {
+      legacyId
+    }
+    paymentMethod {
+      id
+      legacyId
+      account {
+        id
+        legacyId
+      }
+    }
+    toAccount {
+      legacyId
+    }
+  }
+`;
+
+const CREATE_PENDING_ORDER_MUTATION = gqlV2/* GraphQL */ `
+  mutation CreatePendingOrder($order: PendingOrderCreateInput!) {
+    createPendingOrder(order: $order) {
+      ...PendingOrderFields
+    }
+  }
+  ${PENDING_ORDER_FIELDS_FRAGMENT}
+`;
+
+const EDIT_PENDING_ORDER_MUTATION = gqlV2/* GraphQL */ `
+  mutation EditPendingOrder($order: PendingOrderEditInput!) {
+    editPendingOrder(order: $order) {
+      ...PendingOrderFields
+    }
+  }
+  ${PENDING_ORDER_FIELDS_FRAGMENT}
 `;
 
 const updateOrderMutation = gqlV2/* GraphQL */ `
@@ -166,6 +246,14 @@ const processPendingOrderMutation = gqlV2/* GraphQL */ `
 
 const callCreateOrder = (params, remoteUser = null) => {
   return graphqlQueryV2(CREATE_ORDER_MUTATION, params, remoteUser);
+};
+
+const callCreatePendingOrder = (params, remoteUser = null) => {
+  return graphqlQueryV2(CREATE_PENDING_ORDER_MUTATION, params, remoteUser);
+};
+
+const callEditPendingOrder = (params, remoteUser = null) => {
+  return graphqlQueryV2(EDIT_PENDING_ORDER_MUTATION, params, remoteUser);
 };
 
 const stubExecuteOrderFn = async (user, order) => {
@@ -444,7 +532,11 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
       it('If the account already exists, cannot use an existing payment method', async () => {
         const user = await fakeUser({ confirmedAt: new Date() });
-        const paymentMethodData = { CollectiveId: user.CollectiveId, service: 'opencollective', type: 'prepaid' };
+        const paymentMethodData = {
+          CollectiveId: user.CollectiveId,
+          service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+          type: PAYMENT_METHOD_TYPE.PREPAID,
+        };
         const paymentMethod = await fakePaymentMethod(paymentMethodData);
         const orderData = {
           ...validOrderParams,
@@ -510,10 +602,255 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         };
         const result = await callCreateOrder({ order: orderData });
         expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.equal('You need to inform a valid captcha token');
+        expect(result.errors[0].message).to.equal('You need to provide a valid captcha token');
 
         config.captcha.enabled = captchaDefaultValue;
       });
+    });
+
+    describe('Common checks', () => {
+      it('collective must be approved by fiscal host', async () => {
+        const host = await fakeHost();
+        const collective = await fakeCollective({ HostCollectiveId: host.id, isActive: false, approvedAt: null });
+        const fromUser = await fakeUser();
+        const orderData = { ...validOrderParams, toAccount: { legacyId: collective.id } };
+
+        const result = await callCreateOrder({ order: orderData }, fromUser);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal(
+          'This collective has no host and cannot accept financial contributions at this time.',
+        );
+      });
+    });
+  });
+
+  describe('createPendingOrder', () => {
+    let validOrderPrams, hostAdmin, collectiveAdmin;
+
+    before(async () => {
+      hostAdmin = await fakeUser();
+      collectiveAdmin = await fakeUser();
+      const host = await fakeHost({ admin: hostAdmin });
+      const collective = await fakeCollective({ currency: 'USD', HostCollectiveId: host.id, admin: collectiveAdmin });
+      const user = await fakeUser();
+      validOrderPrams = {
+        fromAccount: { legacyId: user.CollectiveId },
+        toAccount: { legacyId: collective.id },
+        amount: { valueInCents: 100e2, currency: 'USD' },
+      };
+    });
+
+    it('must be authenticated', async () => {
+      const result = await callCreatePendingOrder({ order: validOrderPrams });
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Only host admins can create pending orders');
+    });
+
+    it('must be host admin', async () => {
+      const randomUser = await fakeUser();
+      let result = await callCreatePendingOrder({ order: validOrderPrams }, randomUser);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Only host admins can create pending orders');
+
+      result = await callCreatePendingOrder({ order: validOrderPrams }, collectiveAdmin);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Only host admins can create pending orders');
+    });
+
+    it('creates a pending order', async () => {
+      const result = await callCreatePendingOrder({ order: validOrderPrams }, hostAdmin);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      const resultOrder = result.data.createPendingOrder;
+      expect(resultOrder.status).to.equal('PENDING');
+      expect(resultOrder.amount.valueInCents).to.equal(100e2);
+      expect(resultOrder.amount.currency).to.equal('USD');
+      expect(resultOrder.frequency).to.equal('ONETIME');
+      expect(resultOrder.fromAccount.legacyId).to.equal(validOrderPrams.fromAccount.legacyId);
+      expect(resultOrder.toAccount.legacyId).to.equal(validOrderPrams.toAccount.legacyId);
+    });
+
+    it('creates a pending order with a custom tier', async () => {
+      const tier = await fakeTier({
+        CollectiveId: validOrderPrams.toAccount.legacyId,
+        currency: validOrderPrams.toAccount.currency,
+      });
+      const orderInput = { ...validOrderPrams, tier: { legacyId: tier.id } };
+      const result = await callCreatePendingOrder({ order: orderInput }, hostAdmin);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      const resultOrder = result.data.createPendingOrder;
+      expect(resultOrder.status).to.equal('PENDING');
+      expect(resultOrder.tier.legacyId).to.equal(tier.id);
+    });
+
+    it('creates a pending order with tax', async () => {
+      const orderInput = { ...validOrderPrams, tax: { type: 'VAT', rate: 0.21 } };
+      const result = await callCreatePendingOrder({ order: orderInput }, hostAdmin);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      const resultOrder = result.data.createPendingOrder;
+      expect(resultOrder.status).to.equal('PENDING');
+      expect(resultOrder.taxes).to.exist;
+      expect(resultOrder.taxes.length).to.equal(1);
+      expect(resultOrder.taxes[0].type).to.equal('VAT');
+      expect(resultOrder.taxes[0].percentage).to.equal(21);
+    });
+  });
+
+  describe('editPendingOrder', () => {
+    let order, hostAdmin, collectiveAdmin;
+
+    before(async () => {
+      hostAdmin = await fakeUser();
+      collectiveAdmin = await fakeUser();
+      const host = await fakeHost({ admin: hostAdmin });
+      const collective = await fakeCollective({ currency: 'USD', HostCollectiveId: host.id, admin: collectiveAdmin });
+      const user = await fakeUser();
+      order = await fakeOrder({
+        status: OrderStatuses.PENDING,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: collective.id,
+        totalAmount: 1000,
+        currency: 'USD',
+        data: {
+          isPendingContribution: true,
+        },
+      });
+    });
+
+    it('must be authenticated', async () => {
+      const result = await callEditPendingOrder({
+        order: {
+          legacyId: order.id,
+          amount: { valueInCents: 150e2, currency: 'USD' },
+        },
+      });
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Only host admins can edit pending orders');
+    });
+
+    it('must be host admin', async () => {
+      // Random user
+      const randomUser = await fakeUser();
+      let result = await callEditPendingOrder(
+        {
+          order: {
+            legacyId: order.id,
+            amount: { valueInCents: 150e2, currency: 'USD' },
+          },
+        },
+        randomUser,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Only host admins can edit pending orders');
+
+      // Collective admin
+      result = await callEditPendingOrder(
+        {
+          order: {
+            legacyId: order.id,
+            amount: { valueInCents: 150e2, currency: 'USD' },
+          },
+        },
+        collectiveAdmin,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Only host admins can edit pending orders');
+    });
+
+    it('must be a PENDING order', async () => {
+      const paidOrder = await fakeOrder({ status: OrderStatuses.PAID, data: { isPendingContribution: true } });
+      const hostAdmin = await fakeUser();
+      await paidOrder.collective.host.addUserWithRole(hostAdmin, 'ADMIN');
+      const result = await callEditPendingOrder(
+        {
+          order: {
+            legacyId: paidOrder.id,
+            amount: { valueInCents: 150e2, currency: 'USD' },
+          },
+        },
+        hostAdmin,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Only pending orders can be edited, this one is PAID');
+    });
+
+    it('must be a fiscal-host created pending contribution', async () => {
+      const paidOrder = await fakeOrder({ status: OrderStatuses.PAID });
+      const hostAdmin = await fakeUser();
+      await paidOrder.collective.host.addUserWithRole(hostAdmin, 'ADMIN');
+      const result = await callEditPendingOrder(
+        {
+          order: {
+            legacyId: paidOrder.id,
+            amount: { valueInCents: 150e2, currency: 'USD' },
+          },
+        },
+        hostAdmin,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(
+        'Only pending contributions created by fiscal-host admins can be editted',
+      );
+    });
+
+    it('edits a pending order', async () => {
+      const tier = await fakeTier({ CollectiveId: order.CollectiveId, currency: 'USD' });
+      const newFromUser = await fakeUser();
+      const result = await callEditPendingOrder(
+        {
+          order: {
+            legacyId: order.id,
+            tier: { legacyId: tier.id },
+            fromAccount: { legacyId: newFromUser.CollectiveId },
+            fromAccountInfo: { name: 'Hey', email: 'hey@opencollective.com' },
+            description: 'New description',
+            memo: 'New memo',
+            ponumber: 'New ponumber',
+            paymentMethod: 'New PM',
+            expectedAt: '2023-01-01T00:00:00.000Z',
+            amount: { valueInCents: 150e2, currency: 'USD' },
+            hostFeePercent: 12.5,
+            tax: {
+              type: 'VAT',
+              rate: 0.21,
+              idNumber: '123456789',
+              country: 'FR',
+              amount: { valueInCents: 3150, currency: 'USD' },
+            },
+          },
+        },
+        hostAdmin,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      const resultOrder = result.data.editPendingOrder;
+      expect(resultOrder.status).to.equal('PENDING');
+      expect(resultOrder.amount.valueInCents).to.equal(18150); // $150 + $31.50 (21%) tax
+      expect(resultOrder.amount.currency).to.equal('USD');
+      expect(resultOrder.fromAccount.legacyId).to.equal(newFromUser.CollectiveId);
+      expect(resultOrder.tier.legacyId).to.equal(tier.id);
+      expect(resultOrder.description).to.equal('New description');
+      expect(resultOrder.memo).to.equal('New memo');
+      expect(resultOrder.pendingContributionData).to.exist;
+      expect(resultOrder.pendingContributionData.ponumber).to.equal('New ponumber');
+      expect(resultOrder.pendingContributionData.paymentMethod).to.equal('New PM');
+      expect(resultOrder.pendingContributionData.expectedAt.toISOString()).to.equal('2023-01-01T00:00:00.000Z');
+      expect(resultOrder.pendingContributionData.memo).to.equal('New memo');
+      expect(resultOrder.pendingContributionData.fromAccountInfo).to.deep.equal({
+        name: 'Hey',
+        email: 'hey@opencollective.com',
+      });
+
+      expect(resultOrder.hostFeePercent).to.equal(12.5);
+      expect(resultOrder.taxes).to.exist;
+      expect(resultOrder.taxes.length).to.equal(1);
+      expect(resultOrder.taxes[0].type).to.equal('VAT');
     });
   });
 
@@ -563,7 +900,10 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
     describe('prevents moving order if payment methods can be moved because...', () => {
       it('if another order with the same payment method depends on it', async () => {
-        const paymentMethod = await fakePaymentMethod({ service: 'stripe', type: 'creditcard' });
+        const paymentMethod = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
+          type: PAYMENT_METHOD_TYPE.CREDITCARD,
+        });
         const fakeOrderOptions = { withTransactions: true, withBackerMember: true };
         const order1 = await fakeOrder({ PaymentMethodId: paymentMethod.id }, fakeOrderOptions);
         const order2 = await fakeOrder({ PaymentMethodId: paymentMethod.id }, fakeOrderOptions);
@@ -578,7 +918,10 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       });
 
       it('if the payment method is not supported (account balance)', async () => {
-        const paymentMethod = await fakePaymentMethod({ service: 'opencollective', type: 'collective' });
+        const paymentMethod = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+          type: PAYMENT_METHOD_TYPE.COLLECTIVE,
+        });
         const fakeOrderOptions = { withTransactions: true, withBackerMember: true };
         const order = await fakeOrder({ PaymentMethodId: paymentMethod.id }, fakeOrderOptions);
         const newProfile = (await fakeUser({}, { name: 'New profile' })).collective;
@@ -594,7 +937,10 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
     it('moves all data to another profile and summarize the changes in MigrationLogs', async () => {
       // Init data
-      const paymentMethod = await fakePaymentMethod({ service: 'stripe', type: 'creditcard' });
+      const paymentMethod = await fakePaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        type: PAYMENT_METHOD_TYPE.CREDITCARD,
+      });
       const fakeOrderOptions = { withTransactions: true, withBackerMember: true };
       const order = await fakeOrder({ PaymentMethodId: paymentMethod.id }, fakeOrderOptions);
       const newProfile = (await fakeUser({}, { name: 'New profile' })).collective;
@@ -654,7 +1000,10 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
     it('moves all to the incognito profile data and summarize the changes in MigrationLogs', async () => {
       // Init data
-      const paymentMethod = await fakePaymentMethod({ service: 'stripe', type: 'creditcard' });
+      const paymentMethod = await fakePaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        type: PAYMENT_METHOD_TYPE.CREDITCARD,
+      });
       const fakeOrderOptions = { withTransactions: true, withBackerMember: true };
       const order = await fakeOrder({ PaymentMethodId: paymentMethod.id }, fakeOrderOptions);
       const backerMember = await models.Member.findOne({
@@ -719,7 +1068,10 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
     it('moves the contribution to the custom tier', async () => {
       // Init data
-      const paymentMethod = await fakePaymentMethod({ service: 'stripe', type: 'creditcard' });
+      const paymentMethod = await fakePaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        type: PAYMENT_METHOD_TYPE.CREDITCARD,
+      });
       const fakeOrderOptions = { withTransactions: true, withBackerMember: true, withTier: true };
       const order = await fakeOrder({ PaymentMethodId: paymentMethod.id }, fakeOrderOptions);
       const backerMember = await models.Member.findOne({
@@ -763,7 +1115,10 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
     it('moves both the fromAccount and the contribution to a different tier', async () => {
       // Init data
-      const paymentMethod = await fakePaymentMethod({ service: 'stripe', type: 'creditcard' });
+      const paymentMethod = await fakePaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        type: PAYMENT_METHOD_TYPE.CREDITCARD,
+      });
       const fakeOrderOptions = { withTransactions: true, withBackerMember: true, withTier: true };
       const order = await fakeOrder({ PaymentMethodId: paymentMethod.id }, fakeOrderOptions);
       const newTier = await fakeTier({ CollectiveId: order.CollectiveId });
@@ -823,6 +1178,88 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       expect(backerMember.TierId).to.eq(newTier.id);
       expect(backerMember.CollectiveId).to.eq(order.CollectiveId); // Should stay the same
     });
+
+    it('moves an Added Fund to a different User profile', async () => {
+      // Init data
+      const paymentMethod = await fakePaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.HOST,
+      });
+      const fakeOrderOptions = { withTransactions: true, withBackerMember: true };
+      const order = await fakeOrder({ PaymentMethodId: paymentMethod.id }, fakeOrderOptions);
+      const newProfile = (await fakeUser({}, { name: 'New profile' })).collective;
+      const backerMember = await models.Member.findOne({
+        where: {
+          MemberCollectiveId: order.FromCollectiveId,
+          CollectiveId: order.CollectiveId,
+          role: 'BACKER',
+        },
+      });
+
+      // Move order
+      const result = await callMoveOrders([order], rootUser, { fromAccount: newProfile });
+      const resultOrder = result.data.moveOrders[0];
+
+      // Check migration logs
+      const migrationLog = await models.MigrationLog.findOne({
+        where: { type: 'MOVE_ORDERS', CreatedByUserId: rootUser.id },
+      });
+
+      expect(migrationLog).to.exist;
+      expect(migrationLog.data['fromAccount']).to.eq(newProfile.id);
+      expect(migrationLog.data['previousOrdersValues'][order.id]).to.deep.eq({
+        CollectiveId: order.CollectiveId,
+        FromCollectiveId: order.FromCollectiveId,
+        TierId: order.TierId,
+      });
+
+      // Check order
+      expect(migrationLog.data['orders']).to.deep.eq([order.id]);
+      expect(resultOrder.fromAccount.legacyId).to.eq(newProfile.id);
+      expect(resultOrder.toAccount.legacyId).to.eq(order.CollectiveId); // Should stay the same
+
+      // Check transactions
+      const allOrderTransactions = await models.Transaction.findAll({ where: { OrderId: order.id } });
+      expect(migrationLog.data['transactions']).to.deep.eq(allOrderTransactions.map(t => t.id));
+
+      const creditTransaction = resultOrder.transactions.find(t => t.type === 'CREDIT');
+      expect(creditTransaction.oppositeAccount.legacyId).to.eq(newProfile.id);
+      expect(creditTransaction.account.legacyId).to.eq(order.CollectiveId);
+
+      const debitTransaction = resultOrder.transactions.find(t => t.type === 'DEBIT');
+      expect(debitTransaction.oppositeAccount.legacyId).to.eq(order.CollectiveId);
+      expect(debitTransaction.account.legacyId).to.eq(newProfile.id);
+
+      // Check payment methods ids in transactions and order
+      expect(order.PaymentMethodId).to.eq(paymentMethod.id);
+      expect(allOrderTransactions.filter(t => t.type === 'CREDIT')[0].PaymentMethodId).to.eq(paymentMethod.id);
+      expect(allOrderTransactions.filter(t => t.type === 'DEBIT')[0].PaymentMethodId).to.eq(paymentMethod.id);
+
+      // Check member
+      await backerMember.reload();
+      expect(migrationLog.data['members']).to.deep.eq([backerMember.id]);
+      expect(backerMember.MemberCollectiveId).to.eq(newProfile.id);
+      expect(backerMember.CollectiveId).to.eq(order.CollectiveId); // Should stay the same
+    });
+
+    it('try to move an Added Fund to a different Collective profile under different host', async () => {
+      // Init data
+      const paymentMethod = await fakePaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.HOST,
+      });
+      const fakeOrderOptions = { withTransactions: true, withBackerMember: true };
+      const order = await fakeOrder({ PaymentMethodId: paymentMethod.id }, fakeOrderOptions);
+
+      const newProfile = await fakeCollective({ name: 'New profile' });
+
+      // Try to move order
+      const result = await callMoveOrders([order], rootUser, { fromAccount: newProfile });
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(
+        `Moving Added Funds when the current source Account has a different Fiscal Host than the new source Account is not supported.`,
+      );
+    });
   });
 
   describe('Other mutations', () => {
@@ -859,7 +1296,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           CreatedByUserId: user.id,
           FromCollectiveId: user.CollectiveId,
           CollectiveId: collective.id,
-          status: 'ACTIVE',
+          status: OrderStatuses.ACTIVE,
         },
         {
           withSubscription: true,
@@ -870,15 +1307,15 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           CreatedByUserId: user.id,
           FromCollectiveId: user.CollectiveId,
           CollectiveId: collective.id,
-          status: 'ACTIVE',
+          status: OrderStatuses.ACTIVE,
         },
         {
           withSubscription: true,
         },
       );
       paymentMethod = await fakePaymentMethod({
-        service: 'stripe',
-        type: 'creditcard',
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        type: PAYMENT_METHOD_TYPE.CREDITCARD,
         data: {
           expMonth: 11,
           expYear: 2025,
@@ -887,8 +1324,8 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         token: 'tok_5B5j8xDjPFcHOcTm3ogdnq0K',
       });
       paymentMethod2 = await fakePaymentMethod({
-        service: 'stripe',
-        type: 'creditcard',
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        type: PAYMENT_METHOD_TYPE.CREDITCARD,
         data: {
           expMonth: 11,
           expYear: 2025,
@@ -1095,6 +1532,42 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(result.data.updateOrder.tier.name).to.eq(fixedTier.name);
       });
 
+      it('when changing the amount, the tax amount is updated too', async () => {
+        const orderWithTaxes = await fakeOrder(
+          {
+            CreatedByUserId: user.id,
+            FromCollectiveId: user.CollectiveId,
+            CollectiveId: collective.id,
+            status: OrderStatuses.ACTIVE,
+            totalAmount: 1300,
+            taxAmount: 200,
+            platformTipAmount: 100,
+            currency: 'USD',
+            data: { tax: { id: 'VAT', percentage: 20 } },
+          },
+          {
+            withSubscription: true,
+          },
+        );
+
+        const result = await graphqlQueryV2(
+          updateOrderMutation,
+          {
+            order: { id: idEncode(orderWithTaxes.id, 'order') },
+            amount: { valueInCents: 2000, currency: 'USD' },
+          },
+          user,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        await orderWithTaxes.reload();
+        expect(orderWithTaxes.totalAmount).to.eq(2100);
+        expect(orderWithTaxes.platformTipAmount).to.eq(100);
+        expect(orderWithTaxes.taxAmount).to.eq(333); // 20% VAT on $2000 (tip is not included in the tax calculation)
+        expect(orderWithTaxes.totalAmount - orderWithTaxes.taxAmount - orderWithTaxes.platformTipAmount).to.eq(1667); // Gross amount
+      });
+
       describe('update interval', async () => {
         let clock;
 
@@ -1115,7 +1588,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
               CreatedByUserId: user.id,
               FromCollectiveId: user.CollectiveId,
               CollectiveId: collective.id,
-              status: 'ACTIVE',
+              status: OrderStatuses.ACTIVE,
             },
             { withSubscription: true },
           );
@@ -1156,7 +1629,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
               CreatedByUserId: user.id,
               FromCollectiveId: user.CollectiveId,
               CollectiveId: collective.id,
-              status: 'ACTIVE',
+              status: OrderStatuses.ACTIVE,
             },
             { withSubscription: true },
           );
@@ -1197,7 +1670,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
               CreatedByUserId: user.id,
               FromCollectiveId: user.CollectiveId,
               CollectiveId: collective.id,
-              status: 'ACTIVE',
+              status: OrderStatuses.ACTIVE,
             },
             { withSubscription: true },
           );
@@ -1235,11 +1708,11 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           CreatedByUserId: user.id,
           FromCollectiveId: user.CollectiveId,
           CollectiveId: collective.id,
-          status: 'PENDING',
+          status: OrderStatuses.PENDING,
           frequency: 'ONETIME',
           totalAmount: 10000,
           currency: 'USD',
-        });
+        } as any);
       });
 
       it('should mark as expired', async () => {
@@ -1314,12 +1787,12 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         CreatedByUserId: user.id,
         FromCollectiveId: user.CollectiveId,
         CollectiveId: collective.id,
-        status: 'PENDING',
+        status: OrderStatuses.PENDING,
         frequency: 'ONETIME',
         totalAmount: 10100,
         currency: 'USD',
         platformTipAmount: 100,
-      });
+      } as any);
 
       const result = await graphqlQueryV2(
         processPendingOrderMutation,

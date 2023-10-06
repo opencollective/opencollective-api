@@ -1,6 +1,9 @@
 import DataLoader from 'dataloader';
+import type { Request } from 'express';
 import { get } from 'lodash';
-import { Model } from 'sequelize';
+import { Model, ModelStatic } from 'sequelize';
+
+import models from '../../models';
 
 /** A default getter that returns item's id */
 const defaultKeyGetter = (item): number | string => item.id;
@@ -117,7 +120,7 @@ export const sortResults = (
  * - If any other model called for this loader already has
  */
 export function buildLoaderForAssociation<AssociatedModel extends Model>(
-  model: Model,
+  model: ModelStatic<AssociatedModel>,
   association: string,
   options: {
     /** Will not load the association if this filter returns false */
@@ -126,10 +129,10 @@ export function buildLoaderForAssociation<AssociatedModel extends Model>(
     loader?: (ids: readonly (string | number)[]) => Promise<AssociatedModel[]>;
   } = {},
 ) {
-  return new DataLoader<typeof model, AssociatedModel>(
-    async (entities: (typeof model)[]): Promise<AssociatedModel[]> => {
+  return new DataLoader<Model, AssociatedModel>(
+    async (entities: Model[]): Promise<AssociatedModel[]> => {
       const associationInfo = model['associations'][association];
-      const associationsByForeignKey: Record<ForeignKeyType, AssociatedModel> = {};
+      const associationsByForeignKey: Record<ForeignKeyType, Model> = {};
       type ForeignKeyType = typeof associationInfo.foreignKey;
 
       // Cache all associations that are already loaded and list all foreign keys that need to be loaded
@@ -149,21 +152,21 @@ export function buildLoaderForAssociation<AssociatedModel extends Model>(
       const associationNotLoadedYet = (id: ForeignKeyType): boolean => !associationsByForeignKey[id];
       const associationsIdsToLoad = Object.keys(associationsByForeignKey).filter(associationNotLoadedYet);
       if (associationsIdsToLoad.length > 0) {
-        let loadedAssociations: AssociatedModel[];
+        let loadedAssociations: Model[];
         if (options.loader) {
-          // If a loader is provided, use it to load the associations using the IDs we've collective
+          // If a loader is provided, use it to load the associations using the IDs we've collected
           loadedAssociations = await options.loader(associationsIdsToLoad);
         } else {
           // Otherwise fallback on making a query using the model + foreign key
           loadedAssociations = await associationInfo.target.findAll({
-            where: { [associationInfo.targetKey]: associationsIdsToLoad },
+            where: { [associationInfo.target.primaryKeyAttribute]: associationsIdsToLoad },
           });
         }
 
         // Add loaded associations to our `associationsByForeignKey` map
         for (const association of loadedAssociations) {
           if (association) {
-            const foreignKey = association.getDataValue(associationInfo.targetKey);
+            const foreignKey = association.getDataValue(associationInfo.target.primaryKeyAttribute);
             associationsByForeignKey[foreignKey] = association;
           }
         }
@@ -184,7 +187,26 @@ export function buildLoaderForAssociation<AssociatedModel extends Model>(
       });
     },
     {
-      cacheKeyFn: (entity: typeof model) => entity[model['primaryKeyAttribute']],
+      cacheKeyFn: (entity: AssociatedModel) => entity[model['primaryKeyAttribute']],
     },
   );
 }
+
+export const populateModelAssociations = async <M>(
+  req: Request,
+  objects: M[],
+  associations: Array<{ fkField: string; as?: string; modelName: keyof typeof models }>,
+): Promise<M[]> => {
+  const promises = associations.map(async ({ fkField, as: propertyKey, modelName }) => {
+    const ids = objects.map(obj => obj[fkField]).filter(id => id);
+    const foreignObjects = await req.loaders[modelName].byId.loadMany(ids);
+    objects.forEach(obj => {
+      const subObject = foreignObjects.find(s => s.id === obj[fkField]);
+      if (subObject) {
+        obj[propertyKey || modelName] = subObject;
+      }
+    });
+  });
+  await Promise.all(promises);
+  return objects;
+};

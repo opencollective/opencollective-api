@@ -1,7 +1,9 @@
 import path from 'path';
 
+import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { encode } from 'blurhash';
 import config from 'config';
+import type { FileUpload as GraphQLFileUpload } from 'graphql-upload/Upload.js';
 import { kebabCase } from 'lodash';
 import {
   BelongsToGetAssociationMixin,
@@ -13,11 +15,13 @@ import {
 import sharp from 'sharp';
 import { v4 as uuid } from 'uuid';
 
-import s3, { uploadToS3 } from '../lib/awsS3';
+import { FileKind, SUPPORTED_FILE_KINDS } from '../constants/file-kind';
+import { checkS3Configured, uploadToS3 } from '../lib/awsS3';
 import logger from '../lib/logger';
+import { ExpenseOCRParseResult, ExpenseOCRService } from '../lib/ocr/ExpenseOCRService';
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
-import { MulterFile } from '../types/Multer';
+import streamToBuffer from '../lib/stream-to-buffer';
 
 import User from './User';
 
@@ -28,6 +32,14 @@ type CommonDataShape = {
   /** A unique identified to record what part of the code uploaded this image. By convention, the default upload function doesn't set this */
   recordedFrom?: string;
   completedAt?: string;
+  /** A checksum of the content as returned by Amazon S3 (cannot be computed locally since we use server-side encryption) */
+  s3SHA256?: string;
+  ocrData?: {
+    type: 'Expense';
+    parser: ExpenseOCRService['PARSER_ID'];
+    result: ExpenseOCRParseResult;
+    executionTime: number; // in seconds
+  };
 };
 
 type ImageDataShape = CommonDataShape & {
@@ -36,35 +48,25 @@ type ImageDataShape = CommonDataShape & {
   blurHash: string;
 };
 
+type FileUpload = {
+  buffer: Buffer;
+  size: number;
+  mimetype: string;
+  originalname: string;
+};
+
 // Constants
+export const MAX_FILENAME_LENGTH = 1024; // From S3
 export const MAX_FILE_SIZE = 1024 * 1024 * 10; // 10MB
-export const SUPPORTED_FILE_TYPES_IMAGES = ['image/png', 'image/jpeg', 'image/gif'] as const;
+export const SUPPORTED_FILE_TYPES_IMAGES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'] as const;
 export const SUPPORTED_FILE_TYPES = [...SUPPORTED_FILE_TYPES_IMAGES, 'application/pdf'] as const;
 export const SUPPORTED_FILE_EXTENSIONS: Record<SUPPORTED_FILE_TYPES_UNION, string> = {
   'image/png': '.png',
   'image/jpeg': '.jpg',
   'image/gif': '.gif',
+  'image/webp': '.webp',
   'application/pdf': '.pdf',
 } as const;
-
-/**
- * Any kind added here will need to be added to `server/lib/uploaded-files.ts` as well.
- */
-export const SUPPORTED_FILE_KINDS = [
-  // Base fields
-  'ACCOUNT_AVATAR',
-  'ACCOUNT_BANNER',
-  'EXPENSE_ATTACHED_FILE',
-  'EXPENSE_ITEM',
-  // Rich text fields
-  'ACCOUNT_LONG_DESCRIPTION',
-  'UPDATE',
-  'COMMENT',
-  'TIER_LONG_DESCRIPTION',
-  'ACCOUNT_CUSTOM_EMAIL',
-] as const;
-
-export type FileKind = (typeof SUPPORTED_FILE_KINDS)[number];
 
 /**
  * A file uploaded to our S3 bucket.
@@ -89,7 +91,7 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
 
   // ==== Static methods ====
   public static isOpenCollectiveS3BucketURL(url: string): boolean {
-    return new RegExp(`^https://${config.aws.s3.bucket}\\.s3[.-]us-west-1.amazonaws.com/\\w+`).test(url);
+    return new RegExp(`^https://${config.aws.s3.bucket}\\.s3[.-]us-west-1\\.amazonaws\\.com/\\w+`).test(url);
   }
 
   public static isSupportedImageMimeType(mimeType: string): boolean {
@@ -100,8 +102,29 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
     return (SUPPORTED_FILE_TYPES as readonly string[]).includes(mimeType);
   }
 
+  public static async uploadGraphQl(
+    file: GraphQLFileUpload,
+    kind: FileKind,
+    user: User | null,
+    args: { fileName?: string } = {},
+  ): Promise<UploadedFile> {
+    const buffer = await streamToBuffer(file.createReadStream());
+
+    return UploadedFile.upload(
+      {
+        buffer,
+        size: buffer.length,
+        mimetype: file.mimetype,
+        originalname: file.filename,
+      },
+      kind,
+      user,
+      args,
+    );
+  }
+
   public static async upload(
-    file: MulterFile,
+    file: FileUpload,
     kind: FileKind,
     user: User | null,
     args: { fileName?: string } = {},
@@ -116,7 +139,7 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
     }
 
     // Should only happen in dev/test envs
-    if (!s3) {
+    if (!checkS3Configured()) {
       logger.error('No S3 client available');
       throw new Error('There was a problem while uploading the file');
     }
@@ -125,13 +148,17 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
      * We will replace the name to avoid collisions
      */
     const fileName = UploadedFile.getFilename(file, args.fileName);
-    const uploadParams = {
+    const uploadParams: PutObjectCommand['input'] = {
       Bucket: config.aws.s3.bucket,
       Key: `${kebabCase(kind)}/${uuid()}/${fileName || uuid()}`,
       Body: file.buffer,
       ACL: 'public-read', // We're aware of the security implications of this and will be looking for a better solution in https://github.com/opencollective/opencollective/issues/6351
       ContentLength: file.size,
       ContentType: file.mimetype,
+      // Adding the checksum for S3 to validate the integrity of the file
+      // See https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html#API_PutObject_RequestSyntax
+      ChecksumAlgorithm: 'SHA256',
+      // Custom S3 metadata
       Metadata: {
         CreatedByUserId: `${user?.id}`,
         FileKind: kind,
@@ -139,14 +166,14 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
     };
 
     try {
-      const s3Data = await uploadToS3(uploadParams);
+      const uploadResult = await uploadToS3(uploadParams);
       return UploadedFile.create({
         kind: kind,
         fileName,
         fileSize: file.size,
         fileType: file.mimetype as (typeof SUPPORTED_FILE_TYPES)[number],
-        url: s3Data.Location,
-        data: await UploadedFile.getData(file),
+        url: uploadResult.url,
+        data: await UploadedFile.getData(file, uploadResult.s3Data?.ChecksumSHA256),
         CreatedByUserId: user.id,
       });
     } catch (err) {
@@ -160,7 +187,7 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
     }
   }
 
-  private static async getData(file) {
+  private static async getData(file, s3SHA256: string = null) {
     if (UploadedFile.isSupportedImageMimeType(file.mimetype)) {
       const image = sharp(file.buffer);
       const { width, height } = await image.metadata();
@@ -172,20 +199,20 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
           .ensureAlpha()
           .resize({ fit: sharp.fit.contain, width: 200 })
           .toBuffer({ resolveWithObject: true });
-        blurHash = encode(data, info.width, info.height, 4, 4);
+        blurHash = encode(Uint8ClampedArray.from(data), info.width, info.height, 4, 4);
       } catch (err) {
         reportErrorToSentry(err, {
           severity: 'error',
         });
       }
 
-      return { width, height, blurHash };
+      return { width, height, blurHash, s3SHA256 };
     } else {
-      return null;
+      return { s3SHA256 };
     }
   }
 
-  private static getFilename(file: MulterFile, fileNameFromArgs: string | null) {
+  private static getFilename(file: FileUpload, fileNameFromArgs: string | null) {
     const expectedExtension = SUPPORTED_FILE_EXTENSIONS[file.mimetype];
     const rawFileName = fileNameFromArgs || file.originalname || uuid();
     const parsedFileName = path.parse(rawFileName);
@@ -214,6 +241,21 @@ UploadedFile.init(
     fileName: {
       type: DataTypes.STRING,
       allowNull: true,
+      set(fileName: string | null): void {
+        this.setDataValue('fileName', fileName || null);
+      },
+      validate: {
+        notEmpty: true,
+        len: {
+          args: [1, MAX_FILENAME_LENGTH],
+          msg: `File name cannot exceed ${MAX_FILENAME_LENGTH} characters`,
+        },
+        hasExtension: (fileName: string): void => {
+          if (fileName && !path.extname(fileName)) {
+            throw new Error('File name must have an extension');
+          }
+        },
+      },
     },
     fileSize: {
       type: DataTypes.INTEGER,

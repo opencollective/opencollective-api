@@ -1,5 +1,5 @@
 {
-  "extends": ["plugin:@typescript-eslint/recommended", "plugin:import/typescript", "opencollective"],
+  "extends": ["opencollective", "plugin:@typescript-eslint/recommended", "plugin:import/typescript"],
   "parser": "@typescript-eslint/parser",
   "env": { "mocha": true },
   "plugins": ["@typescript-eslint", "graphql", "mocha", "simple-import-sort"],
@@ -50,6 +50,7 @@
     ],
     // tweak typescript defaults
     "@typescript-eslint/ban-types": "warn",
+    "@typescript-eslint/no-explicit-any": "warn",
     // GraphQL
     // To lint multiple schemas each one needs a different tagName.
     // https://github.com/apollographql/eslint-plugin-graphql#additional-schemas-or-tags
@@ -75,6 +76,22 @@
         "@typescript-eslint/indent": "off",
         "@typescript-eslint/explicit-function-return-type": "off",
         "@typescript-eslint/explicit-module-boundary-types": "off"
+      }
+    },
+    {
+      "files": ["server/graphql/v2/**/*.+(js|ts)"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["**/v1/types"],
+                "message": "GraphQL V1 types should not be used with V2."
+              }
+            ]
+          }
+        ]
       }
     }
   ],

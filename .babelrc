@@ -10,16 +10,19 @@
     ]
   ],
   "plugins": [
-    ["@babel/plugin-transform-typescript", { "allowDeclareFields": true }],
-    "add-module-exports",
-    "lodash",
-    "@babel/plugin-proposal-class-properties",
     [
-      "@babel/plugin-transform-async-to-generator",
+      "@babel/plugin-transform-typescript",
       {
-        "module": "bluebird",
-        "method": "coroutine"
+        "allowDeclareFields": true
       }
-    ]
-  ]
+    ],
+    "add-module-exports",
+    "@babel/plugin-proposal-class-properties",
+    "@babel/plugin-transform-async-to-generator"
+  ],
+  "env": {
+    "test": {
+      "plugins": ["istanbul"]
+    }
+  }
 }

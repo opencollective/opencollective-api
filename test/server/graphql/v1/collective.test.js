@@ -1,15 +1,23 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
 import { describe, it } from 'mocha';
-import { createSandbox } from 'sinon';
+import sinon, { createSandbox } from 'sinon';
 
 import { activities as ACTIVITY } from '../../../../server/constants';
 import * as expenses from '../../../../server/graphql/common/expenses';
 import cache from '../../../../server/lib/cache';
+import * as ContributorsLib from '../../../../server/lib/contributors';
 import * as currency from '../../../../server/lib/currency';
 import models, { Op } from '../../../../server/models';
 import * as store from '../../../stores';
-import { fakeHost, fakeOrganization, fakeUser } from '../../../test-helpers/fake-data';
+import {
+  fakeCollective,
+  fakeHost,
+  fakeMember,
+  fakeOrganization,
+  fakeTier,
+  fakeUser,
+} from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
 const collectiveQuery = gql`
@@ -568,9 +576,6 @@ describe('server/graphql/v1/collective', () => {
             id
             slug
             ... on User {
-              email
-            }
-            ... on Organization {
               email
             }
           }
@@ -1292,6 +1297,55 @@ describe('server/graphql/v1/collective', () => {
       expect(res.errors).to.exist;
       expect(res.errors[0].message).to.equal('No member found');
       expect(cacheDelSpy.callCount).to.equal(0);
+    });
+  });
+
+  describe('contributors', () => {
+    const contributorsQuery = gql`
+      query Collective($slug: String!) {
+        Collective(slug: $slug) {
+          id
+          contributors {
+            id
+            roles
+          }
+          admins: contributors(roles: ADMIN) {
+            id
+          }
+          tiers {
+            contributors {
+              id
+            }
+          }
+        }
+      }
+    `;
+
+    it('is backed by a loader', async () => {
+      const collective = await fakeCollective({ HostCollectiveId: null });
+      const tier1 = await fakeTier({ CollectiveId: collective.id });
+      const tier2 = await fakeTier({ CollectiveId: collective.id });
+      await fakeMember({ CollectiveId: collective.id, role: 'ADMIN' });
+      await fakeMember({ CollectiveId: collective.id, role: 'BACKER' });
+      await fakeMember({ CollectiveId: collective.id, role: 'BACKER', TierId: tier1.id });
+      await fakeMember({ CollectiveId: collective.id, role: 'BACKER', TierId: tier2.id });
+
+      // Spy on `getContributorsForCollective` and `cache.set`
+      const getContributorsForCollectiveSpy = sinon.spy(ContributorsLib, 'getContributorsForCollective');
+      const cacheSetSpy = sinon.spy(cache, 'set');
+
+      // Fetch data and make sure we have the expected number of contributors
+      const result = await utils.graphqlQuery(contributorsQuery, { slug: collective.slug });
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.Collective.admins).to.have.length(1);
+      expect(result.data.Collective.tiers[0].contributors).to.have.length(1);
+      expect(result.data.Collective.tiers[1].contributors).to.have.length(1);
+      expect(result.data.Collective.contributors).to.have.length(4);
+
+      // Make sure we haven't called `getContributorsForCollective` and `cache.set` more than once
+      expect(getContributorsForCollectiveSpy.callCount).to.equal(1);
+      expect(cacheSetSpy.callCount).to.equal(1);
     });
   });
 });

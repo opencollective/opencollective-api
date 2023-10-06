@@ -74,9 +74,9 @@ export async function payBatch(
 
     const fundResponse = ottHeader
       ? // Forward OTT response if included
-        await transferwise.payExpensesBatchGroup(host, undefined, ottHeader)
+        await transferwise.payExpensesBatchGroup(host, undefined, ottHeader, remoteUser)
       : // Otherwise, send the list of Expenses to pay the batch
-        await transferwise.payExpensesBatchGroup(host, expenses);
+        await transferwise.payExpensesBatchGroup(host, expenses, undefined, remoteUser);
 
     // If OTT response, proxy it to the frontend and return early
     if ('status' in fundResponse && 'headers' in fundResponse) {

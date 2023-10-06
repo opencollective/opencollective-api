@@ -4,7 +4,13 @@ import { useFakeTimers } from 'sinon';
 import { roles } from '../../../../server/constants';
 import { TransactionKind } from '../../../../server/constants/transaction-kind';
 import { canDownloadInvoice, canRefund, canReject } from '../../../../server/graphql/common/transactions';
-import { fakeCollective, fakeOrder, fakeTransaction, fakeUser } from '../../../test-helpers/fake-data';
+import {
+  fakeCollective,
+  fakeOrder,
+  fakePaymentMethod,
+  fakeTransaction,
+  fakeUser,
+} from '../../../test-helpers/fake-data';
 import { makeRequest } from '../../../utils';
 
 describe('server/graphql/common/transactions', () => {
@@ -17,7 +23,8 @@ describe('server/graphql/common/transactions', () => {
     contributor,
     randomUser,
     transaction,
-    refundTransaction;
+    refundTransaction,
+    manualPaymentTransaction;
 
   let publicReq,
     randomUserReq,
@@ -43,12 +50,14 @@ describe('server/graphql/common/transactions', () => {
     contributor = await fakeUser({}, { name: 'Contributor' });
     collective = await fakeCollective({ name: 'Collective' });
     const order = await fakeOrder({ FromCollectiveId: contributor.CollectiveId, CollectiveId: collective.id });
+    const creditCard = await fakePaymentMethod({ service: 'stripe', type: 'creditcard', name: '4242' });
     transaction = await fakeTransaction({
       description: 'Contribution',
       CollectiveId: collective.id,
       FromCollectiveId: contributor.CollectiveId,
       amount: 100000,
       OrderId: order.id,
+      PaymentMethodId: creditCard.id,
     });
     refundTransaction = await fakeTransaction({
       description: 'Refund of Contribution',
@@ -57,6 +66,7 @@ describe('server/graphql/common/transactions', () => {
       amount: 100000,
       OrderId: order.id,
       isRefund: true,
+      PaymentMethodId: creditCard.id,
     });
     addedFundTransaction = await fakeTransaction({
       description: 'Added Funds',
@@ -66,12 +76,22 @@ describe('server/graphql/common/transactions', () => {
       kind: TransactionKind.ADDED_FUNDS,
       OrderId: order.id,
     });
+    manualPaymentTransaction = await fakeTransaction({
+      description: 'Manual payment',
+      FromCollectiveId: contributor.CollectiveId,
+      CollectiveId: collective.id,
+      PaymentMethodId: null,
+      amount: 100000,
+      kind: TransactionKind.CONTRIBUTION,
+      OrderId: order.id,
+    });
     timer = useFakeTimers(new Date('2020-07-23 0:0').getTime());
     oldTransaction = await fakeTransaction({
       CollectiveId: collective.id,
       FromCollectiveId: contributor.CollectiveId,
       amount: 100000,
       OrderId: order.id,
+      PaymentMethodId: creditCard.id,
     });
     timer.restore();
 
@@ -115,6 +135,7 @@ describe('server/graphql/common/transactions', () => {
       expect(await canRefund(oldTransaction, undefined, rootAdminReq)).to.be.true;
       expect(await canRefund(addedFundTransaction, undefined, rootAdminReq)).to.be.true;
       expect(await canRefund(addedFundTransaction, undefined, hostAdminReq)).to.be.true;
+      expect(await canRefund(manualPaymentTransaction, undefined, hostAdminReq)).to.be.true;
     });
 
     it('can refund as admin of the receiving collective only if transaction < 30 days old', async () => {
@@ -124,6 +145,10 @@ describe('server/graphql/common/transactions', () => {
 
     it('cannot refund as admin of receiving collective if the transaction is of kind ADDED_FUNDS', async () => {
       expect(await canRefund(addedFundTransaction, undefined, collectiveAdminReq)).to.be.false;
+    });
+
+    it('cannot refund as admin of receiving collective if the transaction is a manual payment', async () => {
+      expect(await canRefund(manualPaymentTransaction, undefined, collectiveAdminReq)).to.be.false;
     });
   });
 
@@ -141,11 +166,20 @@ describe('server/graphql/common/transactions', () => {
       expect(await canReject(oldTransaction, undefined, rootAdminReq)).to.be.true;
       expect(await canReject(addedFundTransaction, undefined, rootAdminReq)).to.be.true;
       expect(await canReject(addedFundTransaction, undefined, hostAdminReq)).to.be.true;
+      expect(await canReject(manualPaymentTransaction, undefined, hostAdminReq)).to.be.true;
     });
 
     it('can reject as admin of the receiving collective only if transaction < 30 days old', async () => {
       expect(await canReject(transaction, undefined, collectiveAdminReq)).to.be.true;
       expect(await canReject(oldTransaction, undefined, collectiveAdminReq)).to.be.false;
+    });
+
+    it('cannot Reject as admin of receiving collective if the transaction is of kind ADDED_FUNDS', async () => {
+      expect(await canReject(addedFundTransaction, undefined, collectiveAdminReq)).to.be.false;
+    });
+
+    it('cannot Reject as admin of receiving collective if the transaction is a manual payment', async () => {
+      expect(await canRefund(manualPaymentTransaction, undefined, collectiveAdminReq)).to.be.false;
     });
   });
 

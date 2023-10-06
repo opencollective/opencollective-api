@@ -15,21 +15,23 @@ import {
   isPlatformTipEligible,
 } from '../../lib/payments';
 import stripe, { convertFromStripeAmount, extractFees, retrieveChargeWithRefund } from '../../lib/stripe';
-import models from '../../models';
-import PaymentMethod from '../../models/PaymentMethod';
+import models, { Collective } from '../../models';
+import { OrderModelInterface } from '../../models/Order';
+import PaymentMethod, { PaymentMethodModelInterface } from '../../models/PaymentMethod';
+import { TransactionInterface } from '../../models/Transaction';
 import User from '../../models/User';
 
 export const APPLICATION_FEE_INCOMPATIBLE_CURRENCIES = ['BRL'];
 
 /** Refund a given transaction */
 export const refundTransaction = async (
-  transaction: typeof models.Transaction,
+  transaction: TransactionInterface,
   user: User,
   options?: { checkRefundStatus: boolean },
-): Promise<typeof models.Transaction> => {
+): Promise<TransactionInterface> => {
   /* What's going to be refunded */
   const chargeId: string = result(transaction.data, 'charge.id');
-  if (transaction.data?.refund?.status === 'pending') {
+  if (transaction.data?.refund?.['status'] === 'pending') {
     throw new Error(`Transaction #${transaction.id} refund was already requested and it is pending`);
   }
 
@@ -40,7 +42,7 @@ export const refundTransaction = async (
   const hostStripeAccount = await collective.getHostStripeAccount();
 
   /* Refund both charge & application fee */
-  const fees = get(transaction.data, 'balanceTransaction.fee_details', []);
+  const fees = get(transaction.data, 'balanceTransaction.fee_details', []) as Stripe.BalanceTransaction.FeeDetail[];
   const hasApplicationFees = fees.some(fee => fee.type === 'application_fee' && fee.amount > 0);
   const refund = await stripe.refunds.create(
     { charge: chargeId, refund_application_fee: hasApplicationFees }, // eslint-disable-line camelcase
@@ -76,9 +78,9 @@ export const refundTransaction = async (
  * in stripe but not in our database
  */
 export const refundTransactionOnlyInDatabase = async (
-  transaction: typeof models.Transaction,
+  transaction: TransactionInterface,
   user: User,
-): Promise<typeof models.Transaction> => {
+): Promise<TransactionInterface> => {
   /* What's going to be refunded */
   const chargeId = result(transaction.data, 'charge.id');
 
@@ -117,7 +119,7 @@ export const createChargeTransactions = async (charge, { order }) => {
     ? false
     : host?.settings?.isPlatformRevenueDirectlyCollected ?? true;
 
-  const hostFeeSharePercent = await getHostFeeSharePercent(order, host);
+  const hostFeeSharePercent = await getHostFeeSharePercent(order, { host });
   const isSharedRevenue = !!hostFeeSharePercent;
   const balanceTransaction = await stripe.balanceTransactions.retrieve(charge.balance_transaction, {
     stripeAccount: hostStripeAccount.username,
@@ -130,7 +132,7 @@ export const createChargeTransactions = async (charge, { order }) => {
   const amountInHostCurrency = convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount);
   const hostCurrencyFxRate = amountInHostCurrency / order.totalAmount;
 
-  const hostFee = await getHostFee(order, host);
+  const hostFee = await getHostFee(order, { host });
   const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
 
   const fees = extractFees(balanceTransaction, balanceTransaction.currency);
@@ -194,7 +196,7 @@ export const createChargeTransactions = async (charge, { order }) => {
  */
 export async function resolvePaymentMethodForOrder(
   hostStripeAccount: string,
-  order: typeof models.Order,
+  order: OrderModelInterface,
 ): Promise<{ id: string; customer: string }> {
   const isPlatformHost = hostStripeAccount === config.stripe.accountId;
 
@@ -248,7 +250,7 @@ export async function resolvePaymentMethodForOrder(
 
 export async function getOrCreateStripeCustomer(
   stripeAccount: string,
-  collective: typeof models.Collective,
+  collective: Collective,
   user: User,
 ): Promise<string> {
   let stripeCustomerConnectedAccount = await collective.getCustomerStripeAccount(stripeAccount);
@@ -276,10 +278,10 @@ export async function getOrCreateStripeCustomer(
 }
 
 export async function attachCardToPlatformCustomer(
-  paymentMethod: typeof models.PaymentMethod,
-  collective: typeof models.Collective,
+  paymentMethod: PaymentMethodModelInterface,
+  collective: Collective,
   user: User,
-): Promise<PaymentMethod> {
+): Promise<PaymentMethodModelInterface> {
   const platformCustomer = await getOrCreateStripeCustomer(config.stripe.accountId, collective, user);
 
   let stripePaymentMethod = await stripe.paymentMethods.create({
@@ -304,8 +306,8 @@ export async function attachCardToPlatformCustomer(
 }
 
 export async function getOrCloneCardPaymentMethod(
-  platformPaymentMethod: typeof models.PaymentMethod,
-  collective: typeof models.Collective,
+  platformPaymentMethod: PaymentMethodModelInterface,
+  collective: Collective,
   hostStripeAccount: string,
   hostCustomer: string,
 ): Promise<{ id: string; customer: string }> {
@@ -467,7 +469,7 @@ export async function createPaymentMethod(
     CreatedByUserId?: number;
   },
   createOptions?: CreateOptions,
-): Promise<typeof PaymentMethod> {
+): Promise<PaymentMethodModelInterface> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const paymentIntentCharge: Stripe.Charge = (originPaymentIntent as any)?.charges?.data?.[0];
   const paymentMethodChargeDetails = paymentIntentCharge?.payment_method_details;

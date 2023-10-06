@@ -1,9 +1,9 @@
 import { GraphQLFloat, GraphQLInputObjectType, GraphQLString } from 'graphql';
-import { GraphQLJSON } from 'graphql-type-json';
+import { GraphQLJSON } from 'graphql-scalars';
 
-import { CountryISO } from '../enum';
+import { GraphQLCountryISO } from '../enum';
 
-export const LocationInput = new GraphQLInputObjectType({
+export const GraphQLLocationInput = new GraphQLInputObjectType({
   name: 'LocationInput',
   description: 'Input type for Geographic location',
   fields: () => ({
@@ -16,7 +16,7 @@ export const LocationInput = new GraphQLInputObjectType({
       description: 'Postal address without country (eg. 12 opensource avenue, 7500 Paris)',
     },
     country: {
-      type: CountryISO,
+      type: GraphQLCountryISO,
       description: 'Two letters country code (eg. FR, BE...etc)',
     },
     lat: {

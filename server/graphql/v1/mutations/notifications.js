@@ -1,4 +1,3 @@
-import Promise from 'bluebird';
 import config from 'config';
 import { pick } from 'lodash';
 
@@ -22,7 +21,7 @@ export async function editWebhooks(args, req) {
     throw NotificationPermissionError;
   }
 
-  const collective = await models.Collective.findByPk(args.collectiveId);
+  const collective = await req.loaders.Collective.byId.load(args.collectiveId);
   if (!collective) {
     throw new Error('Collective not found');
   } else if (!req.remoteUser.isAdminOfCollective(collective)) {

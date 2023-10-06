@@ -6,7 +6,7 @@ import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 import Expense from './Expense';
 import User from './User';
-import models from '.';
+import models, { Collective } from '.';
 
 // Options for sanitizing comment's body
 const sanitizeOptions = buildSanitizerOptions({
@@ -16,21 +16,28 @@ const sanitizeOptions = buildSanitizerOptions({
   images: true,
 });
 
+export enum CommentType {
+  COMMENT = 'COMMENT',
+  PRIVATE_NOTE = 'PRIVATE_NOTE',
+}
+
 class Comment extends Model<InferAttributes<Comment>, InferCreationAttributes<Comment>> {
   public declare readonly id: CreationOptional<number>;
   public declare CollectiveId: number;
   public declare FromCollectiveId: number;
   public declare CreatedByUserId: ForeignKey<User['id']>;
   public declare ExpenseId: ForeignKey<Expense['id']>;
+  public declare OrderId: number;
   public declare UpdateId: number;
   public declare ConversationId: number;
   public declare html: string;
+  public declare type: CommentType;
   public declare createdAt: CreationOptional<Date>;
   public declare updatedAt: CreationOptional<Date>;
   public declare deletedAt: CreationOptional<Date>;
 
-  public declare fromCollective?: NonAttribute<typeof models.Collective>;
-  public declare collective?: NonAttribute<typeof models.Collective>;
+  public declare fromCollective?: NonAttribute<Collective>;
+  public declare collective?: NonAttribute<Collective>;
 
   // Returns the User model of the User that created this Update
   getUser = function () {
@@ -116,6 +123,17 @@ Comment.init(
       allowNull: true,
     },
 
+    OrderId: {
+      type: DataTypes.INTEGER,
+      references: {
+        model: 'Orders',
+        key: 'id',
+      },
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE',
+      allowNull: true,
+    },
+
     UpdateId: {
       type: DataTypes.INTEGER,
       references: {
@@ -157,6 +175,12 @@ Comment.init(
 
     deletedAt: {
       type: DataTypes.DATE,
+    },
+
+    type: {
+      type: DataTypes.ENUM(...Object.values(CommentType)),
+      defaultValue: CommentType.COMMENT,
+      allowNull: false,
     },
   },
   {

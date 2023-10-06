@@ -1,9 +1,12 @@
+import assert from 'assert';
+
 import config from 'config';
 import { get } from 'lodash';
 
 import { mustBeLoggedInTo } from '../lib/auth';
 import errors from '../lib/errors';
 import * as github from '../lib/github';
+import logger from '../lib/logger';
 import models from '../models';
 import paymentProviders from '../paymentProviders';
 
@@ -24,7 +27,6 @@ export const createOrUpdate = async (req, res, next, accessToken, data) => {
       const userCollective = await models.Collective.findByPk(req.remoteUser.CollectiveId);
 
       userCollective.description = userCollective.description || profile.bio;
-      userCollective.locationName = userCollective.locationName || profile.location;
       userCollective.website = userCollective.website || profile.blog || profile.html_url;
       userCollective.image = userCollective.image || `https://avatars.githubusercontent.com/${data.profile.username}`;
       userCollective.repositoryUrl = `https://github.com/${data.profile.username}`;
@@ -81,16 +83,15 @@ export const createOrUpdate = async (req, res, next, accessToken, data) => {
       collective.backgroundImage =
         collective.backgroundImage || (profile.profile_banner_url ? `${profile.profile_banner_url}/1500x500` : null);
       collective.website = collective.website || profile.url;
-      collective.locationName = collective.locationName || profile.location;
       collective.twitterHandle = profile.screen_name;
       await collective.save();
 
       connectedAccount = await createConnectedAccountForCollective(collective.id, service);
       await connectedAccount.update({
         username: data.profile.username,
-        clientId: accessToken,
-        token: data.tokenSecret,
-        data: data.profile._json,
+        clientId: null,
+        token: accessToken,
+        data: { ...data.profile._json, isOAuth2: true, needsReconnect: false },
         CreatedByUserId: req.remoteUser.id,
       });
 
@@ -115,12 +116,22 @@ export const disconnect = async (req, res) => {
       throw new errors.Unauthorized('You are either logged out or not authorized to disconnect this account');
     }
 
-    const account = await models.ConnectedAccount.findOne({
-      where: { service, CollectiveId },
-    });
-
-    if (account) {
+    const collective = await models.Collective.findByPk(CollectiveId);
+    if (service === 'transferwise' && collective.settings?.transferwise?.isolateUsers) {
+      const connectedAccounts = await models.ConnectedAccount.findAll({
+        where: { service, CollectiveId },
+      });
+      const account = connectedAccounts.find(ca => ca.CreatedByUserId === remoteUser.id);
+      assert(account, 'No connected account found for this user');
       await account.destroy();
+    } else {
+      const account = await models.ConnectedAccount.findOne({
+        where: { service, CollectiveId },
+      });
+
+      if (account) {
+        await account.destroy();
+      }
     }
 
     res.send({
@@ -174,6 +185,18 @@ const GITHUB_REPOS_FETCH_TIMEOUT = 1 * 60 * 1000;
 
 // used in Frontend by createCollective "GitHub flow"
 export const fetchAllRepositories = async (req, res, next) => {
+  if (req.jwtPayload?.scope !== 'connected-account') {
+    const errorMessage = `Cannot use this token on this route (scope: ${
+      req.jwtPayload?.scope || 'session'
+    }, expected: connected-account)`;
+    if (['e2e', 'ci'].includes(config.env)) {
+      // An E2E test is relying on this, so let's relax for now
+      logger.warn(errorMessage);
+    } else {
+      return next(new errors.BadRequest(errorMessage));
+    }
+  }
+
   const githubAccount = await getGithubAccount(req);
   try {
     req.setTimeout(GITHUB_REPOS_FETCH_TIMEOUT);

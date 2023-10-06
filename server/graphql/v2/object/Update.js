@@ -1,18 +1,18 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { GraphQLDateTime } from 'graphql-scalars';
-import { GraphQLJSON } from 'graphql-type-json';
+import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
-import { types as CollectiveType } from '../../../constants/collectives';
+import { CollectiveType } from '../../../constants/collectives';
 import models from '../../../models';
+import { UpdateChannel } from '../../../models/Update';
 import { canSeeUpdate } from '../../common/update';
 import { CommentCollection } from '../collection/CommentCollection';
-import { UpdateAudienceType } from '../enum';
+import { GraphQLUpdateAudienceType } from '../enum';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
-import { Account } from '../interface/Account';
+import { GraphQLAccount } from '../interface/Account';
 
-import { UpdateAudienceStats } from './UpdateAudienceStats';
+import { GraphQLUpdateAudienceStats } from './UpdateAudienceStats';
 
-const Update = new GraphQLObjectType({
+const GraphQLUpdate = new GraphQLObjectType({
   name: 'Update',
   description: 'This represents an Update',
   fields: () => {
@@ -53,13 +53,13 @@ const Update = new GraphQLObjectType({
       createdAt: { type: new GraphQLNonNull(GraphQLDateTime) },
       updatedAt: { type: new GraphQLNonNull(GraphQLDateTime) },
       publishedAt: { type: GraphQLDateTime },
-      notificationAudience: { type: UpdateAudienceType },
+      notificationAudience: { type: GraphQLUpdateAudienceType },
       audienceStats: {
-        type: UpdateAudienceStats,
+        type: GraphQLUpdateAudienceStats,
         description: `Some stats about the target audience. Will be null if the update is already published or if you don't have enough permissions so see this information. Not backed by a loader, avoid using this field in lists.`,
         args: {
           audience: {
-            type: UpdateAudienceType,
+            type: GraphQLUpdateAudienceType,
             description: 'To override the default notificationAudience',
           },
         },
@@ -91,7 +91,7 @@ const Update = new GraphQLObjectType({
           }
 
           if (audience !== 'COLLECTIVE_ADMINS') {
-            membersStats = await update.getAudienceMembersStats(audience);
+            membersStats = await update.getAudienceMembersStats(audience, UpdateChannel.EMAIL);
           }
 
           if (update.collective.isHostAccount && (audience === 'ALL' || audience === 'COLLECTIVE_ADMINS')) {
@@ -105,7 +105,7 @@ const Update = new GraphQLObjectType({
             collectives: membersStats[CollectiveType.COLLECTIVE] || 0,
             coreContributors: membersStats['CORE_CONTRIBUTOR'] || 0,
             hosted: hostedCollectivesCount || 0,
-            total: await update.countUsersToNotify(audience),
+            total: await update.countUsersToNotify(audience, UpdateChannel.EMAIL),
           };
         },
       },
@@ -132,13 +132,13 @@ const Update = new GraphQLObjectType({
       },
       tags: { type: new GraphQLList(GraphQLString) },
       fromAccount: {
-        type: Account,
+        type: GraphQLAccount,
         resolve(update, args, req) {
           return req.loaders.Collective.byId.load(update.FromCollectiveId);
         },
       },
       account: {
-        type: Account,
+        type: GraphQLAccount,
         resolve(update, args, req) {
           return req.loaders.Collective.byId.load(update.CollectiveId);
         },
@@ -190,4 +190,4 @@ const Update = new GraphQLObjectType({
   },
 });
 
-export default Update;
+export default GraphQLUpdate;

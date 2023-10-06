@@ -99,11 +99,12 @@ const doFormatMessage = (activity, format) => {
   // get member data
   let member;
   if (activity.data.member) {
-    member = linkify(
-      format,
-      `${config.host.website}/${activity.data.member.memberCollective.slug}`,
-      activity.data.member.memberCollective.name,
-    );
+    const memberCollective = activity.data.member.memberCollective;
+    if (memberCollective.isGuest || memberCollective.isIncognito) {
+      member = memberCollective.name || 'A guest';
+    } else {
+      member = linkify(format, `${config.host.website}/${memberCollective.slug}`, memberCollective.name);
+    }
   }
 
   let collective;
@@ -141,6 +142,9 @@ const doFormatMessage = (activity, format) => {
     case activities.COLLECTIVE_EXPENSE_REJECTED:
       return `Expense rejected: ${currency} ${amount} for ${description} in ${collective}!`;
 
+    case activities.COLLECTIVE_EXPENSE_RE_APPROVAL_REQUESTED:
+      return `Expense needs re-approval: ${currency} ${amount} for ${description} in ${collective}!`;
+
     case activities.COLLECTIVE_EXPENSE_APPROVED:
       return `Expense approved: ${currency} ${amount} for ${description} in ${collective}!`;
 
@@ -175,7 +179,14 @@ const doFormatMessage = (activity, format) => {
       return `New ${update} published on ${collective}`;
 
     case activities.COLLECTIVE_MEMBER_CREATED:
-      return `New member ${member} joined ${collective}`;
+      if (amount) {
+        return `${member} just joined ${collective} and contributed with ${formatCurrency(currency, amount)}`;
+      } else {
+        return `New member ${member} joined ${collective}`;
+      }
+
+    case activities.VIRTUAL_CARD_PURCHASE:
+      return `New virtual card purchase: A virtual card purchase of amount ${currency} ${amount} for ${description} was submitted!`;
 
     default:
       return '';

@@ -1,5 +1,3 @@
-import Promise from 'bluebird';
-
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
@@ -17,7 +15,7 @@ paymentMethodProvider.features = {
 // Returns the balance in the currency of the paymentMethod (ie. currency of the Collective)
 paymentMethodProvider.getBalance = (paymentMethod, parameters = {}) => {
   return paymentMethod.getCollective().then(collective => {
-    return collective.getBalance({ ...parameters, withBlockedFunds: true });
+    return collective?.getBalance({ ...parameters, withBlockedFunds: true });
   });
 };
 
@@ -54,7 +52,7 @@ paymentMethodProvider.processOrder = async order => {
     );
   }
 
-  const hostFeeSharePercent = await getHostFeeSharePercent(order, host);
+  const hostFeeSharePercent = await getHostFeeSharePercent(order, { host });
   const isSharedRevenue = !!hostFeeSharePercent;
 
   const amount = order.totalAmount;
@@ -64,7 +62,7 @@ paymentMethodProvider.processOrder = async order => {
   const amountInHostCurrency = Math.round(order.totalAmount * hostCurrencyFxRate);
 
   // It will be usually zero but it's best to support it
-  const hostFee = await getHostFee(order, host);
+  const hostFee = await getHostFee(order, { host });
   const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
 
   const platformTip = getPlatformTip(order, host);

@@ -1,16 +1,16 @@
 import { GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
 
-import EmailAddress from '../scalar/EmailAddress';
+import GraphQLEmailAddress from '../scalar/EmailAddress';
 
-import { CaptchaInput } from './CaptchaInput';
-import { LocationInput } from './LocationInput';
+import { GraphQLCaptchaInput } from './CaptchaInput';
+import { GraphQLLocationInput } from './LocationInput';
 
-export const GuestInfoInput = new GraphQLInputObjectType({
+export const GraphQLGuestInfoInput = new GraphQLInputObjectType({
   name: 'GuestInfoInput',
   description: 'Input type for guest contributions',
   fields: () => ({
     email: {
-      type: new GraphQLNonNull(EmailAddress),
+      type: new GraphQLNonNull(GraphQLEmailAddress),
       description: "Contributor's email",
     },
     name: {
@@ -22,11 +22,11 @@ export const GuestInfoInput = new GraphQLInputObjectType({
       description: 'Legal name of the user',
     },
     location: {
-      type: LocationInput,
+      type: GraphQLLocationInput,
       description: 'Address of the user, mandatory when amount is above $5000.',
     },
     captcha: {
-      type: CaptchaInput,
+      type: GraphQLCaptchaInput,
       description: 'Captcha validation for creating an order',
     },
   }),

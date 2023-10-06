@@ -1,13 +1,13 @@
 import { GraphQLInputObjectType, GraphQLNonNull } from 'graphql';
 
-import { SocialLinkTypeEnum } from '../enum/SocialLinkTypeEnum';
+import { GraphQLSocialLinkTypeEnum } from '../enum/SocialLinkTypeEnum';
 import URL from '../scalar/URL';
 
-export const SocialLinkInput = new GraphQLInputObjectType({
+export const GraphQLSocialLinkInput = new GraphQLInputObjectType({
   name: 'SocialLinkInput',
   fields: () => ({
     type: {
-      type: new GraphQLNonNull(SocialLinkTypeEnum),
+      type: new GraphQLNonNull(GraphQLSocialLinkTypeEnum),
     },
     url: {
       type: new GraphQLNonNull(URL),

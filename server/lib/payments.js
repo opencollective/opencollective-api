@@ -1,5 +1,4 @@
 /** @module lib/payments */
-import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
 import { find, get, includes, isNil, isNumber, omit, pick } from 'lodash';
@@ -105,7 +104,7 @@ export async function processOrder(order, options) {
  *  associated to the refund transaction as who performed the refund.
  * @param {string} message a optional message to explain why the transaction is rejected
  */
-export async function refundTransaction(transaction, user, message) {
+export async function refundTransaction(transaction, user, message, opts = {}) {
   // Make sure to fetch PaymentMethod
   // Fetch PaymentMethod even if it's deleted
   if (!transaction.PaymentMethod && transaction.PaymentMethodId) {
@@ -127,7 +126,7 @@ export async function refundTransaction(transaction, user, message) {
   let result;
 
   try {
-    result = await paymentMethodProvider.refundTransaction(transaction, user, message);
+    result = await paymentMethodProvider.refundTransaction(transaction, user, message, opts);
   } catch (e) {
     if (
       (e.message.includes('has already been refunded') || e.message.includes('has been charged back')) &&
@@ -264,6 +263,56 @@ export const refundPaymentProcessorFeeToCollective = async (transaction, refundT
   });
 };
 
+export async function refundHostFee(transaction, user, refundedPaymentProcessorFee, transactionGroup, data) {
+  const hostFeeTransaction = await transaction.getHostFeeTransaction();
+  const buildRefund = transaction => {
+    return {
+      ...buildRefundForTransaction(transaction, user, data, refundedPaymentProcessorFee),
+      TransactionGroup: transactionGroup,
+    };
+  };
+
+  if (hostFeeTransaction) {
+    const hostFeeRefund = buildRefund(hostFeeTransaction);
+    const hostFeeRefundTransaction = await models.Transaction.createDoubleEntry(hostFeeRefund);
+    await associateTransactionRefundId(hostFeeTransaction, hostFeeRefundTransaction, data);
+
+    // Refund Host Fee Share
+    const hostFeeShareTransaction = await transaction.getHostFeeShareTransaction();
+    if (hostFeeShareTransaction) {
+      const hostFeeShareRefund = buildRefund(hostFeeShareTransaction);
+      const hostFeeShareRefundTransaction = await models.Transaction.createDoubleEntry(hostFeeShareRefund);
+      await associateTransactionRefundId(hostFeeShareTransaction, hostFeeShareRefundTransaction, data);
+
+      // Refund Host Fee Share Debt
+      const hostFeeShareDebtTransaction = await transaction.getHostFeeShareDebtTransaction();
+      if (hostFeeShareDebtTransaction) {
+        const hostFeeShareSettlement = await models.TransactionSettlement.findOne({
+          where: {
+            TransactionGroup: transaction.TransactionGroup,
+            kind: TransactionKind.HOST_FEE_SHARE_DEBT,
+          },
+        });
+        let hostFeeShareRefundSettlementStatus = TransactionSettlementStatus.OWED;
+        if (hostFeeShareSettlement.status === TransactionSettlementStatus.OWED) {
+          // If the Host Fee Share is not INVOICED or SETTLED, we don't need to care about recording it.
+          // Otherwise, the Host Fee Share refund will be marked as OWED and deduced from the next invoice
+          await hostFeeShareSettlement.update({ status: TransactionSettlementStatus.SETTLED });
+          hostFeeShareRefundSettlementStatus = TransactionSettlementStatus.SETTLED;
+        }
+
+        const hostFeeShareDebtRefund = buildRefund(hostFeeShareDebtTransaction);
+        const hostFeeShareDebtRefundTransaction = await models.Transaction.createDoubleEntry(hostFeeShareDebtRefund);
+        await associateTransactionRefundId(hostFeeShareDebtTransaction, hostFeeShareDebtRefundTransaction, data);
+        await TransactionSettlement.createForTransaction(
+          hostFeeShareDebtRefundTransaction,
+          hostFeeShareRefundSettlementStatus,
+        );
+      }
+    }
+  }
+}
+
 /** Create refund transactions
  *
  * This function creates the negative transactions after refunding an
@@ -313,11 +362,11 @@ export async function createRefundTransaction(
     throw new Error('This transaction has already been refunded');
   }
 
-  const transactionGroup = uuid();
+  const transactionGroup = transactionGroupId || uuid();
   const buildRefund = transaction => {
     return {
       ...buildRefundForTransaction(transaction, user, data, refundedPaymentProcessorFee),
-      TransactionGroup: transactionGroupId || transactionGroup,
+      TransactionGroup: transactionGroup,
     };
   };
 
@@ -376,48 +425,9 @@ export async function createRefundTransaction(
   }
 
   // Refund Host Fee
-  const hostFeeTransaction = await transaction.getHostFeeTransaction();
-  if (hostFeeTransaction) {
-    const hostFeeRefund = buildRefund(hostFeeTransaction);
-    const hostFeeRefundTransaction = await models.Transaction.createDoubleEntry(hostFeeRefund);
-    await associateTransactionRefundId(hostFeeTransaction, hostFeeRefundTransaction, data);
+  await refundHostFee(transaction, user, refundedPaymentProcessorFee, transactionGroup);
 
-    // Refund Host Fee Share
-    const hostFeeShareTransaction = await transaction.getHostFeeShareTransaction();
-    if (hostFeeShareTransaction) {
-      const hostFeeShareRefund = buildRefund(hostFeeShareTransaction);
-      const hostFeeShareRefundTransaction = await models.Transaction.createDoubleEntry(hostFeeShareRefund);
-      await associateTransactionRefundId(hostFeeShareTransaction, hostFeeShareRefundTransaction, data);
-
-      // Refund Host Fee Share Debt
-      const hostFeeShareDebtTransaction = await transaction.getHostFeeShareDebtTransaction();
-      if (hostFeeShareDebtTransaction) {
-        const hostFeeShareSettlement = await models.TransactionSettlement.findOne({
-          where: {
-            TransactionGroup: transaction.TransactionGroup,
-            kind: TransactionKind.HOST_FEE_SHARE_DEBT,
-          },
-        });
-        let hostFeeShareRefundSettlementStatus = TransactionSettlementStatus.OWED;
-        if (hostFeeShareSettlement.status === TransactionSettlementStatus.OWED) {
-          // If the Host Fee Share is not INVOICED or SETTLED, we don't need to care about recording it.
-          // Otherwise, the Host Fee Share refund will be marked as OWED and deduced from the next invoice
-          await hostFeeShareSettlement.update({ status: TransactionSettlementStatus.SETTLED });
-          hostFeeShareRefundSettlementStatus = TransactionSettlementStatus.SETTLED;
-        }
-
-        const hostFeeShareDebtRefund = buildRefund(hostFeeShareDebtTransaction);
-        const hostFeeShareDebtRefundTransaction = await models.Transaction.createDoubleEntry(hostFeeShareDebtRefund);
-        await associateTransactionRefundId(hostFeeShareDebtTransaction, hostFeeShareDebtRefundTransaction, data);
-        await TransactionSettlement.createForTransaction(
-          hostFeeShareDebtRefundTransaction,
-          hostFeeShareRefundSettlementStatus,
-        );
-      }
-    }
-  }
-
-  // Refund contribution
+  // Refund main transaction
   const creditTransactionRefund = buildRefund(transaction);
   const refundTransaction = await models.Transaction.createDoubleEntry(creditTransactionRefund);
   return associateTransactionRefundId(transaction, refundTransaction, data);
@@ -655,7 +665,7 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
         EventCollectiveId: collective.id,
         UserId: user.id,
         recipient: { name: fromCollective.name },
-        order: order.activity,
+        order: order.info,
         tier: order.tier.info,
         host: host ? host.info : {},
         customMessage,
@@ -663,16 +673,14 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
     });
   } else {
     // normal order
-    const relatedCollectives = await order.collective.getRelatedCollectives(3, 0);
     const data = {
-      order: order.activity,
-      transaction: pick(transaction, ['createdAt', 'uuid']),
+      order: order.info,
+      transaction: transaction ? transaction.info : { createdAt: new Date() },
       user: user.info,
       collective: collective.info,
       host: host ? host.info : {},
       fromCollective: fromCollective.minimal,
       interval,
-      relatedCollectives,
       monthlyInterval: interval === 'month',
       firstPayment: true,
       subscriptionsLink: interval && getEditRecurringContributionsUrl(fromCollective),
@@ -710,6 +718,7 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
     const activity = { type: activities.ORDER_THANKYOU, data };
     return notify.collective(activity, {
       collectiveId: data.fromCollective.id,
+      role: [roles.ACCOUNTANT, roles.ADMIN],
       from: emailLib.generateFromEmailHeader(collective.name),
       attachments,
     });
@@ -919,12 +928,12 @@ export const sendExpiringCreditCardUpdateEmail = async data => {
   });
 };
 
-export const getApplicationFee = async (order, host = null) => {
+export const getApplicationFee = async (order, { host = null } = {}) => {
   let applicationFee = getPlatformTip(order);
 
-  const hostFeeSharePercent = await getHostFeeSharePercent(order, host);
+  const hostFeeSharePercent = await getHostFeeSharePercent(order, { host });
   if (hostFeeSharePercent) {
-    const hostFee = await getHostFee(order, host);
+    const hostFee = await getHostFee(order, { host });
     const sharedRevenue = hostFeeSharePercent ? calcFee(hostFee, hostFeeSharePercent) : 0;
     applicationFee += sharedRevenue;
   }
@@ -948,12 +957,13 @@ export const getPlatformFeePercent = async () => {
   return 0;
 };
 
-export const getHostFee = async (order, host = null) => {
+export const getHostFee = async (order, { host = null } = {}) => {
   const platformTip = getPlatformTip(order);
+  const taxAmount = order.taxAmount || 0;
 
-  const hostFeePercent = await getHostFeePercent(order, host);
+  const hostFeePercent = await getHostFeePercent(order, { host });
 
-  return calcFee(order.totalAmount - platformTip, hostFeePercent);
+  return calcFee(order.totalAmount - platformTip - taxAmount, hostFeePercent);
 };
 
 export const isPlatformTipEligible = async (order, host = null) => {
@@ -970,12 +980,13 @@ export const isPlatformTipEligible = async (order, host = null) => {
   return false;
 };
 
-export const getHostFeePercent = async (order, host = null) => {
-  const collective = order.collective || (await order.getCollective());
+export const getHostFeePercent = async (order, { host = null, loaders = null } = {}) => {
+  const collective =
+    order.collective || (await loaders?.Collective.byId.load(order.CollectiveId)) || (await order.getCollective());
 
-  const parent = await collective.getParentCollective();
+  const parent = await collective.getParentCollective({ loaders });
 
-  host = host || (await collective.getHostCollective());
+  host = host || (await collective.getHostCollective({ loaders }));
 
   // No Host Fee for money going to an host itself
   if (collective.isHostAccount) {
@@ -1068,8 +1079,13 @@ export const getHostFeePercent = async (order, host = null) => {
   return possibleValues.find(isNumber);
 };
 
-export const getHostFeeSharePercent = async (order, host = null) => {
-  host = host || (await order.collective.getHostCollective());
+export const getHostFeeSharePercent = async (order, { host = null, loaders = null } = {}) => {
+  if (!host) {
+    if (!order.collective) {
+      order.collective = (await loaders?.Collective.byId.load(order.CollectiveId)) || (await order.getCollective());
+    }
+    host = await order.collective.getHostCollective({ loaders });
+  }
 
   const plan = await host.getPlan();
 

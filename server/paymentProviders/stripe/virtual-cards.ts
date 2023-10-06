@@ -57,6 +57,7 @@ export const createVirtualCard = async (
   name,
   limitAmount,
   limitInterval = VirtualCardLimitIntervals.MONTHLY,
+  virtualCardRequestId = null,
 ) => {
   const stripe = await getStripeClient(host);
 
@@ -90,7 +91,7 @@ export const createVirtualCard = async (
 
   const stripeCard = await stripe.issuing.cards.retrieve(issuingCard.id, { expand: ['number', 'cvc'] });
 
-  return createCard(stripeCard, name, collective.id, host.id, userId);
+  return createCard(stripeCard, name, collective.id, host.id, userId, virtualCardRequestId);
 };
 
 export const updateVirtualCardLimit = async (
@@ -320,7 +321,7 @@ export const processUpdatedTransaction = async (event: Stripe.Event) => {
   }
 };
 
-const createCard = (stripeCard, name, collectiveId, hostId, userId) => {
+const createCard = (stripeCard, name, collectiveId, hostId, userId, VirtualCardRequestId = null) => {
   const cardData = {
     id: stripeCard.id,
     name,
@@ -334,6 +335,7 @@ const createCard = (stripeCard, name, collectiveId, hostId, userId) => {
     CollectiveId: collectiveId,
     HostCollectiveId: hostId,
     UserId: userId,
+    VirtualCardRequestId,
     provider: VirtualCardProviders.STRIPE,
     spendingLimitAmount: stripeCard['spending_controls']['spending_limits'][0]['amount'],
     spendingLimitInterval: stripeCard['spending_controls']['spending_limits'][0]['interval'].toUpperCase(),

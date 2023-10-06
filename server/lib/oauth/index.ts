@@ -4,9 +4,6 @@ import OAuth2Server, { UnauthorizedRequestError } from '@node-oauth/oauth2-serve
 import InvalidArgumentError from '@node-oauth/oauth2-server/lib/errors/invalid-argument-error';
 import AuthorizeHandler from '@node-oauth/oauth2-server/lib/handlers/authorize-handler';
 import TokenHandler from '@node-oauth/oauth2-server/lib/handlers/token-handler';
-import Promise from 'bluebird';
-import config from 'config';
-import jwt from 'jsonwebtoken';
 import { assign } from 'lodash';
 
 import * as auth from '../../lib/auth';
@@ -24,20 +21,13 @@ class CustomTokenHandler extends TokenHandler {
   getTokenType = function (model) {
     return {
       valueOf: () => {
-        const accessToken = jwt.sign(
+        const accessToken = model.user.jwt(
           {
+            scope: 'oauth',
             // eslint-disable-next-line camelcase
             access_token: model.accessToken,
           },
-          config.keys.opencollective.jwtSecret,
-          {
-            expiresIn: auth.TOKEN_EXPIRATION_SESSION, // 90 days
-            subject: String(model.user.id),
-            algorithm: auth.ALGORITHM,
-            header: {
-              kid: auth.KID,
-            },
-          },
+          auth.TOKEN_EXPIRATION_SESSION_OAUTH, // 90 days,
         );
         // eslint-disable-next-line camelcase
         return { access_token: accessToken };
@@ -86,7 +76,7 @@ class CustomOAuth2Server extends OAuth2Server {
   token = function (request, response, options): Promise<OAuth2Server.Token> {
     options = assign(
       {
-        accessTokenLifetime: auth.TOKEN_EXPIRATION_SESSION, // 90 days
+        accessTokenLifetime: auth.TOKEN_EXPIRATION_SESSION_OAUTH, // 90 days
         refreshTokenLifetime: 60 * 60 * 24 * 365, // 1 year
         allowExtendedTokenAttributes: false,
         requireClientAuthentication: {}, // defaults to true for all grant types
@@ -127,21 +117,19 @@ function OAuthServer(options) {
  */
 
 OAuthServer.prototype.authenticate = function (options) {
-  // eslint-disable-next-line @typescript-eslint/no-this-alias
-  const that = this; //
-
-  return function (req, res, next) {
+  return (req, res, next) => {
     const request = new Request(req);
     const response = new Response(res);
-    return Promise.bind(that)
-      .then(function () {
+    return Promise.resolve()
+      .then(() => {
         return this.server.authenticate(request, response, options);
       })
-      .tap(token => {
+      .then(token => {
         res.locals.oauth = { token: token };
         next();
+        return token;
       })
-      .catch(function (e) {
+      .catch(e => {
         return handleError.call(this, e, req, res, null, next);
       });
   };
@@ -156,27 +144,25 @@ OAuthServer.prototype.authenticate = function (options) {
  */
 
 OAuthServer.prototype.authorize = function (options) {
-  // eslint-disable-next-line @typescript-eslint/no-this-alias
-  const that = this;
-
-  return function (req, res, next) {
+  return (req, res, next) => {
     const request = new Request(req);
     const response = new Response(res);
 
-    return Promise.bind(that)
-      .then(function () {
+    return Promise.resolve()
+      .then(() => {
         return this.server.authorize(request, response, options);
       })
-      .tap(function (code) {
+      .then(code => {
         res.locals.oauth = { code: code };
         if (this.continueMiddleware) {
           next();
         }
+        return code;
       })
-      .then(function () {
+      .then(() => {
         return handleResponse.call(this, req, res, response);
       })
-      .catch(function (e) {
+      .catch(e => {
         return handleError.call(this, e, req, res, response, next);
       });
   };
@@ -191,27 +177,25 @@ OAuthServer.prototype.authorize = function (options) {
  */
 
 OAuthServer.prototype.token = function (options) {
-  // eslint-disable-next-line @typescript-eslint/no-this-alias
-  const that = this;
-
-  return function (req, res, next) {
+  return (req, res, next) => {
     const request = new Request(req);
     const response = new Response(res);
 
-    return Promise.bind(that)
-      .then(function () {
+    return Promise.resolve()
+      .then(() => {
         return this.server.token(request, response, options);
       })
-      .tap(function (token) {
+      .then(token => {
         res.locals.oauth = { token: token };
         if (this.continueMiddleware) {
           next();
         }
+        return token;
       })
-      .then(function () {
+      .then(() => {
         return handleResponse.call(this, req, res, response);
       })
-      .catch(function (e) {
+      .catch(e => {
         return handleError.call(this, e, req, res, response, next);
       });
   };

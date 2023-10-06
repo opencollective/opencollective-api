@@ -125,7 +125,7 @@ describe('server/lib/notification', () => {
     before(async () => {
       collective = await fakeCollective();
       const user = await fakeUser();
-      await collective.addUserWithRole(user, 'FOLLOWER');
+      await collective.addUserWithRole(user, 'BACKER');
       fromCollective = await fakeCollective();
       activity = await generateCollectiveActivity(collective, activities.COLLECTIVE_UPDATE_PUBLISHED, fromCollective);
     });

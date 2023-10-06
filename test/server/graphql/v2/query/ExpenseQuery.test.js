@@ -14,12 +14,20 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
   before(resetTestDB);
 
   describe('Permissions', () => {
-    let expense, ownerUser, collectiveAdminUser, hostAdminUser, randomUser, payoutMethod;
+    let expense,
+      draftExpense,
+      ownerUser,
+      collectiveAdminUser,
+      hostAdminUser,
+      hostAccountantUser,
+      randomUser,
+      payoutMethod;
 
     const expenseQuery = gqlV2/* GraphQL */ `
-      query Expense($id: Int!) {
-        expense(expense: { legacyId: $id }) {
+      query Expense($id: Int!, $draftKey: String) {
+        expense(expense: { legacyId: $id }, draftKey: $draftKey) {
           id
+          draft
           payee {
             id
             name
@@ -50,9 +58,11 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
     before(async () => {
       ownerUser = await fakeUser({}, { legalName: 'A Legal Name' });
       hostAdminUser = await fakeUser();
+      hostAccountantUser = await fakeUser();
       collectiveAdminUser = await fakeUser();
       randomUser = await fakeUser();
       const host = await fakeCollective({ admin: hostAdminUser.collective });
+      await host.addUserWithRole(hostAccountantUser, 'ACCOUNTANT');
       const collective = await fakeCollective({ admin: collectiveAdminUser.collective, HostCollectiveId: host.id });
       payoutMethod = await fakePayoutMethod({ type: 'OTHER', data: { content: 'Test content' } });
       expense = await fakeExpense({
@@ -60,15 +70,45 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
         CollectiveId: collective.id,
         PayoutMethodId: payoutMethod.id,
       });
+      draftExpense = await fakeExpense({
+        FromCollectiveId: ownerUser.collective.id,
+        CollectiveId: collective.id,
+        PayoutMethodId: payoutMethod.id,
+        status: 'DRAFT',
+        data: {
+          draftKey: 'a-valid-draft-key',
+          // Draft data
+          description: 'A description',
+          payeeLocation: { country: 'FR' },
+          items: [
+            {
+              url: 'https://opencollective.com',
+              amount: 1000,
+              description: 'A description',
+            },
+          ],
+          payee: {
+            name: 'A name',
+            slug: 'a-slug',
+            id: 4242,
+            legalName: 'A legal name',
+            email: 'test@opencollective.com',
+            organization: {
+              name: 'An organization name',
+            },
+          },
+        },
+      });
     });
 
-    it('can only see Payout method data if owner, or collective/host admin', async () => {
+    it('can only see Payout method data if owner, collective admin, or host admin/accountant', async () => {
       // Query
       const queryParams = { id: expense.id };
       const resultUnauthenticated = await graphqlQueryV2(expenseQuery, queryParams);
       const resultAsOwner = await graphqlQueryV2(expenseQuery, queryParams, ownerUser);
       const resultAsCollectiveAdmin = await graphqlQueryV2(expenseQuery, queryParams, collectiveAdminUser);
       const resultAsHostAdmin = await graphqlQueryV2(expenseQuery, queryParams, hostAdminUser);
+      const resultAsHostAccountant = await graphqlQueryV2(expenseQuery, queryParams, hostAccountantUser);
       const resultAsRandomUser = await graphqlQueryV2(expenseQuery, queryParams, randomUser);
 
       // Check results
@@ -77,9 +117,10 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
       expect(resultAsCollectiveAdmin.data.expense.payoutMethod.data).to.deep.equal(payoutMethod.data);
       expect(resultAsOwner.data.expense.payoutMethod.data).to.deep.equal(payoutMethod.data);
       expect(resultAsHostAdmin.data.expense.payoutMethod.data).to.deep.equal(payoutMethod.data);
+      expect(resultAsHostAccountant.data.expense.payoutMethod.data).to.deep.equal(payoutMethod.data);
     });
 
-    it('can only see uploaded files URLs if owner, or collective/host admin', async () => {
+    it('can only see uploaded files URLs if owner, or collective/host admin/accountant', async () => {
       // Query
       const queryParams = { id: expense.id };
       const resultUnauthenticated = await graphqlQueryV2(expenseQuery, queryParams);
@@ -87,6 +128,7 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
       const resultAsCollectiveAdmin = await graphqlQueryV2(expenseQuery, queryParams, collectiveAdminUser);
       const resultAsHostAdmin = await graphqlQueryV2(expenseQuery, queryParams, hostAdminUser);
       const resultAsRandomUser = await graphqlQueryV2(expenseQuery, queryParams, randomUser);
+      const resultAsHostAccountant = await graphqlQueryV2(expenseQuery, queryParams, hostAccountantUser);
 
       // Check results
       const expectFilesToBeNull = data => {
@@ -106,6 +148,7 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
       expectFilesToBeNull(resultUnauthenticated.data);
       expectFilesToBeNull(resultAsRandomUser.data);
       expectFilesToNotBeNull(resultAsCollectiveAdmin.data);
+      expectFilesToNotBeNull(resultAsHostAccountant.data);
       expectFilesToNotBeNull(resultAsOwner.data);
       expectFilesToNotBeNull(resultAsHostAdmin.data);
     });
@@ -116,6 +159,7 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
       const resultUnauthenticated = await graphqlQueryV2(expenseQuery, queryParams);
       const resultAsOwner = await graphqlQueryV2(expenseQuery, queryParams, ownerUser);
       const resultAsCollectiveAdmin = await graphqlQueryV2(expenseQuery, queryParams, collectiveAdminUser);
+      const resultAsHostAccountant = await graphqlQueryV2(expenseQuery, queryParams, hostAccountantUser);
       const resultAsHostAdmin = await graphqlQueryV2(expenseQuery, queryParams, hostAdminUser);
       const resultAsRandomUser = await graphqlQueryV2(expenseQuery, queryParams, randomUser);
 
@@ -123,6 +167,7 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
       expect(resultUnauthenticated.data.expense.payee.legalName).to.be.null;
       expect(resultAsRandomUser.data.expense.payee.legalName).to.be.null;
       expect(resultAsCollectiveAdmin.data.expense.payee.legalName).to.equal('A Legal Name');
+      expect(resultAsHostAccountant.data.expense.payee.legalName).to.equal('A Legal Name');
       expect(resultAsOwner.data.expense.payee.legalName).to.equal('A Legal Name');
       expect(resultAsHostAdmin.data.expense.payee.legalName).to.equal('A Legal Name');
     });
@@ -132,6 +177,7 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
       const queryParams = { id: expense.id };
       const resultUnauthenticated = await graphqlQueryV2(expenseQuery, queryParams);
       const resultAsCollectiveAdmin = await graphqlQueryV2(expenseQuery, queryParams, collectiveAdminUser);
+      const resultAsHostAccountant = await graphqlQueryV2(expenseQuery, queryParams, hostAccountantUser);
       const resultAsRandomUser = await graphqlQueryV2(expenseQuery, queryParams, randomUser);
 
       expect(resultUnauthenticated.data.expense.permissions.approve).to.deep.equal({
@@ -148,6 +194,59 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
         allowed: true,
         reason: null,
       });
+
+      expect(resultAsHostAccountant.data.expense.permissions.approve).to.deep.equal({
+        allowed: false,
+        reason: 'MINIMAL_CONDITION_NOT_MET',
+      });
+    });
+
+    it('cannot see private details if not allowed', async () => {
+      const queryParams = { id: draftExpense.id };
+      const resultUnauthenticated = await graphqlQueryV2(expenseQuery, queryParams);
+      const resultAsRandomUser = await graphqlQueryV2(expenseQuery, queryParams, randomUser);
+      const expectedData = {
+        items: [{ amount: 1000, description: 'A description' }],
+        payee: {
+          id: 4242,
+          name: 'A name',
+          organization: { name: 'An organization name' },
+          slug: 'a-slug',
+        },
+      };
+
+      expect(resultUnauthenticated.data.expense.draft).to.deep.eq(expectedData);
+      expect(resultAsRandomUser.data.expense.draft).to.deep.eq(expectedData);
+    });
+
+    it('can see private details if allowed', async () => {
+      // Query
+      const queryParams = { id: draftExpense.id };
+      const resultAsOwner = await graphqlQueryV2(expenseQuery, queryParams, ownerUser);
+      const resultAsCollectiveAdmin = await graphqlQueryV2(expenseQuery, queryParams, collectiveAdminUser);
+      const resultAsHostAdmin = await graphqlQueryV2(expenseQuery, queryParams, hostAdminUser);
+      const resultAsHostAccountant = await graphqlQueryV2(expenseQuery, queryParams, hostAccountantUser);
+      const resultWithDraftKey = await graphqlQueryV2(expenseQuery, { ...queryParams, draftKey: 'a-valid-draft-key' });
+
+      // Check results
+      const expectedData = {
+        items: [{ amount: 1000, description: 'A description', url: 'https://opencollective.com' }],
+        payeeLocation: { country: 'FR' },
+        payee: {
+          id: 4242,
+          email: 'test@opencollective.com',
+          legalName: 'A legal name',
+          name: 'A name',
+          organization: { name: 'An organization name' },
+          slug: 'a-slug',
+        },
+      };
+
+      expect(resultWithDraftKey.data.expense.draft).to.deep.equal(expectedData);
+      expect(resultAsCollectiveAdmin.data.expense.draft).to.deep.equal(expectedData);
+      expect(resultAsOwner.data.expense.draft).to.deep.equal(expectedData);
+      expect(resultAsHostAdmin.data.expense.draft).to.deep.equal(expectedData);
+      expect(resultAsHostAccountant.data.expense.draft).to.deep.equal(expectedData);
     });
   });
 

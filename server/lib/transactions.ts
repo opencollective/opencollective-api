@@ -1,15 +1,17 @@
 import assert from 'assert';
 
-import { round, set, sumBy, truncate } from 'lodash';
+import { get, groupBy, mapValues, round, set, sumBy, truncate } from 'lodash';
+import { Order } from 'sequelize';
 
 import ExpenseType from '../constants/expense_type';
 import TierType from '../constants/tiers';
 import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
 import { toNegative } from '../lib/math';
-import { exportToCSV } from '../lib/utils';
+import { exportToCSV, sumByWhen } from '../lib/utils';
 import models, { Op } from '../models';
 import Tier from '../models/Tier';
+import { TransactionInterface } from '../models/Transaction';
 
 import { getFxRate } from './currency';
 
@@ -56,7 +58,7 @@ export function getTransactions(collectiveids, startDate = new Date('2015-01-01'
       CollectiveId: { [Op.in]: collectiveids },
       createdAt: { [Op.gte]: startDate, [Op.lt]: endDate },
     },
-    order: [['createdAt', 'DESC']],
+    order: [['createdAt', 'DESC']] as Order,
   };
   if (options.limit) {
     query['limit'] = options.limit;
@@ -108,12 +110,18 @@ const computeExpenseAmounts = async (
   }
 
   // Compute the amounts in the proper currency
+  const taxAmount = computeExpenseTaxes(expense);
   return {
     fxRates,
     amount: {
       inHostCurrency: Math.round(expense.amount * fxRates.expenseToHost),
       inCollectiveCurrency: Math.round(expense.amount * fxRates.expenseToCollective),
       inExpenseCurrency: expense.amount,
+    },
+    tax: {
+      inExpenseCurrency: taxAmount,
+      inHostCurrency: Math.round(taxAmount * fxRates.expenseToHost),
+      inCollectiveCurrency: Math.round(taxAmount * fxRates.expenseToCollective),
     },
     paymentProcessorFee: {
       inHostCurrency: fees.paymentProcessorFeeInHostCurrency,
@@ -179,7 +187,7 @@ export async function createTransactionsFromPaidExpense(
         processedAmounts.paymentProcessorFee.inCollectiveCurrency +
         processedAmounts.hostFee.inCollectiveCurrency +
         processedAmounts.platformFee.inCollectiveCurrency),
-    amountInHostCurrency: -processedAmounts.amount.inHostCurrency,
+    amountInHostCurrency: -processedAmounts.amount.inHostCurrency - processedAmounts.tax.inHostCurrency,
     hostCurrency: host.currency,
     hostCurrencyFxRate: processedAmounts.fxRates.collectiveToHost,
     paymentProcessorFeeInHostCurrency: toNegative(paymentProcessorFeeInHostCurrency),
@@ -188,7 +196,7 @@ export async function createTransactionsFromPaidExpense(
     ExpenseId: expense.id,
     type: DEBIT,
     kind: EXPENSE,
-    amount: -processedAmounts.amount.inCollectiveCurrency,
+    amount: -processedAmounts.amount.inCollectiveCurrency - processedAmounts.tax.inCollectiveCurrency,
     currency: expense.collective.currency, // We always record the transaction in the collective currency
     description: expense.description,
     CreatedByUserId: expense.UserId, // TODO: Should be the person who triggered the payment
@@ -197,7 +205,7 @@ export async function createTransactionsFromPaidExpense(
     HostCollectiveId: host.id,
     PaymentMethodId: paymentMethod ? paymentMethod.id : null,
     PayoutMethodId: expense.PayoutMethodId,
-    taxAmount: computeExpenseTaxes(expense),
+    taxAmount: processedAmounts.tax.inCollectiveCurrency,
     data: {
       ...(transactionData || {}),
       ...expenseDataForTransaction,
@@ -228,11 +236,15 @@ export async function createTransactionsForManuallyPaidExpense(
 
   // Values are already adjusted to negative DEBIT values
   const isCoveredByPayee = expense.feesPayer === 'PAYEE';
-  const grossAmount = toNegative(totalAmountPaidInHostCurrency - paymentProcessorFeeInHostCurrency);
+  const taxRate = get(expense.data, 'taxes.0.rate') || 0;
+  const grossPaidAmountWithTaxes = toNegative(totalAmountPaidInHostCurrency - paymentProcessorFeeInHostCurrency);
+  const grossPaidAmount = Math.round(grossPaidAmountWithTaxes / (1 + taxRate));
+  const taxAmountInHostCurrency = grossPaidAmountWithTaxes - grossPaidAmount;
   const netAmountInCollectiveCurrency = toNegative(totalAmountPaidInHostCurrency);
   const amounts = {
-    amount: grossAmount,
-    amountInHostCurrency: grossAmount,
+    amount: grossPaidAmount,
+    amountInHostCurrency: grossPaidAmount,
+    taxAmount: taxAmountInHostCurrency,
     paymentProcessorFeeInHostCurrency: toNegative(paymentProcessorFeeInHostCurrency),
     netAmountInCollectiveCurrency,
     hostCurrencyFxRate: 1,
@@ -249,9 +261,10 @@ export async function createTransactionsForManuallyPaidExpense(
       expense.currency === expense.collective.currency,
       'Expense currency must be the same as collective currency',
     );
-    amounts.hostCurrencyFxRate = round(Math.abs(grossAmount / expense.amount), 5);
+    amounts.hostCurrencyFxRate = round(Math.abs(grossPaidAmountWithTaxes / expense.amount), 5);
     amounts.amount = round(amounts.amount / amounts.hostCurrencyFxRate);
     amounts.netAmountInCollectiveCurrency = round(amounts.netAmountInCollectiveCurrency / amounts.hostCurrencyFxRate);
+    amounts.taxAmount = round(amounts.taxAmount / amounts.hostCurrencyFxRate);
   }
 
   expense.collective = expense.collective || (await models.Collective.findByPk(expense.CollectiveId));
@@ -281,7 +294,6 @@ export async function createTransactionsForManuallyPaidExpense(
     FromCollectiveId: expense.FromCollectiveId,
     HostCollectiveId: host.id,
     PayoutMethodId: expense.PayoutMethodId,
-    taxAmount: computeExpenseTaxes(expense),
     data: {
       isManual: true,
       ...transactionData,
@@ -434,3 +446,23 @@ export async function generateDescription(transaction, { req = null, full = fals
 
   return `${baseString}${debtString}${fromString}${toString}${tierString}${extraString}`;
 }
+
+/**
+ * From a list of transactions, generates an object like:
+ * {
+ *   [TaxId]: { totalCollected: number, totalPaid: number }
+ * }
+ */
+export const getTaxesSummary = (allTransactions: TransactionInterface[]) => {
+  const transactionsWithTaxes = allTransactions.filter(t => t.taxAmount);
+  if (!transactionsWithTaxes.length) {
+    return null;
+  }
+
+  const groupedTransactions = groupBy(transactionsWithTaxes, 'data.tax.id');
+  const getTaxAmountInHostCurrency = transaction => transaction.taxAmount * (transaction.hostCurrencyRate || 1) || 0;
+  return mapValues(groupedTransactions, transactions => ({
+    collected: Math.abs(sumByWhen(transactions, getTaxAmountInHostCurrency, t => t.type === 'CREDIT')),
+    paid: sumByWhen(transactions, getTaxAmountInHostCurrency, t => t.type === 'DEBIT'),
+  }));
+};

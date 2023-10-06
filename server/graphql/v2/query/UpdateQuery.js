@@ -2,11 +2,11 @@ import { GraphQLString } from 'graphql';
 
 import models from '../../../models';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
-import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
-import Update from '../object/Update';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import GraphQLUpdate from '../object/Update';
 
 const UpdateQuery = {
-  type: Update,
+  type: GraphQLUpdate,
   args: {
     id: {
       type: GraphQLString,
@@ -17,7 +17,7 @@ const UpdateQuery = {
       description: 'The update slug identifying the update',
     },
     account: {
-      type: AccountReferenceInput,
+      type: GraphQLAccountReferenceInput,
       description: 'When fetching by slug, an account must be provided',
     },
   },

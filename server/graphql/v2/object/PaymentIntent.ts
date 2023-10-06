@@ -1,6 +1,6 @@
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
-const PaymentIntent = new GraphQLObjectType({
+const GraphQLPaymentIntent = new GraphQLObjectType({
   name: 'PaymentIntent',
   description: 'A Stripe payment intent',
   fields: () => {
@@ -21,4 +21,4 @@ const PaymentIntent = new GraphQLObjectType({
   },
 });
 
-export default PaymentIntent;
+export default GraphQLPaymentIntent;

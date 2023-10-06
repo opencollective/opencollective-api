@@ -30,6 +30,9 @@
     "redirectUri": "https://api.opencollective.com/connected-accounts/stripe/callback"
   },
   "paypal": {
+    "payment": {
+      "environment": "production"
+    },
     "rest": {
       "mode": "live"
     }
@@ -49,10 +52,24 @@
   "sentry": {
     "tracesSampleRate": 0.01
   },
-  "privacy": {
-    "apiUrl": "https://api.privacy.com"
-  },
   "thegivingblock": {
     "apiUrl": "https://public-api.tgbwidget.com/v1"
+  },
+  "graphql": {
+    "cache": {
+      "enabled": true
+    }
+  },
+  "captcha": {
+    "enabled": true
+  },
+  "statsd": {
+    "enabled": true,
+    "url": "statsd.hostedgraphite.com"
+  },
+  "webauthn": {
+    "rpName": "Open Collective",
+    "rpId": "opencollective.com",
+    "expectedOrigins": ["https://opencollective.com"]
   }
 }

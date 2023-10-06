@@ -1,9 +1,9 @@
 import { GraphQLBoolean, GraphQLInputObjectType, GraphQLInt } from 'graphql';
 
 import POLICIES from '../../../constants/policies';
-import { PolicyApplication } from '../enum/PolicyApplication';
+import { GraphQLPolicyApplication } from '../enum/PolicyApplication';
 
-export const PoliciesInput = new GraphQLInputObjectType({
+export const GraphQLPoliciesInput = new GraphQLInputObjectType({
   name: 'PoliciesInput',
   fields: () => ({
     [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: {
@@ -20,12 +20,15 @@ export const PoliciesInput = new GraphQLInputObjectType({
     [POLICIES.REQUIRE_2FA_FOR_ADMINS]: {
       type: GraphQLBoolean,
     },
+    [POLICIES.COLLECTIVE_ADMINS_CAN_REFUND]: {
+      type: GraphQLBoolean,
+    },
     [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: {
       type: new GraphQLInputObjectType({
         name: 'PoliciesCollectiveMinimumAdminsInput',
         fields: () => ({
           numberOfAdmins: { type: GraphQLInt },
-          applies: { type: PolicyApplication },
+          applies: { type: GraphQLPolicyApplication },
           freeze: { type: GraphQLBoolean },
         }),
       }),

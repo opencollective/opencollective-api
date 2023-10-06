@@ -1,12 +1,12 @@
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
-import { Account } from '../interface/Account';
+import { GraphQLAccount } from '../interface/Account';
 
-export const MergeAccountsResponse = new GraphQLObjectType({
+export const GraphQLMergeAccountsResponse = new GraphQLObjectType({
   name: 'MergeAccountsResponse',
   fields: () => ({
     account: {
-      type: new GraphQLNonNull(Account),
+      type: new GraphQLNonNull(GraphQLAccount),
       description: 'The resulting account',
     },
     message: {

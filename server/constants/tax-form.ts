@@ -10,10 +10,10 @@ export const TAX_FORM_IGNORED_EXPENSE_TYPES = [
   EXPENSE_TYPE.SETTLEMENT,
   EXPENSE_TYPE.FUNDING_REQUEST, // This one is a simplification, as foundation already collects the document in their process. See https://github.com/opencollective/opencollective/issues/4766
   EXPENSE_TYPE.GRANT, // This one is a simplification, as foundation already collects the document in their process. See https://github.com/opencollective/opencollective/issues/4766
-];
+] as const;
 export const TAX_FORM_IGNORED_EXPENSE_STATUSES = [
   EXPENSE_STATUS.ERROR,
   EXPENSE_STATUS.REJECTED,
   EXPENSE_STATUS.DRAFT,
   EXPENSE_STATUS.UNVERIFIED,
-];
+] as const;

@@ -19,7 +19,7 @@ import {
 } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
-describe('cron/hourly/check-pending-transferwise-transactions', () => {
+describe('cron/daily/check-pending-transferwise-transactions', () => {
   const sandbox = createSandbox();
   let getTransfer, sendMessage;
   let expense, host, collective, payoutMethod;
@@ -62,7 +62,8 @@ describe('cron/hourly/check-pending-transferwise-transactions', () => {
       type: 'INVOICE',
       description: 'January Invoice',
       data: {
-        transfer: { id: 1234, sourceValue: 100 },
+        transfer: { id: 1234 },
+        paymentOption: { fee: { total: 10 }, sourceAmount: 110 },
       },
     });
   });

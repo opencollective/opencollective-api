@@ -1,35 +1,40 @@
-import Promise from 'bluebird';
 import DataLoader from 'dataloader';
 import { createContext } from 'dataloader-sequelize';
 import { get, groupBy } from 'lodash';
 import moment from 'moment';
 
+import { CollectiveType } from '../../constants/collectives';
 import orderStatus from '../../constants/order_status';
 import { TransactionTypes } from '../../constants/transactions';
 import {
   getBalances,
   getSumCollectivesAmountReceived,
   getSumCollectivesAmountSpent,
+  getYearlyBudgets,
   sumCollectivesTransactions,
 } from '../../lib/budget';
 import { getFxRate } from '../../lib/currency';
 import models, { Op, sequelize } from '../../models';
 
+import { generateTotalAccountHostAgreementsLoader } from './agreements';
 import collectiveLoaders from './collective';
 import commentsLoader from './comments';
+import contributorsLoaders from './contributors';
 import conversationLoaders from './conversation';
 import { generateConvertToCurrencyLoader, generateFxRateLoader } from './currency-exchange-rate';
 import * as expenseLoaders from './expenses';
 import { buildLoaderForAssociation, sortResults, sortResultsArray, sortResultsSimple } from './helpers';
+import locationLoaders from './location';
 import {
   generateAdminUsersEmailsForCollectiveLoader,
   generateCountAdminMembersOfCollective,
   generateRemoteUserIsAdminOfHostedAccountLoader,
 } from './members';
+import * as orderLoaders from './order';
 import { generateCollectivePayoutMethodsLoader, generateCollectivePaypalPayoutMethodsLoader } from './payout-method';
 import * as transactionLoaders from './transactions';
 import updatesLoader from './updates';
-import { generateUserByCollectiveIdLoader } from './user';
+import { generateUserByCollectiveIdLoader, generateUserHasTwoFactorAuthEnabled } from './user';
 import { generateCollectiveVirtualCardLoader, generateHostCollectiveVirtualCardLoader } from './virtual-card';
 
 export const loaders = req => {
@@ -41,7 +46,7 @@ export const loaders = req => {
   context.loaders.CurrencyExchangeRate.fxRate = generateFxRateLoader(req, cache);
 
   // Comment
-  context.loaders.Comment.countByExpenseId = commentsLoader.countByExpenseId(req, cache);
+  context.loaders.Comment.countByExpenseAndType = commentsLoader.countByExpenseAndType(req, cache);
 
   // Comment Reactions
   context.loaders.Comment.reactionsByCommentId = commentsLoader.reactionsByCommentId(req, cache);
@@ -61,17 +66,22 @@ export const loaders = req => {
   context.loaders.Conversation.followers = conversationLoaders.followers(req, cache);
   context.loaders.Conversation.commentsCount = conversationLoaders.commentsCount(req, cache);
 
+  // Contributors
+  context.loaders.Contributors = {
+    forCollectiveId: contributorsLoaders.forCollectiveId(req, cache),
+  };
+
   // Expense
   context.loaders.Expense.activities = expenseLoaders.generateExpenseActivitiesLoader(req, cache);
   context.loaders.Expense.attachedFiles = expenseLoaders.attachedFiles(req, cache);
   context.loaders.Expense.items = expenseLoaders.generateExpenseItemsLoader(req, cache);
-  context.loaders.Expense.userTaxFormRequiredBeforePayment = expenseLoaders.userTaxFormRequiredBeforePayment(
-    req,
-    cache,
-  );
-  context.loaders.Expense.requiredLegalDocuments = expenseLoaders.requiredLegalDocuments(req, cache);
+  context.loaders.Expense.taxFormRequiredBeforePayment = expenseLoaders.taxFormRequiredBeforePayment(req, cache);
   context.loaders.Expense.expenseToHostTransactionFxRateLoader =
     expenseLoaders.generateExpenseToHostTransactionFxRateLoader(req, cache);
+  context.loaders.Expense.securityChecks = expenseLoaders.generateExpensesSecurityCheckLoader(req, cache);
+
+  // Agreements
+  context.loaders.Agreement.totalAccountHostAgreements = generateTotalAccountHostAgreementsLoader();
 
   // Payout method
   context.loaders.PayoutMethod.paypalByCollectiveId = generateCollectivePaypalPayoutMethodsLoader(req, cache);
@@ -83,6 +93,10 @@ export const loaders = req => {
 
   // User
   context.loaders.User.byCollectiveId = generateUserByCollectiveIdLoader(req, cache);
+  context.loaders.userHasTwoFactorAuthEnabled = generateUserHasTwoFactorAuthEnabled(req, cache);
+
+  // Location
+  context.loaders.Location.byCollectiveId = locationLoaders.byCollectiveId(req, cache);
 
   /** *** Collective *****/
 
@@ -109,6 +123,24 @@ export const loaders = req => {
     filter: collective => Boolean(collective.approvedAt),
     loader: hostIds => context.loaders.Collective.byId.loadMany(hostIds),
   });
+
+  context.loaders.Collective.hostedCollectivesCount = new DataLoader(async collectiveIds => {
+    const results = await models.Collective.findAll({
+      raw: true,
+      attributes: ['HostCollectiveId', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+      group: ['HostCollectiveId'],
+      where: {
+        HostCollectiveId: collectiveIds,
+        type: [CollectiveType.COLLECTIVE, CollectiveType.FUND],
+        isActive: true,
+        approvedAt: { [Op.not]: null },
+      },
+    });
+
+    return sortResultsSimple(collectiveIds, results, r => r.HostCollectiveId).map(result => result?.count ?? 0);
+  });
+
+  // Collective - Parent
 
   context.loaders.Collective.parent = buildLoaderForAssociation(models.Collective, 'parent', {
     loader: parentIds => context.loaders.Collective.byId.loadMany(parentIds),
@@ -249,6 +281,10 @@ export const loaders = req => {
 
   context.loaders.Collective.canSeePrivateInfo = collectiveLoaders.canSeePrivateInfo(req, cache);
 
+  context.loaders.Collective.yearlyBudget = new DataLoader(ids =>
+    getYearlyBudgets(ids).then(results => sortResults(ids, Object.values(results), 'CollectiveId')),
+  );
+
   // Collective - Stats
   context.loaders.Collective.stats = {
     backers: new DataLoader(ids => {
@@ -344,23 +380,37 @@ export const loaders = req => {
         raw: true,
       }).then(rows => {
         const results = groupBy(rows, 'CollectiveId');
-        return Promise.map(ids, async collectiveId => {
-          const stats = { CollectiveId: Number(collectiveId), monthly: 0, yearly: 0, currency: null };
-          if (results[collectiveId]) {
-            for (const result of results[collectiveId]) {
-              const interval = result.interval === 'month' ? 'monthly' : 'yearly';
-              // If it's the first total collected, set the currency
-              if (!stats.currency) {
-                stats.currency = result.currency;
+        return Promise.all(
+          ids.map(async collectiveId => {
+            const stats = { CollectiveId: Number(collectiveId), monthly: 0, yearly: 0, currency: null };
+            if (results[collectiveId]) {
+              for (const result of results[collectiveId]) {
+                const interval = result.interval === 'month' ? 'monthly' : 'yearly';
+                // If it's the first total collected, set the currency
+                if (!stats.currency) {
+                  stats.currency = result.currency;
+                }
+                const fxRate = await getFxRate(result.currency, stats.currency);
+                stats[interval] += result.total * fxRate;
               }
-              const fxRate = await getFxRate(result.currency, stats.currency);
-              stats[interval] += result.total * fxRate;
             }
-          }
-          return stats;
-        });
+            return stats;
+          }),
+        );
       }),
     ),
+    orders: new DataLoader(async collectiveIds => {
+      const stats = await sequelize.query(
+        `SELECT * FROM "CollectiveOrderStats" WHERE "CollectiveId" IN (:collectiveIds)`,
+        {
+          replacements: { collectiveIds },
+          type: sequelize.QueryTypes.SELECT,
+          raw: true,
+        },
+      );
+
+      return sortResultsSimple(collectiveIds, stats, row => row.CollectiveId);
+    }),
   };
 
   /** *** Tier *****/
@@ -448,14 +498,19 @@ export const loaders = req => {
     sequelize
       .query(
         `
-        SELECT "Order"."TierId" AS "TierId", COALESCE(SUM("Transaction"."netAmountInCollectiveCurrency"), 0) AS "totalDonated"
+        SELECT "Order"."TierId", COALESCE(SUM("Transaction"."netAmountInCollectiveCurrency"), 0) AS "totalDonated"
         FROM "Transactions" AS "Transaction"
-        INNER JOIN "Orders" AS "Order" ON "Transaction"."OrderId" = "Order"."id" AND "Transaction"."CollectiveId" = "Order"."CollectiveId" AND ("Order"."deletedAt" IS NULL)
-        WHERE "TierId" IN (?)
+        INNER JOIN "Orders" AS "Order" ON "Transaction"."OrderId" = "Order"."id"
+          AND "Order"."deletedAt" IS NULL
+          -- the following would make the query slow
+          -- replaced by "kind" condition for the same effect
+          -- AND "Transaction"."CollectiveId" = "Order"."CollectiveId"
+        WHERE "Order"."TierId" IN (?)
         AND "Transaction"."deletedAt" IS NULL
         AND "Transaction"."RefundTransactionId" IS NULL
         AND "Transaction"."type" = 'CREDIT'
-        GROUP BY "TierId";
+        AND "Transaction"."kind" IN ('CONTRIBUTION', 'ADDED_FUNDS')
+        GROUP BY "Order"."TierId";
       `,
         {
           replacements: [ids],
@@ -647,6 +702,8 @@ export const loaders = req => {
       ),
     ),
   };
+  // Order - activities
+  context.loaders.Order.activities = orderLoaders.generateOrderActivitiesLoader(req, cache);
 
   /** *** Member *****/
 
@@ -728,6 +785,7 @@ export const loaders = req => {
           },
           CollectiveId: { [Op.in]: keys.map(k => k.CollectiveId) },
           type: TransactionTypes.CREDIT,
+          kind: { [Op.notIn]: ['HOST_FEE', 'HOST_FEE_SHARE', 'HOST_FEE_SHARE_DEBT', 'PLATFORM_TIP_DEBT'] },
           RefundTransactionId: null,
         },
         group: ['FromCollectiveId', 'UsingGiftCardFromCollectiveId', 'CollectiveId'],

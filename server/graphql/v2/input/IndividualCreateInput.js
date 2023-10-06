@@ -1,6 +1,6 @@
 import { GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
 
-export const IndividualCreateInput = new GraphQLInputObjectType({
+export const GraphQLIndividualCreateInput = new GraphQLInputObjectType({
   name: 'IndividualCreateInput',
   fields: () => ({
     name: { type: new GraphQLNonNull(GraphQLString) },

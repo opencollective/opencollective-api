@@ -202,7 +202,7 @@ const rollback = async () => {
     }
 
     await transaction.update({
-      ...transaction.data.preMigrationData,
+      ...(<Record<string, unknown>>transaction.data.preMigrationData),
       data: omit(transaction.data, ['preMigrationData', 'hostFeeMigration']),
     });
   }

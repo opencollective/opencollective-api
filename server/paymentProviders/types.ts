@@ -1,4 +1,5 @@
-import models from '../models';
+import { OrderModelInterface } from '../models/Order';
+import { TransactionInterface } from '../models/Transaction';
 import User from '../models/User';
 import VirtualCardModel from '../models/VirtualCard';
 
@@ -6,7 +7,7 @@ export interface PaymentProvider {
   /**
    * Triggers the payment for this order and updates it accordingly
    */
-  processOrder(order: typeof models.Order): Promise<typeof models.Transaction>;
+  processOrder(order: OrderModelInterface): Promise<TransactionInterface>;
 
   /**
    * The different types of payment methods supported by this provider
@@ -26,16 +27,21 @@ export interface PaymentProviderService {
   /**
    * Triggers the payment for this order and updates it accordingly
    */
-  processOrder(order: typeof models.Order): Promise<typeof models.Transaction>;
+  processOrder(order: OrderModelInterface): Promise<TransactionInterface | void>;
 
   /**
    * Refunds a transaction processed with this payment provider service
    */
-  refundTransaction(
-    transaction: typeof models.Transaction,
+  refundTransaction(transaction: TransactionInterface, user: User, reason?: string): Promise<TransactionInterface>;
+
+  /**
+   * Refunds a transaction processed with this payment provider service without calling the payment provider
+   */
+  refundTransactionOnlyInDatabase(
+    transaction: TransactionInterface,
     user: User,
     reason?: string,
-  ): Promise<typeof models.Transaction>;
+  ): Promise<TransactionInterface>;
 }
 
 export interface CardProviderService {

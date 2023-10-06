@@ -6,14 +6,15 @@ import { BadRequest } from '../graphql/errors';
 import * as auth from '../lib/auth';
 import emailLib from '../lib/email';
 import errors from '../lib/errors';
+import { confirmGuestAccount } from '../lib/guest-accounts';
 import logger from '../lib/logger';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../lib/rate-limit';
-import { verifyTwoFactorAuthenticationRecoveryCode } from '../lib/two-factor-authentication';
-import { validateTOTPToken } from '../lib/two-factor-authentication/totp';
+import twoFactorAuthLib, { TwoFactorMethod } from '../lib/two-factor-authentication';
+import * as webauthn from '../lib/two-factor-authentication/webauthn';
 import { isValidEmail, parseToBoolean } from '../lib/utils';
 import models from '../models';
 
-const { Unauthorized, ValidationFailed, TooManyRequests } = errors;
+const { Unauthorized, TooManyRequests } = errors;
 
 const { User } = models;
 
@@ -98,13 +99,28 @@ export const signin = async (req, res, next) => {
       }
 
       const twoFactorAuthenticationEnabled = parseToBoolean(config.twoFactorAuthentication.enabled);
-      if (twoFactorAuthenticationEnabled && user.twoFactorAuthToken !== null) {
+      if (twoFactorAuthenticationEnabled && (await twoFactorAuthLib.userHasTwoFactorAuthEnabled(user))) {
+        const supported2FAMethods = await twoFactorAuthLib.twoFactorMethodsSupportedByUser(user);
+
+        const authenticationOptions = {};
+
+        if (supported2FAMethods.includes(TwoFactorMethod.WEBAUTHN)) {
+          authenticationOptions.webauthn = await webauthn.authenticationOptions(user, req);
+        }
+
         // Send 2FA token, can only be used to get a long term token
-        const token = user.jwt({ scope: 'twofactorauth' }, auth.TOKEN_EXPIRATION_2FA);
+        const token = user.jwt(
+          {
+            scope: 'twofactorauth',
+            supported2FAMethods,
+            authenticationOptions,
+          },
+          auth.TOKEN_EXPIRATION_2FA,
+        );
         return res.send({ token });
       } else {
-        // All good, no 2FA, send token
-        const token = await user.generateSessionToken();
+        // Context: this is token generation when using a password and no 2FA
+        const token = await user.generateSessionToken({ createActivity: true, updateLastLoginAt: true, req });
         return res.send({ token });
       }
     }
@@ -148,35 +164,129 @@ export const signin = async (req, res, next) => {
 };
 
 /**
- * Receive a login JWT and generate another one.
- * This can be used right after the first login.
- * Also check if the user has two-factor authentication
+ * Exchange a login JWT (received by email).
+
+ * A) Check if the user has two-factor authentication
  * enabled on their account, and if they do, we send
  * back a JWT with scope 'twofactorauth' to trigger
  * the 2FA flow on the frontend
+ *
+ * B) If no 2FA, we send back a "session" token
  */
-export const updateToken = async (req, res) => {
+export const exchangeLoginToken = async (req, res, next) => {
+  const rateLimit = new RateLimit(
+    `user_exchange_login_token_ip_${req.ip}`,
+    config.limits.userExchangeLoginTokenPerHourPerIp,
+    ONE_HOUR_IN_SECONDS,
+    true,
+  );
+  if (!(await rateLimit.registerCall())) {
+    return res.status(403).send({
+      error: { message: 'Rate limit exceeded' },
+    });
+  }
+
+  // This is already checked in checkJwtScope but lets' make it clear
+  if (req.jwtPayload?.scope !== 'login') {
+    const errorMessage = `Cannot use this token on this route (scope: ${
+      req.jwtPayload?.scope || 'session'
+    }, expected: login)`;
+    return next(new BadRequest(errorMessage));
+  }
+
+  // If a guest signs in, it's safe to directly confirm its account
+  if (!req.remoteUser.confirmedAt) {
+    await confirmGuestAccount(req.remoteUser);
+  }
+
   const twoFactorAuthenticationEnabled = parseToBoolean(config.twoFactorAuthentication.enabled);
-  if (twoFactorAuthenticationEnabled && req.remoteUser.twoFactorAuthToken !== null) {
+  if (twoFactorAuthenticationEnabled && (await twoFactorAuthLib.userHasTwoFactorAuthEnabled(req.remoteUser))) {
+    const supported2FAMethods = await twoFactorAuthLib.twoFactorMethodsSupportedByUser(req.remoteUser);
+
+    const authenticationOptions = {};
+
+    if (supported2FAMethods.includes(TwoFactorMethod.WEBAUTHN)) {
+      authenticationOptions.webauthn = await webauthn.authenticationOptions(req.remoteUser, req);
+    }
+
     const token = req.remoteUser.jwt(
-      { scope: 'twofactorauth', sessionId: req.jwtPayload?.sessionId },
+      {
+        scope: 'twofactorauth',
+        supported2FAMethods,
+        authenticationOptions,
+      },
       auth.TOKEN_EXPIRATION_2FA,
     );
+
     res.send({ token });
   } else {
-    const token = await req.remoteUser.generateSessionToken({ sessionId: req.jwtPayload?.sessionId });
+    // Context: this is token generation after using a signin link (magic link) and no 2FA
+    const token = await req.remoteUser.generateSessionToken({
+      sessionId: req.jwtPayload.sessionId,
+      createActivity: true,
+      updateLastLoginAt: true,
+      req,
+    });
     res.send({ token });
   }
+};
+
+/**
+ * Exchange a session JWT against a fresh one with extended expiration
+ */
+export const refreshToken = async (req, res, next) => {
+  const rateLimit = new RateLimit(
+    `user_refresh_token_ip_${req.ip}`,
+    config.limits.userRefreshTokenPerHourPerIp,
+    ONE_HOUR_IN_SECONDS,
+    true,
+  );
+  if (!(await rateLimit.registerCall())) {
+    return res.status(403).send({
+      error: { message: 'Rate limit exceeded' },
+    });
+  }
+
+  if (req.personalToken) {
+    const errorMessage = `Cannot use this token on this route (personal token)`;
+    return next(new BadRequest(errorMessage));
+  }
+
+  if (req.jwtPayload?.scope && req.jwtPayload?.scope !== 'session') {
+    const errorMessage = `Cannot use this token on this route (scope: ${req.jwtPayload?.scope}, expected: session)`;
+    return next(new BadRequest(errorMessage));
+  }
+
+  // TODO: not necessary once all oAuth tokens have the scope "oauth"
+  if (req.jwtPayload?.access_token) {
+    const errorMessage = `Cannot use this token on this route (oAuth access_token)`;
+    return next(new BadRequest(errorMessage));
+  }
+
+  // Context: this is token generation when extending a session
+  const token = await req.remoteUser.generateSessionToken({
+    sessionId: req.jwtPayload?.sessionId,
+    createActivity: false,
+    updateLastLoginAt: false,
+  });
+
+  res.send({ token });
 };
 
 /**
  * Verify the 2FA code or recovery code the user has entered when logging in and send back another JWT.
  */
 export const twoFactorAuthAndUpdateToken = async (req, res, next) => {
-  const { twoFactorAuthenticatorCode, twoFactorAuthenticationRecoveryCode } = req.body;
+  if (req.jwtPayload?.scope !== 'twofactorauth') {
+    const errorMessage = `Cannot use this token on this route (scope: ${
+      req.jwtPayload?.scope || 'session'
+    }, expected: twofactorauth)`;
+    return next(new BadRequest(errorMessage));
+  }
+
+  const { twoFactorAuthenticatorCode, twoFactorAuthenticationRecoveryCode, twoFactorAuthenticationType } = req.body;
 
   const userId = Number(req.jwtPayload.sub);
-  const sessionId = req.jwtPayload.sessionId;
 
   // Both 2FA and recovery codes rate limited to 10 tries per hour
   const rateLimit = new RateLimit(`user_2FA_endpoint_${userId}`, 10, ONE_HOUR_IN_SECONDS);
@@ -196,30 +306,34 @@ export const twoFactorAuthAndUpdateToken = async (req, res, next) => {
     return;
   }
 
-  if (twoFactorAuthenticatorCode) {
-    // if there is a 2FA code, we need to verify it before returning the token
-    const verified = validateTOTPToken(user.twoFactorAuthToken, twoFactorAuthenticatorCode);
-    if (!verified) {
-      return fail(new Unauthorized('Two-factor authentication code failed. Please try again'));
-    }
-  } else if (twoFactorAuthenticationRecoveryCode) {
-    // or if there is a recovery code try to verify it
-    if (typeof twoFactorAuthenticationRecoveryCode !== 'string') {
-      return fail(new ValidationFailed('2FA recovery code must be a string'));
-    }
-    const verified = verifyTwoFactorAuthenticationRecoveryCode(
-      user.twoFactorAuthRecoveryCodes,
-      twoFactorAuthenticationRecoveryCode,
-    );
-    if (!verified) {
-      return fail(new Unauthorized('Two-factor authentication recovery code failed. Please try again'));
-    }
+  const code = twoFactorAuthenticatorCode || twoFactorAuthenticationRecoveryCode;
+  const type =
+    twoFactorAuthenticationType ?? (twoFactorAuthenticatorCode ? TwoFactorMethod.TOTP : TwoFactorMethod.RECOVERY_CODE);
 
-    await user.update({ twoFactorAuthRecoveryCodes: null, twoFactorAuthToken: null });
-  } else {
+  if (!code) {
     return fail(new BadRequest('This endpoint requires you to provide a 2FA code or a recovery code'));
   }
 
-  const token = await user.generateSessionToken({ sessionId });
+  try {
+    await twoFactorAuthLib.validateToken(
+      user,
+      {
+        code: code,
+        type: type,
+      },
+      req,
+    );
+  } catch (e) {
+    return fail(new Unauthorized('Two-factor authentication code failed. Please try again'));
+  }
+
+  // Context: this is token generation after signin and valid 2FA authentication
+  const token = await user.generateSessionToken({
+    sessionId: req.jwtPayload.sessionId,
+    createActivity: true,
+    updateLastLoginAt: true,
+    req,
+  });
+
   res.send({ token: token });
 };

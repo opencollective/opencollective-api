@@ -1,18 +1,18 @@
 import { GraphQLInputObjectType, GraphQLList, GraphQLString } from 'graphql';
 
-import { OAuthScope } from '../enum/OAuthScope';
+import { GraphQLOAuthScope } from '../enum/OAuthScope';
 
-import { AccountReferenceInput } from './AccountReferenceInput';
+import { GraphQLAccountReferenceInput } from './AccountReferenceInput';
 
-export const PersonalTokenCreateInput = new GraphQLInputObjectType({
+export const GraphQLPersonalTokenCreateInput = new GraphQLInputObjectType({
   name: 'PersonalTokenCreateInput',
   description: 'Input type for PersonalToken',
   fields: () => ({
     name: { type: GraphQLString },
-    scope: { type: new GraphQLList(OAuthScope) },
+    scope: { type: new GraphQLList(GraphQLOAuthScope) },
     expiresAt: { type: GraphQLString },
     account: {
-      type: AccountReferenceInput,
+      type: GraphQLAccountReferenceInput,
       description: 'The account to use as the owner of the application. Defaults to currently logged in user.',
     },
   }),

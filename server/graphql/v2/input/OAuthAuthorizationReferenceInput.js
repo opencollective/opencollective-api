@@ -11,7 +11,7 @@ export const OAuthAuthorizationReferenceFields = {
   },
 };
 
-export const OAuthAuthorizationReferenceInput = new GraphQLInputObjectType({
+export const GraphQLOAuthAuthorizationReferenceInput = new GraphQLInputObjectType({
   name: 'OAuthAuthorizationReferenceInput',
   fields: () => OAuthAuthorizationReferenceFields,
 });

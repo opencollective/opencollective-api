@@ -1,9 +1,9 @@
 import { GraphQLBoolean, GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import { AccountReferenceInput } from './AccountReferenceInput';
+import { GraphQLAccountReferenceInput } from './AccountReferenceInput';
 
-export const UpdateUpdateInput = new GraphQLInputObjectType({
+export const GraphQLUpdateUpdateInput = new GraphQLInputObjectType({
   name: 'UpdateUpdateInput',
   description: 'Input type for UpdateType',
   fields: () => ({
@@ -13,6 +13,6 @@ export const UpdateUpdateInput = new GraphQLInputObjectType({
     isPrivate: { type: GraphQLBoolean },
     makePublicOn: { type: GraphQLDateTime },
     html: { type: GraphQLString },
-    fromAccount: { type: AccountReferenceInput },
+    fromAccount: { type: GraphQLAccountReferenceInput },
   }),
 });

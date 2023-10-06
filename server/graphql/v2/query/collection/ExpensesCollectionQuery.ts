@@ -1,28 +1,35 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
-import { GraphQLDateTime } from 'graphql-scalars';
-import { isEmpty, uniq } from 'lodash';
+import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
+import { isEmpty, isNil, uniq } from 'lodash';
 import { OrderItem } from 'sequelize';
 
 import { expenseStatus } from '../../../../constants';
-import { types as CollectiveType } from '../../../../constants/collectives';
-import { TAX_FORM_IGNORED_EXPENSE_TYPES } from '../../../../constants/tax-form';
+import { CollectiveType } from '../../../../constants/collectives';
 import { getBalances } from '../../../../lib/budget';
-import queries from '../../../../lib/queries';
 import { buildSearchConditions } from '../../../../lib/search';
+import { expenseMightBeSubjectToTaxForm } from '../../../../lib/tax-forms';
 import models, { Op, sequelize } from '../../../../models';
+import { ExpenseType } from '../../../../models/Expense';
 import { PayoutMethodTypes } from '../../../../models/PayoutMethod';
+import { validateExpenseCustomData } from '../../../common/expenses';
+import { Unauthorized } from '../../../errors';
 import { loadFxRatesMap } from '../../../loaders/currency-exchange-rate';
-import { ExpenseCollection } from '../../collection/ExpenseCollection';
-import ExpenseStatusFilter from '../../enum/ExpenseStatusFilter';
-import { ExpenseType } from '../../enum/ExpenseType';
-import { PayoutMethodType } from '../../enum/PayoutMethodType';
-import { AccountReferenceInput, fetchAccountWithReference } from '../../input/AccountReferenceInput';
-import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, ChronologicalOrderInput } from '../../input/ChronologicalOrderInput';
+import { GraphQLExpenseCollection } from '../../collection/ExpenseCollection';
+import GraphQLExpenseStatusFilter from '../../enum/ExpenseStatusFilter';
+import { GraphQLExpenseType } from '../../enum/ExpenseType';
+import { GraphQLPayoutMethodType } from '../../enum/PayoutMethodType';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
+import {
+  CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
+  GraphQLChronologicalOrderInput,
+} from '../../input/ChronologicalOrderInput';
+import { GraphQLVirtualCardReferenceInput } from '../../input/VirtualCardReferenceInput';
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
 
-const updateFilterConditionsForReadyToPay = async (where, include, host): Promise<void> => {
+const updateFilterConditionsForReadyToPay = async (where, include, host, loaders): Promise<void> => {
   where['status'] = expenseStatus.APPROVED;
+  where['onHold'] = false;
 
   // Get all collectives matching the search that have APPROVED expenses
   const expenses = await models.Expense.findAll({
@@ -41,7 +48,7 @@ const updateFilterConditionsForReadyToPay = async (where, include, host): Promis
   });
 
   // Check tax forms
-  let expensesIdsPendingTaxForms = new Set();
+  const expensesIdsPendingTaxForms = new Set();
   let checkTaxForms = true;
 
   // No need to trigger the full query if the host doesn't have any tax forms requirement
@@ -51,10 +58,16 @@ const updateFilterConditionsForReadyToPay = async (where, include, host): Promis
   }
 
   if (checkTaxForms) {
-    const expensesSubjectToTaxForm = expenses.filter(e => !TAX_FORM_IGNORED_EXPENSE_TYPES.includes(e.type));
+    const expensesSubjectToTaxForm = expenses.filter(expenseMightBeSubjectToTaxForm);
     if (expensesSubjectToTaxForm.length > 0) {
-      const expensesIdsSubjectToTaxForm = expensesSubjectToTaxForm.map(expense => expense.id);
-      expensesIdsPendingTaxForms = await queries.getTaxFormsRequiredForExpenses(expensesIdsSubjectToTaxForm);
+      const expenseIds = expensesSubjectToTaxForm.map(expense => expense.id);
+      const requiredLegalDocs = await loaders.Expense.taxFormRequiredBeforePayment.loadMany(expenseIds);
+      requiredLegalDocs.forEach((required, i) => {
+        if (required) {
+          expensesIdsPendingTaxForms.add(expenseIds[i]);
+        }
+      });
+
       where[Op.and].push({ id: { [Op.notIn]: Array.from(expensesIdsPendingTaxForms) } });
     }
   }
@@ -91,31 +104,31 @@ const updateFilterConditionsForReadyToPay = async (where, include, host): Promis
 };
 
 const ExpensesCollectionQuery = {
-  type: new GraphQLNonNull(ExpenseCollection),
+  type: new GraphQLNonNull(GraphQLExpenseCollection),
   args: {
     ...CollectionArgs,
     fromAccount: {
-      type: AccountReferenceInput,
+      type: GraphQLAccountReferenceInput,
       description: 'Reference of an account that is the payee of an expense',
     },
     account: {
-      type: AccountReferenceInput,
+      type: GraphQLAccountReferenceInput,
       description: 'Reference of an account that is the payer of an expense',
     },
     host: {
-      type: AccountReferenceInput,
+      type: GraphQLAccountReferenceInput,
       description: 'Return expenses only for this host',
     },
     createdByAccount: {
-      type: AccountReferenceInput,
+      type: GraphQLAccountReferenceInput,
       description: 'Return expenses only created by this INDIVIDUAL account',
     },
     status: {
-      type: ExpenseStatusFilter,
+      type: GraphQLExpenseStatusFilter,
       description: 'Use this field to filter expenses on their statuses',
     },
     type: {
-      type: ExpenseType,
+      type: GraphQLExpenseType,
       description: 'Use this field to filter expenses on their type (RECEIPT/INVOICE)',
     },
     tags: {
@@ -128,7 +141,7 @@ const ExpensesCollectionQuery = {
       description: 'Only expenses that match these tags',
     },
     orderBy: {
-      type: new GraphQLNonNull(ChronologicalOrderInput),
+      type: new GraphQLNonNull(GraphQLChronologicalOrderInput),
       description: 'The order of results',
       defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
     },
@@ -141,7 +154,7 @@ const ExpensesCollectionQuery = {
       description: 'Only return expenses where the amount is lower than or equal to this value (in cents)',
     },
     payoutMethodType: {
-      type: PayoutMethodType,
+      type: GraphQLPayoutMethodType,
       description: 'Only return expenses that use the given type as payout method',
     },
     dateFrom: {
@@ -160,6 +173,19 @@ const ExpensesCollectionQuery = {
       type: new GraphQLNonNull(GraphQLBoolean),
       defaultValue: false,
       description: 'Whether to include expenses from children of the account (Events and Projects)',
+    },
+    customData: {
+      type: GraphQLJSON,
+      description:
+        'Only return expenses that contains this custom data. Requires being an admin of the collective, payee or host.',
+    },
+    chargeHasReceipts: {
+      type: GraphQLBoolean,
+      description: 'Filter expenses of type charges based on presence of receipts',
+    },
+    virtualCards: {
+      type: new GraphQLList(GraphQLVirtualCardReferenceInput),
+      description: 'Filter expenses of type charges using these virtual cards',
     },
   },
   async resolve(_: void, args, req: express.Request): Promise<CollectionReturnType> {
@@ -221,6 +247,7 @@ const ExpensesCollectionQuery = {
     // Not searching in items yet because one-to-many relationships with limits are broken in Sequelize. Could be fixed by https://github.com/sequelize/sequelize/issues/4376
     const searchTermConditions = buildSearchConditions(args.searchTerm, {
       idFields: ['id'],
+      dataFields: ['data.transactionId', 'data.transfer.id', 'data.transaction_id', 'data.batchGroup.id'],
       slugFields: ['$fromCollective.slug$', '$collective.slug$', '$User.collective.slug$'],
       textFields: ['$fromCollective.name$', '$collective.name$', '$User.collective.name$', 'description'],
       amountFields: ['amount'],
@@ -235,6 +262,26 @@ const ExpensesCollectionQuery = {
         { association: 'collective', attributes: [] },
         { association: 'User', attributes: [], include: [{ association: 'collective', attributes: [] }] },
       );
+    }
+
+    if (!isNil(args.chargeHasReceipts)) {
+      where[Op.and].push({
+        [Op.or]: [
+          { type: { [Op.ne]: ExpenseType.CHARGE } },
+          sequelize.where(
+            sequelize.literal(`
+                 NOT EXISTS (SELECT id from "ExpenseItems" ei where ei."ExpenseId" = "Expense".id and ei.url IS NULL)`),
+            Op.eq,
+            args.chargeHasReceipts,
+          ),
+        ],
+      });
+    }
+
+    if (!isEmpty(args.virtualCards)) {
+      where[Op.and].push({
+        [Op.or]: [{ type: { [Op.ne]: ExpenseType.CHARGE } }, { VirtualCardId: args.virtualCards.map(vc => vc.id) }],
+      });
     }
 
     // Add filters
@@ -276,10 +323,12 @@ const ExpensesCollectionQuery = {
     }
 
     if (args.status) {
-      if (args.status !== 'READY_TO_PAY') {
+      if (args.status === 'ON_HOLD') {
+        where['onHold'] = true;
+      } else if (args.status !== 'READY_TO_PAY') {
         where['status'] = args.status;
       } else {
-        await updateFilterConditionsForReadyToPay(where, include, host);
+        await updateFilterConditionsForReadyToPay(where, include, host, req.loaders);
       }
     } else {
       if (req.remoteUser) {
@@ -295,6 +344,26 @@ const ExpensesCollectionQuery = {
       } else {
         where['status'] = { [Op.notIn]: [expenseStatus.DRAFT, expenseStatus.SPAM] };
       }
+    }
+
+    if (args.customData) {
+      // Check permissions
+      if (!req.remoteUser) {
+        throw new Unauthorized('You need to be logged in to filter by customData');
+      } else if (!fromAccount && !account && !host) {
+        throw new Unauthorized(
+          'You need to filter by at least one of fromAccount, account or host to filter by customData',
+        );
+      } else if (
+        !(fromAccount && req.remoteUser.isAdminOfCollective(fromAccount)) &&
+        !(account && req.remoteUser.isAdminOfCollective(account)) &&
+        !(host && req.remoteUser.isAdmin(host))
+      ) {
+        throw new Unauthorized('You need to be an admin of the fromAccount, account or host to filter by customData');
+      }
+
+      validateExpenseCustomData(args.customData); // To ensure we don't get an invalid type or too long string
+      where['data'] = { [Op.contains]: { customData: args.customData } };
     }
 
     const order = [[args.orderBy.field, args.orderBy.direction]] as OrderItem[];

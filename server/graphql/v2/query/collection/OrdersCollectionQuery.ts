@@ -1,19 +1,25 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { Includeable } from 'sequelize';
+import { Includeable, Order } from 'sequelize';
 
 import { buildSearchConditions } from '../../../../lib/search';
 import models, { Op } from '../../../../models';
 import { checkScope } from '../../../common/scope-check';
 import { NotFound, Unauthorized } from '../../../errors';
-import { OrderCollection } from '../../collection/OrderCollection';
-import { AccountOrdersFilter } from '../../enum/AccountOrdersFilter';
-import { ContributionFrequency } from '../../enum/ContributionFrequency';
-import { OrderStatus } from '../../enum/OrderStatus';
-import { AccountReferenceInput, fetchAccountWithReference } from '../../input/AccountReferenceInput';
-import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, ChronologicalOrderInput } from '../../input/ChronologicalOrderInput';
-import { fetchPaymentMethodWithReference, PaymentMethodReferenceInput } from '../../input/PaymentMethodReferenceInput';
+import { GraphQLOrderCollection } from '../../collection/OrderCollection';
+import { GraphQLAccountOrdersFilter } from '../../enum/AccountOrdersFilter';
+import { GraphQLContributionFrequency } from '../../enum/ContributionFrequency';
+import { GraphQLOrderStatus } from '../../enum/OrderStatus';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
+import {
+  CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
+  GraphQLChronologicalOrderInput,
+} from '../../input/ChronologicalOrderInput';
+import {
+  fetchPaymentMethodWithReference,
+  GraphQLPaymentMethodReferenceInput,
+} from '../../input/PaymentMethodReferenceInput';
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
 
 type OrderAssociation = 'fromCollective' | 'collective';
@@ -24,13 +30,16 @@ const getJoinCondition = (
   association: OrderAssociation,
   includeHostedAccounts = false,
 ): Record<string, unknown> => {
-  if (!includeHostedAccounts) {
-    return { [`$${association}.id$`]: account.id };
+  const associationFields = { collective: 'CollectiveId', fromCollective: 'FromCollectiveId' };
+  const field = associationFields[association] || `$${association}.id$`;
+
+  if (!includeHostedAccounts || !account.isHostAccount) {
+    return { [field]: account.id };
   } else {
     return {
       [Op.or]: [
         {
-          [`$${association}.id$`]: account.id,
+          [field]: account.id,
         },
         {
           [`$${association}.HostCollectiveId$`]: account.id,
@@ -49,7 +58,7 @@ export const OrdersCollectionArgs = {
     description: 'If account is a host, also include hosted accounts orders',
   },
   paymentMethod: {
-    type: PaymentMethodReferenceInput,
+    type: GraphQLPaymentMethodReferenceInput,
     description:
       'Only return orders that were paid with this payment method. Must be an admin of the account owning the payment method.',
   },
@@ -59,19 +68,19 @@ export const OrdersCollectionArgs = {
     defaultValue: false,
   },
   filter: {
-    type: AccountOrdersFilter,
+    type: GraphQLAccountOrdersFilter,
     description: 'Account orders filter (INCOMING or OUTGOING)',
   },
   frequency: {
-    type: ContributionFrequency,
+    type: GraphQLContributionFrequency,
     description: 'Use this field to filter orders on their frequency (ONETIME, MONTHLY or YEARLY)',
   },
   status: {
-    type: new GraphQLList(OrderStatus),
+    type: new GraphQLList(GraphQLOrderStatus),
     description: 'Use this field to filter orders on their statuses',
   },
   orderBy: {
-    type: new GraphQLNonNull(ChronologicalOrderInput),
+    type: new GraphQLNonNull(GraphQLChronologicalOrderInput),
     description: 'The order of results',
     defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   },
@@ -89,7 +98,7 @@ export const OrdersCollectionArgs = {
   },
   dateTo: {
     type: GraphQLDateTime,
-    description: 'Only return orders that were created after this date',
+    description: 'Only return orders that were created before this date',
   },
   searchTerm: {
     type: GraphQLString,
@@ -224,7 +233,13 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
       include.push({ model: models.Subscription, required: true, where: { interval: 'year' } });
     }
   } else if (args.onlySubscriptions) {
-    include.push({ model: models.Subscription, required: true });
+    include.push({ model: models.Subscription, required: false });
+    where[Op.and].push({
+      [Op.or]: [
+        { ['$Subscription.id$']: { [Op.ne]: null } },
+        { interval: { [Op.in]: ['year', 'month'] }, status: 'PROCESSING' },
+      ],
+    });
   } else if (args.onlyActiveSubscriptions) {
     include.push({ model: models.Subscription, required: true, where: { isActive: true } });
   }
@@ -241,7 +256,7 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     where['TierId'] = tier.id;
   }
 
-  const order = [[args.orderBy.field, args.orderBy.direction]];
+  const order: Order = [[args.orderBy.field, args.orderBy.direction]];
   const { offset, limit } = args;
   const result = await models.Order.findAndCountAll({ include, where, order, offset, limit });
   return {
@@ -254,10 +269,10 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
 
 // Using a generator to avoid circular dependencies (OrderCollection -> Order -> PaymentMethod -> OrderCollection -> ...)
 const getOrdersCollectionQuery = () => ({
-  type: new GraphQLNonNull(OrderCollection),
+  type: new GraphQLNonNull(GraphQLOrderCollection),
   args: {
     account: {
-      type: AccountReferenceInput,
+      type: GraphQLAccountReferenceInput,
       description: 'Return only orders made from/to account',
     },
     ...OrdersCollectionArgs,

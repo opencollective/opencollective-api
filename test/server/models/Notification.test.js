@@ -1,4 +1,3 @@
-import Promise from 'bluebird';
 import { expect } from 'chai';
 import { createSandbox } from 'sinon';
 
@@ -119,13 +118,13 @@ describe('server/models/Notification', () => {
   describe('getSubscribers', () => {
     let users;
     beforeEach(() =>
-      Promise.map([utils.data('user3'), utils.data('user4')], user => models.User.createUserWithCollective(user)).then(
-        result => (users = result),
-      ),
+      Promise.all(
+        [utils.data('user3'), utils.data('user4')].map(user => models.User.createUserWithCollective(user)),
+      ).then(result => (users = result)),
     );
 
     it('getSubscribers to the backers mailinglist', async () => {
-      await Promise.map(users, user => collective.addUserWithRole(user, 'BACKER'));
+      await Promise.all(users.map(user => collective.addUserWithRole(user, 'BACKER')));
       const subscribers = await Notification.getSubscribersUsers(collective.slug, 'backers');
       expect(subscribers.length).to.equal(2);
 
@@ -145,22 +144,26 @@ describe('server/models/Notification', () => {
         ...tierData,
         CollectiveId: event.id,
       });
-      await Promise.map(users, user => {
-        return Order.create({
-          CreatedByUserId: user.id,
-          FromCollectiveId: user.CollectiveId,
-          CollectiveId: collective.id,
-          TierId: tier.id,
-        });
-      });
-      await Promise.map(users, user =>
-        models.Member.create({
-          CreatedByUserId: user.id,
-          MemberCollectiveId: user.CollectiveId,
-          CollectiveId: event.id,
-          TierId: tier.id,
-          role: roles.FOLLOWER,
+      await Promise.all(
+        users.map(user => {
+          return Order.create({
+            CreatedByUserId: user.id,
+            FromCollectiveId: user.CollectiveId,
+            CollectiveId: collective.id,
+            TierId: tier.id,
+          });
         }),
+      );
+      await Promise.all(
+        users.map(user =>
+          models.Member.create({
+            CreatedByUserId: user.id,
+            MemberCollectiveId: user.CollectiveId,
+            CollectiveId: event.id,
+            TierId: tier.id,
+            role: roles.FOLLOWER,
+          }),
+        ),
       );
 
       const subscribers = await Notification.getSubscribers(event.slug, event.slug);
@@ -187,6 +190,23 @@ describe('server/models/Notification', () => {
       const unsubscribers = await models.Notification.getUnsubscribers({ type: notification.type });
 
       expect(unsubscribers).to.containSubset([{ id: notification.UserId }]);
+    });
+
+    it('can return only specific user attributes', async () => {
+      const notification = await fakeNotification({
+        channel: 'email',
+        CollectiveId: null,
+        active: false,
+        type: ActivityTypes.COLLECTIVE_APPLY,
+      });
+      const unsubscribers = await models.Notification.getUnsubscribers({
+        type: notification.type,
+        attributes: ['email'],
+      });
+
+      expect(unsubscribers[0].id).to.eq(notification.UserId); // ID is always returned
+      expect(unsubscribers[0].email).to.not.be.undefined;
+      expect(unsubscribers[0].createdAt).to.be.undefined;
     });
 
     it('should return user who unsubscribed for activity class that contains the type', async () => {
@@ -327,6 +347,8 @@ describe('server/models/Notification', () => {
       await utils.waitForCondition(() => emailSendMessageSpy.callCount === 1, {
         tag: 'webpack would love to be hosted by host',
       });
+
+      await collective.update({ isActive: true, approvedAt: new Date() });
 
       emailSendMessageSpy.resetHistory();
     });

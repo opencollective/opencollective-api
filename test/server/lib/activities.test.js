@@ -76,13 +76,4 @@ describe('server/lib/activities', () => {
       );
     });
   });
-
-  describe('formatMessageForPublicChannel gitter format', () => {
-    it(`${constants.SUBSCRIPTION_CONFIRMED} with month interval for Gitter`, () => {
-      const { message } = activitiesLib.formatMessageForPublicChannel(activitiesData[16], 'markdown');
-      expect(message).to.equal(
-        'New subscription confirmed: EUR 12.34/month from [xdamman](https://twitter.com/xdamman) to [Yeoman](https://opencollective.com/yeoman)! [[Thank that person on Twitter](https://twitter.com/intent/tweet?text=%40xdamman%20thanks%20for%20your%20%E2%82%AC12.34%2Fmonth%20contribution%20to%20%40yeoman%20%F0%9F%91%8D%20https%3A%2F%2Fopencollective.com%2Fyeoman)]',
-      );
-    });
-  });
 });

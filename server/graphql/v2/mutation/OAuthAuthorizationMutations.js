@@ -4,17 +4,17 @@ import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { NotFound } from '../../errors';
 import {
   fetchOAuthAuthorizationWithReference,
-  OAuthAuthorizationReferenceInput,
+  GraphQLOAuthAuthorizationReferenceInput,
 } from '../input/OAuthAuthorizationReferenceInput';
-import { OAuthAuthorization } from '../object/OAuthAuthorization';
+import { GraphQLOAuthAuthorization } from '../object/OAuthAuthorization';
 
 const oAuthAuthorizationMutations = {
   revokeOAuthAuthorization: {
-    type: new GraphQLNonNull(OAuthAuthorization),
+    type: new GraphQLNonNull(GraphQLOAuthAuthorization),
     description: 'Revoke an OAuth authorization. Scope: "account".',
     args: {
       oAuthAuthorization: {
-        type: new GraphQLNonNull(OAuthAuthorizationReferenceInput),
+        type: new GraphQLNonNull(GraphQLOAuthAuthorizationReferenceInput),
         description: 'Reference of the OAuth Authorization',
       },
     },

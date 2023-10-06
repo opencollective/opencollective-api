@@ -15,7 +15,7 @@ export const PersonalTokenReferenceFields = {
   },
 };
 
-export const PersonalTokenReferenceInput = new GraphQLInputObjectType({
+export const GraphQLPersonalTokenReferenceInput = new GraphQLInputObjectType({
   name: 'PersonalTokenReferenceInput',
   fields: () => PersonalTokenReferenceFields,
 });

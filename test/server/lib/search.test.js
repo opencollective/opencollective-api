@@ -11,7 +11,7 @@ import {
 } from '../../../server/lib/search';
 import { Op } from '../../../server/models';
 import { newUser } from '../../stores';
-import { fakeCollective, fakeUser, randStr } from '../../test-helpers/fake-data';
+import { fakeCollective, fakeHost, fakeUser, randStr } from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
 
 describe('server/lib/search', () => {
@@ -216,6 +216,95 @@ describe('server/lib/search', () => {
         await expect(searchPromise).to.be.eventually.rejectedWith('Rate limit exceeded');
       });
     });
+
+    describe('Hosts', async () => {
+      beforeEach(async () => {
+        await resetTestDB();
+      });
+      it('returns exact match', async () => {
+        const host = await fakeHost({
+          name: 'New Host',
+        });
+        const [collectives] = await searchCollectivesInDB('New Host', 0, 10, {
+          isHost: true,
+        });
+        expect(collectives[0].id).to.equal(host.id);
+      });
+
+      it('Returns all hosts', async () => {
+        await fakeHost({
+          name: 'New Host 1',
+        });
+        await fakeHost({
+          name: 'New Host 2',
+        });
+        const [collectives] = await searchCollectivesInDB('', 0, 10, {
+          isHost: true,
+        });
+        expect(collectives).to.have.length(2);
+      });
+
+      it('Returns only hosts with open applications', async () => {
+        await fakeHost({
+          name: 'New Host 1',
+        });
+        const openHost = await fakeHost({
+          name: 'New Host 2',
+          settings: {
+            apply: true,
+          },
+        });
+        const [collectives] = await searchCollectivesInDB('', 0, 10, {
+          isHost: true,
+          onlyOpenHosts: true,
+        });
+        expect(collectives).to.have.length(1);
+        expect(collectives[0].id).to.equal(openHost.id);
+      });
+
+      it('Orders by host flags and hosted collectives count', async () => {
+        const zeroCollectives = await fakeHost({
+          name: 'New Host 1',
+        });
+        const threeCollectives = await fakeHost({
+          name: 'New Host 2',
+        });
+        await fakeCollective({ HostCollectiveId: threeCollectives.id });
+        await fakeCollective({ HostCollectiveId: threeCollectives.id });
+        await fakeCollective({ HostCollectiveId: threeCollectives.id });
+
+        const oneCollective = await fakeHost({
+          name: 'New Host 3',
+        });
+
+        await fakeCollective({ HostCollectiveId: oneCollective.id });
+
+        const firstPartyHost = await fakeHost({
+          name: 'First party Host',
+          data: {
+            isFirstPartyHost: true,
+          },
+        });
+
+        const trustedHost = await fakeHost({
+          name: 'Trusted Host',
+          data: {
+            isTrustedHost: true,
+          },
+        });
+
+        const [collectives] = await searchCollectivesInDB('', 0, 10, {
+          isHost: true,
+          orderBy: { field: 'HOST_RANK', direction: 'DESC' },
+        });
+        expect(collectives).to.have.length(5);
+        expect(collectives[0].id).to.equal(firstPartyHost.id);
+        expect(collectives[1].id).to.equal(trustedHost.id);
+        expect(collectives[2].id).to.equal(threeCollectives.id);
+        expect(collectives[3].id).to.equal(oneCollective.id);
+        expect(collectives[4].id).to.equal(zeroCollectives.id);
+      });
+    });
   });
 
   describe('Search by email', async () => {
@@ -245,10 +334,10 @@ describe('server/lib/search', () => {
 
     it('goes back to text for everything else', () => {
       expect(parseSearchTerm('')).to.deep.equal({ type: 'text', term: '' });
-      expect(parseSearchTerm('test')).to.deep.equal({ type: 'text', term: 'test' });
-      expect(parseSearchTerm('test-hyphen')).to.deep.equal({ type: 'text', term: 'test-hyphen' });
-      expect(parseSearchTerm('#4242 not an id')).to.deep.equal({ type: 'text', term: '#4242 not an id' });
-      expect(parseSearchTerm('@slug not a slug')).to.deep.equal({ type: 'text', term: '@slug not a slug' });
+      expect(parseSearchTerm('test')).to.deep.equal({ type: 'text', term: 'test', words: 1 });
+      expect(parseSearchTerm('test-hyphen')).to.deep.equal({ type: 'text', term: 'test-hyphen', words: 2 });
+      expect(parseSearchTerm('#4242 not an id')).to.deep.equal({ type: 'text', term: '#4242 not an id', words: 4 });
+      expect(parseSearchTerm('@slug not a slug')).to.deep.equal({ type: 'text', term: '@slug not a slug', words: 4 });
     });
   });
 
@@ -262,29 +351,11 @@ describe('server/lib/search', () => {
     };
 
     const testBuildSearchConditionsWithCustomConfig = (searchTerm, fieldsConfig, options) => {
-      const conditions = buildSearchConditions(searchTerm, fieldsConfig, options);
-      conditions.forEach(condition => {
-        Object.keys(condition).forEach(field => {
-          // We must operators like the ILIKE operator, as toString/expect is not parsing these flag
-          if (condition[field][Op.iLike]) {
-            condition[field]['ILIKE'] = condition[field][Op.iLike];
-          }
-          if (condition[field][Op.overlap]) {
-            condition[field]['OVERLAP'] = condition[field][Op.overlap];
-          }
-        });
-      });
-
-      return conditions;
+      return buildSearchConditions(searchTerm, fieldsConfig, options);
     };
 
-    const testBuildSearchConditions = (searchTerm, expectedResults) => {
-      return testBuildSearchConditionsWithCustomConfig(
-        searchTerm,
-        TEST_FIELDS_CONFIGURATION,
-        undefined,
-        expectedResults,
-      );
+    const testBuildSearchConditions = searchTerm => {
+      return testBuildSearchConditionsWithCustomConfig(searchTerm, TEST_FIELDS_CONFIGURATION);
     };
 
     it('returns no condition for an empty search', () => {
@@ -304,11 +375,11 @@ describe('server/lib/search', () => {
 
     it('build conditions for numbers', () => {
       expect(testBuildSearchConditions('4242')).to.deep.eq([
-        { slug: { ILIKE: '%4242%' } },
-        { '$fromCollective.slug$': { ILIKE: '%4242%' } },
-        { name: { ILIKE: '%4242%' } },
-        { '$fromCollective.name$': { ILIKE: '%4242%' } },
-        { tags: { OVERLAP: ['4242'] } },
+        { slug: { [Op.iLike]: '%4242%' } },
+        { '$fromCollective.slug$': { [Op.iLike]: '%4242%' } },
+        { name: { [Op.iLike]: '%4242%' } },
+        { '$fromCollective.name$': { [Op.iLike]: '%4242%' } },
+        { tags: { [Op.overlap]: ['4242'] } },
         { id: 4242 },
         { '$fromCollective.id$': 4242 },
         { amount: 424200 },
@@ -316,11 +387,11 @@ describe('server/lib/search', () => {
       ]);
 
       expect(testBuildSearchConditions('4242.66')).to.deep.eq([
-        { slug: { ILIKE: '%4242.66%' } },
-        { '$fromCollective.slug$': { ILIKE: '%4242.66%' } },
-        { name: { ILIKE: '%4242.66%' } },
-        { '$fromCollective.name$': { ILIKE: '%4242.66%' } },
-        { tags: { OVERLAP: ['4242.66'] } },
+        { slug: { [Op.iLike]: '%4242.66%' } },
+        { '$fromCollective.slug$': { [Op.iLike]: '%4242.66%' } },
+        { name: { [Op.iLike]: '%4242.66%' } },
+        { '$fromCollective.name$': { [Op.iLike]: '%4242.66%' } },
+        { tags: { [Op.overlap]: ['4242.66'] } },
         { amount: 424266 },
         { '$order.totalAmount$': 424266 },
       ]);
@@ -328,11 +399,11 @@ describe('server/lib/search', () => {
 
     it('build conditions for full text', () => {
       expect(testBuildSearchConditions('   hello world   ')).to.deep.eq([
-        { slug: { ILIKE: '%hello world%' } },
-        { '$fromCollective.slug$': { ILIKE: '%hello world%' } },
-        { name: { ILIKE: '%hello world%' } },
-        { '$fromCollective.name$': { ILIKE: '%hello world%' } },
-        { tags: { OVERLAP: ['hello world'] } },
+        { slug: { [Op.iLike]: '%hello world%' } },
+        { '$fromCollective.slug$': { [Op.iLike]: '%hello world%' } },
+        { name: { [Op.iLike]: '%hello world%' } },
+        { '$fromCollective.name$': { [Op.iLike]: '%hello world%' } },
+        { tags: { [Op.overlap]: ['hello world'] } },
       ]);
     });
 
@@ -341,7 +412,7 @@ describe('server/lib/search', () => {
 
       // No transform: will only trim
       expect(testBuildSearchConditionsWithCustomConfig('   hello   WorlD   ', fieldsConfig)).to.deep.eq([
-        { tags: { OVERLAP: ['hello WorlD'] } },
+        { tags: { [Op.overlap]: ['hello WorlD'] } },
       ]);
 
       // Uppercase
@@ -350,7 +421,7 @@ describe('server/lib/search', () => {
           ...fieldsConfig,
           stringArrayTransformFn: value => value.toUpperCase(),
         }),
-      ).to.deep.eq([{ tags: { OVERLAP: ['HELLO WORLD'] } }]);
+      ).to.deep.eq([{ tags: { [Op.overlap]: ['HELLO WORLD'] } }]);
     });
   });
 });

@@ -1,38 +1,43 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { omit, pick } from 'lodash';
 
+import FEATURE_STATUS from '../../../constants/feature-status';
 import stripe from '../../../lib/stripe';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import { setupCreditCard } from '../../../paymentProviders/stripe/creditcard';
+import { checkCanUsePaymentMethods } from '../../common/features';
 import { checkRemoteUserCanUseOrders } from '../../common/scope-check';
 import { Forbidden } from '../../errors';
-import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
-import { CreditCardCreateInput } from '../input/CreditCardCreateInput';
-import { fetchPaymentMethodWithReference, PaymentMethodReferenceInput } from '../input/PaymentMethodReferenceInput';
-import { PaymentMethod } from '../object/PaymentMethod';
-import { StripeError } from '../object/StripeError';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import { GraphQLCreditCardCreateInput } from '../input/CreditCardCreateInput';
+import {
+  fetchPaymentMethodWithReference,
+  GraphQLPaymentMethodReferenceInput,
+} from '../input/PaymentMethodReferenceInput';
+import { GraphQLPaymentMethod } from '../object/PaymentMethod';
+import { GraphQLStripeError } from '../object/StripeError';
 
-const CreditCardWithStripeError = new GraphQLObjectType({
+const GraphQLCreditCardWithStripeError = new GraphQLObjectType({
   name: 'CreditCardWithStripeError',
   fields: () => ({
     paymentMethod: {
-      type: new GraphQLNonNull(PaymentMethod),
+      type: new GraphQLNonNull(GraphQLPaymentMethod),
       description: 'The payment method created',
     },
     stripeError: {
-      type: StripeError,
+      type: GraphQLStripeError,
       description: 'This field will be set if there was an error with Stripe during strong customer authentication',
     },
   }),
 });
 
 const addCreditCard = {
-  type: new GraphQLNonNull(CreditCardWithStripeError),
+  type: new GraphQLNonNull(GraphQLCreditCardWithStripeError),
   description: 'Add a new payment method to be used with an Order. Scope: "orders".',
   args: {
     creditCardInfo: {
-      type: new GraphQLNonNull(CreditCardCreateInput),
+      type: new GraphQLNonNull(GraphQLCreditCardCreateInput),
       description: 'The credit card info',
     },
     name: {
@@ -45,7 +50,7 @@ const addCreditCard = {
       defaultValue: true,
     },
     account: {
-      type: new GraphQLNonNull(AccountReferenceInput),
+      type: new GraphQLNonNull(GraphQLAccountReferenceInput),
       description: 'Account to add the credit card to',
     },
   },
@@ -55,6 +60,8 @@ const addCreditCard = {
     const collective = await fetchAccountWithReference(args.account, { throwIfMissing: true });
     if (!req.remoteUser?.isAdminOfCollective(collective)) {
       throw new Forbidden(`Must be an admin of ${collective.name}`);
+    } else if ((await checkCanUsePaymentMethods(collective)) === FEATURE_STATUS.UNSUPPORTED) {
+      throw new Forbidden('This collective cannot use payment methods');
     }
 
     // Check 2FA
@@ -113,11 +120,11 @@ const addCreditCard = {
 };
 
 const confirmCreditCard = {
-  type: new GraphQLNonNull(CreditCardWithStripeError),
+  type: new GraphQLNonNull(GraphQLCreditCardWithStripeError),
   description: 'Confirm a credit card is ready for use after strong customer authentication. Scope: "orders".',
   args: {
     paymentMethod: {
-      type: new GraphQLNonNull(PaymentMethodReferenceInput),
+      type: new GraphQLNonNull(GraphQLPaymentMethodReferenceInput),
     },
   },
   async resolve(_, args, req) {

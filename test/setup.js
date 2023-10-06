@@ -28,7 +28,6 @@ beforeEach(function () {
 });
 
 // Chai plugins
-
 const sortDeep = item => {
   if (Array.isArray(item)) {
     return item.sort();

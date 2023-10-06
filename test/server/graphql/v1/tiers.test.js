@@ -1,4 +1,3 @@
-import Promise from 'bluebird';
 import { expect } from 'chai';
 import gql from 'fake-tag';
 import { describe, it } from 'mocha';
@@ -498,7 +497,7 @@ describe('server/graphql/v1/tiers', () => {
         expect(queryResult.errors[0].message).to.equal('Invalid VAT number');
       });
 
-      it('rejects invalid tax amount', async () => {
+      it('rejects 0 tax amount', async () => {
         const order = {
           description: 'test order with tax',
           collective: { id: collective1.id },
@@ -506,6 +505,21 @@ describe('server/graphql/v1/tiers', () => {
           paymentMethod: { uuid: paymentMethod1.uuid },
           totalAmount: tierProduct.amount,
           taxAmount: 0,
+          countryISO: 'BE', // Required when order has tax
+        };
+
+        const queryResult = await utils.graphqlQuery(createOrderMutation, { order }, user1);
+        expect(queryResult.errors[0].message).to.equal('This contribution should have a tax attached');
+      });
+
+      it('rejects invalid tax amount', async () => {
+        const order = {
+          description: 'test order with tax',
+          collective: { id: collective1.id },
+          tier: { id: tierProduct.id },
+          paymentMethod: { uuid: paymentMethod1.uuid },
+          totalAmount: tierProduct.amount,
+          taxAmount: 5,
           countryISO: 'BE', // Required when order has tax
         };
 

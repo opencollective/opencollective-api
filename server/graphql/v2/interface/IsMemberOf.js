@@ -6,22 +6,22 @@ import { buildSearchConditions } from '../../../lib/search';
 import models, { Op, sequelize } from '../../../models';
 import { checkScope } from '../../common/scope-check';
 import { ValidationFailed } from '../../errors';
-import { MemberOfCollection } from '../collection/MemberCollection';
-import { AccountType, AccountTypeToModelMapping } from '../enum/AccountType';
-import { HostFeeStructure } from '../enum/HostFeeStructure';
-import { MemberRole } from '../enum/MemberRole';
-import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
-import { ORDER_BY_PSEUDO_FIELDS, OrderByInput } from '../input/OrderByInput';
+import { GraphQLMemberOfCollection } from '../collection/MemberCollection';
+import { AccountTypeToModelMapping, GraphQLAccountType } from '../enum/AccountType';
+import { GraphQLHostFeeStructure } from '../enum/HostFeeStructure';
+import { GraphQLMemberRole } from '../enum/MemberRole';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import { GraphQLOrderByInput, ORDER_BY_PSEUDO_FIELDS } from '../input/OrderByInput';
 
 export const IsMemberOfFields = {
   memberOf: {
-    type: new GraphQLNonNull(MemberOfCollection),
+    type: new GraphQLNonNull(GraphQLMemberOfCollection),
     args: {
       limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 150 },
       offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
-      role: { type: new GraphQLList(MemberRole) },
-      accountType: { type: new GraphQLList(AccountType) },
-      account: { type: AccountReferenceInput },
+      role: { type: new GraphQLList(GraphQLMemberRole) },
+      accountType: { type: new GraphQLList(GraphQLAccountType) },
+      account: { type: GraphQLAccountReferenceInput },
       isHostAccount: {
         type: GraphQLBoolean,
         description: 'Filter on whether the account is a host or not',
@@ -46,11 +46,11 @@ export const IsMemberOfFields = {
           'A term to search membership. Searches in collective tags, name, slug, members description and role.',
       },
       hostFeesStructure: {
-        type: HostFeeStructure,
+        type: GraphQLHostFeeStructure,
         description: 'Filters on the Host fees structure applied to this account',
       },
       orderBy: {
-        type: new GraphQLNonNull(OrderByInput),
+        type: new GraphQLNonNull(GraphQLOrderByInput),
         description: 'Order of the results',
         defaultValue: { field: ORDER_BY_PSEUDO_FIELDS.CREATED_AT, direction: 'DESC' },
       },
@@ -60,6 +60,17 @@ export const IsMemberOfFields = {
       },
     },
     async resolve(collective, args, req) {
+      // Check Pagination arguments
+      if (isNil(args.limit) || args.limit < 0) {
+        args.limit = 100;
+      }
+      if (isNil(args.offset) || args.offset < 0) {
+        args.offset = 0;
+      }
+      if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
+        throw new Error('Cannot fetch more than 1,000 members at the same time, please adjust the limit');
+      }
+
       const where = { MemberCollectiveId: collective.id, CollectiveId: { [Op.ne]: collective.id } };
       const collectiveConditions = {};
 

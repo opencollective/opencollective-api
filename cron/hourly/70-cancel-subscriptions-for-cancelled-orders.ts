@@ -2,14 +2,16 @@
 
 import '../../server/env';
 
-import { groupBy, size } from 'lodash';
+import { groupBy, size, uniq } from 'lodash';
 
 import { activities } from '../../server/constants';
+import FEATURE from '../../server/constants/feature';
 import OrderStatuses from '../../server/constants/order_status';
 import logger from '../../server/lib/logger';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import { sleep } from '../../server/lib/utils';
 import models, { Op } from '../../server/models';
+import { OrderModelInterface } from '../../server/models/Order';
 
 /**
  * Since the collective has been archived, its HostCollectiveId has been set to null.
@@ -18,15 +20,16 @@ import models, { Op } from '../../server/models';
 const getHostFromOrder = async order => {
   const transactions = await order.getTransactions({
     attributes: ['HostCollectiveId'],
-    group: ['HostCollectiveId'],
     where: { type: 'CREDIT', kind: 'CONTRIBUTION', HostCollectiveId: { [Op.ne]: null } },
+    order: [['createdAt', 'DESC']],
   });
 
-  if (transactions.length !== 1) {
+  const hostIds: number[] = uniq(transactions.map(t => t.HostCollectiveId));
+  if (!hostIds.length) {
     throw new Error(`Could not find the host for order ${order.id}`);
   }
 
-  return models.Collective.findByPk(transactions[0].HostCollectiveId);
+  return models.Collective.findByPk(hostIds[0]);
 };
 
 const getOrderCancelationReason = (collective, order, orderHost) => {
@@ -49,18 +52,20 @@ const getOrderCancelationReason = (collective, order, orderHost) => {
  * performance constraints.
  */
 export async function run() {
-  const orphanOrders = await models.Order.findAll({
+  const orphanOrders = await models.Order.findAll<OrderModelInterface>({
     where: { status: OrderStatuses.CANCELLED },
     include: [
       {
         model: models.Tier,
+        as: 'Tier',
+        required: false,
       },
       {
         model: models.Subscription,
         required: true,
         where: { isActive: true },
       },
-      { association: 'collective', require: true },
+      { association: 'collective', required: true },
       { association: 'fromCollective' },
       { association: 'paymentMethod' },
     ],
@@ -78,29 +83,40 @@ export async function run() {
     const collectiveHandle = collective.slug;
     logger.info(`Cancelling ${accountOrders.length} subscriptions for @${collectiveHandle}`);
     for (const order of accountOrders) {
-      const host = await getHostFromOrder(order);
-      const [reasonCode, reason] = getOrderCancelationReason(collective, order, host);
-      logger.debug(
-        `Cancelling subscription ${order.Subscription.id} from order ${order.id} of @${collectiveHandle} (host: ${host.slug})`,
-      );
-      if (!process.env.DRY) {
-        await order.Subscription.deactivate(reason, host);
-        await models.Activity.create({
-          type: activities.SUBSCRIPTION_CANCELED,
-          CollectiveId: order.CollectiveId,
-          FromCollectiveId: order.FromCollectiveId,
-          HostCollectiveId: order.collective.HostCollectiveId,
-          OrderId: order.id,
-          UserId: order.CreatedByUserId,
-          data: {
-            subscription: order.Subscription,
-            collective: order.collective.minimal,
-            fromCollective: order.fromCollective.minimal,
-            reasonCode: reasonCode,
-            reason: reason,
-          },
+      try {
+        const host = await getHostFromOrder(order);
+        const [reasonCode, reason] = getOrderCancelationReason(collective, order, host);
+        logger.debug(
+          `Cancelling subscription ${order.Subscription.id} from order ${order.id} of @${collectiveHandle} (host: ${host.slug})`,
+        );
+        if (!process.env.DRY) {
+          await order.Subscription.deactivate(reason, host);
+          await models.Activity.create({
+            type: activities.SUBSCRIPTION_CANCELED,
+            CollectiveId: order.CollectiveId,
+            FromCollectiveId: order.FromCollectiveId,
+            HostCollectiveId: order.collective.HostCollectiveId,
+            OrderId: order.id,
+            UserId: order.CreatedByUserId,
+            data: {
+              subscription: order.Subscription,
+              collective: order.collective.minimal,
+              fromCollective: order.fromCollective.minimal,
+              reasonCode: reasonCode,
+              reason: reason,
+              order: order.info,
+              tier: order.Tier?.info,
+            },
+          });
+          await sleep(500); // To prevent rate-limiting issues when calling 3rd party payment processor APIs
+        }
+      } catch (e) {
+        logger.error(`Error while cancelling subscriptions for @${collectiveHandle}: ${e.message}`);
+        reportErrorToSentry(e, {
+          feature: FEATURE.RECURRING_CONTRIBUTIONS,
+          severity: 'error',
+          extra: { collectiveHandle, order: order.info },
         });
-        await sleep(500); // To prevent rate-limiting issues when calling 3rd party payment processor APIs
       }
     }
   }

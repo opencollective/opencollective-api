@@ -1,18 +1,18 @@
 import { GraphQLNonNull, GraphQLString } from 'graphql';
 
 import { createUpdate, deleteUpdate, editUpdate, publishUpdate, unpublishUpdate } from '../../common/update';
-import { UpdateAudienceType } from '../enum';
-import { UpdateCreateInput } from '../input/UpdateCreateInput';
-import { UpdateUpdateInput } from '../input/UpdateUpdateInput';
-import Update from '../object/Update';
+import { GraphQLUpdateAudienceType } from '../enum';
+import { GraphQLUpdateCreateInput } from '../input/UpdateCreateInput';
+import { GraphQLUpdateUpdateInput } from '../input/UpdateUpdateInput';
+import GraphQLUpdate from '../object/Update';
 
 const updateMutations = {
   createUpdate: {
-    type: new GraphQLNonNull(Update),
+    type: new GraphQLNonNull(GraphQLUpdate),
     description: 'Create update. Scope: "updates".',
     args: {
       update: {
-        type: new GraphQLNonNull(UpdateCreateInput),
+        type: new GraphQLNonNull(GraphQLUpdateCreateInput),
       },
     },
     resolve(_, args, req) {
@@ -20,11 +20,11 @@ const updateMutations = {
     },
   },
   editUpdate: {
-    type: new GraphQLNonNull(Update),
+    type: new GraphQLNonNull(GraphQLUpdate),
     description: 'Edit update. Scope: "updates".',
     args: {
       update: {
-        type: new GraphQLNonNull(UpdateUpdateInput),
+        type: new GraphQLNonNull(GraphQLUpdateUpdateInput),
       },
     },
     resolve(_, args, req) {
@@ -32,14 +32,14 @@ const updateMutations = {
     },
   },
   publishUpdate: {
-    type: new GraphQLNonNull(Update),
+    type: new GraphQLNonNull(GraphQLUpdate),
     description: 'Publish update. Scope: "updates".',
     args: {
       id: {
         type: new GraphQLNonNull(GraphQLString),
       },
       notificationAudience: {
-        type: UpdateAudienceType,
+        type: GraphQLUpdateAudienceType,
       },
     },
     resolve(_, args, req) {
@@ -47,7 +47,7 @@ const updateMutations = {
     },
   },
   unpublishUpdate: {
-    type: new GraphQLNonNull(Update),
+    type: new GraphQLNonNull(GraphQLUpdate),
     description: 'Unpublish update. Scope: "updates".',
     args: {
       id: {
@@ -59,7 +59,7 @@ const updateMutations = {
     },
   },
   deleteUpdate: {
-    type: new GraphQLNonNull(Update),
+    type: new GraphQLNonNull(GraphQLUpdate),
     description: 'Delete update. Scope: "updates".',
     args: {
       id: {

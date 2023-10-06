@@ -23,13 +23,18 @@ import sequelize, { DataTypes, Model, Op, QueryTypes } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
 import { computeDatesAsISOStrings } from '../lib/utils';
 import CustomDataTypes from '../models/DataTypes';
+import { BatchGroup, ExpenseDataQuoteV2, Transfer } from '../types/transferwise';
 
+import Collective from './Collective';
 import { ExpenseAttachedFile } from './ExpenseAttachedFile';
 import { ExpenseItem } from './ExpenseItem';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
 import { RecurringExpense } from './RecurringExpense';
+import { TransactionInterface } from './Transaction';
 import User from './User';
 import VirtualCard from './VirtualCard';
+
+export { ExpenseStatus, ExpenseType };
 
 // Options for sanitizing private messages
 const PRIVATE_MESSAGE_SANITIZE_OPTS = buildSanitizerOptions({
@@ -52,7 +57,12 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   public declare RecurringExpenseId: ForeignKey<RecurringExpense['id']>;
 
   public declare payeeLocation: Record<string, unknown>; // TODO This can be typed
-  public declare data: Record<string, unknown>;
+  public declare data: Record<string, unknown> & {
+    batchGroup?: BatchGroup;
+    quote?: ExpenseDataQuoteV2;
+    transfer?: Transfer;
+  };
+
   public declare currency: string;
   public declare amount: number;
   public declare description: string;
@@ -62,6 +72,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   public declare legacyPayoutMethod: 'paypal' | 'manual' | 'donation' | 'other';
 
   public declare status: keyof typeof ExpenseStatus;
+  public declare onHold: boolean;
   public declare type: ExpenseType;
   public declare feesPayer: 'COLLECTIVE' | 'PAYEE';
   public declare tags: string[];
@@ -71,10 +82,10 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   public declare updatedAt: CreationOptional<Date>;
   public declare deletedAt: CreationOptional<Date>;
 
-  public declare Transactions?: (typeof models.Transaction)[];
-  public declare collective?: typeof models.Collective;
-  public declare fromCollective?: typeof models.Collective;
-  public declare host?: typeof models.Collective;
+  public declare Transactions?: TransactionInterface[];
+  public declare collective?: Collective;
+  public declare fromCollective?: Collective;
+  public declare host?: Collective;
   public declare User?: User;
   public declare PayoutMethod?: PayoutMethod;
   public declare virtualCard?: VirtualCard;
@@ -82,11 +93,11 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   public declare attachedFiles?: ExpenseAttachedFile[];
 
   // Association getters
-  declare getCollective: BelongsToGetAssociationMixin<typeof models.Collective>;
+  declare getCollective: BelongsToGetAssociationMixin<Collective>;
   declare getItems: HasManyGetAssociationsMixin<ExpenseItem>;
   declare getPayoutMethod: BelongsToGetAssociationMixin<PayoutMethod>;
   declare getRecurringExpense: BelongsToGetAssociationMixin<RecurringExpense>;
-  declare getTransactions: BelongsToGetAssociationMixin<typeof models.Transaction>;
+  declare getTransactions: HasManyGetAssociationsMixin<TransactionInterface>;
   declare getVirtualCard: BelongsToGetAssociationMixin<typeof models.VirtualCard>;
 
   /**
@@ -101,7 +112,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   createActivity = async function (
     type: ActivityTypes,
     user: User | { id: number } | null = null,
-    data: Record<string, unknown> | null = {},
+    data: ({ notifyCollective?: boolean } & Record<string, unknown>) | null = {},
   ) {
     const submittedByUser = await this.getSubmitterUser();
     const submittedByUserCollective = await models.Collective.findByPk(submittedByUser.CollectiveId);
@@ -113,8 +124,9 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
     const payoutMethod = await this.getPayoutMethod();
     const items = this.items || this.data?.items || (await this.getItems());
     const transaction =
-      this.status === ExpenseStatus.PAID &&
-      (await models.Transaction.findOne({ where: { type: 'DEBIT', ExpenseId: this.id } }));
+      data?.ledgerTransaction ||
+      (this.status === ExpenseStatus.PAID &&
+        (await models.Transaction.findOne({ where: { type: 'DEBIT', ExpenseId: this.id } })));
     return models.Activity.create({
       type,
       UserId: user?.id,
@@ -134,6 +146,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
           'message',
           'event',
           'isSystem',
+          'notifyCollective',
         ]),
         host: get(host, 'minimal'),
         collective: { ...this.collective.minimal, isActive: this.collective.isActive },
@@ -211,6 +224,21 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
     this.status = ExpenseStatus.ERROR;
     this.lastEditedById = lastEditedById;
     return this.save();
+  };
+
+  verify = async function (remoteUser) {
+    if (this.status !== ExpenseStatus.UNVERIFIED) {
+      throw new Error(`Expense needs to be UNVERIFIED in order to be verified.`);
+    }
+
+    await this.update({ status: ExpenseStatus.PENDING });
+
+    // Technically the expense was already created, but it was a draft. It truly becomes visible
+    // for everyone (especially admins) at this point, so it's the right time to trigger `COLLECTIVE_EXPENSE_CREATED`
+    await this.createActivity(ActivityTypes.COLLECTIVE_EXPENSE_CREATED, remoteUser).catch(e => {
+      logger.error('An error happened when creating the COLLECTIVE_EXPENSE_CREATED activity', e);
+      reportErrorToSentry(e);
+    });
   };
 
   /**
@@ -324,7 +352,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   static getCollectiveExpensesTags = async function (
     collective,
     { dateFrom = null, dateTo = null, limit = 100, includeChildren = false } = {},
-  ) {
+  ): Promise<Array<{ label: string; count: number; amount: number; currency: string }>> {
     const noTag = 'no tag';
     const collectiveIds = [collective.id];
     if (includeChildren) {
@@ -435,6 +463,17 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
     });
 
     return expenses.filter(expense => expense?.Transactions?.some(t => t.isRefund) === false);
+  };
+
+  static verifyUserExpenses = async function (user) {
+    const expenses = await Expense.findAll({
+      where: {
+        UserId: user.id,
+        status: ExpenseStatus.UNVERIFIED,
+      },
+    });
+
+    return Promise.all(expenses.map(expense => expense.verify(user)));
   };
 }
 
@@ -657,6 +696,12 @@ Expense.init(
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
       allowNull: true,
+    },
+
+    onHold: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      allowNull: false,
     },
   },
   {

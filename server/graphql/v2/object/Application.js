@@ -2,13 +2,13 @@ import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'gr
 
 import models from '../../../models';
 import { checkScope } from '../../common/scope-check';
-import { ApplicationType } from '../enum';
+import { GraphQLApplicationType } from '../enum';
 import { idEncode } from '../identifiers';
-import { Account } from '../interface/Account';
-import { OAuthAuthorization } from '../object/OAuthAuthorization';
+import { GraphQLAccount } from '../interface/Account';
+import { GraphQLOAuthAuthorization } from '../object/OAuthAuthorization';
 import URL from '../scalar/URL';
 
-export const Application = new GraphQLObjectType({
+export const GraphQLApplication = new GraphQLObjectType({
   name: 'Application',
   description: 'An OAuth application.',
   fields: () => ({
@@ -25,7 +25,7 @@ export const Application = new GraphQLObjectType({
       },
     },
     type: {
-      type: ApplicationType,
+      type: GraphQLApplicationType,
       deprecationReason:
         '2022-06-16: This Application object will only be used for OAuth tokens. Use PersonalToken for user tokens',
       resolve(application) {
@@ -75,13 +75,13 @@ export const Application = new GraphQLObjectType({
       },
     },
     account: {
-      type: new GraphQLNonNull(Account),
+      type: new GraphQLNonNull(GraphQLAccount),
       resolve(application, args, req) {
         return req.loaders.Collective.byId.load(application.CollectiveId);
       },
     },
     oAuthAuthorization: {
-      type: OAuthAuthorization,
+      type: GraphQLOAuthAuthorization,
       async resolve(application, args, req) {
         if (!req.remoteUser || !checkScope(req, 'account')) {
           return null;

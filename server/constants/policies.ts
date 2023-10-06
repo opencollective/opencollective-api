@@ -2,7 +2,7 @@ import config from 'config';
 
 import { VirtualCardLimitIntervals } from './virtual-cards';
 
-const enum POLICIES {
+enum POLICIES {
   // When enabled, the author (the user that submitted and not necessarily the benefactor) of an Expense, cannot Approve the same expense.
   EXPENSE_AUTHOR_CANNOT_APPROVE = 'EXPENSE_AUTHOR_CANNOT_APPROVE',
   // When enabled, restrict who can apply for fiscal host.
@@ -11,6 +11,8 @@ const enum POLICIES {
   MAXIMUM_VIRTUAL_CARD_LIMIT_AMOUNT_FOR_INTERVAL = 'MAXIMUM_VIRTUAL_CARD_LIMIT_AMOUNT_FOR_INTERVAL',
   // When enabled, all admins of the account will have to enable 2FA before they can perform any action.
   REQUIRE_2FA_FOR_ADMINS = 'REQUIRE_2FA_FOR_ADMINS',
+  // When enabled, admins of the collective are allowed to refund expenses
+  COLLECTIVE_ADMINS_CAN_REFUND = 'COLLECTIVE_ADMINS_CAN_REFUND',
 }
 
 export type Policies = Partial<{
@@ -30,6 +32,7 @@ export type Policies = Partial<{
   }>;
 
   [POLICIES.REQUIRE_2FA_FOR_ADMINS]: boolean;
+  [POLICIES.COLLECTIVE_ADMINS_CAN_REFUND]: boolean;
 }>;
 
 export const DEFAULT_POLICIES: { [T in POLICIES]: Policies[T] } = {
@@ -55,6 +58,7 @@ export const DEFAULT_POLICIES: { [T in POLICIES]: Policies[T] } = {
     [VirtualCardLimitIntervals.YEARLY]: config.virtualCards.maximumLimitForInterval[VirtualCardLimitIntervals.YEARLY],
   },
   [POLICIES.REQUIRE_2FA_FOR_ADMINS]: false,
+  [POLICIES.COLLECTIVE_ADMINS_CAN_REFUND]: true,
 };
 
 // List of Policies that can be seen by anyone

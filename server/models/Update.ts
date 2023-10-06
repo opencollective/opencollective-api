@@ -1,7 +1,6 @@
-import Promise from 'bluebird';
 import config from 'config';
 import slugify from 'limax';
-import { defaults, pick } from 'lodash';
+import { pick } from 'lodash';
 import {
   BelongsToGetAssociationMixin,
   CreationOptional,
@@ -17,7 +16,6 @@ import * as errors from '../graphql/errors';
 import logger from '../lib/logger';
 import * as SQLQueries from '../lib/queries';
 import { buildSanitizerOptions, generateSummaryForHTML, sanitizeHTML } from '../lib/sanitize-html';
-import { reportErrorToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Model, Op, QueryTypes } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
 
@@ -40,6 +38,10 @@ export const UPDATE_NOTIFICATION_AUDIENCE = {
   FINANCIAL_CONTRIBUTORS: 'FINANCIAL_CONTRIBUTORS',
   NO_ONE: 'NO_ONE',
 } as const;
+
+export const enum UpdateChannel {
+  EMAIL = 'EMAIL',
+}
 
 /**
  * Defines the roles targeted by an update notification. Admins of the parent collective are
@@ -80,8 +82,8 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
   public declare updatedAt: Date;
   public declare deletedAt: Date;
 
-  public declare collective?: typeof models.Collective;
-  public declare fromCollective?: typeof models.Collective;
+  public declare collective?: Collective;
+  public declare fromCollective?: Collective;
 
   public declare getCollective: BelongsToGetAssociationMixin<Collective>;
   public declare getFromCollective: BelongsToGetAssociationMixin<Collective>;
@@ -162,13 +164,17 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
     return Boolean(this.collective.isHostAccount && audiencesForHostedAccounts.includes(audience));
   };
 
-  getTargetMembersRoles = function (notificationAudience) {
+  getTargetMembersRoles = function (notificationAudience, channel?: UpdateChannel) {
     const audience = notificationAudience || this.notificationAudience || 'ALL';
     if (audience === 'COLLECTIVE_ADMINS') {
       return ['__NONE__'];
     } else if (this.isPrivate) {
       return PRIVATE_UPDATE_TARGET_ROLES;
     } else {
+      // dont notify followers by email.
+      if (channel === UpdateChannel.EMAIL) {
+        return PRIVATE_UPDATE_TARGET_ROLES;
+      }
       return PUBLIC_UPDATE_TARGET_ROLES;
     }
   };
@@ -176,24 +182,24 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
   /**
    * Get the member users to notify for this update.
    */
-  getUsersToNotify = async function () {
+  getUsersIdsToNotify = async function (channel?: UpdateChannel): Promise<Array<number>> {
     const audience = this.notificationAudience || 'ALL';
 
     if (audience === 'NO_ONE') {
       return [];
     }
 
-    return sequelize.query(SQLQueries.usersToNotifyForUpdateSQLQuery, {
+    const results = await sequelize.query(SQLQueries.usersToNotifyForUpdateSQLQuery, {
       type: sequelize.QueryTypes.SELECT,
-      mapToModel: true,
-      model: models.User,
       replacements: {
         collectiveId: this.CollectiveId,
-        targetRoles: this.getTargetMembersRoles(),
+        targetRoles: this.getTargetMembersRoles(audience, channel),
         includeHostedAccounts: await this.includeHostedAccountsInNotification(),
         includeMembers: audience !== 'COLLECTIVE_ADMINS',
       },
     });
+
+    return results.map(user => user.id);
   };
 
   /**
@@ -201,7 +207,7 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
    *
    * @argument notificationAudience - to override the update audience
    */
-  countUsersToNotify = async function (notificationAudience) {
+  countUsersToNotify = async function (notificationAudience, channel?: UpdateChannel) {
     this.collective = this.collective || (await this.getCollective());
     const audience = notificationAudience || this.notificationAudience || 'ALL';
 
@@ -213,7 +219,7 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
       type: sequelize.QueryTypes.SELECT,
       replacements: {
         collectiveId: this.CollectiveId,
-        targetRoles: this.getTargetMembersRoles(audience),
+        targetRoles: this.getTargetMembersRoles(audience, channel),
         includeHostedAccounts: await this.includeHostedAccountsInNotification(audience),
         includeMembers: audience !== 'COLLECTIVE_ADMINS',
       },
@@ -225,12 +231,12 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
   /**
    * Gets a summary of who will be notified about this update
    */
-  getAudienceMembersStats = async function (audience) {
+  getAudienceMembersStats = async function (audience, channel?: UpdateChannel) {
     const result = await sequelize.query(SQLQueries.countMembersToNotifyForUpdateSQLQuery, {
       type: sequelize.QueryTypes.SELECT,
       replacements: {
         collectiveId: this.CollectiveId,
-        targetRoles: this.getTargetMembersRoles(audience),
+        targetRoles: this.getTargetMembersRoles(audience, channel),
       },
     });
 
@@ -341,13 +347,6 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
       },
     ).then(([affectedCount]) => {
       logger.info(`Number of private updates made public: ${affectedCount}`);
-    });
-  };
-
-  static createMany = (updates, defaultValues) => {
-    return Promise.map(updates, u => Update.create(defaults({}, u, defaultValues)), { concurrency: 1 }).catch(err => {
-      console.error(err);
-      reportErrorToSentry(err);
     });
   };
 }

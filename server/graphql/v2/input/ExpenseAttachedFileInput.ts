@@ -5,7 +5,7 @@ import URL from '../scalar/URL';
 /**
  * To create or edit an optional expense file attachment
  */
-export const ExpenseAttachedFileInput = new GraphQLInputObjectType({
+export const GraphQLExpenseAttachedFileInput = new GraphQLInputObjectType({
   name: 'ExpenseAttachedFileInput',
   fields: () => ({
     id: {

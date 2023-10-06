@@ -1,6 +1,6 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
 
-export const PaymentMethodDataInput = new GraphQLInputObjectType({
+export const GraphQLPaymentMethodDataInput = new GraphQLInputObjectType({
   name: 'PaymentMethodDataInput',
   fields: () => ({
     brand: { type: new GraphQLNonNull(GraphQLString) },

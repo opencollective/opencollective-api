@@ -1,16 +1,16 @@
 import { GraphQLList, GraphQLObjectType } from 'graphql';
 
-import { Collection, CollectionFields } from '../interface/Collection';
-import { Application } from '../object/Application';
+import { CollectionFields, GraphQLCollection } from '../interface/Collection';
+import { GraphQLApplication } from '../object/Application';
 
-export const OAuthApplicationCollection = new GraphQLObjectType({
+export const GraphQLOAuthApplicationCollection = new GraphQLObjectType({
   name: 'OAuthApplicationCollection',
-  interfaces: [Collection],
+  interfaces: [GraphQLCollection],
   description: 'A collection of "Application"',
   fields: () => ({
     ...CollectionFields,
     nodes: {
-      type: new GraphQLList(Application),
+      type: new GraphQLList(GraphQLApplication),
     },
   }),
 });

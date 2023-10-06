@@ -1,18 +1,16 @@
 import { GraphQLList, GraphQLObjectType } from 'graphql';
 
-import { Collection, CollectionFields } from '../interface/Collection';
-import { Contributor } from '../object/Contributor';
+import { CollectionFields, GraphQLCollection } from '../interface/Collection';
+import { GraphQLContributor } from '../object/Contributor';
 
-const ContributorCollection = new GraphQLObjectType({
+export const GraphQLContributorCollection = new GraphQLObjectType({
   name: 'ContributorCollection',
-  interfaces: [Collection],
+  interfaces: [GraphQLCollection],
   description: 'A collection of "Contributor"',
   fields: () => ({
     ...CollectionFields,
     nodes: {
-      type: new GraphQLList(Contributor),
+      type: new GraphQLList(GraphQLContributor),
     },
   }),
 });
-
-export { ContributorCollection };

@@ -1,14 +1,19 @@
+/* eslint-disable camelcase */
 import { execSync } from 'child_process';
+import fs from 'fs';
+import path from 'path';
 import querystring from 'querystring';
+import { Readable } from 'stream';
 
-import Promise from 'bluebird';
 import { expect } from 'chai';
 import config from 'config';
 import debug from 'debug';
 import { graphql } from 'graphql';
-import { cloneDeep, get, groupBy, isArray, values } from 'lodash';
+import Upload from 'graphql-upload/Upload.js';
+import { cloneDeep, get, groupBy, isArray, omit, values } from 'lodash';
 import markdownTable from 'markdown-table';
 import nock from 'nock';
+import { assert } from 'sinon';
 import speakeasy from 'speakeasy';
 
 import * as dbRestore from '../scripts/db_restore';
@@ -21,22 +26,17 @@ import logger from '../server/lib/logger';
 import * as libpayments from '../server/lib/payments';
 /* Server code being used */
 import stripe, { convertToStripeAmount } from '../server/lib/stripe';
+import { formatCurrency } from '../server/lib/utils';
 import models, { sequelize } from '../server/models';
 
 /* Test data */
 import jsonData from './mocks/data';
 import { randStr } from './test-helpers/fake-data';
 
-if (process.env.RECORD) {
-  nock.recorder.rec();
-}
-
 jsonData.application = {
   name: 'client',
   api_key: config.keys.opencollective.apiKey, // eslint-disable-line camelcase
 };
-
-const debugWaitForCondition = debug('waitForCondition');
 
 export const data = path => {
   const copy = cloneDeep(get(jsonData, path)); // to avoid changing these data
@@ -47,9 +47,13 @@ export const resetCaches = () => cache.clear();
 
 export const resetTestDB = async () => {
   const resetFn = async () => {
-    await sequelize.truncate({ cascade: true, force: true, restartIdentity: true });
+    // Using a manual query rather than `await sequelize.truncate({ cascade: true,  restartIdentity: true });`
+    // for performance reasons: https://github.com/sequelize/sequelize/issues/15865
+    const tableNames = values(sequelize.models).map(m => `"${m.tableName}"`);
+    await sequelize.query(`TRUNCATE TABLE ${tableNames.join(', ')} RESTART IDENTITY CASCADE`);
     await sequelize.query(`REFRESH MATERIALIZED VIEW "TransactionBalances"`);
     await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"`);
+    await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveOrderStats"`);
   };
 
   try {
@@ -70,7 +74,13 @@ export const stringify = json => {
     .replace(/\n|>>>>+/g, '');
 };
 
-export const makeRequest = (remoteUser, query, jwtPayload, headers = {}, userToken) => {
+export const makeRequest = (
+  remoteUser = undefined,
+  query = undefined,
+  jwtPayload = undefined,
+  headers = {},
+  userToken = undefined,
+) => {
   return {
     remoteUser,
     jwtPayload,
@@ -99,33 +109,28 @@ export const sleep = async (timeout = 200) =>
 /**
  * Wait for condition to be met
  * E.g. await waitForCondition(() => emailSendMessageSpy.callCount === 1)
- * @param {*} cond
+ * @param {() => boolean | Promise<boolean>} cond
  * @param {*} options: { timeout, delay }
  * @returns {Promise}
  */
-export const waitForCondition = (cond, options = { timeout: 10000, delay: 0 }) =>
-  new Promise(resolve => {
-    let hasConditionBeenMet = false;
-    setTimeout(() => {
-      if (hasConditionBeenMet) {
-        return;
-      }
-      console.log('>>> waitForCondition Timeout Error');
-      console.trace();
-      throw new Error('Timeout waiting for condition', cond);
-    }, options.timeout || 10000);
-    const isConditionMet = () => {
-      hasConditionBeenMet = Boolean(cond());
-      debugWaitForCondition(options.tag, `Has condition been met?`, hasConditionBeenMet);
-      if (hasConditionBeenMet) {
-        return setTimeout(resolve, options.delay || 0);
-      } else {
-        return setTimeout(isConditionMet, options.step || 100);
-      }
-    };
-    isConditionMet();
-  });
+export const waitForCondition = async (cond, options = {}) => {
+  const timeout = options?.timeout || 10000;
+  let time = 0;
+  while (time < timeout) {
+    const condReturn = cond();
+    const result = typeof condReturn?.then === 'function' ? await condReturn : condReturn;
+    if (result) {
+      return;
+    } else {
+      await sleep(100);
+      time += 100;
+    }
+  }
 
+  options.onFailure?.();
+  assert.fail(`Timeout waiting for condition: ${cond.toString()}`);
+  throw new Error('Timeout waiting for condition', cond);
+};
 /**
  * This function allows to test queries and mutations against a specific schema.
  * @param {string} query - Queries and Mutations to serve against the type schema. Example: `query Expense($id: Int!) { Expense(id: $id) { description } }`
@@ -328,7 +333,7 @@ export function traverse(obj, cb) {
   }
 }
 
-export const prettifyTransactionsData = (transactions, columns) => {
+export const prettifyTransactionsData = (transactions, columns, opts = null) => {
   // Alias some columns for a simpler output
   const TRANSACTION_KEY_ALIASES = {
     HostCollectiveId: 'Host',
@@ -344,6 +349,23 @@ export const prettifyTransactionsData = (transactions, columns) => {
   // Prettify values
   const aliasDBId = value => (value ? `#${value}` : 'NULL');
   const prettifyValue = (key, value, transaction) => {
+    if (opts?.prettyAmounts) {
+      if (['amount', 'taxAmount'].includes(key)) {
+        return formatCurrency(value, transaction.currency);
+      } else if (key === 'netAmountInCollectiveCurrency' && transaction.collective?.currency) {
+        return formatCurrency(value, transaction.collective.currency);
+      } else if (
+        [
+          'paymentProcessorFeeInHostCurrency',
+          'platformFeeInHostCurrency',
+          'hostFeeInHostCurrency',
+          'amountInHostCurrency',
+        ].includes(key)
+      ) {
+        return formatCurrency(value, transaction.hostCurrency);
+      }
+    }
+
     switch (key) {
       case 'HostCollectiveId':
         return transaction.host?.name || aliasDBId(value);
@@ -460,12 +482,22 @@ export const preloadAssociationsForTransactions = async (transactions, columns) 
   });
 };
 
-export const printLedger = async (columns = ['type', 'amount', 'CollectiveId', 'kind']) => {
-  const allTransactions = await models.Transaction.findAll();
-  await preloadAssociationsForTransactions(allTransactions, columns);
-  const prettyTransactions = prettifyTransactionsData(allTransactions, columns);
+/**
+ * An helper to display a list of transactions on the console in a pretty markdown table.
+ */
+export const printTransactions = async (transactions, columns = ['type', 'amount', 'CollectiveId', 'kind']) => {
+  await preloadAssociationsForTransactions(transactions, columns);
+  const prettyTransactions = prettifyTransactionsData(transactions, columns, { prettyAmounts: true });
   const headers = Object.keys(prettyTransactions[0]);
   console.log(markdownTable([headers, ...prettyTransactions.map(Object.values)]));
+};
+
+/**
+ * An helper to display the ledger content on the console in a pretty markdown table.
+ */
+export const printLedger = async (columns = ['type', 'amount', 'CollectiveId', 'kind']) => {
+  const allTransactions = await models.Transaction.findAll();
+  await printTransactions(allTransactions, columns);
 };
 
 /**
@@ -477,14 +509,14 @@ export const snapshotTransactions = (transactions, params = {}) => {
     throw new Error('snapshotTransactions does not support empty arrays');
   }
 
-  expect(prettifyTransactionsData(transactions, params.columns)).to.matchTableSnapshot();
+  expect(prettifyTransactionsData(transactions, params.columns, omit(params, 'columns'))).to.matchTableSnapshot();
 };
 
 /**
  * Makes a full snapshot of the ledger
  */
-export const snapshotLedger = async columns => {
-  const transactions = await models.Transaction.findAll({ order: [['id', 'DESC']] });
+export const snapshotLedger = async (columns, { where = null, order = [['id', 'DESC']] } = {}) => {
+  const transactions = await models.Transaction.findAll({ where, order });
   await preloadAssociationsForTransactions(transactions, columns);
   if (columns.includes('settlementStatus')) {
     await models.TransactionSettlement.attachStatusesToTransactions(transactions);
@@ -508,4 +540,52 @@ export const generateValid2FAHeader = user => {
   });
 
   return `totp ${twoFactorAuthenticatorCode}`;
+};
+
+export const useIntegrationTestRecorder = (baseUrl, testFileName, preProcessNocks = x => x) => {
+  if (process.env.RECORD) {
+    nock.recorder.rec({
+      output_objects: true,
+      dont_print: true,
+    });
+  }
+  const recordFile = `${testFileName}.responses.json`;
+
+  before(() => {
+    if (process.env.RECORD) {
+      nock(baseUrl);
+    } else {
+      nock.cleanAll();
+      const nocks = nock.loadDefs(recordFile).map(preProcessNocks);
+      nock.define(nocks);
+    }
+  });
+
+  after(() => {
+    if (process.env.RECORD) {
+      const nockCalls = nock.recorder.play();
+      fs.writeFileSync(recordFile, JSON.stringify(nockCalls, null, 2));
+    }
+    nock.cleanAll();
+    nock.restore();
+  });
+};
+
+export const getMockFileUpload = ({ mockFile = 'camera.png' } = {}) => {
+  const file = new Upload();
+  file.promise = Promise.resolve({
+    filename: mockFile,
+    mimetype: 'image/png',
+    encoding: 'binary',
+    createReadStream: () => {
+      const stream = new Readable();
+      const imagePath = path.join(__dirname, `./mocks/images/${mockFile}`);
+      const fileContent = fs.readFileSync(imagePath);
+      stream.push(fileContent);
+      stream.push(null);
+      return stream;
+    },
+  });
+
+  return file;
 };

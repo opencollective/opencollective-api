@@ -7,6 +7,7 @@ import ActivityTypes from '../../../../../server/constants/activities';
 import VirtualCardProviders from '../../../../../server/constants/virtual_card_providers';
 import { VirtualCardLimitIntervals } from '../../../../../server/constants/virtual-cards';
 import models from '../../../../../server/models';
+import { VirtualCardStatus } from '../../../../../server/models/VirtualCard';
 import * as stripeVirtualCards from '../../../../../server/paymentProviders/stripe/virtual-cards';
 import { fakeCollective, fakeHost, fakeUser, fakeVirtualCard } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
@@ -153,7 +154,8 @@ describe('server/graphql/v2/mutation/VirtualCardMutations', () => {
       expect(result.errors).to.not.exist;
       expect(result.data.deleteVirtualCard).to.equal(true);
 
-      expect(await models.VirtualCard.findByPk(virtualCard.id)).to.not.exist;
+      await virtualCard.reload();
+      expect(virtualCard.data.status).to.eq(VirtualCardStatus.CANCELED);
 
       const activity = await models.Activity.findOne({
         where: { type: ActivityTypes.COLLECTIVE_VIRTUAL_CARD_DELETED },
@@ -185,7 +187,8 @@ describe('server/graphql/v2/mutation/VirtualCardMutations', () => {
       expect(result.errors).to.not.exist;
       expect(result.data.deleteVirtualCard).to.equal(true);
 
-      expect(await models.VirtualCard.findByPk(virtualCard.id)).to.not.exist;
+      await virtualCard.reload();
+      expect(virtualCard.data.status).to.eq(VirtualCardStatus.CANCELED);
 
       const activity = await models.Activity.findOne({
         where: { type: ActivityTypes.COLLECTIVE_VIRTUAL_CARD_DELETED },

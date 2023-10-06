@@ -5,8 +5,9 @@
 import config from 'config';
 
 import logger from './lib/logger';
+import { parseToBoolean } from './lib/utils';
 
-if (config.env === 'development') {
+if (parseToBoolean(config.opentelemetry.enabled)) {
   logger.info('opentelemetry tracing enabled');
 
   const { getNodeAutoInstrumentations } = require('@opentelemetry/auto-instrumentations-node');

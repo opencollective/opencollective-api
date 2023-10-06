@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import '../../server/env';
 
-import Promise from 'bluebird';
 import config from 'config';
 import _ from 'lodash';
 
@@ -92,11 +91,11 @@ const buildTweet = (fromCollective, collectives, totalDonations) => {
   return tweet;
 };
 
-const getPlatformStats = () => {
-  return Promise.props({
-    totalCollectives: queries.getTotalNumberOfActiveCollectives(startDate, endDate),
-    totalAnnualBudget: queries.getTotalAnnualBudget(),
-  });
+const getPlatformStats = async () => {
+  return {
+    totalCollectives: await queries.getTotalNumberOfActiveCollectives(startDate, endDate),
+    totalAnnualBudget: await queries.getTotalAnnualBudget(),
+  };
 };
 
 const processCollective = collective => {

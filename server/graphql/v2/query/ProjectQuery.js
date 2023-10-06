@@ -1,7 +1,7 @@
-import { Project } from '../object/Project';
+import { GraphQLProject } from '../object/Project';
 
 import { buildAccountQuery } from './AccountQuery';
 
-const ProjectQuery = buildAccountQuery({ objectType: Project });
+const ProjectQuery = buildAccountQuery({ objectType: GraphQLProject });
 
 export default ProjectQuery;

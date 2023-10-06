@@ -1,5 +1,7 @@
 import { expect } from 'chai';
 
+import { CollectiveType } from '../../../../server/constants/collectives';
+import MemberRoles from '../../../../server/constants/roles';
 import CollectiveLoaders from '../../../../server/graphql/loaders/collective';
 import { fakeCollective, fakeMember, fakeUser } from '../../../test-helpers/fake-data';
 import { resetTestDB } from '../../../utils';
@@ -65,7 +67,7 @@ describe('server/graphql/loaders/collective', () => {
         collectiveAdmin = await fakeUser();
         hostAdmin = await fakeUser();
         incognitoProfile = await fakeCollective({
-          type: 'USER',
+          type: CollectiveType.USER,
           isIncognito: true,
           name: 'Incognito',
           HostCollectiveId: null,
@@ -77,7 +79,11 @@ describe('server/graphql/loaders/collective', () => {
 
         // Here we're making the incognito profile a backer of the collective (rather than
         // using `userWithPrivateInfo` directly)
-        await fakeMember({ role: 'BACKER', MemberCollectiveId: incognitoProfile.id, CollectiveId: collective.id });
+        await fakeMember({
+          role: MemberRoles.BACKER,
+          MemberCollectiveId: incognitoProfile.id,
+          CollectiveId: collective.id,
+        });
         await incognitoProfile.addUserWithRole(userWithPrivateInfo, 'ADMIN');
       });
 

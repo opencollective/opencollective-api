@@ -4,7 +4,6 @@ import { get } from 'lodash';
 import validator from 'validator';
 
 import { BadRequest } from '../../graphql/errors';
-import models from '../../models';
 import cache from '../cache';
 import { md5, sleep } from '../utils';
 
@@ -12,7 +11,16 @@ const debug = debugLib('security/limit');
 
 const ONE_HOUR_IN_SECONDS = 60 * 60;
 
-const getOrdersLimit = (order: typeof models.Order, reqIp: string, reqMask: string) => {
+const getOrdersLimit = (
+  order: {
+    collective: { id: number };
+    fromCollective?: { id: number };
+    user: { email: string };
+    guestInfo?: unknown;
+  },
+  reqIp: string,
+  reqMask: string,
+) => {
   const limits = [];
 
   const ordersLimits = config.limits.ordersPerHour;
@@ -75,7 +83,16 @@ const getOrdersLimit = (order: typeof models.Order, reqIp: string, reqMask: stri
   return limits;
 };
 
-export const checkOrdersLimit = async (order, reqIp, reqMask) => {
+export const checkOrdersLimit = async (
+  order: {
+    collective: { id: number };
+    fromCollective?: { id: number };
+    user: { email: string };
+    guestInfo?: unknown;
+  },
+  reqIp,
+  reqMask,
+) => {
   if (['ci', 'test', 'e2e'].includes(config.env)) {
     return;
   }
@@ -106,7 +123,24 @@ export const checkOrdersLimit = async (order, reqIp, reqMask) => {
   }
 };
 
-export const checkGuestContribution = async (order, loaders) => {
+export const checkGuestContribution = async (
+  order: {
+    guestInfo?: {
+      email: string;
+    };
+    fromCollective?: {
+      id: number;
+    };
+    collective: {
+      id: number;
+    };
+    paymentMethod?: {
+      id?: number;
+      uuid?: string;
+    };
+  },
+  loaders,
+) => {
   const { guestInfo } = order;
 
   const collective = order.collective.id && (await loaders.Collective.byId.load(order.collective.id));

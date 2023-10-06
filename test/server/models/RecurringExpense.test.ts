@@ -66,7 +66,7 @@ describe('server/models/RecurringExpense', () => {
     const recurringExpense = await fakeRecurringExpense({
       interval: 'month',
       lastDraftedAt: moment(),
-    });
+    } as any);
     let dueRecurringExpenses = await models.RecurringExpense.getRecurringExpensesDue();
     expect(dueRecurringExpenses).to.have.length(0);
 

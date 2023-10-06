@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import '../../server/env';
 
-import Promise from 'bluebird';
 import config from 'config';
 import merge from 'deepmerge';
 import _ from 'lodash';
@@ -162,104 +161,104 @@ function getLatestIssues(state = 'open') {
 
 export default async function run() {
   try {
-    const results = await Promise.props({
+    const results = {
       // Donation statistics
 
-      stripeDonationCount: Transaction.count(merge({}, lastWeekDonations, service('stripe'))),
+      stripeDonationCount: await Transaction.count(merge({}, lastWeekDonations, service('stripe'))),
 
-      priorStripeDonationCount: Transaction.count(merge({}, weekBeforeDonations, service('stripe'))),
+      priorStripeDonationCount: await Transaction.count(merge({}, weekBeforeDonations, service('stripe'))),
 
-      manualDonationCount: Transaction.count(merge({}, lastWeekDonations, service('opencollective'))),
+      manualDonationCount: await Transaction.count(merge({}, lastWeekDonations, service('opencollective'))),
 
-      priorManualDonationCount: Transaction.count(merge({}, weekBeforeDonations, service('opencollective'))),
+      priorManualDonationCount: await Transaction.count(merge({}, weekBeforeDonations, service('opencollective'))),
 
-      paypalDonationCount: Transaction.count(merge({}, lastWeekDonations, service('paypal'))),
+      paypalDonationCount: await Transaction.count(merge({}, lastWeekDonations, service('paypal'))),
 
-      priorPaypalDonationCount: Transaction.count(merge({}, weekBeforeDonations, service('paypal'))),
+      priorPaypalDonationCount: await Transaction.count(merge({}, weekBeforeDonations, service('paypal'))),
 
-      revenue: Transaction.aggregate(
+      revenue: await Transaction.aggregate(
         'platformFeeInHostCurrency',
         'SUM',
         merge({}, lastWeekDonations, groupAndOrderBy('Transaction', 'hostCurrency')),
       ),
 
-      priorRevenue: Transaction.aggregate(
+      priorRevenue: await Transaction.aggregate(
         'platformFeeInHostCurrency',
         'SUM',
         merge({}, weekBeforeDonations, groupAndOrderBy('Transaction', 'hostCurrency')),
       ),
 
-      feesOnTop: Transaction.aggregate('amount', 'SUM', merge({}, lastWeekDonations, feesOnTop)),
+      feesOnTop: await Transaction.aggregate('amount', 'SUM', merge({}, lastWeekDonations, feesOnTop)),
 
-      priorFeesOnTop: Transaction.aggregate('amount', 'SUM', merge({}, weekBeforeDonations, feesOnTop)),
+      priorFeesOnTop: await Transaction.aggregate('amount', 'SUM', merge({}, weekBeforeDonations, feesOnTop)),
 
-      stripeDonationAmount: Transaction.aggregate(
+      stripeDonationAmount: await Transaction.aggregate(
         'amount',
         'SUM',
         merge({}, lastWeekDonations, groupAndOrderBy('Transaction'), service('stripe')),
       ),
 
-      priorStripeDonationAmount: Transaction.aggregate(
+      priorStripeDonationAmount: await Transaction.aggregate(
         'amount',
         'SUM',
         merge({}, weekBeforeDonations, groupAndOrderBy('Transaction'), service('stripe')),
       ),
 
-      manualDonationAmount: Transaction.aggregate(
+      manualDonationAmount: await Transaction.aggregate(
         'amount',
         'SUM',
         merge({}, lastWeekDonations, groupAndOrderBy('Transaction'), service('opencollective')),
       ),
 
-      priorManualDonationAmount: Transaction.aggregate(
+      priorManualDonationAmount: await Transaction.aggregate(
         'amount',
         'SUM',
         merge({}, weekBeforeDonations, groupAndOrderBy('Transaction'), service('opencollective')),
       ),
 
-      paypalReceivedCount: Activity.count(merge({}, createdLastWeek, paypalReceived)),
+      paypalReceivedCount: await Activity.count(merge({}, createdLastWeek, paypalReceived)),
 
-      paypalDonationAmount: Transaction.sum('amount', merge({}, lastWeekDonations, service('paypal'))),
+      paypalDonationAmount: await Transaction.sum('amount', merge({}, lastWeekDonations, service('paypal'))),
 
-      priorPaypalDonationAmount: Transaction.sum('amount', merge({}, weekBeforeDonations, service('paypal'))),
+      priorPaypalDonationAmount: await Transaction.sum('amount', merge({}, weekBeforeDonations, service('paypal'))),
 
       // Expense statistics
 
-      pendingExpenseCount: Expense.count(pendingLastWeekExpenses),
+      pendingExpenseCount: await Expense.count(pendingLastWeekExpenses),
 
-      approvedExpenseCount: Expense.count(approvedLastWeekExpenses),
+      approvedExpenseCount: await Expense.count(approvedLastWeekExpenses),
 
-      rejectedExpenseCount: Expense.count(rejectedLastWeekExpenses),
+      rejectedExpenseCount: await Expense.count(rejectedLastWeekExpenses),
 
-      paidExpenseCount: Expense.count(paidLastWeekExpenses),
+      paidExpenseCount: await Expense.count(paidLastWeekExpenses),
 
-      priorPaidExpenseCount: Expense.count(paidWeekBeforeExpenses),
+      priorPaidExpenseCount: await Expense.count(paidWeekBeforeExpenses),
 
-      pendingExpenseAmount: Expense.aggregate(
+      pendingExpenseAmount: await Expense.aggregate(
         'amount',
         'SUM',
         merge({}, pendingLastWeekExpenses, groupAndOrderBy('Expense')),
       ).map(row => `${row.currency} ${formatCurrency(row.SUM, row.currency)}`),
 
-      approvedExpenseAmount: Expense.aggregate(
+      approvedExpenseAmount: await Expense.aggregate(
         'amount',
         'SUM',
         merge({}, approvedLastWeekExpenses, groupAndOrderBy('Expense')),
       ).map(row => `${row.currency} ${formatCurrency(row.SUM, row.currency)}`),
 
-      rejectedExpenseAmount: Expense.aggregate(
+      rejectedExpenseAmount: await Expense.aggregate(
         'amount',
         'SUM',
         merge({}, rejectedLastWeekExpenses, groupAndOrderBy('Expense')),
       ).map(row => `${row.currency} ${formatCurrency(row.SUM, row.currency)}`),
 
-      paidExpenseAmount: Expense.aggregate(
+      paidExpenseAmount: await Expense.aggregate(
         'amount',
         'SUM',
         merge({}, paidLastWeekExpenses, groupAndOrderBy('Expense')),
       ),
 
-      priorPaidExpenseAmount: Expense.aggregate(
+      priorPaidExpenseAmount: await Expense.aggregate(
         'amount',
         'SUM',
         merge({}, paidWeekBeforeExpenses, groupAndOrderBy('Expense')),
@@ -267,11 +266,11 @@ export default async function run() {
 
       // Collective statistics
 
-      activeCollectivesWithTransactions: Transaction.findAll(
+      activeCollectivesWithTransactions: await Transaction.findAll(
         merge({ attributes: ['CollectiveId'] }, createdLastWeek, distinct, excludeOcTeam, onlyIncludeCollectiveType),
       ).map(row => row.CollectiveId),
 
-      priorActiveCollectivesWithTransactions: Transaction.findAll(
+      priorActiveCollectivesWithTransactions: await Transaction.findAll(
         merge(
           { attributes: ['CollectiveId'] },
           createdSameWeekPreviousMonth,
@@ -281,15 +280,15 @@ export default async function run() {
         ),
       ).map(row => row.CollectiveId),
 
-      activeCollectivesWithExpenses: Expense.findAll(
+      activeCollectivesWithExpenses: await Expense.findAll(
         merge({ attributes: ['CollectiveId'] }, updatedLastWeek, distinct, excludeOcTeam),
       ).map(row => row.CollectiveId),
 
-      priorActiveCollectivesWithExpenses: Expense.findAll(
+      priorActiveCollectivesWithExpenses: await Expense.findAll(
         merge({ attributes: ['CollectiveId'] }, updatedSameWeekPreviousMonth, distinct, excludeOcTeam),
       ).map(row => row.CollectiveId),
 
-      newCollectives: Collective.findAll(
+      newCollectives: await Collective.findAll(
         merge({}, { attributes: ['slug', 'name', 'tags'], where: { type: 'COLLECTIVE' } }, createdLastWeek),
       ).map(collective => {
         const openSource = collective.dataValues.tags && collective.dataValues.tags.indexOf('open source') !== -1;
@@ -298,13 +297,13 @@ export default async function run() {
         }) (${openSource ? 'open source' : collective.dataValues.tags})`;
       }),
 
-      priorNewCollectivesCount: Collective.count(
+      priorNewCollectivesCount: await Collective.count(
         merge({}, { where: { type: 'COLLECTIVE' } }, createdSameWeekPreviousMonth),
       ),
 
-      openIssues: getLatestIssues('open'),
-      closedIssues: getLatestIssues('closed'),
-    });
+      openIssues: await getLatestIssues('open'),
+      closedIssues: await getLatestIssues('closed'),
+    };
 
     // Account for Fees On Top in the Revenue
     results.revenue = results.revenue.map(r => {
@@ -461,10 +460,10 @@ ${subtitle}
     priorPaypalDonationCount,
   )})
     * USD ${formatCurrency(paypalDonationAmount, 'USD')} (${compareNumbers(
-    paypalDonationAmount,
-    priorPaypalDonationAmount,
-    n => formatCurrency(n, 'USD'),
-  )})
+      paypalDonationAmount,
+      priorPaypalDonationAmount,
+      n => formatCurrency(n, 'USD'),
+    )})
   - MANUAL: ${manualDonationCount} donations received (${compareNumbers(manualDonationCount, priorManualDonationCount)})
     ${manualDonationAmount
       .map(

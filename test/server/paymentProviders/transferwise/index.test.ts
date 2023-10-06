@@ -59,12 +59,12 @@ describe('server/paymentProviders/transferwise/index', () => {
     getBatchGroup,
     fundBatchGroup,
     getExchangeRates,
-    createBatchGroupTransfer;
+    createBatchGroupTransfer,
+    listBalancesAccount;
   let connectedAccount, collective, host, payoutMethod, expense;
 
-  after(sandbox.restore);
-  before(utils.resetTestDB);
-  before(() => {
+  before(async () => {
+    await utils.resetTestDB();
     createQuote = sandbox.stub(transferwiseLib, 'createQuote').resolves(quote);
     sandbox.stub(transferwiseLib, 'getTemporaryQuote').resolves(quote);
     sandbox.stub(transferwiseLib, 'getProfiles').resolves([
@@ -108,13 +108,22 @@ describe('server/paymentProviders/transferwise/index', () => {
     validateAccountRequirements = sandbox
       .stub(transferwiseLib, 'validateAccountRequirements')
       .resolves({ success: true });
-    createBatchGroup = sandbox.stub(transferwiseLib, 'createBatchGroup');
+    createBatchGroup = sandbox.stub(transferwiseLib, 'createBatchGroup').resolves({ transferIds: [] });
     fundBatchGroup = sandbox.stub(transferwiseLib, 'fundBatchGroup').resolves();
     createBatchGroupTransfer = sandbox.stub(transferwiseLib, 'createBatchGroupTransfer');
     completeBatchGroup = sandbox.stub(transferwiseLib, 'completeBatchGroup').resolves();
-    getBatchGroup = sandbox.stub(transferwiseLib, 'getBatchGroup');
+    getBatchGroup = sandbox.stub(transferwiseLib, 'getBatchGroup').resolves({ transferIds: [] });
     cancelBatchGroup = sandbox.stub(transferwiseLib, 'cancelBatchGroup');
-    getExchangeRates = sandbox.stub(transferwiseLib, 'getExchangeRates');
+    getExchangeRates = sandbox
+      .stub(transferwiseLib, 'getExchangeRates')
+      .resolves([{ source: 'USD', target: 'EUR', rate: 0.9044 }]);
+    listBalancesAccount = sandbox.stub(transferwiseLib, 'listBalancesAccount').resolves(
+      ['EUR', 'USD'].map(currency => ({
+        currency,
+        type: 'STANDARD',
+        amount: { value: 1000000, currency },
+      })),
+    );
 
     cacheSpy = sandbox.spy(cache);
   });
@@ -159,6 +168,8 @@ describe('server/paymentProviders/transferwise/index', () => {
       description: 'January Invoice',
     });
   });
+
+  after(sandbox.restore);
 
   describe('quoteExpense', () => {
     let quote;
@@ -231,7 +242,7 @@ describe('server/paymentProviders/transferwise/index', () => {
     let expense;
     const batchGroupId = 'zs987sad89y1hubnc89h12h892s';
 
-    beforeEach(async () => {
+    before(async () => {
       sandbox.resetHistory();
       expense = await fakeExpense({
         payoutMethod: 'transferwise',
@@ -246,10 +257,18 @@ describe('server/paymentProviders/transferwise/index', () => {
         description: 'January Invoice',
       });
       expense.PayoutMethod = payoutMethod;
-      createBatchGroup.resolves({ id: batchGroupId });
+      createBatchGroup.resolves({ id: batchGroupId, transferIds: [], status: 'NEW' });
       getBatchGroup.resolves({ id: batchGroupId, version: 1, transferIds: [800], status: 'NEW' });
+      listBalancesAccount.resolves(
+        ['EUR', 'USD'].map(currency => ({
+          currency,
+          type: 'STANDARD',
+          amount: { value: 300, currency },
+        })),
+      );
       createBatchGroupTransfer.resolves({ id: 800 });
       await transferwise.scheduleExpenseForPayment(expense);
+      await expense.update({ status: 'SCHEDULED_FOR_PAYMENT' });
     });
 
     it('creates a new batchGroup', () => {
@@ -267,7 +286,7 @@ describe('server/paymentProviders/transferwise/index', () => {
         payoutMethod: 'transferwise',
         PayoutMethodId: payoutMethod.id,
         status: 'APPROVED',
-        amount: 2000,
+        amount: 10000,
         CollectiveId: collective.id,
         currency: 'USD',
         FromCollectiveId: payoutMethod.id,
@@ -278,9 +297,31 @@ describe('server/paymentProviders/transferwise/index', () => {
       newExpense.PayoutMethod = payoutMethod;
       await transferwise.scheduleExpenseForPayment(newExpense);
 
+      await newExpense.reload();
+      expect(newExpense.data.batchGroup.id).to.be.equal(batchGroupId);
       assert.calledWithMatch(createBatchGroupTransfer, { id: connectedAccount.id }, batchGroupId, {
         details: { reference: newExpense.id.toString() },
       });
+    });
+
+    it('should throw if the host has not enough balance to cover for the batched expenses', async () => {
+      const newExpense = await fakeExpense({
+        payoutMethod: 'transferwise',
+        PayoutMethodId: payoutMethod.id,
+        status: 'APPROVED',
+        amount: 10000,
+        CollectiveId: collective.id,
+        currency: 'USD',
+        FromCollectiveId: payoutMethod.id,
+        category: 'Engineering',
+        type: 'INVOICE',
+        description: 'January Invoice #2',
+      });
+      newExpense.PayoutMethod = payoutMethod;
+
+      await expect(transferwise.scheduleExpenseForPayment(newExpense)).to.be.rejectedWith(
+        'Insufficient balance in USD to cover the existing batch plus this expense amount, you need 303.42 USD and you currently have 300 USD.',
+      );
     });
   });
 

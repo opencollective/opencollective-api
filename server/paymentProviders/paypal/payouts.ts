@@ -6,13 +6,15 @@ import { isNil, round, toNumber } from 'lodash';
 
 import activities from '../../constants/activities';
 import status from '../../constants/expense_status';
+import FEATURE from '../../constants/feature';
 import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { floatAmountToCents } from '../../lib/math';
 import * as paypal from '../../lib/paypal';
-import { reportMessageToSentry } from '../../lib/sentry';
+import { safeJsonStringify } from '../../lib/safe-json-stringify';
+import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
 import { createTransactionsFromPaidExpense } from '../../lib/transactions';
-import models from '../../models';
+import models, { Collective } from '../../models';
 import Expense from '../../models/Expense';
 import { PayoutItemDetails } from '../../types/paypal';
 
@@ -75,11 +77,12 @@ export const payExpensesBatch = async (expenses: Expense[]): Promise<Expense[]> 
     });
     return Promise.all(updateExpenses);
   } catch (error) {
+    reportErrorToSentry(error, { feature: FEATURE.PAYPAL_PAYOUTS });
     const updateExpenses = expenses.map(async e => {
       await e.update({ status: status.ERROR });
       const user = await models.User.findByPk(e.lastEditedById);
       await e.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, user, {
-        error: { message: error.message },
+        error: { message: error.message, details: safeJsonStringify(error) },
         isSystem: true,
       });
       return e;
@@ -91,7 +94,7 @@ export const payExpensesBatch = async (expenses: Expense[]): Promise<Expense[]> 
 export const checkBatchItemStatus = async (
   item: PayoutItemDetails,
   expense: Expense,
-  host: typeof models.Collective,
+  host: Collective,
 ): Promise<Expense> => {
   // Reload up-to-date values to avoid race conditions when processing batches.
   await expense.reload();

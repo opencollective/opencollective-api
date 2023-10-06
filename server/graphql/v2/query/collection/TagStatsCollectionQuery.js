@@ -2,11 +2,11 @@ import { GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
 import { pick } from 'lodash';
 
 import { getTagFrequencies } from '../../../../lib/search';
-import { TagStatsCollection } from '../../collection/TagStatsCollection';
-import { AccountReferenceInput, fetchAccountWithReference } from '../../input/AccountReferenceInput';
+import { GraphQLTagStatsCollection } from '../../collection/TagStatsCollection';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
 
 const TagStatsCollectionQuery = {
-  type: new GraphQLNonNull(TagStatsCollection),
+  type: new GraphQLNonNull(GraphQLTagStatsCollection),
   args: {
     searchTerm: {
       type: GraphQLString,
@@ -18,7 +18,7 @@ const TagStatsCollectionQuery = {
       description: 'Return tags which includes this search term. Using this argument will ignore searchTerm.',
     },
     host: {
-      type: AccountReferenceInput,
+      type: GraphQLAccountReferenceInput,
       description: 'Return tags from collectives hosted by this host.',
     },
     limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 10 },

@@ -1,41 +1,49 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { cloneDeep, flatten, uniq } from 'lodash';
+import { cloneDeep, flatten, isEmpty, isNil, pick, uniq } from 'lodash';
+import { Order } from 'sequelize';
 
 import { buildSearchConditions } from '../../../../lib/search';
 import models, { Op, sequelize } from '../../../../models';
 import { checkScope } from '../../../common/scope-check';
-import { TransactionCollection } from '../../collection/TransactionCollection';
-import { PaymentMethodType } from '../../enum/PaymentMethodType';
-import { TransactionKind } from '../../enum/TransactionKind';
-import { TransactionType } from '../../enum/TransactionType';
 import {
-  AccountReferenceInput,
+  GraphQLTransactionCollection,
+  GraphQLTransactionsCollectionReturnType,
+} from '../../collection/TransactionCollection';
+import { GraphQLPaymentMethodType } from '../../enum/PaymentMethodType';
+import { GraphQLTransactionKind } from '../../enum/TransactionKind';
+import { GraphQLTransactionType } from '../../enum/TransactionType';
+import {
   fetchAccountsWithReferences,
   fetchAccountWithReference,
+  GraphQLAccountReferenceInput,
 } from '../../input/AccountReferenceInput';
-import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, ChronologicalOrderInput } from '../../input/ChronologicalOrderInput';
-import { CollectionArgs, TransactionsCollectionReturnType } from '../../interface/Collection';
+import {
+  CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
+  GraphQLChronologicalOrderInput,
+} from '../../input/ChronologicalOrderInput';
+import { GraphQLVirtualCardReferenceInput } from '../../input/VirtualCardReferenceInput';
+import { CollectionArgs } from '../../interface/Collection';
 
 export const TransactionsCollectionArgs = {
   limit: { ...CollectionArgs.limit, defaultValue: 100 },
   offset: CollectionArgs.offset,
   type: {
-    type: TransactionType,
+    type: GraphQLTransactionType,
     description: 'The transaction type (DEBIT or CREDIT)',
   },
   paymentMethodType: {
-    type: new GraphQLList(PaymentMethodType),
+    type: new GraphQLList(GraphQLPaymentMethodType),
     description: 'The payment method types. Can include `null` for transactions without a payment method',
   },
   fromAccount: {
-    type: AccountReferenceInput,
+    type: GraphQLAccountReferenceInput,
     description:
       'Reference of the account assigned to the other side of the transaction (CREDIT -> sender, DEBIT -> recipient). Avoid, favor account instead.',
   },
   host: {
-    type: AccountReferenceInput,
+    type: GraphQLAccountReferenceInput,
     description: 'Reference of the host accounting the transaction',
   },
   tags: {
@@ -44,7 +52,7 @@ export const TransactionsCollectionArgs = {
     deprecationReason: '2020-08-09: Was never implemented.',
   },
   orderBy: {
-    type: new GraphQLNonNull(ChronologicalOrderInput),
+    type: new GraphQLNonNull(GraphQLChronologicalOrderInput),
     description: 'The order of results',
     defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   },
@@ -106,24 +114,30 @@ export const TransactionsCollectionArgs = {
     description: 'Whether to include debt transactions',
   },
   kind: {
-    type: new GraphQLList(TransactionKind),
+    type: new GraphQLList(GraphQLTransactionKind),
     description: 'To filter by transaction kind',
   },
   group: {
     type: GraphQLString,
     description: 'The transactions group to filter by',
   },
+  virtualCard: {
+    type: new GraphQLList(GraphQLVirtualCardReferenceInput),
+  },
 };
 
-export const TransactionsCollectionResolver = async (args, req: express.Request) => {
+export const TransactionsCollectionResolver = async (
+  args,
+  req: express.Request,
+): Promise<GraphQLTransactionsCollectionReturnType> => {
   const where = [];
   const include = [];
 
   // Check Pagination arguments
-  if (args.limit <= 0) {
+  if (isNil(args.limit) || args.limit < 0) {
     args.limit = 100;
   }
-  if (args.offset <= 0) {
+  if (isNil(args.offset) || args.offset < 0) {
     args.offset = 0;
   }
   if (args.limit > 10000 && !req.remoteUser?.isRoot()) {
@@ -287,33 +301,57 @@ export const TransactionsCollectionResolver = async (args, req: express.Request)
     }
   }
 
-  const order = [
+  if (!isEmpty(args.virtualCard)) {
+    include.push({
+      attributes: [],
+      model: models.Expense,
+      required: true,
+      where: {
+        VirtualCardId: args.virtualCard.map(vc => vc.id),
+      },
+    });
+  }
+
+  const order: Order = [
     [args.orderBy.field, args.orderBy.direction],
     // Add additional sort for consistent sorting
     // (transactions in the same TransactionGroup usually have the exact same datetime)
     ['id', args.orderBy.direction],
   ];
   const { offset, limit } = args;
-  const result = await models.Transaction.findAndCountAll({
+
+  const queryParameters = {
     where: sequelize.and(...where),
-    limit,
-    offset,
     order,
+    offset,
+    limit,
     include,
-  });
+  };
+
+  let totalCount, nodes;
+  if (limit === 0) {
+    totalCount = await models.Transaction.count(pick(queryParameters, ['where']));
+    nodes = [];
+  } else {
+    const result = await models.Transaction.findAndCountAll(queryParameters);
+    totalCount = result.count;
+    nodes = result.rows;
+  }
 
   return {
-    nodes: result.rows,
-    totalCount: result.count,
+    nodes,
+    totalCount,
     limit: args.limit,
     offset: args.offset,
-    kinds: () => {
-      return models.Transaction.findAll({
+    kinds: async () => {
+      const results = await models.Transaction.findAll({
         attributes: ['kind'],
         where: whereKinds,
         group: ['kind'],
         raw: true,
-      }).then(results => results.map(m => m.kind).filter(kind => !!kind));
+      });
+
+      return results.map(m => m.kind).filter(kind => !!kind);
     },
     paymentMethodTypes: () => {
       return models.Transaction.findAll({
@@ -330,16 +368,16 @@ export const TransactionsCollectionResolver = async (args, req: express.Request)
 };
 
 const TransactionsCollectionQuery = {
-  type: new GraphQLNonNull(TransactionCollection),
+  type: new GraphQLNonNull(GraphQLTransactionCollection),
   args: {
     account: {
-      type: new GraphQLList(new GraphQLNonNull(AccountReferenceInput)),
+      type: new GraphQLList(new GraphQLNonNull(GraphQLAccountReferenceInput)),
       description:
         'Reference of the account(s) assigned to the main side of the transaction (CREDIT -> recipient, DEBIT -> sender)',
     },
     ...TransactionsCollectionArgs,
   },
-  async resolve(_: void, args, req: express.Request): Promise<TransactionsCollectionReturnType> {
+  async resolve(_: void, args, req: express.Request): Promise<GraphQLTransactionsCollectionReturnType> {
     return TransactionsCollectionResolver(args, req);
   },
 };

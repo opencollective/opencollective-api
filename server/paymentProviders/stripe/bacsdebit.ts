@@ -7,17 +7,21 @@ import logger from '../../lib/logger';
 import { getApplicationFee } from '../../lib/payments';
 import { reportMessageToSentry } from '../../lib/sentry';
 import stripe, { convertToStripeAmount } from '../../lib/stripe';
-import models from '../../models';
+import { OrderModelInterface } from '../../models/Order';
 
 import { APPLICATION_FEE_INCOMPATIBLE_CURRENCIES, refundTransaction, refundTransactionOnlyInDatabase } from './common';
 
-const processOrder = async (order: typeof models.Order): Promise<void> => {
+const processOrder = async (order: OrderModelInterface): Promise<void> => {
+  if (order.paymentMethod?.data?.stripeMandate?.status === 'inactive') {
+    throw new Error('The mandate to charge using this payment method is inactive.');
+  }
+
   const hostStripeAccount = await order.collective.getHostStripeAccount();
   const host = await order.collective.getHostCollective();
   const isPlatformRevenueDirectlyCollected = APPLICATION_FEE_INCOMPATIBLE_CURRENCIES.includes(toUpper(host.currency))
     ? false
     : host?.settings?.isPlatformRevenueDirectlyCollected ?? true;
-  const applicationFee = await getApplicationFee(order, host);
+  const applicationFee = await getApplicationFee(order, { host });
 
   const paymentIntentParams: Stripe.PaymentIntentCreateParams = {
     customer: order.paymentMethod.customerId,
@@ -31,7 +35,7 @@ const processOrder = async (order: typeof models.Order): Promise<void> => {
     },
     // eslint-disable-next-line camelcase
     payment_method: order.paymentMethod?.data?.stripePaymentMethodId,
-    mandate: order.paymentMethod?.stripeMandate?.id,
+    mandate: order.paymentMethod?.data?.stripeMandate?.id,
     // eslint-disable-next-line camelcase
     payment_method_types: ['bacs_debit'],
   };

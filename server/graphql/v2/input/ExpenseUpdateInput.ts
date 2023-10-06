@@ -1,19 +1,20 @@
 import { GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLJSON } from 'graphql-scalars';
 
-import { Currency } from '../enum';
-import { ExpenseType } from '../enum/ExpenseType';
+import { GraphQLCurrency } from '../enum';
+import { GraphQLExpenseType } from '../enum/ExpenseType';
 
-import { NewAccountOrReferenceInput } from './AccountReferenceInput';
-import { ExpenseAttachedFileInput } from './ExpenseAttachedFileInput';
-import { ExpenseItemInput } from './ExpenseItemInput';
-import { ExpenseTaxInput } from './ExpenseTaxInput';
-import { LocationInput } from './LocationInput';
-import { PayoutMethodInput } from './PayoutMethodInput';
+import { GraphQLNewAccountOrReferenceInput } from './AccountReferenceInput';
+import { GraphQLExpenseAttachedFileInput } from './ExpenseAttachedFileInput';
+import { GraphQLExpenseItemInput } from './ExpenseItemInput';
+import { GraphQLExpenseTaxInput } from './ExpenseTaxInput';
+import { GraphQLLocationInput } from './LocationInput';
+import { GraphQLPayoutMethodInput } from './PayoutMethodInput';
 
 /**
  * Input type to use as the type for the comment input in editComment mutation.
  */
-export const ExpenseUpdateInput = new GraphQLInputObjectType({
+export const GraphQLExpenseUpdateInput = new GraphQLInputObjectType({
   name: 'ExpenseUpdateInput',
   fields: () => ({
     id: {
@@ -29,7 +30,7 @@ export const ExpenseUpdateInput = new GraphQLInputObjectType({
       description: 'Longer text to attach to the expense',
     },
     currency: {
-      type: Currency,
+      type: GraphQLCurrency,
       description: 'Currency that should be used for the payout. Defaults to the account currency',
     },
     tags: {
@@ -37,7 +38,7 @@ export const ExpenseUpdateInput = new GraphQLInputObjectType({
       description: 'Tags associated to the expense (ie. Food, Engineering...)',
     },
     type: {
-      type: ExpenseType,
+      type: GraphQLExpenseType,
       description: 'The type of the expense',
     },
     privateMessage: {
@@ -49,33 +50,37 @@ export const ExpenseUpdateInput = new GraphQLInputObjectType({
       description: 'Tax ID, VAT number...etc This information will be printed on your invoice.',
     },
     payoutMethod: {
-      type: PayoutMethodInput,
+      type: GraphQLPayoutMethodInput,
       description: 'The payout method that will be used to reimburse the expense',
     },
     attachments: {
-      type: new GraphQLList(ExpenseItemInput),
+      type: new GraphQLList(GraphQLExpenseItemInput),
       description:
         '@deprecated 2020-04-08: Please use the items field - The list of items for this expense. Total amount will be computed from them.',
     },
     items: {
-      type: new GraphQLList(ExpenseItemInput),
+      type: new GraphQLList(GraphQLExpenseItemInput),
       description: 'The list of items for this expense. Total amount will be computed from them.',
     },
     attachedFiles: {
-      type: new GraphQLList(new GraphQLNonNull(ExpenseAttachedFileInput)),
+      type: new GraphQLList(new GraphQLNonNull(GraphQLExpenseAttachedFileInput)),
       description: '(Optional) A list of files that you want to attach to this expense',
     },
     payee: {
-      type: NewAccountOrReferenceInput,
+      type: GraphQLNewAccountOrReferenceInput,
       description: 'Account to reimburse',
     },
     payeeLocation: {
-      type: LocationInput,
+      type: GraphQLLocationInput,
       description: 'The address of the payee',
     },
     tax: {
-      type: new GraphQLList(ExpenseTaxInput),
+      type: new GraphQLList(GraphQLExpenseTaxInput),
       description: 'The list of taxes that should be applied to the expense (VAT, GST, etc...)',
+    },
+    customData: {
+      type: GraphQLJSON,
+      description: 'Custom data to be stored in the expense',
     },
   }),
 });

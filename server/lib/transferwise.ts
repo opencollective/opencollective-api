@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import url from 'url';
 
-import Axios, { AxiosError, AxiosResponse } from 'axios';
+import axios, { AxiosError, AxiosResponse } from 'axios';
 import config from 'config';
 import Debug from 'debug';
 import { Request } from 'express';
@@ -37,9 +37,12 @@ import { reportErrorToSentry } from './sentry';
 import { sleep } from './utils';
 
 const debug = Debug('transferwise');
-const axios = Axios.create({
+
+const axiosClient = axios.create({
   baseURL: config.transferwise.apiUrl,
 });
+
+const isProduction = config.env === 'production';
 
 type TransferwiseErrorCodes = 'balance.payment-option-unavailable' | string;
 
@@ -77,7 +80,9 @@ const parseError = (
     code = `transferwise.error.validation`;
   }
 
-  return new TransferwiseError(message, code);
+  return new TransferwiseError(message, code, {
+    tracing: pick(error?.response?.headers, ['x-trace-id', 'cf-ray']),
+  });
 };
 
 export async function getToken(connectedAccount: ConnectedAccount, refresh = false): Promise<string> {
@@ -216,7 +221,7 @@ export const createQuote = async (
     targetCurrency,
   };
   return requestDataAndThrowParsedError(
-    axios.post,
+    axiosClient.post,
     `/v2/quotes`,
     {
       connectedAccount,
@@ -233,7 +238,7 @@ export const createRecipientAccount = async (
   const profile = connectedAccount.data.id;
   const data = { profile, currency, type, accountHolderName, legalType, details };
   const response = await requestDataAndThrowParsedError(
-    axios.post,
+    axiosClient.post,
     `/v1/accounts`,
     {
       data,
@@ -263,7 +268,7 @@ export const createTransfer = async (
 ): Promise<Transfer> => {
   const data = { targetAccount, quoteUuid, customerTransactionId, details };
   return requestDataAndThrowParsedError(
-    axios.post,
+    axiosClient.post,
     `/v1/transfers`,
     {
       data,
@@ -278,7 +283,7 @@ export const cancelTransfer = async (
   transferId: string | number,
 ): Promise<Transfer> => {
   return requestDataAndThrowParsedError(
-    axios.put,
+    axiosClient.put,
     `/v1/transfers/${transferId}/cancel`,
     {
       requestPath: '/v1/transfers/:id/cancel',
@@ -298,7 +303,7 @@ export const fundTransfer = async (
 ): Promise<{ status: 'COMPLETED' | 'REJECTED'; errorCode: string }> => {
   const profileId = connectedAccount.data.id;
   return requestDataAndThrowParsedError(
-    axios.post,
+    axiosClient.post,
     `/v3/profiles/${profileId}/transfers/${transferId}/payments`,
     {
       requestPath: '/v3/profiles/:profileId/transfers/:transferId/payments',
@@ -311,7 +316,7 @@ export const fundTransfer = async (
 
 export const getProfiles = async (connectedAccount: ConnectedAccount): Promise<Profile[]> => {
   return requestDataAndThrowParsedError(
-    axios.get,
+    axiosClient.get,
     `/v1/profiles`,
     {
       connectedAccount,
@@ -322,7 +327,7 @@ export const getProfiles = async (connectedAccount: ConnectedAccount): Promise<P
 
 export const listTransfers = async (connectedAccount: ConnectedAccount, params) => {
   return requestDataAndThrowParsedError(
-    axios.get,
+    axiosClient.get,
     `/v1/transfers`,
     {
       connectedAccount,
@@ -334,7 +339,7 @@ export const listTransfers = async (connectedAccount: ConnectedAccount, params) 
 
 export const getRecipient = async (connectedAccount: ConnectedAccount, accountId) => {
   return requestDataAndThrowParsedError(
-    axios.get,
+    axiosClient.get,
     `/v1/accounts/${accountId}`,
     {
       connectedAccount,
@@ -359,7 +364,7 @@ export const getTemporaryQuote = async (
     ...amount,
   };
   return requestDataAndThrowParsedError(
-    axios.post,
+    axiosClient.post,
     `/v2/quotes`,
     {
       connectedAccount,
@@ -371,7 +376,7 @@ export const getTemporaryQuote = async (
 
 export const getTransfer = async (connectedAccount: ConnectedAccount, transferId: number): Promise<Transfer> => {
   return requestDataAndThrowParsedError(
-    axios.get,
+    axiosClient.get,
     `/v1/transfers/${transferId}`,
     {
       requestPath: '/v1/transfers/:id',
@@ -379,6 +384,31 @@ export const getTransfer = async (connectedAccount: ConnectedAccount, transferId
     },
     'There was an error fetching transfer for Wise',
   );
+};
+
+export const simulateTransferSuccess = async (
+  connectedAccount: ConnectedAccount,
+  transferId: number,
+): Promise<Transfer> => {
+  if (isProduction) {
+    throw new Error('Simulate transfer success is only available in development');
+  }
+
+  let response;
+  const statuses = ['processing', 'funds_converted', 'outgoing_payment_sent'];
+  for (const status of statuses) {
+    response = await requestDataAndThrowParsedError(
+      axiosClient.get,
+      `/v1/simulation/transfers/${transferId}/${status}`,
+      {
+        requestPath: `/v1/simulation/transfers/:id/${status}`,
+        connectedAccount,
+      },
+      'Development: There was an error simulating transfer status for Wise',
+    );
+  }
+
+  return response;
 };
 
 export const getAccountRequirements = async (
@@ -391,7 +421,7 @@ export const getAccountRequirements = async (
     ...amount,
   };
   return requestDataAndThrowParsedError(
-    axios.get,
+    axiosClient.get,
     `/v1/account-requirements`,
     {
       connectedAccount,
@@ -408,7 +438,7 @@ export const getExchangeRates = async (
   target: string,
 ): Promise<Array<ExchangeRate>> => {
   return requestDataAndThrowParsedError(
-    axios.get,
+    axiosClient.get,
     `/v1/rates?source=${source}&target=${target}`,
     { connectedAccount },
     'There was an error while fetching exchange rates from Wise',
@@ -426,7 +456,7 @@ export const validateAccountRequirements = async (
     ...amount,
   };
   return requestDataAndThrowParsedError(
-    axios.post,
+    axiosClient.post,
     `/v1/account-requirements`,
     {
       data: accountDetails,
@@ -442,7 +472,7 @@ export const getCurrencyPairs = async (
   connectedAccount: ConnectedAccount,
 ): Promise<{ sourceCurrencies: CurrencyPair[] }> => {
   return requestDataAndThrowParsedError(
-    axios.get,
+    axiosClient.get,
     `/v1/currency-pairs`,
     { connectedAccount },
     'There was an error while fetching currency pairs for Wise',
@@ -455,7 +485,7 @@ export const listBalancesAccount = async (
 ): Promise<BalanceV4[]> => {
   try {
     return requestDataAndThrowParsedError(
-      axios.get,
+      axiosClient.get,
       `/v4/profiles/${connectedAccount.data.id}/balances?types=${types}`,
       {
         requestPath: '/v4/profiles/:profileId/balances',
@@ -475,7 +505,7 @@ export const createBatchGroup = async (
 ): Promise<BatchGroup> => {
   const profileId = connectedAccount.data.id;
   try {
-    return requestDataAndThrowParsedError(axios.post, `/v3/profiles/${profileId}/batch-groups`, {
+    return requestDataAndThrowParsedError(axiosClient.post, `/v3/profiles/${profileId}/batch-groups`, {
       requestPath: '/v3/profiles/:profileId/batch-groups',
       data,
       connectedAccount,
@@ -490,7 +520,7 @@ export const createBatchGroup = async (
 export const getBatchGroup = async (connectedAccount: ConnectedAccount, batchGroupId: string): Promise<BatchGroup> => {
   const profileId = connectedAccount.data.id;
   try {
-    return requestDataAndThrowParsedError(axios.get, `/v3/profiles/${profileId}/batch-groups/${batchGroupId}`, {
+    return requestDataAndThrowParsedError(axiosClient.get, `/v3/profiles/${profileId}/batch-groups/${batchGroupId}`, {
       requestPath: '/v3/profiles/:profileId/batch-groups/:batchGroupId',
       connectedAccount,
     });
@@ -510,7 +540,7 @@ export const createBatchGroupTransfer = async (
   const data = { targetAccount, quoteUuid, customerTransactionId, details };
   try {
     return requestDataAndThrowParsedError(
-      axios.post,
+      axiosClient.post,
       `/v3/profiles/${profileId}/batch-groups/${batchGroupId}/transfers`,
       {
         requestPath: '/v3/profiles/:profileId/batch-groups/:batchGroupId/transfers',
@@ -532,7 +562,7 @@ export const completeBatchGroup = async (
 ): Promise<BatchGroup> => {
   const profileId = connectedAccount.data.id;
   try {
-    return requestDataAndThrowParsedError(axios.patch, `/v3/profiles/${profileId}/batch-groups/${batchGroupId}`, {
+    return requestDataAndThrowParsedError(axiosClient.patch, `/v3/profiles/${profileId}/batch-groups/${batchGroupId}`, {
       requestPath: '/v3/profiles/:profileId/batch-groups/:batchGroupId',
       data: { version, status: 'COMPLETED' },
       connectedAccount,
@@ -551,7 +581,7 @@ export const cancelBatchGroup = async (
 ): Promise<BatchGroup> => {
   const profileId = connectedAccount.data.id;
   try {
-    return requestDataAndThrowParsedError(axios.patch, `/v3/profiles/${profileId}/batch-groups/${batchGroupId}`, {
+    return requestDataAndThrowParsedError(axiosClient.patch, `/v3/profiles/${profileId}/batch-groups/${batchGroupId}`, {
       requestPath: '/v3/profiles/:profileId/batch-groups/:batchGroupId',
       data: { version, status: 'CANCELLED' },
       connectedAccount,
@@ -581,7 +611,7 @@ export const fundBatchGroup = async (
     headers['x-2fa-approval'] = x2faApproval;
   }
 
-  return axios
+  return axiosClient
     .post(`/v3/profiles/${profileId}/batch-payments/${batchGroupId}/payments`, { type: 'BALANCE' }, { headers })
     .then(getData)
     .catch(e => {
@@ -598,8 +628,6 @@ export const fundBatchGroup = async (
       }
     });
 };
-
-const isProduction = config.env === 'production';
 
 const publicKey = fs.readFileSync(
   path.join(
@@ -691,7 +719,7 @@ export const getOrRefreshToken = async ({
 
   const params = new url.URLSearchParams(data);
   try {
-    const token: AccessToken = await axios
+    const token: AccessToken = await axiosClient
       .post(`/oauth/token`, params.toString(), {
         auth: { username: config.transferwise.clientId, password: config.transferwise.clientSecret },
       })
@@ -712,7 +740,7 @@ export const listApplicationWebhooks = async (): Promise<Webhook[]> => {
   const { access_token } = await getOrRefreshToken({ application: true });
 
   try {
-    const webhooks = await axios
+    const webhooks = await axiosClient
       .get(`/v3/applications/${config.transferwise.clientKey}/subscriptions`, {
         headers: { Authorization: `Bearer ${access_token}` },
       })
@@ -729,7 +757,7 @@ export const createApplicationWebhook = async (webhookInfo: WebhookCreateInput):
   const { access_token } = await getOrRefreshToken({ application: true });
   debug(`createApplicationWebhook: ${JSON.stringify(webhookInfo, null, 2)}`);
   try {
-    const webhook: Webhook = await axios
+    const webhook: Webhook = await axiosClient
       .post(`/v3/applications/${config.transferwise.clientKey}/subscriptions`, webhookInfo, {
         headers: { Authorization: `Bearer ${access_token}` },
       })
@@ -746,7 +774,7 @@ export const deleteApplicationWebhook = async (id: string | number): Promise<any
   const { access_token } = await getOrRefreshToken({ application: true });
   debug(`deleteApplicationWebhook: id ${id}`);
   try {
-    return await axios
+    return await axiosClient
       .delete(`/v3/applications/${config.transferwise.clientKey}/subscriptions/${id}`, {
         headers: { Authorization: `Bearer ${access_token}` },
       })

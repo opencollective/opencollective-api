@@ -9,6 +9,9 @@
       "platformPercent": 5
     }
   },
+  "klippa": {
+    "enabled": false
+  },
   "log": {
     "level": "warn"
   },

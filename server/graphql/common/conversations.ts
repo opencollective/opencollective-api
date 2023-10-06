@@ -29,7 +29,7 @@ export const createConversation = async (req: Request, params: CreateConversatio
   const { CollectiveId, title, html, tags } = params;
 
   // Collective must exist and be of type `COLLECTIVE`
-  const collective = await models.Collective.findByPk(CollectiveId);
+  const collective = await req.loaders.Collective.byId.load(CollectiveId);
   if (!collective) {
     throw new Error("This Collective doesn't exist or has been deleted");
   } else if (!hasFeature(collective, FEATURE.CONVERSATIONS)) {

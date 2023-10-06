@@ -55,6 +55,14 @@
     "giftCards": {
       "maxPerDay": 100
     },
+    "klippa": {
+      "perUser": {
+        "month": 100,
+        "week": 50,
+        "day": 30,
+        "hour": 15
+      }
+    },
     "changeEmailPerHour": {
       "update": 10,
       "confirmToken": 15
@@ -69,6 +77,8 @@
     "searchEmailPerHour": 150,
     "searchEmailPerHourPerIp": 50,
     "userSigninAttemptsPerHourPerIp": 50,
+    "userExchangeLoginTokenPerHourPerIp": 50,
+    "userRefreshTokenPerHourPerIp": 50,
     "collectiveEmailMessagePerHour": 5,
     "maxCoreContributorsPerAccount": 60
   },
@@ -90,6 +100,10 @@
       "sslEnabled": true
     }
   },
+  "klippa": {
+    "apiKey": null,
+    "enabled": true
+  },
   "paypal": {
     "classic": {
       "appId": "APP-80W284485P519543T",
@@ -100,7 +114,6 @@
     "rest": {
       "mode": "sandbox"
     },
-    "feeOC": 5,
     "payment": {
       "environment": "sandbox"
     }
@@ -175,7 +188,8 @@
   "graphql": {
     "cache": {
       "enabled": false,
-      "ttl": 300
+      "ttl": 300,
+      "minExecutionTimeToCache": 200
     }
   },
   "pdfService": {
@@ -186,10 +200,8 @@
     "fetchHostTransactionsCsv": false
   },
   "sentry": {
-    "tracesSampleRate": 0
-  },
-  "privacy": {
-    "apiUrl": "https://sandbox.privacy.com"
+    "tracesSampleRate": 0,
+    "minExecutionTimeToSample": 800
   },
   "ledger": {
     "fastBalance": true
@@ -223,5 +235,23 @@
       "YEARLY": 5000,
       "ALL_TIME": 5000
     }
+  },
+  "gitbook": {
+    "apiUrl": "https://api.gitbook.com",
+    "apiKey": "UNDEFINED_GITBOOK_API_KEY"
+  },
+  "opentelemetry": {
+    "enabled": false
+  },
+  "statsd": {
+    "enabled": false,
+    "url": "localhost",
+    "port": 8125,
+    "prefix": ""
+  },
+  "webauthn": {
+    "rpName": "[Test] Open Collective",
+    "rpId": "localhost",
+    "expectedOrigins": ["http://localhost:3000"]
   }
 }
