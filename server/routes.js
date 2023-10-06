@@ -14,7 +14,6 @@ import * as gitbook from './controllers/gitbook';
 import helloworks from './controllers/helloworks';
 import uploadImage from './controllers/images';
 import * as email from './controllers/services/email';
-import * as survey from './controllers/survey';
 import * as transferwise from './controllers/transferwise';
 import * as users from './controllers/users';
 import { paypalWebhook, stripeWebhook, thegivingblockWebhook, transferwiseWebhook } from './controllers/webhooks';
@@ -407,12 +406,6 @@ export default async app => {
    * Gitbook Search API
    */
   app.get('/docs/search', gitbook.search);
-
-  /**
-   * In-app survey responses sent to Coda
-   */
-
-  app.post('/in-app-survey', survey.sendInAppSurveyResponse);
 
   /**
    * An endpoint to easily test Sentry integration
