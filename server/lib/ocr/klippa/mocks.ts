@@ -30,7 +30,7 @@ export const klippaSuccessInvoice = {
           description: '',
           lineitems: [
             {
-              title: 'Static Sites - 743h 59m 59s - 1 instance',
+              title: 'Mocked test item 1',
               description: '',
               amount: 0,
               amount_each: 0,
@@ -50,7 +50,7 @@ export const klippaSuccessInvoice = {
               matched_purchase_order: null,
             },
             {
-              title: 'Servers - 2,231h 59m 57s - 3 instances',
+              title: 'Mocked test item 2',
               description: '',
               amount: 3200,
               amount_each: 3200,
@@ -70,7 +70,7 @@ export const klippaSuccessInvoice = {
               matched_purchase_order: null,
             },
             {
-              title: 'PostgresDB - 1,487h 59m 58s - 2 instances',
+              title: 'Mocked test item 3',
               description: '',
               amount: 1400,
               amount_each: 1400,
@@ -90,7 +90,7 @@ export const klippaSuccessInvoice = {
               matched_purchase_order: null,
             },
             {
-              title: 'Team Plan - 1 user',
+              title: 'Mocked test item 4',
               description: '',
               amount: 1900,
               amount_each: 1900,
@@ -132,7 +132,7 @@ export const klippaSuccessInvoice = {
       table_number: '',
       table_group: '',
       server: '',
-      merchant_name: 'Render',
+      merchant_name: 'TestMerchant',
       merchant_id: '',
       merchant_coc_number: '',
       merchant_vat_number: '',
