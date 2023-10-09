@@ -1,10 +1,9 @@
 import express from 'express';
 import { GraphQLFloat, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { get } from 'lodash';
 
-import FEATURE from '../../../constants/feature';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
+import { Collective } from '../../../models';
 import { addFunds } from '../../common/orders';
 import { checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { ValidationFailed } from '../../errors';
@@ -75,8 +74,8 @@ export const addFundsMutation = {
   resolve: async (_, args: AddFundsMutationArgs, req: express.Request) => {
     checkRemoteUserCanUseHost(req);
 
-    const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
-    const fromAccount = await fetchAccountWithReference(args.fromAccount, { throwIfMissing: true });
+    const account: Collective = await fetchAccountWithReference(args.account, { throwIfMissing: true });
+    const fromAccount: Collective = await fetchAccountWithReference(args.fromAccount, { throwIfMissing: true });
     const tier = args.tier && (await fetchTierWithReference(args.tier, { throwIfMissing: true }));
 
     const accountAllowedTypes = ['ORGANIZATION', 'COLLECTIVE', 'EVENT', 'FUND', 'PROJECT'];
@@ -86,7 +85,7 @@ export const addFundsMutation = {
       );
     }
 
-    if (get(account, `data.features.${FEATURE.ALL}`) === false) {
+    if (account.isFrozen()) {
       throw new ValidationFailed('Adding funds is not allowed for frozen accounts.');
     }
 

@@ -1077,6 +1077,10 @@ class Collective extends Model<
     });
   };
 
+  isFrozen = function () {
+    return this.data?.features?.[FEATURE.ALL] === false;
+  };
+
   hasBudget = function () {
     if (
       [CollectiveType.COLLECTIVE, CollectiveType.EVENT, CollectiveType.PROJECT, CollectiveType.FUND].includes(this.type)
