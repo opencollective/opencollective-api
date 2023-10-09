@@ -155,6 +155,7 @@ const _authenticateUserByJwt = async (req, res, next) => {
     res.cookie('rootRedirect', 'dashboard', {
       secure: true,
       httpOnly: true,
+      sameSite: 'strict',
       maxAge: 24 * 60 * 60 * 1000 * 365,
     });
   }
