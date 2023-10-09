@@ -1,7 +1,9 @@
 import express from 'express';
 import { GraphQLFloat, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
+import { get } from 'lodash';
 
+import FEATURE from '../../../constants/feature';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { addFunds } from '../../common/orders';
 import { checkRemoteUserCanUseHost } from '../../common/scope-check';
@@ -82,6 +84,10 @@ export const addFundsMutation = {
       throw new ValidationFailed(
         `Adding funds is only possible to the following types: ${accountAllowedTypes.join(',')}`,
       );
+    }
+
+    if (get(account, `data.features.${FEATURE.ALL}`) === false) {
+      throw new ValidationFailed('Adding funds is not allowed for frozen accounts.');
     }
 
     // For now, we'll tolerate internal Added Funds whatever the type
