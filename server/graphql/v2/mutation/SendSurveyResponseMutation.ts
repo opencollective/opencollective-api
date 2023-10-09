@@ -1,3 +1,4 @@
+import config from 'config';
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
 
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
@@ -68,7 +69,7 @@ export const sendSurveyResponseMutation = {
                 { column: COLUMNS.Text, value: args.text ?? '' },
                 { column: COLUMNS.AccountSlug, value: req.remoteUser.collective.slug },
                 { column: COLUMNS.OkToContact, value: args.okToContact ?? false },
-                { column: COLUMNS.Environment, value: process.env.NODE_ENV },
+                { column: COLUMNS.Environment, value: config.env },
               ],
             },
           ],
