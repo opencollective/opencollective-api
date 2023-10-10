@@ -152,7 +152,12 @@ const _authenticateUserByJwt = async (req, res, next) => {
 
   const { earlyAccess = {} } = user.collective.settings;
   if (earlyAccess.dashboard) {
-    res.cookie('rootRedirect', 'dashboard', { maxAge: 24 * 60 * 60 * 1000 * 365 });
+    res.cookie('rootRedirect', 'dashboard', {
+      secure: true,
+      httpOnly: true,
+      sameSite: 'strict',
+      maxAge: 24 * 60 * 60 * 1000 * 365,
+    });
   }
 
   // Make tokens expire on password update
