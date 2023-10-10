@@ -150,6 +150,11 @@ const _authenticateUserByJwt = async (req, res, next) => {
     return;
   }
 
+  const { earlyAccess = {} } = user.collective.settings;
+  if (earlyAccess.dashboard) {
+    res.cookie('rootRedirect', 'dashboard', { maxAge: 24 * 60 * 60 * 1000 * 365 });
+  }
+
   // Make tokens expire on password update
   const iat = moment(req.jwtPayload.iat * 1000);
   if (user.passwordUpdatedAt && moment(user.passwordUpdatedAt).diff(iat, 'seconds') > 0) {
@@ -381,10 +386,12 @@ export async function checkPersonalToken(req, res, next) {
       }
       next();
     } else {
+      res.clearCookie('rootRedirect');
       debug(`Invalid Personal Token (Api Key): ${apiKey || token}`);
       next(new Unauthorized(`Invalid Personal Token (Api Key): ${apiKey || token}`));
     }
   } else {
+    res.clearCookie('rootRedirect');
     next();
     debug('No Personal Token (Api Key)');
   }

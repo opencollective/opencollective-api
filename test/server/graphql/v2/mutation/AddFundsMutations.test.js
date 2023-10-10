@@ -137,6 +137,23 @@ describe('server/graphql/v2/mutation/AddFundsMutations', () => {
       expect(result.errors[0].message).to.match(/Only an site admin or collective host admin can add fund/);
     });
 
+    it('cannot add funds if collective is frozen', async () => {
+      await collective.freeze();
+      const result = await graphqlQueryV2(
+        addFundsMutation,
+        {
+          ...validMutationVariables,
+          account: { legacyId: collective.id },
+          fromAccount: { legacyId: randomUser.CollectiveId },
+        },
+        hostAdmin,
+      );
+      await collective.unfreeze();
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/Adding funds is not allowed for frozen accounts/);
+    });
+
     it('can add funds as host admin', async () => {
       const result = await graphqlQueryV2(
         addFundsMutation,
