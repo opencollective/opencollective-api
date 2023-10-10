@@ -11,3 +11,4 @@ coverage/
 .vscode
 .history
 
+config/collective-spam-bayes.json
