@@ -31,6 +31,7 @@ import tierMutations from './TierMutations';
 import transactionMutations from './TransactionMutations';
 import updateMutations from './UpdateMutations';
 import uploadedFileMutations from './UploadedFileMutations';
+import vendorMutations from './VendorMutations';
 import virtualCardMutations from './VirtualCardMutations';
 import webhookMutations from './WebhookMutations';
 
@@ -69,6 +70,7 @@ const mutation = {
   ...socialLinkMutations,
   ...tagMutations,
   ...agreementMutations,
+  ...vendorMutations,
   sendSurveyResponse: sendSurveyResponseMutation,
 };
 

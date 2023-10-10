@@ -6,7 +6,7 @@ import models, { Collective, Op } from '../../../models';
 import { NotFound } from '../../errors';
 import { idDecode } from '../identifiers';
 
-const AccountReferenceInputFields = {
+export const AccountReferenceInputFields = {
   id: {
     type: GraphQLString,
     description: 'The public id identifying the account (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
