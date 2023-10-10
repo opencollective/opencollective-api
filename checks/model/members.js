@@ -4,7 +4,7 @@ import logger from '../../server/lib/logger';
 import { sequelize } from '../../server/models';
 
 async function checkDeletedMembers({ fix = false } = {}) {
-  const message = 'No non-deleted Members without a matching non-deleted Collective (no auto fix)';
+  const message = 'No non-deleted Members without a matching non-deleted Collective';
 
   const results = await sequelize.query(
     `SELECT COUNT(*) as count
