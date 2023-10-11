@@ -15,7 +15,7 @@ import { OSCValidator, ValidatedRepositoryInfo } from '../../../lib/osc-validato
 import { getPolicy, hasPolicy } from '../../../lib/policies';
 import { stripHTML } from '../../../lib/sanitize-html';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models, { Op, sequelize } from '../../../models';
+import models, { Collective, Op, sequelize } from '../../../models';
 import ConversationModel from '../../../models/Conversation';
 import { HostApplicationStatus } from '../../../models/HostApplication';
 import { processInviteMembersInput } from '../../common/members';
@@ -226,7 +226,7 @@ const HostApplicationMutations = {
         type: GraphQLString,
       },
     },
-    resolve: async (_, args, req: express.Request): Promise<Record<string, unknown>> => {
+    resolve: async (_, args, req: express.Request): Promise<Collective> => {
       checkRemoteUserCanUseHost(req);
 
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });

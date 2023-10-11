@@ -17,7 +17,7 @@ import {
 } from '../../../lib/moderation';
 import { setTaxForm } from '../../../lib/tax-forms';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models, { sequelize } from '../../../models';
+import models, { Collective, sequelize } from '../../../models';
 import UserTwoFactorMethod from '../../../models/UserTwoFactorMethod';
 import { moveExpenses } from '../../common/expenses';
 import { checkRemoteUserCanRoot } from '../../common/scope-check';
@@ -78,7 +78,7 @@ export default {
         description: 'Set this to false to disable 2FA. Other values have no effect.',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+    async resolve(_: void, args, req: express.Request): Promise<Collective> {
       checkRemoteUserCanRoot(req);
 
       // Always enforce 2FA for root actions
@@ -116,7 +116,7 @@ export default {
         description: 'Account to change the type for',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+    async resolve(_: void, args, req: express.Request): Promise<Collective> {
       checkRemoteUserCanRoot(req);
 
       // Always enforce 2FA for root actions
@@ -175,7 +175,7 @@ export default {
         defaultValue: ['CLOUDFLARE', 'GRAPHQL_QUERIES', 'CONTRIBUTORS'],
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+    async resolve(_: void, args, req: express.Request): Promise<Collective> {
       checkRemoteUserCanRoot(req);
 
       // Always enforce 2FA for root actions

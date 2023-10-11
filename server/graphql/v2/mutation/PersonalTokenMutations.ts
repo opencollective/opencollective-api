@@ -8,7 +8,7 @@ import models from '../../../models';
 import PersonalTokenModel from '../../../models/PersonalToken';
 import { checkRemoteUserCanUseApplications } from '../../common/scope-check';
 import { Forbidden, NotFound, RateLimitExceeded } from '../../errors';
-import { fetchAccountWithReference } from '../input/AccountReferenceInput.js';
+import { fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { GraphQLPersonalTokenCreateInput } from '../input/PersonalTokenCreateInput';
 import {
   fetchPersonalTokenWithReference,

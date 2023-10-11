@@ -136,6 +136,9 @@ type Settings = {
       period: number;
     };
   };
+  payoutsTwoFactorAuth?: {
+    enabled?: boolean;
+  };
 };
 
 const defaultTiers = currency => {
@@ -2800,7 +2803,7 @@ class Collective extends Model<
     order = [['createdAt', 'DESC']],
     includeUsedGiftCardsEmittedByOthers = true,
     includeExpenseTransactions = true,
-  }) {
+  }: any = {}) {
     // Base query
     const query: any = { where: this.transactionsWhereQuery(includeUsedGiftCardsEmittedByOthers) };
 
