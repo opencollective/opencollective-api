@@ -25,6 +25,7 @@ export enum SocialLinkType {
   GHOST = 'GHOST',
   PEERTUBE = 'PEERTUBE',
   TIKTOK = 'TIKTOK',
+  TWITCH = 'TWITCH',
 }
 
 class SocialLink extends Model<InferAttributes<SocialLink>, InferCreationAttributes<SocialLink>> {
