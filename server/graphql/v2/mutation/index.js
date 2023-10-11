@@ -1,3 +1,4 @@
+import accountingCategoriesMutations from './AccountingCategoriesMutations';
 import accountMutations from './AccountMutations';
 import activitySubscriptionsMutations from './ActivitySubscriptionsMutations';
 import { addFundsMutation } from './AddFundsMutations';
@@ -42,6 +43,7 @@ const mutation = {
   createOrganization: createOrganizationMutation,
   createProject: createProjectMutation,
   ...accountMutations,
+  ...accountingCategoriesMutations,
   ...applicationMutations,
   ...commentMutations,
   ...connectedAccountMutations,
