@@ -39,6 +39,7 @@ import models, {
   UploadedFile,
   VirtualCard,
 } from '../../server/models';
+import AccountingCategory from '../../server/models/AccountingCategory';
 import Application, { ApplicationType } from '../../server/models/Application';
 import Comment from '../../server/models/Comment';
 import Conversation from '../../server/models/Conversation';
@@ -92,6 +93,24 @@ export const fakeUUID = firstHeightChars => {
 };
 
 /**
+ * Creates a fake accounting category. All params are optionals.
+ */
+export const fakeAccountingCategory = async (
+  accountingCategoryData: Partial<InferCreationAttributes<AccountingCategory>> = {},
+) => {
+  const category = await models.AccountingCategory.create({
+    code: randStr('AC-'),
+    name: randStr('Accounting Category '),
+    friendlyName: randStr('Accounting Category '),
+    ...accountingCategoryData,
+    CollectiveId: accountingCategoryData?.CollectiveId ?? (await fakeHost()).id,
+  });
+
+  category.collective = await models.Collective.findByPk(category.CollectiveId);
+  return category;
+};
+
+/**
  * Creates a fake user. All params are optionals.
  */
 export const fakeUser = async (
@@ -135,7 +154,7 @@ export const fakeUser = async (
   return user;
 };
 
-/** Create a fake host */
+/** @deprecated: use fakeActiveHost */
 export const fakeHost = async (hostData: Parameters<typeof fakeCollective>[0] = {}) => {
   return fakeCollective({
     type: CollectiveType.ORGANIZATION,
@@ -145,6 +164,22 @@ export const fakeHost = async (hostData: Parameters<typeof fakeCollective>[0] = 
     isHostAccount: true,
     ...hostData,
   });
+};
+
+/** Create a fake host */
+export const fakeActiveHost = async (hostData: Parameters<typeof fakeCollective>[0] = {}) => {
+  const host = await fakeCollective({
+    type: CollectiveType.ORGANIZATION,
+    name: randStr('Test Host '),
+    slug: randStr('host-'),
+    HostCollectiveId: null,
+    isHostAccount: true,
+    isActive: true,
+    ...hostData,
+  });
+
+  await host.update({ HostCollectiveId: host.id });
+  return host;
 };
 
 /** Create a fake host application */

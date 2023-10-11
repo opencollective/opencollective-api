@@ -1,5 +1,6 @@
 import sequelize, { Op } from '../lib/sequelize';
 
+import AccountingCategory from './AccountingCategory';
 import { Activity } from './Activity';
 import Agreement from './Agreement';
 import Application from './Application';
@@ -47,6 +48,7 @@ import VirtualCardRequest from './VirtualCardRequest';
  * Models.
  */
 const models = {
+  AccountingCategory,
   Activity,
   Agreement,
   Application: Application,
@@ -93,6 +95,11 @@ const models = {
 /**
  * Relationships
  */
+
+// AccountingCategory
+models.AccountingCategory.belongsTo(models.Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+models.AccountingCategory.hasMany(models.Expense, { foreignKey: 'AccountingCategoryId', as: 'expenses' });
+
 // Applications
 models.Application.belongsTo(models.Collective, { foreignKey: 'CollectiveId', as: 'collective' });
 models.Application.belongsTo(models.User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
@@ -114,6 +121,7 @@ models.Collective.belongsToMany(models.Collective, {
   through: { model: models.Member, unique: false, foreignKey: 'CollectiveId' } as any,
   as: 'memberOfCollectives',
 });
+models.Collective.hasMany(models.AccountingCategory, { foreignKey: 'CollectiveId', as: 'accountingCategories' });
 models.Collective.hasMany(models.Member, { foreignKey: 'MemberCollectiveId', as: 'memberships' });
 models.Collective.hasMany(models.Member); // TODO: This one probably has the same effect as the one below, we should check and remove if that's the case
 models.Collective.hasMany(models.Member, { foreignKey: 'CollectiveId', as: 'members' });

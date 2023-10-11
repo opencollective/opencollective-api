@@ -180,6 +180,8 @@ export const GraphQLActivity = new GraphQLObjectType({
           }
         } else if (activity.type === ACTIVITY.COLLECTIVE_UPDATE_PUBLISHED && !activity.data.update.isPrivate) {
           toPick.push('update.title', 'update.html');
+        } else if (activity.type === ACTIVITY.ACCOUNTING_CATEGORIES_EDITED) {
+          toPick.push('added', 'removed', 'edited');
         }
 
         return pick(activity.data, toPick);

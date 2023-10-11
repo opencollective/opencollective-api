@@ -17,6 +17,7 @@ const instances = {};
 
 export const IDENTIFIER_TYPES = {
   ACCOUNT: 'account',
+  ACCOUNTING_CATEGORY: 'accounting-category',
   ACTIVITY: 'activity',
   AGREEMENT: 'agreement',
   COMMENT: 'comment',

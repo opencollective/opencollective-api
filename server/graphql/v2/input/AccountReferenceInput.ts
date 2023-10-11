@@ -188,6 +188,7 @@ export const fetchAccountsWithReferences = async (
 /**
  * A quick helper around `fetchAccountsWithReferences` optimized to fetch accounts IDs
  * from AccountReferenceInputs
+ * TODO: this should be renamed to `fetchAccountsIdsWithReferences` (plural)
  */
 export const fetchAccountsIdsWithReference = async accounts => {
   if (!accounts?.length) {
