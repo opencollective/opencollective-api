@@ -6,7 +6,7 @@ import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import { checkRemoteUserCanUseApplications } from '../../common/scope-check';
 import { Forbidden, NotFound, RateLimitExceeded } from '../../errors';
-import { fetchAccountWithReference } from '../input/AccountReferenceInput.js';
+import { fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { GraphQLApplicationCreateInput } from '../input/ApplicationCreateInput';
 import { fetchApplicationWithReference, GraphQLApplicationReferenceInput } from '../input/ApplicationReferenceInput';
 import { GraphQLApplicationUpdateInput } from '../input/ApplicationUpdateInput';

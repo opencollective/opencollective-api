@@ -1,11 +1,12 @@
 import { GraphQLBoolean, GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 import { intersection, uniq } from 'lodash';
+import { FindOptions, InferAttributes, ProjectionAlias } from 'sequelize';
 
-import models, { Op } from '../../../models';
+import models, { Collective, Op } from '../../../models';
 import { NotFound } from '../../errors';
 import { idDecode } from '../identifiers';
 
-const AccountReferenceInputFields = {
+export const AccountReferenceInputFields = {
   id: {
     type: GraphQLString,
     description: 'The public id identifying the account (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
@@ -71,7 +72,7 @@ export const GraphQLNewAccountOrReferenceInput = new GraphQLInputObjectType({
 export const fetchAccountWithReference = async (
   input,
   { loaders = null, throwIfMissing = false, dbTransaction = undefined, lock = false, paranoid = true } = {},
-) => {
+): Promise<Collective> => {
   const loadCollectiveById = id => {
     if (!loaders || dbTransaction) {
       return models.Collective.findByPk(id, { transaction: dbTransaction, lock, paranoid });
@@ -88,10 +89,12 @@ export const fetchAccountWithReference = async (
     // TODO: It makes no sense to check for `input.id` being a number here, we're suppose to only use this function with account references
     collective = await loadCollectiveById(input.legacyId || input.id);
   } else if (input.slug) {
-    collective = await models.Collective.findOne(
-      { where: { slug: input.slug.toLowerCase() }, paranoid },
-      { transaction: dbTransaction, lock },
-    );
+    collective = await models.Collective.findOne({
+      where: { slug: input.slug.toLowerCase() },
+      paranoid,
+      transaction: dbTransaction,
+      lock,
+    });
   } else {
     throw new Error('Please provide an id or a slug');
   }
@@ -111,7 +114,18 @@ export const fetchAccountWithReference = async (
  *    - attributes: to apply a SELECT on the query
  *    - include: to include associated models
  */
-export const fetchAccountsWithReferences = async (inputs, { throwIfMissing = false, attributes, include } = {}) => {
+export const fetchAccountsWithReferences = async (
+  inputs,
+  {
+    throwIfMissing = false,
+    attributes,
+    include,
+  }: {
+    throwIfMissing?: boolean;
+    attributes?: Array<string | ProjectionAlias>;
+    include?: FindOptions<InferAttributes<Collective>>['include'];
+  } = {},
+) => {
   // Compatibility with simple reference inputs not wrapped in an array
   inputs = Array.isArray(inputs) ? inputs : [inputs];
 
