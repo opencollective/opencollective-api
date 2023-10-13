@@ -80,14 +80,32 @@ AccountingCategory.init(
     code: {
       type: DataTypes.STRING,
       allowNull: false,
+      validate: {
+        len: [1, 255],
+      },
+      set(value: string): void {
+        this.setDataValue('code', value?.trim());
+      },
     },
     name: {
       type: DataTypes.STRING,
       allowNull: false,
+      validate: {
+        len: [0, 255],
+      },
+      set(value: string): void {
+        this.setDataValue('name', value?.trim());
+      },
     },
     friendlyName: {
       type: DataTypes.STRING,
       allowNull: true,
+      validate: {
+        len: [0, 255],
+      },
+      set(value: string): void {
+        this.setDataValue('friendlyName', value?.trim());
+      },
     },
     CollectiveId: {
       type: DataTypes.INTEGER,
