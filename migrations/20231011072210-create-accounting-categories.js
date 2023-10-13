@@ -47,12 +47,16 @@ module.exports = {
     });
 
     // Reference accounting category from the `Expenses` table
-    await queryInterface.addColumn('ExpenseHistories', 'AccountingCategoryId', { type: Sequelize.INTEGER });
+    await queryInterface.addColumn('ExpenseHistories', 'AccountingCategoryId', {
+      type: Sequelize.INTEGER,
+      allowNull: true,
+    });
     await queryInterface.addColumn('Expenses', 'AccountingCategoryId', {
       type: Sequelize.INTEGER,
       references: { key: 'id', model: 'AccountingCategories' },
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
+      allowNull: true,
     });
   },
 
