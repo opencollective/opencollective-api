@@ -7,6 +7,7 @@ import { v4 as uuid } from 'uuid';
 
 import { CollectiveType } from '../../../constants/collectives';
 import models from '../../../models';
+import { checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { BadRequest, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLVendorCreateInput, GraphQLVendorEditInput } from '../input/VendorInput';
@@ -29,9 +30,7 @@ const vendorMutations = {
       },
     },
     resolve: async (_, args, req) => {
-      if (!req.remoteUser) {
-        throw new Unauthorized('You need to be authenticated to perform this action. Please login and try again.');
-      }
+      checkRemoteUserCanUseHost(req);
 
       const host = await fetchAccountWithReference(args.host, { loaders: req.loaders, throwIfMissing: true });
       if (!req.remoteUser.isAdminOfCollective(host)) {
@@ -54,7 +53,8 @@ const vendorMutations = {
 
       if (vendorInfo.taxType) {
         assert(vendorInfo.taxId, new BadRequest('taxId is required when taxType is provided'));
-        vendorData.data[vendorInfo.taxType] = vendorInfo.taxId;
+        // Store Tax id in settings, to be consistent with other types of collectives
+        vendorData['settings'] = { [vendorInfo.taxType]: { number: vendorInfo.taxId, type: 'OWN' } };
       }
 
       const vendor = await models.Collective.create(vendorData);
@@ -76,11 +76,11 @@ const vendorMutations = {
       },
     },
     resolve: async (_, args, req) => {
-      if (!req.remoteUser) {
-        throw new Unauthorized('You need to be authenticated to perform this action. Please login and try again.');
-      }
+      checkRemoteUserCanUseHost(req);
 
       const vendor = await fetchAccountWithReference(args.vendor, { loaders: req.loaders, throwIfMissing: true });
+      assert(vendor.type === CollectiveType.VENDOR, new ValidationFailed('Account is not a vendor'));
+
       const host = await req.loaders.Collective.byId.load(vendor.ParentCollectiveId);
       assert(host, new NotFound('Vendor host not found'));
       if (!req.remoteUser.isAdminOfCollective(host)) {
@@ -99,7 +99,11 @@ const vendorMutations = {
 
       if (vendorInfo.taxType) {
         assert(vendorInfo.taxId, new BadRequest('taxId is required when taxType is provided'));
-        vendorData.data[vendorInfo.taxType] = vendorInfo.taxId;
+        // Store Tax id in settings, to be consistent with other types of collectives
+        vendorData['settings'] = {
+          ...vendor.settings,
+          [vendorInfo.taxType]: { number: vendorInfo.taxId, type: 'OWN' },
+        };
       }
 
       await vendor.update(vendorData);
@@ -121,11 +125,11 @@ const vendorMutations = {
       },
     },
     resolve: async (_, args, req) => {
-      if (!req.remoteUser) {
-        throw new Unauthorized('You need to be authenticated to perform this action. Please login and try again.');
-      }
+      checkRemoteUserCanUseHost(req);
 
       const vendor = await fetchAccountWithReference(args.vendor, { loaders: req.loaders, throwIfMissing: true });
+      assert(vendor.type === CollectiveType.VENDOR, new ValidationFailed('Account is not a vendor'));
+
       const host = await req.loaders.Collective.byId.load(vendor.ParentCollectiveId);
       assert(host, new NotFound('Vendor host not found'));
       if (!req.remoteUser.isAdminOfCollective(host)) {

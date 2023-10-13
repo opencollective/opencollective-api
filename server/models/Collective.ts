@@ -117,6 +117,13 @@ type Goal = {
   amount: number;
 };
 
+type TaxSettings = {
+  [key in 'VAT' | 'GST' | 'EIN']?: {
+    number: string;
+    type?: 'OWN' | 'HOST';
+  };
+};
+
 type Settings = {
   goals?: Array<Goal>;
   allowCollectiveAdminsToEditPrivateExpenseData?: boolean;
@@ -139,7 +146,7 @@ type Settings = {
   payoutsTwoFactorAuth?: {
     enabled?: boolean;
   };
-};
+} & TaxSettings;
 
 const defaultTiers = currency => {
   return [

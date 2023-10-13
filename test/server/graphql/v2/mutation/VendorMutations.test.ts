@@ -14,7 +14,7 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
     imageUrl: 'https://zorg.com/logo.png',
     vendorInfo: {
       taxType: 'VAT',
-      taxId: '123456789',
+      taxId: 'FRXX999999999',
       taxFormUrl: 'https://zorg.com/taxform.pdf',
       notes: 'Zorg is a great vendor',
     },
@@ -50,7 +50,7 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
         vendor: vendorData,
       });
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.match(/You need to be authenticated to perform this action/);
+      expect(result.errors[0].message).to.match(/You need to be logged in to manage hosted accounts/);
     });
 
     it('must be fiscal-host admin', async () => {
@@ -76,6 +76,7 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
         },
         hostAdminUser,
       );
+      result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
 
       const vendor = await models.Collective.findByPk(result.data?.createVendor?.legacyId);
@@ -87,7 +88,7 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
       expect(vendor.legalName).to.equal('Zorg Inc');
       expect(vendor.image).to.equal('https://zorg.com/logo.png');
       expect(vendor.data.vendorInfo).to.deep.equal(vendorData.vendorInfo);
-      expect(vendor.data.VAT).to.deep.equal(vendorData.vendorInfo.taxId);
+      expect(vendor.settings.VAT).to.deep.equal({ number: vendorData.vendorInfo.taxId, type: 'OWN' });
 
       const location = await vendor.getLocation();
       expect(location.address).to.equal('Zorg Planet, 123');
@@ -109,7 +110,7 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
         vendor: { legacyId: vendor.id },
       });
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.match(/You need to be authenticated to perform this action/);
+      expect(result.errors[0].message).to.match(/You need to be logged in to manage hosted accounts/);
     });
 
     it('must be fiscal-host admin', async () => {
@@ -126,6 +127,19 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
       expect(result.errors[0].message).to.match(/You're not authorized to edit a vendor for this host/);
     });
 
+    it('must be a vendor', async () => {
+      const vendor = await fakeCollective({ type: CollectiveType.COLLECTIVE, ParentCollectiveId: host.id });
+      const result = await graphqlQueryV2(
+        editVendorMutation,
+        {
+          vendor: { legacyId: vendor.id },
+        },
+        hostAdminUser,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/Account is not a vendor/);
+    });
+
     it('edits a vendor account', async () => {
       const vendor = await fakeCollective({
         type: CollectiveType.VENDOR,
@@ -139,7 +153,7 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
         address: 'Zorg Avenue, 1',
         vendorInfo: {
           taxType: 'VAT',
-          taxId: '9874',
+          taxId: 'BE0411905847',
           notes: 'Zorg is still great vendor',
         },
       };
@@ -150,6 +164,7 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
         },
         hostAdminUser,
       );
+      result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
 
       await vendor.reload();
@@ -158,7 +173,7 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
       expect(vendor.type).to.equal('VENDOR');
       expect(vendor.name).to.equal('Zorg 2');
       expect(vendor.legalName).to.equal('Zorg 2 Inc');
-      expect(vendor.data.VAT).to.deep.equal(newVendorData.vendorInfo.taxId);
+      expect(vendor.settings.VAT).to.deep.equal({ number: newVendorData.vendorInfo.taxId, type: 'OWN' });
       expect(vendor.data.vendorInfo).to.deep.equal({ ...vendorData.vendorInfo, ...newVendorData.vendorInfo });
 
       const location = await vendor.getLocation();
@@ -179,7 +194,7 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
         vendor: { legacyId: vendor.id },
       });
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.match(/You need to be authenticated to perform this action/);
+      expect(result.errors[0].message).to.match(/You need to be logged in to manage hosted accounts/);
     });
 
     it('must be fiscal-host admin', async () => {
@@ -194,6 +209,19 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
       );
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.match(/You're not authorized to delete this vendor/);
+    });
+
+    it('must be a vendor', async () => {
+      const vendor = await fakeCollective({ type: CollectiveType.COLLECTIVE, ParentCollectiveId: host.id });
+      const result = await graphqlQueryV2(
+        deleteVendorMutation,
+        {
+          vendor: { legacyId: vendor.id },
+        },
+        hostAdminUser,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/Account is not a vendor/);
     });
 
     it('must have no transactions associated to it', async () => {

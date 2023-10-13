@@ -1,4 +1,5 @@
 import { GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLNonEmptyString } from 'graphql-scalars';
 
 import { GraphQLTaxType } from '../enum/TaxType';
 
@@ -32,9 +33,9 @@ const GraphQLVendorInfo = new GraphQLInputObjectType({
 export const GraphQLVendorCreateInput = new GraphQLInputObjectType({
   name: 'VendorCreateInput',
   fields: () => ({
-    name: { type: new GraphQLNonNull(GraphQLString) },
+    name: { type: new GraphQLNonNull(GraphQLNonEmptyString) },
     legalName: { type: GraphQLString },
-    tags: { type: new GraphQLList(GraphQLString) },
+    tags: { type: new GraphQLList(GraphQLNonEmptyString) },
     address: { type: GraphQLString },
     imageUrl: { type: GraphQLString },
     vendorInfo: { type: GraphQLVendorInfo },
