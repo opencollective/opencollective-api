@@ -633,7 +633,7 @@ const oauth = {
       // Automatically set OTT flag on for European contries and Australia.
       if (
         collective.countryISO &&
-        (isMemberOfTheEuropeanUnion(collective.countryISO) || ['AU', 'UK'].includes(collective.countryISO))
+        (isMemberOfTheEuropeanUnion(collective.countryISO) || ['AU', 'GB'].includes(collective.countryISO))
       ) {
         const settings = collective.settings ? cloneDeep(collective.settings) : {};
         set(settings, 'transferwise.ott', true);
