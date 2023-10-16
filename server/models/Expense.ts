@@ -101,7 +101,6 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   declare getRecurringExpense: BelongsToGetAssociationMixin<RecurringExpense>;
   declare getTransactions: HasManyGetAssociationsMixin<TransactionInterface>;
   declare getVirtualCard: BelongsToGetAssociationMixin<typeof models.VirtualCard>;
-  declare getAccountingCategory: BelongsToGetAssociationMixin<AccountingCategory>;
 
   /**
    * Instance Methods
