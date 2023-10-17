@@ -1,4 +1,4 @@
-import { GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLNonEmptyString } from 'graphql-scalars';
 
 import { GraphQLTaxType } from '../enum/TaxType';
@@ -38,6 +38,7 @@ export const GraphQLVendorCreateInput = new GraphQLInputObjectType({
     tags: { type: new GraphQLList(GraphQLNonEmptyString) },
     address: { type: GraphQLString },
     imageUrl: { type: GraphQLString },
+    acceptsPublicExpenses: { type: GraphQLBoolean },
     vendorInfo: { type: GraphQLVendorInfo },
   }),
 });
@@ -51,6 +52,7 @@ export const GraphQLVendorEditInput = new GraphQLInputObjectType({
     tags: { type: GraphQLString },
     address: { type: GraphQLString },
     imageUrl: { type: GraphQLString },
+    acceptsPublicExpenses: { type: GraphQLBoolean },
     vendorInfo: { type: GraphQLVendorInfo },
   }),
 });

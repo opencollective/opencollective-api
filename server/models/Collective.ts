@@ -127,6 +127,7 @@ type TaxSettings = {
 type Settings = {
   goals?: Array<Goal>;
   allowCollectiveAdminsToEditPrivateExpenseData?: boolean;
+  disablePublicExpenseSubmission?: boolean;
   features?: {
     contactForm?: boolean;
   };

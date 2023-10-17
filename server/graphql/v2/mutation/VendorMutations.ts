@@ -38,7 +38,7 @@ const vendorMutations = {
         throw new Unauthorized("You're not authorized to create a vendor for this host");
       }
 
-      const { vendorInfo } = args.vendor;
+      const { vendorInfo, acceptsPublicExpenses } = args.vendor;
       const vendorData = {
         type: CollectiveType.VENDOR,
         slug: `${host.id}-${slugify(args.vendor.name)}-${uuid().substr(0, 8)}`,
@@ -50,12 +50,15 @@ const vendorMutations = {
         data: {
           vendorInfo: pick(vendorInfo, VENDOR_INFO_FIELDS),
         },
+        settings: {
+          disablePublicExpenseSubmission: acceptsPublicExpenses === false,
+        },
       };
 
       if (vendorInfo.taxType) {
         assert(vendorInfo.taxId, new BadRequest('taxId is required when taxType is provided'));
         // Store Tax id in settings, to be consistent with other types of collectives
-        vendorData['settings'] = { [vendorInfo.taxType]: { number: vendorInfo.taxId, type: 'OWN' } };
+        vendorData.settings[vendorInfo.taxType] = { number: vendorInfo.taxId, type: 'OWN' };
       }
 
       const vendor = await models.Collective.create(vendorData);
@@ -97,10 +100,14 @@ const vendorMutations = {
         throw new Unauthorized("You're not authorized to edit a vendor for this host");
       }
 
-      const { vendorInfo } = args.vendor;
+      const { vendorInfo, acceptsPublicExpenses } = args.vendor;
       const vendorData = {
         image: args.vendor.imageUrl || null,
         ...pick(args.vendor, ['name', 'legalName', 'tags']),
+        settings: {
+          ...vendor.settings,
+          disablePublicExpenseSubmission: acceptsPublicExpenses === false,
+        },
         data: {
           ...vendor.data,
           vendorInfo: { ...vendor.data?.vendorInfo, ...pick(vendorInfo, VENDOR_INFO_FIELDS) },
@@ -112,14 +119,13 @@ const vendorMutations = {
         ...pick(vendor, ['name', 'legalName', 'tags']),
         data: cloneDeep(vendor.data),
       };
-      const newData = cloneDeep(vendorData);
 
       if (vendorInfo.taxType) {
         assert(vendorInfo.taxId, new BadRequest('taxId is required when taxType is provided'));
         // Store Tax id in settings, to be consistent with other types of collectives
-        vendorData['settings'] = {
-          ...vendor.settings,
-          [vendorInfo.taxType]: { number: vendorInfo.taxId, type: 'OWN' },
+        vendorData.settings[vendorInfo.taxType] = {
+          number: vendorInfo.taxId,
+          type: 'OWN',
         };
       }
 
@@ -129,6 +135,7 @@ const vendorMutations = {
         await vendor.setLocation({ address: args.vendor.address });
       }
 
+      const newData = cloneDeep(vendorData);
       await Activity.create({
         type: ActivityTypes.VENDOR_EDITED,
         CollectiveId: host.id,

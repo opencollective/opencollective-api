@@ -1234,7 +1234,7 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
 
   const isMember = Boolean(remoteUser.rolesByCollectiveId[String(collective.id)]);
   if (
-    expenseData.collective.settings?.['disablePublicExpenseSubmission'] &&
+    collective.settings?.['disablePublicExpenseSubmission'] &&
     !isMember &&
     !remoteUser.isAdminOfCollectiveOrHost(collective) &&
     !remoteUser.isRoot()
