@@ -2839,6 +2839,11 @@ type Host implements Account & AccountWithContributions {
   """
   platformContributionAvailable: Boolean!
   contributionPolicy: String
+
+  """
+  List of accounting categories for this host
+  """
+  accountingCategories: AccountingCategoryCollection!
   hostFeePercent: Float
   totalHostedCollectives: Int @deprecated(reason: "2023-03-20: Renamed to totalHostedAccounts")
   totalHostedAccounts: Int
@@ -4586,6 +4591,7 @@ type Activity {
 
 enum ActivityType {
   ACTIVITY_ALL
+  ACCOUNTING_CATEGORIES_EDITED
   CONNECTED_ACCOUNT_CREATED
   CONNECTED_ACCOUNT_ERROR
   COLLECTIVE_CREATED_GITHUB
@@ -4728,6 +4734,47 @@ type Webhook {
   activityType: ActivityType
   webhookUrl: URL
   account: Account!
+}
+
+"""
+A collection of "Accounting Categories"
+"""
+type AccountingCategoryCollection implements Collection {
+  offset: Int
+  limit: Int
+  totalCount: Int
+
+  """
+  The Accounting Categories
+  """
+  nodes: [AccountingCategory!]!
+}
+
+"""
+Fields for an accounting category
+"""
+type AccountingCategory {
+  id: String!
+
+  """
+  The code of the accounting category
+  """
+  code: String!
+
+  """
+  The technical name of the accounting category
+  """
+  name: String!
+
+  """
+  A friendly name for non-accountants (i.e. expense submitters and collective admins)
+  """
+  friendlyName: String
+
+  """
+  The account this category belongs to
+  """
+  account: Host!
 }
 
 """
@@ -12014,6 +12061,7 @@ enum CountryISO {
 
 enum ActivityAndClassesType {
   ACTIVITY_ALL
+  ACCOUNTING_CATEGORIES_EDITED
   CONNECTED_ACCOUNT_CREATED
   CONNECTED_ACCOUNT_ERROR
   COLLECTIVE_CREATED_GITHUB
@@ -13857,6 +13905,21 @@ type Mutation {
   Regenerate two factor authentication recovery codes
   """
   regenerateRecoveryCodes: [String!]
+
+  """
+  Edit an accounting category. Returns the account with the updated categories.
+  """
+  editAccountingCategories(
+    """
+    The host to edit accounting categories for
+    """
+    account: AccountReferenceInput!
+
+    """
+    The list of categories to edit
+    """
+    categories: [AccountingCategoryInput!]!
+  ): Account!
   createApplication(application: ApplicationCreateInput!): Application
   updateApplication(application: ApplicationUpdateInput!): Application
   deleteApplication(application: ApplicationReferenceInput!): Application
@@ -15305,6 +15368,31 @@ type SendMessageResult {
 A string that cannot be passed as an empty value
 """
 scalar NonEmptyString
+
+"""
+Input for creating or updating an account category
+"""
+input AccountingCategoryInput {
+  """
+  The ID of the accounting category to edit
+  """
+  id: NonEmptyString
+
+  """
+  The code of the accounting category
+  """
+  code: NonEmptyString
+
+  """
+  The technical name of the accounting category
+  """
+  name: NonEmptyString
+
+  """
+  A friendly name for non-accountants (i.e. expense submitters and collective admins)
+  """
+  friendlyName: String
+}
 
 """
 Input type for Application
@@ -16874,9 +16962,9 @@ input AgreementReferenceInput {
 }
 
 input VendorCreateInput {
-  name: String!
+  name: NonEmptyString!
   legalName: String
-  tags: [String]
+  tags: [NonEmptyString]
   address: String
   imageUrl: String
   vendorInfo: VendorInfoInput
@@ -16916,9 +17004,9 @@ input VendorEditInput {
   The slug identifying the account (ie: babel for https://opencollective.com/babel)
   """
   slug: String
-  name: String!
+  name: String
   legalName: String
-  tags: [String]
+  tags: String
   address: String
   imageUrl: String
   vendorInfo: VendorInfoInput

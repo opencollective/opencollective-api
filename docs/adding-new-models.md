@@ -11,6 +11,7 @@ The name of the migration will be something like: `migrations/000000-create-my-t
 ```es6
 'use strict';
 
+/** @type {import('sequelize-cli').Migration} */
 module.exports = {
   up: (queryInterface, Sequelize) => {
     return queryInterface.createTable('MyTables', {
@@ -28,14 +29,14 @@ module.exports = {
       },
       // Standard temporal fields
       createdAt: {
-        type: DataTypes.DATE,
+        type: Sequelize.DATE,
         allowNull: false,
-        defaultValue: DataTypes.NOW,
+        defaultValue: Sequelize.NOW,
       },
       updatedAt: {
-        type: DataTypes.DATE,
+        type: Sequelize.DATE,
         allowNull: false,
-        defaultValue: DataTypes.NOW,
+        defaultValue: Sequelize.NOW,
       },
       deletedAt: {
         type: Sequelize.DATE,
@@ -57,10 +58,11 @@ Example: `server/models/MyTable.ts`
 ```ts
 import type { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import Collective from './Collective';
 
 class MyTable extends Model<InferAttributes<MyTable>, InferCreationAttributes<MyTable>> {
   declare id: CreationOptional<number>;
-  declare MyCollectiveId: number;
+  declare MyCollectiveId: ForeignKey<Collective['id']>;
   declare createdAt: CreationOptional<Date>;
   declare updatedAt: CreationOptional<Date>;
   declare deletedAt: CreationOptional<Date>;

@@ -4,6 +4,9 @@
 
 enum ActivityTypes {
   ACTIVITY_ALL = 'all',
+  // Accounting categories
+  ACCOUNTING_CATEGORIES_EDITED = 'accounting.categories.edited',
+  // Connected accounts
   CONNECTED_ACCOUNT_CREATED = 'connected_account.created', // Not used yet
   CONNECTED_ACCOUNT_ERROR = 'connected_account.error', // Not used yet
   // Collective creation & applications

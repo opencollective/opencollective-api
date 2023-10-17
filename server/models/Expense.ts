@@ -25,6 +25,7 @@ import { computeDatesAsISOStrings } from '../lib/utils';
 import CustomDataTypes from '../models/DataTypes';
 import { BatchGroup, ExpenseDataQuoteV2, Transfer } from '../types/transferwise';
 
+import AccountingCategory from './AccountingCategory';
 import Collective from './Collective';
 import { ExpenseAttachedFile } from './ExpenseAttachedFile';
 import { ExpenseItem } from './ExpenseItem';
@@ -55,6 +56,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   public declare PayoutMethodId: ForeignKey<PayoutMethod['id']>;
   public declare VirtualCardId: ForeignKey<VirtualCard['id']>;
   public declare RecurringExpenseId: ForeignKey<RecurringExpense['id']>;
+  public declare AccountingCategoryId: ForeignKey<AccountingCategory['id']>;
 
   public declare payeeLocation: Record<string, unknown>; // TODO This can be typed
   public declare data: Record<string, unknown> & {

@@ -28,6 +28,7 @@ import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { Unauthorized } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
+import { GraphQLAccountingCategoryCollection } from '../collection/AccountingCategoryCollection';
 import { GraphQLAgreementCollection } from '../collection/AgreementCollection';
 import { GraphQLHostApplicationCollection } from '../collection/HostApplicationCollection';
 import { GraphQLVirtualCardCollection } from '../collection/VirtualCardCollection';
@@ -101,6 +102,22 @@ export const GraphQLHost = new GraphQLObjectType({
     return {
       ...AccountFields,
       ...AccountWithContributionsFields,
+      accountingCategories: {
+        type: new GraphQLNonNull(GraphQLAccountingCategoryCollection),
+        description: 'List of accounting categories for this host',
+        // Not paginated yet as we don't expect to have too many categories for now
+        async resolve(host) {
+          const where = { CollectiveId: host.id };
+          const order = [['code', 'ASC']]; // Code is unique per host, so sorting on it here should be consistent
+          const categories = await models.AccountingCategory.findAll({ where, order });
+          return {
+            nodes: categories,
+            totalCount: categories.length,
+            limit: categories.length,
+            offset: 0,
+          };
+        },
+      },
       hostFeePercent: {
         type: GraphQLFloat,
         resolve(collective) {

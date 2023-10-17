@@ -267,6 +267,8 @@ class Collective extends Model<
 
   public declare legalDocuments?: NonAttribute<LegalDocumentModelInterface[]>;
 
+  public declare getAccountingCategories: HasManyGetAssociationsMixin<typeof models.AccountingCategory>;
+
   public declare getConnectedAccounts: HasManyGetAssociationsMixin<ConnectedAccount>;
 
   public declare getLocation: HasOneGetAssociationMixin<Location>;
@@ -2382,6 +2384,18 @@ class Collective extends Model<
     if (children.length > 0) {
       await Promise.all(children.map(e => e.changeHost(null, remoteUser, { isChildren: true })));
     }
+
+    // Unlink accounting categories from unpaid expenses, as these categories are host-specific
+    await models.Expense.update(
+      { AccountingCategoryId: null },
+      {
+        where: {
+          CollectiveId: [this.id, ...children.map(c => c.id)],
+          status: { [Op.not]: 'PAID' },
+          AccountingCategoryId: { [Op.not]: null },
+        },
+      },
+    );
 
     // Reset current host
     await this.update({

@@ -92,6 +92,7 @@ export class RecurringExpense extends Model<RecurringExpenseAttributes, Recurrin
       CollectiveId: this.CollectiveId,
       lastEditedById: expense.UserId,
       incurredAt,
+      AccountingCategoryId: expense.AccountingCategoryId,
       data: {
         items: expense.items?.map(item => ({ ...pick(item, ['amount', 'description', 'url']), incurredAt })),
         payee: { id: expense.FromCollectiveId },
