@@ -2,11 +2,12 @@ import assert from 'assert';
 
 import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
 import slugify from 'limax';
-import { pick } from 'lodash';
+import { cloneDeep, pick } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
+import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
-import models from '../../../models';
+import models, { Activity } from '../../../models';
 import { checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { BadRequest, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
@@ -63,6 +64,15 @@ const vendorMutations = {
         await vendor.setLocation({ address: args.vendor.address });
       }
 
+      await Activity.create({
+        type: ActivityTypes.VENDOR_CREATED,
+        CollectiveId: host.id,
+        UserId: req.remoteUser.id,
+        data: {
+          vendor: vendor.info,
+        },
+      });
+
       return vendor;
     },
   },
@@ -97,6 +107,13 @@ const vendorMutations = {
         },
       };
 
+      const previousData = {
+        ...vendor.info,
+        ...pick(vendor, ['name', 'legalName', 'tags']),
+        data: cloneDeep(vendor.data),
+      };
+      const newData = cloneDeep(vendorData);
+
       if (vendorInfo.taxType) {
         assert(vendorInfo.taxId, new BadRequest('taxId is required when taxType is provided'));
         // Store Tax id in settings, to be consistent with other types of collectives
@@ -111,6 +128,17 @@ const vendorMutations = {
       if (args.vendor.address) {
         await vendor.setLocation({ address: args.vendor.address });
       }
+
+      await Activity.create({
+        type: ActivityTypes.VENDOR_EDITED,
+        CollectiveId: host.id,
+        UserId: req.remoteUser.id,
+        data: {
+          previousData,
+          newData,
+          vendor: vendor.info,
+        },
+      });
 
       return vendor;
     },
@@ -140,6 +168,15 @@ const vendorMutations = {
       assert(transactions.length === 0, new ValidationFailed('Cannot delete a vendor with transactions'));
 
       await vendor.destroy();
+
+      await Activity.create({
+        type: ActivityTypes.VENDOR_DELETED,
+        CollectiveId: host.id,
+        UserId: req.remoteUser.id,
+        data: {
+          vendor: vendor.info,
+        },
+      });
 
       return true;
     },
