@@ -25,7 +25,7 @@ async function checkDeletedUsers() {
   const message = 'No Collectives type=USER without a matching User (no auto fix)';
 
   const results = await sequelize.query(
-    `SELECT *
+    `SELECT COUNT(*) as count
      FROM "Collectives" c
      LEFT JOIN "Users" u
      ON c."id" = u."CollectiveId"
