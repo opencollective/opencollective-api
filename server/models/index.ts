@@ -131,7 +131,8 @@ models.Collective.hasMany(models.Tier, { as: 'tiers' });
 models.Collective.hasMany(models.LegalDocument);
 models.Collective.hasMany(models.RequiredLegalDocument, { foreignKey: 'HostCollectiveId' });
 models.Collective.hasMany(models.Collective, { as: 'hostedCollectives', foreignKey: 'HostCollectiveId' });
-models.Collective.hasMany(models.Expense, { foreignKey: 'CollectiveId', as: 'submittedExpenses' });
+models.Collective.hasMany(models.Expense, { foreignKey: 'CollectiveId', as: 'expenses' });
+models.Collective.hasMany(models.Expense, { foreignKey: 'FromCollectiveId', as: 'submittedExpenses' });
 models.Collective.hasMany(models.ConnectedAccount);
 
 // Connected accounts
