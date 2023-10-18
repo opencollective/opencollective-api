@@ -37,6 +37,7 @@ export default {
     us_bank_account: paymentintent,
     // eslint-disable-next-line camelcase
     sepa_debit: paymentintent,
+    link: paymentintent,
   },
 
   oauth: {

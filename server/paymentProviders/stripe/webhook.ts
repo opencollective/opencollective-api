@@ -33,7 +33,7 @@ import * as virtualcard from './virtual-cards';
 
 const debug = debugLib('stripe');
 
-async function createOrUpdateOrderStripePaymentMethod(
+export async function createOrUpdateOrderStripePaymentMethod(
   order: OrderModelInterface,
   stripeAccount: string,
   paymentIntent: Stripe.PaymentIntent,
