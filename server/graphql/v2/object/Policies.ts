@@ -91,5 +91,18 @@ export const GraphQLPolicies = new GraphQLObjectType({
         }
       },
     },
+    [POLICIES.EXPENSE_CATEGORIZATION]: {
+      name: POLICIES.EXPENSE_CATEGORIZATION,
+      type: new GraphQLObjectType({
+        name: POLICIES.EXPENSE_CATEGORIZATION,
+        fields: () => ({
+          requiredForExpenseSubmitters: { type: GraphQLBoolean },
+          requiredForCollectiveAdmins: { type: GraphQLBoolean },
+        }),
+      }),
+      async resolve(account) {
+        return getPolicy(account, POLICIES.EXPENSE_CATEGORIZATION);
+      },
+    },
   }),
 });

@@ -33,5 +33,14 @@ export const GraphQLPoliciesInput = new GraphQLInputObjectType({
         }),
       }),
     },
+    [POLICIES.EXPENSE_CATEGORIZATION]: {
+      type: new GraphQLInputObjectType({
+        name: 'PoliciesExpenseCategorizationInput',
+        fields: () => ({
+          requiredForExpenseSubmitters: { type: GraphQLBoolean },
+          requiredForCollectiveAdmins: { type: GraphQLBoolean },
+        }),
+      }),
+    },
   }),
 });
