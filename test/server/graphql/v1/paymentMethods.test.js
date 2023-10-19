@@ -39,7 +39,8 @@ describe('server/graphql/v1/paymentMethods', () => {
       type: 'ORGANIZATION',
       currency: 'USD',
     });
-    await host.becomeHost();
+    await host.addUserWithRole(admin, roles.ADMIN);
+    await host.becomeHost(admin);
   });
 
   beforeEach(() =>
@@ -70,7 +71,6 @@ describe('server/graphql/v1/paymentMethods', () => {
     }),
   );
 
-  beforeEach(() => host.addUserWithRole(admin, roles.ADMIN));
   beforeEach(() => collective.addUserWithRole(admin, roles.ADMIN));
 
   beforeEach('create a paypal paymentMethod', () =>
