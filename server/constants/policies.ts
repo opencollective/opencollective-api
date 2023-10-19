@@ -13,6 +13,8 @@ enum POLICIES {
   REQUIRE_2FA_FOR_ADMINS = 'REQUIRE_2FA_FOR_ADMINS',
   // When enabled, admins of the collective are allowed to refund expenses
   COLLECTIVE_ADMINS_CAN_REFUND = 'COLLECTIVE_ADMINS_CAN_REFUND',
+  // Whether we expect expense submitters and collective admins to take part in the expense categorization process (for accounting)
+  EXPENSE_CATEGORIZATION = 'EXPENSE_CATEGORIZATION',
 }
 
 export type Policies = Partial<{
@@ -33,6 +35,10 @@ export type Policies = Partial<{
 
   [POLICIES.REQUIRE_2FA_FOR_ADMINS]: boolean;
   [POLICIES.COLLECTIVE_ADMINS_CAN_REFUND]: boolean;
+  [POLICIES.EXPENSE_CATEGORIZATION]: {
+    requiredForExpenseSubmitters: boolean;
+    requiredForCollectiveAdmins: boolean;
+  };
 }>;
 
 export const DEFAULT_POLICIES: { [T in POLICIES]: Policies[T] } = {
@@ -59,9 +65,13 @@ export const DEFAULT_POLICIES: { [T in POLICIES]: Policies[T] } = {
   },
   [POLICIES.REQUIRE_2FA_FOR_ADMINS]: false,
   [POLICIES.COLLECTIVE_ADMINS_CAN_REFUND]: true,
+  [POLICIES.EXPENSE_CATEGORIZATION]: {
+    requiredForExpenseSubmitters: false,
+    requiredForCollectiveAdmins: false,
+  },
 };
 
 // List of Policies that can be seen by anyone
-export const PUBLIC_POLICIES = [POLICIES.COLLECTIVE_MINIMUM_ADMINS];
+export const PUBLIC_POLICIES = [POLICIES.COLLECTIVE_MINIMUM_ADMINS, POLICIES.EXPENSE_CATEGORIZATION];
 
 export default POLICIES;
