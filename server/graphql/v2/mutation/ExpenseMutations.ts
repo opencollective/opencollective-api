@@ -8,7 +8,7 @@ import {
   GraphQLNonNull,
   GraphQLString,
 } from 'graphql';
-import { pick, size } from 'lodash';
+import { isNil, pick, size } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../../../constants/activities';
@@ -49,6 +49,7 @@ import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../
 import { GraphQLExpenseProcessAction } from '../enum/ExpenseProcessAction';
 import { GraphQLFeesPayer } from '../enum/FeesPayer';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
+import { fetchAccountingCategoryWithReference } from '../input/AccountingCategoryInput';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLExpenseCreateInput } from '../input/ExpenseCreateInput';
 import { GraphQLExpenseInviteDraftInput } from '../input/ExpenseInviteDraftInput';
@@ -111,6 +112,12 @@ const expenseMutations = {
         payoutMethod,
         collective: await fetchAccountWithReference(args.account, req),
         fromCollective,
+        accountingCategory:
+          args.expense.accountingCategory &&
+          (await fetchAccountingCategoryWithReference(args.expense.accountingCategory, {
+            throwIfMissing: true,
+            loaders: req.loaders,
+          })),
       });
 
       if (args.recurring) {
@@ -179,6 +186,9 @@ const expenseMutations = {
           url: attachedFile.url,
         })),
         fromCollective: requestedPayee,
+        accountingCategory: isNil(args.expense.accountingCategory)
+          ? args.expense.accountingCategory // This will make sure we pass either `null` (to remove the category) or `undefined` (to keep the existing one)
+          : await fetchAccountingCategoryWithReference(args.expense.accountingCategory, { throwIfMissing: true }),
       };
 
       const userIsOriginalPayee = originalPayee && req.remoteUser?.isAdminOfCollective(originalPayee);

@@ -21,6 +21,13 @@ const GraphQLExpensePermissions = new GraphQLObjectType({
         return ExpenseLib.canEditExpense(req, expense);
       },
     },
+    canEditAccountingCategory: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can edit the expense accounting category',
+      async resolve(expense, _, req: express.Request): Promise<boolean> {
+        return ExpenseLib.canEditExpenseAccountingCategory(req, expense);
+      },
+    },
     canEditTags: {
       type: new GraphQLNonNull(GraphQLBoolean),
       description:
@@ -129,6 +136,11 @@ const GraphQLExpensePermissions = new GraphQLObjectType({
     edit: {
       type: new GraphQLNonNull(GraphQLPermission),
       resolve: parsePermissionFromEvaluator(ExpenseLib.canEditExpense),
+    },
+    editAccountingCategory: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can edit the expense accounting category',
+      resolve: parsePermissionFromEvaluator(ExpenseLib.canEditExpenseAccountingCategory),
     },
     editTags: {
       type: new GraphQLNonNull(GraphQLPermission),
