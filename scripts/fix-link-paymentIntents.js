@@ -7,12 +7,13 @@ import OrderStatuses from '../server/constants/order_status';
 import logger from '../server/lib/logger';
 import { createSubscription, sendEmailNotifications } from '../server/lib/payments';
 import stripe from '../server/lib/stripe';
+import { parseToBoolean } from '../server/lib/utils';
 import models from '../server/models';
 import { createChargeTransactions } from '../server/paymentProviders/stripe/common';
 import { createOrUpdateOrderStripePaymentMethod } from '../server/paymentProviders/stripe/webhook';
 
 if (process.argv.length < 3) {
-  console.error('Usage: ./scripts/diff-stripe-transactions.js HOST_SLUG [NB_CHARGES_TO_CHECK=100] [LAST_CHARGE_ID]');
+  console.error('Usage: ./scripts/fix-link-paymentIntents.js HOST_SLUG [NB_CHARGES_TO_CHECK=100] [LAST_CHARGE_ID]');
   process.exit(1);
 }
 
@@ -21,34 +22,7 @@ const NB_CHARGES_TO_CHECK = parseInt(process.argv[3]) || 100;
 const LAST_CHARGE_ID = process.argv[4] || undefined;
 const NB_CHARGES_PER_QUERY = 100; // Max allowed by Stripe
 const NB_PAGES = NB_CHARGES_TO_CHECK / NB_CHARGES_PER_QUERY;
-
-/*
-async function checkCharge(charge) {
-  if (charge.failure_code) {
-    // Ignore failed transaction
-    console.log(`Ignoring ${charge.id} (failed transaction)`);
-    return;
-  }
-
-  const slug = charge.metadata.to.replace('https://opencollective.com/', '');
-  const collective = await models.Collective.findOne({
-    where: { slug: slug },
-  });
-  if (!collective) {
-    console.log(`Ignoring ${charge.id} (could not find Collective ${slug})`);
-    return;
-  }
-
-  const transaction = await models.Transaction.findOne({
-    where: { CollectiveId: collective.id, data: { charge: { id: charge.id } } },
-    order: [['id', 'DESC']],
-  });
-
-  if (!transaction) {
-    console.error(`🚨️ Missing transaction for stripe charge ${charge.id}`);
-  }
-}
-*/
+const DRY_RUN = process.env.DRY_RUN ? parseToBoolean(process.env.DRY_RUN) : false;
 
 const getHostStripeAccountUsername = async slug => {
   const hostId = (await models.Collective.findOne({ where: { slug } }))?.id;
@@ -64,7 +38,7 @@ const getHostStripeAccountUsername = async slug => {
   return stripeAccount.username;
 };
 
-async function recordCharge(charge, paymentIntent, stripeAccount) {
+async function checkAndRecordCharge(charge, paymentIntent, stripeAccount) {
   // Copy code from Stripe webhook (paymentIntentSucceeded)
   const order = await models.Order.findOne({
     where: {
@@ -89,6 +63,14 @@ async function recordCharge(charge, paymentIntent, stripeAccount) {
   if (existingChargeTransaction) {
     logger.info(`Stripe Webhook: ${order.id} already processed charge ${charge.id}, ignoring event ${event.id}`);
     return;
+  }
+
+  logger.info(`🚨️ Missing transaction for stripe charge ${charge.id}`);
+  if (DRY_RUN) {
+    // logger.info(`Not recording charge (DRY_RUN)`);
+    return;
+  } else {
+    logger.info(`Recording charge ...`);
   }
 
   await createOrUpdateOrderStripePaymentMethod(order, stripeAccount, paymentIntent);
@@ -138,8 +120,7 @@ async function main() {
       if (paymentIntent.status === 'succeeded') {
         const charge = paymentIntent.charges.data[0];
         if (charge.payment_method_details.type === 'link') {
-          // await checkCharge(charge);
-          await recordCharge(charge, paymentIntent, stripeUserName);
+          await checkAndRecordCharge(charge, paymentIntent, stripeUserName);
         } else {
           // Non-link Payment Method type
         }
