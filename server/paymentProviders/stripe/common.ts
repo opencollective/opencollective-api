@@ -396,6 +396,8 @@ function formatPaymentMethodName(
     case PAYMENT_METHOD_TYPE.BANCONTACT: {
       return `${chargePaymentMethodDetails?.bancontact?.bank_code} ***${chargePaymentMethodDetails?.bancontact?.iban_last4}`;
     }
+    // TODO
+    // support PAYMENT_METHOD_TYPE.LINK
     default: {
       return '';
     }
@@ -442,6 +444,8 @@ const coercePaymentMethodType = (paymentMethodType: Stripe.PaymentMethod.Type): 
       return PAYMENT_METHOD_TYPE.ALIPAY;
     case 'bancontact':
       return PAYMENT_METHOD_TYPE.BANCONTACT;
+    case 'link':
+      return PAYMENT_METHOD_TYPE.LINK;
     default:
       logger.warn(`Unknown payment method type: ${paymentMethodType}`);
       return paymentMethodType as PAYMENT_METHOD_TYPE;
