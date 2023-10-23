@@ -673,7 +673,7 @@ export async function activateCollectiveAsHost(_, args, req) {
 
   await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
 
-  return collective.becomeHost();
+  return collective.becomeHost(req.remoteUser);
 }
 
 export async function deactivateCollectiveAsHost(_, args, req) {

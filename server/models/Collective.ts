@@ -901,7 +901,7 @@ class Collective extends Model<
 
   // run when attaching a Stripe Account to this user/organization collective
   // this Payment Method will be used for "Add Funds"
-  becomeHost = async function () {
+  becomeHost = async function (remoteUser) {
     if (!['USER', 'ORGANIZATION', 'COLLECTIVE'].includes(this.type)) {
       throw new Error('This account type cannot become a host');
     } else if (this.HostCollectiveId && this.HostCollectiveId !== this.id) {
@@ -933,6 +933,7 @@ class Collective extends Model<
         type: activities.ACTIVATED_COLLECTIVE_AS_HOST,
         CollectiveId: this.id,
         FromCollectiveId: this.id,
+        UserId: remoteUser.id,
         data: { collective: this.info },
       });
     } else if (this.type === CollectiveType.COLLECTIVE) {
@@ -940,6 +941,7 @@ class Collective extends Model<
         type: activities.ACTIVATED_COLLECTIVE_AS_INDEPENDENT,
         CollectiveId: this.id,
         FromCollectiveId: this.id,
+        UserId: remoteUser.id,
         data: { collective: this.info },
       });
     }
@@ -2415,7 +2417,7 @@ class Collective extends Model<
         throw new Error('Host not found');
       } else if (!newHostCollective.isHostAccount) {
         if (remoteUser.isAdminOfCollective(newHostCollective)) {
-          await newHostCollective.becomeHost();
+          await newHostCollective.becomeHost(remoteUser);
         } else {
           throw new Error(`You need to be an admin of ${newHostCollective.name} to turn it into a host`);
         }
