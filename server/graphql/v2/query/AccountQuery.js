@@ -1,4 +1,4 @@
-import { GraphQLBoolean, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLString } from 'graphql';
 
 import { getGithubHandleFromUrl, getGithubUrlFromHandle } from '../../../lib/github';
 import models from '../../../models';
@@ -12,6 +12,10 @@ export const buildAccountQuery = ({ objectType }) => ({
     id: {
       type: GraphQLString,
       description: `The public id identifying the ${objectType.name} (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)`,
+    },
+    legacyId: {
+      type: GraphQLInt,
+      description: `The legacy id identifying the ${objectType.name} (ie: 580 for https://opencollective.com/babel)`,
     },
     slug: {
       type: GraphQLString,
@@ -35,6 +39,8 @@ export const buildAccountQuery = ({ objectType }) => ({
     } else if (args.id) {
       const id = idDecode(args.id, 'account');
       collective = await req.loaders.Collective.byId.load(id);
+    } else if (args.legacyId) {
+      collective = await req.loaders.Collective.byId.load(args.legacyId);
     } else if (args.githubHandle) {
       // Try with githubHandle, be it organization/user or repository
       const repositoryUrl = getGithubUrlFromHandle(args.githubHandle);

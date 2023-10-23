@@ -3353,6 +3353,7 @@ enum PaymentMethodType {
   sepa_debit @deprecated(reason: "Please use uppercase values")
   bacs_debit @deprecated(reason: "Please use uppercase values")
   bancontact @deprecated(reason: "Please use uppercase values")
+  link @deprecated(reason: "Please use uppercase values")
   ALIPAY
   CREDITCARD
   PREPAID
@@ -3369,6 +3370,7 @@ enum PaymentMethodType {
   SEPA_DEBIT
   BACS_DEBIT
   BANCONTACT
+  LINK
 }
 
 input VirtualCardReferenceInput {
@@ -9956,6 +9958,11 @@ type Query {
     id: String
 
     """
+    The legacy id identifying the Account (ie: 580 for https://opencollective.com/babel)
+    """
+    legacyId: Int
+
+    """
     The slug identifying the Account (ie: babel for https://opencollective.com/babel)
     """
     slug: String
@@ -10115,6 +10122,11 @@ type Query {
     id: String
 
     """
+    The legacy id identifying the Collective (ie: 580 for https://opencollective.com/babel)
+    """
+    legacyId: Int
+
+    """
     The slug identifying the Collective (ie: babel for https://opencollective.com/babel)
     """
     slug: String
@@ -10140,6 +10152,11 @@ type Query {
     The public id identifying the Event (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
     """
     id: String
+
+    """
+    The legacy id identifying the Event (ie: 580 for https://opencollective.com/babel)
+    """
+    legacyId: Int
 
     """
     The slug identifying the Event (ie: babel for https://opencollective.com/babel)
@@ -10285,6 +10302,11 @@ type Query {
     id: String
 
     """
+    The legacy id identifying the Fund (ie: 580 for https://opencollective.com/babel)
+    """
+    legacyId: Int
+
+    """
     The slug identifying the Fund (ie: babel for https://opencollective.com/babel)
     """
     slug: String
@@ -10304,6 +10326,11 @@ type Query {
     The public id identifying the Host (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
     """
     id: String
+
+    """
+    The legacy id identifying the Host (ie: 580 for https://opencollective.com/babel)
+    """
+    legacyId: Int
 
     """
     The slug identifying the Host (ie: babel for https://opencollective.com/babel)
@@ -10377,6 +10404,11 @@ type Query {
     The public id identifying the Individual (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
     """
     id: String
+
+    """
+    The legacy id identifying the Individual (ie: 580 for https://opencollective.com/babel)
+    """
+    legacyId: Int
 
     """
     The slug identifying the Individual (ie: babel for https://opencollective.com/babel)
@@ -10513,6 +10545,11 @@ type Query {
     id: String
 
     """
+    The legacy id identifying the Organization (ie: 580 for https://opencollective.com/babel)
+    """
+    legacyId: Int
+
+    """
     The slug identifying the Organization (ie: babel for https://opencollective.com/babel)
     """
     slug: String
@@ -10532,6 +10569,11 @@ type Query {
     The public id identifying the Project (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
     """
     id: String
+
+    """
+    The legacy id identifying the Project (ie: 580 for https://opencollective.com/babel)
+    """
+    legacyId: Int
 
     """
     The slug identifying the Project (ie: babel for https://opencollective.com/babel)
