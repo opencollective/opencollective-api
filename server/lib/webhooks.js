@@ -1,6 +1,7 @@
 import { pick } from 'lodash';
 
 import { activities } from '../constants';
+import { idEncode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
 
 import { formatCurrency } from './utils';
 
@@ -13,20 +14,23 @@ const getCollectiveInfo = collective => {
   } else if (collective.isIncognito) {
     return pick(collective, ['type', 'name', 'image', 'previewImage']);
   } else {
-    return pick(collective, [
-      'id',
-      'type',
-      'slug',
-      'name',
-      'company',
-      'website',
-      'twitterHandle',
-      'githubHandle',
-      'repositoryUrl',
-      'description',
-      'previewImage',
-      'image',
-    ]);
+    return {
+      idV2: idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT),
+      ...pick(collective, [
+        'id',
+        'type',
+        'slug',
+        'name',
+        'company',
+        'website',
+        'twitterHandle',
+        'githubHandle',
+        'repositoryUrl',
+        'description',
+        'previewImage',
+        'image',
+      ]),
+    };
   }
 };
 
@@ -34,7 +38,10 @@ const getTierInfo = tier => {
   if (!tier) {
     return null;
   } else {
-    return pick(tier, ['id', 'name', 'amount', 'currency', 'description', 'maxQuantity']);
+    return {
+      idV2: idEncode(tier.id, IDENTIFIER_TYPES.TIER),
+      ...pick(tier, ['id', 'name', 'amount', 'currency', 'description', 'maxQuantity']),
+    };
   }
 };
 
@@ -42,18 +49,43 @@ const getOrderInfo = order => {
   if (!order) {
     return null;
   } else {
-    return pick(order, [
-      'id',
-      'totalAmount',
-      'currency',
-      'description',
-      'tags',
-      'interval',
-      'createdAt',
-      'quantity',
-      'FromCollectiveId',
-      'TierId',
-    ]);
+    return {
+      idV2: idEncode(order.id, IDENTIFIER_TYPES.ORDER),
+      ...pick(order, [
+        'id',
+        'totalAmount',
+        'currency',
+        'description',
+        'tags',
+        'interval',
+        'createdAt',
+        'quantity',
+        'FromCollectiveId',
+        'TierId',
+      ]),
+    };
+  }
+};
+
+const getExpenseInfo = expense => {
+  if (!expense) {
+    return null;
+  } else {
+    return {
+      idV2: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+      ...pick(expense, ['id', 'description', 'amount', 'currency']),
+    };
+  }
+};
+
+const getUpdateInfo = update => {
+  if (!update) {
+    return null;
+  } else {
+    return {
+      idV2: idEncode(update.id, IDENTIFIER_TYPES.UPDATE),
+      ...pick(update, ['html', 'title', 'slug', 'tags', 'isPrivate']),
+    };
   }
 };
 
@@ -84,28 +116,23 @@ export const sanitizeActivity = activity => {
   // Alway have an empty data object for activity
   cleanActivity.data = {};
 
+  if (!activity.data) {
+    return cleanActivity;
+  }
+
   // Filter data based on activity type
   if (type === activities.COLLECTIVE_TRANSACTION_CREATED) {
     cleanActivity.data = pick(activity.data, ['transaction']); // It's safe to pick the entire transaction as it's added there through `transaction.info`, which only contains public fields
     cleanActivity.data.fromCollective = getCollectiveInfo(activity.data.fromCollective);
     cleanActivity.data.collective = getCollectiveInfo(activity.data.collective);
   } else if (type === activities.COLLECTIVE_UPDATE_PUBLISHED) {
-    cleanActivity.data = pick(activity.data, [
-      'update.html',
-      'update.title',
-      'update.slug',
-      'update.tags',
-      'update.isPrivate',
-    ]);
+    cleanActivity.data = { update: getUpdateInfo(activity.data.update) };
   } else if (expenseActivities.includes(type)) {
-    cleanActivity.data = pick(activity.data, [
-      'expense.id',
-      'expense.description',
-      'expense.amount',
-      'expense.currency',
-    ]);
-    cleanActivity.data.fromCollective = getCollectiveInfo(activity.data.fromCollective);
-    cleanActivity.data.collective = getCollectiveInfo(activity.data.collective);
+    cleanActivity.data = {
+      expense: getExpenseInfo(activity.data.expense),
+      fromCollective: getCollectiveInfo(activity.data.fromCollective),
+      collective: getCollectiveInfo(activity.data.collective),
+    };
   } else if (type === activities.COLLECTIVE_MEMBER_CREATED) {
     cleanActivity.data = pick(activity.data, ['member.role', 'member.description', 'member.since']);
     cleanActivity.data.order = getOrderInfo(activity.data.order);
