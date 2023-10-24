@@ -1081,7 +1081,7 @@ const checkExpenseType = (
   }
 };
 
-const getPayoutMethodFromExpenseData = async (expenseData, remoteUser, fromCollective, dbTransaction) => {
+export const getPayoutMethodFromExpenseData = async (expenseData, remoteUser, fromCollective, dbTransaction?) => {
   if (expenseData.payoutMethod) {
     if (expenseData.payoutMethod.id) {
       const pm = await models.PayoutMethod.findByPk(expenseData.payoutMethod.id);
@@ -1283,6 +1283,13 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
     throw new ValidationFailed('You must be an admin of the account to submit an expense in its name');
   } else if (!fromCollective.canBeUsedAsPayoutProfile()) {
     throw new ValidationFailed('This account cannot be used for payouts');
+  }
+  // If payee is a vendor, make sure it belongs to the same Fiscal Host as the collective
+  if (fromCollective.type === CollectiveType.VENDOR) {
+    assert(
+      fromCollective.ParentCollectiveId === collective.HostCollectiveId,
+      new ValidationFailed('Vendor must belong to the same Fiscal Host as the Collective'),
+    );
   }
 
   // Update payee's location
@@ -1680,6 +1687,13 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
       throw new ValidationFailed('You must be an admin of the account to submit an expense in its name');
     } else if (!fromCollective.canBeUsedAsPayoutProfile()) {
       throw new ValidationFailed('This account cannot be used for payouts');
+    }
+    // If payee is a vendor, make sure it belongs to the same Fiscal Host as the collective
+    if (fromCollective.type === CollectiveType.VENDOR) {
+      assert(
+        fromCollective.ParentCollectiveId === collective.HostCollectiveId,
+        new ValidationFailed('Vendor must belong to the same Fiscal Host as the Collective'),
+      );
     }
   }
 
