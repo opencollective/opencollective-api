@@ -107,7 +107,7 @@ import { HostApplicationStatus } from './HostApplication';
 import { LegalDocumentModelInterface } from './LegalDocument';
 import Location from './Location';
 import Order from './Order';
-import { PayoutMethodTypes } from './PayoutMethod';
+import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
 import SocialLink, { SocialLinkType } from './SocialLink';
 
 const debug = debugLib('models:Collective');
@@ -271,6 +271,7 @@ class Collective extends Model<
   public declare getAccountingCategories: HasManyGetAssociationsMixin<typeof models.AccountingCategory>;
 
   public declare getConnectedAccounts: HasManyGetAssociationsMixin<ConnectedAccount>;
+  public declare getPayoutMethods: HasManyGetAssociationsMixin<PayoutMethod>;
 
   public declare getLocation: HasOneGetAssociationMixin<Location>;
   public declare location?: LocationType;
