@@ -2,11 +2,12 @@ import assert from 'assert';
 
 import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
 import slugify from 'limax';
-import { cloneDeep, pick } from 'lodash';
+import { cloneDeep, isEmpty, pick } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
+import { setTaxForm } from '../../../lib/tax-forms';
 import models, { Activity } from '../../../models';
 import { checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { BadRequest, NotFound, Unauthorized, ValidationFailed } from '../../errors';
@@ -55,7 +56,7 @@ const vendorMutations = {
         },
       };
 
-      if (vendorInfo.taxType) {
+      if (['EIN', 'VAT', 'GST'].includes(vendorInfo.taxType)) {
         assert(vendorInfo.taxId, new BadRequest('taxId is required when taxType is provided'));
         // Store Tax id in settings, to be consistent with other types of collectives
         vendorData.settings[vendorInfo.taxType] = { number: vendorInfo.taxId, type: 'OWN' };
@@ -63,8 +64,21 @@ const vendorMutations = {
 
       const vendor = await models.Collective.create(vendorData);
 
-      if (args.vendor.address) {
-        await vendor.setLocation({ address: args.vendor.address });
+      if (args.vendor.location) {
+        await vendor.setLocation(args.vendor.location);
+      }
+
+      if (args.vendor.vendorInfo?.taxFormUrl) {
+        await setTaxForm(vendor, args.vendor.vendorInfo.taxFormUrl, new Date().getFullYear());
+      }
+
+      if (args.vendor.payoutMethod) {
+        await models.PayoutMethod.create({
+          ...pick(args.vendor.payoutMethod, ['name', 'data', 'type']),
+          CollectiveId: vendor.id,
+          CreatedByUserId: req.remoteUser.id,
+          isSaved: true,
+        });
       }
 
       await Activity.create({
@@ -87,6 +101,10 @@ const vendorMutations = {
         description: 'Reference to the host that holds the vendor',
         type: new GraphQLNonNull(GraphQLVendorEditInput),
       },
+      archive: {
+        type: GraphQLBoolean,
+        description: 'Whether to archive (true) or unarchive (unarchive) the vendor',
+      },
     },
     resolve: async (_, args, req) => {
       checkRemoteUserCanUseHost(req);
@@ -104,6 +122,7 @@ const vendorMutations = {
       const vendorData = {
         image: args.vendor.imageUrl || null,
         ...pick(args.vendor, ['name', 'legalName', 'tags']),
+        deactivatedAt: args.archive ? new Date() : null,
         settings: {
           ...vendor.settings,
           disablePublicExpenseSubmission: acceptsPublicExpenses === false,
@@ -120,7 +139,7 @@ const vendorMutations = {
         data: cloneDeep(vendor.data),
       };
 
-      if (vendorInfo.taxType) {
+      if (vendorInfo?.taxType) {
         assert(vendorInfo.taxId, new BadRequest('taxId is required when taxType is provided'));
         // Store Tax id in settings, to be consistent with other types of collectives
         vendorData.settings[vendorInfo.taxType] = {
@@ -130,10 +149,6 @@ const vendorMutations = {
       }
 
       await vendor.update(vendorData);
-
-      if (args.vendor.address) {
-        await vendor.setLocation({ address: args.vendor.address });
-      }
 
       const newData = cloneDeep(vendorData);
       await Activity.create({
@@ -146,6 +161,28 @@ const vendorMutations = {
           vendor: vendor.info,
         },
       });
+
+      if (args.vendor.location) {
+        await vendor.setLocation(args.vendor.location);
+      }
+
+      if (args.vendor.vendorInfo?.taxFormUrl) {
+        await setTaxForm(vendor, args.vendor.vendorInfo.taxFormUrl, new Date().getFullYear());
+      }
+
+      if (args.vendor.payoutMethod && !args.vendor.payoutMethod?.id) {
+        const existingPayoutMethods = await vendor.getPayoutMethods();
+        if (!isEmpty(existingPayoutMethods)) {
+          existingPayoutMethods.map(pm => pm.update({ isSaved: false }));
+        }
+
+        await models.PayoutMethod.create({
+          ...pick(args.vendor.payoutMethod, ['name', 'data', 'type']),
+          CollectiveId: vendor.id,
+          CreatedByUserId: req.remoteUser.id,
+          isSaved: true,
+        });
+      }
 
       return vendor;
     },

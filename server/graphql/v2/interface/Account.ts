@@ -1,7 +1,7 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { assign, get, invert, isEmpty, isNull, merge, omitBy } from 'lodash';
-import { Order } from 'sequelize';
+import Sequelize, { Order } from 'sequelize';
 
 import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
@@ -55,6 +55,7 @@ import { GraphQLPolicies } from '../object/Policies';
 import { GraphQLSocialLink } from '../object/SocialLink';
 import { GraphQLTagStats } from '../object/TagStats';
 import { GraphQLTransferWise } from '../object/TransferWise';
+import { GraphQLVendor } from '../object/Vendor';
 import { OrdersCollectionArgs, OrdersCollectionResolver } from '../query/collection/OrdersCollectionQuery';
 import {
   TransactionsCollectionArgs,
@@ -717,6 +718,24 @@ const accountFieldsDefinition = () => ({
       }
     },
   },
+  vendors: {
+    type: new GraphQLList(GraphQLVendor),
+    description: 'Get the list of vendors for this account',
+    args: {
+      forAccount: {
+        type: GraphQLAccountReferenceInput,
+        description: 'Rank vendors based on their relationship with this account',
+      },
+      isArchived: {
+        type: GraphQLBoolean,
+        description: 'Filter on archived vendors',
+      },
+      searchTerm: {
+        type: GraphQLString,
+        description: 'Search vendors related to this term based on name, description, tags, slug, and location',
+      },
+    },
+  },
 });
 
 export const GraphQLAccount = new GraphQLInterfaceType({
@@ -1031,6 +1050,67 @@ export const AccountFields = {
     type: new GraphQLNonNull(GraphQLAccountPermissions),
     description: 'Logged-in user permissions on an account',
     resolve: collective => collective, // Individual resolvers in `AccountPermissions`
+  },
+  vendors: {
+    type: new GraphQLList(GraphQLVendor),
+    description: 'Returns a list of vendors that works with this host',
+    args: {
+      forAccount: {
+        type: GraphQLAccountReferenceInput,
+        description: 'Rank vendors based on their relationship with this account',
+      },
+      isArchived: {
+        type: GraphQLBoolean,
+        description: 'Filter on archived vendors',
+      },
+      searchTerm: {
+        type: GraphQLString,
+        description: 'Search vendors related to this term based on name, description, tags, slug, and location',
+      },
+    },
+    async resolve(account, args, req) {
+      const where = {
+        ParentCollectiveId: account.id,
+        type: CollectiveType.VENDOR,
+        deactivatedAt: { [args.isArchived ? Op.not : Op.is]: null },
+      };
+
+      if (!req.remoteUser?.isAdmin(account.id)) {
+        where['settings'] = { disablePublicExpenseSubmission: { [Op.or]: [{ [Op.is]: null }, 'false'] } };
+      }
+
+      const searchTermConditions =
+        args?.searchTerm &&
+        buildSearchConditions(args.searchTerm, {
+          idFields: ['id'],
+          slugFields: ['slug'],
+          textFields: ['name', 'description', 'longDescription'],
+          stringArrayFields: ['tags'],
+          stringArrayTransformFn: str => str.toLowerCase(), // collective tags are stored lowercase
+        });
+      if (searchTermConditions?.length) {
+        where[Op.or] = searchTermConditions;
+      }
+
+      const findArgs = { where };
+      if (args?.forAccount) {
+        const account = await fetchAccountWithReference(args.forAccount);
+        findArgs['attributes'] = {
+          include: [
+            [
+              Sequelize.literal(`(
+            SELECT COUNT(*) FROM "Expenses" WHERE "deletedAt" IS NULL AND "status" = 'PAID' AND "CollectiveId" = ${account.id} AND "FromCollectiveId" = "Collective"."id"
+          )`),
+              'expenseCount',
+            ],
+          ],
+        };
+        findArgs['order'] = [[Sequelize.literal('"expenseCount"'), 'DESC']];
+      }
+
+      const vendors = await models.Collective.findAll(findArgs);
+      return vendors;
+    },
   },
 };
 
