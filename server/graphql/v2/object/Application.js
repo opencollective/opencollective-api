@@ -1,4 +1,4 @@
-import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import models from '../../../models';
 import { checkScope } from '../../common/scope-check';
@@ -102,6 +102,10 @@ export const GraphQLApplication = new GraphQLObjectType({
           };
         }
       },
+    },
+    preAuthorize2FA: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether this application is allowed to directly use operations that would normally require 2FA',
     },
   }),
 });

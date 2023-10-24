@@ -18,7 +18,7 @@ import { GraphQLPersonalTokenUpdateInput } from '../input/PersonalTokenUpdateInp
 import { GraphQLPersonalToken } from '../object/PersonalToken';
 
 const createPersonalToken = {
-  type: GraphQLPersonalToken,
+  type: new GraphQLNonNull(GraphQLPersonalToken),
   args: {
     personalToken: {
       type: new GraphQLNonNull(GraphQLPersonalTokenCreateInput),
@@ -46,7 +46,7 @@ const createPersonalToken = {
     }
 
     const createParams = {
-      ...pick(args.personalToken, ['name', 'scope', 'expiresAt']),
+      ...pick(args.personalToken, ['name', 'scope', 'expiresAt', 'preAuthorize2FA']),
       CollectiveId: collective.id,
       UserId: req.remoteUser.id,
       token: models.PersonalToken.generateToken(),
@@ -57,7 +57,7 @@ const createPersonalToken = {
 };
 
 const updatePersonalToken = {
-  type: GraphQLPersonalToken,
+  type: new GraphQLNonNull(GraphQLPersonalToken),
   args: {
     personalToken: {
       type: new GraphQLNonNull(GraphQLPersonalTokenUpdateInput),
@@ -76,7 +76,7 @@ const updatePersonalToken = {
       throw new Forbidden('Authenticated user is not the token owner.');
     }
 
-    const updateParams = pick(args.personalToken, ['name', 'scope', 'expiresAt']);
+    const updateParams = pick(args.personalToken, ['name', 'scope', 'expiresAt', 'preAuthorize2FA']);
     return personalToken.update(updateParams);
   },
 };

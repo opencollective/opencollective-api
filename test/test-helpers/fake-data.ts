@@ -32,6 +32,7 @@ import models, {
   Location,
   Notification,
   PaypalProduct,
+  PersonalToken,
   sequelize,
   Subscription,
   Tier,
@@ -55,7 +56,7 @@ import { AssetType } from '../../server/models/SuspendedAsset';
 import { TransactionCreationAttributes, TransactionInterface } from '../../server/models/Transaction';
 import { SUPPORTED_FILE_EXTENSIONS, SUPPORTED_FILE_TYPES } from '../../server/models/UploadedFile';
 import User from '../../server/models/User';
-import { TokenType } from '../../server/models/UserToken';
+import UserToken, { TokenType } from '../../server/models/UserToken';
 import UserTwoFactorMethod from '../../server/models/UserTwoFactorMethod';
 import { VirtualCardStatus } from '../../server/models/VirtualCard';
 import { randEmail, randUrl } from '../stores';
@@ -985,32 +986,38 @@ export const fakeApplication = async (data: Record<string, unknown> = {}): Promi
   return application.reload({ include: [{ association: 'createdByUser' }, { association: 'collective' }] });
 };
 
-export const fakePersonalToken = async (data: Record<string, unknown> = {}) => {
-  let CollectiveId;
-  let CreatedByUserId;
-  if (data.user) {
-    const user = data.user as User;
-    CollectiveId = user.CollectiveId;
-    CreatedByUserId = user.id;
-  } else {
-    const user = data.CreatedByUserId ? await models.User.findByPk(<number>data.CreatedByUserId) : await fakeUser();
-    CreatedByUserId = user.id;
-    CollectiveId = data.CollectiveId || user.CollectiveId;
+export const fakePersonalToken = async ({
+  user,
+  ...data
+}: Partial<InferCreationAttributes<PersonalToken>> & {
+  user?: User;
+} = {}) => {
+  if (!user) {
+    user = data.UserId ? await models.User.findByPk(data.UserId) : await fakeUser();
   }
 
   const personalToken = await models.PersonalToken.create({
     name: randStr('Name '),
     token: randStr('Token-'),
     scope: [OAuthScopes.account, OAuthScopes.transactions],
-    CollectiveId,
-    UserId: CreatedByUserId,
+    ...data,
+    CollectiveId: data.CollectiveId || user.CollectiveId,
+    UserId: user.id,
   });
 
   return personalToken.reload({ include: [{ association: 'user' }, { association: 'collective' }] });
 };
 
-export const fakeUserToken = async (data: Record<string, unknown> = {}) => {
-  const user = <User>data.user || (data.UserId ? await models.User.findByPk(<number>data.UserId) : await fakeUser());
+export const fakeUserToken = async ({
+  user,
+  ...data
+}: Partial<InferCreationAttributes<UserToken>> & {
+  user?: User;
+} = {}) => {
+  if (!user) {
+    user = data.UserId ? await models.User.findByPk(data.UserId) : await fakeUser();
+  }
+
   const userToken = await models.UserToken.create({
     type: TokenType.OAUTH,
     accessToken: randStr('Token-'),

@@ -1,4 +1,4 @@
-import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
 import models from '../../../models';
@@ -59,6 +59,10 @@ export const GraphQLOAuthAuthorization = new GraphQLObjectType({
     scope: {
       type: new GraphQLList(GraphQLOAuthScope),
       description: 'The attached scopes.',
+    },
+    preAuthorize2FA: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether this OAuth token is allowed to directly use operations that would normally require 2FA',
     },
   }),
 });

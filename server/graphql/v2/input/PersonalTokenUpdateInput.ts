@@ -1,4 +1,4 @@
-import { GraphQLInputObjectType, GraphQLList, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLInputObjectType, GraphQLList, GraphQLString } from 'graphql';
 
 import { GraphQLOAuthScope } from '../enum/OAuthScope';
 
@@ -12,5 +12,9 @@ export const GraphQLPersonalTokenUpdateInput = new GraphQLInputObjectType({
     name: { type: GraphQLString },
     scope: { type: new GraphQLList(GraphQLOAuthScope) },
     expiresAt: { type: GraphQLString },
+    preAuthorize2FA: {
+      type: GraphQLBoolean,
+      description: 'Whether this token is allowed to directly use operations that would normally require 2FA',
+    },
   }),
 });
