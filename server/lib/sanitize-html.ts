@@ -59,6 +59,7 @@ export const buildSanitizerOptions = (allowedContent: AllowedContentType = {}): 
         attribs: {
           ...attribs,
           href: formatLinkHref(attribs.href),
+          rel: 'noopener noreferrer nofollow',
         },
       };
     },
