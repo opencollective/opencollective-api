@@ -1200,7 +1200,10 @@ const checkTaxes = (account, host, expenseType: string, taxes): void => {
 /**
  * Throws if the accounting category is not allowed for this expense/host
  */
-const checkCanUseAccountingCategory = (accountingCategory: AccountingCategory, host: Collective): void => {
+const checkCanUseAccountingCategory = (
+  accountingCategory: AccountingCategory | undefined | null,
+  host: Collective | undefined,
+): void => {
   if (!accountingCategory) {
     return;
   } else if (accountingCategory.CollectiveId !== host?.id) {
@@ -1522,10 +1525,10 @@ export const DRAFT_EXPENSE_FIELDS = [
 const isValueChanging = (expense: Expense, expenseData: ExpenseData, key: string): boolean => {
   const nullableFields = ['accountingCategory'];
   const value = expenseData[key];
-  if (!nullableFields.includes(key)) {
-    return !isNil(value) && !isEqual(value, expense[key]);
-  } else {
+  if (nullableFields.includes(key)) {
     return !isUndefined(value) && !isEqual(value, expense[key]);
+  } else {
+    return !isNil(value) && !isEqual(value, expense[key]);
   }
 };
 
