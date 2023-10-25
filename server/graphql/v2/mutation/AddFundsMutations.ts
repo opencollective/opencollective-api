@@ -2,6 +2,7 @@ import express from 'express';
 import { GraphQLFloat, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
+import { CollectiveType } from '../../../constants/collectives';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { Collective } from '../../../models';
 import { addFunds } from '../../common/orders';
@@ -96,7 +97,7 @@ export const addFundsMutation = {
       (account.ParentCollectiveId && account.ParentCollectiveId === fromAccount.id) ||
       (fromAccount.ParentCollectiveId && account.id === fromAccount.ParentCollectiveId);
     if (!isInternal) {
-      const fromAccountAllowedTypes = ['USER', 'ORGANIZATION'];
+      const fromAccountAllowedTypes = ['USER', 'ORGANIZATION', 'VENDOR'];
       if (!fromAccountAllowedTypes.includes(fromAccount.type)) {
         throw new ValidationFailed(
           `Adding funds is only possible from the following types: ${fromAccountAllowedTypes.join(',')}`,
@@ -116,6 +117,9 @@ export const addFundsMutation = {
     }
     if (!req.remoteUser.isAdmin(host.id) && !req.remoteUser.isRoot()) {
       throw new Error('Only an site admin or collective host admin can add fund');
+    }
+    if (fromAccount.type === CollectiveType.VENDOR && fromAccount.ParentCollectiveId !== host.id) {
+      throw new Error('You can only add funds from a vendor account that belongs to the same host');
     }
 
     // Enforce 2FA
