@@ -6,6 +6,7 @@ import express from 'express';
 import {
   cloneDeep,
   find,
+  first,
   flatten,
   get,
   isBoolean,
@@ -1313,7 +1314,10 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
   }
 
   // Get or create payout method
-  const payoutMethod = await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, null);
+  const payoutMethod =
+    fromCollective.type === CollectiveType.VENDOR
+      ? await fromCollective.getPayoutMethods().then(first)
+      : await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, null);
 
   // Create and validate TransferWise recipient
   let recipient;
@@ -1748,7 +1752,10 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
       (!expenseData.payoutMethod?.id || // This represents a new payout method without an id
         expenseData.payoutMethod?.id !== expense.PayoutMethodId)
     ) {
-      payoutMethod = await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, transaction);
+      payoutMethod =
+        fromCollective.type === CollectiveType.VENDOR
+          ? await fromCollective.getPayoutMethods().then(first)
+          : await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, null);
 
       // Reset fees payer when changing the payout method and the new one doesn't support it
       if (feesPayer === ExpenseFeesPayer.PAYEE && !models.PayoutMethod.typeSupportsFeesPayer(payoutMethod?.type)) {
