@@ -2288,7 +2288,7 @@ type Host implements Account & AccountWithContributions {
     Search vendors related to this term based on name, description, tags, slug, and location
     """
     searchTerm: String
-  ): VendorCollection
+  ): VendorCollection!
 }
 
 """
@@ -4466,6 +4466,7 @@ type Policies {
   COLLECTIVE_MINIMUM_ADMINS: COLLECTIVE_MINIMUM_ADMINS
   MAXIMUM_VIRTUAL_CARD_LIMIT_AMOUNT_FOR_INTERVAL: MAXIMUM_VIRTUAL_CARD_LIMIT_AMOUNT_FOR_INTERVAL
   EXPENSE_CATEGORIZATION: EXPENSE_CATEGORIZATION
+  EXPENSE_PUBLIC_VENDORS: Boolean
 }
 
 type EXPENSE_AUTHOR_CANNOT_APPROVE {
@@ -4721,6 +4722,9 @@ enum ActivityType {
   ORDER_PROCESSING
   ORDER_PAYMENT_FAILED
   ORDER_THANKYOU
+  VENDOR_CREATED
+  VENDOR_EDITED
+  VENDOR_DELETED
   ORDER_PENDING_CREATED
   ORDER_PENDING_FOLLOWUP
   ORDER_PENDING_RECEIVED
@@ -9899,6 +9903,32 @@ type Vendor implements Account & AccountWithContributions {
   """
   platformContributionAvailable: Boolean!
   contributionPolicy: String
+  vendorInfo: VendorInfo
+
+  """
+  The account who created this order
+  """
+  createdByAccount: Account
+}
+
+"""
+Some context about the vendor
+"""
+type VendorInfo {
+  contact: VendorContact
+  taxFormUrl: String
+  taxFormRequired: Boolean
+  taxType: String
+  taxId: String
+  notes: String
+}
+
+"""
+Some context about the vendor contact person
+"""
+type VendorContact {
+  name: String
+  email: String
 }
 
 """
@@ -10057,6 +10087,11 @@ type Query {
     The order of results. Defaults to [RANK, DESC] (or [CREATED_AT, DESC] if `supportedPaymentMethodService` is provided)
     """
     orderBy: OrderByInput
+
+    """
+    Include vendors for this host
+    """
+    includeVendorsForHost: AccountReferenceInput
   ): AccountCollection!
   activities(
     """
@@ -12159,6 +12194,9 @@ enum ActivityAndClassesType {
   ORDER_PROCESSING
   ORDER_PAYMENT_FAILED
   ORDER_THANKYOU
+  VENDOR_CREATED
+  VENDOR_EDITED
+  VENDOR_DELETED
   ORDER_PENDING_CREATED
   ORDER_PENDING_FOLLOWUP
   ORDER_PENDING_RECEIVED
@@ -15139,6 +15177,11 @@ type Mutation {
     Reference to the host that holds the vendor
     """
     vendor: VendorEditInput!
+
+    """
+    Whether to archive (true) or unarchive (unarchive) the vendor
+    """
+    archive: Boolean
   ): Vendor!
 
   """
@@ -15200,11 +15243,6 @@ enum TaxType {
   New Zealand Good and Services Tax
   """
   GST
-
-  """
-  Employer Identification Number
-  """
-  EIN
 }
 
 input CollectiveCreateInput {
@@ -15369,6 +15407,7 @@ input PoliciesInput {
   COLLECTIVE_ADMINS_CAN_REFUND: Boolean
   COLLECTIVE_MINIMUM_ADMINS: PoliciesCollectiveMinimumAdminsInput
   EXPENSE_CATEGORIZATION: PoliciesExpenseCategorizationInput
+  EXPENSE_PUBLIC_VENDORS: Boolean
 }
 
 input PoliciesCollectiveExpenseAuthorCannotApprove {
@@ -17019,9 +17058,10 @@ input VendorCreateInput {
   name: NonEmptyString!
   legalName: String
   tags: [NonEmptyString]
-  address: String
+  location: LocationInput
   imageUrl: String
   vendorInfo: VendorInfoInput
+  payoutMethod: PayoutMethodInput
 }
 
 """
@@ -17029,8 +17069,9 @@ Some context about the vendor
 """
 input VendorInfoInput {
   contact: VendorContactInput
+  taxFormRequired: Boolean
   taxFormUrl: String
-  taxType: TaxType
+  taxType: String
   taxId: String
   notes: String
 }
@@ -17058,10 +17099,11 @@ input VendorEditInput {
   The slug identifying the account (ie: babel for https://opencollective.com/babel)
   """
   slug: String
-  name: String
+  name: NonEmptyString
   legalName: String
-  tags: String
-  address: String
+  tags: [NonEmptyString]
+  location: LocationInput
   imageUrl: String
   vendorInfo: VendorInfoInput
+  payoutMethod: PayoutMethodInput
 }
