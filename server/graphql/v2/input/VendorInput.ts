@@ -23,6 +23,7 @@ const GraphQLVendorInfoInput = new GraphQLInputObjectType({
   description: 'Some context about the vendor',
   fields: () => ({
     contact: { type: GraphQLVendorContactInput },
+    taxFormRequired: { type: GraphQLBoolean },
     taxFormUrl: { type: GraphQLString },
     taxType: { type: GraphQLString },
     taxId: { type: GraphQLString },
@@ -36,7 +37,6 @@ const VendorInputFields = {
   tags: { type: new GraphQLList(GraphQLNonEmptyString) },
   location: { type: GraphQLLocationInput },
   imageUrl: { type: GraphQLString },
-  acceptsPublicExpenses: { type: GraphQLBoolean },
   vendorInfo: { type: GraphQLVendorInfoInput },
   payoutMethod: { type: GraphQLPayoutMethodInput },
 };

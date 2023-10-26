@@ -24,6 +24,7 @@ const GraphQLVendorInfo = new GraphQLObjectType({
   fields: () => ({
     contact: { type: GraphQLVendorContact },
     taxFormUrl: { type: GraphQLString },
+    taxFormRequired: { type: GraphQLBoolean },
     taxType: { type: GraphQLString },
     taxId: { type: GraphQLString },
     notes: { type: GraphQLString },
