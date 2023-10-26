@@ -2,11 +2,12 @@ import assert from 'assert';
 
 import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
 import slugify from 'limax';
-import { cloneDeep, isEmpty, pick } from 'lodash';
+import { isEmpty, pick } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
+import { getDiffBetweenInstances } from '../../../lib/data';
 import { setTaxForm } from '../../../lib/tax-forms';
 import models, { Activity } from '../../../models';
 import { checkRemoteUserCanUseHost } from '../../common/scope-check';
@@ -39,7 +40,7 @@ const vendorMutations = {
         throw new Unauthorized("You're not authorized to create a vendor for this host");
       }
 
-      const { vendorInfo, acceptsPublicExpenses } = args.vendor;
+      const { vendorInfo } = args.vendor;
       const vendorData = {
         type: CollectiveType.VENDOR,
         slug: `${host.id}-${slugify(args.vendor.name)}-${uuid().substr(0, 8)}`,
@@ -51,9 +52,7 @@ const vendorMutations = {
         data: {
           vendorInfo: pick(vendorInfo, VENDOR_INFO_FIELDS),
         },
-        settings: {
-          disablePublicExpenseSubmission: acceptsPublicExpenses === false,
-        },
+        settings: {},
       };
 
       if (['EIN', 'VAT', 'GST'].includes(vendorInfo.taxType)) {
@@ -86,7 +85,7 @@ const vendorMutations = {
         CollectiveId: host.id,
         UserId: req.remoteUser.id,
         data: {
-          vendor: vendor.info,
+          vendor: vendor.minimal,
         },
       });
 
@@ -118,25 +117,16 @@ const vendorMutations = {
         throw new Unauthorized("You're not authorized to edit a vendor for this host");
       }
 
-      const { vendorInfo, acceptsPublicExpenses } = args.vendor;
+      const { vendorInfo } = args.vendor;
       const vendorData = {
         image: args.vendor.imageUrl || null,
         ...pick(args.vendor, ['name', 'legalName', 'tags']),
         deactivatedAt: args.archive ? new Date() : null,
-        settings: {
-          ...vendor.settings,
-          disablePublicExpenseSubmission: acceptsPublicExpenses === false,
-        },
+        settings: vendor.settings,
         data: {
           ...vendor.data,
           vendorInfo: { ...vendor.data?.vendorInfo, ...pick(vendorInfo, VENDOR_INFO_FIELDS) },
         },
-      };
-
-      const previousData = {
-        ...vendor.info,
-        ...pick(vendor, ['name', 'legalName', 'tags']),
-        data: cloneDeep(vendor.data),
       };
 
       if (vendorInfo?.taxType) {
@@ -148,9 +138,9 @@ const vendorMutations = {
         };
       }
 
-      await vendor.update(vendorData);
+      const { newData, previousData } = getDiffBetweenInstances(vendorData, vendor);
 
-      const newData = cloneDeep(vendorData);
+      await vendor.update(vendorData);
       await Activity.create({
         type: ActivityTypes.VENDOR_EDITED,
         CollectiveId: host.id,
@@ -158,7 +148,7 @@ const vendorMutations = {
         data: {
           previousData,
           newData,
-          vendor: vendor.info,
+          vendor: vendor.minimal,
         },
       });
 
@@ -218,7 +208,7 @@ const vendorMutations = {
         CollectiveId: host.id,
         UserId: req.remoteUser.id,
         data: {
-          vendor: vendor.info,
+          vendor: vendor.minimal,
         },
       });
 
