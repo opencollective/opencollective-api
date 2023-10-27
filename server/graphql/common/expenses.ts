@@ -88,15 +88,13 @@ import { checkRemoteUserCanRoot } from './scope-check';
 const debug = debugLib('expenses');
 
 const isOwner = async (req: express.Request, expense: Expense): Promise<boolean> => {
+  expense.fromCollective = expense.fromCollective || (await req.loaders.Collective.byId.load(expense.FromCollectiveId));
   if (!req.remoteUser) {
     return false;
-  } else if (req.remoteUser.id === expense.UserId) {
+  } else if (req.remoteUser.id === expense.UserId && expense.fromCollective.type !== CollectiveType.VENDOR) {
     return true;
   } else if (!expense.fromCollective) {
-    expense.fromCollective = await req.loaders.Collective.byId.load(expense.FromCollectiveId);
-    if (!expense.fromCollective) {
-      return false;
-    }
+    return false;
   }
 
   return req.remoteUser.isAdminOfCollective(expense.fromCollective);
@@ -1280,17 +1278,22 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
 
   // Load the payee profile
   const fromCollective = expenseData.fromCollective || (await remoteUser.getCollective());
-  if (!remoteUser.isAdminOfCollective(fromCollective)) {
-    throw new ValidationFailed('You must be an admin of the account to submit an expense in its name');
-  } else if (!fromCollective.canBeUsedAsPayoutProfile()) {
-    throw new ValidationFailed('This account cannot be used for payouts');
-  }
-  // If payee is a vendor, make sure it belongs to the same Fiscal Host as the collective
+
   if (fromCollective.type === CollectiveType.VENDOR) {
+    const host = await collective.getHostCollective();
     assert(
       fromCollective.ParentCollectiveId === collective.HostCollectiveId,
       new ValidationFailed('Vendor must belong to the same Fiscal Host as the Collective'),
     );
+    const publicVendorPolicy = await getPolicy(host, POLICIES.EXPENSE_PUBLIC_VENDORS);
+    assert(
+      publicVendorPolicy || remoteUser.isAdminOfCollective(fromCollective),
+      new ValidationFailed('User cannot submit expenses on behalf of this vendor'),
+    );
+  } else if (!remoteUser.isAdminOfCollective(fromCollective)) {
+    throw new ValidationFailed('You must be an admin of the account to submit an expense in its name');
+  } else if (!fromCollective.canBeUsedAsPayoutProfile()) {
+    throw new ValidationFailed('This account cannot be used for payouts');
   }
 
   // Update payee's location

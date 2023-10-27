@@ -41,12 +41,6 @@ export const GraphQLVendor = new GraphQLObjectType({
       ...AccountFields,
       ...AccountWithHostFields,
       ...AccountWithContributionsFields,
-      acceptsPublicExpenses: {
-        type: GraphQLBoolean,
-        resolve(collective) {
-          return !collective.settings?.disablePublicExpenseSubmission;
-        },
-      },
       vendorInfo: {
         type: GraphQLVendorInfo,
         resolve(collective, _, req) {

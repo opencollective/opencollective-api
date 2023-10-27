@@ -5,6 +5,8 @@ import Sequelize, { Order } from 'sequelize';
 
 import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
+import POLICIES from '../../../constants/policies';
+import { getPolicy } from '../../../lib/policies';
 import { buildSearchConditions } from '../../../lib/search';
 import { getCollectiveFeed } from '../../../lib/timeline';
 import { canSeeLegalName } from '../../../lib/user-permissions';
@@ -1071,6 +1073,10 @@ export const AccountFields = {
         type: GraphQLString,
         description: 'Search vendors related to this term based on name, description, tags, slug, and location',
       },
+      limit: {
+        type: GraphQLInt,
+        description: 'Limit the number of vendors returned',
+      },
     },
     async resolve(account, args, req) {
       const where = {
@@ -1079,8 +1085,10 @@ export const AccountFields = {
         deactivatedAt: { [args.isArchived ? Op.not : Op.is]: null },
       };
 
-      if (!req.remoteUser?.isAdmin(account.id)) {
-        where['settings'] = { disablePublicExpenseSubmission: { [Op.or]: [{ [Op.is]: null }, 'false'] } };
+      const publicVendorPolicy = await getPolicy(account, POLICIES.EXPENSE_PUBLIC_VENDORS);
+      const isAdmin = req.remoteUser.isAdminOfCollective(account);
+      if (!publicVendorPolicy && !isAdmin) {
+        return [];
       }
 
       const searchTermConditions =
@@ -1096,7 +1104,7 @@ export const AccountFields = {
         where[Op.or] = searchTermConditions;
       }
 
-      const findArgs = { where };
+      const findArgs = { where, limit: args.limit };
       if (args?.forAccount) {
         const account = await fetchAccountWithReference(args.forAccount);
         findArgs['attributes'] = {
@@ -1113,7 +1121,12 @@ export const AccountFields = {
       }
 
       const vendors = await models.Collective.findAll(findArgs);
-      return vendors;
+
+      if (args?.forAccount && !isAdmin) {
+        return vendors.filter(v => v.dataValues['expenseCount'] > 0);
+      } else {
+        return vendors;
+      }
     },
   },
 };
