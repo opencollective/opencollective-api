@@ -27,6 +27,7 @@ const VirtualCardQuery = {
 
     const virtualCard = await VirtualCard.findByPk(args.virtualCard.id, {
       include: ['collective', 'host'],
+      paranoid: false,
     });
 
     if (!virtualCard && args.throwIfMissing) {
