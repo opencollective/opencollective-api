@@ -3,6 +3,7 @@ import { GraphQLIndividual } from '../object/Individual';
 import AccountsCollectionQuery from './collection/AccountsCollectionQuery';
 import ActivitiesCollectionQuery from './collection/ActivitiesCollectionQuery';
 import ExpensesCollectionQuery from './collection/ExpensesCollectionQuery';
+import ExpenseTagStatsCollectionQuery from './collection/ExpenseTagStatsCollectionQuery';
 import HostsCollectionQuery from './collection/HostsCollectionQuery';
 import getOrdersCollectionQuery from './collection/OrdersCollectionQuery';
 import TagStatsCollectionQuery from './collection/TagStatsCollectionQuery';
@@ -40,6 +41,7 @@ const query = {
   event: EventQuery,
   expense: ExpenseQuery,
   expenses: ExpensesCollectionQuery,
+  expenseTagStats: ExpenseTagStatsCollectionQuery,
   fund: FundQuery,
   host: HostQuery,
   hosts: HostsCollectionQuery,

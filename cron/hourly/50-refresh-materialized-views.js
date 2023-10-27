@@ -11,6 +11,8 @@ const VIEWS = [
   'TransactionBalances',
   'CollectiveBalanceCheckpoint',
   'CollectiveOrderStats',
+  'CollectiveTagStats',
+  'ExpenseTagStats',
 ];
 
 /**

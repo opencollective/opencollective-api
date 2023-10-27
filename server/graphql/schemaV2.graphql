@@ -10378,6 +10378,24 @@ type Query {
     """
     virtualCards: [VirtualCardReferenceInput]
   ): ExpenseCollection!
+  expenseTagStats(
+    """
+    Return tags which includes this search term.
+    """
+    tagSearchTerm: String
+
+    """
+    Return tags from expenses to accounts hosted by this account. Can not be used together with "account".
+    """
+    host: AccountReferenceInput
+
+    """
+    Return tags from expenses to this account. Can not be used together with "host".
+    """
+    account: AccountReferenceInput
+    limit: Int! = 10
+    offset: Int! = 0
+  ): TagStatsCollection!
   fund(
     """
     The public id identifying the Fund (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
@@ -12342,6 +12360,16 @@ enum ExpenseStatusFilter {
 }
 
 """
+A collection of "Tags"
+"""
+type TagStatsCollection implements Collection {
+  offset: Int
+  limit: Int
+  totalCount: Int
+  nodes: [TagStat]
+}
+
+"""
 This represents an Project account
 """
 type Fund implements Account & AccountWithHost & AccountWithContributions {
@@ -13612,16 +13640,6 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   The Account parenting this account
   """
   parent: Account
-}
-
-"""
-A collection of "Tags"
-"""
-type TagStatsCollection implements Collection {
-  offset: Int
-  limit: Int
-  totalCount: Int
-  nodes: [TagStat]
 }
 
 input TierReferenceInput {

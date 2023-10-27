@@ -38,7 +38,7 @@ module.exports = {
 
   async down(queryInterface) {
     await queryInterface.sequelize.query(`DROP INDEX CONCURRENTLY IF EXISTS collective_tag_stats__HostCollectiveId`);
-    // Remember to remove `cron/daily/91-refresh-collective-tag-stats-materialized-view.ts` if you get rid of this view
+    // Remember to remove from `cron/hourly/50-refresh-materialized-views.js` if you get rid of this view
     await queryInterface.sequelize.query(`DROP MATERIALIZED VIEW "CollectiveTagStats"`);
   },
 };
