@@ -10,7 +10,10 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
   const vendorData = {
     name: 'Zorg',
     legalName: 'Zorg Inc',
-    address: 'Zorg Planet, 123',
+    location: {
+      country: 'FR',
+      address: 'Zorg Planet, 123',
+    },
     imageUrl: 'https://zorg.com/logo.png',
     vendorInfo: {
       taxType: 'VAT',
@@ -150,7 +153,10 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
         legacyId: vendor.id,
         name: 'Zorg 2',
         legalName: 'Zorg 2 Inc',
-        address: 'Zorg Avenue, 1',
+        location: {
+          country: 'FR',
+          address: 'Zorg Avenue, 1',
+        },
         vendorInfo: {
           taxType: 'VAT',
           taxId: 'BE0411905847',
