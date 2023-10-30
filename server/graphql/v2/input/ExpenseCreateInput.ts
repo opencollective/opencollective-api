@@ -10,6 +10,7 @@ import { GraphQLJSON } from 'graphql-scalars';
 import { GraphQLCurrency } from '../enum';
 import { GraphQLExpenseType } from '../enum/ExpenseType';
 
+import { AccountingCategoryReferenceInput } from './AccountingCategoryInput';
 import { GraphQLAccountReferenceInput } from './AccountReferenceInput';
 import { GraphQLExpenseAttachedFileInput } from './ExpenseAttachedFileInput';
 import { GraphQLExpenseItemCreateInput } from './ExpenseItemCreateInput';
@@ -73,6 +74,10 @@ export const getExpenseCreateInputFields = (): GraphQLInputFieldConfigMap => ({
   customData: {
     type: GraphQLJSON,
     description: 'Custom data to be stored in the expense',
+  },
+  accountingCategory: {
+    type: AccountingCategoryReferenceInput,
+    description: 'The accounting category this expense belongs to',
   },
 });
 
