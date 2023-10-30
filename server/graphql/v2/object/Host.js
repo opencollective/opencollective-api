@@ -16,9 +16,11 @@ import { CollectiveType } from '../../../constants/collectives';
 import expenseType from '../../../constants/expense_type';
 import OrderStatuses from '../../../constants/order_status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
+import POLICIES from '../../../constants/policies';
 import { TransactionKind } from '../../../constants/transaction-kind';
 import { TransactionTypes } from '../../../constants/transactions';
 import { FEATURE, hasFeature } from '../../../lib/allowed-features';
+import { getPolicy } from '../../../lib/policies';
 import { buildSearchConditions } from '../../../lib/search';
 import sequelize from '../../../lib/sequelize';
 import { ifStr } from '../../../lib/utils';
@@ -61,6 +63,7 @@ import { GraphQLHostPlan } from './HostPlan';
 import { GraphQLPaymentMethod } from './PaymentMethod';
 import GraphQLPayoutMethod from './PayoutMethod';
 import { GraphQLStripeConnectedAccount } from './StripeConnectedAccount';
+import { GraphQLVendor } from './Vendor';
 
 const getFilterDateRange = (startDate, endDate) => {
   let dateRange;
@@ -1002,6 +1005,78 @@ export const GraphQLHost = new GraphQLObjectType({
           });
 
           return { totalCount: agreements.count, limit: args.limit, offset: args.offset, nodes: agreements.rows };
+        },
+      },
+      vendors: {
+        type: new GraphQLList(GraphQLVendor),
+        description: 'Returns a list of vendors that works with this host',
+        args: {
+          forAccount: {
+            type: GraphQLAccountReferenceInput,
+            description: 'Rank vendors based on their relationship with this account',
+          },
+          isArchived: {
+            type: GraphQLBoolean,
+            description: 'Filter on archived vendors',
+          },
+          searchTerm: {
+            type: GraphQLString,
+            description: 'Search vendors related to this term based on name, description, tags, slug, and location',
+          },
+          limit: {
+            type: GraphQLInt,
+            description: 'Limit the number of vendors returned',
+          },
+        },
+        async resolve(account, args, req) {
+          const where = {
+            ParentCollectiveId: account.id,
+            type: CollectiveType.VENDOR,
+            deactivatedAt: { [args.isArchived ? Op.not : Op.is]: null },
+          };
+
+          const publicVendorPolicy = await getPolicy(account, POLICIES.EXPENSE_PUBLIC_VENDORS);
+          const isAdmin = req.remoteUser.isAdminOfCollective(account);
+          if (!publicVendorPolicy && !isAdmin) {
+            return [];
+          }
+
+          const searchTermConditions =
+            args?.searchTerm &&
+            buildSearchConditions(args.searchTerm, {
+              idFields: ['id'],
+              slugFields: ['slug'],
+              textFields: ['name', 'description', 'longDescription'],
+              stringArrayFields: ['tags'],
+              stringArrayTransformFn: str => str.toLowerCase(), // collective tags are stored lowercase
+            });
+          if (searchTermConditions?.length) {
+            where[Op.or] = searchTermConditions;
+          }
+
+          const findArgs = { where, limit: args.limit };
+          if (args?.forAccount) {
+            const account = await fetchAccountWithReference(args.forAccount);
+            findArgs['attributes'] = {
+              include: [
+                [
+                  sequelize.literal(`(
+            SELECT COUNT(*) FROM "Expenses" WHERE "deletedAt" IS NULL AND "status" = 'PAID' AND "CollectiveId" = ${account.id} AND "FromCollectiveId" = "Collective"."id"
+          )`),
+                  'expenseCount',
+                ],
+              ],
+            };
+            findArgs['order'] = [[sequelize.literal('"expenseCount"'), 'DESC']];
+          }
+
+          const vendors = await models.Collective.findAll(findArgs);
+
+          if (args?.forAccount && !isAdmin) {
+            return vendors.filter(v => v.dataValues['expenseCount'] > 0);
+          } else {
+            return vendors;
+          }
         },
       },
     };
