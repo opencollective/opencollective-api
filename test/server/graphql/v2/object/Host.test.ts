@@ -439,10 +439,13 @@ describe('server/graphql/v2/object/Host', () => {
           id
           ... on Host {
             vendors(forAccount: $forAccount, searchTerm: $searchTerm) {
-              id
-              type
-              name
-              slug
+              totalCount
+              nodes {
+                id
+                type
+                name
+                slug
+              }
             }
           }
         }
@@ -470,17 +473,17 @@ describe('server/graphql/v2/object/Host', () => {
     it('should return all vendors if admin of Account', async () => {
       const result = await graphqlQueryV2(accountQuery, { slug: host.slug }, hostAdmin);
 
-      expect(result.data.account.vendors).to.containSubset([{ slug: vendor.slug }, { slug: knownVendor.slug }]);
+      expect(result.data.account.vendors.nodes).to.containSubset([{ slug: vendor.slug }, { slug: knownVendor.slug }]);
     });
 
     it('should publicly return vendors if host EXPENSE_PUBLIC_VENDORS policy is true', async () => {
       const user = await fakeUser();
       let result = await graphqlQueryV2(accountQuery, { slug: host.slug }, user);
-      expect(result.data.account.vendors).to.be.empty;
+      expect(result.data.account.vendors.nodes).to.be.empty;
 
       await host.update({ data: { policies: { EXPENSE_PUBLIC_VENDORS: true } } });
       result = await graphqlQueryV2(accountQuery, { slug: host.slug }, user);
-      expect(result.data.account.vendors).to.containSubset([{ slug: vendor.slug }, { slug: knownVendor.slug }]);
+      expect(result.data.account.vendors.nodes).to.containSubset([{ slug: vendor.slug }, { slug: knownVendor.slug }]);
     });
 
     it('should return vendors ranked by the number of expenses submitted to specific account', async () => {
@@ -490,15 +493,15 @@ describe('server/graphql/v2/object/Host', () => {
         hostAdmin,
       );
 
-      expect(result.data.account.vendors).to.containSubset([{ slug: vendor.slug }, { slug: knownVendor.slug }]);
-      expect(result.data.account.vendors[0]).to.include({ slug: knownVendor.slug });
+      expect(result.data.account.vendors.nodes).to.containSubset([{ slug: vendor.slug }, { slug: knownVendor.slug }]);
+      expect(result.data.account.vendors.nodes[0]).to.include({ slug: knownVendor.slug });
     });
 
     it('should search vendor by searchTerm', async () => {
       const result = await graphqlQueryV2(accountQuery, { slug: host.slug, searchTerm: 'dafoe' }, hostAdmin);
 
-      expect(result.data.account.vendors).to.have.length(1);
-      expect(result.data.account.vendors[0]).to.include({ slug: vendor.slug });
+      expect(result.data.account.vendors.nodes).to.have.length(1);
+      expect(result.data.account.vendors.nodes[0]).to.include({ slug: vendor.slug });
     });
   });
 });

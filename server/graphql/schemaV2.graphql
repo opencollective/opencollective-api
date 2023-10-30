@@ -2259,6 +2259,36 @@ type Host implements Account & AccountWithContributions {
     """
     accounts: [AccountReferenceInput]
   ): AgreementCollection!
+
+  """
+  Returns a list of vendors that works with this host
+  """
+  vendors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 100
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+
+    """
+    Rank vendors based on their relationship with this account
+    """
+    forAccount: AccountReferenceInput
+
+    """
+    Filter on archived vendors
+    """
+    isArchived: Boolean
+
+    """
+    Search vendors related to this term based on name, description, tags, slug, and location
+    """
+    searchTerm: String
+  ): VendorCollection
 }
 
 """
@@ -5185,6 +5215,16 @@ type Agreement {
   host: Host!
   expiresAt: DateTime
   attachment: FileInfo
+}
+
+"""
+A collection of Vendors
+"""
+type VendorCollection implements Collection {
+  offset: Int
+  limit: Int
+  totalCount: Int
+  nodes: [Vendor!]
 }
 
 enum ExpenseStatus {
@@ -9281,7 +9321,7 @@ scalar JSONObject
 """
 This represents a Vendor account
 """
-type Vendor implements Account & AccountWithHost & AccountWithContributions {
+type Vendor implements Account & AccountWithContributions {
   id: String!
   legacyId: Int!
 
@@ -9335,9 +9375,9 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
   isFrozen: Boolean!
 
   """
-  Returns whether it's active: can accept financial contributions and pay expenses.
+  Returns whether the account accepts financial contributions.
   """
-  isActive: Boolean!
+  isActive: Boolean
 
   """
   Returns whether the account is setup to Host collectives.
@@ -9813,51 +9853,6 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
   ): WebhookCollection!
 
   """
-  Returns the Fiscal Host
-  """
-  host: Host
-
-  """
-  Describe how the host charges the collective
-  """
-  hostFeesStructure: HostFeeStructure
-
-  """
-  Fees percentage that the host takes for this collective
-  """
-  hostFeePercent(paymentMethodService: PaymentMethodService, paymentMethodType: PaymentMethodType): Float
-
-  """
-  How much platform fees are charged for this account
-  """
-  platformFeePercent: Float!
-
-  """
-  Date of approval by the Fiscal Host.
-  """
-  approvedAt: DateTime
-
-  """
-  Returns whether it's approved by the Fiscal Host
-  """
-  isApproved: Boolean!
-
-  """
-  Returns agreements this account has with its host, or null if not enough permissions.
-  """
-  hostAgreements(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 30
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-  ): AgreementCollection
-
-  """
   Number of unique financial contributors.
   """
   totalFinancialContributors(
@@ -9893,6 +9888,11 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
     offset: Int! = 0
     roles: [MemberRole]
   ): ContributorCollection!
+
+  """
+  How much platform fees are charged for this account
+  """
+  platformFeePercent: Float!
 
   """
   Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account

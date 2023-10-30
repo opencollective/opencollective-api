@@ -33,6 +33,7 @@ import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { GraphQLAccountingCategoryCollection } from '../collection/AccountingCategoryCollection';
 import { GraphQLAgreementCollection } from '../collection/AgreementCollection';
 import { GraphQLHostApplicationCollection } from '../collection/HostApplicationCollection';
+import { GraphQLVendorCollection } from '../collection/VendorCollection';
 import { GraphQLVirtualCardCollection } from '../collection/VirtualCardCollection';
 import { GraphQLPaymentMethodLegacyType, GraphQLPayoutMethodType } from '../enum';
 import { GraphQLHostApplicationStatus } from '../enum/HostApplicationStatus';
@@ -52,7 +53,7 @@ import {
 } from '../input/ChronologicalOrderInput';
 import { AccountFields, GraphQLAccount } from '../interface/Account';
 import { AccountWithContributionsFields, GraphQLAccountWithContributions } from '../interface/AccountWithContributions';
-import { CollectionArgs } from '../interface/Collection';
+import { CollectionArgs, getCollectionArgs } from '../interface/Collection';
 import URL from '../scalar/URL';
 
 import { GraphQLContributionStats } from './ContributionStats';
@@ -63,7 +64,6 @@ import { GraphQLHostPlan } from './HostPlan';
 import { GraphQLPaymentMethod } from './PaymentMethod';
 import GraphQLPayoutMethod from './PayoutMethod';
 import { GraphQLStripeConnectedAccount } from './StripeConnectedAccount';
-import { GraphQLVendor } from './Vendor';
 
 const getFilterDateRange = (startDate, endDate) => {
   let dateRange;
@@ -1008,9 +1008,10 @@ export const GraphQLHost = new GraphQLObjectType({
         },
       },
       vendors: {
-        type: new GraphQLList(GraphQLVendor),
+        type: new GraphQLNonNull(GraphQLVendorCollection),
         description: 'Returns a list of vendors that works with this host',
         args: {
+          ...getCollectionArgs({ limit: 100, offset: 0 }),
           forAccount: {
             type: GraphQLAccountReferenceInput,
             description: 'Rank vendors based on their relationship with this account',
@@ -1023,10 +1024,6 @@ export const GraphQLHost = new GraphQLObjectType({
             type: GraphQLString,
             description: 'Search vendors related to this term based on name, description, tags, slug, and location',
           },
-          limit: {
-            type: GraphQLInt,
-            description: 'Limit the number of vendors returned',
-          },
         },
         async resolve(account, args, req) {
           const where = {
@@ -1038,7 +1035,7 @@ export const GraphQLHost = new GraphQLObjectType({
           const publicVendorPolicy = await getPolicy(account, POLICIES.EXPENSE_PUBLIC_VENDORS);
           const isAdmin = req.remoteUser.isAdminOfCollective(account);
           if (!publicVendorPolicy && !isAdmin) {
-            return [];
+            return { nodes: [], totalCount: 0, limit: args.limit, offset: args.offset };
           }
 
           const searchTermConditions =
@@ -1054,7 +1051,7 @@ export const GraphQLHost = new GraphQLObjectType({
             where[Op.or] = searchTermConditions;
           }
 
-          const findArgs = { where, limit: args.limit };
+          const findArgs = { where, limit: args.limit, offset: args.offset };
           if (args?.forAccount) {
             const account = await fetchAccountWithReference(args.forAccount);
             findArgs['attributes'] = {
@@ -1070,13 +1067,10 @@ export const GraphQLHost = new GraphQLObjectType({
             findArgs['order'] = [[sequelize.literal('"expenseCount"'), 'DESC']];
           }
 
-          const vendors = await models.Collective.findAll(findArgs);
+          const { rows, count } = await models.Collective.findAndCountAll(findArgs);
+          const vendors = args?.forAccount && !isAdmin ? rows.filter(v => v.dataValues['expenseCount'] > 0) : rows;
 
-          if (args?.forAccount && !isAdmin) {
-            return vendors.filter(v => v.dataValues['expenseCount'] > 0);
-          } else {
-            return vendors;
-          }
+          return { nodes: vendors, totalCount: count, limit: args.limit, offset: args.offset };
         },
       },
     };
