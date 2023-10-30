@@ -1703,12 +1703,12 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
   }
 
   // Update the accounting category
-  if (modifiedFields['accountingCategory']) {
+  if (!isUndefined(modifiedFields['accountingCategory'])) {
     if (!(await canEditExpenseAccountingCategory(req, expense))) {
       throw new Unauthorized("You don't have permission to edit the accounting category for this expense");
     } else {
       checkCanUseAccountingCategory(expenseData.accountingCategory, expense.collective.host);
-      cleanExpenseData['AccountingCategoryId'] = expenseData.accountingCategory?.id;
+      cleanExpenseData['AccountingCategoryId'] = expenseData.accountingCategory?.id || null;
     }
   }
 
