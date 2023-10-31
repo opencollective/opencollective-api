@@ -258,7 +258,7 @@ export const searchCollectivesInDB = async (
   if (includeVendorsForHostId) {
     dynamicConditions +=
       'AND (c."type" != \'VENDOR\' OR (c."type" = \'VENDOR\' AND c."ParentCollectiveId" = :includeVendorsForHostId)) ';
-  } else if (!types?.includes('VENDOR')) {
+  } else if (!types) {
     dynamicConditions += 'AND c."type" != \'VENDOR\' ';
   }
 
