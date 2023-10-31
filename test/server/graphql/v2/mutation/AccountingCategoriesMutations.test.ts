@@ -177,6 +177,8 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
       );
     });
 
+    // Test
+
     it('edits accounting categories successfully', async () => {
       const admin = await fakeUser();
       const host = await fakeActiveHost({ admin });
