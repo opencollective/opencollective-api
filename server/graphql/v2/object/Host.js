@@ -101,7 +101,8 @@ export const GraphQLHost = new GraphQLObjectType({
   name: 'Host',
   description: 'This represents an Host account',
   interfaces: () => [GraphQLAccount, GraphQLAccountWithContributions],
-  isTypeOf: account => account.isHostAccount,
+  // Due to overlap between our Organization and Host types, we cannot use isTypeOf here
+  // isTypeOf: account => account.isHostAccount,
   fields: () => {
     return {
       ...AccountFields,
