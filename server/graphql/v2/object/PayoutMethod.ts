@@ -23,9 +23,10 @@ const GraphQLPayoutMethod = new GraphQLObjectType({
     name: {
       type: GraphQLString,
       description: 'A friendly name for users to easily find their payout methods',
-      resolve: (payoutMethod, _, req: express.Request): string => {
+      resolve: async (payoutMethod, _, req: express.Request): Promise<string> => {
+        const collective = await req.loaders.Collective.byId.load(payoutMethod.CollectiveId);
         if (
-          req.remoteUser?.isAdmin(payoutMethod.CollectiveId) ||
+          req.remoteUser?.isAdminOfCollective(collective) ||
           getContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, payoutMethod.id)
         ) {
           if (checkScope(req, 'expenses')) {
@@ -37,9 +38,10 @@ const GraphQLPayoutMethod = new GraphQLObjectType({
     isSaved: {
       type: GraphQLBoolean,
       description: 'Whether this payout method has been saved to be used for future payouts',
-      resolve: (payoutMethod, _, req: express.Request): boolean => {
+      resolve: async (payoutMethod, _, req: express.Request): Promise<boolean> => {
+        const collective = await req.loaders.Collective.byId.load(payoutMethod.CollectiveId);
         if (
-          req.remoteUser?.isAdmin(payoutMethod.CollectiveId) ||
+          req.remoteUser?.isAdminOfCollective(collective) ||
           getContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, payoutMethod.id)
         ) {
           if (checkScope(req, 'expenses')) {
@@ -51,9 +53,10 @@ const GraphQLPayoutMethod = new GraphQLObjectType({
     data: {
       type: GraphQLJSON,
       description: 'The actual data for this payout method. Content depends on the type.',
-      resolve: (payoutMethod, _, req: express.Request): Record<string, unknown> => {
+      resolve: async (payoutMethod, _, req: express.Request): Promise<Record<string, unknown>> => {
+        const collective = await req.loaders.Collective.byId.load(payoutMethod.CollectiveId);
         if (
-          req.remoteUser?.isAdmin(payoutMethod.CollectiveId) ||
+          req.remoteUser?.isAdminOfCollective(collective) ||
           getContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, payoutMethod.id)
         ) {
           if (checkScope(req, 'expenses')) {

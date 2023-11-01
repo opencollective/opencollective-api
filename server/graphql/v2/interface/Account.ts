@@ -627,6 +627,10 @@ const accountFieldsDefinition = () => ({
         where['type'] = {
           [Op.in]: args.accountType.map(value => AccountTypeToModelMapping[value]),
         };
+      } else {
+        where['type'] = {
+          [Op.ne]: AccountTypeToModelMapping[CollectiveType.VENDOR],
+        };
       }
 
       const result = await models.Collective.findAndCountAll({

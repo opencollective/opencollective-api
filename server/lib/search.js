@@ -209,6 +209,7 @@ export const searchCollectivesInDB = async (
     isHost,
     onlyActive,
     includeArchived,
+    includeVendorsForHostId,
     skipRecentAccounts,
     skipGuests = true,
     hasCustomContributionsEnabled,
@@ -252,6 +253,13 @@ export const searchCollectivesInDB = async (
 
   if (!includeArchived) {
     dynamicConditions += 'AND c."deactivatedAt" IS NULL ';
+  }
+
+  if (includeVendorsForHostId) {
+    dynamicConditions +=
+      'AND (c."type" != \'VENDOR\' OR (c."type" = \'VENDOR\' AND c."ParentCollectiveId" = :includeVendorsForHostId)) ';
+  } else if (!types) {
+    dynamicConditions += 'AND c."type" != \'VENDOR\' ';
   }
 
   if (skipRecentAccounts) {
@@ -328,6 +336,7 @@ export const searchCollectivesInDB = async (
         parentCollectiveIds,
         isHost,
         currency: args.currency,
+        includeVendorsForHostId,
       },
     },
   );

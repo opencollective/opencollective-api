@@ -4,7 +4,11 @@ import { searchCollectivesInDB } from '../../../../lib/search';
 import { GraphQLAccountCollection } from '../../collection/AccountCollection';
 import { AccountTypeToModelMapping, GraphQLAccountType, GraphQLCountryISO } from '../../enum';
 import { GraphQLTagSearchOperator } from '../../enum/TagSearchOperator';
-import { fetchAccountsIdsWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
+import {
+  fetchAccountsIdsWithReference,
+  fetchAccountWithReference,
+  GraphQLAccountReferenceInput,
+} from '../../input/AccountReferenceInput';
 import { GraphQLOrderByInput } from '../../input/OrderByInput';
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
 
@@ -68,6 +72,10 @@ const AccountsCollectionQuery = {
       description:
         'The order of results. Defaults to [RANK, DESC] (or [CREATED_AT, DESC] if `supportedPaymentMethodService` is provided)',
     },
+    includeVendorsForHost: {
+      type: GraphQLAccountReferenceInput,
+      description: 'Include vendors for this host',
+    },
   },
   async resolve(_: void, args): Promise<CollectionReturnType> {
     const { offset, limit } = args;
@@ -77,6 +85,10 @@ const AccountsCollectionQuery = {
     if (args.host) {
       hostCollectiveIds = await fetchAccountsIdsWithReference(args.host);
     }
+
+    const includeVendorsForHostId = args.includeVendorsForHost
+      ? await fetchAccountWithReference(args.includeVendorsForHost).then(({ id }) => id)
+      : undefined;
 
     const extraParameters = {
       orderBy: args.orderBy || { field: 'RANK', direction: 'DESC' },
@@ -91,6 +103,7 @@ const AccountsCollectionQuery = {
       tags: args.tag,
       tagSearchOperator: args.tagSearchOperator,
       includeArchived: args.includeArchived,
+      includeVendorsForHostId,
     };
 
     const [accounts, totalCount] = await searchCollectivesInDB(cleanTerm, offset, limit, extraParameters);

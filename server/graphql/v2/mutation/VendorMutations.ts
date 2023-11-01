@@ -2,18 +2,21 @@ import assert from 'assert';
 
 import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
 import slugify from 'limax';
-import { pick } from 'lodash';
+import { isEmpty, pick } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
+import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
-import models from '../../../models';
+import { getDiffBetweenInstances } from '../../../lib/data';
+import { setTaxForm } from '../../../lib/tax-forms';
+import models, { Activity } from '../../../models';
 import { checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { BadRequest, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLVendorCreateInput, GraphQLVendorEditInput } from '../input/VendorInput';
 import { GraphQLVendor } from '../object/Vendor';
 
-const VENDOR_INFO_FIELDS = ['contact', 'taxFormUrl', 'taxType', 'taxId', 'notes'];
+const VENDOR_INFO_FIELDS = ['contact', 'taxFormUrl', 'taxFormRequired', 'taxType', 'taxId', 'notes'];
 
 const vendorMutations = {
   createVendor: {
@@ -49,19 +52,42 @@ const vendorMutations = {
         data: {
           vendorInfo: pick(vendorInfo, VENDOR_INFO_FIELDS),
         },
+        settings: {},
       };
 
-      if (vendorInfo.taxType) {
+      if (['EIN', 'VAT', 'GST'].includes(vendorInfo.taxType)) {
         assert(vendorInfo.taxId, new BadRequest('taxId is required when taxType is provided'));
         // Store Tax id in settings, to be consistent with other types of collectives
-        vendorData['settings'] = { [vendorInfo.taxType]: { number: vendorInfo.taxId, type: 'OWN' } };
+        vendorData.settings[vendorInfo.taxType] = { number: vendorInfo.taxId, type: 'OWN' };
       }
 
       const vendor = await models.Collective.create(vendorData);
 
-      if (args.vendor.address) {
-        await vendor.setLocation({ address: args.vendor.address });
+      if (args.vendor.location) {
+        await vendor.setLocation(args.vendor.location);
       }
+
+      if (args.vendor.vendorInfo?.taxFormUrl) {
+        await setTaxForm(vendor, args.vendor.vendorInfo.taxFormUrl, new Date().getFullYear());
+      }
+
+      if (args.vendor.payoutMethod) {
+        await models.PayoutMethod.create({
+          ...pick(args.vendor.payoutMethod, ['name', 'data', 'type']),
+          CollectiveId: vendor.id,
+          CreatedByUserId: req.remoteUser.id,
+          isSaved: true,
+        });
+      }
+
+      await Activity.create({
+        type: ActivityTypes.VENDOR_CREATED,
+        CollectiveId: host.id,
+        UserId: req.remoteUser.id,
+        data: {
+          vendor: vendor.minimal,
+        },
+      });
 
       return vendor;
     },
@@ -73,6 +99,10 @@ const vendorMutations = {
       vendor: {
         description: 'Reference to the host that holds the vendor',
         type: new GraphQLNonNull(GraphQLVendorEditInput),
+      },
+      archive: {
+        type: GraphQLBoolean,
+        description: 'Whether to archive (true) or unarchive (unarchive) the vendor',
       },
     },
     resolve: async (_, args, req) => {
@@ -91,25 +121,57 @@ const vendorMutations = {
       const vendorData = {
         image: args.vendor.imageUrl || null,
         ...pick(args.vendor, ['name', 'legalName', 'tags']),
+        deactivatedAt: args.archive ? new Date() : null,
+        settings: vendor.settings,
         data: {
           ...vendor.data,
           vendorInfo: { ...vendor.data?.vendorInfo, ...pick(vendorInfo, VENDOR_INFO_FIELDS) },
         },
       };
 
-      if (vendorInfo.taxType) {
+      if (vendorInfo?.taxType) {
         assert(vendorInfo.taxId, new BadRequest('taxId is required when taxType is provided'));
         // Store Tax id in settings, to be consistent with other types of collectives
-        vendorData['settings'] = {
-          ...vendor.settings,
-          [vendorInfo.taxType]: { number: vendorInfo.taxId, type: 'OWN' },
+        vendorData.settings[vendorInfo.taxType] = {
+          number: vendorInfo.taxId,
+          type: 'OWN',
         };
       }
 
-      await vendor.update(vendorData);
+      const { newData, previousData } = getDiffBetweenInstances(vendorData, vendor);
 
-      if (args.vendor.address) {
-        await vendor.setLocation({ address: args.vendor.address });
+      await vendor.update(vendorData);
+      await Activity.create({
+        type: ActivityTypes.VENDOR_EDITED,
+        CollectiveId: host.id,
+        UserId: req.remoteUser.id,
+        data: {
+          previousData,
+          newData,
+          vendor: vendor.minimal,
+        },
+      });
+
+      if (args.vendor.location) {
+        await vendor.setLocation(args.vendor.location);
+      }
+
+      if (args.vendor.vendorInfo?.taxFormUrl) {
+        await setTaxForm(vendor, args.vendor.vendorInfo.taxFormUrl, new Date().getFullYear());
+      }
+
+      if (args.vendor.payoutMethod && !args.vendor.payoutMethod?.id) {
+        const existingPayoutMethods = await vendor.getPayoutMethods();
+        if (!isEmpty(existingPayoutMethods)) {
+          existingPayoutMethods.map(pm => pm.update({ isSaved: false }));
+        }
+
+        await models.PayoutMethod.create({
+          ...pick(args.vendor.payoutMethod, ['name', 'data', 'type']),
+          CollectiveId: vendor.id,
+          CreatedByUserId: req.remoteUser.id,
+          isSaved: true,
+        });
       }
 
       return vendor;
@@ -140,6 +202,15 @@ const vendorMutations = {
       assert(transactions.length === 0, new ValidationFailed('Cannot delete a vendor with transactions'));
 
       await vendor.destroy();
+
+      await Activity.create({
+        type: ActivityTypes.VENDOR_DELETED,
+        CollectiveId: host.id,
+        UserId: req.remoteUser.id,
+        data: {
+          vendor: vendor.minimal,
+        },
+      });
 
       return true;
     },

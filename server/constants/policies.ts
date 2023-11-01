@@ -15,6 +15,8 @@ enum POLICIES {
   COLLECTIVE_ADMINS_CAN_REFUND = 'COLLECTIVE_ADMINS_CAN_REFUND',
   // Whether we expect expense submitters and collective admins to take part in the expense categorization process (for accounting)
   EXPENSE_CATEGORIZATION = 'EXPENSE_CATEGORIZATION',
+  // When enabled, users can also use Vendors when submitting expenses.
+  EXPENSE_PUBLIC_VENDORS = 'EXPENSE_PUBLIC_VENDORS',
 }
 
 export type Policies = Partial<{
@@ -39,6 +41,7 @@ export type Policies = Partial<{
     requiredForExpenseSubmitters: boolean;
     requiredForCollectiveAdmins: boolean;
   };
+  [POLICIES.EXPENSE_PUBLIC_VENDORS]: boolean;
 }>;
 
 export const DEFAULT_POLICIES: { [T in POLICIES]: Policies[T] } = {
@@ -69,9 +72,14 @@ export const DEFAULT_POLICIES: { [T in POLICIES]: Policies[T] } = {
     requiredForExpenseSubmitters: false,
     requiredForCollectiveAdmins: false,
   },
+  [POLICIES.EXPENSE_PUBLIC_VENDORS]: false,
 };
 
 // List of Policies that can be seen by anyone
-export const PUBLIC_POLICIES = [POLICIES.COLLECTIVE_MINIMUM_ADMINS, POLICIES.EXPENSE_CATEGORIZATION];
+export const PUBLIC_POLICIES = [
+  POLICIES.COLLECTIVE_MINIMUM_ADMINS,
+  POLICIES.EXPENSE_CATEGORIZATION,
+  POLICIES.EXPENSE_PUBLIC_VENDORS,
+];
 
 export default POLICIES;

@@ -104,5 +104,13 @@ export const GraphQLPolicies = new GraphQLObjectType({
         return getPolicy(account, POLICIES.EXPENSE_CATEGORIZATION);
       },
     },
+    [POLICIES.EXPENSE_PUBLIC_VENDORS]: {
+      type: GraphQLBoolean,
+      async resolve(account, _, req) {
+        if (req.remoteUser?.isAdminOfCollectiveOrHost(account) && checkScope(req, 'account')) {
+          return await getPolicy(account, POLICIES.EXPENSE_PUBLIC_VENDORS);
+        }
+      },
+    },
   }),
 });

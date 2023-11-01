@@ -10,8 +10,5 @@ export const GraphQLTaxType = new GraphQLEnumType({
     GST: {
       description: 'New Zealand Good and Services Tax',
     },
-    EIN: {
-      description: 'Employer Identification Number',
-    },
   },
 });

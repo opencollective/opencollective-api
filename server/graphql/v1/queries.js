@@ -460,6 +460,10 @@ const queries = {
         type: GraphQLBoolean,
         description: 'Included collectives which are archived',
       },
+      includeVendorsForHostId: {
+        type: GraphQLInt,
+        description: 'Included vendors for specific host ID',
+      },
       skipRecentAccounts: {
         type: GraphQLBoolean,
         description: 'Whether to skip recent accounts (48h)',
@@ -492,6 +496,7 @@ const queries = {
         skipRecentAccounts,
         skipGuests,
         includeArchived,
+        includeVendorsForHostId,
       } = args;
       const cleanTerm = term ? term.trim() : '';
       logger.info(`Search Query: ${cleanTerm}`);
@@ -525,6 +530,7 @@ const queries = {
           skipRecentAccounts,
           skipGuests,
           includeArchived,
+          includeVendorsForHostId,
         });
         return generateResults(collectives, total);
       }

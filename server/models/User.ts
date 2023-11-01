@@ -230,7 +230,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   isAdminOfCollective = function (collective) {
     if (!collective) {
       return false;
-    } else if (collective.type === 'EVENT' || collective.type === 'PROJECT') {
+    } else if (collective.type === 'EVENT' || collective.type === 'PROJECT' || collective.type === 'VENDOR') {
       return this.isAdmin(collective.id) || this.isAdmin(collective.ParentCollectiveId);
     } else {
       return this.isAdmin(collective.id);

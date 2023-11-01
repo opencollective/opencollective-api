@@ -6,6 +6,7 @@ import express from 'express';
 import {
   cloneDeep,
   find,
+  first,
   flatten,
   get,
   isBoolean,
@@ -87,15 +88,13 @@ import { checkRemoteUserCanRoot } from './scope-check';
 const debug = debugLib('expenses');
 
 const isOwner = async (req: express.Request, expense: Expense): Promise<boolean> => {
+  expense.fromCollective = expense.fromCollective || (await req.loaders.Collective.byId.load(expense.FromCollectiveId));
   if (!req.remoteUser) {
     return false;
-  } else if (req.remoteUser.id === expense.UserId) {
+  } else if (req.remoteUser.id === expense.UserId && expense.fromCollective.type !== CollectiveType.VENDOR) {
     return true;
   } else if (!expense.fromCollective) {
-    expense.fromCollective = await req.loaders.Collective.byId.load(expense.FromCollectiveId);
-    if (!expense.fromCollective) {
-      return false;
-    }
+    return false;
   }
 
   return req.remoteUser.isAdminOfCollective(expense.fromCollective);
@@ -1081,7 +1080,7 @@ const checkExpenseType = (
   }
 };
 
-const getPayoutMethodFromExpenseData = async (expenseData, remoteUser, fromCollective, dbTransaction) => {
+export const getPayoutMethodFromExpenseData = async (expenseData, remoteUser, fromCollective, dbTransaction?) => {
   if (expenseData.payoutMethod) {
     if (expenseData.payoutMethod.id) {
       const pm = await models.PayoutMethod.findByPk(expenseData.payoutMethod.id);
@@ -1234,7 +1233,7 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
 
   const isMember = Boolean(remoteUser.rolesByCollectiveId[String(collective.id)]);
   if (
-    expenseData.collective.settings?.['disablePublicExpenseSubmission'] &&
+    collective.settings?.['disablePublicExpenseSubmission'] &&
     !isMember &&
     !remoteUser.isAdminOfCollectiveOrHost(collective) &&
     !remoteUser.isRoot()
@@ -1279,7 +1278,19 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
 
   // Load the payee profile
   const fromCollective = expenseData.fromCollective || (await remoteUser.getCollective());
-  if (!remoteUser.isAdminOfCollective(fromCollective)) {
+
+  if (fromCollective.type === CollectiveType.VENDOR) {
+    const host = await collective.getHostCollective();
+    assert(
+      fromCollective.ParentCollectiveId === collective.HostCollectiveId,
+      new ValidationFailed('Vendor must belong to the same Fiscal Host as the Collective'),
+    );
+    const publicVendorPolicy = await getPolicy(host, POLICIES.EXPENSE_PUBLIC_VENDORS);
+    assert(
+      publicVendorPolicy || remoteUser.isAdminOfCollective(fromCollective),
+      new ValidationFailed('User cannot submit expenses on behalf of this vendor'),
+    );
+  } else if (!remoteUser.isAdminOfCollective(fromCollective)) {
     throw new ValidationFailed('You must be an admin of the account to submit an expense in its name');
   } else if (!fromCollective.canBeUsedAsPayoutProfile()) {
     throw new ValidationFailed('This account cannot be used for payouts');
@@ -1306,7 +1317,10 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
   }
 
   // Get or create payout method
-  const payoutMethod = await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, null);
+  const payoutMethod =
+    fromCollective.type === CollectiveType.VENDOR
+      ? await fromCollective.getPayoutMethods().then(first)
+      : await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, null);
 
   // Create and validate TransferWise recipient
   let recipient;
@@ -1681,6 +1695,13 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
     } else if (!fromCollective.canBeUsedAsPayoutProfile()) {
       throw new ValidationFailed('This account cannot be used for payouts');
     }
+    // If payee is a vendor, make sure it belongs to the same Fiscal Host as the collective
+    if (fromCollective.type === CollectiveType.VENDOR) {
+      assert(
+        fromCollective.ParentCollectiveId === collective.HostCollectiveId,
+        new ValidationFailed('Vendor must belong to the same Fiscal Host as the Collective'),
+      );
+    }
   }
 
   // Let's take the opportunity to update collective's location
@@ -1734,7 +1755,10 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
       (!expenseData.payoutMethod?.id || // This represents a new payout method without an id
         expenseData.payoutMethod?.id !== expense.PayoutMethodId)
     ) {
-      payoutMethod = await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, transaction);
+      payoutMethod =
+        fromCollective.type === CollectiveType.VENDOR
+          ? await fromCollective.getPayoutMethods().then(first)
+          : await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, null);
 
       // Reset fees payer when changing the payout method and the new one doesn't support it
       if (feesPayer === ExpenseFeesPayer.PAYEE && !models.PayoutMethod.typeSupportsFeesPayer(payoutMethod?.type)) {

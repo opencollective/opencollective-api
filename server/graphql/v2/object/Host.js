@@ -16,9 +16,11 @@ import { CollectiveType } from '../../../constants/collectives';
 import expenseType from '../../../constants/expense_type';
 import OrderStatuses from '../../../constants/order_status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
+import POLICIES from '../../../constants/policies';
 import { TransactionKind } from '../../../constants/transaction-kind';
 import { TransactionTypes } from '../../../constants/transactions';
 import { FEATURE, hasFeature } from '../../../lib/allowed-features';
+import { getPolicy } from '../../../lib/policies';
 import { buildSearchConditions } from '../../../lib/search';
 import sequelize from '../../../lib/sequelize';
 import { ifStr } from '../../../lib/utils';
@@ -31,6 +33,7 @@ import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { GraphQLAccountingCategoryCollection } from '../collection/AccountingCategoryCollection';
 import { GraphQLAgreementCollection } from '../collection/AgreementCollection';
 import { GraphQLHostApplicationCollection } from '../collection/HostApplicationCollection';
+import { GraphQLVendorCollection } from '../collection/VendorCollection';
 import { GraphQLVirtualCardCollection } from '../collection/VirtualCardCollection';
 import { GraphQLPaymentMethodLegacyType, GraphQLPayoutMethodType } from '../enum';
 import { GraphQLHostApplicationStatus } from '../enum/HostApplicationStatus';
@@ -50,7 +53,7 @@ import {
 } from '../input/ChronologicalOrderInput';
 import { AccountFields, GraphQLAccount } from '../interface/Account';
 import { AccountWithContributionsFields, GraphQLAccountWithContributions } from '../interface/AccountWithContributions';
-import { CollectionArgs } from '../interface/Collection';
+import { CollectionArgs, getCollectionArgs } from '../interface/Collection';
 import URL from '../scalar/URL';
 
 import { GraphQLContributionStats } from './ContributionStats';
@@ -98,6 +101,8 @@ export const GraphQLHost = new GraphQLObjectType({
   name: 'Host',
   description: 'This represents an Host account',
   interfaces: () => [GraphQLAccount, GraphQLAccountWithContributions],
+  // Due to overlap between our Organization and Host types, we cannot use isTypeOf here
+  // isTypeOf: account => account.isHostAccount,
   fields: () => {
     return {
       ...AccountFields,
@@ -1001,6 +1006,72 @@ export const GraphQLHost = new GraphQLObjectType({
           });
 
           return { totalCount: agreements.count, limit: args.limit, offset: args.offset, nodes: agreements.rows };
+        },
+      },
+      vendors: {
+        type: new GraphQLNonNull(GraphQLVendorCollection),
+        description: 'Returns a list of vendors that works with this host',
+        args: {
+          ...getCollectionArgs({ limit: 100, offset: 0 }),
+          forAccount: {
+            type: GraphQLAccountReferenceInput,
+            description: 'Rank vendors based on their relationship with this account',
+          },
+          isArchived: {
+            type: GraphQLBoolean,
+            description: 'Filter on archived vendors',
+          },
+          searchTerm: {
+            type: GraphQLString,
+            description: 'Search vendors related to this term based on name, description, tags, slug, and location',
+          },
+        },
+        async resolve(account, args, req) {
+          const where = {
+            ParentCollectiveId: account.id,
+            type: CollectiveType.VENDOR,
+            deactivatedAt: { [args.isArchived ? Op.not : Op.is]: null },
+          };
+
+          const publicVendorPolicy = await getPolicy(account, POLICIES.EXPENSE_PUBLIC_VENDORS);
+          const isAdmin = req.remoteUser.isAdminOfCollective(account);
+          if (!publicVendorPolicy && !isAdmin) {
+            return { nodes: [], totalCount: 0, limit: args.limit, offset: args.offset };
+          }
+
+          const searchTermConditions =
+            args?.searchTerm &&
+            buildSearchConditions(args.searchTerm, {
+              idFields: ['id'],
+              slugFields: ['slug'],
+              textFields: ['name', 'description', 'longDescription'],
+              stringArrayFields: ['tags'],
+              stringArrayTransformFn: str => str.toLowerCase(), // collective tags are stored lowercase
+            });
+          if (searchTermConditions?.length) {
+            where[Op.or] = searchTermConditions;
+          }
+
+          const findArgs = { where, limit: args.limit, offset: args.offset };
+          if (args?.forAccount) {
+            const account = await fetchAccountWithReference(args.forAccount);
+            findArgs['attributes'] = {
+              include: [
+                [
+                  sequelize.literal(`(
+            SELECT COUNT(*) FROM "Expenses" WHERE "deletedAt" IS NULL AND "status" = 'PAID' AND "CollectiveId" = ${account.id} AND "FromCollectiveId" = "Collective"."id"
+          )`),
+                  'expenseCount',
+                ],
+              ],
+            };
+            findArgs['order'] = [[sequelize.literal('"expenseCount"'), 'DESC']];
+          }
+
+          const { rows, count } = await models.Collective.findAndCountAll(findArgs);
+          const vendors = args?.forAccount && !isAdmin ? rows.filter(v => v.dataValues['expenseCount'] > 0) : rows;
+
+          return { nodes: vendors, totalCount: count, limit: args.limit, offset: args.offset };
         },
       },
     };

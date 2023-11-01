@@ -182,6 +182,13 @@ export const GraphQLActivity = new GraphQLObjectType({
           toPick.push('update.title', 'update.html');
         } else if (activity.type === ACTIVITY.ACCOUNTING_CATEGORIES_EDITED) {
           toPick.push('added', 'removed', 'edited');
+        } else if ([ACTIVITY.VENDOR_EDITED, ACTIVITY.VENDOR_CREATED].includes(activity.type)) {
+          const collective = await req.loaders.Collective.byId.load(activity.CollectiveId);
+          if (req.remoteUser?.isAdminOfCollectiveOrHost(collective)) {
+            toPick.push('vendor');
+            toPick.push('previousData');
+            toPick.push('newData');
+          }
         }
 
         return pick(activity.data, toPick);

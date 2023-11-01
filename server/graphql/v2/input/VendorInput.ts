@@ -1,11 +1,11 @@
-import { GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLNonEmptyString } from 'graphql-scalars';
 
-import { GraphQLTaxType } from '../enum/TaxType';
-
 import { AccountReferenceInputFields } from './AccountReferenceInput';
+import { GraphQLLocationInput } from './LocationInput';
+import { GraphQLPayoutMethodInput } from './PayoutMethodInput';
 
-const GraphQLVendorContact = new GraphQLInputObjectType({
+const GraphQLVendorContactInput = new GraphQLInputObjectType({
   name: 'VendorContactInput',
   description: 'Some context about the vendor contact person',
   fields: () => ({
@@ -18,39 +18,39 @@ const GraphQLVendorContact = new GraphQLInputObjectType({
   }),
 });
 
-const GraphQLVendorInfo = new GraphQLInputObjectType({
+const GraphQLVendorInfoInput = new GraphQLInputObjectType({
   name: 'VendorInfoInput',
   description: 'Some context about the vendor',
   fields: () => ({
-    contact: { type: GraphQLVendorContact },
+    contact: { type: GraphQLVendorContactInput },
+    taxFormRequired: { type: GraphQLBoolean },
     taxFormUrl: { type: GraphQLString },
-    taxType: { type: GraphQLTaxType },
+    taxType: { type: GraphQLString },
     taxId: { type: GraphQLString },
     notes: { type: GraphQLString },
   }),
 });
 
+const VendorInputFields = {
+  name: { type: new GraphQLNonNull(GraphQLNonEmptyString) },
+  legalName: { type: GraphQLString },
+  tags: { type: new GraphQLList(GraphQLNonEmptyString) },
+  location: { type: GraphQLLocationInput },
+  imageUrl: { type: GraphQLString },
+  vendorInfo: { type: GraphQLVendorInfoInput },
+  payoutMethod: { type: GraphQLPayoutMethodInput },
+};
+
 export const GraphQLVendorCreateInput = new GraphQLInputObjectType({
   name: 'VendorCreateInput',
-  fields: () => ({
-    name: { type: new GraphQLNonNull(GraphQLNonEmptyString) },
-    legalName: { type: GraphQLString },
-    tags: { type: new GraphQLList(GraphQLNonEmptyString) },
-    address: { type: GraphQLString },
-    imageUrl: { type: GraphQLString },
-    vendorInfo: { type: GraphQLVendorInfo },
-  }),
+  fields: () => VendorInputFields,
 });
 
 export const GraphQLVendorEditInput = new GraphQLInputObjectType({
   name: 'VendorEditInput',
   fields: () => ({
     ...AccountReferenceInputFields,
-    name: { type: GraphQLString },
-    legalName: { type: GraphQLString },
-    tags: { type: GraphQLString },
-    address: { type: GraphQLString },
-    imageUrl: { type: GraphQLString },
-    vendorInfo: { type: GraphQLVendorInfo },
+    ...VendorInputFields,
+    name: { type: GraphQLNonEmptyString },
   }),
 });

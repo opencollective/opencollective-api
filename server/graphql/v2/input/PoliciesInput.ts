@@ -42,5 +42,8 @@ export const GraphQLPoliciesInput = new GraphQLInputObjectType({
         }),
       }),
     },
+    [POLICIES.EXPENSE_PUBLIC_VENDORS]: {
+      type: GraphQLBoolean,
+    },
   }),
 });

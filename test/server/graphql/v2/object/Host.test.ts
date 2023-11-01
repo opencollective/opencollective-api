@@ -1,12 +1,13 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
 
+import { CollectiveType } from '../../../../../server/constants/collectives';
 import models from '../../../../../server/models';
 import { VirtualCardStatus } from '../../../../../server/models/VirtualCard';
 import {
+  fakeActiveHost,
   fakeCollective,
   fakeExpense,
-  fakeHost,
   fakeUploadedFile,
   fakeUser,
   fakeVirtualCard,
@@ -35,7 +36,7 @@ describe('server/graphql/v2/object/Host', () => {
   describe('hostedAccountAgreements', () => {
     it('should return agreements with its hosted accounts', async () => {
       const hostAdmin = await fakeUser();
-      const host = await fakeHost({ admin: hostAdmin });
+      const host = await fakeActiveHost({ admin: hostAdmin });
       const account = await fakeCollective({ HostCollectiveId: host.id });
       const uploadedFile = await fakeUploadedFile({ fileName: 'my agreement.pdf' });
       await models.Agreement.create({
@@ -56,7 +57,7 @@ describe('server/graphql/v2/object/Host', () => {
 
     it('should filter agreements by hosted account slug', async () => {
       const hostAdmin = await fakeUser();
-      const host = await fakeHost({ admin: hostAdmin });
+      const host = await fakeActiveHost({ admin: hostAdmin });
       const account = await fakeCollective({ HostCollectiveId: host.id });
       const secondAccount = await fakeCollective({ HostCollectiveId: host.id });
       const uploadedFile = await fakeUploadedFile({ fileName: 'my agreement.pdf' });
@@ -111,7 +112,7 @@ describe('server/graphql/v2/object/Host', () => {
 
     it('should filter agreements by hosted account slug or id', async () => {
       const hostAdmin = await fakeUser();
-      const host = await fakeHost({ admin: hostAdmin });
+      const host = await fakeActiveHost({ admin: hostAdmin });
       const account = await fakeCollective({ HostCollectiveId: host.id });
       const secondAccount = await fakeCollective({ HostCollectiveId: host.id });
       const uploadedFile = await fakeUploadedFile({ fileName: 'my agreement.pdf' });
@@ -178,7 +179,7 @@ describe('server/graphql/v2/object/Host', () => {
 
     it('returns all virtual cards', async () => {
       const hostAdmin = await fakeUser();
-      const host = await fakeHost({ admin: hostAdmin });
+      const host = await fakeActiveHost({ admin: hostAdmin });
       const account = await fakeCollective({ HostCollectiveId: host.id });
       const vc1 = await fakeVirtualCard({
         CollectiveId: account.id,
@@ -225,7 +226,7 @@ describe('server/graphql/v2/object/Host', () => {
 
     it('filter virtual cards by status', async () => {
       const hostAdmin = await fakeUser();
-      const host = await fakeHost({ admin: hostAdmin });
+      const host = await fakeActiveHost({ admin: hostAdmin });
       const account = await fakeCollective({ HostCollectiveId: host.id });
       const vc1 = await fakeVirtualCard({
         CollectiveId: account.id,
@@ -271,7 +272,7 @@ describe('server/graphql/v2/object/Host', () => {
       let hostAdmin, host, vc1, vc2, vc3;
       before(async () => {
         hostAdmin = await fakeUser();
-        host = await fakeHost({ admin: hostAdmin });
+        host = await fakeActiveHost({ admin: hostAdmin });
         const account = await fakeCollective({ HostCollectiveId: host.id });
         vc1 = await fakeVirtualCard({
           CollectiveId: account.id,
@@ -428,6 +429,77 @@ describe('server/graphql/v2/object/Host', () => {
           },
         ]);
       });
+    });
+  });
+
+  describe('vendors', () => {
+    const accountQuery = gqlV2/* GraphQL */ `
+      query Host($slug: String!, $forAccount: AccountReferenceInput, $searchTerm: String) {
+        host(slug: $slug) {
+          id
+          vendors(forAccount: $forAccount, searchTerm: $searchTerm) {
+            totalCount
+            nodes {
+              id
+              type
+              name
+              slug
+            }
+          }
+        }
+      }
+    `;
+
+    let hostAdmin, host, account, vendor, knownVendor;
+    before(async () => {
+      hostAdmin = await fakeUser();
+      host = await fakeActiveHost({ admin: hostAdmin });
+      account = await fakeCollective({ HostCollectiveId: host.id });
+      vendor = await fakeCollective({
+        ParentCollectiveId: host.id,
+        type: CollectiveType.VENDOR,
+        name: 'Vendor Dafoe',
+      });
+      knownVendor = await fakeCollective({
+        ParentCollectiveId: host.id,
+        type: CollectiveType.VENDOR,
+        name: 'Vendor 2',
+      });
+      await fakeExpense({ CollectiveId: account.id, FromCollectiveId: knownVendor.id, status: 'PAID' });
+    });
+
+    it('should return all vendors if admin of Account', async () => {
+      const result = await graphqlQueryV2(accountQuery, { slug: host.slug }, hostAdmin);
+
+      expect(result.data.host.vendors.nodes).to.containSubset([{ slug: vendor.slug }, { slug: knownVendor.slug }]);
+    });
+
+    it('should publicly return vendors if host EXPENSE_PUBLIC_VENDORS policy is true', async () => {
+      const user = await fakeUser();
+      let result = await graphqlQueryV2(accountQuery, { slug: host.slug }, user);
+      expect(result.data.host.vendors.nodes).to.be.empty;
+
+      await host.update({ data: { policies: { EXPENSE_PUBLIC_VENDORS: true } } });
+      result = await graphqlQueryV2(accountQuery, { slug: host.slug }, user);
+      expect(result.data.host.vendors.nodes).to.containSubset([{ slug: vendor.slug }, { slug: knownVendor.slug }]);
+    });
+
+    it('should return vendors ranked by the number of expenses submitted to specific account', async () => {
+      const result = await graphqlQueryV2(
+        accountQuery,
+        { slug: host.slug, forAccount: { slug: account.slug } },
+        hostAdmin,
+      );
+
+      expect(result.data.host.vendors.nodes).to.containSubset([{ slug: vendor.slug }, { slug: knownVendor.slug }]);
+      expect(result.data.host.vendors.nodes[0]).to.include({ slug: knownVendor.slug });
+    });
+
+    it('should search vendor by searchTerm', async () => {
+      const result = await graphqlQueryV2(accountQuery, { slug: host.slug, searchTerm: 'dafoe' }, hostAdmin);
+
+      expect(result.data.host.vendors.nodes).to.have.length(1);
+      expect(result.data.host.vendors.nodes[0]).to.include({ slug: vendor.slug });
     });
   });
 });
