@@ -32,6 +32,7 @@ import { GraphQLChronologicalOrderInput } from '../input/ChronologicalOrderInput
 import { GraphQLAccount } from '../interface/Account';
 import { CollectionArgs } from '../interface/Collection';
 
+import GraphQLAccountingCategory from './AccountingCategory';
 import { GraphQLActivity } from './Activity';
 import { GraphQLAmount } from './Amount';
 import GraphQLExpenseAttachedFile from './ExpenseAttachedFile';
@@ -170,6 +171,15 @@ const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Request>({
               fromCurrency: expense.currency,
               toCurrency: expense.collective.currency,
             });
+          }
+        },
+      },
+      accountingCategory: {
+        type: GraphQLAccountingCategory,
+        description: 'The accounting category attached to this expense',
+        async resolve(expense, _, req) {
+          if (expense.AccountingCategoryId) {
+            return req.loaders.AccountingCategory.byId.load(expense.AccountingCategoryId);
           }
         },
       },

@@ -258,6 +258,10 @@ models.PaymentMethod.hasMany(models.Transaction);
 models.TransactionSettlement.belongsTo(models.Expense);
 
 // Expense
+models.Expense.belongsTo(models.AccountingCategory, {
+  as: 'accountingCategory',
+  foreignKey: 'AccountingCategoryId',
+});
 models.Expense.belongsTo(models.User);
 models.Expense.belongsTo(models.PayoutMethod);
 models.Expense.belongsTo(models.Collective, {

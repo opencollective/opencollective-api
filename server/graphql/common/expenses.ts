@@ -9,6 +9,7 @@ import {
   flatten,
   get,
   isBoolean,
+  isEmpty,
   isEqual,
   isNil,
   isNumber,
@@ -52,6 +53,7 @@ import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import { canUseFeature } from '../../lib/user-permissions';
 import { formatCurrency, parseToBoolean } from '../../lib/utils';
 import models, { Collective, sequelize } from '../../models';
+import AccountingCategory from '../../models/AccountingCategory';
 import Expense from '../../models/Expense';
 import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile';
 import { ExpenseItem } from '../../models/ExpenseItem';
@@ -618,6 +620,28 @@ export const canMarkAsIncomplete: ExpensePermissionEvaluator = async (
 };
 
 /**
+ * Returns true if user is allowed to change the accounting category of the expense
+ */
+export const canEditExpenseAccountingCategory = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+): Promise<boolean> => {
+  return remoteUserMeetsOneCondition(
+    req,
+    expense,
+    [
+      // Host admins and accountants can always change the accounting category.
+      isHostAdmin,
+      isHostAccountant,
+      // Otherwise, we fallback on the default edit permissions (must be a collective/fromCollective admin)
+      canEditExpense,
+    ],
+    options,
+  );
+};
+
+/**
  * Returns true if expense can be marked as unpaid by user
  */
 export const canMarkAsUnpaid: ExpensePermissionEvaluator = async (
@@ -1134,6 +1158,7 @@ type ExpenseData = {
   currency?: string;
   tax?: TaxDefinition[];
   customData: Record<string, unknown>;
+  accountingCategory?: AccountingCategory;
 };
 
 const EXPENSE_EDITABLE_FIELDS = [
@@ -1169,6 +1194,20 @@ const checkTaxes = (account, host, expenseType: string, taxes): void => {
         throw new ValidationFailed(`This host does not have GST enabled`);
       }
     });
+  }
+};
+
+/**
+ * Throws if the accounting category is not allowed for this expense/host
+ */
+const checkCanUseAccountingCategory = (
+  accountingCategory: AccountingCategory | undefined | null,
+  host: Collective | undefined,
+): void => {
+  if (!accountingCategory) {
+    return;
+  } else if (accountingCategory.CollectiveId !== host?.id) {
+    throw new ValidationFailed('This accounting category is not allowed for this expense');
   }
 };
 
@@ -1209,6 +1248,7 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
   checkTaxes(collective, collective.host, expenseData.type, taxes);
   checkExpenseItems(expenseData.type, itemsData, taxes);
   checkExpenseType(expenseData.type, collective, collective.parent, collective.host);
+  checkCanUseAccountingCategory(expenseData.accountingCategory, collective.host);
 
   if (size(expenseData.attachedFiles) > 15) {
     throw new ValidationFailed('The number of files that you can attach to an expense is limited to 15');
@@ -1309,6 +1349,7 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
         PayoutMethodId: payoutMethod && payoutMethod.id,
         legacyPayoutMethod: models.Expense.getLegacyPayoutMethodTypeFromPayoutMethod(payoutMethod),
         amount: computeTotalAmountForExpense(itemsData, taxes),
+        AccountingCategoryId: expenseData.accountingCategory?.id,
         data,
       },
       { transaction: t },
@@ -1475,6 +1516,22 @@ export const DRAFT_EXPENSE_FIELDS = [
   'invoiceInfo',
 ] as const;
 
+/**
+ * Returns true if the value has changed.
+ *
+ * /!\ We have no 1-to-1 field mapping between `Expense` and `ExpenseData`, but since we used to only
+ * check `isNil` this won't introduce any regression. Ideally, this helper should do a mapping between the two.
+ */
+const isValueChanging = (expense: Expense, expenseData: ExpenseData, key: string): boolean => {
+  const nullableFields = ['accountingCategory'];
+  const value = expenseData[key];
+  if (nullableFields.includes(key)) {
+    return !isUndefined(value) && !isEqual(value, expense[key]);
+  } else {
+    return !isNil(value) && !isEqual(value, expense[key]);
+  }
+};
+
 export async function editExpenseDraft(req: express.Request, expenseData: ExpenseData) {
   const existingExpense = await models.Expense.findByPk(expenseData.id);
   if (!existingExpense) {
@@ -1502,6 +1559,44 @@ export async function editExpenseDraft(req: express.Request, expenseData: Expens
   });
 }
 
+/**
+ * A simple helper to handle the case when editing only the tags and/or accounting category of an expense.
+ * Permissions for these fields (especially regarding the status of the expense) are more relaxed than for other fields.
+ */
+const editOnlyTagsAndAccountingCategory = async (
+  expense: Expense,
+  expenseData: Pick<ExpenseData, 'tags' | 'accountingCategory'>,
+  req: express.Request,
+): Promise<Expense> => {
+  const newValues = {};
+
+  // Tags
+  if (!isUndefined(expenseData.tags)) {
+    if (!(await canEditExpenseTags(req, expense))) {
+      throw new Unauthorized("You don't have permission to edit tags for this expense");
+    }
+
+    newValues['tags'] = expenseData.tags;
+  }
+
+  // Accounting category
+  if (!isUndefined(expenseData.accountingCategory)) {
+    if (!(await canEditExpenseAccountingCategory(req, expense))) {
+      throw new Unauthorized("You don't have permission to edit the accounting category for this expense");
+    }
+
+    newValues['AccountingCategoryId'] = expenseData.accountingCategory?.id || null;
+  }
+
+  if (isEmpty(newValues)) {
+    return expense;
+  }
+
+  const updatedExpense = await expense.update(newValues);
+  updatedExpense.createActivity(activities.COLLECTIVE_EXPENSE_UPDATED, req.remoteUser);
+  return updatedExpense;
+};
+
 export async function editExpense(req: express.Request, expenseData: ExpenseData, options = {}): Promise<Expense> {
   const remoteUser = options?.['overrideRemoteUser'] || req.remoteUser;
   if (!remoteUser) {
@@ -1525,6 +1620,7 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
       { model: models.ExpenseAttachedFile, as: 'attachedFiles' },
       { model: models.PayoutMethod },
       { association: 'items' },
+      { association: 'accountingCategory' },
     ],
   });
 
@@ -1555,15 +1651,12 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
   const taxes = expenseData.tax || (expense.data?.taxes as TaxDefinition[]) || [];
   const expenseType = expenseData.type || expense.type;
   checkTaxes(expense.collective, expense.collective.host, expenseType, taxes);
+  checkCanUseAccountingCategory(expenseData.accountingCategory, expense.collective.host);
 
-  const modifiedFields = Object.keys(omitBy(expenseData, (value, key) => key === 'id' || isNil(value)));
-  if (isEqual(modifiedFields, ['tags'])) {
-    // Special mode when editing **only** tags: we don't care about the expense status there
-    if (!(await canEditExpenseTags(req, expense))) {
-      throw new Unauthorized("You don't have permission to edit tags for this expense");
-    }
-
-    return expense.update({ tags: expenseData.tags });
+  // Edit directly the expense when touching only tags and/or accounting category
+  const modifiedFields = omitBy(expenseData, (_, key) => key === 'id' || !isValueChanging(expense, expenseData, key));
+  if (Object.keys(modifiedFields).every(field => ['tags', 'accountingCategory'].includes(field))) {
+    return editOnlyTagsAndAccountingCategory(expense, modifiedFields, req);
   }
 
   if (!options?.['skipPermissionCheck'] && !(await canEditExpense(req, expense))) {
@@ -1607,6 +1700,16 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
   const isChangingCurrency = expenseData.currency && expenseData.currency !== expense.currency;
   if (isChangingCurrency && expenseData.currency !== collective.currency && !hasMultiCurrency(collective, host)) {
     throw new FeatureNotSupportedForCollective('Multi-currency expenses are not enabled for this account');
+  }
+
+  // Update the accounting category
+  if (!isUndefined(modifiedFields['accountingCategory'])) {
+    if (!(await canEditExpenseAccountingCategory(req, expense))) {
+      throw new Unauthorized("You don't have permission to edit the accounting category for this expense");
+    } else {
+      checkCanUseAccountingCategory(expenseData.accountingCategory, expense.collective.host);
+      cleanExpenseData['AccountingCategoryId'] = expenseData.accountingCategory?.id || null;
+    }
   }
 
   let payoutMethod = await expense.getPayoutMethod();

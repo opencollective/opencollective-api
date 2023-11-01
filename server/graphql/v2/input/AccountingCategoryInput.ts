@@ -1,6 +1,9 @@
 import { GraphQLInputFieldConfig, GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLNonEmptyString } from 'graphql-scalars';
 
+import models from '../../../models';
+import { idDecode } from '../identifiers';
+
 export type AccountingCategoryInputFields = {
   id?: string;
   code?: string;
@@ -51,3 +54,16 @@ export const AccountingCategoryReferenceInput = new GraphQLInputObjectType({
     },
   }),
 });
+
+export const fetchAccountingCategoryWithReference = async (
+  input: AccountCategoryReferenceInputFields,
+  { loaders = null, throwIfMissing = false } = {},
+) => {
+  const id = idDecode(input.id, 'accounting-category');
+  const category = await (loaders ? loaders.AccountingCategory.byId.load(id) : models.AccountingCategory.findByPk(id));
+  if (!category && throwIfMissing) {
+    throw new Error(`Accounting category with id ${input.id} not found`);
+  }
+
+  return category;
+};

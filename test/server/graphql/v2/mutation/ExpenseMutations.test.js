@@ -25,6 +25,7 @@ import paymentProviders from '../../../../../server/paymentProviders';
 import paypalAdaptive from '../../../../../server/paymentProviders/paypal/adaptiveGateway';
 import { randEmail, randUrl } from '../../../../stores';
 import {
+  fakeAccountingCategory,
   fakeCollective,
   fakeConnectedAccount,
   fakeExpense,
@@ -97,6 +98,9 @@ const mutationExpenseFields = gqlV2/* GraphQL */ `
     privateMessage
     invoiceInfo
     customData
+    accountingCategory {
+      id
+    }
     taxes {
       id
       type
@@ -301,12 +305,48 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(result.errors[0].message).to.eq('Two factor authentication must be configured');
     });
 
+    it('fails if the accounting category is invalid', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective();
+      const expenseData = { ...getValidExpenseData(), type: 'INVOICE', payee: { legacyId: user.CollectiveId } };
+      const callMutation = accountingCategory =>
+        graphqlQueryV2(
+          createExpenseMutation,
+          { expense: { ...expenseData, accountingCategory }, account: { legacyId: collective.id } },
+          user,
+        );
+
+      // Invalid ID
+      let result = await callMutation({ id: 'xxxxxxx' });
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('Invalid accounting-category id: xxxxxxx');
+
+      // Category does not exist
+      result = await callMutation({ id: idEncode(99999999, 'accounting-category') });
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq(
+        `Accounting category with id ${idEncode(99999999, 'accounting-category')} not found`,
+      );
+
+      // Belongs to a different host
+      const anotherCategory = await fakeAccountingCategory();
+      result = await callMutation({ id: idEncode(anotherCategory.id, 'accounting-category') });
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('This accounting category is not allowed for this expense');
+    });
+
     it('creates the expense with the linked items', async () => {
       const user = await fakeUser();
       const collectiveAdmin = await fakeUser();
       const collective = await fakeCollective({ admin: collectiveAdmin.collective });
+      const accountingCategory = await fakeAccountingCategory({ CollectiveId: collective.HostCollectiveId });
+      const encodedAccountingCategoryId = idEncode(accountingCategory.id, 'accounting-category');
       const payee = await fakeCollective({ type: 'ORGANIZATION', admin: user.collective, location: { address: null } });
-      const expenseData = { ...getValidExpenseData(), payee: { legacyId: payee.id } };
+      const expenseData = {
+        ...getValidExpenseData(),
+        payee: { legacyId: payee.id },
+        accountingCategory: { id: encodedAccountingCategoryId },
+      };
 
       const result = await graphqlQueryV2(
         createExpenseMutation,
@@ -325,6 +365,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(createdExpense.payee.legacyId).to.eq(payee.id);
       expect(createdExpense.payeeLocation).to.deep.equal(expenseData.payeeLocation);
       expect(createdExpense.customData.myCustomField).to.eq('myCustomValue');
+      expect(createdExpense.accountingCategory.id).to.eq(encodedAccountingCategoryId);
 
       // Should have updated collective's location
       await payee.reload({ include: [{ association: 'location' }] });
@@ -495,6 +536,87 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       });
     });
 
+    describe('Accounting category', () => {
+      it('fails if the accounting category is invalid', async () => {
+        const expense = await fakeExpense();
+        const callMutation = accountingCategory =>
+          graphqlQueryV2(
+            editExpenseMutation,
+            { expense: { id: idEncode(expense.id, 'expense'), accountingCategory } },
+            expense.User,
+          );
+
+        // Invalid ID
+        let result = await callMutation({ id: 'xxxxxxx' });
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('Invalid accounting-category id: xxxxxxx');
+
+        // Category does not exist
+        result = await callMutation({ id: idEncode(99999999, 'accounting-category') });
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq(
+          `Accounting category with id ${idEncode(99999999, 'accounting-category')} not found`,
+        );
+
+        // Belongs to a different host
+        const anotherCategory = await fakeAccountingCategory();
+        result = await callMutation({ id: idEncode(anotherCategory.id, 'accounting-category') });
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('This accounting category is not allowed for this expense');
+      });
+
+      it('reserves the accounting category changes of paid expenses to host admins', async () => {
+        const expense = await fakeExpense({ status: 'PAID' });
+        const hostAdmin = await fakeUser();
+        const collectiveAdmin = await fakeUser();
+        await expense.collective.addUserWithRole(collectiveAdmin, 'ADMIN');
+        await expense.collective.host.addUserWithRole(hostAdmin, 'ADMIN');
+        const newAccountingCategory = await fakeAccountingCategory({
+          CollectiveId: expense.collective.HostCollectiveId,
+        });
+        const newAccountingCategoryIdV2 = idEncode(newAccountingCategory.id, 'accounting-category');
+        const mutationParams = {
+          expense: { id: idEncode(expense.id, 'expense'), accountingCategory: { id: newAccountingCategoryIdV2 } },
+        };
+
+        // Fails as the submitter
+        const result1 = await graphqlQueryV2(editExpenseMutation, mutationParams, expense.User);
+        expect(result1.errors).to.exist;
+        expect(result1.errors[0].message).to.eq(
+          "You don't have permission to edit the accounting category for this expense",
+        );
+
+        // Fails as the collective admin
+        const result2 = await graphqlQueryV2(editExpenseMutation, mutationParams, collectiveAdmin);
+        expect(result2.errors).to.exist;
+        expect(result2.errors[0].message).to.eq(
+          "You don't have permission to edit the accounting category for this expense",
+        );
+
+        // Works as the host admin
+        const result3 = await graphqlQueryV2(editExpenseMutation, mutationParams, hostAdmin);
+        result1.errors && console.error(result1.errors);
+        expect(result3.errors).to.not.exist;
+        expect(result3.data.editExpense.accountingCategory.id).to.eq(newAccountingCategoryIdV2);
+      });
+
+      it('can reset the accounting category by passing null', async () => {
+        const expense = await fakeExpense();
+        const accountingCategory = await fakeAccountingCategory({ CollectiveId: expense.collective.HostCollectiveId });
+        await expense.update({ AccountingCategoryId: accountingCategory.id });
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          { expense: { id: idEncode(expense.id, 'expense'), accountingCategory: null } },
+          expense.User,
+        );
+
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.accountingCategory).to.be.null;
+        await expense.reload();
+        expect(expense.AccountingCategoryId).to.be.null;
+      });
+    });
+
     describe('2FA', () => {
       it('fails if required by the collective and not provided', async () => {
         const collectiveAdminUser = await fakeUser();
@@ -645,10 +767,15 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
     it('can edit only one field without impacting the others', async () => {
       const expense = await fakeExpense({ privateMessage: randStr(), description: randStr() });
+      const accountingCategory = await fakeAccountingCategory({ CollectiveId: expense.collective.HostCollectiveId });
+      await expense.update({ AccountingCategoryId: accountingCategory.id });
       const updatedExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), privateMessage: randStr() };
       const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, expense.User);
       expect(result.data.editExpense.privateMessage).to.equal(updatedExpenseData.privateMessage);
       expect(result.data.editExpense.description).to.equal(expense.description);
+      expect(result.data.editExpense.accountingCategory.id).to.equal(
+        idEncode(accountingCategory.id, 'accounting-category'),
+      ); // Does not reset the accounting category
     });
 
     it('cannot update info if the expense is PAID', async () => {
@@ -1655,7 +1782,6 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
             UserId: user.id,
             currency: 'USD',
             PayoutMethodId: payoutMethod.id,
-            category: 'Engineering',
             type: 'INVOICE',
             description: 'January Invoice',
           });
@@ -2722,7 +2848,6 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         UserId: user.id,
         currency: 'USD',
         PayoutMethodId: payoutMethod.id,
-        category: 'Engineering',
         type: 'INVOICE',
         description: 'January Invoice',
       });
@@ -2734,7 +2859,6 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         UserId: user.id,
         currency: 'USD',
         PayoutMethodId: payoutMethod.id,
-        category: 'Engineering',
         type: 'INVOICE',
         description: 'January Invoice',
       });
@@ -2746,7 +2870,6 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         UserId: user.id,
         currency: 'USD',
         PayoutMethodId: payoutMethod.id,
-        category: 'Engineering',
         type: 'INVOICE',
         description: 'January Invoice',
       });
@@ -2758,7 +2881,6 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         UserId: user.id,
         currency: 'USD',
         PayoutMethodId: payoutMethod.id,
-        category: 'Engineering',
         type: 'INVOICE',
         description: 'January Invoice',
       });
@@ -2843,7 +2965,6 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         UserId: user.id,
         currency: 'USD',
         PayoutMethodId: payoutMethod.id,
-        category: 'Engineering',
         type: 'INVOICE',
       });
 

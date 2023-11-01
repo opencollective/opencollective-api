@@ -93,6 +93,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   public declare virtualCard?: VirtualCard;
   public declare items?: ExpenseItem[];
   public declare attachedFiles?: ExpenseAttachedFile[];
+  public declare accountingCategory?: AccountingCategory;
 
   // Association getters
   declare getCollective: BelongsToGetAssociationMixin<Collective>;
@@ -101,6 +102,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   declare getRecurringExpense: BelongsToGetAssociationMixin<RecurringExpense>;
   declare getTransactions: HasManyGetAssociationsMixin<TransactionInterface>;
   declare getVirtualCard: BelongsToGetAssociationMixin<typeof models.VirtualCard>;
+  declare getAccountingCategory: BelongsToGetAssociationMixin<AccountingCategory>;
 
   /**
    * Instance Methods
@@ -260,9 +262,11 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
       CollectiveId: this.CollectiveId,
       FromCollectiveId: this.FromCollectiveId,
       HostCollectiveId: this.HostCollectiveId,
+      AccountingCategoryId: this.AccountingCategoryId,
       currency: this.currency,
       amount: this.amount,
       description: this.description,
+      /** @deprecated - now using `tags` */
       category: this.tags?.[1],
       tags: this.tags,
       legacyPayoutMethod: this.legacyPayoutMethod,
@@ -541,6 +545,14 @@ Expense.init(
     },
 
     data: DataTypes.JSONB,
+
+    AccountingCategoryId: {
+      type: DataTypes.INTEGER,
+      references: { key: 'id', model: 'AccountingCategories' },
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE',
+      allowNull: true,
+    },
 
     CollectiveId: {
       type: DataTypes.INTEGER,
