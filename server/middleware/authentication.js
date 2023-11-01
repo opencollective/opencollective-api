@@ -156,8 +156,11 @@ const _authenticateUserByJwt = async (req, res, next) => {
       secure: true,
       httpOnly: true,
       sameSite: 'strict',
+      domain: '.opencollective.com',
       maxAge: 24 * 60 * 60 * 1000 * 365,
     });
+  } else {
+    res.clearCookie('rootRedirect', { domain: '.opencollective.com' });
   }
 
   // Make tokens expire on password update
@@ -391,12 +394,12 @@ export async function checkPersonalToken(req, res, next) {
       }
       next();
     } else {
-      res.clearCookie('rootRedirect');
+      res.clearCookie('rootRedirect', { domain: '.opencollective.com' });
       debug(`Invalid Personal Token (Api Key): ${apiKey || token}`);
       next(new Unauthorized(`Invalid Personal Token (Api Key): ${apiKey || token}`));
     }
   } else {
-    res.clearCookie('rootRedirect');
+    res.clearCookie('rootRedirect', { domain: '.opencollective.com' });
     next();
     debug('No Personal Token (Api Key)');
   }
