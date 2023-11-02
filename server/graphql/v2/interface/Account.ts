@@ -882,7 +882,7 @@ export const AccountFields = {
     args: {
       limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 30 },
     },
-    async resolve(collective, _, { limit }) {
+    async resolve(collective, { limit }) {
       return models.Conversation.getMostPopularTagsForCollective(collective.id, limit);
     },
   },
@@ -892,7 +892,7 @@ export const AccountFields = {
     args: {
       limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 30 },
     },
-    async resolve(collective, _, { limit }) {
+    async resolve(collective, { limit }) {
       return models.Expense.getMostPopularExpenseTagsForCollective(collective.id, limit);
     },
   },
