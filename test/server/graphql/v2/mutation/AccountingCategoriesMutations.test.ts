@@ -218,8 +218,8 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
       );
 
       expect(result2.errors).to.not.exist;
-      expect(result2.data.editAccountingCategories.host.accountingCategories.nodes).to.have.length(2);
-      expect(result2.data.editAccountingCategories.host.accountingCategories.nodes).to.containSubset([
+      expect(getNodesFromResult(result2)).to.have.length(2);
+      expect(getNodesFromResult(result2)).to.containSubset([
         { code: '003' },
         { id: getNodesFromResult(result1)[0].id, code: '001', name: 'EDITED' },
       ]);
@@ -232,7 +232,7 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
       );
 
       expect(result3.errors).to.not.exist;
-      expect(result3.data.editAccountingCategories.host.accountingCategories.nodes).to.have.length(0);
+      expect(getNodesFromResult(result3)).to.have.length(0);
 
       // Check activities
       const activities = await models.Activity.findAll({
