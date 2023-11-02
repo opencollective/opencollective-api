@@ -1,0 +1,3 @@
+files:
+  - source: /templates/**/*.hbs
+    translation: /%original_path%/i18n/%original_file_name%.%locale%.hbs
