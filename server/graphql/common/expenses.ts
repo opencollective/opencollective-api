@@ -49,13 +49,14 @@ import { listPayPalTransactions } from '../../lib/paypal';
 import { getPolicy } from '../../lib/policies';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
 import { notifyTeamAboutSpamExpense } from '../../lib/spam';
+import { deepJSONBSet } from '../../lib/sql';
 import { createTransactionsForManuallyPaidExpense, createTransactionsFromPaidExpense } from '../../lib/transactions';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import { canUseFeature } from '../../lib/user-permissions';
 import { formatCurrency, parseToBoolean } from '../../lib/utils';
 import models, { Collective, sequelize } from '../../models';
 import AccountingCategory from '../../models/AccountingCategory';
-import Expense from '../../models/Expense';
+import Expense, { ExpenseDataValuesByRole } from '../../models/Expense';
 import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile';
 import { ExpenseItem } from '../../models/ExpenseItem';
 import { MigrationLogType } from '../../models/MigrationLog';
@@ -1346,6 +1347,11 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
     validateExpenseCustomData(expenseData.customData);
     data['customData'] = expenseData.customData;
   }
+  if (expenseData.accountingCategory) {
+    data['valuesByRole'] = {
+      [getUserRole(remoteUser, collective)]: { accountingCategory: expenseData.accountingCategory.publicInfo },
+    };
+  }
 
   const expense = await sequelize.transaction(async t => {
     // Create expense
@@ -1574,6 +1580,17 @@ export async function editExpenseDraft(req: express.Request, expenseData: Expens
 }
 
 /**
+ * Returns the value to store in `Expense.data.valuesByRole` for the given user.
+ */
+const getUserRole = (user: User, collective: Collective): keyof ExpenseDataValuesByRole => {
+  return user.isAdmin(collective.HostCollectiveId)
+    ? 'hostAdmin'
+    : user.isAdminOfCollective(collective)
+    ? 'collectiveAdmin'
+    : 'submitter';
+};
+
+/**
  * A simple helper to handle the case when editing only the tags and/or accounting category of an expense.
  * Permissions for these fields (especially regarding the status of the expense) are more relaxed than for other fields.
  */
@@ -1582,7 +1599,7 @@ const editOnlyTagsAndAccountingCategory = async (
   expenseData: Pick<ExpenseData, 'tags' | 'accountingCategory'>,
   req: express.Request,
 ): Promise<Expense> => {
-  const newValues = {};
+  const updateClauses = [];
 
   // Tags
   if (!isUndefined(expenseData.tags)) {
@@ -1590,7 +1607,7 @@ const editOnlyTagsAndAccountingCategory = async (
       throw new Unauthorized("You don't have permission to edit tags for this expense");
     }
 
-    newValues['tags'] = expenseData.tags;
+    updateClauses.push(`"tags" = Array[:tags]::VARCHAR(255)[]`);
   }
 
   // Accounting category
@@ -1599,14 +1616,33 @@ const editOnlyTagsAndAccountingCategory = async (
       throw new Unauthorized("You don't have permission to edit the accounting category for this expense");
     }
 
-    newValues['AccountingCategoryId'] = expenseData.accountingCategory?.id || null;
+    const userRole = getUserRole(req.remoteUser, expense.collective);
+    updateClauses.push(`"AccountingCategoryId" = :AccountingCategoryId`);
+    updateClauses.push(
+      `"data" = ${deepJSONBSet('data', ['valuesByRole', userRole, 'accountingCategory'], ':accountingCategory')}`,
+    );
   }
 
-  if (isEmpty(newValues)) {
+  if (isEmpty(updateClauses)) {
     return expense;
   }
 
-  const updatedExpense = await expense.update(newValues);
+  // Use a raw query to unlock the ability of using `JSONB_SET`, which will prevent concurrency issues on the `data` field
+  const updatedExpense = await sequelize.query(
+    `UPDATE "Expenses" SET ${updateClauses.join(', ')} WHERE id = :id RETURNING *`,
+    {
+      model: models.Expense,
+      plain: true,
+      mapToModel: true,
+      replacements: {
+        id: expense.id,
+        tags: expenseData.tags || [],
+        AccountingCategoryId: expenseData.accountingCategory?.id || null,
+        accountingCategory: JSON.stringify(expenseData.accountingCategory?.publicInfo || null),
+      },
+    },
+  );
+
   updatedExpense.createActivity(activities.COLLECTIVE_EXPENSE_UPDATED, req.remoteUser);
   return updatedExpense;
 };
@@ -1713,9 +1749,12 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
     await fromCollective.setLocation(expenseData.payeeLocation);
   }
 
-  const cleanExpenseData = <Pick<ExpenseData, ExpenseEditableFieldsUnion>>(
-    pick(expenseData, isPaidCreditCardCharge ? EXPENSE_PAID_CHARGE_EDITABLE_FIELDS : EXPENSE_EDITABLE_FIELDS)
-  );
+  const cleanExpenseData = {
+    ...(<Pick<ExpenseData, ExpenseEditableFieldsUnion>>(
+      pick(expenseData, isPaidCreditCardCharge ? EXPENSE_PAID_CHARGE_EDITABLE_FIELDS : EXPENSE_EDITABLE_FIELDS)
+    )),
+    data: !expense.data ? null : cloneDeep(omit(expense.data, ['items', 'draftKey'])), // Make sure we omit draft key and items
+  };
 
   // Let submitter customize the currency
   const isChangingCurrency = expenseData.currency && expenseData.currency !== expense.currency;
@@ -1730,6 +1769,8 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
     } else {
       checkCanUseAccountingCategory(expenseData.accountingCategory, expense.collective.host);
       cleanExpenseData['AccountingCategoryId'] = expenseData.accountingCategory?.id || null;
+      const dataValuePath = `data.valuesByRole.${getUserRole(remoteUser, collective)}.accountingCategory`;
+      set(cleanExpenseData, dataValuePath, expenseData.accountingCategory?.publicInfo || null);
     }
   }
 
@@ -1824,15 +1865,8 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
       status = 'PENDING';
     }
 
-    const data = !expense.data
-      ? null
-      : cloneDeep(
-          omit(expense.data, ['items', 'draftKey']), // Make sure we omit draft key and items
-        );
-
     const updatedExpenseProps = {
       ...cleanExpenseData,
-      data,
       amount: computeTotalAmountForExpense(expense.items, taxes),
       lastEditedById: remoteUser.id,
       incurredAt: expenseData.incurredAt || new Date(),
