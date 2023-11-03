@@ -74,6 +74,12 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
     quote?: ExpenseDataQuoteV2;
     transfer?: Transfer;
     valuesByRole?: ExpenseDataValuesByRole;
+    payee?: {
+      id?: number;
+      name?: string;
+      email?: string;
+    };
+    draftKey?: string;
   };
 
   public declare currency: string;
