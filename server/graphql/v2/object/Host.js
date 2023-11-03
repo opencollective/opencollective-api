@@ -377,7 +377,9 @@ export const GraphQLHost = new GraphQLObjectType({
                 as: 'collective',
                 required: true,
                 where: {
-                  HostCollectiveId: host.id,
+                  ...(args.status !== 'REJECTED' && {
+                    HostCollectiveId: host.id,
+                  }),
                   ...(searchTermConditions.length && { [Op.or]: searchTermConditions }),
                 },
               },
