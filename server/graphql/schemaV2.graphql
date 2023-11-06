@@ -622,7 +622,8 @@ interface Account {
   virtualCards(
     limit: Int! = 100
     offset: Int! = 0
-    state: String = null
+    state: String = null @deprecated(reason: "2023-11-06: Please use status.")
+    status: [VirtualCardStatus]
     merchantAccount: AccountReferenceInput = null
 
     """
@@ -1916,7 +1917,8 @@ type Host implements Account & AccountWithContributions {
   virtualCards(
     limit: Int! = 100
     offset: Int! = 0
-    state: String = null
+    state: String = null @deprecated(reason: "2023-11-06: Please use status.")
+    status: [VirtualCardStatus]
     merchantAccount: AccountReferenceInput = null
 
     """
@@ -4473,6 +4475,15 @@ type VirtualCardCollection implements Collection {
   nodes: [VirtualCard]
 }
 
+"""
+The status of a virtual card
+"""
+enum VirtualCardStatus {
+  ACTIVE
+  INACTIVE
+  CANCELED
+}
+
 type Policies {
   id: String
   EXPENSE_AUTHOR_CANNOT_APPROVE: EXPENSE_AUTHOR_CANNOT_APPROVE
@@ -5117,15 +5128,6 @@ enum HostApplicationStatus {
   APPROVED
   REJECTED
   EXPIRED
-}
-
-"""
-The status of a virtual card
-"""
-enum VirtualCardStatus {
-  ACTIVE
-  INACTIVE
-  CANCELED
 }
 
 """
@@ -6249,7 +6251,8 @@ type Bot implements Account {
   virtualCards(
     limit: Int! = 100
     offset: Int! = 0
-    state: String = null
+    state: String = null @deprecated(reason: "2023-11-06: Please use status.")
+    status: [VirtualCardStatus]
     merchantAccount: AccountReferenceInput = null
 
     """
@@ -6784,7 +6787,8 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   virtualCards(
     limit: Int! = 100
     offset: Int! = 0
-    state: String = null
+    state: String = null @deprecated(reason: "2023-11-06: Please use status.")
+    status: [VirtualCardStatus]
     merchantAccount: AccountReferenceInput = null
 
     """
@@ -7688,7 +7692,8 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   virtualCards(
     limit: Int! = 100
     offset: Int! = 0
-    state: String = null
+    state: String = null @deprecated(reason: "2023-11-06: Please use status.")
+    status: [VirtualCardStatus]
     merchantAccount: AccountReferenceInput = null
 
     """
@@ -8441,7 +8446,8 @@ type Individual implements Account {
   virtualCards(
     limit: Int! = 100
     offset: Int! = 0
-    state: String = null
+    state: String = null @deprecated(reason: "2023-11-06: Please use status.")
+    status: [VirtualCardStatus]
     merchantAccount: AccountReferenceInput = null
 
     """
@@ -9182,7 +9188,8 @@ type Organization implements Account & AccountWithContributions {
   virtualCards(
     limit: Int! = 100
     offset: Int! = 0
-    state: String = null
+    state: String = null @deprecated(reason: "2023-11-06: Please use status.")
+    status: [VirtualCardStatus]
     merchantAccount: AccountReferenceInput = null
 
     """
@@ -9840,7 +9847,8 @@ type Vendor implements Account & AccountWithContributions {
   virtualCards(
     limit: Int! = 100
     offset: Int! = 0
-    state: String = null
+    state: String = null @deprecated(reason: "2023-11-06: Please use status.")
+    status: [VirtualCardStatus]
     merchantAccount: AccountReferenceInput = null
 
     """
@@ -12839,7 +12847,8 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   virtualCards(
     limit: Int! = 100
     offset: Int! = 0
-    state: String = null
+    state: String = null @deprecated(reason: "2023-11-06: Please use status.")
+    status: [VirtualCardStatus]
     merchantAccount: AccountReferenceInput = null
 
     """
@@ -13484,7 +13493,8 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   virtualCards(
     limit: Int! = 100
     offset: Int! = 0
-    state: String = null
+    state: String = null @deprecated(reason: "2023-11-06: Please use status.")
+    status: [VirtualCardStatus]
     merchantAccount: AccountReferenceInput = null
 
     """
