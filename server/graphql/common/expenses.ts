@@ -408,7 +408,12 @@ export const canDeleteExpense: ExpensePermissionEvaluator = async (
   expense: Expense,
   options = { throw: false },
 ) => {
-  if (!['REJECTED', 'DRAFT', 'SPAM', 'CANCELED'].includes(expense.status)) {
+  if (
+    ['DRAFT', 'PENDING'].includes(expense.status) &&
+    (await remoteUserMeetsOneCondition(req, expense, [isOwner, isDraftPayee], options))
+  ) {
+    return true;
+  } else if (!['REJECTED', 'SPAM', 'DRAFT', 'CANCELED'].includes(expense.status)) {
     if (options?.throw) {
       throw new Forbidden(
         'Can not delete expense in current status',
