@@ -1,7 +1,7 @@
 import config from 'config';
 import express from 'express';
 import { GraphQLNonNull } from 'graphql';
-import { pick } from 'lodash';
+import { isUndefined, pick } from 'lodash';
 
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
@@ -74,6 +74,14 @@ const updatePersonalToken = {
       throw new NotFound(`Personal token not found`);
     } else if (!req.remoteUser.isAdminOfCollective(personalToken.collective)) {
       throw new Forbidden('Authenticated user is not the token owner.');
+    } else if (
+      !isUndefined(args.personalToken.preAuthorize2FA) &&
+      args.personalToken.preAuthorize2FA !== personalToken.preAuthorize2FA &&
+      req.personalToken
+    ) {
+      throw new Error(
+        'You cannot change the preAuthorize2FA value of the token you are using. Please use the interface to change it.',
+      );
     }
 
     const updateParams = pick(args.personalToken, ['name', 'scope', 'expiresAt', 'preAuthorize2FA']);
