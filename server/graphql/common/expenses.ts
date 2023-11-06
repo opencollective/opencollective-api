@@ -33,6 +33,7 @@ import { CollectiveType } from '../../constants/collectives';
 import statuses from '../../constants/expense_status';
 import EXPENSE_TYPE from '../../constants/expense_type';
 import { ExpenseFeesPayer } from '../../constants/expense-fees-payer';
+import { ExpenseRoles } from '../../constants/expense-roles';
 import FEATURE from '../../constants/feature';
 import { EXPENSE_PERMISSION_ERROR_CODES } from '../../constants/permissions';
 import POLICIES from '../../constants/policies';
@@ -1584,10 +1585,10 @@ export async function editExpenseDraft(req: express.Request, expenseData: Expens
  */
 const getUserRole = (user: User, collective: Collective): keyof ExpenseDataValuesByRole => {
   return user.isAdmin(collective.HostCollectiveId)
-    ? 'hostAdmin'
+    ? ExpenseRoles.hostAdmin
     : user.isAdminOfCollective(collective)
-    ? 'collectiveAdmin'
-    : 'submitter';
+    ? ExpenseRoles.collectiveAdmin
+    : ExpenseRoles.submitter;
 };
 
 /**
