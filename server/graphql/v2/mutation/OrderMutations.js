@@ -19,6 +19,7 @@ import {
 
 import { roles } from '../../../constants';
 import activities from '../../../constants/activities';
+import { CollectiveType } from '../../../constants/collectives';
 import { Service } from '../../../constants/connected_account';
 import FEATURE from '../../../constants/feature';
 import OrderStatuses from '../../../constants/order_status';
@@ -1037,6 +1038,23 @@ const orderMutations = {
           tierName: tier?.name,
         },
       });
+
+      // Update VENDOR contact info if needed
+      if (
+        fromAccount.type === CollectiveType.VENDOR &&
+        isEmpty(fromAccount.data?.vendorInfo?.contact) &&
+        args.order.fromAccountInfo
+      ) {
+        await fromAccount.update({
+          data: {
+            ...fromAccount.data,
+            vendorInfo: {
+              ...fromAccount.data?.vendorInfo,
+              contact: pick(args.order.fromAccountInfo, ['name', 'email']),
+            },
+          },
+        });
+      }
 
       return order;
     },
