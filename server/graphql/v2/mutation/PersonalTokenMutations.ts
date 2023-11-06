@@ -84,6 +84,8 @@ const updatePersonalToken = {
       );
     }
 
+    const hasCriticalChanges = ['scope', 'expiresAt'].some(field => !isUndefined(args.personalToken[field]));
+    await twoFactorAuthLib.enforceForAccount(req, personalToken.collective, { alwaysAskForToken: hasCriticalChanges });
     const updateParams = pick(args.personalToken, ['name', 'scope', 'expiresAt', 'preAuthorize2FA']);
     return personalToken.update(updateParams);
   },
@@ -109,6 +111,7 @@ const deletePersonalToken = {
       throw new Forbidden('Authenticated user is not the personal token owner.');
     }
 
+    await twoFactorAuthLib.enforceForAccount(req, personalToken.collective);
     return personalToken.destroy();
   },
 };
