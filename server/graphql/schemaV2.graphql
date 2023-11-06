@@ -1234,6 +1234,11 @@ type Expense {
   accountingCategory: AccountingCategory
 
   """
+  If available, this field will contain a breakdown of the expense values depending on who edited it
+  """
+  valuesByRole: ExpenseValuesByRole
+
+  """
   The time of creation
   """
   createdAt: DateTime!
@@ -5229,6 +5234,34 @@ type VendorCollection implements Collection {
   limit: Int
   totalCount: Int
   nodes: [Vendor!]
+}
+
+type ExpenseValuesByRole {
+  id: NonEmptyString!
+
+  """
+  The values provided by the expense submitter(s)
+  """
+  submitter: ExpenseValuesRoleDetails
+
+  """
+  The values provided by the account admin(s)
+  """
+  accountAdmin: ExpenseValuesRoleDetails
+
+  """
+  The values provided by the host admin(s)
+  """
+  hostAdmin: ExpenseValuesRoleDetails
+}
+
+"""
+A string that cannot be passed as an empty value
+"""
+scalar NonEmptyString
+
+type ExpenseValuesRoleDetails {
+  accountingCategory: AccountingCategory
 }
 
 enum ExpenseStatus {
@@ -15431,11 +15464,6 @@ input PoliciesExpenseCategorizationInput {
 type SendMessageResult {
   success: Boolean
 }
-
-"""
-A string that cannot be passed as an empty value
-"""
-scalar NonEmptyString
 
 """
 Input for creating or updating an account category
