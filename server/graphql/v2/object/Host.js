@@ -367,7 +367,7 @@ export const GraphQLHost = new GraphQLObjectType({
             order: [[args.orderBy.field, args.orderBy.direction]],
             where: {
               HostCollectiveId: host.id,
-              status: args.status,
+              ...(args.status && { status: args.status }),
             },
             limit: args.limit,
             offset: args.offset,
@@ -378,7 +378,6 @@ export const GraphQLHost = new GraphQLObjectType({
                 required: true,
                 where: {
                   HostCollectiveId: host.id,
-                  ...(args.status === 'PENDING' && { approvedAt: null }),
                   ...(searchTermConditions.length && { [Op.or]: searchTermConditions }),
                 },
               },
