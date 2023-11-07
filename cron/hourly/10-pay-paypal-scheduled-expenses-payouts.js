@@ -2,7 +2,7 @@
 
 import '../../server/env';
 
-import { groupBy, values } from 'lodash';
+import { flatten, groupBy, values } from 'lodash';
 
 import status from '../../server/constants/expense_status';
 import logger from '../../server/lib/logger';
@@ -21,7 +21,7 @@ export async function run() {
       { model: models.PayoutMethod, as: 'PayoutMethod', where: { type: PayoutMethodTypes.PAYPAL } },
     ],
   });
-  const batches = values(groupBy(expenses, 'CollectiveId'));
+  const batches = flatten(values(groupBy(values(groupBy(expenses, 'CollectiveId'), 'currency'))));
   logger.info(`Processing ${expenses.length} expense(s) scheduled for payment using PayPal Payouts...`);
   for (const batch of batches) {
     logger.info(`Paying collective ${batch[0]?.CollectiveId} batch with ${batch.length} expense(s)...`);
