@@ -1,6 +1,7 @@
 import assert from 'assert';
 
 import * as LibTaxes from '@opencollective/taxes';
+import config from 'config';
 import debugLib from 'debug';
 import express from 'express';
 import {
@@ -17,6 +18,7 @@ import {
   isUndefined,
   keyBy,
   mapValues,
+  matches,
   omit,
   omitBy,
   pick,
@@ -26,6 +28,7 @@ import {
   uniq,
 } from 'lodash';
 import moment from 'moment';
+import { v4 as uuid } from 'uuid';
 
 import { activities, roles } from '../../constants';
 import ActivityTypes from '../../constants/activities';
@@ -1558,7 +1561,36 @@ const isValueChanging = (expense: Expense, expenseData: ExpenseData, key: string
   }
 };
 
-export async function editExpenseDraft(req: express.Request, expenseData: ExpenseData) {
+const isDifferentInvitedPayee = (expense: Expense, payee): boolean => {
+  const isInvitedPayee = !expense.data?.payee?.id && expense.data.payee.email;
+  if (isInvitedPayee) {
+    return !matches(expense.data.payee)(payee);
+  }
+  return false;
+};
+
+export async function sendDraftExpenseInvite(
+  req: express.Request,
+  expense: Expense,
+  collective: Collective,
+  draftKey: string,
+): Promise<void> {
+  const inviteUrl = `${config.host.website}/${collective.slug}/expenses/${expense.id}?key=${draftKey}`;
+  expense
+    .createActivity(activities.COLLECTIVE_EXPENSE_INVITE_DRAFTED, req.remoteUser, {
+      ...expense.data,
+      inviteUrl,
+    })
+    .catch(e => {
+      logger.error('An error happened when creating the COLLECTIVE_EXPENSE_INVITE_DRAFTED activity', e);
+      reportErrorToSentry(e);
+    });
+  if (config.env === 'development') {
+    logger.info(`Expense Invite Link: ${inviteUrl}`);
+  }
+}
+
+export async function editExpenseDraft(req: express.Request, expenseData: ExpenseData, args?: Record<string, any>) {
   const existingExpense = await models.Expense.findByPk(expenseData.id);
   if (!existingExpense) {
     throw new NotFound('Expense not found.');
@@ -1571,18 +1603,34 @@ export async function editExpenseDraft(req: express.Request, expenseData: Expens
     throw new Unauthorized('Only the author of the draft can edit it');
   }
 
-  return await existingExpense.update({
+  const newExpenseValues = {
     ...pick(expenseData, DRAFT_EXPENSE_FIELDS),
     amount: computeTotalAmountForExpense(expenseData.items, expenseData.tax),
     lastEditedById: req.remoteUser.id,
     UserId: req.remoteUser.id,
     data: {
-      ...existingExpense.data,
       items: expenseData.items,
       taxes: expenseData.tax,
       attachedFiles: expenseData.attachedFiles,
     },
-  });
+  };
+
+  if (args.expense.payee && isDifferentInvitedPayee(existingExpense, args.expense.payee)) {
+    const payee = args.expense.payee as { email: string; name?: string };
+    newExpenseValues.data['payee'] = payee;
+    newExpenseValues.data['draftKey'] =
+      process.env.OC_ENV === 'e2e' || process.env.OC_ENV === 'ci' ? 'draft-key' : uuid();
+  }
+
+  await existingExpense.update({ ...newExpenseValues, data: { ...existingExpense.data, ...newExpenseValues.data } });
+  existingExpense.createActivity(activities.COLLECTIVE_EXPENSE_UPDATED, req.remoteUser);
+
+  if (newExpenseValues.data['draftKey']) {
+    const collective = await req.loaders.Collective.byId.load(existingExpense.CollectiveId);
+    await sendDraftExpenseInvite(req, existingExpense, collective, newExpenseValues.data['draftKey']);
+  }
+
+  return existingExpense;
 }
 
 /**
