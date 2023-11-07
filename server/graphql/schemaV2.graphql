@@ -12337,6 +12337,12 @@ type ExpenseCollection implements Collection {
   limit: Int
   totalCount: Int
   nodes: [Expense]
+  aggregation: ExpenseCollectionAggregation
+}
+
+type ExpenseCollectionAggregation {
+  totalAmount(currency: Currency = USD): Amount
+  currencyAmounts: [Amount]
 }
 
 """

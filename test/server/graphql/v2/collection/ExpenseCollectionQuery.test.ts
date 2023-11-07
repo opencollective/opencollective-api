@@ -38,6 +38,16 @@ const expensesQuery = gqlV2/* GraphQL */ `
       customData: $customData
     ) {
       totalCount
+      aggregation {
+        currencyAmounts {
+          valueInCents
+          currency
+        }
+        totalAmount(currency: USD) {
+          valueInCents
+          currency
+        }
+      }
       nodes {
         id
         legacyId
@@ -63,6 +73,36 @@ const fakeHostWithRequiredLegalDocument = async (hostData = {}) => {
 };
 
 describe('server/graphql/v2/collection/ExpenseCollection', () => {
+  it('It aggregates total amount', async () => {
+    const collective = await fakeCollective();
+    const queryParams = { account: { legacyId: collective.id } };
+
+    await fakeExpense({
+      amount: 12000,
+      currency: 'USD',
+      type: 'RECEIPT',
+      CollectiveId: collective.id,
+      status: 'PENDING',
+    });
+    await fakeExpense({ amount: 5000, currency: 'GBP', type: 'RECEIPT', CollectiveId: collective.id, status: 'PAID' });
+    await fakeExpense({
+      amount: 5000,
+      currency: 'GBP',
+      type: 'RECEIPT',
+      CollectiveId: collective.id,
+      status: 'APPROVED',
+    });
+
+    const result = await graphqlQueryV2(expensesQuery, queryParams);
+    console.log(result.errors);
+    expect(result.data.expenses.aggregation.currencyAmounts).to.have.deep.members([
+      { valueInCents: 12000, currency: 'USD' },
+      { valueInCents: 10000, currency: 'GBP' },
+    ]);
+
+    expect(result.data.expenses.aggregation.totalAmount).to.eql({ valueInCents: 23000, currency: 'USD' });
+  });
+
   describe('Filter on basic status', () => {
     let expenses, collective;
 
