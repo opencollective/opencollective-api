@@ -21,11 +21,17 @@ export async function run() {
       { model: models.PayoutMethod, as: 'PayoutMethod', where: { type: PayoutMethodTypes.PAYPAL } },
     ],
   });
-  const batches = values(groupBy(expenses, 'CollectiveId'));
+  const collectiveBatches = values(groupBy(expenses, 'CollectiveId'), 'currency');
   logger.info(`Processing ${expenses.length} expense(s) scheduled for payment using PayPal Payouts...`);
-  for (const batch of batches) {
-    logger.info(`Paying collective ${batch[0]?.CollectiveId} batch with ${batch.length} expense(s)...`);
-    await paypal.payExpensesBatch(batch).catch(console.error);
+  for (const collectiveBatch of collectiveBatches) {
+    const currencyBatches = values(groupBy(collectiveBatch, 'currency'));
+    // For each currency, we pay all the expenses of the same currency in a single batch due to PayPal limitations
+    for (const currencyBatch of currencyBatches) {
+      logger.info(
+        `Paying collective ${currencyBatch[0]?.CollectiveId} batch with ${currencyBatch.length} expense(s) in ${currencyBatch[0].currency}...`,
+      );
+      await paypal.payExpensesBatch(currencyBatch).catch(console.error);
+    }
   }
   logger.info('Done!');
 }
