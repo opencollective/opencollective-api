@@ -310,8 +310,16 @@ export const GraphQLOrder = new GraphQLObjectType({
         type: GraphQLJSON,
         description:
           'Custom data related to the order, based on the fields described by tier.customFields. Must be authenticated as an admin of the fromAccount or toAccount (returns null otherwise)',
-        resolve(order, _, { remoteUser }) {
-          if (!remoteUser || !(remoteUser.isAdmin(order.CollectiveId) || remoteUser.isAdmin(order.FromCollectiveId))) {
+        async resolve(order, _, { remoteUser, loaders }) {
+          const [fromCollective, collective] = await Promise.all([
+            loaders.Collective.byId.load(order.FromCollectiveId),
+            loaders.Collective.byId.load(order.CollectiveId),
+          ]);
+
+          if (
+            !remoteUser ||
+            !(remoteUser.isAdminOfCollective(collective) || remoteUser.isAdminOfCollective(fromCollective))
+          ) {
             return null;
           } else {
             return order.data?.customData || {};
