@@ -1,4 +1,4 @@
-import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
 import { GraphQLOAuthScope } from '../enum/OAuthScope';
@@ -45,6 +45,10 @@ export const GraphQLPersonalToken = new GraphQLObjectType({
     updatedAt: {
       type: GraphQLDateTime,
       description: 'The date on which the personal token was last updated',
+    },
+    preAuthorize2FA: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether this token is allowed to directly use operations that would normally require 2FA',
     },
   }),
 });

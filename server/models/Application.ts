@@ -22,6 +22,7 @@ class Application extends Model<InferAttributes<Application>, InferCreationAttri
   public declare name: string;
   public declare description: string;
   public declare disabled: boolean;
+  public declare preAuthorize2FA: CreationOptional<boolean>;
   public declare createdAt: CreationOptional<Date>;
   public declare updatedAt: CreationOptional<Date>;
   public declare deletedAt: CreationOptional<Date>;
@@ -110,6 +111,11 @@ Application.init(
     disabled: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
+    },
+    preAuthorize2FA: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      allowNull: false,
     },
     createdAt: {
       type: DataTypes.DATE,
