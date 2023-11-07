@@ -163,6 +163,16 @@ async function validateRequest(
     return false;
   }
 
+  // Allow Personal Tokens and OAuth tokens to bypass 2FA check if they have been pre-authorized
+  if (req.userToken || req.personalToken) {
+    if (req.personalToken?.preAuthorize2FA || req.userToken?.preAuthorize2FA) {
+      return true;
+    } else {
+      const type = req.personalToken ? 'personal' : 'OAuth';
+      throw new Error(`This ${type} token is not pre-authorized for 2FA`);
+    }
+  }
+
   if (!options.alwaysAskForToken) {
     if (await hasValidTwoFactorSession(req, options)) {
       return true;
@@ -199,6 +209,13 @@ async function validateRequest(
     throw new ApolloError('Two-factor authentication required', '2FA_REQUIRED', {
       supportedMethods,
       authenticationOptions,
+    });
+  } else if (req.userToken || req.clientApp) {
+    // 2FA tokens should not be used with personal tokens or OAuth tokens
+    console.warn(`2FA token used with personal token or OAuth token`, {
+      userToken: req.userToken?.id,
+      clientApp: req.clientApp?.id,
+      url: req.url,
     });
   }
 

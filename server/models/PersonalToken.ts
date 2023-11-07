@@ -21,6 +21,7 @@ class PersonalToken extends Model<InferAttributes<PersonalToken>, InferCreationA
   public declare UserId: ForeignKey<User['id']>;
   public declare scope: oAuthScopes[];
   public declare name: string;
+  public declare preAuthorize2FA: CreationOptional<boolean>;
 
   public declare application?: NonAttribute<typeof models.Application>;
   public declare user?: NonAttribute<typeof models.User>;
@@ -71,6 +72,11 @@ PersonalToken.init(
     scope: {
       type: DataTypes.ARRAY(DataTypes.ENUM(...Object.values(oAuthScopes))),
       allowNull: true,
+    },
+    preAuthorize2FA: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      allowNull: false,
     },
     data: {
       type: DataTypes.JSONB,

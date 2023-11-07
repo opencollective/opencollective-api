@@ -9,7 +9,7 @@ import twoFactorAuthLib from '../../../../server/lib/two-factor-authentication';
 import { TwoFactorAuthenticationHeader } from '../../../../server/lib/two-factor-authentication/lib';
 import totpProvider from '../../../../server/lib/two-factor-authentication/totp';
 import models from '../../../../server/models';
-import { fakeUser } from '../../../test-helpers/fake-data';
+import { fakePersonalToken, fakeUser, fakeUserToken } from '../../../test-helpers/fake-data';
 import { waitForCondition } from '../../../utils';
 
 describe('lib/two-factor-authentication', () => {
@@ -317,6 +317,44 @@ describe('lib/two-factor-authentication', () => {
         twoFactorAuthLib.validateRequest(req, { onlyAskOnLogin: true, requireTwoFactorAuthEnabled: true }),
       ).to.eventually.be.rejected.and.deep.include({
         extensions: { code: '2FA_REQUIRED' },
+      });
+    });
+
+    describe('Usage with personal tokens / OAuth (pre-authorized tokens)', () => {
+      it('fails if using a personal token that has not been pre-authorized', async () => {
+        const user = await fakeUser({ twoFactorAuthToken: '12345' });
+        const personalToken = await fakePersonalToken({ user }); // Pre-authorize should be false by default
+        const req = { remoteUser: user, personalToken };
+
+        await expect(twoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true })).to.eventually.be.rejectedWith(
+          'This personal token is not pre-authorized for 2FA',
+        );
+      });
+
+      it('fails if using an OAuth token that has not been pre-authorized', async () => {
+        const user = await fakeUser({ twoFactorAuthToken: '12345' });
+        const userToken = await fakeUserToken({ user }); // Pre-authorize should be false by default
+        const req = { remoteUser: user, userToken };
+
+        await expect(twoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true })).to.eventually.be.rejectedWith(
+          'This OAuth token is not pre-authorized for 2FA',
+        );
+      });
+
+      it('works if using a personal token that has been pre-authorized', async () => {
+        const user = await fakeUser({ twoFactorAuthToken: '12345' });
+        const personalToken = await fakePersonalToken({ user, preAuthorize2FA: true }); // Pre-authorize should be false by default
+        const req = { remoteUser: user, personalToken };
+
+        await expect(twoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true })).to.eventually.be.fulfilled;
+      });
+
+      it('works if using an OAuth token that has been pre-authorized', async () => {
+        const user = await fakeUser({ twoFactorAuthToken: '12345' });
+        const userToken = await fakeUserToken({ user, preAuthorize2FA: true }); // Pre-authorize should be false by default
+        const req = { remoteUser: user, userToken };
+
+        await expect(twoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true })).to.eventually.be.fulfilled;
       });
     });
   });

@@ -398,6 +398,38 @@ describe('server/graphql/common/expenses', () => {
         });
       });
     });
+
+    it('can delete PENDING and DRAFT expenses if the user is the owner', async () => {
+      await runForAllContexts(async context => {
+        const { expense } = context;
+        await expense.update({ status: 'PENDING' });
+        expect(await checkAllPermissions(canDeleteExpense, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: false,
+          collectiveAccountant: false,
+          hostAdmin: false,
+          hostAccountant: false,
+          expenseOwner: true,
+          limitedHostAdmin: false,
+        });
+      });
+
+      await runForAllContexts(async context => {
+        const { expense } = context;
+        await expense.update({ status: 'DRAFT' });
+        expect(await checkAllPermissions(canDeleteExpense, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: true,
+          collectiveAccountant: false,
+          hostAdmin: true,
+          hostAccountant: false,
+          expenseOwner: true,
+          limitedHostAdmin: false,
+        });
+      });
+    });
   });
 
   describe('canPayExpense', () => {

@@ -32,7 +32,10 @@ const ExpenseQuery = {
       throw new Error('You must either provide an id or an expense');
     }
 
-    if (!expense) {
+    if (
+      !expense ||
+      (expense.status === expenseStatus.DRAFT && args.draftKey && expense.data?.draftKey !== args.draftKey)
+    ) {
       return null;
     } else if (expense.status === expenseStatus.DRAFT && args.draftKey && expense.data?.draftKey === args.draftKey) {
       allowContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_DRAFT_PRIVATE_DETAILS, expense.id);

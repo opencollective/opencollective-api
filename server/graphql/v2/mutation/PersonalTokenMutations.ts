@@ -1,7 +1,7 @@
 import config from 'config';
 import express from 'express';
 import { GraphQLNonNull } from 'graphql';
-import { pick } from 'lodash';
+import { isEqual, isUndefined, pick, pickBy } from 'lodash';
 
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
@@ -18,7 +18,7 @@ import { GraphQLPersonalTokenUpdateInput } from '../input/PersonalTokenUpdateInp
 import { GraphQLPersonalToken } from '../object/PersonalToken';
 
 const createPersonalToken = {
-  type: GraphQLPersonalToken,
+  type: new GraphQLNonNull(GraphQLPersonalToken),
   args: {
     personalToken: {
       type: new GraphQLNonNull(GraphQLPersonalTokenCreateInput),
@@ -46,7 +46,7 @@ const createPersonalToken = {
     }
 
     const createParams = {
-      ...pick(args.personalToken, ['name', 'scope', 'expiresAt']),
+      ...pick(args.personalToken, ['name', 'scope', 'expiresAt', 'preAuthorize2FA']),
       CollectiveId: collective.id,
       UserId: req.remoteUser.id,
       token: models.PersonalToken.generateToken(),
@@ -57,7 +57,7 @@ const createPersonalToken = {
 };
 
 const updatePersonalToken = {
-  type: GraphQLPersonalToken,
+  type: new GraphQLNonNull(GraphQLPersonalToken),
   args: {
     personalToken: {
       type: new GraphQLNonNull(GraphQLPersonalTokenUpdateInput),
@@ -74,10 +74,19 @@ const updatePersonalToken = {
       throw new NotFound(`Personal token not found`);
     } else if (!req.remoteUser.isAdminOfCollective(personalToken.collective)) {
       throw new Forbidden('Authenticated user is not the token owner.');
+    } else if (req.personalToken) {
+      throw new Error(
+        'Personal tokens cannot be edited when authenticated with a personal token. Please use the interface.',
+      );
     }
 
-    const updateParams = pick(args.personalToken, ['name', 'scope', 'expiresAt']);
-    return personalToken.update(updateParams);
+    const editableFields = ['name', 'scope', 'expiresAt', 'preAuthorize2FA'];
+    const fieldsProtectedWith2FA = ['scope', 'expiresAt', 'preAuthorize2FA'];
+    const isChange = (value, key) => editableFields.includes(key) && !isEqual(value, personalToken[key]);
+    const changes = pickBy(args.personalToken, isChange);
+    const hasCriticalChanges = fieldsProtectedWith2FA.some(field => !isUndefined(changes[field]));
+    await twoFactorAuthLib.enforceForAccount(req, personalToken.collective, { alwaysAskForToken: hasCriticalChanges });
+    return personalToken.update(changes);
   },
 };
 
@@ -101,6 +110,7 @@ const deletePersonalToken = {
       throw new Forbidden('Authenticated user is not the personal token owner.');
     }
 
+    await twoFactorAuthLib.enforceForAccount(req, personalToken.collective);
     return personalToken.destroy();
   },
 };

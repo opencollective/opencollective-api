@@ -39,6 +39,7 @@ import GraphQLExpenseAttachedFile from './ExpenseAttachedFile';
 import GraphQLExpenseItem from './ExpenseItem';
 import GraphQLExpensePermissions from './ExpensePermissions';
 import GraphQLExpenseQuote from './ExpenseQuote';
+import { GraphQLExpenseValuesByRole } from './ExpenseValuesByRole';
 import { GraphQLHost } from './Host';
 import { GraphQLLocation } from './Location';
 import GraphQLPayoutMethod from './PayoutMethod';
@@ -182,6 +183,12 @@ const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Request>({
             return req.loaders.AccountingCategory.byId.load(expense.AccountingCategoryId);
           }
         },
+      },
+      valuesByRole: {
+        type: GraphQLExpenseValuesByRole,
+        description:
+          'If available, this field will contain a breakdown of the expense values depending on who edited it',
+        resolve: expense => expense, // Fields resolved in GraphQLExpenseValuesByRole
       },
       createdAt: {
         type: new GraphQLNonNull(GraphQLDateTime),

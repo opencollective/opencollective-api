@@ -37,6 +37,16 @@ import VirtualCard from './VirtualCard';
 
 export { ExpenseStatus, ExpenseType };
 
+export type ExpenseDataValuesRoleDetails = {
+  accountingCategory?: AccountingCategory['publicInfo'];
+};
+
+export type ExpenseDataValuesByRole = {
+  hostAdmin?: ExpenseDataValuesRoleDetails;
+  collectiveAdmin?: ExpenseDataValuesRoleDetails;
+  submitter?: ExpenseDataValuesRoleDetails;
+};
+
 // Options for sanitizing private messages
 const PRIVATE_MESSAGE_SANITIZE_OPTS = buildSanitizerOptions({
   basicTextFormatting: true,
@@ -63,6 +73,13 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
     batchGroup?: BatchGroup;
     quote?: ExpenseDataQuoteV2;
     transfer?: Transfer;
+    valuesByRole?: ExpenseDataValuesByRole;
+    payee?: {
+      id?: number;
+      name?: string;
+      email?: string;
+    };
+    draftKey?: string;
   };
 
   public declare currency: string;

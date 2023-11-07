@@ -85,6 +85,7 @@ export class RecurringExpense extends Model<RecurringExpenseAttributes, Recurrin
       'currency',
     ];
     const incurredAt = new Date();
+    const accountingCategory = expense.AccountingCategoryId && (await expense.getAccountingCategory());
 
     const draft = {
       ...pick(expense, expenseFields),
@@ -101,6 +102,9 @@ export class RecurringExpense extends Model<RecurringExpenseAttributes, Recurrin
         payeeLocation: expense.payeeLocation,
         customData: expense.data?.customData,
         taxes: expense.data?.taxes,
+        valuesByRole: accountingCategory && {
+          submitter: { accountingCategory: accountingCategory?.publicInfo },
+        },
       },
       status: expenseStatus.DRAFT,
     };

@@ -6,9 +6,10 @@ import { times } from 'lodash';
 import moment from 'moment';
 import speakeasy from 'speakeasy';
 
+import OAuthScopes from '../../../../../server/constants/oauth-scopes';
 import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
 import { fakePersonalToken, fakeUser } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, resetTestDB } from '../../../../utils';
+import { graphqlQueryV2, personalTokenGraphqlQueryV2, resetTestDB } from '../../../../utils';
 
 const SECRET_KEY = config.dbEncryption.secretKey;
 const CIPHER = config.dbEncryption.cipher;
@@ -163,25 +164,43 @@ describe('server/graphql/v2/mutation/PersonalTokenMutations', () => {
     });
     it('updates a personal token', async () => {
       const user = await fakeUser();
-      const personalToken = await fakePersonalToken({
-        user,
-      });
+      const personalToken = await fakePersonalToken({ user });
       const result = await graphqlQueryV2(
         UPDATE_PERSONAL_TOKEN_MUTATION,
-        {
-          personalToken: {
-            legacyId: personalToken.id,
-            ...VALID_TOKEN_PARAMS,
-          },
-        },
+        { personalToken: { legacyId: personalToken.id, name: 'New Name' } },
         user,
       );
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       const updatedPersonalToken = result.data.updatePersonalToken;
-      expect(updatedPersonalToken.name).to.equal(VALID_TOKEN_PARAMS.name);
-      expect(updatedPersonalToken.scope).to.deep.equal(VALID_TOKEN_PARAMS.scope);
-      expect(moment(updatedPersonalToken.expiresAt).format('YYYY-MM-DD')).to.equal(VALID_TOKEN_PARAMS.expiresAt);
+      expect(updatedPersonalToken.name).to.equal('New Name');
+    });
+    it('requires 2FA when editing sensitive fields', async () => {
+      const secret = speakeasy.generateSecret({ length: 64 });
+      const encryptedToken = crypto[CIPHER].encrypt(secret.base32, SECRET_KEY).toString();
+      const user = await fakeUser({ twoFactorAuthToken: encryptedToken });
+      const personalToken = await fakePersonalToken({ user });
+      const result = await graphqlQueryV2(
+        UPDATE_PERSONAL_TOKEN_MUTATION,
+        { personalToken: { legacyId: personalToken.id, expiresAt: VALID_TOKEN_PARAMS.expiresAt } },
+        user,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('Two-factor authentication required');
+    });
+    it('cannot update a personal token from a mutation that uses a personal token', async () => {
+      const user = await fakeUser();
+      const personalToken = await fakePersonalToken({ user, scope: [OAuthScopes.applications] });
+      const result = await personalTokenGraphqlQueryV2(
+        UPDATE_PERSONAL_TOKEN_MUTATION,
+        { personalToken: { legacyId: personalToken.id, ...VALID_TOKEN_PARAMS } },
+        personalToken,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(
+        'Personal tokens cannot be edited when authenticated with a personal token. Please use the interface.',
+      );
     });
   });
 
