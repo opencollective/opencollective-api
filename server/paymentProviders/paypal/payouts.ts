@@ -79,7 +79,7 @@ export const payExpensesBatch = async (expenses: Expense[]): Promise<Expense[]> 
   } catch (error) {
     reportErrorToSentry(error, { feature: FEATURE.PAYPAL_PAYOUTS });
     const updateExpenses = expenses.map(async e => {
-      await e.update({ status: status.ERROR });
+      await e.update({ status: status.ERROR, data: { ...e.data, error } });
       const user = await models.User.findByPk(e.lastEditedById);
       await e.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, user, {
         error: { message: error.message, details: safeJsonStringify(error) },
@@ -178,21 +178,26 @@ export const checkBatchStatus = async (batch: Expense[]): Promise<Expense[]> => 
   const connectedAccount = await host.getAccountForPaymentProvider(providerName);
 
   const batchId = firstExpense.data.payout_batch_id as string;
-  const batchInfo = await paypal.getBatchInfo(connectedAccount, batchId);
-  const checkExpense = async (expense: Expense): Promise<void> => {
-    try {
-      const item = batchInfo.items.find(i => i.payout_item.sender_item_id === expense.id.toString());
-      if (!item) {
-        throw new Error('Could not find expense in payouts batch');
+  try {
+    const batchInfo = await paypal.getBatchInfo(connectedAccount, batchId);
+    const checkExpense = async (expense: Expense): Promise<void> => {
+      try {
+        const item = batchInfo.items.find(i => i.payout_item.sender_item_id === expense.id.toString());
+        if (!item) {
+          throw new Error('Could not find expense in payouts batch');
+        }
+        await checkBatchItemStatus(item, expense, host);
+      } catch (e) {
+        console.error(e);
       }
-      await checkBatchItemStatus(item, expense, host);
-    } catch (e) {
-      console.error(e);
-    }
-  };
+    };
 
-  for (const expense of batch) {
-    await checkExpense(expense);
+    for (const expense of batch) {
+      await checkExpense(expense);
+    }
+  } catch (error) {
+    reportErrorToSentry(error, { feature: FEATURE.PAYPAL_PAYOUTS });
+    throw new Error('There was an error fetching the batch info.');
   }
   return batch;
 };
