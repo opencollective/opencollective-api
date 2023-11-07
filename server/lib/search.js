@@ -356,6 +356,8 @@ export const parseSearchTerm = fullSearchTerm => {
   if (searchTerm.match(/^@.[^\s]+$/)) {
     // Searching for slugs (e.g. `@babel`). Won't match if there are whitespace chars (eg. `@babel expense from last month`)
     return { type: 'slug', term: searchTerm.replace(/^@/, '') };
+  } else if (searchTerm.match(/^[\w\.]+@([\w-]+\.)+[\w-]{2,4}$/)) {
+    return { type: 'email', term: searchTerm.toLowerCase() };
   } else if (searchTerm.match(/^#\d+$/)) {
     // Searching for integer IDs (e.g. `#123`)
     return { type: 'id', term: parseInt(searchTerm.replace(/^#/, '')) };
@@ -382,6 +384,7 @@ export const buildSearchConditions = (
     textFields = [],
     dataFields = [],
     amountFields = [],
+    emailFields = [],
     stringArrayFields = [],
     stringArrayTransformFn = null,
     castStringArraysToVarchar = false,
@@ -400,6 +403,8 @@ export const buildSearchConditions = (
     return slugFields.map(field => ({ [field]: parsedTerm.term }));
   } else if (parsedTerm.type === 'id' && idFields?.length) {
     return idFields.map(field => ({ [field]: parsedTerm.term }));
+  } else if (parsedTerm.type === 'email' && emailFields?.length) {
+    return emailFields.map(field => ({ [field]: parsedTerm.term }));
   }
 
   // Inclusive conditions, search all fields except
