@@ -185,6 +185,9 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     where['PaymentMethodId'] = paymentMethod.id;
   }
 
+  const isHostAdmin =
+    account?.isHostAccount && args.includeHostedAccounts && req.remoteUser?.isAdminOfCollective(account);
+
   // Add search filter
   const searchTermConditions = buildSearchConditions(args.searchTerm, {
     idFields: ['id'],
@@ -197,6 +200,7 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
       'data.fromAccountInfo.name',
       'data.fromAccountInfo.email',
     ],
+    emailFields: isHostAdmin ? ['$createdByUser.email$'] : [],
     amountFields: ['totalAmount'],
     stringArrayFields: ['tags'],
     stringArrayTransformFn: (str: string) => str.toLowerCase(), // expense tags are stored lowercase
@@ -204,6 +208,10 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
 
   if (searchTermConditions.length) {
     where[Op.and].push({ [Op.or]: searchTermConditions });
+    include.push({
+      association: 'createdByUser',
+      attributes: [],
+    });
   }
 
   // Add filters

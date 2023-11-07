@@ -243,6 +243,8 @@ const ExpensesCollectionQuery = {
       where['UserId'] = user.id;
     }
 
+    const isHostAdmin = host && req.remoteUser?.isAdminOfCollective(host);
+
     // Add search filter
     // Not searching in items yet because one-to-many relationships with limits are broken in Sequelize. Could be fixed by https://github.com/sequelize/sequelize/issues/4376
     const searchTermConditions = buildSearchConditions(args.searchTerm, {
@@ -250,6 +252,7 @@ const ExpensesCollectionQuery = {
       dataFields: ['data.transactionId', 'data.transfer.id', 'data.transaction_id', 'data.batchGroup.id'],
       slugFields: ['$fromCollective.slug$', '$collective.slug$', '$User.collective.slug$'],
       textFields: ['$fromCollective.name$', '$collective.name$', '$User.collective.name$', 'description'],
+      emailFields: isHostAdmin ? ['$User.email$'] : [],
       amountFields: ['amount'],
       stringArrayFields: ['tags'],
       stringArrayTransformFn: (str: string) => str.toLowerCase(), // expense tags are stored lowercase
