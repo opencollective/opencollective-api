@@ -21,6 +21,12 @@ import {
 } from '../test-helpers/fake-data';
 import { resetTestDB, snapshotLedger, useIntegrationTestRecorder } from '../utils';
 
+/**
+ * This integration test is ran against recorded API requests against Wise's sandbox environment.
+ * To regenerate the recordings, you can run `NODE_ENV=test RECORD=1 mocha test/stories/transferwise.test.ts`.
+ * Make sure to also delete transferwise.test.ts.snap before recording a new test, since values can fluctuate due to FX rates.
+ * */
+
 describe('/test/stories/transferwise.test.ts', () => {
   useIntegrationTestRecorder(config.transferwise.apiUrl, __filename, nock => {
     // Ignore our randomly generated customerTransactionId
