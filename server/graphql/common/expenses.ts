@@ -1563,12 +1563,32 @@ const isValueChanging = (expense: Expense, expenseData: ExpenseData, key: string
 
 const isDifferentInvitedPayee = (expense: Expense, payee): boolean => {
   const isInvitedPayee = !expense.data?.payee?.id && expense.data.payee.email;
-  console.log(isInvitedPayee, expense.data.payee, payee);
   if (isInvitedPayee) {
     return !matches(expense.data.payee)(payee);
   }
   return false;
 };
+
+export async function sendDraftExpenseInvite(
+  req: express.Request,
+  expense: Expense,
+  collective: Collective,
+  draftKey: string,
+): Promise<void> {
+  const inviteUrl = `${config.host.website}/${collective.slug}/expenses/${expense.id}?key=${draftKey}`;
+  expense
+    .createActivity(activities.COLLECTIVE_EXPENSE_INVITE_DRAFTED, req.remoteUser, {
+      ...expense.data,
+      inviteUrl,
+    })
+    .catch(e => {
+      logger.error('An error happened when creating the COLLECTIVE_EXPENSE_INVITE_DRAFTED activity', e);
+      reportErrorToSentry(e);
+    });
+  if (config.env === 'development') {
+    logger.info(`Expense Invite Link: ${inviteUrl}`);
+  }
+}
 
 export async function editExpenseDraft(req: express.Request, expenseData: ExpenseData, args?: Record<string, any>) {
   const existingExpense = await models.Expense.findByPk(expenseData.id);
@@ -1607,19 +1627,7 @@ export async function editExpenseDraft(req: express.Request, expenseData: Expens
 
   if (newExpenseValues.data['draftKey']) {
     const collective = await req.loaders.Collective.byId.load(existingExpense.CollectiveId);
-    const inviteUrl = `${config.host.website}/${collective.slug}/expenses/${existingExpense.id}?key=${newExpenseValues.data['draftKey']}`;
-    existingExpense
-      .createActivity(activities.COLLECTIVE_EXPENSE_INVITE_DRAFTED, req.remoteUser, {
-        ...existingExpense.data,
-        inviteUrl,
-      })
-      .catch(e => {
-        logger.error('An error happened when creating the COLLECTIVE_EXPENSE_INVITE_DRAFTED activity', e);
-        reportErrorToSentry(e);
-      });
-    if (config.env === 'development') {
-      logger.info(`Expense Invite Link: ${inviteUrl}`);
-    }
+    await sendDraftExpenseInvite(req, existingExpense, collective, newExpenseValues.data['draftKey']);
   }
 
   return existingExpense;
