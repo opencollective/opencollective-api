@@ -39,7 +39,7 @@
     "@babel/preset-env": "7.23.2",
     "@escape.tech/graphql-armor": "2.3.2",
     "@hyperwatch/hyperwatch": "3.9.4",
-    "@node-oauth/oauth2-server": "4.3.2",
+    "@node-oauth/oauth2-server": "4.3.3",
     "@octokit/auth-oauth-app": "7.0.1",
     "@octokit/rest": "19.0.13",
     "@opencollective/taxes": "4.1.0",
