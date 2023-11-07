@@ -544,6 +544,7 @@ export const GraphQLHost = new GraphQLObjectType({
               )}
             WHERE
               vc."HostCollectiveId" = :hostCollectiveId
+              AND vc."deletedAt" IS NULL
               ${ifStr(hasStatusFilter, `AND vc.data#>>'{status}' IN (:status)`)}
               ${ifStr(hasCollectiveFilter, `AND vc."CollectiveId" IN (:collectiveIds)`)}
               ${ifStr(hasMerchantFilter, 'AND e."CollectiveId" = :merchantId')}
