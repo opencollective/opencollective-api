@@ -80,6 +80,7 @@ export const makeRequest = (
   jwtPayload = undefined,
   headers = {},
   userToken = undefined,
+  personalToken = undefined,
 ) => {
   return {
     remoteUser,
@@ -92,6 +93,7 @@ export const makeRequest = (
       return headers[a];
     },
     userToken,
+    personalToken,
   };
 };
 
@@ -138,7 +140,16 @@ export const waitForCondition = async (cond, options = {}) => {
  * @param {object} remoteUser - The user to add to the context. It is not required.
  * @param {object} schema - Schema to which queries and mutations will be served against. Schema v1 by default.
  */
-export const graphqlQuery = async (query, variables, remoteUser, schema = schemaV1, jwtPayload, headers, userToken) => {
+export const graphqlQuery = async (
+  query,
+  variables,
+  remoteUser,
+  schema = schemaV1,
+  jwtPayload,
+  headers,
+  userToken,
+  personalToken,
+) => {
   const prepare = () => {
     if (remoteUser) {
       remoteUser.rolesByCollectiveId = null; // force refetching the roles
@@ -159,7 +170,7 @@ export const graphqlQuery = async (query, variables, remoteUser, schema = schema
       schema,
       source: query,
       rootValue: null,
-      contextValue: makeRequest(remoteUser, query, jwtPayload, headers, userToken),
+      contextValue: makeRequest(remoteUser, query, jwtPayload, headers, userToken, personalToken),
       variableValues: variables,
     }),
   );
@@ -183,6 +194,16 @@ export async function graphqlQueryV2(query, variables, remoteUser = null, jwtPay
  */
 export async function oAuthGraphqlQueryV2(query, variables, userToken = {}, jwtPayload = null, headers = {}) {
   return graphqlQuery(query, variables, userToken.user, schemaV2, jwtPayload, headers, userToken);
+}
+
+/**
+ * This function allows to test queries and mutations against schema v2.
+ * @param {string} query - Queries and Mutations to serve against the type schema. Example: `query Expense($id: Int!) { Expense(id: $id) { description } }`
+ * @param {object} variables - Variables to use in the queries and mutations. Example: { id: 1 }
+ * @param {object} personalToken - The personal token to add to the context.
+ */
+export async function personalTokenGraphqlQueryV2(query, variables, personalToken, jwtPayload = null, headers = {}) {
+  return graphqlQuery(query, variables, personalToken.user, schemaV2, jwtPayload, headers, null, personalToken);
 }
 
 /** Helper for interpreting fee description in BDD tests
