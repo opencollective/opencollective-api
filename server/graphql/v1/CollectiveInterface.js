@@ -907,7 +907,7 @@ const CollectiveFields = () => {
     children: {
       type: new GraphQLNonNull(new GraphQLList(CollectiveInterfaceType)),
       resolve(collective) {
-        return collective.getChildren();
+        return collective.getChildren({ where: { type: { [Op.ne]: CollectiveTypeEnum.VENDOR } } });
       },
     },
     type: {
