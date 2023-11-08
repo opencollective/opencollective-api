@@ -56,13 +56,9 @@ const executeRequest = async (
   connectedAccount: ConnectedAccount,
   request: PayoutRequestBody | Record<string, unknown>,
 ): Promise<any> => {
-  try {
-    const client = getPayPalClient(connectedAccount);
-    const response = await client.execute(request);
-    return response.result;
-  } catch (e) {
-    throw new Error(parseError(e));
-  }
+  const client = getPayPalClient(connectedAccount);
+  const response = await client.execute(request);
+  return response.result;
 };
 
 export const executePayouts = async (

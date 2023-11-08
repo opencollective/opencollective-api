@@ -101,6 +101,24 @@ const mutationExpenseFields = gqlV2/* GraphQL */ `
     accountingCategory {
       id
     }
+    valuesByRole {
+      id
+      submitter {
+        accountingCategory {
+          id
+        }
+      }
+      accountAdmin {
+        accountingCategory {
+          id
+        }
+      }
+      hostAdmin {
+        accountingCategory {
+          id
+        }
+      }
+    }
     taxes {
       id
       type
@@ -366,6 +384,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(createdExpense.payeeLocation).to.deep.equal(expenseData.payeeLocation);
       expect(createdExpense.customData.myCustomField).to.eq('myCustomValue');
       expect(createdExpense.accountingCategory.id).to.eq(encodedAccountingCategoryId);
+      expect(createdExpense.valuesByRole.submitter.accountingCategory.id).to.eq(encodedAccountingCategoryId);
 
       // Should have updated collective's location
       await payee.reload({ include: [{ association: 'location' }] });
@@ -615,6 +634,95 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         await expense.reload();
         expect(expense.AccountingCategoryId).to.be.null;
       });
+
+      it('record a breakdown of the values by role (when editing only the category)', async () => {
+        const collectiveAdmin = await fakeUser();
+        const hostAdmin = await fakeUser();
+        const expense = await fakeExpense();
+        await expense.collective.addUserWithRole(collectiveAdmin, 'ADMIN');
+        await expense.collective.host.addUserWithRole(hostAdmin, 'ADMIN');
+
+        const initialCategory = await fakeAccountingCategory({ CollectiveId: expense.collective.HostCollectiveId });
+        const category2 = await fakeAccountingCategory({ CollectiveId: expense.collective.HostCollectiveId });
+        const category3 = await fakeAccountingCategory({ CollectiveId: expense.collective.HostCollectiveId });
+        await expense.update({ AccountingCategoryId: initialCategory.id });
+
+        // Trigger all the edits at the same time. This is to ensure that we don't run into concurrency issues
+        const allResults = await Promise.all(
+          [
+            [expense.User, null],
+            [collectiveAdmin, category2],
+            [hostAdmin, category3],
+          ].map(([user, accountingCategory]) =>
+            graphqlQueryV2(
+              editExpenseMutation,
+              {
+                expense: {
+                  id: idEncode(expense.id, 'expense'),
+                  accountingCategory: accountingCategory
+                    ? { id: idEncode(accountingCategory.id, 'accounting-category') }
+                    : null,
+                },
+              },
+              user,
+            ),
+          ),
+        );
+
+        allResults.forEach(result => {
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+        });
+
+        await expense.reload();
+        expect(expense.data.valuesByRole).to.containSubset({
+          submitter: { accountingCategory: null },
+          collectiveAdmin: { accountingCategory: { id: category2.id } },
+          hostAdmin: { accountingCategory: { id: category3.id } },
+        });
+      });
+
+      it('record a breakdown of the values by role (when editing multiple fields)', async () => {
+        const collectiveAdmin = await fakeUser();
+        const hostAdmin = await fakeUser();
+        const expense = await fakeExpense();
+        await expense.collective.addUserWithRole(collectiveAdmin, 'ADMIN');
+        await expense.collective.host.addUserWithRole(hostAdmin, 'ADMIN');
+
+        const initialCategory = await fakeAccountingCategory({ CollectiveId: expense.collective.HostCollectiveId });
+        const category2 = await fakeAccountingCategory({ CollectiveId: expense.collective.HostCollectiveId });
+        const category3 = await fakeAccountingCategory({ CollectiveId: expense.collective.HostCollectiveId });
+        await expense.update({ AccountingCategoryId: initialCategory.id });
+
+        for (const [user, accountingCategory] of [
+          [expense.User, null],
+          [collectiveAdmin, category2],
+          [hostAdmin, category3],
+        ]) {
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            {
+              expense: {
+                id: idEncode(expense.id, 'expense'),
+                description: randStr(),
+                accountingCategory: accountingCategory
+                  ? { id: idEncode(accountingCategory.id, 'accounting-category') }
+                  : null,
+              },
+            },
+            user,
+          );
+
+          expect(result.errors).to.not.exist;
+        }
+
+        await expense.reload();
+        expect(expense.data.valuesByRole).to.containSubset({
+          submitter: { accountingCategory: null },
+          collectiveAdmin: { accountingCategory: { id: category2.id } },
+          hostAdmin: { accountingCategory: { id: category3.id } },
+        });
+      });
     });
 
     describe('2FA', () => {
@@ -820,6 +928,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       const expense = await fakeExpense({ tags: [randStr()], status: 'PAID', CollectiveId: collective.id });
       const updatedExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), tags: ['fake', 'tags'] };
       const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, adminUser);
+      result.errors && console.error(result.errors);
       expect(result.data.editExpense.tags).to.deep.equal(updatedExpenseData.tags);
     });
 

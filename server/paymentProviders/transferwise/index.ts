@@ -191,16 +191,9 @@ async function createTransfer(
       quoteUuid: quote.id,
       customerTransactionId: uuid(),
       details: {
-        reference: 'OC',
+        reference: `${expense.id}`,
       },
     };
-    // Append reference to currencies that require it.
-    if (
-      currenciesThatRequireReference.includes(<string>payoutMethod.unfilteredData.currency) ||
-      options?.batchGroupId
-    ) {
-      transferOptions.details = { reference: `${expense.id}` };
-    }
 
     const transfer = options?.batchGroupId
       ? await transferwise.createBatchGroupTransfer(connectedAccount, options.batchGroupId, transferOptions)

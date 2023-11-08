@@ -172,6 +172,7 @@ export const GraphQLIndividual = new GraphQLObjectType({
               expiresAt: row.accessTokenExpiresAt,
               createdAt: row.createdAt,
               updatedAt: row.updatedAt,
+              preAuthorize2FA: row.preAuthorize2FA,
               scope: row.scope,
               user,
             };

@@ -21,6 +21,7 @@ class UserToken extends Model<InferAttributes<UserToken>, InferCreationAttribute
   public declare UserId: ForeignKey<User['id']>;
   public declare data: Record<string, unknown>;
   public declare scope: string[];
+  public declare preAuthorize2FA: boolean;
   public declare createdAt: CreationOptional<Date>;
   public declare updatedAt: CreationOptional<Date>;
   public declare deletedAt: CreationOptional<Date>;
@@ -83,6 +84,11 @@ UserToken.init(
     scope: {
       type: DataTypes.ARRAY(DataTypes.ENUM(...Object.values(oAuthScopes))),
       allowNull: true,
+    },
+    preAuthorize2FA: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      allowNull: false,
     },
     // Standard temporal fields
     createdAt: {

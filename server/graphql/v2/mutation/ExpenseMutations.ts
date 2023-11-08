@@ -1,4 +1,3 @@
-import config from 'config';
 import express from 'express';
 import {
   GraphQLBoolean,
@@ -11,12 +10,9 @@ import {
 import { isNil, pick, size } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
-import activities from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import expenseStatus from '../../../constants/expense_status';
-import logger from '../../../lib/logger';
 import RateLimit from '../../../lib/rate-limit';
-import { reportErrorToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication/lib';
 import models from '../../../models';
 import { CommentType } from '../../../models/Comment';
@@ -40,6 +36,7 @@ import {
   releaseExpense,
   requestExpenseReApproval,
   scheduleExpenseForPayment,
+  sendDraftExpenseInvite,
   submitExpenseDraft,
   unapproveExpense,
   unscheduleExpensePayment,
@@ -196,7 +193,7 @@ const expenseMutations = {
       const isRecurring = Boolean(existingExpense.RecurringExpenseId);
       // Draft can be edited by the author of the expense if the expense is not recurring
       if (!args.draftKey && userIsAuthor && !isRecurring && existingExpense.status === expenseStatus.DRAFT) {
-        return editExpenseDraft(req, expenseData);
+        return editExpenseDraft(req, expenseData, args);
       }
       // Draft can be submitted by: new user with draft-key, payee of the original expense or author of the original expense (in the case of Recurring Expense draft)
       else if (args.draftKey || userIsOriginalPayee || (userIsAuthor && isRecurring)) {
@@ -465,21 +462,7 @@ const expenseMutations = {
         status: expenseStatus.DRAFT,
       });
 
-      // If the payee is already an user, we redirect the action button in the email to signin first and later redirect to the expense
-      const inviteUrl = payee.id
-        ? `${config.host.website}/signin?next=/${collective.slug}/expenses/${expense.id}?key=${draftKey}`
-        : `${config.host.website}/${collective.slug}/expenses/${expense.id}?key=${draftKey}`;
-
-      expense
-        .createActivity(activities.COLLECTIVE_EXPENSE_INVITE_DRAFTED, remoteUser, { ...expense.data, inviteUrl })
-        .catch(e => {
-          logger.error('An error happened when creating the COLLECTIVE_EXPENSE_INVITE_DRAFTED activity', e);
-          reportErrorToSentry(e);
-        });
-
-      if (config.env === 'development') {
-        logger.info(`Expense Invite Link: ${inviteUrl}`);
-      }
+      await sendDraftExpenseInvite(req, expense, collective, draftKey);
 
       return expense;
     },
@@ -516,10 +499,7 @@ const expenseMutations = {
       }
 
       const draftKey = expense.data.draftKey;
-      const inviteUrl = `${config.host.website}/${expense.collective.slug}/expenses/${expense.id}?key=${draftKey}`;
-      expense
-        .createActivity(activities.COLLECTIVE_EXPENSE_INVITE_DRAFTED, req.remoteUser, { ...expense.data, inviteUrl })
-        .catch(e => logger.error('An error happened when creating the COLLECTIVE_EXPENSE_INVITE_DRAFTED activity', e));
+      await sendDraftExpenseInvite(req, expense, expense.collective, draftKey);
 
       return expense;
     },

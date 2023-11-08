@@ -1,7 +1,7 @@
 import { GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
 import { pick } from 'lodash';
 
-import { getTagFrequencies } from '../../../../lib/search';
+import { getColletiveTagFrequencies } from '../../../../lib/search';
 import { GraphQLTagStatsCollection } from '../../collection/TagStatsCollection';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
 
@@ -30,7 +30,7 @@ const TagStatsCollectionQuery = {
       const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
       hostCollectiveId = host.id;
     }
-    const tagFrequencies = await getTagFrequencies({
+    const tagFrequencies = await getColletiveTagFrequencies({
       ...pick(args, ['searchTerm', 'tagSearchTerm', 'limit', 'offset']),
       hostCollectiveId,
     });

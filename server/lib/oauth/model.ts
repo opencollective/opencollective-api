@@ -84,6 +84,7 @@ const model: OauthModel = {
         ApplicationId: application.id,
         UserId: user.id,
         scope: Array.isArray(token.scope) ? token.scope : token.scope?.split(','),
+        preAuthorize2FA: Boolean(application.preAuthorize2FA),
       });
       oauthToken.user = user;
       oauthToken.client = client;

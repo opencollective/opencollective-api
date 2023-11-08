@@ -1,6 +1,7 @@
 import assert from 'assert';
 
 import * as LibTaxes from '@opencollective/taxes';
+import config from 'config';
 import debugLib from 'debug';
 import express from 'express';
 import {
@@ -17,6 +18,7 @@ import {
   isUndefined,
   keyBy,
   mapValues,
+  matches,
   omit,
   omitBy,
   pick,
@@ -26,6 +28,7 @@ import {
   uniq,
 } from 'lodash';
 import moment from 'moment';
+import { v4 as uuid } from 'uuid';
 
 import { activities, roles } from '../../constants';
 import ActivityTypes from '../../constants/activities';
@@ -33,6 +36,7 @@ import { CollectiveType } from '../../constants/collectives';
 import statuses from '../../constants/expense_status';
 import EXPENSE_TYPE from '../../constants/expense_type';
 import { ExpenseFeesPayer } from '../../constants/expense-fees-payer';
+import { ExpenseRoles } from '../../constants/expense-roles';
 import FEATURE from '../../constants/feature';
 import { EXPENSE_PERMISSION_ERROR_CODES } from '../../constants/permissions';
 import POLICIES from '../../constants/policies';
@@ -49,13 +53,14 @@ import { listPayPalTransactions } from '../../lib/paypal';
 import { getPolicy } from '../../lib/policies';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
 import { notifyTeamAboutSpamExpense } from '../../lib/spam';
+import { deepJSONBSet } from '../../lib/sql';
 import { createTransactionsForManuallyPaidExpense, createTransactionsFromPaidExpense } from '../../lib/transactions';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import { canUseFeature } from '../../lib/user-permissions';
 import { formatCurrency, parseToBoolean } from '../../lib/utils';
 import models, { Collective, sequelize } from '../../models';
 import AccountingCategory from '../../models/AccountingCategory';
-import Expense from '../../models/Expense';
+import Expense, { ExpenseDataValuesByRole } from '../../models/Expense';
 import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile';
 import { ExpenseItem } from '../../models/ExpenseItem';
 import { MigrationLogType } from '../../models/MigrationLog';
@@ -406,7 +411,12 @@ export const canDeleteExpense: ExpensePermissionEvaluator = async (
   expense: Expense,
   options = { throw: false },
 ) => {
-  if (!['REJECTED', 'DRAFT', 'SPAM', 'CANCELED'].includes(expense.status)) {
+  if (
+    ['DRAFT', 'PENDING'].includes(expense.status) &&
+    (await remoteUserMeetsOneCondition(req, expense, [isOwner, isDraftPayee], options))
+  ) {
+    return true;
+  } else if (!['REJECTED', 'SPAM', 'DRAFT', 'CANCELED'].includes(expense.status)) {
     if (options?.throw) {
       throw new Forbidden(
         'Can not delete expense in current status',
@@ -1346,6 +1356,11 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
     validateExpenseCustomData(expenseData.customData);
     data['customData'] = expenseData.customData;
   }
+  if (expenseData.accountingCategory) {
+    data['valuesByRole'] = {
+      [getUserRole(remoteUser, collective)]: { accountingCategory: expenseData.accountingCategory.publicInfo },
+    };
+  }
 
   const expense = await sequelize.transaction(async t => {
     // Create expense
@@ -1546,7 +1561,36 @@ const isValueChanging = (expense: Expense, expenseData: ExpenseData, key: string
   }
 };
 
-export async function editExpenseDraft(req: express.Request, expenseData: ExpenseData) {
+const isDifferentInvitedPayee = (expense: Expense, payee): boolean => {
+  const isInvitedPayee = !expense.data?.payee?.id && expense.data.payee.email;
+  if (isInvitedPayee) {
+    return !matches(expense.data.payee)(payee);
+  }
+  return false;
+};
+
+export async function sendDraftExpenseInvite(
+  req: express.Request,
+  expense: Expense,
+  collective: Collective,
+  draftKey: string,
+): Promise<void> {
+  const inviteUrl = `${config.host.website}/${collective.slug}/expenses/${expense.id}?key=${draftKey}`;
+  expense
+    .createActivity(activities.COLLECTIVE_EXPENSE_INVITE_DRAFTED, req.remoteUser, {
+      ...expense.data,
+      inviteUrl,
+    })
+    .catch(e => {
+      logger.error('An error happened when creating the COLLECTIVE_EXPENSE_INVITE_DRAFTED activity', e);
+      reportErrorToSentry(e);
+    });
+  if (config.env === 'development') {
+    logger.info(`Expense Invite Link: ${inviteUrl}`);
+  }
+}
+
+export async function editExpenseDraft(req: express.Request, expenseData: ExpenseData, args?: Record<string, any>) {
   const existingExpense = await models.Expense.findByPk(expenseData.id);
   if (!existingExpense) {
     throw new NotFound('Expense not found.');
@@ -1559,19 +1603,46 @@ export async function editExpenseDraft(req: express.Request, expenseData: Expens
     throw new Unauthorized('Only the author of the draft can edit it');
   }
 
-  return await existingExpense.update({
+  const newExpenseValues = {
     ...pick(expenseData, DRAFT_EXPENSE_FIELDS),
     amount: computeTotalAmountForExpense(expenseData.items, expenseData.tax),
     lastEditedById: req.remoteUser.id,
     UserId: req.remoteUser.id,
     data: {
-      ...existingExpense.data,
       items: expenseData.items,
       taxes: expenseData.tax,
       attachedFiles: expenseData.attachedFiles,
     },
-  });
+  };
+
+  if (args.expense.payee && isDifferentInvitedPayee(existingExpense, args.expense.payee)) {
+    const payee = args.expense.payee as { email: string; name?: string };
+    newExpenseValues.data['payee'] = payee;
+    newExpenseValues.data['draftKey'] =
+      process.env.OC_ENV === 'e2e' || process.env.OC_ENV === 'ci' ? 'draft-key' : uuid();
+  }
+
+  await existingExpense.update({ ...newExpenseValues, data: { ...existingExpense.data, ...newExpenseValues.data } });
+  existingExpense.createActivity(activities.COLLECTIVE_EXPENSE_UPDATED, req.remoteUser);
+
+  if (newExpenseValues.data['draftKey']) {
+    const collective = await req.loaders.Collective.byId.load(existingExpense.CollectiveId);
+    await sendDraftExpenseInvite(req, existingExpense, collective, newExpenseValues.data['draftKey']);
+  }
+
+  return existingExpense;
 }
+
+/**
+ * Returns the value to store in `Expense.data.valuesByRole` for the given user.
+ */
+const getUserRole = (user: User, collective: Collective): keyof ExpenseDataValuesByRole => {
+  return user.isAdmin(collective.HostCollectiveId)
+    ? ExpenseRoles.hostAdmin
+    : user.isAdminOfCollective(collective)
+    ? ExpenseRoles.collectiveAdmin
+    : ExpenseRoles.submitter;
+};
 
 /**
  * A simple helper to handle the case when editing only the tags and/or accounting category of an expense.
@@ -1582,7 +1653,7 @@ const editOnlyTagsAndAccountingCategory = async (
   expenseData: Pick<ExpenseData, 'tags' | 'accountingCategory'>,
   req: express.Request,
 ): Promise<Expense> => {
-  const newValues = {};
+  const updateClauses = [];
 
   // Tags
   if (!isUndefined(expenseData.tags)) {
@@ -1590,7 +1661,7 @@ const editOnlyTagsAndAccountingCategory = async (
       throw new Unauthorized("You don't have permission to edit tags for this expense");
     }
 
-    newValues['tags'] = expenseData.tags;
+    updateClauses.push(`"tags" = Array[:tags]::VARCHAR(255)[]`);
   }
 
   // Accounting category
@@ -1599,14 +1670,33 @@ const editOnlyTagsAndAccountingCategory = async (
       throw new Unauthorized("You don't have permission to edit the accounting category for this expense");
     }
 
-    newValues['AccountingCategoryId'] = expenseData.accountingCategory?.id || null;
+    const userRole = getUserRole(req.remoteUser, expense.collective);
+    updateClauses.push(`"AccountingCategoryId" = :AccountingCategoryId`);
+    updateClauses.push(
+      `"data" = ${deepJSONBSet('data', ['valuesByRole', userRole, 'accountingCategory'], ':accountingCategory')}`,
+    );
   }
 
-  if (isEmpty(newValues)) {
+  if (isEmpty(updateClauses)) {
     return expense;
   }
 
-  const updatedExpense = await expense.update(newValues);
+  // Use a raw query to unlock the ability of using `JSONB_SET`, which will prevent concurrency issues on the `data` field
+  const updatedExpense = await sequelize.query(
+    `UPDATE "Expenses" SET ${updateClauses.join(', ')} WHERE id = :id RETURNING *`,
+    {
+      model: models.Expense,
+      plain: true,
+      mapToModel: true,
+      replacements: {
+        id: expense.id,
+        tags: expenseData.tags || [],
+        AccountingCategoryId: expenseData.accountingCategory?.id || null,
+        accountingCategory: JSON.stringify(expenseData.accountingCategory?.publicInfo || null),
+      },
+    },
+  );
+
   updatedExpense.createActivity(activities.COLLECTIVE_EXPENSE_UPDATED, req.remoteUser);
   return updatedExpense;
 };
@@ -1713,9 +1803,12 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
     await fromCollective.setLocation(expenseData.payeeLocation);
   }
 
-  const cleanExpenseData = <Pick<ExpenseData, ExpenseEditableFieldsUnion>>(
-    pick(expenseData, isPaidCreditCardCharge ? EXPENSE_PAID_CHARGE_EDITABLE_FIELDS : EXPENSE_EDITABLE_FIELDS)
-  );
+  const cleanExpenseData = {
+    ...(<Pick<ExpenseData, ExpenseEditableFieldsUnion>>(
+      pick(expenseData, isPaidCreditCardCharge ? EXPENSE_PAID_CHARGE_EDITABLE_FIELDS : EXPENSE_EDITABLE_FIELDS)
+    )),
+    data: !expense.data ? null : cloneDeep(omit(expense.data, ['items', 'draftKey'])), // Make sure we omit draft key and items
+  };
 
   // Let submitter customize the currency
   const isChangingCurrency = expenseData.currency && expenseData.currency !== expense.currency;
@@ -1730,6 +1823,8 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
     } else {
       checkCanUseAccountingCategory(expenseData.accountingCategory, expense.collective.host);
       cleanExpenseData['AccountingCategoryId'] = expenseData.accountingCategory?.id || null;
+      const dataValuePath = `data.valuesByRole.${getUserRole(remoteUser, collective)}.accountingCategory`;
+      set(cleanExpenseData, dataValuePath, expenseData.accountingCategory?.publicInfo || null);
     }
   }
 
@@ -1824,15 +1919,8 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
       status = 'PENDING';
     }
 
-    const data = !expense.data
-      ? null
-      : cloneDeep(
-          omit(expense.data, ['items', 'draftKey']), // Make sure we omit draft key and items
-        );
-
     const updatedExpenseProps = {
       ...cleanExpenseData,
-      data,
       amount: computeTotalAmountForExpense(expense.items, taxes),
       lastEditedById: remoteUser.id,
       incurredAt: expenseData.incurredAt || new Date(),

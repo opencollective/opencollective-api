@@ -367,7 +367,7 @@ export const GraphQLHost = new GraphQLObjectType({
             order: [[args.orderBy.field, args.orderBy.direction]],
             where: {
               HostCollectiveId: host.id,
-              status: args.status,
+              ...(args.status && { status: args.status }),
             },
             limit: args.limit,
             offset: args.offset,
@@ -378,7 +378,6 @@ export const GraphQLHost = new GraphQLObjectType({
                 required: true,
                 where: {
                   HostCollectiveId: host.id,
-                  ...(args.status === 'PENDING' && { approvedAt: null }),
                   ...(searchTermConditions.length && { [Op.or]: searchTermConditions }),
                 },
               },
@@ -545,6 +544,7 @@ export const GraphQLHost = new GraphQLObjectType({
               )}
             WHERE
               vc."HostCollectiveId" = :hostCollectiveId
+              AND vc."deletedAt" IS NULL
               ${ifStr(hasStatusFilter, `AND vc.data#>>'{status}' IN (:status)`)}
               ${ifStr(hasCollectiveFilter, `AND vc."CollectiveId" IN (:collectiveIds)`)}
               ${ifStr(hasMerchantFilter, 'AND e."CollectiveId" = :merchantId')}
