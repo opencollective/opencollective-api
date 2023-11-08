@@ -208,10 +208,12 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
 
   if (searchTermConditions.length) {
     where[Op.and].push({ [Op.or]: searchTermConditions });
-    include.push({
-      association: 'createdByUser',
-      attributes: [],
-    });
+    if (Object.keys(searchTermConditions).some(key => key.includes('createdByUser'))) {
+      include.push({
+        association: 'createdByUser',
+        attributes: [],
+      });
+    }
   }
 
   // Add filters
