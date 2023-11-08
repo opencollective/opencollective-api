@@ -443,7 +443,7 @@ export const buildSearchConditions = (
 /**
  * Returns tags along with their frequency of use.
  */
-export const getTagFrequencies = async args => {
+export const getColletiveTagFrequencies = async args => {
   // If no searchTerm is provided, we can use the pre-computed stats in the materialized view
   if (!args.searchTerm) {
     const { sanitizedTerm } = getSearchTermSQLConditions(args.tagSearchTerm);
@@ -493,6 +493,49 @@ export const getTagFrequencies = async args => {
         limit: args.limit,
         offset: args.offset,
       },
+    },
+  );
+};
+
+/**
+ * Returns expense tags along with their frequency of use.
+ */
+export const getExpenseTagFrequencies = async args => {
+  const replacements = {
+    limit: args.limit ?? 10,
+    offset: args.offset ?? 0,
+  };
+
+  const whereConditions = [];
+
+  if (args.hostCollectiveId) {
+    whereConditions.push(`"HostCollectiveId" = :hostCollectiveId`);
+    replacements.hostCollectiveId = args.hostCollectiveId;
+  }
+
+  if (args.accountId) {
+    whereConditions.push(`"CollectiveId" = :accountId`);
+    replacements.accountId = args.accountId;
+  }
+
+  if (args.tagSearchTerm) {
+    const { sanitizedTerm } = getSearchTermSQLConditions(args.tagSearchTerm);
+    whereConditions.push(`"tag" ILIKE :sanitizedTerm`);
+    replacements.sanitizedTerm = `%${sanitizedTerm}%`;
+  }
+
+  const whereClause = whereConditions.length ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+  return sequelize.query(
+    `SELECT tag AS id, tag, count
+     FROM "ExpenseTagStats"
+     ${whereClause}
+     ORDER BY count DESC
+     LIMIT :limit
+     OFFSET :offset`,
+    {
+      type: sequelize.QueryTypes.SELECT,
+      replacements,
     },
   );
 };

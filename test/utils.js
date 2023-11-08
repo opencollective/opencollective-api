@@ -54,6 +54,8 @@ export const resetTestDB = async () => {
     await sequelize.query(`REFRESH MATERIALIZED VIEW "TransactionBalances"`);
     await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"`);
     await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveOrderStats"`);
+    await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTagStats"`);
+    await sequelize.query(`REFRESH MATERIALIZED VIEW "ExpenseTagStats"`);
   };
 
   try {
