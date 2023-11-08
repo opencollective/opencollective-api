@@ -3,11 +3,12 @@ import moment from 'moment';
 import { createSandbox } from 'sinon';
 
 import { run as runCron } from '../../../cron/daily/52-pause-virtual-cards-after-period-of-inactivity';
+import ActivityTypes from '../../../server/constants/activities';
 import VirtualCardProviders from '../../../server/constants/virtual_card_providers';
-import { VirtualCard } from '../../../server/models';
+import { Activity, VirtualCard } from '../../../server/models';
 import { VirtualCardStatus } from '../../../server/models/VirtualCard';
 import * as stripeVirtualCards from '../../../server/paymentProviders/stripe/virtual-cards';
-import { fakeExpense, fakeHost, fakeVirtualCard } from '../../test-helpers/fake-data';
+import { fakeActiveHost, fakeExpense, fakeHost, fakeVirtualCard } from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
 
 describe('cron/daily/pause-virtual-cards-after-period-of-inactivity', () => {
@@ -66,12 +67,22 @@ describe('cron/daily/pause-virtual-cards-after-period-of-inactivity', () => {
       },
     });
 
-    await makeVirtualCardWithExpense({
+    const vc = await makeVirtualCardWithExpense({
       name: '1',
       HostCollectiveId: hostWith30DaysInactivePolicy.id,
-      cardCreatedAt: moment().subtract(31, 'days'),
+      cardCreatedAt: moment().subtract(40, 'days'),
       expenseCreatedAt: moment().subtract(31, 'days'),
       expectIsPaused: true,
+    });
+
+    await Activity.create({
+      type: ActivityTypes.COLLECTIVE_VIRTUAL_CARD_RESUMED,
+      createdAt: moment().subtract(32, 'days').toDate(),
+      CollectiveId: vc.CollectiveId,
+      HostCollectiveId: vc.HostCollectiveId,
+      data: {
+        virtualCard: vc,
+      },
     });
 
     await makeVirtualCardWithExpense({
@@ -162,5 +173,51 @@ describe('cron/daily/pause-virtual-cards-after-period-of-inactivity', () => {
       await vc.reload();
       expect(vc.data.status, `Card ${vc.name} should be INACTIVE`).to.eql(VirtualCardStatus.INACTIVE);
     }
+  });
+
+  it('does not pause vc if it was resumed within the period of inactivity', async () => {
+    const hostWith30DaysInactivePolicy = await fakeActiveHost({
+      name: '30DaysInactive',
+      settings: {
+        virtualcards: {
+          autopauseUnusedCards: {
+            enabled: true,
+            period: 30,
+          },
+        },
+      },
+    });
+
+    const unusedVirtualCard = await fakeVirtualCard({
+      provider: VirtualCardProviders.STRIPE,
+      HostCollectiveId: hostWith30DaysInactivePolicy.id,
+      CollectiveId: hostWith30DaysInactivePolicy.id,
+      createdAt: moment().subtract(31, 'days').toDate(),
+      name: 'unused',
+      data: { satus: VirtualCardStatus.ACTIVE },
+    });
+
+    await runCron({ concurrency: 1 });
+    await unusedVirtualCard.reload();
+    expect(unusedVirtualCard.data.status).to.eql(VirtualCardStatus.INACTIVE);
+
+    await unusedVirtualCard.update({
+      data: {
+        status: VirtualCardStatus.ACTIVE,
+      },
+    });
+    await Activity.create({
+      type: ActivityTypes.COLLECTIVE_VIRTUAL_CARD_RESUMED,
+      createdAt: new Date(),
+      CollectiveId: unusedVirtualCard.CollectiveId,
+      HostCollectiveId: unusedVirtualCard.HostCollectiveId,
+      data: {
+        virtualCard: unusedVirtualCard,
+      },
+    });
+
+    await runCron({ concurrency: 1 });
+    await unusedVirtualCard.reload();
+    expect(unusedVirtualCard.data.status).to.eql(VirtualCardStatus.ACTIVE);
   });
 });

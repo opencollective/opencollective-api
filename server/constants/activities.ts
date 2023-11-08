@@ -54,6 +54,7 @@ enum ActivityTypes {
   // Virtual cards
   COLLECTIVE_VIRTUAL_CARD_ADDED = 'collective.virtualcard.added',
   COLLECTIVE_VIRTUAL_CARD_MISSING_RECEIPTS = 'collective.virtualcard.missing.receipts',
+  COLLECTIVE_VIRTUAL_CARD_RESUMED = 'collective.virtualcard.resumed',
   COLLECTIVE_VIRTUAL_CARD_SUSPENDED = 'collective.virtualcard.suspended',
   COLLECTIVE_VIRTUAL_CARD_SUSPENDED_DUE_TO_INACTIVITY = 'collective.virtualcard.suspendedDueToInactivity',
   COLLECTIVE_VIRTUAL_CARD_DELETED = 'collective.virtualcard.deleted',

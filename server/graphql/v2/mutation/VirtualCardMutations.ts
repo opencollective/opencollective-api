@@ -563,7 +563,21 @@ const virtualCardMutations = {
         throw new BadRequest('This Virtual Card cannot be activated');
       }
 
-      return virtualCard.resume();
+      const resumedVirtualCard = await virtualCard.resume();
+
+      await models.Activity.create({
+        type: activities.COLLECTIVE_VIRTUAL_CARD_RESUMED,
+        CollectiveId: virtualCard.collective.id,
+        HostCollectiveId: virtualCard.host.id,
+        UserId: req.remoteUser.id,
+        data: {
+          virtualCard: resumedVirtualCard,
+          host: resumedVirtualCard.host.info,
+          collective: resumedVirtualCard.collective.info,
+        },
+      });
+
+      return resumedVirtualCard;
     },
   },
   deleteVirtualCard: {

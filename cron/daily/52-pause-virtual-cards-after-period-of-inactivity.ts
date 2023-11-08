@@ -53,6 +53,21 @@ export async function findUnusedVirtualCards() {
               )
           )
         `),
+        // the card was not resumed in the period
+        sequelize.literal(`
+          NOT EXISTS (
+            SELECT * FROM "Activities" a 
+            WHERE 
+            a."type" = 'collective.virtualcard.resumed'
+            AND a."HostCollectiveId" = "VirtualCard"."HostCollectiveId"
+            AND a."CollectiveId" = "VirtualCard"."CollectiveId"
+            AND a.data#>>'{virtualCard,id}' = "VirtualCard".id
+            AND 
+              a."createdAt" >= now() - make_interval(
+                days => cast("host".settings#>'{virtualcards,autopauseUnusedCards,period}' as integer)
+              )
+          )
+        `),
       ],
     },
   });
