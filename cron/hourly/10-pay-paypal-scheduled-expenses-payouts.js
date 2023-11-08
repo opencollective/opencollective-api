@@ -21,7 +21,7 @@ export async function run() {
       { model: models.PayoutMethod, as: 'PayoutMethod', where: { type: PayoutMethodTypes.PAYPAL } },
     ],
   });
-  const collectiveBatches = values(groupBy(expenses, 'CollectiveId'), 'currency');
+  const collectiveBatches = values(groupBy(expenses, 'CollectiveId'));
   logger.info(`Processing ${expenses.length} expense(s) scheduled for payment using PayPal Payouts...`);
   for (const collectiveBatch of collectiveBatches) {
     const currencyBatches = values(groupBy(collectiveBatch, 'currency'));
