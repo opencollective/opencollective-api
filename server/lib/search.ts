@@ -92,7 +92,7 @@ const sanitizeSearchTermForILike = term => {
   return term.replace(/(_|%|\\)/g, '\\$1');
 };
 
-const getSearchTermSQLConditions = (term, collectiveTable) => {
+const getSearchTermSQLConditions = (term: string, collectiveTable?: string) => {
   let tsQueryFunc, tsQueryArg;
   let sqlConditions = '';
   let sanitizedTerm = '';
@@ -137,7 +137,7 @@ const getSearchTermSQLConditions = (term, collectiveTable) => {
   return { sqlConditions, tsQueryArg, tsQueryFunc, sanitizedTerm, sanitizedTermNoWhitespaces };
 };
 
-const getSortSubQuery = (searchTermConditions, orderBy = null) => {
+const getSortSubQuery = (searchTermConditions, orderBy: { field?: string; direction?: string } = null) => {
   const sortSubQueries = {
     ACTIVITY: `COALESCE(transaction_stats."count", 0)`,
 
@@ -198,25 +198,42 @@ const getSortSubQuery = (searchTermConditions, orderBy = null) => {
  * Search collectives directly in the DB, using a full-text query.
  */
 export const searchCollectivesInDB = async (
-  term,
+  term: string,
   offset = 0,
   limit = 100,
   {
-    orderBy,
-    types,
+    countries,
+    hasCustomContributionsEnabled,
     hostCollectiveIds,
-    parentCollectiveIds,
-    isHost,
-    onlyActive,
     includeArchived,
     includeVendorsForHostId,
-    skipRecentAccounts,
+    isHost,
+    onlyActive,
+    orderBy,
+    parentCollectiveIds,
     skipGuests = true,
-    hasCustomContributionsEnabled,
-    countries,
+    skipRecentAccounts,
     tags,
     tagSearchOperator,
+    types,
     ...args
+  }: {
+    countries?: string[];
+    currency?: string;
+    hasCustomContributionsEnabled?: boolean;
+    hostCollectiveIds?: number[];
+    includeArchived?: boolean;
+    includeVendorsForHostId?: number;
+    isHost?: boolean;
+    onlyActive?: boolean;
+    onlyOpenHosts?: boolean;
+    orderBy?: { field?: string; direction?: string };
+    parentCollectiveIds?: number[];
+    skipGuests?: boolean;
+    skipRecentAccounts?: boolean;
+    tags?: string[];
+    tagSearchOperator?: 'AND' | 'OR';
+    types?: string[];
   } = {},
 ) => {
   // Build dynamic conditions based on arguments
@@ -287,7 +304,7 @@ export const searchCollectivesInDB = async (
   }
 
   if (tags?.length) {
-    searchedTags = tags.map(tag => tag.toLowerCase());
+    searchedTags = tags.map(tag => tag.toLowerCase()).join();
     if (tagSearchOperator === 'OR') {
       dynamicConditions += `AND c."tags" && Array[:searchedTags]::varchar[] `;
     } else {
@@ -347,7 +364,14 @@ export const searchCollectivesInDB = async (
 /**
  * Parse and clean a user search query
  */
-export const parseSearchTerm = fullSearchTerm => {
+export const parseSearchTerm = (
+  fullSearchTerm: string,
+): {
+  type: 'text' | 'slug' | 'email' | 'id' | 'number' | 'text';
+  term: string | number;
+  isFloat?: boolean;
+  words?: number;
+} => {
   const searchTerm = trimSearchTerm(fullSearchTerm);
   if (!searchTerm) {
     return { type: 'text', term: '' };
@@ -356,6 +380,8 @@ export const parseSearchTerm = fullSearchTerm => {
   if (searchTerm.match(/^@.[^\s]+$/)) {
     // Searching for slugs (e.g. `@babel`). Won't match if there are whitespace chars (eg. `@babel expense from last month`)
     return { type: 'slug', term: searchTerm.replace(/^@/, '') };
+  } else if (searchTerm.match(/^[\w\.]+@([\w-]+\.)+[\w-]{2,4}$/)) {
+    return { type: 'email', term: searchTerm.toLowerCase() };
   } else if (searchTerm.match(/^#\d+$/)) {
     // Searching for integer IDs (e.g. `#123`)
     return { type: 'id', term: parseInt(searchTerm.replace(/^#/, '')) };
@@ -375,16 +401,27 @@ export const parseSearchTerm = fullSearchTerm => {
  * @returns
  */
 export const buildSearchConditions = (
-  searchTerm,
+  searchTerm: string,
   {
     slugFields = [],
     idFields = [],
     textFields = [],
     dataFields = [],
     amountFields = [],
+    emailFields = [],
     stringArrayFields = [],
     stringArrayTransformFn = null,
     castStringArraysToVarchar = false,
+  }: {
+    slugFields?: string[];
+    idFields?: string[];
+    textFields?: string[];
+    dataFields?: string[];
+    amountFields?: string[];
+    emailFields?: string[];
+    stringArrayFields?: string[];
+    stringArrayTransformFn?: (str: string) => string;
+    castStringArraysToVarchar?: boolean;
   },
 ) => {
   const parsedTerm = parseSearchTerm(searchTerm);
@@ -400,6 +437,8 @@ export const buildSearchConditions = (
     return slugFields.map(field => ({ [field]: parsedTerm.term }));
   } else if (parsedTerm.type === 'id' && idFields?.length) {
     return idFields.map(field => ({ [field]: parsedTerm.term }));
+  } else if (parsedTerm.type === 'email' && emailFields?.length) {
+    return emailFields.map(field => ({ [field]: parsedTerm.term }));
   }
 
   // Inclusive conditions, search all fields except
@@ -433,7 +472,7 @@ export const buildSearchConditions = (
       conditions.push(...idFields.map(field => ({ [field]: parsedTerm.term })));
     }
     if (amountFields?.length) {
-      conditions.push(...amountFields.map(field => ({ [field]: floatAmountToCents(parsedTerm.term) })));
+      conditions.push(...amountFields.map(field => ({ [field]: floatAmountToCents(parsedTerm.term as number) })));
     }
   }
 
@@ -510,18 +549,18 @@ export const getExpenseTagFrequencies = async args => {
 
   if (args.hostCollectiveId) {
     whereConditions.push(`"HostCollectiveId" = :hostCollectiveId`);
-    replacements.hostCollectiveId = args.hostCollectiveId;
+    replacements['hostCollectiveId'] = args.hostCollectiveId;
   }
 
   if (args.accountId) {
     whereConditions.push(`"CollectiveId" = :accountId`);
-    replacements.accountId = args.accountId;
+    replacements['accountId'] = args.accountId;
   }
 
   if (args.tagSearchTerm) {
     const { sanitizedTerm } = getSearchTermSQLConditions(args.tagSearchTerm);
     whereConditions.push(`"tag" ILIKE :sanitizedTerm`);
-    replacements.sanitizedTerm = `%${sanitizedTerm}%`;
+    replacements['sanitizedTerm'] = `%${sanitizedTerm}%`;
   }
 
   const whereClause = whereConditions.length ? `WHERE ${whereConditions.join(' AND ')}` : '';
