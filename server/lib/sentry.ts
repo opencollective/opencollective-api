@@ -264,7 +264,9 @@ export const reportMessageToSentry = (message: string, params: CaptureErrorParam
     if (checkIfSentryConfigured()) {
       Sentry.captureMessage(message, params?.severity || 'error');
     } else {
-      logger.error(`[Sentry disabled] The following message would be reported: ${message} (${JSON.stringify(params)})`);
+      const errorDetailsStr = safeJsonStringify(params);
+      const logMsg = `[Sentry fallback] ${message} (${errorDetailsStr})`;
+      params?.severity === 'warning' ? logger.warn(logMsg) : logger.error(logMsg);
     }
   });
 };
