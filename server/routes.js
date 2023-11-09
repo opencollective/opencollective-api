@@ -186,44 +186,40 @@ export default async app => {
   });
 
   /* GraphQL server protection rules */
-  const logRejection = (ctx, err) => {
+  const logGraphQLComplexityRejection = (ctx, err) => {
     let queryName = 'Query';
-    if (ctx._ast) {
-      const operation = ctx._ast.definitions?.find(d => d.kind === 'OperationDefinition');
-      queryName = operation?.name?.value || queryName;
-      reportMessageToSentry('Query complexity is too high', {
-        handler: HandlerType.GQL,
-        severity: 'warning',
-        transactionName: `GraphQL complexity too high: ${queryName}`,
-        extra: {
-          query: ctx._ast.loc?.source?.body || '',
-          message: err.message,
-        },
-      });
-    }
-
-    logger.warn(`Query complexity is too high (${queryName}): ${err.message.replace(/^Syntax Error: /, '')}`);
+    const operation = ctx?._ast?.definitions?.find(d => d.kind === 'OperationDefinition');
+    queryName = operation?.name?.value || queryName;
+    reportMessageToSentry('Query complexity is too high', {
+      handler: HandlerType.GQL,
+      severity: 'warning',
+      transactionName: `GraphQL complexity too high: ${queryName}`,
+      extra: {
+        query: ctx?._ast.loc?.source?.body || '',
+        message: err.message,
+      },
+    });
   };
 
   const apolloArmor = new ApolloArmor({
     // Depth is the number of nested fields in a query
     maxDepth: {
-      onReject: [logRejection],
+      onReject: [logGraphQLComplexityRejection],
       propagateOnRejection: false,
       n: 15, // Currently identified max: 13 in contribution flow
     },
     // Cost is computed by the complexity plugin, it's a mix of the number of fields and the complexity of each field
     costLimit: {
-      onReject: [logRejection],
+      onReject: [logGraphQLComplexityRejection],
       ignoreIntrospection: true,
       propagateOnRejection: false,
       maxCost: 12500, // Currently identified max: around 10000 on the PDF service (transaction receipt), around 7500 on expense form
     },
     // Tokens are the number of fields in a query
     maxTokens: {
-      onReject: [logRejection],
+      onReject: [logGraphQLComplexityRejection],
       propagateOnRejection: false,
-      n: 1000, // Currently identified max: 805 in the expense flow
+      n: 1250, // Currently identified max: 1009 in the host admin expenses
     },
     maxAliases: { enabled: false }, // Not clear what value this adds
     maxDirectives: { enabled: false }, // Not clear what value this adds
