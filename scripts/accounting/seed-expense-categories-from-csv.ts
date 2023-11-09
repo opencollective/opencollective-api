@@ -12,6 +12,11 @@ import models, { Op, sequelize } from '../../server/models';
 
 const DRY_RUN = process.env.DRY_RUN !== 'false';
 
+// Add a prefix to error logs to make them easier to find
+const logError = (...messages: any) => {
+  logError('[ERROR]', ...messages);
+};
+
 const loadFileContents = async (filePathOrUrl: string): Promise<string> => {
   if (filePathOrUrl.match(/^https?:\/\//)) {
     const response = await axios.get(filePathOrUrl);
@@ -51,7 +56,7 @@ const run = async (hostSlug: string, csvPath: string, options: RunOptions) => {
     const expenseAccountingCategoryCode = row['EXP CODE'];
     if (!shortTransactionGroup || !expenseAccountingCategoryCode) {
       if (options.verbose) {
-        console.error(`Missing data for row ${JSON.stringify(row)}`);
+        logError(`Missing data for row ${JSON.stringify(row)}`);
       }
       continue;
     }
@@ -81,18 +86,22 @@ const run = async (hostSlug: string, csvPath: string, options: RunOptions) => {
     });
 
     if (!expense) {
-      console.error(`Expense not found for short transaction group ${shortTransactionGroup}`);
+      logError(`Expense not found for short transaction group ${shortTransactionGroup}`);
     } else if (expense.HostCollectiveId && expense.HostCollectiveId !== host.id) {
-      console.error(`Expense ${expense.id} is not associated with host ${hostSlug}`);
+      logError(`Expense ${expense.id} is not associated with host ${hostSlug}`);
     } else if (expenseAccountingCategoryCode === expense.accountingCategory?.code) {
       if (options.verbose) {
         console.log(`Expense ${expense.id} already has the correct accounting category`);
       }
     } else {
       const newCategory = host.accountingCategories.find(({ code }) => code === expenseAccountingCategoryCode);
-      console.log(`Update Expense #${expense.id} with category ${newCategory.code} - ${newCategory.name}`);
-      if (!DRY_RUN) {
-        await expense.update({ AccountingCategoryId: newCategory.id });
+      if (!newCategory) {
+        logError(`Accounting category ${expenseAccountingCategoryCode} not found for expense ${expense.id}`);
+      } else {
+        console.log(`Update Expense #${expense.id} with category ${newCategory.code} - ${newCategory.name}`);
+        if (!DRY_RUN) {
+          await expense.update({ AccountingCategoryId: newCategory.id });
+        }
       }
     }
   }
@@ -109,7 +118,7 @@ const main = async () => {
       try {
         await run(hostSlug, filePath, program.opts());
       } catch (error) {
-        console.error(error);
+        logError(error);
         process.exit(1);
       }
     });
