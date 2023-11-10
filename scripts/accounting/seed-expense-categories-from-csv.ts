@@ -5,7 +5,7 @@ import '../../server/env';
 import fs from 'fs';
 
 import axios from 'axios';
-import { program } from 'commander';
+import { InvalidOptionArgumentError, program } from 'commander';
 import { parse } from 'csv-parse/sync'; // eslint-disable-line
 
 import models, { Op, sequelize } from '../../server/models';
@@ -14,7 +14,7 @@ const DRY_RUN = process.env.DRY_RUN !== 'false';
 
 // Add a prefix to error logs to make them easier to find
 const logError = (...messages: any) => {
-  logError('[ERROR]', ...messages);
+  console.error('[ERROR]', ...messages);
 };
 
 const loadFileContents = async (filePathOrUrl: string): Promise<string> => {
@@ -29,6 +29,8 @@ const loadFileContents = async (filePathOrUrl: string): Promise<string> => {
 
 type RunOptions = {
   verbose: boolean;
+  start: number | null;
+  end: number | null;
 };
 
 const run = async (hostSlug: string, csvPath: string, options: RunOptions) => {
@@ -51,7 +53,10 @@ const run = async (hostSlug: string, csvPath: string, options: RunOptions) => {
   });
 
   // Iterate over rows
-  for (const row of parsedContent) {
+  let rowIdx = options.start || 0;
+  const selectedLines = parsedContent.slice(options.start || 0, options.end || parsedContent.length);
+  for (const row of selectedLines) {
+    rowIdx += 1;
     const shortTransactionGroup = row['Short Group ID'];
     const expenseAccountingCategoryCode = row['EXP CODE'];
     if (!shortTransactionGroup || !expenseAccountingCategoryCode) {
@@ -98,13 +103,28 @@ const run = async (hostSlug: string, csvPath: string, options: RunOptions) => {
       if (!newCategory) {
         logError(`Accounting category ${expenseAccountingCategoryCode} not found for expense ${expense.id}`);
       } else {
-        console.log(`Update Expense #${expense.id} with category ${newCategory.code} - ${newCategory.name}`);
+        console.log(
+          `Update Expense ${rowIdx}/${parsedContent.length} (#${expense.id}) with category ${newCategory.code} - ${newCategory.name}`,
+        );
         if (!DRY_RUN) {
           await expense.update({ AccountingCategoryId: newCategory.id });
         }
       }
     }
   }
+};
+
+const parseIntOption = (value: string) => {
+  if (!value) {
+    return null;
+  }
+
+  const parsedValue = parseInt(value, 10);
+  if (isNaN(parsedValue)) {
+    throw new InvalidOptionArgumentError('Not a number.');
+  }
+
+  return parsedValue;
 };
 
 const main = async () => {
@@ -114,6 +134,8 @@ const main = async () => {
     .argument('<hostSlug>', 'The host slug associated with the expenses')
     .argument('<filePath>', 'The path to the CSV file containing the expenses')
     .option('-v, --verbose', 'Verbose mode')
+    .option('-s, --start <row>', 'Start at row', parseIntOption)
+    .option('-e, --end <row>', 'End at row', parseIntOption)
     .action(async (hostSlug: string, filePath: string) => {
       try {
         await run(hostSlug, filePath, program.opts());
