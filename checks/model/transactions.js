@@ -43,7 +43,7 @@ async function checkDeletedCollectives({ fix = false } = {}) {
 }
 
 async function checkOrphanTransactions() {
-  const message = 'No orphan Transactions without a matching Collective';
+  const message = 'No orphan Transaction without a primary Transaction (EXPENSE, CONTRIBUTION, ADDED_FUNDS)';
 
   const results = await sequelize.query(
     `SELECT COUNT(*)
