@@ -465,6 +465,53 @@ describe('server/lib/payments', () => {
       expect(tipSettlement.status).to.eq('SETTLED');
     });
 
+    it('should not create payment processor fee cover for contribution to the host itself', async () => {
+      // Create Open Collective Inc
+      await fakeHost({ id: 8686, name: 'Open Collective' });
+      const host = await fakeHost({ name: 'Host' });
+      const contributorUser = await fakeUser(undefined, { name: 'User' });
+      const order = await fakeOrder({
+        status: 'ACTIVE',
+        CollectiveId: host.id,
+        FromCollectiveId: contributorUser.CollectiveId,
+      });
+      const transaction = await models.Transaction.createFromContributionPayload({
+        CreatedByUserId: contributorUser.id,
+        FromCollectiveId: order.FromCollectiveId,
+        CollectiveId: order.CollectiveId,
+        PaymentMethodId: order.PaymentMethodId,
+        type: 'CREDIT',
+        OrderId: order.id,
+        amount: 5000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        amountInHostCurrency: 5000,
+        hostCurrencyFxRate: 1,
+        paymentProcessorFeeInHostCurrency: 175,
+        description: 'Contribution to Open Collective',
+        data: { charge: { id: 'ch_refunded_charge' } },
+      });
+
+      // Should have 2 transactions:
+      // - 2 for contributions
+      const originalTransactions = await order.getTransactions();
+      expect(originalTransactions).to.have.lengthOf(2);
+      expect(originalTransactions.filter(t => t.kind === 'CONTRIBUTION')).to.have.lengthOf(2);
+
+      // Do refund
+      await payments.createRefundTransaction(transaction, 0, null, user);
+
+      // Snapshot ledger
+      const allTransactions = await order.getTransactions({ order: [['id', 'ASC']] });
+      await utils.preloadAssociationsForTransactions(allTransactions, SNAPSHOT_COLUMNS);
+      utils.snapshotTransactions(allTransactions, { columns: SNAPSHOT_COLUMNS });
+
+      const refundedTransactions = await order.getTransactions({ where: { isRefund: true } });
+      expect(refundedTransactions).to.have.lengthOf(2);
+      expect(refundedTransactions.filter(t => t.kind === 'CONTRIBUTION')).to.have.lengthOf(2);
+      expect(refundedTransactions.filter(t => t.kind === 'PAYMENT_PROCESSOR_COVER')).to.have.lengthOf(0);
+    });
+
     it('should remove the settlement if the tip was already invoiced', async () => {
       // TODO(LedgerRefactor)
     });

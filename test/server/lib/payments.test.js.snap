@@ -1,5 +1,15 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
+exports[`server/lib/payments createRefundTransaction should not create payment processor fee cover for contribution to the host itself 1`] = `
+"
+| kind         | type   | isRefund | isDebt | From | To   | Host | amount | currency | platformFee | paymentFee | Settlement | description                                 |
+| ------------ | ------ | -------- | ------ | ---- | ---- | ---- | ------ | -------- | ----------- | ---------- | ---------- | ------------------------------------------- |
+| CONTRIBUTION | DEBIT  | false    | false  | Host | User | NULL | -4825  | USD      | 0           | -175       |            | Contribution to Open Collective             |
+| CONTRIBUTION | CREDIT | false    | false  | User | Host | Host | 5000   | USD      | 0           | -175       |            | Contribution to Open Collective             |
+| CONTRIBUTION | DEBIT  | true     | false  | User | Host | Host | -5000  | USD      | 0           | 0          |            | Refund of \\"Contribution to Open Collective\\" |
+| CONTRIBUTION | CREDIT | true     | false  | Host | User | NULL | 5000   | USD      | 0           | 0          |            | Refund of \\"Contribution to Open Collective\\" |"
+`;
+
 exports[`server/lib/payments createRefundTransaction should refund platform fees on top when refunding original transaction 1`] = `
 "
 | kind                    | type   | isRefund | isDebt | From            | To              | Host            | amount | currency | platformFee | paymentFee | Settlement | description                                            |
