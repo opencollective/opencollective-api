@@ -235,6 +235,10 @@ export const refundPaymentProcessorFeeToCollective = async (transaction, refundT
     return;
   }
 
+  if (transaction.CollectiveId === transaction.HostCollectiveId) {
+    return;
+  }
+
   const hostCurrencyFxRate = await getFxRate(transaction.currency, transaction.hostCurrency);
   const amountInHostCurrency = Math.abs(transaction.paymentProcessorFeeInHostCurrency);
   const amount = Math.round(amountInHostCurrency / hostCurrencyFxRate);
