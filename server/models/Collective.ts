@@ -268,6 +268,7 @@ class Collective extends Model<
 
   public declare legalDocuments?: NonAttribute<LegalDocumentModelInterface[]>;
 
+  public declare accountingCategories?: NonAttribute<Array<typeof models.AccountingCategory>>;
   public declare getAccountingCategories: HasManyGetAssociationsMixin<typeof models.AccountingCategory>;
 
   public declare getConnectedAccounts: HasManyGetAssociationsMixin<ConnectedAccount>;
