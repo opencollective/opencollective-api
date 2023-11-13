@@ -1640,8 +1640,8 @@ const getUserRole = (user: User, collective: Collective): keyof ExpenseDataValue
   return user.isAdmin(collective.HostCollectiveId)
     ? ExpenseRoles.hostAdmin
     : user.isAdminOfCollective(collective)
-    ? ExpenseRoles.collectiveAdmin
-    : ExpenseRoles.submitter;
+      ? ExpenseRoles.collectiveAdmin
+      : ExpenseRoles.submitter;
 };
 
 /**

@@ -115,9 +115,9 @@ export async function refundTransaction(transaction, user, message, opts = {}) {
   const paymentMethodProvider = transaction.PaymentMethod
     ? findPaymentMethodProvider(transaction.PaymentMethod)
     : // TODO: Drop this in favor of findPaymentMethodProvider when persisting PaymentIntents as Payment Methods
-    ['us_bank_account', 'sepa_debit'].includes(transaction.data?.charge?.payment_method_details?.type)
-    ? paymentProviders.stripe.types.paymentintent
-    : paymentProviders.opencollective.types.manual;
+      ['us_bank_account', 'sepa_debit'].includes(transaction.data?.charge?.payment_method_details?.type)
+      ? paymentProviders.stripe.types.paymentintent
+      : paymentProviders.opencollective.types.manual;
 
   if (!paymentMethodProvider.refundTransaction) {
     throw new Error('This payment method provider does not support refunds');

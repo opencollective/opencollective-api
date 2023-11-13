@@ -146,8 +146,8 @@ const loadDataForSubscription = async (paypalSubscriptionId, expectedHost) => {
       !order[association]
         ? `${association}: missing`
         : order[association].deletedAt
-        ? `${association}: deleted`
-        : `${association}: ok`;
+          ? `${association}: deleted`
+          : `${association}: ok`;
     throw new Error(
       `Could not find all required associations for PayPal subscription ${paypalSubscriptionId} (subscription #${
         subscription.id

@@ -373,8 +373,8 @@ const orderMutations = {
           isNull(args.tier) || args.tier?.isCustom
             ? null
             : args.tier
-            ? await fetchTierWithReference(args.tier, { throwIfMissing: true })
-            : order.Tier;
+              ? await fetchTierWithReference(args.tier, { throwIfMissing: true })
+              : order.Tier;
 
         const membership =
           !isNull(order) &&

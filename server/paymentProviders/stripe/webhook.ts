@@ -74,8 +74,8 @@ export async function createOrUpdateOrderStripePaymentMethod(
       ? stripePaymentMethod.customer
       : stripePaymentMethod.customer?.id
     : typeof paymentIntent.customer === 'string'
-    ? paymentIntent.customer
-    : paymentIntent.customer?.id;
+      ? paymentIntent.customer
+      : paymentIntent.customer?.id;
 
   const pm = await createPaymentMethod({
     stripeAccount,
@@ -255,8 +255,8 @@ export const paymentIntentProcessing = async (event: Stripe.Event) => {
           ? stripePaymentMethod.customer
           : stripePaymentMethod.customer?.id
         : typeof paymentIntent.customer === 'string'
-        ? paymentIntent.customer
-        : paymentIntent.customer?.id;
+          ? paymentIntent.customer
+          : paymentIntent.customer?.id;
 
       pm = await createPaymentMethod(
         {
