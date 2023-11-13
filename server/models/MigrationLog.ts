@@ -11,6 +11,7 @@ export enum MigrationLogType {
   BAN_ACCOUNTS = 'BAN_ACCOUNTS',
   MOVE_ORDERS = 'MOVE_ORDERS',
   MOVE_EXPENSES = 'MOVE_EXPENSES',
+  MODEL_FIX = 'MODEL_FIX',
 }
 
 export type MigrationLogDataForMergeAccounts = {

@@ -96,9 +96,13 @@ export const removeMigration = async (queryInterface: QueryInterface, migrationN
 /*
  * A simple wrapper to help check the queries being executed
  */
-const executeQuery = async (queryInterface, query) => {
+const executeQuery = async (
+  queryInterface: QueryInterface,
+  query: Parameters<QueryInterface['sequelize']['query']>[0],
+  options: Parameters<QueryInterface['sequelize']['query']>[1] = {},
+) => {
   // console.log(query);
-  await queryInterface.sequelize.query(query);
+  await queryInterface.sequelize.query(query, options);
 };
 
 /*
@@ -109,15 +113,31 @@ const formatEnum = values => values.map(value => `'${value}'`).join(', ');
 /*
  * Update an enum list on a given table, column
  */
-export const updateEnum = async (queryInterface, table, column, enumName, values) => {
+export const updateEnum = async (queryInterface, table, column, enumName, values, { isArray = true } = {}) => {
   // See https://blog.yo1.dog/updating-enum-values-in-postgresql-the-safe-and-easy-way/
-  await executeQuery(queryInterface, `ALTER TYPE "${enumName}" RENAME TO "${enumName}_old"`);
-  await executeQuery(queryInterface, `CREATE TYPE "${enumName}" AS ENUM(${formatEnum(values)})`);
-  await executeQuery(
-    queryInterface,
-    `ALTER TABLE "${table}" ALTER COLUMN ${column} TYPE "${enumName}" ARRAY USING ${column}::text::"${enumName}"[]`,
-  );
-  await executeQuery(queryInterface, `DROP TYPE "${enumName}_old"`);
+  return queryInterface.sequelize.transaction(async transaction => {
+    // Rename old enum
+    await executeQuery(queryInterface, `ALTER TYPE "${enumName}" RENAME TO "${enumName}_old"`, { transaction });
+    // // Create new enum
+    await executeQuery(queryInterface, `CREATE TYPE "${enumName}" AS ENUM(${formatEnum(values)})`, { transaction });
+    // Update column to new enum
+    if (isArray) {
+      await executeQuery(
+        queryInterface,
+        `ALTER TABLE "${table}" ALTER COLUMN ${column} TYPE "${enumName}" ARRAY USING ${column}::text::"${enumName}"[]`,
+        { transaction },
+      );
+    } else {
+      await executeQuery(
+        queryInterface,
+        `ALTER TABLE "${table}" ALTER COLUMN ${column} TYPE "${enumName}" USING ${column}::text::"${enumName}"`,
+        { transaction },
+      );
+    }
+
+    // Drop old enum
+    await executeQuery(queryInterface, `DROP TYPE "${enumName}_old"`, { transaction });
+  });
 };
 
 /**
