@@ -34,6 +34,7 @@ import { GraphQLActivityClassType } from '../enum/ActivityType';
 import { GraphQLExpenseType } from '../enum/ExpenseType';
 import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
 import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType';
+import { GraphQLVirtualCardStatusEnum } from '../enum/VirtualCardStatus';
 import { idEncode } from '../identifiers';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLChronologicalOrderInput } from '../input/ChronologicalOrderInput';
@@ -486,7 +487,8 @@ const accountFieldsDefinition = () => ({
     args: {
       limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
       offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
-      state: { type: GraphQLString, defaultValue: null },
+      state: { type: GraphQLString, defaultValue: null, deprecationReason: '2023-11-06: Please use status.' },
+      status: { type: new GraphQLList(GraphQLVirtualCardStatusEnum) },
       merchantAccount: { type: GraphQLAccountReferenceInput, defaultValue: null },
       dateFrom: {
         type: GraphQLDateTime,
@@ -532,6 +534,15 @@ const accountFieldsDefinition = () => ({
 
       if (args.state) {
         query.where['data'] = { state: args.state };
+      }
+
+      if (args.status) {
+        if (!query.where['data']) {
+          query.where['data'] = {};
+        }
+        query.where['data'].status = {
+          [Op.in]: args.status,
+        };
       }
 
       if (merchantId) {
