@@ -221,8 +221,8 @@ export async function getSumCollectivesAmountSpent(
       ? 'netAmountInCollectiveCurrency'
       : 'amountInCollectiveCurrency'
     : net
-    ? 'netAmountInHostCurrency'
-    : 'amountInHostCurrency';
+      ? 'netAmountInHostCurrency'
+      : 'amountInHostCurrency';
   const transactionType = 'DEBIT_WITHOUT_HOST_FEE';
 
   const results = await sumCollectivesTransactions(missingCollectiveIds, {
@@ -397,8 +397,8 @@ export async function getSumCollectivesAmountReceived(
       ? 'netAmountInCollectiveCurrency'
       : 'amountInCollectiveCurrency'
     : net
-    ? 'netAmountInHostCurrency'
-    : 'amountInHostCurrency';
+      ? 'netAmountInHostCurrency'
+      : 'amountInHostCurrency';
   const transactionType = net ? 'CREDIT_WITH_HOST_FEE' : CREDIT;
 
   const results = await sumCollectivesTransactions(missingCollectiveIds, {
@@ -494,12 +494,12 @@ export async function sumCollectivesTransactions(
   const collectiveId = includeChildren
     ? sequelize.fn('COALESCE', sequelize.col('collective.ParentCollectiveId'), sequelize.col('collective.id'))
     : includeGiftCards
-    ? sequelize.fn(
-        'COALESCE',
-        sequelize.col('Transaction.UsingGiftCardFromCollectiveId'),
-        sequelize.col('Transaction.CollectiveId'),
-      )
-    : sequelize.col('Transaction.CollectiveId');
+      ? sequelize.fn(
+          'COALESCE',
+          sequelize.col('Transaction.UsingGiftCardFromCollectiveId'),
+          sequelize.col('Transaction.CollectiveId'),
+        )
+      : sequelize.col('Transaction.CollectiveId');
 
   const amountColumns = {
     amountInCollectiveCurrency: sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('amount')), 0),

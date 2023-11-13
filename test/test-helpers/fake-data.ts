@@ -612,8 +612,8 @@ export const fakeOrder = async (
   const tier = orderData.TierId
     ? await models.Tier.findByPk(<number>orderData.TierId)
     : withTier
-    ? await fakeTier()
-    : null;
+      ? await fakeTier()
+      : null;
 
   const order: OrderModelInterface & {
     subscription?: typeof Subscription;
