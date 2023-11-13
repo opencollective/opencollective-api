@@ -22,7 +22,7 @@ describe('server/models/UploadedFile', () => {
 
     it('should only allow Open Collective S3 URLs', async () => {
       await expect(models.UploadedFile.create({ ...validParams, url: '' })).to.be.rejectedWith(
-        'Validation error: File URL is not valid',
+        'Validation error: File URL is not a valid URL,\nValidation error: Validation notEmpty on url failed',
       );
       await expect(
         models.UploadedFile.create({ ...validParams, url: 'https://example.com/invalid-url.png' }),
