@@ -1,6 +1,8 @@
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
+import { TWO_FACTOR_SESSIONS_PARAMS } from '../../../lib/two-factor-authentication/lib';
 import { GraphQLOAuthScope } from '../enum/OAuthScope';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
@@ -22,6 +24,11 @@ export const GraphQLPersonalToken = new GraphQLObjectType({
     token: {
       type: GraphQLString,
       description: 'The personal token',
+      resolve: async (personalToken, _, req): Promise<string> => {
+        const collective = await req.loaders.Collective.byId.load(personalToken.CollectiveId);
+        await twoFactorAuthLib.enforceForAccount(req, collective, TWO_FACTOR_SESSIONS_PARAMS.MANAGE_PERSONAL_TOKENS);
+        return personalToken.token;
+      },
     },
     expiresAt: {
       type: GraphQLDateTime,
