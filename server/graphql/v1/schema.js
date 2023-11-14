@@ -1,6 +1,5 @@
 import { GraphQLObjectType, GraphQLSchema } from 'graphql';
 
-import { ApplicationType } from './Application';
 import {
   CollectiveInterfaceType,
   CollectiveSearchResultsType,
@@ -35,7 +34,6 @@ const Mutation = new GraphQLObjectType({
 
 const Schema = new GraphQLSchema({
   types: [
-    ApplicationType,
     CollectiveInterfaceType,
     CollectiveSearchResultsType,
     CollectiveStatsType,
