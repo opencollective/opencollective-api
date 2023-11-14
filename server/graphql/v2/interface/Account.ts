@@ -17,6 +17,7 @@ import { checkRemoteUserCanUseAccount, checkScope } from '../../common/scope-che
 import { BadRequest, ContentNotReady, Unauthorized } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { GraphQLConversationCollection } from '../collection/ConversationCollection';
+import { GraphQLExpenseCollection } from '../collection/ExpenseCollection';
 import { GraphQLMemberCollection, GraphQLMemberOfCollection } from '../collection/MemberCollection';
 import { GraphQLOAuthApplicationCollection } from '../collection/OAuthApplicationCollection';
 import { GraphQLOrderCollection } from '../collection/OrderCollection';
@@ -56,6 +57,10 @@ import { GraphQLPolicies } from '../object/Policies';
 import { GraphQLSocialLink } from '../object/SocialLink';
 import { GraphQLTagStats } from '../object/TagStats';
 import { GraphQLTransferWise } from '../object/TransferWise';
+import {
+  ExpensesCollectionQueryArgs,
+  ExpensesCollectionQueryResolver,
+} from '../query/collection/ExpensesCollectionQuery';
 import { OrdersCollectionArgs, OrdersCollectionResolver } from '../query/collection/OrdersCollectionQuery';
 import {
   TransactionsCollectionArgs,
@@ -287,6 +292,10 @@ const accountFieldsDefinition = () => ({
     args: {
       ...OrdersCollectionArgs,
     },
+  },
+  expenses: {
+    type: new GraphQLNonNull(GraphQLExpenseCollection),
+    args: ExpensesCollectionQueryArgs,
   },
   settings: {
     type: new GraphQLNonNull(GraphQLJSON),
@@ -862,6 +871,14 @@ export const AccountFields = {
   },
   transactions: accountTransactions,
   orders: accountOrders,
+  expenses: {
+    type: new GraphQLNonNull(GraphQLExpenseCollection),
+    args: ExpensesCollectionQueryArgs,
+    resolve(collective, args, req) {
+      args.fromAccount = { legacyId: collective.id };
+      return ExpensesCollectionQueryResolver(undefined, args, req);
+    },
+  },
   conversations: {
     type: new GraphQLNonNull(GraphQLConversationCollection),
     args: {
