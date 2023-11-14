@@ -18,7 +18,6 @@
     ],
     "add-module-exports",
     "@babel/plugin-proposal-class-properties",
-    "@babel/plugin-transform-async-to-generator"
   ],
   "env": {
     "test": {
