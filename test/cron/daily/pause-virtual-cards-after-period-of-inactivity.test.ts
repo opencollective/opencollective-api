@@ -18,6 +18,7 @@ describe('cron/daily/pause-virtual-cards-after-period-of-inactivity', () => {
   beforeEach(async () => {
     await resetTestDB();
     sandbox.stub(stripeVirtualCards, 'pauseCard').resolves();
+    sandbox.stub(stripeVirtualCards, 'resumeCard').resolves();
   });
 
   it('pauses inactive virtual cards', async () => {
@@ -201,20 +202,7 @@ describe('cron/daily/pause-virtual-cards-after-period-of-inactivity', () => {
     await unusedVirtualCard.reload();
     expect(unusedVirtualCard.data.status).to.eql(VirtualCardStatus.INACTIVE);
 
-    await unusedVirtualCard.update({
-      data: {
-        status: VirtualCardStatus.ACTIVE,
-      },
-    });
-    await Activity.create({
-      type: ActivityTypes.COLLECTIVE_VIRTUAL_CARD_RESUMED,
-      createdAt: new Date(),
-      CollectiveId: unusedVirtualCard.CollectiveId,
-      HostCollectiveId: unusedVirtualCard.HostCollectiveId,
-      data: {
-        virtualCard: unusedVirtualCard,
-      },
-    });
+    await unusedVirtualCard.resume();
 
     await runCron({ concurrency: 1 });
     await unusedVirtualCard.reload();
