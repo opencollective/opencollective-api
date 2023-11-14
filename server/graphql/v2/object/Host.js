@@ -1076,6 +1076,59 @@ export const GraphQLHost = new GraphQLObjectType({
           return { nodes: vendors, totalCount: count, limit: args.limit, offset: args.offset };
         },
       },
+      potentialVendors: {
+        type: new GraphQLNonNull(GraphQLAccountCollection),
+        args: {
+          ...getCollectionArgs({ limit: 100, offset: 0 }),
+        },
+        async resolve(host, args, req) {
+          const isAdmin = req.remoteUser.isAdminOfCollective(host);
+          if (!isAdmin) {
+            throw new Unauthorized('You need to be logged in as an admin of the host to see its potential vendors');
+          }
+
+          const pageQuery = `
+                WITH hostadmins AS (
+                  SELECT "MemberCollectiveId" FROM "Members" WHERE "CollectiveId" = :hostid AND "deletedAt" IS NULL AND role = 'ADMIN'
+                ), orgs AS (
+                  SELECT c.id, c.slug,ARRAY_AGG(DISTINCT m."MemberCollectiveId") as "admins", ARRAY_AGG(DISTINCT t."HostCollectiveId") as hosts
+                  FROM "Collectives" c
+                  LEFT JOIN "Members" m ON c.id = m."CollectiveId" AND m."deletedAt" IS NULL AND m.role = 'ADMIN'
+                  LEFT JOIN "Transactions" t ON c.id = t."FromCollectiveId" AND t."deletedAt" IS NULL
+                  WHERE c."deletedAt" IS NULL
+                    AND c.type = 'ORGANIZATION'
+                    AND c."HostCollectiveId" IS NULL
+                  GROUP BY c.id
+                )
+                SELECT c.*
+                FROM "orgs"
+                INNER JOIN "Collectives" c ON c.id = "orgs".id
+                WHERE
+                  "admins" <@ ARRAY(SELECT "MemberCollectiveId" FROM hostadmins)
+                  AND "hosts" = ARRAY[:hostid]
+                ORDER BY c."createdAt" DESC
+                LIMIT :limit
+                OFFSET :offset;
+          `;
+
+          const orgs = await sequelize.query(pageQuery, {
+            replacements: {
+              hostid: host.id,
+              limit: args.limit,
+              offset: args.offset,
+            },
+            type: sequelize.QueryTypes.SELECT,
+            model: models.Collective,
+          });
+
+          return {
+            nodes: orgs,
+            totalCount: orgs.length,
+            limit: args.limit,
+            offset: args.offset,
+          };
+        },
+      },
     };
   },
 });
