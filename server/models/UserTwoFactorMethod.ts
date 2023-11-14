@@ -71,6 +71,7 @@ export default class UserTwoFactorMethod<
       group: 'method',
       where: {
         UserId: userId,
+        deletedAt: null,
       },
     });
 
