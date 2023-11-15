@@ -1,6 +1,6 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { assign, get, invert, isEmpty, isNull, merge, omitBy } from 'lodash';
+import { assign, get, invert, isEmpty, isNull, merge, omit, omitBy } from 'lodash';
 import { Order } from 'sequelize';
 
 import { CollectiveType } from '../../../constants/collectives';
@@ -17,6 +17,7 @@ import { checkRemoteUserCanUseAccount, checkScope } from '../../common/scope-che
 import { BadRequest, ContentNotReady, Unauthorized } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { GraphQLConversationCollection } from '../collection/ConversationCollection';
+import { GraphQLExpenseCollection } from '../collection/ExpenseCollection';
 import { GraphQLMemberCollection, GraphQLMemberOfCollection } from '../collection/MemberCollection';
 import { GraphQLOAuthApplicationCollection } from '../collection/OAuthApplicationCollection';
 import { GraphQLOrderCollection } from '../collection/OrderCollection';
@@ -31,6 +32,7 @@ import {
 import { AccountTypeToModelMapping, GraphQLAccountType, GraphQLImageFormat, GraphQLMemberRole } from '../enum';
 import { GraphQLActivityChannel } from '../enum/ActivityChannel';
 import { GraphQLActivityClassType } from '../enum/ActivityType';
+import { GraphQLExpenseDirection } from '../enum/ExpenseDirection';
 import { GraphQLExpenseType } from '../enum/ExpenseType';
 import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
 import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType';
@@ -56,6 +58,10 @@ import { GraphQLPolicies } from '../object/Policies';
 import { GraphQLSocialLink } from '../object/SocialLink';
 import { GraphQLTagStats } from '../object/TagStats';
 import { GraphQLTransferWise } from '../object/TransferWise';
+import {
+  ExpensesCollectionQueryArgs,
+  ExpensesCollectionQueryResolver,
+} from '../query/collection/ExpensesCollectionQuery';
 import { OrdersCollectionArgs, OrdersCollectionResolver } from '../query/collection/OrdersCollectionQuery';
 import {
   TransactionsCollectionArgs,
@@ -163,6 +169,10 @@ const accountFieldsDefinition = () => ({
         type: GraphQLImageFormat,
       },
     },
+  },
+  hasImage: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Returns whether this account has a custom image',
   },
   backgroundImageUrl: {
     type: GraphQLString,
@@ -286,6 +296,15 @@ const accountFieldsDefinition = () => ({
     type: new GraphQLNonNull(GraphQLOrderCollection),
     args: {
       ...OrdersCollectionArgs,
+    },
+  },
+  expenses: {
+    type: new GraphQLNonNull(GraphQLExpenseCollection),
+    args: {
+      direction: {
+        type: GraphQLExpenseDirection,
+      },
+      ...ExpensesCollectionQueryArgs,
     },
   },
   settings: {
@@ -802,6 +821,13 @@ export const AccountFields = {
       return collective.getImageUrl(args);
     },
   },
+  hasImage: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Returns whether this account has a custom image',
+    resolve(collective) {
+      return Boolean(collective.image);
+    },
+  },
   backgroundImageUrl: {
     type: GraphQLString,
     args: {
@@ -862,6 +888,25 @@ export const AccountFields = {
   },
   transactions: accountTransactions,
   orders: accountOrders,
+  expenses: {
+    type: new GraphQLNonNull(GraphQLExpenseCollection),
+    args: {
+      direction: {
+        type: GraphQLExpenseDirection,
+      },
+      ...ExpensesCollectionQueryArgs,
+    },
+    resolve(collective, args, req) {
+      if (args.direction) {
+        const direction =
+          args.direction === 'SUBMITTED'
+            ? { fromAccount: { legacyId: collective.id } }
+            : { toAccount: { legacyId: collective.id } };
+        args = omit({ ...args, ...direction }, ['direction']);
+      }
+      return ExpensesCollectionQueryResolver(undefined, args, req);
+    },
+  },
   conversations: {
     type: new GraphQLNonNull(GraphQLConversationCollection),
     args: {

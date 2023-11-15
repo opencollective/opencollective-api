@@ -43,7 +43,7 @@ export const GraphQLVendor = new GraphQLObjectType({
         type: GraphQLVendorInfo,
         resolve(collective, _, req) {
           if (req.remoteUser?.isAdmin(collective.ParentCollectiveId)) {
-            return collective.data?.vendorInfo;
+            return collective.data?.vendorInfo || {};
           }
         },
       },
