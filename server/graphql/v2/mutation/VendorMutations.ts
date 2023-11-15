@@ -2,11 +2,12 @@ import assert from 'assert';
 
 import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
 import slugify from 'limax';
-import { difference, isEmpty, pick } from 'lodash';
+import { differenceBy, isEmpty, pick } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
+import MemberRoles from '../../../constants/roles';
 import { getDiffBetweenInstances } from '../../../lib/data';
 import { setTaxForm } from '../../../lib/tax-forms';
 import models, { Activity } from '../../../models';
@@ -254,10 +255,9 @@ const vendorMutations = {
         new ValidationFailed('Cannot convert an organization with transactions to another fiscal-host'),
       );
 
-      const mapId = ar => ar.map(({ id }) => id);
-      const hostAdmins = await host.getAdminUsers().then(mapId);
-      const organizationAdmins = await organization.getAdminUsers().then(mapId);
-      const alienAdmins = difference(organizationAdmins, hostAdmins);
+      const hostAdmins = await host.getAdminUsers();
+      const organizationAdmins = await organization.getAdminUsers();
+      const alienAdmins = differenceBy(organizationAdmins, hostAdmins, 'id');
       assert(
         alienAdmins.length === 0,
         new ValidationFailed(`Cannot convert an organization with admins that are not admins of the new host`),
@@ -272,7 +272,13 @@ const vendorMutations = {
         data: organization.data || {},
       };
       vendorData.data['originalOrganizationProps'] = pick(organization.toJSON(), Object.keys(vendorData));
-      return organization.update(vendorData);
+
+      await organization.update(vendorData);
+      await models.Member.destroy({
+        where: { CollectiveId: organization.id, role: [MemberRoles.ADMIN, MemberRoles.ACCOUNTANT, MemberRoles.MEMBER] },
+      });
+
+      return organization;
     },
   },
 };
