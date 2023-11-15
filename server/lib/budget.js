@@ -584,10 +584,15 @@ export async function sumCollectivesTransactions(
     where.createdAt[Op.lt] = endDate;
   }
   if (excludeRefunds) {
+    where[Op.and] = where[Op.and] || [];
     // Exclude refunded transactions
-    where.RefundTransactionId = { [Op.is]: null };
+    where[Op.and].push({ RefundTransactionId: { [Op.is]: null } });
     // Also exclude anything with isRefund=true (PAYMENT_PROCESSOR_COVER doesn't have RefundTransactionId set)
-    where.isRefund = { [Op.not]: true };
+    if (transactionType === 'CREDIT_WITH_HOST_FEE_AND_PAYMENT_PROCESSOR_FEE') {
+      where[Op.and].push({ [Op.or]: [{ isRefund: { [Op.not]: true } }, { kind: 'PAYMENT_PROCESSOR_COVER' }] });
+    } else {
+      where[Op.and].push({ isRefund: { [Op.not]: true } });
+    }
   }
 
   if (hostCollectiveId) {
