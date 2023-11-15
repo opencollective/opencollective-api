@@ -223,7 +223,7 @@ export async function getSumCollectivesAmountSpent(
     : net
       ? 'netAmountInHostCurrency'
       : 'amountInHostCurrency';
-  const transactionType = 'DEBIT_WITHOUT_HOST_FEE';
+  const transactionType = 'DEBIT_WITHOUT_HOST_FEE_AND_PAYMENT_PROCESSOR_FEE';
 
   const results = await sumCollectivesTransactions(missingCollectiveIds, {
     column,
@@ -399,7 +399,7 @@ export async function getSumCollectivesAmountReceived(
     : net
       ? 'netAmountInHostCurrency'
       : 'amountInHostCurrency';
-  const transactionType = net ? 'CREDIT_WITH_HOST_FEE' : CREDIT;
+  const transactionType = net ? 'CREDIT_WITH_HOST_FEE_AND_PAYMENT_PROCESSOR_FEE' : CREDIT;
 
   const results = await sumCollectivesTransactions(missingCollectiveIds, {
     column,
@@ -563,13 +563,13 @@ export async function sumCollectivesTransactions(
     }
   }
   if (transactionType) {
-    if (transactionType === 'DEBIT_WITHOUT_HOST_FEE') {
+    if (transactionType === 'DEBIT_WITHOUT_HOST_FEE_AND_PAYMENT_PROCESSOR_FEE') {
       where[Op.and] = where[Op.and] || [];
-      where[Op.and].push({ type: DEBIT, kind: { [Op.not]: 'HOST_FEE' } });
-    } else if (transactionType === 'CREDIT_WITH_HOST_FEE') {
+      where[Op.and].push({ type: DEBIT, kind: { [Op.notIn]: ['HOST_FEE', 'PAYMENT_PROCESSOR_FEE'] } });
+    } else if (transactionType === 'CREDIT_WITH_HOST_FEE_AND_PAYMENT_PROCESSOR_FEE') {
       where = {
         ...where,
-        [Op.or]: [{ type: CREDIT }, { type: DEBIT, kind: 'HOST_FEE' }],
+        [Op.or]: [{ type: CREDIT }, { type: DEBIT, kind: 'HOST_FEE' }, { type: DEBIT, kind: 'PAYMENT_PROCESSOR_FEE' }],
       };
     } else {
       where.type = transactionType;

@@ -1,7 +1,8 @@
 import assert from 'assert';
 
+import config from 'config';
 import debugLib from 'debug';
-import { get, isNil, isNull, isUndefined, omit, pick } from 'lodash';
+import { get, isNil, isNull, isUndefined, memoize, omit, pick, startCase } from 'lodash';
 import moment from 'moment';
 import {
   CreationOptional,
@@ -14,6 +15,7 @@ import {
 import { v4 as uuid } from 'uuid';
 
 import activities from '../constants/activities';
+import { PAYMENT_METHOD_SERVICE } from '../constants/paymentMethods';
 import { TransactionKind } from '../constants/transaction-kind';
 import {
   HOST_FEE_SHARE_TRANSACTION_PROPERTIES,
@@ -26,12 +28,12 @@ import { calcFee, getHostFeeSharePercent, getPlatformTip } from '../lib/payments
 import { stripHTML } from '../lib/sanitize-html';
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op } from '../lib/sequelize';
-import { exportToCSV } from '../lib/utils';
+import { exportToCSV, parseToBoolean } from '../lib/utils';
 
 import Collective from './Collective';
 import CustomDataTypes from './DataTypes';
 import { OrderModelInterface } from './Order';
-import PayoutMethod from './PayoutMethod';
+import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
 import { TransactionSettlementStatus } from './TransactionSettlement';
 import User from './User';
 
@@ -101,6 +103,7 @@ export interface TransactionInterface
   hasPlatformTip: () => boolean;
   getRelatedTransaction: (options: { type?: string; kind?: string; isDebt?: boolean }) => Promise<TransactionInterface>;
   getOppositeTransaction: () => Promise<TransactionInterface | null>;
+  getPaymentProcessorFeeTransaction: () => Promise<TransactionInterface | null>;
   getPlatformTipTransaction: () => Promise<TransactionInterface | null>;
   getPlatformTipDebtTransaction: () => Promise<TransactionInterface | null>;
   getHostFeeTransaction: () => Promise<TransactionInterface | null>;
@@ -141,6 +144,7 @@ interface TransactionModelStaticInterface {
   assertAmountsStrictlyEqual(a: number, b: number, message?: string): void;
   calculateNetAmountInHostCurrency(transaction: TransactionInterface): number;
   validateContributionPayload(payload: Record<string, unknown>): void;
+  getPaymentProcessorFeeVendor(service: string): Promise<Collective>;
   createActivity(transaction: TransactionInterface, options?: { transaction: SQLTransaction }): Promise<void>;
   createPlatformTipTransactions(
     transaction: TransactionCreationAttributes,
@@ -155,6 +159,15 @@ interface TransactionModelStaticInterface {
     args: { platformTipTransaction: TransactionInterface },
     host: Collective,
   ): Promise<TransactionInterface>;
+  createPaymentProcessorFeeTransactions(
+    transaction: TransactionInterface | TransactionCreationAttributes,
+    data: Record<string, unknown> | null,
+  ): Promise<{
+    /** The original transaction, potentially modified if a payment processor fees was set */
+    transaction: TransactionInterface | TransactionCreationAttributes;
+    /** The payment processor fee transaction */
+    paymentProcessorFeeTransaction: TransactionInterface;
+  }>;
   createHostFeeTransactions(
     transaction: TransactionInterface | TransactionCreationAttributes,
     host: Collective,
@@ -530,6 +543,10 @@ Transaction.prototype.getRelatedTransaction = function (options) {
   });
 };
 
+Transaction.prototype.getPaymentProcessorFeeTransaction = function () {
+  return this.getRelatedTransaction({ kind: TransactionKind.PAYMENT_PROCESSOR_FEE });
+};
+
 Transaction.prototype.getPlatformTipTransaction = function () {
   return this.getRelatedTransaction({ kind: TransactionKind.PLATFORM_TIP });
 };
@@ -700,6 +717,21 @@ Transaction.createDoubleEntry = async (transaction, opts) => {
   transaction.TransactionGroup = transaction.TransactionGroup || uuid();
   transaction.hostCurrencyFxRate = transaction.hostCurrencyFxRate || 1;
 
+  // Create Payment Processor Fee transaction
+  if (
+    transaction.paymentProcessorFeeInHostCurrency &&
+    parseToBoolean(config.ledger.separatePaymentProcessorFees) === true
+  ) {
+    const result = await Transaction.createPaymentProcessorFeeTransactions(transaction, null);
+    if (result) {
+      // Transaction was modified by paymentProcessorFeeTransactions, we get it from the result
+      if (result.transaction) {
+        transaction = result.transaction;
+      }
+    }
+    transaction.netAmountInCollectiveCurrency = Transaction.calculateNetAmountInCollectiveCurrency(transaction);
+  }
+
   // If FromCollectiveId = CollectiveId, we only create one transaction (DEBIT or CREDIT)
   if (transaction.FromCollectiveId === transaction.CollectiveId) {
     return Transaction.create(transaction, opts) as Promise<TransactionInterface>;
@@ -769,6 +801,7 @@ Transaction.createDoubleEntry = async (transaction, opts) => {
     };
 
     // Handle Host Fee when paying an Expense between Hosts
+    // TODO: This should not be part of `createDoubleEntry`, maybe `createTransactionsFromPaidExpense`?
     if (oppositeTransaction.kind === 'EXPENSE' && !oppositeTransaction.isRefund) {
       const collective = await models.Collective.findByPk(transaction.CollectiveId);
       const collectiveHost = await collective.getHostCollective();
@@ -1006,6 +1039,84 @@ Transaction.createHostFeeTransactions = async (transaction, host, data) => {
   return { transaction, hostFeeTransaction };
 };
 
+/**
+ * Returns the Vendor account associated with a payment processor service. This function is memoized as
+ * the processor fee vendor will not change during the lifetime of the server.
+ */
+Transaction.getPaymentProcessorFeeVendor = memoize(
+  async (service: PAYMENT_METHOD_SERVICE | PayoutMethodTypes | 'OTHER'): Promise<Collective> => {
+    const vendorSlugs = {
+      [PAYMENT_METHOD_SERVICE.STRIPE]: 'stripe-payment-processor-vendor',
+      [PAYMENT_METHOD_SERVICE.PAYPAL]: 'paypal-payment-processor-vendor',
+      [PayoutMethodTypes.BANK_ACCOUNT]: 'wise-payment-processor-vendor',
+      OTHER: 'other-payment-processor-vendor',
+    };
+
+    return models.Collective.findBySlug(vendorSlugs[service] || vendorSlugs['OTHER']);
+  },
+);
+
+Transaction.createPaymentProcessorFeeTransactions = async (
+  transaction: TransactionInterface | TransactionCreationAttributes,
+  data: Record<string, unknown> | null = null,
+): Promise<{
+  /** The original transaction, potentially modified if a payment processor fees was set */
+  transaction: TransactionInterface | TransactionCreationAttributes;
+  /** The payment processor fee transaction */
+  paymentProcessorFeeTransaction: TransactionInterface;
+}> => {
+  if (!transaction.paymentProcessorFeeInHostCurrency) {
+    return;
+  }
+
+  const paymentMethod =
+    transaction.PaymentMethodId && (await models.PaymentMethod.findByPk(transaction.PaymentMethodId));
+  const payoutMethod = transaction.PayoutMethodId && (await models.PayoutMethod.findByPk(transaction.PayoutMethodId));
+  const vendor = await Transaction.getPaymentProcessorFeeVendor(
+    paymentMethod?.service || payoutMethod?.type || 'OTHER',
+  );
+
+  // The reference value is currently passed as "hostFeeInHostCurrency"
+  const amountInHostCurrency = Math.abs(transaction.paymentProcessorFeeInHostCurrency);
+  const hostCurrency = transaction.hostCurrency;
+  const hostCurrencyFxRate = transaction.hostCurrencyFxRate;
+
+  // For the Collective/Fund, we calculate the matching amount using the hostCurrencyFxRate
+  const amount = Math.round(amountInHostCurrency / transaction.hostCurrencyFxRate);
+  const currency = transaction.currency;
+
+  const paymentProcessorFeeTransactionData = {
+    type: CREDIT,
+    kind: TransactionKind.PAYMENT_PROCESSOR_FEE,
+    description: `${startCase(vendor.name)} payment processor fee`, // TODO: add payment processor name?
+    TransactionGroup: transaction.TransactionGroup,
+    FromCollectiveId: transaction.CollectiveId,
+    CollectiveId: vendor.id,
+    HostCollectiveId: null,
+    // Compute amounts
+    amount,
+    netAmountInCollectiveCurrency: amount,
+    currency: currency,
+    amountInHostCurrency: amountInHostCurrency,
+    hostCurrency: hostCurrency,
+    hostCurrencyFxRate: hostCurrencyFxRate,
+    // No fees
+    platformFeeInHostCurrency: 0,
+    hostFeeInHostCurrency: 0,
+    paymentProcessorFeeInHostCurrency: 0,
+    OrderId: transaction.OrderId,
+    createdAt: transaction.createdAt,
+    data,
+  };
+
+  const paymentProcessorFeeTransaction = await Transaction.createDoubleEntry(paymentProcessorFeeTransactionData);
+
+  // Reset the original processor fee because we're now accounting for this value in a separate set of transactions
+  transaction.paymentProcessorFeeInHostCurrency = 0;
+
+  return { transaction, paymentProcessorFeeTransaction };
+};
+
 Transaction.createHostFeeShareTransactions = async (
   { transaction, hostFeeTransaction },
   host,
@@ -1167,7 +1278,19 @@ Transaction.createFromContributionPayload = async (
     transaction = result.transaction;
   }
 
+  // Create Payment Processor Fee transaction
+  // if (transaction.paymentProcessorFeeInHostCurrency && parseToBoolean(config.ledger.separatePaymentProcessorFees) === true) {
+  //   const result = await Transaction.createPaymentProcessorFeeTransactions(transaction);
+  //   if (result) {
+  //     // Transaction was modified by paymentProcessorFeeTransactions, we get it from the result
+  //     if (result.transaction) {
+  //       transaction = result.transaction;
+  //     }
+  //   }
+  // }
+
   // Create Host Fee transaction
+  // TODO: move in createDoubleEntry?
   if (transaction.hostFeeInHostCurrency) {
     const result = await Transaction.createHostFeeTransactions(transaction, host);
     if (result) {

@@ -196,7 +196,8 @@
     "minExecutionTimeToSample": "SENTRY_MIN_EXECUTION_TIME_TO_SAMPLE"
   },
   "ledger": {
-    "fastBalance": "LEDGER_FAST_BALANCE"
+    "fastBalance": "LEDGER_FAST_BALANCE",
+    "separatePaymentProcessorFees": "LEDGER_SEPARATE_HOST_FEES"
   },
   "activities": {
     "skipTransactions": "SKIP_TRANSACTION_ACTIVITIES"

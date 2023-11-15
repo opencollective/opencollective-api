@@ -204,7 +204,8 @@
     "minExecutionTimeToSample": 800
   },
   "ledger": {
-    "fastBalance": true
+    "fastBalance": true,
+    "separatePaymentProcessorFees": false
   },
   "thegivingblock": {
     "username": "opencollective",
