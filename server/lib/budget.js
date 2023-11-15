@@ -223,7 +223,7 @@ export async function getSumCollectivesAmountSpent(
     : net
       ? 'netAmountInHostCurrency'
       : 'amountInHostCurrency';
-  const transactionType = 'DEBIT_WITHOUT_HOST_FEE_AND_PAYMENT_PROCESSOR_FEE';
+  const transactionType = 'DEBIT_WITHOUT_HOST_FEE';
 
   const results = await sumCollectivesTransactions(missingCollectiveIds, {
     column,
@@ -563,9 +563,21 @@ export async function sumCollectivesTransactions(
     }
   }
   if (transactionType) {
-    if (transactionType === 'DEBIT_WITHOUT_HOST_FEE_AND_PAYMENT_PROCESSOR_FEE') {
+    // This is usually to calculate for money spent
+    if (transactionType === 'DEBIT_WITHOUT_HOST_FEE') {
       where[Op.and] = where[Op.and] || [];
-      where[Op.and].push({ type: DEBIT, kind: { [Op.notIn]: ['HOST_FEE', 'PAYMENT_PROCESSOR_FEE'] } });
+      // Include or not payment processor fee if it's net or not (if net include, if not not)
+      if (['netAmountInCollectiveCurrency', 'netAmountInHostCurrency'].includes(column)) {
+        where[Op.and].push({
+          [Op.or]: [
+            { type: DEBIT, kind: { [Op.notIn]: ['HOST_FEE'] } },
+            { type: CREDIT, kind: 'PAYMENT_PROCESSOR_COVER' },
+          ],
+        });
+      } else {
+        where[Op.and].push({ type: DEBIT, kind: { [Op.notIn]: ['HOST_FEE', 'PAYMENT_PROCESSOR_FEE'] } });
+      }
+      // This is usually to calculate for money received
     } else if (transactionType === 'CREDIT_WITH_HOST_FEE_AND_PAYMENT_PROCESSOR_FEE') {
       where = {
         ...where,
@@ -588,7 +600,10 @@ export async function sumCollectivesTransactions(
     // Exclude refunded transactions
     where[Op.and].push({ RefundTransactionId: { [Op.is]: null } });
     // Also exclude anything with isRefund=true (PAYMENT_PROCESSOR_COVER doesn't have RefundTransactionId set)
-    if (transactionType === 'CREDIT_WITH_HOST_FEE_AND_PAYMENT_PROCESSOR_FEE') {
+    if (
+      ['CREDIT_WITH_HOST_FEE_AND_PAYMENT_PROCESSOR_FEE', 'DEBIT_WITHOUT_HOST_FEE'].includes(transactionType) &&
+      parseToBoolean(config.ledger.separatePaymentProcessorFees) === true
+    ) {
       where[Op.and].push({ [Op.or]: [{ isRefund: { [Op.not]: true } }, { kind: 'PAYMENT_PROCESSOR_COVER' }] });
     } else {
       where[Op.and].push({ isRefund: { [Op.not]: true } });

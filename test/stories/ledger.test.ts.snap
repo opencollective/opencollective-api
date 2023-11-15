@@ -96,6 +96,22 @@ exports[`test/stories/ledger Level 1: Same currency (USD) 5. Refunded contributi
 | PLATFORM_TIP            | DEBIT  | -1000  | 0          | Ben    | OC Inc | NULL   |            | false    | false      |"
 `;
 
+exports[`test/stories/ledger Level 1: Same currency (USD) 6. Expense with Payment Processor fees marked as unpaid 1`] = `
+"
+| kind                    | type   | amount  | paymentFee | To     | From   | Host | Settlement | isRefund | isDisputed |
+| ----------------------- | ------ | ------- | ---------- | ------ | ------ | ---- | ---------- | -------- | ---------- |
+| EXPENSE                 | CREDIT | 100000  | 0          | ESLint | Ben    | OSC  |            | true     | false      |
+| EXPENSE                 | DEBIT  | -100000 | 0          | Ben    | ESLint | NULL |            | true     | false      |
+| PAYMENT_PROCESSOR_COVER | CREDIT | 500     | 0          | ESLint | OSC    | OSC  |            | true     | false      |
+| PAYMENT_PROCESSOR_COVER | DEBIT  | -500    | 0          | OSC    | ESLint | OSC  |            | true     | false      |
+| EXPENSE                 | CREDIT | 100000  | 0          | Ben    | ESLint | NULL |            | false    | false      |
+| EXPENSE                 | DEBIT  | -100000 | 0          | ESLint | Ben    | OSC  |            | false    | false      |
+| PAYMENT_PROCESSOR_FEE   | CREDIT | 500     | 0          | Other  | ESLint | NULL |            | false    | false      |
+| PAYMENT_PROCESSOR_FEE   | DEBIT  | -500    | 0          | ESLint | Other  | OSC  |            | false    | false      |
+| CONTRIBUTION            | CREDIT | 150000  | 0          | ESLint | Ben    | OSC  |            | false    | false      |
+| CONTRIBUTION            | DEBIT  | -150000 | 0          | Ben    | ESLint | NULL |            | false    | false      |"
+`;
+
 exports[`test/stories/ledger Level 2: Host with a different currency (Host=EUR, Collective=EUR) Refunded contribution with host fees, payment processor fees and indirect platform tip 1`] = `
 "
 | kind                    | type   | amount | currency | amountInHostCurrency | hostCurrency | paymentFee | To     | From   | Host   | Settlement | isRefund | isDisputed |
