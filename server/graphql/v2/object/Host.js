@@ -1078,6 +1078,8 @@ export const GraphQLHost = new GraphQLObjectType({
       },
       potentialVendors: {
         type: new GraphQLNonNull(GraphQLAccountCollection),
+        description:
+          'Returns a list of organizations that only transacted with this host and all its admins are also admins of this host.',
         args: {
           ...getCollectionArgs({ limit: 100, offset: 0 }),
         },
