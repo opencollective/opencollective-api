@@ -1,6 +1,6 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { assign, get, invert, isEmpty, isNull, merge, omitBy } from 'lodash';
+import { assign, get, invert, isEmpty, isNull, merge, omit, omitBy } from 'lodash';
 import { Order } from 'sequelize';
 
 import { CollectiveType } from '../../../constants/collectives';
@@ -32,6 +32,7 @@ import {
 import { AccountTypeToModelMapping, GraphQLAccountType, GraphQLImageFormat, GraphQLMemberRole } from '../enum';
 import { GraphQLActivityChannel } from '../enum/ActivityChannel';
 import { GraphQLActivityClassType } from '../enum/ActivityType';
+import { GraphQLExpenseDirection } from '../enum/ExpenseDirection';
 import { GraphQLExpenseType } from '../enum/ExpenseType';
 import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
 import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType';
@@ -299,7 +300,12 @@ const accountFieldsDefinition = () => ({
   },
   expenses: {
     type: new GraphQLNonNull(GraphQLExpenseCollection),
-    args: ExpensesCollectionQueryArgs,
+    args: {
+      direction: {
+        type: GraphQLExpenseDirection,
+      },
+      ...ExpensesCollectionQueryArgs,
+    },
   },
   settings: {
     type: new GraphQLNonNull(GraphQLJSON),
@@ -884,9 +890,20 @@ export const AccountFields = {
   orders: accountOrders,
   expenses: {
     type: new GraphQLNonNull(GraphQLExpenseCollection),
-    args: ExpensesCollectionQueryArgs,
+    args: {
+      direction: {
+        type: GraphQLExpenseDirection,
+      },
+      ...ExpensesCollectionQueryArgs,
+    },
     resolve(collective, args, req) {
-      args.fromAccount = { legacyId: collective.id };
+      if (args.direction) {
+        const direction =
+          args.direction === 'SUBMITTED'
+            ? { fromAccount: { legacyId: collective.id } }
+            : { toAccount: { legacyId: collective.id } };
+        args = omit({ ...args, ...direction }, ['direction']);
+      }
       return ExpensesCollectionQueryResolver(undefined, args, req);
     },
   },
