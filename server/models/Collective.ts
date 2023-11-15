@@ -3064,8 +3064,7 @@ class Collective extends Model<
   };
 
   getImageUrl = function (args = {}) {
-    const slug = this.data?.originalOrganizationProps?.slug || this.slug;
-    return getCollectiveAvatarUrl(slug, this.type, this.image, args);
+    return getCollectiveAvatarUrl(this.slug, this.type, this.image, args);
   };
 
   getBackgroundImageUrl = function (args: any = {}) {
