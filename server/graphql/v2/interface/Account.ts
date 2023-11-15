@@ -169,6 +169,10 @@ const accountFieldsDefinition = () => ({
       },
     },
   },
+  hasImage: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Returns whether this account has a custom image',
+  },
   backgroundImageUrl: {
     type: GraphQLString,
     args: {
@@ -809,6 +813,13 @@ export const AccountFields = {
     },
     resolve(collective, args) {
       return collective.getImageUrl(args);
+    },
+  },
+  hasImage: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Returns whether this account has a custom image',
+    resolve(collective) {
+      return Boolean(collective.image);
     },
   },
   backgroundImageUrl: {
