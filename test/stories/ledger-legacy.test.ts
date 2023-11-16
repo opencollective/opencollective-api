@@ -133,7 +133,7 @@ const executeAllSettlement = async remoteUser => {
     id: settlementExpense.id,
     forceManual: true,
     totalAmountPaidInHostCurrency: settlementExpense.amount,
-  }); 
+  });
 };
 
 describe('test/stories/ledger', () => {
@@ -145,7 +145,7 @@ describe('test/stories/ledger', () => {
     // and due to a race condition with the resetTestDB function it might be
     // executed after the database was cleared, causing a database error.
     sandbox.stub(models.Transaction, 'createActivity').resolves();
-    sandbox.stub(config, 'ledger').value({ ...config.ledger, separatePaymentProcessorFees: true });
+    sandbox.stub(config, 'ledger').value({ ...config.ledger, separatePaymentProcessorFees: false });
   });
 
   afterEach(() => {

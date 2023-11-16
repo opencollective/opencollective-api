@@ -244,7 +244,7 @@ export const refundPaymentProcessorFeeToCollective = async (transaction, refundT
     }
   }
 
-  const transactionCurrency = processorFeeTransaction.currency || transaction.currency;
+  const transactionCurrency = processorFeeTransaction?.currency || transaction.currency;
   const hostCurrencyFxRate = await getFxRate(transactionCurrency, transaction.hostCurrency);
   const amountInHostCurrency = Math.abs(
     processorFeeTransaction?.amountInHostCurrency || transaction.paymentProcessorFeeInHostCurrency,
