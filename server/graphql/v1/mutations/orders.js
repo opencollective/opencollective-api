@@ -37,11 +37,6 @@ import {
 } from '../../errors';
 const debug = debugLib('orders');
 
-export const ORDER_PUBLIC_DATA_FIELDS = {
-  pledgeCurrency: 'thegivingblock.pledgeCurrency',
-  pledgeAmount: 'thegivingblock.pledgeAmount',
-};
-
 const mustUpdateNames = (fromAccount, fromAccountInfo) => {
   return (!fromAccount.name && fromAccountInfo?.name) || (!fromAccount.legalName && fromAccountInfo?.legalName);
 };
@@ -304,9 +299,6 @@ export async function createOrder(order, req) {
         throw new Error('Only an admin of the host can change the hostFeePercent');
       }
     }
-    if (order.paymentMethod?.type === PAYMENT_METHOD_TYPE.CRYPTO && host.settings?.cryptoEnabled !== true) {
-      throw new Error('This host does not accept crypto payments.');
-    }
 
     order.collective = collective;
 
@@ -488,7 +480,8 @@ export async function createOrder(order, req) {
 
     let orderPublicData;
     if (order.data) {
-      orderPublicData = pick(order.data, Object.values(ORDER_PUBLIC_DATA_FIELDS));
+      // There used to be something supported here (thegivingblock), but not anymore
+      orderPublicData = pick(order.data, []);
     }
 
     const platformTipEligible = await libPayments.isPlatformTipEligible({ ...order, collective }, host);

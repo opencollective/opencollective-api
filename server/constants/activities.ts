@@ -85,7 +85,6 @@ enum ActivityTypes {
   TICKET_CONFIRMED = 'ticket.confirmed',
   ORDER_CANCELED_ARCHIVED_COLLECTIVE = 'order.canceled.archived.collective',
   ORDER_PENDING = 'order.pending',
-  ORDER_PENDING_CRYPTO = 'order.pending.crypto',
   ORDER_PENDING_CONTRIBUTION_NEW = 'order.new.pendingFinancialContribution',
   ORDER_PENDING_CONTRIBUTION_REMINDER = 'order.reminder.pendingFinancialContribution',
   ORDER_PROCESSING = 'order.processing',
@@ -146,6 +145,7 @@ enum ActivityTypes {
   COLLECTIVE_VIRTUAL_CARD_CREATED = 'collective.virtualcard.created', // replaced with COLLECTIVE_VIRTUAL_CARD_ADDED
   SUBSCRIPTION_CONFIRMED = 'subscription.confirmed',
   COLLECTIVE_COMMENT_CREATED = 'collective.comment.created',
+  ORDER_PENDING_CRYPTO = 'order.pending.crypto',
 }
 
 /** This array defines the type of activities that are transactional and can not be unsubscribed by the user. */
