@@ -30,7 +30,7 @@ module.exports = {
           COUNT(DISTINCT t.id) AS "count",
 
           SUM(t."amountInHostCurrency")
-            FILTER (WHERE t.type = 'CREDIT')
+            FILTER (WHERE t.type = 'CREDIT' AND t."kind" NOT IN ('PAYMENT_PROCESSOR_COVER'))
             AS "totalAmountReceivedInHostCurrency",
 
           SUM(
@@ -54,7 +54,7 @@ module.exports = {
             COALESCE(t."paymentProcessorFeeInHostCurrency", 0) +
             COALESCE(t."taxAmount" * t."hostCurrencyFxRate", 0)
           )
-            FILTER (WHERE t.type = 'DEBIT' AND t.kind != 'HOST_FEE' AND t.kind != 'PAYMENT_PROCESSOR_FEE')
+            FILTER (WHERE (t.type = 'DEBIT' AND t.kind != 'HOST_FEE') OR (t.type = 'CREDIT' AND t.kind = 'PAYMENT_PROCESSOR_COVER'))
             AS "totalNetAmountSpentInHostCurrency",
 
           MAX(t."hostCurrency") as "hostCurrency"
@@ -92,7 +92,7 @@ module.exports = {
           SELECT
 
           SUM(t."amountInHostCurrency")
-            FILTER (WHERE t.type = 'CREDIT')
+            FILTER (WHERE t.type = 'CREDIT' AND t."kind" NOT IN ('PAYMENT_PROCESSOR_COVER'))
             AS "totalAmountReceivedInHostCurrency",
 
           SUM(
@@ -116,7 +116,7 @@ module.exports = {
             COALESCE(t."paymentProcessorFeeInHostCurrency", 0) +
             COALESCE(t."taxAmount" * t."hostCurrencyFxRate", 0)
           )
-            FILTER (WHERE t.type = 'DEBIT' AND t.kind != 'HOST_FEE' AND t.kind != 'PAYMENT_PROCESSOR_FEE')
+            FILTER (WHERE (t.type = 'DEBIT' AND t.kind != 'HOST_FEE') OR (t.type = 'CREDIT' AND t.kind = 'PAYMENT_PROCESSOR_COVER'))
             AS "totalNetAmountSpentInHostCurrency"
 
           FROM "Transactions" t
