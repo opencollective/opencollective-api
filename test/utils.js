@@ -57,6 +57,7 @@ export const resetTestDB = async () => {
     await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveOrderStats"`);
     await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTagStats"`);
     await sequelize.query(`REFRESH MATERIALIZED VIEW "ExpenseTagStats"`);
+    await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
     // TODO: Find a more standard way to do this, maybe we should have centralized "seed" scripts?
     await sequelize.query(`
       INSERT INTO "Collectives" ("type", "slug", "name", "website", "createdAt", "updatedAt")

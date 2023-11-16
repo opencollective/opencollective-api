@@ -305,7 +305,7 @@ describe('test/stories/ledger', () => {
       await snapshotLedger(SNAPSHOT_COLUMNS);
       expect(await collective.getBalance()).to.eq(0);
       expect(await collective.getTotalAmountReceived()).to.eq(0);
-      expect(await collective.getTotalAmountReceived({ net: true })).to.eq(0); // TODO: Test currently returns -200
+      expect(await collective.getTotalAmountReceived({ net: true })).to.eq(0);
       expect(await host.getTotalMoneyManaged()).to.eq(-1268);
       expect(await host.getBalance()).to.eq(-1268); // Will be -200 after settlement (platform tip)
       expect(await host.getBalanceWithBlockedFunds()).to.eq(-1268);

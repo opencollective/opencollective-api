@@ -22,7 +22,7 @@ import {
 import { markExpenseAsUnpaid, payExpense } from '../../server/graphql/common/expenses';
 import { createRefundTransaction, executeOrder } from '../../server/lib/payments';
 import * as libPayments from '../../server/lib/payments';
-import models from '../../server/models';
+import models, { sequelize } from '../../server/models';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import paymentProviders from '../../server/paymentProviders';
 import * as webhook from '../../server/paymentProviders/stripe/webhook';
@@ -133,7 +133,7 @@ const executeAllSettlement = async remoteUser => {
     id: settlementExpense.id,
     forceManual: true,
     totalAmountPaidInHostCurrency: settlementExpense.amount,
-  }); 
+  });
 };
 
 describe('test/stories/ledger', () => {
@@ -169,6 +169,7 @@ describe('test/stories/ledger', () => {
     );
   });
 
+
   describe('Level 1: Same currency (USD)', () => {
     beforeEach(async () => {
       ({ collective, host, hostAdmin, ocInc, contributorUser, baseOrderData } = await setupTestData('USD', 'USD'));
@@ -183,14 +184,18 @@ describe('test/stories/ledger', () => {
         paid: true,
       } as any;
       await executeOrder(contributorUser, order);
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
 
       await snapshotLedger(SNAPSHOT_COLUMNS);
-      expect(await collective.getBalance()).to.eq(10000);
-      expect(await collective.getTotalAmountReceived()).to.eq(10000);
-      expect(await collective.getTotalAmountReceived({ net: true })).to.eq(10000);
-      expect(await host.getTotalMoneyManaged()).to.eq(10000);
-      expect(await host.getBalance()).to.eq(0);
-      expect(await ocInc.getBalance()).to.eq(0);
+
+      for (const useMaterializedView of [false, true]) {
+        expect(await collective.getBalance({ useMaterializedView })).to.eq(10000);
+        expect(await collective.getTotalAmountReceived({ useMaterializedView })).to.eq(10000);
+        expect(await collective.getTotalAmountReceived({ useMaterializedView, net: true })).to.eq(10000);
+        expect(await host.getTotalMoneyManaged()).to.eq(10000);
+        expect(await host.getBalance({ useMaterializedView })).to.eq(0);
+        expect(await ocInc.getBalance({ useMaterializedView })).to.eq(0);
+      }
     });
 
     it('2. Simple contribution with 5% host fees', async () => {
@@ -201,14 +206,18 @@ describe('test/stories/ledger', () => {
         paid: true,
       } as any;
       await executeOrder(contributorUser, order);
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
 
       await snapshotLedger(SNAPSHOT_COLUMNS);
-      expect(await collective.getBalance()).to.eq(9500); // 1000 - 5% host fee
-      expect(await collective.getTotalAmountReceived()).to.eq(10000);
-      expect(await collective.getTotalAmountReceived({ net: true })).to.eq(9500);
-      expect(await host.getTotalMoneyManaged()).to.eq(10000);
-      expect(await host.getBalance()).to.eq(500); // 5% host fee
-      expect(await ocInc.getBalance()).to.eq(0);
+
+      for (const useMaterializedView of [false, true]) {
+        expect(await collective.getBalance({ useMaterializedView })).to.eq(9500); // 1000 - 5% host fee
+        expect(await collective.getTotalAmountReceived({ useMaterializedView })).to.eq(10000);
+        expect(await collective.getTotalAmountReceived({ useMaterializedView, net: true })).to.eq(9500);
+        expect(await host.getTotalMoneyManaged({ useMaterializedView })).to.eq(10000);
+        expect(await host.getBalance({ useMaterializedView })).to.eq(500); // 5% host fee
+        expect(await ocInc.getBalance({ useMaterializedView })).to.eq(0);
+      }
     });
 
     it('3. Simple contribution with 5% host fees and indirect platform tip (unsettled)', async () => {
@@ -219,16 +228,20 @@ describe('test/stories/ledger', () => {
         paid: true,
       } as any;
       await executeOrder(contributorUser, order);
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
 
       await snapshotLedger(SNAPSHOT_COLUMNS);
-      expect(await collective.getBalance()).to.eq(8550); // (10000 Total - 1000 platform tip) - 5% host fee (450)
-      expect(await collective.getTotalAmountReceived()).to.eq(9000);
-      expect(await collective.getTotalAmountReceived({ net: true })).to.eq(8550);
-      expect(await host.getTotalMoneyManaged()).to.eq(10000); // Tip is still on host's account
-      expect(await host.getBalance()).to.eq(1450);
-      expect(await host.getBalanceWithBlockedFunds()).to.eq(1450);
-      // TODO We should have a "Projected balance" that removes everything owed
-      expect(await ocInc.getBalance()).to.eq(0);
+
+      for (const useMaterializedView of [false, true]) {
+        expect(await collective.getBalance({ useMaterializedView })).to.eq(8550); // (10000 Total - 1000 platform tip) - 5% host fee (450)
+        expect(await collective.getTotalAmountReceived({ useMaterializedView })).to.eq(9000);
+        expect(await collective.getTotalAmountReceived({ useMaterializedView, net: true })).to.eq(8550);
+        expect(await host.getTotalMoneyManaged({ useMaterializedView })).to.eq(10000); // Tip is still on host's account
+        expect(await host.getBalance({ useMaterializedView })).to.eq(1450);
+        expect(await host.getBalanceWithBlockedFunds({ useMaterializedView })).to.eq(1450);
+        // TODO We should have a "Projected balance" that removes everything owed
+        expect(await ocInc.getBalance({ useMaterializedView })).to.eq(0);
+      }
     });
 
     it('4. Simple contribution with 5% host fees and indirect platform tip (settled)', async () => {
@@ -240,23 +253,27 @@ describe('test/stories/ledger', () => {
         paid: true,
       } as any;
       await executeOrder(contributorUser, order);
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
 
       // Run host settlement
       await executeAllSettlement(hostAdmin);
 
       // Check data
       await snapshotLedger(SNAPSHOT_COLUMNS);
-      expect(await collective.getBalance()).to.eq(8550); // (10000 Total - 1000 platform tip) - 5% host fee (450)
-      expect(await collective.getTotalAmountReceived()).to.eq(9000);
-      expect(await collective.getTotalAmountReceived({ net: true })).to.eq(8550);
-      expect(await host.getTotalMoneyManaged()).to.eq(8932); // 10000 - 1000 (platform tip) - 68 (host fee share)
-      expect(await host.getBalance()).to.eq(382); // 450 (host fee) - 68 (host fee share)
-      expect(await host.getBalanceWithBlockedFunds()).to.eq(382);
-      expect(await ocInc.getBalance()).to.eq(1068); // 1000 (platform tip) + 98 (host fee share)
-      expect(await ocInc.getBalanceWithBlockedFunds()).to.eq(1068);
+
+      for (const useMaterializedView of [false, true]) {
+        expect(await collective.getBalance({ useMaterializedView })).to.eq(8550); // (10000 Total - 1000 platform tip) - 5% host fee (450)
+        expect(await collective.getTotalAmountReceived({ useMaterializedView })).to.eq(9000);
+        expect(await collective.getTotalAmountReceived({ useMaterializedView, net: true })).to.eq(8550);
+        expect(await host.getTotalMoneyManaged({ useMaterializedView })).to.eq(8932); // 10000 - 1000 (platform tip) - 68 (host fee share)
+        expect(await host.getBalance({ useMaterializedView })).to.eq(382); // 450 (host fee) - 68 (host fee share)
+        expect(await host.getBalanceWithBlockedFunds({ useMaterializedView })).to.eq(382);
+        expect(await ocInc.getBalance({ useMaterializedView })).to.eq(1068); // 1000 (platform tip) + 98 (host fee share)
+        expect(await ocInc.getBalanceWithBlockedFunds({ useMaterializedView })).to.eq(1068);
+      }
     });
 
-    it('5. Refunded contribution with host fees, payment processor fees and indirect platform tip', async () => {
+    it.only('5. Refunded contribution with host fees, payment processor fees and indirect platform tip', async () => {
       // Create initial order
       const order = await fakeOrder({
         ...baseOrderData,
@@ -273,11 +290,16 @@ describe('test/stories/ledger', () => {
       // Run host settlement
       await executeAllSettlement(hostAdmin);
 
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
+
       // New checks for payment processor fees
-      expect(await collective.getBalance()).to.eq(8350); // (10000 Total - 1000 platform tip) - 5% host fee (450) - 200 processor fees
-      expect(await collective.getTotalAmountReceived()).to.eq(9000);
-      expect(await collective.getTotalAmountReceived({ net: true })).to.eq(8350);
-      expect(await host.getTotalMoneyManaged()).to.eq(8732); // 10000 - 1000 (tip) - 200 (processor fee) - 68 (host fee share)
+      for (const useMaterializedView of [false, true]) {
+        console.debug('useMaterializedView => ', useMaterializedView);
+        expect(await collective.getBalance({ useMaterializedView })).to.eq(8350); // (10000 Total - 1000 platform tip) - 5% host fee (450) - 200 processor fees
+        expect(await collective.getTotalAmountReceived({ useMaterializedView })).to.eq(9000);
+        expect(await collective.getTotalAmountReceived({ useMaterializedView, net: true })).to.eq(8350);
+        expect(await host.getTotalMoneyManaged()).to.eq(8732); // 10000 - 1000 (tip) - 200 (processor fee) - 68 (host fee share)
+      }
 
       // Check host metrics pre-refund
       let hostMetrics = await host.getHostMetrics();
@@ -303,14 +325,20 @@ describe('test/stories/ledger', () => {
 
       // Check data
       await snapshotLedger(SNAPSHOT_COLUMNS);
-      expect(await collective.getBalance()).to.eq(0);
-      expect(await collective.getTotalAmountReceived()).to.eq(0);
-      expect(await collective.getTotalAmountReceived({ net: true })).to.eq(0); // TODO: Test currently returns -200
-      expect(await host.getTotalMoneyManaged()).to.eq(-1268);
-      expect(await host.getBalance()).to.eq(-1268); // Will be -200 after settlement (platform tip)
-      expect(await host.getBalanceWithBlockedFunds()).to.eq(-1268);
-      expect(await ocInc.getBalance()).to.eq(1068);
-      expect(await ocInc.getBalanceWithBlockedFunds()).to.eq(1068);
+
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
+
+      for (const useMaterializedView of [false, true]) {
+        console.log('useMaterializedView => ', useMaterializedView);
+        expect(await collective.getBalance({ useMaterializedView })).to.eq(0);
+        expect(await collective.getTotalAmountReceived({ useMaterializedView })).to.eq(0);
+        expect(await collective.getTotalAmountReceived({ useMaterializedView, net: true })).to.eq(0);
+        expect(await host.getTotalMoneyManaged({ useMaterializedView })).to.eq(-1268);
+        expect(await host.getBalance({ useMaterializedView })).to.eq(-1268); // Will be -200 after settlement (platform tip)
+        expect(await host.getBalanceWithBlockedFunds({ useMaterializedView })).to.eq(-1268);
+        expect(await ocInc.getBalance({ useMaterializedView })).to.eq(1068);
+        expect(await ocInc.getBalanceWithBlockedFunds({ useMaterializedView })).to.eq(1068);
+      }
 
       // Check host metrics
       hostMetrics = await host.getHostMetrics();
@@ -357,21 +385,28 @@ describe('test/stories/ledger', () => {
         totalAmountPaidInHostCurrency: 100000 + 500,
         paymentProcessorFeeInHostCurrency: 500,
       });
-      expect(await collective.getBalance()).to.eq(150000 - 100000 - 500);
-      expect(await collective.getTotalAmountSpent()).to.eq(100000);
-      expect(await collective.getTotalAmountSpent({ net: true })).to.eq(100000 + 500);
+      
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
+      for (const useMaterializedView of [false, true]) {
+        expect(await collective.getBalance({ useMaterializedView })).to.eq(150000 - 100000 - 500);
+        expect(await collective.getTotalAmountSpent({ useMaterializedView })).to.eq(100000);
+        expect(await collective.getTotalAmountSpent({ useMaterializedView, net: true })).to.eq(100000 + 500);
+      }
 
       await markExpenseAsUnpaid({ remoteUser: hostAdmin } as any, expense.id, false);
       await snapshotLedger(SNAPSHOT_COLUMNS);
 
-      expect(await collective.getBalance()).to.eq(150000);
-      expect(await collective.getTotalAmountReceived()).to.eq(150000);
-      expect(await collective.getTotalAmountReceived({ net: true })).to.eq(150000);
-      expect(await collective.getTotalAmountSpent()).to.eq(0);
-      expect(await collective.getTotalAmountSpent({ net: true })).to.eq(0);
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
+      for (const useMaterializedView of [false, true]) {
+        expect(await collective.getBalance({ useMaterializedView })).to.eq(150000);
+        expect(await collective.getTotalAmountReceived({ useMaterializedView })).to.eq(150000);
+        expect(await collective.getTotalAmountReceived({ useMaterializedView, net: true })).to.eq(150000);
+        expect(await collective.getTotalAmountSpent({ useMaterializedView })).to.eq(0);
+        expect(await collective.getTotalAmountSpent({ useMaterializedView, net: true })).to.eq(0);
 
-      expect(await host.getTotalMoneyManaged()).to.eq(150000 - 500);
-      expect(await host.getBalance()).to.eq(-500);
+        expect(await host.getTotalMoneyManaged({ useMaterializedView })).to.eq(150000 - 500);
+        expect(await host.getBalance({ useMaterializedView })).to.eq(-500);
+      }
     });
   });
 
@@ -396,17 +431,22 @@ describe('test/stories/ledger', () => {
 
       // Run host settlement
       await executeAllSettlement(hostAdmin);
-
+      
       // Check data
       const hostToPlatformFxRate = RATES[host.currency]['USD'];
-      expect(await host.getBalance()).to.eq(382);
-      expect(await host.getBalanceWithBlockedFunds()).to.eq(382);
-      expect(await ocInc.getBalance()).to.eq(Math.round(1068 * hostToPlatformFxRate));
-      expect(await ocInc.getBalanceWithBlockedFunds()).to.eq(Math.round(1068 * hostToPlatformFxRate));
-      expect(await collective.getBalance()).to.eq(8350); // (10000 Total - 1000 platform tip) - 5% host fee (450) - 200 processor fees
-      expect(await collective.getTotalAmountReceived()).to.eq(9000);
-      expect(await collective.getTotalAmountReceived({ net: true })).to.eq(8350);
-      expect(await host.getTotalMoneyManaged()).to.eq(8732); // 10000 - 1000 - 200 - 68
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
+      for (const useMaterializedView of [false, true]) {
+        expect(await host.getBalance({ useMaterializedView })).to.eq(382);
+        expect(await host.getBalanceWithBlockedFunds({ useMaterializedView })).to.eq(382);
+        expect(await ocInc.getBalance({ useMaterializedView })).to.eq(Math.round(1068 * hostToPlatformFxRate));
+        expect(await ocInc.getBalanceWithBlockedFunds({ useMaterializedView })).to.eq(
+          Math.round(1068 * hostToPlatformFxRate),
+        );
+        expect(await collective.getBalance({ useMaterializedView })).to.eq(8350); // (10000 Total - 1000 platform tip) - 5% host fee (450) - 200 processor fees
+        expect(await collective.getTotalAmountReceived({ useMaterializedView })).to.eq(9000);
+        expect(await collective.getTotalAmountReceived({ useMaterializedView, net: true })).to.eq(8350);
+        expect(await host.getTotalMoneyManaged({ useMaterializedView })).to.eq(8732); // 10000 - 1000 - 200 - 68
+      }
 
       // Check host metrics pre-refund
       let hostMetrics = await host.getHostMetrics();
@@ -432,14 +472,17 @@ describe('test/stories/ledger', () => {
 
       // Check data
       await snapshotLedger(SNAPSHOT_COLUMNS_MULTI_CURRENCIES);
-      expect(await collective.getBalance()).to.eq(0);
-      expect(await collective.getTotalAmountReceived()).to.eq(0); // refunds should not count in amountReceived
-      expect(await collective.getTotalAmountReceived({ net: true })).to.eq(0);
-      expect(await host.getTotalMoneyManaged()).to.eq(-1268);
-      expect(await host.getBalance()).to.eq(-1268); // Will be +200 after settlement (platform tip refund) +68 (host fee share refund)
-      expect(await host.getBalanceWithBlockedFunds()).to.eq(-1268);
-      expect(await ocInc.getBalance()).to.eq(Math.round(1068 * hostToPlatformFxRate));
-      expect(await ocInc.getBalanceWithBlockedFunds()).to.eq(Math.round(1068 * hostToPlatformFxRate));
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
+      for (const useMaterializedView of [false, true]) {
+      expect(await collective.getBalance({useMaterializedView})).to.eq(0);
+      expect(await collective.getTotalAmountReceived({useMaterializedView})).to.eq(0); // refunds should not count in amountReceived
+      expect(await collective.getTotalAmountReceived({ useMaterializedView, net: true })).to.eq(0);
+      expect(await host.getTotalMoneyManaged({useMaterializedView})).to.eq(-1268);
+      expect(await host.getBalance({useMaterializedView})).to.eq(-1268); // Will be +200 after settlement (platform tip refund) +68 (host fee share refund)
+      expect(await host.getBalanceWithBlockedFunds({useMaterializedView})).to.eq(-1268);
+      expect(await ocInc.getBalance({useMaterializedView})).to.eq(Math.round(1068 * hostToPlatformFxRate));
+      expect(await ocInc.getBalanceWithBlockedFunds({useMaterializedView})).to.eq(Math.round(1068 * hostToPlatformFxRate));
+      }
 
       // Check host metrics
       hostMetrics = await host.getHostMetrics();
@@ -506,39 +549,42 @@ describe('test/stories/ledger', () => {
       await executeAllSettlement(hostAdmin);
 
       // Check data
-      expect(await host.getBalance()).to.eq(expectedHostProfitInHostCurrency);
-      expect(await host.getBalanceWithBlockedFunds()).to.eq(expectedHostProfitInHostCurrency);
-      expect(await host.getTotalMoneyManaged()).to.eq(expectedNetAmountInHostCurrency);
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
+      for (const useMaterializedView of [false, true]) {
+      expect(await host.getBalance({useMaterializedView})).to.eq(expectedHostProfitInHostCurrency);
+      expect(await host.getBalanceWithBlockedFunds({useMaterializedView})).to.eq(expectedHostProfitInHostCurrency);
+      expect(await host.getTotalMoneyManaged({useMaterializedView})).to.eq(expectedNetAmountInHostCurrency);
 
-      expect(await ocInc.getBalance()).to.eq(Math.round(expectedPlatformProfitInHostCurrency * hostToPlatformFxRate));
-      expect(await ocInc.getBalanceWithBlockedFunds()).to.eq(
+      expect(await ocInc.getBalance({useMaterializedView})).to.eq(Math.round(expectedPlatformProfitInHostCurrency * hostToPlatformFxRate));
+      expect(await ocInc.getBalanceWithBlockedFunds({useMaterializedView})).to.eq(
         Math.round(expectedPlatformProfitInHostCurrency * hostToPlatformFxRate),
       );
 
-      expect(await collective.getBalance({ version: 'v1' })).to.eq(
+      expect(await collective.getBalance({ useMaterializedView, version: 'v1' })).to.eq(
         orderAmountInCollectiveCurrency -
           platformTipInCollectiveCurrency -
           expectedHostFeeInCollectiveCurrency -
           processorFeeInCollectiveCurrency,
       );
 
-      expect(await collective.getBalance()).to.eq(
+      expect(await collective.getBalance({useMaterializedView})).to.eq(
         Math.round(
           (orderNetAmountInHostCurrency - processorFeeInHostCurrency - expectedHostFeeInHostCurrency) *
             RATES[host.currency][collective.currency],
         ),
       );
 
-      expect(await collective.getTotalAmountReceived()).to.eq(
+      expect(await collective.getTotalAmountReceived({useMaterializedView})).to.eq(
         Math.round(orderNetAmountInHostCurrency * RATES[host.currency][collective.currency]),
       );
 
-      expect(await collective.getTotalAmountReceived({ net: true })).to.eq(
+      expect(await collective.getTotalAmountReceived({ useMaterializedView, net: true })).to.eq(
         Math.round(
           (orderNetAmountInHostCurrency - processorFeeInHostCurrency - expectedHostFeeInHostCurrency) *
             RATES[host.currency][collective.currency],
         ),
       );
+      }
 
       // Check host metrics pre-refund
       let hostMetrics = await host.getHostMetrics();
@@ -564,23 +610,26 @@ describe('test/stories/ledger', () => {
 
       // Check data
       await snapshotLedger(SNAPSHOT_COLUMNS_MULTI_CURRENCIES);
-      expect(await collective.getBalance()).to.eq(0);
-      expect(await collective.getTotalAmountReceived()).to.eq(0);
-      expect(await collective.getTotalAmountReceived({ net: true })).to.eq(0);
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
+      for (const useMaterializedView of [false, true]) {
+      expect(await collective.getBalance({useMaterializedView})).to.eq(0);
+      expect(await collective.getTotalAmountReceived({useMaterializedView})).to.eq(0);
+      expect(await collective.getTotalAmountReceived({useMaterializedView, net: true })).to.eq(0);
 
-      expect(await host.getTotalMoneyManaged()).to.eq(
+      expect(await host.getTotalMoneyManaged({useMaterializedView})).to.eq(
         -platformTipInHostCurrency - processorFeeInHostCurrency - expectedHostFeeShareInHostCurrency,
       );
-      expect(await host.getBalance()).to.eq(
+      expect(await host.getBalance({useMaterializedView})).to.eq(
         -platformTipInHostCurrency - processorFeeInHostCurrency - expectedHostFeeShareInHostCurrency,
       );
-      expect(await host.getBalanceWithBlockedFunds()).to.eq(
+      expect(await host.getBalanceWithBlockedFunds({useMaterializedView})).to.eq(
         -platformTipInHostCurrency - processorFeeInHostCurrency - expectedHostFeeShareInHostCurrency,
       );
-      expect(await ocInc.getBalance()).to.eq(Math.round(expectedPlatformProfitInHostCurrency * hostToPlatformFxRate));
-      expect(await ocInc.getBalanceWithBlockedFunds()).to.eq(
+      expect(await ocInc.getBalance({useMaterializedView})).to.eq(Math.round(expectedPlatformProfitInHostCurrency * hostToPlatformFxRate));
+      expect(await ocInc.getBalanceWithBlockedFunds({useMaterializedView})).to.eq(
         Math.round(expectedPlatformProfitInHostCurrency * hostToPlatformFxRate),
       );
+      }
 
       // Check host metrics
       hostMetrics = await host.getHostMetrics();
@@ -612,9 +661,12 @@ describe('test/stories/ledger', () => {
         CollectiveId: host.id,
       } as any;
       await executeOrder(contributorUser, order);
-
-      expect(await collective.getBalance()).to.eq(10000);
-      expect(await collective.getTotalAmountReceived()).to.eq(10000);
+      
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
+      for (const useMaterializedView of [false, true]) {
+      expect(await collective.getBalance({useMaterializedView})).to.eq(10000);
+      expect(await collective.getTotalAmountReceived({useMaterializedView})).to.eq(10000);
+      }
 
       // ---- Refund transaction -----
       const contributionTransaction = await models.Transaction.findOne({
@@ -624,9 +676,13 @@ describe('test/stories/ledger', () => {
       const paymentMethod = libPayments.findPaymentMethodProvider(order.paymentMethod);
       await paymentMethod.refundTransaction(contributionTransaction, 0, null, null);
       await snapshotLedger(SNAPSHOT_COLUMNS);
-      expect(await collective.getBalance()).to.eq(0);
-      expect(await collective.getTotalAmountReceived()).to.eq(0);
-      expect(await collective.getTotalAmountReceived({ net: true })).to.eq(0);
+
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
+      for (const useMaterializedView of [false, true]) {
+      expect(await collective.getBalance({useMaterializedView})).to.eq(0);
+      expect(await collective.getTotalAmountReceived({useMaterializedView})).to.eq(0);
+      expect(await collective.getTotalAmountReceived({ useMaterializedView, net: true })).to.eq(0);
+      }
     };
 
     it('Refund added funds with same collective', async () => {
@@ -650,9 +706,12 @@ describe('test/stories/ledger', () => {
       } as any;
       await executeOrder(contributorUser, order);
 
-      expect(await collective.getBalance()).to.eq(9500);
-      expect(await collective.getTotalAmountReceived()).to.eq(10000);
-      expect(await collective.getTotalAmountReceived({ net: true })).to.eq(9500);
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
+      for (const useMaterializedView of [false, true]) {
+      expect(await collective.getBalance({useMaterializedView})).to.eq(9500);
+      expect(await collective.getTotalAmountReceived({useMaterializedView})).to.eq(10000);
+      expect(await collective.getTotalAmountReceived({ useMaterializedView, net: true })).to.eq(9500);
+      }
 
       const expense = await fakeExpense({
         description: `Invoice #2`,
@@ -671,11 +730,14 @@ describe('test/stories/ledger', () => {
         totalAmountPaidInHostCurrency: 1000,
       });
 
-      expect(await collective.getBalance()).to.eq(8500);
-      expect(await collective.getTotalAmountReceived()).to.eq(10000);
-      expect(await collective.getTotalAmountReceived({ net: true })).to.eq(9500);
-      expect(await collective.getTotalAmountSpent()).to.eq(1000);
-      expect(await collective.getTotalAmountSpent({ net: true })).to.eq(1000);
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
+      for (const useMaterializedView of [false, true]) {
+      expect(await collective.getBalance({useMaterializedView})).to.eq(8500);
+      expect(await collective.getTotalAmountReceived({useMaterializedView})).to.eq(10000);
+      expect(await collective.getTotalAmountReceived({ useMaterializedView, net: true })).to.eq(9500);
+      expect(await collective.getTotalAmountSpent({useMaterializedView})).to.eq(1000);
+      expect(await collective.getTotalAmountSpent({ useMaterializedView, net: true })).to.eq(1000);
+      }
 
       // ---- Refund transaction -----
       const expenseTransaction = await models.Transaction.findOne({
@@ -686,17 +748,26 @@ describe('test/stories/ledger', () => {
       await paymentProvider.refundTransaction(expenseTransaction, null);
       await snapshotLedger(SNAPSHOT_COLUMNS);
 
-      expect(await collective.getBalance()).to.eq(9500);
-      expect(await collective.getTotalAmountReceived()).to.eq(10000);
-      expect(await collective.getTotalAmountReceived({ net: true })).to.eq(9500);
-      expect(await collective.getTotalAmountSpent()).to.eq(0);
-      expect(await collective.getTotalAmountSpent({ net: true })).to.eq(0);
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
+      for (const useMaterializedView of [false, true]) {
+      expect(await collective.getBalance({useMaterializedView})).to.eq(9500);
+      expect(await collective.getTotalAmountReceived({useMaterializedView})).to.eq(10000);
+      expect(await collective.getTotalAmountReceived({ useMaterializedView, net: true })).to.eq(9500);
+      expect(await collective.getTotalAmountSpent({useMaterializedView})).to.eq(0);
+      expect(await collective.getTotalAmountSpent({ useMaterializedView, net: true })).to.eq(0);
+      }
     };
 
     it('Refund expense with same collective', async () => {
       const { collective, host, hostAdmin, contributorUser, baseOrderData } = await setupTestData('USD', 'USD');
       await refundTransaction(collective, collective, host, hostAdmin, contributorUser, baseOrderData);
-      expect(await collective.getBalance()).to.eq(9500);
+
+
+      await snapshotLedger(SNAPSHOT_COLUMNS_MULTI_CURRENCIES);
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
+      for (const useMaterializedView of [false, true]) {
+      expect(await collective.getBalance({useMaterializedView})).to.eq(9500);
+      }
     });
 
     it('Refund expense with different collectives', async () => {
@@ -704,7 +775,13 @@ describe('test/stories/ledger', () => {
       const secondCollective = await fakeCollective({ name: 'JHipster', HostCollectiveId: host.id });
 
       await refundTransaction(collective, secondCollective, host, hostAdmin, contributorUser, baseOrderData);
-      expect(await secondCollective.getBalance()).to.eq(0);
+
+
+      await snapshotLedger(SNAPSHOT_COLUMNS_MULTI_CURRENCIES);
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
+      for (const useMaterializedView of [false, true]) {
+      expect(await secondCollective.getBalance({useMaterializedView})).to.eq(0);
+      }
     });
   });
 
@@ -733,8 +810,12 @@ describe('test/stories/ledger', () => {
       await disputeTransaction(collective, collective, host, hostAdmin, contributorUser, baseOrderData);
       await snapshotLedger(SNAPSHOT_COLUMNS);
 
-      expect(await collective.getBalance(), 'Total Balance').to.eq(9500);
-      expect(await collective.getBalanceWithBlockedFunds(), 'Balance without Blocked Funds').to.eq(0);
+      await snapshotLedger(SNAPSHOT_COLUMNS_MULTI_CURRENCIES);
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
+      for (const useMaterializedView of [false, true]) {
+      expect(await collective.getBalance({ useMaterializedView }), 'Total Balance').to.eq(9500);
+      expect(await collective.getBalanceWithBlockedFunds({ useMaterializedView }), 'Balance without Blocked Funds').to.eq(0);
+      }
     });
 
     it('2. Dispute is created and then closed as lost', async () => {
@@ -743,8 +824,12 @@ describe('test/stories/ledger', () => {
       await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_lost);
       await snapshotLedger(SNAPSHOT_COLUMNS);
 
-      expect(await collective.getBalance(), 'Total Balance').to.eq(0);
-      expect(await collective.getBalanceWithBlockedFunds(), 'Balance without Blocked Funds').to.eq(0);
+      await snapshotLedger(SNAPSHOT_COLUMNS_MULTI_CURRENCIES);
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
+      for (const useMaterializedView of [false, true]) {
+      expect(await collective.getBalance({ useMaterializedView }), 'Total Balance').to.eq(0);
+      expect(await collective.getBalanceWithBlockedFunds({ useMaterializedView }), 'Balance without Blocked Funds').to.eq(0);
+      }
     });
 
     it('3. Dispute is created and then closed as won', async () => {
@@ -753,8 +838,12 @@ describe('test/stories/ledger', () => {
       await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_won);
       await snapshotLedger(SNAPSHOT_COLUMNS);
 
-      expect(await collective.getBalance(), 'Total Balance').to.eq(9500);
-      expect(await collective.getBalanceWithBlockedFunds(), 'Balance without Blocked Funds').to.eq(9500);
+      await snapshotLedger(SNAPSHOT_COLUMNS_MULTI_CURRENCIES);
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
+      for (const useMaterializedView of [false, true]) {
+      expect(await collective.getBalance({ useMaterializedView }), 'Total Balance').to.eq(9500);
+      expect(await collective.getBalanceWithBlockedFunds({ useMaterializedView }), 'Balance without Blocked Funds').to.eq(9500);
+      }
     });
   });
 });

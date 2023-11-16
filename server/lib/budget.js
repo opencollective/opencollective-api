@@ -88,12 +88,12 @@ export async function getBalances(
     includeChildren = false,
     withBlockedFunds = false,
     version = DEFAULT_BUDGET_VERSION,
-    fastBalance = FAST_BALANCE,
+    useMaterializedView = FAST_BALANCE,
     loaders = null,
   } = {},
 ) {
   const fastResults =
-    fastBalance === true && version === DEFAULT_BUDGET_VERSION && !endDate && !includeChildren
+    useMaterializedView === true && version === DEFAULT_BUDGET_VERSION && !endDate && !includeChildren
       ? await getCurrentCollectiveBalances(collectiveIds, { loaders, withBlockedFunds })
       : {};
   const missingCollectiveIds = difference(collectiveIds.map(Number), Object.keys(fastResults).map(Number));
@@ -116,7 +116,7 @@ export async function getBalances(
 
 export async function getTotalAmountReceivedAmount(
   collective,
-  { loaders, net, kind, startDate, endDate, includeChildren, version, currency } = {},
+  { loaders, net, useMaterializedView, kind, startDate, endDate, includeChildren, version, currency } = {},
 ) {
   version = version || collective.settings?.budget?.version || DEFAULT_BUDGET_VERSION;
   currency = currency || collective.currency;
@@ -125,6 +125,7 @@ export async function getTotalAmountReceivedAmount(
 
   const transactionArgs = {
     net,
+    useMaterializedView,
     kind,
     startDate,
     endDate,
@@ -363,6 +364,7 @@ export async function getSumCollectivesAmountReceived(
   collectiveIds,
   {
     net = false,
+    useMaterializedView = true,
     kind,
     startDate,
     endDate,
@@ -374,6 +376,7 @@ export async function getSumCollectivesAmountReceived(
   } = {},
 ) {
   const fastResults =
+    useMaterializedView === true &&
     version === DEFAULT_BUDGET_VERSION &&
     !kind &&
     !startDate &&
@@ -577,7 +580,7 @@ export async function sumCollectivesTransactions(
       } else {
         where[Op.and].push({ type: DEBIT, kind: { [Op.notIn]: ['HOST_FEE', 'PAYMENT_PROCESSOR_FEE'] } });
       }
-      // This is usually to calculate for money received
+      // This is usually to calculate for NET amount money received
     } else if (transactionType === 'CREDIT_WITH_HOST_FEE_AND_PAYMENT_PROCESSOR_FEE') {
       where = {
         ...where,
