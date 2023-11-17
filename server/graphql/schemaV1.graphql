@@ -4203,6 +4203,7 @@ type Query {
     """
     throwIfMissing: Boolean = true
   ): CollectiveInterface
+  Tier(id: Int!): Tier @deprecated(reason: "2023-05-04: Please use GraphQL V2")
   LoggedInUser: UserDetails
   allInvoices(fromCollectiveSlug: String!): [InvoiceType]
 
