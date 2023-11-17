@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import config from 'config';
 import crypto from 'crypto-js';
 import gqlV2 from 'fake-tag';
-import { defaultsDeep, omit, pick, round, sumBy } from 'lodash';
+import { defaultsDeep, omit, pick, sumBy } from 'lodash';
 import { createSandbox } from 'sinon';
 import speakeasy from 'speakeasy';
 
