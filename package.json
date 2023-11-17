@@ -109,7 +109,7 @@
     "p-filter": "2.1.0",
     "p-map": "4.0.0",
     "p-queue": "6.6.2",
-    "p-throttle": "4.1.1",
+    "p-throttle": "6.0.0",
     "passport": "0.6.0",
     "passport-github": "1.1.0",
     "paypal-adaptive": "0.4.2",
