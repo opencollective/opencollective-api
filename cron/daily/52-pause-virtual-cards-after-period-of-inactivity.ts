@@ -55,8 +55,8 @@ export async function findUnusedVirtualCards() {
         `),
         // the card was not resumed in the period
         sequelize.literal(`
-          "VirtualCard"."lastResumedAt" IS NULL OR 
-          "VirtualCard"."lastResumedAt" <= now() - make_interval(
+          "VirtualCard"."resumedAt" IS NULL OR 
+          "VirtualCard"."resumedAt" <= now() - make_interval(
             days => cast("host".settings#>'{virtualcards,autopauseUnusedCards,period}' as integer)
           )
         `),
