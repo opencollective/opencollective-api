@@ -2689,10 +2689,18 @@ export async function markExpenseAsUnpaid(
       include: [{ model: models.Expense }],
     });
 
-    const paymentProcessorFeeInHostCurrency = shouldRefundPaymentProcessorFee
-      ? transaction.paymentProcessorFeeInHostCurrency
-      : 0;
-    await libPayments.createRefundTransaction(transaction, paymentProcessorFeeInHostCurrency, null, expense.User);
+    // Load payment processor fee amount, either from the column or from the related transaction
+    let refundedPaymentProcessorFeeAmount = 0;
+    if (shouldRefundPaymentProcessorFee) {
+      refundedPaymentProcessorFeeAmount = transaction.paymentProcessorFeeInHostCurrency;
+      if (!refundedPaymentProcessorFeeAmount) {
+        refundedPaymentProcessorFeeAmount = Math.abs(
+          (await transaction.getPaymentProcessorFeeTransaction().then(t => t.amountInHostCurrency)) || 0,
+        );
+      }
+    }
+
+    await libPayments.createRefundTransaction(transaction, refundedPaymentProcessorFeeAmount, null, expense.User);
 
     await expense.update({ status: newExpenseStatus, lastEditedById: remoteUser.id });
     return { expense, transaction };

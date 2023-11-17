@@ -203,8 +203,8 @@ export const buildRefundForTransaction = (t, user, data, refundedPaymentProcesso
   if (refund.kind === TransactionKind.EXPENSE) {
     const feesPayer = t.data?.feesPayer || ExpenseFeesPayer.COLLECTIVE;
     if (feesPayer === ExpenseFeesPayer.PAYEE) {
-      if (refundedPaymentProcessorFee) {
-        // If the fee gets refunded, we add it as a positive value on the refund transactions
+      if (refundedPaymentProcessorFee && t.paymentProcessorFeeInHostCurrency) {
+        // If the fee gets refunded while set on the column, we add it as a positive value on the refund transactions
         refund.paymentProcessorFeeInHostCurrency = Math.abs(refundedPaymentProcessorFee);
       } else {
         // Otherwise, payment processor fees are deducted from the refunded amount which means
@@ -308,14 +308,11 @@ export async function refundPaymentProcessorFee(
     }
 
     if (processorFeeTransaction) {
-      const buildRefund = transaction => {
-        return {
-          ...buildRefundForTransaction(transaction, user, data, refundedPaymentProcessorFee),
-          TransactionGroup: transactionGroup,
-        };
+      const processorFeeRefund = {
+        ...buildRefundForTransaction(processorFeeTransaction, user, data),
+        TransactionGroup: transactionGroup,
       };
 
-      const processorFeeRefund = buildRefund(processorFeeTransaction);
       const processorFeeRefundTransaction = await models.Transaction.createDoubleEntry(processorFeeRefund);
       await associateTransactionRefundId(processorFeeTransaction, processorFeeRefundTransaction, data);
     }
