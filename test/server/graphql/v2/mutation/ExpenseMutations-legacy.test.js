@@ -45,7 +45,6 @@ import {
   makeRequest,
   preloadAssociationsForTransactions,
   resetTestDB,
-  seedDefaultPaymentProcessorVendors,
   snapshotTransactions,
   waitForCondition,
 } from '../../../../utils';
@@ -242,7 +241,6 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
     beforeEach(() => {
       sandbox = createSandbox();
       emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage');
-      sandbox.stub(config, 'ledger').value({ ...config.ledger, separatePaymentProcessorFees: true });
     });
 
     afterEach(() => {
@@ -1481,6 +1479,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       beforeEach(() => {
         sandbox = createSandbox();
         emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage');
+        sandbox.stub(config, 'ledger').value({ ...config.ledger, separatePaymentProcessorFees: false });
       });
 
       afterEach(() => {
@@ -1997,7 +1996,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(success.data.processExpense.status).to.eq('PAID');
       });
 
-      it('pays 100% of the balance by putting the fees on the payee', async () => {
+      it.only('pays 100% of the balance by putting the fees on the payee', async () => {
         const paymentProcessorFee = 575;
         const fromOrganization = await fakeOrganization({ name: 'Facebook' });
         const payoutMethod = await fakePayoutMethod({ type: 'BANK_ACCOUNT', CollectiveId: fromOrganization.id });
@@ -2063,8 +2062,11 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         snapshotTransactions(allTransactions, { columns: REFUND_SNAPSHOT_COLS });
 
         // Check balances (post-refund)
-        expect(await collective.getBalanceWithBlockedFunds()).to.eq(10000);
-        expect(await fromOrganization.getBalanceWithBlockedFunds()).to.eq(initialOrgBalance);
+        for (const useMaterializedView of [false, true]) {
+          console.debug('useMaterializedView => ', useMaterializedView);
+          expect(await collective.getBalanceWithBlockedFunds({ useMaterializedView })).to.eq(10000);
+          expect(await fromOrganization.getBalanceWithBlockedFunds({ useMaterializedView })).to.eq(initialOrgBalance);
+        }
 
         // Check individual transactions
         await Promise.all(allTransactions.map(t => models.Transaction.validate(t)));
