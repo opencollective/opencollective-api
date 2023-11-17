@@ -27,7 +27,7 @@ type ValidateRequestOptions = {
   alwaysAskForToken?: boolean;
   // if true, will only check if the user has 2FA enabled (which means it's been validated on sign in)
   onlyAskOnLogin?: boolean;
-  // duration which we wont require a token after a successful use
+  // duration which we wont require a token after a successful use, in seconds
   sessionDuration?: number;
   // identifier for the session, defaults to use the JWT token's session key
   sessionKey?: (() => string) | string;
@@ -35,6 +35,13 @@ type ValidateRequestOptions = {
   FromCollectiveId?: number;
   // Some additional data to be stored in the activity
   customData?: Record<string, unknown>;
+};
+
+/**
+ * Some default session params
+ */
+export const TWO_FACTOR_SESSIONS_PARAMS = {
+  MANAGE_PERSONAL_TOKENS: { sessionKey: 'personal-tokens', sessionDuration: 5 * 60 }, // 5 minutes
 };
 
 export const TwoFactorAuthenticationHeader = 'x-two-factor-authentication';
