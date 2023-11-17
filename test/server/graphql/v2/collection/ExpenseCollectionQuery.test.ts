@@ -38,12 +38,12 @@ const expensesQuery = gqlV2/* GraphQL */ `
       customData: $customData
     ) {
       totalCount
-      aggregation {
-        currencyAmounts {
+      totalAmount {
+        amountsByCurrency {
           valueInCents
           currency
         }
-        totalAmount(currency: USD) {
+        amount(currency: USD) {
           valueInCents
           currency
         }
@@ -94,13 +94,12 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
     });
 
     const result = await graphqlQueryV2(expensesQuery, queryParams);
-    console.log(result.errors);
-    expect(result.data.expenses.aggregation.currencyAmounts).to.have.deep.members([
+    expect(result.data.expenses.totalAmount.amountsByCurrency).to.have.deep.members([
       { valueInCents: 12000, currency: 'USD' },
       { valueInCents: 10000, currency: 'GBP' },
     ]);
 
-    expect(result.data.expenses.aggregation.totalAmount).to.eql({ valueInCents: 23000, currency: 'USD' });
+    expect(result.data.expenses.totalAmount.amount).to.eql({ valueInCents: 23000, currency: 'USD' });
   });
 
   describe('Filter on basic status', () => {

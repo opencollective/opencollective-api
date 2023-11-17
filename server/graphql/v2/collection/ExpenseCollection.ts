@@ -14,11 +14,11 @@ export const GraphQLExpenseCollection = new GraphQLObjectType({
     nodes: {
       type: new GraphQLList(GraphQLExpense),
     },
-    aggregation: {
+    totalAmount: {
       type: new GraphQLObjectType({
-        name: 'ExpenseCollectionAggregation',
+        name: 'ExpenseCollectionTotalAmount',
         fields: {
-          totalAmount: {
+          amount: {
             args: {
               currency: {
                 type: GraphQLCurrency,
@@ -27,7 +27,7 @@ export const GraphQLExpenseCollection = new GraphQLObjectType({
             },
             type: GraphQLAmount,
           },
-          currencyAmounts: {
+          amountsByCurrency: {
             type: new GraphQLList(GraphQLAmount),
           },
         },

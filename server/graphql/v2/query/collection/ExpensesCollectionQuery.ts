@@ -1,8 +1,8 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { isEmpty, isNil, uniq } from 'lodash';
-import { OrderItem } from 'sequelize';
+import { isEmpty, isNil, sum, uniq } from 'lodash';
+import { OrderItem, Sequelize } from 'sequelize';
 
 import { expenseStatus } from '../../../../constants';
 import { CollectiveType } from '../../../../constants/collectives';
@@ -191,7 +191,7 @@ export const ExpensesCollectionQueryResolver = async (
   _: void,
   args,
   req: express.Request,
-): Promise<CollectionReturnType> => {
+): Promise<CollectionReturnType & { totalAmount?: any }> => {
   const where = { [Op.and]: [] };
   const include = [];
 
@@ -378,6 +378,47 @@ export const ExpensesCollectionQueryResolver = async (
   return {
     nodes: result.rows,
     totalCount: result.count,
+    totalAmount: () => {
+      const getCurrencyTotalAmountsMemo = (() => {
+        let currencyTotalsPromise = null;
+        return () => {
+          if (!currencyTotalsPromise) {
+            currencyTotalsPromise = (async () => {
+              const query = (await models.Expense.findAll({
+                attributes: [
+                  [Sequelize.col('"Expense"."currency"'), 'expenseCurrency'],
+                  [Sequelize.fn('SUM', Sequelize.col('amount')), 'amount'],
+                ],
+                group: 'expenseCurrency',
+                include,
+                where,
+                raw: true,
+              })) as unknown as { expenseCurrency: string; amount: number }[];
+
+              return query.map(result => ({ currency: result.expenseCurrency, value: result.amount }));
+            })();
+          }
+
+          return currencyTotalsPromise;
+        };
+      })();
+
+      return {
+        amountsByCurrency: getCurrencyTotalAmountsMemo,
+        amount: async ({ currency = 'USD' }) => {
+          const currencyAmounts = await getCurrencyTotalAmountsMemo();
+
+          const values = await req.loaders.CurrencyExchangeRate.convert.loadMany(
+            currencyAmounts.map(v => ({ amount: v.value, fromCurrency: v.currency, toCurrency: currency })),
+          );
+
+          return {
+            value: sum(values),
+            currency,
+          };
+        },
+      };
+    },
     limit: args.limit,
     offset: args.offset,
   };
