@@ -58,15 +58,6 @@ export const resetTestDB = async () => {
     await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTagStats"`);
     await sequelize.query(`REFRESH MATERIALIZED VIEW "ExpenseTagStats"`);
     await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
-    // TODO: Find a more standard way to do this, maybe we should have centralized "seed" scripts?
-    await sequelize.query(`
-      INSERT INTO "Collectives" ("type", "slug", "name", "website", "createdAt", "updatedAt")
-      VALUES
-        ('VENDOR', 'stripe-payment-processor-vendor', 'Stripe', 'https://stripe.com', NOW(), NOW()),
-        ('VENDOR', 'paypal-payment-processor-vendor', 'PayPal', 'https://paypal.com', NOW(), NOW()),
-        ('VENDOR', 'wise-payment-processor-vendor', 'Wise', 'https://wise.com', NOW(), NOW()),
-        ('VENDOR', 'other-payment-processor-vendor', 'Other', 'https://opencollective.com', NOW(), NOW());
-    `);
   };
 
   try {
@@ -75,6 +66,17 @@ export const resetTestDB = async () => {
     console.error(e);
     process.exit(1);
   }
+};
+
+export const seedDefaultPaymentProcessorVendors = async () => {
+  return sequelize.query(`
+    INSERT INTO "Collectives" ("type", "slug", "name", "website", "createdAt", "updatedAt")
+    VALUES
+      ('VENDOR', 'stripe-payment-processor-vendor', 'Stripe', 'https://stripe.com', NOW(), NOW()),
+      ('VENDOR', 'paypal-payment-processor-vendor', 'PayPal', 'https://paypal.com', NOW(), NOW()),
+      ('VENDOR', 'wise-payment-processor-vendor', 'Wise', 'https://wise.com', NOW(), NOW()),
+      ('VENDOR', 'other-payment-processor-vendor', 'Other', NULL, NOW(), NOW());
+  `);
 };
 
 export async function loadDB(dbname) {

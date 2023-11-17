@@ -60,7 +60,10 @@ describe('server/lib/payments', () => {
     nock.cleanAll();
   });
 
-  beforeEach(() => utils.resetTestDB());
+  beforeEach(async () => {
+    await utils.resetTestDB();
+    await utils.seedDefaultPaymentProcessorVendors();
+  });
 
   beforeEach(() => {
     sandbox = createSandbox();
