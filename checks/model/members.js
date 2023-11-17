@@ -6,6 +6,8 @@ import logger from '../../server/lib/logger';
 import { MigrationLog, sequelize } from '../../server/models';
 import { MigrationLogType } from '../../server/models/MigrationLog';
 
+import { runCheckThenExit } from './_utils';
+
 async function checkDeletedMembers({ fix = false } = {}) {
   const message = 'No non-deleted Members without a matching non-deleted Collective';
 
@@ -115,5 +117,5 @@ export async function checkMembers({ fix = false } = {}) {
 }
 
 if (!module.parent) {
-  checkMembers();
+  runCheckThenExit(checkMembers);
 }

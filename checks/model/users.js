@@ -2,6 +2,8 @@ import '../../server/env';
 
 import { sequelize } from '../../server/models';
 
+import { runCheckThenExit } from './_utils';
+
 async function checkDeletedCollectives() {
   const message = 'No Users without a matching Collective (no auto fix)';
 
@@ -46,5 +48,5 @@ export async function checkUsers() {
 }
 
 if (!module.parent) {
-  checkUsers();
+  runCheckThenExit(checkUsers);
 }
