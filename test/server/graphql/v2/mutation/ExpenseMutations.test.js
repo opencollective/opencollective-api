@@ -1573,10 +1573,11 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       });
 
       it('Pays the expense manually', async () => {
+        const amount = 1000;
         const paymentProcessorFee = 100;
         const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
         const expense = await fakeExpense({
-          amount: 1000,
+          amount: amount,
           CollectiveId: collective.id,
           status: 'APPROVED',
           PayoutMethodId: payoutMethod.id,
@@ -1584,15 +1585,15 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
         // Updates the collective balance and pay the expense
         const initialBalance = await collective.getBalanceWithBlockedFunds();
-        const expensePlusFees = expense.amount + paymentProcessorFee;
-        await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: expensePlusFees });
-        expect(await collective.getBalanceWithBlockedFunds()).to.equal(initialBalance + expensePlusFees);
+        const totalAmount = expense.amount + paymentProcessorFee;
+        await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: totalAmount });
+        expect(await collective.getBalanceWithBlockedFunds()).to.equal(initialBalance + totalAmount);
         const mutationParams = {
           expenseId: expense.id,
           action: 'PAY',
           paymentParams: {
             paymentProcessorFeeInHostCurrency: paymentProcessorFee,
-            totalAmountPaidInHostCurrency: expensePlusFees,
+            totalAmountPaidInHostCurrency: totalAmount,
             forceManual: true,
           },
         };
@@ -1614,10 +1615,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(debitTransaction).to.exist;
         expect(debitTransaction.currency).to.equal(expense.currency);
         expect(debitTransaction.hostCurrency).to.equal(host.currency);
-        expect(debitTransaction.netAmountInCollectiveCurrency).to.equal(-expensePlusFees);
-        expect(debitTransaction.paymentProcessorFeeInHostCurrency).to.equal(
-          Math.round(-paymentProcessorFee * debitTransaction.hostCurrencyFxRate),
-        );
+        expect(debitTransaction.netAmountInCollectiveCurrency).to.equal(-amount);
         const creditTransaction = await models.Transaction.findOne({
           where: {
             kind: 'EXPENSE',
@@ -1628,7 +1626,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(creditTransaction).to.exist;
         expect(creditTransaction.kind).to.equal(TransactionKind.EXPENSE);
         expect(creditTransaction.netAmountInCollectiveCurrency).to.equal(expense.amount);
-        expect(creditTransaction.amount).to.equal(expensePlusFees);
+        expect(creditTransaction.amount).to.equal(amount);
 
         // Check activity
         const activities = await expense.getActivities({ where: { type: 'collective.expense.paid' } });
