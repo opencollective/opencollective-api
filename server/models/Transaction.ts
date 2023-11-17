@@ -1048,7 +1048,7 @@ Transaction.getPaymentProcessorFeeVendor = memoize(
     const vendorSlugs = {
       [PAYMENT_METHOD_SERVICE.STRIPE]: 'stripe-payment-processor-vendor',
       [PAYMENT_METHOD_SERVICE.PAYPAL]: 'paypal-payment-processor-vendor',
-      [PayoutMethodTypes.BANK_ACCOUNT]: 'wise-payment-processor-vendor',
+      [PayoutMethodTypes.BANK_ACCOUNT]: 'wise-payment-processor-vendor', // TODO: We should differentiate depending on manual vs. automatic
       OTHER: 'other-payment-processor-vendor',
     };
 
