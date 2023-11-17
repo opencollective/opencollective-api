@@ -1705,13 +1705,21 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
             ExpenseId: expense.id,
           },
         });
-
         expect(debitTransaction).to.exist;
         expect(debitTransaction.currency).to.equal(expense.currency);
         expect(debitTransaction.hostCurrency).to.equal(host.currency);
         expect(debitTransaction.hostCurrencyFxRate).to.equal(1.13568);
-        expect(debitTransaction.netAmountInCollectiveCurrency).to.equal(-4400 - round(61 / 1.13568));
-        expect(debitTransaction.paymentProcessorFeeInHostCurrency).to.equal(-61);
+        expect(debitTransaction.netAmountInCollectiveCurrency).to.equal(-4400);
+
+        const debitPaymentProcessorFeeTransaction = await models.Transaction.findOne({
+          where: {
+            kind: 'PAYMENT_PROCESSOR_FEE',
+            type: 'DEBIT',
+            ExpenseId: expense.id,
+          },
+        });
+        expect(debitPaymentProcessorFeeTransaction).to.exist;
+        expect(debitPaymentProcessorFeeTransaction.amountInHostCurrency).to.equal(-61);
 
         const creditTransaction = await models.Transaction.findOne({
           where: {
@@ -1722,7 +1730,17 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         });
         expect(creditTransaction).to.exist;
         expect(creditTransaction.netAmountInCollectiveCurrency).to.equal(expense.amount);
-        expect(creditTransaction.amount).to.equal(4400 + round(61 / 1.13568));
+        expect(creditTransaction.amount).to.equal(4400);
+
+        const creditPaymentProcessorFeeTransaction = await models.Transaction.findOne({
+          where: {
+            kind: 'PAYMENT_PROCESSOR_FEE',
+            type: 'CREDIT',
+            ExpenseId: expense.id,
+          },
+        });
+        expect(creditPaymentProcessorFeeTransaction).to.exist;
+        expect(creditPaymentProcessorFeeTransaction.amountInHostCurrency).to.equal(61);
 
         // Check activity
         const activities = await expense.getActivities({ where: { type: 'collective.expense.paid' } });
