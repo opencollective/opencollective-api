@@ -12,18 +12,22 @@ exports[`server/graphql/v2/mutation/ExpenseMutations processExpense MARK_AS_UNPA
 
 exports[`server/graphql/v2/mutation/ExpenseMutations processExpense PAY Multi-currency expense Pays the expense manually 1`] = `
 "
-| type   | amount | netAmountInCollectiveCurrency | paymentFee | currency | hostCurrency | hostCurrencyFxRate | To    | From  | Host | isRefund |
-| ------ | ------ | ----------------------------- | ---------- | -------- | ------------ | ------------------ | ----- | ----- | ---- | -------- |
-| CREDIT | 1700   | 1600                          | -100       | USD      | USD          | 1                  | Payee | Babel | NULL | false    |
-| DEBIT  | -1600  | -1700                         | -100       | USD      | USD          | 1                  | Babel | Payee | OSC  | false    |"
+| type   | kind                  | amount | netAmountInCollectiveCurrency | paymentFee | currency | hostCurrency | hostCurrencyFxRate | To    | From  | Host | isRefund |
+| ------ | --------------------- | ------ | ----------------------------- | ---------- | -------- | ------------ | ------------------ | ----- | ----- | ---- | -------- |
+| CREDIT | EXPENSE               | 1600   | 1600                          | 0          | USD      | USD          | 1                  | Payee | Babel | NULL | false    |
+| DEBIT  | EXPENSE               | -1600  | -1600                         | 0          | USD      | USD          | 1                  | Babel | Payee | OSC  | false    |
+| CREDIT | PAYMENT_PROCESSOR_FEE | 100    | 100                           | 0          | USD      | USD          | 1                  | Other | Babel | NULL | false    |
+| DEBIT  | PAYMENT_PROCESSOR_FEE | -100   | -100                          | 0          | USD      | USD          | 1                  | Babel | Other | OSC  | false    |"
 `;
 
 exports[`server/graphql/v2/mutation/ExpenseMutations processExpense PAY Multi-currency expense Records a manual payment with an active account 1`] = `
 "
-| type   | amount | netAmountInCollectiveCurrency | paymentFee | currency | hostCurrency | hostCurrencyFxRate | To    | From  | Host      | isRefund |
-| ------ | ------ | ----------------------------- | ---------- | -------- | ------------ | ------------------ | ----- | ----- | --------- | -------- |
-| CREDIT | 1700   | 1600                          | -110       | USD      | NZD          | 1.1                | Payee | Babel | PayeeHost | false    |
-| DEBIT  | -1600  | -1700                         | -100       | USD      | USD          | 1                  | Babel | Payee | OSC       | false    |"
+| type   | kind                  | amount | netAmountInCollectiveCurrency | paymentFee | currency | hostCurrency | hostCurrencyFxRate | To    | From  | Host      | isRefund |
+| ------ | --------------------- | ------ | ----------------------------- | ---------- | -------- | ------------ | ------------------ | ----- | ----- | --------- | -------- |
+| CREDIT | EXPENSE               | 1600   | 1600                          | 0          | USD      | NZD          | 1.1                | Payee | Babel | PayeeHost | false    |
+| DEBIT  | EXPENSE               | -1600  | -1600                         | 0          | USD      | USD          | 1                  | Babel | Payee | OSC       | false    |
+| CREDIT | PAYMENT_PROCESSOR_FEE | 100    | 100                           | 0          | USD      | USD          | 1                  | Other | Babel | NULL      | false    |
+| DEBIT  | PAYMENT_PROCESSOR_FEE | -100   | -100                          | 0          | USD      | USD          | 1                  | Babel | Other | OSC       | false    |"
 `;
 
 exports[`server/graphql/v2/mutation/ExpenseMutations processExpense PAY Taxes with VAT (manual payment) 1`] = `
@@ -36,20 +40,24 @@ exports[`server/graphql/v2/mutation/ExpenseMutations processExpense PAY Taxes wi
 
 exports[`server/graphql/v2/mutation/ExpenseMutations processExpense PAY pays 100% of the balance by putting the fees on the payee 1`] = `
 "
-| type   | kind    | isRefund | To       | From     | amount | amountInHostCurrency | paymentFee | netAmountInCollectiveCurrency |
-| ------ | ------- | -------- | -------- | -------- | ------ | -------------------- | ---------- | ----------------------------- |
-| DEBIT  | EXPENSE | false    | Webpack  | Facebook | -9425  | -9425                | -575       | -10000                        |
-| CREDIT | EXPENSE | false    | Facebook | Webpack  | 10000  | 10000                | -575       | 9425                          |
-| DEBIT  | EXPENSE | true     | Facebook | Webpack  | -10000 | -10000               | 575        | -9425                         |
-| CREDIT | EXPENSE | true     | Webpack  | Facebook | 9425   | 9425                 | 575        | 10000                         |"
+| type   | kind                  | isRefund | To       | From     | amount | amountInHostCurrency | paymentFee | netAmountInCollectiveCurrency |
+| ------ | --------------------- | -------- | -------- | -------- | ------ | -------------------- | ---------- | ----------------------------- |
+| DEBIT  | PAYMENT_PROCESSOR_FEE | false    | Webpack  | Wise     | -575   | -575                 | 0          | -575                          |
+| CREDIT | PAYMENT_PROCESSOR_FEE | false    | Wise     | Webpack  | 575    | 575                  | 0          | 575                           |
+| DEBIT  | EXPENSE               | false    | Webpack  | Facebook | -9425  | -9425                | 0          | -9425                         |
+| CREDIT | EXPENSE               | false    | Facebook | Webpack  | 9425   | 9425                 | 0          | 9425                          |
+| DEBIT  | EXPENSE               | true     | Facebook | Webpack  | -9425  | -9425                | 0          | -9425                         |
+| CREDIT | EXPENSE               | true     | Webpack  | Facebook | 9425   | 9425                 | 0          | 9425                          |"
 `;
 
 exports[`server/graphql/v2/mutation/ExpenseMutations processExpense PAY pays 100% of the balance by putting the fees on the payee but do not refund processor fees 1`] = `
 "
-| type   | kind    | isRefund | To       | From     | amount | amountInHostCurrency | paymentFee | netAmountInCollectiveCurrency |
-| ------ | ------- | -------- | -------- | -------- | ------ | -------------------- | ---------- | ----------------------------- |
-| DEBIT  | EXPENSE | false    | Webpack  | Facebook | -9425  | -9425                | -575       | -10000                        |
-| CREDIT | EXPENSE | false    | Facebook | Webpack  | 10000  | 10000                | -575       | 9425                          |
-| DEBIT  | EXPENSE | true     | Facebook | Webpack  | -9425  | -9425                | 0          | -9425                         |
-| CREDIT | EXPENSE | true     | Webpack  | Facebook | 9425   | 9425                 | 0          | 9425                          |"
+| type   | kind                  | isRefund | To       | From     | amount | amountInHostCurrency | paymentFee | netAmountInCollectiveCurrency |
+| ------ | --------------------- | -------- | -------- | -------- | ------ | -------------------- | ---------- | ----------------------------- |
+| DEBIT  | PAYMENT_PROCESSOR_FEE | false    | Webpack  | Wise     | -575   | -575                 | 0          | -575                          |
+| CREDIT | PAYMENT_PROCESSOR_FEE | false    | Wise     | Webpack  | 575    | 575                  | 0          | 575                           |
+| DEBIT  | EXPENSE               | false    | Webpack  | Facebook | -9425  | -9425                | 0          | -9425                         |
+| CREDIT | EXPENSE               | false    | Facebook | Webpack  | 9425   | 9425                 | 0          | 9425                          |
+| DEBIT  | EXPENSE               | true     | Facebook | Webpack  | -9425  | -9425                | 0          | -9425                         |
+| CREDIT | EXPENSE               | true     | Webpack  | Facebook | 9425   | 9425                 | 0          | 9425                          |"
 `;

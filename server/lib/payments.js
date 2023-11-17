@@ -307,16 +307,18 @@ export async function refundPaymentProcessorFee(
       return;
     }
 
-    const buildRefund = transaction => {
-      return {
-        ...buildRefundForTransaction(transaction, user, data, refundedPaymentProcessorFee),
-        TransactionGroup: transactionGroup,
+    if (processorFeeTransaction) {
+      const buildRefund = transaction => {
+        return {
+          ...buildRefundForTransaction(transaction, user, data, refundedPaymentProcessorFee),
+          TransactionGroup: transactionGroup,
+        };
       };
-    };
 
-    const processorFeeRefund = buildRefund(processorFeeTransaction);
-    const processorFeeRefundTransaction = await models.Transaction.createDoubleEntry(processorFeeRefund);
-    await associateTransactionRefundId(processorFeeTransaction, processorFeeRefundTransaction, data);
+      const processorFeeRefund = buildRefund(processorFeeTransaction);
+      const processorFeeRefundTransaction = await models.Transaction.createDoubleEntry(processorFeeRefund);
+      await associateTransactionRefundId(processorFeeTransaction, processorFeeRefundTransaction, data);
+    }
   }
 
   // When refunding an Expense, we need to use the DEBIT transaction which is attached to the Collective and its Host.

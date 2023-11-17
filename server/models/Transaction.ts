@@ -1106,6 +1106,8 @@ Transaction.createPaymentProcessorFeeTransactions = async (
     paymentProcessorFeeInHostCurrency: 0,
     OrderId: transaction.OrderId,
     ExpenseId: transaction.ExpenseId,
+    PaymentMethodId: transaction.PaymentMethodId,
+    PayoutMethodId: transaction.PayoutMethodId,
     createdAt: transaction.createdAt,
     data,
   };

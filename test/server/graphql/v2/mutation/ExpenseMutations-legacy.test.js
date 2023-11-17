@@ -1996,7 +1996,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(success.data.processExpense.status).to.eq('PAID');
       });
 
-      it.only('pays 100% of the balance by putting the fees on the payee', async () => {
+      it('pays 100% of the balance by putting the fees on the payee', async () => {
         const paymentProcessorFee = 575;
         const fromOrganization = await fakeOrganization({ name: 'Facebook' });
         const payoutMethod = await fakePayoutMethod({ type: 'BANK_ACCOUNT', CollectiveId: fromOrganization.id });

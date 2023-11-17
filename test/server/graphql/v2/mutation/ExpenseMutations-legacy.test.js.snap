@@ -22,7 +22,7 @@ exports[`server/graphql/v2/mutation/ExpenseMutations processExpense PAY Multi-cu
 "
 | type   | amount | netAmountInCollectiveCurrency | paymentFee | currency | hostCurrency | hostCurrencyFxRate | To    | From  | Host      | isRefund |
 | ------ | ------ | ----------------------------- | ---------- | -------- | ------------ | ------------------ | ----- | ----- | --------- | -------- |
-| CREDIT | 1700   | 1600                          | -167       | USD      | NZD          | 1.67486            | Payee | Babel | PayeeHost | false    |
+| CREDIT | 1700   | 1600                          | -110       | USD      | NZD          | 1.1                | Payee | Babel | PayeeHost | false    |
 | DEBIT  | -1600  | -1700                         | -100       | USD      | USD          | 1                  | Babel | Payee | OSC       | false    |"
 `;
 
@@ -39,7 +39,9 @@ exports[`server/graphql/v2/mutation/ExpenseMutations processExpense PAY pays 100
 | type   | kind    | isRefund | To       | From     | amount | amountInHostCurrency | paymentFee | netAmountInCollectiveCurrency |
 | ------ | ------- | -------- | -------- | -------- | ------ | -------------------- | ---------- | ----------------------------- |
 | DEBIT  | EXPENSE | false    | Webpack  | Facebook | -9425  | -9425                | -575       | -10000                        |
-| CREDIT | EXPENSE | false    | Facebook | Webpack  | 10000  | 10000                | -575       | 9425                          |"
+| CREDIT | EXPENSE | false    | Facebook | Webpack  | 10000  | 10000                | -575       | 9425                          |
+| DEBIT  | EXPENSE | true     | Facebook | Webpack  | -10000 | -10000               | 575        | -9425                         |
+| CREDIT | EXPENSE | true     | Webpack  | Facebook | 9425   | 9425                 | 575        | 10000                         |"
 `;
 
 exports[`server/graphql/v2/mutation/ExpenseMutations processExpense PAY pays 100% of the balance by putting the fees on the payee but do not refund processor fees 1`] = `
