@@ -64,10 +64,6 @@ alias pgstart='pg_ctl -l $PGDATA/server.log start'
 alias pgstop='pg_ctl stop -m fast'
 ```
 
-See
-[Wiki](https://github.com/OpenCollective/OpenCollective/wiki/Software-testing)
-for more info about the tests.
-
 ## Running Scripts
 
 There are many admin scripts in [`/scripts` directory](https://github.com/opencollective/opencollective-api/tree/main/scripts). To run them:
