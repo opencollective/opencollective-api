@@ -93,7 +93,6 @@ async function checkDuplicateMembers({ fix = false } = {}) {
       await sequelize.query(
         `UPDATE "Members"
          SET "deletedAt" = NOW()
-         FROM "Collectives" c1, "Collectives" c2
          WHERE "Members"."id" IN (:allDuplicateIds)
          AND "Members"."deletedAt" IS NULL`,
         { replacements: { allDuplicateIds } },
