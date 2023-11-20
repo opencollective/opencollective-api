@@ -1,9 +1,21 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
 import { groupBy } from 'lodash';
+import { createSandbox } from 'sinon';
 
 import { roles } from '../../../../../server/constants';
-import { fakeCollective, fakeProject, fakeTier, fakeUser, fakeUserToken } from '../../../../test-helpers/fake-data';
+import { TransactionKind } from '../../../../../server/constants/transaction-kind';
+import * as libcurrency from '../../../../../server/lib/currency';
+import models from '../../../../../server/models';
+import {
+  fakeActiveHost,
+  fakeCollective,
+  fakeOrganization,
+  fakeProject,
+  fakeTier,
+  fakeUser,
+  fakeUserToken,
+} from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, oAuthGraphqlQueryV2 } from '../../../../utils';
 import * as utils from '../../../../utils';
 
@@ -27,6 +39,7 @@ const addFundsMutation = gqlV2/* GraphQL */ `
       tax: $tax
     ) {
       id
+      legacyId
       taxAmount {
         valueInCents
         currency
@@ -70,8 +83,10 @@ const validMutationVariables = {
   hostFeePercent: 6,
 };
 
+const FX_RATE = 1.1654; // 1 EUR = 1.1654 USD
+
 describe('server/graphql/v2/mutation/AddFundsMutations', () => {
-  let hostAdmin, collectiveAdmin, randomUser, collective;
+  let hostAdmin, collectiveAdmin, randomUser, collective, sandbox;
 
   before(async () => {
     await utils.resetTestDB();
@@ -89,6 +104,13 @@ describe('server/graphql/v2/mutation/AddFundsMutations', () => {
     await collective.host.addUserWithRole(hostAdmin, roles.ADMIN);
     await collectiveAdmin.populateRoles();
     await hostAdmin.populateRoles();
+
+    sandbox = createSandbox();
+    sandbox.stub(libcurrency, 'getFxRate').callsFake(() => Promise.resolve(FX_RATE));
+  });
+
+  after(() => {
+    sandbox.restore();
   });
 
   describe('addFunds', () => {
@@ -187,6 +209,105 @@ describe('server/graphql/v2/mutation/AddFundsMutations', () => {
       expect(result.errors).to.not.exist;
       expect(result.data.addFunds.amount.valueInCents).to.equal(2000);
       expect(result.data.addFunds.amount.currency).to.equal('USD');
+    });
+
+    // Imported/adapted from `test/server/graphql/v1/paymentMethods.test.js`
+    it('adds funds from the host (USD) to the collective (EUR)', async () => {
+      /**
+       * collective ledger:
+       * CREDIT
+       *  - amount: €1000
+       *  - fees: 0
+       *  - netAmountInCollectiveCurrency: €1000
+       *  - hostCurrency: USD
+       *  - amountInHostCurrency: $1165 (1000 * fxrate:1.165)
+       * fromCollective (host) ledger:
+       * DEBIT
+       *  - amount: -€1000
+       *  - fees: 0
+       *  - netAmountInCollectiveCurrency: -$1165
+       *  - hostCurrency: USD
+       *  - amountInHostCurrency: -$1165
+       */
+      const hostAdmin = await fakeUser();
+      const host = await fakeActiveHost({ currency: 'USD', admin: hostAdmin });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'EUR' });
+      const result = await graphqlQueryV2(
+        addFundsMutation,
+        {
+          ...validMutationVariables,
+          amount: { currency: 'EUR', valueInCents: 1000 },
+          account: { legacyId: collective.id },
+          fromAccount: { legacyId: host.id },
+          hostFeePercent: 0,
+        },
+        hostAdmin,
+      );
+
+      result.errors && console.error(result.errors[0]);
+      expect(result.errors).to.not.exist;
+      const orderCreated = result.data.addFunds;
+      const transaction = await models.Transaction.findOne({
+        where: { OrderId: orderCreated.legacyId, type: 'CREDIT' },
+      });
+
+      expect(transaction.kind).to.equal(TransactionKind.ADDED_FUNDS);
+      expect(transaction.FromCollectiveId).to.equal(transaction.HostCollectiveId);
+      expect(transaction.hostFeeInHostCurrency).to.equal(0);
+      expect(transaction.platformFeeInHostCurrency).to.equal(0);
+      expect(transaction.paymentProcessorFeeInHostCurrency).to.equal(0);
+      expect(transaction.hostCurrency).to.equal(collective.host.currency);
+      expect(transaction.amount).to.equal(1000);
+      expect(transaction.currency).to.equal(collective.currency);
+      expect(transaction.hostCurrencyFxRate).to.equal(FX_RATE);
+      expect(transaction.amountInHostCurrency).to.equal(Math.round(1000 * FX_RATE));
+      expect(transaction.netAmountInCollectiveCurrency).to.equal(1000);
+      expect(transaction.amountInHostCurrency).to.equal(1165);
+    });
+
+    // Imported/adapted from `test/server/graphql/v1/paymentMethods.test.js`
+    it('adds funds from the host (USD) to the collective (EUR) on behalf of a new organization', async () => {
+      const hostAdmin = await fakeUser();
+      const org = await fakeOrganization();
+      const host = await fakeActiveHost({ currency: 'USD', admin: hostAdmin });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'EUR' });
+      const result = await graphqlQueryV2(
+        addFundsMutation,
+        {
+          ...validMutationVariables,
+          amount: { currency: 'EUR', valueInCents: 1000 },
+          account: { legacyId: collective.id },
+          fromAccount: { legacyId: org.id },
+          hostFeePercent: 4,
+        },
+        hostAdmin,
+      );
+
+      result.errors && console.error(result.errors[0]);
+      expect(result.errors).to.not.exist;
+      const orderCreated = result.data.addFunds;
+      const transaction = await models.Transaction.findOne({
+        where: { OrderId: orderCreated.legacyId, type: 'CREDIT', kind: 'ADDED_FUNDS' },
+      });
+      expect(transaction).to.exist;
+
+      const backerMembership = await models.Member.findOne({
+        where: { MemberCollectiveId: org.id, CollectiveId: collective.id, role: 'BACKER' },
+      });
+
+      expect(transaction.CreatedByUserId).to.equal(hostAdmin.id);
+      expect(backerMembership.CreatedByUserId).to.equal(hostAdmin.id);
+      expect(transaction.FromCollectiveId).to.equal(org.id);
+      expect(transaction.hostFeeInHostCurrency).to.equal(0);
+      expect(transaction.platformFeeInHostCurrency).to.equal(0);
+      expect(transaction.paymentProcessorFeeInHostCurrency).to.equal(0);
+      expect(transaction.hostCurrency).to.equal(host.currency);
+      expect(transaction.currency).to.equal(collective.currency);
+      expect(transaction.amount).to.equal(1000);
+      expect(transaction.netAmountInCollectiveCurrency).to.equal(1000);
+      expect(transaction.amountInHostCurrency).to.equal(Math.round(1000 * FX_RATE));
+      expect(transaction.hostCurrencyFxRate).to.equal(FX_RATE);
+      expect(transaction.amountInHostCurrency).to.equal(1165);
     });
 
     describe('taxes', () => {

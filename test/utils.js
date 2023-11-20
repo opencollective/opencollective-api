@@ -124,7 +124,7 @@ export const waitForCondition = async (cond, options = {}) => {
     const condReturn = cond();
     const result = typeof condReturn?.then === 'function' ? await condReturn : condReturn;
     if (result) {
-      return;
+      return result;
     } else {
       await sleep(100);
       time += 100;
@@ -278,7 +278,7 @@ export const createStripeToken = async () => {
  * @param {sinon.sandbox} sandbox is the sandbox that the test created
  *  and the one that *must* be reset after the test is done.
  */
-export function stubStripeCreate(sandbox, overloadDefaults) {
+export function stubStripeCreate(sandbox, overloadDefaults = {}) {
   const paymentMethodId = randStr('pm_');
   const values = {
     customer: { id: 'cus_BM7mGwp1Ea8RtL' },
