@@ -102,7 +102,7 @@ async function checkDuplicateMembers({ fix = false } = {}) {
       // create a new migration log instead.
       await MigrationLog.create({
         type: MigrationLogType.MODEL_FIX,
-        description: `Deleted ${results[0].nb_duplicates} duplicate members`,
+        description: `Deleted ${allDuplicateIds.length} duplicate members`,
         data: { duplicateMemberIds: allDuplicateIds },
       });
     }
