@@ -175,7 +175,6 @@ const hasPaymentMethod = order => {
       paymentMethod.uuid ||
         paymentMethod.token ||
         paymentMethod.type === 'manual' ||
-        paymentMethod.type === 'crypto' ||
         paymentMethod.type === PAYMENT_METHOD_TYPE.PAYMENT_INTENT ||
         (paymentMethod.service === PAYMENT_METHOD_SERVICE.STRIPE && paymentMethod.data.stripePaymentMethodId),
     );
