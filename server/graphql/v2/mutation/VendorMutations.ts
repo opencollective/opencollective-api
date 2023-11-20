@@ -7,7 +7,6 @@ import { v4 as uuid } from 'uuid';
 
 import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
-import MemberRoles from '../../../constants/roles';
 import { getDiffBetweenInstances } from '../../../lib/data';
 import { setTaxForm } from '../../../lib/tax-forms';
 import models, { Activity } from '../../../models';
@@ -274,9 +273,10 @@ const vendorMutations = {
       vendorData.data['originalOrganizationProps'] = pick(organization.toJSON(), Object.keys(vendorData));
 
       await organization.update(vendorData);
-      await models.Member.destroy({
-        where: { CollectiveId: organization.id, role: [MemberRoles.ADMIN, MemberRoles.ACCOUNTANT, MemberRoles.MEMBER] },
-      });
+      await Promise.all([
+        models.Member.destroy({ where: { CollectiveId: organization.id } }),
+        models.MemberInvitation.destroy({ where: { CollectiveId: organization.id } }),
+      ]);
 
       return organization;
     },
