@@ -102,7 +102,6 @@ enum ActivityTypes {
   ORDER_PENDING_RECEIVED = 'order.pending.received',
 
   ORDERS_SUSPICIOUS = 'orders.suspicious',
-  BACKYOURSTACK_DISPATCH_CONFIRMED = 'backyourstack.dispatch.confirmed',
   PAYMENT_FAILED = 'payment.failed',
   PAYMENT_CREDITCARD_CONFIRMATION = 'payment.creditcard.confirmation',
   PAYMENT_CREDITCARD_EXPIRING = 'payment.creditcard.expiring',
@@ -146,6 +145,7 @@ enum ActivityTypes {
   COLLECTIVE_VIRTUAL_CARD_CREATED = 'collective.virtualcard.created', // replaced with COLLECTIVE_VIRTUAL_CARD_ADDED
   SUBSCRIPTION_CONFIRMED = 'subscription.confirmed',
   COLLECTIVE_COMMENT_CREATED = 'collective.comment.created',
+  BACKYOURSTACK_DISPATCH_CONFIRMED = 'backyourstack.dispatch.confirmed',
 }
 
 /** This array defines the type of activities that are transactional and can not be unsubscribed by the user. */
