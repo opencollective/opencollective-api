@@ -239,7 +239,6 @@ class Collective extends Model<
   public declare backgroundImage: string;
   public declare countryISO: string;
   public declare settings: Settings;
-  public declare isPledged: boolean;
   public declare data: any;
   public declare startsAt: Date;
   public declare endsAt: Date;
@@ -3633,12 +3632,6 @@ Collective.init(
           }
         },
       },
-    },
-
-    isPledged: {
-      type: DataTypes.BOOLEAN,
-      allowNull: false,
-      defaultValue: false,
     },
 
     data: {
