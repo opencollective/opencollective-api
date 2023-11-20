@@ -480,7 +480,7 @@ export async function createOrder(order, req) {
 
     let orderPublicData;
     if (order.data) {
-      // There used to be something supported here (thegivingblock), but not anymore
+      // There used to be some public values allowed (thegivingblock, ORDER_PUBLIC_DATA_FIELDS), but not anymore
       orderPublicData = pick(order.data, []);
     }
 
