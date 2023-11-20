@@ -1,28 +1,45 @@
 import { expect } from 'chai';
 import config from 'config';
 import gqlV2 from 'fake-tag';
+import { cloneDeep, set } from 'lodash';
 import moment from 'moment';
 import { createSandbox, useFakeTimers } from 'sinon';
 
 import { roles } from '../../../../../server/constants';
 import OrderStatuses from '../../../../../server/constants/order_status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../server/constants/paymentMethods';
+import MemberRoles from '../../../../../server/constants/roles';
+import { TransactionTypes } from '../../../../../server/constants/transactions';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
-import * as payments from '../../../../../server/lib/payments';
+import emailLib from '../../../../../server/lib/email';
+import * as OrderSecurityLib from '../../../../../server/lib/security/order';
 import stripe from '../../../../../server/lib/stripe';
+import twitterLib from '../../../../../server/lib/twitter';
 import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
 import models from '../../../../../server/models';
-import { randEmail } from '../../../../stores';
+import * as StripeCommon from '../../../../../server/paymentProviders/stripe/common';
+import { randEmail, stripeConnectedAccount } from '../../../../stores';
 import {
+  fakeActiveHost,
   fakeCollective,
+  fakeConnectedAccount,
+  fakeEvent,
   fakeHost,
   fakeOrder,
   fakeOrganization,
   fakePaymentMethod,
   fakeTier,
   fakeUser,
+  randStr,
 } from '../../../../test-helpers/fake-data';
-import { generateValid2FAHeader, graphqlQueryV2, resetTestDB } from '../../../../utils';
+import {
+  generateValid2FAHeader,
+  graphqlQueryV2,
+  resetTestDB,
+  stubStripeBalance,
+  stubStripeCreate,
+  waitForCondition,
+} from '../../../../utils';
 
 const CREATE_ORDER_MUTATION = gqlV2/* GraphQL */ `
   mutation CreateOrder($order: OrderCreateInput!) {
@@ -40,6 +57,18 @@ const CREATE_ORDER_MUTATION = gqlV2/* GraphQL */ `
         }
         amount {
           valueInCents
+          currency
+        }
+        taxAmount {
+          valueInCents
+          currency
+        }
+        tax {
+          id
+          type
+          percentage
+          rate
+          idNumber
         }
         platformTipAmount {
           valueInCents
@@ -65,6 +94,13 @@ const CREATE_ORDER_MUTATION = gqlV2/* GraphQL */ `
         }
         toAccount {
           legacyId
+        }
+        transactions {
+          type
+          kind
+          taxAmount {
+            valueInCents
+          }
         }
       }
     }
@@ -256,370 +292,1251 @@ const callEditPendingOrder = (params, remoteUser = null) => {
   return graphqlQueryV2(EDIT_PENDING_ORDER_MUTATION, params, remoteUser);
 };
 
-const stubExecuteOrderFn = async (user, order) => {
-  let subscription;
-  if (order.interval) {
-    subscription = await models.Subscription.create({
-      amount: order.amount,
-      currency: order.currency,
-      interval: order.interval,
-      isActive: true,
-    });
-  }
+const stubStripePayments = sandbox => {
+  sandbox.stub(stripe.tokens, 'retrieve').callsFake(() =>
+    Promise.resolve({
+      card: {
+        token: 'tok_testtoken123456789012345',
+        brand: 'VISA',
+        country: 'US',
+        expMonth: 11,
+        expYear: 2024,
+        last4: '4242',
+        name: 'John Smith',
+      },
+    }),
+  );
 
-  return order.update({ SubscriptionId: subscription?.id, processedAt: new Date(), status: 'PAID' });
+  const stripePaymentMethodId = randStr('pm_');
+  sandbox.stub(StripeCommon, 'resolvePaymentMethodForOrder').resolves({
+    id: stripePaymentMethodId,
+    customer: 'cus_test',
+  });
+  sandbox.stub(stripe.paymentIntents, 'create').resolves({ id: 'pi_test', status: 'requires_confirmation' });
+  sandbox.stub(stripe.paymentIntents, 'confirm').resolves({
+    id: stripePaymentMethodId,
+    status: 'succeeded',
+    charges: {
+      // eslint-disable-next-line camelcase
+      data: [{ id: 'ch_id', balance_transaction: 'txn_id' }],
+    },
+  });
+
+  sandbox.stub(stripe.balanceTransactions, 'retrieve').resolves({
+    amount: 1100,
+    currency: 'usd',
+    fee: 0,
+    // eslint-disable-next-line camelcase
+    fee_details: [],
+  });
 };
 
 describe('server/graphql/v2/mutation/OrderMutations', () => {
   describe('createOrder', () => {
-    let fromUser, toCollective, host, validOrderParams, sandbox;
+    describe('General cases', () => {
+      let fromUser, toCollective, host, validOrderParams, sandbox, emailSendMessageSpy;
 
-    before(async () => {
-      await resetTestDB();
-      fromUser = await fakeUser();
+      before(async () => {
+        await resetTestDB();
+        fromUser = await fakeUser();
 
-      // Stub the payment
-      sandbox = createSandbox();
-      sandbox.stub(stripe.tokens, 'retrieve').callsFake(() =>
-        Promise.resolve({
-          id: 'tok_123456781234567812345678',
-          card: {
-            brand: 'VISA',
-            country: 'US',
-            expMonth: 11,
-            expYear: 2024,
-          },
-        }),
-      );
-      sandbox.stub(payments, 'executeOrder').callsFake(stubExecuteOrderFn);
+        // Stub the payment
+        sandbox = createSandbox();
+        stubStripePayments(sandbox);
+        sandbox.stub(OrderSecurityLib, 'orderFraudProtection').callsFake(() => Promise.resolve());
+        emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage');
 
-      // Add Stripe to host
-      host = await fakeHost({ plan: 'start-plan-2021' });
-      toCollective = await fakeCollective({ HostCollectiveId: host.id });
-      await models.ConnectedAccount.create({ service: 'stripe', token: 'abc', CollectiveId: host.id });
-
-      // Some default params to create a valid order
-      validOrderParams = {
-        fromAccount: { legacyId: fromUser.CollectiveId },
-        toAccount: { legacyId: toCollective.id },
-        frequency: 'ONETIME',
-        paymentMethod: {
-          service: 'STRIPE',
-          type: 'CREDITCARD',
-          name: '4242',
-          creditCardInfo: {
-            token: 'tok_123456781234567812345678',
-            brand: 'VISA',
-            country: 'US',
-            expMonth: 11,
-            expYear: 2024,
-          },
-        },
-        amount: {
-          valueInCents: 5000,
-        },
-      };
-    });
-
-    after(() => {
-      sandbox.restore();
-    });
-
-    describe('Logged in', () => {
-      it('works with basic params', async () => {
-        const result = await callCreateOrder({ order: validOrderParams }, fromUser);
-        result.errors && console.error(result.errors);
-        expect(result.errors).to.not.exist;
-
-        const order = result.data.createOrder.order;
-        expect(order.amount.valueInCents).to.eq(5000);
-        expect(order.frequency).to.eq('ONETIME');
-        expect(order.fromAccount.legacyId).to.eq(fromUser.CollectiveId);
-        expect(order.toAccount.legacyId).to.eq(toCollective.id);
-      });
-
-      it('supports additional params', async () => {
-        const tier = await fakeTier({
-          CollectiveId: toCollective.id,
-          amount: 5000,
-          amountType: 'FIXED',
-          interval: 'month',
+        // Add Stripe to host
+        host = await fakeHost({ plan: 'start-plan-2021' });
+        toCollective = await fakeCollective({ HostCollectiveId: host.id });
+        await models.ConnectedAccount.create({
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
+          token: 'abc',
+          CollectiveId: host.id,
         });
-        const result = await callCreateOrder(
-          {
-            order: {
-              ...validOrderParams,
-              frequency: 'MONTHLY',
-              tier: { legacyId: tier.id },
-              quantity: 3,
-              tags: ['wow', 'it', 'supports', 'tags!'],
-              customData: {
-                message: 'Hello world',
-              },
-            },
-          },
-          fromUser,
-        );
-        result.errors && console.error(result.errors);
-        expect(result.errors).to.not.exist;
 
-        const order = result.data.createOrder.order;
-        expect(order.amount.valueInCents).to.eq(5000 * 3);
-        expect(order.frequency).to.eq('MONTHLY');
-        expect(order.fromAccount.legacyId).to.eq(fromUser.CollectiveId);
-        expect(order.toAccount.legacyId).to.eq(toCollective.id);
-        expect(order.quantity).to.eq(3);
-        expect(order.tier.legacyId).to.eq(tier.id);
-        expect(order.tags).to.deep.eq(['wow', 'it', 'supports', 'tags!']);
-        expect(order.customData).to.deep.eq({ message: 'Hello world' });
-      });
+        // Add OC Inc (for platform tips)
+        await fakeOrganization({ id: 8686, slug: 'opencollective' });
 
-      it('can add platform contribution', async () => {
-        const collectiveWithoutPlaformFee = await fakeCollective({ platformFeePercent: 0, HostCollectiveId: host.id });
-        const result = await callCreateOrder(
-          {
-            order: {
-              ...validOrderParams,
-              toAccount: { legacyId: collectiveWithoutPlaformFee.id },
-              platformTipAmount: {
-                valueInCents: 2500,
-              },
-            },
-          },
-          fromUser,
-        );
-
-        result.errors && console.error(result.errors);
-        expect(result.errors).to.not.exist;
-        const order = result.data.createOrder.order;
-        expect(order.amount.valueInCents).to.eq(5000);
-        expect(order.platformTipAmount.valueInCents).to.eq(2500);
-        expect(order.platformTipEligible).to.eq(true);
-      });
-
-      it('can add taxes', async () => {
-        // TODO
-      });
-
-      it('respects the isSavedForLater param', async () => {
-        const orderData = {
-          ...validOrderParams,
-          paymentMethod: { ...validOrderParams.paymentMethod, isSavedForLater: true },
-        };
-
-        // If saved
-        const result = await callCreateOrder({ order: orderData }, fromUser);
-        const order = result.data.createOrder.order;
-        const orderFromDb = await models.Order.findByPk(order.legacyId);
-        expect(orderFromDb.data.savePaymentMethod).to.be.true;
-
-        // If not saved
-        orderData.paymentMethod.isSavedForLater = false;
-        const result2 = await callCreateOrder({ order: orderData }, fromUser);
-        const order2 = result2.data.createOrder.order;
-        const orderFromDb2 = await models.Order.findByPk(order2.legacyId);
-        expect(orderFromDb2.data.savePaymentMethod).to.be.false;
-      });
-
-      it('works with a free ticket', async () => {
-        const freeTicket = await fakeTier({
-          CollectiveId: toCollective.id,
-          type: 'TICKET',
-          amount: 0,
-          amountType: 'FIXED',
-        });
-        const fromUser = await fakeUser();
-        const orderData = {
-          tier: { legacyId: freeTicket.id },
-          toAccount: { legacyId: toCollective.id },
+        // Some default params to create a valid order
+        validOrderParams = {
           fromAccount: { legacyId: fromUser.CollectiveId },
+          toAccount: { legacyId: toCollective.id },
           frequency: 'ONETIME',
-          amount: { valueInCents: 0 },
+          paymentMethod: {
+            service: 'STRIPE',
+            type: 'CREDITCARD',
+            name: '4242',
+            creditCardInfo: {
+              token: 'tok_testtoken123456789012345',
+              brand: 'VISA',
+              country: 'US',
+              expMonth: 11,
+              expYear: 2024,
+            },
+          },
+          amount: {
+            valueInCents: 5000,
+          },
         };
+      });
 
-        const result = await graphqlQueryV2(CREATE_ORDER_MUTATION, { order: orderData }, fromUser);
-        expect(result.errors).to.not.exist;
+      after(() => {
+        sandbox.restore();
+      });
 
-        const order = result.data.createOrder.order;
-        expect(order.status).to.eq('PAID');
-        expect(order.amount.valueInCents).to.eq(0);
+      describe('Logged in', () => {
+        it('works with basic params', async () => {
+          const result = await callCreateOrder({ order: validOrderParams }, fromUser);
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+
+          const order = result.data.createOrder.order;
+          expect(order.amount.valueInCents).to.eq(5000);
+          expect(order.frequency).to.eq('ONETIME');
+          expect(order.fromAccount.legacyId).to.eq(fromUser.CollectiveId);
+          expect(order.toAccount.legacyId).to.eq(toCollective.id);
+        });
+
+        it('supports additional params', async () => {
+          const tier = await fakeTier({
+            CollectiveId: toCollective.id,
+            amount: 5000,
+            amountType: 'FIXED',
+            interval: 'month',
+          });
+          const result = await callCreateOrder(
+            {
+              order: {
+                ...validOrderParams,
+                frequency: 'MONTHLY',
+                tier: { legacyId: tier.id },
+                quantity: 3,
+                tags: ['wow', 'it', 'supports', 'tags!'],
+                customData: {
+                  message: 'Hello world',
+                },
+              },
+            },
+            fromUser,
+          );
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+
+          const order = result.data.createOrder.order;
+          expect(order.amount.valueInCents).to.eq(5000 * 3);
+          expect(order.frequency).to.eq('MONTHLY');
+          expect(order.fromAccount.legacyId).to.eq(fromUser.CollectiveId);
+          expect(order.toAccount.legacyId).to.eq(toCollective.id);
+          expect(order.quantity).to.eq(3);
+          expect(order.tier.legacyId).to.eq(tier.id);
+          expect(order.tags).to.deep.eq(['wow', 'it', 'supports', 'tags!']);
+          expect(order.customData).to.deep.eq({ message: 'Hello world' });
+        });
+
+        it('can add platform contribution', async () => {
+          const collectiveWithoutPlatformFee = await fakeCollective({
+            platformFeePercent: 0,
+            HostCollectiveId: host.id,
+          });
+          const result = await callCreateOrder(
+            {
+              order: {
+                ...validOrderParams,
+                toAccount: { legacyId: collectiveWithoutPlatformFee.id },
+                platformTipAmount: {
+                  valueInCents: 2500,
+                },
+              },
+            },
+            fromUser,
+          );
+
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+          const order = result.data.createOrder.order;
+          expect(order.amount.valueInCents).to.eq(5000);
+          expect(order.platformTipAmount.valueInCents).to.eq(2500);
+          expect(order.platformTipEligible).to.eq(true);
+        });
+
+        it('respects the isSavedForLater param', async () => {
+          const orderData = {
+            ...validOrderParams,
+            paymentMethod: { ...validOrderParams.paymentMethod, isSavedForLater: true },
+          };
+
+          // If saved
+          const result = await callCreateOrder({ order: orderData }, fromUser);
+          const order = result.data.createOrder.order;
+          const orderFromDb = await models.Order.findByPk(order.legacyId);
+          expect(orderFromDb.data.savePaymentMethod).to.be.true;
+
+          // If not saved
+          orderData.paymentMethod.isSavedForLater = false;
+          const result2 = await callCreateOrder({ order: orderData }, fromUser);
+          const order2 = result2.data.createOrder.order;
+          const orderFromDb2 = await models.Order.findByPk(order2.legacyId);
+          expect(orderFromDb2.data.savePaymentMethod).to.be.false;
+        });
+
+        it('works with a free ticket', async () => {
+          const freeTicket = await fakeTier({
+            CollectiveId: toCollective.id,
+            type: 'TICKET',
+            amount: 0,
+            amountType: 'FIXED',
+          });
+          const fromUser = await fakeUser();
+          const orderData = {
+            tier: { legacyId: freeTicket.id },
+            toAccount: { legacyId: toCollective.id },
+            fromAccount: { legacyId: fromUser.CollectiveId },
+            frequency: 'ONETIME',
+            amount: { valueInCents: 0 },
+          };
+
+          const result = await graphqlQueryV2(CREATE_ORDER_MUTATION, { order: orderData }, fromUser);
+          expect(result.errors).to.not.exist;
+
+          const order = result.data.createOrder.order;
+          expect(order.status).to.eq('PAID');
+          expect(order.amount.valueInCents).to.eq(0);
+        });
+
+        it('creates an order for an event ticket and receives the ticket confirmation by email with iCal.ics attached', async () => {
+          const d = new Date('2042-01-01');
+          const startsAt = d.setMonth(d.getMonth() + 1);
+          const endsAt = new Date(startsAt);
+          endsAt.setHours(endsAt.getHours() + 2);
+          const event = await fakeEvent({
+            ParentCollectiveId: toCollective.id,
+            name: 'Sustain OSS London 2019',
+            description: 'Short description',
+            longDescription: 'Longer description',
+            slug: 'sustainoss-london',
+            startsAt,
+            endsAt,
+            location: { name: 'Github', address: 'London' },
+            timezone: 'Europe/Brussels',
+          });
+          const ticket = await fakeTier({
+            CollectiveId: event.id,
+            name: 'tier-name',
+            type: 'TICKET',
+            amount: 0,
+            amountType: 'FLEXIBLE',
+            presets: [0, 500, 1000],
+          });
+
+          emailSendMessageSpy.resetHistory();
+          const res = await callCreateOrder(
+            {
+              order: {
+                ...validOrderParams,
+                tier: { legacyId: ticket.id },
+                toAccount: { legacyId: event.id },
+                frequency: 'ONETIME',
+                amount: { valueInCents: 500 },
+              },
+            },
+            fromUser,
+          );
+
+          // There should be no errors
+          res.errors && console.error(res.errors);
+          expect(res.errors).to.not.exist;
+
+          const findTicketEmail = () => emailSendMessageSpy.args.find(args => args[1].includes('ticket confirmed'));
+          const email = await waitForCondition(findTicketEmail);
+          expect(email[0]).to.equal(fromUser.email);
+          expect(email[1]).to.equal(`1 ticket confirmed for ${event.name}`);
+          expect(email[3].attachments[0].filename).to.equal(`${event.slug}.ics`);
+          expect(email[3].attachments[0].content).to.contain('SUMMARY:Sustain OSS London 2019');
+          expect(email[3].attachments[0].content).to.contain('DTSTART:20420201T000000Z');
+          expect(email[3].attachments[0].content).to.contain('DTEND:20420201T020000Z');
+          expect(email[3].attachments[0].content).to.contain('LOCATION:Github\\, London');
+          expect(email[3].attachments[0].content).to.contain('DESCRIPTION:Short description\\n\\nLonger description');
+          expect(email[3].attachments[0].content).to.contain('ORGANIZER;CN=Test Collective');
+        });
+      });
+
+      describe('Guest', () => {
+        it('Needs to provide an email', async () => {
+          const result = await callCreateOrder({ order: { ...validOrderParams, fromAccount: null } });
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.include(
+            'You need to provide a guest profile with an email for logged out contributions',
+          );
+        });
+
+        it('Works with a small order', async () => {
+          const email = randEmail();
+          const orderData = {
+            ...validOrderParams,
+            fromAccount: null,
+            guestInfo: {
+              email,
+              legalName: 'Real name',
+              captcha: { token: '10000000-aaaa-bbbb-cccc-000000000001', provider: 'HCAPTCHA' },
+            },
+          };
+          const result = await callCreateOrder({ order: orderData });
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+
+          const order = result.data.createOrder.order;
+          expect(order.fromAccount.isGuest).to.eq(true);
+          expect(order.fromAccount.legalName).to.eq(null); // For security reasons
+          expect(order.paymentMethod.account.id).to.eq(order.fromAccount.id);
+          expect(order.status).to.eq('PAID');
+
+          const fromCollective = await models.Collective.findByPk(order.fromAccount.legacyId);
+          expect(fromCollective.legalName).to.eq('Real name');
+        });
+
+        it('Works with an email that already exists (unverified)', async () => {
+          const user = await fakeUser({ confirmedAt: null }, { data: { isGuest: true } });
+          const orderData = {
+            ...validOrderParams,
+            fromAccount: null,
+            guestInfo: {
+              email: user.email,
+              captcha: { token: '10000000-aaaa-bbbb-cccc-000000000001', provider: 'HCAPTCHA' },
+            },
+          };
+          const result = await callCreateOrder({ order: orderData });
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+
+          const order = result.data.createOrder.order;
+          expect(order.fromAccount.legacyId).to.eq(user.CollectiveId);
+          expect(order.fromAccount.isGuest).to.eq(true);
+          expect(order.paymentMethod.account.id).to.eq(order.fromAccount.id);
+          expect(order.status).to.eq('PAID');
+
+          // Can make a second order
+          const result2 = await callCreateOrder({ order: orderData });
+          const order2 = result2.data.createOrder.order;
+          expect(order2.fromAccount.legacyId).to.eq(user.CollectiveId);
+          expect(order2.fromAccount.isGuest).to.eq(true);
+          expect(order2.paymentMethod.account.id).to.eq(order2.fromAccount.id);
+          expect(order2.status).to.eq('PAID');
+        });
+
+        it('Works with an email that already exists (verified)', async () => {
+          const user = await fakeUser({ confirmedAt: new Date() });
+          const orderData = {
+            ...validOrderParams,
+            fromAccount: null,
+            guestInfo: {
+              email: user.email,
+              captcha: { token: '10000000-aaaa-bbbb-cccc-000000000001', provider: 'HCAPTCHA' },
+            },
+          };
+          const result = await callCreateOrder({ order: orderData });
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+
+          const order = result.data.createOrder.order;
+          expect(order.fromAccount.legacyId).to.eq(user.CollectiveId);
+          expect(order.fromAccount.isGuest).to.eq(false);
+          expect(order.paymentMethod.account.id).to.eq(order.fromAccount.id);
+          expect(order.status).to.eq('PAID');
+        });
+
+        it('If the account already exists, cannot use an existing payment method', async () => {
+          const user = await fakeUser({ confirmedAt: new Date() });
+          const paymentMethodData = {
+            CollectiveId: user.CollectiveId,
+            service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+            type: PAYMENT_METHOD_TYPE.PREPAID,
+          };
+          const paymentMethod = await fakePaymentMethod(paymentMethodData);
+          const orderData = {
+            ...validOrderParams,
+            paymentMethod: { id: idEncode(paymentMethod.id, IDENTIFIER_TYPES.PAYMENT_METHOD) },
+            fromAccount: null,
+            guestInfo: {
+              email: user.email,
+              captcha: { token: '10000000-aaaa-bbbb-cccc-000000000001', provider: 'HCAPTCHA' },
+            },
+          };
+          const result = await callCreateOrder({ order: orderData });
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.equal(
+            'You need to be logged in to be able to use an existing payment method',
+          );
+        });
+
+        it('Cannot contribute from a different profile as guest', async () => {
+          const user = await fakeUser({ confirmedAt: new Date() });
+          const fromCollective = await fakeCollective({ admin: user.collective });
+          const orderData = {
+            ...validOrderParams,
+            fromAccount: { legacyId: fromCollective.id },
+            guestInfo: {
+              email: user.email,
+              captcha: { token: '10000000-aaaa-bbbb-cccc-000000000001', provider: 'HCAPTCHA' },
+            },
+          };
+          const result = await callCreateOrder({ order: orderData });
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.equal('You need to be logged in to specify a contributing profile');
+        });
+
+        it('Does not save the payment method', async () => {
+          const orderData = {
+            ...validOrderParams,
+            fromAccount: null,
+            paymentMethod: { ...validOrderParams.paymentMethod, isSavedForLater: true },
+            guestInfo: {
+              email: randEmail(),
+              captcha: { token: '10000000-aaaa-bbbb-cccc-000000000001', provider: 'HCAPTCHA' },
+            },
+          };
+
+          const result = await callCreateOrder({ order: orderData });
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+          const order = result.data.createOrder.order;
+          const orderFromDb = await models.Order.findByPk(order.legacyId);
+          expect(orderFromDb.data.savePaymentMethod).to.be.false;
+        });
+
+        it('Fails if captcha is not provided', async () => {
+          const captchaDefaultValue = config.captcha.enabled;
+          config.captcha.enabled = true;
+
+          const orderData = {
+            ...validOrderParams,
+            fromAccount: null,
+            guestInfo: {
+              email: randEmail(),
+            },
+          };
+          const result = await callCreateOrder({ order: orderData });
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.equal('You need to provide a valid captcha token');
+
+          config.captcha.enabled = captchaDefaultValue;
+        });
+      });
+
+      describe('Common checks', () => {
+        it('collective must be approved by fiscal host', async () => {
+          const host = await fakeHost();
+          const collective = await fakeCollective({ HostCollectiveId: host.id, isActive: false, approvedAt: null });
+          const fromUser = await fakeUser();
+          const orderData = { ...validOrderParams, toAccount: { legacyId: collective.id } };
+
+          const result = await callCreateOrder({ order: orderData }, fromUser);
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.equal(
+            'This collective has no host and cannot accept financial contributions at this time.',
+          );
+        });
+
+        it('collective must exist', async () => {
+          const fromUser = await fakeUser();
+          const orderData = { ...validOrderParams, toAccount: { legacyId: 9999999 } };
+          const result = await callCreateOrder({ order: orderData }, fromUser);
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.equal('Account Not Found');
+        });
+
+        it('tier must exist', async () => {
+          const fromUser = await fakeUser();
+          const orderData = { ...validOrderParams, tier: { legacyId: 9999999 } };
+          const result = await callCreateOrder({ order: orderData }, fromUser);
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.equal('Tier Not Found');
+        });
+
+        it('enforces payment method when there is an amount', async () => {
+          const fromUser = await fakeUser();
+          const orderData = { ...validOrderParams, paymentMethod: null };
+          const result = await callCreateOrder({ order: orderData }, fromUser);
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.equal('This order requires a payment method');
+        });
+
+        it('sends a tweet', async () => {
+          const newContributor = await fakeUser(null, { twitterHandle: 'johnsmith' }); // Only new contributors get a tweet
+          const collective = await fakeCollective({ twitterHandle: 'test', HostCollectiveId: host.id });
+          await fakeConnectedAccount({
+            CollectiveId: collective.id,
+            service: 'twitter',
+            clientId: 'xxxx',
+            token: 'xxxx',
+            settings: {
+              newBacker: { active: true, tweet: '{backerTwitterHandle} thank you for your {amount} donation!' },
+            },
+          });
+
+          const tweetStatusStub = sandbox.stub(twitterLib, 'tweetStatus');
+          const orderData = {
+            ...validOrderParams,
+            fromAccount: { legacyId: newContributor.CollectiveId },
+            toAccount: { legacyId: collective.id },
+          };
+          const result = await callCreateOrder({ order: orderData }, newContributor);
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+          await waitForCondition(() => tweetStatusStub.callCount > 0);
+          expect(tweetStatusStub.firstCall.args[1]).to.contain('@johnsmith thank you for your $50.00 donation!');
+        });
+      });
+
+      describe('Quantity', () => {
+        it('fails if not enough available', async () => {
+          const tier = await fakeTier({ maxQuantity: 10, CollectiveId: toCollective.id, name: 'My Tier' });
+          const orderData = { ...validOrderParams, tier: { legacyId: tier.id }, quantity: 11 };
+          const result = await callCreateOrder({ order: orderData }, fromUser);
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.equal('No more tickets left for My Tier');
+        });
       });
     });
 
-    describe('Guest', () => {
-      it('Needs to provide an email', async () => {
-        const result = await callCreateOrder({ order: { ...validOrderParams, fromAccount: null } });
-        expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.include(
-          'You need to provide a guest profile with an email for logged out contributions',
-        );
-      });
+    describe('Taxes', () => {
+      describe('VAT', () => {
+        let tierProduct, hostWithVAT, validOrderParams, fromUser, sandbox;
 
-      it('Works with a small order', async () => {
-        const email = randEmail();
-        const orderData = {
-          ...validOrderParams,
-          fromAccount: null,
-          guestInfo: {
-            email,
-            legalName: 'Real name',
-            captcha: { token: '10000000-aaaa-bbbb-cccc-000000000001', provider: 'HCAPTCHA' },
+        before(async () => {
+          sandbox = createSandbox();
+          stubStripePayments(sandbox);
+
+          fromUser = await fakeUser();
+          hostWithVAT = await fakeActiveHost({
+            countryISO: 'FR', // France, 20% VAT
+            settings: { VAT: { type: 'OWN', number: 'FRXX999999999' } },
+            currency: 'EUR',
+          });
+          await models.ConnectedAccount.create({
+            service: PAYMENT_METHOD_SERVICE.STRIPE,
+            token: 'abc',
+            CollectiveId: hostWithVAT.id,
+          });
+
+          tierProduct = await fakeTier({
+            type: 'PRODUCT',
+            amount: 5000,
+            interval: null,
+            currency: 'EUR',
+            CollectiveId: hostWithVAT.id,
+          });
+
+          validOrderParams = {
+            fromAccount: { legacyId: fromUser.CollectiveId },
+            toAccount: { legacyId: hostWithVAT.id },
+            tier: { legacyId: tierProduct.id },
+            amount: {
+              valueInCents: 5000,
+              currency: 'EUR',
+            },
+            tax: {
+              type: 'VAT',
+              rate: 20,
+              amount: { valueInCents: 1000, currency: 'EUR' },
+              country: 'FR',
+            },
+            frequency: 'ONETIME',
+            paymentMethod: {
+              service: 'STRIPE',
+              type: 'CREDITCARD',
+              name: '4242',
+              creditCardInfo: {
+                token: 'tok_visa',
+                brand: 'VISA',
+                country: 'US',
+                expMonth: 11,
+                expYear: 2024,
+              },
+            },
+          };
+        });
+
+        after(() => {
+          sandbox.restore();
+        });
+
+        it('stores tax in order and transaction', async () => {
+          const frenchVAT = 20;
+          const taxAmount = Math.round(tierProduct.amount * (frenchVAT / 100));
+          const res = await callCreateOrder({ order: validOrderParams }, fromUser);
+
+          // There should be no errors
+          res.errors && console.error(res.errors);
+          expect(res.errors).to.not.exist;
+
+          const createdOrder = res.data.createOrder.order;
+          expect(createdOrder.taxAmount).to.exist;
+          expect(createdOrder.taxAmount.valueInCents).to.equal(taxAmount);
+          expect(createdOrder.tax).to.deep.equal({
+            id: 'VAT',
+            type: 'VAT',
+            idNumber: null,
+            percentage: 20,
+            rate: 0.2,
+          });
+
+          const orderFromDB = await models.Order.findByPk(createdOrder.legacyId);
+          expect(orderFromDB.data.tax).to.deep.equal({
+            id: 'VAT',
+            taxerCountry: 'FR',
+            taxedCountry: 'FR',
+            taxIDNumberFrom: 'FRXX999999999',
+            percentage: 20,
+          });
+
+          expect(createdOrder.transactions).to.have.length(2);
+          createdOrder.transactions
+            .filter(t => t.kind === 'CONTRIBUTION')
+            .map(transaction => {
+              expect(transaction.taxAmount.valueInCents).to.equal(-taxAmount);
+            });
+        });
+
+        it("doesn't have tax when tax id number is set for other EU countries", async () => {
+          const order = cloneDeep(validOrderParams);
+          set(order, 'tax.country', 'DE');
+          set(order, 'tax.idNumber', 'DE256625648');
+          set(order, 'tax.amount.valueInCents', 0);
+          const res = await callCreateOrder({ order }, fromUser);
+
+          // There should be no errors
+          res.errors && console.error(res.errors);
+          expect(res.errors).to.not.exist;
+
+          const createdOrder = res.data.createOrder.order;
+          expect(createdOrder.taxAmount).to.be.null;
+          expect(createdOrder.transactions).to.have.length(2);
+          createdOrder.transactions
+            .filter(t => t.kind === 'CONTRIBUTION')
+            .map(transaction => {
+              expect(transaction.taxAmount.valueInCents).to.equal(0);
+            });
+        });
+
+        it('have tax when tax id number is set with same EU country', async () => {
+          const frenchVAT = 20;
+          const taxAmount = Math.round(tierProduct.amount * (frenchVAT / 100));
+          const order = cloneDeep(validOrderParams);
+          set(order, 'tax.country', 'FR');
+          set(order, 'tax.idNumber', 'FRXX999999997');
+          const res = await callCreateOrder({ order }, fromUser);
+
+          // There should be no errors
+          res.errors && console.error(res.errors);
+          expect(res.errors).to.not.exist;
+
+          const createdOrder = res.data.createOrder.order;
+          expect(createdOrder.taxAmount.valueInCents).to.equal(taxAmount);
+          expect(createdOrder.transactions).to.have.length(2);
+          createdOrder.transactions
+            .filter(t => t.kind === 'CONTRIBUTION')
+            .map(transaction => {
+              expect(transaction.taxAmount.valueInCents).to.equal(-taxAmount);
+            });
+        });
+
+        it('reject orders without country when subject to VAT', async () => {
+          const order = cloneDeep(validOrderParams);
+          set(order, 'tax.country', null);
+          const queryResult = await callCreateOrder({ order }, fromUser);
+          expect(queryResult.errors[0].message).to.equal('This order has a tax attached, you must set a country');
+        });
+
+        it('rejects invalid VAT ID numbers', async () => {
+          const order = cloneDeep(validOrderParams);
+          set(order, 'tax.idNumber', 'XXXXXXXXXXXXXXXXXXXXXXXXXXX');
+          const res = await callCreateOrder({ order }, fromUser);
+          expect(res.errors[0].message).to.equal('Invalid VAT number');
+        });
+
+        it('rejects 0 tax amount', async () => {
+          const order = cloneDeep(validOrderParams);
+          set(order, 'tax', null);
+          const res = await callCreateOrder({ order }, fromUser);
+          expect(res.errors[0].message).to.equal('This contribution should have a tax attached');
+        });
+
+        it('rejects invalid tax amount', async () => {
+          const order = cloneDeep(validOrderParams);
+          set(order, 'tax.amount.valueInCents', 999);
+          const res = await callCreateOrder({ order }, fromUser);
+          expect(res.errors[0].message).to.equal(
+            'This tier uses a fixed amount. Order total must be €50.00 + €10.00 tax. You set: €59.99',
+          );
+        });
+
+        it('defaults to VAT enabled if configured on the host', async () => {
+          const collective = await fakeCollective({ HostCollectiveId: hostWithVAT.id, currency: 'EUR' });
+          const tier = await fakeTier({
+            type: 'PRODUCT',
+            amount: 5000,
+            interval: null,
+            currency: 'EUR',
+            CollectiveId: collective.id,
+          });
+          const frenchVAT = 20;
+          const taxAmount = Math.round(tier.amount * (frenchVAT / 100));
+          const order = cloneDeep(validOrderParams);
+          set(order, 'toAccount.legacyId', collective.id);
+          set(order, 'tier.legacyId', tier.id);
+          const res = await callCreateOrder({ order }, fromUser);
+
+          // There should be no errors
+          res.errors && console.error(res.errors);
+          expect(res.errors).to.not.exist;
+
+          const createdOrder = res.data.createOrder.order;
+          expect(createdOrder.taxAmount.valueInCents).to.equal(taxAmount);
+
+          expect(createdOrder.tax).to.deep.equal({
+            id: 'VAT',
+            type: 'VAT',
+            idNumber: null,
+            percentage: 20,
+            rate: 0.2,
+          });
+
+          const orderFromDB = await models.Order.findByPk(createdOrder.legacyId);
+          expect(orderFromDB.data.tax).to.deep.equal({
+            id: 'VAT',
+            taxerCountry: 'FR',
+            taxedCountry: 'FR',
+            taxIDNumberFrom: 'FRXX999999999',
+            percentage: 20,
+          });
+        });
+      });
+    });
+
+    describe('payment methods', () => {
+      let host, validOrderParams, fromUser, sandbox;
+
+      before(async () => {
+        sandbox = createSandbox();
+
+        fromUser = await fakeUser();
+        host = await fakeActiveHost({
+          countryISO: 'FR', // France, 20% VAT
+          settings: { VAT: { type: 'OWN', number: 'FRXX999999999' } },
+          currency: 'EUR',
+        });
+        await fakeConnectedAccount({
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
+          CollectiveId: host.id,
+          token: 'sk_test_123',
+        });
+
+        validOrderParams = {
+          fromAccount: { legacyId: fromUser.CollectiveId },
+          toAccount: { legacyId: host.id },
+          amount: {
+            valueInCents: 5000,
+            currency: 'EUR',
+          },
+          frequency: 'ONETIME',
+          paymentMethod: {
+            service: 'STRIPE',
+            type: 'CREDITCARD',
+            name: '4242',
+            creditCardInfo: {
+              token: 'tok_visa',
+              brand: 'VISA',
+              country: 'US',
+              expMonth: 11,
+              expYear: 2024,
+            },
           },
         };
-        const result = await callCreateOrder({ order: orderData });
-        result.errors && console.error(result.errors);
-        expect(result.errors).to.not.exist;
-
-        const order = result.data.createOrder.order;
-        expect(order.fromAccount.isGuest).to.eq(true);
-        expect(order.fromAccount.legalName).to.eq(null); // For security reasons
-        expect(order.paymentMethod.account.id).to.eq(order.fromAccount.id);
-        expect(order.status).to.eq('PAID');
-
-        const fromCollective = await models.Collective.findByPk(order.fromAccount.legacyId);
-        expect(fromCollective.legalName).to.eq('Real name');
       });
 
-      it('Works with an email that already exists (unverified)', async () => {
-        const user = await fakeUser({ confirmedAt: null }, { data: { isGuest: true } });
-        const orderData = {
-          ...validOrderParams,
-          fromAccount: null,
-          guestInfo: {
-            email: user.email,
-            captcha: { token: '10000000-aaaa-bbbb-cccc-000000000001', provider: 'HCAPTCHA' },
-          },
-        };
-        const result = await callCreateOrder({ order: orderData });
-        result.errors && console.error(result.errors);
-        expect(result.errors).to.not.exist;
-
-        const order = result.data.createOrder.order;
-        expect(order.fromAccount.legacyId).to.eq(user.CollectiveId);
-        expect(order.fromAccount.isGuest).to.eq(true);
-        expect(order.paymentMethod.account.id).to.eq(order.fromAccount.id);
-        expect(order.status).to.eq('PAID');
-
-        // Can make a second order
-        const result2 = await callCreateOrder({ order: orderData });
-        const order2 = result2.data.createOrder.order;
-        expect(order2.fromAccount.legacyId).to.eq(user.CollectiveId);
-        expect(order2.fromAccount.isGuest).to.eq(true);
-        expect(order2.paymentMethod.account.id).to.eq(order2.fromAccount.id);
-        expect(order2.status).to.eq('PAID');
+      beforeEach(() => {
+        sandbox.stub(OrderSecurityLib, 'orderFraudProtection').callsFake(() => Promise.resolve());
+        stubStripePayments(sandbox);
       });
 
-      it('Works with an email that already exists (verified)', async () => {
-        const user = await fakeUser({ confirmedAt: new Date() });
-        const orderData = {
-          ...validOrderParams,
-          fromAccount: null,
-          guestInfo: {
-            email: user.email,
-            captcha: { token: '10000000-aaaa-bbbb-cccc-000000000001', provider: 'HCAPTCHA' },
-          },
-        };
-        const result = await callCreateOrder({ order: orderData });
-        result.errors && console.error(result.errors);
-        expect(result.errors).to.not.exist;
-
-        const order = result.data.createOrder.order;
-        expect(order.fromAccount.legacyId).to.eq(user.CollectiveId);
-        expect(order.fromAccount.isGuest).to.eq(false);
-        expect(order.paymentMethod.account.id).to.eq(order.fromAccount.id);
-        expect(order.status).to.eq('PAID');
+      afterEach(() => {
+        sandbox.restore();
       });
 
-      it('If the account already exists, cannot use an existing payment method', async () => {
-        const user = await fakeUser({ confirmedAt: new Date() });
-        const paymentMethodData = {
-          CollectiveId: user.CollectiveId,
-          service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
-          type: PAYMENT_METHOD_TYPE.PREPAID,
-        };
-        const paymentMethod = await fakePaymentMethod(paymentMethodData);
-        const orderData = {
-          ...validOrderParams,
-          paymentMethod: { id: idEncode(paymentMethod.id, IDENTIFIER_TYPES.PAYMENT_METHOD) },
-          fromAccount: null,
-          guestInfo: {
-            email: user.email,
-            captcha: { token: '10000000-aaaa-bbbb-cccc-000000000001', provider: 'HCAPTCHA' },
-          },
-        };
-        const result = await callCreateOrder({ order: orderData });
+      it('fails to use a payment method on file if not logged in', async () => {
+        const order = cloneDeep(validOrderParams);
+        const paymentMethod = await fakePaymentMethod();
+        order.paymentMethod = { id: idEncode(paymentMethod.id, IDENTIFIER_TYPES.PAYMENT_METHOD) };
+        order.fromAccount = null;
+
+        const result = await callCreateOrder({ order: { ...order, guestInfo: { email: randEmail() } } });
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.equal(
           'You need to be logged in to be able to use an existing payment method',
         );
       });
 
-      it('Cannot contribute from a different profile as guest', async () => {
-        const user = await fakeUser({ confirmedAt: new Date() });
-        const fromCollective = await fakeCollective({ admin: user.collective });
-        const orderData = {
-          ...validOrderParams,
-          fromAccount: { legacyId: fromCollective.id },
-          guestInfo: {
-            email: user.email,
-            captcha: { token: '10000000-aaaa-bbbb-cccc-000000000001', provider: 'HCAPTCHA' },
-          },
-        };
-        const result = await callCreateOrder({ order: orderData });
+      it('fails to use a payment method on file if not logged in as the owner', async () => {
+        const order = cloneDeep(validOrderParams);
+        const paymentMethod = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
+          type: PAYMENT_METHOD_TYPE.CREDITCARD,
+        });
+        order.paymentMethod = { id: idEncode(paymentMethod.id, IDENTIFIER_TYPES.PAYMENT_METHOD) };
+        order.fromAccount = null;
+
+        const result = await callCreateOrder({ order }, fromUser);
         expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.equal('You need to be logged in to specify a contributing profile');
+        expect(result.errors[0].message).to.equal(
+          "You don't have enough permissions to use this payment method (you need to be an admin of the collective that owns this payment method)",
+        );
       });
 
-      it('Does not save the payment method', async () => {
-        const orderData = {
-          ...validOrderParams,
-          fromAccount: null,
-          paymentMethod: { ...validOrderParams.paymentMethod, isSavedForLater: true },
-          guestInfo: {
-            email: randEmail(),
-            captcha: { token: '10000000-aaaa-bbbb-cccc-000000000001', provider: 'HCAPTCHA' },
-          },
-        };
+      it("doesn't store the payment method for user if order fail", async () => {
+        const newUser = await fakeUser();
+        const order = cloneDeep({ ...validOrderParams, fromAccount: { legacyId: newUser.CollectiveId } });
+        order.paymentMethod.isSavedForLater = false;
+        stripe.paymentIntents.create = sandbox.stub().rejects(new Error('NOT TODAY!'));
+        const result = await callCreateOrder({ order }, fromUser);
+        expect(result.errors).to.exist;
+        const paymentMethods = await models.PaymentMethod.findAll({ where: { CollectiveId: newUser.CollectiveId } });
+        expect(paymentMethods).to.have.length(0);
+      });
 
-        const result = await callCreateOrder({ order: orderData });
+      it('user becomes a financial contributor of collective using a payment method on file', async () => {
+        const collective = await fakeCollective({ HostCollectiveId: host.id, currency: host.currency });
+        const paymentMethod = await fakePaymentMethod({
+          CollectiveId: fromUser.CollectiveId,
+          CreatedByUserId: fromUser.id,
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
+          name: 'xxxx',
+          archivedAt: null,
+          type: PAYMENT_METHOD_TYPE.CREDITCARD,
+          saved: true,
+          expiryDate: moment().add(1, 'year') as unknown as Date,
+        });
+
+        const order = cloneDeep(validOrderParams);
+        order.paymentMethod = { id: idEncode(paymentMethod.id, IDENTIFIER_TYPES.PAYMENT_METHOD) };
+        order.toAccount = { legacyId: collective.id };
+
+        const result = await callCreateOrder({ order }, fromUser);
         result.errors && console.error(result.errors);
         expect(result.errors).to.not.exist;
-        const order = result.data.createOrder.order;
-        const orderFromDb = await models.Order.findByPk(order.legacyId);
-        expect(orderFromDb.data.savePaymentMethod).to.be.false;
+
+        const members = await models.Member.findAll({
+          where: { CollectiveId: collective.id, role: 'BACKER' },
+        });
+        const orders = await models.Order.findAll({
+          where: { FromCollectiveId: fromUser.CollectiveId, CollectiveId: collective.id },
+        });
+        const transactions = await models.Transaction.findAll({
+          where: { FromCollectiveId: fromUser.CollectiveId, CollectiveId: collective.id },
+        });
+        expect(members).to.have.length(1);
+        expect(orders).to.have.length(1);
+        expect(transactions).to.have.length(1);
+        expect(transactions[0].amount).to.equal(order.amount.valueInCents);
       });
 
-      it('Fails if captcha is not provided', async () => {
-        const captchaDefaultValue = config.captcha.enabled;
-        config.captcha.enabled = true;
-
-        const orderData = {
-          ...validOrderParams,
-          fromAccount: null,
-          guestInfo: {
-            email: randEmail(),
-          },
-        };
-        const result = await callCreateOrder({ order: orderData });
-        expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.equal('You need to provide a valid captcha token');
-
-        config.captcha.enabled = captchaDefaultValue;
+      it('user becomes a backer of collective using a new payment method', async () => {
+        const result = await callCreateOrder({ order: validOrderParams }, fromUser);
+        result.errors && console.error(result.errors[0]);
+        expect(result.errors).to.not.exist;
+        const members = await models.Member.findAll({
+          where: { MemberCollectiveId: fromUser.CollectiveId, CollectiveId: host.id, role: 'BACKER' },
+        });
+        expect(members).to.have.length(1);
+        const paymentMethods = await models.PaymentMethod.findAll({
+          where: { CreatedByUserId: fromUser.id },
+        });
+        expect(paymentMethods).to.have.length(2);
       });
     });
 
-    describe('Common checks', () => {
-      it('collective must be approved by fiscal host', async () => {
-        const host = await fakeHost();
-        const collective = await fakeCollective({ HostCollectiveId: host.id, isActive: false, approvedAt: null });
-        const fromUser = await fakeUser();
-        const orderData = { ...validOrderParams, toAccount: { legacyId: collective.id } };
+    // Moved/adapted from `test/server/paymentProviders/opencollective/collective.test.js` + `test/server/graphql/v1/createOrder.test.js`
+    describe('Collective to Collective Transactions', () => {
+      const ORDER_TOTAL_AMOUNT = 1000;
+      const STRIPE_FEE_STUBBED_VALUE = 300;
+      let sandbox,
+        user1,
+        user2,
+        transactions,
+        collective1,
+        collective2,
+        collective3,
+        collective5,
+        host1,
+        host2,
+        host3,
+        organization,
+        stripePaymentMethod;
 
-        const result = await callCreateOrder({ order: orderData }, fromUser);
-        expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.equal(
-          'This collective has no host and cannot accept financial contributions at this time.',
+      before(async () => {
+        user1 = await fakeUser({ name: 'User 1' });
+        user2 = await fakeUser({ name: 'User 2' });
+        host1 = await fakeActiveHost({ name: 'Host 1', currency: 'USD' });
+        host2 = await fakeActiveHost({ name: 'Host 2', currency: 'USD' });
+        host3 = await fakeActiveHost({ name: 'Host 3', currency: 'EUR' });
+        collective1 = await fakeCollective({ name: 'collective1', HostCollectiveId: host1.id, currency: 'USD' });
+        collective2 = await fakeCollective({ name: 'collective2', HostCollectiveId: host1.id, currency: 'USD' });
+        collective3 = await fakeCollective({ name: 'collective3', HostCollectiveId: host2.id, currency: 'USD' });
+        collective5 = await fakeCollective({ name: 'collective5', HostCollectiveId: host3.id, currency: 'USD' });
+        organization = await fakeOrganization({ name: 'pubnub', currency: 'USD' });
+        stripePaymentMethod = await fakePaymentMethod({
+          name: '4242',
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
+          type: PAYMENT_METHOD_TYPE.CREDITCARD,
+          token: 'tok_testtoken123456789012345',
+          CollectiveId: organization.id,
+          monthlyLimitPerMember: 10000,
+        });
+      });
+
+      beforeEach('create transactions for 3 donations from organization to collective1', async () => {
+        transactions = [
+          { amount: 500, netAmountInCollectiveCurrency: 500, amountInHostCurrency: 500 },
+          { amount: 200, netAmountInCollectiveCurrency: 200, amountInHostCurrency: 200 },
+          { amount: 1000, netAmountInCollectiveCurrency: 1000, amountInHostCurrency: 1000 },
+        ];
+        const transactionsDefaultValue = {
+          CreatedByUserId: user1.id,
+          FromCollectiveId: organization.id,
+          CollectiveId: collective1.id,
+          PaymentMethodId: stripePaymentMethod.id,
+          currency: collective1.currency,
+          hostCurrency: collective1.currency,
+          HostCollectiveId: collective1.HostCollectiveId,
+          type: TransactionTypes.DEBIT,
+        };
+        await models.Transaction.createManyDoubleEntry(transactions, transactionsDefaultValue);
+      });
+
+      beforeEach('create transactions for 3 donations from organization to collective5', async () => {
+        transactions = [
+          { amount: 500, netAmountInCollectiveCurrency: 500, amountInHostCurrency: 500 },
+          { amount: 200, netAmountInCollectiveCurrency: 200, amountInHostCurrency: 200 },
+          { amount: 1000, netAmountInCollectiveCurrency: 1000, amountInHostCurrency: 1000 },
+        ];
+        const transactionsDefaultValue = {
+          CreatedByUserId: user1.id,
+          FromCollectiveId: organization.id,
+          CollectiveId: collective5.id,
+          PaymentMethodId: stripePaymentMethod.id,
+          currency: collective5.currency,
+          hostCurrency: collective5.currency,
+          HostCollectiveId: collective5.HostCollectiveId,
+          type: TransactionTypes.DEBIT,
+        };
+        await models.Transaction.createManyDoubleEntry(transactions, transactionsDefaultValue);
+      });
+
+      beforeEach(() => {
+        sandbox = createSandbox();
+        // And given that the endpoint for creating customers on Stripe
+        // is patched
+        stubStripeCreate(sandbox, { charge: { currency: 'usd', status: 'succeeded' } });
+        // And given the stripe stuff that depends on values in the
+        // order struct is patch. It's here and not on each test because
+        // the `totalAmount' field doesn't change throught the tests.
+        stubStripeBalance(sandbox, ORDER_TOTAL_AMOUNT, 'usd', 0, STRIPE_FEE_STUBBED_VALUE); // This is the payment processor fee.
+      });
+
+      afterEach(() => sandbox.restore());
+
+      it('the available balance of the payment method of the collective should be equal to the balance of the collective', async () => {
+        // getting balance of transactions that were just created
+        const reducer = (accumulator, currentValue) => accumulator + currentValue;
+        const balance = transactions.map(t => t.netAmountInCollectiveCurrency).reduce(reducer, 0);
+
+        // finding opencollective payment method for collective1
+        const openCollectivePaymentMethod = await models.PaymentMethod.findOne({
+          where: { type: 'collective', CollectiveId: collective1.id },
+        });
+
+        // get Balance given the created user
+        const ocPaymentMethodBalance = await openCollectivePaymentMethod.getBalanceForUser(user1);
+
+        expect(balance).to.equal(ocPaymentMethodBalance.amount);
+        expect(collective1.currency).to.equal(ocPaymentMethodBalance.currency);
+      });
+
+      it("Non admin members can't use the payment method of the collective", async () => {
+        // finding opencollective payment method for collective1
+        const openCollectivePaymentMethod = await models.PaymentMethod.findOne({
+          where: { type: 'collective', CollectiveId: collective1.id },
+        });
+
+        // get Balance given the created user
+        const ocPaymentMethodBalance = await openCollectivePaymentMethod.getBalanceForUser(user1);
+
+        // Setting up order
+        const order = {
+          fromAccount: { id: idEncode(collective1.id, 'account') },
+          toAccount: { id: idEncode(collective2.id, 'account') },
+          paymentMethod: { id: idEncode(openCollectivePaymentMethod.id, 'paymentMethod') },
+          amount: { valueInCents: ocPaymentMethodBalance.amount, currency: 'USD' },
+          frequency: 'ONETIME',
+        };
+        // Executing queries
+        const res = await graphqlQueryV2(CREATE_ORDER_MUTATION, {
+          order: { ...order, guestInfo: { email: randEmail() } },
+        });
+        const resWithUserParam = await graphqlQueryV2(CREATE_ORDER_MUTATION, { order }, user2);
+
+        // Then there should be Errors for the Result of the query without any user defined as param
+        expect(res.errors).to.exist;
+        expect(res.errors).to.not.be.empty;
+        expect(res.errors[0].message).to.contain('You need to be logged in to specify a contributing profile');
+
+        // Logged out - no fromAccount
+        const resWithoutFromCollective = await graphqlQueryV2(CREATE_ORDER_MUTATION, {
+          order: { ...order, fromAccount: null, guestInfo: { email: randEmail() } },
+        });
+        expect(resWithoutFromCollective.errors).to.exist;
+        expect(resWithoutFromCollective.errors).to.not.be.empty;
+        expect(resWithoutFromCollective.errors[0].message).to.contain(
+          'You need to be logged in to be able to use an existing payment method',
         );
+
+        // Then there should also be Errors for the Result of the query through user2
+        expect(resWithUserParam.errors).to.exist;
+        expect(resWithUserParam.errors).to.not.be.empty;
+        expect(resWithUserParam.errors[0].message).to.contain(
+          "don't have sufficient permissions to create an order on behalf of the",
+        );
+      });
+
+      it('Transactions between Collectives on the same host must have NO Fees', async () => {
+        // Add user1 as an ADMIN of collective1
+        await models.Member.create({
+          CreatedByUserId: user1.id,
+          MemberCollectiveId: user1.CollectiveId,
+          CollectiveId: collective1.id,
+          role: MemberRoles.ADMIN,
+        });
+
+        // finding opencollective payment method for collective1
+        const openCollectivePaymentMethod = await models.PaymentMethod.findOne({
+          where: { type: 'collective', CollectiveId: collective1.id },
+        });
+
+        // get Balance given the created user
+        const ocPaymentMethodBalance = await openCollectivePaymentMethod.getBalanceForUser(user1);
+
+        // Setting up order
+        const order = {
+          fromAccount: { id: idEncode(collective1.id, 'account') },
+          toAccount: { id: idEncode(collective2.id, 'account') },
+          paymentMethod: { id: idEncode(openCollectivePaymentMethod.id, 'paymentMethod') },
+          amount: { valueInCents: ocPaymentMethodBalance.amount, currency: 'USD' },
+          frequency: 'ONETIME',
+        };
+
+        // Executing queries
+        const res = await graphqlQueryV2(CREATE_ORDER_MUTATION, { order }, user1);
+
+        // Then there should be no errors
+        res.errors && console.error(res.errors);
+        expect(res.errors).to.not.exist;
+
+        // Then Find Created Transaction
+        const orderFromCollective = res.data.createOrder.order.fromAccount;
+        const orderCollective = res.data.createOrder.order.toAccount;
+        const transaction = await models.Transaction.findOne({
+          where: { CollectiveId: orderCollective.legacyId, amount: order.amount.valueInCents },
+        });
+        // Then Check whether Created Transaction has NO fees
+        expect(transaction.FromCollectiveId).to.equal(orderFromCollective.legacyId);
+        expect(orderCollective.legacyId).to.equal(collective2.id);
+        expect(transaction.CollectiveId).to.equal(collective2.id);
+        expect(transaction.currency).to.equal(collective2.currency);
+        expect(transaction.platformFeeInHostCurrency).to.equal(0);
+        expect(transaction.hostFeeInHostCurrency).to.equal(0);
+        expect(transaction.paymentProcessorFeeInHostCurrency).to.equal(0);
+      });
+
+      it('Cannot send money that exceeds Collective balance', async () => {
+        // Add user1 as an ADMIN of collective1
+        await models.Member.create({
+          CreatedByUserId: user1.id,
+          MemberCollectiveId: user1.CollectiveId,
+          CollectiveId: collective1.id,
+          role: MemberRoles.ADMIN,
+        });
+
+        // Create stripe connected account to host of collective1
+        await stripeConnectedAccount(collective1.HostCollectiveId);
+        // Add credit card to collective1
+        await models.PaymentMethod.create({
+          name: '4242',
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
+          type: PAYMENT_METHOD_TYPE.CREDITCARD,
+          token: 'tok_testtoken123456789012345',
+          CollectiveId: collective1.HostCollectiveId,
+          monthlyLimitPerMember: 10000,
+        });
+        // finding opencollective payment method for collective1
+        const openCollectivePaymentMethod = await models.PaymentMethod.findOne({
+          where: { type: 'collective', CollectiveId: collective1.id },
+        });
+
+        // get Balance given the created user
+        const ocPaymentMethodBalance = await openCollectivePaymentMethod.getBalanceForUser(user1);
+
+        // set an amount that's higher than the collective balance
+        const amountHigherThanCollectiveBalance = ocPaymentMethodBalance.amount + 1;
+
+        // Setting up order with amount higher than collective1 balance
+        const order = {
+          fromAccount: { id: idEncode(collective1.id, 'account') },
+          toAccount: { id: idEncode(collective3.id, 'account') },
+          paymentMethod: { id: idEncode(openCollectivePaymentMethod.id, 'paymentMethod') },
+          amount: { valueInCents: amountHigherThanCollectiveBalance, currency: 'USD' },
+          frequency: 'ONETIME',
+        };
+
+        // Executing queries
+        const res = await graphqlQueryV2(CREATE_ORDER_MUTATION, { order }, user1);
+
+        // Then there should be errors
+        expect(res.errors).to.exist;
+        expect(res.errors).to.not.be.empty;
+        console.log(res.errors[0].message);
+        expect(res.errors[0].message).to.contain(
+          "You don't have enough funds available ($17.00 left) to execute this order ($17.01)",
+        );
+      });
+
+      it('Recurring donations between Collectives with the same host must be allowed', async () => {
+        // Add user1 as an ADMIN of collective1
+        await models.Member.create({
+          CreatedByUserId: user1.id,
+          MemberCollectiveId: user1.CollectiveId,
+          CollectiveId: collective1.id,
+          role: MemberRoles.ADMIN,
+        });
+
+        // Create stripe connected account to host of collective1
+        await stripeConnectedAccount(collective1.HostCollectiveId);
+        // Add credit card to collective1
+        await models.PaymentMethod.create({
+          name: '4242',
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
+          type: PAYMENT_METHOD_TYPE.CREDITCARD,
+          token: 'tok_testtoken123456789012345',
+          CollectiveId: collective1.HostCollectiveId,
+          monthlyLimitPerMember: 10000,
+        });
+
+        // finding opencollective payment method for collective1
+        const openCollectivePaymentMethod = await models.PaymentMethod.findOne({
+          where: { type: 'collective', CollectiveId: collective1.id },
+        });
+
+        // Setting up order with amount less than the credit card monthly limit
+        const order = {
+          fromAccount: { id: idEncode(collective1.id, 'account') },
+          toAccount: { id: idEncode(collective2.id, 'account') },
+          paymentMethod: { id: idEncode(openCollectivePaymentMethod.id, 'paymentMethod') },
+          amount: { valueInCents: 1000, currency: 'USD' },
+          frequency: 'MONTHLY',
+        };
+        // Executing queries
+        const res = await graphqlQueryV2(CREATE_ORDER_MUTATION, { order }, user1);
+
+        // Then there should be no errors
+        res.errors && console.error(res.errors);
+        expect(res.errors).to.not.exist;
+
+        // When the order is created
+        // Then the created transaction should match the requested data
+        const orderCreated = res.data.createOrder.order;
+        const orderCreatedCollective = orderCreated.toAccount;
+        const orderCreatedFromCollective = orderCreated.fromAccount;
+        const orderFromDb = await models.Order.findByPk(orderCreated.legacyId);
+        const subscription = await orderFromDb.getSubscription();
+        expect(subscription.interval).to.equal('month');
+        expect(subscription.isActive).to.be.true;
+        expect(subscription.amount).to.equal(order.amount.valueInCents);
+
+        const transaction = await models.Transaction.findOne({
+          where: {
+            CollectiveId: orderCreatedCollective.legacyId,
+            FromCollectiveId: orderCreatedFromCollective.legacyId,
+            amount: order.amount.valueInCents,
+          },
+        });
+        // make sure the transaction has been recorded
+        expect(transaction.FromCollectiveId).to.equal(collective1.id);
+        expect(transaction.CollectiveId).to.equal(collective2.id);
+        expect(transaction.currency).to.equal(collective1.currency);
+      });
+
+      it('Recurring donations between Collectives with different hosts must not be allowed', async () => {
+        // Add user1 as an ADMIN of collective1
+        await models.Member.create({
+          CreatedByUserId: user1.id,
+          MemberCollectiveId: user1.CollectiveId,
+          CollectiveId: collective1.id,
+          role: MemberRoles.ADMIN,
+        });
+
+        // finding opencollective payment method for collective1
+        const openCollectivePaymentMethod = await models.PaymentMethod.findOne({
+          where: { type: 'collective', CollectiveId: collective1.id },
+        });
+
+        // Setting up order with amount less than the credit card monthly limit
+        const order = {
+          fromAccount: { id: idEncode(collective1.id, 'account') },
+          toAccount: { id: idEncode(collective3.id, 'account') },
+          paymentMethod: { id: idEncode(openCollectivePaymentMethod.id, 'paymentMethod') },
+          amount: { valueInCents: 1000, currency: 'USD' },
+          frequency: 'MONTHLY',
+        };
+        // Executing queries
+        const res = await graphqlQueryV2(CREATE_ORDER_MUTATION, { order }, user1);
+
+        // Then there should be errors
+        expect(res.errors).to.exist;
+        expect(res.errors).to.not.be.empty;
+        expect(res.errors[0].message).to.contain(
+          'Cannot use the Open Collective payment method to make a payment between different hosts',
+        );
+      });
+
+      it('Host admin moves funds between collectives', async () => {
+        const collective1InitialBalance = await collective1.getBalance();
+        const collective2InitialBalance = await collective2.getBalance();
+        const hostAdmin = await fakeUser();
+        await host1.addUserWithRole(hostAdmin, 'ADMIN');
+        const openCollectivePaymentMethod = await models.PaymentMethod.findOne({
+          where: { type: 'collective', CollectiveId: collective1.id },
+        });
+        const result = await callCreateOrder(
+          {
+            order: {
+              fromAccount: { legacyId: collective1.id },
+              toAccount: { legacyId: collective2.id },
+              amount: { valueInCents: 1000, currency: 'USD' },
+              frequency: 'ONETIME',
+              paymentMethod: { id: idEncode(openCollectivePaymentMethod.id, 'paymentMethod') },
+            },
+          },
+          hostAdmin,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        const order = result.data.createOrder.order;
+        expect(order.status).to.equal('PAID');
+        expect(order.amount.valueInCents).to.equal(1000);
+        expect(order.amount.currency).to.equal('USD');
+
+        expect(await collective1.getBalance()).to.equal(collective1InitialBalance - 1000);
+        expect(await collective2.getBalance()).to.equal(collective2InitialBalance + 1000);
       });
     });
   });
@@ -1727,7 +2644,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           hostAdminUser,
         );
 
-        result.errors && console.log(result.errors);
+        result.errors && console.error(result.errors);
         expect(result.errors).to.not.exist;
         expect(result.data).to.have.nested.property('processPendingOrder.status').equal('EXPIRED');
       });
@@ -1763,7 +2680,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           hostAdminUser,
         );
 
-        result.errors && console.log(result.errors);
+        result.errors && console.error(result.errors);
         expect(result.errors).to.not.exist;
         expect(result.data).to.have.nested.property('processPendingOrder.status').equal('PAID');
 
@@ -1807,7 +2724,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         hostAdminUser,
       );
 
-      result.errors && console.log(result.errors);
+      result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       expect(result.data).to.have.nested.property('processPendingOrder.status').equal('PAID');
 

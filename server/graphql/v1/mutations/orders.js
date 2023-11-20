@@ -14,10 +14,8 @@ import roles from '../../../constants/roles';
 import { VAT_OPTIONS } from '../../../constants/vat';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import { checkCaptcha } from '../../../lib/check-captcha';
-import * as github from '../../../lib/github';
 import { getOrCreateGuestProfile } from '../../../lib/guest-accounts';
 import { mustUpdateLocation } from '../../../lib/location';
-import logger from '../../../lib/logger';
 import * as libPayments from '../../../lib/payments';
 import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../lib/recurring-contributions';
 import { checkGuestContribution, checkOrdersLimit, cleanOrdersLimit } from '../../../lib/security/limit';
@@ -172,7 +170,8 @@ const hasPaymentMethod = order => {
     return Boolean(paymentMethod.data?.orderId);
   } else {
     return Boolean(
-      paymentMethod.uuid ||
+      paymentMethod.id ||
+        paymentMethod.uuid ||
         paymentMethod.token ||
         paymentMethod.type === 'manual' ||
         paymentMethod.type === PAYMENT_METHOD_TYPE.PAYMENT_INTENT ||
@@ -190,6 +189,29 @@ export const getOrderTaxInfoFromTaxInput = (tax, fromCollective, collective, hos
     taxerCountry: (collective.type === 'EVENT' && collective.countryISO) || host.countryISO,
   };
 };
+
+// A skeleton of the order object to move it to typescript
+// type OrderInputType = {
+//   quantity: number;
+//   amount: number;
+//   platformTipAmount: number;
+//   taxAmount: number;
+//   totalAmount: number;
+//   currency: string;
+//   interval: string;
+//   tax: any;
+//   paymentMethod: any;
+//   fromCollective: any;
+//   fromAccountInfo: any;
+//   collective: any;
+//   data: any;
+//   customData: any;
+//   isBalanceTransfer: boolean;
+//   tier?: any;
+//   guestInfo?: any;
+//   context: any;
+//   tags: string[];
+// };
 
 export async function createOrder(order, req) {
   debug('Beginning creation of order', order);
@@ -225,62 +247,12 @@ export async function createOrder(order, req) {
     order.quantity = order.quantity || 1;
     order.taxAmount = order.taxAmount || 0;
 
-    if (!order.collective || (!order.collective.id && !order.collective.website && !order.collective.githubHandle)) {
-      throw new Error('No collective id/website/githubHandle provided');
-    }
-
-    const { id, githubHandle } = order.collective;
-    if (!id && !githubHandle) {
-      throw new ValidationFailed('An Open Collective id or a GitHub handle is mandatory.');
-    }
-
-    // Pledge to a GitHub organization or project
-    if (githubHandle) {
-      try {
-        // Check Exists
-        await github.checkGithubExists(githubHandle);
-        // Check Stars
-        await github.checkGithubStars(githubHandle);
-      } catch (error) {
-        throw new ValidationFailed(error.message);
-      }
-    }
-
-    // Some tests are relying on this check being done at that point
-    // Could be moved below at some point (see commented code)
-    if (order.platformFeePercent && !remoteUser?.isRoot()) {
-      throw new Error('Only a root can change the platformFeePercent');
-    }
-
     // Check the existence of the recipient Collective
-    let collective;
-    if (order.collective.id) {
-      collective = await loaders.Collective.byId.load(order.collective.id);
-    } else if (order.collective.website) {
-      collective = (
-        await models.Collective.findOrCreate({
-          where: { website: order.collective.website },
-          defaults: order.collective,
-        })
-      )[0];
-    } else if (order.collective.githubHandle) {
-      const repositoryUrl = github.getGithubUrlFromHandle(order.collective.githubHandle);
-      if (!repositoryUrl) {
-        throw new Error('Invalid GitHub handle');
-      }
-
-      collective = await models.Collective.findOne({ where: { repositoryUrl } });
-      if (!collective) {
-        const allowed = ['slug', 'name', 'company', 'description', 'website', 'twitterHandle', 'githubHandle', 'tags'];
-        collective = await models.Collective.create({
-          ...pick(order.collective, allowed),
-          type: CollectiveType.COLLECTIVE,
-          isPledged: true,
-          data: { hasBeenPledged: true },
-        });
-      }
+    if (!order.collective?.id) {
+      throw new Error('Collective not found');
     }
 
+    const collective = await loaders.Collective.byId.load(order.collective.id);
     if (!collective) {
       throw new Error(`No collective found: ${order.collective.id || order.collective.website}`);
     }
@@ -290,7 +262,7 @@ export async function createOrder(order, req) {
     }
 
     const host = await collective.getHostCollective({ loaders: req.loaders });
-    if (!host && !collective.isPledged) {
+    if (!host) {
       throw new Error('This collective has no host and cannot accept financial contributions at this time.');
     }
     if (order.hostFeePercent) {
@@ -343,14 +315,11 @@ export async function createOrder(order, req) {
       }
     }
 
-    // find or create user, check permissions to set `fromCollective`
+    // Set remote user profile
     let fromCollective;
-    if (remoteUser && (!order.fromCollective || (!order.fromCollective.id && !order.fromCollective.name))) {
-      fromCollective = await loaders.Collective.byId.load(remoteUser.CollectiveId);
-    }
 
     // If a `fromCollective` is provided, we check its existence and if the user can create an order on its behalf
-    if (order.fromCollective && order.fromCollective.id) {
+    if (order.fromCollective?.id) {
       fromCollective = await loaders.Collective.byId.load(order.fromCollective.id);
       if (!fromCollective) {
         throw new Error(`From collective id ${order.fromCollective.id} not found`);
@@ -373,37 +342,33 @@ export async function createOrder(order, req) {
           } ${fromCollective.type.toLowerCase()}`,
         );
       }
+    } else if (remoteUser) {
+      fromCollective = await loaders.Collective.byId.load(remoteUser.CollectiveId);
     }
 
     let captchaResponse;
     if (!fromCollective) {
-      if (remoteUser) {
-        // @deprecated - Creating organizations inline from this endpoint should not be supported anymore
-        logger.warn('createOrder: Inline org creation should not be used anymore');
-        fromCollective = await models.Collective.createOrganization(order.fromCollective, remoteUser, remoteUser);
-      } else {
-        // Create or retrieve guest profile from GUEST_TOKEN
-        const creationRequest = { ip: reqIp, userAgent, mask: reqMask };
+      // Create or retrieve guest profile from GUEST_TOKEN
+      const creationRequest = { ip: reqIp, userAgent, mask: reqMask };
 
-        // We're just enforcing Captcha if the order is using Credit Card
-        const isCreditCardOrder = order.paymentMethod?.type === PAYMENT_METHOD_TYPE.CREDITCARD;
-        if (isCreditCardOrder) {
-          try {
-            captchaResponse = await checkCaptcha(order.guestInfo?.captcha, reqIp);
-          } catch (err) {
-            throw new BadRequest(err.message, undefined, order.guestInfo?.captcha);
-          }
+      // We're just enforcing Captcha if the order is using Credit Card
+      const isCreditCardOrder = order.paymentMethod?.type === PAYMENT_METHOD_TYPE.CREDITCARD;
+      if (isCreditCardOrder) {
+        try {
+          captchaResponse = await checkCaptcha(order.guestInfo?.captcha, reqIp);
+        } catch (err) {
+          throw new BadRequest(err.message, undefined, order.guestInfo?.captcha);
         }
-        const guestProfile = await getOrCreateGuestProfile(order.guestInfo, creationRequest);
-        if (!canUseFeature(guestProfile.user, FEATURE.ORDER)) {
-          throw new FeatureNotAllowedForUser();
-        }
-
-        remoteUser = guestProfile.user;
-        fromCollective = guestProfile.collective;
-        isGuest = true;
-        guestToken = crypto.randomBytes(48).toString('hex');
       }
+      const guestProfile = await getOrCreateGuestProfile(order.guestInfo, creationRequest);
+      if (!canUseFeature(guestProfile.user, FEATURE.ORDER)) {
+        throw new FeatureNotAllowedForUser();
+      }
+
+      remoteUser = guestProfile.user;
+      fromCollective = guestProfile.collective;
+      isGuest = true;
+      guestToken = crypto.randomBytes(48).toString('hex');
     }
 
     // Update the contributing profile with legal name / location
@@ -433,46 +398,35 @@ export async function createOrder(order, req) {
       throw new Error(`Invalid total amount: ${order.totalAmount}`);
     }
 
-    // No advanced amount checks necessary for pledged collectives
-    if (!collective.isPledged) {
-      const platformFee = order.platformFee || 0;
-      const tipAmount = order.platformTipAmount || 0;
-      const expectedGrossUnitAmount = tier?.amountType === 'FIXED' ? tier.amount || 0 : order.amount;
-      const netAmountForCollective = Math.round(order.totalAmount - order.taxAmount - platformFee - tipAmount);
-      const expectedAmountForCollective = Math.round(order.quantity * expectedGrossUnitAmount); // order.amount is always set when called from GraphQL v2
-      const expectedTaxAmount = Math.round((expectedAmountForCollective * taxPercent) / 100);
+    const tipAmount = order.platformTipAmount || 0;
+    const expectedGrossUnitAmount = tier?.amountType === 'FIXED' ? tier.amount || 0 : order.amount;
+    const netAmountForCollective = Math.round(order.totalAmount - order.taxAmount - tipAmount);
+    const expectedAmountForCollective = Math.round(order.quantity * expectedGrossUnitAmount); // order.amount is always set when called from GraphQL v2
+    const expectedTaxAmount = Math.round((expectedAmountForCollective * taxPercent) / 100);
 
-      // Make sure net amount and tax amount are correct
-      if (netAmountForCollective !== expectedAmountForCollective || order.taxAmount !== expectedTaxAmount) {
-        const prettyTotalAmount = formatCurrency(order.totalAmount, currency, 2);
-        const prettyExpectedAmount = formatCurrency(expectedAmountForCollective, currency, 2);
-        const taxInfoStr = expectedTaxAmount ? ` + ${formatCurrency(expectedTaxAmount, currency, 2)} tax` : '';
-        const platformFeeInfo = platformFee ? ` + ${formatCurrency(platformFee, currency, 2)} fees` : '';
-        throw new Error(
-          `This tier uses a fixed amount. Order total must be ${prettyExpectedAmount}${taxInfoStr}${platformFeeInfo}. You set: ${prettyTotalAmount}`,
-        );
-      }
-
-      // If using a tier, amount can never be less than the minimum amount
-      if (tier && tier.minimumAmount) {
-        const minAmount = tier.minimumAmount * order.quantity;
-        const minTotalAmount = taxPercent ? Math.round(minAmount * (1 + taxPercent / 100)) : minAmount;
-        if ((order.totalAmount || 0) < minTotalAmount) {
-          const prettyMinTotal = formatCurrency(minTotalAmount, currency);
-          throw new Error(`The amount you set is below minimum tier value, it should be at least ${prettyMinTotal}`);
-        }
-      }
+    // Make sure net amount and tax amount are correct
+    if (netAmountForCollective !== expectedAmountForCollective || order.taxAmount !== expectedTaxAmount) {
+      const prettyTotalAmount = formatCurrency(order.totalAmount, currency, 2);
+      const prettyExpectedAmount = formatCurrency(expectedAmountForCollective, currency, 2);
+      const taxInfoStr = expectedTaxAmount ? ` + ${formatCurrency(expectedTaxAmount, currency, 2)} tax` : '';
+      throw new Error(
+        `This tier uses a fixed amount. Order total must be ${prettyExpectedAmount}${taxInfoStr}. You set: ${prettyTotalAmount}`,
+      );
     }
 
-    const defaultDescription = models.Order.generateDescription(collective, order.totalAmount, order.interval, tier);
-    debug('defaultDescription', defaultDescription, 'collective.type', collective.type);
+    // If using a tier, amount can never be less than the minimum amount
+    if (tier && tier.minimumAmount) {
+      const minAmount = tier.minimumAmount * order.quantity;
+      const minTotalAmount = taxPercent ? Math.round(minAmount * (1 + taxPercent / 100)) : minAmount;
+      if ((order.totalAmount || 0) < minTotalAmount) {
+        const prettyMinTotal = formatCurrency(minTotalAmount, currency);
+        throw new Error(`The amount you set is below minimum tier value, it should be at least ${prettyMinTotal}`);
+      }
+    }
 
     // Default status, will get updated after the order is processed
     let orderStatus = status.NEW;
-    // Special cases
-    if (collective.isPledged) {
-      orderStatus = status.PLEDGED;
-    }
+
     if (get(order, 'paymentMethod.type') === 'manual') {
       orderStatus = status.PENDING;
     }
@@ -495,9 +449,7 @@ export async function createOrder(order, req) {
       currency,
       taxAmount: taxInfo ? order.taxAmount : null,
       interval: order.interval,
-      description: order.description || defaultDescription,
-      publicMessage: order.publicMessage, // deprecated: '2019-07-03: This info is now stored at the Member level'
-      privateMessage: order.privateMessage,
+      description: models.Order.generateDescription(collective, order.totalAmount, order.interval, tier),
       processedAt: paymentRequired || !collective.isActive ? null : new Date(),
       tags: order.tags,
       platformTipAmount: order.platformTipAmount,
@@ -524,9 +476,7 @@ export async function createOrder(order, req) {
     // Handle specific fees
     // we use data instead of a column for now because it's an edge/experimental case
     // should be moved to a column if it starts to be widely used
-    if (!isNil(order.hostFeePercent)) {
-      orderData.data.hostFeePercent = order.hostFeePercent;
-    } else if (!isNil(tier?.data?.hostFeePercent)) {
+    if (!isNil(tier?.data?.hostFeePercent)) {
       orderData.data.hostFeePercent = tier.data.hostFeePercent;
     }
 
@@ -561,14 +511,6 @@ export async function createOrder(order, req) {
         await orderCreated.reload();
         return { order: orderCreated };
       }
-    } else if (!paymentRequired && order.interval && collective.type === CollectiveType.COLLECTIVE) {
-      // create inactive subscription to hold the interval info for the pledge
-      const subscription = await models.Subscription.create({
-        amount: order.totalAmount,
-        interval: order.interval,
-        currency: order.currency,
-      });
-      await orderCreated.update({ SubscriptionId: subscription.id });
     } else if (collective.type === CollectiveType.EVENT) {
       // Free ticket, mark as processed and add user as an ATTENDEE
       await orderCreated.update({ status: 'PAID', processedAt: new Date() });

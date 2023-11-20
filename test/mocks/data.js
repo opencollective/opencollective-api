@@ -664,17 +664,6 @@ export default {
     maxQuantity: 100,
   },
 
-  tierProduct: {
-    name: 'Test T-Shirt',
-    type: 'PRODUCT',
-    slug: 'tshirt',
-    description: 'A testing tshirt',
-    amount: 5000,
-    interval: null,
-    currency: 'USD',
-    maxQuantity: 100,
-  },
-
   tierWithCustomFields: {
     name: 'prepaid',
     type: 'TIER',
