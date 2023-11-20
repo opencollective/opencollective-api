@@ -1091,7 +1091,7 @@ export const GraphQLHost = new GraphQLObjectType({
 
           const pageQuery = `
                 WITH hostadmins AS (
-                  SELECT m."MemberCollectiveId", m."CreatedByUserId" as "UserId"
+                  SELECT m."MemberCollectiveId", u."id" as "UserId"
                   FROM "Members" m
                   INNER JOIN "Users" u ON m."MemberCollectiveId" = u."CollectiveId"
                   WHERE m."CollectiveId" = :hostid AND m."deletedAt" IS NULL AND m.role = 'ADMIN'
