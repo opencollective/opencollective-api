@@ -265,11 +265,6 @@ export async function createOrder(order, req) {
     if (!host) {
       throw new Error('This collective has no host and cannot accept financial contributions at this time.');
     }
-    if (order.hostFeePercent) {
-      if (!remoteUser?.isAdmin(host.id)) {
-        throw new Error('Only an admin of the host can change the hostFeePercent');
-      }
-    }
 
     order.collective = collective;
 
