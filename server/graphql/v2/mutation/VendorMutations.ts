@@ -119,7 +119,7 @@ const vendorMutations = {
 
       const { vendorInfo } = args.vendor;
       const vendorData = {
-        image: args.vendor.imageUrl || null,
+        image: args.vendor.imageUrl || vendor.image,
         ...pick(args.vendor, ['name', 'legalName', 'tags']),
         deactivatedAt: args.archive ? new Date() : null,
         settings: vendor.settings,
