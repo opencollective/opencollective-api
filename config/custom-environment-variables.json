@@ -202,14 +202,6 @@
   "activities": {
     "skipTransactions": "SKIP_TRANSACTION_ACTIVITIES"
   },
-  "thegivingblock": {
-    "username": "THEGIVINGBLOCK_USERNAME",
-    "password": "THEGIVINGBLOCK_PASSWORD",
-    "aesEncryptionKey": "THEGIVINGBLOCK_AES_ENCRYPTION_KEY",
-    "aesEncryptionIv": "THEGIVINGBLOCK_AES_ENCRYPTION_IV",
-    "aesEncryptionMethod": "THEGIVINGBLOCK_AES_ENCRYPTION_METHOD",
-    "apiUrl": "THEGIVINGBLOCK_API_URL"
-  },
   "twoFactorAuthentication": {
     "enabled": "TWO_FACTOR_AUTHENTICATION_ENABLED"
   },

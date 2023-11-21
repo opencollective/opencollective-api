@@ -1,6 +1,7 @@
 import '../../server/env';
 
 import logger from '../../server/lib/logger';
+import { closeRedisClient } from '../../server/lib/redis';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import models, { sequelize } from '../../server/models';
 
@@ -26,6 +27,10 @@ if (require.main === module) {
       process.exit(1);
     })
     .then(() => {
-      setTimeout(() => sequelize.close(), 2000);
+      setTimeout(async () => {
+        await closeRedisClient();
+        await sequelize.close();
+        process.exit(0);
+      }, 2000);
     });
 }

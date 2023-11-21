@@ -4613,7 +4613,6 @@ type Mutation {
     """
     id: Int!
   ): NotificationType
-  backyourstackDispatchOrder(id: Int!): BackYourStackDispatchState
 
   """
   Activate a collective as Host.
@@ -5039,8 +5038,4 @@ input StripeCreditCardDataInputType {
   country: String
   funding: String
   zip: String
-}
-
-type BackYourStackDispatchState {
-  dispatching: Boolean
 }

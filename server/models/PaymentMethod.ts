@@ -61,6 +61,7 @@ export interface PaymentMethodModelInterface
   saved: boolean;
 
   getCollective(): Promise<Collective>;
+  getBalanceForUser(user): Promise<{ amount: number; currency: string }>;
   Collective?: Collective;
 }
 

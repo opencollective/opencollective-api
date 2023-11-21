@@ -57,6 +57,7 @@ type FileUpload = {
 
 // Constants
 export const MAX_FILENAME_LENGTH = 1024; // From S3
+export const MAX_UPLOADED_FILE_URL_LENGTH = 1200; // From S3
 export const MAX_FILE_SIZE = 1024 * 1024 * 10; // 10MB
 export const SUPPORTED_FILE_TYPES_IMAGES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'] as const;
 export const SUPPORTED_FILE_TYPES = [...SUPPORTED_FILE_TYPES_IMAGES, 'application/pdf'] as const;
@@ -283,6 +284,10 @@ UploadedFile.init(
         notNull: true,
         notEmpty: true,
         isUrl: true,
+        len: {
+          args: [0, MAX_UPLOADED_FILE_URL_LENGTH],
+          msg: 'The uploaded file URL is too long',
+        },
         isValidURL(url: string): void {
           if (!UploadedFile.isOpenCollectiveS3BucketURL(url)) {
             throw new Error('File URL is not valid');

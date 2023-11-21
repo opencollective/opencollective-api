@@ -3,6 +3,8 @@ import '../../server/env';
 import logger from '../../server/lib/logger';
 import { sequelize } from '../../server/models';
 
+import { runCheckThenExit } from './_utils';
+
 async function checkDeletedCollectives({ fix = false } = {}) {
   const message = 'No Transactions without a matching Collective';
 
@@ -69,5 +71,5 @@ export async function checkTransactions({ fix = false } = {}) {
 }
 
 if (!module.parent) {
-  checkTransactions();
+  runCheckThenExit(checkTransactions);
 }

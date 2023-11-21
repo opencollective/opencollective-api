@@ -207,14 +207,6 @@
     "fastBalance": true,
     "separatePaymentProcessorFees": false
   },
-  "thegivingblock": {
-    "username": "opencollective",
-    "password": "",
-    "aesEncryptionKey": "",
-    "aesEncryptionIv": "",
-    "aesEncryptionMethod": "aes-256-cbc",
-    "apiUrl": "https://public-api.tgb-preprod.com/v1"
-  },
   "twoFactorAuthentication": {
     "enabled": true
   },

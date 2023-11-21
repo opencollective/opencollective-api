@@ -557,8 +557,6 @@ export const sendEmailNotifications = (order, transaction) => {
     order.fromCollective?.id !== order.collective?.id
   ) {
     sendOrderConfirmedEmail(order, transaction); // async
-  } else if (order.status === status.PENDING && order.paymentMethod?.type === 'crypto') {
-    sendCryptoOrderProcessingEmail(order);
   } else if (order.status === status.PENDING) {
     sendOrderPendingEmail(order); // This is the one for the Contributor
     sendManualPendingOrderEmail(order); // This is the one for the Host Admins
@@ -770,36 +768,6 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
       role: [roles.ACCOUNTANT, roles.ADMIN],
       from: emailLib.generateFromEmailHeader(collective.name),
       attachments,
-    });
-  }
-};
-
-// Sends an email when a deposit address is shown to the user in the crypto contribution flow.
-// Here a pending order is created.
-const sendCryptoOrderProcessingEmail = async order => {
-  if (order?.paymentMethod?.data?.depositAddress) {
-    const { collective, fromCollective } = order;
-    const user = order.createdByUser;
-    const host = await collective.getHostCollective();
-
-    const data = {
-      order: order.info,
-      depositAddress: order.paymentMethod.data.depositAddress,
-      collective: collective.info,
-      host: host.info,
-      fromCollective: fromCollective.activity,
-      pledgeAmount: order.data.thegivingblock.pledgeAmount,
-      pledgeCurrency: order.data.thegivingblock.pledgeCurrency,
-    };
-
-    await models.Activity.create({
-      type: activities.ORDER_PENDING_CRYPTO,
-      CollectiveId: collective.id,
-      FromCollectiveId: fromCollective.id,
-      OrderId: order.id,
-      HostCollectiveId: host?.id,
-      UserId: user.id,
-      data,
     });
   }
 };
@@ -1043,7 +1011,7 @@ export const getHostFeePercent = async (order, { host = null, loaders = null } =
   }
 
   const possibleValues = [
-    // Fixed in the Order (Added Funds or special tiers: BackYourStack, Pre-Paid)
+    // Fixed in the Order (Added Funds or special tiers: Pre-Paid)
     order.data?.hostFeePercent,
   ];
 
