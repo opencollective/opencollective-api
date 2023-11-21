@@ -862,7 +862,7 @@ const fakePaymentMethodToken = (service, type) => {
 /**
  * Creates a fake Payment Method. All params are optionals.
  */
-export const fakePaymentMethod = async (data: Partial<InferCreationAttributes<PaymentMethodModelInterface>>) => {
+export const fakePaymentMethod = async (data: Partial<InferCreationAttributes<PaymentMethodModelInterface>> = {}) => {
   const service = data.service || sample(PAYMENT_METHOD_SERVICES);
   const type = data.type || sample(PAYMENT_METHOD_TYPES);
   const token = data.token || fakePaymentMethodToken(service, type);

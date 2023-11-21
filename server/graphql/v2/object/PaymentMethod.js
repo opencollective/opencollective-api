@@ -103,11 +103,9 @@ export const GraphQLPaymentMethod = new GraphQLObjectType({
       data: {
         type: GraphQLJSON,
         async resolve(paymentMethod, _, req) {
-          if (paymentMethod.type !== PAYMENT_METHOD_TYPE.CRYPTO) {
-            const collective = await req.loaders.Collective.byId.load(paymentMethod.CollectiveId);
-            if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'orders')) {
-              return null;
-            }
+          const collective = await req.loaders.Collective.byId.load(paymentMethod.CollectiveId);
+          if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'orders')) {
+            return null;
           }
 
           // Protect and limit fields
@@ -116,8 +114,6 @@ export const GraphQLPaymentMethod = new GraphQLObjectType({
             allowedFields = ['email'];
           } else if (paymentMethod.type === PAYMENT_METHOD_TYPE.CREDITCARD) {
             allowedFields = ['fullName', 'expMonth', 'expYear', 'brand', 'country', 'last4', 'wallet.type'];
-          } else if (paymentMethod.type === PAYMENT_METHOD_TYPE.CRYPTO) {
-            allowedFields = ['depositAddress'];
           }
 
           if (paymentMethod.service === PAYMENT_METHOD_SERVICE.STRIPE) {

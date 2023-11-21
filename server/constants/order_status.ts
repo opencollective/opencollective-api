@@ -14,15 +14,13 @@ enum OrderStatuses {
   PAID = 'PAID', // For One Time Contributions
   ERROR = 'ERROR', // For One Time and Recurring Contribution
   PROCESSING = 'PROCESSING', // For Stripe Payment Intent based Orders
+  REJECTED = 'REJECTED', // When a collective/host admin rejects a contribution
   // This is only for "Recurring Contributions"
   ACTIVE = 'ACTIVE', // Active Recurring contribution with up to date payments
   CANCELLED = 'CANCELLED', // When it's Cancelled by contributors or automatically after X failures
   // This is only for "Manual" payments
   PENDING = 'PENDING', // Initial state
   EXPIRED = 'EXPIRED', // When it's marked as such by Admins
-  // For Pledges
-  PLEDGED = 'PLEDGED',
-  REJECTED = 'REJECTED',
   // Disputed charges from Stripe
   DISPUTED = 'DISPUTED',
   REFUNDED = 'REFUNDED',

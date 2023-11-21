@@ -244,13 +244,6 @@ export const GraphQLHost = new GraphQLObjectType({
             supportedPaymentMethods.push('BANK_TRANSFER');
           }
 
-          if (
-            get(collective, 'settings.cryptoEnabled') === true &&
-            find(connectedAccounts, ['service', 'thegivingblock'])
-          ) {
-            supportedPaymentMethods.push('CRYPTO');
-          }
-
           return supportedPaymentMethods;
         },
       },
@@ -1091,9 +1084,12 @@ export const GraphQLHost = new GraphQLObjectType({
 
           const pageQuery = `
                 WITH hostadmins AS (
-                  SELECT "MemberCollectiveId" FROM "Members" WHERE "CollectiveId" = :hostid AND "deletedAt" IS NULL AND role = 'ADMIN'
-                ), orgs AS (
-                  SELECT c.id, c.slug,ARRAY_AGG(DISTINCT m."MemberCollectiveId") as "admins", ARRAY_AGG(DISTINCT t."HostCollectiveId") as hosts
+                  SELECT m."MemberCollectiveId", u."id" as "UserId"
+                  FROM "Members" m
+                  INNER JOIN "Users" u ON m."MemberCollectiveId" = u."CollectiveId"
+                  WHERE m."CollectiveId" = :hostid AND m."deletedAt" IS NULL AND m.role = 'ADMIN'
+                  ), orgs AS (
+                  SELECT c.id, c.slug,ARRAY_AGG(DISTINCT m."MemberCollectiveId") as "admins", ARRAY_AGG(DISTINCT t."HostCollectiveId") as hosts, c."CreatedByUserId"
                   FROM "Collectives" c
                   LEFT JOIN "Members" m ON c.id = m."CollectiveId" AND m."deletedAt" IS NULL AND m.role = 'ADMIN'
                   LEFT JOIN "Transactions" t ON c.id = t."FromCollectiveId" AND t."deletedAt" IS NULL
@@ -1101,13 +1097,23 @@ export const GraphQLHost = new GraphQLObjectType({
                     AND c.type = 'ORGANIZATION'
                     AND c."HostCollectiveId" IS NULL
                   GROUP BY c.id
-                )
+                  )
+
                 SELECT c.*
-                FROM "orgs"
-                INNER JOIN "Collectives" c ON c.id = "orgs".id
+                FROM "orgs" o
+                INNER JOIN "Collectives" c ON c.id = o.id
                 WHERE
-                  "admins" <@ ARRAY(SELECT "MemberCollectiveId" FROM hostadmins)
-                  AND "hosts" = ARRAY[:hostid]
+                  (
+                    o."admins" <@ ARRAY(SELECT "MemberCollectiveId" FROM hostadmins)
+                      OR (
+                        o."CreatedByUserId" IN (
+                        SELECT "UserId"
+                        FROM hostadmins
+                        )
+                        AND o."admins" = ARRAY[null]::INTEGER[]
+                      )
+                    )
+                  AND o."hosts" IN (ARRAY[:hostid], ARRAY[null]::INTEGER[])
                 ORDER BY c."createdAt" DESC
                 LIMIT :limit
                 OFFSET :offset;

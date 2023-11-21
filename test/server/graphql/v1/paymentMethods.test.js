@@ -1,20 +1,18 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
-import { createSandbox, stub } from 'sinon';
+import { stub } from 'sinon';
 
 import roles from '../../../../server/constants/roles';
-import { TransactionKind } from '../../../../server/constants/transaction-kind';
-import * as libcurrency from '../../../../server/lib/currency';
 import models from '../../../../server/models';
 import paypalAdaptive from '../../../../server/paymentProviders/paypal/adaptiveGateway';
 import paypalMock from '../../../mocks/paypal';
+import { fakeOrganization, fakeTransaction } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
 let host, admin, user, collective, paypalPaymentMethod;
 
 describe('server/graphql/v1/paymentMethods', () => {
   beforeEach(async () => {
-    await new Promise(res => setTimeout(res, 500));
     await utils.resetTestDB();
   });
 
@@ -108,189 +106,37 @@ describe('server/graphql/v1/paymentMethods', () => {
   });
 
   describe('add funds', () => {
-    let paymentMethod, order, sandbox;
-    const fxrate = 1.1654; // 1 EUR = 1.1654 USD
+    let hostPaymentMethod;
 
-    beforeEach(() => {
-      sandbox = createSandbox();
-      sandbox.stub(libcurrency, 'getFxRate').callsFake(() => Promise.resolve(fxrate));
-      return models.PaymentMethod.findOne({
+    beforeEach(async () => {
+      hostPaymentMethod = await models.PaymentMethod.findOne({
         where: {
           service: 'opencollective',
           CollectiveId: host.id,
           type: 'host',
         },
-      }).then(pm => {
-        paymentMethod = pm;
-        order = {
-          totalAmount: 1000, // €10
-          collective: {
-            id: collective.id,
-          },
-          paymentMethod: {
-            uuid: pm.uuid,
-          },
-          hostFeePercent: 0,
-        };
       });
-    });
-
-    afterEach(() => {
-      sandbox.restore();
-    });
-
-    const createOrderMutation = gql`
-      mutation CreateOrder($order: OrderInputType!) {
-        createOrder(order: $order) {
-          id
-          fromCollective {
-            id
-            slug
-          }
-          collective {
-            id
-            slug
-          }
-          totalAmount
-          currency
-          description
-        }
-      }
-    `;
-
-    it('fails to add funds if not logged in as an admin of the host', async () => {
-      order.fromCollective = {
-        id: host.id,
-      };
-      const result = await utils.graphqlQuery(createOrderMutation, { order }, user);
-      expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.equal(
-        "You don't have sufficient permissions to create an order on behalf of the open source collective organization",
-      );
-
-      order.fromCollective = {
-        name: 'new org',
-        website: 'http://neworg.com',
-      };
-      const result2 = await utils.graphqlQuery(createOrderMutation, { order }, user);
-      expect(result2.errors).to.exist;
-      expect(result2.errors[0].message).to.equal(
-        "You don't have enough permissions to use this payment method (you need to be an admin of the collective that owns this payment method)",
-      );
-    });
-
-    it('fails to change platformFeePercent if not root', async () => {
-      order.fromCollective = {
-        id: host.id,
-      };
-      order.platformFeePercent = 5;
-      const result = await utils.graphqlQuery(createOrderMutation, { order }, user);
-      expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.equal('Only a root can change the platformFeePercent');
-    });
-
-    it('adds funds from the host (USD) to the collective (EUR)', async () => {
-      /**
-       * collective ledger:
-       * CREDIT
-       *  - amount: €1000
-       *  - fees: 0
-       *  - netAmountInCollectiveCurrency: €1000
-       *  - hostCurrency: USD
-       *  - amountInHostCurrency: $1165 (1000 * fxrate:1.165)
-       * fromCollective (host) ledger:
-       * DEBIT
-       *  - amount: -€1000
-       *  - fees: 0
-       *  - netAmountInCollectiveCurrency: -$1165
-       *  - hostCurrency: USD
-       *  - amountInHostCurrency: -$1165
-       */
-      order.fromCollective = {
-        id: host.id,
-      };
-      const result = await utils.graphqlQuery(createOrderMutation, { order }, admin);
-      result.errors && console.error(result.errors[0]);
-      expect(result.errors).to.not.exist;
-      const orderCreated = result.data.createOrder;
-      const transaction = await models.Transaction.findOne({
-        where: { OrderId: orderCreated.id, type: 'CREDIT' },
-      });
-      expect(transaction.kind).to.equal(TransactionKind.ADDED_FUNDS);
-      expect(transaction.FromCollectiveId).to.equal(transaction.HostCollectiveId);
-      expect(transaction.hostFeeInHostCurrency).to.equal(0);
-      expect(transaction.platformFeeInHostCurrency).to.equal(0);
-      expect(transaction.paymentProcessorFeeInHostCurrency).to.equal(0);
-      expect(transaction.hostCurrency).to.equal(host.currency);
-      expect(transaction.amount).to.equal(order.totalAmount);
-      expect(transaction.currency).to.equal(collective.currency);
-      expect(transaction.hostCurrencyFxRate).to.equal(fxrate);
-      expect(transaction.amountInHostCurrency).to.equal(Math.round(order.totalAmount * fxrate));
-      expect(transaction.netAmountInCollectiveCurrency).to.equal(order.totalAmount);
-      expect(transaction.amountInHostCurrency).to.equal(1165);
-    });
-
-    it('adds funds from the host (USD) to the collective (EUR) on behalf of a new organization', async () => {
-      const hostFeePercent = 4;
-      order.hostFeePercent = hostFeePercent;
-      order.fromCollective = {
-        name: 'new org',
-        website: 'http://neworg.com',
-      };
-      const result = await utils.graphqlQuery(createOrderMutation, { order }, admin);
-      result.errors && console.error(result.errors[0]);
-      expect(result.errors).to.not.exist;
-      const orderCreated = result.data.createOrder;
-      const transaction = await models.Transaction.findOne({
-        where: { OrderId: orderCreated.id, type: 'CREDIT', kind: 'ADDED_FUNDS' },
-      });
-      expect(transaction).to.exist;
-      const org = await models.Collective.findOne({
-        where: { slug: 'new-org' },
-      });
-      const adminMembership = await models.Member.findOne({
-        where: { CollectiveId: org.id, role: 'ADMIN' },
-      });
-      const backerMembership = await models.Member.findOne({
-        where: { MemberCollectiveId: org.id, role: 'BACKER' },
-      });
-      const orgAdmin = await models.Collective.findOne({
-        where: { id: adminMembership.MemberCollectiveId },
-      });
-      expect(transaction.CreatedByUserId).to.equal(admin.id);
-      expect(org.CreatedByUserId).to.equal(admin.id);
-      expect(adminMembership.CreatedByUserId).to.equal(admin.id);
-      expect(backerMembership.CreatedByUserId).to.equal(admin.id);
-      expect(backerMembership.CollectiveId).to.equal(transaction.CollectiveId);
-      expect(orgAdmin.CreatedByUserId).to.equal(admin.id);
-      expect(transaction.FromCollectiveId).to.equal(org.id);
-      expect(transaction.hostFeeInHostCurrency).to.equal(0);
-      expect(transaction.platformFeeInHostCurrency).to.equal(0);
-      expect(transaction.paymentProcessorFeeInHostCurrency).to.equal(0);
-      expect(transaction.hostCurrency).to.equal(host.currency);
-      expect(transaction.currency).to.equal(collective.currency);
-      expect(transaction.amount).to.equal(order.totalAmount);
-      expect(transaction.netAmountInCollectiveCurrency).to.equal(order.totalAmount);
-      expect(transaction.amountInHostCurrency).to.equal(Math.round(order.totalAmount * fxrate));
-      expect(transaction.hostCurrencyFxRate).to.equal(fxrate);
-      expect(transaction.amountInHostCurrency).to.equal(1165);
     });
 
     it('gets the list of fromCollectives for the opencollective payment method of the host', async () => {
       // We add funds to the tipbox collective on behalf of Google and Facebook
-      order.fromCollective = {
-        name: 'facebook',
-        website: 'https://facebook.com',
+      const facebook = await fakeOrganization({ name: 'Facebook', currency: 'USD' });
+      const google = await fakeOrganization({ name: 'Google', currency: 'USD' });
+      const createAddedFunds = org => {
+        return fakeTransaction(
+          {
+            type: 'CREDIT',
+            kind: 'ADDED_FUNDS',
+            FromCollectiveId: org.id,
+            CollectiveId: collective.id,
+            PaymentMethodId: hostPaymentMethod.id,
+          },
+          { createDoubleEntry: true },
+        );
       };
-      let result;
-      result = await utils.graphqlQuery(createOrderMutation, { order }, admin);
-      result.errors && console.error(result.errors[0]);
-      order.fromCollective = {
-        name: 'google',
-        website: 'https://google.com',
-      };
-      result = await utils.graphqlQuery(createOrderMutation, { order }, admin);
-      result.errors && console.error(result.errors[0]);
+
+      await createAddedFunds(facebook);
+      await createAddedFunds(google);
 
       // We fetch all the fromCollectives using the host paymentMethod
       const paymentMethodQuery = gql`
@@ -303,19 +149,19 @@ describe('server/graphql/v1/paymentMethods', () => {
               total
               collectives {
                 id
-                slug
+                name
               }
             }
           }
         }
       `;
-      result = await utils.graphqlQuery(paymentMethodQuery, { id: paymentMethod.id }, admin);
+      const result = await utils.graphqlQuery(paymentMethodQuery, { id: hostPaymentMethod.id }, admin);
       result.errors && console.error(result.errors[0]);
       const { total, collectives } = result.data.PaymentMethod.fromCollectives;
       expect(total).to.equal(2);
-      const slugs = collectives.map(c => c.slug).sort();
-      expect(slugs[0]).to.equal('facebook');
-      expect(slugs[1]).to.equal('google');
+      const names = collectives.map(c => c.name).sort();
+      expect(names[0]).to.equal('Facebook');
+      expect(names[1]).to.equal('Google');
     });
   });
 

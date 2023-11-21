@@ -3,6 +3,8 @@ import '../../server/env';
 import logger from '../../server/lib/logger';
 import { sequelize } from '../../server/models';
 
+import { runCheckThenExit } from './_utils';
+
 async function checkIsActive({ fix = false } = {}) {
   const message = 'Independent Collectives without isActive=TRUE';
 
@@ -166,7 +168,7 @@ async function checkHostFeePercent({ fix = false } = {}) {
   }
 }
 
-export async function checkIndepedentCollectives({ fix = false } = {}) {
+export async function checkIndependentCollectives({ fix = false } = {}) {
   await checkIsActive({ fix });
   await checkHasHostCollectiveId({ fix });
   await checkApprovedAt({ fix });
@@ -175,5 +177,5 @@ export async function checkIndepedentCollectives({ fix = false } = {}) {
 }
 
 if (!module.parent) {
-  checkIndepedentCollectives();
+  runCheckThenExit(checkIndependentCollectives);
 }

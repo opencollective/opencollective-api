@@ -3,7 +3,7 @@ export enum PAYMENT_METHOD_SERVICE {
   STRIPE = 'stripe',
   OPENCOLLECTIVE = 'opencollective',
   PREPAID = 'prepaid',
-  THEGIVINGBLOCK = 'thegivingblock',
+  THEGIVINGBLOCK = 'thegivingblock', // @deprecated
 }
 
 export const PAYMENT_METHOD_SERVICES = Object.values(PAYMENT_METHOD_SERVICE);
@@ -19,7 +19,7 @@ export enum PAYMENT_METHOD_TYPE {
   ADAPTIVE = 'adaptive',
   GIFTCARD = 'giftcard',
   MANUAL = 'manual',
-  CRYPTO = 'crypto',
+  CRYPTO = 'crypto', // @deprecated
   PAYMENT_INTENT = 'paymentintent',
   US_BANK_ACCOUNT = 'us_bank_account',
   SEPA_DEBIT = 'sepa_debit',

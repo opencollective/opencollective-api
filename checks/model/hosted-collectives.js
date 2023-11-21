@@ -3,6 +3,8 @@ import '../../server/env';
 import logger from '../../server/lib/logger';
 import { sequelize } from '../../server/models';
 
+import { runCheckThenExit } from './_utils';
+
 async function checkHostFeePercent({ fix = false } = {}) {
   const message = 'Hosted Collectives without hostFeePercent';
 
@@ -85,5 +87,5 @@ export async function checkHostedCollectives({ fix = false } = {}) {
 }
 
 if (!module.parent) {
-  checkHostedCollectives();
+  runCheckThenExit(checkHostedCollectives);
 }

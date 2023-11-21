@@ -15,7 +15,6 @@ import { getHostFeePercent } from '../../../lib/payments';
 import models from '../../../models';
 import { CommentType } from '../../../models/Comment';
 import { PRIVATE_ORDER_ACTIVITIES } from '../../loaders/order';
-import { ORDER_PUBLIC_DATA_FIELDS } from '../../v1/mutations/orders';
 import { GraphQLActivityCollection } from '../collection/ActivityCollection';
 import { CommentCollection } from '../collection/CommentCollection';
 import { GraphQLContributionFrequency, GraphQLOrderStatus } from '../enum';
@@ -303,7 +302,8 @@ export const GraphQLOrder = new GraphQLObjectType({
         type: GraphQLJSON,
         description: 'Data related to the order',
         resolve(order) {
-          return pick(order.data, Object.values(ORDER_PUBLIC_DATA_FIELDS));
+          // There used to be some public values allowed (thegivingblock, ORDER_PUBLIC_DATA_FIELDS), but not anymore
+          return pick(order.data, []);
         },
       },
       customData: {

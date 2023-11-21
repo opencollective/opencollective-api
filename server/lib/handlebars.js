@@ -108,7 +108,11 @@ handlebars.registerHelper('moment', (value, props) => {
 });
 
 handlebars.registerHelper('moment-timezone', value => {
-  return moment().tz(value).format('Z');
+  if (!value) {
+    return '';
+  } else {
+    return moment().tz(value).format('Z');
+  }
 });
 
 handlebars.registerHelper('currency', (value, props) => {

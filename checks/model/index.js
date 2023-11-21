@@ -1,14 +1,13 @@
 import '../../server/env';
 
-import { parseArgs } from 'node:util';
-
 import logger from '../../server/lib/logger';
 import { sequelize } from '../../server/models';
 
+import { runCheckThenExit } from './_utils';
 import { checkCollectives } from './collectives';
 import { checkHostedCollectives } from './hosted-collectives';
 import { checkHosts } from './hosts';
-import { checkIndepedentCollectives } from './independent-collectives';
+import { checkIndependentCollectives } from './independent-collectives';
 import { checkMembers } from './members';
 import { checkTransactions } from './transactions';
 import { checkUsers } from './users';
@@ -17,7 +16,7 @@ const allModelChecks = [
   checkCollectives,
   checkHosts,
   checkHostedCollectives,
-  checkIndepedentCollectives,
+  checkIndependentCollectives,
   checkMembers,
   checkTransactions,
   checkUsers,
@@ -40,23 +39,6 @@ export async function checkAllModels({ fix = false } = {}) {
   return { errors };
 }
 
-async function run() {
-  const options = {
-    fix: {
-      type: 'boolean',
-      default: false,
-    },
-  };
-
-  const {
-    values: { fix },
-  } = parseArgs({ options });
-
-  await checkAllModels({ fix });
-
-  process.exit();
-}
-
 if (!module.parent) {
-  run();
+  runCheckThenExit(checkAllModels);
 }
