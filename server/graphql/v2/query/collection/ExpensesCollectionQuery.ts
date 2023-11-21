@@ -378,40 +378,26 @@ export const ExpensesCollectionQueryResolver = async (
   return {
     nodes: result.rows,
     totalCount: result.count,
-    totalAmount: () => {
-      const getCurrencyTotalAmountsMemo = (() => {
-        let currencyTotalsPromise = null;
-        return () => {
-          if (!currencyTotalsPromise) {
-            currencyTotalsPromise = (async () => {
-              const query = (await models.Expense.findAll({
-                attributes: [
-                  [Sequelize.col('"Expense"."currency"'), 'expenseCurrency'],
-                  [Sequelize.fn('SUM', Sequelize.col('amount')), 'amount'],
-                ],
-                group: 'expenseCurrency',
-                include,
-                where,
-                raw: true,
-              })) as unknown as { expenseCurrency: string; amount: number }[];
+    totalAmount: async () => {
+      const query = (await models.Expense.findAll({
+        attributes: [
+          [Sequelize.col('"Expense"."currency"'), 'expenseCurrency'],
+          [Sequelize.fn('SUM', Sequelize.col('amount')), 'amount'],
+        ],
+        group: 'expenseCurrency',
+        include,
+        where,
+        raw: true,
+      })) as unknown as { expenseCurrency: string; amount: number }[];
 
-              return query.map(result => ({ currency: result.expenseCurrency, value: result.amount }));
-            })();
-          }
-
-          return currencyTotalsPromise;
-        };
-      })();
+      const amountsByCurrency = query.map(result => ({ currency: result.expenseCurrency, value: result.amount }));
 
       return {
-        amountsByCurrency: getCurrencyTotalAmountsMemo,
+        amountsByCurrency,
         amount: async ({ currency = 'USD' }) => {
-          const currencyAmounts = await getCurrencyTotalAmountsMemo();
-
           const values = await req.loaders.CurrencyExchangeRate.convert.loadMany(
-            currencyAmounts.map(v => ({ amount: v.value, fromCurrency: v.currency, toCurrency: currency })),
+            amountsByCurrency.map(v => ({ amount: v.value, fromCurrency: v.currency, toCurrency: currency })),
           );
-
           return {
             value: sum(values),
             currency,
