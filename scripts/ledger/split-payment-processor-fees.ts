@@ -40,7 +40,7 @@ const migrate = async () => {
 
   const groupedTransactions = Object.values(groupBy(transactions, 'TransactionGroup'));
   const timestamp = Date.now().toString();
-  const transactionsData = { hostFeeMigration: timestamp };
+  const transactionsData = { paymentProcessorFeeMigration: timestamp };
   const hostsCache = {};
   let count = 0;
 
@@ -162,7 +162,7 @@ const rollback = async () => {
     throw new Error('A migration timestamp must be specified to trigger a rollback. Pass "ALL" to rollback everything');
   }
 
-  const hostFeeMigrationCondition = rollbackTimestamp === 'ALL' ? 'IS NOT NULL' : '= :rollbackTimestamp';
+  const paymentProcessorFeeMigrationCondition = rollbackTimestamp === 'ALL' ? 'IS NOT NULL' : '= :rollbackTimestamp';
 
   // 1. Remove related HOST_FEE and PAYMENT_PROCESSOR_FEE transactions
   console.log('Deleting transactions...');
@@ -173,7 +173,7 @@ const rollback = async () => {
 
       DELETE
       FROM "Transactions" t
-      WHERE "data" ->> 'hostFeeMigration' ${hostFeeMigrationCondition}
+      WHERE "data" ->> 'paymentProcessorFeeMigration' ${paymentProcessorFeeMigrationCondition}
       AND kind IN ('PAYMENT_PROCESSOR_FEE')
       AND "createdAt" >= :startDate;
 
@@ -194,7 +194,7 @@ const rollback = async () => {
     where: {
       createdAt: { [Op.gte]: startDate },
       data: {
-        hostFeeMigration: rollbackTimestamp === 'ALL' ? { [Op.not]: null } : rollbackTimestamp,
+        paymentProcessorFeeMigration: rollbackTimestamp === 'ALL' ? { [Op.not]: null } : rollbackTimestamp,
       },
     },
   });
@@ -207,7 +207,7 @@ const rollback = async () => {
 
     await transaction.update({
       ...(<Record<string, unknown>>transaction.data.preMigrationData),
-      data: omit(transaction.data, ['preMigrationData', 'hostFeeMigration']),
+      data: omit(transaction.data, ['preMigrationData', 'paymentProcessorFeeMigration']),
     });
   }
 
