@@ -160,20 +160,27 @@ const vendorMutations = {
         await setTaxForm(vendor, args.vendor.vendorInfo.taxFormUrl, new Date().getFullYear());
       }
 
-      if (args.vendor.payoutMethod && !args.vendor.payoutMethod?.id) {
-        const existingPayoutMethods = await vendor.getPayoutMethods();
-        if (!isEmpty(existingPayoutMethods)) {
-          existingPayoutMethods.map(pm => pm.update({ isSaved: false }));
+      if (args.vendor.payoutMethod) {
+        const existingPayoutMethods = await vendor.getPayoutMethods({ where: { isSaved: true } });
+        if (!args.vendor.payoutMethod.id) {
+          if (!isEmpty(existingPayoutMethods)) {
+            existingPayoutMethods.map(pm => pm.update({ isSaved: false }));
+          }
+
+          await models.PayoutMethod.create({
+            ...pick(args.vendor.payoutMethod, ['name', 'data', 'type']),
+            CollectiveId: vendor.id,
+            CreatedByUserId: req.remoteUser.id,
+            isSaved: true,
+          });
+        } else {
+          await Promise.all(
+            existingPayoutMethods
+              .filter(pm => pm.id !== args.vendor.payoutMethod.id)
+              .map(pm => pm.update({ isSaved: false })),
+          );
         }
-
-        await models.PayoutMethod.create({
-          ...pick(args.vendor.payoutMethod, ['name', 'data', 'type']),
-          CollectiveId: vendor.id,
-          CreatedByUserId: req.remoteUser.id,
-          isSaved: true,
-        });
       }
-
       return vendor;
     },
   },
