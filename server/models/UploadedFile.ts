@@ -14,6 +14,7 @@ import {
 } from 'sequelize';
 import sharp from 'sharp';
 import { v4 as uuid } from 'uuid';
+import isURL from 'validator/lib/isURL';
 
 import { FileKind, SUPPORTED_FILE_KINDS } from '../constants/file-kind';
 import { checkS3Configured, uploadToS3 } from '../lib/awsS3';
@@ -92,6 +93,9 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
 
   // ==== Static methods ====
   public static isOpenCollectiveS3BucketURL(url: string): boolean {
+    if (config.aws.s3.endpoint) {
+      return url.startsWith(config.aws.s3.endpoint);
+    }
     return new RegExp(`^https://${config.aws.s3.bucket}\\.s3[.-]us-west-1\\.amazonaws\\.com/\\w+`).test(url);
   }
 
@@ -283,12 +287,22 @@ UploadedFile.init(
       validate: {
         notNull: true,
         notEmpty: true,
-        isUrl: true,
         len: {
           args: [0, MAX_UPLOADED_FILE_URL_LENGTH],
           msg: 'The uploaded file URL is too long',
         },
         isValidURL(url: string): void {
+          if (
+            !isURL(url, {
+              // eslint-disable-next-line camelcase
+              require_host: config.env !== 'development',
+              // eslint-disable-next-line camelcase
+              require_tld: config.env !== 'development',
+            })
+          ) {
+            throw new Error('File URL is not a valid URL');
+          }
+
           if (!UploadedFile.isOpenCollectiveS3BucketURL(url)) {
             throw new Error('File URL is not valid');
           }
