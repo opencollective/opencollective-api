@@ -35,3 +35,10 @@ export async function createRedisClient(): Promise<RedisClientType> {
 
   return redisClient;
 }
+
+export async function closeRedisClient() {
+  if (redisClient) {
+    await redisClient.disconnect();
+  }
+  redisClient = null;
+}
