@@ -26,6 +26,9 @@ if (require.main === module) {
       process.exit(1);
     })
     .then(() => {
-      setTimeout(() => sequelize.close(), 2000);
+      setTimeout(async () => {
+        await sequelize.close();
+        process.exit(0);
+      }, 2000);
     });
 }
