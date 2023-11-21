@@ -610,6 +610,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       isPledged: {
         description: 'Defines if a collective is pledged',
         type: GraphQLBoolean,
+        deprecationReason: '2023-11-20: Pledged collectives do not exist anymore',
       },
       data: {
         type: GraphQLJSON,
@@ -1091,9 +1092,10 @@ const CollectiveFields = () => {
     },
     isPledged: {
       description: 'Defines if a collective is pledged',
+      deprecationReason: '2023-11-20: Pledged collectives do not exist anymore',
       type: GraphQLBoolean,
-      resolve(collective) {
-        return collective.isPledged;
+      resolve() {
+        return false;
       },
     },
     data: {
@@ -1516,12 +1518,10 @@ const CollectiveFields = () => {
       args: {
         status: { type: OrderStatusType },
       },
-      resolve(collective, args = {}, req) {
+      resolve(collective, args = {}) {
         const where = {};
 
-        if (args.status === 'PLEDGED') {
-          return req.loaders.Order.findPledgedOrdersForCollective.load(collective.id);
-        } else if (args.status) {
+        if (args.status) {
           where.status = args.status;
         } else {
           where.processedAt = { [Op.ne]: null };

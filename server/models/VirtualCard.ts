@@ -40,6 +40,7 @@ class VirtualCard extends Model<InferAttributes<VirtualCard, { omit: 'info' }>, 
   public declare createdAt: CreationOptional<Date>;
   public declare updatedAt: CreationOptional<Date>;
   public declare deletedAt: CreationOptional<Date>;
+  public declare resumedAt: CreationOptional<Date>;
 
   // Associations
   public declare collective?: NonAttribute<any>;
@@ -85,6 +86,7 @@ class VirtualCard extends Model<InferAttributes<VirtualCard, { omit: 'info' }>, 
     }
 
     await this.update({
+      resumedAt: new Date(),
       data: {
         ...this.data,
         status: VirtualCardStatus.ACTIVE,
@@ -216,6 +218,9 @@ VirtualCard.init(
       allowNull: false,
     },
     deletedAt: {
+      type: DataTypes.DATE,
+    },
+    resumedAt: {
       type: DataTypes.DATE,
     },
   },

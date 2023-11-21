@@ -86,6 +86,11 @@ export const getS3URL = (bucket: string, key: string): string => {
   const keyParts = key.split('/');
   const encodedKeyLastPart = encodeURIComponent(keyParts.pop() || '');
   const fullKey = [...keyParts, encodedKeyLastPart].join('/');
+
+  if (config.aws.s3.endpoint && config.aws.s3.forcePathStyle) {
+    return `${config.aws.s3.endpoint}/${bucket}/${fullKey}`;
+  }
+
   return `https://${bucket}.s3.${config.aws.s3.region}.amazonaws.com/${fullKey}`;
 };
 
