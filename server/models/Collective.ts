@@ -109,6 +109,7 @@ import Location from './Location';
 import Order from './Order';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
 import SocialLink, { SocialLinkType } from './SocialLink';
+import { MAX_UPLOADED_FILE_URL_LENGTH } from './UploadedFile';
 
 const debug = debugLib('models:Collective');
 
@@ -238,7 +239,6 @@ class Collective extends Model<
   public declare backgroundImage: string;
   public declare countryISO: string;
   public declare settings: Settings;
-  public declare isPledged: boolean;
   public declare data: any;
   public declare startsAt: Date;
   public declare endsAt: Date;
@@ -3559,6 +3559,10 @@ Collective.init(
       type: DataTypes.STRING,
       validate: {
         isUrl: true,
+        len: {
+          args: [0, MAX_UPLOADED_FILE_URL_LENGTH],
+          msg: 'The image URL is too long',
+        },
         isValidImage(url) {
           // Only validate for new images
           if (!url || url === this.image) {
@@ -3581,6 +3585,10 @@ Collective.init(
       type: DataTypes.STRING,
       validate: {
         isUrl: true,
+        len: {
+          args: [0, MAX_UPLOADED_FILE_URL_LENGTH],
+          msg: 'The background image URL is too long',
+        },
         isValidImage(url) {
           // Only validate for new images
           if (!url || url === this.backgroundImage) {
@@ -3624,12 +3632,6 @@ Collective.init(
           }
         },
       },
-    },
-
-    isPledged: {
-      type: DataTypes.BOOLEAN,
-      allowNull: false,
-      defaultValue: false,
     },
 
     data: {

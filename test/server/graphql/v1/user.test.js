@@ -27,6 +27,29 @@ const TIER_QUERY = gqlV2/** GraphQL */ `
   }
 `;
 
+const CREATE_ORDER_MUTATION = gqlV2/** GraphQL */ `
+  mutation CreateOrder($order: OrderCreateInput!) {
+    createOrder(order: $order) {
+      order {
+        paymentMethod {
+          name
+        }
+        fromAccount {
+          id
+          legacyId
+        }
+        createdByAccount {
+          id
+          legacyId
+          ... on Individual {
+            email
+          }
+        }
+      }
+    }
+  }
+`;
+
 describe('server/graphql/v1/user', () => {
   let user1, user2, host, collective1, collective2, tier1, ticket1, sandbox;
 
@@ -115,22 +138,16 @@ describe('server/graphql/v1/user', () => {
     describe('payment methods', () => {
       const generateLoggedInOrder = (tier = tier1) => {
         return {
-          description: 'test order',
           paymentMethod: {
-            service: 'stripe',
+            service: 'STRIPE',
             name: '4242',
-            token: 'tok_123456781234567812345678',
-            save: true,
-            data: {
-              expMonth: 1,
-              expYear: 2021,
-              funding: 'credit',
-              brand: 'Visa',
-              country: 'US',
-            },
+            isSavedForLater: true,
+            creditCardInfo: { token: 'tok_visa' },
           },
-          collective: { id: collective1.id },
-          tier: { id: tier.id },
+          amount: { valueInCents: tier?.amount ?? 1000, currency: 'USD' },
+          frequency: 'ONETIME',
+          toAccount: { legacyId: collective1.id },
+          tier: { legacyId: tier.id },
         };
       };
 
@@ -141,24 +158,7 @@ describe('server/graphql/v1/user', () => {
       };
 
       it('saves a payment method to the user', async () => {
-        const createOrderMutation = gql`
-          mutation CreateOrder($order: OrderInputType!) {
-            createOrder(order: $order) {
-              paymentMethod {
-                name
-              }
-              fromCollective {
-                id
-              }
-              createdByUser {
-                id
-                email
-              }
-            }
-          }
-        `;
-
-        const result = await utils.graphqlQuery(createOrderMutation, { order: generateLoggedInOrder() }, user1);
+        const result = await utils.graphqlQueryV2(CREATE_ORDER_MUTATION, { order: generateLoggedInOrder() }, user1);
         result.errors && console.error(result.errors);
         expect(result.errors).to.not.exist;
         const paymentMethods = await models.PaymentMethod.findAll({
@@ -167,27 +167,13 @@ describe('server/graphql/v1/user', () => {
         paymentMethods.errors && console.error(paymentMethods.errors);
         expect(paymentMethods).to.have.length(1);
         expect(paymentMethods[0].name).to.equal('4242');
-        expect(paymentMethods[0].CollectiveId).to.equal(result.data.createOrder.fromCollective.id);
+        expect(paymentMethods[0].CollectiveId).to.equal(result.data.createOrder.order.fromAccount.legacyId);
       });
 
       it('does not save a payment method to the user', async () => {
         const order = generateLoggedInOrder();
-        order.paymentMethod.save = false;
-        const createOrderMutation = gql`
-          mutation CreateOrder($order: OrderInputType!) {
-            createOrder(order: $order) {
-              createdByUser {
-                id
-                email
-              }
-              paymentMethod {
-                name
-              }
-            }
-          }
-        `;
-
-        const result = await utils.graphqlQuery(createOrderMutation, { order }, user1);
+        order.paymentMethod.isSavedForLater = false;
+        const result = await utils.graphqlQueryV2(CREATE_ORDER_MUTATION, { order }, user1);
         result.errors && console.error(result.errors);
         expect(result.errors).to.not.exist;
         const paymentMethods = await models.PaymentMethod.findAll({
@@ -199,24 +185,18 @@ describe('server/graphql/v1/user', () => {
       });
 
       it("doesn't get the payment method of the user if not logged in", async () => {
-        const createOrderMutation = gql`
-          mutation CreateOrder($order: OrderInputType!) {
-            createOrder(order: $order) {
-              description
-            }
-          }
-        `;
-
         const remoteUser = await models.User.createUserWithCollective({
           email: store.randEmail('user@opencollective.com'),
         });
-        await utils.graphqlQuery(
-          createOrderMutation,
+        const resultCreateOrder = await utils.graphqlQueryV2(
+          CREATE_ORDER_MUTATION,
           {
             order: generateLoggedOutOrder(ticket1),
           },
           remoteUser,
         );
+        resultCreateOrder.errors && console.error(resultCreateOrder.errors);
+        expect(resultCreateOrder.errors).to.not.exist;
 
         const result = await utils.graphqlQueryV2(TIER_QUERY, { id: ticket1.id });
         result.errors && console.error(result.errors);
@@ -232,15 +212,7 @@ describe('server/graphql/v1/user', () => {
 
       it('gets the payment method of the user if logged in as that user', async () => {
         const order = generateLoggedInOrder();
-        const createOrderMutation = gql`
-          mutation CreateOrder($order: OrderInputType!) {
-            createOrder(order: $order) {
-              description
-            }
-          }
-        `;
-
-        await utils.graphqlQuery(createOrderMutation, { order }, user1);
+        await utils.graphqlQueryV2(CREATE_ORDER_MUTATION, { order }, user1);
         await models.PaymentMethod.update({ confirmedAt: new Date() }, { where: { CreatedByUserId: user1.id } });
 
         const result = await utils.graphqlQueryV2(TIER_QUERY, { id: tier1.id }, user1);

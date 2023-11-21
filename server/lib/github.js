@@ -13,7 +13,7 @@ const compactRepo = repo => {
     'full_name', // (1) (4)
     'description', // (1)
     'owner', // (1) (4)
-    'stargazers_count', // (1) (2) (4)
+    'stargazers_count', // (1) (4)
     'fork', // (3)
     'license', // (4)
   ]);
@@ -23,7 +23,6 @@ const compactRepo = repo => {
   ]);
   // 1) Required for the old website, according to:
   // https://github.com/opencollective/opencollective-website/blob/master/frontend/src/reducers/github.js
-  // 2) Required for the pledge feature in /graphql/v1/orders.js
   // 3) Required for update-contributions
   // 4) Required on the frontend in the "OSC application flow"
   return repo;
