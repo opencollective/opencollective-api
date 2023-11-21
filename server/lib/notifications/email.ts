@@ -147,6 +147,11 @@ export const notify = {
   ): Promise<void> {
     const collectiveId = options?.collectiveId || activity.CollectiveId;
     const collective = options?.collective || (await models.Collective.findByPk(collectiveId));
+    const isVendor = collective.type === CollectiveType.VENDOR;
+    if (isVendor) {
+      return;
+    }
+
     const role = options?.role || [roles.ADMIN];
     if (!collective) {
       throw new Error(`notify.collective can't notify ${activity.type}: no collective found with id ${collectiveId}`);
