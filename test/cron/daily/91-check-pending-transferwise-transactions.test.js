@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { assert, createSandbox } from 'sinon';
 
-import { run as checkPendingTransfers } from '../../../cron/daily/check-pending-transferwise-transactions';
+import { run as checkPendingTransfers } from '../../../cron/daily/91-check-pending-transferwise-transactions';
 import { roles } from '../../../server/constants';
 import status from '../../../server/constants/expense_status';
 import emailLib from '../../../server/lib/email';
