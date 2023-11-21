@@ -10,7 +10,6 @@ import { editPublicMessage } from '../common/members';
 import { createUser } from '../common/user';
 import { NotFound, RateLimitExceeded, Unauthorized } from '../errors';
 
-import * as backyourstackMutations from './mutations/backyourstack';
 import {
   activateBudget,
   activateCollectiveAsHost,
@@ -439,22 +438,6 @@ const mutations = {
     },
     resolve(_, args, req) {
       return deleteNotification(args, req);
-    },
-  },
-  backyourstackDispatchOrder: {
-    type: new GraphQLObjectType({
-      name: 'BackYourStackDispatchState',
-      fields: {
-        dispatching: { type: GraphQLBoolean },
-      },
-    }),
-    args: {
-      id: {
-        type: new GraphQLNonNull(GraphQLInt),
-      },
-    },
-    resolve(_, args) {
-      return backyourstackMutations.dispatchOrder(args.id);
     },
   },
   activateCollectiveAsHost: {

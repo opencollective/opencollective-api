@@ -549,17 +549,6 @@ export const notifyByEmail = async (activity: Activity) => {
       notify.user(activity, { template: 'github.signup' });
       break;
 
-    case ActivityTypes.BACKYOURSTACK_DISPATCH_CONFIRMED:
-      for (const order of activity.data.orders) {
-        const collective = await models.Collective.findByPk(order.CollectiveId);
-        order.collective = collective.info;
-      }
-      await notify.collective(activity, {
-        collectiveId: activity.data.collective.id,
-        template: 'backyourstack.dispatch.confirmed',
-      });
-      break;
-
     case ActivityTypes.ACTIVATED_COLLECTIVE_AS_HOST:
       await notify.collective(activity, {
         collectiveId: activity.data.collective.id,
