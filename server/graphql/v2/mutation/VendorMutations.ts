@@ -12,6 +12,7 @@ import { setTaxForm } from '../../../lib/tax-forms';
 import models, { Activity } from '../../../models';
 import { checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { BadRequest, NotFound, Unauthorized, ValidationFailed } from '../../errors';
+import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLVendorCreateInput, GraphQLVendorEditInput } from '../input/VendorInput';
 import { GraphQLVendor } from '../object/Vendor';
@@ -174,10 +175,9 @@ const vendorMutations = {
             isSaved: true,
           });
         } else {
+          const payoutMethodId = idDecode(args.vendor.payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD);
           await Promise.all(
-            existingPayoutMethods
-              .filter(pm => pm.id !== args.vendor.payoutMethod.id)
-              .map(pm => pm.update({ isSaved: false })),
+            existingPayoutMethods.filter(pm => pm.id !== payoutMethodId).map(pm => pm.update({ isSaved: false })),
           );
         }
       }
