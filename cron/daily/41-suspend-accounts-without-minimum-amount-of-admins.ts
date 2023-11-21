@@ -5,6 +5,7 @@ import FEATURE from '../../server/constants/feature';
 import POLICIES from '../../server/constants/policies';
 import logger from '../../server/lib/logger';
 import { getPolicy } from '../../server/lib/policies';
+import { closeRedisClient } from '../../server/lib/redis';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import models, { sequelize } from '../../server/models';
 
@@ -53,6 +54,7 @@ if (require.main === module) {
     })
     .then(() => {
       setTimeout(async () => {
+        await closeRedisClient();
         await sequelize.close();
         process.exit(0);
       }, 2000);

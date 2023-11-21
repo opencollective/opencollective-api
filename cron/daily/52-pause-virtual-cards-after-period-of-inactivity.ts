@@ -3,6 +3,7 @@ import '../../server/env';
 import PQueue from 'p-queue';
 
 import { activities } from '../../server/constants';
+import { closeRedisClient } from '../../server/lib/redis';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import { parseToBoolean } from '../../server/lib/utils';
 import models, { Op, sequelize } from '../../server/models';
@@ -98,6 +99,7 @@ if (require.main === module) {
     })
     .then(() => {
       setTimeout(async () => {
+        await closeRedisClient();
         await sequelize.close();
         process.exit(0);
       }, 2000);

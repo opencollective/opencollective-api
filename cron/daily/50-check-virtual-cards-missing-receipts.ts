@@ -7,6 +7,7 @@ import moment from 'moment';
 import { activities as activityTypes } from '../../server/constants';
 import VirtualCardProviders from '../../server/constants/virtual_card_providers';
 import logger from '../../server/lib/logger';
+import { closeRedisClient } from '../../server/lib/redis';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import models, { Op, sequelize } from '../../server/models';
 import Expense from '../../server/models/Expense';
@@ -98,6 +99,7 @@ if (require.main === module) {
     })
     .then(() => {
       setTimeout(async () => {
+        await closeRedisClient();
         await sequelize.close();
         process.exit(0);
       }, 2000);
