@@ -204,7 +204,6 @@ export const notifyByEmail = async (activity: Activity) => {
       await notify.collective(activity);
       break;
 
-    case ActivityTypes.ORDER_PENDING_CRYPTO:
     case ActivityTypes.ORDER_PENDING:
     case ActivityTypes.ORDER_PROCESSING:
     case ActivityTypes.ORDER_PAYMENT_FAILED:

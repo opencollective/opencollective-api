@@ -35,11 +35,6 @@ import {
 } from '../../errors';
 const debug = debugLib('orders');
 
-export const ORDER_PUBLIC_DATA_FIELDS = {
-  pledgeCurrency: 'thegivingblock.pledgeCurrency',
-  pledgeAmount: 'thegivingblock.pledgeAmount',
-};
-
 const mustUpdateNames = (fromAccount, fromAccountInfo) => {
   return (!fromAccount.name && fromAccountInfo?.name) || (!fromAccount.legalName && fromAccountInfo?.legalName);
 };
@@ -179,7 +174,6 @@ const hasPaymentMethod = order => {
         paymentMethod.uuid ||
         paymentMethod.token ||
         paymentMethod.type === 'manual' ||
-        paymentMethod.type === 'crypto' ||
         paymentMethod.type === PAYMENT_METHOD_TYPE.PAYMENT_INTENT ||
         (paymentMethod.service === PAYMENT_METHOD_SERVICE.STRIPE && paymentMethod.data.stripePaymentMethodId),
     );
@@ -270,9 +264,6 @@ export async function createOrder(order, req) {
     const host = await collective.getHostCollective({ loaders: req.loaders });
     if (!host) {
       throw new Error('This collective has no host and cannot accept financial contributions at this time.');
-    }
-    if (order.paymentMethod?.type === PAYMENT_METHOD_TYPE.CRYPTO && host.settings?.cryptoEnabled !== true) {
-      throw new Error('This host does not accept crypto payments.');
     }
 
     order.collective = collective;
@@ -437,7 +428,8 @@ export async function createOrder(order, req) {
 
     let orderPublicData;
     if (order.data) {
-      orderPublicData = pick(order.data, Object.values(ORDER_PUBLIC_DATA_FIELDS));
+      // There used to be some public values allowed (thegivingblock, ORDER_PUBLIC_DATA_FIELDS), but not anymore
+      orderPublicData = pick(order.data, []);
     }
 
     const platformTipEligible = await libPayments.isPlatformTipEligible({ ...order, collective }, host);

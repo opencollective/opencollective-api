@@ -244,13 +244,6 @@ export const GraphQLHost = new GraphQLObjectType({
             supportedPaymentMethods.push('BANK_TRANSFER');
           }
 
-          if (
-            get(collective, 'settings.cryptoEnabled') === true &&
-            find(connectedAccounts, ['service', 'thegivingblock'])
-          ) {
-            supportedPaymentMethods.push('CRYPTO');
-          }
-
           return supportedPaymentMethods;
         },
       },
