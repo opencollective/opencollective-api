@@ -69,12 +69,14 @@ export async function createCollective(_, args, req) {
       );
     }
 
-    // The currency of the new created collective if not specified should be the one of its direct parent or the host (in this order)
-    collectiveData.currency = collectiveData.currency || parentCollective.currency;
-    collectiveData.HostCollectiveId = parentCollective.HostCollectiveId;
+    if (args.collective.type !== CollectiveType.VENDOR) {
+      // The currency of the new created collective if not specified should be the one of its direct parent or the host (in this order)
+      collectiveData.currency = collectiveData.currency || parentCollective.currency;
+      collectiveData.HostCollectiveId = parentCollective.HostCollectiveId;
 
-    if (collectiveData.type === CollectiveType.EVENT) {
-      collectiveData.platformFeePercent = parentCollective.platformFeePercent;
+      if (collectiveData.type === CollectiveType.EVENT) {
+        collectiveData.platformFeePercent = parentCollective.platformFeePercent;
+      }
     }
   }
 
@@ -101,6 +103,9 @@ export async function createCollective(_, args, req) {
   if (collectiveData.type === 'EVENT') {
     const slug = slugify(args.collective.slug || args.collective.name);
     collectiveData.slug = `${slug}-${uuid().substr(0, 8)}`;
+  } else if (collectiveData.type === CollectiveType.VENDOR) {
+    const slug = slugify(args.collective.slug || args.collective.name);
+    collectiveData.slug = `${args.collective.ParentCollectiveId}-${slug}-${uuid().substr(0, 8)}`;
   }
 
   try {

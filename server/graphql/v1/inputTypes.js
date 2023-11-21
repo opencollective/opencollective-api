@@ -111,7 +111,6 @@ export const UserInputType = new GraphQLInputObjectType({
     name: { type: GraphQLString },
     company: { type: GraphQLString },
     image: { type: GraphQLString },
-    username: { type: GraphQLString, deprecationReason: '2022-01-13: Not used anymore. Will be ignored' },
     description: { type: GraphQLString },
     twitterHandle: { type: GraphQLString, deprecationReason: '2023-01-16: Please use socialLinks' },
     githubHandle: { type: GraphQLString, deprecationReason: '2022-06-03: Please use repositoryUrl' },
@@ -335,60 +334,5 @@ export const GuestInfoInput = new GraphQLInputObjectType({
       type: GraphQLCaptchaInput,
       description: 'Captcha validation for creating an order',
     },
-  }),
-});
-
-export const OrderInputType = new GraphQLInputObjectType({
-  name: 'OrderInputType',
-  description: 'Input type for OrderType',
-  fields: () => ({
-    id: { type: GraphQLInt },
-    quantity: {
-      type: GraphQLInt,
-      defaultValue: 1,
-    },
-    totalAmount: { type: GraphQLInt },
-    hostFeePercent: { type: GraphQLFloat },
-    platformFeePercent: { type: GraphQLFloat },
-    platformFee: { type: GraphQLInt },
-    isFeesOnTop: { type: GraphQLBoolean },
-    currency: { type: GraphQLString },
-    interval: { type: GraphQLString },
-    description: { type: GraphQLString },
-    publicMessage: { type: GraphQLString },
-    privateMessage: { type: GraphQLString },
-    paymentMethod: { type: PaymentMethodInputType },
-    user: { type: UserInputType, deprecationReason: '2020-10-13: This field is now ignored' },
-    fromCollective: { type: CollectiveAttributesInputType },
-    collective: { type: new GraphQLNonNull(CollectiveAttributesInputType) },
-    tier: { type: TierInputType },
-    customData: { type: GraphQLJSON },
-    recaptchaToken: { type: GraphQLString },
-    guestInfo: {
-      type: GuestInfoInput,
-      description: 'Use this when fromAccount is null to pass the guest info',
-    },
-    // For taxes
-    taxAmount: {
-      type: GraphQLInt,
-      description: 'The amount of taxes that were included in totalAmount',
-      defaultValue: 0,
-    },
-    countryISO: {
-      type: GraphQLString,
-      description: 'User country, to know which tax applies',
-    },
-    taxIDNumber: {
-      type: GraphQLString,
-      description: 'User tax ID number',
-    },
-  }),
-});
-
-export const ConfirmOrderInputType = new GraphQLInputObjectType({
-  name: 'ConfirmOrderInputType',
-  description: 'Input type for ConfirmOrderType',
-  fields: () => ({
-    id: { type: GraphQLInt },
   }),
 });

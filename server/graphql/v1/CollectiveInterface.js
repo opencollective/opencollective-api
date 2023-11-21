@@ -31,7 +31,6 @@ import { getContextPermission, PERMISSION_TYPE } from '../common/context-permiss
 import { GraphQLPolicies } from '../v2/object/Policies';
 import { GraphQLSocialLink } from '../v2/object/SocialLink';
 
-import { ApplicationType } from './Application';
 import { TransactionInterfaceType } from './TransactionInterface';
 import {
   ConnectedAccountType,
@@ -51,7 +50,6 @@ import {
   PaymentMethodType,
   PayoutMethodType,
   TierType,
-  UpdateType,
   UserType,
 } from './types';
 
@@ -612,6 +610,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       isPledged: {
         description: 'Defines if a collective is pledged',
         type: GraphQLBoolean,
+        deprecationReason: '2023-11-20: Pledged collectives do not exist anymore',
       },
       data: {
         type: GraphQLJSON,
@@ -769,15 +768,6 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       website: { type: GraphQLString, deprecationReason: '2023-01-16: Please use socialLinks' },
       socialLinks: {
         type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLSocialLink))),
-      },
-      updates: {
-        type: new GraphQLList(UpdateType),
-        deprecationReason: '2022-09-09: Updates moved to GQLV2',
-        args: {
-          limit: { type: GraphQLInt },
-          offset: { type: GraphQLInt },
-          onlyPublishedUpdates: { type: GraphQLBoolean },
-        },
       },
       events: {
         type: new GraphQLList(EventCollectiveType),
@@ -1102,9 +1092,10 @@ const CollectiveFields = () => {
     },
     isPledged: {
       description: 'Defines if a collective is pledged',
+      deprecationReason: '2023-11-20: Pledged collectives do not exist anymore',
       type: GraphQLBoolean,
-      resolve(collective) {
-        return collective.isPledged;
+      resolve() {
+        return false;
       },
     },
     data: {
@@ -1527,12 +1518,10 @@ const CollectiveFields = () => {
       args: {
         status: { type: OrderStatusType },
       },
-      resolve(collective, args = {}, req) {
+      resolve(collective, args = {}) {
         const where = {};
 
-        if (args.status === 'PLEDGED') {
-          return req.loaders.Order.findPledgedOrdersForCollective.load(collective.id);
-        } else if (args.status) {
+        if (args.status) {
           where.status = args.status;
         } else {
           where.processedAt = { [Op.ne]: null };
@@ -1674,28 +1663,6 @@ const CollectiveFields = () => {
       type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLSocialLink))),
       async resolve(collective, _, req) {
         return req.loaders.SocialLink.byCollectiveId.load(collective.id);
-      },
-    },
-    updates: {
-      type: new GraphQLList(UpdateType),
-      deprecationReason: '2022-09-09: Updates moved to GQLV2',
-      args: {
-        limit: { type: GraphQLInt },
-        offset: { type: GraphQLInt },
-        onlyPublishedUpdates: { type: GraphQLBoolean },
-      },
-      resolve(collective, args) {
-        const query = { where: { CollectiveId: collective.id }, order: [['createdAt', 'DESC']] };
-        if (args.limit) {
-          query.limit = args.limit;
-        }
-        if (args.offset) {
-          query.offset = args.offset;
-        }
-        if (args.onlyPublishedUpdates) {
-          query.where.publishedAt = { [Op.ne]: null };
-        }
-        return models.Update.findAll(query);
       },
     },
     events: {
@@ -1987,17 +1954,6 @@ export const UserCollectiveType = new GraphQLObjectType({
             if (user && (await req.loaders.Collective.canSeePrivateInfo.load(user.CollectiveId))) {
               return user.email;
             }
-          }
-        },
-      },
-      applications: {
-        type: new GraphQLList(ApplicationType),
-        deprecationReason: '2023-07-19: Use GraphQL V2',
-        resolve(userCollective, _, req) {
-          if (req.remoteUser && req.remoteUser.isAdmin(userCollective.id)) {
-            return models.Application.findAll({
-              where: { CollectiveId: userCollective.id },
-            });
           }
         },
       },

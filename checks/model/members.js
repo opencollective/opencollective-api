@@ -6,6 +6,8 @@ import logger from '../../server/lib/logger';
 import { MigrationLog, sequelize } from '../../server/models';
 import { MigrationLogType } from '../../server/models/MigrationLog';
 
+import { runCheckThenExit } from './_utils';
+
 async function checkDeletedMembers({ fix = false } = {}) {
   const message = 'No non-deleted Members without a matching non-deleted Collective';
 
@@ -91,7 +93,6 @@ async function checkDuplicateMembers({ fix = false } = {}) {
       await sequelize.query(
         `UPDATE "Members"
          SET "deletedAt" = NOW()
-         FROM "Collectives" c1, "Collectives" c2
          WHERE "Members"."id" IN (:allDuplicateIds)
          AND "Members"."deletedAt" IS NULL`,
         { replacements: { allDuplicateIds } },
@@ -101,7 +102,7 @@ async function checkDuplicateMembers({ fix = false } = {}) {
       // create a new migration log instead.
       await MigrationLog.create({
         type: MigrationLogType.MODEL_FIX,
-        description: `Deleted ${results[0].nb_duplicates} duplicate members`,
+        description: `Deleted ${allDuplicateIds.length} duplicate members`,
         data: { duplicateMemberIds: allDuplicateIds },
       });
     }
@@ -115,5 +116,5 @@ export async function checkMembers({ fix = false } = {}) {
 }
 
 if (!module.parent) {
-  checkMembers();
+  runCheckThenExit(checkMembers);
 }

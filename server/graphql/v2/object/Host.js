@@ -244,13 +244,6 @@ export const GraphQLHost = new GraphQLObjectType({
             supportedPaymentMethods.push('BANK_TRANSFER');
           }
 
-          if (
-            get(collective, 'settings.cryptoEnabled') === true &&
-            find(connectedAccounts, ['service', 'thegivingblock'])
-          ) {
-            supportedPaymentMethods.push('CRYPTO');
-          }
-
           return supportedPaymentMethods;
         },
       },
@@ -377,7 +370,9 @@ export const GraphQLHost = new GraphQLObjectType({
                 as: 'collective',
                 required: true,
                 where: {
-                  HostCollectiveId: host.id,
+                  ...(args.status !== 'REJECTED' && {
+                    HostCollectiveId: host.id,
+                  }),
                   ...(searchTermConditions.length && { [Op.or]: searchTermConditions }),
                 },
               },
@@ -1072,6 +1067,74 @@ export const GraphQLHost = new GraphQLObjectType({
           const vendors = args?.forAccount && !isAdmin ? rows.filter(v => v.dataValues['expenseCount'] > 0) : rows;
 
           return { nodes: vendors, totalCount: count, limit: args.limit, offset: args.offset };
+        },
+      },
+      potentialVendors: {
+        type: new GraphQLNonNull(GraphQLAccountCollection),
+        description:
+          'Returns a list of organizations that only transacted with this host and all its admins are also admins of this host.',
+        args: {
+          ...getCollectionArgs({ limit: 100, offset: 0 }),
+        },
+        async resolve(host, args, req) {
+          const isAdmin = req.remoteUser.isAdminOfCollective(host);
+          if (!isAdmin) {
+            throw new Unauthorized('You need to be logged in as an admin of the host to see its potential vendors');
+          }
+
+          const pageQuery = `
+                WITH hostadmins AS (
+                  SELECT m."MemberCollectiveId", u."id" as "UserId"
+                  FROM "Members" m
+                  INNER JOIN "Users" u ON m."MemberCollectiveId" = u."CollectiveId"
+                  WHERE m."CollectiveId" = :hostid AND m."deletedAt" IS NULL AND m.role = 'ADMIN'
+                  ), orgs AS (
+                  SELECT c.id, c.slug,ARRAY_AGG(DISTINCT m."MemberCollectiveId") as "admins", ARRAY_AGG(DISTINCT t."HostCollectiveId") as hosts, c."CreatedByUserId"
+                  FROM "Collectives" c
+                  LEFT JOIN "Members" m ON c.id = m."CollectiveId" AND m."deletedAt" IS NULL AND m.role = 'ADMIN'
+                  LEFT JOIN "Transactions" t ON c.id = t."FromCollectiveId" AND t."deletedAt" IS NULL
+                  WHERE c."deletedAt" IS NULL
+                    AND c.type = 'ORGANIZATION'
+                    AND c."HostCollectiveId" IS NULL
+                  GROUP BY c.id
+                  )
+
+                SELECT c.*
+                FROM "orgs" o
+                INNER JOIN "Collectives" c ON c.id = o.id
+                WHERE
+                  (
+                    o."admins" <@ ARRAY(SELECT "MemberCollectiveId" FROM hostadmins)
+                      OR (
+                        o."CreatedByUserId" IN (
+                        SELECT "UserId"
+                        FROM hostadmins
+                        )
+                        AND o."admins" = ARRAY[null]::INTEGER[]
+                      )
+                    )
+                  AND o."hosts" IN (ARRAY[:hostid], ARRAY[null]::INTEGER[])
+                ORDER BY c."createdAt" DESC
+                LIMIT :limit
+                OFFSET :offset;
+          `;
+
+          const orgs = await sequelize.query(pageQuery, {
+            replacements: {
+              hostid: host.id,
+              limit: args.limit,
+              offset: args.offset,
+            },
+            type: sequelize.QueryTypes.SELECT,
+            model: models.Collective,
+          });
+
+          return {
+            nodes: orgs,
+            totalCount: orgs.length,
+            limit: args.limit,
+            offset: args.offset,
+          };
         },
       },
     };

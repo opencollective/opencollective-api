@@ -1,6 +1,6 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { assign, get, invert, isEmpty, isNull, merge, omitBy } from 'lodash';
+import { assign, get, invert, isEmpty, isNull, merge, omit, omitBy } from 'lodash';
 import { Order } from 'sequelize';
 
 import { CollectiveType } from '../../../constants/collectives';
@@ -17,6 +17,7 @@ import { checkRemoteUserCanUseAccount, checkScope } from '../../common/scope-che
 import { BadRequest, ContentNotReady, Unauthorized } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { GraphQLConversationCollection } from '../collection/ConversationCollection';
+import { GraphQLExpenseCollection } from '../collection/ExpenseCollection';
 import { GraphQLMemberCollection, GraphQLMemberOfCollection } from '../collection/MemberCollection';
 import { GraphQLOAuthApplicationCollection } from '../collection/OAuthApplicationCollection';
 import { GraphQLOrderCollection } from '../collection/OrderCollection';
@@ -31,9 +32,11 @@ import {
 import { AccountTypeToModelMapping, GraphQLAccountType, GraphQLImageFormat, GraphQLMemberRole } from '../enum';
 import { GraphQLActivityChannel } from '../enum/ActivityChannel';
 import { GraphQLActivityClassType } from '../enum/ActivityType';
+import { GraphQLExpenseDirection } from '../enum/ExpenseDirection';
 import { GraphQLExpenseType } from '../enum/ExpenseType';
 import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
 import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType';
+import { GraphQLVirtualCardStatusEnum } from '../enum/VirtualCardStatus';
 import { idEncode } from '../identifiers';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLChronologicalOrderInput } from '../input/ChronologicalOrderInput';
@@ -55,6 +58,10 @@ import { GraphQLPolicies } from '../object/Policies';
 import { GraphQLSocialLink } from '../object/SocialLink';
 import { GraphQLTagStats } from '../object/TagStats';
 import { GraphQLTransferWise } from '../object/TransferWise';
+import {
+  ExpensesCollectionQueryArgs,
+  ExpensesCollectionQueryResolver,
+} from '../query/collection/ExpensesCollectionQuery';
 import { OrdersCollectionArgs, OrdersCollectionResolver } from '../query/collection/OrdersCollectionQuery';
 import {
   TransactionsCollectionArgs,
@@ -162,6 +169,10 @@ const accountFieldsDefinition = () => ({
         type: GraphQLImageFormat,
       },
     },
+  },
+  hasImage: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Returns whether this account has a custom image',
   },
   backgroundImageUrl: {
     type: GraphQLString,
@@ -285,6 +296,15 @@ const accountFieldsDefinition = () => ({
     type: new GraphQLNonNull(GraphQLOrderCollection),
     args: {
       ...OrdersCollectionArgs,
+    },
+  },
+  expenses: {
+    type: new GraphQLNonNull(GraphQLExpenseCollection),
+    args: {
+      direction: {
+        type: GraphQLExpenseDirection,
+      },
+      ...ExpensesCollectionQueryArgs,
     },
   },
   settings: {
@@ -486,7 +506,8 @@ const accountFieldsDefinition = () => ({
     args: {
       limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
       offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
-      state: { type: GraphQLString, defaultValue: null },
+      state: { type: GraphQLString, defaultValue: null, deprecationReason: '2023-11-06: Please use status.' },
+      status: { type: new GraphQLList(GraphQLVirtualCardStatusEnum) },
       merchantAccount: { type: GraphQLAccountReferenceInput, defaultValue: null },
       dateFrom: {
         type: GraphQLDateTime,
@@ -532,6 +553,15 @@ const accountFieldsDefinition = () => ({
 
       if (args.state) {
         query.where['data'] = { state: args.state };
+      }
+
+      if (args.status) {
+        if (!query.where['data']) {
+          query.where['data'] = {};
+        }
+        query.where['data'].status = {
+          [Op.in]: args.status,
+        };
       }
 
       if (merchantId) {
@@ -791,6 +821,13 @@ export const AccountFields = {
       return collective.getImageUrl(args);
     },
   },
+  hasImage: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Returns whether this account has a custom image',
+    resolve(collective) {
+      return Boolean(collective.image);
+    },
+  },
   backgroundImageUrl: {
     type: GraphQLString,
     args: {
@@ -851,6 +888,25 @@ export const AccountFields = {
   },
   transactions: accountTransactions,
   orders: accountOrders,
+  expenses: {
+    type: new GraphQLNonNull(GraphQLExpenseCollection),
+    args: {
+      direction: {
+        type: GraphQLExpenseDirection,
+      },
+      ...ExpensesCollectionQueryArgs,
+    },
+    resolve(collective, args, req) {
+      if (args.direction) {
+        const direction =
+          args.direction === 'SUBMITTED'
+            ? { fromAccount: { legacyId: collective.id } }
+            : { toAccount: { legacyId: collective.id } };
+        args = omit({ ...args, ...direction }, ['direction']);
+      }
+      return ExpensesCollectionQueryResolver(undefined, args, req);
+    },
+  },
   conversations: {
     type: new GraphQLNonNull(GraphQLConversationCollection),
     args: {

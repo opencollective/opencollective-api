@@ -8,6 +8,7 @@ import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize from '../lib/sequelize';
 
 import Expense from './Expense';
+import { MAX_UPLOADED_FILE_URL_LENGTH } from './UploadedFile';
 import User from './User';
 
 // Expense items diff as [newEntries, removedEntries, updatedEntries]
@@ -110,6 +111,10 @@ ExpenseItem.init(
           if (url && !isValidUploadedImage(url)) {
             throw new Error('The attached file URL is not valid');
           }
+        },
+        len: {
+          args: [0, MAX_UPLOADED_FILE_URL_LENGTH],
+          msg: 'The expense item file URL is too long',
         },
       },
     },

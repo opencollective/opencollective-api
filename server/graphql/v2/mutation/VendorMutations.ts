@@ -2,7 +2,7 @@ import assert from 'assert';
 
 import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
 import slugify from 'limax';
-import { isEmpty, pick } from 'lodash';
+import { differenceBy, isEmpty, pick } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import ActivityTypes from '../../../constants/activities';
@@ -119,7 +119,7 @@ const vendorMutations = {
 
       const { vendorInfo } = args.vendor;
       const vendorData = {
-        image: args.vendor.imageUrl || null,
+        image: args.vendor.imageUrl || vendor.image,
         ...pick(args.vendor, ['name', 'legalName', 'tags']),
         deactivatedAt: args.archive ? new Date() : null,
         settings: vendor.settings,
@@ -213,6 +213,72 @@ const vendorMutations = {
       });
 
       return true;
+    },
+  },
+  convertOrganizationToVendor: {
+    type: new GraphQLNonNull(GraphQLVendor),
+    description: 'Convert an organization to a vendor',
+    args: {
+      organization: {
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+        description: 'Reference to the organization to convert',
+      },
+      host: {
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+        description: 'Reference to the host that will hold the vendor',
+      },
+    },
+    resolve: async (_, args, req) => {
+      checkRemoteUserCanUseHost(req);
+
+      const organization = await fetchAccountWithReference(args.organization, {
+        loaders: req.loaders,
+        throwIfMissing: true,
+      });
+      assert(organization.type === CollectiveType.ORGANIZATION, new ValidationFailed('Account is not an Organization'));
+      assert(!organization.HostCollectiveId, new ValidationFailed('Organization is hosted by another collective'));
+
+      const host = await fetchAccountWithReference(args.host, { loaders: req.loaders, throwIfMissing: true });
+      assert(
+        req.remoteUser.isAdminOfCollective(host),
+        new Unauthorized("You're not authorized to convert this organization"),
+      );
+
+      const transactions = await models.Transaction.findAll({
+        where: {
+          FromCollectiveId: organization.id,
+        },
+      });
+      assert(
+        transactions.every(t => t.HostCollectiveId === host.id),
+        new ValidationFailed('Cannot convert an organization with transactions to another fiscal-host'),
+      );
+
+      const hostAdmins = await host.getAdminUsers();
+      const organizationAdmins = await organization.getAdminUsers();
+      const alienAdmins = differenceBy(organizationAdmins, hostAdmins, 'id');
+      assert(
+        alienAdmins.length === 0,
+        new ValidationFailed(`Cannot convert an organization with admins that are not admins of the new host`),
+      );
+
+      const vendorData = {
+        type: CollectiveType.VENDOR,
+        slug: `${host.id}-${organization.slug}-${uuid().substr(0, 8)}`,
+        CreatedByUserId: req.remoteUser.id,
+        isActive: false,
+        ParentCollectiveId: host.id,
+        data: organization.data || {},
+      };
+      vendorData.data['originalOrganizationProps'] = pick(organization.toJSON(), Object.keys(vendorData));
+
+      await organization.update(vendorData);
+      await Promise.all([
+        models.Member.destroy({ where: { CollectiveId: organization.id } }),
+        models.MemberInvitation.destroy({ where: { CollectiveId: organization.id } }),
+      ]);
+
+      return organization;
     },
   },
 };

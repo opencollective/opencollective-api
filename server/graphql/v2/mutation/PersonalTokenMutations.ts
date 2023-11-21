@@ -4,6 +4,7 @@ import { GraphQLNonNull } from 'graphql';
 import { isEqual, isUndefined, pick, pickBy } from 'lodash';
 
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
+import { TWO_FACTOR_SESSIONS_PARAMS } from '../../../lib/two-factor-authentication/lib';
 import models from '../../../models';
 import PersonalTokenModel from '../../../models/PersonalToken';
 import { checkRemoteUserCanUseApplications } from '../../common/scope-check';
@@ -32,7 +33,7 @@ const createPersonalToken = {
       : req.remoteUser.collective;
 
     // Enforce 2FA
-    await twoFactorAuthLib.enforceForAccount(req, collective);
+    await twoFactorAuthLib.enforceForAccount(req, collective, TWO_FACTOR_SESSIONS_PARAMS.MANAGE_PERSONAL_TOKENS);
 
     if (!req.remoteUser.isAdminOfCollective(collective)) {
       throw new Forbidden();
@@ -85,7 +86,11 @@ const updatePersonalToken = {
     const isChange = (value, key) => editableFields.includes(key) && !isEqual(value, personalToken[key]);
     const changes = pickBy(args.personalToken, isChange);
     const hasCriticalChanges = fieldsProtectedWith2FA.some(field => !isUndefined(changes[field]));
-    await twoFactorAuthLib.enforceForAccount(req, personalToken.collective, { alwaysAskForToken: hasCriticalChanges });
+    await twoFactorAuthLib.enforceForAccount(req, personalToken.collective, {
+      ...TWO_FACTOR_SESSIONS_PARAMS.MANAGE_PERSONAL_TOKENS,
+      alwaysAskForToken: hasCriticalChanges,
+    });
+
     return personalToken.update(changes);
   },
 };
@@ -110,7 +115,12 @@ const deletePersonalToken = {
       throw new Forbidden('Authenticated user is not the personal token owner.');
     }
 
-    await twoFactorAuthLib.enforceForAccount(req, personalToken.collective);
+    await twoFactorAuthLib.enforceForAccount(
+      req,
+      personalToken.collective,
+      TWO_FACTOR_SESSIONS_PARAMS.MANAGE_PERSONAL_TOKENS,
+    );
+
     return personalToken.destroy();
   },
 };
