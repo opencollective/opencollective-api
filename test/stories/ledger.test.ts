@@ -703,7 +703,15 @@ describe('test/stories/ledger', () => {
   });
 
   describe('Level 5: Refund Expenses️', async () => {
-    const refundTransaction = async (collective, fromCollective, host, hostAdmin, contributorUser, baseOrderData) => {
+    const refundTransaction = async (
+      collective,
+      fromCollective,
+      host,
+      hostAdmin,
+      contributorUser,
+      baseOrderData,
+      {feesPayer = 'COLLECTIVE', paymentProcessorFeeInHostCurrency = 0, refundedPaymentProcessorFeeInHostCurrency = 0} = {}
+    ) => {
       const order = await fakeOrder(baseOrderData);
       order.paymentMethod = {
         service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
@@ -727,21 +735,23 @@ describe('test/stories/ledger', () => {
         CollectiveId: collective.id,
         legacyPayoutMethod: 'manual',
         status: 'APPROVED',
+        feesPayer,
       });
 
       await payExpense({ remoteUser: hostAdmin } as any, {
         id: expense.id,
         forceManual: true,
-        paymentProcessorFeeInHostCurrency: 0,
+        paymentProcessorFeeInHostCurrency,
         totalAmountPaidInHostCurrency: 1000,
       });
 
       await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
       for (const useMaterializedView of [false, true]) {
+        console.log('useMaterializedView => ', useMaterializedView)
         expect(await collective.getBalance({ useMaterializedView })).to.eq(8500);
         expect(await collective.getTotalAmountReceived({ useMaterializedView })).to.eq(10000);
-        expect(await collective.getTotalAmountReceived({ useMaterializedView, net: true })).to.eq(9500);
-        expect(await collective.getTotalAmountSpent({ useMaterializedView })).to.eq(1000);
+        expect(await collective.getTotalAmountReceived({ useMaterializedView, net: true })).to.eq(9500 - paymentProcessorFeeInHostCurrency);
+        expect(await collective.getTotalAmountSpent({ useMaterializedView })).to.eq(1000); // TODO: This is failing with the materialized view
         expect(await collective.getTotalAmountSpent({ useMaterializedView, net: true })).to.eq(1000);
       }
 
@@ -751,14 +761,14 @@ describe('test/stories/ledger', () => {
       });
 
       const paymentProvider = paymentProviders.opencollective.types.default;
-      await paymentProvider.refundTransaction(expenseTransaction, null);
+      await paymentProvider.refundTransaction(expenseTransaction, null, refundedPaymentProcessorFeeInHostCurrency);
       await snapshotLedger(SNAPSHOT_COLUMNS);
 
       await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
       for (const useMaterializedView of [false, true]) {
         expect(await collective.getBalance({ useMaterializedView })).to.eq(9500);
         expect(await collective.getTotalAmountReceived({ useMaterializedView })).to.eq(10000);
-        expect(await collective.getTotalAmountReceived({ useMaterializedView, net: true })).to.eq(9500);
+        expect(await collective.getTotalAmountReceived({ useMaterializedView, net: true })).to.eq(9500 - paymentProcessorFeeInHostCurrency);
         expect(await collective.getTotalAmountSpent({ useMaterializedView })).to.eq(0);
         expect(await collective.getTotalAmountSpent({ useMaterializedView, net: true })).to.eq(0);
       }
@@ -787,6 +797,23 @@ describe('test/stories/ledger', () => {
         expect(await secondCollective.getBalance({ useMaterializedView })).to.eq(0);
       }
     });
+
+    // TODO: Finish this!
+    // it('Refund an expense that had feesPayer=PAYEE', async () => {
+    //   const { collective, host, hostAdmin, contributorUser, baseOrderData } = await setupTestData('USD', 'USD');
+    //   const secondCollective = await fakeCollective({ name: 'JHipster', HostCollectiveId: host.id });
+    //   await refundTransaction(collective, secondCollective, host, hostAdmin, contributorUser, baseOrderData, {
+    //     feesPayer: 'PAYEE',
+    //     paymentProcessorFeeInHostCurrency: 100,
+    //     refundedPaymentProcessorFeeInHostCurrency: 100,
+    //   });
+
+    //   await snapshotLedger(SNAPSHOT_COLUMNS_MULTI_CURRENCIES); // TODO This snapshot looks wrong
+    //   await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
+    //   for (const useMaterializedView of [false, true]) {
+    //     expect(await collective.getBalance({ useMaterializedView })).to.eq(9500);
+    //   }
+    // });
   });
 
   describe('Level 6: Disputed Transactions', async () => {

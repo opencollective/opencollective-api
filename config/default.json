@@ -195,6 +195,10 @@
   "pdfService": {
     "fetchTransactionsReceipts": false
   },
+  "activities": {
+    "skipTransactions": false,
+    "skipCreationForTransactions": false
+  },
   "restService": {
     "fetchCollectiveTransactionsCsv": false,
     "fetchHostTransactionsCsv": false

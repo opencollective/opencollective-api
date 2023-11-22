@@ -463,7 +463,10 @@ const Transaction: ModelStatic<TransactionInterface> & TransactionModelStaticInt
 
     hooks: {
       afterCreate: transaction => {
-        Transaction.createActivity(transaction);
+        if (!config.activities?.skipCreationForTransactions) {
+          Transaction.createActivity(transaction);
+        }
+
         // intentionally returns null, needs to be async
         return null;
       },

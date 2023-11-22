@@ -767,7 +767,9 @@ export const fakeTransaction = async (
   const amount = (transactionData.amount as number) || randAmount(10, 100) * 100;
   const CreatedByUserId = transactionData.CreatedByUserId || (await fakeUser()).id;
   const FromCollectiveId = transactionData.FromCollectiveId || (await fakeCollective()).id;
-  const CollectiveId = transactionData.CollectiveId || (await fakeCollective()).id;
+  const collective = transactionData.CollectiveId
+    ? await models.Collective.findByPk(transactionData.CollectiveId)
+    : await fakeCollective();
   const createMethod = createDoubleEntry ? 'createDoubleEntry' : 'create';
   const transaction = await models.Transaction[createMethod](
     {
@@ -783,11 +785,12 @@ export const fakeTransaction = async (
       hostFeeInHostCurrency: 0,
       platformFeeInHostCurrency: 0,
       paymentProcessorFeeInHostCurrency: 0,
+      HostCollectiveId: collective.HostCollectiveId,
       ...transactionData,
       amount,
       CreatedByUserId,
       FromCollectiveId,
-      CollectiveId,
+      CollectiveId: collective.id,
     },
     // In the context of tests, we disable hooks because they can conflict with SQL transactions
     // E.g.: afterCreate: transaction => Transaction.createActivity(transaction)
