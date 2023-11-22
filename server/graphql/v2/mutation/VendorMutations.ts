@@ -2,7 +2,7 @@ import assert from 'assert';
 
 import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
 import slugify from 'limax';
-import { differenceBy, isEmpty, pick } from 'lodash';
+import { differenceBy, isEmpty, isUndefined, pick } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import ActivityTypes from '../../../constants/activities';
@@ -119,8 +119,9 @@ const vendorMutations = {
       }
 
       const { vendorInfo } = args.vendor;
+      const image = isUndefined(args.vendor.imageUrl) ? vendor.image : args.vendor.imageUrl;
       const vendorData = {
-        image: args.vendor.imageUrl || vendor.image,
+        image,
         ...pick(args.vendor, ['name', 'legalName', 'tags']),
         deactivatedAt: args.archive ? new Date() : null,
         settings: vendor.settings,
