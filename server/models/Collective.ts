@@ -136,6 +136,7 @@ type Settings = {
     ignorePaymentProcessorFees?: boolean;
     ott?: boolean;
     isolateUsers?: boolean;
+    blockedPaymentMethodTypes?: string[];
   };
   virtualcards?: {
     reminder?: boolean;
