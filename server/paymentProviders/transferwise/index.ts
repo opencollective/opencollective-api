@@ -527,10 +527,17 @@ async function getRequiredBankInformation(
     sourceAmount: currencyInfo.minInvoiceAmount * 20,
   };
 
-  const requiredFields =
+  let requiredFields =
     accountDetails && has(accountDetails, 'details')
       ? await transferwise.validateAccountRequirements(connectedAccount, transactionParams, accountDetails)
       : await transferwise.getAccountRequirements(connectedAccount, transactionParams);
+
+  // Filter out methods blocked by Host settings
+  if (host.settings?.transferwise?.blockedPaymentMethodTypes) {
+    requiredFields = requiredFields.filter(
+      ({ type }) => !host.settings.transferwise.blockedPaymentMethodTypes.includes(type),
+    );
+  }
 
   // Filter out countries blocked by sanctions on Wise
   requiredFields?.forEach?.((type, itype) => {
