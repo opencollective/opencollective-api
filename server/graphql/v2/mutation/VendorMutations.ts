@@ -12,6 +12,7 @@ import { setTaxForm } from '../../../lib/tax-forms';
 import models, { Activity } from '../../../models';
 import { checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { BadRequest, NotFound, Unauthorized, ValidationFailed } from '../../errors';
+import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLVendorCreateInput, GraphQLVendorEditInput } from '../input/VendorInput';
 import { GraphQLVendor } from '../object/Vendor';
@@ -160,20 +161,26 @@ const vendorMutations = {
         await setTaxForm(vendor, args.vendor.vendorInfo.taxFormUrl, new Date().getFullYear());
       }
 
-      if (args.vendor.payoutMethod && !args.vendor.payoutMethod?.id) {
-        const existingPayoutMethods = await vendor.getPayoutMethods();
-        if (!isEmpty(existingPayoutMethods)) {
-          existingPayoutMethods.map(pm => pm.update({ isSaved: false }));
+      if (args.vendor.payoutMethod) {
+        const existingPayoutMethods = await vendor.getPayoutMethods({ where: { isSaved: true } });
+        if (!args.vendor.payoutMethod.id) {
+          if (!isEmpty(existingPayoutMethods)) {
+            existingPayoutMethods.map(pm => pm.update({ isSaved: false }));
+          }
+
+          await models.PayoutMethod.create({
+            ...pick(args.vendor.payoutMethod, ['name', 'data', 'type']),
+            CollectiveId: vendor.id,
+            CreatedByUserId: req.remoteUser.id,
+            isSaved: true,
+          });
+        } else {
+          const payoutMethodId = idDecode(args.vendor.payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD);
+          await Promise.all(
+            existingPayoutMethods.filter(pm => pm.id !== payoutMethodId).map(pm => pm.update({ isSaved: false })),
+          );
         }
-
-        await models.PayoutMethod.create({
-          ...pick(args.vendor.payoutMethod, ['name', 'data', 'type']),
-          CollectiveId: vendor.id,
-          CreatedByUserId: req.remoteUser.id,
-          isSaved: true,
-        });
       }
-
       return vendor;
     },
   },
