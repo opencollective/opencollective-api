@@ -897,13 +897,15 @@ export const AccountFields = {
       ...ExpensesCollectionQueryArgs,
     },
     resolve(collective, args, req) {
-      if (args.direction) {
-        const direction =
-          args.direction === 'SUBMITTED'
-            ? { fromAccount: { legacyId: collective.id } }
-            : { toAccount: { legacyId: collective.id } };
-        args = omit({ ...args, ...direction }, ['direction']);
+      const accountConditions = {};
+      if (!args.direction || args.direction === 'SUBMITTED') {
+        accountConditions['fromAccount'] = { legacyId: collective.id };
       }
+      if (!args.direction || args.direction === 'RECEIVED') {
+        accountConditions['account'] = { legacyId: collective.id };
+      }
+
+      args = omit({ ...args, ...accountConditions }, ['direction']);
       return ExpensesCollectionQueryResolver(undefined, args, req);
     },
   },
