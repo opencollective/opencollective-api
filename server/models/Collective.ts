@@ -1346,7 +1346,7 @@ class Collective extends Model<
         ['id', 'DESC'],
       ],
       ...query,
-      where: { ...query.where, ParentCollectiveId: this.id },
+      where: { type: { [Op.ne]: CollectiveType.VENDOR }, ...query.where, ParentCollectiveId: this.id },
     });
   };
 
