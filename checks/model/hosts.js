@@ -37,7 +37,7 @@ async function checkHostFeePercent({ fix = false } = {}) {
 }
 
 async function checkHostMemberEntry({ fix = false } = {}) {
-  const message = 'Not Collective with approved host without host member entry';
+  const message = 'No Collective with approved host without host member entry';
 
   const results = await sequelize.query(
     `SELECT COUNT(*) as count
