@@ -3,7 +3,6 @@ import '../../server/env';
 
 import { groupBy, omit, pick } from 'lodash';
 
-import * as PaymentLib from '../../server/lib/payments';
 import models, { Op, sequelize } from '../../server/models';
 
 const startDate = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date('2023-01-01');
@@ -77,26 +76,18 @@ const migrate = async () => {
 
     // Create payment processor fee transaction
     if (credit.kind === 'EXPENSE') {
-      const { paymentProcessorFeeTransaction } = await models.Transaction.createPaymentProcessorFeeTransactions(
-        debit,
-        transactionsData,
-      );
+      await models.Transaction.createPaymentProcessorFeeTransactions(debit, transactionsData);
 
-      // const transactionFees = 0; // There is no fee left at this point (platform fee deprecated and host fee already moved on separate transaction)
       const transactionTaxes = debit.taxAmount || 0;
-      // const netAmountInCollectiveCurrency = Math.round(
-      //   (debit.amountInHostCurrency + transactionFees) / credit.hostCurrencyFxRate + transactionTaxes,
-      // );
 
-      // const amount = debit.amountInHostCurrency / debit.hostCurrencyFxRate;
-      const netAmountInCollectiveCurrency =
+      const debitNetAmountInCollectiveCurrency =
         Math.round((debit.amountInHostCurrency + debit.paymentProcessorFeeInHostCurrency) / debit.hostCurrencyFxRate) +
         transactionTaxes;
 
       // update netAmountInCollectiveCurrency, amount and amountInHostCurrency should not be affected
       await debit.update({
         paymentProcessorFeeInHostCurrency: 0,
-        netAmountInCollectiveCurrency: netAmountInCollectiveCurrency,
+        netAmountInCollectiveCurrency: debitNetAmountInCollectiveCurrency,
         data: {
           ...debit.data,
           ...transactionsData,
@@ -104,12 +95,11 @@ const migrate = async () => {
         },
       });
 
-      const amountInHostCurrency = credit.amountInHostCurrency + credit.paymentProcessorFeeInHostCurrency;
       // update amount and amountInHostCurrency, netAmountInCollectiveCurrency should not be affected
       await credit.update({
         paymentProcessorFeeInHostCurrency: 0,
-        amount: -Math.round(netAmountInCollectiveCurrency),
-        amountInHostCurrency,
+        amount: -debitNetAmountInCollectiveCurrency,
+        amountInHostCurrency: credit.amountInHostCurrency + credit.paymentProcessorFeeInHostCurrency,
         data: {
           ...credit.data,
           ...transactionsData,
@@ -117,10 +107,7 @@ const migrate = async () => {
         },
       });
     } else {
-      const { paymentProcessorFeeTransaction } = await models.Transaction.createPaymentProcessorFeeTransactions(
-        credit,
-        transactionsData,
-      );
+      await models.Transaction.createPaymentProcessorFeeTransactions(credit, transactionsData);
 
       // Update paymentProcessorFeeInHostCurrency for both DEBIT and CREDIT
       const transactionFees = 0; // There is no fee left at this point (platform fee deprecated and host fee already moved on separate transaction)
@@ -149,53 +136,6 @@ const migrate = async () => {
           preMigrationData: debitPreMigrationData,
         },
       });
-    }
-
-    // If there is a refund for this transaction, it needs to be updated as well
-    if (false && credit.RefundTransactionId) {
-      const refundDebit = await credit.getRefundTransaction();
-      const refundCredit = await debit.getRefundTransaction();
-      await refundCredit.update({
-        paymentProcessorFeeInHostCurrency: 0,
-        amount: netAmountInCollectiveCurrency,
-        amountInHostCurrency: Math.round(netAmountInCollectiveCurrency / debit.hostCurrencyFxRate),
-        data: {
-          ...refundCredit.data,
-          ...transactionsData,
-          preMigrationData: pick(refundCredit.dataValues, BACKUP_COLUMNS),
-        },
-      });
-      await refundDebit.update({
-        paymentProcessorFeeInHostCurrency: 0,
-        netAmountInCollectiveCurrency: -netAmountInCollectiveCurrency,
-        data: {
-          ...refundDebit.data,
-          ...transactionsData,
-          preMigrationData: pick(refundDebit.dataValues, BACKUP_COLUMNS),
-        },
-      });
-
-      // Create a refund for the host fee
-      const paymentProcessorFeeRefund = {
-        ...PaymentLib.buildRefundForTransaction(paymentProcessorFeeTransaction, null, transactionsData),
-        TransactionGroup: refundCredit.TransactionGroup,
-        createdAt: refundCredit.createdAt,
-      };
-
-      const paymentProcessorFeeRefundTransaction =
-        await models.Transaction.createDoubleEntry(paymentProcessorFeeRefund);
-      await PaymentLib.associateTransactionRefundId(
-        paymentProcessorFeeTransaction,
-        paymentProcessorFeeRefundTransaction,
-      );
-
-      // Refund payment processor fee from the host to the collective
-      await PaymentLib.refundPaymentProcessorFeeToCollective(
-        credit,
-        refundCredit.TransactionGroup,
-        transactionsData,
-        refundCredit.createdAt,
-      );
     }
   }
 };

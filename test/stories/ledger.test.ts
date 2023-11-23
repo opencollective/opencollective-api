@@ -710,7 +710,11 @@ describe('test/stories/ledger', () => {
       hostAdmin,
       contributorUser,
       baseOrderData,
-      {feesPayer = 'COLLECTIVE', paymentProcessorFeeInHostCurrency = 0, refundedPaymentProcessorFeeInHostCurrency = 0} = {}
+      {
+        feesPayer = 'COLLECTIVE',
+        paymentProcessorFeeInHostCurrency = 0,
+        refundedPaymentProcessorFeeInHostCurrency = 0,
+      } = {},
     ) => {
       const order = await fakeOrder(baseOrderData);
       order.paymentMethod = {
@@ -747,10 +751,12 @@ describe('test/stories/ledger', () => {
 
       await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
       for (const useMaterializedView of [false, true]) {
-        console.log('useMaterializedView => ', useMaterializedView)
+        console.log('useMaterializedView => ', useMaterializedView);
         expect(await collective.getBalance({ useMaterializedView })).to.eq(8500);
         expect(await collective.getTotalAmountReceived({ useMaterializedView })).to.eq(10000);
-        expect(await collective.getTotalAmountReceived({ useMaterializedView, net: true })).to.eq(9500 - paymentProcessorFeeInHostCurrency);
+        expect(await collective.getTotalAmountReceived({ useMaterializedView, net: true })).to.eq(
+          9500 - paymentProcessorFeeInHostCurrency,
+        );
         expect(await collective.getTotalAmountSpent({ useMaterializedView })).to.eq(1000); // TODO: This is failing with the materialized view
         expect(await collective.getTotalAmountSpent({ useMaterializedView, net: true })).to.eq(1000);
       }
@@ -768,7 +774,9 @@ describe('test/stories/ledger', () => {
       for (const useMaterializedView of [false, true]) {
         expect(await collective.getBalance({ useMaterializedView })).to.eq(9500);
         expect(await collective.getTotalAmountReceived({ useMaterializedView })).to.eq(10000);
-        expect(await collective.getTotalAmountReceived({ useMaterializedView, net: true })).to.eq(9500 - paymentProcessorFeeInHostCurrency);
+        expect(await collective.getTotalAmountReceived({ useMaterializedView, net: true })).to.eq(
+          9500 - paymentProcessorFeeInHostCurrency,
+        );
         expect(await collective.getTotalAmountSpent({ useMaterializedView })).to.eq(0);
         expect(await collective.getTotalAmountSpent({ useMaterializedView, net: true })).to.eq(0);
       }

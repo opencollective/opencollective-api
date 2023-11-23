@@ -3,7 +3,7 @@ import { createSandbox } from 'sinon';
 
 import { main as splitPaymentProcessorFees } from '../../../scripts/ledger/split-payment-processor-fees';
 import { refundTransaction } from '../../../server/lib/payments';
-import { fakeCollective, fakeExpense, fakeHost, fakeTransaction, fakeUser } from '../../test-helpers/fake-data';
+import { fakeCollective, fakeHost, fakeTransaction, fakeUser } from '../../test-helpers/fake-data';
 import { resetTestDB, seedDefaultPaymentProcessorVendors, snapshotLedger } from '../../utils';
 
 const SNAPSHOT_COLUMNS = [
