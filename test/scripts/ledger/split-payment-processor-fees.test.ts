@@ -19,12 +19,18 @@ const SNAPSHOT_COLUMNS = [
 ];
 
 describe('scripts/ledger/split-payment-processor-fees', () => {
+  let sandbox;
+  
   beforeEach('reset test database', async () => {
     await resetTestDB();
     await seedDefaultPaymentProcessorVendors();
-    const sandbox = createSandbox();
+    sandbox = createSandbox();
     sandbox.stub(config, 'activities').value({ ...config.activities, skipCreationForTransactions: true }); // Async activities are created async, which doesn't play well with `resetTestDb`
   });
+
+  afterEach(() => {
+    sandbox.restore();
+  })
 
   it('1. migrate a regular contribution with payment processor fees', async () => {
     const user = await fakeUser(null, { name: 'User' });
