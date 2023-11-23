@@ -251,12 +251,12 @@ const TransactionFields = () => {
         fetchPaymentProcessorFee: {
           type: GraphQLBoolean,
           defaultValue: false,
-          description: 'Fetch PAYMENT_PROCESSOR_FEE transaction for retro-compatiblity.',
+          description: 'Fetch PAYMENT_PROCESSOR_FEE transaction and integrate in calculation for retro-compatiblity.',
         },
       },
       async resolve(transaction, args, req) {
         let value = transaction.netAmountInCollectiveCurrency;
-        let hostFeeInHostCurrency = !transaction.hostFeeInHostCurrency,
+        let hostFeeInHostCurrency = transaction.hostFeeInHostCurrency,
           paymentProcessorFeeInHostCurrency = transaction.paymentProcessorFeeInHostCurrency;
         if (args.fetchHostFee && !hostFeeInHostCurrency) {
           hostFeeInHostCurrency = await req.loaders.Transaction.hostFeeAmountForTransaction.load(transaction);
