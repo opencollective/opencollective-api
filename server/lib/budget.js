@@ -1,6 +1,7 @@
 import config from 'config';
 import { difference } from 'lodash';
 
+import { CollectiveType } from '../constants/collectives';
 import expenseStatus from '../constants/expense_status';
 import { TransactionTypes } from '../constants/transactions';
 import models, { Op, sequelize } from '../models';
@@ -547,6 +548,7 @@ export async function sumCollectivesTransactions(
             id: ids,
             ParentCollectiveId: ids,
           },
+          type: { [Op.ne]: CollectiveType.VENDOR },
         },
         attributes: [],
       });

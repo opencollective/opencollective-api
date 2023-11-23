@@ -4,6 +4,7 @@ import { GraphQLDateTime } from 'graphql-scalars';
 import { cloneDeep, flatten, isEmpty, isNil, pick, uniq } from 'lodash';
 import { Order } from 'sequelize';
 
+import { CollectiveType } from '../../../../constants/collectives';
 import { buildSearchConditions } from '../../../../lib/search';
 import models, { Op, sequelize } from '../../../../models';
 import { checkScope } from '../../../common/scope-check';
@@ -195,7 +196,9 @@ export const TransactionsCollectionResolver = async (
     const attributes = ['id']; // We only need IDs
     const fetchAccountsParams = { throwIfMissing: true, attributes };
     if (args.includeChildrenTransactions) {
-      fetchAccountsParams['include'] = [{ association: 'children', required: false, attributes }];
+      fetchAccountsParams['include'] = [
+        { association: 'children', required: false, attributes, where: { type: { [Op.ne]: CollectiveType.VENDOR } } },
+      ];
     }
 
     // Fetch accounts (and optionally their children)
