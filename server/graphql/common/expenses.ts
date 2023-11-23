@@ -2695,7 +2695,7 @@ export async function markExpenseAsUnpaid(
       refundedPaymentProcessorFeeAmount = transaction.paymentProcessorFeeInHostCurrency;
       if (!refundedPaymentProcessorFeeAmount) {
         refundedPaymentProcessorFeeAmount = Math.abs(
-          (await transaction.getPaymentProcessorFeeTransaction().then(t => t.amountInHostCurrency)) || 0,
+          (await transaction.getPaymentProcessorFeeTransaction().then(t => t?.amountInHostCurrency)) || 0,
         );
       }
     }
