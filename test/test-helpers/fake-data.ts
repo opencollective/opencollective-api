@@ -785,7 +785,6 @@ export const fakeTransaction = async (
       hostFeeInHostCurrency: 0,
       platformFeeInHostCurrency: 0,
       paymentProcessorFeeInHostCurrency: 0,
-      HostCollectiveId: collective.HostCollectiveId,
       ...transactionData,
       amount,
       CreatedByUserId,

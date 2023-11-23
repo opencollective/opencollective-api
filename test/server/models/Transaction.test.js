@@ -1,6 +1,6 @@
 import { expect } from 'chai';
-import { stub, createSandbox } from 'sinon';
 import config from 'config';
+import { createSandbox } from 'sinon';
 
 import { TransactionKind } from '../../../server/constants/transaction-kind';
 import models from '../../../server/models';

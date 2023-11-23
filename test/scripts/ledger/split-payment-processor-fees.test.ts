@@ -43,6 +43,7 @@ describe('scripts/ledger/split-payment-processor-fees', () => {
         paymentProcessorFeeInHostCurrency: -25,
         FromCollectiveId: user.CollectiveId,
         CollectiveId: collective.id,
+        HostCollectiveId: host.id,
       },
       { createDoubleEntry: true },
     );
@@ -64,6 +65,7 @@ describe('scripts/ledger/split-payment-processor-fees', () => {
         paymentProcessorFeeInHostCurrency: -25,
         FromCollectiveId: user.CollectiveId,
         CollectiveId: collective.id,
+        HostCollectiveId: host.id,
       },
       { createDoubleEntry: true },
     );
@@ -82,13 +84,6 @@ describe('scripts/ledger/split-payment-processor-fees', () => {
     const host = await fakeHost({ name: 'Host' });
     const collective = await fakeCollective({ name: 'Collective', HostCollectiveId: host.id });
 
-    // const expense = await fakeExpense({
-    //   amount: 500,
-    //   CollectiveId: collective.id,
-    //   status: 'PAID',
-    //   currency: collective.currency,
-    // });
-
     await fakeTransaction(
       {
         amount: -500,
@@ -99,11 +94,10 @@ describe('scripts/ledger/split-payment-processor-fees', () => {
         hostCurrency: 'USD',
         FromCollectiveId: user.CollectiveId,
         CollectiveId: collective.id,
+        HostCollectiveId: host.id,
       },
       { createDoubleEntry: true },
     );
-
-    // await splitPaymentProcessorFees('migrate');
 
     await snapshotLedger(SNAPSHOT_COLUMNS);
 
@@ -127,6 +121,7 @@ describe('scripts/ledger/split-payment-processor-fees', () => {
         FromCollectiveId: user.CollectiveId,
         CollectiveId: collective.id,
         taxAmount: -150,
+        HostCollectiveId: host.id,
       },
       { createDoubleEntry: true },
     );
@@ -150,6 +145,7 @@ describe('scripts/ledger/split-payment-processor-fees', () => {
         hostCurrency: 'USD',
         FromCollectiveId: user.CollectiveId,
         CollectiveId: collective.id,
+        HostCollectiveId: host.id,
         data: { feesPayer: 'PAYEE' },
       },
       { createDoubleEntry: true },
