@@ -12,22 +12,22 @@ exports[`server/graphql/v2/mutation/ExpenseMutations processExpense MARK_AS_UNPA
 
 exports[`server/graphql/v2/mutation/ExpenseMutations processExpense PAY Multi-currency expense Pays the expense manually 1`] = `
 "
-| type   | kind                  | amount | netAmountInCollectiveCurrency | paymentFee | currency | hostCurrency | hostCurrencyFxRate | To    | From  | Host | isRefund |
-| ------ | --------------------- | ------ | ----------------------------- | ---------- | -------- | ------------ | ------------------ | ----- | ----- | ---- | -------- |
-| CREDIT | EXPENSE               | 1600   | 1600                          | 0          | USD      | USD          | 1                  | Payee | Babel | NULL | false    |
-| DEBIT  | EXPENSE               | -1600  | -1600                         | 0          | USD      | USD          | 1                  | Babel | Payee | OSC  | false    |
-| CREDIT | PAYMENT_PROCESSOR_FEE | 100    | 100                           | 0          | USD      | USD          | 1                  | Other | Babel | NULL | false    |
-| DEBIT  | PAYMENT_PROCESSOR_FEE | -100   | -100                          | 0          | USD      | USD          | 1                  | Babel | Other | OSC  | false    |"
+| type   | kind                  | amount | netAmountInCollectiveCurrency | paymentFee | currency | hostCurrency | hostCurrencyFxRate | To                      | From                    | Host | isRefund |
+| ------ | --------------------- | ------ | ----------------------------- | ---------- | -------- | ------------ | ------------------ | ----------------------- | ----------------------- | ---- | -------- |
+| CREDIT | EXPENSE               | 1600   | 1600                          | 0          | USD      | USD          | 1                  | Payee                   | Babel                   | NULL | false    |
+| DEBIT  | EXPENSE               | -1600  | -1600                         | 0          | USD      | USD          | 1                  | Babel                   | Payee                   | OSC  | false    |
+| CREDIT | PAYMENT_PROCESSOR_FEE | 100    | 100                           | 0          | USD      | USD          | 1                  | Other Payment Processor | Babel                   | NULL | false    |
+| DEBIT  | PAYMENT_PROCESSOR_FEE | -100   | -100                          | 0          | USD      | USD          | 1                  | Babel                   | Other Payment Processor | OSC  | false    |"
 `;
 
 exports[`server/graphql/v2/mutation/ExpenseMutations processExpense PAY Multi-currency expense Records a manual payment with an active account 1`] = `
 "
-| type   | kind                  | amount | netAmountInCollectiveCurrency | paymentFee | currency | hostCurrency | hostCurrencyFxRate | To    | From  | Host      | isRefund |
-| ------ | --------------------- | ------ | ----------------------------- | ---------- | -------- | ------------ | ------------------ | ----- | ----- | --------- | -------- |
-| CREDIT | EXPENSE               | 1600   | 1600                          | 0          | USD      | NZD          | 1.1                | Payee | Babel | PayeeHost | false    |
-| DEBIT  | EXPENSE               | -1600  | -1600                         | 0          | USD      | USD          | 1                  | Babel | Payee | OSC       | false    |
-| CREDIT | PAYMENT_PROCESSOR_FEE | 100    | 100                           | 0          | USD      | USD          | 1                  | Other | Babel | NULL      | false    |
-| DEBIT  | PAYMENT_PROCESSOR_FEE | -100   | -100                          | 0          | USD      | USD          | 1                  | Babel | Other | OSC       | false    |"
+| type   | kind                  | amount | netAmountInCollectiveCurrency | paymentFee | currency | hostCurrency | hostCurrencyFxRate | To                      | From                    | Host      | isRefund |
+| ------ | --------------------- | ------ | ----------------------------- | ---------- | -------- | ------------ | ------------------ | ----------------------- | ----------------------- | --------- | -------- |
+| CREDIT | EXPENSE               | 1600   | 1600                          | 0          | USD      | NZD          | 1.1                | Payee                   | Babel                   | PayeeHost | false    |
+| DEBIT  | EXPENSE               | -1600  | -1600                         | 0          | USD      | USD          | 1                  | Babel                   | Payee                   | OSC       | false    |
+| CREDIT | PAYMENT_PROCESSOR_FEE | 100    | 100                           | 0          | USD      | USD          | 1                  | Other Payment Processor | Babel                   | NULL      | false    |
+| DEBIT  | PAYMENT_PROCESSOR_FEE | -100   | -100                          | 0          | USD      | USD          | 1                  | Babel                   | Other Payment Processor | OSC       | false    |"
 `;
 
 exports[`server/graphql/v2/mutation/ExpenseMutations processExpense PAY Taxes with VAT (manual payment) 1`] = `
