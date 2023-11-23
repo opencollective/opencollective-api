@@ -99,7 +99,7 @@
     "juice": "9.1.0",
     "limax": "4.1.0",
     "lodash": "4.17.21",
-    "lru-cache": "10.0.3",
+    "lru-cache": "10.1.0",
     "moment": "2.29.4",
     "moment-timezone": "0.5.43",
     "multer": "1.4.4",
