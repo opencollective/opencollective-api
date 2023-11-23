@@ -1,5 +1,6 @@
 import { expect } from 'chai';
-import { stub } from 'sinon';
+import { stub, createSandbox } from 'sinon';
+import config from 'config';
 
 import { TransactionKind } from '../../../server/constants/transaction-kind';
 import models from '../../../server/models';
@@ -10,6 +11,7 @@ import {
   fakePaymentMethod,
   fakeTransaction,
   fakeUser,
+  randStr,
 } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
@@ -46,11 +48,12 @@ const SNAPSHOT_COLUMNS_WITH_DEBT = [
 ];
 
 describe('server/models/Transaction', () => {
-  let user, host, inc, collective, defaultTransactionData;
-
-  beforeEach(() => utils.resetTestDB());
+  let sandbox, user, host, inc, collective, defaultTransactionData;
 
   beforeEach(async () => {
+    await utils.resetTestDB();
+    sandbox = createSandbox();
+    sandbox.stub(config, 'activities').value({ ...config.activities, skipCreationForTransactions: true }); // Async activities are created async, which doesn't play well with `resetTestDb`
     user = await fakeUser({}, { name: 'User' });
     inc = await fakeHost({
       id: 8686,
@@ -74,6 +77,10 @@ describe('server/models/Transaction', () => {
       CollectiveId: collective.id,
       HostCollectiveId: host.id,
     };
+  });
+
+  afterEach(() => {
+    sandbox.restore();
   });
 
   it('automatically generates uuid', done => {
@@ -197,23 +204,20 @@ describe('server/models/Transaction', () => {
     });
   });
 
-  it('createFromContributionPayload() generates a new activity', done => {
-    const createActivityStub = stub(Transaction, 'createActivity').callsFake(t => {
-      expect(Math.abs(t.amount)).to.equal(Math.abs(transactionsData[7].amount));
-      createActivityStub.restore();
-      done();
-    });
+  it('createFromContributionPayload() generates a new activity', async () => {
+    sandbox.stub(config, 'activities').value({ ...config.activities, skipCreationForTransactions: false }); // Async activities are created async, which doesn't play well with `resetTestDb`
+    const createActivityStub = sandbox.stub(Transaction, 'createActivity');
 
-    Transaction.createFromContributionPayload({
+    const transaction = await Transaction.createFromContributionPayload({
       CreatedByUserId: user.id,
       FromCollectiveId: user.CollectiveId,
       CollectiveId: collective.id,
       ...transactionsData[7],
-    })
-      .then(transaction => {
-        expect(transaction.CollectiveId).to.equal(collective.id);
-      })
-      .catch(done);
+      description: randStr(),
+    });
+
+    await utils.waitForCondition(() => createActivityStub.called);
+    expect(createActivityStub.firstCall.args[0].description).to.equal(transaction.description);
   });
 
   describe('fees on top', () => {

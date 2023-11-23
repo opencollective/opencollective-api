@@ -20,7 +20,7 @@ const SNAPSHOT_COLUMNS = [
 
 describe('scripts/ledger/split-payment-processor-fees', () => {
   let sandbox;
-  
+
   beforeEach('reset test database', async () => {
     await resetTestDB();
     await seedDefaultPaymentProcessorVendors();
@@ -30,7 +30,7 @@ describe('scripts/ledger/split-payment-processor-fees', () => {
 
   afterEach(() => {
     sandbox.restore();
-  })
+  });
 
   it('1. migrate a regular contribution with payment processor fees', async () => {
     const user = await fakeUser(null, { name: 'User' });
