@@ -47,14 +47,18 @@ async function checkOrphanTransactions() {
   const message = 'No orphan Transaction without a primary Transaction (EXPENSE, CONTRIBUTION, ADDED_FUNDS)';
 
   const results = await sequelize.query(
-    `SELECT COUNT(*) as count
-     FROM "Transactions" t1
-     INNER JOIN "Transactions" t2 ON t1."TransactionGroup" = t2."TransactionGroup"
-     AND t2."kind" NOT IN ('EXPENSE', 'CONTRIBUTION', 'ADDED_FUNDS') AND t2."deletedAt" IS NULL
-     LEFT JOIN "Transactions" t3 ON t3."TransactionGroup" = t2."TransactionGroup"
-     AND t3."kind" IN ('EXPENSE', 'CONTRIBUTION', 'ADDED_FUNDS') AND t3."deletedAt" IS NULL
-     WHERE t1."kind" IN ('EXPENSE', 'CONTRIBUTION', 'ADDED_FUNDS') AND t1."deletedAt" IS NOT NULL
-     AND t3."id" IS NULL`,
+    `SELECT COUNT(DISTINCT secondaryTransactions."TransactionGroup") as count
+     FROM "Transactions" secondaryTransactions
+     LEFT JOIN "Transactions" primaryTransactions
+     ON primaryTransactions."TransactionGroup" = secondaryTransactions."TransactionGroup"
+     AND primaryTransactions."deletedAt" IS NULL
+     AND primaryTransactions."kind" IN ('EXPENSE', 'CONTRIBUTION', 'ADDED_FUNDS', 'BALANCE_TRANSFER', 'PREPAID_PAYMENT_METHOD')
+     WHERE secondaryTransactions."kind" NOT IN ('EXPENSE', 'CONTRIBUTION', 'ADDED_FUNDS', 'BALANCE_TRANSFER', 'PREPAID_PAYMENT_METHOD')
+     -- there are sometime issues WHERE PAYMENT_PROCESSOR_COVER end up with a different TransactionGroup
+     -- this should be adressed separetely
+     AND secondaryTransactions."kind" != 'PAYMENT_PROCESSOR_COVER'
+     AND secondaryTransactions."deletedAt" IS NULL
+     AND primaryTransactions."id" IS NULL`,
     { type: sequelize.QueryTypes.SELECT, raw: true },
   );
 
