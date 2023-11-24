@@ -2,6 +2,13 @@ import type { CreationOptional, InferAttributes, InferCreationAttributes } from 
 
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
+export enum FX_RATE_SOURCE {
+  OPENCOLLECTIVE = 'OPENCOLLECTIVE',
+  PAYPAL = 'PAYPAL',
+  WISE = 'WISE',
+  USER = 'USER',
+}
+
 /**
  * Sequelize model to represent an CurrencyExchangeRate, linked to the `CurrencyExchangeRates` table.
  */

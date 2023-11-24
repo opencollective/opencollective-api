@@ -1,12 +1,14 @@
+import { AmountWithExchangeRate } from '../../types/AmountWithExchangeRate';
+
 export interface ExpenseOCRParseResult {
   confidence: number;
   description: string;
-  amount: { value: number; currency: string };
+  amount: AmountWithExchangeRate;
   date: Date;
   raw: Record<string, any>;
   items: Array<{
     description: string;
-    amount: { value: number; currency: string };
+    amount: AmountWithExchangeRate;
     url: string;
     incurredAt: Date;
   }>;

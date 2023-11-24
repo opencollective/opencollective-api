@@ -6,6 +6,7 @@ import { FileKind } from '../../../constants/file-kind';
 import { getExpenseOCRParser, runOCRForExpenseFile, userCanUseOCR } from '../../../lib/ocr';
 import models, { UploadedFile } from '../../../models';
 import { checkRemoteUserCanUseExpenses } from '../../common/scope-check';
+import { GraphQLOCRParsingOptionsInputType } from '../input/OCRParsingOptionsInput';
 import { GraphQLUploadFileInput } from '../input/UploadFileInput';
 import { GraphQLFileInfo } from '../interface/FileInfo';
 import { GraphQLParseUploadedFileResult, ParseUploadedFileResult } from '../object/ParseUploadedFileResult';
@@ -35,7 +36,14 @@ const uploadedFileMutations = {
     },
     async resolve(
       _: void,
-      args: { files: Array<{ file: Promise<FileUpload>; kind?: FileKind; parseDocument: boolean }> },
+      args: {
+        files: Array<{
+          file: Promise<FileUpload>;
+          kind?: FileKind;
+          parseDocument: boolean;
+          parsingOptions: GraphQLOCRParsingOptionsInputType;
+        }>;
+      },
       req: Express.Request,
     ): Promise<Array<UploadFileResult>> {
       if (!req.remoteUser) {
@@ -65,14 +73,17 @@ const uploadedFileMutations = {
       const useOCR = canUseOCR && args.files.some(r => r.parseDocument);
       const parser = useOCR ? getExpenseOCRParser(req.remoteUser) : null;
       return Promise.all(
-        args.files.map(async ({ file, kind, parseDocument }) => {
+        args.files.map(async ({ file, kind, parseDocument, parsingOptions }) => {
           const uploadStart = performance.now();
           const result: UploadFileResult = { file: null, parsingResult: null };
           result.file = await models.UploadedFile.uploadGraphQl(await file, kind, req.remoteUser);
           const uploadDuration = (performance.now() - uploadStart) / 1000.0;
           const timeLeftForParsing = 25e3 - uploadDuration; // GraphQL queries timeout after 25s
           if (parseDocument && timeLeftForParsing > 2e3) {
-            result.parsingResult = await runOCRForExpenseFile(parser, result.file, { timeoutInMs: timeLeftForParsing });
+            result.parsingResult = await runOCRForExpenseFile(parser, result.file, {
+              ...parsingOptions,
+              timeoutInMs: timeLeftForParsing,
+            });
           }
 
           return result;

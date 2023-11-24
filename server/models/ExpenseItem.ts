@@ -7,6 +7,7 @@ import { isValidUploadedImage } from '../lib/images';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize from '../lib/sequelize';
 
+import { FX_RATE_SOURCE } from './CurrencyExchangeRate';
 import Expense from './Expense';
 import { MAX_UPLOADED_FILE_URL_LENGTH } from './UploadedFile';
 import User from './User';
@@ -22,6 +23,9 @@ export class ExpenseItem extends Model<InferAttributes<ExpenseItem>, InferCreati
   public declare ExpenseId: ForeignKey<Expense['id']>;
   public declare CreatedByUserId: ForeignKey<User['id']>;
   public declare amount: number;
+  public declare currency: string;
+  public declare fxRate: number;
+  public declare fxRateSource: FX_RATE_SOURCE | `${FX_RATE_SOURCE}`;
   public declare url: string;
   public declare createdAt: CreationOptional<Date>;
   public declare updatedAt: CreationOptional<Date>;
@@ -29,7 +33,7 @@ export class ExpenseItem extends Model<InferAttributes<ExpenseItem>, InferCreati
   public declare incurredAt: Date;
   public declare description: CreationOptional<string>;
 
-  private static editableFields = ['amount', 'url', 'description', 'incurredAt'];
+  public static editableFields = ['amount', 'currency', 'fxRate', 'fxRateSource', 'url', 'description', 'incurredAt'];
 
   /**
    * Based on `diffDBEntries`, diff two items list to know which ones where
@@ -97,6 +101,24 @@ ExpenseItem.init(
       validate: {
         min: 1,
       },
+    },
+    currency: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: {
+        len: [3, 3],
+      },
+    },
+    fxRate: {
+      type: DataTypes.FLOAT,
+      allowNull: true,
+      validate: {
+        min: 0,
+      },
+    },
+    fxRateSource: {
+      type: DataTypes.ENUM('OPENCOLLECTIVE', 'PAYPAL', 'WISE', 'USER'),
+      allowNull: true,
     },
     url: {
       type: DataTypes.STRING,

@@ -1,8 +1,10 @@
 import config from 'config';
-import { get } from 'lodash';
+import { get, uniq } from 'lodash';
 
+import { GraphQLAmountFields } from '../../graphql/v2/object/Amount';
 import { ParseUploadedFileResult } from '../../graphql/v2/object/ParseUploadedFileResult';
 import { UploadedFile, User } from '../../models';
+import { getDateKeyForFxRateMap, loadFxRatesMap } from '../currency';
 import { getInternalHostsIds } from '../utils';
 
 import { KlippaOCRService } from './klippa/KlippaOCRService';
@@ -42,12 +44,83 @@ const processFile = async (parser: ExpenseOCRService, uploadedFile: UploadedFile
 };
 
 /**
+ * From a successful OCR result, adapt all amounts to the given currency.
+ */
+const updateExpenseParsingResultWithCurrency = async (
+  result: ExpenseOCRParseResult,
+  targetCurrency: string,
+): Promise<ParseUploadedFileResult> => {
+  // First get a list of all required currency conversions
+  const toConvert: Array<{ amount: GraphQLAmountFields; date: Date }> = [];
+
+  // Main amount
+  if (result.amount?.currency && result.amount.currency !== targetCurrency) {
+    toConvert.push({ amount: result.amount, date: result.date });
+  }
+
+  // Items
+  if (result.items) {
+    result.items.forEach(item => {
+      if (item.amount?.currency && item.amount.currency !== targetCurrency) {
+        toConvert.push({ amount: item.amount, date: item.incurredAt });
+      }
+    });
+  }
+
+  // No conversion needed (usually because there's only one currency and it matches the requested one)
+  if (!toConvert.length) {
+    return { success: true, expense: result };
+  }
+
+  // Load FX rates and convert everything
+  let fxRateMap;
+  try {
+    fxRateMap = await loadFxRatesMap(
+      toConvert.map(c => ({
+        date: getDateKeyForFxRateMap(c.date),
+        fromCurrency: c.amount.currency,
+        toCurrency: targetCurrency,
+      })),
+    );
+  } catch (e) {
+    return {
+      success: false,
+      message: `Could not load exchange rates for ${uniq(
+        toConvert.map(c => `${c.amount.currency} -> ${targetCurrency} (${c.date})`),
+      ).join(', ')}`,
+    };
+  }
+
+  for (const { amount, date } of toConvert) {
+    const dateKey = getDateKeyForFxRateMap(date);
+    const fxRate = get(fxRateMap, [dateKey, amount.currency, targetCurrency]);
+    if (!fxRate) {
+      return {
+        success: false,
+        message: `Could not find the exchange rate for ${amount.currency} -> ${targetCurrency} on ${date}`,
+      };
+    }
+
+    amount.exchangeRate = {
+      date,
+      fromCurrency: amount.currency,
+      toCurrency: targetCurrency,
+      value: fxRate,
+      source: 'OPENCOLLECTIVE',
+      isApproximate: true,
+    };
+  }
+
+  return { success: true, expense: result };
+};
+
+/**
  * Runs OCR on the document and updates the uploaded file with the result.
  */
 export const runOCRForExpenseFile = async (
   parser: ExpenseOCRService,
   uploadedFile: UploadedFile,
-  { timeoutInMs = undefined } = {},
+  { timeoutInMs = undefined, currency = undefined } = {},
 ): Promise<ParseUploadedFileResult> => {
   if (!parser) {
     return { success: false, message: 'OCR parsing is not available' };
@@ -56,7 +129,7 @@ export const runOCRForExpenseFile = async (
   // Check if there's a cached version for this file hash/parser
   const dataFromCache = await lookForParserDataInCache(parser, uploadedFile);
   if (dataFromCache) {
-    return { success: true, expense: dataFromCache };
+    return updateExpenseParsingResultWithCurrency(dataFromCache, currency);
   }
 
   // Run OCR service
@@ -69,8 +142,10 @@ export const runOCRForExpenseFile = async (
     const result = await Promise.race(promises);
     if (result === 'TIMEOUT') {
       return { success: false, message: 'OCR parsing timed out' };
-    } else {
+    } else if (!currency) {
       return { success: true, expense: result };
+    } else {
+      return updateExpenseParsingResultWithCurrency(result, currency);
     }
   } catch (e) {
     return { success: false, message: `Could not parse document: ${e.message}` };

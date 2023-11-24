@@ -29,6 +29,7 @@ import models, {
   ConnectedAccount,
   EmojiReaction,
   ExpenseAttachedFile,
+  ExpenseItem,
   Location,
   Notification,
   PaypalProduct,
@@ -343,14 +344,16 @@ export const fakeUpdate = async (
 /**
  * Creates a fake expense item
  */
-export const fakeExpenseItem = async (attachmentData: Record<string, unknown> = {}) => {
+export const fakeExpenseItem = async (itemData: Partial<InferCreationAttributes<ExpenseItem>> = {}) => {
+  const expense = await (itemData.ExpenseId ? models.Expense.findByPk(itemData.ExpenseId) : fakeExpense());
   return models.ExpenseItem.create({
     amount: randAmount(),
-    url: <string>attachmentData.url || `${randUrl()}.pdf`,
+    url: <string>itemData.url || `${randUrl()}.pdf`,
     description: randStr(),
-    ...attachmentData,
-    ExpenseId: (attachmentData.ExpenseId as number) || (await fakeExpense({ items: [] })).id,
-    CreatedByUserId: <number>attachmentData.CreatedByUserId || (await fakeUser()).id,
+    currency: expense.currency,
+    ...itemData,
+    ExpenseId: expense.id,
+    CreatedByUserId: <number>itemData.CreatedByUserId || (await fakeUser()).id,
   });
 };
 

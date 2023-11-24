@@ -3,6 +3,8 @@ import { GraphQLDateTime } from 'graphql-scalars';
 
 import URL from '../scalar/URL';
 
+import { GraphQLAmountInput } from './AmountInput';
+
 /**
  * To create or edit an expense item
  */
@@ -16,6 +18,11 @@ export const GraphQLExpenseItemInput = new GraphQLInputObjectType({
     amount: {
       type: GraphQLInt,
       description: 'Amount in cents',
+      deprecationReason: 'Please use `amountV2`',
+    },
+    amountV2: {
+      type: GraphQLAmountInput,
+      description: 'Amount',
     },
     description: {
       type: GraphQLString,

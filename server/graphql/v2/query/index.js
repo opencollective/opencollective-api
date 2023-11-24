@@ -14,6 +14,7 @@ import AccountQuery from './AccountQuery';
 import ApplicationQuery from './ApplicationQuery';
 import CollectiveQuery from './CollectiveQuery';
 import ConversationQuery from './ConversationQuery';
+import CurrencyExchangeRateQuery from './CurrencyExchangeRateQuery';
 import EventQuery from './EventQuery';
 import ExpenseQuery from './ExpenseQuery';
 import FundQuery from './FundQuery';
@@ -38,6 +39,7 @@ const query = {
   application: ApplicationQuery,
   collective: CollectiveQuery,
   conversation: ConversationQuery,
+  currencyExchangeRate: CurrencyExchangeRateQuery,
   event: EventQuery,
   expense: ExpenseQuery,
   expenses: ExpensesCollectionQuery,

@@ -224,7 +224,7 @@ export async function newCollectiveInHost(name, currency, hostCollective, user =
  * @return {models.Expense} newly created expense instance.
  */
 export async function createExpense(user, expenseData) {
-  return expenses.createExpense(user, expenseData);
+  return expenses.createExpense({ remoteUser: user }, expenseData);
 }
 
 export async function createApprovedExpense(user, expenseData) {

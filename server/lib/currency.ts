@@ -1,6 +1,7 @@
 import config from 'config';
 import debugLib from 'debug';
-import { difference, get, has, keys, merge, uniq, zipObject } from 'lodash';
+import { difference, get, groupBy, has, keys, mapValues, merge, set, uniq, zipObject } from 'lodash';
+import moment from 'moment';
 import fetch from 'node-fetch';
 
 import { currencyFormats, SUPPORTED_CURRENCIES } from '../constants/currencies';
@@ -9,17 +10,18 @@ import models from '../models';
 import cache from './cache';
 import logger from './logger';
 import { reportErrorToSentry, reportMessageToSentry } from './sentry';
+import { parseToBoolean } from './utils';
 
 const debug = debugLib('currency');
 
-function getDate(date: string | Date = 'latest') {
+/**
+ * An helper to get a date key for the FX rate map
+ */
+export function getDate(date: string | Date = 'latest'): string {
   if (typeof date === 'string') {
     return date;
   } else if (date.getFullYear) {
-    date.setTime(date.getTime() + date.getTimezoneOffset() * 60 * 1000);
-    const mm = date.getMonth() + 1; // getMonth() is zero-based
-    const dd = date.getDate();
-    return [date.getFullYear(), (mm > 9 ? '' : '0') + mm, (dd > 9 ? '' : '0') + dd].join('-');
+    return moment(date).format('YYYY-MM-DD');
   }
 }
 
@@ -33,9 +35,19 @@ export function formatCurrency(currency: string, value: number): string {
   return currencyStr.concat(value);
 }
 
-if (!get(config, 'fixer.accessKey') && !['staging', 'production'].includes(config.env)) {
-  logger.info('Fixer API is not configured, lib/currency will always return 1.1');
-}
+const showFixerWarning = () => {
+  if (!get(config, 'fixer.accessKey')) {
+    if (['staging', 'production'].includes(config.env) || parseToBoolean(get(config, 'fixer.disableMock'))) {
+      const logFn = config.env === 'production' ? logger.warn : logger.info; // In prod, having no Fixer API would be problematic as our FX rates would quickly become outdated
+      logFn('Fixer API is not configured, lib/currency will fallback to DB values');
+    } else {
+      logger.info('Fixer API is not configured, lib/currency will always return 1.1');
+    }
+  }
+};
+
+// Show fixer warning when booting the APP
+showFixerWarning();
 
 export const getRatesFromDb = async (
   fromCurrency: string,
@@ -111,11 +123,12 @@ export async function fetchFxRates(
 
   const useFixerApi = Boolean(get(config, 'fixer.accessKey'));
   const isLiveEnv = ['staging', 'production'].includes(config.env);
+  const useMockRate = !isLiveEnv && !parseToBoolean(get(config, 'fixer.disableMock'));
 
-  // Try to fetch the FX rates from fixer.io
   if (!useFixerApi) {
-    logger.info('Fixer API is not configured, lib/currency will always return 1.1');
+    showFixerWarning();
   } else {
+    // Try to fetch the FX rates from fixer.io
     const params = {
       access_key: config.fixer.accessKey, // eslint-disable-line camelcase
       base: fromCurrency,
@@ -141,7 +154,7 @@ export async function fetchFxRates(
 
       return rates;
     } catch (error) {
-      if (!isLiveEnv) {
+      if (useMockRate) {
         logger.info(`Unable to fetch fxRate with Fixer API: ${error.message}. Returning 1.1`);
       } else {
         logger.error(`Unable to fetch fxRate with Fixer API: ${error.message}. Using DB fallback`);
@@ -150,13 +163,13 @@ export async function fetchFxRates(
     }
   }
 
-  // In case of error or if Fixer API is not configured, fallback to DB/mock values
-  if (!isLiveEnv) {
+  if (useMockRate) {
     const ratesValues = toCurrencies.map(() => 1.1);
     return zipObject(toCurrencies, ratesValues);
-  } else {
-    return getRatesFromDb(fromCurrency, toCurrencies, date);
   }
+
+  // As a fallback, try to fetch the rates from the DB
+  return getRatesFromDb(fromCurrency, toCurrencies, date);
 }
 
 export async function getFxRate(
@@ -268,3 +281,46 @@ export function reduceArrayToCurrency(array: AmountWithCurrencyAndDate[], curren
     },
   );
 }
+
+export type LoadFxRateRequest = {
+  fromCurrency: string;
+  toCurrency: string;
+  date?: string;
+};
+
+type LoadFxRateResultMap = {
+  [date: string | 'NOW']: { [fromCurrency: string]: { [toCurrency: string]: number } };
+};
+
+export const getDateKeyForFxRateMap = (date: string | Date): 'NOW' | string => {
+  if (!date) {
+    return 'NOW';
+  } else {
+    return getDate(date);
+  }
+};
+
+/**
+ * A function to load multiple FX rates at once, optimized to avoid making too many requests.
+ *
+ * @returns A map of the form `{ [date]: { [fromCurrency]: { [toCurrency]: fxRate } } }`. When `date` is not set, it defaults to `NOW`.
+ */
+export const loadFxRatesMap = async (requests: Array<LoadFxRateRequest>): Promise<LoadFxRateResultMap> => {
+  // Group requests by date: { [date]: requests }
+  const requestsByDate = groupBy(requests, request => getDateKeyForFxRateMap(request.date));
+
+  // Group each date's requests by fromCurrency: { [date]: { [fromCurrency]: requests } }
+  const groupedByDateAndFromCurrency = mapValues(requestsByDate, requests => groupBy(requests, 'fromCurrency'));
+
+  // Fetch FX rates
+  const result: LoadFxRateResultMap = {};
+  for (const [dateStr, requestsByCurrency] of Object.entries(groupedByDateAndFromCurrency)) {
+    for (const [fromCurrency, requests] of Object.entries(requestsByCurrency)) {
+      const toCurrencies = uniq(requests.map(request => request.toCurrency));
+      const date = dateStr === 'NOW' ? undefined : dateStr;
+      set(result, [dateStr, fromCurrency], await getFxRates(fromCurrency, toCurrencies, date));
+    }
+  }
+
+  return result;
+};

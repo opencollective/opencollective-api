@@ -1,4 +1,4 @@
-import { get, isEmpty, pick } from 'lodash';
+import { get, isEmpty, pick, sumBy } from 'lodash';
 import {
   BelongsToGetAssociationMixin,
   CreationOptional,
@@ -149,6 +149,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
       data?.ledgerTransaction ||
       (this.status === ExpenseStatus.PAID &&
         (await models.Transaction.findOne({ where: { type: 'DEBIT', kind: 'EXPENSE', ExpenseId: this.id } })));
+
     return models.Activity.create({
       type,
       UserId: user?.id,
@@ -185,6 +186,9 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
             incurredAt: item.incurredAt,
             description: item.description,
             amount: item.amount,
+            currency: item.currency,
+            fxRate: item.fxRate,
+            fxRateSource: item.fxRateSource,
             url: item.url,
           })),
       },
@@ -272,7 +276,14 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
 
   // Getters
 
-  get info(): NonAttribute<Partial<Expense> & { category: string }> {
+  get info(): NonAttribute<
+    Partial<Expense> & {
+      category: string;
+      taxes: Array<{ type: string; rate: number; idNumber: string }>;
+      grossAmount: number;
+    }
+  > {
+    const taxes = get(this.data, 'taxes', []) as Array<{ type: string; rate: number; idNumber: string }>;
     return {
       type: this.type,
       id: this.id,
@@ -294,6 +305,8 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
       incurredAt: this.incurredAt,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
+      taxes,
+      grossAmount: Expense.computeTotalAmountForExpense(this.items, []), // Compute without tax
     };
   }
 
@@ -498,6 +511,23 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
     });
 
     return Promise.all(expenses.map(expense => expense.verify(user)));
+  };
+
+  static computeTotalAmountForExpense = (
+    items: Partial<ExpenseItem>[],
+    taxes: {
+      type: string;
+      rate: number;
+      idNumber: string;
+    }[],
+  ): number => {
+    return Math.round(
+      sumBy(items, item => {
+        const amountInCents = Math.round(item.amount * (item.fxRate || 1));
+        const totalTaxes = sumBy(taxes, tax => amountInCents * tax.rate);
+        return amountInCents + totalTaxes;
+      }),
+    );
   };
 }
 

@@ -134,7 +134,8 @@
     "disable": "TWITTER_DISABLE"
   },
   "fixer": {
-    "accessKey": "FIXER_ACCESS_KEY"
+    "accessKey": "FIXER_ACCESS_KEY",
+    "disableMock": "FIXER_DISABLE_MOCK"
   },
   "captcha": {
     "enabled": "CAPTCHA_ENABLE"

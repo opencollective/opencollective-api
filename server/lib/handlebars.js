@@ -1,5 +1,5 @@
 import handlebars from 'handlebars';
-import { isNil, lowerCase } from 'lodash';
+import { add, divide, isNil, lowerCase, multiply, subtract, sum } from 'lodash';
 import moment from 'moment-timezone';
 
 import {
@@ -234,5 +234,12 @@ handlebars.registerHelper('debug', console.log);
 handlebars.registerHelper('escapeForSubject', str => {
   return str ? str.replaceAll(/[\r\n]/g, ' ') : '';
 });
+
+// Math operations
+handlebars.registerHelper('add', add);
+handlebars.registerHelper('subtract', subtract);
+handlebars.registerHelper('sum', sum);
+handlebars.registerHelper('divide', divide);
+handlebars.registerHelper('multiply', multiply);
 
 export default handlebars;
