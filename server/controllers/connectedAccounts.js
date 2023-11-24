@@ -91,7 +91,8 @@ export const createOrUpdate = async (req, res, next, accessToken, data) => {
         username: data.profile.username,
         clientId: null,
         token: accessToken,
-        data: { ...data.profile._json, isOAuth2: true, needsReconnect: false },
+        data: { ...data.profile._json, isOAuth2: true },
+        settings: { ...connectedAccount.settings, needsReconnect: false },
         CreatedByUserId: req.remoteUser.id,
       });
 

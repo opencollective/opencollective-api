@@ -150,7 +150,7 @@ const _authenticateUserByJwt = async (req, res, next) => {
     return;
   }
 
-  const { earlyAccess = {} } = user.collective.settings;
+  const { earlyAccess = {} } = user.collective.settings || {};
   if (earlyAccess.dashboard) {
     res.cookie('rootRedirect', 'dashboard', {
       secure: true,
@@ -308,29 +308,33 @@ export const authenticateServiceCallback = async (req, res, next) => {
 
   // Twitter redirects us here, but we redirect to the frontend before authenticating to make
   // sure the user is logged in.
-  if (service === 'twitter' && !req.remoteUser && req.query.CollectiveId) {
-    const collective = await models.Collective.findByPk(req.query.CollectiveId);
-    if (!collective) {
-      return next(new errors.NotFound('Collective not found'));
-    } else {
-      // Permissions will be checked in the callback
-      const redirectUrl = new URL(`${config.host.website}/${collective.slug}/admin/connected-accounts`);
-      redirectUrl.searchParams.set('service', service);
-      redirectUrl.searchParams.set('state', req.query.state);
-      redirectUrl.searchParams.set('code', req.query.code);
-      redirectUrl.searchParams.set('callback', 'true');
-      return res.redirect(redirectUrl.href);
+  if (service === 'twitter') {
+    if (!req.remoteUser && req.query.CollectiveId) {
+      const collective = await models.Collective.findByPk(req.query.CollectiveId);
+      if (!collective) {
+        return next(new errors.NotFound('Collective not found'));
+      } else {
+        // Permissions will be checked in the callback
+        const redirectUrl = new URL(`${config.host.website}/${collective.slug}/admin/connected-accounts`);
+        redirectUrl.searchParams.set('service', service);
+        redirectUrl.searchParams.set('state', req.query.state);
+        redirectUrl.searchParams.set('code', req.query.code);
+        redirectUrl.searchParams.set('callback', 'true');
+        return res.redirect(redirectUrl.href);
+      }
+    } else if (!req.query.CollectiveId) {
+      return next(new errors.ValidationFailed('Please provide a CollectiveId as a query parameter'));
     }
   }
 
-  passport.authenticate(service, opts, async (err, accessToken, data) => {
+  return passport.authenticate(service, opts, async (err, accessToken, data) => {
     if (err) {
       return next(err);
+    } else if (!accessToken) {
+      return next(new errors.Unauthorized('No access token returned from OAuth provider'));
     }
-    if (!accessToken) {
-      return res.redirect(config.host.website);
-    }
-    connectedAccounts.createOrUpdate(req, res, next, accessToken, data).catch(next);
+
+    return connectedAccounts.createOrUpdate(req, res, next, accessToken, data).catch(next);
   })(req, res, next);
 };
 
