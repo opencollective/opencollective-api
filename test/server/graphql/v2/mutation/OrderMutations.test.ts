@@ -2208,6 +2208,11 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       hostAdminUser = await fakeUser();
       collective = await fakeCollective();
       host = collective.host;
+      await fakeConnectedAccount({
+        service: 'stripe',
+        username: 'host_stripe_account',
+        CollectiveId: host.id,
+      });
       order = await fakeOrder(
         {
           CreatedByUserId: user.id,
@@ -2381,6 +2386,53 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.match(/You don't have permission to use this payment method/);
+      });
+
+      it('cannot update an order with a payment method not valid for the host', async () => {
+        const host = await fakeActiveHost();
+        await fakeConnectedAccount({
+          service: 'stripe',
+          username: 'valid_stripe_account',
+          CollectiveId: host.id,
+        });
+        const collective = await fakeCollective({
+          HostCollectiveId: host.id,
+        });
+        const order = await fakeOrder(
+          {
+            CreatedByUserId: user.id,
+            FromCollectiveId: user.CollectiveId,
+            CollectiveId: collective.id,
+            status: OrderStatuses.ACTIVE,
+          },
+          {
+            withSubscription: true,
+          },
+        );
+
+        const paymentMethod = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
+          type: PAYMENT_METHOD_TYPE.CREDITCARD,
+          data: {
+            expMonth: 11,
+            expYear: 2025,
+            stripeAccount: 'invalid_stripe_account',
+          },
+          CollectiveId: user.CollectiveId,
+        });
+
+        const result = await graphqlQueryV2(
+          updateOrderMutation,
+          {
+            order: { id: idEncode(order.id, 'order') },
+            paymentMethod: {
+              id: idEncode(paymentMethod.id, 'paymentMethod'),
+            },
+          },
+          user,
+        );
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.match(/This payment method is not valid for the order host/);
       });
 
       it('cannot update an order with an amount that does not match the fixed tier', async () => {

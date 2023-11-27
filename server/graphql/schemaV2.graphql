@@ -5009,6 +5009,7 @@ enum ActivityType {
   TAXFORM_REQUEST
   COLLECTIVE_VIRTUAL_CARD_ADDED
   COLLECTIVE_VIRTUAL_CARD_MISSING_RECEIPTS
+  COLLECTIVE_VIRTUAL_CARD_RESUMED
   COLLECTIVE_VIRTUAL_CARD_SUSPENDED
   COLLECTIVE_VIRTUAL_CARD_SUSPENDED_DUE_TO_INACTIVITY
   COLLECTIVE_VIRTUAL_CARD_DELETED
@@ -5035,7 +5036,6 @@ enum ActivityType {
   TICKET_CONFIRMED
   ORDER_CANCELED_ARCHIVED_COLLECTIVE
   ORDER_PENDING
-  ORDER_PENDING_CRYPTO
   ORDER_PENDING_CONTRIBUTION_NEW
   ORDER_PENDING_CONTRIBUTION_REMINDER
   ORDER_PROCESSING
@@ -5080,6 +5080,7 @@ enum ActivityType {
   COLLECTIVE_VIRTUAL_CARD_CREATED
   SUBSCRIPTION_CONFIRMED
   COLLECTIVE_COMMENT_CREATED
+  ORDER_PENDING_CRYPTO
   BACKYOURSTACK_DISPATCH_CONFIRMED
 }
 
@@ -13207,6 +13208,7 @@ enum ActivityAndClassesType {
   TAXFORM_REQUEST
   COLLECTIVE_VIRTUAL_CARD_ADDED
   COLLECTIVE_VIRTUAL_CARD_MISSING_RECEIPTS
+  COLLECTIVE_VIRTUAL_CARD_RESUMED
   COLLECTIVE_VIRTUAL_CARD_SUSPENDED
   COLLECTIVE_VIRTUAL_CARD_SUSPENDED_DUE_TO_INACTIVITY
   COLLECTIVE_VIRTUAL_CARD_DELETED
@@ -13233,7 +13235,6 @@ enum ActivityAndClassesType {
   TICKET_CONFIRMED
   ORDER_CANCELED_ARCHIVED_COLLECTIVE
   ORDER_PENDING
-  ORDER_PENDING_CRYPTO
   ORDER_PENDING_CONTRIBUTION_NEW
   ORDER_PENDING_CONTRIBUTION_REMINDER
   ORDER_PROCESSING
@@ -13278,6 +13279,7 @@ enum ActivityAndClassesType {
   COLLECTIVE_VIRTUAL_CARD_CREATED
   SUBSCRIPTION_CONFIRMED
   COLLECTIVE_COMMENT_CREATED
+  ORDER_PENDING_CRYPTO
   BACKYOURSTACK_DISPATCH_CONFIRMED
   COLLECTIVE
   EXPENSES
@@ -15878,6 +15880,16 @@ type Mutation {
   confirmCreditCard(paymentMethod: PaymentMethodReferenceInput!): CreditCardWithStripeError!
 
   """
+  Creates a Stripe setup intent
+  """
+  createSetupIntent(host: AccountReferenceInput!, account: AccountReferenceInput!): SetupIntent!
+
+  """
+  Adds a Stripe payment method
+  """
+  addStripePaymentMethodFromSetupIntent(setupIntent: SetupIntentInput!, account: AccountReferenceInput!): PaymentMethod!
+
+  """
   Create a new Payout Method to get paid through the platform. Scope: "expenses".
   """
   createPayoutMethod(
@@ -17976,6 +17988,24 @@ type CreditCardWithStripeError {
   This field will be set if there was an error with Stripe during strong customer authentication
   """
   stripeError: StripeError
+}
+
+"""
+A Stripe setup intent
+"""
+type SetupIntent {
+  id: String!
+  setupIntentClientSecret: String!
+  stripeAccount: String!
+  stripeAccountPublishableSecret: String!
+}
+
+"""
+A Stripe setup intent
+"""
+input SetupIntentInput {
+  id: String!
+  stripeAccount: String!
 }
 
 enum AccountCacheType {

@@ -6,7 +6,7 @@ import INTERVALS from '../../../server/constants/intervals';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../server/constants/paymentMethods';
 import { updatePaymentMethodForSubscription } from '../../../server/lib/subscriptions';
 import * as PaypalSubscriptionAPI from '../../../server/paymentProviders/paypal/subscription';
-import { fakeOrder, fakePaymentMethod } from '../../test-helpers/fake-data';
+import { fakeConnectedAccount, fakeOrder, fakePaymentMethod } from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
 
 describe('server/lib/subscriptions', () => {
@@ -46,6 +46,12 @@ describe('server/lib/subscriptions', () => {
               { PaymentMethodId: paypalPm.id, interval: INTERVALS.MONTH, subscription },
               { withSubscription: true },
             );
+            const host = order.collective.host;
+            await fakeConnectedAccount({
+              service: 'stripe',
+              username: 'host_stripe_account',
+              CollectiveId: host.id,
+            });
 
             const user = order.createdByUser;
             const newPaymentMethod = await fakePaymentMethod({
@@ -75,6 +81,12 @@ describe('server/lib/subscriptions', () => {
               { PaymentMethodId: paypalPm.id, interval: INTERVALS.MONTH, subscription },
               { withSubscription: true },
             );
+            const host = order.collective.host;
+            await fakeConnectedAccount({
+              service: 'stripe',
+              username: 'host_stripe_account',
+              CollectiveId: host.id,
+            });
 
             const user = order.createdByUser;
             const newPaymentMethod = await fakePaymentMethod({
@@ -101,6 +113,12 @@ describe('server/lib/subscriptions', () => {
               { PaymentMethodId: paypalPm.id, interval: INTERVALS.MONTH, subscription },
               { withSubscription: true },
             );
+            const host = order.collective.host;
+            await fakeConnectedAccount({
+              service: 'stripe',
+              username: 'host_stripe_account',
+              CollectiveId: host.id,
+            });
 
             const user = order.createdByUser;
             const newPaymentMethod = await fakePaymentMethod({
@@ -126,6 +144,12 @@ describe('server/lib/subscriptions', () => {
           { PaymentMethodId: paypalPm.id, interval: INTERVALS.MONTH },
           { withSubscription: true },
         );
+        const host = order.collective.host;
+        await fakeConnectedAccount({
+          service: 'stripe',
+          username: 'host_stripe_account',
+          CollectiveId: host.id,
+        });
 
         const user = order.createdByUser;
         const newPaymentMethod = await fakePaymentMethod({
@@ -150,6 +174,13 @@ describe('server/lib/subscriptions', () => {
           { PaymentMethodId: paypalPm.id, interval: INTERVALS.MONTH, subscription: { paypalSubscriptionId: 'XXXXXX' } },
           { withSubscription: true },
         );
+
+        const host = order.collective.host;
+        await fakeConnectedAccount({
+          service: 'stripe',
+          username: 'host_stripe_account',
+          CollectiveId: host.id,
+        });
 
         const user = order.createdByUser;
         const newPaymentMethod = await fakePaymentMethod({

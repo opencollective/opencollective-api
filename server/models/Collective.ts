@@ -3000,7 +3000,7 @@ class Collective extends Model<
   };
 
   getCustomerStripeAccount = function (hostStripeAccount, sequelizeOptions = {}) {
-    return models.ConnectedAccount.findOne({
+    return ConnectedAccount.findOne({
       where: {
         clientId: hostStripeAccount,
         CollectiveId: this.id,

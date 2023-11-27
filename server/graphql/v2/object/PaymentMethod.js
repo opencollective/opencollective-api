@@ -138,7 +138,14 @@ export const GraphQLPaymentMethod = new GraphQLObjectType({
             hosts = paymentMethod.limitedToHostCollectiveIds.map(id => {
               return req.loaders.Collective.byId.load(id);
             });
+          } else if (paymentMethod.service === PAYMENT_METHOD_SERVICE.STRIPE && paymentMethod.data.stripeAccount) {
+            const host = await req.loaders.Collective.hostByStripeAccount.load(paymentMethod.data.stripeAccount);
+            hosts = [host];
+          } else if (paymentMethod.type === PAYMENT_METHOD_TYPE.COLLECTIVE) {
+            const host = await req.loaders.Collective.hostByCollectiveId.load(paymentMethod.CollectiveId);
+            hosts = [host];
           }
+
           return hosts;
         },
       },

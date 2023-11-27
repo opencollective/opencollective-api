@@ -269,8 +269,6 @@ const paymentMethodMutations = {
         },
       );
 
-      console.log(JSON.stringify(setupIntentResponse));
-
       if (stripeCustomerAccount.username !== setupIntentResponse.customer) {
         throw new Unauthorized('Stripe Setup Intent does not belong to requested account');
       }

@@ -1029,9 +1029,9 @@ export const AccountFields = {
           // Exclude unclaimed Gift Cards
         } else if (pm.type === 'giftcard' && !pm.confirmedAt) {
           return false;
-        } else {
-          return true;
         }
+
+        return true;
       });
     },
   },
