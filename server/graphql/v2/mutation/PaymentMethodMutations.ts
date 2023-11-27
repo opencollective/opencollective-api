@@ -1,21 +1,26 @@
+import config from 'config';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { omit, pick } from 'lodash';
 
+import { Service } from '../../../constants/connected_account';
 import FEATURE_STATUS from '../../../constants/feature-status';
 import stripe from '../../../lib/stripe';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
+import { createOrRetrievePaymentMethodFromSetupIntent } from '../../../paymentProviders/stripe/common';
 import { setupCreditCard } from '../../../paymentProviders/stripe/creditcard';
 import { checkCanUsePaymentMethods } from '../../common/features';
 import { checkRemoteUserCanUseOrders } from '../../common/scope-check';
-import { Forbidden } from '../../errors';
+import { BadRequest, Forbidden, NotFound, Unauthorized } from '../../errors';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLCreditCardCreateInput } from '../input/CreditCardCreateInput';
 import {
   fetchPaymentMethodWithReference,
   GraphQLPaymentMethodReferenceInput,
 } from '../input/PaymentMethodReferenceInput';
+import GraphQLSetupIntentInput from '../input/SetupIntentInput';
 import { GraphQLPaymentMethod } from '../object/PaymentMethod';
+import GraphQLSetupIntent from '../object/SetupIntent';
 import { GraphQLStripeError } from '../object/StripeError';
 
 const GraphQLCreditCardWithStripeError = new GraphQLObjectType({
@@ -85,7 +90,7 @@ const addCreditCard = {
       },
     };
 
-    let pm = await models.PaymentMethod.create(newPaymentMethodData);
+    let pm = await models.PaymentMethod.create(newPaymentMethodData as any);
 
     try {
       pm = await setupCreditCard(pm, { collective, user: req.remoteUser });
@@ -99,13 +104,14 @@ const addCreditCard = {
         await pm.update({ saved: false, data: { ...pm.data, saveCardOnConfirm: true } });
       }
 
-      pm.stripeError = {
-        message: error.message,
-        account: error.stripeAccount,
-        response: error.stripeResponse,
+      return {
+        paymentMethod: pm,
+        stripeError: {
+          message: error.message,
+          account: error.stripeAccount,
+          response: error.stripeResponse,
+        },
       };
-
-      return { paymentMethod: pm, stripeError: pm.stripeError };
     }
 
     // Success: delete reference to setupIntent
@@ -150,6 +156,128 @@ const confirmCreditCard = {
 const paymentMethodMutations = {
   addCreditCard,
   confirmCreditCard,
+  createSetupIntent: {
+    type: new GraphQLNonNull(GraphQLSetupIntent),
+    description: 'Creates a Stripe setup intent',
+    args: {
+      host: {
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+      },
+      account: {
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+      },
+    },
+    async resolve(_, args, req) {
+      checkRemoteUserCanUseOrders(req);
+
+      const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
+      const [hostStripeAccount] = await host.getConnectedAccounts({
+        limit: 1,
+        where: {
+          service: 'stripe',
+        },
+      });
+
+      if (!hostStripeAccount) {
+        throw new BadRequest('Host not connected to stripe');
+      }
+
+      const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
+      if (!req.remoteUser.isAdminOfCollective(account)) {
+        throw new Unauthorized();
+      }
+
+      const isPlatformHost = hostStripeAccount.username === config.stripe.accountId;
+
+      let stripeCustomerAccount = await account.getCustomerStripeAccount(hostStripeAccount.username);
+      if (!stripeCustomerAccount) {
+        const customer = await stripe.customers.create(
+          {
+            email: (await account.getUser()).email,
+            description: `${config.host.website}/${account.slug}`,
+          },
+          !isPlatformHost
+            ? {
+                stripeAccount: hostStripeAccount.username,
+              }
+            : undefined,
+        );
+
+        stripeCustomerAccount = await models.ConnectedAccount.create({
+          clientId: hostStripeAccount.username,
+          username: customer.id,
+          CollectiveId: account.id,
+          service: Service.STRIPE_CUSTOMER,
+        });
+      }
+
+      const setupIntent = await stripe.setupIntents.create(
+        {
+          customer: stripeCustomerAccount.username,
+          // eslint-disable-next-line camelcase
+          automatic_payment_methods: { enabled: true },
+          usage: 'off_session',
+        },
+        !isPlatformHost
+          ? {
+              stripeAccount: hostStripeAccount.username,
+            }
+          : undefined,
+      );
+
+      return {
+        id: setupIntent.id,
+        setupIntentClientSecret: setupIntent.client_secret,
+        stripeAccount: hostStripeAccount.username,
+        stripeAccountPublishableSecret: hostStripeAccount.data.publishableKey,
+      };
+    },
+  },
+  addStripePaymentMethodFromSetupIntent: {
+    type: new GraphQLNonNull(GraphQLPaymentMethod),
+    description: 'Adds a Stripe payment method',
+    args: {
+      setupIntent: {
+        type: new GraphQLNonNull(GraphQLSetupIntentInput),
+      },
+      account: {
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+      },
+    },
+    async resolve(_, args, req) {
+      checkRemoteUserCanUseOrders(req);
+
+      const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
+      if (!req.remoteUser?.isAdminOfCollective(account)) {
+        throw new Forbidden(`Must be an admin of ${account.name}`);
+      } else if ((await checkCanUsePaymentMethods(account)) === FEATURE_STATUS.UNSUPPORTED) {
+        throw new Forbidden('This collective cannot use payment methods');
+      }
+
+      const stripeCustomerAccount = await account.getCustomerStripeAccount(args.setupIntent.stripeAccount);
+      if (!stripeCustomerAccount) {
+        throw new NotFound('Stripe customer account not found');
+      }
+
+      const setupIntentResponse = await stripe.setupIntents.retrieve(
+        args.setupIntent.id,
+        {
+          expand: ['payment_method', 'latest_attempt'],
+        },
+        {
+          stripeAccount: args.setupIntent.stripeAccount,
+        },
+      );
+
+      console.log(JSON.stringify(setupIntentResponse));
+
+      if (stripeCustomerAccount.username !== setupIntentResponse.customer) {
+        throw new Unauthorized('Stripe Setup Intent does not belong to requested account');
+      }
+
+      return await createOrRetrievePaymentMethodFromSetupIntent(setupIntentResponse);
+    },
+  },
 };
 
 export default paymentMethodMutations;
