@@ -65,16 +65,16 @@ export function isProvider(fqn, paymentMethod) {
  *  {service: 'stripe', type: 'creditcard'}.
  * @return the payment method's JS module.
  */
-export function findPaymentMethodProvider(paymentMethod) {
+export function findPaymentMethodProvider(paymentMethod, { throwIfMissing = true } = {}) {
   const provider = get(paymentMethod, 'service') || 'opencollective';
   const methodType = get(paymentMethod, 'type') || 'default';
   let paymentMethodProvider = paymentProviders[provider];
-  if (!paymentMethodProvider) {
+  if (!paymentMethodProvider && throwIfMissing) {
     throw new Error(`No payment provider found for ${provider}`);
   }
 
   paymentMethodProvider = paymentMethodProvider.types[methodType];
-  if (!paymentMethodProvider) {
+  if (!paymentMethodProvider && throwIfMissing) {
     throw new Error(`No payment provider found for ${provider}:${methodType}`);
   }
   return paymentMethodProvider;

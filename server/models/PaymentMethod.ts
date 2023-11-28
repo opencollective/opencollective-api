@@ -418,7 +418,11 @@ PaymentMethod.prototype.getBalanceForUser = async function (user) {
     throw new Error('Internal error at PaymentMethod.getBalanceForUser(user): user is not an instance of User');
   }
 
-  const paymentProvider = libpayments.findPaymentMethodProvider(this);
+  const paymentProvider = libpayments.findPaymentMethodProvider(this, { throwIfMissing: false });
+  if (!paymentProvider) {
+    return { amount: 0, currency: this.currency };
+  }
+
   const getBalance =
     paymentProvider && paymentProvider.getBalance ? paymentProvider.getBalance : () => Promise.resolve(maxInteger); // GraphQL doesn't like Infinity
 
