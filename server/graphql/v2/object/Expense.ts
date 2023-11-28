@@ -207,7 +207,7 @@ const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Request>({
         description: 'The state of the expense (pending, approved, paid, rejected...etc)',
       },
       approvedBy: {
-        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLAccount))),
+        type: new GraphQLNonNull(new GraphQLList(GraphQLAccount)),
         description: 'The accounts who approved this expense',
         async resolve(expense, _, req) {
           const activities: Activity[] = await req.loaders.Expense.activities.load(expense.id);
