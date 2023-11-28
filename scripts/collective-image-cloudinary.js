@@ -2,7 +2,6 @@ import '../server/env';
 
 import fetch from 'node-fetch';
 
-import { FileKind } from '../server/constants/file-kind';
 import models, { Op } from '../server/models';
 import UploadedFile from '../server/models/UploadedFile';
 
@@ -10,12 +9,23 @@ async function main() {
   const collectives = await models.Collective.findAll({
     where: { image: { [Op.iLike]: 'https://res.cloudinary.com/opencollective/%' } },
   });
+
   for (const collective of collectives) {
-    const image = await fetch(collective.image);
-    const file = { buffer: image.buffer() }; // TODO: complete that
-    const uploadedFile = await UploadedFile.upload(file, FileKind.ACCOUNT_AVATAR);
-    collective.update({ image: uploadedFile.url });
+    const response = await fetch(collective.image);
+    const buffer = await response.buffer();
+    const size = buffer.byteLength;
+    const mimetype = response.headers.get('Content-Type') || 'unknown';
+    const originalname = response.url.split('/').pop() || 'unknown';
+    const file = {
+      buffer,
+      size,
+      mimetype,
+      originalname,
+    };
+    const uploadedFile = await UploadedFile.upload(file, 'ACCOUNT_AVATAR');
+    await collective.update({ image: uploadedFile.url });
   }
+
   console.log('Done.');
 }
 

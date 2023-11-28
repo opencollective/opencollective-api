@@ -179,7 +179,7 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
         fileType: file.mimetype as (typeof SUPPORTED_FILE_TYPES)[number],
         url: uploadResult.url,
         data: await UploadedFile.getData(file, uploadResult.s3Data?.ChecksumSHA256),
-        CreatedByUserId: user.id,
+        CreatedByUserId: user?.id,
       });
     } catch (err) {
       reportErrorToSentry(err, {
