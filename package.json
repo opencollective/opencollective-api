@@ -31,10 +31,10 @@
   "dependencies": {
     "@apollo/server": "4.9.5",
     "@aws-sdk/client-s3": "3.427.0",
-    "@babel/core": "7.23.3",
+    "@babel/core": "7.23.5",
     "@babel/node": "7.22.19",
-    "@babel/plugin-transform-typescript": "7.23.4",
-    "@babel/preset-env": "7.23.3",
+    "@babel/plugin-transform-typescript": "7.23.5",
+    "@babel/preset-env": "7.23.5",
     "@escape.tech/graphql-armor": "2.3.2",
     "@hyperwatch/hyperwatch": "4.0.0",
     "@node-oauth/oauth2-server": "4.3.3",
