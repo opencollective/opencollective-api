@@ -7,37 +7,37 @@ module.exports = {
       BEGIN;
 
       WITH transactions_to_update AS (
-      SELECT *
-      FROM "Transactions" t
-      WHERE t."type" = 'DEBIT'
-      AND t."kind" = 'EXPENSE'
-      AND t."isRefund" IS FALSE
-      AND t."deletedAt" IS NULL
-      AND t."paymentProcessorFeeInHostCurrency" < 0
-      AND (t."amountInHostCurrency" = 0 OR t."netAmountInCollectiveCurrency" = 0)
+        SELECT *
+        FROM "Transactions" t
+        WHERE t."type" = 'DEBIT'
+        AND t."kind" = 'EXPENSE'
+        AND t."isRefund" IS FALSE
+        AND t."deletedAt" IS NULL
+        AND t."paymentProcessorFeeInHostCurrency" < 0
+        AND (t."amountInHostCurrency" = 0 OR t."netAmountInCollectiveCurrency" = 0)
       ), updated_debits AS (
-      -- Update DEBIT transactions
-      UPDATE "Transactions" t
-      SET
-        "amount" = t."netAmountInCollectiveCurrency",
-        "amountInHostCurrency" = t."paymentProcessorFeeInHostCurrency",
-        "paymentProcessorFeeInHostCurrency" = 0,
-        "data" = jsonb_set(t.data, '{valuesBeforeMigration20231128113453}', jsonb_build_object('type', t."type", 'amount', t."amount", 'amountInHostCurrency', t."amountInHostCurrency", 'paymentProcessorFeeInHostCurrency', t."paymentProcessorFeeInHostCurrency", 'netAmountInCollectiveCurrency', t."netAmountInCollectiveCurrency"))
-      FROM transactions_to_update tu
-      WHERE tu.id = t.id
-      AND t."amountInHostCurrency" = 0 -- Both transactions were created as DEBIT, but we're picking these ones because they have their "HostCollectiveId" correctly set
-      RETURNING t.*
+        -- Update DEBIT transactions
+        UPDATE "Transactions" t
+        SET
+          "amount" = t."netAmountInCollectiveCurrency",
+          "amountInHostCurrency" = t."paymentProcessorFeeInHostCurrency",
+          "paymentProcessorFeeInHostCurrency" = 0,
+          "data" = jsonb_set(t.data, '{valuesBeforeMigration20231128113453}', jsonb_build_object('type', t."type", 'amount', t."amount", 'amountInHostCurrency', t."amountInHostCurrency", 'paymentProcessorFeeInHostCurrency', t."paymentProcessorFeeInHostCurrency", 'netAmountInCollectiveCurrency', t."netAmountInCollectiveCurrency"))
+        FROM transactions_to_update tu
+        WHERE tu.id = t.id
+        AND t."amountInHostCurrency" = 0 -- Both transactions were created as DEBIT, but we're picking these ones because they have their "HostCollectiveId" correctly set
+        RETURNING t.*
       ), updated_credits AS (
-      UPDATE "Transactions" t
-      SET
-        "type" = 'CREDIT',
-        "paymentProcessorFeeInHostCurrency" = 0,
-        "netAmountInCollectiveCurrency" = t."amount",
-        "data" = jsonb_set(t.data, '{valuesBeforeMigration20231128113453}', jsonb_build_object('type', t."type", 'amount', t."amount", 'amountInHostCurrency', t."amountInHostCurrency", 'paymentProcessorFeeInHostCurrency', t."paymentProcessorFeeInHostCurrency", 'netAmountInCollectiveCurrency', t."netAmountInCollectiveCurrency"))
-      FROM transactions_to_update tu
-      WHERE tu.id = t.id
-      AND t."netAmountInCollectiveCurrency" = 0 -- Both transactions were created as DEBIT, but we're picking these ones because they have their "HostCollectiveId" correctly set
-      RETURNING t.*
+        UPDATE "Transactions" t
+        SET
+          "type" = 'CREDIT',
+          "paymentProcessorFeeInHostCurrency" = 0,
+          "netAmountInCollectiveCurrency" = t."amount",
+          "data" = jsonb_set(t.data, '{valuesBeforeMigration20231128113453}', jsonb_build_object('type', t."type", 'amount', t."amount", 'amountInHostCurrency', t."amountInHostCurrency", 'paymentProcessorFeeInHostCurrency', t."paymentProcessorFeeInHostCurrency", 'netAmountInCollectiveCurrency', t."netAmountInCollectiveCurrency"))
+        FROM transactions_to_update tu
+        WHERE tu.id = t.id
+        AND t."netAmountInCollectiveCurrency" = 0 -- Both transactions were created as DEBIT, but we're picking these ones because they have their "HostCollectiveId" correctly set
+        RETURNING t.*
       ) SELECT * FROM updated_debits
       UNION ALL SELECT * FROM updated_credits;
       
