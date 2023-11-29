@@ -695,7 +695,15 @@ Transaction.exportCSV = (transactions, collectivesById) => {
  *
  */
 Transaction.createDoubleEntry = async (transaction, opts) => {
-  transaction.type = transaction.amount > 0 ? TransactionTypes.CREDIT : TransactionTypes.DEBIT;
+  // Force transaction type based on amount sign
+  if (transaction.amount > 0) {
+    transaction.type = CREDIT;
+  } else if (transaction.amount < 0) {
+    transaction.type = DEBIT;
+  } else if (!transaction.type) {
+    throw new Error('Transaction type must be set when amount is 0');
+  }
+
   transaction.netAmountInCollectiveCurrency = transaction.netAmountInCollectiveCurrency || transaction.amount;
   transaction.TransactionGroup = transaction.TransactionGroup || uuid();
   transaction.hostCurrencyFxRate = transaction.hostCurrencyFxRate || 1;
@@ -715,7 +723,7 @@ Transaction.createDoubleEntry = async (transaction, opts) => {
 
   let oppositeTransaction = {
     ...transaction,
-    type: -transaction.amount > 0 ? TransactionTypes.CREDIT : TransactionTypes.DEBIT,
+    type: transaction.type === DEBIT ? CREDIT : DEBIT,
     FromCollectiveId: transaction.CollectiveId,
     CollectiveId: transaction.FromCollectiveId,
   };
@@ -792,7 +800,7 @@ Transaction.createDoubleEntry = async (transaction, opts) => {
 
   // We first record the negative transaction
   // and only then we can create the transaction to add money somewhere else
-  if (transaction.amount < 0) {
+  if (transaction.type === DEBIT) {
     const t = await Transaction.create(transaction, opts);
     await Transaction.create(oppositeTransaction, opts);
     return t as TransactionInterface;
