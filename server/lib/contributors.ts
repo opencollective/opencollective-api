@@ -8,7 +8,7 @@
  */
 
 import MemberRoles from '../constants/roles';
-import { sequelize } from '../models';
+import { Collective, sequelize } from '../models';
 
 import cache from './cache';
 import { filterUntil } from './utils';
@@ -29,6 +29,7 @@ export interface Contributor {
   type: string;
   since: string;
   totalAmountDonated: number;
+  totalAmountDonatedInHostCurrency: number;
   description: string | null;
   collectiveSlug: string | null;
   publicMessage: string | null;
@@ -99,7 +100,8 @@ const contributorsQuery = `
     c."isIncognito" as "isIncognito",
     BOOL_OR(COALESCE((c."data" ->> 'isGuest') :: boolean, FALSE)) AS "isGuest",
     COALESCE(MAX(m.description), MAX(tiers.name)) AS "description",
-    COALESCE(sum(transactions.amount) / count(DISTINCT m.id), 0) AS "totalAmountDonated"
+    COALESCE(SUM(transactions."amountInHostCurrency") / COUNT(DISTINCT m.id), 0) AS "totalAmountDonatedInHostCurrency",
+    COALESCE(ROUND(SUM(transactions."amountInHostCurrency" * fx.rate) / COUNT(DISTINCT m.id)), 0) AS "totalAmountDonated"
   FROM
     "Collectives" c
   INNER JOIN "Members" m
@@ -111,24 +113,36 @@ const contributorsQuery = `
     AND transactions."kind" NOT IN ('HOST_FEE', 'HOST_FEE_SHARE', 'HOST_FEE_SHARE_DEBT', 'PLATFORM_TIP_DEBT')
     AND transactions."deletedAt" IS NULL
     AND transactions."RefundTransactionId" IS NULL
+  LEFT JOIN LATERAL (
+    SELECT rate, "from", "to"
+    FROM "CurrencyExchangeRates"
+    WHERE "from" = transactions."hostCurrency"
+      AND "to" = :currency
+    ORDER BY "createdAt" DESC
+    LIMIT 1
+  ) fx ON true
   LEFT JOIN "Tiers" tiers
     ON m."TierId" IS NOT NULL AND m."TierId" = tiers.id 
+  LEFT JOIN "Expenses" e
+    ON e."id" = transactions."ExpenseId"
+    AND e."deletedAt" IS NULL
   WHERE
     m."CollectiveId" = :collectiveId
     AND m."MemberCollectiveId" != :collectiveId
     AND m."deletedAt" IS NULL
     AND c."deletedAt" IS NULL
+    AND (transactions."ExpenseId" IS NULL OR e."type" != 'SETTLEMENT')
   GROUP BY
-    c.id
+    c.id, fx.rate
   ORDER BY
-    COALESCE(sum(transactions.amount) / count(DISTINCT m.id), 0) DESC,
+    "totalAmountDonatedInHostCurrency" DESC,
     MIN(m."since") ASC
 `;
 
 /**
  * Load contributors cache, filling it from DB if necessary.
  */
-const loadContributors = async (collectiveId: number): Promise<ContributorsCacheEntry> => {
+const loadContributors = async (collectiveId: number, currency: string): Promise<ContributorsCacheEntry> => {
   const cacheKey = getCacheKey(collectiveId);
   const fromCache = await cache.get(cacheKey);
   if (fromCache) {
@@ -139,7 +153,7 @@ const loadContributors = async (collectiveId: number): Promise<ContributorsCache
   const allContributors = await sequelize.query(contributorsQuery, {
     raw: true,
     type: sequelize.QueryTypes.SELECT,
-    replacements: { collectiveId },
+    replacements: { collectiveId, currency },
   });
 
   // Pre-fill some properties for contributors so we don't have to re-compute them
@@ -224,8 +238,8 @@ export const filterContributors = (
  * Returns all the contributors for given collective.
  * Prefer using the req.loaders.Contributors.forCollectiveId() from GraphQL resolvers.
  */
-export const getContributorsForCollective = async (collectiveId: number): Promise<ContributorsCacheEntry> => {
-  const contributorsCache: ContributorsCacheEntry = await loadContributors(collectiveId);
+export const getContributorsForCollective = async (collective: Collective): Promise<ContributorsCacheEntry> => {
+  const contributorsCache: ContributorsCacheEntry = await loadContributors(collective.id, collective.currency);
   return contributorsCache;
 };
 
