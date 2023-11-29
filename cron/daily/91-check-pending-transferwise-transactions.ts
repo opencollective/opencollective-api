@@ -15,7 +15,7 @@ import { TransferStateChangeEvent } from '../../server/types/transferwise';
 
 async function processExpense(expense) {
   logger.info(`Processing expense #${expense.id}...`);
-  const host = await expense.collective.getHostCollective();
+  const host = expense.host || (await expense.collective.getHostCollective());
   if (!host) {
     throw new Error(`Could not find the host embursing the expense #${expense.id}.`);
   }
@@ -59,6 +59,7 @@ export async function run() {
     },
     include: [
       { model: models.Collective, as: 'collective' },
+      { model: models.Collective, as: 'host' },
       {
         model: models.PayoutMethod,
         as: 'PayoutMethod',
