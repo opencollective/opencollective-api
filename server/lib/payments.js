@@ -69,8 +69,12 @@ export function findPaymentMethodProvider(paymentMethod, { throwIfMissing = true
   const provider = get(paymentMethod, 'service') || 'opencollective';
   const methodType = get(paymentMethod, 'type') || 'default';
   let paymentMethodProvider = paymentProviders[provider];
-  if (!paymentMethodProvider && throwIfMissing) {
-    throw new Error(`No payment provider found for ${provider}`);
+  if (!paymentMethodProvider) {
+    if (throwIfMissing) {
+      throw new Error(`No payment provider found for ${provider}`);
+    } else {
+      return null;
+    }
   }
 
   paymentMethodProvider = paymentMethodProvider.types[methodType];
