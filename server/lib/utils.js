@@ -378,6 +378,7 @@ export function resizeImage(imageUrl, { width, height, query, defaultImage }) {
       queryurl += `&height=${height}`;
     }
   }
+
   return `${config.host.images}/proxy/images/?src=${encodeURIComponent(imageUrl)}${queryurl}`;
 }
 
