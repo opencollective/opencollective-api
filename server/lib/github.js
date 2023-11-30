@@ -2,6 +2,7 @@ import { createOAuthAppAuth } from '@octokit/auth-oauth-app';
 import { Octokit } from '@octokit/rest';
 import config from 'config';
 import { get, has, pick, trim, trimEnd, trimStart } from 'lodash';
+import fetch from 'node-fetch';
 
 import cache from './cache';
 import logger from './logger';
@@ -29,7 +30,7 @@ const compactRepo = repo => {
 };
 
 export function getOctokit(accessToken) {
-  const octokitParams = {};
+  const octokitParams = { request: { fetch } };
 
   if (accessToken) {
     octokitParams.auth = `token ${accessToken}`;
