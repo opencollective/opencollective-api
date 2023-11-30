@@ -124,7 +124,7 @@
     "sequelize-temporal": "1.0.8",
     "sharp": "0.32.6",
     "showdown": "2.1.0",
-    "spdx-license-list": "^6.8.0",
+    "spdx-license-list": "6.8.0",
     "speakeasy": "2.0.0",
     "stripe": "14.5.0",
     "throng": "5.0.0",
