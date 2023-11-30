@@ -36,7 +36,11 @@ const publishToWebhook = (activity: Activity, webhookUrl: string) => {
 };
 
 const dispatch = async (activity: Activity) => {
-  notifyByEmail(activity).catch(console.log);
+  notifyByEmail(activity).catch(e => {
+    if (!['ci', 'test', 'e2e'].includes(config.env)) {
+      console.error(e);
+    }
+  });
 
   // process notification entries for slack, twitter, etc...
   if (!activity.CollectiveId || !activity.type) {

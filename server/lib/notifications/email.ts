@@ -147,7 +147,7 @@ export const notify = {
   ): Promise<void> {
     const collectiveId = options?.collectiveId || activity.CollectiveId;
     const collective = options?.collective || (await models.Collective.findByPk(collectiveId));
-    const isVendor = collective.type === CollectiveType.VENDOR;
+    const isVendor = collective?.type === CollectiveType.VENDOR;
     if (isVendor) {
       return;
     }
