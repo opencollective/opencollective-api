@@ -197,7 +197,7 @@
   },
   "ledger": {
     "fastBalance": "LEDGER_FAST_BALANCE",
-    "separatePaymentProcessorFees": "LEDGER_SEPARATE_HOST_FEES"
+    "separatePaymentProcessorFees": "LEDGER_SEPARATE_PAYMENT_PROCESSOR_FEES"
   },
   "activities": {
     "skipTransactions": "SKIP_TRANSACTION_ACTIVITIES"
