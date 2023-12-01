@@ -9,7 +9,7 @@ import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import { getDiffBetweenInstances } from '../../../lib/data';
 import { setTaxForm } from '../../../lib/tax-forms';
-import models, { Activity } from '../../../models';
+import models, { Activity, sequelize } from '../../../models';
 import { checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { BadRequest, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
@@ -62,35 +62,40 @@ const vendorMutations = {
         vendorData.settings[vendorInfo.taxType] = { number: vendorInfo.taxId, type: 'OWN' };
       }
 
-      const vendor = await models.Collective.create(vendorData);
+      return await sequelize.transaction(async transaction => {
+        const vendor = await models.Collective.create(vendorData, { transaction });
 
-      if (args.vendor.location) {
-        await vendor.setLocation(args.vendor.location);
-      }
+        if (args.vendor.location) {
+          await vendor.setLocation(args.vendor.location, transaction);
+        }
 
-      if (args.vendor.vendorInfo?.taxFormUrl) {
-        await setTaxForm(vendor, args.vendor.vendorInfo.taxFormUrl, new Date().getFullYear());
-      }
+        if (args.vendor.vendorInfo?.taxFormUrl) {
+          await setTaxForm(vendor, args.vendor.vendorInfo.taxFormUrl, new Date().getFullYear());
+        }
 
-      if (args.vendor.payoutMethod) {
-        await models.PayoutMethod.create({
-          ...pick(args.vendor.payoutMethod, ['name', 'data', 'type']),
-          CollectiveId: vendor.id,
-          CreatedByUserId: req.remoteUser.id,
-          isSaved: true,
+        if (args.vendor.payoutMethod) {
+          await models.PayoutMethod.create(
+            {
+              ...pick(args.vendor.payoutMethod, ['name', 'data', 'type']),
+              CollectiveId: vendor.id,
+              CreatedByUserId: req.remoteUser.id,
+              isSaved: true,
+            },
+            { transaction },
+          );
+        }
+
+        await Activity.create({
+          type: ActivityTypes.VENDOR_CREATED,
+          CollectiveId: host.id,
+          UserId: req.remoteUser.id,
+          data: {
+            vendor: vendor.minimal,
+          },
         });
-      }
 
-      await Activity.create({
-        type: ActivityTypes.VENDOR_CREATED,
-        CollectiveId: host.id,
-        UserId: req.remoteUser.id,
-        data: {
-          vendor: vendor.minimal,
-        },
+        return vendor;
       });
-
-      return vendor;
     },
   },
   editVendor: {
