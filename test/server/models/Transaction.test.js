@@ -498,4 +498,49 @@ describe('server/models/Transaction', () => {
       expect(result.hostFeeShareDebtTransaction.amount).to.equal(-Math.round(amount * 0.1 * 0.2));
     });
   });
+
+  describe('createDoubleEntry', () => {
+    it('works an expense that has amount=0 (only payment processor fees)', async () => {
+      const result = await models.Transaction.createDoubleEntry({
+        type: 'DEBIT',
+        kind: 'EXPENSE',
+        CollectiveId: collective.id,
+        FromCollectiveId: user.CollectiveId,
+        amount: 0,
+        amountInHostCurrency: 0,
+        paymentProcessorFeeInHostCurrency: -500,
+        netAmountInCollectiveCurrency: -500,
+        HostCollectiveId: host.id,
+      });
+
+      const transactionsPair = await models.Transaction.findAll({
+        where: { TransactionGroup: result.TransactionGroup },
+      });
+
+      // Creates double entry (credit + debit)
+      expect(transactionsPair.length).to.equal(2);
+      const credit = transactionsPair.find(t => t.type === 'CREDIT');
+      const debit = transactionsPair.find(t => t.type === 'DEBIT');
+      expect(credit).to.exist;
+      expect(debit).to.exist;
+
+      // Check credit
+      expect(credit.CollectiveId).to.equal(user.CollectiveId);
+      expect(credit.FromCollectiveId).to.equal(collective.id);
+      expect(credit.HostCollectiveId).to.be.null;
+      expect(credit.amount).to.equal(500);
+      expect(credit.amountInHostCurrency).to.equal(500);
+      expect(credit.paymentProcessorFeeInHostCurrency).to.equal(-500);
+      expect(credit.netAmountInCollectiveCurrency).to.equal(0);
+
+      // // Check debit
+      expect(debit.CollectiveId).to.equal(collective.id);
+      expect(debit.FromCollectiveId).to.equal(user.CollectiveId);
+      expect(debit.HostCollectiveId).to.equal(host.id);
+      expect(debit.amount).to.equal(0);
+      expect(debit.amountInHostCurrency).to.equal(0);
+      expect(debit.paymentProcessorFeeInHostCurrency).to.equal(-500);
+      expect(debit.netAmountInCollectiveCurrency).to.equal(-500);
+    });
+  });
 });
