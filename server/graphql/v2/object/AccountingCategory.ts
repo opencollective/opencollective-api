@@ -2,8 +2,6 @@ import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
-import { GraphQLHost } from './Host';
-
 const GraphQLAccountingCategory = new GraphQLObjectType({
   name: 'AccountingCategory',
   description: 'Fields for an accounting category',
@@ -23,11 +21,6 @@ const GraphQLAccountingCategory = new GraphQLObjectType({
     friendlyName: {
       type: GraphQLString,
       description: 'A friendly name for non-accountants (i.e. expense submitters and collective admins)',
-    },
-    account: {
-      type: new GraphQLNonNull(GraphQLHost),
-      description: 'The account this category belongs to',
-      resolve: ({ CollectiveId }, _, req) => req.loaders.Collective.byId.load(CollectiveId),
     },
   }),
 });

@@ -7,7 +7,7 @@ import { checkRemoteUserCanUseExpenses, checkRemoteUserCanUseOrders } from '../.
 import { Unauthorized } from '../../errors';
 import { fetchExpenseWithReference, GraphQLExpenseReferenceInput } from '../input/ExpenseReferenceInput';
 import { fetchOrderWithReference, GraphQLOrderReferenceInput } from '../input/OrderReferenceInput';
-import { GraphQLExpense } from '../object/Expense';
+import GraphQLExpense from '../object/Expense';
 import { GraphQLOrder } from '../object/Order';
 import { canSetOrderTags } from '../object/OrderPermissions';
 

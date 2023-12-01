@@ -57,7 +57,7 @@ import {
 } from '../input/ExpenseReferenceInput';
 import { GraphQLExpenseUpdateInput } from '../input/ExpenseUpdateInput';
 import { GraphQLRecurringExpenseInput } from '../input/RecurringExpenseInput';
-import { GraphQLExpense } from '../object/Expense';
+import GraphQLExpense from '../object/Expense';
 
 const expenseMutations = {
   createExpense: {

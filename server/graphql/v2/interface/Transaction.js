@@ -22,7 +22,7 @@ import { GraphQLTransactionKind } from '../enum/TransactionKind';
 import { GraphQLTransactionType } from '../enum/TransactionType';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAmount } from '../object/Amount';
-import { GraphQLExpense } from '../object/Expense';
+import GraphQLExpense from '../object/Expense';
 import { GraphQLOrder } from '../object/Order';
 import { GraphQLPaymentMethod } from '../object/PaymentMethod';
 import GraphQLPayoutMethod from '../object/PayoutMethod';

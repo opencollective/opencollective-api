@@ -3,7 +3,7 @@ import { GraphQLList, GraphQLObjectType } from 'graphql';
 import { GraphQLCurrency } from '../enum';
 import { CollectionFields, GraphQLCollection } from '../interface/Collection';
 import { GraphQLAmount } from '../object/Amount';
-import { GraphQLExpense } from '../object/Expense';
+import GraphQLExpense from '../object/Expense';
 
 export const GraphQLExpenseCollection = new GraphQLObjectType({
   name: 'ExpenseCollection',

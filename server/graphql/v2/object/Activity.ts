@@ -10,7 +10,7 @@ import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
 import { GraphQLTransaction } from '../interface/Transaction';
 
-import { GraphQLExpense } from './Expense';
+// import GraphQLExpense from './Expense';
 import { GraphQLHost } from './Host';
 import { GraphQLIndividual } from './Individual';
 import { GraphQLOrder } from './Order';
@@ -89,15 +89,15 @@ export const GraphQLActivity = new GraphQLObjectType({
         return userCollective;
       },
     },
-    expense: {
-      type: GraphQLExpense,
-      description: 'The expense related to this activity, if any',
-      resolve: async (activity, _, req: express.Request): Promise<Record<string, unknown>> => {
-        if (activity.ExpenseId) {
-          return req.loaders.Expense.byId.load(activity.ExpenseId);
-        }
-      },
-    },
+    // expense: {
+    //   type: GraphQLExpense,
+    //   description: 'The expense related to this activity, if any',
+    //   resolve: async (activity, _, req: express.Request): Promise<Record<string, unknown>> => {
+    //     if (activity.ExpenseId) {
+    //       return req.loaders.Expense.byId.load(activity.ExpenseId);
+    //     }
+    //   },
+    // },
     order: {
       type: GraphQLOrder,
       description: 'The order related to this activity, if any',

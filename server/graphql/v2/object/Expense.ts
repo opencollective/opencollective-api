@@ -531,4 +531,4 @@ const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Request>({
   },
 });
 
-export { GraphQLExpense };
+export default GraphQLExpense;

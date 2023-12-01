@@ -31,7 +31,7 @@ import {
 } from '../input/AccountReferenceInput';
 import { fetchExpensesWithReferences, GraphQLExpenseReferenceInput } from '../input/ExpenseReferenceInput';
 import { GraphQLAccount } from '../interface/Account';
-import { GraphQLExpense } from '../object/Expense';
+import GraphQLExpense from '../object/Expense';
 import { GraphQLMergeAccountsResponse } from '../object/MergeAccountsResponse';
 import URL from '../scalar/URL';
 
