@@ -30,6 +30,7 @@ const compactRepo = repo => {
 };
 
 export function getOctokit(accessToken) {
+  // We're passing node-fetch to make sure requests can be intercepted by nock in tests
   const octokitParams = { request: { fetch } };
 
   if (accessToken) {
