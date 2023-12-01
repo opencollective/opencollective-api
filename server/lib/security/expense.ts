@@ -336,18 +336,22 @@ export const checkExpensesBatch = async (
   const usersByIpConditions = expenses.map(expense => {
     const ip = expense.User.getLastKnownIp();
     return {
-      [Op.or]: [
-        // Same users that logged in around the time this expense was created
-        { lastLoginAt: getTimeWindowFromDate(expense.createdAt, 3, 'days') },
-        // Same users that logged in around the time this expense was updated
-        { lastLoginAt: getTimeWindowFromDate(expense.updatedAt, 3, 'days') },
-        // Same users that logged in around the same time the author
-        { lastLoginAt: getTimeWindowFromDate(expense.User.lastLoginAt, 3, 'days') },
-        // Same users created around the same period
-        { createdAt: getTimeWindowFromDate(expense.User.createdAt, 3, 'days') },
+      [Op.and]: [
+        {
+          [Op.or]: [
+            // Same users that logged in around the time this expense was created
+            { lastLoginAt: getTimeWindowFromDate(expense.createdAt, 3, 'days') },
+            // Same users that logged in around the time this expense was updated
+            { lastLoginAt: getTimeWindowFromDate(expense.updatedAt, 3, 'days') },
+            // Same users that logged in around the same time the author
+            { lastLoginAt: getTimeWindowFromDate(expense.User.lastLoginAt, 3, 'days') },
+            // Same users created around the same period
+            { createdAt: getTimeWindowFromDate(expense.User.createdAt, 3, 'days') },
+          ],
+        },
+        { id: { [Op.ne]: expense.id } },
+        { [Op.or]: [{ data: { creationRequest: { ip } } }, { data: { lastSignInRequest: { ip } } }] },
       ],
-      id: { [Op.ne]: expense.id },
-      [Op.or]: [{ data: { creationRequest: { ip } } }, { data: { lastSignInRequest: { ip } } }],
     };
   });
   const usersByIp = await models.User.findAll({
