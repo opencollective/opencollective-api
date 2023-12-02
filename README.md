@@ -31,13 +31,13 @@ We recommend cloning the repository in a folder dedicated to `opencollective` pr
 ```
 git clone git@github.com:opencollective/opencollective-api.git opencollective/api
 cd opencollective/api
-npm install
+pnpm install
 ```
 
 ### Start
 
 ```
-npm run dev
+pnpm dev
 ```
 
 - API is started on http://localhost:3060
@@ -47,7 +47,7 @@ See the [dev docs](docs/dev.md) for querying basics.
 
 #### Troubleshooting
 
-- If you're running into `node-gyp` issues related to Python 3 vs Python 2, you can run: `npm rebuild`
+- If you're running into `node-gyp` issues related to Python 3 vs Python 2, you can run: `pnpm rebuild`
 - If you have issues with PostgreSQL, check our [dedicated documentation](docs/postgres.md)
 
 ## Deployment

@@ -10,7 +10,7 @@ const subject = 'Daily Checks failed';
 
 const failureMessage = 'The Daily Checks failed today with the following errors:';
 const fixMessage = 'To fix the models, try:';
-const fixCommand = 'npm run script checks/model -- --fix';
+const fixCommand = 'pnpm script checks/model -- --fix';
 
 async function run() {
   const { errors } = await checkAllModels();

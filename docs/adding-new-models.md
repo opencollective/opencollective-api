@@ -4,7 +4,7 @@ Adding a new table/model requires the following steps:
 
 1. Generate a migration to add the table to the database
 
-> $ npm run db:migration:create -- --name create-my-table
+> $ pnpm db:migration:create -- --name create-my-table
 
 The name of the migration will be something like: `migrations/000000-create-my-table.js`. Open this file and configure your columns like so:
 

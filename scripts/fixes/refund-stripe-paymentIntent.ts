@@ -32,14 +32,14 @@ const refund = async (stripeAccount, paymentIntentId) => {
   }
 };
 
-// npm run script scripts/fixes/refund-stripe-paymentIntent.ts <stripeAccount> <paymentIntent>
+// pnpm script scripts/fixes/refund-stripe-paymentIntent.ts <stripeAccount> <paymentIntent>
 // To refund multiple, create a text file with a payment intent id per line
 //
 // e.g.:    cat paymentIntentsToRefund.txt // a payment intent id per line
 //          pi_1
 //          pi_2
 //
-// cat paymentIntentsToRefund.txt | xargs -n 1 npm run script scripts/fixes/refund-stripe-paymentIntent.ts <stripeAccount>
+// cat paymentIntentsToRefund.txt | xargs -n 1 pnpm script scripts/fixes/refund-stripe-paymentIntent.ts <stripeAccount>
 
 const main = async () => {
   if (IS_DRY) {
@@ -49,7 +49,7 @@ const main = async () => {
   const paymentIntentId = process.argv[3];
 
   if (!stripeAccount || !paymentIntentId) {
-    console.log('Usage npm run script scripts/fixes/refund-stripe-paymentIntent.ts stripeAccount paymentIntent');
+    console.log('Usage: pnpm script scripts/fixes/refund-stripe-paymentIntent.ts stripeAccount paymentIntent');
   } else {
     console.log(`Refunding payment intent ${paymentIntentId}`);
 

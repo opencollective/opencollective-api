@@ -19,7 +19,7 @@ if (!process.env.NODE_CONFIG_ENV) {
 }
 
 // Load extra env file on demand
-// `npm run dev staging` / `npm run dev production`
+// `pnpm dev staging` / `pnpm dev production`
 if (process.env.EXTRA_ENV || process.env.OC_ENV === 'development') {
   const extraEnv = process.env.EXTRA_ENV || last(process.argv);
   const extraEnvPath = path.join(__dirname, '..', `.env.${extraEnv}`);

@@ -1,6 +1,6 @@
 #!/bin/bash
 # This shell scripts copies the production database to the staging database
-# Usage: npm run db:copyprodtostaging (from the root of the opencollective-api repo)
+# Usage: pnpm db:copyprodtostaging (from the root of the opencollective-api repo)
 #
 # The staging version of OpenCollective is on https://staging.opencollective.com
 ENV="${1}"
@@ -24,4 +24,4 @@ echo ""
 echo "You may need to run a migration if the schema has changed"
 echo "To do so, follow those steps:"
 echo "$> heroku run bash -a ${ENV}"
-echo "heroku> npm run db:migrate"
+echo "heroku> pnpm db:migrate"

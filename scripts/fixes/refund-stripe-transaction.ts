@@ -57,7 +57,7 @@ const main = async () => {
   }
   const transactionId = toNumber(process.argv[2]);
   if (!transactionId) {
-    console.log('Usage npm run script scripts/fixes/refund-stripe-transaction.ts transactionId');
+    console.log('Usage: pnpm script scripts/fixes/refund-stripe-transaction.ts transactionId');
   } else {
     console.log(`Refunding transaction #${transactionId}...`);
     await refund(transactionId);

@@ -6,7 +6,7 @@ import models, { sequelize } from '../server/models';
 
 async function run() {
   if (process.argv.length < 3) {
-    console.error('Usage: npm run script ./scripts/create-prepaid-budget.js TRANSACTION_ID');
+    console.error('Usage: pnpm script ./scripts/create-prepaid-budget.js TRANSACTION_ID');
     process.exit(1);
   }
 

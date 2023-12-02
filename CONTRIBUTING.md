@@ -12,8 +12,8 @@ If you want to change a simple thing, for example, fix a typo or update copy, fe
 
 For formatting and code style, we use [Prettier](https://prettier.io/) and [ESLint](https://eslint.org/). Before committing, please run:
 
-- `npm run prettier:write`
-- `npm run lint:fix`
+- `pnpm prettier:write`
+- `pnpm lint:fix`
 
 For the long run, we suggest to integrate these tools in your favorite code editor:
 
@@ -27,7 +27,7 @@ Your commit messages should conform to the [Conventional Commits](https://www.co
 To help you follow this convention, this project is using [commitizen](https://github.com/commitizen/cz-cli). To use it:
 
 1. run `git add` first to add your changes to Git staging area
-2. use `npm run commit` to commit
+2. use `pnpm commit` to commit
 
 Note: it's not mandatory to always commit with this tool (we don't), but it's great to get introduced to the commit conventions.
 
