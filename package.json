@@ -102,7 +102,7 @@
     "lru-cache": "10.1.0",
     "moment": "2.29.4",
     "moment-timezone": "0.5.43",
-    "multer": "1.4.4",
+    "multer": "1.4.5-lts.1",
     "node-fetch": "2.7.0",
     "node-statsd": "0.1.1",
     "nodemailer": "6.9.7",
