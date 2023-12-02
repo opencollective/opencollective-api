@@ -22,7 +22,7 @@ const run = async () => {
     console.log('Deleting webhook ', id);
     await deleteApplicationWebhook(id);
   } else {
-    console.log('Usage: npm run script scripts/setup-transferwise-webhook.js [up|list|down] [id]');
+    console.log('Usage: pnpm script scripts/setup-transferwise-webhook.js [up|list|down] [id]');
     process.exit();
   }
 

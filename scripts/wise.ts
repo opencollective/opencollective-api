@@ -54,7 +54,7 @@ program.addHelpText(
   `
 
 Example call:
-  $ npm run script scripts/wise.ts check-expense expenseId
+  $ pnpm script scripts/wise.ts check-expense expenseId
 `,
 );
 

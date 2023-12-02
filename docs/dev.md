@@ -46,7 +46,7 @@ query {
 ## Tests
 
 ```
-$> npm test
+$> pnpm test
 ```
 
 The tests delete all the `opencollective_test` database's tables and
@@ -70,5 +70,5 @@ There are many admin scripts in [`/scripts` directory](https://github.com/openco
 
 ```
 # Local development (without Docker)
-$ npx babel-node ./scripts/populate_usernames.js
+$ pnpx babel-node ./scripts/populate_usernames.js
 ```

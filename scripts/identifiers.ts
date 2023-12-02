@@ -29,8 +29,8 @@ program.addHelpText(
   `
 
 Example call:
-  $ npm run script scripts/identifiers.ts decode account bvrgbk35-7l4x96e7-y4apomew-a0jdyzn8 prod
-  $ npm run script scripts/identifiers.ts encode account 4242 staging
+  $ pnpm script scripts/identifiers.ts decode account bvrgbk35-7l4x96e7-y4apomew-a0jdyzn8 prod
+  $ pnpm script scripts/identifiers.ts encode account 4242 staging
 `,
 );
 

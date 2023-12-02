@@ -44,7 +44,7 @@ Checklist for Fiscal Hosts (test mode):
 2. [Top Up](https://dashboard.stripe.com/test/topups) the Issuing balance with a reasonable amount (e.g.: $1000).
 3. Create a generic Card Holder and make sure it's the only one (Organization, name it like the Fiscal Host)
 4. Create a new dedicated [Restricted Secret Key](https://dashboard.stripe.com/test/apikeys), select write for all Issuing features (Name: Restricted Issuing)
-5. Add the Secret Key to the Fiscal Host (`npm run script ./scripts/update-connected-account-stripe-token`)
+5. Add the Secret Key to the Fiscal Host (`pnpm script ./scripts/update-connected-account-stripe-token`)
 
 ### Webhooks
 

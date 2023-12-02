@@ -11,7 +11,7 @@ describe('scripts/ledger/update-transactions', () => {
     const transaction = await fakeTransaction({ amount: 500, kind: 'CONTRIBUTION' }, { createDoubleEntry: true });
     const collective = await transaction.getCollective();
     await main([
-      'npm run script',
+      'pnpm script',
       'scripts/ledger/update-transactions.ts',
       '--yes',
       '--account',

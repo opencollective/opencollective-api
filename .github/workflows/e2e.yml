@@ -80,11 +80,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+
       - name: Setup node
         uses: actions/setup-node@v4
         with:
           node-version-file: 'package.json'
-          cache: 'npm'
+          cache: 'pnpm'
 
       # Checkouts
 
@@ -131,17 +134,8 @@ jobs:
           path: opencollective-pdf
 
       # Prepare API
-
-      - name: Restore node_modules (api)
-        uses: actions/cache@v4
-        id: api-node-modules
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-
       - name: Install dependencies (api)
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --prefer-offline --no-audit
+        run: pnpm install
 
       - name: Restore build (api)
         uses: actions/cache@v4
@@ -152,21 +146,14 @@ jobs:
 
       - name: Build (api)
         if: steps.api-build.outputs.cache-hit != 'true'
-        run: npm run build
+        run: pnpm build
 
       # Prepare Frontend
-
-      - name: Restore node_modules (frontend)
-        uses: actions/cache@v4
-        id: frontend-node-modules
-        with:
-          path: opencollective-frontend/node_modules
-          key: ${{ runner.os }}-frontend-node-modules-${{ hashFiles('opencollective-frontend/package-lock.json') }}
 
       - name: Install dependencies (frontend)
         if: steps.frontend-node-modules.outputs.cache-hit != 'true'
         working-directory: opencollective-frontend
-        run: CYPRESS_INSTALL_BINARY=0 npm ci --prefer-offline --no-audit
+        run: CYPRESS_INSTALL_BINARY=0 pnpm install
 
       - name: Set commit hash (frontend)
         working-directory: opencollective-frontend
@@ -192,7 +179,7 @@ jobs:
       - name: Build (frontend)
         if: steps.next-build.outputs.cache-hit != 'true'
         working-directory: opencollective-frontend
-        run: npm run build
+        run: pnpm build
 
       # Prepare Images
 

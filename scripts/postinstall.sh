@@ -15,7 +15,7 @@ fi
 # Only run migrations automatically on staging and production
 if [ "$SEQUELIZE_ENV" = "staging" ] || [ "$SEQUELIZE_ENV" = "production" ]; then
   echo "- running db:migrate on $SEQUELIZE_ENV environment"
-  npm run db:migrate
+  pnpm db:migrate
   exit $?; # exit with return code of previous command
 fi
 
@@ -32,12 +32,12 @@ if psql -lqt | cut -d \| -f 1 | grep -qw opencollective_dvl; then
   echo "✓ opencollective_dvl exists"
 else
   echo "- restoring opencollective_dvl";
-  npm run db:restore
+  pnpm db:restore
 fi
 echo "- running migration if any"
-PG_DATABASE=opencollective_dvl npm run db:migrate
+PG_DATABASE=opencollective_dvl pnpm db:migrate
 
 echo ""
 echo "You can now start the Open Collective API server by running:"
-echo "$> npm run dev"
+echo "$> pnpm dev"
 echo ""

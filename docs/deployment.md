@@ -4,7 +4,7 @@ To deploy to staging or production, you need to be a core member of the Open Col
 
 ## Install the Heroku CLI
 
-`npm install -g heroku`
+`pnpm install -g heroku`
 
 ## Login on the Heroku CLI
 
@@ -29,7 +29,7 @@ OC_SLACK_DEPLOY_WEBHOOK=<link-url>
 git remote add staging https://git.heroku.com/opencollective-staging-api.git
 
 # Then deploy main with
-npm run deploy:staging
+pnpm deploy:staging
 ```
 
 URL: https://api-staging.opencollective.com/
@@ -41,7 +41,7 @@ URL: https://api-staging.opencollective.com/
 git remote add production https://git.heroku.com/opencollective-prod-api.git
 
 # Then deploy main with
-npm run deploy:production
+pnpm deploy:production
 ```
 
 URL: https://api.opencollective.com/

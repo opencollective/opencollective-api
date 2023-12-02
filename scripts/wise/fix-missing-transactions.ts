@@ -51,7 +51,7 @@ const main = async (): Promise<void> => {
   }
   const expenseIds = process.argv?.slice(2) || [];
   if (!expenseIds.length) {
-    console.log('Usage: npm run script scripts/wise/fix-missing-transactions.ts [expenseIds...]');
+    console.log('Usage: pnpm script scripts/wise/fix-missing-transactions.ts [expenseIds...]');
   } else {
     for (const id of expenseIds) {
       await checkExpense(toNumber(id));
