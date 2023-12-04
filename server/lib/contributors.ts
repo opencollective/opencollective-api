@@ -114,7 +114,10 @@ const contributorsQuery = `
     AND transactions."deletedAt" IS NULL
     AND transactions."RefundTransactionId" IS NULL
   LEFT JOIN LATERAL (
-    SELECT rate, "from", "to"
+    SELECT
+      CASE WHEN "from" = "to" THEN 1 ELSE "rate" END AS "rate",
+      "from",
+      "to"
     FROM "CurrencyExchangeRates"
     WHERE "from" = transactions."hostCurrency"
       AND "to" = :currency
