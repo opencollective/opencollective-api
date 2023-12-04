@@ -5,7 +5,7 @@ import { InferAttributes, Op, Order, Sequelize, WhereOptions } from 'sequelize';
 import ActivityTypes, { ActivitiesPerClass, ActivityClasses } from '../constants/activities';
 import { CollectiveType } from '../constants/collectives';
 import MemberRoles from '../constants/roles';
-import { createRedisClient } from '../lib/redis';
+import { createRedisClient, RedisInstanceType } from '../lib/redis';
 import models, { Collective } from '../models';
 import { Activity } from '../models/Activity';
 import { MemberModelInterface } from '../models/Member';
@@ -118,7 +118,7 @@ const EMPTY_FLAG = 'EMPTY';
 const createOrUpdateFeed = async (collective: Collective, sinceId?: number) => {
   const cacheKey = `timeline-${collective.slug}`;
   const stopWatch = utils.stopwatch(sinceId ? 'timeline.update' : 'timeline.create', { log: debug });
-  const redis = await createRedisClient();
+  const redis = await createRedisClient(RedisInstanceType.TIMELINE);
 
   const where = await makeTimelineQuery(collective);
   if (sinceId) {
@@ -172,7 +172,7 @@ export const getCollectiveFeed = async ({
   limit: number;
   classes: ActivityClasses[];
 }) => {
-  const redis = await createRedisClient();
+  const redis = await createRedisClient(RedisInstanceType.TIMELINE);
   // If we don't have a redis client, we can't cache the timeline using sorted sets
   if (!redis) {
     debug('Redis is not configured, skipping cached timeline');
