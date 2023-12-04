@@ -14,7 +14,8 @@ const RedisInstanceKey = {
   [RedisInstanceType.TIMELINE]: 'redis.serverUrlTimeline',
 };
 
-const redisClients: Record<string, RedisClientType> = {};
+// Holds a singleton instance of Redis client for each instance type
+const redisInstances: Record<string, RedisClientType> = {};
 
 export async function createRedisClient(
   instanceType: RedisInstanceType = RedisInstanceType.DEFAULT,
@@ -27,8 +28,8 @@ export async function createRedisClient(
   }
 
   // Return the existing client if it exists
-  if (redisClients[instanceType]) {
-    return redisClients[instanceType];
+  if (redisInstances[instanceType]) {
+    return redisInstances[instanceType];
   }
   // Return null if the instance is not configured
   else if (!url) {
@@ -49,18 +50,18 @@ export async function createRedisClient(
     client.on('end', () => logger.info(`Redis connection closed (${instanceType})`));
 
     await client.connect();
-    redisClients[instanceType] = client as RedisClientType;
+    redisInstances[instanceType] = client as RedisClientType;
   } catch (err) {
     logger.error(`Redis connection error (${instanceType})`, err);
-    redisClients[instanceType] = null;
+    redisInstances[instanceType] = null;
   }
 
-  return redisClients[instanceType];
+  return redisInstances[instanceType];
 }
 
 export async function closeRedisClient() {
-  for (const instance in redisClients) {
-    await redisClients[instance].disconnect();
-    delete redisClients[instance];
+  for (const instanceType in redisInstances) {
+    await redisInstances[instanceType].disconnect();
+    delete redisInstances[instanceType];
   }
 }
