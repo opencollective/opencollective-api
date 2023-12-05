@@ -190,17 +190,21 @@ const paymentMethodMutations = {
       const isPlatformHost = hostStripeAccount.username === config.stripe.accountId;
 
       let stripeCustomerAccount = await account.getCustomerStripeAccount(hostStripeAccount.username);
+      const user = (await account.getUser()) || req.remoteUser;
+
+      const stripeRequestOptions = !isPlatformHost
+        ? {
+            stripeAccount: hostStripeAccount.username,
+          }
+        : undefined;
+
       if (!stripeCustomerAccount) {
         const customer = await stripe.customers.create(
           {
-            email: (await account.getUser()).email,
+            email: user.email,
             description: `${config.host.website}/${account.slug}`,
           },
-          !isPlatformHost
-            ? {
-                stripeAccount: hostStripeAccount.username,
-              }
-            : undefined,
+          stripeRequestOptions,
         );
 
         stripeCustomerAccount = await models.ConnectedAccount.create({
@@ -218,11 +222,7 @@ const paymentMethodMutations = {
           automatic_payment_methods: { enabled: true },
           usage: 'off_session',
         },
-        !isPlatformHost
-          ? {
-              stripeAccount: hostStripeAccount.username,
-            }
-          : undefined,
+        stripeRequestOptions,
       );
 
       return {
