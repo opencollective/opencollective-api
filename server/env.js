@@ -49,7 +49,23 @@ if (process.env.HOSTEDGRAPHITE_APIKEY) {
 }
 
 // Compute PG_URL based on PG_URL_ENVIRONMENT_VARIABLE, look in DATABASE_URL by default
-const pgUrlEnvironmentVariable = get(process.env, 'PG_URL_ENVIRONMENT_VARIABLE', 'DATABASE_URL');
-if (has(process.env, pgUrlEnvironmentVariable) && !has(process.env, 'PG_URL')) {
-  process.env.PG_URL = get(process.env, pgUrlEnvironmentVariable);
+if (!process.env.PG_URL) {
+  const pgUrlEnvironmentVariable = get(process.env, 'PG_URL_ENVIRONMENT_VARIABLE', 'DATABASE_URL');
+  if (has(process.env, pgUrlEnvironmentVariable)) {
+    process.env.PG_URL = get(process.env, pgUrlEnvironmentVariable);
+  }
+}
+
+// Compute REDIS_URLs
+if (!process.env.REDIS_URL) {
+  const redisUrlEnvironmentVariable = process.env.REDIS_URL_ENVIRONMENT_VARIABLE;
+  if (redisUrlEnvironmentVariable && has(process.env, redisUrlEnvironmentVariable)) {
+    process.env.REDIS_URL = get(process.env, redisUrlEnvironmentVariable);
+  }
+}
+if (!process.env.REDIS_TIMELINE_URL) {
+  const redisTimelineUrlEnvironmentVariable = process.env.REDIS_TIMELINE_URL_ENVIRONMENT_VARIABLE;
+  if (redisTimelineUrlEnvironmentVariable && has(process.env, redisTimelineUrlEnvironmentVariable)) {
+    process.env.REDIS_TIMELINE_URL = get(process.env, redisTimelineUrlEnvironmentVariable);
+  }
 }
