@@ -20,11 +20,12 @@ const redisInstances: Record<string, RedisClientType> = {};
 export async function createRedisClient(
   instanceType: RedisInstanceType = RedisInstanceType.DEFAULT,
 ): Promise<RedisClientType> {
-  const url = get(config, RedisInstanceKey[instanceType]);
+  let url = get(config, RedisInstanceKey[instanceType]);
   // Fallback to default instance if the requested instance is not configured
   if (instanceType !== RedisInstanceType.DEFAULT && !url) {
     logger.warn(`Redis instance ${instanceType} is not configured, falling back to default instance`);
     instanceType = RedisInstanceType.DEFAULT;
+    url = get(config, RedisInstanceKey[instanceType]);
   }
 
   // Return the existing client if it exists
