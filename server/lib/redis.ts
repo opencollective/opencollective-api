@@ -9,9 +9,11 @@ export enum RedisInstanceType {
   TIMELINE = 'TIMELINE',
 }
 
-const RedisInstanceKey = {
-  [RedisInstanceType.DEFAULT]: 'redis.serverUrl',
-  [RedisInstanceType.TIMELINE]: 'redis.serverUrlTimeline',
+const RedisTypeURLs = {
+  [RedisInstanceType.DEFAULT]: get(config, 'redis.serverUrl'),
+  [RedisInstanceType.TIMELINE]:
+    process.env.REDIS_TIMELINE_URL_ENVIRONMENT_VARIABLE &&
+    get(process.env, process.env.REDIS_TIMELINE_URL_ENVIRONMENT_VARIABLE),
 };
 
 // Holds a singleton instance of Redis client for each instance type
@@ -20,11 +22,12 @@ const redisInstances: Record<string, RedisClientType> = {};
 export async function createRedisClient(
   instanceType: RedisInstanceType = RedisInstanceType.DEFAULT,
 ): Promise<RedisClientType> {
-  const url = get(config, RedisInstanceKey[instanceType]);
+  let url = RedisTypeURLs[instanceType];
   // Fallback to default instance if the requested instance is not configured
   if (instanceType !== RedisInstanceType.DEFAULT && !url) {
     logger.warn(`Redis instance ${instanceType} is not configured, falling back to default instance`);
     instanceType = RedisInstanceType.DEFAULT;
+    url = RedisTypeURLs[instanceType];
   }
 
   // Return the existing client if it exists

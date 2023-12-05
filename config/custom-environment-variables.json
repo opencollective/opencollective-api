@@ -35,8 +35,7 @@
     "password": "MEMCACHE_PASSWORD"
   },
   "redis": {
-    "serverUrl": "REDIS_URL",
-    "serverUrlTimeline": "REDIS_TIMELINE_URL"
+    "serverUrl": "REDIS_URL"
   },
   "keys": {
     "opencollective": {
