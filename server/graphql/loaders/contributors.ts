@@ -5,11 +5,10 @@ import { ContributorsCacheEntry, getContributorsForCollective } from '../../lib/
 import models from '../../models';
 
 export default {
-  forCollectiveId: (req): DataLoader<number, ContributorsCacheEntry> =>
+  forCollectiveId: (): DataLoader<number, ContributorsCacheEntry> =>
     new DataLoader(async collectiveIds => {
       const uniqueIds = uniq(collectiveIds);
-      const collectives = await (req.loaders?.Collective?.byId?.loadMany(uniqueIds) ||
-        models.Collective.findAll({ where: { id: uniqueIds } }));
+      const collectives = await models.Collective.findAll({ where: { id: uniqueIds } });
       const allContributors = await Promise.all(
         collectives.map(collective => getContributorsForCollective(collective)),
       );
