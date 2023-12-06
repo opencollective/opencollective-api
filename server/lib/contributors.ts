@@ -136,7 +136,7 @@ const contributorsQuery = `
     AND c."deletedAt" IS NULL
     AND (transactions."ExpenseId" IS NULL OR e."type" != 'SETTLEMENT')
   GROUP BY
-    c.id, fx.rate
+    c.id
   ORDER BY
     "totalAmountDonatedInHostCurrency" DESC,
     MIN(m."since") ASC
