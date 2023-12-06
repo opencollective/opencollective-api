@@ -537,25 +537,18 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       case CollectiveTypeEnum.COLLECTIVE:
       case CollectiveTypeEnum.BOT:
         return 'Collective';
-
       case CollectiveTypeEnum.USER:
         return 'User';
-
       case CollectiveTypeEnum.ORGANIZATION:
         return 'Organization';
-
       case CollectiveTypeEnum.EVENT:
         return 'Event';
-
       case CollectiveTypeEnum.PROJECT:
         return 'Project';
-
       case CollectiveTypeEnum.FUND:
         return 'Fund';
-
       case CollectiveTypeEnum.VENDOR:
         return 'Vendor';
-
       default:
         return null;
     }
@@ -2015,7 +2008,7 @@ export const CollectiveSearchResultsType = new GraphQLObjectType({
       description: 'A unique identifier for this search (for caching)',
     },
     collectives: {
-      type: new GraphQLList(CollectiveType),
+      type: new GraphQLList(CollectiveInterfaceType),
     },
     limit: {
       type: GraphQLInt,
