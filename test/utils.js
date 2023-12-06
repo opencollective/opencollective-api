@@ -51,11 +51,13 @@ export const resetTestDB = async () => {
     // for performance reasons: https://github.com/sequelize/sequelize/issues/15865
     const tableNames = values(sequelize.models).map(m => `"${m.tableName}"`);
     await sequelize.query(`TRUNCATE TABLE ${tableNames.join(', ')} RESTART IDENTITY CASCADE`);
+    // TODO: Do we really want to refresh all materialized views? That sounds expensive
     await sequelize.query(`REFRESH MATERIALIZED VIEW "TransactionBalances"`);
     await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"`);
     await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveOrderStats"`);
     await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTagStats"`);
     await sequelize.query(`REFRESH MATERIALIZED VIEW "ExpenseTagStats"`);
+    await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
   };
 
   try {
@@ -64,6 +66,17 @@ export const resetTestDB = async () => {
     console.error(e);
     process.exit(1);
   }
+};
+
+export const seedDefaultPaymentProcessorVendors = async () => {
+  return sequelize.query(`
+    INSERT INTO "Collectives" ("type", "slug", "name", "website", "createdAt", "updatedAt")
+    VALUES
+      ('VENDOR', 'stripe-payment-processor-vendor', 'Stripe', 'https://stripe.com', NOW(), NOW()),
+      ('VENDOR', 'paypal-payment-processor-vendor', 'PayPal', 'https://paypal.com', NOW(), NOW()),
+      ('VENDOR', 'wise-payment-processor-vendor', 'Wise', 'https://wise.com', NOW(), NOW()),
+      ('VENDOR', 'other-payment-processor-vendor', 'Other Payment Processor', NULL, NOW(), NOW());
+  `);
 };
 
 export async function loadDB(dbname) {

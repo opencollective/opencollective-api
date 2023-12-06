@@ -2,45 +2,45 @@
 
 exports[`server/models/TransactionSettlement 0. Properly initializes test data 1`] = `
 "
-| Group     | type   | amount | To              | From            | Host            | kind              | isDebt | Settlement | description                                             |
-| --------- | ------ | ------ | --------------- | --------------- | --------------- | ----------------- | ------ | ---------- | ------------------------------------------------------- |
-| #00000001 | DEBIT  | -1000  | Benjamin        | Open Source     | NULL            | CONTRIBUTION      | false  |            | A simple contribution **without** platform tip          |
-| #00000001 | CREDIT | 1000   | Open Source     | Benjamin        | NULL            | CONTRIBUTION      | false  |            | A simple contribution **without** platform tip          |
-| #00000002 | DEBIT  | -1000  | Benjamin        | ESLint          | NULL            | CONTRIBUTION      | false  |            | A simple contribution **without** platform tip          |
-| #00000002 | CREDIT | 1000   | ESLint          | Benjamin        | NULL            | CONTRIBUTION      | false  |            | A simple contribution **without** platform tip          |
-| #00000003 | DEBIT  | -1000  | Benjamin        | Open Source     | NULL            | CONTRIBUTION      | false  |            | A contribution **with** platform tip                    |
-| #00000003 | CREDIT | 1000   | Open Source     | Benjamin        | Open Source     | CONTRIBUTION      | false  |            | A contribution **with** platform tip                    |
-| #00000003 | DEBIT  | -200   | Benjamin        | Open Collective | NULL            | PLATFORM_TIP      | false  |            | Tip transaction from the contributor to Open Collective |
-| #00000003 | CREDIT | 200    | Open Collective | Benjamin        | Open Collective | PLATFORM_TIP      | false  |            | Tip transaction from the contributor to Open Collective |
-| #00000003 | DEBIT  | -200   | Open Collective | Open Source     | Open Source     | PLATFORM_TIP_DEBT | true   | OWED       | Tip transaction from the HOST to Open Collective        |
-| #00000003 | CREDIT | 200    | Open Source     | Open Collective | Open Collective | PLATFORM_TIP_DEBT | true   | OWED       | Tip transaction from the HOST to Open Collective        |
-| #00000004 | DEBIT  | -1000  | Benjamin        | ESLint          | NULL            | CONTRIBUTION      | false  |            | A contribution **with** platform tip                    |
-| #00000004 | CREDIT | 1000   | ESLint          | Benjamin        | Open Source     | CONTRIBUTION      | false  |            | A contribution **with** platform tip                    |
-| #00000004 | DEBIT  | -200   | Benjamin        | Open Collective | NULL            | PLATFORM_TIP      | false  |            | Tip transaction from the contributor to Open Collective |
-| #00000004 | CREDIT | 200    | Open Collective | Benjamin        | Open Collective | PLATFORM_TIP      | false  |            | Tip transaction from the contributor to Open Collective |
-| #00000004 | DEBIT  | -200   | Open Collective | Open Source     | Open Source     | PLATFORM_TIP_DEBT | true   | OWED       | Tip transaction from the HOST to Open Collective        |
-| #00000004 | CREDIT | 200    | Open Source     | Open Collective | Open Collective | PLATFORM_TIP_DEBT | true   | OWED       | Tip transaction from the HOST to Open Collective        |"
+| Group     | type   | kind              | amount | To              | From            | Host            | isDebt | isRefund | Settlement | description                                             |
+| --------- | ------ | ----------------- | ------ | --------------- | --------------- | --------------- | ------ | -------- | ---------- | ------------------------------------------------------- |
+| #00000001 | DEBIT  | CONTRIBUTION      | -1000  | Benjamin        | Open Source     | NULL            | false  | false    |            | A simple contribution **without** platform tip          |
+| #00000001 | CREDIT | CONTRIBUTION      | 1000   | Open Source     | Benjamin        | NULL            | false  | false    |            | A simple contribution **without** platform tip          |
+| #00000002 | DEBIT  | CONTRIBUTION      | -1000  | Benjamin        | ESLint          | NULL            | false  | false    |            | A simple contribution **without** platform tip          |
+| #00000002 | CREDIT | CONTRIBUTION      | 1000   | ESLint          | Benjamin        | Open Source     | false  | false    |            | A simple contribution **without** platform tip          |
+| #00000003 | DEBIT  | CONTRIBUTION      | -1000  | Benjamin        | Open Source     | NULL            | false  | false    |            | A contribution **with** platform tip                    |
+| #00000003 | CREDIT | CONTRIBUTION      | 1000   | Open Source     | Benjamin        | Open Source     | false  | false    |            | A contribution **with** platform tip                    |
+| #00000003 | DEBIT  | PLATFORM_TIP      | -200   | Benjamin        | Open Collective | NULL            | false  | false    |            | Tip transaction from the contributor to Open Collective |
+| #00000003 | CREDIT | PLATFORM_TIP      | 200    | Open Collective | Benjamin        | Open Collective | false  | false    |            | Tip transaction from the contributor to Open Collective |
+| #00000003 | DEBIT  | PLATFORM_TIP_DEBT | -200   | Open Collective | Open Source     | Open Source     | true   | false    | OWED       | Tip transaction from the HOST to Open Collective        |
+| #00000003 | CREDIT | PLATFORM_TIP_DEBT | 200    | Open Source     | Open Collective | Open Collective | true   | false    | OWED       | Tip transaction from the HOST to Open Collective        |
+| #00000004 | DEBIT  | CONTRIBUTION      | -1000  | Benjamin        | ESLint          | NULL            | false  | false    |            | A contribution **with** platform tip                    |
+| #00000004 | CREDIT | CONTRIBUTION      | 1000   | ESLint          | Benjamin        | Open Source     | false  | false    |            | A contribution **with** platform tip                    |
+| #00000004 | DEBIT  | PLATFORM_TIP      | -200   | Benjamin        | Open Collective | NULL            | false  | false    |            | Tip transaction from the contributor to Open Collective |
+| #00000004 | CREDIT | PLATFORM_TIP      | 200    | Open Collective | Benjamin        | Open Collective | false  | false    |            | Tip transaction from the contributor to Open Collective |
+| #00000004 | DEBIT  | PLATFORM_TIP_DEBT | -200   | Open Collective | Open Source     | Open Source     | true   | false    | OWED       | Tip transaction from the HOST to Open Collective        |
+| #00000004 | CREDIT | PLATFORM_TIP_DEBT | 200    | Open Source     | Open Collective | Open Collective | true   | false    | OWED       | Tip transaction from the HOST to Open Collective        |"
 `;
 
 exports[`server/models/TransactionSettlement 1. getHostDebts returns all debts for host 1`] = `
 "
-| Group     | type   | amount | To          | From            | Host            | kind              | isDebt | Settlement | description                                      |
-| --------- | ------ | ------ | ----------- | --------------- | --------------- | ----------------- | ------ | ---------- | ------------------------------------------------ |
-| #00000003 | CREDIT | 200    | Open Source | Open Collective | Open Collective | PLATFORM_TIP_DEBT | true   | OWED       | Tip transaction from the HOST to Open Collective |
-| #00000004 | CREDIT | 200    | Open Source | Open Collective | Open Collective | PLATFORM_TIP_DEBT | true   | OWED       | Tip transaction from the HOST to Open Collective |"
+| Group     | type   | kind              | amount | To          | From            | Host            | isDebt | isRefund | Settlement | description                                      |
+| --------- | ------ | ----------------- | ------ | ----------- | --------------- | --------------- | ------ | -------- | ---------- | ------------------------------------------------ |
+| #00000003 | CREDIT | PLATFORM_TIP_DEBT | 200    | Open Source | Open Collective | Open Collective | true   | false    | OWED       | Tip transaction from the HOST to Open Collective |
+| #00000004 | CREDIT | PLATFORM_TIP_DEBT | 200    | Open Source | Open Collective | Open Collective | true   | false    | OWED       | Tip transaction from the HOST to Open Collective |"
 `;
 
 exports[`server/models/TransactionSettlement 2. updateTransactionsSettlementStatus updates statuses selectively 1`] = `
 "
-| Group     | type   | amount | To          | From            | Host            | kind              | isDebt | Settlement | description                                      |
-| --------- | ------ | ------ | ----------- | --------------- | --------------- | ----------------- | ------ | ---------- | ------------------------------------------------ |
-| #00000003 | CREDIT | 200    | Open Source | Open Collective | Open Collective | PLATFORM_TIP_DEBT | true   | SETTLED    | Tip transaction from the HOST to Open Collective |
-| #00000004 | CREDIT | 200    | Open Source | Open Collective | Open Collective | PLATFORM_TIP_DEBT | true   | OWED       | Tip transaction from the HOST to Open Collective |"
+| Group     | type   | kind              | amount | To          | From            | Host            | isDebt | isRefund | Settlement | description                                      |
+| --------- | ------ | ----------------- | ------ | ----------- | --------------- | --------------- | ------ | -------- | ---------- | ------------------------------------------------ |
+| #00000003 | CREDIT | PLATFORM_TIP_DEBT | 200    | Open Source | Open Collective | Open Collective | true   | false    | SETTLED    | Tip transaction from the HOST to Open Collective |
+| #00000004 | CREDIT | PLATFORM_TIP_DEBT | 200    | Open Source | Open Collective | Open Collective | true   | false    | OWED       | Tip transaction from the HOST to Open Collective |"
 `;
 
 exports[`server/models/TransactionSettlement 3. getHostDebts can then filter by settlement status 1`] = `
 "
-| Group     | type   | amount | To          | From            | Host            | kind              | isDebt | Settlement | description                                      |
-| --------- | ------ | ------ | ----------- | --------------- | --------------- | ----------------- | ------ | ---------- | ------------------------------------------------ |
-| #00000004 | CREDIT | 200    | Open Source | Open Collective | Open Collective | PLATFORM_TIP_DEBT | true   | OWED       | Tip transaction from the HOST to Open Collective |"
+| Group     | type   | kind              | amount | To          | From            | Host            | isDebt | isRefund | Settlement | description                                      |
+| --------- | ------ | ----------------- | ------ | ----------- | --------------- | --------------- | ------ | -------- | ---------- | ------------------------------------------------ |
+| #00000004 | CREDIT | PLATFORM_TIP_DEBT | 200    | Open Source | Open Collective | Open Collective | true   | false    | OWED       | Tip transaction from the HOST to Open Collective |"
 `;

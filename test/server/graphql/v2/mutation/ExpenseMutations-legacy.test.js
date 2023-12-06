@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import config from 'config';
 import crypto from 'crypto-js';
 import gqlV2 from 'fake-tag';
-import { defaultsDeep, omit, pick, sumBy } from 'lodash';
+import { defaultsDeep, omit, pick, round, sumBy } from 'lodash';
 import { createSandbox } from 'sinon';
 import speakeasy from 'speakeasy';
 
@@ -45,7 +45,6 @@ import {
   makeRequest,
   preloadAssociationsForTransactions,
   resetTestDB,
-  seedDefaultPaymentProcessorVendors,
   snapshotTransactions,
   waitForCondition,
 } from '../../../../utils';
@@ -55,7 +54,6 @@ const CIPHER = config.dbEncryption.cipher;
 
 const SNAPSHOT_COLUMNS = [
   'type',
-  'kind',
   'amount',
   'netAmountInCollectiveCurrency',
   'paymentProcessorFeeInHostCurrency',
@@ -243,7 +241,6 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
     beforeEach(() => {
       sandbox = createSandbox();
       emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage');
-      sandbox.stub(config, 'ledger').value({ ...config.ledger, separatePaymentProcessorFees: true });
     });
 
     afterEach(() => {
@@ -1303,7 +1300,6 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
     before(async () => {
       await resetTestDB();
-      await seedDefaultPaymentProcessorVendors();
       hostAdmin = await fakeUser();
       collectiveAdmin = await fakeUser();
       host = await fakeCollective({
@@ -1483,7 +1479,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       beforeEach(() => {
         sandbox = createSandbox();
         emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage');
-        sandbox.stub(config, 'ledger').value({ ...config.ledger, separatePaymentProcessorFees: true });
+        sandbox.stub(config, 'ledger').value({ ...config.ledger, separatePaymentProcessorFees: false });
       });
 
       afterEach(() => {
@@ -1574,11 +1570,10 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       });
 
       it('Pays the expense manually', async () => {
-        const amount = 1000;
         const paymentProcessorFee = 100;
         const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
         const expense = await fakeExpense({
-          amount: amount,
+          amount: 1000,
           CollectiveId: collective.id,
           status: 'APPROVED',
           PayoutMethodId: payoutMethod.id,
@@ -1586,15 +1581,15 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
         // Updates the collective balance and pay the expense
         const initialBalance = await collective.getBalanceWithBlockedFunds();
-        const totalAmount = expense.amount + paymentProcessorFee;
-        await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: totalAmount });
-        expect(await collective.getBalanceWithBlockedFunds()).to.equal(initialBalance + totalAmount);
+        const expensePlusFees = expense.amount + paymentProcessorFee;
+        await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: expensePlusFees });
+        expect(await collective.getBalanceWithBlockedFunds()).to.equal(initialBalance + expensePlusFees);
         const mutationParams = {
           expenseId: expense.id,
           action: 'PAY',
           paymentParams: {
             paymentProcessorFeeInHostCurrency: paymentProcessorFee,
-            totalAmountPaidInHostCurrency: totalAmount,
+            totalAmountPaidInHostCurrency: expensePlusFees,
             forceManual: true,
           },
         };
@@ -1607,27 +1602,27 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         // Check transactions
         const debitTransaction = await models.Transaction.findOne({
           where: {
-            kind: 'EXPENSE',
             type: 'DEBIT',
             ExpenseId: expense.id,
           },
         });
 
-        expect(debitTransaction).to.exist;
+        expect(debitTransaction.kind).to.equal(TransactionKind.EXPENSE);
         expect(debitTransaction.currency).to.equal(expense.currency);
         expect(debitTransaction.hostCurrency).to.equal(host.currency);
-        expect(debitTransaction.netAmountInCollectiveCurrency).to.equal(-amount);
+        expect(debitTransaction.netAmountInCollectiveCurrency).to.equal(-expensePlusFees);
+        expect(debitTransaction.paymentProcessorFeeInHostCurrency).to.equal(
+          Math.round(-paymentProcessorFee * debitTransaction.hostCurrencyFxRate),
+        );
         const creditTransaction = await models.Transaction.findOne({
           where: {
-            kind: 'EXPENSE',
             type: 'CREDIT',
             ExpenseId: expense.id,
           },
         });
-        expect(creditTransaction).to.exist;
         expect(creditTransaction.kind).to.equal(TransactionKind.EXPENSE);
         expect(creditTransaction.netAmountInCollectiveCurrency).to.equal(expense.amount);
-        expect(creditTransaction.amount).to.equal(amount);
+        expect(creditTransaction.amount).to.equal(expensePlusFees);
 
         // Check activity
         const activities = await expense.getActivities({ where: { type: 'collective.expense.paid' } });
@@ -1701,47 +1696,27 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         // Check transactions
         const debitTransaction = await models.Transaction.findOne({
           where: {
-            kind: 'EXPENSE',
             type: 'DEBIT',
             ExpenseId: expense.id,
           },
         });
-        expect(debitTransaction).to.exist;
+
+        expect(debitTransaction.kind).to.equal(TransactionKind.EXPENSE);
         expect(debitTransaction.currency).to.equal(expense.currency);
         expect(debitTransaction.hostCurrency).to.equal(host.currency);
         expect(debitTransaction.hostCurrencyFxRate).to.equal(1.13568);
-        expect(debitTransaction.netAmountInCollectiveCurrency).to.equal(-4400);
-
-        const debitPaymentProcessorFeeTransaction = await models.Transaction.findOne({
-          where: {
-            kind: 'PAYMENT_PROCESSOR_FEE',
-            type: 'DEBIT',
-            ExpenseId: expense.id,
-          },
-        });
-        expect(debitPaymentProcessorFeeTransaction).to.exist;
-        expect(debitPaymentProcessorFeeTransaction.amountInHostCurrency).to.equal(-61);
+        expect(debitTransaction.netAmountInCollectiveCurrency).to.equal(-4400 - round(61 / 1.13568));
+        expect(debitTransaction.paymentProcessorFeeInHostCurrency).to.equal(-61);
 
         const creditTransaction = await models.Transaction.findOne({
           where: {
-            kind: 'EXPENSE',
             type: 'CREDIT',
             ExpenseId: expense.id,
           },
         });
-        expect(creditTransaction).to.exist;
+        expect(creditTransaction.kind).to.equal(TransactionKind.EXPENSE);
         expect(creditTransaction.netAmountInCollectiveCurrency).to.equal(expense.amount);
-        expect(creditTransaction.amount).to.equal(4400);
-
-        const creditPaymentProcessorFeeTransaction = await models.Transaction.findOne({
-          where: {
-            kind: 'PAYMENT_PROCESSOR_FEE',
-            type: 'CREDIT',
-            ExpenseId: expense.id,
-          },
-        });
-        expect(creditPaymentProcessorFeeTransaction).to.exist;
-        expect(creditPaymentProcessorFeeTransaction.amountInHostCurrency).to.equal(61);
+        expect(creditTransaction.amount).to.equal(4400 + round(61 / 1.13568));
 
         // Check activity
         const activities = await expense.getActivities({ where: { type: 'collective.expense.paid' } });
@@ -2087,27 +2062,27 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         snapshotTransactions(allTransactions, { columns: REFUND_SNAPSHOT_COLS });
 
         // Check balances (post-refund)
-        expect(await collective.getBalanceWithBlockedFunds()).to.eq(10000);
-        expect(await fromOrganization.getBalanceWithBlockedFunds()).to.eq(initialOrgBalance);
+        for (const useMaterializedView of [false, true]) {
+          console.debug('useMaterializedView => ', useMaterializedView);
+          expect(await collective.getBalanceWithBlockedFunds({ useMaterializedView })).to.eq(10000);
+          expect(await fromOrganization.getBalanceWithBlockedFunds({ useMaterializedView })).to.eq(initialOrgBalance);
+        }
 
         // Check individual transactions
         await Promise.all(allTransactions.map(t => models.Transaction.validate(t)));
-        const getExpenseTransaction = type =>
-          models.Transaction.findOne({
-            where: { kind: 'EXPENSE', type, ExpenseId: expense.id },
-            order: [['id', 'ASC']],
-          });
+        const getTransaction = type =>
+          models.Transaction.findOne({ where: { type, ExpenseId: expense.id }, order: [['id', 'ASC']] });
 
-        const debitTransaction = await getExpenseTransaction('DEBIT');
+        const debitTransaction = await getTransaction('DEBIT');
         const expectedFee = Math.round(paymentProcessorFee * debitTransaction.hostCurrencyFxRate);
         expect(debitTransaction.amount).to.equal(-expense.amount + expectedFee);
-        expect(debitTransaction.netAmountInCollectiveCurrency).to.equal(-expense.amount + expectedFee);
-        // expect(debitTransaction.paymentProcessorFeeInHostCurrency).to.equal(-expectedFee);
+        expect(debitTransaction.netAmountInCollectiveCurrency).to.equal(-expense.amount);
+        expect(debitTransaction.paymentProcessorFeeInHostCurrency).to.equal(-expectedFee);
 
-        const creditTransaction = await getExpenseTransaction('CREDIT');
-        expect(creditTransaction.amount).to.equal(expense.amount - expectedFee);
+        const creditTransaction = await getTransaction('CREDIT');
+        expect(creditTransaction.amount).to.equal(expense.amount);
         expect(creditTransaction.netAmountInCollectiveCurrency).to.equal(expense.amount - expectedFee);
-        // expect(creditTransaction.paymentProcessorFeeInHostCurrency).to.equal(-expectedFee);
+        expect(creditTransaction.paymentProcessorFeeInHostCurrency).to.equal(-expectedFee);
       });
 
       it('pays 100% of the balance by putting the fees on the payee but do not refund processor fees', async () => {
@@ -2182,24 +2157,21 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         // Check transactions
         await Promise.all(allTransactions.map(t => models.Transaction.validate(t)));
         const getTransaction = type =>
-          models.Transaction.findOne({
-            where: { type, kind: 'EXPENSE', ExpenseId: expense.id },
-            order: [['id', 'ASC']],
-          });
+          models.Transaction.findOne({ where: { type, ExpenseId: expense.id }, order: [['id', 'ASC']] });
 
         const debitTransaction = await getTransaction('DEBIT');
         const expectedFee = Math.round(paymentProcessorFee * debitTransaction.hostCurrencyFxRate);
         expect(debitTransaction.amount).to.equal(-expense.amount + expectedFee);
         expect(debitTransaction.amountInHostCurrency).to.equal(-expense.amount + expectedFee);
-        expect(debitTransaction.netAmountInCollectiveCurrency).to.equal(-expense.amount + expectedFee);
-        // expect(debitTransaction.paymentProcessorFeeInHostCurrency).to.equal(-expectedFee);
+        expect(debitTransaction.netAmountInCollectiveCurrency).to.equal(-expense.amount);
+        expect(debitTransaction.paymentProcessorFeeInHostCurrency).to.equal(-expectedFee);
         await models.Transaction.validate(debitTransaction);
 
         const creditTransaction = await getTransaction('CREDIT');
-        expect(creditTransaction.amount).to.equal(expense.amount - expectedFee);
-        expect(creditTransaction.amountInHostCurrency).to.equal(expense.amount - expectedFee);
+        expect(creditTransaction.amount).to.equal(expense.amount);
+        expect(creditTransaction.amountInHostCurrency).to.equal(expense.amount);
         expect(creditTransaction.netAmountInCollectiveCurrency).to.equal(expense.amount - expectedFee);
-        // expect(creditTransaction.paymentProcessorFeeInHostCurrency).to.equal(-expectedFee);
+        expect(creditTransaction.paymentProcessorFeeInHostCurrency).to.equal(-expectedFee);
         await models.Transaction.validate(creditTransaction);
       });
 
@@ -2280,27 +2252,25 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           await preloadAssociationsForTransactions(expenseTransactions, SNAPSHOT_COLUMNS);
           snapshotTransactions(expenseTransactions, { columns: SNAPSHOT_COLUMNS });
 
-          const debitTransaction = expenseTransactions.find(({ type, kind }) => type === 'DEBIT' && kind === 'EXPENSE');
+          const debitTransaction = expenseTransactions.find(({ type }) => type === 'DEBIT');
           expect(debitTransaction.amount).to.equal(-expenseAmountInCollectiveCurrency);
-          expect(debitTransaction.paymentProcessorFeeInHostCurrency).to.equal(0);
+          expect(debitTransaction.paymentProcessorFeeInHostCurrency).to.equal(-paymentProcessorFeeInHostCurrency);
           expect(debitTransaction.currency).to.equal(collective.currency);
           expect(debitTransaction.hostCurrency).to.equal(host.currency); // same as collective.currency
           expect(debitTransaction.hostCurrencyFxRate).to.equal(1); // host & collective have the same currency
-          expect(debitTransaction.netAmountInCollectiveCurrency).to.equal(-expenseAmountInCollectiveCurrency);
-
-          // TODO: also control payment processor fee transaction
-
-          const creditTransaction = expenseTransactions.find(
-            ({ type, kind }) => type === 'CREDIT' && kind === 'EXPENSE',
+          expect(debitTransaction.netAmountInCollectiveCurrency).to.equal(
+            -expenseAmountInCollectiveCurrency - paymentProcessorFeeInHostCurrency,
           );
-          expect(creditTransaction.amount).to.equal(expenseAmountInCollectiveCurrency);
+
+          const creditTransaction = expenseTransactions.find(({ type }) => type === 'CREDIT');
+          expect(creditTransaction.amount).to.equal(
+            expenseAmountInCollectiveCurrency + paymentProcessorFeeInHostCurrency,
+          );
           expect(creditTransaction.currency).to.equal(collective.currency);
           expect(creditTransaction.hostCurrency).to.equal(host.currency);
           expect(creditTransaction.hostCurrencyFxRate).to.equal(1);
           expect(creditTransaction.netAmountInCollectiveCurrency).to.equal(expenseAmountInCollectiveCurrency);
-          expect(creditTransaction.paymentProcessorFeeInHostCurrency).to.equal(0);
-
-          // TODO: also control payment processor fee transaction
+          expect(creditTransaction.paymentProcessorFeeInHostCurrency).to.equal(-paymentProcessorFeeInHostCurrency);
 
           // Check sent emails
           await waitForCondition(() => emailSendMessageSpy.callCount === 2);
@@ -2363,24 +2333,27 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
           const expenseAmountInCollectiveCurrency = totalAmountPaidInHostCurrency - paymentProcessorFeeInHostCurrency;
 
-          const debitTransaction = expenseTransactions.find(({ type, kind }) => type === 'DEBIT' && kind === 'EXPENSE');
+          const debitTransaction = expenseTransactions.find(({ type }) => type === 'DEBIT');
           expect(debitTransaction.currency).to.equal(collective.currency);
           expect(debitTransaction.hostCurrency).to.equal(host.currency); // same as collective.currency
           expect(debitTransaction.amount).to.equal(-expenseAmountInCollectiveCurrency);
-          expect(debitTransaction.paymentProcessorFeeInHostCurrency).to.equal(0);
+          expect(debitTransaction.paymentProcessorFeeInHostCurrency).to.equal(-paymentProcessorFeeInHostCurrency);
           expect(debitTransaction.hostCurrencyFxRate).to.equal(1); // host & collective have the same currency
-          expect(debitTransaction.netAmountInCollectiveCurrency).to.equal(-expenseAmountInCollectiveCurrency);
+          expect(debitTransaction.netAmountInCollectiveCurrency).to.equal(
+            -expenseAmountInCollectiveCurrency - paymentProcessorFeeInHostCurrency,
+          );
 
           const hostCurrencyFxRate = 1.1;
-          const creditTransaction = expenseTransactions.find(
-            ({ kind, type }) => type === 'CREDIT' && kind === 'EXPENSE',
-          );
+          const creditTransaction = expenseTransactions.find(({ type }) => type === 'CREDIT');
+          const paymentProcessorFeeInPayeeCurrency = Math.round(hostCurrencyFxRate * paymentProcessorFeeInHostCurrency);
           expect(creditTransaction.currency).to.equal(collective.currency);
           expect(creditTransaction.hostCurrency).to.equal(payee.host.currency);
           expect(creditTransaction.hostCurrencyFxRate).to.equal(hostCurrencyFxRate);
-          expect(creditTransaction.amount).to.equal(expenseAmountInCollectiveCurrency);
+          expect(creditTransaction.amount).to.equal(
+            expenseAmountInCollectiveCurrency + paymentProcessorFeeInHostCurrency,
+          );
           expect(creditTransaction.netAmountInCollectiveCurrency).to.equal(expenseAmountInCollectiveCurrency);
-          expect(creditTransaction.paymentProcessorFeeInHostCurrency).to.equal(0);
+          expect(creditTransaction.paymentProcessorFeeInHostCurrency).to.equal(-paymentProcessorFeeInPayeeCurrency);
 
           // Check sent emails
           await waitForCondition(() => emailSendMessageSpy.callCount === 2);

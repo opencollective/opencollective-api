@@ -1,0 +1,99 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`scripts/ledger/split-payment-processor-fees 1. migrate a regular contribution with payment processor fees 1`] = `
+"
+| kind         | type   | amount | paymentFee | netAmountInCollectiveCurrency | To         | From       | Host | isRefund |
+| ------------ | ------ | ------ | ---------- | ----------------------------- | ---------- | ---------- | ---- | -------- |
+| CONTRIBUTION | CREDIT | 500    | -25        | 500                           | Collective | User       | Host | false    |
+| CONTRIBUTION | DEBIT  | -500   | -25        | -500                          | User       | Collective | NULL | false    |"
+`;
+
+exports[`scripts/ledger/split-payment-processor-fees 1. migrate a regular contribution with payment processor fees 2`] = `
+"
+| kind                  | type   | amount | paymentFee | netAmountInCollectiveCurrency | To                      | From                    | Host | isRefund |
+| --------------------- | ------ | ------ | ---------- | ----------------------------- | ----------------------- | ----------------------- | ---- | -------- |
+| PAYMENT_PROCESSOR_FEE | CREDIT | 25     | 0          | 25                            | Other Payment Processor | Collective              | NULL | false    |
+| PAYMENT_PROCESSOR_FEE | DEBIT  | -25    | 0          | -25                           | Collective              | Other Payment Processor | Host | false    |
+| CONTRIBUTION          | CREDIT | 500    | 0          | 500                           | Collective              | User                    | Host | false    |
+| CONTRIBUTION          | DEBIT  | -500   | 0          | -500                          | User                    | Collective              | NULL | false    |"
+`;
+
+exports[`scripts/ledger/split-payment-processor-fees 2. migrate a regular refunded contribution with payment processor fees 1`] = `
+"
+| kind                    | type   | amount | paymentFee | netAmountInCollectiveCurrency | To         | From       | Host | isRefund |
+| ----------------------- | ------ | ------ | ---------- | ----------------------------- | ---------- | ---------- | ---- | -------- |
+| CONTRIBUTION            | CREDIT | 500    | 0          | 500                           | User       | Collective | NULL | true     |
+| CONTRIBUTION            | DEBIT  | -500   | 0          | -500                          | Collective | User       | Host | true     |
+| PAYMENT_PROCESSOR_COVER | CREDIT | 25     | 0          | 25                            | Collective | Host       | Host | true     |
+| PAYMENT_PROCESSOR_COVER | DEBIT  | -25    | 0          | -25                           | Host       | Collective | Host | true     |
+| CONTRIBUTION            | CREDIT | 500    | -25        | 500                           | Collective | User       | Host | false    |
+| CONTRIBUTION            | DEBIT  | -500   | -25        | -500                          | User       | Collective | NULL | false    |"
+`;
+
+exports[`scripts/ledger/split-payment-processor-fees 2. migrate a regular refunded contribution with payment processor fees 2`] = `
+"
+| kind                    | type   | amount | paymentFee | netAmountInCollectiveCurrency | To                      | From                    | Host | isRefund |
+| ----------------------- | ------ | ------ | ---------- | ----------------------------- | ----------------------- | ----------------------- | ---- | -------- |
+| PAYMENT_PROCESSOR_FEE   | CREDIT | 25     | 0          | 25                            | Other Payment Processor | Collective              | NULL | false    |
+| PAYMENT_PROCESSOR_FEE   | DEBIT  | -25    | 0          | -25                           | Collective              | Other Payment Processor | Host | false    |
+| CONTRIBUTION            | CREDIT | 500    | 0          | 500                           | User                    | Collective              | NULL | true     |
+| CONTRIBUTION            | DEBIT  | -500   | 0          | -500                          | Collective              | User                    | Host | true     |
+| PAYMENT_PROCESSOR_COVER | CREDIT | 25     | 0          | 25                            | Collective              | Host                    | Host | true     |
+| PAYMENT_PROCESSOR_COVER | DEBIT  | -25    | 0          | -25                           | Host                    | Collective              | Host | true     |
+| CONTRIBUTION            | CREDIT | 500    | 0          | 500                           | Collective              | User                    | Host | false    |
+| CONTRIBUTION            | DEBIT  | -500   | 0          | -500                          | User                    | Collective              | NULL | false    |"
+`;
+
+exports[`scripts/ledger/split-payment-processor-fees 3. migrate an expense with payment processor fees 1`] = `
+"
+| kind    | type   | amount | paymentFee | netAmountInCollectiveCurrency | To         | From       | Host | isRefund |
+| ------- | ------ | ------ | ---------- | ----------------------------- | ---------- | ---------- | ---- | -------- |
+| EXPENSE | CREDIT | 525    | -25        | 500                           | User       | Collective | NULL | false    |
+| EXPENSE | DEBIT  | -500   | -25        | -525                          | Collective | User       | Host | false    |"
+`;
+
+exports[`scripts/ledger/split-payment-processor-fees 3. migrate an expense with payment processor fees 2`] = `
+"
+| kind                  | type   | amount | paymentFee | netAmountInCollectiveCurrency | To                      | From                    | Host | isRefund |
+| --------------------- | ------ | ------ | ---------- | ----------------------------- | ----------------------- | ----------------------- | ---- | -------- |
+| PAYMENT_PROCESSOR_FEE | CREDIT | 25     | 0          | 25                            | Other Payment Processor | Collective              | NULL | false    |
+| PAYMENT_PROCESSOR_FEE | DEBIT  | -25    | 0          | -25                           | Collective              | Other Payment Processor | Host | false    |
+| EXPENSE               | CREDIT | 500    | 0          | 500                           | User                    | Collective              | NULL | false    |
+| EXPENSE               | DEBIT  | -500   | 0          | -500                          | Collective              | User                    | Host | false    |"
+`;
+
+exports[`scripts/ledger/split-payment-processor-fees 4. migrate an expense with payment processor fees AND taxes 1`] = `
+"
+| kind    | type   | amount | paymentFee | netAmountInCollectiveCurrency | To         | From       | Host | isRefund | tax  |
+| ------- | ------ | ------ | ---------- | ----------------------------- | ---------- | ---------- | ---- | -------- | ---- |
+| EXPENSE | CREDIT | 675    | -25        | 500                           | User       | Collective | NULL | false    | -150 |
+| EXPENSE | DEBIT  | -500   | -25        | -675                          | Collective | User       | Host | false    | -150 |"
+`;
+
+exports[`scripts/ledger/split-payment-processor-fees 4. migrate an expense with payment processor fees AND taxes 2`] = `
+"
+| kind                  | type   | amount | paymentFee | netAmountInCollectiveCurrency | To                      | From                    | Host | isRefund | tax  |
+| --------------------- | ------ | ------ | ---------- | ----------------------------- | ----------------------- | ----------------------- | ---- | -------- | ---- |
+| PAYMENT_PROCESSOR_FEE | CREDIT | 25     | 0          | 25                            | Other Payment Processor | Collective              | NULL | false    |      |
+| PAYMENT_PROCESSOR_FEE | DEBIT  | -25    | 0          | -25                           | Collective              | Other Payment Processor | Host | false    |      |
+| EXPENSE               | CREDIT | 650    | 0          | 500                           | User                    | Collective              | NULL | false    | -150 |
+| EXPENSE               | DEBIT  | -500   | 0          | -650                          | Collective              | User                    | Host | false    | -150 |"
+`;
+
+exports[`scripts/ledger/split-payment-processor-fees 5. migrate an expense with processor fees on the payee if feesPayer=PAYEE 1`] = `
+"
+| kind    | type   | amount | paymentFee | netAmountInCollectiveCurrency | To         | From       | Host | isRefund | tax |
+| ------- | ------ | ------ | ---------- | ----------------------------- | ---------- | ---------- | ---- | -------- | --- |
+| EXPENSE | CREDIT | 500    | -25        | 475                           | User       | Collective | NULL | false    |     |
+| EXPENSE | DEBIT  | -475   | -25        | -500                          | Collective | User       | Host | false    |     |"
+`;
+
+exports[`scripts/ledger/split-payment-processor-fees 5. migrate an expense with processor fees on the payee if feesPayer=PAYEE 2`] = `
+"
+| kind                  | type   | amount | paymentFee | netAmountInCollectiveCurrency | To                      | From                    | Host | isRefund | tax |
+| --------------------- | ------ | ------ | ---------- | ----------------------------- | ----------------------- | ----------------------- | ---- | -------- | --- |
+| PAYMENT_PROCESSOR_FEE | CREDIT | 25     | 0          | 25                            | Other Payment Processor | Collective              | NULL | false    |     |
+| PAYMENT_PROCESSOR_FEE | DEBIT  | -25    | 0          | -25                           | Collective              | Other Payment Processor | Host | false    |     |
+| EXPENSE               | CREDIT | 475    | 0          | 475                           | User                    | Collective              | NULL | false    |     |
+| EXPENSE               | DEBIT  | -475   | 0          | -475                          | Collective              | User                    | Host | false    |     |"
+`;

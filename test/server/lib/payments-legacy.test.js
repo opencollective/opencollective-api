@@ -60,16 +60,15 @@ describe('server/lib/payments', () => {
     nock.cleanAll();
   });
 
-  beforeEach(async () => {
-    await utils.resetTestDB();
-    await utils.seedDefaultPaymentProcessorVendors();
-  });
+  beforeEach(() => utils.resetTestDB());
 
   beforeEach(() => {
     sandbox = createSandbox();
     sandbox.stub(stripe.customers, 'create').callsFake(() => Promise.resolve({ id: 'cus_BM7mGwp1Ea8RtL' }));
     sandbox.stub(stripe.customers, 'retrieve').callsFake(() => Promise.resolve({ id: 'cus_BM7mGwp1Ea8RtL' }));
-    sandbox.stub(stripe.tokens, 'retrieve').callsFake(async id => ({ id }));
+    sandbox.stub(stripe.tokens, 'retrieve').callsFake(async id => {
+      id;
+    });
     sandbox.stub(stripe.tokens, 'create').callsFake(() => Promise.resolve({ id: 'tok_1AzPXGD8MNtzsDcgwaltZuvp' }));
 
     const paymentMethodId = randStr('pm_');
@@ -92,7 +91,7 @@ describe('server/lib/payments', () => {
       }),
     );
     sandbox.stub(stripe.balanceTransactions, 'retrieve').callsFake(() => Promise.resolve(stripeMocks.balance));
-    sandbox.stub(config, 'ledger').value({ ...config.ledger, separatePaymentProcessorFees: true });
+    sandbox.stub(config, 'ledger').value({ ...config.ledger, separatePaymentProcessorFees: false });
     emailSendSpy = sandbox.spy(emailLib, 'send');
   });
 
@@ -144,7 +143,7 @@ describe('server/lib/payments', () => {
     await models.ConnectedAccount.create({
       service: 'stripe',
       token: 'abc',
-      CollectiveId: host.id,
+      CollectiveId: host.collective.id,
     });
   });
 
@@ -372,12 +371,10 @@ describe('server/lib/payments', () => {
         },
       });
 
-      // Then there should be 12 transactions in total under that order id
-      expect(allTransactions.length).to.equal(12);
+      // Then there should be 4 transactions in total under that order id
+      expect(allTransactions.length).to.equal(10);
 
       // TODO: check that HOST_FEES, PAYMENT_PROCESSOR_COVER are there
-      const hostFeeTransactions = allTransactions.filter(t => t.kind === TransactionKind.HOST_FEE);
-      expect(hostFeeTransactions).to.have.lengthOf(4);
 
       // And Then two transactions should be refund
       const refundTransactions = allTransactions.filter(
@@ -391,7 +388,7 @@ describe('server/lib/payments', () => {
       const [creditRefundTransaction] = refundTransactions.filter(t => t.type === 'CREDIT');
       expect(creditRefundTransaction.FromCollectiveId).to.equal(collective.id);
       expect(creditRefundTransaction.CollectiveId).to.equal(order.FromCollectiveId);
-      expect(creditRefundTransaction.kind).to.equal(TransactionKind.CONTRIBUTION);
+      expect(creditRefundTransaction.kind).to.equal('CONTRIBUTION');
       expect(creditRefundTransaction.taxAmount).to.equal(100); // Taxes are always fully refunded, so it's a positive value
 
       // And then the values for the transaction from the donor to the
@@ -399,7 +396,7 @@ describe('server/lib/payments', () => {
       const [debitRefundTransaction] = refundTransactions.filter(t => t.type === 'DEBIT');
       expect(debitRefundTransaction.FromCollectiveId).to.equal(order.FromCollectiveId);
       expect(debitRefundTransaction.CollectiveId).to.equal(collective.id);
-      expect(debitRefundTransaction.kind).to.equal(TransactionKind.CONTRIBUTION);
+      expect(debitRefundTransaction.kind).to.equal('CONTRIBUTION');
       expect(debitRefundTransaction.taxAmount).to.equal(100);
     });
 
@@ -433,14 +430,13 @@ describe('server/lib/payments', () => {
         data: { charge: { id: 'ch_refunded_charge' } },
       });
 
-      // Should have 8 transactions:
+      // Should have 6 transactions:
       // - 2 for contributions
       // - 2 for host fees
-      // - 2 for payment processor fees
       // - 2 for platform tip (contributor -> Open Collective)
       // - 2 for platform tip debt (host -> Open Collective)
       const originalTransactions = await order.getTransactions();
-      expect(originalTransactions).to.have.lengthOf(10);
+      expect(originalTransactions).to.have.lengthOf(8);
 
       // Should have created a settlement entry for tip
       const tipTransaction = originalTransactions.find(t => t.kind === TransactionKind.PLATFORM_TIP_DEBT);
@@ -457,11 +453,11 @@ describe('server/lib/payments', () => {
 
       const refundedTransactions = await order.getTransactions({ where: { isRefund: true } });
       expect(refundedTransactions).to.have.lengthOf(10);
-      expect(refundedTransactions.filter(t => t.kind === TransactionKind.CONTRIBUTION)).to.have.lengthOf(2);
-      expect(refundedTransactions.filter(t => t.kind === TransactionKind.PLATFORM_TIP)).to.have.lengthOf(2);
-      expect(refundedTransactions.filter(t => t.kind === TransactionKind.PLATFORM_TIP_DEBT)).to.have.lengthOf(2);
-      expect(refundedTransactions.filter(t => t.kind === TransactionKind.HOST_FEE)).to.have.lengthOf(2);
-      expect(refundedTransactions.filter(t => t.kind === TransactionKind.PAYMENT_PROCESSOR_COVER)).to.have.lengthOf(2);
+      expect(refundedTransactions.filter(t => t.kind === 'CONTRIBUTION')).to.have.lengthOf(2);
+      expect(refundedTransactions.filter(t => t.kind === 'PLATFORM_TIP')).to.have.lengthOf(2);
+      expect(refundedTransactions.filter(t => t.kind === 'PLATFORM_TIP_DEBT')).to.have.lengthOf(2);
+      expect(refundedTransactions.filter(t => t.kind === 'HOST_FEE')).to.have.lengthOf(2);
+      expect(refundedTransactions.filter(t => t.kind === 'PAYMENT_PROCESSOR_COVER')).to.have.lengthOf(2);
 
       // TODO(LedgerRefactor): Check debt transactions and settlement status
 
@@ -497,13 +493,11 @@ describe('server/lib/payments', () => {
         data: { charge: { id: 'ch_refunded_charge' } },
       });
 
-      // Should have 4 transactions:
+      // Should have 2 transactions:
       // - 2 for contributions
-      // - 2 for payment processor fees
       const originalTransactions = await order.getTransactions();
-      expect(originalTransactions).to.have.lengthOf(4);
-      expect(originalTransactions.filter(t => t.kind === TransactionKind.CONTRIBUTION)).to.have.lengthOf(2);
-      expect(originalTransactions.filter(t => t.kind === TransactionKind.PAYMENT_PROCESSOR_FEE)).to.have.lengthOf(2);
+      expect(originalTransactions).to.have.lengthOf(2);
+      expect(originalTransactions.filter(t => t.kind === 'CONTRIBUTION')).to.have.lengthOf(2);
 
       // Do refund
       await payments.createRefundTransaction(transaction, 0, null, user);
@@ -515,8 +509,8 @@ describe('server/lib/payments', () => {
 
       const refundedTransactions = await order.getTransactions({ where: { isRefund: true } });
       expect(refundedTransactions).to.have.lengthOf(2);
-      expect(refundedTransactions.filter(t => t.kind === TransactionKind.CONTRIBUTION)).to.have.lengthOf(2);
-      expect(refundedTransactions.filter(t => t.kind === TransactionKind.PAYMENT_PROCESSOR_COVER)).to.have.lengthOf(0);
+      expect(refundedTransactions.filter(t => t.kind === 'CONTRIBUTION')).to.have.lengthOf(2);
+      expect(refundedTransactions.filter(t => t.kind === 'PAYMENT_PROCESSOR_COVER')).to.have.lengthOf(0);
     });
 
     it('should remove the settlement if the tip was already invoiced', async () => {

@@ -182,7 +182,7 @@ td.tdpadding {
       </div>
 
       {{#each Expense.items}}
-        <div class="preview" style="z-index:0; background-size: contain; background-repeat: no-repeat; background-position: center; background-image: url('https://res.cloudinary.com/opencollective/image/fetch/w_640,f_jpg/{{this.url}}')"></div>
+        <div class="preview" style="z-index:0; background-size: contain; background-repeat: no-repeat; background-position: center; background-image: url('{{resizeImage this.url width=640}}')"></div>
       {{else}}
         <div class="no-attachments">
           There's no file attached to this expense.

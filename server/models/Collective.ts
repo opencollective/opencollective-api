@@ -383,16 +383,7 @@ class Collective extends Model<
       return null;
     }
 
-    const cloudinaryBaseUrl = 'https://res.cloudinary.com/opencollective/image/fetch';
-
-    const format = this.image.match(/\.png$/) ? 'png' : 'jpg';
-
-    const queryurl =
-      this.type === 'USER'
-        ? '/c_thumb,g_face,h_48,r_max,w_48,bo_3px_solid_white/c_thumb,h_48,r_max,w_48,bo_2px_solid_rgb:66C71A/e_trim'
-        : '/h_96,c_fill';
-
-    return `${cloudinaryBaseUrl}${queryurl}/f_${format}/${encodeURIComponent(this.image)}`;
+    return `${config.host.images}/proxy/images/?src=${encodeURIComponent(this.image)}&height=96`;
   }
 
   get info() {

@@ -1,5 +1,6 @@
 import { expect } from 'chai';
-import { stub } from 'sinon';
+import config from 'config';
+import { createSandbox } from 'sinon';
 
 import { TransactionKind } from '../../../server/constants/transaction-kind';
 import models from '../../../server/models';
@@ -10,6 +11,7 @@ import {
   fakePaymentMethod,
   fakeTransaction,
   fakeUser,
+  randStr,
 } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
@@ -46,11 +48,12 @@ const SNAPSHOT_COLUMNS_WITH_DEBT = [
 ];
 
 describe('server/models/Transaction', () => {
-  let user, host, inc, collective, defaultTransactionData;
-
-  beforeEach(() => utils.resetTestDB());
+  let sandbox, user, host, inc, collective, defaultTransactionData;
 
   beforeEach(async () => {
+    await utils.resetTestDB();
+    sandbox = createSandbox();
+    sandbox.stub(config, 'activities').value({ ...config.activities, skipCreationForTransactions: true }); // Async activities are created async, which doesn't play well with `resetTestDb`
     user = await fakeUser({}, { name: 'User' });
     inc = await fakeHost({
       id: 8686,
@@ -74,6 +77,10 @@ describe('server/models/Transaction', () => {
       CollectiveId: collective.id,
       HostCollectiveId: host.id,
     };
+  });
+
+  afterEach(() => {
+    sandbox.restore();
   });
 
   it('automatically generates uuid', done => {
@@ -197,23 +204,20 @@ describe('server/models/Transaction', () => {
     });
   });
 
-  it('createFromContributionPayload() generates a new activity', done => {
-    const createActivityStub = stub(Transaction, 'createActivity').callsFake(t => {
-      expect(Math.abs(t.amount)).to.equal(Math.abs(transactionsData[7].amount));
-      createActivityStub.restore();
-      done();
-    });
+  it('createFromContributionPayload() generates a new activity', async () => {
+    sandbox.stub(config, 'activities').value({ ...config.activities, skipCreationForTransactions: false }); // Async activities are created async, which doesn't play well with `resetTestDb`
+    const createActivityStub = sandbox.stub(Transaction, 'createActivity');
 
-    Transaction.createFromContributionPayload({
+    const transaction = await Transaction.createFromContributionPayload({
       CreatedByUserId: user.id,
       FromCollectiveId: user.CollectiveId,
       CollectiveId: collective.id,
       ...transactionsData[7],
-    })
-      .then(transaction => {
-        expect(transaction.CollectiveId).to.equal(collective.id);
-      })
-      .catch(done);
+      description: randStr(),
+    });
+
+    await utils.waitForCondition(() => createActivityStub.called);
+    expect(createActivityStub.firstCall.args[0].description).to.equal(transaction.description);
   });
 
   describe('fees on top', () => {
@@ -492,6 +496,51 @@ describe('server/models/Transaction', () => {
       result = await testFeesWithPaymentMethod('opencollective', 'manual');
       expect(result.hostFeeShareTransaction.amount).to.equal(Math.round(amount * 0.1 * 0.2));
       expect(result.hostFeeShareDebtTransaction.amount).to.equal(-Math.round(amount * 0.1 * 0.2));
+    });
+  });
+
+  describe('createDoubleEntry', () => {
+    it('works an expense that has amount=0 (only payment processor fees)', async () => {
+      const result = await models.Transaction.createDoubleEntry({
+        type: 'DEBIT',
+        kind: 'EXPENSE',
+        CollectiveId: collective.id,
+        FromCollectiveId: user.CollectiveId,
+        amount: 0,
+        amountInHostCurrency: 0,
+        paymentProcessorFeeInHostCurrency: -500,
+        netAmountInCollectiveCurrency: -500,
+        HostCollectiveId: host.id,
+      });
+
+      const transactionsPair = await models.Transaction.findAll({
+        where: { TransactionGroup: result.TransactionGroup },
+      });
+
+      // Creates double entry (credit + debit)
+      expect(transactionsPair.length).to.equal(2);
+      const credit = transactionsPair.find(t => t.type === 'CREDIT');
+      const debit = transactionsPair.find(t => t.type === 'DEBIT');
+      expect(credit).to.exist;
+      expect(debit).to.exist;
+
+      // Check credit
+      expect(credit.CollectiveId).to.equal(user.CollectiveId);
+      expect(credit.FromCollectiveId).to.equal(collective.id);
+      expect(credit.HostCollectiveId).to.be.null;
+      expect(credit.amount).to.equal(500);
+      expect(credit.amountInHostCurrency).to.equal(500);
+      expect(credit.paymentProcessorFeeInHostCurrency).to.equal(-500);
+      expect(credit.netAmountInCollectiveCurrency).to.equal(0);
+
+      // // Check debit
+      expect(debit.CollectiveId).to.equal(collective.id);
+      expect(debit.FromCollectiveId).to.equal(user.CollectiveId);
+      expect(debit.HostCollectiveId).to.equal(host.id);
+      expect(debit.amount).to.equal(0);
+      expect(debit.amountInHostCurrency).to.equal(0);
+      expect(debit.paymentProcessorFeeInHostCurrency).to.equal(-500);
+      expect(debit.netAmountInCollectiveCurrency).to.equal(-500);
     });
   });
 });

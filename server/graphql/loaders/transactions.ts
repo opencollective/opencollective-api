@@ -49,6 +49,56 @@ export const generateHostFeeAmountForTransactionLoader = (): DataLoader<Transact
     },
   );
 
+export const generatePaymentProcessorFeeAmountForTransactionLoader = (): DataLoader<TransactionInterface, number> =>
+  new DataLoader(
+    async (transactions: TransactionInterface[]) => {
+      const transactionsWithoutProcessorFee = transactions.filter(transaction => {
+        // Legacy transactions have their host fee set on `paymentProcessorFeeInHostCurrency`. No need to fetch for them.
+        // Platform tips also had processor fees as we used to split them with the collective, but we stopped doing that on 2021-04-01.
+        return (
+          !transaction.paymentProcessorFeeInHostCurrency &&
+          ['EXPENSE', 'ADDED_FUNDS', 'CONTRIBUTION'].includes(transaction.kind)
+        );
+      });
+
+      const processorFeesTransactions = await models.Transaction.findAll({
+        attributes: ['TransactionGroup', 'type', 'amount'],
+        mapToModel: false,
+        raw: true,
+        where: {
+          kind: TransactionKind.PAYMENT_PROCESSOR_FEE,
+          [Op.or]: transactionsWithoutProcessorFee.map(transaction => ({
+            TransactionGroup: transaction.TransactionGroup,
+            type: transaction.type,
+          })),
+        },
+      });
+
+      const keyBuilder = (transaction: TransactionInterface) => `${transaction.TransactionGroup}-${transaction.type}`;
+      const groupedTransactions: Record<string, TransactionInterface[]> = groupBy(
+        processorFeesTransactions,
+        keyBuilder,
+      );
+      return transactions.map(transaction => {
+        if (transaction.paymentProcessorFeeInHostCurrency) {
+          return transaction.paymentProcessorFeeInHostCurrency;
+        } else {
+          const key = keyBuilder(transaction);
+          const processorFeeTransactions = groupedTransactions[key];
+          if (processorFeeTransactions) {
+            const amount = processorFeeTransactions[0].amount;
+            return transaction.isRefund ? amount : -amount;
+          } else {
+            return 0;
+          }
+        }
+      });
+    },
+    {
+      cacheKeyFn: transaction => transaction.id,
+    },
+  );
+
 export const generateRelatedTransactionsLoader = (): DataLoader<TransactionInterface, TransactionInterface[]> =>
   new DataLoader(
     async (transactions: TransactionInterface[]) => {
