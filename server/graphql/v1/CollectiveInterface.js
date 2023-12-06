@@ -1993,7 +1993,17 @@ export const VendorCollectiveType = new GraphQLObjectType({
   name: 'Vendor',
   description: 'This represents a Vendor',
   interfaces: [CollectiveInterfaceType],
-  fields: CollectiveFields,
+  fields: () => ({
+    ...CollectiveFields(),
+    hasPayoutMethod: {
+      type: GraphQLBoolean,
+      description: 'Returns whether this account has any payout methods saved',
+      async resolve(collective, _, req) {
+        const payoutMethods = await req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
+        return payoutMethods.length > 0;
+      },
+    },
+  }),
 });
 
 export const CollectiveSearchResultsType = new GraphQLObjectType({

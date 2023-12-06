@@ -47,6 +47,14 @@ export const GraphQLVendor = new GraphQLObjectType({
           }
         },
       },
+      hasPayoutMethod: {
+        type: GraphQLBoolean,
+        description: 'Returns whether this account has any payout methods saved',
+        async resolve(collective, _, req) {
+          const payoutMethods = await req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
+          return payoutMethods.length > 0;
+        },
+      },
       createdByAccount: {
         type: GraphQLAccount,
         description: 'The account who created this order',
