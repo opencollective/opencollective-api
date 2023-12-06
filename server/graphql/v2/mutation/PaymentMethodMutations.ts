@@ -259,14 +259,19 @@ const paymentMethodMutations = {
         throw new NotFound('Stripe customer account not found');
       }
 
+      const stripeRequestOptions =
+        args.setupIntent.stripeAccount !== config.stripe.accountId
+          ? {
+              stripeAccount: args.setupIntent.stripeAccount,
+            }
+          : undefined;
+
       const setupIntentResponse = await stripe.setupIntents.retrieve(
         args.setupIntent.id,
         {
           expand: ['payment_method', 'latest_attempt'],
         },
-        {
-          stripeAccount: args.setupIntent.stripeAccount,
-        },
+        stripeRequestOptions,
       );
 
       if (stripeCustomerAccount.username !== setupIntentResponse.customer) {
