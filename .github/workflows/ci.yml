@@ -17,7 +17,6 @@ env:
   NODE_ENV: test
   AWS_KEY: ${{ secrets.AWS_KEY }}
   AWS_SECRET: ${{ secrets.AWS_SECRET }}
-  CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
 jobs:
   lint:
@@ -220,7 +219,10 @@ jobs:
       - run: npm run test -- --ignore "test/server/graphql/**"
 
       - name: Report coverage
-        run: npm run test:coverage -- -F Unit
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: Unit
 
   test-graphql:
     runs-on: ubuntu-latest
@@ -269,7 +271,10 @@ jobs:
       - run: npm run test:graphql
 
       - name: Report coverage
-        run: npm run test:coverage -- -F GraphQL
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: GraphQL
 
   schema-update:
     runs-on: ubuntu-latest
