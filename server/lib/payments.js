@@ -108,7 +108,7 @@ export async function processOrder(order, options) {
  *  associated to the refund transaction as who performed the refund.
  * @param {string} message a optional message to explain why the transaction is rejected
  */
-export async function refundTransaction(transaction, user, message, opts = {}) {
+export async function refundTransaction(transaction, user, message = undefined, opts = {}) {
   // Make sure to fetch PaymentMethod
   // Fetch PaymentMethod even if it's deleted
   if (!transaction.PaymentMethod && transaction.PaymentMethodId) {
@@ -207,8 +207,8 @@ export const buildRefundForTransaction = (t, user, data, refundedPaymentProcesso
   if (refund.kind === TransactionKind.EXPENSE) {
     const feesPayer = t.data?.feesPayer || ExpenseFeesPayer.COLLECTIVE;
     if (feesPayer === ExpenseFeesPayer.PAYEE) {
-      if (refundedPaymentProcessorFee) {
-        // If the fee gets refunded, we add it as a positive value on the refund transactions
+      if (refundedPaymentProcessorFee && t.paymentProcessorFeeInHostCurrency) {
+        // If the fee gets refunded while set on the column, we add it as a positive value on the refund transactions
         refund.paymentProcessorFeeInHostCurrency = Math.abs(refundedPaymentProcessorFee);
       } else {
         // Otherwise, payment processor fees are deducted from the refunded amount which means
@@ -235,16 +235,24 @@ export const buildRefundForTransaction = (t, user, data, refundedPaymentProcesso
 };
 
 export const refundPaymentProcessorFeeToCollective = async (transaction, refundTransactionGroup, data, createdAt) => {
-  if (!transaction.paymentProcessorFeeInHostCurrency) {
-    return;
-  }
-
   if (transaction.CollectiveId === transaction.HostCollectiveId) {
     return;
   }
 
-  const hostCurrencyFxRate = await getFxRate(transaction.currency, transaction.hostCurrency);
-  const amountInHostCurrency = Math.abs(transaction.paymentProcessorFeeInHostCurrency);
+  // Handle processor fees as separate transactions
+  let processorFeeTransaction;
+  if (!transaction.paymentProcessorFeeInHostCurrency) {
+    processorFeeTransaction = await transaction.getPaymentProcessorFeeTransaction();
+    if (!processorFeeTransaction) {
+      return;
+    }
+  }
+
+  const transactionCurrency = processorFeeTransaction?.currency || transaction.currency;
+  const hostCurrencyFxRate = await getFxRate(transactionCurrency, transaction.hostCurrency);
+  const amountInHostCurrency = Math.abs(
+    processorFeeTransaction?.amountInHostCurrency || transaction.paymentProcessorFeeInHostCurrency,
+  );
   const amount = Math.round(amountInHostCurrency / hostCurrencyFxRate);
   await models.Transaction.createDoubleEntry({
     type: CREDIT,
@@ -259,7 +267,7 @@ export const refundPaymentProcessorFeeToCollective = async (transaction, refundT
     TransactionGroup: refundTransactionGroup,
     hostCurrency: transaction.hostCurrency,
     amountInHostCurrency,
-    currency: transaction.currency,
+    currency: transactionCurrency,
     amount,
     netAmountInCollectiveCurrency: amount,
     hostCurrencyFxRate,
@@ -270,6 +278,61 @@ export const refundPaymentProcessorFeeToCollective = async (transaction, refundT
     createdAt,
   });
 };
+
+export async function refundPaymentProcessorFee(
+  transaction,
+  user,
+  refundedPaymentProcessorFee,
+  transactionGroup,
+  data,
+) {
+  // Refund processor fees if the processor sent money back
+  if (refundedPaymentProcessorFee) {
+    // Load processor fee transaction if using separate transactions
+    let processorFeeTransaction;
+    if (!transaction.paymentProcessorFeeInHostCurrency) {
+      processorFeeTransaction = await transaction.getPaymentProcessorFeeTransaction();
+      if (!processorFeeTransaction) {
+        return;
+      }
+    }
+
+    // Prevent partial refunds
+    // TODO: We're now able to support this more easily, we should implement
+    const processorFeeInHostCurrency =
+      processorFeeTransaction?.amountInHostCurrency || transaction.paymentProcessorFeeInHostCurrency;
+    if (refundedPaymentProcessorFee && refundedPaymentProcessorFee !== processorFeeInHostCurrency) {
+      logger.error(
+        `Partial processor fees refunds are not supported, got ${refundedPaymentProcessorFee} for #${transaction.id}`,
+      );
+      reportMessageToSentry('Partial processor fees refunds are not supported', {
+        extra: { refundedPaymentProcessorFee, transaction: transaction.info },
+      });
+      return;
+    }
+
+    if (processorFeeTransaction) {
+      const processorFeeRefund = {
+        ...buildRefundForTransaction(processorFeeTransaction, user, data),
+        TransactionGroup: transactionGroup,
+      };
+
+      const processorFeeRefundTransaction = await models.Transaction.createDoubleEntry(processorFeeRefund);
+      await associateTransactionRefundId(processorFeeTransaction, processorFeeRefundTransaction, data);
+    }
+  }
+
+  // When refunding an Expense, we need to use the DEBIT transaction which is attached to the Collective and its Host.
+  const transactionToRefundPaymentProcessorFee = transaction.ExpenseId
+    ? await transaction.getRelatedTransaction({ type: DEBIT })
+    : transaction;
+
+  const feesPayer = transaction.data?.feesPayer || ExpenseFeesPayer.COLLECTIVE;
+  if (feesPayer === ExpenseFeesPayer.COLLECTIVE) {
+    // Host take at their charge the payment processor fee that is lost when refunding a transaction
+    await refundPaymentProcessorFeeToCollective(transactionToRefundPaymentProcessorFee, transactionGroup);
+  }
+}
 
 export async function refundHostFee(transaction, user, refundedPaymentProcessorFee, transactionGroup, data) {
   const hostFeeTransaction = await transaction.getHostFeeTransaction();
@@ -412,25 +475,7 @@ export async function createRefundTransaction(
   }
 
   // Refund Payment Processor Fee
-  if (refundedPaymentProcessorFee && refundedPaymentProcessorFee !== transaction.paymentProcessorFeeInHostCurrency) {
-    logger.error(
-      `Partial processor fees refunds are not supported, got ${refundedPaymentProcessorFee} for #${transaction.id}`,
-    );
-    reportMessageToSentry('Partial processor fees refunds are not supported', {
-      extra: { refundedPaymentProcessorFee, transaction: transaction.info },
-    });
-  } else if (transaction.paymentProcessorFeeInHostCurrency) {
-    // When refunding an Expense, we need to use the DEBIT transaction which is attached to the Collective and its Host.
-    const transactionToRefundPaymentProcessorFee = transaction.ExpenseId
-      ? await transaction.getRelatedTransaction({ type: DEBIT })
-      : transaction;
-
-    const feesPayer = transaction.data?.feesPayer || ExpenseFeesPayer.COLLECTIVE;
-    if (feesPayer === ExpenseFeesPayer.COLLECTIVE) {
-      // Host take at their charge the payment processor fee that is lost when refunding a transaction
-      await refundPaymentProcessorFeeToCollective(transactionToRefundPaymentProcessorFee, transactionGroup);
-    }
-  }
+  await refundPaymentProcessorFee(transaction, user, refundedPaymentProcessorFee, transactionGroup);
 
   // Refund Host Fee
   await refundHostFee(transaction, user, refundedPaymentProcessorFee, transactionGroup);

@@ -195,6 +195,10 @@
   "pdfService": {
     "fetchTransactionsReceipts": false
   },
+  "activities": {
+    "skipTransactions": false,
+    "skipCreationForTransactions": false
+  },
   "restService": {
     "fetchCollectiveTransactionsCsv": false,
     "fetchHostTransactionsCsv": false
@@ -204,7 +208,8 @@
     "minExecutionTimeToSample": 800
   },
   "ledger": {
-    "fastBalance": true
+    "fastBalance": true,
+    "separatePaymentProcessorFees": false
   },
   "twoFactorAuthentication": {
     "enabled": true

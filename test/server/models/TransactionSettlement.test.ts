@@ -24,6 +24,7 @@ const fakeContribution = (fromCollective, collective, transactionGroup) => {
       TransactionGroup: fakeUUID(transactionGroup),
       kind: TransactionKind.CONTRIBUTION,
       CollectiveId: collective.id,
+      HostCollectiveId: collective.HostCollectiveId,
       FromCollectiveId: fromCollective.id,
       amount: 1000,
       type: 'CREDIT',
@@ -111,12 +112,13 @@ const fakeContributionWithPlatformTipNewFormat = async (fromCollective, collecti
 const SNAPSHOT_COLUMNS = [
   'TransactionGroup',
   'type',
+  'kind',
   'amount',
   'CollectiveId',
   'FromCollectiveId',
   'HostCollectiveId',
-  'kind',
   'isDebt',
+  'isRefund',
   'settlementStatus',
   'description',
 ];
