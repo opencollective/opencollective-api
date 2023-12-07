@@ -537,25 +537,18 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       case CollectiveTypeEnum.COLLECTIVE:
       case CollectiveTypeEnum.BOT:
         return 'Collective';
-
       case CollectiveTypeEnum.USER:
         return 'User';
-
       case CollectiveTypeEnum.ORGANIZATION:
         return 'Organization';
-
       case CollectiveTypeEnum.EVENT:
         return 'Event';
-
       case CollectiveTypeEnum.PROJECT:
         return 'Project';
-
       case CollectiveTypeEnum.FUND:
         return 'Fund';
-
       case CollectiveTypeEnum.VENDOR:
         return 'Vendor';
-
       default:
         return null;
     }
@@ -1993,7 +1986,17 @@ export const VendorCollectiveType = new GraphQLObjectType({
   name: 'Vendor',
   description: 'This represents a Vendor',
   interfaces: [CollectiveInterfaceType],
-  fields: CollectiveFields,
+  fields: () => ({
+    ...CollectiveFields(),
+    hasPayoutMethod: {
+      type: GraphQLBoolean,
+      description: 'Returns whether this account has any payout methods saved',
+      async resolve(collective, _, req) {
+        const payoutMethods = await req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
+        return payoutMethods.length > 0;
+      },
+    },
+  }),
 });
 
 export const CollectiveSearchResultsType = new GraphQLObjectType({
@@ -2005,7 +2008,7 @@ export const CollectiveSearchResultsType = new GraphQLObjectType({
       description: 'A unique identifier for this search (for caching)',
     },
     collectives: {
-      type: new GraphQLList(CollectiveType),
+      type: new GraphQLList(CollectiveInterfaceType),
     },
     limit: {
       type: GraphQLInt,
