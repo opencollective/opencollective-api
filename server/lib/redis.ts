@@ -11,9 +11,7 @@ export enum RedisInstanceType {
 
 const RedisTypeURLs = {
   [RedisInstanceType.DEFAULT]: get(config, 'redis.serverUrl'),
-  [RedisInstanceType.TIMELINE]:
-    process.env.REDIS_TIMELINE_URL_ENVIRONMENT_VARIABLE &&
-    get(process.env, process.env.REDIS_TIMELINE_URL_ENVIRONMENT_VARIABLE),
+  [RedisInstanceType.TIMELINE]: get(config, 'redis.serverUrlTimeline'),
 };
 
 // Holds a singleton instance of Redis client for each instance type
