@@ -1099,7 +1099,7 @@ Transaction.createPaymentProcessorFeeTransactions = async (
   const paymentProcessorFeeTransactionData = {
     type: CREDIT,
     kind: TransactionKind.PAYMENT_PROCESSOR_FEE,
-    description: `${startCase(vendor.name)} payment processor fee`, // TODO: add payment processor name?
+    description: `${startCase(vendor.name)} payment processor fee`,
     TransactionGroup: transaction.TransactionGroup,
     FromCollectiveId: transaction.CollectiveId,
     CollectiveId: vendor.id,
@@ -1291,17 +1291,6 @@ Transaction.createFromContributionPayload = async (
   if (result && result.transaction) {
     transaction = result.transaction;
   }
-
-  // Create Payment Processor Fee transaction
-  // if (transaction.paymentProcessorFeeInHostCurrency && parseToBoolean(config.ledger.separatePaymentProcessorFees) === true) {
-  //   const result = await Transaction.createPaymentProcessorFeeTransactions(transaction);
-  //   if (result) {
-  //     // Transaction was modified by paymentProcessorFeeTransactions, we get it from the result
-  //     if (result.transaction) {
-  //       transaction = result.transaction;
-  //     }
-  //   }
-  // }
 
   // Create Host Fee transaction
   // TODO: move in createDoubleEntry?
