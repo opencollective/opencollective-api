@@ -80,6 +80,9 @@ export async function addFunds(order: AddFundsInput, remoteUser: User) {
     orderData.data.tax = getOrderTaxInfoFromTaxInput(order.tax, fromCollective, collective, host);
   }
 
+  // Added Funds are not eligible to Platform Tips
+  orderData.platformTipEligible = false;
+
   const orderCreated = await models.Order.create(orderData);
 
   const hostPaymentMethod = await host.getOrCreateHostPaymentMethod();

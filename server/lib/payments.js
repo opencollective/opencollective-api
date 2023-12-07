@@ -1007,6 +1007,15 @@ export const isPlatformTipEligible = async (order, host = null) => {
     return order.collective.data.platformTips;
   }
 
+  if (!order.paymentMethod && order.PaymentMethodId) {
+    order.paymentMethod = await order.getPaymentMethod();
+  }
+
+  // Added Funds are not eligible to Platform Tips
+  if (order.paymentMethod?.service === 'opencollective' && order.paymentMethod?.type === 'host') {
+    return false;
+  }
+
   host = host || (await order.collective.getHostCollective());
   if (host) {
     const plan = await host.getPlan();
@@ -1024,6 +1033,11 @@ export const getHostFeePercent = async (order, { host = null, loaders = null } =
 
   host = host || (await collective.getHostCollective({ loaders }));
 
+  // Make sure payment method is available
+  if (!order.paymentMethod && order.PaymentMethodId) {
+    order.paymentMethod = await order.getPaymentMethod();
+  }
+
   // No Host Fee for money going to an host itself
   if (collective.isHostAccount) {
     return 0;
@@ -1036,10 +1050,13 @@ export const getHostFeePercent = async (order, { host = null, loaders = null } =
 
   if (order.paymentMethod?.service === 'opencollective' && order.paymentMethod?.type === 'manual') {
     // Fixed for Bank Transfers at collective level
-    // As of August 2020, this will be only set on a selection of Collective (some foundation collectives 5%)
+    // As of December 2023, this will be only set on a selection of OCF Collectives
+    // 1kproject 6%, mealsofgratitude 5%, modulo 5%
+    // parentpreneur-foundation 5%, juneteenth-conference 6%
     possibleValues.push(collective.data?.bankTransfersHostFeePercent);
     // Fixed for Bank Transfers at parent level
     possibleValues.push(parent?.data?.bankTransfersHostFeePercent);
+
     // Custom fee is a priority over host custom one
     if (collective.data?.useCustomHostFee) {
       possibleValues.push(collective.hostFeePercent);
@@ -1047,8 +1064,10 @@ export const getHostFeePercent = async (order, { host = null, loaders = null } =
     if (parent?.data?.useCustomHostFee) {
       possibleValues.push(parent?.hostFeePercent);
     }
+
     // Fixed for Bank Transfers at host level
-    // As of August 2020, this will be only set on a selection of Hosts (foundation 8%)
+    // As of December 2023, this is only set on a selection of Hosts:
+    // foundation 8% (instead of 5%), europe 10% (instead of 8%)
     possibleValues.push(host.data?.bankTransfersHostFeePercent);
   }
 
@@ -1063,6 +1082,15 @@ export const getHostFeePercent = async (order, { host = null, loaders = null } =
     possibleValues.push(collective.data?.addedFundsHostFeePercent);
     // Fixed for Added Funds at parent level
     possibleValues.push(parent?.data?.addedFundsHostFeePercent);
+
+    // Custom fee is a priority over host custom one
+    if (collective.data?.useCustomHostFee) {
+      possibleValues.push(collective.hostFeePercent);
+    }
+    if (parent?.data?.useCustomHostFee) {
+      possibleValues.push(parent?.hostFeePercent);
+    }
+
     // Fixed for Added Funds at host level
     possibleValues.push(host.data?.addedFundsHostFeePercent);
   }
@@ -1074,12 +1102,9 @@ export const getHostFeePercent = async (order, { host = null, loaders = null } =
 
   if (order.paymentMethod?.service === 'stripe') {
     // Configurable by the Host globally, at the Collective or Parent level
-    // the setting used to be named `creditCardHostFeePercent` but it's meant to be used for Stripe generally
-    // to be removed once we don't have Hosts with `creditCardHostFeePercent`
-    possibleValues.push(collective.data?.creditCardHostFeePercent);
-    possibleValues.push(parent?.data?.creditCardHostFeePercent);
-    possibleValues.push(collective.data?.stripeHostFeePercent);
-    possibleValues.push(parent?.data?.stripeHostFeePercent);
+    // possibleValues.push(collective.data?.stripeHostFeePercent); // not used in the wild so far
+    // possibleValues.push(parent?.data?.stripeHostFeePercent); // not used in the wild so far
+
     // Custom fee is a priority over host custom one
     if (collective.data?.useCustomHostFee) {
       possibleValues.push(collective.hostFeePercent);
@@ -1087,14 +1112,20 @@ export const getHostFeePercent = async (order, { host = null, loaders = null } =
     if (parent?.data?.useCustomHostFee) {
       possibleValues.push(parent?.hostFeePercent);
     }
-    possibleValues.push(host.data?.creditCardHostFeePercent);
-    possibleValues.push(host.data?.stripeHostFeePercent);
+
+    // To help OSC transition to Platform Tips
+    if (order.platformTipEligible !== true) {
+      possibleValues.push(host.data?.stripeNotPlatformTipEligibleHostFeePercent);
+    }
+
+    // possibleValues.push(host.data?.stripeHostFeePercent); // not used in the wild so far
   }
 
   if (order.paymentMethod?.service === 'paypal') {
     // Configurable by the Host globally or at the Collective level
-    possibleValues.push(collective.data?.paypalHostFeePercent);
-    possibleValues.push(parent?.data?.paypalHostFeePercent);
+    // possibleValues.push(collective.data?.paypalHostFeePercent); // not used in the wild so far
+    // possibleValues.push(parent?.data?.paypalHostFeePercent); // not used in the wild so far
+
     // Custom fee is a priority over host custom one
     if (collective.data?.useCustomHostFee) {
       possibleValues.push(collective.hostFeePercent);
@@ -1102,7 +1133,13 @@ export const getHostFeePercent = async (order, { host = null, loaders = null } =
     if (parent?.data?.useCustomHostFee) {
       possibleValues.push(parent?.hostFeePercent);
     }
-    possibleValues.push(host.data?.paypalHostFeePercent);
+
+    // To help OSC transition to Platform Tips
+    if (order.platformTipEligible !== true) {
+      possibleValues.push(host.data?.paypalNotPlatformTipEligibleHostFeePercent);
+    }
+
+    // possibleValues.push(host.data?.paypalHostFeePercent); // not used in the wild so far
   }
 
   // Default for Collective
@@ -1128,23 +1165,32 @@ export const getHostFeeSharePercent = async (order, { host = null, loaders = nul
   const possibleValues = [];
 
   if (order) {
-    // Preload payment method
+    // Platform Tip Eligible? No Host Fee Share, that's it
+    if (order.platformTipEligible === true) {
+      return 0;
+    }
+
+    // Make sure payment method is available
     if (!order.paymentMethod && order.PaymentMethodId) {
       order.paymentMethod = await order.getPaymentMethod();
     }
 
+    // Used by 1st party hosts to set Stripe and PayPal (aka "Crowfunding") share percent to zero
+    // Ideally, this will not be used in the future as we'll always rely on the platformTipEligible flag to do that
+    // We still have a lot of old orders were platformTipEligible is not set, so we'll keep that configuration for now
+
     // Assign different fees based on the payment provider
     if (order.paymentMethod?.service === 'stripe') {
-      // the setting used to be named `creditCardHostFeeSharePercent` but it's meant to be used for Stripe generally
-      // to be removed once we don't have Hosts with `creditCardHostFeeSharePercent`
-      possibleValues.push(plan?.creditCardHostFeeSharePercent);
-      possibleValues.push(plan?.stripeHostFeeSharePercent);
+      possibleValues.push(host.data?.stripeHostFeeSharePercent);
+      possibleValues.push(plan?.stripeHostFeeSharePercent); // deprecated
     } else if (order.paymentMethod?.service === 'paypal') {
-      possibleValues.push(plan?.paypalHostFeeSharePercent);
+      possibleValues.push(host.data?.paypalHostFeeSharePercent);
+      possibleValues.push(plan?.paypalHostFeeSharePercent); // deprecated
     }
   }
 
   // Default
+  possibleValues.push(host.data?.hostFeeSharePercent);
   possibleValues.push(plan?.hostFeeSharePercent);
 
   // Pick the first that is set as a Number
