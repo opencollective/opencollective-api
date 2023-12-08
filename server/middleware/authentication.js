@@ -65,12 +65,6 @@ const parseJwt = req => {
 };
 
 const checkJwtScope = req => {
-  const minifiedGraphqlOperation = req.body?.query ? gqlmin(req.body.query) : null;
-  const allowedResetPasswordGraphqlOperations = [
-    'query ResetPasswordAccount{loggedInAccount{id type slug name email imageUrl __typename}}',
-    'mutation ResetPassword($password:String!){setPassword(password:$password){individual{id __typename}token __typename}}',
-  ];
-
   const errorMessage = `Cannot use this token on this route (scope: ${req.jwtPayload.scope})`;
 
   const scope = req.jwtPayload.scope || 'session';
@@ -101,15 +95,22 @@ const checkJwtScope = req => {
       break;
 
     case 'reset-password':
-      if (
-        // We verify that the mutation is exactly the one we expect
-        !req.isGraphQL ||
-        !minifiedGraphqlOperation ||
-        !allowedResetPasswordGraphqlOperations.includes(minifiedGraphqlOperation)
-      ) {
-        throw new errors.Unauthorized(
-          'Not allowed to use tokens with reset-password scope on anything else than the ResetPassword allowed GraphQL operations',
-        );
+      {
+        const minifiedGraphqlOperation = req.body?.query ? gqlmin(req.body.query) : null;
+        const allowedResetPasswordGraphqlOperations = [
+          'query ResetPasswordAccount{loggedInAccount{id type slug name email imageUrl __typename}}',
+          'mutation ResetPassword($password:String!){setPassword(password:$password){individual{id __typename}token __typename}}',
+        ];
+        if (
+          // We verify that the mutation is exactly the one we expect
+          !req.isGraphQL ||
+          !minifiedGraphqlOperation ||
+          !allowedResetPasswordGraphqlOperations.includes(minifiedGraphqlOperation)
+        ) {
+          throw new errors.Unauthorized(
+            'Not allowed to use tokens with reset-password scope on anything else than the ResetPassword allowed GraphQL operations',
+          );
+        }
       }
 
       break;
