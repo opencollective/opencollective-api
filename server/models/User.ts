@@ -10,6 +10,7 @@ import Temporal from 'sequelize-temporal';
 import activities from '../constants/activities';
 import { CollectiveType } from '../constants/collectives';
 import { Service } from '../constants/connected_account';
+import FEATURE from '../constants/feature';
 import OrderStatuses from '../constants/order_status';
 import roles from '../constants/roles';
 import * as auth from '../lib/auth';
@@ -27,6 +28,7 @@ const debug = debugLib('models:User');
 type UserData = {
   creationRequest?: { ip: string };
   lastSignInRequest?: { ip: string };
+  features?: Record<FEATURE, boolean>;
 };
 
 class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
