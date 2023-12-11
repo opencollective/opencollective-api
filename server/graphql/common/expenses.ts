@@ -72,6 +72,7 @@ import { Location } from '../../types/Location';
 import {
   Quote as WiseQuote,
   QuoteV2 as WiseQuoteV2,
+  QuoteV3 as WiseQuoteV3,
   RecipientAccount as BankAccountPayoutMethodData,
   Transfer as WiseTransfer,
 } from '../../types/transferwise';
@@ -2149,7 +2150,7 @@ export const getWiseFxRateInfoFromExpenseData = (
     return { value: 1 };
   }
 
-  const wiseInfo: WiseTransfer | WiseQuote | WiseQuoteV2 = expense.data?.transfer || expense.data?.quote;
+  const wiseInfo: WiseTransfer | WiseQuote | WiseQuoteV2 | WiseQuoteV3 = expense.data?.transfer || expense.data?.quote;
   if (wiseInfo?.rate) {
     // In this context, the source currency is always the Host currency and the target currency is the Payee currency
     const wiseSourceCurrency = wiseInfo['sourceCurrency'] || wiseInfo['source'];

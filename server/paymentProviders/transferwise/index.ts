@@ -26,8 +26,10 @@ import {
   BalanceV4,
   BatchGroup,
   ExpenseDataQuoteV2,
-  QuoteV2,
+  ExpenseDataQuoteV3,
   QuoteV2PaymentOption,
+  QuoteV3,
+  QuoteV3PaymentOption,
   RecipientAccount,
   TransactionRequirementsType,
   Transfer,
@@ -64,7 +66,7 @@ async function getTemporaryQuote(
   connectedAccount: ConnectedAccount,
   payoutMethod: PayoutMethod,
   expense: Expense,
-): Promise<QuoteV2> {
+): Promise<QuoteV3> {
   expense.collective = expense.collective || (await models.Collective.findByPk(expense.CollectiveId));
   expense.host = expense.host || (await expense.collective.getHostCollective());
   const rate = await getFxRate(expense.currency, expense.host.currency);
@@ -91,7 +93,7 @@ async function quoteExpense(
   payoutMethod: PayoutMethod,
   expense: Expense,
   targetAccount?: number,
-): Promise<ExpenseDataQuoteV2> {
+): Promise<ExpenseDataQuoteV3 | ExpenseDataQuoteV2> {
   await populateProfileId(connectedAccount);
 
   const isExistingQuoteValid =
@@ -106,7 +108,7 @@ async function quoteExpense(
     moment.utc().subtract(60, 'seconds').isBefore(expense.data.quote['expirationTime']);
   if (isExistingQuoteValid) {
     logger.debug(`quoteExpense(): reusing existing quote...`);
-    return <ExpenseDataQuoteV2>expense.data.quote;
+    return <ExpenseDataQuoteV3 | ExpenseDataQuoteV2>expense.data.quote;
   }
 
   expense.collective = expense.collective || (await models.Collective.findByPk(expense.CollectiveId));
@@ -162,10 +164,10 @@ async function createTransfer(
   expense: Expense,
   options?: { token?: string; batchGroupId?: string },
 ): Promise<{
-  quote: ExpenseDataQuoteV2;
+  quote: ExpenseDataQuoteV2 | ExpenseDataQuoteV3;
   recipient: RecipientAccount;
   transfer: Transfer;
-  paymentOption: QuoteV2PaymentOption;
+  paymentOption: QuoteV2PaymentOption | QuoteV3PaymentOption;
 }> {
   if (!payoutMethod) {
     payoutMethod = await expense.getPayoutMethod();
@@ -202,7 +204,7 @@ async function createTransfer(
     await expense.update({
       data: {
         ...expense.data,
-        quote: omit(quote, ['paymentOptions']) as ExpenseDataQuoteV2,
+        quote: omit(quote, ['paymentOptions']) as ExpenseDataQuoteV3,
         recipient,
         transfer,
         paymentOption,
@@ -228,11 +230,11 @@ async function payExpense(
   expense: Expense,
   batchGroupId?: string,
 ): Promise<{
-  quote: ExpenseDataQuoteV2;
+  quote: ExpenseDataQuoteV2 | ExpenseDataQuoteV3;
   recipient: RecipientAccount;
   fund: { status: string; errorCode: string };
   transfer: Transfer;
-  paymentOption: QuoteV2PaymentOption;
+  paymentOption: QuoteV2PaymentOption | QuoteV3PaymentOption;
 }> {
   const token = await transferwise.getToken(connectedAccount);
   const { quote, recipient, transfer, paymentOption } = await createTransfer(connectedAccount, payoutMethod, expense, {
