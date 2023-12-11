@@ -421,7 +421,7 @@ export const prettifyTransactionsData = (transactions, columns, opts = null) => 
       const cleanDataValues = {};
       columns.forEach(key => {
         const label = TRANSACTION_KEY_ALIASES[key] || key;
-        const value = transaction.dataValues[key];
+        const value = get(transaction.dataValues, key);
         cleanDataValues[label] = prettifyValue(key, value, transaction);
       });
 
