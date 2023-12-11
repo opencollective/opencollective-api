@@ -53,7 +53,7 @@ import expenseTypes from '../constants/expense_type';
 import FEATURE from '../constants/feature';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import plans from '../constants/plans';
-import POLICIES from '../constants/policies';
+import POLICIES, { Policies } from '../constants/policies';
 import roles, { MemberRoleLabels } from '../constants/roles';
 import { hasOptedOutOfFeature, isFeatureAllowedForCollectiveType } from '../lib/allowed-features';
 import {
@@ -94,12 +94,12 @@ import queries from '../lib/queries';
 import { buildSanitizerOptions, sanitizeHTML, stripHTML } from '../lib/sanitize-html';
 import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op, Sequelize, Transaction } from '../lib/sequelize';
-import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective } from '../lib/spam';
+import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective, SpamAnalysisReport } from '../lib/spam';
 import { sanitizeTags, validateTags } from '../lib/tags';
 import { canUseFeature } from '../lib/user-permissions';
 import userlib from '../lib/userlib';
 import { capitalize, formatCurrency, getDomain, md5 } from '../lib/utils';
-import { Location as LocationType } from '../types/Location';
+import { Location as LocationType, StructuredAddress } from '../types/Location';
 
 import ConnectedAccount from './ConnectedAccount';
 import CustomDataTypes from './DataTypes';
@@ -150,6 +150,33 @@ type Settings = {
     enabled?: boolean;
   };
 } & TaxSettings;
+
+type Data = Partial<{
+  policies: Policies;
+  features: Record<FEATURE, boolean>;
+  address: StructuredAddress;
+  replyToEmail: string;
+  isTrustedHost: boolean;
+  isFirstPartyHost: boolean;
+  addedFundsHostFeePercent: number;
+  bankTransfersHostFeePercent: number;
+  reimbursePaymentProcessorFeeOnTips: boolean;
+  platformTips: boolean;
+  isGuest: boolean;
+  spamReport: SpamAnalysisReport;
+  vendorInfo: Partial<{
+    contact: Partial<{
+      name: string;
+      email: string;
+    }>;
+    taxFormUrl: string;
+    taxFormRequired: boolean;
+    taxType: string;
+    taxId: string;
+    notes: string;
+  }>;
+}> &
+  Record<string, unknown>;
 
 const defaultTiers = currency => {
   return [
@@ -240,7 +267,7 @@ class Collective extends Model<
   public declare backgroundImage: string;
   public declare countryISO: string;
   public declare settings: Settings;
-  public declare data: any;
+  public declare data: Data;
   public declare startsAt: Date;
   public declare endsAt: Date;
   public declare timezone: string;
