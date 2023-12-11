@@ -1,5 +1,5 @@
 import { GraphQLList, GraphQLNonNull } from 'graphql';
-import { cloneDeep, pick } from 'lodash';
+import { cloneDeep, isNil, pick, uniq } from 'lodash';
 
 import { isUniqueConstraintError, richDiffDBEntries } from '../../../lib/data';
 import models, { sequelize } from '../../../models';
@@ -12,6 +12,13 @@ import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../inpu
 import { GraphQLAccount } from '../interface/Account';
 
 type AccountingCategoryInputWithNormalizedId = Omit<AccountingCategoryInputFields, 'id'> & { id?: number };
+
+const EDITABLE_FIELDS: readonly (keyof AccountingCategoryInputFields)[] = [
+  'code',
+  'name',
+  'friendlyName',
+  'expensesTypes',
+];
 
 export default {
   editAccountingCategories: {
@@ -42,7 +49,11 @@ export default {
       }
 
       const normalizedInputs: AccountingCategoryInputWithNormalizedId[] = args.categories.map(input => {
-        return { ...input, id: input.id ? idDecode(input.id, 'accounting-category') : null };
+        return {
+          ...input,
+          id: input.id ? idDecode(input.id, 'accounting-category') : null,
+          expensesTypes: isNil(input.expensesTypes) ? input.expensesTypes : uniq(input.expensesTypes).sort(), // Uniq & sort to avoid false positives in diff
+        };
       });
 
       try {
@@ -54,8 +65,7 @@ export default {
           });
 
           const diffFn = richDiffDBEntries<AccountingCategory, AccountingCategoryInputWithNormalizedId>;
-          const updateFields: (keyof AccountingCategoryInputFields)[] = ['code', 'name', 'friendlyName'];
-          const { toCreate, toRemove, toUpdate } = diffFn(existingCategories, normalizedInputs, updateFields);
+          const { toCreate, toRemove, toUpdate } = diffFn(existingCategories, normalizedInputs, EDITABLE_FIELDS);
 
           // If there's nothing to do, return early
           if (!toCreate.length && !toRemove.length && !toUpdate.length) {
@@ -79,13 +89,13 @@ export default {
           const updated = await Promise.all(
             toUpdate.map(async ({ model, newValues }) => ({
               previousData: cloneDeep(model.publicInfo),
-              newData: (await model.update(pick(newValues, updateFields), { transaction })).publicInfo,
+              newData: (await model.update(pick(newValues, EDITABLE_FIELDS), { transaction })).publicInfo,
             })),
           );
 
           // Create
           const newCategories = await models.AccountingCategory.bulkCreate(
-            toCreate.map(params => ({ ...pick(params, updateFields), CollectiveId: account.id })),
+            toCreate.map(params => ({ ...pick(params, EDITABLE_FIELDS), CollectiveId: account.id })),
             { transaction, returning: true },
           );
 

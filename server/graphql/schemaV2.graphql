@@ -1163,12 +1163,22 @@ interface Transaction {
     Fetch HOST_FEE transaction and integrate in calculation for retro-compatiblity.
     """
     fetchHostFee: Boolean = false
+
+    """
+    Fetch PAYMENT_PROCESSOR_FEE transaction for retro-compatiblity.
+    """
+    fetchPaymentProcessorFee: Boolean = false
   ): Amount!
   netAmountInHostCurrency(
     """
     Fetch HOST_FEE transaction and integrate in calculation for retro-compatiblity.
     """
     fetchHostFee: Boolean = false
+
+    """
+    Fetch PAYMENT_PROCESSOR_FEE transaction for retro-compatiblity.
+    """
+    fetchPaymentProcessorFee: Boolean = false
   ): Amount!
   taxAmount: Amount!
 
@@ -1562,6 +1572,11 @@ type AccountingCategory {
   The account this category belongs to
   """
   account: Host!
+
+  """
+  If meant for expenses, the types of expenses this category applies to
+  """
+  expensesTypes: [ExpenseType]
 }
 
 """
@@ -10975,6 +10990,11 @@ type Vendor implements Account & AccountWithContributions {
   vendorInfo: VendorInfo
 
   """
+  Returns whether this account has any payout methods saved
+  """
+  hasPayoutMethod: Boolean
+
+  """
   The account who created this order
   """
   createdByAccount: Account
@@ -16758,6 +16778,11 @@ input AccountingCategoryInput {
   A friendly name for non-accountants (i.e. expense submitters and collective admins)
   """
   friendlyName: String
+
+  """
+  If meant for expenses, the types of expenses this category applies to
+  """
+  expensesTypes: [ExpenseType]
 }
 
 """

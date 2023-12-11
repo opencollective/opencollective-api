@@ -1,5 +1,6 @@
-import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
+import { GraphQLExpenseType } from '../enum/ExpenseType';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
 import { GraphQLHost } from './Host';
@@ -28,6 +29,10 @@ const GraphQLAccountingCategory = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLHost),
       description: 'The account this category belongs to',
       resolve: ({ CollectiveId }, _, req) => req.loaders.Collective.byId.load(CollectiveId),
+    },
+    expensesTypes: {
+      type: new GraphQLList(GraphQLExpenseType),
+      description: 'If meant for expenses, the types of expenses this category applies to',
     },
   }),
 });
