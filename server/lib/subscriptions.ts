@@ -1,9 +1,11 @@
+import config from 'config';
 import { isEmpty, keys, pick } from 'lodash';
 import moment from 'moment';
 
 import INTERVALS from '../constants/intervals';
 import OrderStatus from '../constants/order_status';
-import { Unauthorized } from '../graphql/errors';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
+import { BadRequest, Unauthorized, UnexpectedError } from '../graphql/errors';
 import { sequelize } from '../models';
 import { MemberModelInterface } from '../models/Member';
 import { OrderModelInterface } from '../models/Order';
@@ -47,6 +49,35 @@ export const updatePaymentMethodForSubscription = async (
   const newPaymentMethodCollective = await newPaymentMethod.getCollective();
   if (!user.isAdminOfCollective(newPaymentMethodCollective)) {
     throw new Unauthorized("You don't have permission to use this payment method");
+  }
+
+  if (newPaymentMethod.service === PAYMENT_METHOD_SERVICE.STRIPE) {
+    const orderCollective = await order.getCollective();
+    if (!orderCollective) {
+      throw new UnexpectedError('Order collective not found');
+    }
+    const host = await orderCollective.getHostCollective();
+    if (!orderCollective) {
+      throw new UnexpectedError('Order host not found');
+    }
+
+    const [hostStripeAccount] = await host.getConnectedAccounts({
+      where: { service: 'stripe' },
+      limit: 1,
+    });
+
+    if (!hostStripeAccount) {
+      throw new UnexpectedError('Host stripe account not found');
+    }
+
+    // cards attached to the platform account can be copied
+    const isPlatformAccountCreditCard =
+      newPaymentMethod.type === PAYMENT_METHOD_TYPE.CREDITCARD &&
+      (!newPaymentMethod.data?.stripeAccount || newPaymentMethod.data?.stripeAccount === config.stripe.accountId);
+
+    if (!isPlatformAccountCreditCard && newPaymentMethod.data.stripeAccount !== hostStripeAccount.username) {
+      throw new BadRequest('This payment method is not valid for the order host');
+    }
   }
 
   // Order changes

@@ -15,7 +15,7 @@ import {
   isPlatformTipEligible,
 } from '../../lib/payments';
 import stripe, { convertFromStripeAmount, extractFees, retrieveChargeWithRefund } from '../../lib/stripe';
-import models, { Collective } from '../../models';
+import models, { Collective, ConnectedAccount } from '../../models';
 import { OrderModelInterface } from '../../models/Order';
 import PaymentMethod, { PaymentMethodModelInterface } from '../../models/PaymentMethod';
 import { TransactionInterface } from '../../models/Transaction';
@@ -504,4 +504,157 @@ export async function createPaymentMethod(
     },
     createOptions,
   );
+}
+
+export async function createOrRetrievePaymentMethodFromSetupIntent(
+  setupIntent: Stripe.SetupIntent,
+): Promise<PaymentMethodModelInterface> {
+  const stripePaymentMethodId =
+    typeof setupIntent.payment_method === 'string' ? setupIntent.payment_method : setupIntent.payment_method.id;
+
+  const existingPaymentMethod = await PaymentMethod.findOne({
+    where: {
+      data: {
+        stripePaymentMethodId,
+      },
+    },
+  });
+
+  if (existingPaymentMethod) {
+    if (existingPaymentMethod.type === PAYMENT_METHOD_TYPE.BANCONTACT) {
+      return await PaymentMethod.findOne({
+        where: {
+          data: {
+            stripePaymentMethodId: existingPaymentMethod.data.generated_sepa_debit,
+          },
+        },
+      });
+    }
+    return existingPaymentMethod;
+  }
+
+  if (['requires_payment_method', 'canceled'].includes(setupIntent.status)) {
+    throw new Error(`Invalid setup intent status: ${setupIntent.status}`);
+  }
+
+  const customerId = typeof setupIntent.customer === 'string' ? setupIntent.customer : setupIntent.customer.id;
+  if (!customerId) {
+    throw new Error('Setup intent not attached to a customer');
+  }
+
+  const customerConnectedAccount = await ConnectedAccount.findOne({
+    where: {
+      service: Service.STRIPE_CUSTOMER,
+      username: customerId,
+    },
+    include: [
+      {
+        model: Collective,
+        as: 'collective',
+        required: true,
+      },
+    ],
+  });
+
+  if (!customerConnectedAccount) {
+    throw new Error('Customer connected account not found');
+  }
+
+  const originalPaymentMethod = await createOrRetrieveStripePaymentMethod(
+    stripePaymentMethodId,
+    customerConnectedAccount,
+    {
+      saved: setupIntent.usage === 'off_session',
+      confirmed: 'succeeded' === setupIntent.status,
+    },
+  );
+
+  if (originalPaymentMethod.type === PAYMENT_METHOD_TYPE.BANCONTACT) {
+    let latestAttempt = setupIntent.latest_attempt;
+
+    if (typeof latestAttempt === 'string') {
+      const si = await stripe.setupIntents.retrieve(
+        setupIntent.id,
+        {
+          expand: ['latest_attempt'],
+        },
+        {
+          stripeAccount: customerConnectedAccount.clientId,
+        },
+      );
+
+      latestAttempt = si.latest_attempt as Stripe.SetupAttempt;
+    }
+
+    await originalPaymentMethod.update({
+      data: {
+        ...originalPaymentMethod.data,
+        ...latestAttempt.payment_method_details?.['bancontact'],
+      },
+    });
+
+    const generatedSepaPaymentId = latestAttempt.payment_method_details.bancontact.generated_sepa_debit as string;
+    const generatedPaymentMethod = await createOrRetrieveStripePaymentMethod(
+      generatedSepaPaymentId,
+      customerConnectedAccount,
+      {
+        saved: setupIntent.usage === 'off_session',
+        confirmed: 'succeeded' === setupIntent.status,
+      },
+    );
+
+    return generatedPaymentMethod;
+  }
+
+  return originalPaymentMethod;
+}
+
+async function createOrRetrieveStripePaymentMethod(
+  stripePaymentMethodId: string,
+  customerConnectedAccount: ConnectedAccount,
+  options?: {
+    saved?: boolean;
+    confirmed?: boolean;
+  },
+) {
+  const existingPaymentMethod = await PaymentMethod.findOne({
+    where: {
+      data: {
+        stripePaymentMethodId,
+      },
+    },
+  });
+  if (existingPaymentMethod) {
+    return existingPaymentMethod;
+  }
+
+  const stripeAccount = customerConnectedAccount.clientId;
+  const stripePaymentMethod = await stripe.paymentMethods.retrieve(stripePaymentMethodId, {
+    stripeAccount,
+  });
+
+  if (!stripePaymentMethod) {
+    throw new Error(`Stripe Payment Method ${stripePaymentMethodId} not found for account ${stripeAccount}`);
+  }
+
+  const paymentMethodData = {
+    stripePaymentMethodId,
+    stripeAccount,
+    ...mapStripePaymentMethodExtraData(stripePaymentMethod),
+  };
+
+  const paymentMethodName = formatPaymentMethodName(stripePaymentMethod);
+
+  return await PaymentMethod.create({
+    type: coercePaymentMethodType(stripePaymentMethod.type),
+    service: PAYMENT_METHOD_SERVICE.STRIPE,
+    name: paymentMethodName,
+    token: stripePaymentMethod.id,
+    customerId: customerConnectedAccount.username,
+    CollectiveId: customerConnectedAccount.CollectiveId,
+    CreatedByUserId: customerConnectedAccount.CreatedByUserId,
+    saved: options?.saved,
+    confirmedAt: options?.confirmed ? new Date() : null,
+    data: paymentMethodData,
+  });
 }

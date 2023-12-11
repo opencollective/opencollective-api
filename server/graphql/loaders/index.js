@@ -4,6 +4,7 @@ import { get, groupBy } from 'lodash';
 import moment from 'moment';
 
 import { CollectiveType } from '../../constants/collectives';
+import { Service } from '../../constants/connected_account';
 import orderStatus from '../../constants/order_status';
 import { TransactionTypes } from '../../constants/transactions';
 import {
@@ -114,6 +115,20 @@ export const loaders = req => {
       const resultsById = {};
       for (const result of results) {
         resultsById[result.id] = result.host;
+      }
+      return ids.map(id => resultsById[id] || null);
+    }),
+  );
+
+  context.loaders.Collective.hostByStripeAccount = new DataLoader(ids =>
+    models.ConnectedAccount.findAll({
+      attributes: ['id', 'username'],
+      where: { username: { [Op.in]: ids }, service: Service.STRIPE },
+      include: [{ model: models.Collective, as: 'collective', where: { isHostAccount: true } }],
+    }).then(results => {
+      const resultsById = {};
+      for (const result of results) {
+        resultsById[result.username] = result.collective;
       }
       return ids.map(id => resultsById[id] || null);
     }),
