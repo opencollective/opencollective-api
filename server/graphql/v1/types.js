@@ -269,7 +269,7 @@ export const StatsMemberType = new GraphQLObjectType({
         },
       },
       directDonations: {
-        type: GraphQLInt,
+        type: GraphQLFloat,
         description: 'total amount donated directly by this member',
         resolve(member, args, req) {
           return (
@@ -282,7 +282,7 @@ export const StatsMemberType = new GraphQLObjectType({
         },
       },
       totalDonations: {
-        type: GraphQLInt,
+        type: GraphQLFloat,
         description: 'total amount donated by this member either directly or using a gift card it has emitted',
         resolve(member, args, req) {
           return (
@@ -629,7 +629,7 @@ export const InvoiceType = new GraphQLObjectType({
         },
       },
       totalTransactions: {
-        type: GraphQLInt,
+        type: GraphQLFloat,
         resolve(invoice) {
           return invoice.totalTransactions;
         },
@@ -727,7 +727,7 @@ export const ExpenseType = new GraphQLObjectType({
         },
       },
       amount: {
-        type: GraphQLInt,
+        type: GraphQLFloat,
         resolve(expense) {
           return expense.amount;
         },
@@ -1048,7 +1048,7 @@ export const TierStatsType = new GraphQLObjectType({
       },
       totalDonated: {
         description: 'Total amount donated for this tier, in cents.',
-        type: GraphQLInt,
+        type: GraphQLFloat,
         resolve(tier, args, req) {
           return req.loaders.Tier.totalDonated.load(tier.id);
         },
@@ -1056,7 +1056,7 @@ export const TierStatsType = new GraphQLObjectType({
       totalRecurringDonations: {
         description:
           'How much money is given for this tier for each tier.interval (monthly/yearly). For flexible tiers, this amount is a monthly average of contributions amount, taking into account both yearly and monthly subscriptions.',
-        type: GraphQLInt,
+        type: GraphQLFloat,
         resolve(tier, args, req) {
           if (tier.interval === INTERVALS.MONTH) {
             return req.loaders.Tier.totalMonthlyDonations.load(tier.id);
@@ -1152,13 +1152,13 @@ export const TierType = new GraphQLObjectType({
         },
       },
       amount: {
-        type: GraphQLInt,
+        type: GraphQLFloat,
         resolve(tier) {
           return tier.amount;
         },
       },
       minimumAmount: {
-        type: GraphQLInt,
+        type: GraphQLFloat,
         resolve(tier) {
           return tier.minimumAmount;
         },
@@ -1182,7 +1182,7 @@ export const TierType = new GraphQLObjectType({
         },
       },
       presets: {
-        type: new GraphQLList(GraphQLInt),
+        type: new GraphQLList(GraphQLFloat),
         resolve(tier) {
           return tier.presets;
         },
@@ -1194,7 +1194,7 @@ export const TierType = new GraphQLObjectType({
         },
       },
       goal: {
-        type: GraphQLInt,
+        type: GraphQLFloat,
         resolve(tier) {
           return tier.goal;
         },
@@ -1320,7 +1320,7 @@ export const StatsOrderType = new GraphQLObjectType({
       },
       totalTransactions: {
         description: 'total amount of all the transactions for this order (includes past recurring transactions)',
-        type: GraphQLInt,
+        type: GraphQLFloat,
         resolve(order, args, req) {
           return req.loaders.Order.stats.totalTransactions.load(order.id);
         },
@@ -1361,13 +1361,13 @@ export const OrderType = new GraphQLObjectType({
       },
       totalAmount: {
         description: "total amount for this order (doesn't include recurring transactions)",
-        type: GraphQLInt,
+        type: GraphQLFloat,
         resolve(order) {
           return order.totalAmount;
         },
       },
       taxAmount: {
-        type: GraphQLInt,
+        type: GraphQLFloat,
         description: 'The amount paid in tax (for example VAT) for this order',
       },
       interval: {
@@ -1716,19 +1716,19 @@ export const PaymentMethodType = new GraphQLObjectType({
         },
       },
       monthlyLimitPerMember: {
-        type: GraphQLInt,
+        type: GraphQLFloat,
         resolve(paymentMethod) {
           return paymentMethod.monthlyLimitPerMember;
         },
       },
       initialBalance: {
-        type: GraphQLInt,
+        type: GraphQLFloat,
         resolve(paymentMethod) {
           return paymentMethod.initialBalance;
         },
       },
       balance: {
-        type: GraphQLInt,
+        type: GraphQLFloat,
         description: 'Returns the balance in the currency of this paymentMethod',
         async resolve(paymentMethod, args, req) {
           const balance = await paymentMethod.getBalanceForUser(req.remoteUser);
@@ -1844,7 +1844,7 @@ export const SubscriptionType = new GraphQLObjectType({
         },
       },
       amount: {
-        type: GraphQLInt,
+        type: GraphQLFloat,
         resolve(s) {
           return s.amount;
         },

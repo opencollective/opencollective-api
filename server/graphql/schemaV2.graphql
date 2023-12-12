@@ -1163,12 +1163,22 @@ interface Transaction {
     Fetch HOST_FEE transaction and integrate in calculation for retro-compatiblity.
     """
     fetchHostFee: Boolean = false
+
+    """
+    Fetch PAYMENT_PROCESSOR_FEE transaction for retro-compatiblity.
+    """
+    fetchPaymentProcessorFee: Boolean = false
   ): Amount!
   netAmountInHostCurrency(
     """
     Fetch HOST_FEE transaction and integrate in calculation for retro-compatiblity.
     """
     fetchHostFee: Boolean = false
+
+    """
+    Fetch PAYMENT_PROCESSOR_FEE transaction for retro-compatiblity.
+    """
+    fetchPaymentProcessorFee: Boolean = false
   ): Amount!
   taxAmount: Amount!
 
@@ -10973,6 +10983,11 @@ type Vendor implements Account & AccountWithContributions {
   platformContributionAvailable: Boolean!
   contributionPolicy: String
   vendorInfo: VendorInfo
+
+  """
+  Returns whether this account has any payout methods saved
+  """
+  hasPayoutMethod: Boolean
 
   """
   The account who created this order

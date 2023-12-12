@@ -403,14 +403,14 @@ export const CollectiveStatsType = new GraphQLObjectType({
       },
       balanceWithBlockedFunds: {
         description: 'Amount of money in cents in the currency of the collective currently available to spend',
-        type: GraphQLInt,
+        type: GraphQLFloat,
         resolve(collective, args, req) {
           return collective.getBalanceWithBlockedFunds({ loaders: req.loaders });
         },
       },
       balance: {
         description: 'Amount of money in cents in the currency of the collective.',
-        type: GraphQLInt,
+        type: GraphQLFloat,
         resolve(collective, args, req) {
           return collective.getBalance({ loaders: req.loaders });
         },
@@ -466,7 +466,7 @@ export const CollectiveStatsType = new GraphQLObjectType({
       },
       monthlySpending: {
         description: 'Average amount spent per month based on the last 90 days',
-        type: GraphQLInt,
+        type: GraphQLFloat,
         resolve(collective) {
           // if we fetched the collective with the raw query to sort them by their monthly spending we don't need to recompute it
           if (has(collective, 'dataValues.monthlySpending')) {
@@ -478,14 +478,14 @@ export const CollectiveStatsType = new GraphQLObjectType({
       },
       totalAmountSpent: {
         description: 'Total amount spent',
-        type: GraphQLInt,
+        type: GraphQLFloat,
         resolve(collective, _, req) {
           return collective.getTotalAmountSpent({ loaders: req.loaders, net: true });
         },
       },
       totalAmountReceived: {
         description: 'Total amount received',
-        type: GraphQLInt,
+        type: GraphQLFloat,
         args: {
           startDate: { type: DateString },
           endDate: { type: DateString },
@@ -508,13 +508,13 @@ export const CollectiveStatsType = new GraphQLObjectType({
       },
       totalNetAmountReceived: {
         description: 'Total net amount received',
-        type: GraphQLInt,
+        type: GraphQLFloat,
         resolve(collective, _, req) {
           return collective.getTotalAmountReceived({ loaders: req.loaders, net: true });
         },
       },
       yearlyBudget: {
-        type: GraphQLInt,
+        type: GraphQLFloat,
         resolve(collective, args, req) {
           return collective.getYearlyBudget({ loaders: req.loaders });
         },
