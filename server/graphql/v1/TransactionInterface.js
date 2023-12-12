@@ -255,9 +255,7 @@ const TransactionFields = () => {
         },
       },
       async resolve(transaction, args, req) {
-        let value = transaction.netAmountInCollectiveCurrency;
-        let hostFeeInHostCurrency = transaction.hostFeeInHostCurrency,
-          paymentProcessorFeeInHostCurrency = transaction.paymentProcessorFeeInHostCurrency;
+        let { netAmountInCollectiveCurrency, hostFeeInHostCurrency, paymentProcessorFeeInHostCurrency } = transaction;
         if (args.fetchHostFee && !hostFeeInHostCurrency) {
           hostFeeInHostCurrency = await req.loaders.Transaction.hostFeeAmountForTransaction.load(transaction);
         }
@@ -266,13 +264,13 @@ const TransactionFields = () => {
             await req.loaders.Transaction.paymentProcessorFeeAmountForTransaction.load(transaction);
         }
         if (args.fetchHostFee || args.fetchPaymentProcessorFee) {
-          value = models.Transaction.calculateNetAmountInCollectiveCurrency({
+          netAmountInCollectiveCurrency = models.Transaction.calculateNetAmountInCollectiveCurrency({
             ...transaction.dataValues,
             hostFeeInHostCurrency,
             paymentProcessorFeeInHostCurrency,
           });
         }
-        return value;
+        return netAmountInCollectiveCurrency;
       },
     },
     amountInHostCurrency: {
