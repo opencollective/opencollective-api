@@ -12,6 +12,7 @@ import {
   GraphQLTransactionCollection,
   GraphQLTransactionsCollectionReturnType,
 } from '../../collection/TransactionCollection';
+import { GraphQLExpenseType } from '../../enum/ExpenseType';
 import { GraphQLPaymentMethodType } from '../../enum/PaymentMethodType';
 import { GraphQLTransactionKind } from '../../enum/TransactionKind';
 import { GraphQLTransactionType } from '../../enum/TransactionType';
@@ -82,6 +83,10 @@ export const TransactionsCollectionArgs = {
   hasExpense: {
     type: GraphQLBoolean,
     description: 'Only return transactions with an Expense attached',
+  },
+  expenseType: {
+    type: new GraphQLList(GraphQLExpenseType),
+    description: 'Only return transactions that have an Expense of one of these expense types attached',
   },
   hasOrder: {
     type: GraphQLBoolean,
@@ -297,6 +302,14 @@ export const TransactionsCollectionResolver = async (
   }
   if (args.hasExpense !== undefined) {
     where.push({ ExpenseId: { [args.hasExpense ? Op.ne : Op.eq]: null } });
+  }
+  if (args.expenseType) {
+    include.push({
+      model: models.Expense,
+      attributes: [],
+      required: true,
+      where: { type: { [Op.in]: args.expenseType } },
+    });
   }
   if (args.hasOrder !== undefined) {
     where.push({ OrderId: { [args.hasOrder ? Op.ne : Op.eq]: null } });
