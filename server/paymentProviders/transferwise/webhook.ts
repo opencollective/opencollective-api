@@ -11,7 +11,7 @@ import * as libPayments from '../../lib/payments';
 import { createTransactionsFromPaidExpense } from '../../lib/transactions';
 import { verifyEvent } from '../../lib/transferwise';
 import models from '../../models';
-import { QuoteV2PaymentOption, TransferStateChangeEvent } from '../../types/transferwise';
+import { QuoteV2PaymentOption, QuoteV3PaymentOption, TransferStateChangeEvent } from '../../types/transferwise';
 
 export async function handleTransferStateChange(event: TransferStateChangeEvent): Promise<void> {
   const expense = await models.Expense.findOne({
@@ -54,7 +54,7 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
       platformFeeInHostCurrency: number;
     };
 
-    const paymentOption = expense.data.paymentOption as QuoteV2PaymentOption;
+    const paymentOption = expense.data.paymentOption as QuoteV2PaymentOption | QuoteV3PaymentOption;
     if (expense.host?.settings?.transferwise?.ignorePaymentProcessorFees) {
       // TODO: We should not just ignore fees, they should be recorded as a transaction from the host to the collective
       // See https://github.com/opencollective/opencollective/issues/5113

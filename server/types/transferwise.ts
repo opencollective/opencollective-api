@@ -75,8 +75,92 @@ export type QuoteV2 = {
   }>;
 };
 
+export type QuoteV3PaymentOption = {
+  disabled: boolean;
+  estimatedDelivery: string;
+  formattedEstimatedDelivery: string;
+  estimatedDeliveryDelays: Array<{
+    reason: string;
+  }>;
+  fee: {
+    transferwise: number;
+    payIn: number;
+    discount: number;
+    partner: number;
+    total: number;
+  };
+  price: {
+    priceSetId: number;
+    total: {
+      type: 'TOTAL';
+      label: string;
+      value: {
+        amount: number;
+        currency: string;
+        label: string;
+      };
+    };
+    items: Array<{
+      type: 'FEE' | 'DISCOUNT' | 'TRANSFERWISE';
+      label: string;
+      value: {
+        amount: number;
+        currency: string;
+        label: string;
+      };
+      explanation?: {
+        plainText: string;
+      };
+    }>;
+  };
+  sourceAmount: number;
+  targetAmount: number;
+  sourceCurrency: string;
+  targetCurrency: string;
+  payIn: 'BANK_TRANSFER' | 'BALANCE';
+  payOut: 'BANK_TRANSFER' | 'BALANCE' | 'SWIFT' | 'SWIFT_OUR' | 'INTERAC';
+  allowedProfileTypes: Array<'PERSONAL' | 'BUSINESS'>;
+  payInProduct: 'CHEAP';
+  feePercentage: number;
+  disabledReason?: {
+    code: string;
+    message: string;
+  };
+};
+
+export type QuoteV3 = {
+  id: string;
+  sourceCurrency: string;
+  targetCurrency: string;
+  sourceAmount: number;
+  payOut: 'BANK_TRANSFER';
+  preferredPayIn: 'BANK_TRANSFER' | 'BALANCE';
+  rate: number;
+  createdTime: number;
+  user: number;
+  profile: number;
+  rateType: 'FIXED' | 'FLOATING';
+  rateExpirationTime: string;
+  guaranteedTargetAmountAllowed: boolean;
+  targetAmountAllowed: boolean;
+  guaranteedTargetAmount: boolean;
+  providedAmountType: 'SOURCE' | 'TARGET';
+  paymentOptions: QuoteV3PaymentOption[];
+  status: 'PENDING' | 'ACCEPTED' | 'FUNDED' | 'EXPIRED';
+  expirationTime: string;
+  notices: Array<{
+    text: string;
+    link: string | null;
+    type: 'WARNING' | 'INFO' | 'BLOCKED';
+  }>;
+  paymentMetadata?: {
+    transferNature?: string;
+  };
+};
+
 /** When saving the quote in expense data */
 export type ExpenseDataQuoteV2 = Omit<QuoteV2, 'paymentOptions'> & { paymentOption: QuoteV2PaymentOption };
+export type ExpenseDataQuoteV3 = Omit<QuoteV3, 'paymentOptions'> & { paymentOption: QuoteV3PaymentOption };
 
 export type RecipientAccount = {
   id?: number;

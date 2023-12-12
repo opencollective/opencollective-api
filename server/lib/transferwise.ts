@@ -22,7 +22,7 @@ import {
   CurrencyPair,
   ExchangeRate,
   Profile,
-  QuoteV2,
+  QuoteV3,
   RecipientAccount,
   TransactionRequirementsType,
   Transfer,
@@ -198,6 +198,7 @@ interface CreateQuote {
   targetAmount?: number;
   sourceAmount?: number;
   payOut?: 'BANK_TRANSFER' | 'BALANCE' | 'SWIFT' | 'INTERAC' | null;
+  paymentMetadata?: QuoteV3['paymentMetadata'];
 }
 export const createQuote = async (
   connectedAccount: ConnectedAccount,
@@ -209,20 +210,22 @@ export const createQuote = async (
     sourceAmount,
     payOut,
     targetAccount,
+    paymentMetadata,
   }: CreateQuote,
-): Promise<QuoteV2> => {
+): Promise<QuoteV3> => {
   const data = {
     payOut,
-    profile,
+    targetAccount,
+    preferredPayIn: 'BALANCE',
     sourceAmount,
     sourceCurrency,
-    targetAccount,
     targetAmount,
     targetCurrency,
+    paymentMetadata,
   };
   return requestDataAndThrowParsedError(
     axiosClient.post,
-    `/v2/quotes`,
+    `/v3/profiles/${profile}/quotes`,
     {
       connectedAccount,
       data,
@@ -357,7 +360,7 @@ interface GetTemporaryQuote {
 export const getTemporaryQuote = async (
   connectedAccount: ConnectedAccount,
   { sourceCurrency, targetCurrency, ...amount }: GetTemporaryQuote,
-): Promise<QuoteV2> => {
+): Promise<QuoteV3> => {
   const data = {
     sourceCurrency,
     targetCurrency,
@@ -365,7 +368,7 @@ export const getTemporaryQuote = async (
   };
   return requestDataAndThrowParsedError(
     axiosClient.post,
-    `/v2/quotes`,
+    `/v3/quotes`,
     {
       connectedAccount,
       data,

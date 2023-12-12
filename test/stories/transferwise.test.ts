@@ -153,6 +153,7 @@ describe('/test/stories/transferwise.test.ts', () => {
       'FromCollectiveId',
       'HostCollectiveId',
       'hostCurrency',
+      'data.expenseToHostFxRate',
     ]);
 
     return { expense, debit };

@@ -24,7 +24,7 @@ import { sanitizeTags, validateTags } from '../lib/tags';
 import { computeDatesAsISOStrings } from '../lib/utils';
 import CustomDataTypes from '../models/DataTypes';
 import { Location } from '../types/Location';
-import { BatchGroup, ExpenseDataQuoteV2, Transfer } from '../types/transferwise';
+import { BatchGroup, ExpenseDataQuoteV2, ExpenseDataQuoteV3, Transfer } from '../types/transferwise';
 
 import AccountingCategory from './AccountingCategory';
 import Collective from './Collective';
@@ -72,7 +72,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   public declare payeeLocation: Location; // TODO This can be typed
   public declare data: Record<string, unknown> & {
     batchGroup?: BatchGroup;
-    quote?: ExpenseDataQuoteV2;
+    quote?: ExpenseDataQuoteV2 | ExpenseDataQuoteV3;
     transfer?: Transfer;
     valuesByRole?: ExpenseDataValuesByRole;
     payee?: {

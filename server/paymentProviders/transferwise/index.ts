@@ -26,11 +26,14 @@ import {
   BalanceV4,
   BatchGroup,
   ExpenseDataQuoteV2,
-  QuoteV2,
+  ExpenseDataQuoteV3,
   QuoteV2PaymentOption,
+  QuoteV3,
+  QuoteV3PaymentOption,
   RecipientAccount,
   TransactionRequirementsType,
   Transfer,
+  Webhook,
 } from '../../types/transferwise';
 
 import { handleTransferStateChange } from './webhook';
@@ -64,7 +67,7 @@ async function getTemporaryQuote(
   connectedAccount: ConnectedAccount,
   payoutMethod: PayoutMethod,
   expense: Expense,
-): Promise<QuoteV2> {
+): Promise<QuoteV3> {
   expense.collective = expense.collective || (await models.Collective.findByPk(expense.CollectiveId));
   expense.host = expense.host || (await expense.collective.getHostCollective());
   const rate = await getFxRate(expense.currency, expense.host.currency);
@@ -91,7 +94,7 @@ async function quoteExpense(
   payoutMethod: PayoutMethod,
   expense: Expense,
   targetAccount?: number,
-): Promise<ExpenseDataQuoteV2> {
+): Promise<ExpenseDataQuoteV3 | ExpenseDataQuoteV2> {
   await populateProfileId(connectedAccount);
 
   const isExistingQuoteValid =
@@ -106,7 +109,7 @@ async function quoteExpense(
     moment.utc().subtract(60, 'seconds').isBefore(expense.data.quote['expirationTime']);
   if (isExistingQuoteValid) {
     logger.debug(`quoteExpense(): reusing existing quote...`);
-    return <ExpenseDataQuoteV2>expense.data.quote;
+    return <ExpenseDataQuoteV3 | ExpenseDataQuoteV2>expense.data.quote;
   }
 
   expense.collective = expense.collective || (await models.Collective.findByPk(expense.CollectiveId));
@@ -162,10 +165,10 @@ async function createTransfer(
   expense: Expense,
   options?: { token?: string; batchGroupId?: string },
 ): Promise<{
-  quote: ExpenseDataQuoteV2;
+  quote: ExpenseDataQuoteV2 | ExpenseDataQuoteV3;
   recipient: RecipientAccount;
   transfer: Transfer;
-  paymentOption: QuoteV2PaymentOption;
+  paymentOption: QuoteV2PaymentOption | QuoteV3PaymentOption;
 }> {
   if (!payoutMethod) {
     payoutMethod = await expense.getPayoutMethod();
@@ -202,7 +205,7 @@ async function createTransfer(
     await expense.update({
       data: {
         ...expense.data,
-        quote: omit(quote, ['paymentOptions']) as ExpenseDataQuoteV2,
+        quote: omit(quote, ['paymentOptions']) as ExpenseDataQuoteV3,
         recipient,
         transfer,
         paymentOption,
@@ -228,11 +231,11 @@ async function payExpense(
   expense: Expense,
   batchGroupId?: string,
 ): Promise<{
-  quote: ExpenseDataQuoteV2;
+  quote: ExpenseDataQuoteV2 | ExpenseDataQuoteV3;
   recipient: RecipientAccount;
   fund: { status: string; errorCode: string };
   transfer: Transfer;
-  paymentOption: QuoteV2PaymentOption;
+  paymentOption: QuoteV2PaymentOption | QuoteV3PaymentOption;
 }> {
   const token = await transferwise.getToken(connectedAccount);
   const { quote, recipient, transfer, paymentOption } = await createTransfer(connectedAccount, payoutMethod, expense, {
@@ -436,7 +439,33 @@ async function payExpensesBatchGroup(host, expenses, x2faApproval?: string, remo
     } else if (x2faApproval) {
       const cacheKey = `transferwise_ott_${x2faApproval}`;
       const batchGroupId = await cache.get(cacheKey);
-      return await transferwise.fundBatchGroup(token, profileId, batchGroupId, x2faApproval);
+      const batchGroup = (await transferwise.fundBatchGroup(
+        token,
+        profileId,
+        batchGroupId,
+        x2faApproval,
+      )) as BatchGroup;
+      // Simulate transfer success in other environments so transactions don't get stuck.
+      if (['development', 'staging'].includes(config.env)) {
+        logger.debug(`Wise: Simulating transfer success for batch group ${batchGroup.id}`);
+        const expenses = await models.Expense.findAll({
+          where: { data: { batchGroup: { id: batchGroup.id } } },
+        });
+        for (const transferId of batchGroup.transferIds) {
+          const response = await transferwise.simulateTransferSuccess(connectedAccount, transferId);
+          logger.debug(`Wise: Simulated transfer success for transfer ${transferId}`);
+          const expense = expenses.find(e => e.data.transfer.id === transferId);
+          await expense.update({ data: { ...expense.data, transfer: response } });
+          // In development mode we don't have webhooks set up, so we need to manually trigger the event handler.
+          if (config.env === 'development') {
+            await handleTransferStateChange({
+              // eslint-disable-next-line camelcase
+              data: { resource: response, current_state: 'outgoing_payment_sent' },
+            } as any);
+          }
+        }
+      }
+      return batchGroup;
     } else {
       throw new Error('payExpensesBatchGroup: you need to pass either expenses or x2faApproval');
     }
@@ -632,8 +661,9 @@ const oauth = {
 
       // Automatically set OTT flag on for European contries and Australia.
       if (
-        collective.countryISO &&
-        (isMemberOfTheEuropeanUnion(collective.countryISO) || ['AU', 'GB'].includes(collective.countryISO))
+        (collective.countryISO &&
+          (isMemberOfTheEuropeanUnion(collective.countryISO) || ['AU', 'GB'].includes(collective.countryISO))) ||
+        config.env === 'development'
       ) {
         const settings = collective.settings ? cloneDeep(collective.settings) : {};
         set(settings, 'transferwise.ott', true);
@@ -653,7 +683,7 @@ const oauth = {
   },
 };
 
-async function setUpWebhook(): Promise<void> {
+async function setUpWebhook(): Promise<Webhook> {
   const url = `${config.host.api}/webhooks/transferwise`;
   const existingWebhooks = await transferwise.listApplicationWebhooks();
 
@@ -663,7 +693,7 @@ async function setUpWebhook(): Promise<void> {
   }
 
   logger.info(`Creating TransferWise App Webhook on ${url}...`);
-  await transferwise.createApplicationWebhook({
+  return await transferwise.createApplicationWebhook({
     name: 'Open Collective',
     // eslint-disable-next-line camelcase
     trigger_on: 'transfers#state-change',
