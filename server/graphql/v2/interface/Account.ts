@@ -667,6 +667,10 @@ const accountFieldsDefinition = () => ({
         where,
         limit: args.limit,
         offset: args.offset,
+        order: [
+          ['createdAt', 'DESC'],
+          ['id', 'DESC'],
+        ] as Order,
       });
 
       return {
