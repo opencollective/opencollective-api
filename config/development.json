@@ -1,4 +1,5 @@
 {
+  "env": "development",
   "maildev": {
     "client": true,
     "server": true
