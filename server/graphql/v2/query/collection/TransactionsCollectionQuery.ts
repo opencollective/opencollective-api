@@ -87,6 +87,12 @@ export const TransactionsCollectionArgs = {
     type: GraphQLBoolean,
     description: 'Only return transactions with an Order attached',
   },
+  includeHost: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    defaultValue: true,
+    description:
+      'Used when filtering with the `host` argument to determine whether to include transactions on the fiscal host account (and children)',
+  },
   includeRegularTransactions: {
     type: new GraphQLNonNull(GraphQLBoolean),
     defaultValue: true,
@@ -239,6 +245,15 @@ export const TransactionsCollectionResolver = async (
   }
 
   if (host) {
+    if (args.includeHost === false) {
+      const hostChildrenIds = await host
+        .getChildren({ attributes: ['id'] })
+        .then(children => children.map(child => child.id));
+      const hostAccountsIds = [host.id, ...hostChildrenIds];
+
+      where.push({ CollectiveId: { [Op.notIn]: hostAccountsIds } });
+    }
+
     where.push({ HostCollectiveId: host.id });
   }
 
