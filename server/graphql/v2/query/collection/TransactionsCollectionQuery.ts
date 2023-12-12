@@ -12,6 +12,7 @@ import {
   GraphQLTransactionCollection,
   GraphQLTransactionsCollectionReturnType,
 } from '../../collection/TransactionCollection';
+import { GraphQLFilterOperator } from '../../enum/FilterOperator';
 import { GraphQLPaymentMethodType } from '../../enum/PaymentMethodType';
 import { GraphQLTransactionKind } from '../../enum/TransactionKind';
 import { GraphQLTransactionType } from '../../enum/TransactionType';
@@ -225,16 +226,25 @@ export const TransactionsCollectionResolver = async (
       }
     }
 
+    const accountOperator = args.accountOperator === 'NOT_IN' ? Op.notIn : Op.in;
+
     if (args.includeGiftCardTransactions) {
       where.push({
         [Op.or]: [
-          { UsingGiftCardFromCollectiveId: accounts.map(account => account.id), type: 'DEBIT' },
+          {
+            UsingGiftCardFromCollectiveId: { [accountOperator]: accounts.map(account => account.id) },
+            type: 'DEBIT',
+          },
           // prettier, please keep line break for readability please
-          { CollectiveId: accountCondition },
+          {
+            CollectiveId: { [accountOperator]: accountCondition },
+          },
         ],
       });
     } else {
-      where.push({ CollectiveId: accountCondition });
+      where.push({
+        CollectiveId: { [accountOperator]: accountCondition },
+      });
     }
   }
 
@@ -377,6 +387,11 @@ const TransactionsCollectionQuery = {
       type: new GraphQLList(new GraphQLNonNull(GraphQLAccountReferenceInput)),
       description:
         'Reference of the account(s) assigned to the main side of the transaction (CREDIT -> recipient, DEBIT -> sender)',
+    },
+    accountOperator: {
+      type: GraphQLFilterOperator,
+      description: 'The operator to use with the account filter',
+      defaultValue: 'IN',
     },
     ...TransactionsCollectionArgs,
   },
