@@ -232,6 +232,11 @@ const accountFieldsDefinition = () => ({
         type: GraphQLEmailAddress,
         description: 'Admin only. To filter on the email address of a member, useful to check if a member exists.',
       },
+      orderBy: {
+        type: new GraphQLNonNull(GraphQLChronologicalOrderInput),
+        defaultValue: { field: 'createdAt', direction: 'ASC' },
+        description: 'Order of the results',
+      },
       accountType: {
         type: new GraphQLList(GraphQLAccountType),
         description: 'Type of accounts (BOT/COLLECTIVE/EVENT/ORGANIZATION/INDIVIDUAL)',
