@@ -1,4 +1,4 @@
-import { GraphQLBoolean, GraphQLInputObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
 
 import { GraphQLPayoutMethodType } from '../enum/PayoutMethodType';
@@ -10,6 +10,7 @@ export const GraphQLPayoutMethodInput = new GraphQLInputObjectType({
   name: 'PayoutMethodInput',
   fields: () => ({
     id: { type: GraphQLString },
+    legacyId: { type: GraphQLInt },
     data: { type: GraphQLJSON },
     name: { type: GraphQLString },
     isSaved: { type: GraphQLBoolean },
