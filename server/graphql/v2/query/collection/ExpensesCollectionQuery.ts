@@ -185,6 +185,10 @@ export const ExpensesCollectionQueryArgs = {
     type: new GraphQLList(GraphQLVirtualCardReferenceInput),
     description: 'Filter expenses of type charges using these virtual cards',
   },
+  hasAccountingCategory: {
+    type: GraphQLBoolean,
+    description: 'Filter expenses that have an accounting category',
+  },
 };
 
 export const ExpensesCollectionQueryResolver = async (
@@ -311,6 +315,9 @@ export const ExpensesCollectionQueryResolver = async (
   if (args.dateTo) {
     where['createdAt'] = where['createdAt'] || {};
     where['createdAt'][Op.lte] = args.dateTo;
+  }
+  if (!isNil(args.hasAccountingCategory)) {
+    where['AccountingCategoryId'] = { [args.hasAccountingCategory ? Op.ne : Op.eq]: null };
   }
 
   if (args.payoutMethodType === 'CREDIT_CARD') {
