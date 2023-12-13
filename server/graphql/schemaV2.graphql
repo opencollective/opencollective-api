@@ -260,6 +260,11 @@ interface Account {
     email: EmailAddress
 
     """
+    Order of the results
+    """
+    orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+
+    """
     Type of accounts (BOT/COLLECTIVE/EVENT/ORGANIZATION/INDIVIDUAL)
     """
     accountType: [AccountType]
@@ -889,6 +894,39 @@ A field whose value conforms to the standard internet email address format as sp
 scalar EmailAddress
 
 """
+Input to order results chronologically
+"""
+input ChronologicalOrderInput {
+  """
+  Field to chronologically order by.
+  """
+  field: DateTimeField! = CREATED_AT
+
+  """
+  Ordering direction.
+  """
+  direction: OrderDirection! = DESC
+}
+
+"""
+All possible DateTime fields for a resource
+"""
+enum DateTimeField {
+  """
+  The creation time of a resource
+  """
+  CREATED_AT
+}
+
+"""
+Possible directions in which to order a list of items
+"""
+enum OrderDirection {
+  ASC
+  DESC
+}
+
+"""
 An invitation to join the members of a collective
 """
 type MemberInvitation {
@@ -1163,12 +1201,22 @@ interface Transaction {
     Fetch HOST_FEE transaction and integrate in calculation for retro-compatiblity.
     """
     fetchHostFee: Boolean = false
+
+    """
+    Fetch PAYMENT_PROCESSOR_FEE transaction for retro-compatiblity.
+    """
+    fetchPaymentProcessorFee: Boolean = false
   ): Amount!
   netAmountInHostCurrency(
     """
     Fetch HOST_FEE transaction and integrate in calculation for retro-compatiblity.
     """
     fetchHostFee: Boolean = false
+
+    """
+    Fetch PAYMENT_PROCESSOR_FEE transaction for retro-compatiblity.
+    """
+    fetchPaymentProcessorFee: Boolean = false
   ): Amount!
   taxAmount: Amount!
 
@@ -2697,39 +2745,6 @@ type Contributor {
   A public message from contributors to describe their contributions
   """
   publicMessage: String
-}
-
-"""
-Input to order results chronologically
-"""
-input ChronologicalOrderInput {
-  """
-  Field to chronologically order by.
-  """
-  field: DateTimeField! = CREATED_AT
-
-  """
-  Ordering direction.
-  """
-  direction: OrderDirection! = DESC
-}
-
-"""
-All possible DateTime fields for a resource
-"""
-enum DateTimeField {
-  """
-  The creation time of a resource
-  """
-  CREATED_AT
-}
-
-"""
-Possible directions in which to order a list of items
-"""
-enum OrderDirection {
-  ASC
-  DESC
 }
 
 input AccountReferenceInput {
@@ -10973,6 +10988,11 @@ type Vendor implements Account & AccountWithContributions {
   platformContributionAvailable: Boolean!
   contributionPolicy: String
   vendorInfo: VendorInfo
+
+  """
+  Returns whether this account has any payout methods saved
+  """
+  hasPayoutMethod: Boolean
 
   """
   The account who created this order
