@@ -1369,30 +1369,30 @@ Transaction.createActivity = (transaction, options) => {
   );
 };
 
-Transaction.calculateNetAmountInCollectiveCurrency = function (transaction) {
-  const transactionFees =
-    transaction.platformFeeInHostCurrency +
-    transaction.hostFeeInHostCurrency +
-    transaction.paymentProcessorFeeInHostCurrency;
-
-  const transactionTaxes = transaction.taxAmount || 0;
-
-  const hostCurrencyFxRate = transaction.hostCurrencyFxRate || 1;
-
-  return Math.round((transaction.amountInHostCurrency + transactionFees) / hostCurrencyFxRate + transactionTaxes);
+Transaction.calculateNetAmountInCollectiveCurrency = function ({
+  amountInHostCurrency,
+  hostCurrencyFxRate,
+  hostFeeInHostCurrency,
+  paymentProcessorFeeInHostCurrency,
+  platformFeeInHostCurrency,
+  taxAmount,
+}) {
+  const transactionFees = platformFeeInHostCurrency + hostFeeInHostCurrency + paymentProcessorFeeInHostCurrency;
+  const transactionTaxes = taxAmount || 0;
+  return Math.round((amountInHostCurrency + transactionFees) / (hostCurrencyFxRate || 1) + transactionTaxes);
 };
 
-Transaction.calculateNetAmountInHostCurrency = function (transaction) {
-  const transactionFees =
-    transaction.platformFeeInHostCurrency +
-    transaction.hostFeeInHostCurrency +
-    transaction.paymentProcessorFeeInHostCurrency;
-
-  const transactionTaxes = transaction.taxAmount || 0;
-
-  const hostCurrencyFxRate = transaction.hostCurrencyFxRate || 1;
-
-  return transaction.amountInHostCurrency + transactionFees + Math.round(transactionTaxes * hostCurrencyFxRate);
+Transaction.calculateNetAmountInHostCurrency = function ({
+  amountInHostCurrency,
+  hostCurrencyFxRate,
+  hostFeeInHostCurrency,
+  paymentProcessorFeeInHostCurrency,
+  platformFeeInHostCurrency,
+  taxAmount,
+}) {
+  const transactionFees = platformFeeInHostCurrency + hostFeeInHostCurrency + paymentProcessorFeeInHostCurrency;
+  const transactionTaxes = taxAmount || 0;
+  return amountInHostCurrency + transactionFees + Math.round(transactionTaxes * (hostCurrencyFxRate || 1));
 };
 
 Transaction.getFxRate = async function (fromCurrency, toCurrency, transaction) {
