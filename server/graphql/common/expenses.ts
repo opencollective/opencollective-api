@@ -1330,7 +1330,7 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
   // Get or create payout method
   const payoutMethod =
     fromCollective.type === CollectiveType.VENDOR
-      ? await fromCollective.getPayoutMethods().then(first)
+      ? await fromCollective.getPayoutMethods({ where: { isSaved: true } }).then(first)
       : await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, null);
 
   // Create and validate TransferWise recipient
