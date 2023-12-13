@@ -59,6 +59,14 @@ import { GraphQLExpenseUpdateInput } from '../input/ExpenseUpdateInput';
 import { GraphQLRecurringExpenseInput } from '../input/RecurringExpenseInput';
 import { GraphQLExpense } from '../object/Expense';
 
+const populatePayoutMethodId = (payoutMethod: { id?: string | number; legacyId?: number }) => {
+  if (payoutMethod?.legacyId) {
+    payoutMethod.id = payoutMethod.legacyId;
+  } else if (payoutMethod?.id) {
+    payoutMethod.id = idDecode(payoutMethod.id as string, IDENTIFIER_TYPES.PAYOUT_METHOD);
+  }
+};
+
 const expenseMutations = {
   createExpense: {
     type: new GraphQLNonNull(GraphQLExpense),
@@ -80,13 +88,11 @@ const expenseMutations = {
     async resolve(_: void, args, req: express.Request): Promise<ExpenseModel> {
       checkRemoteUserCanUseExpenses(req);
 
-      const payoutMethod = args.expense.payoutMethod;
-      if (payoutMethod.id) {
-        payoutMethod.id = idDecode(payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD);
-      }
-
       const fromCollective = await fetchAccountWithReference(args.expense.payee, { throwIfMissing: true });
       await twoFactorAuthLib.enforceForAccount(req, fromCollective, { onlyAskOnLogin: true });
+
+      const payoutMethod = args.expense.payoutMethod;
+      populatePayoutMethodId(payoutMethod);
 
       // Right now this endpoint uses the old mutation by adapting the data for it. Once we get rid
       // of the `createExpense` endpoint in V1, the actual code to create the expense should be moved
@@ -153,6 +159,9 @@ const expenseMutations = {
         getId(existingExpense.data?.payee) &&
         (await fetchAccountWithReference(existingExpense.data.payee, { throwIfMissing: false }));
 
+      const payoutMethod = expense.payoutMethod;
+      populatePayoutMethodId(payoutMethod);
+
       const expenseData = {
         id: idDecode(expense.id, IDENTIFIER_TYPES.EXPENSE),
         description: expense.description,
@@ -163,13 +172,7 @@ const expenseMutations = {
         privateMessage: expense.privateMessage,
         invoiceInfo: expense.invoiceInfo,
         customData: expense.customData,
-        payoutMethod: expense.payoutMethod && {
-          id: expense.payoutMethod.id && idDecode(expense.payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD),
-          data: expense.payoutMethod.data,
-          name: expense.payoutMethod.name,
-          isSaved: expense.payoutMethod.isSaved,
-          type: expense.payoutMethod.type,
-        },
+        payoutMethod,
         items: items?.map(item => ({
           id: item.id && idDecode(item.id, IDENTIFIER_TYPES.EXPENSE_ITEM),
           url: item.url,
