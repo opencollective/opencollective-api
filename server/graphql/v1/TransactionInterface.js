@@ -33,12 +33,12 @@ export const TransactionInterfaceType = new GraphQLInterfaceType({
       id: { type: GraphQLInt },
       idV2: { type: GraphQLString },
       uuid: { type: GraphQLString },
-      amount: { type: GraphQLInt },
+      amount: { type: GraphQLFloat },
       currency: { type: GraphQLString },
       hostCurrency: { type: GraphQLString },
       hostCurrencyFxRate: { type: GraphQLFloat },
       netAmountInCollectiveCurrency: {
-        type: GraphQLInt,
+        type: GraphQLFloat,
         description: 'Amount after fees received by the collective in the lowest unit of its own currency (ie. cents)',
         args: {
           fetchHostFee: {
@@ -54,10 +54,10 @@ export const TransactionInterfaceType = new GraphQLInterfaceType({
         },
       },
       amountInHostCurrency: {
-        type: GraphQLInt,
+        type: GraphQLFloat,
       },
       hostFeeInHostCurrency: {
-        type: GraphQLInt,
+        type: GraphQLFloat,
         description: 'Fee kept by the host in the lowest unit of the currency of the host (ie. in cents)',
         args: {
           fetchHostFee: {
@@ -67,9 +67,9 @@ export const TransactionInterfaceType = new GraphQLInterfaceType({
           },
         },
       },
-      platformFeeInHostCurrency: { type: GraphQLInt },
+      platformFeeInHostCurrency: { type: GraphQLFloat },
       paymentProcessorFeeInHostCurrency: {
-        type: GraphQLInt,
+        type: GraphQLFloat,
         args: {
           fetchPaymentProcessorFee: {
             type: GraphQLBoolean,
@@ -78,7 +78,7 @@ export const TransactionInterfaceType = new GraphQLInterfaceType({
           },
         },
       },
-      taxAmount: { type: GraphQLInt },
+      taxAmount: { type: GraphQLFloat },
       taxInfo: { type: GraphQLTaxInfo },
       createdByUser: { type: UserType },
       host: { type: CollectiveInterfaceType },
@@ -143,7 +143,7 @@ const TransactionFields = () => {
       },
     },
     amount: {
-      type: GraphQLInt,
+      type: GraphQLFloat,
       resolve(transaction) {
         return transaction.amount;
       },
@@ -169,7 +169,7 @@ const TransactionFields = () => {
       },
     },
     hostFeeInHostCurrency: {
-      type: GraphQLInt,
+      type: GraphQLFloat,
       description: 'Fee kept by the host in the lowest unit of the currency of the host (ie. in cents)',
       args: {
         fetchHostFee: {
@@ -186,7 +186,7 @@ const TransactionFields = () => {
       },
     },
     platformFeeInHostCurrency: {
-      type: GraphQLInt,
+      type: GraphQLFloat,
       description:
         'Fee kept by the Open Collective Platform in the lowest unit of the currency of the host (ie. in cents)',
       resolve(transaction) {
@@ -194,7 +194,7 @@ const TransactionFields = () => {
       },
     },
     paymentProcessorFeeInHostCurrency: {
-      type: GraphQLInt,
+      type: GraphQLFloat,
       description: 'Fee kept by the payment processor in the lowest unit of the currency of the host (ie. in cents)',
       args: {
         fetchPaymentProcessorFee: {
@@ -211,7 +211,7 @@ const TransactionFields = () => {
       },
     },
     taxAmount: {
-      type: GraphQLInt,
+      type: GraphQLFloat,
       description: 'The amount paid in tax (for example VAT) for this transaction',
     },
     taxInfo: {
@@ -240,7 +240,7 @@ const TransactionFields = () => {
       },
     },
     netAmountInCollectiveCurrency: {
-      type: GraphQLInt,
+      type: GraphQLFloat,
       description: 'Amount after fees received by the collective in the lowest unit of its own currency (ie. cents)',
       args: {
         fetchHostFee: {
@@ -274,7 +274,7 @@ const TransactionFields = () => {
       },
     },
     amountInHostCurrency: {
-      type: GraphQLInt,
+      type: GraphQLFloat,
       async resolve(transaction) {
         return transaction.amountInHostCurrency;
       },
