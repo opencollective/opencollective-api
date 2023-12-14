@@ -187,8 +187,8 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
             description: item.description,
             amount: item.amount,
             currency: item.currency,
-            fxRate: item.fxRate,
-            fxRateSource: item.fxRateSource,
+            expenseCurrencyFxRate: item.expenseCurrencyFxRate,
+            expenseCurrencyFxRateSource: item.expenseCurrencyFxRateSource,
             url: item.url,
           })),
       },
@@ -523,7 +523,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   ): number => {
     return Math.round(
       sumBy(items, item => {
-        const amountInCents = Math.round(item.amount * (item.fxRate || 1));
+        const amountInCents = Math.round(item.amount * (item.expenseCurrencyFxRate || 1));
         const totalTaxes = sumBy(taxes, tax => amountInCents * tax.rate);
         return amountInCents + totalTaxes;
       }),

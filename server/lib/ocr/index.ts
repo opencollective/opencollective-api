@@ -50,6 +50,10 @@ const updateExpenseParsingResultWithCurrency = async (
   result: ExpenseOCRParseResult,
   targetCurrency: string,
 ): Promise<ParseUploadedFileResult> => {
+  if (!targetCurrency) {
+    return { success: true, expense: result };
+  }
+
   // First get a list of all required currency conversions
   const toConvert: Array<{ amount: GraphQLAmountFields; date: Date }> = [];
 
@@ -142,8 +146,6 @@ export const runOCRForExpenseFile = async (
     const result = await Promise.race(promises);
     if (result === 'TIMEOUT') {
       return { success: false, message: 'OCR parsing timed out' };
-    } else if (!currency) {
-      return { success: true, expense: result };
     } else {
       return updateExpenseParsingResultWithCurrency(result, currency);
     }

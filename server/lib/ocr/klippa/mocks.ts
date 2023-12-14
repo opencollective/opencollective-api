@@ -17,7 +17,7 @@ export const klippaSuccessInvoice = {
       vatamount: 0,
       amountexvat: 6500,
       currency: 'USD',
-      date: '2023-08-01T00:00:00',
+      date: '2023-08-01T00:00:00Z',
       purchasedate: '2023-08-01',
       purchasetime: '00:00:00',
       date_of_arrival: '',

@@ -13,7 +13,7 @@ export const generateFxRateLoader = (): DataLoader<CurrencyFxRateRequest, number
     async (requestedCurrencies: CurrencyFxRateRequest[]) => {
       const fxRates = await loadFxRatesMap(requestedCurrencies);
       return requestedCurrencies.map(
-        request => fxRates[request.date || 'NOW'][request.fromCurrency][request.toCurrency],
+        request => fxRates[request.date || 'latest'][request.fromCurrency][request.toCurrency],
       );
     },
     {
@@ -34,7 +34,7 @@ export const generateConvertToCurrencyLoader = (): DataLoader<ConvertToCurrencyA
     async (requestedConversions: ConvertToCurrencyArgs[]) => {
       const fxRates = await loadFxRatesMap(requestedConversions);
       return requestedConversions.map(request => {
-        return Math.round(fxRates['NOW'][request.fromCurrency][request.toCurrency] * request.amount);
+        return Math.round(fxRates['latest'][request.fromCurrency][request.toCurrency] * request.amount);
       });
     },
     {

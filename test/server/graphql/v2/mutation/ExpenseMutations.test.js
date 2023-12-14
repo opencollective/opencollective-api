@@ -632,7 +632,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           const result = await graphqlQueryV2(createExpenseMutation, mutationParams, user);
           expect(result.errors).to.exist;
           expect(result.errors[0].message).to.eq(
-            `No exchange rate found for this currency pair (XCD to USD) for 2023-01-01T00:00:00.000Z.`,
+            `No exchange rate found for this currency pair (XCD to USD) for 2023-01-01.`,
           );
         });
 
@@ -1107,7 +1107,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
     it('updates the items', async () => {
       const expense = await fakeExpense({ amount: 10000, items: [] });
-      const items = (
+      const initialItems = (
         await Promise.all([
           fakeExpenseItem({ ExpenseId: expense.id, amount: 2000 }),
           fakeExpenseItem({ ExpenseId: expense.id, amount: 3000 }),
@@ -1118,8 +1118,8 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       const updatedExpenseData = {
         id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
         items: [
-          convertExpenseItemId(pick(items[0]['dataValues'], ['id', 'url', 'amount'])), // Don't change the first one (value=2000)
-          convertExpenseItemId({ ...pick(items[1]['dataValues'], ['id', 'url']), amount: 7000 }), // Update amount for the second one
+          convertExpenseItemId(pick(initialItems[0]['dataValues'], ['id', 'url', 'amount'])), // Don't change the first one (value=2000)
+          convertExpenseItemId({ ...pick(initialItems[1]['dataValues'], ['id', 'url']), amount: 7000 }), // Update amount for the second one
           { amount: 8000, url: randUrl() }, // Remove the third one and create another instead
         ],
       };
@@ -1132,10 +1132,10 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
       expect(sumItems).to.equal(17000);
       expect(result.data.editExpense.amount).to.equal(17000);
-      expect(returnedItems.find(a => a.id === items[0].id)).to.exist;
-      expect(returnedItems.find(a => a.id === items[1].id)).to.exist;
-      expect(returnedItems.find(a => a.id === items[2].id)).to.not.exist;
-      expect(returnedItems.find(a => a.id === items[1].id).amount).to.equal(7000);
+      expect(returnedItems.find(i => i.id === initialItems[0].id)).to.exist;
+      expect(returnedItems.find(i => i.id === initialItems[1].id)).to.exist;
+      expect(returnedItems.find(i => i.id === initialItems[2].id)).to.not.exist;
+      expect(returnedItems.find(i => i.id === initialItems[1].id).amount).to.equal(7000);
     });
 
     it('adding VAT updates the amount', async () => {
@@ -1400,7 +1400,11 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(expense.description).to.equal(updatedExpenseData.description);
         expect(expense.invoiceInfo).to.equal(updatedExpenseData.invoiceInfo);
         expect(expense.tags).to.deep.equal(updatedExpenseData.tags);
-        expect(expense.data.items).to.deep.equal(updatedExpenseData.items);
+        expect(expense.data.items.length).to.equal(1);
+        expect(expense.data.items[0].amount).to.equal(10000);
+        expect(expense.data.items[0].currency).to.equal('USD');
+        expect(expense.data.items[0].incurredAt).to.equal('2023-09-26T00:00:00.000Z');
+        expect(expense.data.items[0].description).to.equal('Item 1');
         expect(expense.data.payee).to.contain({ id: payee.collective.id });
       });
     });

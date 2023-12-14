@@ -24,8 +24,8 @@ export class ExpenseItem extends Model<InferAttributes<ExpenseItem>, InferCreati
   public declare CreatedByUserId: ForeignKey<User['id']>;
   public declare amount: number;
   public declare currency: string;
-  public declare fxRate: number;
-  public declare fxRateSource: FX_RATE_SOURCE | `${FX_RATE_SOURCE}`;
+  public declare expenseCurrencyFxRate: number;
+  public declare expenseCurrencyFxRateSource: FX_RATE_SOURCE | `${FX_RATE_SOURCE}`;
   public declare url: string;
   public declare createdAt: CreationOptional<Date>;
   public declare updatedAt: CreationOptional<Date>;
@@ -33,7 +33,15 @@ export class ExpenseItem extends Model<InferAttributes<ExpenseItem>, InferCreati
   public declare incurredAt: Date;
   public declare description: CreationOptional<string>;
 
-  public static editableFields = ['amount', 'currency', 'fxRate', 'fxRateSource', 'url', 'description', 'incurredAt'];
+  public static editableFields = [
+    'amount',
+    'currency',
+    'expenseCurrencyFxRate',
+    'expenseCurrencyFxRateSource',
+    'url',
+    'description',
+    'incurredAt',
+  ];
 
   /**
    * Based on `diffDBEntries`, diff two items list to know which ones where
@@ -109,14 +117,14 @@ ExpenseItem.init(
         len: [3, 3],
       },
     },
-    fxRate: {
+    expenseCurrencyFxRate: {
       type: DataTypes.FLOAT,
       allowNull: true,
       validate: {
-        min: 0,
+        min: 0.00000001,
       },
     },
-    fxRateSource: {
+    expenseCurrencyFxRateSource: {
       type: DataTypes.ENUM('OPENCOLLECTIVE', 'PAYPAL', 'WISE', 'USER'),
       allowNull: true,
     },

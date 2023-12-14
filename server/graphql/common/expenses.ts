@@ -1211,8 +1211,11 @@ const checkCanUseAccountingCategory = (
 export const prepareExpenseItemInputs = async (
   expenseCurrency: string,
   itemsInput: Array<ExpenseItem | Record<string, unknown>>,
+  { isEditing = false } = {},
 ): Promise<Array<Partial<ExpenseItem>>> => {
-  if (!itemsInput?.length) {
+  if (!itemsInput) {
+    return null;
+  } else if (!itemsInput.length) {
     return [];
   }
 
@@ -1232,7 +1235,8 @@ export const prepareExpenseItemInputs = async (
 
   // Prepare items
   return itemsInput.map(itemInput => {
-    const values: Partial<ExpenseItem> = pick(itemInput, ExpenseItem.editableFields);
+    const fieldsToPick = [...ExpenseItem.editableFields, ...(isEditing ? ['id'] : [])];
+    const values: Partial<ExpenseItem> = pick(itemInput, fieldsToPick);
 
     if (itemInput['amount'] && itemInput['amountV2']) {
       throw new ValidationFailed('`amount` and `amountV2` are mutually exclusive. Please use `amountV2` only.');
@@ -1247,11 +1251,11 @@ export const prepareExpenseItemInputs = async (
           );
         }
 
-        values.fxRate = exchangeRate.value;
-        values.fxRateSource = exchangeRate.source;
+        values.expenseCurrencyFxRate = exchangeRate.value;
+        values.expenseCurrencyFxRateSource = exchangeRate.source;
 
         // Other FX rate sources (PayPal, Wise) cannot be set by expense submitters
-        if (!['USER', 'OPENCOLLECTIVE'].includes(values.fxRateSource)) {
+        if (!['USER', 'OPENCOLLECTIVE'].includes(values.expenseCurrencyFxRateSource)) {
           throw new ValidationFailed('Invalid exchange rate source: Must be USER or OPENCOLLECTIVE.');
         } else if (exchangeRate.fromCurrency !== values.currency || exchangeRate.toCurrency !== expenseCurrency) {
           throw new ValidationFailed(
@@ -1264,28 +1268,32 @@ export const prepareExpenseItemInputs = async (
         const internalFxRate = get(fxRates, fxRatePath);
 
         // Add some checks to make sure the FX rate is acceptable
-        if (values.fxRateSource === 'OPENCOLLECTIVE') {
+        if (values.expenseCurrencyFxRateSource === 'OPENCOLLECTIVE') {
           if (!internalFxRate) {
             throw new ValidationFailed(
               `No exchange rate found for this currency pair (${
                 values.currency
               } to ${expenseCurrency}) for ${getDateKeyForItem(itemInput)}.`,
             );
-          } else if (internalFxRate && values.fxRate !== internalFxRate) {
-            throw new ValidationFailed(`Invalid exchange rate: Expected ${internalFxRate} but got ${values.fxRate}.`);
-          }
-        } else if (values.fxRateSource === 'USER' && internalFxRate) {
-          // Make sure to update `FX_RATE_ERROR_THRESHOLD` in `components/expenses/lib/utils.ts` when changing the value below
-          if (Math.abs(values.fxRate - internalFxRate) / internalFxRate > 0.1) {
+          } else if (internalFxRate && values.expenseCurrencyFxRate !== internalFxRate) {
             throw new ValidationFailed(
-              `Invalid exchange rate: The value for ${values.currency} to ${expenseCurrency} (${values.fxRate}) is too different from the one in our records (${internalFxRate}).`,
+              `Invalid exchange rate: Expected ${internalFxRate} but got ${values.expenseCurrencyFxRate}.`,
+            );
+          }
+        } else if (values.expenseCurrencyFxRateSource === 'USER' && internalFxRate) {
+          // Make sure to update `FX_RATE_ERROR_THRESHOLD` in `components/expenses/lib/utils.ts` when changing the value below
+          if (Math.abs(values.expenseCurrencyFxRate - internalFxRate) / internalFxRate > 0.1) {
+            throw new ValidationFailed(
+              `Invalid exchange rate: The value for ${values.currency} to ${expenseCurrency} (${values.expenseCurrencyFxRate}) is too different from the one in our records (${internalFxRate}).`,
             );
           }
         }
       }
     } else if (itemInput['amount']) {
       // For backwards compatibility, we force expense currency if not provided
+      values.amount = itemInput['amount'] as number;
       values.currency = expenseCurrency;
+      values.expenseCurrencyFxRate = 1;
     }
 
     return values;
@@ -1661,7 +1669,9 @@ export async function sendDraftExpenseInvite(
 }
 
 export async function editExpenseDraft(req: express.Request, expenseData: ExpenseData, args?: Record<string, any>) {
-  const existingExpense = await models.Expense.findByPk(expenseData.id);
+  const existingExpense = await models.Expense.findByPk(expenseData.id, {
+    include: [{ model: models.ExpenseItem, as: 'items' }],
+  });
   if (!existingExpense) {
     throw new NotFound('Expense not found.');
   }
@@ -1674,7 +1684,8 @@ export async function editExpenseDraft(req: express.Request, expenseData: Expens
   }
 
   const currency = expenseData.currency || existingExpense.currency;
-  const items = await prepareExpenseItemInputs(currency, expenseData.items);
+  const items =
+    (await prepareExpenseItemInputs(currency, expenseData.items, { isEditing: true })) || existingExpense.items;
   const newExpenseValues = {
     ...pick(expenseData, DRAFT_EXPENSE_FIELDS),
     amount: models.Expense.computeTotalAmountForExpense(items, expenseData.tax),
@@ -1830,7 +1841,8 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
   }
 
   const expenseCurrency = expenseData.currency || expense.currency;
-  const updatedItemsData: Partial<ExpenseItem>[] = await prepareExpenseItemInputs(expenseCurrency, expenseData.items);
+  const updatedItemsData: Partial<ExpenseItem>[] =
+    (await prepareExpenseItemInputs(expenseCurrency, expenseData.items, { isEditing: true })) || expense.items;
   const [hasItemChanges, itemsDiff] = await getItemsChanges(expense.items, updatedItemsData);
   const taxes = expenseData.tax || (expense.data?.taxes as TaxDefinition[]) || [];
   const expenseType = expenseData.type || expense.type;
@@ -1949,7 +1961,6 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
           return item.destroy({ transaction });
         }),
         // Create
-        // TODO items need to be prepared here
         ...newItemsData.map(itemData => {
           return models.ExpenseItem.createFromData(
             { ...itemData, currency: itemData.currency || expenseData.currency || expense.currency },
@@ -1959,7 +1970,6 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
           );
         }),
         // Update
-        // TODO items need to be prepared here
         ...itemsToUpdate.map(itemData => {
           return models.ExpenseItem.updateFromData(
             { ...itemData, currency: itemData.currency || expenseData.currency || expense.currency },
@@ -2006,11 +2016,9 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
       status = 'PENDING';
     }
 
-    const currency = expenseData.currency || expense.currency || collective.currency;
-    const items = await prepareExpenseItemInputs(currency, expenseData.items);
     const updatedExpenseProps = {
       ...cleanExpenseData,
-      amount: models.Expense.computeTotalAmountForExpense(items, taxes),
+      amount: models.Expense.computeTotalAmountForExpense(expense.items, taxes), // We've reloaded the items above
       lastEditedById: remoteUser.id,
       incurredAt: expenseData.incurredAt || new Date(),
       status,

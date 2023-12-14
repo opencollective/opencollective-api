@@ -71,8 +71,8 @@ describe('server/lib/ocr/index.ts', () => {
         success: true,
         expense: {
           amount: {
-            value: 80,
-            currency: 'EUR',
+            value: 100,
+            currency: 'USD',
             exchangeRate: {
               value: 0.8,
               fromCurrency: 'USD',
@@ -85,8 +85,8 @@ describe('server/lib/ocr/index.ts', () => {
           items: [
             {
               amount: {
-                value: 250,
-                currency: 'EUR',
+                value: 100,
+                currency: 'NZD',
                 exchangeRate: {
                   value: 2.5,
                   fromCurrency: 'NZD',
@@ -99,8 +99,8 @@ describe('server/lib/ocr/index.ts', () => {
             },
             {
               amount: {
-                value: 80,
-                currency: 'EUR',
+                value: 100,
+                currency: 'USD',
                 exchangeRate: {
                   value: 0.8,
                   fromCurrency: 'USD',

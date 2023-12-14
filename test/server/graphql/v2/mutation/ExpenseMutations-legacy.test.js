@@ -1101,7 +1101,10 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(expense.description).to.equal(updatedExpenseData.description);
         expect(expense.invoiceInfo).to.equal(updatedExpenseData.invoiceInfo);
         expect(expense.tags).to.deep.equal(updatedExpenseData.tags);
-        expect(expense.data.items).to.deep.equal(updatedExpenseData.items);
+        expect(expense.data.items[0].amount).to.equal(10000);
+        expect(expense.data.items[0].currency).to.equal('USD');
+        expect(expense.data.items[0].incurredAt).to.equal('2023-09-26T00:00:00.000Z');
+        expect(expense.data.items[0].description).to.equal('Item 1');
         expect(expense.data.payee).to.contain({ id: payee.collective.id });
       });
     });

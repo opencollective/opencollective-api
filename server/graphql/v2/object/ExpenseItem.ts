@@ -29,15 +29,15 @@ const GraphQLExpenseItem = new GraphQLObjectType({
       description: 'Amount of this item',
       resolve: async (item, _, req): Promise<GraphQLAmountFields> => {
         let exchangeRate: GraphQLAmountFields['exchangeRate'] = null;
-        if (item.fxRate) {
+        if (item.expenseCurrencyFxRate !== 1) {
           const expense = await req.loaders.Expense.byId.load(item.ExpenseId);
           exchangeRate = {
-            value: item.fxRate,
-            source: item.fxRateSource,
+            value: item.expenseCurrencyFxRate,
+            source: item.expenseCurrencyFxRateSource,
             fromCurrency: item.currency,
             toCurrency: expense.currency,
             date: item.incurredAt,
-            isApproximate: item.fxRateSource !== 'USER', // The rate can only be trusted if it was set by the user
+            isApproximate: item.expenseCurrencyFxRateSource !== 'USER', // The rate can only be trusted if it was set by the user
           };
         }
 
@@ -49,7 +49,7 @@ const GraphQLExpenseItem = new GraphQLObjectType({
       description:
         'If the item currency is different than the expense currency, this field will expose the average exchange rate for this date as recorded by Open Collective. Used to decide whether the value in `amountV2.exchangeRate` looks correct.',
       resolve: async (item, _, req): Promise<GraphQLAmountFields['exchangeRate']> => {
-        if (!item.fxRate) {
+        if (item.expenseCurrencyFxRate === 1) {
           return null;
         } else {
           const expense = await req.loaders.Expense.byId.load(item.ExpenseId);

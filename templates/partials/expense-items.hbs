@@ -21,9 +21,9 @@
             {{#ifCond this.currency '===' ../expense.currency}}
               {{currency this.amount currency=this.currency}}
             {{else}}
-              {{currency (multiply this.amount this.fxRate) currency=../expense.currency}}
+              {{currency (multiply this.amount this.expenseCurrencyFxRate) currency=../expense.currency}}
               <br>
-              <small>({{currency this.amount currency=this.currency}} x {{this.fxRate}})</small>
+              <small>({{currency this.amount currency=this.currency}} x {{this.expenseCurrencyFxRate}})</small>
             {{/ifCond}}
           </p>
         </td>

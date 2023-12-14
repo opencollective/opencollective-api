@@ -10,12 +10,13 @@ module.exports = {
       defaultValue: '___', // We're doing that rather than setting to null then enforcing NOT NULL because we could face problems if expenses get updated between the migration & the deployment. Also, it's probably faster.
     });
 
-    await queryInterface.addColumn('ExpenseItems', 'fxRate', {
+    await queryInterface.addColumn('ExpenseItems', 'expenseCurrencyFxRate', {
       type: Sequelize.FLOAT,
-      allowNull: true,
+      allowNull: false,
+      defaultValue: 1,
     });
 
-    await queryInterface.addColumn('ExpenseItems', 'fxRateSource', {
+    await queryInterface.addColumn('ExpenseItems', 'expenseCurrencyFxRateSource', {
       type: Sequelize.ENUM('OPENCOLLECTIVE', 'PAYPAL', 'WISE', 'USER'), // See server/graphql/v2/enum/CurrencyExchangeRateSourceType.ts
       allowNull: true,
     });
@@ -31,7 +32,7 @@ module.exports = {
 
   async down(queryInterface) {
     await queryInterface.removeColumn('ExpenseItems', 'currency');
-    await queryInterface.removeColumn('ExpenseItems', 'fxRate');
-    await queryInterface.removeColumn('ExpenseItems', 'fxRateSource');
+    await queryInterface.removeColumn('ExpenseItems', 'expenseCurrencyFxRate');
+    await queryInterface.removeColumn('ExpenseItems', 'expenseCurrencyFxRateSource');
   },
 };

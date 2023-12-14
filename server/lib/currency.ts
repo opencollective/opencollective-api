@@ -289,12 +289,12 @@ export type LoadFxRateRequest = {
 };
 
 type LoadFxRateResultMap = {
-  [date: string | 'NOW']: { [fromCurrency: string]: { [toCurrency: string]: number } };
+  [date: string | 'latest']: { [fromCurrency: string]: { [toCurrency: string]: number } };
 };
 
-export const getDateKeyForFxRateMap = (date: string | Date): 'NOW' | string => {
+export const getDateKeyForFxRateMap = (date: string | Date): 'latest' | string => {
   if (!date) {
-    return 'NOW';
+    return 'latest';
   } else {
     return getDate(date);
   }
@@ -303,7 +303,7 @@ export const getDateKeyForFxRateMap = (date: string | Date): 'NOW' | string => {
 /**
  * A function to load multiple FX rates at once, optimized to avoid making too many requests.
  *
- * @returns A map of the form `{ [date]: { [fromCurrency]: { [toCurrency]: fxRate } } }`. When `date` is not set, it defaults to `NOW`.
+ * @returns A map of the form `{ [date]: { [fromCurrency]: { [toCurrency]: fxRate } } }`. When `date` is not set, it defaults to `latest`.
  */
 export const loadFxRatesMap = async (requests: Array<LoadFxRateRequest>): Promise<LoadFxRateResultMap> => {
   // Group requests by date: { [date]: requests }
@@ -317,8 +317,8 @@ export const loadFxRatesMap = async (requests: Array<LoadFxRateRequest>): Promis
   for (const [dateStr, requestsByCurrency] of Object.entries(groupedByDateAndFromCurrency)) {
     for (const [fromCurrency, requests] of Object.entries(requestsByCurrency)) {
       const toCurrencies = uniq(requests.map(request => request.toCurrency));
-      const date = dateStr === 'NOW' ? undefined : dateStr;
-      set(result, [dateStr, fromCurrency], await getFxRates(fromCurrency, toCurrencies, date));
+      const fxRates = await getFxRates(fromCurrency, toCurrencies, dateStr);
+      set(result, [dateStr, fromCurrency], fxRates);
     }
   }
 

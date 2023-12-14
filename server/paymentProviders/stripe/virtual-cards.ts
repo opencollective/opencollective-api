@@ -208,6 +208,7 @@ export const processAuthorization = async (event: Stripe.Event) => {
       incurredAt,
       CreatedByUserId: UserId,
       amount,
+      currency,
     });
 
     const user = virtualCard.user;

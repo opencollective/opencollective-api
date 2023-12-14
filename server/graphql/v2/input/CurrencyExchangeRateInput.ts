@@ -6,7 +6,7 @@ import { GraphQLCurrency } from '../enum';
 import { GraphQLCurrencyExchangeRateSourceType } from '../enum/CurrencyExchangeRateSourceType';
 
 export type GraphQLCurrencyExchangeRateInputType = {
-  source: ExpenseItem['fxRateSource'];
+  source: ExpenseItem['expenseCurrencyFxRateSource'];
   fromCurrency: string;
   toCurrency: string;
   date: string;

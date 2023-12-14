@@ -94,7 +94,8 @@ const updateFilterConditionsForReadyToPay = async (where, include, host, loaders
       .filter(expense => {
         const collectiveBalance = balances[expense.CollectiveId];
         const hasBalance =
-          expense.amount * fxRates['NOW'][expense.currency][collectiveBalance.currency] <= collectiveBalance.value;
+          expense.amount * fxRates['latest'][expense.currency][collectiveBalance.currency] <= collectiveBalance.value;
+
         return !hasBalance;
       })
       .map(({ id }) => id);

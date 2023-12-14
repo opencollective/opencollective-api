@@ -14,7 +14,6 @@ const CurrencyExchangeRateQuery = {
     },
   },
   resolve: async (_, args): Promise<GraphQLCurrencyExchangeRateFields[]> => {
-    // TODO: Rate limit by IP
     if (!args.requests.length) {
       return [];
     }
@@ -31,7 +30,7 @@ const CurrencyExchangeRateQuery = {
             source: 'OPENCOLLECTIVE',
             fromCurrency,
             toCurrency,
-            date: date === 'NOW' ? now : new Date(date),
+            date: date === 'latest' ? now : new Date(date),
             isApproximate: false,
           });
         }
