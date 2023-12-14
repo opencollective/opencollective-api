@@ -46,7 +46,7 @@ import {
   makeRequest,
   preloadAssociationsForTransactions,
   resetTestDB,
-  seedDefaultPaymentProcessorVendors,
+  seedDefaultVendors,
   snapshotTransactions,
   waitForCondition,
 } from '../../../../utils';
@@ -274,7 +274,9 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
     beforeEach(() => {
       sandbox = createSandbox();
       emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage');
-      sandbox.stub(config, 'ledger').value({ ...config.ledger, separatePaymentProcessorFees: true });
+      sandbox
+        .stub(config, 'ledger')
+        .value({ ...config.ledger, separatePaymentProcessorFees: true, separateTaxes: true });
     });
 
     afterEach(() => {
@@ -1603,7 +1605,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
     before(async () => {
       await resetTestDB();
-      await seedDefaultPaymentProcessorVendors();
+      await seedDefaultVendors();
       hostAdmin = await fakeUser();
       collectiveAdmin = await fakeUser();
       host = await fakeCollective({
@@ -1783,7 +1785,9 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       beforeEach(() => {
         sandbox = createSandbox();
         emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage');
-        sandbox.stub(config, 'ledger').value({ ...config.ledger, separatePaymentProcessorFees: true });
+        sandbox
+          .stub(config, 'ledger')
+          .value({ ...config.ledger, separatePaymentProcessorFees: true, separateTaxes: true });
       });
 
       afterEach(() => {
@@ -2754,24 +2758,28 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           // Check transactions
           const transactions = await expense.getTransactions({ order: [['id', 'ASC']] });
           await Promise.all(transactions.map(t => models.Transaction.validate(t)));
-          const credit = transactions.find(({ type }) => type === 'CREDIT');
-          const debit = transactions.find(({ type }) => type === 'DEBIT');
+          const credit = transactions.find(({ type, kind }) => type === 'CREDIT' && kind === 'EXPENSE');
+          const debit = transactions.find(({ type, kind }) => type === 'DEBIT' && kind === 'EXPENSE');
           expect(debit.currency).to.equal('EUR');
           expect(debit.hostCurrency).to.equal('USD');
-          expect(debit.amount).to.equal(-100e2); // Gross amount (without VAT) in collective currency
+          expect(debit.amount).to.equal(-120e2); // Amount with VAT in collective currency
           expect(debit.netAmountInCollectiveCurrency).to.equal(-120e2); // Amount with VAT in collective currency
-          expect(debit.amountInHostCurrency).to.equal(-110e2); // expense amount converted to USD
-          expect(debit.taxAmount).to.equal(-2000); // In collective currency
+          expect(debit.amountInHostCurrency).to.equal(-132e2); // expense amount converted to USD
+          expect(debit.taxAmount).to.equal(0); // Taxes are moved to separate transaction
           expect(debit.data.tax.type).to.eq('VAT');
           expect(debit.data.tax.rate).to.eq(0.2);
           expect(credit.currency).to.equal('EUR');
           expect(credit.hostCurrency).to.equal('USD');
           expect(credit.amount).to.equal(120e2); // Amount with VAT in collective currency
-          expect(credit.taxAmount).to.equal(-2000);
-          expect(credit.netAmountInCollectiveCurrency).to.equal(100e2);
+          expect(credit.taxAmount).to.equal(0); // Taxes are moved to separate transaction
+          expect(credit.netAmountInCollectiveCurrency).to.equal(120e2);
           expect(credit.amountInHostCurrency).to.equal(132e2);
           expect(credit.data.tax.type).to.eq('VAT');
           expect(credit.data.tax.rate).to.eq(0.2);
+
+          const taxDebit = transactions.find(({ type, kind }) => type === 'DEBIT' && kind === 'TAX');
+          expect(taxDebit.amount).to.equal(-2000);
+
           expect(await collective.getBalance({ currency: 'USD' })).to.equal(868e2); // = $1000 - $132 (€100 expense + 20€ VAT to USD at 1.1 fxrate)
           expect(await collective.getBalance({ currency: 'EUR' })).to.equal(78988); // = €868 x 0.91
         });
@@ -2846,6 +2854,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
             'type',
             'isRefund',
             'CollectiveId',
+            'FromCollectiveId',
             'amount',
             'taxAmount',
             'netAmountInCollectiveCurrency',
@@ -2857,24 +2866,28 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           await preloadAssociationsForTransactions(transactions, snapshotColumns);
           snapshotTransactions(transactions, { columns: snapshotColumns, prettyAmounts: true });
 
-          const credit = transactions.find(({ type }) => type === 'CREDIT');
-          const debit = transactions.find(({ type }) => type === 'DEBIT');
+          const credit = transactions.find(({ type, kind }) => type === 'CREDIT' && kind === 'EXPENSE');
+          const debit = transactions.find(({ type, kind }) => type === 'DEBIT' && kind === 'EXPENSE');
           expect(debit.currency).to.equal('EUR');
           expect(debit.hostCurrency).to.equal('USD');
-          expect(debit.taxAmount).to.equal(-2000); // In collective currency
-          expect(debit.amount).to.equal(-100e2); // Gross amount (without VAT) in collective currency
+          expect(debit.taxAmount).to.equal(0); // Taxes are moved to separate transaction
+          expect(debit.amount).to.equal(-120e2); // Amount with VAT in collective currency
           expect(debit.netAmountInCollectiveCurrency).to.equal(-120e2); // Amount with VAT in collective currency
-          expect(debit.amountInHostCurrency).to.equal(-110e2); // expense amount converted to USD
+          expect(debit.amountInHostCurrency).to.equal(-132e2); // expense amount converted to USD
           expect(debit.data.tax.type).to.eq('VAT');
           expect(debit.data.tax.rate).to.eq(0.2);
           expect(credit.currency).to.equal('EUR');
           expect(credit.hostCurrency).to.equal('USD');
           expect(credit.amount).to.equal(120e2); // Amount with VAT in collective currency
-          expect(credit.taxAmount).to.equal(-2000);
-          expect(credit.netAmountInCollectiveCurrency).to.equal(100e2);
+          expect(credit.taxAmount).to.equal(0); // Taxes are moved to separate transaction
+          expect(credit.netAmountInCollectiveCurrency).to.equal(120e2);
           expect(credit.amountInHostCurrency).to.equal(132e2);
           expect(credit.data.tax.type).to.eq('VAT');
           expect(credit.data.tax.rate).to.eq(0.2);
+
+          const taxDebit = transactions.find(({ type, kind }) => type === 'DEBIT' && kind === 'TAX');
+          expect(taxDebit.amount).to.equal(-2000);
+
           expect(await collective.getBalance({ currency: 'USD' })).to.equal(868e2); // = $1000 - $132 (€100 expense + 20€ VAT to USD at 1.1 fxrate)
           expect(await collective.getBalance({ currency: 'EUR' })).to.equal(78988); // = €868 x 0.91
         });

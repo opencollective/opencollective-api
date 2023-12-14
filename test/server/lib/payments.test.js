@@ -62,7 +62,7 @@ describe('server/lib/payments', () => {
 
   beforeEach(async () => {
     await utils.resetTestDB();
-    await utils.seedDefaultPaymentProcessorVendors();
+    await utils.seedDefaultVendors();
   });
 
   beforeEach(() => {
@@ -92,7 +92,7 @@ describe('server/lib/payments', () => {
       }),
     );
     sandbox.stub(stripe.balanceTransactions, 'retrieve').callsFake(() => Promise.resolve(stripeMocks.balance));
-    sandbox.stub(config, 'ledger').value({ ...config.ledger, separatePaymentProcessorFees: true });
+    sandbox.stub(config, 'ledger').value({ ...config.ledger, separatePaymentProcessorFees: true, separateTaxes: true });
     emailSendSpy = sandbox.spy(emailLib, 'send');
   });
 
@@ -370,37 +370,51 @@ describe('server/lib/payments', () => {
         where: {
           OrderId: order.id,
         },
+        order: [['id', 'ASC']],
       });
 
+      // Snapshot ledger
+      await utils.preloadAssociationsForTransactions(allTransactions, SNAPSHOT_COLUMNS);
+      utils.snapshotTransactions(allTransactions, { columns: SNAPSHOT_COLUMNS });
+
       // Then there should be 12 transactions in total under that order id
-      expect(allTransactions.length).to.equal(12);
+      expect(allTransactions.length).to.equal(16);
 
       // TODO: check that HOST_FEES, PAYMENT_PROCESSOR_COVER are there
       const hostFeeTransactions = allTransactions.filter(t => t.kind === TransactionKind.HOST_FEE);
       expect(hostFeeTransactions).to.have.lengthOf(4);
 
-      // And Then two transactions should be refund
+      const taxTransactions = allTransactions.filter(t => t.kind === TransactionKind.TAX);
+      expect(taxTransactions).to.have.lengthOf(4);
+
+      // And Then two contribution transactions should be refund
       const refundTransactions = allTransactions.filter(
-        t => t.description === 'Refund of "Monthly subscription to Webpack"',
+        t => t.kind === TransactionKind.CONTRIBUTION && t.isRefund === true,
       );
       expect(refundTransactions).to.have.lengthOf(2);
 
       // And then the values for the transaction from the collective
       // to the donor are correct
-      // TODO: more precise filters
-      const [creditRefundTransaction] = refundTransactions.filter(t => t.type === 'CREDIT');
+      const creditRefundTransaction = refundTransactions.find(t => t.type === 'CREDIT');
       expect(creditRefundTransaction.FromCollectiveId).to.equal(collective.id);
       expect(creditRefundTransaction.CollectiveId).to.equal(order.FromCollectiveId);
       expect(creditRefundTransaction.kind).to.equal(TransactionKind.CONTRIBUTION);
-      expect(creditRefundTransaction.taxAmount).to.equal(100); // Taxes are always fully refunded, so it's a positive value
+      expect(creditRefundTransaction.taxAmount).to.equal(0); // Taxes are moved to a separate transaction
 
       // And then the values for the transaction from the donor to the
       // collective also look correct
-      const [debitRefundTransaction] = refundTransactions.filter(t => t.type === 'DEBIT');
+      const debitRefundTransaction = refundTransactions.find(t => t.type === 'DEBIT');
       expect(debitRefundTransaction.FromCollectiveId).to.equal(order.FromCollectiveId);
       expect(debitRefundTransaction.CollectiveId).to.equal(collective.id);
       expect(debitRefundTransaction.kind).to.equal(TransactionKind.CONTRIBUTION);
-      expect(debitRefundTransaction.taxAmount).to.equal(100);
+      expect(debitRefundTransaction.taxAmount).to.equal(0); // Taxes are moved to a separate transaction
+
+      // Check taxes
+      const refundTaxTransactions = allTransactions.filter(t => t.kind === TransactionKind.TAX && t.isRefund === true);
+      expect(refundTaxTransactions).to.have.lengthOf(2);
+
+      expect(refundTaxTransactions.find(t => t.type === 'DEBIT').amount).to.equal(-100);
+      expect(refundTaxTransactions.find(t => t.type === 'CREDIT').amount).to.equal(100);
     });
 
     it('should refund platform fees on top when refunding original transaction', async () => {

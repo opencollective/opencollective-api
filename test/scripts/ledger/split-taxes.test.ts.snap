@@ -1,0 +1,85 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`scripts/ledger/split-taxes 1. migrate a regular contribution with taxes 1`] = `
+"
+| kind         | type   | amount | currency | hostCurrency | tax | netAmountInCollectiveCurrency | amountInHostCurrency | To         | From       | Host | isRefund |
+| ------------ | ------ | ------ | -------- | ------------ | --- | ----------------------------- | -------------------- | ---------- | ---------- | ---- | -------- |
+| CONTRIBUTION | CREDIT | 500    | NZD      | NZD          | -25 | 475                           | 500                  | Collective | User       | Host | false    |
+| CONTRIBUTION | DEBIT  | -475   | NZD      | NZD          | -25 | -500                          | -475                 | User       | Collective | NULL | false    |"
+`;
+
+exports[`scripts/ledger/split-taxes 1. migrate a regular contribution with taxes 2`] = `
+"
+| kind         | type   | amount | currency | hostCurrency | tax | netAmountInCollectiveCurrency | amountInHostCurrency | To              | From            | Host | isRefund |
+| ------------ | ------ | ------ | -------- | ------------ | --- | ----------------------------- | -------------------- | --------------- | --------------- | ---- | -------- |
+| TAX          | CREDIT | 25     | NZD      | NZD          | 0   | 25                            | 25                   | New Zealand GST | Collective      | NULL | false    |
+| TAX          | DEBIT  | -25    | NZD      | NZD          | 0   | -25                           | -25                  | Collective      | New Zealand GST | Host | false    |
+| CONTRIBUTION | CREDIT | 500    | NZD      | NZD          | 0   | 500                           | 500                  | Collective      | User            | Host | false    |
+| CONTRIBUTION | DEBIT  | -500   | NZD      | NZD          | 0   | -500                          | -500                 | User            | Collective      | NULL | false    |"
+`;
+
+exports[`scripts/ledger/split-taxes 2. migrate a regular refunded contribution with taxes 1`] = `
+"
+| kind         | type   | amount | currency | hostCurrency | tax | netAmountInCollectiveCurrency | amountInHostCurrency | To         | From       | Host | isRefund |
+| ------------ | ------ | ------ | -------- | ------------ | --- | ----------------------------- | -------------------- | ---------- | ---------- | ---- | -------- |
+| CONTRIBUTION | CREDIT | 475    | NZD      | NZD          | 25  | 500                           | 475                  | User       | Collective | NULL | true     |
+| CONTRIBUTION | DEBIT  | -500   | NZD      | NZD          | 25  | -475                          | -500                 | Collective | User       | Host | true     |
+| CONTRIBUTION | CREDIT | 500    | NZD      | NZD          | -25 | 475                           | 500                  | Collective | User       | Host | false    |
+| CONTRIBUTION | DEBIT  | -475   | NZD      | NZD          | -25 | -500                          | -475                 | User       | Collective | NULL | false    |"
+`;
+
+exports[`scripts/ledger/split-taxes 2. migrate a regular refunded contribution with taxes 2`] = `
+"
+| kind         | type   | amount | currency | hostCurrency | tax | netAmountInCollectiveCurrency | amountInHostCurrency | To              | From            | Host | isRefund |
+| ------------ | ------ | ------ | -------- | ------------ | --- | ----------------------------- | -------------------- | --------------- | --------------- | ---- | -------- |
+| TAX          | CREDIT | 25     | NZD      | NZD          | 0   | 25                            | 25                   | Collective      | New Zealand GST | Host | true     |
+| TAX          | DEBIT  | -25    | NZD      | NZD          | 0   | -25                           | -25                  | New Zealand GST | Collective      | NULL | true     |
+| TAX          | CREDIT | 25     | NZD      | NZD          | 0   | 25                            | 25                   | New Zealand GST | Collective      | NULL | false    |
+| TAX          | DEBIT  | -25    | NZD      | NZD          | 0   | -25                           | -25                  | Collective      | New Zealand GST | Host | false    |
+| CONTRIBUTION | CREDIT | 500    | NZD      | NZD          | 0   | 500                           | 500                  | User            | Collective      | NULL | true     |
+| CONTRIBUTION | DEBIT  | -500   | NZD      | NZD          | 0   | -500                          | -500                 | Collective      | User            | Host | true     |
+| CONTRIBUTION | CREDIT | 500    | NZD      | NZD          | 0   | 500                           | 500                  | Collective      | User            | Host | false    |
+| CONTRIBUTION | DEBIT  | -500   | NZD      | NZD          | 0   | -500                          | -500                 | User            | Collective      | NULL | false    |"
+`;
+
+exports[`scripts/ledger/split-taxes 3. migrate an expense with taxes 1`] = `
+"
+| kind    | type   | amount | currency | hostCurrency | tax | netAmountInCollectiveCurrency | amountInHostCurrency | To         | From       | Host | isRefund |
+| ------- | ------ | ------ | -------- | ------------ | --- | ----------------------------- | -------------------- | ---------- | ---------- | ---- | -------- |
+| EXPENSE | CREDIT | 525    | USD      | USD          | -25 | 500                           | 525                  | User       | Collective | NULL | false    |
+| EXPENSE | DEBIT  | -500   | USD      | USD          | -25 | -525                          | -500                 | Collective | User       | Host | false    |"
+`;
+
+exports[`scripts/ledger/split-taxes 3. migrate an expense with taxes 2`] = `
+"
+| kind    | type   | amount | currency | hostCurrency | tax | netAmountInCollectiveCurrency | amountInHostCurrency | To              | From            | Host | isRefund |
+| ------- | ------ | ------ | -------- | ------------ | --- | ----------------------------- | -------------------- | --------------- | --------------- | ---- | -------- |
+| TAX     | CREDIT | 25     | USD      | USD          | 0   | 25                            | 25                   | New Zealand GST | User            | NULL | false    |
+| TAX     | DEBIT  | -25    | USD      | USD          | 0   | -25                           | -25                  | User            | New Zealand GST | NULL | false    |
+| EXPENSE | CREDIT | 525    | USD      | USD          | 0   | 525                           | 525                  | User            | Collective      | NULL | false    |
+| EXPENSE | DEBIT  | -525   | USD      | USD          | 0   | -525                          | -525                 | Collective      | User            | Host | false    |"
+`;
+
+exports[`scripts/ledger/split-taxes 4. migrate an expense with taxes that get marked as UNPAID 1`] = `
+"
+| kind    | type   | amount | currency | hostCurrency | tax | netAmountInCollectiveCurrency | amountInHostCurrency | To         | From       | Host | isRefund |
+| ------- | ------ | ------ | -------- | ------------ | --- | ----------------------------- | -------------------- | ---------- | ---------- | ---- | -------- |
+| EXPENSE | CREDIT | 500    | USD      | USD          | 25  | 525                           | 500                  | Collective | User       | Host | true     |
+| EXPENSE | DEBIT  | -525   | USD      | USD          | 25  | -500                          | -525                 | User       | Collective | NULL | true     |
+| EXPENSE | CREDIT | 525    | USD      | USD          | -25 | 500                           | 525                  | User       | Collective | NULL | false    |
+| EXPENSE | DEBIT  | -500   | USD      | USD          | -25 | -525                          | -500                 | Collective | User       | Host | false    |"
+`;
+
+exports[`scripts/ledger/split-taxes 4. migrate an expense with taxes that get marked as UNPAID 2`] = `
+"
+| kind    | type   | amount | currency | hostCurrency | tax | netAmountInCollectiveCurrency | amountInHostCurrency | To              | From            | Host | isRefund |
+| ------- | ------ | ------ | -------- | ------------ | --- | ----------------------------- | -------------------- | --------------- | --------------- | ---- | -------- |
+| TAX     | CREDIT | 25     | USD      | USD          | 0   | 25                            | 25                   | User            | New Zealand GST | NULL | true     |
+| TAX     | DEBIT  | -25    | USD      | USD          | 0   | -25                           | -25                  | New Zealand GST | User            | NULL | true     |
+| TAX     | CREDIT | 25     | USD      | USD          | 0   | 25                            | 25                   | New Zealand GST | User            | NULL | false    |
+| TAX     | DEBIT  | -25    | USD      | USD          | 0   | -25                           | -25                  | User            | New Zealand GST | NULL | false    |
+| EXPENSE | CREDIT | 525    | USD      | USD          | 0   | 525                           | 525                  | Collective      | User            | Host | true     |
+| EXPENSE | DEBIT  | -525   | USD      | USD          | 0   | -525                          | -525                 | User            | Collective      | NULL | true     |
+| EXPENSE | CREDIT | 525    | USD      | USD          | 0   | 525                           | 525                  | User            | Collective      | NULL | false    |
+| EXPENSE | DEBIT  | -525   | USD      | USD          | 0   | -525                          | -525                 | Collective      | User            | Host | false    |"
+`;

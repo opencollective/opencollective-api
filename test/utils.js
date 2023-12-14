@@ -68,14 +68,17 @@ export const resetTestDB = async () => {
   }
 };
 
-export const seedDefaultPaymentProcessorVendors = async () => {
+export const seedDefaultVendors = async () => {
   return sequelize.query(`
     INSERT INTO "Collectives" ("type", "slug", "name", "website", "createdAt", "updatedAt")
     VALUES
       ('VENDOR', 'stripe-payment-processor-vendor', 'Stripe', 'https://stripe.com', NOW(), NOW()),
       ('VENDOR', 'paypal-payment-processor-vendor', 'PayPal', 'https://paypal.com', NOW(), NOW()),
       ('VENDOR', 'wise-payment-processor-vendor', 'Wise', 'https://wise.com', NOW(), NOW()),
-      ('VENDOR', 'other-payment-processor-vendor', 'Other Payment Processor', NULL, NOW(), NOW());
+      ('VENDOR', 'other-payment-processor-vendor', 'Other Payment Processor', NULL, NOW(), NOW()),
+      ('VENDOR', 'eu-vat-tax-vendor', 'European VAT', NULL, NOW(), NOW()),
+      ('VENDOR', 'nz-gst-tax-vendor', 'New Zealand GST', NULL, NOW(), NOW()),
+      ('VENDOR', 'other-tax-vendor', 'Other Tax', NULL, NOW(), NOW());
   `);
 };
 

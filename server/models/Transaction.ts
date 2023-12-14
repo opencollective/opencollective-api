@@ -104,6 +104,7 @@ export interface TransactionInterface
   getRelatedTransaction: (options: { type?: string; kind?: string; isDebt?: boolean }) => Promise<TransactionInterface>;
   getOppositeTransaction: () => Promise<TransactionInterface | null>;
   getPaymentProcessorFeeTransaction: () => Promise<TransactionInterface | null>;
+  getTaxTransaction: () => Promise<TransactionInterface | null>;
   getPlatformTipTransaction: () => Promise<TransactionInterface | null>;
   getPlatformTipDebtTransaction: () => Promise<TransactionInterface | null>;
   getHostFeeTransaction: () => Promise<TransactionInterface | null>;
@@ -145,6 +146,7 @@ interface TransactionModelStaticInterface {
   calculateNetAmountInHostCurrency(transaction: TransactionInterface): number;
   validateContributionPayload(payload: Record<string, unknown>): void;
   getPaymentProcessorFeeVendor(service: string): Promise<Collective>;
+  getTaxVendor(taxId: string): Promise<Collective>;
   createActivity(transaction: TransactionInterface, options?: { transaction: SQLTransaction }): Promise<void>;
   createPlatformTipTransactions(
     transaction: TransactionCreationAttributes,
@@ -167,6 +169,15 @@ interface TransactionModelStaticInterface {
     transaction: TransactionInterface | TransactionCreationAttributes;
     /** The payment processor fee transaction */
     paymentProcessorFeeTransaction: TransactionInterface;
+  }>;
+  createTaxTransactions(
+    transaction: TransactionInterface | TransactionCreationAttributes,
+    data: Record<string, unknown> | null,
+  ): Promise<{
+    /** The original transaction, potentially modified if a tax was set */
+    transaction: TransactionInterface | TransactionCreationAttributes;
+    /** The tax transaction */
+    taxTransaction: TransactionInterface;
   }>;
   createHostFeeTransactions(
     transaction: TransactionInterface | TransactionCreationAttributes,
@@ -550,6 +561,10 @@ Transaction.prototype.getPaymentProcessorFeeTransaction = function () {
   return this.getRelatedTransaction({ kind: TransactionKind.PAYMENT_PROCESSOR_FEE });
 };
 
+Transaction.prototype.getTaxTransaction = function () {
+  return this.getRelatedTransaction({ kind: TransactionKind.TAX });
+};
+
 Transaction.prototype.getPlatformTipTransaction = function () {
   return this.getRelatedTransaction({ kind: TransactionKind.PLATFORM_TIP });
 };
@@ -724,9 +739,25 @@ Transaction.createDoubleEntry = async (transaction, opts) => {
     throw new Error('Transaction type must be set when amount is 0');
   }
 
+  if (transaction.kind === TransactionKind.EXPENSE && transaction.type === CREDIT && !transaction.isRefund) {
+    throw new Error('Transaction kind=EXPENSE should be initiated as a DEBIT transaction.');
+  } else if (transaction.kind === TransactionKind.CONTRIBUTION && transaction.type === DEBIT && !transaction.isRefund) {
+    throw new Error('Transaction kind=CONTRIBUTION should be initiated as a CREDIT transaction.');
+  }
+  // TODO: should we check for refunds also?
+
   transaction.netAmountInCollectiveCurrency = transaction.netAmountInCollectiveCurrency || transaction.amount;
   transaction.TransactionGroup = transaction.TransactionGroup || uuid();
   transaction.hostCurrencyFxRate = transaction.hostCurrencyFxRate || 1;
+
+  // Create Tax transaction
+  if (transaction.taxAmount && parseToBoolean(config.ledger.separateTaxes) === true) {
+    const result = await Transaction.createTaxTransactions(transaction, null);
+    if (result) {
+      // Transaction was modified by createTaxTransactions, we get it from the result
+      transaction = result.transaction;
+    }
+  }
 
   // Create Payment Processor Fee transaction
   if (
@@ -736,11 +767,8 @@ Transaction.createDoubleEntry = async (transaction, opts) => {
     const result = await Transaction.createPaymentProcessorFeeTransactions(transaction, null);
     if (result) {
       // Transaction was modified by paymentProcessorFeeTransactions, we get it from the result
-      if (result.transaction) {
-        transaction = result.transaction;
-      }
+      transaction = result.transaction;
     }
-    transaction.netAmountInCollectiveCurrency = Transaction.calculateNetAmountInCollectiveCurrency(transaction);
   }
 
   // If FromCollectiveId = CollectiveId, we only create one transaction (DEBIT or CREDIT)
@@ -1127,8 +1155,118 @@ Transaction.createPaymentProcessorFeeTransactions = async (
 
   // Reset the original processor fee because we're now accounting for this value in a separate set of transactions
   transaction.paymentProcessorFeeInHostCurrency = 0;
+  transaction.netAmountInCollectiveCurrency = Transaction.calculateNetAmountInCollectiveCurrency(transaction);
 
   return { transaction, paymentProcessorFeeTransaction };
+};
+
+/**
+ * Returns the Vendor account associated with a given tax. This function is memoized as
+ * the tax vendor will not change during the lifetime of the server.
+ */
+Transaction.getTaxVendor = memoize(async (taxId): Promise<Collective> => {
+  const vendorByTaxId = {
+    VAT: 'eu-vat-tax-vendor',
+    GST: 'nz-gst-tax-vendor',
+    OTHER: 'other-tax-vendor',
+  };
+
+  return models.Collective.findBySlug(vendorByTaxId[taxId] || vendorByTaxId['OTHER']);
+});
+
+interface Tax {
+  id?: string;
+}
+
+/**
+ * For contributions, the contributor pays the full amount then the tax is debited from the collective balance (to the TAX vendor)
+ * For expenses, the collective pays the full amount to the payee, then the payee is debited from the tax amount (to the TAX vendor)
+ */
+Transaction.createTaxTransactions = async (
+  transaction: TransactionInterface | TransactionCreationAttributes,
+  data: Record<string, unknown> | null = null,
+): Promise<{
+  /** The original transaction, potentially modified if a payment processor fees was set */
+  transaction: TransactionInterface | TransactionCreationAttributes;
+  /** The payment processor fee transaction */
+  taxTransaction: TransactionInterface;
+}> => {
+  if (!transaction.taxAmount) {
+    return;
+  } else if (transaction.kind === TransactionKind.EXPENSE && transaction.type !== DEBIT) {
+    throw new Error('createTaxTransactions should always be passed a DEBIT when kind=EXPENSE');
+  }
+
+  const tax: Tax | undefined = transaction.data?.tax;
+  const taxId: string | undefined = tax?.id;
+  const vendor = await Transaction.getTaxVendor(taxId);
+
+  const amount = -transaction.taxAmount;
+  const currency = transaction.currency;
+
+  const hostCurrency = transaction.hostCurrency;
+  const hostCurrencyFxRate = transaction.hostCurrencyFxRate;
+  const amountInHostCurrency = -transaction.taxAmount * hostCurrencyFxRate;
+
+  let FromCollectiveId, CollectiveId;
+  if (!transaction.isRefund) {
+    CollectiveId = vendor.id;
+    if (transaction.kind === TransactionKind.EXPENSE) {
+      FromCollectiveId = transaction.FromCollectiveId;
+    } else {
+      FromCollectiveId = transaction.CollectiveId;
+    }
+  } else {
+    // it's not likely to be used like this, as taxes are separated
+    FromCollectiveId = vendor.id;
+    if (transaction.kind === TransactionKind.EXPENSE) {
+      CollectiveId = transaction.FromCollectiveId;
+    } else {
+      CollectiveId = transaction.CollectiveId;
+    }
+  }
+
+  const taxTransactionData = {
+    type: CREDIT,
+    kind: TransactionKind.TAX,
+    description: `${startCase(vendor.name)} tax`,
+    TransactionGroup: transaction.TransactionGroup,
+    FromCollectiveId,
+    CollectiveId,
+    HostCollectiveId: null,
+    // Compute amounts
+    amount,
+    netAmountInCollectiveCurrency: amount,
+    currency: currency,
+    amountInHostCurrency: amountInHostCurrency,
+    hostCurrency: hostCurrency,
+    hostCurrencyFxRate: hostCurrencyFxRate,
+    // No fees
+    platformFeeInHostCurrency: 0,
+    hostFeeInHostCurrency: 0,
+    paymentProcessorFeeInHostCurrency: 0,
+    taxAmount: 0,
+    OrderId: transaction.OrderId,
+    ExpenseId: transaction.ExpenseId,
+    isRefund: transaction.isRefund,
+    CreatedByUserId: transaction.CreatedByUserId,
+    createdAt: transaction.createdAt,
+    data: { ...data, ...pick(transaction.data, ['tax']) },
+  };
+
+  const taxTransaction = await Transaction.createDoubleEntry(taxTransactionData);
+
+  // For expenses, tax needs to be added on top
+  // amount: -10000, taxAmount: -2000 -> amount: -12000, taxAmount: 0
+  if (transaction.kind === TransactionKind.EXPENSE) {
+    transaction.amount = transaction.amount + transaction.taxAmount;
+    transaction.amountInHostCurrency = transaction.amount * transaction.hostCurrencyFxRate;
+  }
+
+  transaction.taxAmount = 0;
+  transaction.netAmountInCollectiveCurrency = Transaction.calculateNetAmountInCollectiveCurrency(transaction);
+
+  return { transaction, taxTransaction };
 };
 
 Transaction.createHostFeeShareTransactions = async (

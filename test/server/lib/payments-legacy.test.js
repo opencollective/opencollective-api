@@ -91,7 +91,9 @@ describe('server/lib/payments', () => {
       }),
     );
     sandbox.stub(stripe.balanceTransactions, 'retrieve').callsFake(() => Promise.resolve(stripeMocks.balance));
-    sandbox.stub(config, 'ledger').value({ ...config.ledger, separatePaymentProcessorFees: false });
+    sandbox
+      .stub(config, 'ledger')
+      .value({ ...config.ledger, separatePaymentProcessorFees: false, separateTaxes: false });
     emailSendSpy = sandbox.spy(emailLib, 'send');
   });
 

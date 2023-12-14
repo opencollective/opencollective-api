@@ -3,31 +3,29 @@ import '../../server/env';
 
 import { groupBy, omit, pick } from 'lodash';
 
+import * as PaymentLib from '../../server/lib/payments';
 import models, { Op, sequelize } from '../../server/models';
 
 const startDate = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date('2023-01-01');
 
 if (process.argv.length < 3) {
-  console.error('Usage: ./scripts/ledger/split-payment-processor-fees.ts migrate|rollback|check (rollbackTimestamp)');
+  console.error('Usage: ./scripts/ledger/split-taxes.ts migrate|rollback|check (rollbackTimestamp)');
   process.exit(1);
 }
 
 const getTransactionsToMigrateQuery = `
   SELECT *
   FROM "Transactions" t
-  WHERE "paymentProcessorFeeInHostCurrency" IS NOT NULL
-  AND "paymentProcessorFeeInHostCurrency" != 0
+  WHERE "taxAmount" IS NOT NULL
+  AND "taxAmount" != 0
   AND "createdAt" >= :startDate
   AND "isRefund" IS NOT TRUE
   ORDER BY "createdAt" DESC
 `;
 
-const BACKUP_COLUMNS = [
-  'amount',
-  'amountInHostCurrency',
-  'netAmountInCollectiveCurrency',
-  'paymentProcessorFeeInHostCurrency',
-];
+const BACKUP_COLUMNS = ['amount', 'amountInHostCurrency', 'netAmountInCollectiveCurrency', 'taxAmount'];
+
+const MIGRATION_DATA_FIELD = 'taxMigration';
 
 const migrate = async () => {
   const transactions = await sequelize.query(getTransactionsToMigrateQuery, {
@@ -39,7 +37,7 @@ const migrate = async () => {
 
   const groupedTransactions = Object.values(groupBy(transactions, 'TransactionGroup'));
   const timestamp = Date.now().toString();
-  const transactionsData = { paymentProcessorFeeMigration: timestamp };
+  const transactionsData = { [MIGRATION_DATA_FIELD]: timestamp };
   const hostsCache = {};
   let count = 0;
 
@@ -81,68 +79,79 @@ const migrate = async () => {
     const creditPreMigrationData = pick(credit.dataValues, BACKUP_COLUMNS);
     const debitPreMigrationData = pick(debit.dataValues, BACKUP_COLUMNS);
 
-    // Create payment processor fee transaction
-    if (credit.kind === 'EXPENSE') {
-      await models.Transaction.createPaymentProcessorFeeTransactions(debit, transactionsData);
+    const transactionToMigrate = credit.kind === 'EXPENSE' ? debit : credit;
+    const result = await models.Transaction.createTaxTransactions(transactionToMigrate, {
+      ...transactionsData,
+      ...transactionToMigrate.data,
+    });
 
-      const transactionTaxes = debit.taxAmount || 0;
-
-      const debitNetAmountInCollectiveCurrency =
-        Math.round((debit.amountInHostCurrency + debit.paymentProcessorFeeInHostCurrency) / debit.hostCurrencyFxRate) +
-        transactionTaxes;
-
-      // update netAmountInCollectiveCurrency, amount and amountInHostCurrency should not be affected
-      await debit.update({
-        paymentProcessorFeeInHostCurrency: 0,
-        netAmountInCollectiveCurrency: debitNetAmountInCollectiveCurrency,
-        data: {
-          ...debit.data,
-          ...transactionsData,
-          preMigrationData: debitPreMigrationData,
-        },
-      });
-
-      // update amount and amountInHostCurrency, netAmountInCollectiveCurrency should not be affected
-      await credit.update({
-        paymentProcessorFeeInHostCurrency: 0,
-        amount: -debitNetAmountInCollectiveCurrency,
-        amountInHostCurrency: credit.amountInHostCurrency + credit.paymentProcessorFeeInHostCurrency,
-        data: {
-          ...credit.data,
-          ...transactionsData,
-          preMigrationData: creditPreMigrationData,
-        },
-      });
+    // We're assuming that there are no other fees left. Don't migrate further than what has been done for host fees/processor fees!
+    let creditAmount, debitAmount;
+    if (result.transaction.type === 'CREDIT') {
+      creditAmount = result.transaction.amount;
+      debitAmount = -Math.round(result.transaction.amount);
     } else {
-      await models.Transaction.createPaymentProcessorFeeTransactions(credit, transactionsData);
+      debitAmount = result.transaction.amount;
+      creditAmount = -Math.round(result.transaction.amount);
+    }
 
-      // Update paymentProcessorFeeInHostCurrency for both DEBIT and CREDIT
-      const transactionFees = 0; // There is no fee left at this point (platform fee deprecated and host fee already moved on separate transaction)
-      const transactionTaxes = credit.taxAmount || 0;
-      const netAmountInCollectiveCurrency = Math.round(
-        (credit.amountInHostCurrency + transactionFees) / credit.hostCurrencyFxRate + transactionTaxes,
-      );
+    await credit.update({
+      taxAmount: 0,
+      amount: creditAmount,
+      netAmountInCollectiveCurrency: creditAmount, // We assume there has no other fees at this point, because they are all migrated
+      amountInHostCurrency: Math.round(creditAmount * debit.hostCurrencyFxRate),
+      data: {
+        ...credit.data,
+        ...transactionsData,
+        preMigrationData: creditPreMigrationData,
+      },
+    });
 
-      await credit.update({
-        paymentProcessorFeeInHostCurrency: 0,
-        netAmountInCollectiveCurrency,
+    await debit.update({
+      taxAmount: 0,
+      amount: debitAmount,
+      netAmountInCollectiveCurrency: debitAmount, // We assume there has no other fees at this point, because they are all migrated
+      amountInHostCurrency: Math.round(debitAmount * debit.hostCurrencyFxRate),
+      data: {
+        ...debit.data,
+        ...transactionsData,
+        preMigrationData: debitPreMigrationData,
+      },
+    });
+
+    // If there is a refund for this transaction, it needs to be updated as well
+    if (credit.RefundTransactionId) {
+      const refundDebit = await credit.getRefundTransaction();
+      const refundCredit = await debit.getRefundTransaction();
+      await refundCredit.update({
+        taxAmount: 0,
+        amount: creditAmount,
+        amountInHostCurrency: Math.round(creditAmount / debit.hostCurrencyFxRate),
         data: {
-          ...credit.data,
+          ...refundCredit.data,
           ...transactionsData,
-          preMigrationData: creditPreMigrationData,
+          preMigrationData: pick(refundCredit.dataValues, BACKUP_COLUMNS),
+        },
+      });
+      await refundDebit.update({
+        taxAmount: 0,
+        netAmountInCollectiveCurrency: -creditAmount,
+        data: {
+          ...refundDebit.data,
+          ...transactionsData,
+          preMigrationData: pick(refundDebit.dataValues, BACKUP_COLUMNS),
         },
       });
 
-      await debit.update({
-        paymentProcessorFeeInHostCurrency: 0,
-        amount: -Math.round(netAmountInCollectiveCurrency),
-        amountInHostCurrency: -Math.round(netAmountInCollectiveCurrency * debit.hostCurrencyFxRate),
-        data: {
-          ...debit.data,
-          ...transactionsData,
-          preMigrationData: debitPreMigrationData,
-        },
-      });
+      // Create a refund for the host fee
+      const taxRefund = {
+        ...PaymentLib.buildRefundForTransaction(result.taxTransaction, null, transactionsData),
+        TransactionGroup: refundCredit.TransactionGroup,
+        createdAt: refundCredit.createdAt,
+      };
+
+      const taxRefundTransaction = await models.Transaction.createDoubleEntry(taxRefund);
+      await PaymentLib.associateTransactionRefundId(result.taxTransaction, taxRefundTransaction);
     }
   }
 };
@@ -152,7 +161,7 @@ const rollback = async ([rollbackTimestamp]) => {
     throw new Error('A migration timestamp must be specified to trigger a rollback. Pass "ALL" to rollback everything');
   }
 
-  const paymentProcessorFeeMigrationCondition = rollbackTimestamp === 'ALL' ? 'IS NOT NULL' : '= :rollbackTimestamp';
+  const taxMigrationCondition = rollbackTimestamp === 'ALL' ? 'IS NOT NULL' : '= :rollbackTimestamp';
 
   // 1. Remove related HOST_FEE and PAYMENT_PROCESSOR_FEE transactions
   console.log('Deleting transactions...');
@@ -163,8 +172,8 @@ const rollback = async ([rollbackTimestamp]) => {
 
       DELETE
       FROM "Transactions" t
-      WHERE "data" ->> 'paymentProcessorFeeMigration' ${paymentProcessorFeeMigrationCondition}
-      AND kind IN ('PAYMENT_PROCESSOR_FEE')
+      WHERE "data" ->> '${MIGRATION_DATA_FIELD}' ${taxMigrationCondition}
+      AND kind IN ('TAX')
       AND "createdAt" >= :startDate;
 
       -- ALTER TABLE "Transactions" ENABLE TRIGGER ALL;
@@ -184,7 +193,7 @@ const rollback = async ([rollbackTimestamp]) => {
     where: {
       createdAt: { [Op.gte]: startDate },
       data: {
-        paymentProcessorFeeMigration: rollbackTimestamp === 'ALL' ? { [Op.not]: null } : rollbackTimestamp,
+        [MIGRATION_DATA_FIELD]: rollbackTimestamp === 'ALL' ? { [Op.not]: null } : rollbackTimestamp,
       },
     },
   });
@@ -197,7 +206,7 @@ const rollback = async ([rollbackTimestamp]) => {
 
     await transaction.update({
       ...(<Record<string, unknown>>transaction.data.preMigrationData),
-      data: omit(transaction.data, ['preMigrationData', 'paymentProcessorFeeMigration']),
+      data: omit(transaction.data, ['preMigrationData', MIGRATION_DATA_FIELD]),
     });
   }
 
@@ -208,7 +217,7 @@ const check = async () => {
   const [transactionsToMigrate] = await sequelize.query(getTransactionsToMigrateQuery, { replacements: { startDate } });
 
   if (!transactionsToMigrate.length) {
-    console.log('All good with payment processor fees!');
+    console.log('All good with taxes!');
   } else {
     console.log(`${transactionsToMigrate.length} transaction pair(s) to migrate`);
   }

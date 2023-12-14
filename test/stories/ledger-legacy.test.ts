@@ -145,7 +145,9 @@ describe('test/stories/ledger', () => {
     // and due to a race condition with the resetTestDB function it might be
     // executed after the database was cleared, causing a database error.
     sandbox.stub(models.Transaction, 'createActivity').resolves();
-    sandbox.stub(config, 'ledger').value({ ...config.ledger, separatePaymentProcessorFees: false });
+    sandbox
+      .stub(config, 'ledger')
+      .value({ ...config.ledger, separatePaymentProcessorFees: false, separateTaxes: false });
   });
 
   afterEach(() => {

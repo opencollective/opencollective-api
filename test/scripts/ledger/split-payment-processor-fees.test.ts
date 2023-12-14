@@ -4,7 +4,7 @@ import { createSandbox } from 'sinon';
 import { main as splitPaymentProcessorFees } from '../../../scripts/ledger/split-payment-processor-fees';
 import { refundTransaction } from '../../../server/lib/payments';
 import { fakeCollective, fakeHost, fakeTransaction, fakeUser } from '../../test-helpers/fake-data';
-import { resetTestDB, seedDefaultPaymentProcessorVendors, snapshotLedger } from '../../utils';
+import { resetTestDB, seedDefaultVendors, snapshotLedger } from '../../utils';
 
 const SNAPSHOT_COLUMNS = [
   'kind',
@@ -23,7 +23,7 @@ describe('scripts/ledger/split-payment-processor-fees', () => {
 
   beforeEach('reset test database', async () => {
     await resetTestDB();
-    await seedDefaultPaymentProcessorVendors();
+    await seedDefaultVendors();
     sandbox = createSandbox();
     sandbox.stub(config, 'activities').value({ ...config.activities, skipCreationForTransactions: true }); // Async activities are created async, which doesn't play well with `resetTestDb`
   });

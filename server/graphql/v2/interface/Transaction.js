@@ -115,6 +115,11 @@ const transactionFieldsDefinition = () => ({
         defaultValue: false,
         description: 'Fetch PAYMENT_PROCESSOR_FEE transaction for retro-compatiblity.',
       },
+      fetchTax: {
+        type: GraphQLBoolean,
+        defaultValue: false,
+        description: 'Fetch TAX transaction for retro-compatiblity.',
+      },
     },
   },
   netAmountInHostCurrency: {
@@ -130,14 +135,26 @@ const transactionFieldsDefinition = () => ({
         defaultValue: false,
         description: 'Fetch PAYMENT_PROCESSOR_FEE transaction for retro-compatiblity.',
       },
+      fetchTax: {
+        type: GraphQLBoolean,
+        defaultValue: false,
+        description: 'Fetch TAX transaction for retro-compatiblity.',
+      },
     },
   },
   taxAmount: {
     type: new GraphQLNonNull(GraphQLAmount),
+    args: {
+      fetchTax: {
+        type: GraphQLBoolean,
+        defaultValue: false,
+        description: 'Fetch TAX transaction for retro-compatiblity.',
+      },
+    },
   },
   taxInfo: {
     type: GraphQLTaxInfo,
-    description: 'If taxAmount is set, this field will contain more info about the tax',
+    description: 'If a tax is set, this field will contain more info about the tax',
   },
   platformFee: {
     type: new GraphQLNonNull(GraphQLAmount),
@@ -325,9 +342,15 @@ export const TransactionFields = () => {
           defaultValue: false,
           description: 'Fetch PAYMENT_PROCESSOR_FEE transaction for retro-compatiblity.',
         },
+        fetchTax: {
+          type: GraphQLBoolean,
+          defaultValue: false,
+          description: 'Fetch TAX transaction for retro-compatiblity.',
+        },
       },
       async resolve(transaction, args, req) {
-        let { netAmountInCollectiveCurrency, hostFeeInHostCurrency, paymentProcessorFeeInHostCurrency } = transaction;
+        let { netAmountInCollectiveCurrency, hostFeeInHostCurrency, paymentProcessorFeeInHostCurrency, taxAmount } =
+          transaction;
         if (args.fetchHostFee && !hostFeeInHostCurrency) {
           hostFeeInHostCurrency = await req.loaders.Transaction.hostFeeAmountForTransaction.load(transaction);
         }
@@ -335,11 +358,15 @@ export const TransactionFields = () => {
           paymentProcessorFeeInHostCurrency =
             await req.loaders.Transaction.paymentProcessorFeeAmountForTransaction.load(transaction);
         }
-        if (args.fetchHostFee || args.fetchPaymentProcessorFee) {
+        if (args.fetchTax && !taxAmount) {
+          taxAmount = await req.loaders.Transaction.taxAmountForTransaction.load(transaction);
+        }
+        if (args.fetchHostFee || args.fetchPaymentProcessorFee || args.fetchTax) {
           netAmountInCollectiveCurrency = models.Transaction.calculateNetAmountInCollectiveCurrency({
             ...transaction.dataValues,
             hostFeeInHostCurrency,
             paymentProcessorFeeInHostCurrency,
+            taxAmount,
           });
         }
         return {
@@ -361,9 +388,15 @@ export const TransactionFields = () => {
           defaultValue: false,
           description: 'Fetch PAYMENT_PROCESSOR_FEE transaction for retro-compatiblity.',
         },
+        fetchTax: {
+          type: GraphQLBoolean,
+          defaultValue: false,
+          description: 'Fetch TAX transaction for retro-compatiblity.',
+        },
       },
       async resolve(transaction, args, req) {
-        let { netAmountInHostCurrency, hostFeeInHostCurrency, paymentProcessorFeeInHostCurrency } = transaction;
+        let { netAmountInHostCurrency, hostFeeInHostCurrency, paymentProcessorFeeInHostCurrency, taxAmount } =
+          transaction;
         if (args.fetchHostFee && !hostFeeInHostCurrency) {
           hostFeeInHostCurrency = await req.loaders.Transaction.hostFeeAmountForTransaction.load(transaction);
         }
@@ -371,11 +404,15 @@ export const TransactionFields = () => {
           paymentProcessorFeeInHostCurrency =
             await req.loaders.Transaction.paymentProcessorFeeAmountForTransaction.load(transaction);
         }
-        if (args.fetchHostFee || args.fetchPaymentProcessorFee) {
+        if (args.fetchTax && !taxAmount) {
+          taxAmount = await req.loaders.Transaction.taxAmountForTransaction.load(transaction);
+        }
+        if (args.fetchHostFee || args.fetchPaymentProcessorFee || args.fetchTax) {
           netAmountInHostCurrency = models.Transaction.calculateNetAmountInHostCurrency({
             ...transaction.dataValues,
             hostFeeInHostCurrency,
             paymentProcessorFeeInHostCurrency,
+            taxAmount,
           });
         }
         return {
@@ -386,16 +423,27 @@ export const TransactionFields = () => {
     },
     taxAmount: {
       type: new GraphQLNonNull(GraphQLAmount),
-      resolve(transaction) {
+      args: {
+        fetchTax: {
+          type: GraphQLBoolean,
+          defaultValue: false,
+          description: 'Fetch TAX transaction for retro-compatiblity.',
+        },
+      },
+      async resolve(transaction, args, req) {
+        let taxAmount = transaction.taxAmount;
+        if (args.fetchTax && !taxAmount) {
+          taxAmount = await req.loaders.Transaction.taxAmountForTransaction.load(transaction);
+        }
         return {
-          value: transaction.taxAmount,
+          value: taxAmount,
           currency: transaction.currency,
         };
       },
     },
     taxInfo: {
       type: GraphQLTaxInfo,
-      description: 'If taxAmount is set, this field will contain more info about the tax',
+      description: 'If a tax is set, this field will contain more info about the tax',
       resolve(transaction, _, req) {
         const tax = transaction.data?.tax;
         if (!tax) {

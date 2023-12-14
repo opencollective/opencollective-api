@@ -213,6 +213,20 @@ const TransactionFields = () => {
     taxAmount: {
       type: GraphQLFloat,
       description: 'The amount paid in tax (for example VAT) for this transaction',
+      args: {
+        fetchTax: {
+          type: GraphQLBoolean,
+          defaultValue: false,
+          description: 'Fetch TAX transaction for retro-compatiblity.',
+        },
+      },
+      async resolve(transaction, args, req) {
+        let taxAmount = transaction.taxAmount;
+        if (args.fetchTax && !taxAmount) {
+          taxAmount = await req.loaders.Transaction.taxAmountForTransaction.load(transaction);
+        }
+        return taxAmount;
+      },
     },
     taxInfo: {
       type: GraphQLTaxInfo,
@@ -253,9 +267,15 @@ const TransactionFields = () => {
           defaultValue: false,
           description: 'Fetch PAYMENT_PROCESSOR_FEE transaction and integrate in calculation for retro-compatiblity.',
         },
+        fetchTax: {
+          type: GraphQLBoolean,
+          defaultValue: false,
+          description: 'Fetch TAX transaction transaction and integrate in calculation for retro-compatiblity.',
+        },
       },
       async resolve(transaction, args, req) {
-        let { netAmountInCollectiveCurrency, hostFeeInHostCurrency, paymentProcessorFeeInHostCurrency } = transaction;
+        let { netAmountInCollectiveCurrency, hostFeeInHostCurrency, paymentProcessorFeeInHostCurrency, taxAmount } =
+          transaction;
         if (args.fetchHostFee && !hostFeeInHostCurrency) {
           hostFeeInHostCurrency = await req.loaders.Transaction.hostFeeAmountForTransaction.load(transaction);
         }
@@ -263,11 +283,15 @@ const TransactionFields = () => {
           paymentProcessorFeeInHostCurrency =
             await req.loaders.Transaction.paymentProcessorFeeAmountForTransaction.load(transaction);
         }
-        if (args.fetchHostFee || args.fetchPaymentProcessorFee) {
+        if (args.fetchTax && !taxAmount) {
+          taxAmount = await req.loaders.Transaction.taxAmountForTransaction.load(transaction);
+        }
+        if (args.fetchHostFee || args.fetchPaymentProcessorFee || args.fetchTax) {
           netAmountInCollectiveCurrency = models.Transaction.calculateNetAmountInCollectiveCurrency({
             ...transaction.dataValues,
             hostFeeInHostCurrency,
             paymentProcessorFeeInHostCurrency,
+            taxAmount,
           });
         }
         return netAmountInCollectiveCurrency;
