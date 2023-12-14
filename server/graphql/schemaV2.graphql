@@ -1577,6 +1577,11 @@ type AccountingCategory {
   The account this category belongs to
   """
   account: Host!
+
+  """
+  If meant for expenses, the types of expenses this category applies to
+  """
+  expensesTypes: [ExpenseType]
 }
 
 """
@@ -16828,6 +16833,11 @@ input AccountingCategoryInput {
   A friendly name for non-accountants (i.e. expense submitters and collective admins)
   """
   friendlyName: String
+
+  """
+  If meant for expenses, the types of expenses this category applies to
+  """
+  expensesTypes: [ExpenseType]
 }
 
 """

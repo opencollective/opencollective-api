@@ -3080,7 +3080,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         action: 'PAY',
       };
       const result3 = await graphqlQueryV2(processExpenseMutation, expenseMutationParams3, hostAdmin);
-
+      result3.errors && console.error(result3.errors);
       expect(result3.errors).to.not.exist;
       expect(result3.data.processExpense.status).to.eq('PROCESSING');
 

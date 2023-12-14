@@ -1,3 +1,4 @@
+import { uniq } from 'lodash';
 import type {
   BelongsToGetAssociationMixin,
   ForeignKey,
@@ -8,6 +9,7 @@ import type {
 } from 'sequelize';
 
 import ActivityTypes from '../constants/activities';
+import ExpenseTypes from '../constants/expense_type';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 import Collective from './Collective';
@@ -31,6 +33,7 @@ class AccountingCategory extends Model<InferAttributes<AccountingCategory>, Acco
   declare code: string;
   declare name: string;
   declare friendlyName?: string;
+  declare expensesTypes?: Array<ExpenseTypes | `${ExpenseTypes}`>;
   declare createdAt: Date;
   declare updatedAt: Date;
 
@@ -66,6 +69,7 @@ class AccountingCategory extends Model<InferAttributes<AccountingCategory>, Acco
       CollectiveId: this.CollectiveId,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
+      expensesTypes: this.expensesTypes,
     };
   }
 }
@@ -105,6 +109,13 @@ AccountingCategory.init(
       },
       set(value: string): void {
         this.setDataValue('friendlyName', value?.trim());
+      },
+    },
+    expensesTypes: {
+      type: DataTypes.ENUM(...Object.keys(ExpenseTypes)),
+      allowNull: true,
+      set(values: Array<ExpenseTypes | `${ExpenseTypes}`>): void {
+        this.setDataValue('expensesTypes', values ? uniq(values).sort() : null);
       },
     },
     CollectiveId: {

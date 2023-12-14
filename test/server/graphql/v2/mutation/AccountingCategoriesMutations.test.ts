@@ -37,6 +37,7 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
                   code
                   name
                   friendlyName
+                  expensesTypes
                 }
               }
             }
@@ -177,6 +178,21 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
       );
     });
 
+    it('fails if the expenses types are not valid', async () => {
+      const admin = await fakeUser();
+      const host = await fakeActiveHost({ admin });
+      const result = await graphqlQueryV2(
+        editAccountingCategoriesMutation,
+        {
+          account: { legacyId: host.id },
+          categories: [fakeValidCategoryInput({ expensesTypes: ['INVALID'] })],
+        },
+        admin,
+      );
+
+      expect(result.errors[0].message).to.include('Value "INVALID" does not exist in "ExpenseType" enum.');
+    });
+
     it('edits accounting categories successfully', async () => {
       const admin = await fakeUser();
       const host = await fakeActiveHost({ admin });
@@ -211,12 +227,14 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
               id: getNodesFromResult(result1)[0].id,
               code: '001',
               name: 'EDITED',
+              expensesTypes: ['INVOICE', 'INVOICE'], // To make sure the value will be deduplicated
             }),
           ],
         },
         admin,
       );
 
+      result2.errors && console.error(result2.errors);
       expect(result2.errors).to.not.exist;
       expect(getNodesFromResult(result2)).to.have.length(2);
       expect(getNodesFromResult(result2)).to.containSubset([
@@ -258,7 +276,12 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
       expect(activities[1].data).to.containSubset({
         added: [{ code: '003' }],
         removed: [{ code: '002' }],
-        edited: [{ previousData: { code: '001', name: 'Initial name' }, newData: { code: '001', name: 'EDITED' } }],
+        edited: [
+          {
+            previousData: { code: '001', name: 'Initial name' },
+            newData: { code: '001', name: 'EDITED', expensesTypes: ['INVOICE'] },
+          },
+        ],
       });
 
       expect(activities[2].data.added).to.have.length(0);

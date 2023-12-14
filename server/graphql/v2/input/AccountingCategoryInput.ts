@@ -1,7 +1,9 @@
-import { GraphQLInputFieldConfig, GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLInputFieldConfig, GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLNonEmptyString } from 'graphql-scalars';
 
+import ExpenseTypes from '../../../constants/expense_type';
 import models from '../../../models';
+import { GraphQLExpenseType } from '../enum/ExpenseType';
 import { idDecode } from '../identifiers';
 
 export type AccountingCategoryInputFields = {
@@ -9,6 +11,7 @@ export type AccountingCategoryInputFields = {
   code?: string;
   name?: string;
   friendlyName?: string;
+  expensesTypes?: ExpenseTypes[];
 };
 
 export const AccountingCategoryInput = new GraphQLInputObjectType({
@@ -30,6 +33,10 @@ export const AccountingCategoryInput = new GraphQLInputObjectType({
     friendlyName: {
       type: GraphQLString,
       description: 'A friendly name for non-accountants (i.e. expense submitters and collective admins)',
+    },
+    expensesTypes: {
+      type: new GraphQLList(GraphQLExpenseType),
+      description: 'If meant for expenses, the types of expenses this category applies to',
     },
   }),
 });

@@ -1,4 +1,4 @@
-import { differenceBy, flatten, get, isEqual, isNil, isPlainObject, merge, pick } from 'lodash';
+import { differenceBy, flatten, get, isEqual, isNil, isPlainObject, isUndefined, merge, pick } from 'lodash';
 import { Model } from 'sequelize';
 
 /** A diff as [newEntries, removedEntries, updatedEntries] */
@@ -69,7 +69,7 @@ type RichDBEntriesDiff<BaseModel extends Model, CreateOrUpdateAttributes = Recor
 export function richDiffDBEntries<BaseModel extends Model, CreateOrUpdateAttributes = Record<string, unknown>>(
   oldEntries: BaseModel[],
   newEntriesData: CreateOrUpdateAttributes[],
-  diffedFields: (keyof CreateOrUpdateAttributes)[],
+  diffedFields: readonly (keyof CreateOrUpdateAttributes)[],
   { idField = 'id' } = {},
 ): RichDBEntriesDiff<BaseModel, CreateOrUpdateAttributes> {
   const toRemove = differenceBy(oldEntries, newEntriesData, idField);
@@ -89,7 +89,9 @@ export function richDiffDBEntries<BaseModel extends Model, CreateOrUpdateAttribu
         throw new Error(
           "One of the entity you're trying to update doesn't exist or has changes. Please refresh the page.",
         );
-      } else if (!diffedFields.every(field => isEqual(existingEntry[field as string], entry[field]))) {
+      } else if (
+        !diffedFields.every(field => isUndefined(entry[field]) || isEqual(existingEntry[field as string], entry[field]))
+      ) {
         toUpdate.push({ model: existingEntry, newValues: entry });
       }
     }
