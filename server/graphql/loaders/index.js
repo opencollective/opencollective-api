@@ -307,7 +307,14 @@ export const loaders = req => {
         attributes: [
           'CollectiveId',
           'memberCollective.type',
-          [sequelize.fn('COALESCE', sequelize.fn('COUNT', '*'), 0), 'count'],
+          [
+            sequelize.fn(
+              'COALESCE',
+              sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('Member.MemberCollectiveId'))),
+              0,
+            ),
+            'count',
+          ],
         ],
         where: {
           CollectiveId: { [Op.in]: ids },
