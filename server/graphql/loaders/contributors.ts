@@ -9,10 +9,12 @@ export default {
     new DataLoader(async collectiveIds => {
       const uniqueIds = uniq(collectiveIds);
       const collectives = await models.Collective.findAll({ where: { id: uniqueIds } });
+      const sortedCollectives = uniqueIds.map(id => collectives.find(c => c.id === id));
       const allContributors = await Promise.all(
-        collectives.map(collective => getContributorsForCollective(collective)),
+        sortedCollectives.map(collective => getContributorsForCollective(collective)),
       );
       const contributorsByIds = zipObject(uniqueIds, allContributors);
-      return collectiveIds.map(id => contributorsByIds[id]);
+      const result = collectiveIds.map(id => contributorsByIds[id]);
+      return result;
     }),
 };
