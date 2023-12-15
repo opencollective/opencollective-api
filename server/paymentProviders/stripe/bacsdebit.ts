@@ -35,7 +35,6 @@ const processOrder = async (order: OrderModelInterface): Promise<void> => {
     },
     // eslint-disable-next-line camelcase
     payment_method: order.paymentMethod?.data?.stripePaymentMethodId,
-    mandate: order.paymentMethod?.data?.stripeMandate?.id,
     // eslint-disable-next-line camelcase
     payment_method_types: ['bacs_debit'],
   };
@@ -54,9 +53,15 @@ const processOrder = async (order: OrderModelInterface): Promise<void> => {
       data: { ...order.data, paymentIntent: { id: paymentIntent.id, status: paymentIntent.status } },
     });
 
-    paymentIntent = await stripe.paymentIntents.confirm(paymentIntent.id, {
-      stripeAccount: hostStripeAccount.username,
-    });
+    paymentIntent = await stripe.paymentIntents.confirm(
+      paymentIntent.id,
+      {
+        mandate: order.paymentMethod?.data?.stripeMandate?.id,
+      },
+      {
+        stripeAccount: hostStripeAccount.username,
+      },
+    );
 
     await order.update({
       status: OrderStatuses.PROCESSING,
