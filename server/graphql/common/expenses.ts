@@ -60,7 +60,7 @@ import { canUseFeature } from '../../lib/user-permissions';
 import { formatCurrency, parseToBoolean } from '../../lib/utils';
 import models, { Collective, sequelize } from '../../models';
 import AccountingCategory from '../../models/AccountingCategory';
-import Expense, { ExpenseDataValuesByRole } from '../../models/Expense';
+import Expense, { ExpenseDataValuesByRole, ExpenseStatus } from '../../models/Expense';
 import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile';
 import { ExpenseItem } from '../../models/ExpenseItem';
 import { MigrationLogType } from '../../models/MigrationLog';
@@ -1835,6 +1835,9 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
 
   // Validate bank account payout method
   if (payoutMethod?.type === PayoutMethodTypes.BANK_ACCOUNT) {
+    if (![statuses.PAID, statuses.PROCESSING].includes(expense.status as ExpenseStatus)) {
+      cleanExpenseData.data = omit(cleanExpenseData.data, ['recipient', 'quote']);
+    }
     const payoutMethodData = <BankAccountPayoutMethodData>payoutMethod.data;
     const accountHolderName = payoutMethodData?.accountHolderName;
     const legalName = <string>expenseData.fromCollective.legalName;
