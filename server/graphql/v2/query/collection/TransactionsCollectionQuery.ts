@@ -330,12 +330,45 @@ export const TransactionsCollectionResolver = async (
     });
   }
 
+  /* 
+    Ordering of transactions by
+    - createdAt (rounded by a 10s interval): to treat very close timestamps as the same to defer ordering to transaction group, kind and type
+      - known issue: a transaction group can be split in two if the first transaction is rounded to the end of a 10s interval and the second to the beginning of the next 10s interval
+    - TransactionGroup: to keep transactions of the same group together
+    - kind: to put transactions in a group in a "logical" order following the main transaction
+    - type: to put debits before credits of the same kind (i.e. when viewing multiple accounts at the same time)
+*/
   const order: Order = [
-    [args.orderBy.field, args.orderBy.direction],
-    // Add additional sort for consistent sorting
-    // (transactions in the same TransactionGroup usually have the exact same datetime)
-    ['id', args.orderBy.direction],
+    [
+      sequelize.fn('ROUND', sequelize.literal('ROUND(EXTRACT(epoch FROM "Transaction"."createdAt") / 10)')),
+      args.orderBy.direction,
+    ],
+    ['TransactionGroup', args.orderBy.direction],
+    [
+      sequelize.literal(`
+        CASE
+          WHEN "Transaction"."kind" IN ('CONTRIBUTION', 'EXPENSE', 'ADDED_FUNDS', 'BALANCE_TRANSFER', 'PREPAID_PAYMENT_METHOD') THEN 1
+          WHEN "Transaction"."kind" IN ('PLATFORM_TIP') THEN 2
+          WHEN "Transaction"."kind" IN ('PLATFORM_TIP_DEBT') THEN 3
+          WHEN "Transaction"."kind" IN ('PAYMENT_PROCESSOR_FEE') THEN 4
+          WHEN "Transaction"."kind" IN ('PAYMENT_PROCESSOR_COVER') THEN 5
+          WHEN "Transaction"."kind" IN ('HOST_FEE') THEN 6
+          WHEN "Transaction"."kind" IN ('HOST_FEE_SHARE') THEN 7
+          WHEN "Transaction"."kind" IN ('HOST_FEE_SHARE_DEBT') THEN 8
+          ELSE 9
+        END`),
+      args.orderBy.direction,
+    ],
+    [
+      sequelize.literal(`
+        CASE
+          WHEN "Transaction"."type" = 'DEBIT' THEN 1
+          ELSE 2
+        END`),
+      args.orderBy.direction,
+    ],
   ];
+
   const { offset, limit } = args;
 
   const queryParameters = {
