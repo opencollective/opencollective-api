@@ -263,6 +263,7 @@ export interface CreateTransfer {
     reference?: string;
     transferPurpose?: string;
     sourceOfFunds?: string;
+    transferNature?: string;
   };
 }
 export const createTransfer = async (
@@ -273,6 +274,22 @@ export const createTransfer = async (
   return requestDataAndThrowParsedError(
     axiosClient.post,
     `/v1/transfers`,
+    {
+      data,
+      connectedAccount,
+    },
+    'There was an error while creating the Wise transfer',
+  );
+};
+
+export const validateTransferRequirements = async (
+  connectedAccount: ConnectedAccount,
+  { accountId: targetAccount, quoteUuid, details }: Omit<CreateTransfer, 'customerTransactionId'>,
+): Promise<TransactionRequirementsType[]> => {
+  const data = { targetAccount, quoteUuid, details };
+  return requestDataAndThrowParsedError(
+    axiosClient.post,
+    `/v1/transfer-requirements`,
     {
       data,
       connectedAccount,

@@ -158,6 +158,28 @@ async function quoteExpense(
   return expenseDataQuote;
 }
 
+async function validateTransferRequirements(
+  connectedAccount: ConnectedAccount,
+  payoutMethod: PayoutMethod,
+  expense: Expense,
+  details: transferwise.CreateTransfer['details'],
+): Promise<TransactionRequirementsType[]> {
+  if (!payoutMethod) {
+    payoutMethod = await expense.getPayoutMethod();
+  }
+  const recipient =
+    get(expense.data, 'recipient.payoutMethodId') === payoutMethod.id
+      ? (expense.data.recipient as RecipientAccount)
+      : await createRecipient(connectedAccount, payoutMethod);
+
+  const quote = await quoteExpense(connectedAccount, payoutMethod, expense);
+  return await transferwise.validateTransferRequirements(connectedAccount, {
+    accountId: recipient.id,
+    quoteUuid: quote.id,
+    details,
+  });
+}
+
 async function createTransfer(
   connectedAccount: ConnectedAccount,
   payoutMethod: PayoutMethod,
@@ -718,5 +740,6 @@ export default {
   validatePayoutMethod,
   scheduleExpenseForPayment,
   unscheduleExpenseForPayment,
+  validateTransferRequirements,
   oauth,
 };

@@ -18,6 +18,7 @@ import models, { Activity } from '../../../models';
 import { CommentType } from '../../../models/Comment';
 import ExpenseModel from '../../../models/Expense';
 import { LEGAL_DOCUMENT_TYPE } from '../../../models/LegalDocument';
+import transferwise from '../../../paymentProviders/transferwise';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import * as ExpenseLib from '../../common/expenses';
 import { CommentCollection } from '../collection/CommentCollection';
@@ -490,6 +491,31 @@ const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Request>({
               currency: quote.sourceCurrency,
             };
             return { sourceAmount, estimatedDeliveryAt, paymentProcessorFeeAmount };
+          }
+        },
+      },
+      validateTransferRequirements: {
+        type: GraphQLJSON,
+        args: {
+          details: {
+            type: GraphQLJSON,
+            description: 'Details of the transfer',
+          },
+        },
+        async resolve(expense, args, req) {
+          const payoutMethod = await req.loaders.PayoutMethod.byId.load(expense.PayoutMethodId);
+          if (payoutMethod?.type === 'BANK_ACCOUNT' && (await ExpenseLib.canPayExpense(req, expense))) {
+            const collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
+            const host = await collective.getHostCollective({ loaders: req.loaders });
+            const [connectedAccount] = await host.getConnectedAccounts({
+              where: { service: 'transferwise', deletedAt: null },
+            });
+            return await transferwise.validateTransferRequirements(
+              connectedAccount,
+              payoutMethod,
+              expense,
+              args.details,
+            );
           }
         },
       },
