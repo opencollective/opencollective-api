@@ -27,18 +27,16 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
     const editAccountingCategoriesMutation = gqlV2/* GraphQL */ `
       mutation EditAccountingCategories($account: AccountReferenceInput!, $categories: [AccountingCategoryInput!]!) {
         editAccountingCategories(account: $account, categories: $categories) {
-          ... on Organization {
-            host {
-              id
-              accountingCategories {
-                totalCount
-                nodes {
-                  id
-                  code
-                  name
-                  friendlyName
-                  expensesTypes
-                }
+          ... on Host {
+            id
+            accountingCategories {
+              totalCount
+              nodes {
+                id
+                code
+                name
+                friendlyName
+                expensesTypes
               }
             }
           }
@@ -196,7 +194,7 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
     it('edits accounting categories successfully', async () => {
       const admin = await fakeUser();
       const host = await fakeActiveHost({ admin });
-      const getNodesFromResult = result => get(result, 'data.editAccountingCategories.host.accountingCategories.nodes');
+      const getNodesFromResult = result => get(result, 'data.editAccountingCategories.accountingCategories.nodes');
 
       // Host starts with no accounting categories
       expect(await host.getAccountingCategories()).to.have.length(0);

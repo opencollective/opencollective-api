@@ -1,12 +1,4 @@
-import {
-  GraphQLBoolean,
-  GraphQLFloat,
-  GraphQLInt,
-  GraphQLList,
-  GraphQLNonNull,
-  GraphQLObjectType,
-  GraphQLString,
-} from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { find, get, isEmpty, isNil, keyBy, mapValues, uniq } from 'lodash';
 import moment from 'moment';
@@ -53,6 +45,7 @@ import {
 } from '../input/ChronologicalOrderInput';
 import { AccountFields, GraphQLAccount } from '../interface/Account';
 import { AccountWithContributionsFields, GraphQLAccountWithContributions } from '../interface/AccountWithContributions';
+import { AccountWithHostFields, GraphQLAccountWithHost } from '../interface/AccountWithHost';
 import { CollectionArgs, getCollectionArgs } from '../interface/Collection';
 import URL from '../scalar/URL';
 
@@ -100,12 +93,12 @@ const getTimeUnit = numberOfDays => {
 export const GraphQLHost = new GraphQLObjectType({
   name: 'Host',
   description: 'This represents an Host account',
-  interfaces: () => [GraphQLAccount, GraphQLAccountWithContributions],
-  // Due to overlap between our Organization and Host types, we cannot use isTypeOf here
-  // isTypeOf: account => account.isHostAccount,
+  interfaces: () => [GraphQLAccount, GraphQLAccountWithHost, GraphQLAccountWithContributions],
+  isTypeOf: collective => collective.type === 'ORGANIZATION' && collective.isHostAccount,
   fields: () => {
     return {
       ...AccountFields,
+      ...AccountWithHostFields(),
       ...AccountWithContributionsFields,
       accountingCategories: {
         type: new GraphQLNonNull(GraphQLAccountingCategoryCollection),
@@ -121,12 +114,6 @@ export const GraphQLHost = new GraphQLObjectType({
             limit: categories.length,
             offset: 0,
           };
-        },
-      },
-      hostFeePercent: {
-        type: GraphQLFloat,
-        resolve(collective) {
-          return collective.hostFeePercent;
         },
       },
       totalHostedCollectives: {

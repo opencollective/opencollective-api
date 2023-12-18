@@ -14,7 +14,7 @@ export const GraphQLEvent = new GraphQLObjectType({
   fields: () => {
     return {
       ...AccountFields,
-      ...AccountWithHostFields,
+      ...AccountWithHostFields(),
       ...AccountWithContributionsFields,
       ...AccountWithParentFields,
       isApproved: {
