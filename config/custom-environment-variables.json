@@ -200,6 +200,9 @@
     "fastBalance": "LEDGER_FAST_BALANCE",
     "separatePaymentProcessorFees": "LEDGER_SEPARATE_PAYMENT_PROCESSOR_FEES"
   },
+  "timeline": {
+    "daysCached": "TIMELINE_DAYS_CACHED"
+  },
   "activities": {
     "skipTransactions": "SKIP_TRANSACTION_ACTIVITIES"
   },

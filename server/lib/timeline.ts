@@ -1,3 +1,4 @@
+import config from 'config';
 import debugLib from 'debug';
 import { flatten, isEmpty, toInteger, toString } from 'lodash';
 import { InferAttributes, Op, Order, Sequelize, WhereOptions } from 'sequelize';
@@ -111,9 +112,10 @@ const makeTimelineQuery = async (
 
 type SerializedActivity = { id: number; type: ActivityTypes };
 const order: Order = [['createdAt', 'DESC']];
-const TTL = 60 * 60 * 24 * 3; // 3 days
+const TTL = 60 * 60 * 24 * parseInt(config.timeline.daysCached);
 const FEED_LIMIT = 1000;
 const EMPTY_FLAG = 'EMPTY';
+debug('Cache TTL: %d (%d days)', TTL, config.timeline.daysCached);
 
 const createOrUpdateFeed = async (collective: Collective, sinceId?: number) => {
   const cacheKey = `timeline-${collective.slug}`;
