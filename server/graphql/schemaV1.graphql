@@ -3426,7 +3426,7 @@ type Expense implements Transaction {
   uuid: String
   type: String
   kind: String
-  amount: Int
+  amount: Float
   currency: String
   hostCurrency: String
 
@@ -3443,12 +3443,12 @@ type Expense implements Transaction {
     Fetch HOST_FEE transaction for retro-compatiblity.
     """
     fetchHostFee: Boolean = false
-  ): Int
+  ): Float
 
   """
   Fee kept by the Open Collective Platform in the lowest unit of the currency of the host (ie. in cents)
   """
-  platformFeeInHostCurrency: Int
+  platformFeeInHostCurrency: Float
 
   """
   Fee kept by the payment processor in the lowest unit of the currency of the host (ie. in cents)
@@ -3458,12 +3458,12 @@ type Expense implements Transaction {
     Fetch PAYMENT_PROCESSOR_FEE transaction for retro-compatiblity.
     """
     fetchPaymentProcessorFee: Boolean = false
-  ): Int
+  ): Float
 
   """
   The amount paid in tax (for example VAT) for this transaction
   """
-  taxAmount: Int
+  taxAmount: Float
 
   """
   If taxAmount is set, this field will contain more info about the tax
@@ -3483,8 +3483,8 @@ type Expense implements Transaction {
     Fetch PAYMENT_PROCESSOR_FEE transaction and integrate in calculation for retro-compatiblity.
     """
     fetchPaymentProcessorFee: Boolean = false
-  ): Int
-  amountInHostCurrency: Int
+  ): Float
+  amountInHostCurrency: Float
   host: User
   createdByUser: UserDetails
   fromCollective: CollectiveInterface
@@ -3550,7 +3550,7 @@ interface Transaction {
   id: Int
   idV2: String
   uuid: String
-  amount: Int
+  amount: Float
   currency: String
   hostCurrency: String
   hostCurrencyFxRate: Float
@@ -3568,8 +3568,8 @@ interface Transaction {
     Fetch PAYMENT_PROCESSOR_FEE transaction for retro-compatiblity.
     """
     fetchPaymentProcessorFee: Boolean = false
-  ): Int
-  amountInHostCurrency: Int
+  ): Float
+  amountInHostCurrency: Float
 
   """
   Fee kept by the host in the lowest unit of the currency of the host (ie. in cents)
@@ -3579,15 +3579,15 @@ interface Transaction {
     Fetch HOST_FEE transaction for retro-compatibility.
     """
     fetchHostFee: Boolean = false
-  ): Int
-  platformFeeInHostCurrency: Int
+  ): Float
+  platformFeeInHostCurrency: Float
   paymentProcessorFeeInHostCurrency(
     """
     Fetch PAYMENT_PROCESSOR_FEE transaction for retro-compatiblity.
     """
     fetchPaymentProcessorFee: Boolean = false
-  ): Int
-  taxAmount: Int
+  ): Float
+  taxAmount: Float
   taxInfo: TaxInfo
   createdByUser: UserDetails
   host: CollectiveInterface
@@ -3616,7 +3616,7 @@ type Order implements Transaction {
   uuid: String
   type: String
   kind: String
-  amount: Int
+  amount: Float
   currency: String
   hostCurrency: String
 
@@ -3633,12 +3633,12 @@ type Order implements Transaction {
     Fetch HOST_FEE transaction for retro-compatiblity.
     """
     fetchHostFee: Boolean = false
-  ): Int
+  ): Float
 
   """
   Fee kept by the Open Collective Platform in the lowest unit of the currency of the host (ie. in cents)
   """
-  platformFeeInHostCurrency: Int
+  platformFeeInHostCurrency: Float
 
   """
   Fee kept by the payment processor in the lowest unit of the currency of the host (ie. in cents)
@@ -3648,12 +3648,12 @@ type Order implements Transaction {
     Fetch PAYMENT_PROCESSOR_FEE transaction for retro-compatiblity.
     """
     fetchPaymentProcessorFee: Boolean = false
-  ): Int
+  ): Float
 
   """
   The amount paid in tax (for example VAT) for this transaction
   """
-  taxAmount: Int
+  taxAmount: Float
 
   """
   If taxAmount is set, this field will contain more info about the tax
@@ -3673,8 +3673,8 @@ type Order implements Transaction {
     Fetch PAYMENT_PROCESSOR_FEE transaction and integrate in calculation for retro-compatiblity.
     """
     fetchPaymentProcessorFee: Boolean = false
-  ): Int
-  amountInHostCurrency: Int
+  ): Float
+  amountInHostCurrency: Float
   host: User
   createdByUser: UserDetails
   fromCollective: CollectiveInterface

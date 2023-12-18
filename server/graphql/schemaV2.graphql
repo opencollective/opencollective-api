@@ -17087,6 +17087,7 @@ input ExpenseCreateInput {
 
 input PayoutMethodInput {
   id: String
+  legacyId: Int
   data: JSON
   name: String
   isSaved: Boolean
