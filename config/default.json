@@ -211,6 +211,9 @@
     "fastBalance": true,
     "separatePaymentProcessorFees": false
   },
+  "timeline": {
+    "daysCached": 7
+  },
   "twoFactorAuthentication": {
     "enabled": true
   },
