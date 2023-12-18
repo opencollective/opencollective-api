@@ -184,7 +184,7 @@ async function createTransfer(
   connectedAccount: ConnectedAccount,
   payoutMethod: PayoutMethod,
   expense: Expense,
-  options?: { token?: string; batchGroupId?: string },
+  options?: { token?: string; batchGroupId?: string; details?: transferwise.CreateTransfer['details'] },
 ): Promise<{
   quote: ExpenseDataQuoteV2 | ExpenseDataQuoteV3;
   recipient: RecipientAccount;
@@ -216,6 +216,7 @@ async function createTransfer(
       customerTransactionId: uuid(),
       details: {
         reference: `${expense.id}`,
+        ...options?.details,
       },
     };
 
@@ -251,6 +252,7 @@ async function payExpense(
   payoutMethod: PayoutMethod,
   expense: Expense,
   batchGroupId?: string,
+  transferDetails?: transferwise.CreateTransfer['details'],
 ): Promise<{
   quote: ExpenseDataQuoteV2 | ExpenseDataQuoteV3;
   recipient: RecipientAccount;
@@ -262,6 +264,7 @@ async function payExpense(
   const { quote, recipient, transfer, paymentOption } = await createTransfer(connectedAccount, payoutMethod, expense, {
     batchGroupId,
     token,
+    details: transferDetails,
   });
 
   let fund;
@@ -324,7 +327,10 @@ const getOrCreateActiveBatch = async (
   });
 };
 
-async function scheduleExpenseForPayment(expense: Expense): Promise<Expense> {
+async function scheduleExpenseForPayment(
+  expense: Expense,
+  transferDetails?: transferwise.CreateTransfer['details'],
+): Promise<Expense> {
   const collective = await expense.getCollective();
   const host = await collective.getHostCollective();
   if (!host) {
@@ -365,6 +371,7 @@ async function scheduleExpenseForPayment(expense: Expense): Promise<Expense> {
   await createTransfer(connectedAccount, expense.PayoutMethod, expense, {
     batchGroupId: batchGroup.id,
     token,
+    details: transferDetails,
   });
   await expense.reload();
   await expense.update({ data: { ...expense.data, batchGroup } });
