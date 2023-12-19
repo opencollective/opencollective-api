@@ -557,7 +557,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           expect(email[3].attachments[0].content).to.contain('DTEND:20420201T020000Z');
           expect(email[3].attachments[0].content).to.contain('LOCATION:Github\\, London');
           expect(email[3].attachments[0].content).to.contain('DESCRIPTION:Short description\\n\\nLonger description');
-          expect(email[3].attachments[0].content).to.contain('ORGANIZER;CN=Test Collective');
+          expect(email[3].attachments[0].content).to.contain('ORGANIZER;CN="Test Collective');
         });
       });
 
