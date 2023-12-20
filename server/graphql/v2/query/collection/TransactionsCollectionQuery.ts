@@ -25,6 +25,8 @@ import {
   CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   GraphQLChronologicalOrderInput,
 } from '../../input/ChronologicalOrderInput';
+import { getDatabaseIdFromExpenseReference, GraphQLExpenseReferenceInput } from '../../input/ExpenseReferenceInput';
+import { getDatabaseIdFromOrderReference, GraphQLOrderReferenceInput } from '../../input/OrderReferenceInput';
 import { GraphQLVirtualCardReferenceInput } from '../../input/VirtualCardReferenceInput';
 import { CollectionArgs } from '../../interface/Collection';
 
@@ -84,6 +86,10 @@ export const TransactionsCollectionArgs = {
     type: GraphQLBoolean,
     description: 'Only return transactions with an Expense attached',
   },
+  expense: {
+    type: GraphQLExpenseReferenceInput,
+    description: 'Only return transactions with this Expense attached',
+  },
   expenseType: {
     type: new GraphQLList(GraphQLExpenseType),
     description: 'Only return transactions that have an Expense of one of these expense types attached',
@@ -91,6 +97,10 @@ export const TransactionsCollectionArgs = {
   hasOrder: {
     type: GraphQLBoolean,
     description: 'Only return transactions with an Order attached',
+  },
+  order: {
+    type: GraphQLOrderReferenceInput,
+    description: 'Only return transactions for this order.',
   },
   includeHost: {
     type: new GraphQLNonNull(GraphQLBoolean),
@@ -300,6 +310,10 @@ export const TransactionsCollectionResolver = async (
   if (args.dateTo) {
     where.push({ createdAt: { [Op.lte]: args.dateTo } });
   }
+  if (args.expense) {
+    const expenseId = getDatabaseIdFromExpenseReference(args.expense);
+    where.push({ ExpenseId: expenseId });
+  }
   if (args.hasExpense !== undefined) {
     where.push({ ExpenseId: { [args.hasExpense ? Op.ne : Op.eq]: null } });
   }
@@ -310,6 +324,10 @@ export const TransactionsCollectionResolver = async (
       required: true,
       where: { type: { [Op.in]: args.expenseType } },
     });
+  }
+  if (args.order) {
+    const orderId = getDatabaseIdFromOrderReference(args.order);
+    where.push({ OrderId: orderId });
   }
   if (args.hasOrder !== undefined) {
     where.push({ OrderId: { [args.hasOrder ? Op.ne : Op.eq]: null } });
