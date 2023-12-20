@@ -409,38 +409,38 @@ export async function generateDescription(transaction, { req = null, full = fals
     debtString = ' owed';
     if (transaction.type === CREDIT) {
       if (full) {
-        toString = ` by ${account.name.trim()}`;
+        toString = ` by ${account?.name.trim()}`;
       }
-      fromString = ` to ${oppositeAccount.name.trim()}`;
+      fromString = ` to ${oppositeAccount?.name.trim()}`;
     } else {
-      fromString = ` by ${oppositeAccount.name.trim()}`;
+      fromString = ` by ${oppositeAccount?.name.trim()}`;
       if (full) {
-        toString = ` to ${account.name.trim()}`;
+        toString = ` to ${account?.name.trim()}`;
       }
     }
   } else if (transaction.kind === EXPENSE) {
     if (transaction.type === CREDIT) {
       if (full) {
-        fromString = ` from ${account.name.trim()}`;
+        fromString = ` from ${account?.name.trim()}`;
       }
-      toString = ` to ${oppositeAccount.name.trim()}`;
+      toString = ` to ${oppositeAccount?.name.trim()}`;
     } else {
-      fromString = ` from ${oppositeAccount.name.trim()}`;
+      fromString = ` from ${oppositeAccount?.name.trim()}`;
       if (full) {
-        toString = ` to ${account.name.trim()}`;
+        toString = ` to ${account?.name.trim()}`;
       }
     }
   } else {
     if (transaction.type === CREDIT) {
-      fromString = ` from ${oppositeAccount.name.trim()}`;
+      fromString = ` from ${oppositeAccount?.name.trim()}`;
       if (full) {
-        toString = ` to ${account.name.trim()}`;
+        toString = ` to ${account?.name.trim()}`;
       }
     } else {
       if (full) {
-        fromString = ` from ${account.name.trim()}`;
+        fromString = ` from ${account?.name.trim()}`;
       }
-      toString = ` to ${oppositeAccount.name.trim()}`;
+      toString = ` to ${oppositeAccount?.name.trim()}`;
     }
   }
 
