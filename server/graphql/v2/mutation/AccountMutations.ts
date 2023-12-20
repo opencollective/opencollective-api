@@ -178,10 +178,12 @@ const accountMutations = {
           throw new ValidationFailed('The collective needs to be approved before you can change the fees structure');
         }
 
+        const host = await models.Collective.findByPk(account.HostCollectiveId, { transaction: dbTransaction });
+        const hostFeePercent = args.isCustomFee ? args.hostFeePercent : host.hostFeePercent;
         const updateAccountFees = async account => {
           return account.update(
             {
-              hostFeePercent: args.hostFeePercent,
+              hostFeePercent,
               data: { ...account.data, useCustomHostFee: args.isCustomFee },
             },
             { transaction: dbTransaction },
