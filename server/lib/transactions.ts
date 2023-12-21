@@ -459,7 +459,10 @@ export async function generateDescription(transaction, { req = null, full = fals
  *   [TaxId]: { totalCollected: number, totalPaid: number }
  * }
  */
-export const getTaxesSummary = (allTransactions: TransactionInterface[]) => {
+export const getTaxesSummary = (
+  allTransactions: TransactionInterface[],
+  taxesCollectedTransactions: TransactionInterface[] = [],
+) => {
   const transactionsWithTaxes = allTransactions.filter(t => t.taxAmount);
   if (!transactionsWithTaxes.length) {
     return null;
@@ -468,7 +471,9 @@ export const getTaxesSummary = (allTransactions: TransactionInterface[]) => {
   const groupedTransactions = groupBy(transactionsWithTaxes, 'data.tax.id');
   const getTaxAmountInHostCurrency = transaction => transaction.taxAmount * (transaction.hostCurrencyRate || 1) || 0;
   return mapValues(groupedTransactions, transactions => ({
-    collected: Math.abs(sumByWhen(transactions, getTaxAmountInHostCurrency, t => t.type === 'CREDIT')),
+    collected:
+      Math.abs(sumByWhen(transactions, getTaxAmountInHostCurrency, t => t.type === 'CREDIT')) -
+      sumBy(taxesCollectedTransactions, 'amountInHostCurrency'),
     paid: sumByWhen(transactions, getTaxAmountInHostCurrency, t => t.type === 'DEBIT'),
   }));
 };
