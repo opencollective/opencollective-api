@@ -73,6 +73,22 @@ const fakeHostWithRequiredLegalDocument = async (hostData = {}) => {
 };
 
 describe('server/graphql/v2/collection/ExpenseCollection', () => {
+  let sandbox;
+
+  beforeEach(() => {
+    sandbox = createSandbox();
+    sandbox.stub(libcurrency, 'loadFxRatesMap').resolves({
+      latest: {
+        USD: { USD: 1 },
+        GBP: { USD: 1.1 },
+      },
+    });
+  });
+
+  afterEach(() => {
+    sandbox.restore();
+  });
+
   it('It aggregates total amount', async () => {
     const collective = await fakeCollective();
     const queryParams = { account: { legacyId: collective.id } };
@@ -267,10 +283,9 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
   });
 
   describe('Ready to Pay filter', () => {
-    let expensesReadyToPay, otherPayoutMethod, host, sandbox;
+    let expensesReadyToPay, otherPayoutMethod, host;
 
     before(async () => {
-      sandbox = createSandbox();
       host = await fakeHostWithRequiredLegalDocument();
       otherPayoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
       const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
@@ -289,15 +304,6 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
         type: 'INVOICE',
         description: 'Not ready (tax form)',
       };
-
-      sandbox
-        .stub(libcurrency, 'getFxRates')
-        .withArgs('SEK', ['USD'])
-        .resolves({ USD: 0.09 })
-        .withArgs('GBP', ['USD'])
-        .resolves({ USD: 1.5 })
-        .withArgs('USD', ['USD'])
-        .resolves({ USD: 1 });
 
       // Add balance to the collective
       await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 1000000 });
@@ -375,8 +381,15 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
       });
     });
 
-    after(() => {
+    beforeEach(() => {
       sandbox.restore();
+      sandbox.stub(libcurrency, 'loadFxRatesMap').resolves({
+        latest: {
+          USD: { USD: 1 },
+          SEK: { USD: 0.09 },
+          GBP: { USD: 1.5 },
+        },
+      });
     });
 
     it('Only returns expenses that are ready to pay', async () => {

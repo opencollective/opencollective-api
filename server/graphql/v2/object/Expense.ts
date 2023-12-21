@@ -64,7 +64,15 @@ const EXPENSE_DRAFT_PRIVATE_FIELDS = [
   'payee.email',
   'payee.legalName',
 ];
-const EXPENSE_DRAFT_ITEMS_PUBLIC_FIELDS = ['id', 'amount', 'incurredAt', 'description'];
+const EXPENSE_DRAFT_ITEMS_PUBLIC_FIELDS = [
+  'id',
+  'amount',
+  'currency',
+  'expenseCurrencyFxRate',
+  'expenseCurrencyFxRateSource',
+  'incurredAt',
+  'description',
+];
 const EXPENSE_DRAFT_ITEMS_PRIVATE_FIELDS = ['url'];
 
 const loadHostForExpense = async (expense, req) => {

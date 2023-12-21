@@ -22,7 +22,6 @@ import {
   approveExpense,
   canDeleteExpense,
   canVerifyDraftExpense,
-  computeTotalAmountForExpense,
   createExpense,
   DRAFT_EXPENSE_FIELDS,
   editExpense,
@@ -32,6 +31,7 @@ import {
   markExpenseAsSpam,
   markExpenseAsUnpaid,
   payExpense,
+  prepareExpenseItemInputs,
   rejectExpense,
   releaseExpense,
   requestExpenseReApproval,
@@ -113,7 +113,7 @@ const expenseMutations = {
           'customData',
         ]),
         payoutMethod,
-        collective: await fetchAccountWithReference(args.account, req),
+        collective: await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true }),
         fromCollective,
         accountingCategory:
           args.expense.accountingCategory &&
@@ -173,13 +173,7 @@ const expenseMutations = {
         invoiceInfo: expense.invoiceInfo,
         customData: expense.customData,
         payoutMethod,
-        items: items?.map(item => ({
-          id: item.id && idDecode(item.id, IDENTIFIER_TYPES.EXPENSE_ITEM),
-          url: item.url,
-          amount: item.amount,
-          incurredAt: item.incurredAt,
-          description: item.description,
-        })),
+        items: items?.map(item => ({ ...item, id: item.id && idDecode(item.id, IDENTIFIER_TYPES.EXPENSE_ITEM) })),
         tax: expense.tax,
         attachedFiles: expense.attachedFiles?.map(attachedFile => ({
           id: attachedFile.id && idDecode(attachedFile.id, IDENTIFIER_TYPES.EXPENSE_ITEM),
@@ -441,6 +435,8 @@ const expenseMutations = {
       const payee = payeeLegacyId
         ? (await fetchAccountWithReference({ legacyId: payeeLegacyId }, { throwIfMissing: true }))?.minimal
         : expenseData.payee;
+      const currency = expenseData.currency || collective.currency;
+      const items = await prepareExpenseItemInputs(currency, expenseData.items);
       const expense = await models.Expense.create({
         ...pick(expenseData, DRAFT_EXPENSE_FIELDS),
         CollectiveId: collective.id,
@@ -449,7 +445,7 @@ const expenseMutations = {
         UserId: remoteUser.id,
         currency: expenseData.currency || collective.currency,
         incurredAt: new Date(),
-        amount: computeTotalAmountForExpense(expenseData.items, expenseData.tax),
+        amount: models.Expense.computeTotalAmountForExpense(items, expenseData.tax),
         data: {
           items: expenseData.items,
           attachedFiles: expenseData.attachedFiles,

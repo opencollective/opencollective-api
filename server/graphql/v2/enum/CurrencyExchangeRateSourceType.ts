@@ -4,6 +4,7 @@ export enum CurrencyExchangeRateSourceTypeEnum {
   OPENCOLLECTIVE = 'OPENCOLLECTIVE',
   PAYPAL = 'PAYPAL',
   WISE = 'WISE',
+  USER = 'USER',
 }
 
 export const GraphQLCurrencyExchangeRateSourceType = new GraphQLEnumType({
@@ -21,6 +22,10 @@ export const GraphQLCurrencyExchangeRateSourceType = new GraphQLEnumType({
     [CurrencyExchangeRateSourceTypeEnum.WISE]: {
       value: CurrencyExchangeRateSourceTypeEnum.WISE,
       description: 'Wise API',
+    },
+    [CurrencyExchangeRateSourceTypeEnum.USER]: {
+      value: CurrencyExchangeRateSourceTypeEnum.USER,
+      description: 'User-provided exchange rate',
     },
   },
 });

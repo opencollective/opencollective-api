@@ -40,6 +40,7 @@ import {
   multiple,
   randStr,
 } from '../../../../test-helpers/fake-data';
+import { fakeGraphQLAmountInput } from '../../../../test-helpers/fake-graphql-data';
 import {
   graphqlQueryV2,
   makeRequest,
@@ -96,6 +97,18 @@ const mutationExpenseFields = gqlV2/* GraphQL */ `
     description
     type
     amount
+    amountV2 {
+      valueInCents
+      currency
+      exchangeRate {
+        value
+        source
+        fromCurrency
+        toCurrency
+        date
+        isApproximate
+      }
+    }
     status
     privateMessage
     invoiceInfo
@@ -155,6 +168,18 @@ const mutationExpenseFields = gqlV2/* GraphQL */ `
       id
       url
       amount
+      amountV2 {
+        valueInCents
+        currency
+        exchangeRate {
+          value
+          source
+          fromCurrency
+          toCurrency
+          date
+          isApproximate
+        }
+      }
       incurredAt
       description
     }
@@ -230,14 +255,20 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
   describe('createExpense', () => {
     let sandbox, emailSendMessageSpy;
-    const getValidExpenseData = () => ({
+    const getValidExpenseData = ({ useAmountV2 = false } = {}) => ({
       description: 'A valid expense',
       type: 'INVOICE',
       invoiceInfo: 'This will be printed on your invoice',
       payoutMethod: { type: 'PAYPAL', data: { email: randEmail() } },
-      items: [{ description: 'A first item', amount: 4200 }],
       payeeLocation: { address: '123 Potatoes street', country: 'BE' },
       customData: { myCustomField: 'myCustomValue' },
+      items: [
+        {
+          description: 'A first item',
+          amount: useAmountV2 ? undefined : 4200,
+          amountV2: useAmountV2 ? { valueInCents: 4200, currencyCode: 'USD' } : undefined,
+        },
+      ],
     });
 
     beforeEach(() => {
@@ -495,6 +526,271 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.eq('Expense custom data cannot exceed 10kB. Current size: 10.008kB');
+    });
+
+    describe('with FX rate', () => {
+      let user, usdCollective;
+
+      before(async () => {
+        user = await fakeUser();
+        usdCollective = await fakeCollective({ currency: 'USD' });
+      });
+
+      it('fails when providing both amount AND amountV2', async () => {
+        const expenseData = getValidExpenseData();
+        expenseData.payee = { legacyId: user.CollectiveId };
+        expenseData.items = [{ ...expenseData.items[0], amount: 1000, amountV2: { value: 1000 } }];
+
+        const mutationParams = { expense: expenseData, account: { legacyId: usdCollective.id } };
+        const result = await graphqlQueryV2(createExpenseMutation, mutationParams, user);
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq(
+          '`amount` and `amountV2` are mutually exclusive. Please use `amountV2` only.',
+        );
+      });
+
+      it('fails when trying to use a source that is not supported', async () => {
+        const expenseData = getValidExpenseData({ useAmountV2: true });
+        expenseData.payee = { legacyId: user.CollectiveId };
+        expenseData.items = [
+          {
+            ...expenseData.items[0],
+            amountV2: fakeGraphQLAmountInput({
+              currency: 'EUR',
+              exchangeRate: { source: 'WISE', fromCurrency: 'EUR', toCurrency: 'USD' },
+            }),
+          },
+        ];
+
+        // Wise
+        const wiseMutationParams = { expense: expenseData, account: { legacyId: usdCollective.id } };
+        const resultWise = await graphqlQueryV2(createExpenseMutation, wiseMutationParams, user);
+        expect(resultWise.errors).to.exist;
+        expect(resultWise.errors[0].message).to.eq('Invalid exchange rate source: Must be USER or OPENCOLLECTIVE.');
+
+        // PayPal
+        const paypalMutationParams = { expense: expenseData, account: { legacyId: usdCollective.id } };
+        paypalMutationParams.expense.items[0].amountV2.exchangeRate.source = 'PAYPAL';
+        const resultPaypal = await graphqlQueryV2(createExpenseMutation, paypalMutationParams, user);
+        expect(resultPaypal.errors).to.exist;
+        expect(resultPaypal.errors[0].message).to.eq('Invalid exchange rate source: Must be USER or OPENCOLLECTIVE.');
+      });
+
+      it("fails when rate's toCurrency is not the expense currency", async () => {
+        const expenseData = getValidExpenseData({ useAmountV2: true });
+        expenseData.payee = { legacyId: user.CollectiveId };
+        expenseData.items = [
+          {
+            ...expenseData.items[0],
+            amountV2: fakeGraphQLAmountInput({
+              currency: 'EUR',
+              exchangeRate: { source: 'OPENCOLLECTIVE', fromCurrency: 'EUR', toCurrency: 'NZD' },
+            }),
+          },
+        ];
+
+        const mutationParams = { expense: expenseData, account: { legacyId: usdCollective.id } };
+        const result = await graphqlQueryV2(createExpenseMutation, mutationParams, user);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('Invalid exchange rate: Expected EUR to USD but got EUR to NZD.');
+      });
+
+      it('fails when an item uses a different currency without providing an FX rate', async () => {
+        const expenseData = getValidExpenseData({ useAmountV2: true });
+        expenseData.payee = { legacyId: user.CollectiveId };
+        expenseData.items = [{ ...expenseData.items[0], amountV2: fakeGraphQLAmountInput({ currency: 'EUR' }) }];
+        const mutationParams = { expense: expenseData, account: { legacyId: usdCollective.id } };
+        const result = await graphqlQueryV2(createExpenseMutation, mutationParams, user);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq(
+          'An exchange rate is required when the currency of the item is different from the expense currency.',
+        );
+      });
+
+      describe('using source=OPENCOLLECTIVE', () => {
+        it('fails when there is no exchange rate data for the currency', async () => {
+          const expenseData = getValidExpenseData({ useAmountV2: true });
+          expenseData.payee = { legacyId: user.CollectiveId };
+          sandbox.stub(LibCurrency, 'loadFxRatesMap').resolves({});
+          expenseData.items = [
+            {
+              ...expenseData.items[0],
+              amountV2: fakeGraphQLAmountInput({
+                currency: 'XCD',
+                exchangeRate: {
+                  source: 'OPENCOLLECTIVE',
+                  fromCurrency: 'XCD',
+                  toCurrency: 'USD',
+                  date: '2023-01-01T00:00:00.000Z',
+                },
+              }),
+            },
+          ];
+
+          const mutationParams = { expense: expenseData, account: { legacyId: usdCollective.id } };
+          const result = await graphqlQueryV2(createExpenseMutation, mutationParams, user);
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.eq(
+            `No exchange rate found for this currency pair (XCD to USD) for 2023-01-01.`,
+          );
+        });
+
+        it('fails when the provided FX rate does not match the one from the DB', async () => {
+          const expenseData = getValidExpenseData({ useAmountV2: true });
+          expenseData.payee = { legacyId: user.CollectiveId };
+          sandbox.stub(LibCurrency, 'loadFxRatesMap').resolves({ '2023-01-01': { XCD: { USD: 0.37 } } });
+
+          expenseData.items = [
+            {
+              ...expenseData.items[0],
+              amountV2: fakeGraphQLAmountInput({
+                currency: 'XCD',
+                exchangeRate: {
+                  source: 'OPENCOLLECTIVE',
+                  fromCurrency: 'XCD',
+                  toCurrency: 'USD',
+                  date: '2023-01-01T00:00:00.000Z',
+                  value: 1.5,
+                },
+              }),
+            },
+          ];
+
+          const mutationParams = { expense: expenseData, account: { legacyId: usdCollective.id } };
+          const result = await graphqlQueryV2(createExpenseMutation, mutationParams, user);
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.eq(`Invalid exchange rate: Expected 0.37 but got 1.5.`);
+        });
+
+        it('submits with type=OPENCOLLECTIVE, providing a valid value', async () => {
+          const expenseData = getValidExpenseData({ useAmountV2: true });
+          expenseData.payee = { legacyId: user.CollectiveId };
+          sandbox.stub(LibCurrency, 'loadFxRatesMap').resolves({ '2023-01-01': { XCD: { USD: 0.37 } } });
+
+          expenseData.items = [
+            {
+              ...expenseData.items[0],
+              incurredAt: '2023-01-03T00:00:00.000Z',
+              amountV2: fakeGraphQLAmountInput({
+                valueInCents: 4200,
+                currency: 'XCD',
+                exchangeRate: {
+                  source: 'OPENCOLLECTIVE',
+                  fromCurrency: 'XCD',
+                  toCurrency: 'USD',
+                  date: '2023-01-01T00:00:00.000Z',
+                  value: 0.37,
+                },
+              }),
+            },
+          ];
+
+          const mutationParams = { expense: expenseData, account: { legacyId: usdCollective.id } };
+          const result = await graphqlQueryV2(createExpenseMutation, mutationParams, user);
+          expect(result.errors).to.not.exist;
+
+          const expense = result.data.createExpense;
+          const expectedItemAmountInUSD = Math.round(4200 * 0.37);
+          expect(expense.amount).to.eq(expectedItemAmountInUSD);
+          expect(expense.amountV2).to.deep.equal({
+            valueInCents: expectedItemAmountInUSD,
+            currency: 'USD',
+            exchangeRate: null, // The FX rate is defined on the item level, not the expense
+          });
+
+          expect(expense.items[0].amount).to.eq(4200); // Item is returned in XCD, not USD
+          expect(expense.items[0].amountV2).to.deep.equal({
+            valueInCents: 4200,
+            currency: 'XCD',
+            exchangeRate: {
+              source: 'OPENCOLLECTIVE',
+              fromCurrency: 'XCD',
+              toCurrency: 'USD',
+              date: new Date('2023-01-03T00:00:00.000Z'), // The item "incurredAt" date is used for the FX rate date
+              value: 0.37,
+              isApproximate: true, // Always true when using OPENCOLLECTIVE as a source
+            },
+          });
+        });
+      });
+
+      describe('using source=USER', () => {
+        it('fails when the provided FX rate is too far from the one from the DB', async () => {
+          sandbox.stub(LibCurrency, 'loadFxRatesMap').resolves({ '2023-01-01': { XCD: { USD: 0.37 } } });
+          const expenseData = getValidExpenseData({ useAmountV2: true });
+          expenseData.payee = { legacyId: user.CollectiveId };
+          expenseData.items = [
+            {
+              ...expenseData.items[0],
+              incurredAt: '2023-01-03T00:00:00.000Z',
+              amountV2: fakeGraphQLAmountInput({
+                valueInCents: 4200,
+                currency: 'XCD',
+                exchangeRate: {
+                  source: 'USER',
+                  fromCurrency: 'XCD',
+                  toCurrency: 'USD',
+                  date: '2023-01-01T00:00:00.000Z',
+                  value: 1.5, // Too far from the 0.37 for our system
+                },
+              }),
+            },
+          ];
+
+          const mutationParams = { expense: expenseData, account: { legacyId: usdCollective.id } };
+          const result = await graphqlQueryV2(createExpenseMutation, mutationParams, user);
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.eq(
+            `Invalid exchange rate: The value for XCD to USD (1.5) is too different from the one in our records (0.37).`,
+          );
+        });
+
+        it('submits with type=USER, providing a valid value', async () => {
+          sandbox.stub(LibCurrency, 'loadFxRatesMap').resolves({ '2023-01-01': { XCD: { USD: 0.37 } } });
+          const expenseData = getValidExpenseData({ useAmountV2: true });
+          expenseData.payee = { legacyId: user.CollectiveId };
+          expenseData.items = [
+            {
+              ...expenseData.items[0],
+              incurredAt: '2023-01-03T00:00:00.000Z',
+              amountV2: fakeGraphQLAmountInput({
+                valueInCents: 4200,
+                currency: 'XCD',
+                exchangeRate: {
+                  source: 'USER',
+                  fromCurrency: 'XCD',
+                  toCurrency: 'USD',
+                  date: '2023-01-01T00:00:00.000Z',
+                  value: 0.38, // Close enough to the 0.37 for our system
+                },
+              }),
+            },
+          ];
+
+          const mutationParams = { expense: expenseData, account: { legacyId: usdCollective.id } };
+          const result = await graphqlQueryV2(createExpenseMutation, mutationParams, user);
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+
+          const expense = result.data.createExpense;
+          const expectedItemAmountInUSD = Math.round(4200 * 0.38);
+          expect(expense.amount).to.eq(expectedItemAmountInUSD);
+          expect(expense.items[0].amount).to.eq(4200); // Item is returned in XCD, not USD
+          expect(expense.items[0].amountV2).to.deep.equal({
+            valueInCents: 4200,
+            currency: 'XCD',
+            exchangeRate: {
+              source: 'USER',
+              fromCurrency: 'XCD',
+              toCurrency: 'USD',
+              date: new Date('2023-01-03T00:00:00.000Z'), // The item "incurredAt" date is used for the FX rate date
+              value: 0.38,
+              isApproximate: false, // We consider that users submit accurate FX rates
+            },
+          });
+        });
+      });
     });
   });
 
@@ -811,7 +1107,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
     it('updates the items', async () => {
       const expense = await fakeExpense({ amount: 10000, items: [] });
-      const items = (
+      const initialItems = (
         await Promise.all([
           fakeExpenseItem({ ExpenseId: expense.id, amount: 2000 }),
           fakeExpenseItem({ ExpenseId: expense.id, amount: 3000 }),
@@ -822,8 +1118,8 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       const updatedExpenseData = {
         id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
         items: [
-          convertExpenseItemId(pick(items[0]['dataValues'], ['id', 'url', 'amount'])), // Don't change the first one (value=2000)
-          convertExpenseItemId({ ...pick(items[1]['dataValues'], ['id', 'url']), amount: 7000 }), // Update amount for the second one
+          convertExpenseItemId(pick(initialItems[0]['dataValues'], ['id', 'url', 'amount'])), // Don't change the first one (value=2000)
+          convertExpenseItemId({ ...pick(initialItems[1]['dataValues'], ['id', 'url']), amount: 7000 }), // Update amount for the second one
           { amount: 8000, url: randUrl() }, // Remove the third one and create another instead
         ],
       };
@@ -836,10 +1132,10 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
       expect(sumItems).to.equal(17000);
       expect(result.data.editExpense.amount).to.equal(17000);
-      expect(returnedItems.find(a => a.id === items[0].id)).to.exist;
-      expect(returnedItems.find(a => a.id === items[1].id)).to.exist;
-      expect(returnedItems.find(a => a.id === items[2].id)).to.not.exist;
-      expect(returnedItems.find(a => a.id === items[1].id).amount).to.equal(7000);
+      expect(returnedItems.find(i => i.id === initialItems[0].id)).to.exist;
+      expect(returnedItems.find(i => i.id === initialItems[1].id)).to.exist;
+      expect(returnedItems.find(i => i.id === initialItems[2].id)).to.not.exist;
+      expect(returnedItems.find(i => i.id === initialItems[1].id).amount).to.equal(7000);
     });
 
     it('adding VAT updates the amount', async () => {
@@ -1104,7 +1400,11 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(expense.description).to.equal(updatedExpenseData.description);
         expect(expense.invoiceInfo).to.equal(updatedExpenseData.invoiceInfo);
         expect(expense.tags).to.deep.equal(updatedExpenseData.tags);
-        expect(expense.data.items).to.deep.equal(updatedExpenseData.items);
+        expect(expense.data.items.length).to.equal(1);
+        expect(expense.data.items[0].amount).to.equal(10000);
+        expect(expense.data.items[0].currency).to.equal('USD');
+        expect(expense.data.items[0].incurredAt).to.equal('2023-09-26T00:00:00.000Z');
+        expect(expense.data.items[0].description).to.equal('Item 1');
         expect(expense.data.payee).to.contain({ id: payee.collective.id });
       });
     });

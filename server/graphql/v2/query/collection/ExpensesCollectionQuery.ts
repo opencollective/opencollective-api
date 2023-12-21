@@ -7,6 +7,7 @@ import { OrderItem, Sequelize } from 'sequelize';
 import { expenseStatus } from '../../../../constants';
 import { CollectiveType } from '../../../../constants/collectives';
 import { getBalances } from '../../../../lib/budget';
+import { loadFxRatesMap } from '../../../../lib/currency';
 import { buildSearchConditions } from '../../../../lib/search';
 import { expenseMightBeSubjectToTaxForm } from '../../../../lib/tax-forms';
 import models, { Op, sequelize } from '../../../../models';
@@ -14,7 +15,6 @@ import { ExpenseType } from '../../../../models/Expense';
 import { PayoutMethodTypes } from '../../../../models/PayoutMethod';
 import { validateExpenseCustomData } from '../../../common/expenses';
 import { Unauthorized } from '../../../errors';
-import { loadFxRatesMap } from '../../../loaders/currency-exchange-rate';
 import { GraphQLExpenseCollection } from '../../collection/ExpenseCollection';
 import GraphQLExpenseStatusFilter from '../../enum/ExpenseStatusFilter';
 import { GraphQLExpenseType } from '../../enum/ExpenseType';
@@ -94,7 +94,8 @@ const updateFilterConditionsForReadyToPay = async (where, include, host, loaders
       .filter(expense => {
         const collectiveBalance = balances[expense.CollectiveId];
         const hasBalance =
-          expense.amount * fxRates[expense.currency][collectiveBalance.currency] <= collectiveBalance.value;
+          expense.amount * fxRates['latest'][expense.currency][collectiveBalance.currency] <= collectiveBalance.value;
+
         return !hasBalance;
       })
       .map(({ id }) => id);

@@ -3,6 +3,8 @@ import { GraphQLDateTime } from 'graphql-scalars';
 
 import URL from '../scalar/URL';
 
+import { GraphQLAmountInput } from './AmountInput';
+
 /**
  * Input type to use as the type for the expense input in createExpense mutation.
  */
@@ -10,8 +12,13 @@ export const GraphQLExpenseItemCreateInput = new GraphQLInputObjectType({
   name: 'ExpenseItemCreateInput',
   fields: () => ({
     amount: {
-      type: new GraphQLNonNull(GraphQLInt),
+      type: GraphQLInt,
       description: 'Amount in cents',
+      deprecationReason: 'Please use `amountV2`',
+    },
+    amountV2: {
+      type: GraphQLAmountInput,
+      description: 'Amount',
     },
     description: {
       type: new GraphQLNonNull(GraphQLString),

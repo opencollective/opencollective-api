@@ -2,12 +2,21 @@ import { expect } from 'chai';
 import config from 'config';
 import moment from 'moment';
 import nock from 'nock';
+import sinon from 'sinon';
 
 import * as CurrencyLib from '../../../server/lib/currency';
 import { fakeCurrencyExchangeRate } from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
 
 describe('server/lib/currency', () => {
+  let sandbox;
+
+  before(() => {
+    sandbox = sinon.createSandbox();
+  });
+
+  afterEach(() => sandbox.restore());
+
   describe('getRatesFromDb', () => {
     // To remove existing rates
     beforeEach(resetTestDB);
@@ -126,5 +135,39 @@ describe('server/lib/currency', () => {
       CurrencyLib.convertToCurrency(1, 'INR', 'USD', new Date(endDate)).then(amount =>
         expect(amount).to.equal(0.014962),
       ));
+  });
+
+  describe('loadFxRatesMap', () => {
+    before(async () => {
+      sandbox.stub(config, 'fixer').value({ disableMock: true });
+
+      await resetTestDB();
+      // Old rates
+      await fakeCurrencyExchangeRate({ from: 'USD', to: 'EUR', createdAt: '2022-01-01T00:00:00.000Z', rate: 0.9 });
+      await fakeCurrencyExchangeRate({ from: 'USD', to: 'NZD', createdAt: '2022-01-01T00:00:00.000Z', rate: 1.5 });
+      // Latest rates
+      await fakeCurrencyExchangeRate({ from: 'USD', to: 'EUR', createdAt: '2023-01-01T00:00:00.000Z', rate: 0.8 });
+      await fakeCurrencyExchangeRate({ from: 'USD', to: 'NZD', createdAt: '2023-01-01T00:00:00.000Z', rate: 1.6 });
+      await fakeCurrencyExchangeRate({ from: 'EUR', to: 'NZD', createdAt: '2023-01-01T00:00:00.000Z', rate: 1.8 });
+    });
+
+    it('returns the rates map for requested conversions', async () => {
+      const ratesMap = await CurrencyLib.loadFxRatesMap([
+        // Old rates
+        { fromCurrency: 'USD', toCurrency: 'EUR', date: '2022-02-01T00:00:00.000Z' },
+        { fromCurrency: 'USD', toCurrency: 'NZD', date: '2022-02-01T00:00:00.000Z' },
+        // Latest rates
+        { fromCurrency: 'USD', toCurrency: 'EUR', date: '2023-02-01T00:00:00.000Z' },
+        { fromCurrency: 'USD', toCurrency: 'NZD', date: '2023-02-01T00:00:00.000Z' },
+        // No date should return the latest (NOW)
+        { fromCurrency: 'USD', toCurrency: 'NZD' },
+      ]);
+
+      expect(ratesMap).to.deep.equal({
+        '2022-02-01T00:00:00.000Z': { USD: { EUR: 0.9, NZD: 1.5 } }, // Old rates
+        '2023-02-01T00:00:00.000Z': { USD: { EUR: 0.8, NZD: 1.6 } }, // Latest rates
+        latest: { USD: { NZD: 1.6 } }, // Latest rates (no date provided)
+      });
+    });
   });
 });

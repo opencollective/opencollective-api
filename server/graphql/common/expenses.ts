@@ -24,7 +24,6 @@ import {
   pick,
   set,
   size,
-  sumBy,
   uniq,
 } from 'lodash';
 import moment from 'moment';
@@ -42,7 +41,7 @@ import { EXPENSE_PERMISSION_ERROR_CODES } from '../../constants/permissions';
 import POLICIES from '../../constants/policies';
 import { TransactionKind } from '../../constants/transaction-kind';
 import cache from '../../lib/cache';
-import { convertToCurrency, getFxRate } from '../../lib/currency';
+import { convertToCurrency, getDate, getFxRate, loadFxRatesMap } from '../../lib/currency';
 import { simulateDBEntriesDiff } from '../../lib/data';
 import errors from '../../lib/errors';
 import { formatAddress } from '../../lib/format-address';
@@ -87,6 +86,8 @@ import {
   ValidationFailed,
 } from '../errors';
 import { CurrencyExchangeRateSourceTypeEnum } from '../v2/enum/CurrencyExchangeRateSourceType';
+import { getValueInCentsFromAmountInput } from '../v2/input/AmountInput';
+import { GraphQLCurrencyExchangeRateInputType } from '../v2/input/CurrencyExchangeRateInput';
 
 import { getContextPermission, PERMISSION_TYPE } from './context-permissions';
 import { checkRemoteUserCanRoot } from './scope-check';
@@ -1010,21 +1011,8 @@ export const unscheduleExpensePayment = async (req: express.Request, expense: Ex
   return updatedExpense;
 };
 
-/** Compute the total amount of expense from expense items */
-export const computeTotalAmountForExpense = (
-  items: (ExpenseItem | Record<string, unknown>)[],
-  taxes: TaxDefinition[],
-) => {
-  return Math.round(
-    sumBy(items, item => {
-      const totalTaxes = sumBy(taxes, tax => <number>item['amount'] * tax.rate);
-      return <number>item['amount'] + totalTaxes;
-    }),
-  );
-};
-
 /** Check expense's items values, throw if something's wrong */
-const checkExpenseItems = (expenseType, items: (ExpenseItem | Record<string, unknown>)[], taxes) => {
+const checkExpenseItems = (expenseType, items: ExpenseItem[] | Record<string, unknown>[], taxes) => {
   // Check the number of items
   if (!items || items.length === 0) {
     throw new ValidationFailed('Your expense needs to have at least one item');
@@ -1041,7 +1029,7 @@ const checkExpenseItems = (expenseType, items: (ExpenseItem | Record<string, unk
     }
   });
 
-  const sumItems = computeTotalAmountForExpense(items, taxes);
+  const sumItems = models.Expense.computeTotalAmountForExpense(items, taxes);
   if (!sumItems) {
     throw new ValidationFailed(`The sum of all items must be above 0`);
   }
@@ -1172,7 +1160,6 @@ type ExpenseData = {
 };
 
 const EXPENSE_EDITABLE_FIELDS = [
-  'amount',
   'currency',
   'description',
   'longDescription',
@@ -1221,15 +1208,104 @@ const checkCanUseAccountingCategory = (
   }
 };
 
+export const prepareExpenseItemInputs = async (
+  expenseCurrency: string,
+  itemsInput: Array<ExpenseItem | Record<string, unknown>>,
+  { isEditing = false } = {},
+): Promise<Array<Partial<ExpenseItem>>> => {
+  if (!itemsInput) {
+    return null;
+  } else if (!itemsInput.length) {
+    return [];
+  }
+
+  // Get all FX rates for items
+  let fxRates;
+  const getDateKeyForItem = item => getDate(item['amountV2'].exchangeRate?.date || item.incurredAt || item.createdAt);
+  const itemsThatNeedFXRates = itemsInput.filter(item => item['amountV2']);
+  if (itemsThatNeedFXRates.length) {
+    fxRates = await loadFxRatesMap(
+      itemsThatNeedFXRates.map(item => ({
+        fromCurrency: item['amountV2'].currency,
+        toCurrency: expenseCurrency,
+        date: getDateKeyForItem(item),
+      })),
+    );
+  }
+
+  // Prepare items
+  return itemsInput.map(itemInput => {
+    const fieldsToPick = [...ExpenseItem.editableFields, ...(isEditing ? ['id'] : [])];
+    const values: Partial<ExpenseItem> = pick(itemInput, fieldsToPick);
+
+    if (itemInput['amount'] && itemInput['amountV2']) {
+      throw new ValidationFailed('`amount` and `amountV2` are mutually exclusive. Please use `amountV2` only.');
+    } else if (itemInput['amountV2']) {
+      values.amount = getValueInCentsFromAmountInput(itemInput['amountV2']);
+      values.currency = itemInput['amountV2'].currency;
+      if (values.currency !== expenseCurrency) {
+        const exchangeRate = itemInput['amountV2'].exchangeRate as GraphQLCurrencyExchangeRateInputType;
+        if (!exchangeRate) {
+          throw new ValidationFailed(
+            'An exchange rate is required when the currency of the item is different from the expense currency.',
+          );
+        }
+
+        values.expenseCurrencyFxRate = exchangeRate.value;
+        values.expenseCurrencyFxRateSource = exchangeRate.source;
+
+        // Other FX rate sources (PayPal, Wise) cannot be set by expense submitters
+        if (!['USER', 'OPENCOLLECTIVE'].includes(values.expenseCurrencyFxRateSource)) {
+          throw new ValidationFailed('Invalid exchange rate source: Must be USER or OPENCOLLECTIVE.');
+        } else if (exchangeRate.fromCurrency !== values.currency || exchangeRate.toCurrency !== expenseCurrency) {
+          throw new ValidationFailed(
+            `Invalid exchange rate: Expected ${values.currency} to ${expenseCurrency} but got ${exchangeRate.fromCurrency} to ${exchangeRate.toCurrency}.`,
+          );
+        }
+
+        // Get FX rate from our own system (fixer or DB)
+        const fxRatePath = [getDateKeyForItem(itemInput), values.currency, expenseCurrency];
+        const internalFxRate = get(fxRates, fxRatePath);
+
+        // Add some checks to make sure the FX rate is acceptable
+        if (values.expenseCurrencyFxRateSource === 'OPENCOLLECTIVE') {
+          if (!internalFxRate) {
+            throw new ValidationFailed(
+              `No exchange rate found for this currency pair (${
+                values.currency
+              } to ${expenseCurrency}) for ${getDateKeyForItem(itemInput)}.`,
+            );
+          } else if (internalFxRate && values.expenseCurrencyFxRate !== internalFxRate) {
+            throw new ValidationFailed(
+              `Invalid exchange rate: Expected ${internalFxRate} but got ${values.expenseCurrencyFxRate}.`,
+            );
+          }
+        } else if (values.expenseCurrencyFxRateSource === 'USER' && internalFxRate) {
+          // Make sure to update `FX_RATE_ERROR_THRESHOLD` in `components/expenses/lib/utils.ts` when changing the value below
+          if (Math.abs(values.expenseCurrencyFxRate - internalFxRate) / internalFxRate > 0.1) {
+            throw new ValidationFailed(
+              `Invalid exchange rate: The value for ${values.currency} to ${expenseCurrency} (${values.expenseCurrencyFxRate}) is too different from the one in our records (${internalFxRate}).`,
+            );
+          }
+        }
+      }
+    } else if (itemInput['amount']) {
+      // For backwards compatibility, we force expense currency if not provided
+      values.amount = itemInput['amount'] as number;
+      values.currency = expenseCurrency;
+      values.expenseCurrencyFxRate = 1;
+    }
+
+    return values;
+  });
+};
+
 export async function createExpense(remoteUser: User | null, expenseData: ExpenseData): Promise<Expense> {
+  // Check permissions
   if (!remoteUser) {
     throw new Unauthorized('You need to be logged in to create an expense');
   } else if (!canUseFeature(remoteUser, FEATURE.USE_EXPENSES)) {
     throw new FeatureNotAllowedForUser();
-  }
-
-  if (!get(expenseData, 'collective.id')) {
-    throw new Unauthorized('Missing expense.collective.id');
   }
 
   const collective = await models.Collective.findByPk(expenseData.collective.id, {
@@ -1242,6 +1318,7 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
     throw new ValidationFailed('Collective not found');
   }
 
+  // If the collective has public expense submission disabled, only members can create expenses
   const isMember = Boolean(remoteUser.rolesByCollectiveId[String(collective.id)]);
   if (
     collective.settings?.['disablePublicExpenseSubmission'] &&
@@ -1252,7 +1329,17 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
     throw new Error('You must be a member of the collective to create new expense');
   }
 
-  const itemsData = expenseData.items;
+  // Let submitter customize the currency
+  let expenseCurrency = collective.currency;
+  if (expenseData.currency && expenseData.currency !== expenseCurrency) {
+    if (!hasMultiCurrency(collective, collective.host)) {
+      throw new FeatureNotSupportedForCollective('Multi-currency expenses are not enabled for this account');
+    } else {
+      expenseCurrency = expenseData.currency;
+    }
+  }
+
+  const itemsData: Partial<ExpenseItem>[] = await prepareExpenseItemInputs(expenseCurrency, expenseData.items);
   const taxes = expenseData.tax || [];
 
   checkTaxes(collective, collective.host, expenseData.type, taxes);
@@ -1275,16 +1362,6 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
     throw new ValidationFailed(
       'Expenses can only be submitted to Collectives, Events, Funds, Projects and active Hosts.',
     );
-  }
-
-  // Let submitter customize the currency
-  let currency = collective.currency;
-  if (expenseData.currency && expenseData.currency !== currency) {
-    if (!hasMultiCurrency(collective, collective.host)) {
-      throw new FeatureNotSupportedForCollective('Multi-currency expenses are not enabled for this account');
-    } else {
-      currency = expenseData.currency;
-    }
   }
 
   // Load the payee profile
@@ -1368,7 +1445,7 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
     const createdExpense = await models.Expense.create(
       {
         ...(<Pick<ExpenseData, ExpenseEditableFieldsUnion>>pick(expenseData, EXPENSE_EDITABLE_FIELDS)),
-        currency,
+        currency: expenseCurrency,
         tags: expenseData.tags,
         status: statuses.PENDING,
         CollectiveId: collective.id,
@@ -1378,7 +1455,7 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
         incurredAt: expenseData.incurredAt || new Date(),
         PayoutMethodId: payoutMethod && payoutMethod.id,
         legacyPayoutMethod: models.Expense.getLegacyPayoutMethodTypeFromPayoutMethod(payoutMethod),
-        amount: computeTotalAmountForExpense(itemsData, taxes),
+        amount: models.Expense.computeTotalAmountForExpense(itemsData, taxes),
         AccountingCategoryId: expenseData.accountingCategory?.id,
         data,
       },
@@ -1387,8 +1464,8 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
 
     // Create items
     createdExpense.items = await Promise.all(
-      itemsData.map(attachmentData => {
-        return models.ExpenseItem.createFromData(attachmentData, remoteUser, createdExpense, t);
+      itemsData.map(itemData => {
+        return models.ExpenseItem.createFromData(itemData, remoteUser, createdExpense, t);
       }),
     );
 
@@ -1425,10 +1502,10 @@ export const changesRequireStatusUpdate = (
 /** Returns infos about the changes made to items */
 export const getItemsChanges = async (
   existingItems: ExpenseItem[],
-  expenseData: ExpenseData,
+  items: ExpenseData['items'],
 ): Promise<[boolean, [Record<string, unknown>[], ExpenseItem[], Record<string, unknown>[]]]> => {
-  if (expenseData.items) {
-    const itemsDiff = models.ExpenseItem.diffDBEntries(existingItems, expenseData.items);
+  if (items) {
+    const itemsDiff = models.ExpenseItem.diffDBEntries(existingItems, items);
     const hasItemChanges = flatten(<unknown[]>itemsDiff).length > 0;
     return [hasItemChanges, itemsDiff];
   } else {
@@ -1592,7 +1669,9 @@ export async function sendDraftExpenseInvite(
 }
 
 export async function editExpenseDraft(req: express.Request, expenseData: ExpenseData, args?: Record<string, any>) {
-  const existingExpense = await models.Expense.findByPk(expenseData.id);
+  const existingExpense = await models.Expense.findByPk(expenseData.id, {
+    include: [{ model: models.ExpenseItem, as: 'items' }],
+  });
   if (!existingExpense) {
     throw new NotFound('Expense not found.');
   }
@@ -1604,13 +1683,16 @@ export async function editExpenseDraft(req: express.Request, expenseData: Expens
     throw new Unauthorized('Only the author of the draft can edit it');
   }
 
+  const currency = expenseData.currency || existingExpense.currency;
+  const items =
+    (await prepareExpenseItemInputs(currency, expenseData.items, { isEditing: true })) || existingExpense.items;
   const newExpenseValues = {
     ...pick(expenseData, DRAFT_EXPENSE_FIELDS),
-    amount: computeTotalAmountForExpense(expenseData.items, expenseData.tax),
+    amount: models.Expense.computeTotalAmountForExpense(items, expenseData.tax),
     lastEditedById: req.remoteUser.id,
     UserId: req.remoteUser.id,
     data: {
-      items: expenseData.items,
+      items,
       taxes: expenseData.tax,
       attachedFiles: expenseData.attachedFiles,
     },
@@ -1752,7 +1834,16 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
     checkExpenseType(expenseData.type, collective, collective.parent, collective.host, expense);
   }
 
-  const [hasItemChanges, itemsDiff] = await getItemsChanges(expense.items, expenseData);
+  // Let submitter customize the currency
+  const isChangingCurrency = expenseData.currency && expenseData.currency !== expense.currency;
+  if (isChangingCurrency && expenseData.currency !== collective.currency && !hasMultiCurrency(collective, host)) {
+    throw new FeatureNotSupportedForCollective('Multi-currency expenses are not enabled for this account');
+  }
+
+  const expenseCurrency = expenseData.currency || expense.currency;
+  const updatedItemsData: Partial<ExpenseItem>[] =
+    (await prepareExpenseItemInputs(expenseCurrency, expenseData.items, { isEditing: true })) || expense.items;
+  const [hasItemChanges, itemsDiff] = await getItemsChanges(expense.items, updatedItemsData);
   const taxes = expenseData.tax || (expense.data?.taxes as TaxDefinition[]) || [];
   const expenseType = expenseData.type || expense.type;
   checkTaxes(expense.collective, expense.collective.host, expenseType, taxes);
@@ -1810,12 +1901,6 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
     )),
     data: !expense.data ? null : cloneDeep(omit(expense.data, ['items', 'draftKey'])), // Make sure we omit draft key and items
   };
-
-  // Let submitter customize the currency
-  const isChangingCurrency = expenseData.currency && expenseData.currency !== expense.currency;
-  if (isChangingCurrency && expenseData.currency !== collective.currency && !hasMultiCurrency(collective, host)) {
-    throw new FeatureNotSupportedForCollective('Multi-currency expenses are not enabled for this account');
-  }
 
   // Update the accounting category
   if (!isUndefined(modifiedFields['accountingCategory'])) {
@@ -1877,11 +1962,19 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
         }),
         // Create
         ...newItemsData.map(itemData => {
-          return models.ExpenseItem.createFromData(itemData, remoteUser, expense, transaction);
+          return models.ExpenseItem.createFromData(
+            { ...itemData, currency: itemData.currency || expenseData.currency || expense.currency },
+            remoteUser,
+            expense,
+            transaction,
+          );
         }),
         // Update
         ...itemsToUpdate.map(itemData => {
-          return models.ExpenseItem.updateFromData(itemData, transaction);
+          return models.ExpenseItem.updateFromData(
+            { ...itemData, currency: itemData.currency || expenseData.currency || expense.currency },
+            transaction,
+          );
         }),
       ]);
 
@@ -1925,7 +2018,7 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
 
     const updatedExpenseProps = {
       ...cleanExpenseData,
-      amount: computeTotalAmountForExpense(expense.items, taxes),
+      amount: models.Expense.computeTotalAmountForExpense(expense.items, taxes), // We've reloaded the items above
       lastEditedById: remoteUser.id,
       incurredAt: expenseData.incurredAt || new Date(),
       status,

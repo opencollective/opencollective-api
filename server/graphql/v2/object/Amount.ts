@@ -3,7 +3,17 @@ import { isNil } from 'lodash';
 
 import { GraphQLCurrency } from '../enum/Currency';
 
-import GraphQLCurrencyExchangeRate from './CurrencyExchangeRate';
+import GraphQLCurrencyExchangeRate, { GraphQLCurrencyExchangeRateFields } from './CurrencyExchangeRate';
+
+/**
+ * Describes an amount in a way that can safely be passed to the `Amount` GraphQL type.
+ * The amount in cents needs to be set on `value`
+ */
+export type GraphQLAmountFields = {
+  value: number;
+  currency: string;
+  exchangeRate?: GraphQLCurrencyExchangeRateFields;
+};
 
 export const GraphQLAmount = new GraphQLObjectType({
   name: 'Amount',

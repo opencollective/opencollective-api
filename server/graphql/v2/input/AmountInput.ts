@@ -4,6 +4,8 @@ import { isNil } from 'lodash';
 import { floatAmountToCents } from '../../../lib/math';
 import { GraphQLCurrency } from '../enum/Currency';
 
+import GraphQLCurrencyExchangeRateInput from './CurrencyExchangeRateInput';
+
 export type AmountInputType = {
   value?: number;
   currency?: string;
@@ -25,6 +27,11 @@ export const GraphQLAmountInput = new GraphQLInputObjectType({
     valueInCents: {
       type: GraphQLInt,
       description: 'The value in cents',
+    },
+    exchangeRate: {
+      type: GraphQLCurrencyExchangeRateInput,
+      description:
+        'If the amount was generated from a currency conversion, this field can be used to provide details about the conversion',
     },
   }),
 });

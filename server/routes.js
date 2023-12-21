@@ -213,7 +213,7 @@ export default async app => {
       onReject: [logGraphQLComplexityRejection],
       ignoreIntrospection: true,
       propagateOnRejection: false,
-      maxCost: 12500, // Currently identified max: around 10000 on the PDF service (transaction receipt), around 7500 on expense form
+      maxCost: 20000, // Currently identified max: around 20000 on the "Create Expense" mutation
     },
     // Tokens are the number of fields in a query
     maxTokens: {
