@@ -129,18 +129,15 @@ export async function fetchFxRates(
     showFixerWarning();
   } else {
     // Try to fetch the FX rates from fixer.io
-    const params = {
-      access_key: config.fixer.accessKey, // eslint-disable-line camelcase
-      base: fromCurrency,
-      symbols: toCurrencies.join(','),
-    };
-
-    const searchParams = Object.keys(params)
-      .map(key => `${key}=${params[key]}`)
-      .join('&');
+    const searchParams = new URLSearchParams();
+    searchParams.append('access_key', config.fixer.accessKey);
+    searchParams.append('base', fromCurrency);
+    searchParams.append('symbols', toCurrencies.join(','));
 
     try {
-      const res = await fetch(`https://data.fixer.io/${date}?${searchParams}`);
+      // Fixer doesn't support time
+      const simplifiedDate = date === 'latest' ? date : date.split('T')[0];
+      const res = await fetch(`https://data.fixer.io/${simplifiedDate}?${searchParams.toString()}`);
       const json = await res.json();
       if (json.error) {
         throw new Error(json.error.info);
