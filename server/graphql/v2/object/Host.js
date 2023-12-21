@@ -1029,7 +1029,7 @@ export const GraphQLHost = new GraphQLObjectType({
           };
 
           const publicVendorPolicy = await getPolicy(account, POLICIES.EXPENSE_PUBLIC_VENDORS);
-          const isAdmin = req.remoteUser.isAdminOfCollective(account);
+          const isAdmin = req.remoteUser?.isAdminOfCollective(account);
           if (!publicVendorPolicy && !isAdmin) {
             return { nodes: [], totalCount: 0, limit: args.limit, offset: args.offset };
           }
