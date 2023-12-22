@@ -31,7 +31,51 @@ const SUPPORTED_WORKFLOWS = new Set([
   'qdUbX5nw8sMZzykz',
 ]);
 
-function processMetadata(metadata) {
+export type HelloWorksTaxFormInstance = {
+  audit_trail_hash: string;
+  id: string;
+  metadata: {
+    accountId: string;
+    accountType: string;
+    adminEmails: string;
+    email: string;
+    userId: string;
+    year: string;
+  };
+  status: string;
+  workflow_id: string;
+  document_hashes: Record<string, string>;
+  mode: string;
+  type: string;
+  data: {
+    Form_nRZrdh: {
+      /** Name of organization that is the beneficial owner */
+      field_3HxExU: string;
+      /** Chapter 3 Status (entity type) */
+      field_7h9cxX: string;
+      field_96QX5j: string;
+      field_ENxHCd: string;
+      field_FTZIWD: string;
+      field_G7YfJr: string;
+      field_OSOk14: string;
+      /** Permanent residence address */
+      field_T0IdZf: string;
+      /** Country of incorporation or organization */
+      field_VvICe1: string;
+      field_gwd8pa: string;
+      /** Foreign TIN */
+      field_hJkq4B: string;
+      field_hWAMyS: string;
+      /** Name of the signer */
+      field_mqVUrj: string;
+      /** Mailing address */
+      field_pITmtq: string;
+      field_xdp45L: string;
+    };
+  };
+};
+
+function processMetadata(metadata: HelloWorksTaxFormInstance['metadata']): HelloWorksTaxFormInstance['metadata'] {
   // Check if metadata is malformed
   // ie: {"email,a@example.com":"1","userId,258567":"0","year,2019":"2"}
   const metadataNeedsFix = Math.max(...Object.values(metadata).map(value => value.length)) === 1;
@@ -43,11 +87,10 @@ function processMetadata(metadata) {
     const [key, value] = string.split(',');
     acc[key] = value;
     return acc;
-  }, {});
+  }, {}) as HelloWorksTaxFormInstance['metadata'];
 }
 
 async function callback(req, res) {
-  logger.info('Tax Form callback (raw):', req.rawBody);
   logger.info('Tax Form callback (parsed):', req.body);
 
   const client = new HelloWorks({
@@ -55,9 +98,8 @@ async function callback(req, res) {
     apiKeySecret: HELLO_WORKS_SECRET,
   });
 
-  const {
-    body: { status, workflow_id: workflowId, data, id, metadata: metadataReceived },
-  } = req;
+  const body = req.body as HelloWorksTaxFormInstance;
+  const { status, workflow_id: workflowId, data, id, metadata: metadataReceived } = body;
 
   const metadata = processMetadata(metadataReceived);
   if (status && status === 'completed' && SUPPORTED_WORKFLOWS.has(workflowId)) {
@@ -108,6 +150,7 @@ async function callback(req, res) {
       .then(({ url }) => {
         doc.requestStatus = RECEIVED;
         doc.documentLink = url;
+        doc.data = { ...doc.data, helloWorksInstance: body };
         return doc.save();
       })
       .then(() => res.sendStatus(200))
