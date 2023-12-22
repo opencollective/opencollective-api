@@ -34,7 +34,7 @@ async function checkCollectivePaymentMethodsCurrencies({ fix = false } = {}) {
 
     for (const result of results) {
       console.log(
-        `Fixing payment method ${result.id} for ${result.slug}: ${result.paymentMethodCurrency} -> ${result.hostCurrency}`,
+        `Fixing payment method ${result.paymentMethodId} for ${result.collectiveSlug}: ${result.paymentMethodCurrency} -> ${result.hostCurrency}`,
       );
 
       await sequelize.query(
