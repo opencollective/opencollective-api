@@ -27,7 +27,7 @@ async function checkCollectivePaymentMethodsCurrencies({ fix = false } = {}) {
     { type: sequelize.QueryTypes.SELECT, raw: true },
   );
 
-  if (results[0].count > 0) {
+  if (results.length > 0) {
     if (!fix) {
       throw new Error(message);
     }
