@@ -1459,7 +1459,7 @@ Transaction.createFromContributionPayload = async (
 };
 
 Transaction.createActivity = (transaction, options) => {
-  if (transaction.deletedAt) {
+  if (transaction.deletedAt || ['TAX', 'PAYMENT_PROCESSOR_FEE'].includes(transaction.kind)) {
     return Promise.resolve();
   }
   return (
