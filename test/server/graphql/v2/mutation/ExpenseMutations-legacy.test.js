@@ -1482,7 +1482,9 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       beforeEach(() => {
         sandbox = createSandbox();
         emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage');
-        sandbox.stub(config, 'ledger').value({ ...config.ledger, separatePaymentProcessorFees: false });
+        sandbox
+          .stub(config, 'ledger')
+          .value({ ...config.ledger, separatePaymentProcessorFees: false, separateTaxes: false });
       });
 
       afterEach(() => {

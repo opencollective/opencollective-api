@@ -209,7 +209,8 @@
   },
   "ledger": {
     "fastBalance": true,
-    "separatePaymentProcessorFees": false
+    "separatePaymentProcessorFees": false,
+    "separateTaxes": false
   },
   "timeline": {
     "daysCached": 7

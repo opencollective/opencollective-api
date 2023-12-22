@@ -32,10 +32,12 @@ exports[`server/graphql/v2/mutation/ExpenseMutations processExpense PAY Multi-cu
 
 exports[`server/graphql/v2/mutation/ExpenseMutations processExpense PAY Taxes with VAT (manual payment) 1`] = `
 "
-| type   | isRefund | To         | amount   | tax     | netAmountInCollectiveCurrency | currency | amountInHostCurrency | hostCurrency | hostCurrencyFxRate |
-| ------ | -------- | ---------- | -------- | ------- | ----------------------------- | -------- | -------------------- | ------------ | ------------------ |
-| DEBIT  | false    | Collective | -€100.00 | -€20.00 | -€120.00                      | EUR      | -$110.00             | USD          | 1.1                |
-| CREDIT | false    | User       | €120.00  | -€20.00 | €100.00                       | EUR      | $132.00              | USD          | 1.1                |"
+| type   | isRefund | To           | From         | amount   | tax   | netAmountInCollectiveCurrency | currency | amountInHostCurrency | hostCurrency | hostCurrencyFxRate |
+| ------ | -------- | ------------ | ------------ | -------- | ----- | ----------------------------- | -------- | -------------------- | ------------ | ------------------ |
+| DEBIT  | false    | User         | European VAT | -€20.00  | €0.00 | -€20.00                       | EUR      | -$22.00              | USD          | 1.1                |
+| CREDIT | false    | European VAT | User         | €20.00   | €0.00 | $20.00                        | EUR      | $22.00               | USD          | 1.1                |
+| DEBIT  | false    | Collective   | User         | -€120.00 | €0.00 | -€120.00                      | EUR      | -$132.00             | USD          | 1.1                |
+| CREDIT | false    | User         | Collective   | €120.00  | €0.00 | €120.00                       | EUR      | $132.00              | USD          | 1.1                |"
 `;
 
 exports[`server/graphql/v2/mutation/ExpenseMutations processExpense PAY pays 100% of the balance by putting the fees on the payee 1`] = `

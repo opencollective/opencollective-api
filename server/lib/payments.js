@@ -384,6 +384,18 @@ export async function refundHostFee(transaction, user, refundedPaymentProcessorF
   }
 }
 
+export async function refundTax(transaction, user, transactionGroup, data) {
+  const taxTransaction = await transaction.getTaxTransaction();
+  if (taxTransaction) {
+    const taxRefundData = {
+      ...buildRefundForTransaction(taxTransaction, user, data),
+      TransactionGroup: transactionGroup,
+    };
+    const taxRefundTransaction = await models.Transaction.createDoubleEntry(taxRefundData);
+    await associateTransactionRefundId(taxTransaction, taxRefundTransaction, data);
+  }
+}
+
 /** Create refund transactions
  *
  * This function creates the negative transactions after refunding an
@@ -479,6 +491,9 @@ export async function createRefundTransaction(
 
   // Refund Host Fee
   await refundHostFee(transaction, user, refundedPaymentProcessorFee, transactionGroup);
+
+  // Refund Tax
+  await refundTax(transaction, user, transactionGroup);
 
   // Refund main transaction
   const creditTransactionRefund = buildRefund(transaction);

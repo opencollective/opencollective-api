@@ -27,4 +27,6 @@ export enum TransactionKind {
   PLATFORM_TIP_DEBT = 'PLATFORM_TIP_DEBT',
   /** For prepaid budgets */
   PREPAID_PAYMENT_METHOD = 'PREPAID_PAYMENT_METHOD',
+  /** For taxes */
+  TAX = 'TAX',
 }

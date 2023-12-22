@@ -101,8 +101,8 @@ describe('cron/daily/check-pending-transferwise-transactions', () => {
     await expense.update({ status: 'PAID' });
     await fakeTransaction(
       {
-        type: 'CREDIT',
-        amount: expense.amount,
+        type: 'DEBIT',
+        amount: -expense.amount,
         FromCollectiveId: expense.FromCollectiveId,
         CollectiveId: expense.CollectiveId,
         ExpenseId: expense.id,

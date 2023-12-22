@@ -35,7 +35,7 @@ import {
   fakePayoutMethod,
   fakeUser,
 } from '../test-helpers/fake-data';
-import { nockFixerRates, resetTestDB, seedDefaultPaymentProcessorVendors, snapshotLedger } from '../utils';
+import { nockFixerRates, resetTestDB, seedDefaultVendors, snapshotLedger } from '../utils';
 
 const SNAPSHOT_COLUMNS = [
   'kind',
@@ -75,7 +75,7 @@ const setupTestData = async (
 ) => {
   // TODO: The setup should ideally insert other hosts and transactions to make sure the balance queries are filtering correctly
   await resetTestDB();
-  await seedDefaultPaymentProcessorVendors();
+  await seedDefaultVendors();
   const hostAdmin = await fakeUser();
   const host = await fakeHost({
     name: 'OSC',
@@ -146,7 +146,7 @@ describe('test/stories/ledger', () => {
     // and due to a race condition with the resetTestDB function it might be
     // executed after the database was cleared, causing a database error.
     sandbox.stub(models.Transaction, 'createActivity').resolves();
-    sandbox.stub(config, 'ledger').value({ ...config.ledger, separatePaymentProcessorFees: true });
+    sandbox.stub(config, 'ledger').value({ ...config.ledger, separatePaymentProcessorFees: true, separateTaxes: true });
   });
 
   afterEach(() => {
