@@ -140,6 +140,9 @@ export async function fetchFxRates(
       const res = await fetch(`https://data.fixer.io/${simplifiedDate}?${searchParams.toString()}`);
       const json = await res.json();
       if (json.error) {
+        reportMessageToSentry(`Unable to fetch fxRate with Fixer API`, {
+          extra: { error: json.error, fromCurrency, toCurrencies, date },
+        });
         throw new Error(json.error.info);
       }
       const rates = {};
