@@ -9,7 +9,7 @@ import { userCanUseOCR } from '..';
 
 import { KlippaParseAccountingDocumentResponse } from './types';
 
-export const KLIPPA_BASE_URL = 'https://custom-ocr.klippa.com/api/v1';
+const KLIPPA_BASE_URL = 'https://custom-ocr.klippa.com/api/v1';
 
 export class KlippaOCRService implements ExpenseOCRService {
   public readonly PARSER_ID = 'Klippa';

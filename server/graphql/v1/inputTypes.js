@@ -13,7 +13,6 @@ import {
 import { Kind } from 'graphql/language';
 import { GraphQLJSON } from 'graphql-scalars';
 
-import { GraphQLCaptchaInput } from '../v2/input/CaptchaInput';
 import { GraphQLSocialLinkInput } from '../v2/input/SocialLinkInput';
 
 import { DateString } from './types';
@@ -41,28 +40,6 @@ const EmailType = new GraphQLScalarType({
   },
 });
 
-export const PaymentMethodInputType = new GraphQLInputObjectType({
-  name: 'PaymentMethodInputType',
-  description: 'Input type for PaymentMethod (paypal/stripe)',
-  fields: () => ({
-    id: { type: GraphQLInt },
-    uuid: { type: GraphQLString }, // used to fetch an existing payment method
-    token: { type: GraphQLString },
-    service: { type: GraphQLString },
-    type: {
-      type: GraphQLString,
-      description: 'creditcard, giftcard, prepaid, manual...',
-    },
-    customerId: { type: GraphQLString },
-    data: { type: GraphQLJSON },
-    name: { type: GraphQLString },
-    primary: { type: GraphQLBoolean },
-    monthlyLimitPerMember: { type: GraphQLInt },
-    currency: { type: GraphQLString },
-    save: { type: GraphQLBoolean },
-  }),
-});
-
 const CustomFieldType = new GraphQLEnumType({
   name: 'CustomFieldType',
   description: 'Type of custom field',
@@ -76,7 +53,7 @@ const CustomFieldType = new GraphQLEnumType({
   },
 });
 
-export const CustomFieldsInputType = new GraphQLInputObjectType({
+const CustomFieldsInputType = new GraphQLInputObjectType({
   name: 'CustomFieldsInputType',
   description: 'Input for custom fields for order',
   fields: () => ({
@@ -196,7 +173,7 @@ export const ConnectedAccountInputType = new GraphQLInputObjectType({
   }),
 });
 
-export const CollectiveAttributesInputType = new GraphQLInputObjectType({
+const CollectiveAttributesInputType = new GraphQLInputObjectType({
   name: 'CollectiveAttributesInputType',
   description: 'Input type for attributes of CollectiveInputType',
   fields: () => ({
@@ -225,7 +202,7 @@ export const CollectiveAttributesInputType = new GraphQLInputObjectType({
   }),
 });
 
-export const LocationInputType = new GraphQLInputObjectType({
+const LocationInputType = new GraphQLInputObjectType({
   name: 'LocationInputType',
   description: 'Input type for Location',
   fields: () => ({
@@ -306,33 +283,6 @@ export const TierInputType = new GraphQLInputObjectType({
     invoiceTemplate: {
       type: GraphQLString,
       description: 'Invoice receipt template',
-    },
-  }),
-});
-
-export const GuestInfoInput = new GraphQLInputObjectType({
-  name: 'GuestInfoInput',
-  description: 'Input type for guest contributions',
-  fields: () => ({
-    email: {
-      type: GraphQLString,
-      description: "Contributor's email",
-    },
-    name: {
-      type: GraphQLString,
-      description: 'Display name of the user',
-    },
-    legalName: {
-      type: GraphQLString,
-      description: 'Legal name of the user',
-    },
-    token: {
-      type: GraphQLString,
-      description: 'The unique guest token',
-    },
-    captcha: {
-      type: GraphQLCaptchaInput,
-      description: 'Captcha validation for creating an order',
     },
   }),
 });

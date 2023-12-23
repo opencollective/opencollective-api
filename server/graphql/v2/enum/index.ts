@@ -1,3 +1,5 @@
+// ignore unused exports
+
 export { GraphQLAccountOrdersFilter } from './AccountOrdersFilter';
 export { GraphQLAccountType, AccountTypeToModelMapping } from './AccountType';
 export { GraphQLApplicationType } from './ApplicationType';

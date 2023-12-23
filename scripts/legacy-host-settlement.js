@@ -36,7 +36,7 @@ const ATTACHED_CSV_COLUMNS = [
   'source',
 ];
 
-export async function run() {
+async function run() {
   console.info(`Invoicing hosts pending fees and tips for ${moment(date).subtract(1, 'month').format('MMMM')}.`);
   const [pastMonthTransactions] = await sequelize.query(
     `

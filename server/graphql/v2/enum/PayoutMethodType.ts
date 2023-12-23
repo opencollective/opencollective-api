@@ -8,5 +8,3 @@ export const GraphQLPayoutMethodType = new GraphQLEnumType({
     return { ...values, [key]: { value: PayoutMethodTypes[key] } };
   }, {}),
 });
-
-export default GraphQLPayoutMethodType;

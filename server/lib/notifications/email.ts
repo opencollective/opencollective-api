@@ -670,17 +670,3 @@ export const notifyByEmail = async (activity: Activity) => {
       break;
   }
 };
-
-/** Backward compatible shim */
-export const notifyAdminsOfCollective = async (
-  collectiveId: number,
-  activity: Partial<Activity>,
-  options: NotifySubscribersOptions = {},
-) => notify.collective(activity, { ...options, collectiveId });
-
-/** Backward compatible shim */
-export const notifyAdminsAndAccountantsOfCollective = async (
-  collectiveId: number,
-  activity: Partial<Activity>,
-  options: NotifySubscribersOptions = {},
-) => notify.collective(activity, { ...options, collectiveId, role: [roles.ACCOUNTANT, roles.ADMIN] });

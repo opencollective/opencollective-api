@@ -72,11 +72,11 @@ const FeatureAllowedForTypes = {
 /**
  * A map of paths to retrieve the value of a feature flag from a collective
  */
-export const OPT_OUT_FEATURE_FLAGS = {
+const OPT_OUT_FEATURE_FLAGS = {
   [FEATURE.CONTACT_FORM]: 'settings.features.contactForm',
 };
 
-export const OPT_IN_FEATURE_FLAGS = {
+const OPT_IN_FEATURE_FLAGS = {
   [FEATURE.CROSS_CURRENCY_MANUAL_TRANSACTIONS]: 'settings.features.crossCurrencyManualTransactions',
   [FEATURE.COLLECTIVE_GOALS]: 'settings.collectivePage.showGoals',
   [FEATURE.PAYPAL_PAYOUTS]: 'settings.features.paypalPayouts',

@@ -75,11 +75,4 @@ export const DEFAULT_POLICIES: { [T in POLICIES]: Policies[T] } = {
   [POLICIES.EXPENSE_PUBLIC_VENDORS]: false,
 };
 
-// List of Policies that can be seen by anyone
-export const PUBLIC_POLICIES = [
-  POLICIES.COLLECTIVE_MINIMUM_ADMINS,
-  POLICIES.EXPENSE_CATEGORIZATION,
-  POLICIES.EXPENSE_PUBLIC_VENDORS,
-];
-
 export default POLICIES;

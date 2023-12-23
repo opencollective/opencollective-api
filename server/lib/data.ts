@@ -142,7 +142,7 @@ export const isUniqueConstraintError = (error, fields = undefined) => {
   }
 };
 
-export const keysDeep = (obj: object, prefix?: string) =>
+const keysDeep = (obj: object, prefix?: string) =>
   flatten(
     Object.keys(obj).map(key => {
       const path = [prefix, key].filter(x => x !== undefined).join('.');

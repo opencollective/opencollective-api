@@ -67,7 +67,7 @@ export const TypeOfCollectiveType = new GraphQLEnumType({
   },
 });
 
-export const CollectiveOrderFieldType = new GraphQLEnumType({
+const CollectiveOrderFieldType = new GraphQLEnumType({
   name: 'CollectiveOrderField',
   description: 'Properties by which collectives can be ordered.',
   values: {
@@ -98,7 +98,7 @@ export const CollectiveOrderFieldType = new GraphQLEnumType({
   },
 });
 
-export const PaymentMethodOrderFieldType = new GraphQLEnumType({
+const PaymentMethodOrderFieldType = new GraphQLEnumType({
   name: 'PaymenMethodOrderField',
   description: 'Properties by which PaymenMethods can be ordered',
   values: {
@@ -127,7 +127,7 @@ export const HostCollectiveOrderFieldType = new GraphQLEnumType({
   },
 });
 
-export const BackersStatsType = new GraphQLObjectType({
+const BackersStatsType = new GraphQLObjectType({
   name: 'BackersStatsType',
   description: 'Breakdown of backers per type (ANY/USER/ORGANIZATION/COLLECTIVE)',
   fields: () => {
@@ -171,7 +171,7 @@ export const BackersStatsType = new GraphQLObjectType({
   },
 });
 
-export const CollectivesStatsType = new GraphQLObjectType({
+const CollectivesStatsType = new GraphQLObjectType({
   name: 'CollectivesStatsType',
   description: 'Breakdown of collectives under this collective by role (all/hosted/memberOf/events)',
   fields: () => {
@@ -234,7 +234,7 @@ export const CollectivesStatsType = new GraphQLObjectType({
   },
 });
 
-export const PlanType = new GraphQLObjectType({
+const PlanType = new GraphQLObjectType({
   name: 'PlanType',
   description: 'The name of the current plan and its characteristics.',
   fields: () => ({
@@ -290,7 +290,7 @@ export const PlanType = new GraphQLObjectType({
   }),
 });
 
-export const ExpensesStatsType = new GraphQLObjectType({
+const ExpensesStatsType = new GraphQLObjectType({
   name: 'ExpensesStatsType',
   description: 'Breakdown of expenses per status (ALL/PENDING/APPROVED/PAID/REJECTED)',
   fields: () => {
@@ -347,7 +347,7 @@ export const ExpensesStatsType = new GraphQLObjectType({
   },
 });
 
-export const TransactionsStatsType = new GraphQLObjectType({
+const TransactionsStatsType = new GraphQLObjectType({
   name: 'TransactionsStatsType',
   description: 'Breakdown of transactions per type (ALL/CREDIT/DEBIT)',
   fields: () => {

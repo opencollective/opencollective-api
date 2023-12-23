@@ -63,7 +63,7 @@ export interface TwoFactorAuthProvider {
   authenticationOptions?(user: User, req): Promise<unknown>;
 }
 
-export const providers: { [method in TwoFactorMethod]: TwoFactorAuthProvider } = {
+const providers: { [method in TwoFactorMethod]: TwoFactorAuthProvider } = {
   [TwoFactorMethod.TOTP]: totp,
   [TwoFactorMethod.YUBIKEY_OTP]: yubikeyOTP,
   [TwoFactorMethod.RECOVERY_CODE]: recoveryCode,

@@ -28,7 +28,7 @@ const getProgram = argv => {
 };
 
 // Main
-export const main = async (argv = process.argv) => {
+const main = async (argv = process.argv) => {
   const program = getProgram(argv);
   const [ExpenseId, newTotalAmountStr] = program.args;
   const transactions = await models.Transaction.findAll({ where: { ExpenseId } });

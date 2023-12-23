@@ -291,7 +291,7 @@ export function getChargeRetryCount(status, order) {
  * so a call to `order.Subscription.save()` is required after this
  * function.
  */
-export function cancelSubscription(order) {
+function cancelSubscription(order) {
   order.Subscription.isActive = false;
   order.Subscription.deactivatedAt = new Date();
   order.status = status.CANCELLED;
@@ -334,13 +334,13 @@ export function groupProcessedOrders(orders) {
 }
 
 /** Call cancelation function and then send confirmation email */
-export async function cancelSubscriptionAndNotifyUser(order) {
+async function cancelSubscriptionAndNotifyUser(order) {
   cancelSubscription(order);
   return createPaymentFailedActivity(order, true);
 }
 
 /** Send `order.cancelled.archived.collective` email */
-export async function createOrderCanceledArchivedCollectiveActivity(order) {
+async function createOrderCanceledArchivedCollectiveActivity(order) {
   return models.Activity.create({
     type: activities.ORDER_CANCELED_ARCHIVED_COLLECTIVE,
     CollectiveId: order.CollectiveId,
@@ -356,7 +356,7 @@ export async function createOrderCanceledArchivedCollectiveActivity(order) {
 }
 
 /** Send `payment.failed` email */
-export async function createPaymentFailedActivity(order, lastAttempt) {
+async function createPaymentFailedActivity(order, lastAttempt) {
   const errorMessage = get(order, 'data.error.message');
 
   return models.Activity.create({
@@ -437,7 +437,7 @@ export async function sendThankYouEmail(order, transaction, isFirstPayment = fal
   });
 }
 
-export async function createPaymentCreditCardConfirmationActivity(order) {
+async function createPaymentCreditCardConfirmationActivity(order) {
   return models.Activity.create({
     type: activities.PAYMENT_CREDITCARD_CONFIRMATION,
     CollectiveId: order.CollectiveId,
