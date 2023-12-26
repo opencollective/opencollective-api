@@ -6,12 +6,12 @@ export const LEGAL_DOCUMENT_TYPE = {
   US_TAX_FORM: 'US_TAX_FORM',
 };
 
-export const LEGAL_DOCUMENT_REQUEST_STATUS = {
-  NOT_REQUESTED: 'NOT_REQUESTED',
-  REQUESTED: 'REQUESTED',
-  RECEIVED: 'RECEIVED',
-  ERROR: 'ERROR',
-};
+export enum LEGAL_DOCUMENT_REQUEST_STATUS {
+  NOT_REQUESTED = 'NOT_REQUESTED',
+  REQUESTED = 'REQUESTED',
+  RECEIVED = 'RECEIVED',
+  ERROR = 'ERROR',
+}
 
 interface LegalDocumentModelStaticInterface {
   requestStatus: typeof LEGAL_DOCUMENT_REQUEST_STATUS;
@@ -25,7 +25,7 @@ export interface LegalDocumentModelInterface
   year: number;
   documentType: string;
   documentLink: string;
-  requestStatus: keyof typeof LEGAL_DOCUMENT_REQUEST_STATUS;
+  requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS | `${LEGAL_DOCUMENT_REQUEST_STATUS}`;
 
   CreatedByUserId: number;
   MemberCollectiveId: number;
