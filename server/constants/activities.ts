@@ -90,6 +90,7 @@ enum ActivityTypes {
   ORDER_PENDING_CONTRIBUTION_REMINDER = 'order.reminder.pendingFinancialContribution',
   ORDER_PROCESSING = 'order.processing',
   ORDER_PAYMENT_FAILED = 'order.payment.failed',
+  ORDER_PAID = 'order.paid',
   ORDER_THANKYOU = 'order.thankyou',
   // Vendors
   VENDOR_CREATED = 'vendor.created',
@@ -231,6 +232,7 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
     ActivityTypes.ORDER_PENDING_CRYPTO,
     ActivityTypes.ORDER_PENDING,
     ActivityTypes.ORDER_PROCESSING,
+    ActivityTypes.ORDER_PAID,
     ActivityTypes.ORDER_THANKYOU,
     ActivityTypes.ORDERS_SUSPICIOUS,
     ActivityTypes.PAYMENT_CREDITCARD_CONFIRMATION,

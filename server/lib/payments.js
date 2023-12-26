@@ -625,9 +625,7 @@ export const executeOrder = async (user, order, options = {}) => {
   if (!(order instanceof models.Order)) {
     return Promise.reject(new Error('order should be an instance of the Order model'));
   }
-  if (!order) {
-    return Promise.reject(new Error('No order provided'));
-  }
+
   /* Added funds have a processedAt date by default because they are processed
      immediately. If the payment method is manual the host admin will have to
      process it manually and potentially can set a date using the confirm
