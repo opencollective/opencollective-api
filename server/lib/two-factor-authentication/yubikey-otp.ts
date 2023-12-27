@@ -27,7 +27,7 @@ export default {
       throw new Error('User is not configured with YubiKey OTP 2FA');
     }
 
-    const valid = validateYubikeyOTP(token.code);
+    const valid = await validateYubikeyOTP(token.code);
     if (!valid) {
       throw new ApolloError('Two-factor authentication code is invalid', 'INVALID_2FA_CODE');
     }

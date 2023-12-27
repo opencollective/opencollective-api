@@ -3031,7 +3031,7 @@ export const moveExpenses = async (req: express.Request, expenses: Expense[], de
 export async function holdExpense(req: express.Request, expense: Expense): Promise<Expense> {
   if (!req.remoteUser) {
     throw new Unauthorized('You need to be logged in to pay an expense');
-  } else if (!canPutOnHold(req, expense)) {
+  } else if (!(await canPutOnHold(req, expense))) {
     throw new FeatureNotAllowedForUser();
   }
 
@@ -3043,7 +3043,7 @@ export async function holdExpense(req: express.Request, expense: Expense): Promi
 export async function releaseExpense(req: express.Request, expense: Expense): Promise<Expense> {
   if (!req.remoteUser) {
     throw new Unauthorized('You need to be logged in to pay an expense');
-  } else if (!canReleaseHold(req, expense)) {
+  } else if (!(await canReleaseHold(req, expense))) {
     throw new FeatureNotAllowedForUser();
   }
 
