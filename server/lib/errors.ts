@@ -73,7 +73,7 @@ const errors = {
     Error.call(this, msg);
   },
 
-  TooManyRequests: function (msg, data) {
+  TooManyRequests: function (msg, data = undefined) {
     this.code = 429;
     this.type = 'too_many_requests';
     this.message = msg;

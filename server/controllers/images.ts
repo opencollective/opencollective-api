@@ -59,6 +59,14 @@ export default async function uploadImage(req, res, next) {
     return next(new errors.ServerError('S3 service object not initialized'));
   }
 
+  // Rate limit
+  const rateLimit = UploadedFile.getUploadRateLimiter(req.remoteUser);
+  if (!(await rateLimit.registerCall())) {
+    throw new errors.TooManyRequests(
+      'You have reached the limit for uploading files. Please try again in an hour or contact support.',
+    );
+  }
+
   // Trigger the upload
   req.setTimeout(IMAGE_UPLOAD_TIMEOUT);
   try {

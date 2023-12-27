@@ -6,6 +6,7 @@ import { FileKind } from '../../../constants/file-kind';
 import { getExpenseOCRParser, runOCRForExpenseFile, userCanUseOCR } from '../../../lib/ocr';
 import models, { UploadedFile } from '../../../models';
 import { checkRemoteUserCanUseExpenses } from '../../common/scope-check';
+import { RateLimitExceeded } from '../../errors';
 import { GraphQLOCRParsingOptionsInputType } from '../input/OCRParsingOptionsInput';
 import { GraphQLUploadFileInput } from '../input/UploadFileInput';
 import { GraphQLFileInfo } from '../interface/FileInfo';
@@ -66,6 +67,14 @@ const uploadedFileMutations = {
         throw new Error('No file provided');
       } else if (args.files.length > 10) {
         throw new Error('You can only upload up to 10 files at once');
+      }
+
+      // Rate limiting: max 100 files/user/hour
+      const rateLimit = models.UploadedFile.getUploadRateLimiter(req.remoteUser);
+      if (!(await rateLimit.registerCall(args.files.length))) {
+        throw new RateLimitExceeded(
+          'You have reached the limit for uploading files. Please try again in an hour or contact support.',
+        );
       }
 
       // Upload & parse files
