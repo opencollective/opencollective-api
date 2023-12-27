@@ -154,9 +154,9 @@ const getOrderTaxInfo = async (order, collective, host, tier, loaders) => {
     return {
       id: LibTaxes.TaxType.GST,
       taxerCountry: host.countryISO,
-      taxedCountry: order.tax?.country,
+      taxedCountry: order.tax.country,
       percentage: taxPercent,
-      taxIDNumber: order.tax?.idNumber,
+      taxIDNumber: order.tax.idNumber,
       taxIDNumberFrom: hostGSTNumber,
     };
   }

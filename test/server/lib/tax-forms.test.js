@@ -430,7 +430,7 @@ describe('server/lib/tax-forms', () => {
       replace(client.workflowInstances, 'createInstance', fake.resolves(createInstanceResponse));
       replace(client.workflowInstances, 'getAuthenticatedLinkForStep', fake.resolves(documentLink));
 
-      await sendHelloWorksUsTaxForm(client, user.collective, year, callbackUrl, workflowId, user);
+      await sendHelloWorksUsTaxForm(client, user.collective, year, callbackUrl, workflowId);
       await utils.waitForCondition(() => sendMessageSpy.callCount > 0);
 
       await doc.reload();
@@ -454,7 +454,7 @@ describe('server/lib/tax-forms', () => {
       const rejects = fake.rejects(null);
       replace(client.workflowInstances, 'createInstance', rejects);
 
-      await sendHelloWorksUsTaxForm(client, user.collective, year, callbackUrl, workflowId, user);
+      await sendHelloWorksUsTaxForm(client, user.collective, year, callbackUrl, workflowId);
 
       await doc.reload();
       expect(client.workflowInstances.createInstance.called);
