@@ -20,6 +20,7 @@ import { FileKind, SUPPORTED_FILE_KINDS } from '../constants/file-kind';
 import { checkS3Configured, uploadToS3 } from '../lib/awsS3';
 import logger from '../lib/logger';
 import { ExpenseOCRParseResult, ExpenseOCRService } from '../lib/ocr/ExpenseOCRService';
+import RateLimit from '../lib/rate-limit';
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 import streamToBuffer from '../lib/stream-to-buffer';
@@ -105,6 +106,14 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
 
   public static isSupportedMimeType(mimeType: string): boolean {
     return (SUPPORTED_FILE_TYPES as readonly string[]).includes(mimeType);
+  }
+
+  /**
+   * Returns the rate limiter for uploading files.
+   * Currently set to 100 files/user/hour.
+   */
+  public static getUploadRateLimiter(user: User): RateLimit {
+    return new RateLimit(`uploadFile-${user.id}`, 100, 60 * 60);
   }
 
   public static async uploadGraphQl(
