@@ -423,8 +423,7 @@ PaymentMethod.prototype.getBalanceForUser = async function (user) {
     return { amount: 0, currency: this.currency };
   }
 
-  const getBalance =
-    paymentProvider && paymentProvider.getBalance ? paymentProvider.getBalance : () => Promise.resolve(maxInteger); // GraphQL doesn't like Infinity
+  const getBalance = paymentProvider.getBalance || (() => Promise.resolve(maxInteger)); // GraphQL doesn't like Infinity
 
   // Paypal Preapproved Key
   if (this.service === 'paypal' && !this.type) {

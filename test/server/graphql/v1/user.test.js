@@ -144,7 +144,7 @@ describe('server/graphql/v1/user', () => {
             isSavedForLater: true,
             creditCardInfo: { token: 'tok_visa' },
           },
-          amount: { valueInCents: tier?.amount ?? 1000, currency: 'USD' },
+          amount: { valueInCents: tier.amount ?? 1000, currency: 'USD' },
           frequency: 'ONETIME',
           toAccount: { legacyId: collective1.id },
           tier: { legacyId: tier.id },

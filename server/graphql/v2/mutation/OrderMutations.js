@@ -142,7 +142,7 @@ const getOrderTaxInfo = (taxInput, quantity, orderAmount, fromAccount, toAccount
     taxInfo = getOrderTaxInfoFromTaxInput(taxInput, fromAccount, toAccount, host);
     taxAmount = getTaxAmount(grossAmount, taxInput);
     const taxAmountFromInput = taxInput.amount && getValueInCentsFromAmountInput(taxInput.amount);
-    if (taxInfo?.percentage && taxAmountFromInput) {
+    if (taxInfo.percentage && taxAmountFromInput) {
       const amountDiff = Math.abs(taxAmountFromInput - taxAmount);
       if (amountDiff > 1) {
         // We tolerate a diff by 1 cent to account for rounding. Example: with a contribution of 12$, 15% tax, the gross amount

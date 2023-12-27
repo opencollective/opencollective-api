@@ -52,9 +52,13 @@ const PaypalPlanQuery = {
     }
 
     const collective = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
+    if (!collective) {
+      throw new Error('Account not found');
+    }
+
     const tier =
       args.tier && <Tier>await fetchTierWithReference(args.tier, { loaders: req.loaders, throwIfMissing: true });
-    const expectedCurrency = tier?.currency || collective?.currency;
+    const expectedCurrency = tier?.currency || collective.currency;
     const amount = getValueInCentsFromAmountInput(args.amount, { expectedCurrency, allowNilCurrency: false });
     const currency = args.amount.currency;
     const host = await collective.getHostCollective({ loaders: req.loaders });
