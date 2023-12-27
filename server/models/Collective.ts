@@ -1071,7 +1071,7 @@ class Collective extends Model<
   };
 
   freeze = async function (message) {
-    if (this.data?.features?.[FEATURE.ALL] === false) {
+    if (this.isFrozen()) {
       throw new Error('This account is already frozen');
     }
 
@@ -1093,7 +1093,7 @@ class Collective extends Model<
   };
 
   unfreeze = async function (message) {
-    if (this.data?.features?.[FEATURE.ALL] !== false) {
+    if (!this.isFrozen()) {
       throw new Error('This account is already unfrozen');
     }
 
@@ -2420,6 +2420,11 @@ class Collective extends Model<
         },
       },
     );
+
+    // If frozen, unfreeze
+    if (this.isFrozen()) {
+      await this.unfreeze();
+    }
 
     // Reset current host
     await this.update({

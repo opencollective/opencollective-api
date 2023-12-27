@@ -13,6 +13,7 @@ import emailLib from '../../../server/lib/email';
 import models, { Op, sequelize } from '../../../server/models';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 import {
+  fakeActiveHost,
   fakeCollective,
   fakeEvent,
   fakeExpense,
@@ -22,6 +23,7 @@ import {
   fakeOrganization,
   fakePaymentMethod,
   fakePayoutMethod,
+  fakeProject,
   fakeTransaction,
   fakeUser,
   randStr,
@@ -472,6 +474,23 @@ describe('server/models/Collective', () => {
         transferwisePayouts: 0,
         ...plans.default,
       });
+    });
+
+    it('unfreezes the collective when unhosting', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdmin });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, isActive: true, approvedAt: new Date() });
+      const child = await fakeProject({ ParentCollectiveId: collective.id, isActive: true, approvedAt: new Date() });
+      await collective.freeze();
+      await child.reload();
+      expect(collective.isFrozen()).to.be.true;
+      expect(child.isFrozen()).to.be.true;
+
+      await collective.changeHost(null, hostAdmin);
+      await collective.reload();
+      await child.reload();
+      expect(collective.isFrozen()).to.be.false;
+      expect(child.isFrozen()).to.be.false;
     });
   });
 
