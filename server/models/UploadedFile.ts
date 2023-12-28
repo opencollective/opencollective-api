@@ -94,10 +94,13 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
 
   // ==== Static methods ====
   public static isOpenCollectiveS3BucketURL(url: string): boolean {
-    if (config.aws.s3.endpoint) {
+    if (!url) {
+      return false;
+    } else if (config.aws.s3.endpoint) {
       return url.startsWith(config.aws.s3.endpoint);
+    } else {
+      return new RegExp(`^https://${config.aws.s3.bucket}\\.s3\\.us-west-1\\.amazonaws\\.com/\\w+`).test(url);
     }
-    return new RegExp(`^https://${config.aws.s3.bucket}\\.s3[.-]us-west-1\\.amazonaws\\.com/\\w+`).test(url);
   }
 
   public static isSupportedImageMimeType(mimeType: string): boolean {

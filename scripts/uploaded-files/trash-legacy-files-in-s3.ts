@@ -76,7 +76,6 @@ const main = async options => {
       FROM UNNEST(ARRAY[:keys]) "key"
       LEFT JOIN "UploadedFiles" "uf"
         ON "uf"."url" = 'https://${config.aws.s3.bucket}.s3.us-west-1.amazonaws.com/' || "key"
-        OR "uf"."url" = 'https://${config.aws.s3.bucket}.s3-us-west-1.amazonaws.com/' || "key"
     `,
     {
       type: sequelize.QueryTypes.SELECT,

@@ -73,7 +73,7 @@ export const parseS3Url = (s3Url: string): { bucket: string; key: string } => {
   }
 
   return {
-    bucket: parsedUrl.hostname.replace(/\.s3[.-][^.]+\.amazonaws\.com$/, ''), // Bucket name is the hostname minus the region, the s3 prefix and aws domain
+    bucket: parsedUrl.hostname.replace(/\.s3\.[^.]+\.amazonaws\.com$/, ''), // Bucket name is the hostname minus the region, the s3 prefix and aws domain
     key: decodeURIComponent(parsedUrl.pathname.slice(1)), // Remove leading slash
   };
 };

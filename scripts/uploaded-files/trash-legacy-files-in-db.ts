@@ -51,7 +51,7 @@ const main = async options => {
             ${
               definition.fieldType === 'url'
                 ? `${cleanField}`
-                : `(regexp_matches(${cleanField}, 'src="(https://opencollective-production\.s3[.-]us-west-1\.amazonaws\.com/[^"]+)', 'g'))[1]`
+                : `(regexp_matches(${cleanField}, 'src="(https://opencollective-production\.s3\.us-west-1\.amazonaws\.com/[^"]+)', 'g'))[1]`
             } AS "url"
           FROM "${definition.model['tableName']}"
           WHERE ${cleanField} IS NOT NULL

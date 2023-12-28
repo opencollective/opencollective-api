@@ -34,7 +34,7 @@ data['collective.expense.approved'] = {
     amount: 1250,
     currency: 'USD',
     privateMessage: 'Private instructions',
-    attachment: 'https://opencollective-production.s3-us-west-1.amazonaws.com/5bdc1850-60d9-11e7-9f4e-6f8999022d4b.JPG',
+    attachment: 'https://opencollective-production.s3.us-west-1.amazonaws.com/5bdc1850-60d9-11e7-9f4e-6f8999022d4b.JPG',
   },
   collective: { slug: 'wwcodeaustin', name: 'Women Who Code Austin' },
   fromCollective: { slug: 'xdamman', name: 'Xavier Damman' },
@@ -49,7 +49,7 @@ data['collective.expense.paid'] = {
     amount: 1250,
     currency: 'USD',
     privateMessage: 'Private instructions',
-    attachment: 'https://opencollective-production.s3-us-west-1.amazonaws.com/5bdc1850-60d9-11e7-9f4e-6f8999022d4b.JPG',
+    attachment: 'https://opencollective-production.s3.us-west-1.amazonaws.com/5bdc1850-60d9-11e7-9f4e-6f8999022d4b.JPG',
   },
   collective: {
     slug: 'wwcodeaustin',
@@ -101,10 +101,10 @@ data['user.card.claimed'] = {
     name: 'Triplebyte',
     description:
       'Triplebyte lets talented software engineers skip resumes  recruiters and go straight to final interviews at multiple top tech companies at once.',
-    image: 'https://opencollective-production.s3-us-west-1.amazonaws.com/02f87560-b2f1-11e8-85a0-75f200a0e2db.png',
+    image: 'https://opencollective-production.s3.us-west-1.amazonaws.com/02f87560-b2f1-11e8-85a0-75f200a0e2db.png',
     backgroundImage: 'https://d.pr/free/i/GEbbjb+',
     previewImage:
-      'https://opencollective-production.s3-us-west-1.amazonaws.com/02f87560-b2f1-11e8-85a0-75f200a0e2db.png',
+      'https://opencollective-production.s3.us-west-1.amazonaws.com/02f87560-b2f1-11e8-85a0-75f200a0e2db.png',
   },
   loginLink: 'https://opencollective.com/signin?next=',
 };
@@ -117,10 +117,10 @@ data['user.card.invited'] = {
     name: 'Triplebyte',
     description:
       'Triplebyte lets talented software engineers skip resumes  recruiters and go straight to final interviews at multiple top tech companies at once.',
-    image: 'https://opencollective-production.s3-us-west-1.amazonaws.com/02f87560-b2f1-11e8-85a0-75f200a0e2db.png',
+    image: 'https://opencollective-production.s3.us-west-1.amazonaws.com/02f87560-b2f1-11e8-85a0-75f200a0e2db.png',
     backgroundImage: 'https://d.pr/free/i/GEbbjb+',
     previewImage:
-      'https://opencollective-production.s3-us-west-1.amazonaws.com/02f87560-b2f1-11e8-85a0-75f200a0e2db.png',
+      'https://opencollective-production.s3.us-west-1.amazonaws.com/02f87560-b2f1-11e8-85a0-75f200a0e2db.png',
   },
   redeemCode: '00000000',
   email: 'info@opencolletive.com',
@@ -188,7 +188,7 @@ data['collective.update.published'] = {
     slug: 'brusselstogether',
     name: 'BrusselsTogether',
     previewImage:
-      'https://opencollective-production.s3-us-west-1.amazonaws.com/a9326d00-6b75-11e8-9927-4f9505022f01.png',
+      'https://opencollective-production.s3.us-west-1.amazonaws.com/a9326d00-6b75-11e8-9927-4f9505022f01.png',
   },
   update: {
     id: 44,
