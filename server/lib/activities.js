@@ -127,7 +127,7 @@ const doFormatMessage = (activity, format) => {
           tweetLink = linkify(format, `https://twitter.com/intent/tweet?text=${tweet}`, 'Thank that person on Twitter');
           tweetThis = ` [${tweetLink}]`;
         }
-        return `New financial contribution: ${userString} gave ${currency} ${amount} to ${collective}!${tweetThis}`;
+        return `New financial contribution: ${userString} gave ${currency} ${amount} to ${collective}${tweetThis}`;
       } else if (activity.data.transaction.ExpenseId) {
         return `New transaction for paid expense "${description}" (${currency} ${amount}) on ${collective}`;
       } else if (activity.data.transaction.isRefund) {
@@ -137,16 +137,16 @@ const doFormatMessage = (activity, format) => {
       }
 
     case activities.COLLECTIVE_EXPENSE_CREATED:
-      return `New Expense: ${userString} submitted an expense to ${collective}: ${currency} ${amount} for ${description}!`;
+      return `New Expense: ${userString} submitted an expense to ${collective}: ${currency} ${amount} for ${description}`;
 
     case activities.COLLECTIVE_EXPENSE_REJECTED:
-      return `Expense rejected: ${currency} ${amount} for ${description} in ${collective}!`;
+      return `Expense rejected: ${currency} ${amount} for ${description} in ${collective}`;
 
     case activities.COLLECTIVE_EXPENSE_RE_APPROVAL_REQUESTED:
-      return `Expense needs re-approval: ${currency} ${amount} for ${description} in ${collective}!`;
+      return `Expense needs re-approval: ${currency} ${amount} for ${description} in ${collective}`;
 
     case activities.COLLECTIVE_EXPENSE_APPROVED:
-      return `Expense approved: ${currency} ${amount} for ${description} in ${collective}!`;
+      return `Expense approved: ${currency} ${amount} for ${description} in ${collective}`;
 
     case activities.COLLECTIVE_EXPENSE_PAID:
       return `Expense paid on ${collective}: ${currency} ${amount} for '${description}'`;
@@ -161,7 +161,7 @@ const doFormatMessage = (activity, format) => {
         tweetLink = linkify(format, `https://twitter.com/intent/tweet?text=${tweet}`, 'Thank that person on Twitter');
         tweetThis = ` [${tweetLink}]`;
       }
-      return `New subscription confirmed: ${currency} ${recurringAmount} from ${userString} to ${collective}!${tweetThis}`;
+      return `New subscription confirmed: ${currency} ${recurringAmount} from ${userString} to ${collective}${tweetThis}`;
 
     case activities.COLLECTIVE_CREATED:
       return `New collective created by ${userString}: ${collective} ${hostString}`.trim();
