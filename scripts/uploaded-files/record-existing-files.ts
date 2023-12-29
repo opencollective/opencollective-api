@@ -136,7 +136,7 @@ const main = async options => {
       const records = await sequelize.query(
         ` WITH all_images AS (
           SELECT
-            (regexp_matches(${textField}, 'src="(https://opencollective-production\.s3[.-]us-west-1\.amazonaws\.com/[^"]+)', 'g'))[1] as "url",
+            (regexp_matches(${textField}, 'src="(https://opencollective-production\.s3\.us-west-1\.amazonaws\.com/[^"]+)', 'g'))[1] as "url",
             ${UserIdField ? `"${UserIdField}"` : 'NULL'} AS "UserId",
             ${hasDeletedAt ? '"deletedAt"' : 'NULL'} AS "deletedAt"
           FROM "${model['tableName']}"

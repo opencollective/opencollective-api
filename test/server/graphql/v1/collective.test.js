@@ -1006,7 +1006,7 @@ describe('server/graphql/v1/collective', () => {
         longDescription: null,
         currency: 'USD',
         image:
-          'https://opencollective-production.s3-us-west-1.amazonaws.com/pubnublogopng_38ab9250-d2c4-11e6-8ba3-b7985935397d.png',
+          'https://opencollective-production.s3.us-west-1.amazonaws.com/pubnublogopng_38ab9250-d2c4-11e6-8ba3-b7985935397d.png',
         members: [
           {
             id: adminMembership.id,
