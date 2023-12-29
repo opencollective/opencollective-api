@@ -281,12 +281,10 @@ export const authenticateService = (req, res, next) => {
     opts.scope = TWITTER_SCOPES;
   }
 
-  if (!req.remoteUser || !req.remoteUser.isAdmin(req.query.CollectiveId)) {
-    throw new errors.Unauthorized('Please login as an admin of this collective to add a connected account');
-  }
-
   if (!req.query.CollectiveId) {
-    return next(new errors.ValidationFailed('Please provide a CollectiveId as a query parameter'));
+    return next(new errors.ValidationFailed(undefined, 'CollectiveId', 'Please provide a CollectiveId'));
+  } else if (!req.remoteUser || !req.remoteUser.isAdmin(req.query.CollectiveId)) {
+    return next(new errors.Unauthorized('Please login as an admin of this collective to add a connected account'));
   }
 
   if (paymentProviders[service]) {
