@@ -9,6 +9,7 @@ env:
   WEBSITE_URL: http://localhost:3000
   IMAGES_URL: http://localhost:3001
   API_URL: http://localhost:3060
+  PDF_SERVICE_URL: http://localhost:3002
   API_KEY: dvl-1510egmf4a23d80342403fb599qd
   CI: true
 
@@ -24,6 +25,7 @@ env:
   API_FOLDER: /home/runner/work/opencollective-api/opencollective-api
   FRONTEND_FOLDER: /home/runner/work/opencollective-api/opencollective-api/opencollective-frontend
   IMAGES_FOLDER: /home/runner/work/opencollective-api/opencollective-api/opencollective-images
+  PDF_FOLDER: /home/runner/work/opencollective-api/opencollective-api/opencollective-pdf
   TERM: xterm
   STRIPE_WEBHOOK_KEY: ${{ secrets.STRIPE_WEBHOOK_KEY }}
   STRIPE_WEBHOOK_SIGNING_SECRET: ${{ secrets.STRIPE_WEBHOOK_SIGNING_SECRET }}
@@ -122,6 +124,12 @@ jobs:
           repository: opencollective/opencollective-images
           path: opencollective-images
 
+      - name: Checkout (PDF)
+        uses: actions/checkout@v4
+        with:
+          repository: opencollective/opencollective-pdf
+          path: opencollective-pdf
+
       # Prepare API
 
       - name: Restore node_modules (api)
@@ -202,6 +210,24 @@ jobs:
 
       - name: Build (images)
         working-directory: opencollective-images
+        run: npm run build
+
+      # Prepare PDF
+
+      - name: Restore node_modules (pdf)
+        uses: actions/cache@v3
+        id: pdf-node-modules
+        with:
+          path: opencollective-pdf/node_modules
+          key: ${{ runner.os }}-pdf-node-modules-${{ hashFiles('opencollective-pdf/package-lock.json') }}
+
+      - name: Install dependencies (pdf)
+        working-directory: opencollective-pdf
+        if: steps.pdf-node-modules.outputs.cache-hit != 'true'
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Build (pdf)
+        working-directory: opencollective-pdf
         run: npm run build
 
       # Setup Cypress
