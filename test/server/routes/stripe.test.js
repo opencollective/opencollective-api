@@ -47,8 +47,23 @@ describe('server/routes/stripe', () => {
     it('should return an error if the user is not logged in', done => {
       request(expressApp)
         .get(`/connected-accounts/stripe/oauthUrl?api_key=${application.api_key}`)
-        .expect(401)
+        .expect(400)
         .end(done);
+    });
+
+    it('should return an error if not CollectiveId provided', done => {
+      models.ConnectedAccount.create({ service: 'stripe', CollectiveId: collective.id }).then(() =>
+        request(expressApp)
+          .get(`/connected-accounts/stripe/oauthUrl?api_key=${application.api_key}`)
+          .set('Authorization', `Bearer ${host.jwt()}`)
+          .then(response => {
+            const error = response.body.error;
+            expect(error.code).to.equal(400);
+            expect(error.type).to.equal('validation_failed');
+            expect(error.message).to.equal('Please provide a CollectiveId');
+            done();
+          }),
+      );
     });
 
     it('should fail if not logged in as an admin of the collective', done => {
