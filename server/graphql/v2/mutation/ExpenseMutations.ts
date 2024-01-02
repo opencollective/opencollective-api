@@ -189,11 +189,14 @@ const expenseMutations = {
       const userIsAuthor = req.remoteUser?.id === existingExpense.UserId;
       const isRecurring = Boolean(existingExpense.RecurringExpenseId);
       // Draft can be edited by the author of the expense if the expense is not recurring
-      if (!args.draftKey && userIsAuthor && !isRecurring && existingExpense.status === expenseStatus.DRAFT) {
+      if (existingExpense.status === expenseStatus.DRAFT && !args.draftKey && userIsAuthor && !isRecurring) {
         return editExpenseDraft(req, expenseData, args);
       }
       // Draft can be submitted by: new user with draft-key, payee of the original expense or author of the original expense (in the case of Recurring Expense draft)
-      else if (args.draftKey || userIsOriginalPayee || (userIsAuthor && isRecurring)) {
+      else if (
+        existingExpense.status === expenseStatus.DRAFT &&
+        (args.draftKey || userIsOriginalPayee || (userIsAuthor && isRecurring))
+      ) {
         return submitExpenseDraft(req, expenseData, { args, requestedPayee, originalPayee });
       } else {
         return editExpense(req, expenseData);
