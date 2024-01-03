@@ -5,7 +5,14 @@ import { loaders } from '../../../../server/graphql/loaders';
 import { taxFormRequiredBeforePayment } from '../../../../server/graphql/loaders/expenses';
 import models from '../../../../server/models';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../server/models/LegalDocument';
-import { fakeCollective, fakeExpense, fakeHost, fakePayoutMethod, fakeUser } from '../../../test-helpers/fake-data';
+import {
+  fakeCollective,
+  fakeCurrencyExchangeRate,
+  fakeExpense,
+  fakeHost,
+  fakePayoutMethod,
+  fakeUser,
+} from '../../../test-helpers/fake-data';
 import { resetTestDB } from '../../../utils';
 
 const US_TAX_FORM_THRESHOLD = 600e2;
@@ -39,6 +46,7 @@ describe('server/graphql/loaders/expense', () => {
       host = await fakeHostWithRequiredLegalDocument();
       otherHost = await fakeHostWithRequiredLegalDocument();
       collective = await fakeCollective({ HostCollectiveId: host.id });
+      await fakeCurrencyExchangeRate({ from: 'INR', to: 'USD', rate: 0.01 });
     });
 
     describe('requires user tax form before payment', () => {
@@ -73,6 +81,33 @@ describe('server/graphql/loaders/expense', () => {
           type: 'INVOICE',
           PayoutMethodId: otherPayoutMethod.id,
         });
+        const result1 = await loader.load(firstExpense.id);
+        const result2 = await loader.load(secondExpense.id);
+        expect(result1).to.be.true;
+        expect(result2).to.be.true;
+      });
+
+      it('when the sum of multiple expenses is above threshold (multi-currency)', async () => {
+        const user = await fakeUser();
+        const loader = taxFormRequiredBeforePayment({ loaders: loaders(req) });
+        const firstExpense = await fakeExpense({
+          amount: US_TAX_FORM_THRESHOLD - 100,
+          CollectiveId: collective.id,
+          FromCollectiveId: user.CollectiveId,
+          UserId: user.id,
+          type: 'INVOICE',
+          PayoutMethodId: otherPayoutMethod.id,
+        });
+        const secondExpense = await fakeExpense({
+          amount: 100 * 100, // 100 USD * (1/0.01 INR/USD) = 10,000 INR
+          currency: 'INR',
+          CollectiveId: collective.id,
+          FromCollectiveId: user.CollectiveId,
+          UserId: user.id,
+          type: 'INVOICE',
+          PayoutMethodId: otherPayoutMethod.id,
+        });
+        // 100USD (10,000 INR) + 500 USD = 600 USD
         const result1 = await loader.load(firstExpense.id);
         const result2 = await loader.load(secondExpense.id);
         expect(result1).to.be.true;
@@ -133,6 +168,29 @@ describe('server/graphql/loaders/expense', () => {
         });
         const result = await loader.load(expenseWithOutUserTaxForm.id);
         expect(result).to.be.false;
+      });
+
+      it('When under threshold (multi-currency)', async () => {
+        const loader = taxFormRequiredBeforePayment({ loaders: loaders(req) });
+        const firstExpense = await fakeExpense({
+          amount: US_TAX_FORM_THRESHOLD - 100,
+          currency: 'INR',
+          CollectiveId: collective.id,
+          type: 'INVOICE',
+          PayoutMethodId: otherPayoutMethod.id,
+        });
+        const secondExpense = await fakeExpense({
+          amount: 50 * 100, // 50 USD * (1/0.01 INR/USD) = 5,000 INR
+          currency: 'INR',
+          CollectiveId: collective.id,
+          type: 'INVOICE',
+          PayoutMethodId: otherPayoutMethod.id,
+        });
+        // 50USD (5,000 INR) + 500 USD = 550 USD
+        const result1 = await loader.load(firstExpense.id);
+        const result2 = await loader.load(secondExpense.id);
+        expect(result1).to.be.false;
+        expect(result2).to.be.false;
       });
 
       it('When legal document has already been submitted', async () => {

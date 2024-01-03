@@ -12,6 +12,7 @@ import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 import { randEmail } from '../../stores';
 import {
   fakeCollective,
+  fakeCurrencyExchangeRate,
   fakeExpense,
   fakeHost,
   fakeLegalDocument,
@@ -63,7 +64,9 @@ describe('server/lib/tax-forms', () => {
     accountWithTaxFormFrom4YearsAgo,
     accountWithTaxFormSubmittedByHost,
     accountWithPaypalBelowThreshold,
-    accountWithPaypalOverThreshold;
+    accountWithPaypalOverThreshold,
+    accountWithINRBelowThreshold,
+    accountWithINROverThreshold;
 
   const documentData = {
     year: moment().year(),
@@ -116,10 +119,14 @@ describe('server/lib/tax-forms', () => {
     {
       email: 'randzzz@opencollective.com',
     },
+    {
+      email: 'using-inr-currency@opencollective.com',
+      name: 'INR tester',
+    },
   ];
 
-  beforeEach(async () => await utils.resetTestDB());
   beforeEach(async () => {
+    await utils.resetTestDB();
     users = await Promise.all(usersData.map(userData => User.createUserWithCollective(userData)));
     user = users[0];
     userCollective = await Collective.findByPk(user.CollectiveId);
@@ -132,6 +139,8 @@ describe('server/lib/tax-forms', () => {
     accountWithTaxFormFrom4YearsAgo = await fakeCollective({ type: 'ORGANIZATION' });
     accountWithPaypalBelowThreshold = await fakeCollective({ type: 'ORGANIZATION' });
     accountWithPaypalOverThreshold = await fakeCollective({ type: 'ORGANIZATION' });
+    accountWithINRBelowThreshold = await fakeCollective({ type: 'ORGANIZATION' });
+    accountWithINROverThreshold = await fakeCollective({ type: 'ORGANIZATION' });
     collectives = await Promise.all([
       fakeCollective({ HostCollectiveId: hostCollective.id }),
       fakeCollective({ HostCollectiveId: hostCollective.id }),
@@ -141,6 +150,9 @@ describe('server/lib/tax-forms', () => {
 
     const otherPayoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
     const paypalPayoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.PAYPAL });
+
+    // Fake currency exchange rates
+    await fakeCurrencyExchangeRate({ from: 'INR', to: 'USD', rate: 0.01 });
 
     // Create legal document for accountAlreadyNotified
     await fakeLegalDocument({
@@ -179,6 +191,25 @@ describe('server/lib/tax-forms', () => {
         PayoutMethodId: otherPayoutMethod.id,
       }),
     );
+
+    // An expense from this year below the threshold (but in a different currency)
+    await fakeExpense({
+      FromCollectiveId: accountWithINRBelowThreshold.id,
+      CollectiveId: collectives[0].id,
+      PayoutMethodId: otherPayoutMethod.id,
+      amount: Math.round(US_TAX_FORM_THRESHOLD * (1 / 0.01) - 1),
+      currency: 'INR',
+    });
+
+    // An expense from this year over the threshold (but in a different currency)
+    await fakeExpense({
+      FromCollectiveId: accountWithINROverThreshold.id,
+      CollectiveId: collectives[0].id,
+      PayoutMethodId: otherPayoutMethod.id,
+      amount: Math.round(US_TAX_FORM_THRESHOLD * (1 / 0.01)),
+      currency: 'INR',
+    });
+
     // An expense from this year over the threshold
     await Expense.create(
       ExpenseOverThreshold({
@@ -372,7 +403,7 @@ describe('server/lib/tax-forms', () => {
   describe('findAccountsThatNeedToBeSentTaxForm', () => {
     it('returns the right profiles', async () => {
       const accounts = await findAccountsThatNeedToBeSentTaxForm(moment().year());
-      expect(accounts.length).to.be.eq(6);
+      expect(accounts.length).to.be.eq(7);
       expect(accounts.some(account => account.id === organizationWithTaxForm.id)).to.be.true;
       expect(accounts.some(account => account.id === accountWithTaxFormFromLastYear.id)).to.be.false;
       expect(accounts.some(account => account.id === accountWithTaxFormFrom4YearsAgo.id)).to.be.true;
@@ -382,6 +413,8 @@ describe('server/lib/tax-forms', () => {
       expect(accounts.some(account => account.id === accountWithPaypalOverThreshold.id)).to.be.true;
       expect(accounts.some(account => account.id === accountWithPaypalBelowThreshold.id)).to.be.false;
       expect(accounts.some(account => account.id === accountWithOnlyADraft.id)).to.be.false;
+      expect(accounts.some(account => account.id === accountWithINROverThreshold.id)).to.be.true;
+      expect(accounts.some(account => account.id === accountWithINRBelowThreshold.id)).to.be.false;
     });
   });
 
