@@ -199,7 +199,7 @@ export const IsMemberOfFields = {
         limit: args.limit,
         offset: args.offset,
         order,
-        paranoid: !(args.isDeleted === true),
+        paranoid: args.isDeleted !== true,
         include: [
           {
             model: models.Collective,
