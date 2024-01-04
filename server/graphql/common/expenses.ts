@@ -976,7 +976,7 @@ export const scheduleExpenseForPayment = async (
 
   // If Wise, add expense to a new batch group
   if (expense.PayoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
-    await paymentProviders.transferwise.scheduleExpenseForPayment(expense, options?.transferDetails);
+    await paymentProviders.transferwise.scheduleExpenseForPayment(expense, options.transferDetails);
   }
   // If PayPal, check if host is connected to PayPal
   else if (expense.PayoutMethod.type === PayoutMethodTypes.PAYPAL) {
@@ -2707,7 +2707,7 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
           payoutMethod,
           expense,
           undefined,
-          args?.transferDetails,
+          args.transferDetails,
         );
 
         // Early return, Webhook will mark expense as Paid when the transaction completes.
