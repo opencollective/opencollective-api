@@ -58,6 +58,7 @@ import {
   CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   GraphQLChronologicalOrderInput,
 } from '../input/ChronologicalOrderInput';
+import { GraphQLOrderByInput, ORDER_BY_PSEUDO_FIELDS } from '../input/OrderByInput';
 import { AccountFields, GraphQLAccount } from '../interface/Account';
 import { AccountWithContributionsFields, GraphQLAccountWithContributions } from '../interface/AccountWithContributions';
 import { CollectionArgs, getCollectionArgs } from '../interface/Collection';
@@ -1174,6 +1175,10 @@ export const GraphQLHost = new GraphQLObjectType({
             description:
               'A term to search membership. Searches in collective tags, name, slug, members description and role.',
           },
+          orderBy: {
+            type: GraphQLOrderByInput,
+            description: 'Order of the results',
+          },
         },
         async resolve(host, args, req) {
           const isAdmin = req.remoteUser?.isAdmin(host.id);
@@ -1234,10 +1239,25 @@ export const GraphQLHost = new GraphQLObjectType({
             where[Op.or] = searchTermConditions;
           }
 
+          const order = [];
+          if (args.orderBy) {
+            const { field, direction } = args.orderBy;
+            if (field === ORDER_BY_PSEUDO_FIELDS.CREATED_AT) {
+              // Quick hack here, using ApprovedAt because in this context,
+              // it doesn't make sense to order by createdAt and this ends
+              // up saving a whole new component that needs to be implemented
+              order.push(['approvedAt', direction]);
+            } else {
+              order.push([field, direction]);
+            }
+          } else {
+            order.push(['approvedAt', 'DESC']);
+          }
+
           const result = await models.Collective.findAndCountAll({
             limit: args.limit,
             offset: args.offset,
-            order: [['createdAt', 'DESC']],
+            order,
             where,
           });
 
