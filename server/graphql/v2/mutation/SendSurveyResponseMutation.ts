@@ -30,8 +30,12 @@ export const sendSurveyResponseMutation = {
     }
     const CODA_TOKEN = process.env.CODA_IN_APP_SURVEY_TOKEN;
 
-    if (!CODA_TOKEN && config.env !== 'development') {
-      throw new UnexpectedError('Missing CODA_IN_APP_SURVEY_TOKEN environment variable');
+    if (!CODA_TOKEN) {
+      throw new UnexpectedError(
+        config.env === 'development'
+          ? 'Missing CODA_IN_APP_SURVEY_TOKEN environment variable'
+          : 'An unexpected error happened while submitting the survey',
+      );
     }
 
     const rateLimit = new RateLimit(`survey-response-${req.remoteUser.id}`, 60, ONE_HOUR_IN_SECONDS);
@@ -53,10 +57,6 @@ export const sendSurveyResponseMutation = {
     };
 
     try {
-      if (config.env === 'development') {
-        return true;
-      }
-
       await fetch(`https://coda.io/apis/v1/docs/${CODA_DOC_ID}/tables/${CODA_TABLE_ID}/rows`, {
         method: 'POST',
         headers: {
