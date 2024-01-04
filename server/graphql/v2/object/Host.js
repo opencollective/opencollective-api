@@ -1159,7 +1159,6 @@ export const GraphQLHost = new GraphQLObjectType({
           isFrozen: {
             type: GraphQLBoolean,
             description: 'Filter on frozen accounts',
-            defaultValue: false,
           },
           isUnhosted: {
             type: GraphQLBoolean,
@@ -1180,14 +1179,10 @@ export const GraphQLHost = new GraphQLObjectType({
             description: 'Order of the results',
           },
         },
-        async resolve(host, args, req) {
-          const isAdmin = req.remoteUser?.isAdmin(host.id);
-          if (!isAdmin) {
-            throw new Unauthorized('You need to be logged in as an admin of the host to see its hosted accounts');
-          }
-
+        async resolve(host, args) {
           const where = {
             HostCollectiveId: host.id,
+            id: { [Op.not]: host.id },
           };
 
           if (args.accountType && args.accountType.length > 0) {
