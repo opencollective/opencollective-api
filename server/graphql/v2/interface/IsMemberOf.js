@@ -1,7 +1,6 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
-import { cloneDeep, invert, isNil, set } from 'lodash';
+import { cloneDeep, invert, isNil } from 'lodash';
 
-import FEATURE from '../../../constants/feature';
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
 import { buildSearchConditions } from '../../../lib/search';
 import models, { Op, sequelize } from '../../../models';
@@ -34,14 +33,6 @@ export const IsMemberOfFields = {
       isArchived: {
         type: GraphQLBoolean,
         description: 'Filter on archived collectives',
-      },
-      isFrozen: {
-        type: GraphQLBoolean,
-        description: 'Filter on frozen collectives',
-      },
-      isDeleted: {
-        type: GraphQLBoolean,
-        description: 'Filter on memberships that were deleted',
       },
       includeIncognito: {
         type: GraphQLBoolean,
@@ -110,20 +101,6 @@ export const IsMemberOfFields = {
       }
       if (!isNil(args.isHostAccount)) {
         collectiveConditions.isHostAccount = args.isHostAccount;
-      }
-      if (!isNil(args.isFrozen)) {
-        if (args.isFrozen) {
-          set(collectiveConditions, `data.features.${FEATURE.ALL}`, false);
-        } else {
-          set(collectiveConditions, `data.features.${FEATURE.ALL}`, { [Op.is]: null });
-        }
-      }
-      if (args.isDeleted === true) {
-        where.deletedAt = { [Op.not]: null };
-        if (args.role.includes('HOST')) {
-          collectiveConditions.approvedAt = { [Op.not]: null };
-          collectiveConditions.HostCollectiveId = { [Op.ne]: collective.id };
-        }
       }
 
       if (args.hostFeesStructure) {
@@ -199,7 +176,6 @@ export const IsMemberOfFields = {
         limit: args.limit,
         offset: args.offset,
         order,
-        paranoid: args.isDeleted !== true,
         include: [
           {
             model: models.Collective,

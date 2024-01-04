@@ -8,12 +8,13 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { find, get, isEmpty, isNil, keyBy, mapValues, uniq } from 'lodash';
+import { find, get, isEmpty, isNil, keyBy, mapValues, set, uniq } from 'lodash';
 import moment from 'moment';
 
 import { roles } from '../../../constants';
 import { CollectiveType } from '../../../constants/collectives';
 import expenseType from '../../../constants/expense_type';
+import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
 import OrderStatuses from '../../../constants/order_status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import POLICIES from '../../../constants/policies';
@@ -28,15 +29,21 @@ import models, { Collective, Op } from '../../../models';
 import Agreement from '../../../models/Agreement';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
-import { Unauthorized } from '../../errors';
+import { Unauthorized, ValidationFailed } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { GraphQLAccountingCategoryCollection } from '../collection/AccountingCategoryCollection';
 import { GraphQLAgreementCollection } from '../collection/AgreementCollection';
 import { GraphQLHostApplicationCollection } from '../collection/HostApplicationCollection';
 import { GraphQLVendorCollection } from '../collection/VendorCollection';
 import { GraphQLVirtualCardCollection } from '../collection/VirtualCardCollection';
-import { GraphQLPaymentMethodLegacyType, GraphQLPayoutMethodType } from '../enum';
+import {
+  AccountTypeToModelMapping,
+  GraphQLAccountType,
+  GraphQLPaymentMethodLegacyType,
+  GraphQLPayoutMethodType,
+} from '../enum';
 import { GraphQLHostApplicationStatus } from '../enum/HostApplicationStatus';
+import { GraphQLHostFeeStructure } from '../enum/HostFeeStructure';
 import { PaymentMethodLegacyTypeEnum } from '../enum/PaymentMethodLegacyType';
 import { GraphQLTimeUnit } from '../enum/TimeUnit';
 import { GraphQLVirtualCardStatusEnum } from '../enum/VirtualCardStatus';
@@ -1132,6 +1139,111 @@ export const GraphQLHost = new GraphQLObjectType({
           return {
             nodes: orgs,
             totalCount: orgs.length,
+            limit: args.limit,
+            offset: args.offset,
+          };
+        },
+      },
+      hostedAccounts: {
+        type: new GraphQLNonNull(GraphQLAccountCollection),
+        description: 'Returns a list of accounts hosted by this host',
+        args: {
+          ...getCollectionArgs({ limit: 100, offset: 0 }),
+          accountType: { type: new GraphQLList(GraphQLAccountType) },
+          isApproved: {
+            type: GraphQLBoolean,
+            description: 'Filter on (un)approved collectives',
+            defaultValue: true,
+          },
+          isFrozen: {
+            type: GraphQLBoolean,
+            description: 'Filter on frozen accounts',
+            defaultValue: false,
+          },
+          isUnhosted: {
+            type: GraphQLBoolean,
+            description: 'Filter on unhosted accounts',
+            defaultValue: false,
+          },
+          hostFeesStructure: {
+            type: GraphQLHostFeeStructure,
+            description: 'Filters on the Host fees structure applied to this account',
+          },
+          searchTerm: {
+            type: GraphQLString,
+            description:
+              'A term to search membership. Searches in collective tags, name, slug, members description and role.',
+          },
+        },
+        async resolve(host, args, req) {
+          const isAdmin = req.remoteUser?.isAdmin(host.id);
+          if (!isAdmin) {
+            throw new Unauthorized('You need to be logged in as an admin of the host to see its hosted accounts');
+          }
+
+          const where = {
+            HostCollectiveId: host.id,
+          };
+
+          if (args.accountType && args.accountType.length > 0) {
+            where.type = {
+              [Op.in]: args.accountType.map(value => AccountTypeToModelMapping[value]),
+            };
+          }
+
+          if (!isNil(args.isFrozen)) {
+            if (args.isFrozen) {
+              set(where, `data.features.${FEATURE.ALL}`, false);
+            } else {
+              set(where, `data.features.${FEATURE.ALL}`, { [Op.is]: null });
+            }
+          }
+
+          if (args.hostFeesStructure) {
+            if (args.hostFeesStructure === HOST_FEE_STRUCTURE.DEFAULT) {
+              where.data = { useCustomHostFee: { [Op.not]: true } };
+            } else if (args.hostFeesStructure === HOST_FEE_STRUCTURE.CUSTOM_FEE) {
+              where.data = { useCustomHostFee: true };
+            } else if (args.hostFeesStructure === HOST_FEE_STRUCTURE.MONTHLY_RETAINER) {
+              throw new ValidationFailed('The MONTHLY_RETAINER fees structure is not supported yet');
+            }
+          }
+
+          if (args.isUnhosted) {
+            const unhostedActivities = await models.Activity.findAll({
+              where: { type: 'collective.unhosted', HostCollectiveId: host.id },
+              attributes: ['CollectiveId'],
+            });
+            where.HostCollectiveId = { [Op.ne]: host.id };
+            where.id = { [Op.in]: unhostedActivities.map(a => a.CollectiveId) };
+          } else {
+            where.isActive = true;
+            where.approvedAt = args.isApproved ? { [Op.not]: null } : null;
+          }
+
+          const searchTermConditions = buildSearchConditions(args.searchTerm, {
+            idFields: ['id'],
+            slugFields: ['slug'],
+            textFields: ['name', 'description'],
+            stringArrayFields: ['tags'],
+            stringArrayTransformFn: str => str.toLowerCase(), // collective tags are stored lowercase
+            castStringArraysToVarchar: true,
+          });
+
+          if (searchTermConditions.length) {
+            where[Op.or] = searchTermConditions;
+          }
+
+          const result = await models.Collective.findAndCountAll({
+            limit: args.limit,
+            offset: args.offset,
+            order: [['createdAt', 'DESC']],
+            where,
+          });
+
+          return {
+            nodes: result.rows,
+            totalCount: result.count,
             limit: args.limit,
             offset: args.offset,
           };
