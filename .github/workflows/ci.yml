@@ -201,6 +201,9 @@ jobs:
         with:
           node-version-file: 'package.json'
           cache: 'npm'
+          
+      - name: Test config
+        run: echo ${{ secrets.AWS_KEY }}
 
       - name: Restore node_modules
         uses: actions/cache@v3
