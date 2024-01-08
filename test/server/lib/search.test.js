@@ -350,8 +350,8 @@ describe('server/lib/search', () => {
       stringArrayFields: ['tags'],
     };
 
-    const testBuildSearchConditionsWithCustomConfig = (searchTerm, fieldsConfig, options) => {
-      return buildSearchConditions(searchTerm, fieldsConfig, options);
+    const testBuildSearchConditionsWithCustomConfig = (searchTerm, fieldsConfig) => {
+      return buildSearchConditions(searchTerm, fieldsConfig);
     };
 
     const testBuildSearchConditions = searchTerm => {

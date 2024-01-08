@@ -357,7 +357,7 @@ const mutations = {
         throw new Error('Collective does not exist');
       } else if (!req.remoteUser.isAdminOfCollective(collective)) {
         throw new Error('User must be admin of collective');
-      } else if ((await checkCanEmitGiftCards(collective, req.remoteUser)) === FEATURE_STATUS.UNSUPPORTED) {
+      } else if ((await checkCanEmitGiftCards(collective)) === FEATURE_STATUS.UNSUPPORTED) {
         throw new Error('Cannot create gift cards from this account');
       }
 
