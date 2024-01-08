@@ -4,7 +4,7 @@ import '../server/env';
 import { sanitizeTags } from '../server/lib/tags';
 import models, { Op } from '../server/models';
 
-export const sanitizeAllCollectiveTags = async () => {
+const sanitizeAllCollectiveTags = async () => {
   console.log('Sanitizing all Collective tags...');
   const collectives = await models.Collective.findAll({
     attributes: ['id', 'tags'],

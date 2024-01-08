@@ -159,7 +159,7 @@ function getLatestIssues(state = 'open') {
   }).then(response => response.json());
 }
 
-export default async function run() {
+async function run() {
   try {
     const results = {
       // Donation statistics

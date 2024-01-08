@@ -11,13 +11,65 @@ import emailLib from '../../../../server/lib/email';
 import models from '../../../../server/models';
 import giftcard from '../../../../server/paymentProviders/opencollective/giftcard';
 import creditCardLib from '../../../../server/paymentProviders/stripe/creditcard';
-import initNock from '../../../nocks/paymentMethods.opencollective.giftcard.nock';
 import * as store from '../../../stores';
 import { fakeOrder } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
 const ORDER_TOTAL_AMOUNT = 5000;
 const STRIPE_FEE_STUBBED_VALUE = 300;
+
+/* eslint-disable camelcase */
+const fixerNock = function () {
+  nock('https://data.fixer.io', { encodedQueryParams: true })
+    .get('/latest')
+    .times(2)
+    .query({ access_key: /.*/i, base: 'EUR', symbols: 'USD' })
+    .reply(200, {
+      success: true,
+      timestamp: 1532557927,
+      historical: true,
+      base: 'EUR',
+      date: '2018-07-25',
+      rates: { USD: 1.173428 },
+    });
+  nock('https://data.fixer.io', { encodedQueryParams: true })
+    .get('/latest')
+    .times(2)
+    .query({ access_key: /.*/i, base: 'EUR', symbols: 'USD' })
+    .reply(200, {
+      success: true,
+      timestamp: 1532557927,
+      historical: true,
+      base: 'EUR',
+      date: '2018-07-25',
+      rates: { USD: 1.173428 },
+    });
+  nock('https://data.fixer.io', { encodedQueryParams: true })
+    .get('/latest')
+    .times(2)
+    .query({ access_key: /.*/i, base: 'EUR', symbols: 'USD' })
+    .reply(200, {
+      success: true,
+      timestamp: 1532557927,
+      historical: true,
+      base: 'EUR',
+      date: '2018-07-25',
+      rates: { USD: 1.173428 },
+    });
+  nock('https://data.fixer.io', { encodedQueryParams: true })
+    .get('/latest')
+    .times(2)
+    .query({ access_key: /.*/i, base: 'EUR', symbols: 'USD' })
+    .reply(200, {
+      success: true,
+      timestamp: 1532557927,
+      historical: true,
+      base: 'EUR',
+      date: '2018-07-25',
+      rates: { USD: 1.173428 },
+    });
+};
+/* eslint-enable camelcase */
 
 const createGiftCardsMutation = gql`
   mutation CreateGiftCards(
@@ -102,7 +154,7 @@ const createOrderMutation = gqlV2/* GraphQL */ `
 describe('server/paymentProviders/opencollective/giftcard', () => {
   let sandbox, sendEmailSpy;
 
-  before(initNock);
+  before(fixerNock);
   after(() => {
     nock.cleanAll();
   });

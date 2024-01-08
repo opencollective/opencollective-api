@@ -13,7 +13,7 @@ const emailOptions = {
   type: 'onboarding',
 };
 
-export async function processCollective(collective, template) {
+async function processCollective(collective, template) {
   logger.info('-', collective.slug);
 
   // Exclude Funds from onboarding, Funds MVP, remove me after migration to FUND type

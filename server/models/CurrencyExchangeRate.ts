@@ -107,4 +107,6 @@ CurrencyExchangeRate.init(
   },
 );
 
+// ignore unused exports default
+
 export default CurrencyExchangeRate;

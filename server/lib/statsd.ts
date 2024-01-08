@@ -6,7 +6,7 @@ import { parseToBoolean } from './utils';
 
 let statsdClient = null;
 
-export function getStatsdClient() {
+function getStatsdClient() {
   if (!statsdClient) {
     if (parseToBoolean(config.statsd.enabled)) {
       statsdClient = new StatsD(config.statsd.url, Number(config.statsd.port), config.statsd.prefix);

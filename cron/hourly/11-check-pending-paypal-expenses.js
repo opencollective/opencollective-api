@@ -13,7 +13,7 @@ import models from '../../server/models';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import { checkBatchStatus } from '../../server/paymentProviders/paypal/payouts';
 
-export async function run() {
+async function run() {
   const expenses = await models.Expense.findAll({
     where: {
       [Op.or]: [

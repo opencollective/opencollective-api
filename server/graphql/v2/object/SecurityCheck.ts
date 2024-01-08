@@ -1,3 +1,5 @@
+// ignore unused exports GraphQLSecurityCheckScope, GraphQLSecurityCheckLevel
+
 import { GraphQLEnumType, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import { Level, Scope } from '../../../lib/security/expense';

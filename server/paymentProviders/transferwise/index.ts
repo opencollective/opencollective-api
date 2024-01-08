@@ -43,11 +43,10 @@ const PROVIDER_NAME = 'transferwise';
 const hashObject = obj => crypto.createHash('sha1').update(JSON.stringify(obj)).digest('hex').slice(0, 7);
 const splitCSV = string => compact(split(string, /,\s*/));
 
-export const blockedCountries = splitCSV(config.transferwise.blockedCountries);
-export const blockedCurrencies = splitCSV(config.transferwise.blockedCurrencies);
-export const blockedCurrenciesForBusinessProfiles = splitCSV(config.transferwise.blockedCurrenciesForBusinessProfiles);
-export const blockedCurrenciesForNonProfits = splitCSV(config.transferwise.blockedCurrenciesForNonProfits);
-export const currenciesThatRequireReference = ['RUB'];
+const blockedCountries = splitCSV(config.transferwise.blockedCountries);
+const blockedCurrencies = splitCSV(config.transferwise.blockedCurrencies);
+const blockedCurrenciesForBusinessProfiles = splitCSV(config.transferwise.blockedCurrenciesForBusinessProfiles);
+const blockedCurrenciesForNonProfits = splitCSV(config.transferwise.blockedCurrenciesForNonProfits);
 
 async function populateProfileId(connectedAccount: ConnectedAccount, profileId?: number): Promise<void> {
   if (!connectedAccount.data?.id) {

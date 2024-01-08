@@ -69,7 +69,7 @@ const SNAPSHOT_COLUMNS = [
   'isRefund',
 ];
 
-export const addFunds = async (user, hostCollective, collective, amount) => {
+const addFunds = async (user, hostCollective, collective, amount) => {
   const currency = collective.currency || 'USD';
   const hostCurrencyFxRate = await getFxRate(currency, hostCollective.currency);
   const amountInHostCurrency = Math.round(hostCurrencyFxRate * amount);

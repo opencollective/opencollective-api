@@ -8,7 +8,7 @@ import { sequelize } from '../server/models';
 const CIPHER = config.dbEncryption.cipher;
 const SECRET_KEY = config.dbEncryption.secretKey;
 
-export async function main(args) {
+async function main(args) {
   if (!args.oldKey || !args.newKey) {
     console.error('You need to provide both old and new key.');
     console.error(

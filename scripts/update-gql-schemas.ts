@@ -13,7 +13,7 @@ import fetch from 'node-fetch';
  * @param endpoint
  * @param options
  */
-export async function getRemoteSchema(
+async function getRemoteSchema(
   endpoint: string,
 ): Promise<{ status: 'ok'; schema: string } | { status: 'err'; message: string }> {
   try {
@@ -45,7 +45,7 @@ export async function getRemoteSchema(
  * @param dist
  * @param schema
  */
-export function printToFile(
+function printToFile(
   schema: string,
   filePath: string,
 ): { status: 'ok'; path: string } | { status: 'err'; message: string } {
@@ -59,7 +59,7 @@ export function printToFile(
   }
 }
 
-export async function main(endpoint, filePath): Promise<void> {
+async function main(endpoint, filePath): Promise<void> {
   /* Fetch schema */
   const schema = await getRemoteSchema(endpoint);
 

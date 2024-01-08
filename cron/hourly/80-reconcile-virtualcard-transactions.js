@@ -72,7 +72,7 @@ async function reconcileConnectedAccount(connectedAccount) {
   }
 }
 
-export async function run() {
+async function run() {
   logger.info('Reconciling Privacy and Stripe credit card transactions...');
   if (DRY) {
     logger.warn(`Running DRY, no changes to the DB`);

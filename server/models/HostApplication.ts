@@ -155,4 +155,6 @@ HostApplication.init(
   },
 );
 
+// ignore unused exports default
+
 export default HostApplication;
