@@ -1085,9 +1085,14 @@ Transaction.createHostFeeTransactions = async (transaction, host, data) => {
 Transaction.getPaymentProcessorFeeVendor = memoize(
   async (service: PAYMENT_METHOD_SERVICE | PayoutMethodTypes | 'OTHER'): Promise<Collective> => {
     const vendorSlugs = {
+      // Stripe
       [PAYMENT_METHOD_SERVICE.STRIPE]: 'stripe-payment-processor-vendor',
+      // Paypal
       [PAYMENT_METHOD_SERVICE.PAYPAL]: 'paypal-payment-processor-vendor',
+      [PayoutMethodTypes.PAYPAL]: 'paypal-payment-processor-vendor',
+      // Wise
       [PayoutMethodTypes.BANK_ACCOUNT]: 'wise-payment-processor-vendor',
+      // Manual
       OTHER: 'other-payment-processor-vendor',
     };
 
@@ -1111,12 +1116,12 @@ Transaction.createPaymentProcessorFeeTransactions = async (
   const paymentMethod =
     transaction.PaymentMethodId && (await models.PaymentMethod.findByPk(transaction.PaymentMethodId));
   const payoutMethod = transaction.PayoutMethodId && (await models.PayoutMethod.findByPk(transaction.PayoutMethodId));
-  let paymentMethodService = paymentMethod?.service || payoutMethod?.type || 'OTHER';
-  if (paymentMethodService === PayoutMethodTypes.BANK_ACCOUNT && !data?.transfer) {
-    paymentMethodService = 'OTHER';
+  let service = paymentMethod?.service || payoutMethod?.type || 'OTHER';
+  if (service === PayoutMethodTypes.BANK_ACCOUNT && !data?.transfer) {
+    service = 'OTHER';
   }
 
-  const vendor = await Transaction.getPaymentProcessorFeeVendor(paymentMethodService);
+  const vendor = await Transaction.getPaymentProcessorFeeVendor(service);
 
   // The reference value is currently passed as "hostFeeInHostCurrency"
   const amountInHostCurrency = Math.abs(transaction.paymentProcessorFeeInHostCurrency);
