@@ -57,7 +57,7 @@ export const updatePaymentMethodForSubscription = async (
       throw new UnexpectedError('Order collective not found');
     }
     const host = await orderCollective.getHostCollective();
-    if (!orderCollective) {
+    if (!host) {
       throw new UnexpectedError('Order host not found');
     }
 

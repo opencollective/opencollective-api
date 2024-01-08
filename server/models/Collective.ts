@@ -1988,7 +1988,7 @@ class Collective extends Model<
       [CollectiveType.COLLECTIVE, CollectiveType.EVENT, CollectiveType.FUND, CollectiveType.PROJECT].includes(this.type)
     ) {
       // only an admin of the host of the collective can edit `hostFeePercent` of a COLLECTIVE
-      if (!remoteUser || !remoteUser.isAdmin(this.HostCollectiveId)) {
+      if (!remoteUser.isAdmin(this.HostCollectiveId)) {
         throw new Error('Only an admin of the host collective can edit the host fee for this collective');
       }
       return this.update({ hostFeePercent });
@@ -2028,7 +2028,7 @@ class Collective extends Model<
       [CollectiveType.COLLECTIVE, CollectiveType.EVENT, CollectiveType.FUND, CollectiveType.PROJECT].includes(this.type)
     ) {
       // only an admin of the host of the collective can edit `platformFeePercent` of a COLLECTIVE
-      if (!remoteUser || !remoteUser.isAdmin(this.HostCollectiveId)) {
+      if (!remoteUser.isAdmin(this.HostCollectiveId)) {
         throw new Error('Only an admin of the host collective can edit the host fee for this collective');
       }
       return this.update({ platformFeePercent });

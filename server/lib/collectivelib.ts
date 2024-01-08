@@ -176,9 +176,7 @@ export function validateSettings(settings: any): string | boolean {
     return 'Enter a valid URL. The URL should have the format https://opencollective.com/';
   }
 
-  if (settings) {
-    return false;
-  }
+  return false;
 }
 
 export const collectiveSlugReservedList = [

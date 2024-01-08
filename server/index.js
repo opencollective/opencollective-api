@@ -51,7 +51,7 @@ async function start(i) {
 
 let app;
 
-if (['production', 'staging'].includes(config.env) && workers && workers > 1) {
+if (['production', 'staging'].includes(config.env) && workers > 1) {
   throng({ worker: start, count: workers });
 } else {
   app = start(1);

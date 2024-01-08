@@ -786,7 +786,7 @@ const orderMutations = {
           {
             type: MigrationLogType.MOVE_ORDERS,
             description: `Move ${orders.length} orders${
-              descriptionDetails ? ` (${descriptionDetails.join(', ')})` : ''
+              descriptionDetails.length > 0 ? ` (${descriptionDetails.join(', ')})` : ''
             }`,
             CreatedByUserId: req.remoteUser.id,
             data: {

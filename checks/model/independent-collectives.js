@@ -22,8 +22,7 @@ async function checkIsActive({ fix = false } = {}) {
   if (results[0].count > 0) {
     if (!fix) {
       throw new Error(message);
-    }
-    if (fix) {
+    } else {
       logger.warn(`Fixing: ${message}`);
       await sequelize.query(
         `UPDATE "Collectives"
@@ -55,8 +54,7 @@ async function checkHasHostCollectiveId({ fix = false } = {}) {
   if (results[0].count > 0) {
     if (!fix) {
       throw new Error(message);
-    }
-    if (fix) {
+    } else {
       logger.warn(`Fixing: ${message}`);
       await sequelize.query(
         `UPDATE "Collectives"
@@ -88,8 +86,7 @@ async function checkApprovedAt({ fix = false } = {}) {
   if (results[0].count > 0) {
     if (!fix) {
       throw new Error(message);
-    }
-    if (fix) {
+    } else {
       logger.warn(`Fixing: ${message}`);
       await sequelize.query(
         `UPDATE "Collectives"
@@ -120,8 +117,7 @@ async function checkIsHostAccount({ fix = false } = {}) {
   if (results[0].count > 0) {
     if (!fix) {
       throw new Error(message);
-    }
-    if (fix) {
+    } else {
       logger.warn(`Fixing: ${message}`);
       await sequelize.query(
         `UPDATE "Collectives"
@@ -152,8 +148,7 @@ async function checkHostFeePercent({ fix = false } = {}) {
   if (results[0].count > 0) {
     if (!fix) {
       throw new Error(message);
-    }
-    if (fix) {
+    } else {
       logger.warn(`Fixing: ${message}`);
       await sequelize.query(
         `UPDATE "Collectives"

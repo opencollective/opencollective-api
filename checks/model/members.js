@@ -26,8 +26,7 @@ async function checkDeletedMembers({ fix = false } = {}) {
   if (results[0].count > 0) {
     if (!fix) {
       throw new Error(message);
-    }
-    if (fix) {
+    } else {
       logger.warn(`Fixing: ${message}`);
       await sequelize.query(
         `UPDATE "Members"
@@ -86,8 +85,7 @@ async function checkDuplicateMembers({ fix = false } = {}) {
   if (results.length > 0) {
     if (!fix) {
       throw new Error(message);
-    }
-    if (fix) {
+    } else {
       logger.warn(`Fixing: ${message}`);
       const allDuplicateIds = uniq(flatten(results.map(r => r.duplicate_ids)));
       await sequelize.query(
