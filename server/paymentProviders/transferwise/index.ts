@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import { isMemberOfTheEuropeanUnion } from '@opencollective/taxes';
 import config from 'config';
 import express from 'express';
-import { cloneDeep, compact, difference, find, get, has, omit, pick, set, split, toNumber } from 'lodash';
+import { cloneDeep, compact, difference, find, get, has, omit, pick, round, set, split, toNumber } from 'lodash';
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
@@ -334,9 +334,11 @@ async function scheduleExpenseForPayment(expense: Expense): Promise<Expense> {
     });
     totalAmountToPay += batchedExpenses.reduce((total, e) => total + e.data.quote.paymentOption.sourceAmount, 0);
   }
+
+  const roundedTotalAmountToPay = round(totalAmountToPay, 2); // To prevent floating point errors
   assert(
-    balanceInSourceCurrency.amount.value >= totalAmountToPay,
-    `Insufficient balance in ${quote.sourceCurrency} to cover the existing batch plus this expense amount, you need ${totalAmountToPay} ${quote.sourceCurrency} and you currently have ${balanceInSourceCurrency.amount.value} ${balanceInSourceCurrency.amount.currency}. Please add funds to your Wise ${quote.sourceCurrency} account.`,
+    balanceInSourceCurrency.amount.value >= roundedTotalAmountToPay,
+    `Insufficient balance in ${quote.sourceCurrency} to cover the existing batch plus this expense amount, you need ${roundedTotalAmountToPay} ${quote.sourceCurrency} and you currently have ${balanceInSourceCurrency.amount.value} ${balanceInSourceCurrency.amount.currency}. Please add funds to your Wise ${quote.sourceCurrency} account.`,
   );
 
   await createTransfer(connectedAccount, expense.PayoutMethod, expense, {
