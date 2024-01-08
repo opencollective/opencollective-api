@@ -24,6 +24,7 @@ module.exports = {
       FROM "Expenses" e
       WHERE e.id = ei."ExpenseId"
       AND e.type = 'INVOICE'
+      AND ei.url IS NOT NULL
     `);
   },
 
