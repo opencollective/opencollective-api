@@ -13,7 +13,7 @@ export const GraphQLCollective = new GraphQLObjectType({
   fields: () => {
     return {
       ...AccountFields,
-      ...AccountWithHostFields,
+      ...AccountWithHostFields(),
       ...AccountWithContributionsFields,
     };
   },

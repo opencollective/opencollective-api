@@ -15,7 +15,7 @@ import { GraphQLHost } from '../object/Host';
 
 import { getCollectionArgs } from './Collection';
 
-export const AccountWithHostFields = {
+export const AccountWithHostFields = () => ({
   host: {
     description: 'Returns the Fiscal Host',
     type: GraphQLHost,
@@ -163,10 +163,10 @@ export const AccountWithHostFields = {
       };
     },
   },
-};
+});
 
 export const GraphQLAccountWithHost = new GraphQLInterfaceType({
   name: 'AccountWithHost',
   description: 'An account that can be hosted by a Host',
-  fields: () => AccountWithHostFields,
+  fields: () => AccountWithHostFields(),
 });

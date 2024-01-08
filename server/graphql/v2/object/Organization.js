@@ -11,7 +11,7 @@ export const GraphQLOrganization = new GraphQLObjectType({
   name: 'Organization',
   description: 'This represents an Organization account',
   interfaces: () => [GraphQLAccount, GraphQLAccountWithContributions],
-  isTypeOf: collective => collective.type === 'ORGANIZATION',
+  isTypeOf: collective => collective.type === 'ORGANIZATION' && !collective.isHostAccount,
   fields: () => {
     return {
       ...AccountFields,
