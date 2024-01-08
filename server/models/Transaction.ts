@@ -1087,7 +1087,7 @@ Transaction.getPaymentProcessorFeeVendor = memoize(
     const vendorSlugs = {
       [PAYMENT_METHOD_SERVICE.STRIPE]: 'stripe-payment-processor-vendor',
       [PAYMENT_METHOD_SERVICE.PAYPAL]: 'paypal-payment-processor-vendor',
-      [PayoutMethodTypes.BANK_ACCOUNT]: 'wise-payment-processor-vendor', // TODO: We should differentiate depending on manual vs. automatic
+      [PayoutMethodTypes.BANK_ACCOUNT]: 'wise-payment-processor-vendor',
       OTHER: 'other-payment-processor-vendor',
     };
 
@@ -1111,9 +1111,12 @@ Transaction.createPaymentProcessorFeeTransactions = async (
   const paymentMethod =
     transaction.PaymentMethodId && (await models.PaymentMethod.findByPk(transaction.PaymentMethodId));
   const payoutMethod = transaction.PayoutMethodId && (await models.PayoutMethod.findByPk(transaction.PayoutMethodId));
-  const vendor = await Transaction.getPaymentProcessorFeeVendor(
-    paymentMethod?.service || payoutMethod?.type || 'OTHER',
-  );
+  let paymentMethodService = paymentMethod?.service || payoutMethod?.type || 'OTHER';
+  if (paymentMethodService === PayoutMethodTypes.BANK_ACCOUNT && !data?.transfer) {
+    paymentMethodService = 'OTHER';
+  }
+
+  const vendor = await Transaction.getPaymentProcessorFeeVendor(paymentMethodService);
 
   // The reference value is currently passed as "hostFeeInHostCurrency"
   const amountInHostCurrency = Math.abs(transaction.paymentProcessorFeeInHostCurrency);
