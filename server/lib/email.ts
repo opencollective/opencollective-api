@@ -1,6 +1,3 @@
-import fs from 'fs';
-import path from 'path';
-
 import config from 'config';
 import debugLib from 'debug';
 import { htmlToText } from 'html-to-text';
@@ -146,28 +143,6 @@ const sendMessage = (
   let to;
   if (recipients.length > 0) {
     to = recipients.join(', ');
-  }
-
-  // When in preview mode, we export an HTML version of the email in `/tmp/:template.:recipientSlug.html`
-  if (process.env.DEBUG && process.env.DEBUG.match(/preview/)) {
-    let filepath;
-    const recipientSlug = to.substr(0, to.indexOf('@'));
-    filepath = path.resolve(`/tmp/${options.tag}.${recipientSlug}.html`);
-    fs.writeFileSync(filepath, html);
-    console.log('>>> preview email', filepath);
-    if (options.text) {
-      filepath = `/tmp/${options.tag}.${recipientSlug}.txt`;
-      fs.writeFileSync(filepath, options.text as string);
-      console.log('>>> preview email', filepath);
-    }
-
-    if (options.attachments) {
-      options.attachments.map(attachment => {
-        const filepath = path.resolve(`/tmp/${attachment.filename}`);
-        fs.writeFileSync(filepath, attachment.content);
-        console.log('>>> preview attachment', filepath);
-      });
-    }
   }
 
   if (process.env.ONLY) {
