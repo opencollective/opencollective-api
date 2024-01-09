@@ -16,7 +16,7 @@ describe('server/lib/sql', () => {
       const valueReplacementAlias = ':myValue';
       const expectedSQL = `
       JSONB_SET(
-        COALESCE("data", '{}'),
+        COALESCE("data", '{}')::JSONB,
         '{foo}',
         :myValue
       )
@@ -30,13 +30,13 @@ describe('server/lib/sql', () => {
       const valueReplacementAlias = ':myValue';
       const expectedSQL = `
       JSONB_SET(
-        COALESCE("data", '{}'),
+        COALESCE("data", '{}')::JSONB,
         '{foo}',
         JSONB_SET(
-          COALESCE("data"->'foo', '{}'),
+          COALESCE("data"#>>'{foo}', '{}')::JSONB,
           '{bar}',
           JSONB_SET(
-            COALESCE("data"->'foo'->'bar', '{}'),
+            COALESCE("data"#>>'{foo,bar}', '{}')::JSONB,
             '{baz}',
             :myValue
           )

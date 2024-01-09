@@ -1300,6 +1300,17 @@ export const prepareExpenseItemInputs = async (
   });
 };
 
+/**
+ * Returns the value to store in `Expense.data.valuesByRole` for the given user.
+ */
+const getUserRole = (user: User, collective: Collective): keyof ExpenseDataValuesByRole => {
+  return user.isAdmin(collective.HostCollectiveId)
+    ? ExpenseRoles.hostAdmin
+    : user.isAdminOfCollective(collective)
+      ? ExpenseRoles.collectiveAdmin
+      : ExpenseRoles.submitter;
+};
+
 export async function createExpense(remoteUser: User | null, expenseData: ExpenseData): Promise<Expense> {
   // Check permissions
   if (!remoteUser) {
@@ -1715,17 +1726,6 @@ export async function editExpenseDraft(req: express.Request, expenseData: Expens
 
   return existingExpense;
 }
-
-/**
- * Returns the value to store in `Expense.data.valuesByRole` for the given user.
- */
-const getUserRole = (user: User, collective: Collective): keyof ExpenseDataValuesByRole => {
-  return user.isAdmin(collective.HostCollectiveId)
-    ? ExpenseRoles.hostAdmin
-    : user.isAdminOfCollective(collective)
-      ? ExpenseRoles.collectiveAdmin
-      : ExpenseRoles.submitter;
-};
 
 /**
  * A simple helper to handle the case when editing only the tags and/or accounting category of an expense.

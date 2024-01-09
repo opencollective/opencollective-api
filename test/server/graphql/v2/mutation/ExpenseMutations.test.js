@@ -26,6 +26,7 @@ import paypalAdaptive from '../../../../../server/paymentProviders/paypal/adapti
 import { randEmail, randUrl } from '../../../../stores';
 import {
   fakeAccountingCategory,
+  fakeActiveHost,
   fakeCollective,
   fakeConnectedAccount,
   fakeExpense,
@@ -1223,14 +1224,47 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(result.errors[0].message).to.eq('Expenses of type receipt are not allowed by the host');
     });
 
-    it('can update the tags as admin (even if the expense is PAID)', async () => {
-      const adminUser = await fakeUser();
-      const collective = await fakeCollective({ admin: adminUser.collective });
-      const expense = await fakeExpense({ tags: [randStr()], status: 'PAID', CollectiveId: collective.id });
-      const updatedExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), tags: ['fake', 'tags'] };
-      const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, adminUser);
-      result.errors && console.error(result.errors);
-      expect(result.data.editExpense.tags).to.deep.equal(updatedExpenseData.tags);
+    describe('editOnlyTagsAndAccountingCategory', () => {
+      it('can update the tags as admin (even if the expense is PAID)', async () => {
+        const adminUser = await fakeUser();
+        const collective = await fakeCollective({ admin: adminUser.collective });
+        const expense = await fakeExpense({ tags: [randStr()], status: 'PAID', CollectiveId: collective.id });
+        const updatedExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), tags: ['fake', 'tags'] };
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, adminUser);
+        result.errors && console.error(result.errors);
+        expect(result.data.editExpense.tags).to.deep.equal(updatedExpenseData.tags);
+      });
+
+      it('works when initial data/tags are null', async () => {
+        const adminUser = await fakeUser();
+        const host = await fakeActiveHost();
+        const collective = await fakeCollective({ admin: adminUser.collective, HostCollectiveId: host.id });
+        const expense = await fakeExpense({ data: null, tags: null, CollectiveId: collective.id });
+        const updatedExpenseData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          tags: [],
+          accountingCategory: null,
+        };
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, adminUser);
+        result.errors && console.error(result.errors);
+        expect(result.data.editExpense.tags).to.deep.equal([]);
+        expect(result.data.editExpense.accountingCategory).to.be.null;
+      });
+
+      it('works when setting valid accounting category over null values', async () => {
+        const adminUser = await fakeUser();
+        const host = await fakeActiveHost();
+        const collective = await fakeCollective({ admin: adminUser.collective, HostCollectiveId: host.id });
+        const expense = await fakeExpense({ data: { valuesByRole: null }, CollectiveId: collective.id });
+        const accountingCategory = await fakeAccountingCategory({ CollectiveId: host.id });
+        const updatedExpenseData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          accountingCategory: { id: idEncode(accountingCategory.id, 'accounting-category') },
+        };
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, adminUser);
+        result.errors && console.error(result.errors);
+        expect(result.data.editExpense.accountingCategory.id).to.deep.equal(updatedExpenseData.accountingCategory.id);
+      });
     });
 
     it('updates the location', async () => {
