@@ -35,7 +35,7 @@ const VirtualCardRequestQuery = {
     if (
       !req.remoteUser?.isAdminOfCollective(virtualCardRequest.collective) &&
       !req.remoteUser?.isAdminOfCollective(virtualCardRequest.host) &&
-      req?.remoteUser?.id !== virtualCardRequest.UserId
+      req.remoteUser?.id !== virtualCardRequest.UserId
     ) {
       return null;
     }

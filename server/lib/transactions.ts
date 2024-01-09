@@ -159,7 +159,9 @@ export async function createTransactionsFromPaidExpense(
   paymentMethod = null,
 ) {
   fees = { ...DEFAULT_FEES, ...fees };
-  expense.collective = expense.collective || (await models.Collective.findByPk(expense.CollectiveId));
+  if (!expense.collective) {
+    expense.collective = await models.Collective.findByPk(expense.CollectiveId);
+  }
 
   // Use the supplied FX rate or fetch a new one for the time of payment
   const expenseToHostFxRate =
@@ -234,6 +236,10 @@ export async function createTransactionsForManuallyPaidExpense(
   assert(paymentProcessorFeeInHostCurrency >= 0, 'Payment processor fee must be positive');
   assert(totalAmountPaidInHostCurrency > 0, 'Total amount paid must be positive');
 
+  if (!expense.collective) {
+    expense.collective = await models.Collective.findByPk(expense.CollectiveId);
+  }
+
   // Values are already adjusted to negative DEBIT values
   const isCoveredByPayee = expense.feesPayer === 'PAYEE';
   const taxRate = get(expense.data, 'taxes.0.rate') || 0;
@@ -267,7 +273,6 @@ export async function createTransactionsForManuallyPaidExpense(
     amounts.taxAmount = round(amounts.taxAmount / amounts.hostCurrencyFxRate);
   }
 
-  expense.collective = expense.collective || (await models.Collective.findByPk(expense.CollectiveId));
   const expenseDataForTransaction: Record<string, unknown> = {};
   if (expense.data?.taxes?.length) {
     expenseDataForTransaction['tax'] = {

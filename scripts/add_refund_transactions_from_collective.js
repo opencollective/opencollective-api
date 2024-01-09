@@ -98,7 +98,7 @@ async function run() {
     include: [models.Order, models.PaymentMethod],
   });
   try {
-    debugRefund(`Trying to refund ${(transactions && transactions.length) || 0} transactions...`);
+    debugRefund(`Trying to refund ${transactions.length} transactions...`);
     const mapResult = await Promise.all(transactions.map(refundTransaction));
     debugRefund(`Script finished successfully,
       mapResult(tip: result transactions need to have RefundTransactionId set):

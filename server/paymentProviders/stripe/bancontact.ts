@@ -19,15 +19,16 @@ const processOrder = async (order: OrderModelInterface): Promise<void> => {
     );
   }
 
-  if (order?.currency !== 'EUR') {
+  if (order.currency !== 'EUR') {
     throw new Error('This payment method only accepts EUR payments');
   }
 
   const hostStripeAccount = await order.collective.getHostStripeAccount();
   const host = await order.collective.getHostCollective();
-  const isPlatformRevenueDirectlyCollected = APPLICATION_FEE_INCOMPATIBLE_CURRENCIES.includes(toUpper(host.currency))
-    ? false
-    : host?.settings?.isPlatformRevenueDirectlyCollected ?? true;
+  const isPlatformRevenueDirectlyCollected =
+    host && APPLICATION_FEE_INCOMPATIBLE_CURRENCIES.includes(toUpper(host.currency))
+      ? false
+      : host?.settings?.isPlatformRevenueDirectlyCollected ?? true;
   const applicationFee = await getApplicationFee(order, { host });
 
   const paymentIntentParams: Stripe.PaymentIntentCreateParams = {

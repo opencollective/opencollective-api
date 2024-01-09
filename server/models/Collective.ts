@@ -1573,7 +1573,7 @@ class Collective extends Model<
         debug('getBackersCount', stats);
         return stats;
       } else {
-        const result = res.dataValues || res || {};
+        const result = res.dataValues || res;
         debug('getBackersCount', result);
         if (!result.count) {
           return 0;

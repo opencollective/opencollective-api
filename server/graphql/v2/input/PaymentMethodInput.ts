@@ -99,7 +99,7 @@ export const getLegacyPaymentMethodFromPaymentMethodInput = async (
       paymentMethod['expiryDate'] = moment.utc(`${expYear}-${expMonth}`, 'YYYY-MM').endOf('month');
     }
     // Internal fallback for card fingerprint
-    if (!paymentMethod.data?.fingerprint) {
+    if (!paymentMethod.data.fingerprint) {
       paymentMethod.data.fingerprint = [
         paymentMethod.name,
         ...Object.values(pick(paymentMethod.data, ['brand', 'expMonth', 'expYear', 'funding'])),

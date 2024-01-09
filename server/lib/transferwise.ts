@@ -81,7 +81,7 @@ const parseError = (
   }
 
   return new TransferwiseError(message, code, {
-    tracing: pick(error?.response?.headers, ['x-trace-id', 'cf-ray']),
+    tracing: pick(error.response?.headers, ['x-trace-id', 'cf-ray']),
   });
 };
 

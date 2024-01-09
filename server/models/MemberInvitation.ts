@@ -207,8 +207,8 @@ MemberInvitation.prototype.decline = async function () {
     HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
     data: {
       notify: false,
-      memberCollective: memberCollective?.activity,
-      collective: collective?.activity,
+      memberCollective: memberCollective.activity,
+      collective: collective.activity,
       invitation: pick(this, ['id', 'role', 'description', 'since']),
     },
   });

@@ -1877,7 +1877,7 @@ const CollectiveFields = () => {
       type: new GraphQLList(ConnectedAccountType),
       async resolve(collective, args, req) {
         const connectedAccounts = await req.loaders.Collective.connectedAccounts.load(collective.id);
-        if (collective?.settings?.transferwise?.isolateUsers === true) {
+        if (collective.settings?.transferwise?.isolateUsers === true) {
           return connectedAccounts.filter(
             ca => ca.service !== 'transferwise' || ca.CreatedByUserId === req.remoteUser.id,
           );

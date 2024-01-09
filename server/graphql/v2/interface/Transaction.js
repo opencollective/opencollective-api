@@ -697,7 +697,7 @@ export const TransactionFields = () => {
           const privacyId = transaction.data?.token;
 
           // NOTE: We don't have transaction?.data?.transaction stored for transactions < 2022-09-27, but we have it available in expense.data
-          const stripeVirtualCardId = transaction?.data?.transaction?.id || expense?.data?.transactionId;
+          const stripeVirtualCardId = transaction.data?.transaction?.id || expense?.data?.transactionId;
 
           return wiseId || paypalPayoutId || privacyId || stripeVirtualCardId;
         }

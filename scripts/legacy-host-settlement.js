@@ -296,7 +296,7 @@ async function run() {
 
     const { HostName, currency } = hostTransactions[0];
 
-    const hostFeeSharePercent = plan?.hostFeeSharePercent;
+    const hostFeeSharePercent = plan.hostFeeSharePercent;
     const transactions = hostTransactions.map(t => {
       if (t.source === 'Shared Revenue') {
         // In this context, the original t.amount is actually -t.hostFeeInHostCurrency

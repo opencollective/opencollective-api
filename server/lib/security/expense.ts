@@ -35,11 +35,6 @@ type SecurityCheck = {
 
 const stringifyUser = user => (user.collective ? user.collective.slug : `#${user.id}`);
 const stringifyUserList = users => compact(users.map(stringifyUser)).join(', ');
-const setProperty = (obj, key) => value => {
-  if (value) {
-    obj[key] = value;
-  }
-};
 const isDefinedButNotEqual = (a, b) => !isNil(a) && !isNil(b) && !isEqual(a, b);
 
 type ExpenseStats = { count: number; lastCreatedAt: Date; status: status; CollectiveId: number };
@@ -363,11 +358,9 @@ export const checkExpensesBatch = async (
     expenses.map(async expense => {
       const checks: SecurityCheck[] = [];
 
-      expense.User &&
-        !expense.User.collective &&
-        (await req.loaders.Collective.byId
-          .load(expense.User.CollectiveId)
-          .then(setProperty(expense.User, 'collective')));
+      if (!expense.User.collective) {
+        expense.User.collective = await req.loaders.Collective.byId.load(expense.User.CollectiveId);
+      }
       await expense.User.populateRoles();
 
       // Sock puppet detection: checks related users by correlating recently used IP address when logging in and creating new accounts.

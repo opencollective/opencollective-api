@@ -18,9 +18,10 @@ const processOrder = async (order: OrderModelInterface): Promise<void> => {
 
   const hostStripeAccount = await order.collective.getHostStripeAccount();
   const host = await order.collective.getHostCollective();
-  const isPlatformRevenueDirectlyCollected = APPLICATION_FEE_INCOMPATIBLE_CURRENCIES.includes(toUpper(host.currency))
-    ? false
-    : host?.settings?.isPlatformRevenueDirectlyCollected ?? true;
+  const isPlatformRevenueDirectlyCollected =
+    host && APPLICATION_FEE_INCOMPATIBLE_CURRENCIES.includes(toUpper(host.currency))
+      ? false
+      : host?.settings?.isPlatformRevenueDirectlyCollected ?? true;
   const applicationFee = await getApplicationFee(order, { host });
 
   const paymentIntentParams: Stripe.PaymentIntentCreateParams = {
@@ -34,7 +35,7 @@ const processOrder = async (order: OrderModelInterface): Promise<void> => {
       orderId: order.id,
     },
     // eslint-disable-next-line camelcase
-    payment_method: order.paymentMethod?.data?.stripePaymentMethodId,
+    payment_method: order.paymentMethod.data?.stripePaymentMethodId,
     // eslint-disable-next-line camelcase
     payment_method_types: ['bacs_debit'],
   };

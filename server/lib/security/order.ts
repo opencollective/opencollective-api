@@ -244,7 +244,7 @@ export const orderFraudProtection = async (
 
   if (remoteUser) {
     checks.push(checkUser(remoteUser));
-  } else if (order?.guestInfo?.email) {
+  } else if (order.guestInfo?.email) {
     checks.push(checkEmail(order.guestInfo.email));
   }
 

@@ -259,7 +259,7 @@ export const getOrCreateVendor = async (vendorProviderId, vendorName) => {
     defaults: { name: vendorName, type: CollectiveType.VENDOR, slug: uniqueSlug },
   });
 
-  if (vendor && vendor.name !== vendorName) {
+  if (vendor.name !== vendorName) {
     logger.warn(`Virtual Card: vendor name mismatch for ${vendorProviderId}: '${vendorName}' / '${vendor.name}'`);
   }
   // Update existing vendor to use uniqueSlug.
