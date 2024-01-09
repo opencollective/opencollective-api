@@ -41,7 +41,7 @@ const GraphQLTransferWiseField = new GraphQLObjectType({
   }),
 });
 
-const GraphQLTransferWiseRequiredField = new GraphQLObjectType({
+export const GraphQLTransferWiseRequiredField = new GraphQLObjectType({
   name: 'TransferWiseRequiredField',
   fields: () => ({
     type: { type: GraphQLString },

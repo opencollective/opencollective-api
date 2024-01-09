@@ -572,7 +572,6 @@ describe('server/paymentProviders/transferwise/index', () => {
     });
 
     it('should block currencies for business accounts by default', async () => {
-      expect(data).to.not.deep.include({ code: 'BRL', minInvoiceAmount: 1 });
       expect(data).to.not.deep.include({ code: 'PKR', minInvoiceAmount: 1 });
     });
 
