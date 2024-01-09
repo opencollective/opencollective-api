@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import gqlV2 from 'fake-tag';
+import gql from 'fake-tag';
 
 import {
   fakeCollective,
@@ -23,7 +23,7 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
       randomUser,
       payoutMethod;
 
-    const expenseQuery = gqlV2/* GraphQL */ `
+    const expenseQuery = gql`
       query Expense($id: Int!, $draftKey: String) {
         expense(expense: { legacyId: $id }, draftKey: $draftKey) {
           id
@@ -252,7 +252,7 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
 
   describe('query comments', () => {
     let collective, expense, collectiveAdmin;
-    const expenseQuery = gqlV2/* GraphQL */ `
+    const expenseQuery = gql`
       query Expense($id: Int!, $limit: Int, $offset: Int) {
         expense(expense: { legacyId: $id }) {
           id

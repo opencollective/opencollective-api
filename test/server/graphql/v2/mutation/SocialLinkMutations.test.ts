@@ -1,11 +1,11 @@
 import { expect } from 'chai';
-import gqlV2 from 'fake-tag';
+import gql from 'fake-tag';
 
 import { fakeCollective, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
-const UPDATE_SOCIAL_LINKS_MUTATION = gqlV2/* GraphQL */ `
-  mutation UpdateSocialLinksMutation($socialLinks: [SocialLinkInput!]!, $account: AccountReferenceInput!) {
+const UPDATE_SOCIAL_LINKS_MUTATION = gql`
+  mutation UpdateSocialLinks($socialLinks: [SocialLinkInput!]!, $account: AccountReferenceInput!) {
     updateSocialLinks(socialLinks: $socialLinks, account: $account) {
       type
       url

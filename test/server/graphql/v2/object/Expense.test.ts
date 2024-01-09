@@ -1,11 +1,11 @@
 import { expect } from 'chai';
-import gqlV2 from 'fake-tag';
+import gql from 'fake-tag';
 
 import ActivityTypes from '../../../../../server/constants/activities';
 import { fakeActivity, fakeExpense, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
 
-const expenseQuery = gqlV2/* GraphQL */ `
+const expenseQuery = gql`
   query Expense($id: Int!) {
     expense(expense: { legacyId: $id }) {
       id

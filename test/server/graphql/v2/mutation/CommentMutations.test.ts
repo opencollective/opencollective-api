@@ -20,8 +20,6 @@ import {
 } from '../../../../test-helpers/fake-data';
 import * as utils from '../../../../utils';
 
-const gqlV2 = gql;
-
 describe('test/server/graphql/v2/mutation/CommentMutations', () => {
   let validCommentData, collective, expense, admin, hostAdmin, expenseSubmitter, host;
 
@@ -46,7 +44,7 @@ describe('test/server/graphql/v2/mutation/CommentMutations', () => {
 
   describe('create a comment', () => {
     let sandbox, sendEmailSpy;
-    const createCommentMutation = gqlV2/* GraphQL */ `
+    const createCommentMutation = gql`
       mutation CreateComment($comment: CommentCreateInput!) {
         createComment(comment: $comment) {
           id
@@ -140,7 +138,7 @@ describe('test/server/graphql/v2/mutation/CommentMutations', () => {
 
   describe('edit a comment', () => {
     let comment;
-    const editCommentMutation = gqlV2/* GraphQL */ `
+    const editCommentMutation = gql`
       mutation EditComment($comment: CommentUpdateInput!) {
         editComment(comment: $comment) {
           id
@@ -198,7 +196,7 @@ describe('test/server/graphql/v2/mutation/CommentMutations', () => {
 
   describe('delete Comment', () => {
     let comment;
-    const deleteCommentMutation = gqlV2/* GraphQL */ `
+    const deleteCommentMutation = gql`
       mutation DeleteComment($id: String!) {
         deleteComment(id: $id) {
           id

@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import gqlV2 from 'fake-tag';
+import gql from 'fake-tag';
 import { describe, it } from 'mocha';
 import { assert, createSandbox } from 'sinon';
 
@@ -79,7 +79,7 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
   });
 
   describe('create an update', () => {
-    const createUpdateMutation = gqlV2/* GraphQL */ `
+    const createUpdateMutation = gql`
       mutation CreateUpdate($update: UpdateCreateInput!) {
         createUpdate(update: $update) {
           id
@@ -124,7 +124,7 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
         account: { legacyId: opencollective.id },
       };
     });
-    const createUpdateMutation = gqlV2/* GraphQL */ `
+    const createUpdateMutation = gql`
       mutation CreateUpdate($update: UpdateCreateInput!) {
         createUpdate(update: $update) {
           id
@@ -162,7 +162,7 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
   });
 
   describe('publish an update', () => {
-    const publishUpdateMutation = gqlV2/* GraphQL */ `
+    const publishUpdateMutation = gql`
       mutation PublishUpdate($id: String!, $notificationAudience: UpdateAudience) {
         publishUpdate(id: $id, notificationAudience: $notificationAudience) {
           id
@@ -290,7 +290,7 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
   });
 
   describe('edit an update', () => {
-    const editUpdateMutation = gqlV2/* GraphQL */ `
+    const editUpdateMutation = gql`
       mutation EditUpdate($update: UpdateUpdateInput!) {
         editUpdate(update: $update) {
           id
@@ -354,7 +354,7 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
     });
   });
   describe('delete Update', () => {
-    const deleteUpdateMutation = gqlV2/* GraphQL */ `
+    const deleteUpdateMutation = gql`
       mutation DeleteUpdate($id: String!) {
         deleteUpdate(id: $id) {
           id

@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import gqlV2 from 'fake-tag';
+import gql from 'fake-tag';
 import { createSandbox, match } from 'sinon';
 
 import { frequencies } from '../../../../../server/constants';
@@ -12,13 +12,13 @@ import * as stripeVirtualCards from '../../../../../server/paymentProviders/stri
 import { fakeCollective, fakeHost, fakeUser, fakeVirtualCard } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
-const DELETE_VIRTUAL_CARD_MUTATION = gqlV2/* GraphQL */ `
+const DELETE_VIRTUAL_CARD_MUTATION = gql`
   mutation DeleteVirtualCard($virtualCard: VirtualCardReferenceInput!) {
     deleteVirtualCard(virtualCard: $virtualCard)
   }
 `;
 
-const EDIT_VIRTUAL_CARD_MUTATION = gqlV2/* GraphQL */ `
+const EDIT_VIRTUAL_CARD_MUTATION = gql`
   mutation EditVirtualCard(
     $virtualCard: VirtualCardReferenceInput!
     $name: String
@@ -43,7 +43,7 @@ const EDIT_VIRTUAL_CARD_MUTATION = gqlV2/* GraphQL */ `
   }
 `;
 
-const CREATE_VIRTUAL_CARD_MUTATION = gqlV2/* GraphQL */ `
+const CREATE_VIRTUAL_CARD_MUTATION = gql`
   mutation CreateVirtualCard(
     $name: String!
     $assignee: AccountReferenceInput!

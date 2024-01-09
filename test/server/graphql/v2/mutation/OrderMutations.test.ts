@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import config from 'config';
-import gqlV2 from 'fake-tag';
+import gql from 'fake-tag';
 import { cloneDeep, set } from 'lodash';
 import moment from 'moment';
 import { createSandbox, useFakeTimers } from 'sinon';
@@ -41,7 +41,7 @@ import {
   waitForCondition,
 } from '../../../../utils';
 
-const CREATE_ORDER_MUTATION = gqlV2/* GraphQL */ `
+const CREATE_ORDER_MUTATION = gql`
   mutation CreateOrder($order: OrderCreateInput!) {
     createOrder(order: $order) {
       order {
@@ -107,7 +107,7 @@ const CREATE_ORDER_MUTATION = gqlV2/* GraphQL */ `
   }
 `;
 
-const PENDING_ORDER_FIELDS_FRAGMENT = gqlV2/* GraphQL */ `
+const PENDING_ORDER_FIELDS_FRAGMENT = gql`
   fragment PendingOrderFields on Order {
     id
     legacyId
@@ -150,9 +150,6 @@ const PENDING_ORDER_FIELDS_FRAGMENT = gqlV2/* GraphQL */ `
         isGuest
       }
     }
-    tier {
-      legacyId
-    }
     paymentMethod {
       id
       legacyId
@@ -167,7 +164,7 @@ const PENDING_ORDER_FIELDS_FRAGMENT = gqlV2/* GraphQL */ `
   }
 `;
 
-const CREATE_PENDING_ORDER_MUTATION = gqlV2/* GraphQL */ `
+const CREATE_PENDING_ORDER_MUTATION = gql`
   mutation CreatePendingOrder($order: PendingOrderCreateInput!) {
     createPendingOrder(order: $order) {
       ...PendingOrderFields
@@ -176,7 +173,7 @@ const CREATE_PENDING_ORDER_MUTATION = gqlV2/* GraphQL */ `
   ${PENDING_ORDER_FIELDS_FRAGMENT}
 `;
 
-const EDIT_PENDING_ORDER_MUTATION = gqlV2/* GraphQL */ `
+const EDIT_PENDING_ORDER_MUTATION = gql`
   mutation EditPendingOrder($order: PendingOrderEditInput!) {
     editPendingOrder(order: $order) {
       ...PendingOrderFields
@@ -185,7 +182,7 @@ const EDIT_PENDING_ORDER_MUTATION = gqlV2/* GraphQL */ `
   ${PENDING_ORDER_FIELDS_FRAGMENT}
 `;
 
-const updateOrderMutation = gqlV2/* GraphQL */ `
+const updateOrderMutation = gql`
   mutation UpdateOrder(
     $order: OrderReferenceInput!
     $amount: AmountInput
@@ -210,7 +207,7 @@ const updateOrderMutation = gqlV2/* GraphQL */ `
   }
 `;
 
-const moveOrdersMutation = gqlV2/* GraphQL */ `
+const moveOrdersMutation = gql`
   mutation MoveOrders(
     $orders: [OrderReferenceInput!]!
     $fromAccount: AccountReferenceInput
@@ -262,7 +259,7 @@ const moveOrdersMutation = gqlV2/* GraphQL */ `
   }
 `;
 
-const cancelRecurringContributionMutation = gqlV2/* GraphQL */ `
+const cancelRecurringContributionMutation = gql`
   mutation CancelRecurringContribution($order: OrderReferenceInput!) {
     cancelOrder(order: $order) {
       id
@@ -271,7 +268,7 @@ const cancelRecurringContributionMutation = gqlV2/* GraphQL */ `
   }
 `;
 
-const processPendingOrderMutation = gqlV2/* GraphQL */ `
+const processPendingOrderMutation = gql`
   mutation ProcessPendingOrder($action: ProcessOrderAction!, $order: OrderUpdateInput!) {
     processPendingOrder(order: $order, action: $action) {
       id

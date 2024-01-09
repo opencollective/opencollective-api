@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import config from 'config';
 import crypto from 'crypto-js';
-import gqlV2 from 'fake-tag';
+import gql from 'fake-tag';
 import { defaultsDeep, omit, pick, round, sumBy } from 'lodash';
 import { createSandbox } from 'sinon';
 import speakeasy from 'speakeasy';
@@ -84,19 +84,16 @@ const addFunds = async (user, hostCollective, collective, amount) => {
   });
 };
 
-const mutationExpenseFields = gqlV2/* GraphQL */ `
+const mutationExpenseFields = gql`
   fragment ExpenseFields on Expense {
     id
     legacyId
     invoiceInfo
     amount
-    invoiceInfo
     description
     type
-    amount
     status
     privateMessage
-    invoiceInfo
     customData
     accountingCategory {
       id
@@ -145,10 +142,6 @@ const mutationExpenseFields = gqlV2/* GraphQL */ `
       name
       type
     }
-    payeeLocation {
-      address
-      country
-    }
     items {
       id
       url
@@ -160,7 +153,7 @@ const mutationExpenseFields = gqlV2/* GraphQL */ `
   }
 `;
 
-const createExpenseMutation = gqlV2/* GraphQL */ `
+const createExpenseMutation = gql`
   mutation CreateExpense($expense: ExpenseCreateInput!, $account: AccountReferenceInput!) {
     createExpense(expense: $expense, account: $account) {
       ...ExpenseFields
@@ -169,7 +162,7 @@ const createExpenseMutation = gqlV2/* GraphQL */ `
   ${mutationExpenseFields}
 `;
 
-const deleteExpenseMutation = gqlV2/* GraphQL */ `
+const deleteExpenseMutation = gql`
   mutation DeleteExpense($expense: ExpenseReferenceInput!) {
     deleteExpense(expense: $expense) {
       id
@@ -178,7 +171,7 @@ const deleteExpenseMutation = gqlV2/* GraphQL */ `
   }
 `;
 
-const editExpenseMutation = gqlV2/* GraphQL */ `
+const editExpenseMutation = gql`
   mutation EditExpense($expense: ExpenseUpdateInput!, $draftKey: String) {
     editExpense(expense: $expense, draftKey: $draftKey) {
       ...ExpenseFields
@@ -187,7 +180,7 @@ const editExpenseMutation = gqlV2/* GraphQL */ `
   ${mutationExpenseFields}
 `;
 
-const processExpenseMutation = gqlV2/* GraphQL */ `
+const processExpenseMutation = gql`
   mutation ProcessExpense(
     $expenseId: Int!
     $action: ExpenseProcessAction!
@@ -3156,7 +3149,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
   describe('draftExpenseAndInviteUser and resendDraftExpenseInvite', () => {
     let sandbox, collective, expense, user;
 
-    const draftExpenseAndInviteUserMutation = gqlV2/* GraphQL */ `
+    const draftExpenseAndInviteUserMutation = gql`
       mutation DraftExpenseAndInviteUser($expense: ExpenseInviteDraftInput!, $account: AccountReferenceInput!) {
         draftExpenseAndInviteUser(expense: $expense, account: $account) {
           id
@@ -3166,8 +3159,8 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         }
       }
     `;
-    const resendDraftExpenseInviteMutation = gqlV2/* GraphQL */ `
-      mutation ResendDraftExpenseInviteMutation($expense: ExpenseReferenceInput!) {
+    const resendDraftExpenseInviteMutation = gql`
+      mutation ResendDraftExpenseInvite($expense: ExpenseReferenceInput!) {
         resendDraftExpenseInvite(expense: $expense) {
           id
           legacyId

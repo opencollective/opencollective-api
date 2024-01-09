@@ -4,7 +4,7 @@
  */
 
 import { expect } from 'chai';
-import gql from 'fake-tag';
+import gqlV1 from 'fake-tag';
 import { describe, it } from 'mocha';
 
 import models from '../../../../server/models';
@@ -49,7 +49,7 @@ describe('server/graphql/v1/transaction', () => {
   describe('return collective.transactions', () => {
     it('when given a collective slug (case insensitive)', async () => {
       const limit = 40;
-      const collectiveQuery = gql`
+      const collectiveQuery = gqlV1/* GraphQL */ `
         query Collective($slug: String, $limit: Int) {
           Collective(slug: $slug) {
             id
@@ -91,7 +91,7 @@ describe('server/graphql/v1/transaction', () => {
 
   describe('return transactions', () => {
     it('returns one transaction by id', async () => {
-      const transactionQuery = gql`
+      const transactionQuery = gqlV1/* GraphQL */ `
         query Transaction($id: Int) {
           Transaction(id: $id) {
             id
@@ -122,7 +122,7 @@ describe('server/graphql/v1/transaction', () => {
     });
 
     it('returns one transaction by uuid', async () => {
-      const transactionQuery = gql`
+      const transactionQuery = gqlV1/* GraphQL */ `
         query Transaction($uuid: String) {
           Transaction(uuid: $uuid) {
             id
@@ -157,16 +157,16 @@ describe('server/graphql/v1/transaction', () => {
 
     it('with filter on type', async () => {
       const limit = 100;
-      const allTransactionsQuery = gql`
-        query AllTransactions($CollectiveId: Int!, $limit: Int, $offset: Int, $type: String) {
-          allTransactions(CollectiveId: $CollectiveId, limit: $limit, offset: $offset, type: $type) {
+      const allTransactionsQuery = gqlV1/* GraphQL */ `
+        query AllTransactions($collectiveId: Int!, $limit: Int, $offset: Int, $type: String) {
+          allTransactions(CollectiveId: $collectiveId, limit: $limit, offset: $offset, type: $type) {
             id
             type
           }
         }
       `;
       const result = await utils.graphqlQuery(allTransactionsQuery, {
-        CollectiveId: 3,
+        collectiveId: 3,
         limit,
         type: 'CREDIT',
       });
@@ -176,9 +176,9 @@ describe('server/graphql/v1/transaction', () => {
 
     it('with dateFrom', async () => {
       // Given the followin query
-      const allTransactionsQuery = gql`
+      const allTransactionsQuery = gqlV1/* GraphQL */ `
         query AllTransactions(
-          $CollectiveId: Int!
+          $collectiveId: Int!
           $limit: Int
           $offset: Int
           $type: String
@@ -186,7 +186,7 @@ describe('server/graphql/v1/transaction', () => {
           $dateTo: String
         ) {
           allTransactions(
-            CollectiveId: $CollectiveId
+            CollectiveId: $collectiveId
             limit: $limit
             offset: $offset
             type: $type
@@ -201,7 +201,7 @@ describe('server/graphql/v1/transaction', () => {
 
       // When the query is executed with the parameter `dateFrom`
       const result = await utils.graphqlQuery(allTransactionsQuery, {
-        CollectiveId: 3,
+        collectiveId: 3,
         dateFrom: '2017-10-01',
       });
       expect(result.data.allTransactions).to.have.length(10);
@@ -210,9 +210,9 @@ describe('server/graphql/v1/transaction', () => {
 
     it('with dateTo', async () => {
       // Given the followin query
-      const allTransactionsQuery = gql`
+      const allTransactionsQuery = gqlV1/* GraphQL */ `
         query AllTransactions(
-          $CollectiveId: Int!
+          $collectiveId: Int!
           $limit: Int
           $offset: Int
           $type: String
@@ -220,7 +220,7 @@ describe('server/graphql/v1/transaction', () => {
           $dateTo: String
         ) {
           allTransactions(
-            CollectiveId: $CollectiveId
+            CollectiveId: $collectiveId
             limit: $limit
             offset: $offset
             type: $type
@@ -235,7 +235,7 @@ describe('server/graphql/v1/transaction', () => {
 
       // When the query is executed with the parameter `dateTo`
       const result = await utils.graphqlQuery(allTransactionsQuery, {
-        CollectiveId: 3,
+        collectiveId: 3,
         dateTo: '2017-10-01',
       });
       expect(result.data.allTransactions).to.have.length(10);
@@ -245,9 +245,9 @@ describe('server/graphql/v1/transaction', () => {
     it('with pagination', async () => {
       const limit = 20;
       const offset = 0;
-      const allTransactionsQuery = gql`
-        query AllTransactions($CollectiveId: Int!, $limit: Int, $offset: Int) {
-          allTransactions(CollectiveId: $CollectiveId, limit: $limit, offset: $offset) {
+      const allTransactionsQuery = gqlV1/* GraphQL */ `
+        query AllTransactions($collectiveId: Int!, $limit: Int, $offset: Int) {
+          allTransactions(CollectiveId: $collectiveId, limit: $limit, offset: $offset) {
             id
             type
             kind
@@ -281,7 +281,7 @@ describe('server/graphql/v1/transaction', () => {
         }
       `;
       const result = await utils.graphqlQuery(allTransactionsQuery, {
-        CollectiveId: 3,
+        collectiveId: 3,
         limit,
         offset,
       });

@@ -1,12 +1,12 @@
 import { expect } from 'chai';
-import gqlV2 from 'fake-tag';
+import gql from 'fake-tag';
 import { times } from 'lodash';
 
 import ActivityTypes from '../../../../../server/constants/activities';
 import { fakeActivity, fakeCollective, fakeHost, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
-const activitiesCollectionQuery = gqlV2/* GraphQL */ `
+const activitiesCollectionQuery = gql`
   query Activities(
     $account: [AccountReferenceInput!]!
     $type: [ActivityAndClassesType!]

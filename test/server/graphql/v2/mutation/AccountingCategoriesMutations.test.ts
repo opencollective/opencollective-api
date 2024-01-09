@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import gqlV2 from 'fake-tag';
+import gql from 'fake-tag';
 import { get } from 'lodash';
 
 import ActivityTypes from '../../../../../server/constants/activities';
@@ -24,7 +24,7 @@ const fakeValidCategoryInput = (attrs = {}) => ({
 
 describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
   describe('editAccountingCategories', () => {
-    const editAccountingCategoriesMutation = gqlV2/* GraphQL */ `
+    const editAccountingCategoriesMutation = gql`
       mutation EditAccountingCategories($account: AccountReferenceInput!, $categories: [AccountingCategoryInput!]!) {
         editAccountingCategories(account: $account, categories: $categories) {
           ... on Organization {

@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import config from 'config';
 import crypto from 'crypto-js';
-import gqlV2 from 'fake-tag';
+import gql from 'fake-tag';
 import { times } from 'lodash';
 import moment from 'moment';
 import speakeasy from 'speakeasy';
@@ -14,7 +14,7 @@ import { graphqlQueryV2, personalTokenGraphqlQueryV2, resetTestDB } from '../../
 const SECRET_KEY = config.dbEncryption.secretKey;
 const CIPHER = config.dbEncryption.cipher;
 
-const CREATE_PERSONAL_TOKEN_MUTATION = gqlV2/* GraphQL */ `
+const CREATE_PERSONAL_TOKEN_MUTATION = gql`
   mutation CreatePersonalToken($personalToken: PersonalTokenCreateInput!) {
     createPersonalToken(personalToken: $personalToken) {
       id
@@ -26,7 +26,7 @@ const CREATE_PERSONAL_TOKEN_MUTATION = gqlV2/* GraphQL */ `
   }
 `;
 
-const UPDATE_PERSONAL_TOKEN_MUTATION = gqlV2/* GraphQL */ `
+const UPDATE_PERSONAL_TOKEN_MUTATION = gql`
   mutation UpdatePersonalToken($personalToken: PersonalTokenUpdateInput!) {
     updatePersonalToken(personalToken: $personalToken) {
       id
@@ -38,7 +38,7 @@ const UPDATE_PERSONAL_TOKEN_MUTATION = gqlV2/* GraphQL */ `
   }
 `;
 
-const DELETE_PERSONAL_TOKEN_MUTATION = gqlV2/* GraphQL */ `
+const DELETE_PERSONAL_TOKEN_MUTATION = gql`
   mutation DeletePersonalToken($personalToken: PersonalTokenReferenceInput!) {
     deletePersonalToken(personalToken: $personalToken) {
       id

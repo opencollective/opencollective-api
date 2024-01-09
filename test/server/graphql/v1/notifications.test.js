@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import config from 'config';
-import gql from 'fake-tag';
+import gqlV1 from 'fake-tag';
 import { describe, it } from 'mocha';
 
 import { activities, roles } from '../../../../server/constants';
@@ -44,7 +44,7 @@ describe('server/graphql/v1/notifications', () => {
   });
 
   describe('create webhook notifications', () => {
-    const createWebhookMutation = gql`
+    const createWebhookMutation = gqlV1/* GraphQL */ `
       mutation CreateWebhook($collectiveSlug: String!, $notification: NotificationInputType!) {
         createWebhook(collectiveSlug: $collectiveSlug, notification: $notification) {
           id
@@ -143,7 +143,7 @@ describe('server/graphql/v1/notifications', () => {
   });
 
   describe('delete webhook notifications', () => {
-    const deleteWebhookMutation = gql`
+    const deleteWebhookMutation = gqlV1/* GraphQL */ `
       mutation DeleteWebhook($id: Int!) {
         deleteNotification(id: $id) {
           id

@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import gqlV2 from 'fake-tag';
+import gql from 'fake-tag';
 import { createSandbox } from 'sinon';
 import speakeasy from 'speakeasy';
 
@@ -14,7 +14,7 @@ import models from '../../../../../server/models';
 import { fakeCollective, fakeEvent, fakeHost, fakeProject, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB, waitForCondition } from '../../../../utils';
 
-const editSettingsMutation = gqlV2/* GraphQL */ `
+const editSettingsMutation = gql`
   mutation EditSettings($account: AccountReferenceInput!, $key: AccountSettingsKey!, $value: JSON!) {
     editAccountSetting(account: $account, key: $key, value: $value) {
       id
@@ -23,7 +23,7 @@ const editSettingsMutation = gqlV2/* GraphQL */ `
   }
 `;
 
-const addTwoFactorAuthTokenMutation = gqlV2/* GraphQL */ `
+const addTwoFactorAuthTokenMutation = gql`
   mutation AddTwoFactorAuthToIndividual($account: AccountReferenceInput!, $token: String!, $type: TwoFactorMethod) {
     addTwoFactorAuthTokenToIndividual(account: $account, token: $token, type: $type) {
       account {
@@ -37,7 +37,7 @@ const addTwoFactorAuthTokenMutation = gqlV2/* GraphQL */ `
   }
 `;
 
-const removeTwoFactorAuthTokenMutation = gqlV2`
+const removeTwoFactorAuthTokenMutation = gql`
   mutation RemoveTwoFactorAuthTokenFromIndividual($account: AccountReferenceInput!, $type: TwoFactorMethod) {
     removeTwoFactorAuthTokenFromIndividual(account: $account, type: $type) {
       hasTwoFactorAuth
@@ -45,7 +45,7 @@ const removeTwoFactorAuthTokenMutation = gqlV2`
   }
 `;
 
-const editAccountFeeStructureMutation = gqlV2/* GraphQL */ `
+const editAccountFeeStructureMutation = gql`
   mutation EditAccountFeeStructure($account: AccountReferenceInput!, $hostFeePercent: Float!, $isCustomFee: Boolean!) {
     editAccountFeeStructure(account: $account, hostFeePercent: $hostFeePercent, isCustomFee: $isCustomFee) {
       id
@@ -65,10 +65,10 @@ const editAccountFeeStructureMutation = gqlV2/* GraphQL */ `
   }
 `;
 
-const createWebAuthnRegistrationOptionsMutation = gqlV2`
-mutation AddTwoFactorAuthToIndividual($account: AccountReferenceInput!) {
-  createWebAuthnRegistrationOptions(account: $account)
-}
+const createWebAuthnRegistrationOptionsMutation = gql`
+  mutation AddTwoFactorAuthToIndividual($account: AccountReferenceInput!) {
+    createWebAuthnRegistrationOptions(account: $account)
+  }
 `;
 
 describe('server/graphql/v2/mutation/AccountMutations', () => {
@@ -527,8 +527,8 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
   });
 
   describe('setPolicies', () => {
-    const setPoliciesMutation = gqlV2/* GraphQL */ `
-      mutation setPoliciesMutation($account: AccountReferenceInput!, $policies: PoliciesInput!) {
+    const setPoliciesMutation = gql`
+      mutation SetPolicies($account: AccountReferenceInput!, $policies: PoliciesInput!) {
         setPolicies(account: $account, policies: $policies) {
           id
           settings
@@ -643,7 +643,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
   });
 
   describe('sendMessage', () => {
-    const sendMessageMutation = gqlV2/* GraphQL */ `
+    const sendMessageMutation = gql`
       mutation SendMessage($account: AccountReferenceInput!, $message: NonEmptyString!, $subject: String) {
         sendMessage(account: $account, message: $message, subject: $subject) {
           success

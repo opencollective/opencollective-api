@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import gqlV2 from 'fake-tag';
+import gql from 'fake-tag';
 import { groupBy } from 'lodash';
 import { createSandbox } from 'sinon';
 
@@ -19,7 +19,7 @@ import {
 import { graphqlQueryV2, oAuthGraphqlQueryV2 } from '../../../../utils';
 import * as utils from '../../../../utils';
 
-const addFundsMutation = gqlV2/* GraphQL */ `
+const addFundsMutation = gql`
   mutation AddFunds(
     $fromAccount: AccountReferenceInput!
     $account: AccountReferenceInput!

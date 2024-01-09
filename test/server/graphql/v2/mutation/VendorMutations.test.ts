@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import gqlV2 from 'fake-tag';
+import gql from 'fake-tag';
 
 import { CollectiveType } from '../../../../../server/constants/collectives';
 import models from '../../../../../server/models';
@@ -34,7 +34,7 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
   });
 
   describe('createVendor', () => {
-    const createVendorMutation = gqlV2/* GraphQL */ `
+    const createVendorMutation = gql`
       mutation CreateVendorTest($host: AccountReferenceInput!, $vendor: VendorCreateInput!) {
         createVendor(host: $host, vendor: $vendor) {
           id
@@ -99,7 +99,7 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
   });
 
   describe('editVendor', () => {
-    const editVendorMutation = gqlV2/* GraphQL */ `
+    const editVendorMutation = gql`
       mutation EditVendorTest($vendor: VendorEditInput!) {
         editVendor(vendor: $vendor) {
           legacyId
@@ -188,7 +188,7 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
   });
 
   describe('deleteVendor', () => {
-    const deleteVendorMutation = gqlV2/* GraphQL */ `
+    const deleteVendorMutation = gql`
       mutation DeleteVendorTest($vendor: AccountReferenceInput!) {
         deleteVendor(vendor: $vendor)
       }

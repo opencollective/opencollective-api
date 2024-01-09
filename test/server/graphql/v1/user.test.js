@@ -1,6 +1,6 @@
 import { expect } from 'chai';
+import gqlV1 from 'fake-tag';
 import gql from 'fake-tag';
-import gqlV2 from 'fake-tag';
 import { describe, it } from 'mocha';
 import { createSandbox } from 'sinon';
 
@@ -9,9 +9,9 @@ import models from '../../../../server/models';
 import * as store from '../../../stores';
 import * as utils from '../../../utils';
 
-const TIER_QUERY = gqlV2/** GraphQL */ `
+const TIER_QUERY = gql`
   query Tier($id: Int!) {
-    tier(tier: {legacyId: $id}) {
+    tier(tier: { legacyId: $id }) {
       id
       name
       orders {
@@ -27,7 +27,7 @@ const TIER_QUERY = gqlV2/** GraphQL */ `
   }
 `;
 
-const CREATE_ORDER_MUTATION = gqlV2/** GraphQL */ `
+const CREATE_ORDER_MUTATION = gql`
   mutation CreateOrder($order: OrderCreateInput!) {
     createOrder(order: $order) {
       order {
@@ -104,7 +104,7 @@ describe('server/graphql/v1/user', () => {
 
   describe('graphql.user.test.js', () => {
     describe('logged in user', () => {
-      const loggedInUserQuery = gql`
+      const loggedInUserQuery = gqlV1/* GraphQL */ `
         query LoggedInUser {
           LoggedInUser {
             id

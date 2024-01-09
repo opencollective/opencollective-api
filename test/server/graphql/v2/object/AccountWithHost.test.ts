@@ -1,11 +1,11 @@
 import { expect } from 'chai';
-import gqlV2 from 'fake-tag';
+import gql from 'fake-tag';
 
 import Agreement from '../../../../../server/models/Agreement';
 import { fakeCollective, fakeHost, fakeUploadedFile, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
 
-const accountQuery = gqlV2/* GraphQL */ `
+const accountQuery = gql`
   query Account($slug: String!) {
     account(slug: $slug) {
       id

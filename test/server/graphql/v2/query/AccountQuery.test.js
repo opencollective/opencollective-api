@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import gqlV2 from 'fake-tag';
+import gql from 'fake-tag';
 import { shuffle, times } from 'lodash';
 
 import { roles } from '../../../../../server/constants';
@@ -18,7 +18,7 @@ import {
 } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
-const accountQuery = gqlV2/* GraphQL */ `
+const accountQuery = gql`
   query Account($slug: String!, $updatesOrder: UpdateChronologicalOrderInput) {
     account(slug: $slug) {
       id
@@ -197,7 +197,7 @@ describe('server/graphql/v2/query/AccountQuery', () => {
 
   describe('members', () => {
     let collective, collectiveBackers, adminUser;
-    const membersQuery = gqlV2/* GraphQL */ `
+    const membersQuery = gql`
       query AccountMembers($slug: String!, $email: EmailAddress) {
         account(slug: $slug) {
           id
@@ -293,7 +293,7 @@ describe('server/graphql/v2/query/AccountQuery', () => {
 
   describe('childrenAccounts', () => {
     let collective, user;
-    const childrenAccounts = gqlV2/* GraphQL */ `
+    const childrenAccounts = gql`
       query Account($slug: String!, $accountType: [AccountType]) {
         account(slug: $slug) {
           id

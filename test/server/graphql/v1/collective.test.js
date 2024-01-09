@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import gql from 'fake-tag';
+import gqlV1 from 'fake-tag';
 import { describe, it } from 'mocha';
 import sinon, { createSandbox } from 'sinon';
 
@@ -20,7 +20,7 @@ import {
 } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
-const collectiveQuery = gql`
+const collectiveQuery = gqlV1/* GraphQL */ `
   query Collective($slug: String) {
     Collective(slug: $slug) {
       id
@@ -36,7 +36,7 @@ describe('server/graphql/v1/collective', () => {
 
   it('should display a nice error message if collective is not found', async () => {
     // Given the following query
-    const collectiveQuery = gql`
+    const collectiveQuery = gqlV1/* GraphQL */ `
       query Collective($slug: String) {
         Collective(slug: $slug) {
           id
@@ -53,7 +53,7 @@ describe('server/graphql/v1/collective', () => {
 
   it("won't generate an error if told not to", async () => {
     // Given the following query
-    const collectiveQuery = gql`
+    const collectiveQuery = gqlV1/* GraphQL */ `
       query Collective($slug: String) {
         Collective(slug: $slug, throwIfMissing: false) {
           id
@@ -118,7 +118,7 @@ describe('server/graphql/v1/collective', () => {
     }
 
     // When the following query is executed
-    const collectiveQuery = gql`
+    const collectiveQuery = gqlV1/* GraphQL */ `
       query Collective($slug: String) {
         Collective(slug: $slug) {
           id
@@ -231,7 +231,7 @@ describe('server/graphql/v1/collective', () => {
     await event.update({ type: 'EVENT', ParentCollectiveId: collective.id });
 
     // When the following query is executed
-    const query = gql`
+    const query = gqlV1/* GraphQL */ `
       query Collective($slug: String) {
         Collective(slug: $slug) {
           slug
@@ -303,7 +303,7 @@ describe('server/graphql/v1/collective', () => {
     await store.createRejectedExpense(user, d(50000, 'Non vegan t-shirts', veganizerbxl.id));
 
     // When the following query is executed
-    const collectiveQuery = gql`
+    const collectiveQuery = gqlV1/* GraphQL */ `
       query Collective($slug: String) {
         Collective(slug: $slug) {
           id
@@ -452,7 +452,7 @@ describe('server/graphql/v1/collective', () => {
     });
 
     // When the query is performed
-    const collectiveQuery = gql`
+    const collectiveQuery = gqlV1/* GraphQL */ `
       query Collective($slug: String, $type: String) {
         Collective(slug: $slug) {
           members(type: $type, limit: 10, offset: 0) {
@@ -544,7 +544,7 @@ describe('server/graphql/v1/collective', () => {
   });
 
   describe('allMembers query', () => {
-    const allMembersQuery = gql`
+    const allMembersQuery = gqlV1/* GraphQL */ `
       query AllMembers(
         $collectiveSlug: String
         $memberCollectiveSlug: String
@@ -817,7 +817,7 @@ describe('server/graphql/v1/collective', () => {
         .withArgs('USD', 'EUR')
         .resolves(1 / 1.1);
 
-      const query = gql`
+      const query = gqlV1/* GraphQL */ `
         query TotalCollectiveContributions($slug: String, $type: String) {
           Collective(slug: $slug) {
             id
@@ -869,7 +869,7 @@ describe('server/graphql/v1/collective', () => {
 
     it('edits legalName', async () => {
       const user = await fakeUser();
-      const editCollectiveMutation = gql`
+      const editCollectiveMutation = gqlV1/* GraphQL */ `
         mutation EditCollective($collective: CollectiveInputType!) {
           editCollective(collective: $collective) {
             id
@@ -885,7 +885,7 @@ describe('server/graphql/v1/collective', () => {
 
     it('edits social links', async () => {
       const user = await fakeUser();
-      const editCollectiveMutation = gql`
+      const editCollectiveMutation = gqlV1/* GraphQL */ `
         mutation EditCollective($collective: CollectiveInputType!) {
           editCollective(collective: $collective) {
             id
@@ -943,7 +943,7 @@ describe('server/graphql/v1/collective', () => {
 
     it('updates social links', async () => {
       const user = await fakeUser();
-      const editCollectiveMutation = gql`
+      const editCollectiveMutation = gqlV1/* GraphQL */ `
         mutation EditCollective($collective: CollectiveInputType!) {
           editCollective(collective: $collective) {
             id
@@ -1028,7 +1028,7 @@ describe('server/graphql/v1/collective', () => {
         location: {},
       };
 
-      const editCollectiveMutation = gql`
+      const editCollectiveMutation = gqlV1/* GraphQL */ `
         mutation EditCollective($collective: CollectiveInputType!) {
           editCollective(collective: $collective) {
             id
@@ -1102,7 +1102,7 @@ describe('server/graphql/v1/collective', () => {
         HostCollectiveId: hostCollective.id,
       };
 
-      const editCollectiveMutation = gql`
+      const editCollectiveMutation = gqlV1/* GraphQL */ `
         mutation EditCollective($collective: CollectiveInputType!) {
           editCollective(collective: $collective) {
             id
@@ -1127,7 +1127,7 @@ describe('server/graphql/v1/collective', () => {
 
     it('check edit activity is created after', async () => {
       const user = await fakeUser(null, { legalName: 'Old Legal Name' });
-      const editCollectiveMutation = gql`
+      const editCollectiveMutation = gqlV1/* GraphQL */ `
         mutation EditCollective($collective: CollectiveInputType!) {
           editCollective(collective: $collective) {
             id
@@ -1153,9 +1153,9 @@ describe('server/graphql/v1/collective', () => {
     });
   });
   describe('edits member public message', () => {
-    const editPublicMessageMutation = gql`
-      mutation EditPublicMessage($FromCollectiveId: Int!, $CollectiveId: Int!, $message: String) {
-        editPublicMessage(FromCollectiveId: $FromCollectiveId, CollectiveId: $CollectiveId, message: $message) {
+    const editPublicMessageMutation = gqlV1/* GraphQL */ `
+      mutation EditPublicMessage($fromCollectiveId: Int!, $collectiveId: Int!, $message: String) {
+        editPublicMessage(FromCollectiveId: $fromCollectiveId, CollectiveId: $collectiveId, message: $message) {
           id
           publicMessage
         }
@@ -1187,8 +1187,8 @@ describe('server/graphql/v1/collective', () => {
       const res = await utils.graphqlQuery(
         editPublicMessageMutation,
         {
-          FromCollectiveId: pubnubAdmin.collective.id,
-          CollectiveId: pubnubCollective.id,
+          fromCollectiveId: pubnubAdmin.collective.id,
+          collectiveId: pubnubCollective.id,
           message,
         },
         pubnubAdmin,
@@ -1241,8 +1241,8 @@ describe('server/graphql/v1/collective', () => {
       const res = await utils.graphqlQuery(
         editPublicMessageMutation,
         {
-          FromCollectiveId: pubnubAdmin.collective.id,
-          CollectiveId: pubnubCollective.id,
+          fromCollectiveId: pubnubAdmin.collective.id,
+          collectiveId: pubnubCollective.id,
           message: null,
         },
         pubnubAdmin,
@@ -1273,8 +1273,8 @@ describe('server/graphql/v1/collective', () => {
       const res = await utils.graphqlQuery(
         editPublicMessageMutation,
         {
-          FromCollectiveId: user.collective.id,
-          CollectiveId: pubnubCollective.id,
+          fromCollectiveId: user.collective.id,
+          collectiveId: pubnubCollective.id,
           message: 'I am happy to support this collective!',
         },
         pubnubAdmin,
@@ -1288,8 +1288,8 @@ describe('server/graphql/v1/collective', () => {
       const res = await utils.graphqlQuery(
         editPublicMessageMutation,
         {
-          FromCollectiveId: user.collective.id,
-          CollectiveId: pubnubCollective.id,
+          fromCollectiveId: user.collective.id,
+          collectiveId: pubnubCollective.id,
           message: 'I am happy to support th0is collective!',
         },
         user,
@@ -1301,7 +1301,7 @@ describe('server/graphql/v1/collective', () => {
   });
 
   describe('contributors', () => {
-    const contributorsQuery = gql`
+    const contributorsQuery = gqlV1/* GraphQL */ `
       query Collective($slug: String!) {
         Collective(slug: $slug) {
           id

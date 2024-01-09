@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import gqlV2 from 'fake-tag';
+import gql from 'fake-tag';
 import nock from 'nock';
 import { createSandbox } from 'sinon';
 
@@ -17,7 +17,7 @@ import * as utils from '../../../../utils';
 
 const STRIPE_TOKEN = 'tok_123456781234567812345678';
 
-const refundTransactionMutation = gqlV2/* GraphQL */ `
+const refundTransactionMutation = gql`
   mutation RefundTransaction($transaction: TransactionReferenceInput!) {
     refundTransaction(transaction: $transaction) {
       id
@@ -173,7 +173,7 @@ describe('server/graphql/v2/mutation/TransactionMutations', () => {
   });
 
   describe('rejectTransaction', () => {
-    const rejectTransactionMutation = gqlV2/* GraphQL */ `
+    const rejectTransactionMutation = gql`
       mutation RejectTransaction($transaction: TransactionReferenceInput!, $message: String) {
         rejectTransaction(transaction: $transaction, message: $message) {
           id

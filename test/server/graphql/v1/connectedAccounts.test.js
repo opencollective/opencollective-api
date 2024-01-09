@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import gql from 'fake-tag';
+import gqlV1 from 'fake-tag';
 
 import models from '../../../../server/models';
 import { randEmail } from '../../../stores';
@@ -7,7 +7,7 @@ import * as utils from '../../../utils';
 
 describe('server/graphql/v1/connectedAccounts', () => {
   let user, admin, backer, collective, connectedAccount, connectedAccountData;
-  const editConnectedAccountMutation = gql`
+  const editConnectedAccountMutation = gqlV1/* GraphQL */ `
     mutation EditConnectedAccount($connectedAccount: ConnectedAccountInputType!) {
       editConnectedAccount(connectedAccount: $connectedAccount) {
         id

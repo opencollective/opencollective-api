@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import config from 'config';
-import gqlV2 from 'fake-tag';
+import gql from 'fake-tag';
 import { createSandbox } from 'sinon';
 
 import { verifyJwt } from '../../../../../server/lib/auth';
@@ -9,13 +9,13 @@ import { randEmail } from '../../../../stores';
 import { fakeUser, randStr } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB, waitForCondition } from '../../../../utils';
 
-const sendConfirmationMutation = gqlV2/* GraphQL */ `
+const sendConfirmationMutation = gql`
   mutation SendGuestConfirmation($email: EmailAddress!) {
     sendGuestConfirmationEmail(email: $email)
   }
 `;
 
-const confirmGuestAccountMutation = gqlV2/* GraphQL */ `
+const confirmGuestAccountMutation = gql`
   mutation ConfirmGuestAccount($email: EmailAddress!, $emailConfirmationToken: String!) {
     confirmGuestAccount(email: $email, emailConfirmationToken: $emailConfirmationToken) {
       accessToken

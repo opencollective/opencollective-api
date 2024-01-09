@@ -1,11 +1,11 @@
 import { expect } from 'chai';
-import gql from 'fake-tag';
+import gqlV1 from 'fake-tag';
 
 import * as libpayments from '../../../../server/lib/payments';
 import * as store from '../../../stores';
 import * as utils from '../../../utils';
 
-const collectiveQuery = gql`
+const collectiveQuery = gqlV1/* GraphQL */ `
   query Collective($slug: String) {
     Collective(slug: $slug) {
       members {

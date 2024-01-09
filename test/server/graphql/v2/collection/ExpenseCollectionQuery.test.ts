@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import gqlV2 from 'fake-tag';
+import gql from 'fake-tag';
 import { differenceBy, times } from 'lodash';
 import { createSandbox } from 'sinon';
 
@@ -20,7 +20,7 @@ import {
 } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
-const expensesQuery = gqlV2/* GraphQL */ `
+const expensesQuery = gql`
   query Expenses(
     $fromAccount: AccountReferenceInput
     $account: AccountReferenceInput
@@ -150,7 +150,7 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
   describe('Filter by accounts', async () => {
     let expenses;
 
-    const expenseQuery = gqlV2/* GraphQL */ `
+    const expenseQuery = gql`
       query Expenses(
         $createdByAccount: AccountReferenceInput
         $account: AccountReferenceInput
