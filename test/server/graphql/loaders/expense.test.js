@@ -1,11 +1,17 @@
 import { expect } from 'chai';
 import moment from 'moment';
 
-import { loaders } from '../../../../server/graphql/loaders';
 import { taxFormRequiredBeforePayment } from '../../../../server/graphql/loaders/expenses';
 import models from '../../../../server/models';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../server/models/LegalDocument';
-import { fakeCollective, fakeExpense, fakeHost, fakePayoutMethod, fakeUser } from '../../../test-helpers/fake-data';
+import {
+  fakeCollective,
+  fakeCurrencyExchangeRate,
+  fakeExpense,
+  fakeHost,
+  fakePayoutMethod,
+  fakeUser,
+} from '../../../test-helpers/fake-data';
 import { resetTestDB } from '../../../utils';
 
 const US_TAX_FORM_THRESHOLD = 600e2;
@@ -23,27 +29,26 @@ const fakeHostWithRequiredLegalDocument = async (hostData = {}) => {
 };
 
 describe('server/graphql/loaders/expense', () => {
-  let otherPayoutMethod;
+  let otherPayoutMethod, loader;
 
   before(async () => {
     await resetTestDB();
     otherPayoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+    loader = taxFormRequiredBeforePayment();
   });
 
   describe('taxFormRequiredBeforePayment (1)', () => {
-    const req = {};
-
     let host, otherHost, collective;
 
     before(async () => {
       host = await fakeHostWithRequiredLegalDocument();
       otherHost = await fakeHostWithRequiredLegalDocument();
       collective = await fakeCollective({ HostCollectiveId: host.id });
+      await fakeCurrencyExchangeRate({ from: 'INR', to: 'USD', rate: 0.01 });
     });
 
     describe('requires user tax form before payment', () => {
       it('when one expense is above threshold', async () => {
-        const loader = taxFormRequiredBeforePayment({ loaders: loaders(req) });
         const expenseWithUserTaxForm = await fakeExpense({
           amount: US_TAX_FORM_THRESHOLD + 1,
           CollectiveId: collective.id,
@@ -56,7 +61,6 @@ describe('server/graphql/loaders/expense', () => {
 
       it('when the sum of multiple expenses is above threshold', async () => {
         const user = await fakeUser();
-        const loader = taxFormRequiredBeforePayment({ loaders: loaders(req) });
         const firstExpense = await fakeExpense({
           amount: US_TAX_FORM_THRESHOLD - 100,
           CollectiveId: collective.id,
@@ -79,9 +83,34 @@ describe('server/graphql/loaders/expense', () => {
         expect(result2).to.be.true;
       });
 
+      it('when the sum of multiple expenses is above threshold (multi-currency)', async () => {
+        const user = await fakeUser();
+        const firstExpense = await fakeExpense({
+          amount: US_TAX_FORM_THRESHOLD - 100,
+          CollectiveId: collective.id,
+          FromCollectiveId: user.CollectiveId,
+          UserId: user.id,
+          type: 'INVOICE',
+          PayoutMethodId: otherPayoutMethod.id,
+        });
+        const secondExpense = await fakeExpense({
+          amount: 100 * 100, // 100 USD * (1/0.01 INR/USD) = 10,000 INR
+          currency: 'INR',
+          CollectiveId: collective.id,
+          FromCollectiveId: user.CollectiveId,
+          UserId: user.id,
+          type: 'INVOICE',
+          PayoutMethodId: otherPayoutMethod.id,
+        });
+        // 100USD (10,000 INR) + 500 USD = 600 USD
+        const result1 = await loader.load(firstExpense.id);
+        const result2 = await loader.load(secondExpense.id);
+        expect(result1).to.be.true;
+        expect(result2).to.be.true;
+      });
+
       it('when the tax form was submitted more than 3 years ago', async () => {
         const user = await fakeUser();
-        const loader = taxFormRequiredBeforePayment({ loaders: loaders(req) });
         const expenseWithUserTaxForm = await fakeExpense({
           amount: US_TAX_FORM_THRESHOLD + 100e2,
           CollectiveId: collective.id,
@@ -102,7 +131,6 @@ describe('server/graphql/loaders/expense', () => {
       });
 
       it('When expenses are not RECEIPT', async () => {
-        const loader = taxFormRequiredBeforePayment({ loaders: loaders(req) });
         const expense1 = await fakeExpense({
           type: 'INVOICE',
           CollectiveId: collective.id,
@@ -124,7 +152,6 @@ describe('server/graphql/loaders/expense', () => {
 
     describe('does not require user tax form before payment', () => {
       it('When under threshold', async () => {
-        const loader = taxFormRequiredBeforePayment({ loaders: loaders(req) });
         const expenseWithOutUserTaxForm = await fakeExpense({
           amount: US_TAX_FORM_THRESHOLD - 100,
           CollectiveId: collective.id,
@@ -135,9 +162,30 @@ describe('server/graphql/loaders/expense', () => {
         expect(result).to.be.false;
       });
 
+      it('When under threshold (multi-currency)', async () => {
+        const firstExpense = await fakeExpense({
+          amount: US_TAX_FORM_THRESHOLD - 100,
+          currency: 'INR',
+          CollectiveId: collective.id,
+          type: 'INVOICE',
+          PayoutMethodId: otherPayoutMethod.id,
+        });
+        const secondExpense = await fakeExpense({
+          amount: 50 * 100, // 50 USD * (1/0.01 INR/USD) = 5,000 INR
+          currency: 'INR',
+          CollectiveId: collective.id,
+          type: 'INVOICE',
+          PayoutMethodId: otherPayoutMethod.id,
+        });
+        // 50USD (5,000 INR) + 500 USD = 550 USD
+        const result1 = await loader.load(firstExpense.id);
+        const result2 = await loader.load(secondExpense.id);
+        expect(result1).to.be.false;
+        expect(result2).to.be.false;
+      });
+
       it('When legal document has already been submitted', async () => {
         const user = await fakeUser();
-        const loader = taxFormRequiredBeforePayment({ loaders: loaders(req) });
         const expenseWithUserTaxForm = await fakeExpense({
           amount: US_TAX_FORM_THRESHOLD + 100e2,
           CollectiveId: collective.id,
@@ -159,7 +207,6 @@ describe('server/graphql/loaders/expense', () => {
 
       it('When legal document has already been submitted last year', async () => {
         const user = await fakeUser();
-        const loader = taxFormRequiredBeforePayment({ loaders: loaders(req) });
         const expenseWithUserTaxForm = await fakeExpense({
           amount: US_TAX_FORM_THRESHOLD + 100e2,
           CollectiveId: collective.id,
@@ -180,14 +227,12 @@ describe('server/graphql/loaders/expense', () => {
       });
 
       it('When host does not have requiredLegalDocument', async () => {
-        const loader = taxFormRequiredBeforePayment({ loaders: loaders(req) });
         const expenseWithOutUserTaxForm = await fakeExpense({ type: 'INVOICE', PayoutMethodId: otherPayoutMethod.id });
         const result = await loader.load(expenseWithOutUserTaxForm.id);
         expect(result).to.be.false;
       });
 
       it('When expenses are RECEIPT', async () => {
-        const loader = taxFormRequiredBeforePayment({ loaders: loaders(req) });
         const expense1 = await fakeExpense({
           type: 'RECEIPT',
           CollectiveId: collective.id,
@@ -199,7 +244,6 @@ describe('server/graphql/loaders/expense', () => {
       });
 
       it('When expenses are FUNDING_REQUEST', async () => {
-        const loader = taxFormRequiredBeforePayment({ loaders: loaders(req) });
         const grantExpense = await fakeExpense({
           type: 'FUNDING_REQUEST',
           CollectiveId: collective.id,
@@ -213,7 +257,6 @@ describe('server/graphql/loaders/expense', () => {
 
       it('When expenses were submitted last year', async () => {
         const user = await fakeUser();
-        const loader = taxFormRequiredBeforePayment({ loaders: loaders(req) });
         const firstExpense = await fakeExpense({
           amount: US_TAX_FORM_THRESHOLD + 1000,
           CollectiveId: collective.id,
@@ -239,7 +282,6 @@ describe('server/graphql/loaders/expense', () => {
       });
 
       it('When expense is submitted by a collective under the same host', async () => {
-        const loader = taxFormRequiredBeforePayment({ loaders: loaders(req) });
         const fromCollective = await fakeCollective({ HostCollectiveId: host.id });
         const collectiveSameHost = await fakeCollective({ HostCollectiveId: host.id });
         const collectiveDifferentHost = await fakeCollective({ HostCollectiveId: otherHost.id });
@@ -265,7 +307,6 @@ describe('server/graphql/loaders/expense', () => {
   });
 
   describe('taxFormRequiredBeforePayment (2)', () => {
-    const req = {};
     let host, collective, expenseWithUserTaxForm, expenseWithOutUserTaxForm, expenseWithTaxFormFromLastYear;
 
     before(async () => {
@@ -314,7 +355,6 @@ describe('server/graphql/loaders/expense', () => {
     });
 
     it('returns required legal documents', async () => {
-      const loader = taxFormRequiredBeforePayment({ loaders: loaders(req) });
       let result = await loader.load(expenseWithUserTaxForm.id);
       expect(result).to.be.true;
 
@@ -323,13 +363,11 @@ describe('server/graphql/loaders/expense', () => {
     });
 
     it('returns no required legal document', async () => {
-      const loader = taxFormRequiredBeforePayment({ loaders: loaders(req) });
       const result = await loader.load(expenseWithOutUserTaxForm.id);
       expect(result).to.be.false;
     });
 
     it('is not fooled by other expenses in the loader', async () => {
-      const loader = taxFormRequiredBeforePayment({ loaders: loaders(req) });
       const result = await loader.loadMany([
         expenseWithUserTaxForm.id,
         expenseWithTaxFormFromLastYear.id,

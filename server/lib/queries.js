@@ -809,8 +809,21 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
       analyzed_expenses.id as "expenseId",
       MAX(ld."requestStatus") as "legalDocRequestStatus",
       d."documentType" as "requiredDocument",
-      SUM(all_expenses."amount") AS total,
-      COALESCE(pm."type", 'OTHER') AS "payoutMethodType"
+      COALESCE(pm."type", 'OTHER') AS "payoutMethodType",
+      SUM(all_expenses."amount" * (
+        CASE
+          WHEN all_expenses."currency" = host.currency THEN 1
+          ELSE (
+            SELECT COALESCE("rate", 1)
+            FROM "CurrencyExchangeRates" er
+            WHERE er."from" = all_expenses."currency"
+            AND er."to" = host.currency
+            AND er."createdAt" < all_expenses."createdAt"
+            ORDER BY "createdAt" DESC
+            LIMIT 1
+          )
+        END
+      )) AS "total"
     FROM
       "Expenses" analyzed_expenses
     INNER JOIN "Expenses" all_expenses
@@ -819,6 +832,8 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
       ON from_collective.id = analyzed_expenses."FromCollectiveId"
     INNER JOIN "Collectives" c
       ON c.id = analyzed_expenses."CollectiveId"
+    INNER JOIN "Collectives" host
+      ON host.id = c."HostCollectiveId"
     INNER JOIN "RequiredLegalDocuments" d
       ON d."HostCollectiveId" = c."HostCollectiveId"
       AND d."documentType" = 'US_TAX_FORM'
@@ -873,13 +888,28 @@ const getTaxFormsRequiredForAccounts = async (accountIds = [], year) => {
       account.id as "collectiveId",
       MAX(ld."requestStatus") as "legalDocRequestStatus",
       d."documentType" as "requiredDocument",
-      SUM(all_expenses."amount") AS total,
-      COALESCE(pm."type", 'OTHER') AS "payoutMethodType"
+      COALESCE(pm."type", 'OTHER') AS "payoutMethodType",
+      SUM(all_expenses."amount" * (
+        CASE
+          WHEN all_expenses."currency" = host.currency THEN 1
+          ELSE (
+            SELECT COALESCE("rate", 1)
+            FROM "CurrencyExchangeRates" er
+            WHERE er."from" = all_expenses."currency"
+            AND er."to" = host.currency
+            AND er."createdAt" <= all_expenses."createdAt"
+            ORDER BY "createdAt" DESC
+            LIMIT 1
+          )
+        END
+      )) AS "total"
     FROM "Collectives" account
     INNER JOIN "Expenses" all_expenses
       ON all_expenses."FromCollectiveId" = account.id
     INNER JOIN "Collectives" c
       ON all_expenses."CollectiveId" = c.id
+    INNER JOIN "Collectives" host
+      ON host.id = c."HostCollectiveId"
     INNER JOIN "RequiredLegalDocuments" d
       ON d."HostCollectiveId" = c."HostCollectiveId"
       AND d."documentType" = 'US_TAX_FORM'
