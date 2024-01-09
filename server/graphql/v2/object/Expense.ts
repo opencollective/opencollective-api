@@ -47,6 +47,7 @@ import GraphQLPayoutMethod from './PayoutMethod';
 import GraphQLRecurringExpense from './RecurringExpense';
 import { GraphQLSecurityCheck } from './SecurityCheck';
 import { GraphQLTaxInfo } from './TaxInfo';
+import { GraphQLTransferWiseRequiredField } from './TransferWise';
 import { GraphQLVirtualCard } from './VirtualCard';
 
 const EXPENSE_DRAFT_PUBLIC_FIELDS = [
@@ -495,7 +496,7 @@ const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Request>({
         },
       },
       validateTransferRequirements: {
-        type: GraphQLJSON,
+        type: new GraphQLList(GraphQLTransferWiseRequiredField),
         args: {
           details: {
             type: GraphQLJSON,
