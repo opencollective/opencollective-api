@@ -42,26 +42,26 @@ exports[`server/graphql/v2/mutation/ExpenseMutations processExpense PAY Taxes wi
 
 exports[`server/graphql/v2/mutation/ExpenseMutations processExpense PAY pays 100% of the balance by putting the fees on the payee 1`] = `
 "
-| type   | kind                  | isRefund | To       | From     | amount | amountInHostCurrency | paymentFee | netAmountInCollectiveCurrency |
-| ------ | --------------------- | -------- | -------- | -------- | ------ | -------------------- | ---------- | ----------------------------- |
-| DEBIT  | PAYMENT_PROCESSOR_FEE | false    | Webpack  | Wise     | -575   | -575                 | 0          | -575                          |
-| CREDIT | PAYMENT_PROCESSOR_FEE | false    | Wise     | Webpack  | 575    | 575                  | 0          | 575                           |
-| DEBIT  | EXPENSE               | false    | Webpack  | Facebook | -9425  | -9425                | 0          | -9425                         |
-| CREDIT | EXPENSE               | false    | Facebook | Webpack  | 9425   | 9425                 | 0          | 9425                          |
-| DEBIT  | PAYMENT_PROCESSOR_FEE | true     | Wise     | Webpack  | -575   | -575                 | 0          | -575                          |
-| CREDIT | PAYMENT_PROCESSOR_FEE | true     | Webpack  | Wise     | 575    | 575                  | 0          | 575                           |
-| DEBIT  | EXPENSE               | true     | Facebook | Webpack  | -9425  | -9425                | 0          | -9425                         |
-| CREDIT | EXPENSE               | true     | Webpack  | Facebook | 9425   | 9425                 | 0          | 9425                          |"
+| type   | kind                  | isRefund | To                      | From                    | amount | amountInHostCurrency | paymentFee | netAmountInCollectiveCurrency |
+| ------ | --------------------- | -------- | ----------------------- | ----------------------- | ------ | -------------------- | ---------- | ----------------------------- |
+| DEBIT  | PAYMENT_PROCESSOR_FEE | false    | Webpack                 | Other Payment Processor | -575   | -575                 | 0          | -575                          |
+| CREDIT | PAYMENT_PROCESSOR_FEE | false    | Other Payment Processor | Webpack                 | 575    | 575                  | 0          | 575                           |
+| DEBIT  | EXPENSE               | false    | Webpack                 | Facebook                | -9425  | -9425                | 0          | -9425                         |
+| CREDIT | EXPENSE               | false    | Facebook                | Webpack                 | 9425   | 9425                 | 0          | 9425                          |
+| DEBIT  | PAYMENT_PROCESSOR_FEE | true     | Other Payment Processor | Webpack                 | -575   | -575                 | 0          | -575                          |
+| CREDIT | PAYMENT_PROCESSOR_FEE | true     | Webpack                 | Other Payment Processor | 575    | 575                  | 0          | 575                           |
+| DEBIT  | EXPENSE               | true     | Facebook                | Webpack                 | -9425  | -9425                | 0          | -9425                         |
+| CREDIT | EXPENSE               | true     | Webpack                 | Facebook                | 9425   | 9425                 | 0          | 9425                          |"
 `;
 
 exports[`server/graphql/v2/mutation/ExpenseMutations processExpense PAY pays 100% of the balance by putting the fees on the payee but do not refund processor fees 1`] = `
 "
-| type   | kind                  | isRefund | To       | From     | amount | amountInHostCurrency | paymentFee | netAmountInCollectiveCurrency |
-| ------ | --------------------- | -------- | -------- | -------- | ------ | -------------------- | ---------- | ----------------------------- |
-| DEBIT  | PAYMENT_PROCESSOR_FEE | false    | Webpack  | Wise     | -575   | -575                 | 0          | -575                          |
-| CREDIT | PAYMENT_PROCESSOR_FEE | false    | Wise     | Webpack  | 575    | 575                  | 0          | 575                           |
-| DEBIT  | EXPENSE               | false    | Webpack  | Facebook | -9425  | -9425                | 0          | -9425                         |
-| CREDIT | EXPENSE               | false    | Facebook | Webpack  | 9425   | 9425                 | 0          | 9425                          |
-| DEBIT  | EXPENSE               | true     | Facebook | Webpack  | -9425  | -9425                | 0          | -9425                         |
-| CREDIT | EXPENSE               | true     | Webpack  | Facebook | 9425   | 9425                 | 0          | 9425                          |"
+| type   | kind                  | isRefund | To                      | From                    | amount | amountInHostCurrency | paymentFee | netAmountInCollectiveCurrency |
+| ------ | --------------------- | -------- | ----------------------- | ----------------------- | ------ | -------------------- | ---------- | ----------------------------- |
+| DEBIT  | PAYMENT_PROCESSOR_FEE | false    | Webpack                 | Other Payment Processor | -575   | -575                 | 0          | -575                          |
+| CREDIT | PAYMENT_PROCESSOR_FEE | false    | Other Payment Processor | Webpack                 | 575    | 575                  | 0          | 575                           |
+| DEBIT  | EXPENSE               | false    | Webpack                 | Facebook                | -9425  | -9425                | 0          | -9425                         |
+| CREDIT | EXPENSE               | false    | Facebook                | Webpack                 | 9425   | 9425                 | 0          | 9425                          |
+| DEBIT  | EXPENSE               | true     | Facebook                | Webpack                 | -9425  | -9425                | 0          | -9425                         |
+| CREDIT | EXPENSE               | true     | Webpack                 | Facebook                | 9425   | 9425                 | 0          | 9425                          |"
 `;
