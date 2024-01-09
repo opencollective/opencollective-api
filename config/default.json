@@ -254,5 +254,10 @@
     "rpName": "[Test] Open Collective",
     "rpId": "localhost",
     "expectedOrigins": ["http://localhost:3000"]
+  },
+  "features": {
+    "dashboard": {
+      "redirect": false
+    }
   }
 }
