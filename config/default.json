@@ -210,7 +210,8 @@
   "ledger": {
     "fastBalance": true,
     "separatePaymentProcessorFees": false,
-    "separateTaxes": false
+    "separateTaxes": false,
+    "orderedTransactions": false
   },
   "timeline": {
     "daysCached": 7

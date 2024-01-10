@@ -200,7 +200,8 @@
   "ledger": {
     "fastBalance": "LEDGER_FAST_BALANCE",
     "separatePaymentProcessorFees": "LEDGER_SEPARATE_PAYMENT_PROCESSOR_FEES",
-    "separateTaxes": "LEDGER_SEPARATE_TAXES"
+    "separateTaxes": "LEDGER_SEPARATE_TAXES",
+    "orderedTransactions": "LEDGER_ORDERED_TRANSACTIONS"
   },
   "timeline": {
     "daysCached": "TIMELINE_DAYS_CACHED"
