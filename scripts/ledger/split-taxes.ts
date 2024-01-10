@@ -6,7 +6,7 @@ import { groupBy, omit, pick } from 'lodash';
 import * as PaymentLib from '../../server/lib/payments';
 import models, { Op, sequelize } from '../../server/models';
 
-const startDate = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date('2023-01-01');
+const startDate = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date('2024-01-01');
 
 if (process.argv.length < 3) {
   console.error('Usage: ./scripts/ledger/split-taxes.ts migrate|rollback|check (rollbackTimestamp)');
@@ -38,7 +38,6 @@ const migrate = async () => {
   const groupedTransactions = Object.values(groupBy(transactions, 'TransactionGroup'));
   const timestamp = Date.now().toString();
   const transactionsData = { [MIGRATION_DATA_FIELD]: timestamp };
-  const hostsCache = {};
   let count = 0;
 
   console.log(`Migrating ${groupedTransactions.length} transaction pairs...`);
@@ -65,15 +64,6 @@ const migrate = async () => {
       // In that case, the code does not support it and we have to skip for now
       console.error(`DEBIT and CREDIT have a different currency in ${credit.TransactionGroup}, skipping.`);
       continue;
-    }
-
-    // Caching hosts (small optimization)
-    let host;
-    if (credit.HostCollectiveId && hostsCache[credit.HostCollectiveId]) {
-      host = hostsCache[credit.HostCollectiveId];
-    } else {
-      host = await credit.getHostCollective();
-      hostsCache[host.id] = host;
     }
 
     const creditPreMigrationData = pick(credit.dataValues, BACKUP_COLUMNS);
