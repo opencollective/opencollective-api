@@ -6,7 +6,7 @@ import { groupBy, omit, pick } from 'lodash';
 import * as PaymentLib from '../../server/lib/payments';
 import models, { Op, sequelize } from '../../server/models';
 
-const startDate = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date('2023-01-01');
+const startDate = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date('2024-01-01');
 
 if (process.argv.length < 3) {
   console.error('Usage: ./scripts/ledger/split-taxes.ts migrate|rollback|check (rollbackTimestamp)');
