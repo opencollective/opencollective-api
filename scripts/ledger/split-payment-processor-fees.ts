@@ -40,7 +40,6 @@ const migrate = async () => {
   const groupedTransactions = Object.values(groupBy(transactions, 'TransactionGroup'));
   const timestamp = Date.now().toString();
   const transactionsData = { paymentProcessorFeeMigration: timestamp };
-  const hostsCache = {};
   let count = 0;
 
   console.log(`Migrating ${groupedTransactions.length} transaction pairs...`);
