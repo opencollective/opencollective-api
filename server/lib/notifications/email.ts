@@ -78,7 +78,7 @@ export const notify = {
 
     const isTransactional = TransactionalActivities.includes(activity.type);
     const emailData = cloneDeep(activity.data || {});
-    debug('notifying.user', user.id, user && user.email, activity.type);
+    debug('notifying.user', user.id, user.email, activity.type);
 
     // Add recipient name to data
     if (!emailData.recipientName) {

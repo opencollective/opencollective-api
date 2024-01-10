@@ -107,12 +107,7 @@ const doFormatMessage = (activity, format) => {
     }
   }
 
-  let collective;
-  if (linkify) {
-    collective = linkify(format, publicUrl, collectiveName);
-  } else {
-    collective = collectiveName;
-  }
+  const collective = linkify(format, publicUrl, collectiveName);
 
   switch (activity.type) {
     // Currently used for both new donation and expense

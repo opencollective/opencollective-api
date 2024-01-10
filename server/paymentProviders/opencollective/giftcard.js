@@ -84,7 +84,7 @@ async function processOrder(order) {
 
   // Checking if balance is ok or will still be after completing the order
   const balance = await getBalance(paymentMethod);
-  if (!balance || balance.amount <= 0) {
+  if (balance.amount <= 0) {
     throw new Error('This payment method has no balance to complete this order');
   }
   // converting(or keeping if it's the same currency) order amount to the payment method currency

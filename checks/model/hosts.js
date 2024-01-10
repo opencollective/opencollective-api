@@ -21,8 +21,7 @@ async function checkHostFeePercent({ fix = false } = {}) {
   if (results[0].count > 0) {
     if (!fix) {
       throw new Error(message);
-    }
-    if (fix) {
+    } else {
       logger.warn(`Fixing: ${message}`);
       await sequelize.query(
         `UPDATE "Collectives"
@@ -64,8 +63,7 @@ async function checkHostMemberEntry({ fix = false } = {}) {
   if (results[0].count > 0) {
     if (!fix) {
       throw new Error(message);
-    }
-    if (fix) {
+    } else {
       logger.warn(`Fixing: ${message}`);
       await sequelize.query(
         `INSERT INTO "Members" (

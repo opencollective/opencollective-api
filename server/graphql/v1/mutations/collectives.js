@@ -32,7 +32,7 @@ export async function createCollective(_, args, req) {
     throw new ValidationFailed('collective.name required');
   }
 
-  const rateLimitKey = remoteUser ? `collective_create_${remoteUser.id}` : `collective_create_ip_${req.ip}`;
+  const rateLimitKey = `collective_create_${remoteUser.id}`;
   const rateLimit = new RateLimit(rateLimitKey, 60, ONE_HOUR_IN_SECONDS, true);
   if (!(await rateLimit.registerCall())) {
     throw new RateLimitExceeded();

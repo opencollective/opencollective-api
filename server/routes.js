@@ -94,9 +94,7 @@ export default async app => {
       },
     };
 
-    if (redisClient) {
-      app.use('/graphql', expressLimiter(redisClient)(expressLimiterOptions));
-    }
+    app.use('/graphql', expressLimiter(redisClient)(expressLimiterOptions));
   }
 
   /**
