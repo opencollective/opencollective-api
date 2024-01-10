@@ -69,15 +69,6 @@ const migrate = async () => {
       continue;
     }
 
-    // Caching hosts (small optimization)
-    let host;
-    if (credit.HostCollectiveId && hostsCache[credit.HostCollectiveId]) {
-      host = hostsCache[credit.HostCollectiveId];
-    } else {
-      host = await credit.getHostCollective();
-      hostsCache[host.id] = host;
-    }
-
     const creditPreMigrationData = pick(credit.dataValues, BACKUP_COLUMNS);
     const debitPreMigrationData = pick(debit.dataValues, BACKUP_COLUMNS);
 
