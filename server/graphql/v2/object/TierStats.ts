@@ -19,6 +19,7 @@ export const GraphQLTierStats = new GraphQLObjectType({
         type: new GraphQLNonNull(GraphQLAmount),
         async resolve(tier, args, req) {
           const totalDonated = await req.loaders.Tier.totalDonated.load(tier.id);
+          // TODO: consider making tier.currency explicitely not null in the database
           let currency = tier.currency;
           if (!currency) {
             tier.collective = tier.collective || (await req.loaders.Collective.byId.load(tier.CollectiveId));
@@ -35,6 +36,7 @@ export const GraphQLTierStats = new GraphQLObjectType({
         async resolve(tier, args, req) {
           let value = 0;
           let currency = tier.currency;
+          // TODO: consider making tier.currency explicitely not null in the database
           if (!currency) {
             tier.collective = tier.collective || (await req.loaders.Collective.byId.load(tier.CollectiveId));
             currency = tier.collective?.currency;
@@ -48,7 +50,7 @@ export const GraphQLTierStats = new GraphQLObjectType({
             value = await req.loaders.Tier.totalRecurringDonations.load(tier.id);
           }
 
-          return { value, currency: tier.currency };
+          return { value, currency };
         },
       },
     };

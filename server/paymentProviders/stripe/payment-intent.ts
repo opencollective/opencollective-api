@@ -67,7 +67,7 @@ async function processNewOrder(order: OrderModelInterface) {
       service: Service.STRIPE_CUSTOMER,
     });
 
-    paymentIntentParams.customer = customer.id;
+    paymentIntentParams.customer = stripeCustomerAccount.username;
   } else if (stripeCustomerAccount) {
     paymentIntentParams.customer = stripeCustomerAccount.username;
   }

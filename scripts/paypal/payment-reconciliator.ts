@@ -185,7 +185,7 @@ const getHostFromSubscription = async subscription => {
 
 const showSubscriptionDetails = async paypalSubscriptionId => {
   let currentPage = 1;
-  let totalPages = 1;
+  let totalPages;
 
   // Try to find the subscription somewhere
   let subscription = await models.Subscription.findOne({ where: { paypalSubscriptionId } });
@@ -282,7 +282,7 @@ const loadDataForSubscription = async paypalSubscriptionId => {
 const reconcileSubscription = async (paypalSubscriptionId: string, _, commander) => {
   const options = commander.optsWithGlobals();
   let currentPage = 1;
-  let totalPages = 1;
+  let totalPages;
 
   // Try to find the subscription somewhere
   const { subscription, order, host } = await loadDataForSubscription(paypalSubscriptionId);
@@ -441,7 +441,7 @@ const findOrphanSubscriptions = async (_, commander) => {
 
     // List and reconciliate all transactions
     let currentPage = 1;
-    let totalPages = 1;
+    let totalPages;
     console.log(`Synchronizing transactions for order #${order.id}/${paypalSubscriptionId}`);
     do {
       const response = await fetchPaypalTransactionsForSubscription(host, paypalSubscriptionId);
@@ -504,7 +504,7 @@ const findMissingPaypalTransactions = async (_, commander) => {
     console.log(`\nChecking host ${hostSlug} for missing transactions...`);
     const host = await models.Collective.findBySlug(hostSlug);
     let currentPage = 1;
-    let totalPages = 1;
+    let totalPages;
 
     do {
       // List transactions

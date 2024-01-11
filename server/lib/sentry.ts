@@ -330,11 +330,11 @@ export const SentryGraphQLPlugin: ApolloServerPlugin = {
     // There's normally no parent transaction, but just in case there's one  - either because it was created in the parent context or
     // if we go back to the default Sentry middleware, we want to make sure we don't create a new transaction
     const transactionName = `GraphQL: ${request.operationName || 'Anonymous Operation'}`;
-    let transaction = Sentry.getCurrentHub()?.getScope()?.getTransaction();
+    const transaction = Sentry.getCurrentHub()?.getScope()?.getTransaction();
     if (transaction) {
       transaction.setName(transactionName);
     } else {
-      transaction = Sentry.startTransaction({ op: 'graphql', name: transactionName });
+      Sentry.startTransaction({ op: 'graphql', name: transactionName });
     }
 
     return {
