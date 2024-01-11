@@ -300,7 +300,7 @@ async function checkSourcePaymentMethodBalance(paymentMethod, amount, giftCardCu
   }
 
   // Total gift cards sum cannot be more than the initial balance
-  const existingTotal = await getTotalAmountAllocatedForGiftCards(paymentMethod, balance.currency);
+  const existingTotal = await getTotalAmountAllocatedForGiftCards(paymentMethod);
   if (existingTotal + totalAmountInPaymentMethodCurrency > paymentMethod.initialBalance) {
     const initialBalanceStr = formatCurrency(paymentMethod.initialBalance, paymentMethod.currency);
     const alreadyCreatedAmountStr = formatCurrency(existingTotal, balance.currency);
