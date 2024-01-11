@@ -249,7 +249,7 @@ async function userHasTwoFactorAuthEnabled(user: User) {
  * Returns true if this request / account should enforce 2FA.
  * The parent account, if any, is always the source of truth
  */
-async function shouldEnforceForAccount(req, account?: Collective): Promise<boolean> {
+async function shouldEnforceForAccount(account?: Collective): Promise<boolean> {
   return await hasPolicy(account, POLICIES.REQUIRE_2FA_FOR_ADMINS);
 }
 
@@ -270,7 +270,7 @@ async function enforceForAccount(
   }
 
   // See if we need to enforce 2FA for admins of this account
-  if ((await userHasTwoFactorAuthEnabled(req.remoteUser)) || (await shouldEnforceForAccount(req, account))) {
+  if ((await userHasTwoFactorAuthEnabled(req.remoteUser)) || (await shouldEnforceForAccount(account))) {
     return validateRequest(req, { ...options, requireTwoFactorAuthEnabled: true, FromCollectiveId: account.id });
   }
 }

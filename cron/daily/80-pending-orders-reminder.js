@@ -9,8 +9,10 @@ import models, { Op } from '../../server/models';
 const REMINDER_DAYS = 4;
 
 const fetchPendingOrders = async date => {
-  const dateFrom = new Date(date).setUTCHours(0, 0, 0, 0);
-  const dateTo = new Date(dateFrom).setUTCHours(23, 59, 59);
+  const dateFrom = new Date(date);
+  dateFrom.setUTCHours(0, 0, 0, 0);
+  const dateTo = new Date(dateFrom);
+  dateTo.setUTCHours(23, 59, 59);
 
   const orders = await models.Order.findAll({
     where: {

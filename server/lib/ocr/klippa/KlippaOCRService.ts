@@ -18,8 +18,9 @@ export class KlippaOCRService implements ExpenseOCRService {
     private apiKey: string,
     private user: User,
   ) {
-    this.apiKey = apiKey;
-    this.user = user;
+    // this.apiKey = apiKey;
+    // this.user = user;
+    // See: https://dev.to/satansdeer/typescript-constructor-shorthand-3ibd
   }
 
   /**

@@ -133,12 +133,12 @@ const processBacker = async FromCollectiveId => {
   console.log('>>> transactions found', transactions.length);
   const distinctTransactions = [],
     collectiveIds = {};
-  transactions.map(t => {
+  for (const t of transactions) {
     if (!collectiveIds[t.CollectiveId]) {
       collectiveIds[t.CollectiveId] = true;
       distinctTransactions.push(t);
     }
-  });
+  }
 
   if (distinctTransactions.length === 0) {
     console.log('>>> no transaction for', backerCollective.slug);
