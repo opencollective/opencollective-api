@@ -140,11 +140,15 @@ export const GraphQLActivity = new GraphQLObjectType({
               toPick.push('error');
             }
           }
-        } else if (activity.type === ACTIVITY.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE) {
+        } else if (
+          [ACTIVITY.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE, ACTIVITY.COLLECTIVE_EXPENSE_PROCESSING].includes(
+            activity.type,
+          )
+        ) {
           if (activity.ExpenseId) {
             const expense = await req.loaders.Expense.byId.load(activity.ExpenseId);
             if (await ExpenseLib.canSeeExpenseInvoiceInfo(req, expense)) {
-              toPick.push('message');
+              toPick.push('message', 'reference', 'estimatedDelivery');
             }
           }
         } else if (activity.type === ACTIVITY.COLLECTIVE_EXPENSE_MOVED) {

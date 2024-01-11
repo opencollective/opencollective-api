@@ -78,7 +78,7 @@ export const notify = {
 
     const isTransactional = TransactionalActivities.includes(activity.type);
     const emailData = cloneDeep(activity.data || {});
-    debug('notifying.user', user.id, user && user.email, activity.type);
+    debug('notifying.user', user.id, user.email, activity.type);
 
     // Add recipient name to data
     if (!emailData.recipientName) {
@@ -670,17 +670,3 @@ export const notifyByEmail = async (activity: Activity) => {
       break;
   }
 };
-
-/** Backward compatible shim */
-export const notifyAdminsOfCollective = async (
-  collectiveId: number,
-  activity: Partial<Activity>,
-  options: NotifySubscribersOptions = {},
-) => notify.collective(activity, { ...options, collectiveId });
-
-/** Backward compatible shim */
-export const notifyAdminsAndAccountantsOfCollective = async (
-  collectiveId: number,
-  activity: Partial<Activity>,
-  options: NotifySubscribersOptions = {},
-) => notify.collective(activity, { ...options, collectiveId, role: [roles.ACCOUNTANT, roles.ADMIN] });

@@ -9,7 +9,7 @@ import { GraphQLTimeSeriesAmount } from './TimeSeriesAmount';
 import { GraphQLTimeSeriesAmountWithKind } from './TimeSeriesAmountWithKind';
 import { GraphQLTimeSeriesAmountWithSettlement } from './TimeSeriesAmountWithSettlement';
 
-export const resultsToAmountNode = results => {
+const resultsToAmountNode = results => {
   return results.map(result => ({
     date: result.date,
     amount: { value: result.amount, currency: result.currency },

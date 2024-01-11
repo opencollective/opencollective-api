@@ -36,7 +36,7 @@ export default {
  * encryptedTwoFactorAuthToken = token saved for a User in the DB
  * twoFactorAuthenticatorCode = 6-digit TOTP
  */
-export function validateTOTPToken(encryptedSecret: string, token: string): boolean {
+function validateTOTPToken(encryptedSecret: string, token: string): boolean {
   const decryptedTwoFactorAuthToken = crypto.decrypt(encryptedSecret);
   return speakeasy.totp.verify({
     secret: decryptedTwoFactorAuthToken,

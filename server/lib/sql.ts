@@ -31,7 +31,10 @@ const deepJSONBSetRecursive = (field: string, path: string[], value: string, lev
     return value;
   }
 
-  const currentPathStr = !level ? `"${field}"` : `"${field}"` + '->' + `'${path.slice(0, level).join(`'->'`)}'`;
+  // The `#>>` operator makes sure we're decoding the value to properly detect `null`.
+  const currentPathStr = !level ? `"${field}"` : `"${field}"#>>'{${path.slice(0, level).join(',')}}'`;
   const subQuery = deepJSONBSetRecursive(field, path, value, level + 1);
-  return `JSONB_SET(COALESCE(${currentPathStr}, '{}'), '{${path[level]}}', ${subQuery})`;
+
+  // It's then re-encoded as JSONB with the `::JSONB`.
+  return `JSONB_SET(COALESCE(${currentPathStr}, '{}')::JSONB, '{${path[level]}}', ${subQuery})`;
 };

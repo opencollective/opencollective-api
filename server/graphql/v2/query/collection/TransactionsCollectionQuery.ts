@@ -1,3 +1,4 @@
+import config from 'config';
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
@@ -6,6 +7,7 @@ import { Order } from 'sequelize';
 
 import { CollectiveType } from '../../../../constants/collectives';
 import { buildSearchConditions } from '../../../../lib/search';
+import { parseToBoolean } from '../../../../lib/utils';
 import models, { Op, sequelize } from '../../../../models';
 import { checkScope } from '../../../common/scope-check';
 import {
@@ -368,15 +370,16 @@ export const TransactionsCollectionResolver = async (
     - TransactionGroup: to keep transactions of the same group together
     - kind: to put transactions in a group in a "logical" order following the main transaction
     - type: to put debits before credits of the same kind (i.e. when viewing multiple accounts at the same time)
-*/
-  const order: Order = [
-    [
-      sequelize.fn('ROUND', sequelize.literal('ROUND(EXTRACT(epoch FROM "Transaction"."createdAt") / 10)')),
-      args.orderBy.direction,
-    ],
-    ['TransactionGroup', args.orderBy.direction],
-    [
-      sequelize.literal(`
+  */
+  const order: Order = parseToBoolean(config.ledger.orderedTransactions)
+    ? [
+        [
+          sequelize.fn('ROUND', sequelize.literal('ROUND(EXTRACT(epoch FROM "Transaction"."createdAt") / 10)')),
+          args.orderBy.direction,
+        ],
+        ['TransactionGroup', args.orderBy.direction],
+        [
+          sequelize.literal(`
         CASE
           WHEN "Transaction"."kind" IN ('CONTRIBUTION', 'EXPENSE', 'ADDED_FUNDS', 'BALANCE_TRANSFER', 'PREPAID_PAYMENT_METHOD') THEN 1
           WHEN "Transaction"."kind" IN ('PLATFORM_TIP') THEN 2
@@ -388,17 +391,23 @@ export const TransactionsCollectionResolver = async (
           WHEN "Transaction"."kind" IN ('HOST_FEE_SHARE_DEBT') THEN 8
           ELSE 9
         END`),
-      args.orderBy.direction,
-    ],
-    [
-      sequelize.literal(`
+          args.orderBy.direction,
+        ],
+        [
+          sequelize.literal(`
         CASE
           WHEN "Transaction"."type" = 'DEBIT' THEN 1
           ELSE 2
         END`),
-      args.orderBy.direction,
-    ],
-  ];
+          args.orderBy.direction,
+        ],
+      ]
+    : [
+        [args.orderBy.field, args.orderBy.direction],
+        // Add additional sort for consistent sorting
+        // (transactions in the same TransactionGroup usually have the exact same datetime)
+        ['id', args.orderBy.direction],
+      ];
 
   const { offset, limit } = args;
 

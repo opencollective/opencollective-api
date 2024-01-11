@@ -819,7 +819,7 @@ export const NON_SPAMMERS_DOMAINS = [
 /**
  * Returns suspicious keywords found in content
  */
-export const getSuspiciousKeywords = (content: string): string[] => {
+const getSuspiciousKeywords = (content: string): string[] => {
   if (!content) {
     return [];
   }

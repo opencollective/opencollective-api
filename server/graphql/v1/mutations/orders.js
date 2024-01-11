@@ -650,35 +650,3 @@ export async function confirmOrder(order, remoteUser, guestToken) {
     return order;
   }
 }
-
-export async function markPendingOrderAsExpired(remoteUser, id) {
-  if (!remoteUser) {
-    throw new Unauthorized();
-  }
-
-  // fetch the order
-  const order = await models.Order.findByPk(id);
-  if (!order) {
-    throw new NotFound('Order not found');
-  }
-
-  if (order.status !== 'PENDING') {
-    throw new ValidationFailed("The order's status must be PENDING");
-  }
-
-  const collective = await models.Collective.findByPk(order.CollectiveId);
-  if (collective.isHostAccount) {
-    if (!remoteUser.isAdmin(collective.id)) {
-      throw new Unauthorized('You must be logged in as an admin of the host of the collective');
-    }
-  } else {
-    const HostCollectiveId = await models.Collective.getHostCollectiveId(order.CollectiveId);
-    if (!remoteUser.isAdmin(HostCollectiveId)) {
-      throw new Unauthorized('You must be logged in as an admin of the host of the collective');
-    }
-  }
-
-  order.status = 'EXPIRED';
-  await order.save();
-  return order;
-}

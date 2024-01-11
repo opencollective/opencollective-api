@@ -2,7 +2,6 @@ import '../server/env';
 
 import { ArgumentParser } from 'argparse';
 import config from 'config';
-import moment from 'moment';
 
 import models from '../server/models';
 
@@ -11,12 +10,6 @@ function usage() {
   console.error(`Usage: ${process.argv.join(' ')} <UserID>`);
   process.exit(1);
 }
-
-// Helper
-const daysToSeconds = days => moment.duration({ days }).asSeconds();
-
-// export const JWT_TOKEN_EXPIRATION = daysToSeconds(90);
-export const JWT_TOKEN_EXPIRATION = daysToSeconds(1);
 
 async function main(args) {
   if (!args.user_id) {

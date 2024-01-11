@@ -1,3 +1,5 @@
+// ignore unused exports fetchConversationWithReference
+
 import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
 import models from '../../../models';

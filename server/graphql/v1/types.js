@@ -27,7 +27,6 @@ import { reportMessageToSentry } from '../../lib/sentry';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import models, { Op, sequelize } from '../../models';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
-import * as commonComment from '../common/comment';
 import { canSeeExpenseAttachments, canSeeExpensePayoutMethod } from '../common/expenses';
 import { hasSeenLatestChangelogEntry } from '../common/user';
 import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
@@ -43,7 +42,7 @@ import { TransactionInterfaceType } from './TransactionInterface';
  * @param {object} GraphQL type to paginate
  * @param {string} The name of the type, used to generate name and description.
  */
-export const paginatedList = (type, typeName, valuesKey = 'nodes') => {
+const paginatedList = (type, typeName, valuesKey = 'nodes') => {
   return new GraphQLObjectType({
     name: `Paginated${typeName}`,
     description: `A list of ${typeName} with pagination info`,
@@ -63,7 +62,7 @@ export const DateString = new GraphQLScalarType({
   },
 });
 
-export const IsoDateString = new GraphQLScalarType({
+const IsoDateString = new GraphQLScalarType({
   name: 'IsoDateString',
   serialize: value => {
     return value;
@@ -84,7 +83,7 @@ export const IsoDateString = new GraphQLScalarType({
   },
 });
 
-export const PayoutMethodTypeEnum = new GraphQLEnumType({
+const PayoutMethodTypeEnum = new GraphQLEnumType({
   name: 'PayoutMethodTypeEnum',
   values: Object.keys(PayoutMethodTypes).reduce((values, key) => {
     return { ...values, [key]: { value: PayoutMethodTypes[key] } };
@@ -256,7 +255,7 @@ export const UserType = new GraphQLObjectType({
   },
 });
 
-export const StatsMemberType = new GraphQLObjectType({
+const StatsMemberType = new GraphQLObjectType({
   name: 'StatsMemberType',
   description: 'Stats about a membership',
   fields: () => {
@@ -680,7 +679,7 @@ export const InvoiceType = new GraphQLObjectType({
   },
 });
 
-export const ExpenseItemType = new GraphQLObjectType({
+const ExpenseItemType = new GraphQLObjectType({
   name: 'ExpenseItem',
   description: 'Public fields for an expense item',
   fields: () => ({
@@ -864,58 +863,6 @@ export const ExpenseType = new GraphQLObjectType({
   },
 });
 
-export const CommentType = new GraphQLObjectType({
-  name: 'CommentType',
-  description: 'This represents a Comment',
-  fields: () => {
-    return {
-      id: {
-        type: GraphQLInt,
-        resolve(expense) {
-          return expense.id;
-        },
-      },
-      createdAt: {
-        type: DateString,
-        resolve(comment) {
-          return comment.createdAt;
-        },
-      },
-      updatedAt: {
-        type: DateString,
-        resolve(comment) {
-          return comment.updatedAt;
-        },
-      },
-      html: {
-        type: GraphQLString,
-      },
-      createdByUser: {
-        type: UserType,
-        resolve(comment) {
-          return comment.getUser();
-        },
-      },
-      fromCollective: {
-        type: CollectiveInterfaceType,
-        resolve: commonComment.fromCollectiveResolver,
-      },
-      collective: {
-        type: CollectiveInterfaceType,
-        resolve: commonComment.collectiveResolver,
-      },
-      expense: {
-        type: ExpenseType,
-        resolve(comment) {
-          if (comment.ExpenseId) {
-            return models.Expense.findByPk(comment.ExpenseId);
-          }
-        },
-      },
-    };
-  },
-});
-
 export const NotificationType = new GraphQLObjectType({
   name: 'NotificationType',
   description: 'This represents a Notification',
@@ -982,7 +929,7 @@ export const NotificationType = new GraphQLObjectType({
   },
 });
 
-export const ContributorsStatsType = new GraphQLObjectType({
+const ContributorsStatsType = new GraphQLObjectType({
   name: 'ContributorsStats',
   description: 'Breakdown of contributors per type (ANY/USER/ORGANIZATION/COLLECTIVE)',
   fields: () => {
@@ -1020,7 +967,7 @@ export const ContributorsStatsType = new GraphQLObjectType({
   },
 });
 
-export const TierStatsType = new GraphQLObjectType({
+const TierStatsType = new GraphQLObjectType({
   name: 'TierStatsType',
   description: 'Stats about a tier',
   fields: () => {
@@ -1299,7 +1246,7 @@ export const TierType = new GraphQLObjectType({
   },
 });
 
-export const StatsOrderType = new GraphQLObjectType({
+const StatsOrderType = new GraphQLObjectType({
   name: 'StatsOrderType',
   description: 'Stats about an order',
   fields: () => {
@@ -1900,7 +1847,7 @@ export const PaymentMethodBatchInfo = new GraphQLObjectType({
 
 export const PaginatedPaymentMethodsType = paginatedList(PaymentMethodType, 'PaymentMethod', 'paymentMethods');
 
-export const StripeErrorType = new GraphQLObjectType({
+const StripeErrorType = new GraphQLObjectType({
   name: 'StripeError',
   fields: () => {
     return {

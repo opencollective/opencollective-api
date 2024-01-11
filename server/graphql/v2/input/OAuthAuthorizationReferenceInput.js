@@ -4,7 +4,7 @@ import models from '../../../models';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
-export const OAuthAuthorizationReferenceFields = {
+const OAuthAuthorizationReferenceFields = {
   id: {
     type: GraphQLString,
     description: 'The id identifying the OAuth Authorization (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',

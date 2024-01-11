@@ -1,3 +1,5 @@
+// ignore unused exports fetchUpdateWithReference
+
 import { GraphQLInputObjectType, GraphQLString } from 'graphql';
 
 import models from '../../../models';

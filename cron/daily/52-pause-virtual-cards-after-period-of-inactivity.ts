@@ -11,7 +11,7 @@ import VirtualCard, { VirtualCardStatus } from '../../server/models/VirtualCard'
 
 const DRY_RUN = process.env.DRY_RUN ? parseToBoolean(process.env.DRY_RUN) : false;
 
-export async function findUnusedVirtualCards() {
+async function findUnusedVirtualCards() {
   return models.VirtualCard.findAll({
     include: [
       {

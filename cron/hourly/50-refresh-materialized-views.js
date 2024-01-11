@@ -21,7 +21,7 @@ const VIEWS = [
  * `CONCURRENTLY` is used to avoid deadlocks, as Postgres otherwise lock queries
  * using this table until the refresh is complete.
  */
-export async function run() {
+async function run() {
   for (const view of VIEWS) {
     logger.info(`Refreshing ${view} materialized view...`);
     const startTime = process.hrtime();

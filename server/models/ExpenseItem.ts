@@ -199,4 +199,6 @@ ExpenseItem.init(
   },
 );
 
+// ignore unused exports default
+
 export default ExpenseItem;

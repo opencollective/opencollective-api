@@ -301,6 +301,26 @@ const expenseMutations = {
               description: 'Who is responsible for paying any due fees.',
               defaultValue: 'COLLECTIVE',
             },
+            transfer: {
+              description: 'Transfer details for fulfilling the expense',
+              type: new GraphQLInputObjectType({
+                name: 'ProcessExpenseTransferParams',
+                fields: () => ({
+                  details: {
+                    type: new GraphQLInputObjectType({
+                      name: 'WiseTransferDetails',
+                      fields: () => ({
+                        reference: { type: GraphQLString },
+                        transferPurpose: { type: GraphQLString },
+                        sourceOfFunds: { type: GraphQLString },
+                        transferNature: { type: GraphQLString },
+                      }),
+                    }),
+                    description: 'Wise transfer details',
+                  },
+                }),
+              }),
+            },
           }),
         }),
       },
@@ -348,6 +368,7 @@ const expenseMutations = {
         case 'SCHEDULE_FOR_PAYMENT':
           expense = await scheduleExpenseForPayment(req, expense, {
             feesPayer: args.paymentParams?.feesPayer,
+            transferDetails: args.paymentParams?.transfer?.details,
           });
           break;
         case 'UNSCHEDULE_PAYMENT':
@@ -360,6 +381,7 @@ const expenseMutations = {
             feesPayer: args.paymentParams?.feesPayer,
             paymentProcessorFeeInHostCurrency: args.paymentParams?.paymentProcessorFeeInHostCurrency,
             totalAmountPaidInHostCurrency: args.paymentParams?.totalAmountPaidInHostCurrency,
+            transferDetails: args.paymentParams?.transfer?.details,
           });
           break;
         case 'HOLD':

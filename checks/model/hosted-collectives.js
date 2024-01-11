@@ -24,8 +24,7 @@ async function checkHostFeePercent({ fix = false } = {}) {
   if (results[0].count > 0) {
     if (!fix) {
       throw new Error(message);
-    }
-    if (fix) {
+    } else {
       logger.warn(`Fixing: ${message}`);
       await sequelize.query(
         `UPDATE "Collectives"
@@ -50,12 +49,12 @@ async function checkPendingHostApplications({ fix = false } = {}) {
   const results = await sequelize.query(
     `SELECT COUNT(*) AS count
      FROM "HostApplications"
-     INNER JOIN "Collectives" 
-         ON "Collectives"."id" = "HostApplications"."CollectiveId" 
+     INNER JOIN "Collectives"
+         ON "Collectives"."id" = "HostApplications"."CollectiveId"
          AND "Collectives"."HostCollectiveId" = "HostApplications"."HostCollectiveId"
          AND "Collectives"."deletedAt" IS NULL
          AND "Collectives"."approvedAt" IS NOT NULL
-     WHERE "HostApplications"."deletedAt" IS NULL 
+     WHERE "HostApplications"."deletedAt" IS NULL
          AND "HostApplications"."status" = 'PENDING';`,
     { type: sequelize.QueryTypes.SELECT, raw: true },
   );
@@ -63,8 +62,7 @@ async function checkPendingHostApplications({ fix = false } = {}) {
   if (results[0].count > 0) {
     if (!fix) {
       throw new Error(message);
-    }
-    if (fix) {
+    } else {
       logger.warn(`Fixing: ${message}`);
       await sequelize.query(
         `UPDATE "HostApplications"

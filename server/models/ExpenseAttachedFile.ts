@@ -99,4 +99,6 @@ ExpenseAttachedFile.init(
   },
 );
 
+// ignore unused exports default
+
 export default ExpenseAttachedFile;

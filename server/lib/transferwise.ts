@@ -149,7 +149,7 @@ export const requestDataAndThrowParsedError = async (
     return getData(response);
   } catch (e: any) {
     const signatureFailed = e?.response?.headers?.['x-2fa-approval-result'] === 'REJECTED';
-    const hadSignature = options?.headers?.['X-Signature'];
+    const hadSignature = options.headers?.['X-Signature'];
     if (signatureFailed && !hadSignature) {
       const ott = e.response.headers['x-2fa-approval'];
       const signature = signString(ott);
@@ -263,6 +263,7 @@ export interface CreateTransfer {
     reference?: string;
     transferPurpose?: string;
     sourceOfFunds?: string;
+    transferNature?: string;
   };
 }
 export const createTransfer = async (
@@ -273,6 +274,22 @@ export const createTransfer = async (
   return requestDataAndThrowParsedError(
     axiosClient.post,
     `/v1/transfers`,
+    {
+      data,
+      connectedAccount,
+    },
+    'There was an error while creating the Wise transfer',
+  );
+};
+
+export const validateTransferRequirements = async (
+  connectedAccount: ConnectedAccount,
+  { accountId: targetAccount, quoteUuid, details }: Omit<CreateTransfer, 'customerTransactionId'>,
+): Promise<TransactionRequirementsType[]> => {
+  const data = { targetAccount, quoteUuid, details };
+  return requestDataAndThrowParsedError(
+    axiosClient.post,
+    `/v1/transfer-requirements`,
     {
       data,
       connectedAccount,

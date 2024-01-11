@@ -155,7 +155,7 @@ async function emailReport(orders, data, attachments) {
 
 /** Return the options passed by the user to run the script */
 /* eslint-disable camelcase */
-export function parseCommandLineArguments() {
+function parseCommandLineArguments() {
   const parser = new ArgumentParser({
     add_help: true,
     description: 'Charge due recurring contributions',
@@ -191,7 +191,7 @@ export function parseCommandLineArguments() {
 /* eslint-enable camelcase */
 
 /** Kick off the script with all the user selected options */
-export async function entryPoint(options) {
+async function entryPoint(options) {
   await run(options);
 }
 

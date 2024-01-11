@@ -228,8 +228,6 @@ export const getCollectiveFeed = async ({
     : // When fetching the latest activities, we can paginate in reverse by rank
       () => redis.zRange(cacheKey, offset, offset + limit, { REV: true });
 
-  let cached = await fetchMore();
-
   // If we're not paginating, first update cache
   if (!dateTo) {
     const [latest] = await redis.zRange(cacheKey, -1, -1);
@@ -241,6 +239,7 @@ export const getCollectiveFeed = async ({
     await createOrUpdateFeed(collective, activity.id);
   }
 
+  let cached = await fetchMore();
   while (cached.length > 0) {
     cached
       .map(v => JSON.parse(v) as SerializedActivity)

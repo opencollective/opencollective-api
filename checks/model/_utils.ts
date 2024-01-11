@@ -1,6 +1,6 @@
 import { parseArgs } from 'node:util';
 
-export const parseOptions = () => {
+const parseOptions = () => {
   const { values } = parseArgs({
     options: {
       fix: {

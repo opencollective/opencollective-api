@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import { isMemberOfTheEuropeanUnion } from '@opencollective/taxes';
 import config from 'config';
 import express from 'express';
-import { cloneDeep, compact, difference, find, get, has, omit, pick, set, split, toNumber } from 'lodash';
+import { cloneDeep, compact, difference, find, get, has, omit, pick, round, set, split, toNumber } from 'lodash';
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
@@ -43,11 +43,10 @@ const PROVIDER_NAME = 'transferwise';
 const hashObject = obj => crypto.createHash('sha1').update(JSON.stringify(obj)).digest('hex').slice(0, 7);
 const splitCSV = string => compact(split(string, /,\s*/));
 
-export const blockedCountries = splitCSV(config.transferwise.blockedCountries);
-export const blockedCurrencies = splitCSV(config.transferwise.blockedCurrencies);
-export const blockedCurrenciesForBusinessProfiles = splitCSV(config.transferwise.blockedCurrenciesForBusinessProfiles);
-export const blockedCurrenciesForNonProfits = splitCSV(config.transferwise.blockedCurrenciesForNonProfits);
-export const currenciesThatRequireReference = ['RUB'];
+const blockedCountries = splitCSV(config.transferwise.blockedCountries);
+const blockedCurrencies = splitCSV(config.transferwise.blockedCurrencies);
+const blockedCurrenciesForBusinessProfiles = splitCSV(config.transferwise.blockedCurrenciesForBusinessProfiles);
+const blockedCurrenciesForNonProfits = splitCSV(config.transferwise.blockedCurrenciesForNonProfits);
 
 async function populateProfileId(connectedAccount: ConnectedAccount, profileId?: number): Promise<void> {
   if (!connectedAccount.data?.id) {
@@ -159,11 +158,33 @@ async function quoteExpense(
   return expenseDataQuote;
 }
 
+async function validateTransferRequirements(
+  connectedAccount: ConnectedAccount,
+  payoutMethod: PayoutMethod,
+  expense: Expense,
+  details: transferwise.CreateTransfer['details'],
+): Promise<TransactionRequirementsType[]> {
+  if (!payoutMethod) {
+    payoutMethod = await expense.getPayoutMethod();
+  }
+  const recipient =
+    get(expense.data, 'recipient.payoutMethodId') === payoutMethod.id
+      ? (expense.data.recipient as RecipientAccount)
+      : await createRecipient(connectedAccount, payoutMethod);
+
+  const quote = await quoteExpense(connectedAccount, payoutMethod, expense);
+  return await transferwise.validateTransferRequirements(connectedAccount, {
+    accountId: recipient.id,
+    quoteUuid: quote.id,
+    details,
+  });
+}
+
 async function createTransfer(
   connectedAccount: ConnectedAccount,
   payoutMethod: PayoutMethod,
   expense: Expense,
-  options?: { token?: string; batchGroupId?: string },
+  options?: { token?: string; batchGroupId?: string; details?: transferwise.CreateTransfer['details'] },
 ): Promise<{
   quote: ExpenseDataQuoteV2 | ExpenseDataQuoteV3;
   recipient: RecipientAccount;
@@ -195,6 +216,7 @@ async function createTransfer(
       customerTransactionId: uuid(),
       details: {
         reference: `${expense.id}`,
+        ...options?.details,
       },
     };
 
@@ -230,6 +252,7 @@ async function payExpense(
   payoutMethod: PayoutMethod,
   expense: Expense,
   batchGroupId?: string,
+  transferDetails?: transferwise.CreateTransfer['details'],
 ): Promise<{
   quote: ExpenseDataQuoteV2 | ExpenseDataQuoteV3;
   recipient: RecipientAccount;
@@ -241,6 +264,7 @@ async function payExpense(
   const { quote, recipient, transfer, paymentOption } = await createTransfer(connectedAccount, payoutMethod, expense, {
     batchGroupId,
     token,
+    details: transferDetails,
   });
 
   let fund;
@@ -303,7 +327,10 @@ const getOrCreateActiveBatch = async (
   });
 };
 
-async function scheduleExpenseForPayment(expense: Expense): Promise<Expense> {
+async function scheduleExpenseForPayment(
+  expense: Expense,
+  transferDetails?: transferwise.CreateTransfer['details'],
+): Promise<Expense> {
   const collective = await expense.getCollective();
   const host = await collective.getHostCollective();
   if (!host) {
@@ -334,14 +361,17 @@ async function scheduleExpenseForPayment(expense: Expense): Promise<Expense> {
     });
     totalAmountToPay += batchedExpenses.reduce((total, e) => total + e.data.quote.paymentOption.sourceAmount, 0);
   }
+
+  const roundedTotalAmountToPay = round(totalAmountToPay, 2); // To prevent floating point errors
   assert(
-    balanceInSourceCurrency.amount.value >= totalAmountToPay,
-    `Insufficient balance in ${quote.sourceCurrency} to cover the existing batch plus this expense amount, you need ${totalAmountToPay} ${quote.sourceCurrency} and you currently have ${balanceInSourceCurrency.amount.value} ${balanceInSourceCurrency.amount.currency}. Please add funds to your Wise ${quote.sourceCurrency} account.`,
+    balanceInSourceCurrency.amount.value >= roundedTotalAmountToPay,
+    `Insufficient balance in ${quote.sourceCurrency} to cover the existing batch plus this expense amount, you need ${roundedTotalAmountToPay} ${quote.sourceCurrency} and you currently have ${balanceInSourceCurrency.amount.value} ${balanceInSourceCurrency.amount.currency}. Please add funds to your Wise ${quote.sourceCurrency} account.`,
   );
 
   await createTransfer(connectedAccount, expense.PayoutMethod, expense, {
     batchGroupId: batchGroup.id,
     token,
+    details: transferDetails,
   });
   await expense.reload();
   await expense.update({ data: { ...expense.data, batchGroup } });
@@ -717,5 +747,6 @@ export default {
   validatePayoutMethod,
   scheduleExpenseForPayment,
   unscheduleExpenseForPayment,
+  validateTransferRequirements,
   oauth,
 };

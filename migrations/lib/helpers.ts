@@ -1,3 +1,5 @@
+// ignore unused exports hasCompletedMigration, removeMigration
+
 import { cloneDeep, remove } from 'lodash';
 import { QueryInterface } from 'sequelize';
 
