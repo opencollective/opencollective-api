@@ -31,7 +31,11 @@ export const sendSurveyResponseMutation = {
     const CODA_TOKEN = process.env.CODA_IN_APP_SURVEY_TOKEN;
 
     if (!CODA_TOKEN) {
-      throw new UnexpectedError('Missing CODA_IN_APP_SURVEY_TOKEN');
+      throw new UnexpectedError(
+        config.env === 'development'
+          ? 'Missing CODA_IN_APP_SURVEY_TOKEN environment variable'
+          : 'An unexpected error happened while submitting the survey',
+      );
     }
 
     const rateLimit = new RateLimit(`survey-response-${req.remoteUser.id}`, 60, ONE_HOUR_IN_SECONDS);
