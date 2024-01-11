@@ -232,5 +232,10 @@
     "url": "STATSD_URL",
     "port": "STATSD_PORT",
     "prefix": "STATSD_PREFIX"
+  },
+  "features": {
+    "dashboard": {
+      "redirect": "FEATURES_DASHBOARD_REDIRECT"
+    }
   }
 }

@@ -11,6 +11,7 @@ import * as connectedAccounts from '../controllers/connectedAccounts';
 import { verifyJwt } from '../lib/auth';
 import errors from '../lib/errors';
 import logger from '../lib/logger';
+import { clearRedirectCookie, setRedirectCookie } from '../lib/redirect-cookie';
 import { reportMessageToSentry } from '../lib/sentry';
 import { TWITTER_SCOPES } from '../lib/twitter';
 import { getBearerTokenFromRequestHeaders, parseToBoolean } from '../lib/utils';
@@ -152,13 +153,13 @@ const _authenticateUserByJwt = async (req, res, next) => {
   }
 
   const { earlyAccess = {} } = user.collective.settings || {};
-  if (earlyAccess.dashboard) {
-    res.cookie('rootRedirect', 'dashboard', {
-      secure: true,
-      httpOnly: true,
-      sameSite: 'strict',
-      maxAge: 24 * 60 * 60 * 1000 * 365,
-    });
+  if (
+    earlyAccess.dashboard ||
+    (parseToBoolean(config.features.dashboard.redirect) && earlyAccess.dashboard !== false)
+  ) {
+    setRedirectCookie(res);
+  } else {
+    clearRedirectCookie(res);
   }
 
   // Make tokens expire on password update
@@ -394,12 +395,12 @@ export async function checkPersonalToken(req, res, next) {
       }
       next();
     } else {
-      res.clearCookie('rootRedirect');
+      clearRedirectCookie(res);
       debug(`Invalid Personal Token (Api Key): ${apiKey || token}`);
       next(new Unauthorized(`Invalid Personal Token (Api Key): ${apiKey || token}`));
     }
   } else {
-    res.clearCookie('rootRedirect');
+    clearRedirectCookie(res);
     next();
     debug('No Personal Token (Api Key)');
   }
