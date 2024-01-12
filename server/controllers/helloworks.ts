@@ -150,7 +150,6 @@ async function callback(req, res) {
       .then(({ url }) => {
         doc.requestStatus = RECEIVED;
         doc.documentLink = url;
-        doc.data = { ...doc.data, helloWorksInstance: body };
         return doc.save();
       })
       .then(() => res.sendStatus(200))
