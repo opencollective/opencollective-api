@@ -2113,17 +2113,16 @@ async function payExpenseWithPayPalAdaptive(remoteUser, expense, host, paymentMe
     throw new Error('PayPal adaptive is currently under maintenance. Please try again later.');
   }
 
+  let paymentResponse = null;
   try {
-    const paymentResponse = await paymentProviders.paypal.types['adaptive'].pay(
+    paymentResponse = await paymentProviders.paypal.types['adaptive'].pay(
       expense.collective,
       expense,
       toPaypalEmail,
       paymentMethod.token,
     );
 
-    debug(JSON.stringify(paymentResponse));
     const { createPaymentResponse, executePaymentResponse } = paymentResponse;
-
     switch (executePaymentResponse.paymentExecStatus) {
       case 'COMPLETED':
         break;
@@ -2193,12 +2192,23 @@ async function payExpenseWithPayPalAdaptive(remoteUser, expense, host, paymentMe
           transactionId,
         });
         senderFees = Math.abs(parseFloat(transactions[0].transaction_info.fee_amount.value));
+        reportMessageToSentry('Transaction was missing defaultFundingPlan', {
+          user: remoteUser,
+          severity: 'warning',
+          feature: FEATURE.PAYPAL_PAYOUTS,
+          extra: { paymentResponse, payKey, transactionId, senderFees, expense: expense.info },
+        });
       } catch (e) {
-        reportErrorToSentry(e, { extra: { paymentResponse }, feature: FEATURE.PAYPAL_PAYOUTS });
+        reportErrorToSentry(e, {
+          user: remoteUser,
+          severity: 'error', // We want to be alerted, as this will prevent the expense fees from being recorded correctly
+          feature: FEATURE.PAYPAL_PAYOUTS,
+          extra: { paymentResponse, expense: expense.info },
+        });
       }
     }
 
-    const currencyConversion = defaultFundingPlan.currencyConversion || { exchangeRate: 1 };
+    const currencyConversion = defaultFundingPlan?.currencyConversion || { exchangeRate: 1 };
     const hostCurrencyFxRate = 1 / parseFloat(currencyConversion.exchangeRate); // paypal returns a float from host.currency to expense.currency
     fees['paymentProcessorFeeInHostCurrency'] = Math.round(hostCurrencyFxRate * senderFees);
 
@@ -2216,7 +2226,12 @@ async function payExpenseWithPayPalAdaptive(remoteUser, expense, host, paymentMe
         'Not enough funds in your existing Paypal preapproval. Please refill your PayPal payment balance.',
       );
     } else {
-      reportErrorToSentry(err);
+      reportErrorToSentry(err, {
+        user: remoteUser,
+        feature: FEATURE.PAYPAL_PAYOUTS,
+        extra: { paymentResponse, toPaypalEmail, expense: expense.info },
+      });
+
       throw new BadRequest(err.message);
     }
   }
