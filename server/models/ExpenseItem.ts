@@ -115,6 +115,7 @@ ExpenseItem.init(
       allowNull: false,
       validate: {
         len: [3, 3],
+        notEmpty: true,
       },
     },
     expenseCurrencyFxRate: {
