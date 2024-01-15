@@ -619,7 +619,7 @@ async function getAccountBalances(
   host: Collective,
   options?: { connectedAccount: ConnectedAccount },
 ): Promise<BalanceV4[]> {
-  const connectedAccount = options?.connectedAccount || (await host.getAccountForPaymentProvider(PROVIDER_NAME));
+  const connectedAccount = options?.connectedAccount ?? (await host.getAccountForPaymentProvider(PROVIDER_NAME));
   await populateProfileId(connectedAccount);
   return transferwise.listBalancesAccount(connectedAccount);
 }

@@ -432,8 +432,8 @@ export function authorizeClient(req, res, next) {
     },
   ];
 
-  for (const i in exceptions) {
-    if (req.method === exceptions[i].method && req.originalUrl.match(exceptions[i].regex)) {
+  for (const exception of exceptions) {
+    if (req.method === exception.method && req.originalUrl.match(exception.regex)) {
       return next();
     }
   }

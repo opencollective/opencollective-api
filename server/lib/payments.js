@@ -301,7 +301,7 @@ export async function refundPaymentProcessorFee(
     // TODO: We're now able to support this more easily, we should implement
     const processorFeeInHostCurrency =
       processorFeeTransaction?.amountInHostCurrency || transaction.paymentProcessorFeeInHostCurrency;
-    if (refundedPaymentProcessorFee && refundedPaymentProcessorFee !== processorFeeInHostCurrency) {
+    if (refundedPaymentProcessorFee !== processorFeeInHostCurrency) {
       logger.error(
         `Partial processor fees refunds are not supported, got ${refundedPaymentProcessorFee} for #${transaction.id}`,
       );

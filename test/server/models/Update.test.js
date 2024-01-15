@@ -21,10 +21,16 @@ const expectAllEmailsFrom = (usersList, receivedEmails) => {
 };
 
 describe('server/models/Update', () => {
-  const dateOffset = 24 * 60 * 60 * 1000;
-  const today = new Date().setUTCHours(0, 0, 0, 0);
-  const yesterday = new Date(today - 1).setUTCDate(0, 0, 0, 0);
-  const tomorrow = new Date(today + dateOffset);
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  yesterday.setUTCHours(0, 0, 0, 0);
+
+  const tomorrow = new Date();
+  tomorrow.setDate(today.getDate() + 1);
+  tomorrow.setUTCHours(0, 0, 0, 0);
 
   let user, collective;
   before(() => utils.resetTestDB());

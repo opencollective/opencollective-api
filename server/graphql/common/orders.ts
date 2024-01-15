@@ -33,7 +33,7 @@ export async function addFunds(order: AddFundsInput, remoteUser: User) {
   }
 
   const { collective, fromCollective, host } = order;
-  order.collective = collective;
+
   if (fromCollective.hasBudget()) {
     // Make sure logged in user is admin of the source profile, unless it doesn't have a budget (user
     // or host organization without budget activated). It's not an ideal solution though, as spammy

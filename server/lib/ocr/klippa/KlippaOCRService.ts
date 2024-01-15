@@ -18,8 +18,7 @@ export class KlippaOCRService implements ExpenseOCRService {
     private apiKey: string,
     private user: User,
   ) {
-    this.apiKey = apiKey;
-    this.user = user;
+    // Typescript constructor automatically assign parameters to `this`
   }
 
   /**

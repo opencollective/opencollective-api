@@ -593,7 +593,9 @@ export async function archiveCollective(_, args, req) {
   await cancelUnprocessedExpenses(allAccountIds, req.remoteUser);
 
   // Clear caches
-  slugsToClearCacheFor.map(purgeCacheForCollective);
+  for (const slug of slugsToClearCacheFor) {
+    purgeCacheForCollective(slug);
+  }
 
   return collective;
 }

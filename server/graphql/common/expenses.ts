@@ -2608,7 +2608,7 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
     if (
       expense.status !== statuses.APPROVED &&
       // Allow errored expenses to be marked as paid
-      !(expense.status === statuses.ERROR)
+      expense.status !== statuses.ERROR
     ) {
       throw new Unauthorized(`Expense needs to be approved. Current status of the expense: ${expense.status}.`);
     }

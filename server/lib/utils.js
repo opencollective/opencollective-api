@@ -194,7 +194,7 @@ export function exportToCSV(data, attributes, getColumnName = attr => attr, proc
   const getLine = row => {
     const cols = [];
     attributes.map(attr => {
-      cols.push(`${processValue(attr, get(row, attr) || '')}`.replace(/\"/g, '"'));
+      cols.push(`${processValue(attr, get(row, attr) || '')}`);
     });
     return `"${cols.join('","')}"`;
   };

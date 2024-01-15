@@ -554,11 +554,11 @@ describe('server/models/Collective', () => {
     const until = new Date('2016-07-01');
     collective.getBalance({ version: 'v1', endDate: until }).then(balance => {
       let sum = 0;
-      transactions.map(t => {
+      for (const t of transactions) {
         if (t.createdAt < until) {
           sum += t.netAmountInCollectiveCurrency;
         }
-      });
+      }
       expect(balance).to.equal(sum);
       done();
     });
@@ -568,7 +568,7 @@ describe('server/models/Collective', () => {
     const until = new Date('2016-07-01');
     collective.getBalance({ endDate: until }).then(balance => {
       let sum = 0;
-      transactions.map(t => {
+      for (const t of transactions) {
         if (t.createdAt < until) {
           sum +=
             (t.amountInHostCurrency || 0) +
@@ -576,7 +576,7 @@ describe('server/models/Collective', () => {
             (t.platformFeeInHostCurrency || 0) +
             (t.paymentProcessorFeeInHostCurrency || 0);
         }
-      });
+      }
       expect(balance).to.equal(sum);
       done();
     });
@@ -627,11 +627,11 @@ describe('server/models/Collective', () => {
     const until = new Date('2016-07-01');
     collective.getBackersCount({ until }).then(count => {
       const backers = {};
-      transactions.map(t => {
+      for (const t of transactions) {
         if (t.amount > 0 && t.createdAt < until) {
           backers[t.CreatedByUserId] = t.amount;
         }
-      });
+      }
       expect(count).to.equal(Object.keys(backers).length);
       done();
     });
@@ -639,11 +639,11 @@ describe('server/models/Collective', () => {
 
   it('gets all the expenses', done => {
     let totalExpenses = 0;
-    transactions.map(t => {
+    for (const t of transactions) {
       if (t.netAmountInCollectiveCurrency < 0) {
         totalExpenses++;
       }
-    });
+    }
 
     collective
       .getExpenses()
@@ -663,11 +663,11 @@ describe('server/models/Collective', () => {
 
     let totalExpenses = 0;
 
-    transactions.map(t => {
+    for (const t of transactions) {
       if (t.netAmountInCollectiveCurrency < 0 && t.createdAt > startDate && t.createdAt < endDate) {
         totalExpenses++;
       }
-    });
+    }
 
     collective
       .getExpenses(null, startDate, endDate)

@@ -55,7 +55,7 @@ export async function validateToken(user: User, token: Token, req): Promise<void
 }
 
 export async function generateRegistrationOptions(user: User, req): Promise<PublicKeyCredentialCreationOptionsJSON> {
-  const collective = user?.collective || (await user.getCollective());
+  const collective = user.collective ?? (await user.getCollective());
 
   const methods = await UserTwoFactorMethod.findAll<UserTwoFactorMethod<TwoFactorMethod.WEBAUTHN>>({
     where: {
