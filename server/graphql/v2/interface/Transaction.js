@@ -678,8 +678,10 @@ export const TransactionFields = () => {
           const stripeId = transaction.data?.charge?.id;
           const onetimePaypalPaymentId = transaction.data?.capture?.id;
           const recurringPaypalPaymentId = transaction.data?.paypalSale?.id;
+          // Refunded PayPal contributions
+          const paypalResponseId = transaction.data?.paypalResponse?.id;
 
-          return stripeId || onetimePaypalPaymentId || recurringPaypalPaymentId;
+          return stripeId || onetimePaypalPaymentId || recurringPaypalPaymentId || paypalResponseId;
         }
 
         if (transaction.kind === TransactionKinds.EXPENSE) {
