@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import gqlV2 from 'fake-tag';
+import gql from 'fake-tag';
 
 import { CollectiveType } from '../../../../../server/constants/collectives';
 import models from '../../../../../server/models';
@@ -14,7 +14,7 @@ import {
 } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
 
-const hostQuery = gqlV2/* GraphQL */ `
+const hostQuery = gql`
   query Host($slug: String!, $accounts: [AccountReferenceInput]) {
     host(slug: $slug) {
       id
@@ -150,7 +150,7 @@ describe('server/graphql/v2/object/Host', () => {
   });
 
   describe('hostedVirtualCards', () => {
-    const query = gqlV2/* GraphQL */ `
+    const query = gql`
       query Host(
         $slug: String!
         $status: [VirtualCardStatus]
@@ -433,7 +433,7 @@ describe('server/graphql/v2/object/Host', () => {
   });
 
   describe('vendors', () => {
-    const accountQuery = gqlV2/* GraphQL */ `
+    const accountQuery = gql`
       query Host($slug: String!, $forAccount: AccountReferenceInput, $searchTerm: String) {
         host(slug: $slug) {
           id

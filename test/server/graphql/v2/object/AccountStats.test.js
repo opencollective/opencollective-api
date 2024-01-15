@@ -1,10 +1,10 @@
 import { expect } from 'chai';
-import gqlV2 from 'fake-tag';
+import gql from 'fake-tag';
 
 import { fakeCollective, fakeOrder, fakeTransaction } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
-const accountQuery = gqlV2/* GraphQL */ `
+const accountQuery = gql`
   query Account($slug: String!, $includeChildren: Boolean!) {
     account(slug: $slug) {
       id

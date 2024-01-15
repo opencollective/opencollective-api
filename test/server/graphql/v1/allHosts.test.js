@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import gql from 'fake-tag';
+import gqlV1 from 'fake-tag';
 import { describe, it } from 'mocha';
 
 import models from '../../../../server/models';
@@ -58,7 +58,7 @@ describe('server/graphql/v1/allHosts', () => {
   });
 
   describe('hosts', () => {
-    const allHostsQuery = gql`
+    const allHostsQuery = gqlV1/* GraphQL */ `
       query AllHosts($tags: [String], $currency: String) {
         allHosts(tags: $tags, currency: $currency) {
           total

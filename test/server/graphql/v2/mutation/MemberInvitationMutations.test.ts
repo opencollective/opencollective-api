@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import gqlV2 from 'fake-tag';
+import gql from 'fake-tag';
 import { omit } from 'lodash';
 import { describe, it } from 'mocha';
 import { createSandbox } from 'sinon';
@@ -30,7 +30,7 @@ describe('MemberInvitationMutations', () => {
     sendEmailSpy.resetHistory();
   });
 
-  const inviteMemberMutation = gqlV2/* GraphQL */ `
+  const inviteMemberMutation = gql`
     mutation InviteMember(
       $memberAccount: AccountReferenceInput!
       $account: AccountReferenceInput!
@@ -173,7 +173,7 @@ describe('MemberInvitationMutations', () => {
   });
 
   describe('editMemberInvitation', async () => {
-    const editMemberInvitationMutation = gqlV2/* GraphQL */ `
+    const editMemberInvitationMutation = gql`
       mutation EditMemberInvitation(
         $memberAccount: AccountReferenceInput!
         $account: AccountReferenceInput!
@@ -291,9 +291,9 @@ describe('MemberInvitationMutations', () => {
   });
 
   describe('replyToMemberInvitation', () => {
-    const replyToMemberInvitationMutation = gqlV2`
+    const replyToMemberInvitationMutation = gql`
       mutation ReplyToMemberInvitation($invitation: MemberInvitationReferenceInput!, $accept: Boolean!) {
-          replyToMemberInvitation(invitation: $invitation, accept: $accept)
+        replyToMemberInvitation(invitation: $invitation, accept: $accept)
       }
     `;
 

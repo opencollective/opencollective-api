@@ -1,6 +1,6 @@
 import { expect } from 'chai';
+import gqlV1 from 'fake-tag';
 import gql from 'fake-tag';
-import gqlV2 from 'fake-tag';
 import moment from 'moment';
 import nock from 'nock';
 import { createSandbox, stub } from 'sinon';
@@ -71,12 +71,12 @@ const fixerNock = function () {
 };
 /* eslint-enable camelcase */
 
-const createGiftCardsMutation = gql`
+const createGiftCardsMutation = gqlV1/* GraphQL */ `
   mutation CreateGiftCards(
     $amount: Int
     $monthlyLimitPerMember: Int
-    $CollectiveId: Int!
-    $PaymentMethodId: Int
+    $collectiveId: Int!
+    $paymentMethodId: Int
     $description: String
     $expiryDate: String
     $currency: String!
@@ -86,8 +86,8 @@ const createGiftCardsMutation = gql`
     createGiftCards(
       amount: $amount
       monthlyLimitPerMember: $monthlyLimitPerMember
-      CollectiveId: $CollectiveId
-      PaymentMethodId: $PaymentMethodId
+      CollectiveId: $collectiveId
+      PaymentMethodId: $paymentMethodId
       description: $description
       expiryDate: $expiryDate
       currency: $currency
@@ -111,7 +111,7 @@ const createGiftCardsMutation = gql`
   }
 `;
 
-const claimPaymentMethodMutation = gql`
+const claimPaymentMethodMutation = gqlV1/* GraphQL */ `
   mutation ClaimPaymentMethod($user: UserInputType, $code: String!) {
     claimPaymentMethod(user: $user, code: $code) {
       id
@@ -126,7 +126,7 @@ const claimPaymentMethodMutation = gql`
   }
 `;
 
-const createOrderMutation = gqlV2/* GraphQL */ `
+const createOrderMutation = gql`
   mutation CreateOrder($order: OrderCreateInput!) {
     createOrder(order: $order) {
       order {
@@ -775,7 +775,7 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
       );
 
       it('should fail creating a gift card because there is no currency defined', async () => {
-        const args = { CollectiveId: collective1.id, amount: 10000 };
+        const args = { collectiveId: collective1.id, amount: 10000 };
         // call graphql mutation
         const gqlResult = await utils.graphqlQuery(createGiftCardsMutation, args, user1);
         expect(gqlResult.errors[0]).to.exist;
@@ -785,7 +785,7 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
       it('should fail creating a gift card because there is no amount or monthlyLimitPerMember defined', async () => {
         const args = {
           currency: 'USD',
-          CollectiveId: collective1.id,
+          collectiveId: collective1.id,
         };
         // call graphql mutation
         const gqlResult = await utils.graphqlQuery(createGiftCardsMutation, args, user1);
@@ -797,7 +797,7 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
 
       it('should create a U$100 gift card payment method limited to open source', async () => {
         const args = {
-          CollectiveId: collective1.id,
+          collectiveId: collective1.id,
           amount: 10000,
           currency: 'USD',
           limitedToTags: ['open source'],
@@ -824,9 +824,9 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
       it("should fail if payment method does't belongs to collective", async () => {
         const args = {
           currency: 'USD',
-          CollectiveId: collective1.id,
+          collectiveId: collective1.id,
           amount: 10000,
-          PaymentMethodId: creditCard2.id,
+          paymentMethodId: creditCard2.id,
         };
         // call graphql mutation
         const gqlResult = await utils.graphqlQuery(createGiftCardsMutation, args, user1);

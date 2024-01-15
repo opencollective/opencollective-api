@@ -1,12 +1,12 @@
 import { expect } from 'chai';
-import gqlV2 from 'fake-tag';
+import gql from 'fake-tag';
 
 import { VirtualCardLimitIntervals } from '../../../../../server/constants/virtual-cards';
 import VirtualCardRequest from '../../../../../server/models/VirtualCardRequest';
 import { fakeCollective, fakeHost, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
 
-const virtualCardRequestsCollectionQuery = gqlV2/* GraphQL */ `
+const virtualCardRequestsCollectionQuery = gql`
   query VirtualCardRequests($host: AccountReferenceInput!) {
     virtualCardRequests(limit: 100, offset: 0, host: $host) {
       offset

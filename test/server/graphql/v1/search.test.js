@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import gql from 'fake-tag';
+import gqlV1 from 'fake-tag';
 import { describe, it } from 'mocha';
 
 import { fakeCollective, randStr } from '../../../test-helpers/fake-data';
@@ -19,7 +19,7 @@ describe('server/graphql/v1/search', () => {
   });
 
   it('returns list of CollectiveSearch types', async () => {
-    const collectiveSearchQuery = gql`
+    const collectiveSearchQuery = gqlV1/* GraphQL */ `
       query CollectiveSearch($term: String!) {
         search(term: $term) {
           collectives {
@@ -40,7 +40,7 @@ describe('server/graphql/v1/search', () => {
   });
 
   it('accepts limit and offset arguments', async () => {
-    const collectiveSearchQuery = gql`
+    const collectiveSearchQuery = gqlV1/* GraphQL */ `
       query CollectiveSearch($term: String!, $limit: Int!, $offset: Int!) {
         search(term: $term, limit: $limit, offset: $offset) {
           collectives {

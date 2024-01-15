@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import gqlV2 from 'fake-tag';
+import gql from 'fake-tag';
 import { times } from 'lodash';
 
 import MemberRoles from '../../../../../server/constants/roles';
@@ -15,7 +15,7 @@ import {
 } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
 
-const updateQuery = gqlV2/* GraphQL */ `
+const updateQuery = gql`
   query Update($accountSlug: String!, $slug: String!, $audience: UpdateAudience) {
     update(account: { slug: $accountSlug }, slug: $slug) {
       id

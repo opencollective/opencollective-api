@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { expect } from 'chai';
 import config from 'config';
-import gqlV2 from 'fake-tag';
+import gql from 'fake-tag';
 import { times } from 'lodash';
 import moment from 'moment';
 import sinon from 'sinon';
@@ -15,7 +15,7 @@ import { klippaSuccessInvoice } from '../../../../../server/lib/ocr/klippa/mocks
 import { fakeUser } from '../../../../test-helpers/fake-data';
 import { getMockFileUpload, graphqlQueryV2, resetTestDB } from '../../../../utils';
 
-const uploadFileMutation = gqlV2/* GraphQL */ `
+const uploadFileMutation = gql`
   mutation UploadFile($files: [UploadFileInput!]!) {
     uploadFile(files: $files) {
       file {

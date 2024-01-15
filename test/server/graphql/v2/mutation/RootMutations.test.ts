@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import gqlV2 from 'fake-tag';
+import gql from 'fake-tag';
 import { times } from 'lodash';
 
 import { activities as ACTIVITY } from '../../../../../server/constants';
@@ -18,8 +18,8 @@ import {
 } from '../../../../test-helpers/fake-data';
 import { generateValid2FAHeader, graphqlQueryV2, resetTestDB } from '../../../../utils';
 
-const MOVE_EXPENSES_MUTATION = gqlV2/* GraphQL */ `
-  mutation MoveExpensesMutation($destinationAccount: AccountReferenceInput!, $expenses: [ExpenseReferenceInput!]!) {
+const MOVE_EXPENSES_MUTATION = gql`
+  mutation MoveExpenses($destinationAccount: AccountReferenceInput!, $expenses: [ExpenseReferenceInput!]!) {
     moveExpenses(destinationAccount: $destinationAccount, expenses: $expenses) {
       id
       account {
@@ -29,8 +29,8 @@ const MOVE_EXPENSES_MUTATION = gqlV2/* GraphQL */ `
   }
 `;
 
-const EDIT_ACCOUNT_TYPE_MUTATION = gqlV2/* GraphQL */ `
-  mutation EditAccountTypeMutation($account: AccountReferenceInput!) {
+const EDIT_ACCOUNT_TYPE_MUTATION = gql`
+  mutation EditAccountType($account: AccountReferenceInput!) {
     editAccountType(account: $account) {
       id
       type

@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import gqlV2 from 'fake-tag';
+import gql from 'fake-tag';
 
 import OrderStatuses from '../../../../../server/constants/order_status';
 import roles from '../../../../../server/constants/roles';
@@ -8,8 +8,8 @@ import models from '../../../../../server/models';
 import { fakeCollective, fakeMember, fakeOrder, fakeTier, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
-const CREATE_TIER_MUTATION = gqlV2/* GraphQL */ `
-  mutation CreateTierMutation($tier: TierCreateInput!, $account: AccountReferenceInput!) {
+const CREATE_TIER_MUTATION = gql`
+  mutation CreateTier($tier: TierCreateInput!, $account: AccountReferenceInput!) {
     createTier(tier: $tier, account: $account) {
       id
       legacyId
@@ -17,8 +17,8 @@ const CREATE_TIER_MUTATION = gqlV2/* GraphQL */ `
   }
 `;
 
-const EDIT_TIER_MUTATION = gqlV2/* GraphQL */ `
-  mutation EditTierMutation($tier: TierUpdateInput!) {
+const EDIT_TIER_MUTATION = gql`
+  mutation EditTier($tier: TierUpdateInput!) {
     editTier(tier: $tier) {
       id
       legacyId
@@ -27,8 +27,8 @@ const EDIT_TIER_MUTATION = gqlV2/* GraphQL */ `
   }
 `;
 
-const DELETE_TIER_MUTATION = gqlV2/* GraphQL */ `
-  mutation DeleteTierMutation($tier: TierReferenceInput!, $stopRecurringContributions: Boolean) {
+const DELETE_TIER_MUTATION = gql`
+  mutation DeleteTier($tier: TierReferenceInput!, $stopRecurringContributions: Boolean) {
     deleteTier(tier: $tier, stopRecurringContributions: $stopRecurringContributions) {
       id
       legacyId

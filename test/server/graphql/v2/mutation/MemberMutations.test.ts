@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import gqlV2 from 'fake-tag';
+import gql from 'fake-tag';
 import { describe, it } from 'mocha';
 
 import ActivityTypes from '../../../../../server/constants/activities';
@@ -21,7 +21,7 @@ describe('memberMutations', () => {
     await collective.addUserWithRole(collectiveMemberUser, roles.MEMBER);
   });
   describe('editMember', () => {
-    const editMemberMutation = gqlV2/* GraphQL */ `
+    const editMemberMutation = gql`
       mutation EditMember(
         $memberAccount: AccountReferenceInput!
         $account: AccountReferenceInput!
@@ -129,7 +129,7 @@ describe('memberMutations', () => {
   });
 
   describe('removeMember', () => {
-    const removeMemberMutation = gqlV2/* GraphQL */ `
+    const removeMemberMutation = gql`
       mutation RemoveMember(
         $memberAccount: AccountReferenceInput!
         $account: AccountReferenceInput!
@@ -270,7 +270,7 @@ describe('memberMutations', () => {
   });
 
   describe('follow', () => {
-    const followMutation = gqlV2`
+    const followMutation = gql`
       mutation FollowCollective($account: AccountReferenceInput!) {
         followAccount(account: $account) {
           member {
@@ -414,7 +414,7 @@ describe('memberMutations', () => {
   });
 
   describe('unfollow', () => {
-    const unfollowMutation = gqlV2`
+    const unfollowMutation = gql`
       mutation UnfollowCollective($account: AccountReferenceInput!) {
         unfollowAccount(account: $account) {
           member {

@@ -4,7 +4,7 @@
  * invoices. */
 
 import { expect } from 'chai';
-import gql from 'fake-tag';
+import gqlV1 from 'fake-tag';
 import { useFakeTimers } from 'sinon';
 
 import * as store from '../../../stores';
@@ -53,7 +53,7 @@ describe('server/graphql/v1/invoices', () => {
 
   describe('return transactions', () => {
     it('fails to return list of invoices for a given user if not logged in as that user', async () => {
-      const query = gql`
+      const query = gqlV1/* GraphQL */ `
         query AllInvoices($fromCollectiveSlug: String!) {
           allInvoices(fromCollectiveSlug: $fromCollectiveSlug) {
             year
@@ -73,7 +73,7 @@ describe('server/graphql/v1/invoices', () => {
     });
 
     it('returns list of invoices for a given user', async () => {
-      const query = gql`
+      const query = gqlV1/* GraphQL */ `
         query AllInvoices($fromCollectiveSlug: String!) {
           allInvoices(fromCollectiveSlug: $fromCollectiveSlug) {
             year

@@ -1,13 +1,13 @@
 import { expect } from 'chai';
-import gqlV2 from 'fake-tag';
+import gql from 'fake-tag';
 
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import Agreement from '../../../../../server/models/Agreement';
 import { fakeCollective, fakeHost, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
 
-const AddAgreementMutation = gqlV2/* GraphQL */ `
-  mutation AddAgreementMutation(
+const AddAgreementMutation = gql`
+  mutation AddAgreement(
     $host: AccountReferenceInput!
     $account: AccountReferenceInput!
     $title: NonEmptyString!
@@ -42,8 +42,8 @@ const AddAgreementMutation = gqlV2/* GraphQL */ `
   }
 `;
 
-const EditAgreementMutation = gqlV2/* GraphQL */ `
-  mutation EditAgreementMutation(
+const EditAgreementMutation = gql`
+  mutation EditAgreement(
     $agreement: AgreementReferenceInput!
     $title: NonEmptyString
     $expiresAt: DateTime
@@ -69,8 +69,8 @@ const EditAgreementMutation = gqlV2/* GraphQL */ `
   }
 `;
 
-const DeleteAgreementMutation = gqlV2/* GraphQL */ `
-  mutation DeleteAgreementMutation($agreement: AgreementReferenceInput!) {
+const DeleteAgreementMutation = gql`
+  mutation DeleteAgreement($agreement: AgreementReferenceInput!) {
     deleteAgreement(agreement: $agreement) {
       id
     }

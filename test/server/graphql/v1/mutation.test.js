@@ -1,5 +1,5 @@
 import * as chai from 'chai';
-import gql from 'fake-tag';
+import gqlV1 from 'fake-tag';
 import { describe, it } from 'mocha';
 import { createSandbox } from 'sinon';
 
@@ -84,7 +84,7 @@ describe('server/graphql/v1/mutation', () => {
   });
 
   describe('createCollective tests', () => {
-    const createCollectiveMutation = gql`
+    const createCollectiveMutation = gqlV1/* GraphQL */ `
       mutation CreateCollective($collective: CollectiveInputType!) {
         createCollective(collective: $collective) {
           id
@@ -191,8 +191,8 @@ describe('server/graphql/v1/mutation', () => {
         // We update the second (now only) tier
         event.tiers[0].amount = 123;
 
-        const updateQuery = gql`
-          mutation editCollective($collective: CollectiveInputType!) {
+        const updateQuery = gqlV1/* GraphQL */ `
+          mutation EditCollective($collective: CollectiveInputType!) {
             editCollective(collective: $collective) {
               id
               slug
@@ -225,7 +225,7 @@ describe('server/graphql/v1/mutation', () => {
 
   describe('editCollective tests', () => {
     describe('edit tiers', () => {
-      const editTiersMutation = gql`
+      const editTiersMutation = gqlV1/* GraphQL */ `
         mutation EditTiers($id: Int!, $tiers: [TierInputType]) {
           editTiers(id: $id, tiers: $tiers) {
             id
@@ -281,7 +281,7 @@ describe('server/graphql/v1/mutation', () => {
     });
 
     describe('change the hostFeePercent of the host', () => {
-      const updateHostFeePercentMutation = gql`
+      const updateHostFeePercentMutation = gqlV1/* GraphQL */ `
         mutation UpdateHostFeePercent($collective: CollectiveInputType!) {
           editCollective(collective: $collective) {
             id
@@ -332,7 +332,7 @@ describe('server/graphql/v1/mutation', () => {
     });
 
     describe('archives a collective', () => {
-      const archiveCollectiveMutation = gql`
+      const archiveCollectiveMutation = gqlV1/* GraphQL */ `
         mutation ArchiveCollective($id: Int!) {
           archiveCollective(id: $id) {
             id
@@ -340,7 +340,7 @@ describe('server/graphql/v1/mutation', () => {
           }
         }
       `;
-      const unarchiveCollectiveMutation = gql`
+      const unarchiveCollectiveMutation = gqlV1/* GraphQL */ `
         mutation UnarchiveCollective($id: Int!) {
           unarchiveCollective(id: $id) {
             id

@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import gqlV2 from 'fake-tag';
+import gql from 'fake-tag';
 import { times } from 'lodash';
 import moment from 'moment';
 
@@ -8,7 +8,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../serv
 import { fakeOrder, fakePaymentMethod, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
-const paymentMethodsQuery = gqlV2/* GraphQL */ `
+const paymentMethodsQuery = gql`
   query Account($slug: String!, $status: [OrderStatus]) {
     account(slug: $slug) {
       id

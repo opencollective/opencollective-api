@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import gql from 'fake-tag';
+import gqlV1 from 'fake-tag';
 import { describe, it } from 'mocha';
 import { createSandbox } from 'sinon';
 
@@ -149,7 +149,7 @@ describe('server/graphql/v1/tiers', () => {
       );
       beforeEach(() => collective1.createTier({ slug: 'gold-sponsor', name: 'gold sponsor', amount: 0 }));
 
-      const collectiveTiersQuery = gql`
+      const collectiveTiersQuery = gqlV1/* GraphQL */ `
         query CollectiveTiers($collectiveSlug: String, $tierSlug: String, $tierId: Int) {
           Collective(slug: $collectiveSlug) {
             tiers(slug: $tierSlug, id: $tierId) {

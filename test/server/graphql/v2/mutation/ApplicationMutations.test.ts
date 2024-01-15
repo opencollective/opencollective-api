@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import config from 'config';
 import crypto from 'crypto-js';
-import gqlV2 from 'fake-tag';
+import gql from 'fake-tag';
 import { times } from 'lodash';
 import speakeasy from 'speakeasy';
 
@@ -13,7 +13,7 @@ import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 const SECRET_KEY = config.dbEncryption.secretKey;
 const CIPHER = config.dbEncryption.cipher;
 
-const CREATE_APPLICATION_MUTATION = gqlV2/* GraphQL */ `
+const CREATE_APPLICATION_MUTATION = gql`
   mutation CreateApplication($application: ApplicationCreateInput!) {
     createApplication(application: $application) {
       id
@@ -29,7 +29,7 @@ const CREATE_APPLICATION_MUTATION = gqlV2/* GraphQL */ `
   }
 `;
 
-const UPDATE_APPLICATION_MUTATION = gqlV2/* GraphQL */ `
+const UPDATE_APPLICATION_MUTATION = gql`
   mutation UpdateApplication($application: ApplicationUpdateInput!) {
     updateApplication(application: $application) {
       id
@@ -45,7 +45,7 @@ const UPDATE_APPLICATION_MUTATION = gqlV2/* GraphQL */ `
   }
 `;
 
-const DELETE_APPLICATION_MUTATION = gqlV2/* GraphQL */ `
+const DELETE_APPLICATION_MUTATION = gql`
   mutation DeleteApplication($application: ApplicationReferenceInput!) {
     deleteApplication(application: $application) {
       id

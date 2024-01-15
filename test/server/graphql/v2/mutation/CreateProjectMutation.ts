@@ -1,10 +1,10 @@
 import { expect } from 'chai';
-import gqlV2 from 'fake-tag';
+import gql from 'fake-tag';
 
 import { fakeCollective, fakeUser, randStr } from '../../../../test-helpers/fake-data';
 import * as utils from '../../../../utils';
 
-const createProjectMutation = gqlV2/* GraphQL */ `
+const createProjectMutation = gql`
   mutation CreateProject($project: ProjectCreateInput!, $parent: AccountReferenceInput!) {
     createProject(project: $project, parent: $parent) {
       id

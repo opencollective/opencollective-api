@@ -1,11 +1,11 @@
 import { expect } from 'chai';
-import gqlV2 from 'fake-tag';
+import gql from 'fake-tag';
 
 import OrderStatuses from '../../../../../server/constants/order_status';
 import { fakeOrder, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
-const orderQuery = gqlV2/* GraphQL */ `
+const orderQuery = gql`
   query Order($legacyId: Int!) {
     order(order: { legacyId: $legacyId }) {
       id

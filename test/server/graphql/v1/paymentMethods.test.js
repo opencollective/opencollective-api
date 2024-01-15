@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import gql from 'fake-tag';
+import gqlV1 from 'fake-tag';
 import { stub } from 'sinon';
 
 import roles from '../../../../server/constants/roles';
@@ -139,7 +139,7 @@ describe('server/graphql/v1/paymentMethods', () => {
       await createAddedFunds(google);
 
       // We fetch all the fromCollectives using the host paymentMethod
-      const paymentMethodQuery = gql`
+      const paymentMethodQuery = gqlV1/* GraphQL */ `
         query PaymentMethod($id: Int!) {
           PaymentMethod(id: $id) {
             id
@@ -183,7 +183,7 @@ describe('server/graphql/v1/paymentMethods', () => {
     });
 
     it('returns the balance', async () => {
-      const collectiveQuery = gql`
+      const collectiveQuery = gqlV1/* GraphQL */ `
         query Collective($slug: String) {
           Collective(slug: $slug) {
             id

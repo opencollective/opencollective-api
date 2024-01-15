@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import gqlV2 from 'fake-tag';
+import gql from 'fake-tag';
 import nock from 'nock';
 
 import { activities } from '../../../../../server/constants';
@@ -8,7 +8,7 @@ import { randEmail } from '../../../../stores';
 import { fakeUser } from '../../../../test-helpers/fake-data';
 import * as utils from '../../../../utils';
 
-const createCollectiveMutation = gqlV2/* GraphQL */ `
+const createCollectiveMutation = gql`
   mutation CreateCollective(
     $collective: CollectiveCreateInput!
     $host: AccountReferenceInput

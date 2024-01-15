@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import gqlV2 from 'fake-tag';
+import gql from 'fake-tag';
 
 import { fakeActivity, fakeCollective, fakeHost, fakeOrder, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
@@ -9,7 +9,7 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
 
   let order, ownerUser, collectiveAdminUser, hostAdminUser, randomUser;
 
-  const orderQuery = gqlV2/* GraphQL */ `
+  const orderQuery = gql`
     query Order($legacyId: Int!) {
       order(order: { legacyId: $legacyId }) {
         id

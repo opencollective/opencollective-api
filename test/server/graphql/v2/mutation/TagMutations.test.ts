@@ -1,10 +1,10 @@
 import { expect } from 'chai';
-import gqlV2 from 'fake-tag';
+import gql from 'fake-tag';
 
 import { fakeCollective, fakeExpense, fakeHost, fakeOrder, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
 
-const SET_TAGS_MUTATION = gqlV2/* GraphQL */ `
+const SET_TAGS_MUTATION = gql`
   mutation SetTags($expense: ExpenseReferenceInput, $order: OrderReferenceInput, $tags: [String!]!) {
     setTags(expense: $expense, order: $order, tags: $tags) {
       expense {

@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import gqlV2 from 'fake-tag';
+import gql from 'fake-tag';
 import { useFakeTimers } from 'sinon';
 
 import * as ManualPaymentMethod from '../../../../../server/lib/payments';
@@ -11,7 +11,7 @@ describe('server/graphql/v2/query/HostMetricsQuery', () => {
 
   let host, collectiveAdminUser, hostAdminUser, collective1, collective2;
 
-  const hostMetricsQuery = gqlV2/* GraphQL */ `
+  const hostMetricsQuery = gql`
     query HostMetrics($slug: String!, $dateFrom: DateTime!, $dateTo: DateTime!, $account: [AccountReferenceInput!]) {
       host(slug: $slug) {
         id

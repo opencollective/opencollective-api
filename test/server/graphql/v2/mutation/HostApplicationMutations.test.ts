@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import gqlV2 from 'fake-tag';
+import gql from 'fake-tag';
 import moment from 'moment';
 import { createSandbox } from 'sinon';
 
@@ -28,7 +28,7 @@ import {
 } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB, waitForCondition } from '../../../../utils';
 
-const APPLY_TO_HOST_MUTATION = gqlV2/* GraphQL */ `
+const APPLY_TO_HOST_MUTATION = gql`
   mutation ApplyToHost(
     $collective: AccountReferenceInput!
     $host: AccountReferenceInput!
@@ -50,7 +50,7 @@ const APPLY_TO_HOST_MUTATION = gqlV2/* GraphQL */ `
   }
 `;
 
-const PROCESS_HOST_APPLICATION_MUTATION = gqlV2/* GraphQL */ `
+const PROCESS_HOST_APPLICATION_MUTATION = gql`
   mutation ProcessHostApplication(
     $host: AccountReferenceInput!
     $account: AccountReferenceInput!
@@ -91,7 +91,7 @@ const PROCESS_HOST_APPLICATION_MUTATION = gqlV2/* GraphQL */ `
   }
 `;
 
-const REMOVE_HOST_MUTATION = gqlV2/* GraphQL */ `
+const REMOVE_HOST_MUTATION = gql`
   mutation UnhostAccount($account: AccountReferenceInput!, $message: String) {
     removeHost(account: $account, message: $message) {
       id
