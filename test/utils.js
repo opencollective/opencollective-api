@@ -260,8 +260,9 @@ export const getTerminalCols = () => {
   try {
     length = parseInt(execSync('tput cols').toString());
   } catch {
-    return length;
+    // Just catch and return length
   }
+  return length;
 };
 
 export const separator = length => {

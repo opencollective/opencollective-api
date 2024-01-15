@@ -128,15 +128,12 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
           });
         }
       } else {
-        let notification = await Notification.findOne({
+        const notification = await Notification.findOne({
           where: { UserId, CollectiveId, type, channel, webhookUrl },
           transaction,
         });
         if (!notification) {
-          notification = await Notification.create(
-            { UserId, CollectiveId, type, channel, active: true, webhookUrl },
-            { transaction },
-          );
+          await Notification.create({ UserId, CollectiveId, type, channel, active: true, webhookUrl }, { transaction });
         } else if (notification.active === false) {
           await notification.update({ active: true }, { transaction });
         }

@@ -209,11 +209,7 @@ const sendMessage = (
  * Get the label to unsubscribe from the email notification
  * Shown in the footer of the email following "To unsubscribe from "
  */
-const getNotificationLabel = (template, recipients): string => {
-  if (!isArray(recipients)) {
-    recipients = [recipients];
-  }
-
+const getNotificationLabel = (template): string => {
   const notificationTypeLabels = {
     'collective.order.created': 'notifications of new donations for this collective',
     'collective.comment.created': 'notifications of new comments submitted to this collective',
@@ -258,7 +254,7 @@ const generateEmailFromTemplate = (
 
   // If we are sending the same email to multiple recipients, it doesn't make sense to allow them to unsubscribe
   if (!isArray(recipient) && !options?.isTransactional) {
-    data.notificationTypeLabel = getNotificationLabel(options.type || template, recipient);
+    data.notificationTypeLabel = getNotificationLabel(options.type || template);
     data.unsubscribeUrl = `${config.host.website}/email/unsubscribe/${encodeURIComponent(
       recipient || options.bcc,
     )}/${slug}/${options.type || template}/${generateUnsubscribeToken(
