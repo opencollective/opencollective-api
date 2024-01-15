@@ -69,6 +69,7 @@ const EXPENSE_DRAFT_PRIVATE_FIELDS = [
 const EXPENSE_DRAFT_ITEMS_PUBLIC_FIELDS = [
   'id',
   'amount',
+  'amountV2',
   'currency',
   'expenseCurrencyFxRate',
   'expenseCurrencyFxRateSource',
