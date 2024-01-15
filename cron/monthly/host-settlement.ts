@@ -112,6 +112,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       items.push({
         incurredAt: new Date(),
         amount: pendingPlatformTips,
+        currency: host.currency,
         description: 'Platform Tips',
       });
     }
@@ -120,6 +121,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       items.push({
         incurredAt: new Date(),
         amount: pendingHostFeeShare,
+        currency: host.currency,
         description: 'Shared Revenue',
       });
     }
@@ -131,6 +133,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
         items.push({
           incurredAt: new Date(),
           amount,
+          currency: host.currency,
           description: 'Fixed Fee per Hosted Collective',
         });
       }
