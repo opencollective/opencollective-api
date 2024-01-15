@@ -229,7 +229,7 @@ const getNotificationLabel = (template, recipients): string => {
     onboarding: 'onboarding emails',
     'user.monthlyreport': 'monthly reports for backers',
     'user.yearlyreport': 'yearly reports',
-    [activities.ORDER_THANKYOU]: 'thank you for your donation',
+    [activities.ORDER_CONFIRMED]: 'thank you for your donation',
     'conversation.comment.created': 'notifications of new comments submitted to this conversation',
     'update.comment.created': 'notifications of new comments submitted to this update',
     'expense.comment.created': 'notifications of new comments submitted to this expense',
@@ -299,13 +299,13 @@ const generateEmailFromTemplate = (
     template = 'host.report';
   }
 
-  if (template === activities.ORDER_THANKYOU) {
+  if (template === activities.ORDER_CONFIRMED) {
     if (slug.match(/wwcode/)) {
-      template = `${activities.ORDER_THANKYOU}.wwcode`;
+      template = `${activities.ORDER_CONFIRMED}.wwcode`;
     } else if (['foundation', 'opensource'].includes(hostSlug)) {
-      template = `${activities.ORDER_THANKYOU}.${hostSlug}`;
+      template = `${activities.ORDER_CONFIRMED}.${hostSlug}`;
     } else if (includes(['laprimaire', 'lesbarbares', 'enmarchebe', 'monnaie-libre'], slug)) {
-      template = `${activities.ORDER_THANKYOU}.fr`;
+      template = `${activities.ORDER_CONFIRMED}.fr`;
 
       // xdamman: hack
       switch (data.interval) {

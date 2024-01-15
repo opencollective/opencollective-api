@@ -8,7 +8,11 @@ import logger from '../../lib/logger';
 import models from '../../models';
 
 export const unsubscribe = async (req, res, next) => {
-  const { type, email, slug, token } = req.params;
+  const { email, slug, token } = req.params;
+  let type = req.params.type;
+  if (type === 'order.thankyou') {
+    type = 'order.confirmed';
+  }
 
   if (!emailLib.isValidUnsubscribeToken(token, email, slug, type)) {
     return next(new errors.BadRequest('Invalid token'));

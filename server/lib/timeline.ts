@@ -71,7 +71,7 @@ const makeTimelineQuery = async (
         type: [
           ActivityTypes.PAYMENT_FAILED,
           ActivityTypes.ORDER_PAYMENT_FAILED,
-          ActivityTypes.ORDER_THANKYOU,
+          ActivityTypes.ORDER_CONFIRMED,
           ActivityTypes.ORDER_PROCESSING,
         ],
         [Op.or]: [{ UserId: collective.CreatedByUserId }, { FromCollectiveId: collective.id }],

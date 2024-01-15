@@ -44,7 +44,7 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
     });
 
     await fakeActivity({ OrderId: order.id, type: 'order.pending' });
-    await fakeActivity({ OrderId: order.id, type: 'order.thankyou' });
+    await fakeActivity({ OrderId: order.id, type: 'order.confirmed' });
     await fakeActivity({ OrderId: order.id, type: 'orders.suspicious' });
   });
 
@@ -81,7 +81,7 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
         const fetchedOrder = await fetchOrder(order.id, user);
         expect(fetchedOrder.activities.totalCount).to.eq(2);
         expect(fetchedOrder.activities.nodes[0].type).to.eq('ORDER_PENDING');
-        expect(fetchedOrder.activities.nodes[1].type).to.eq('ORDER_THANKYOU');
+        expect(fetchedOrder.activities.nodes[1].type).to.eq('ORDER_CONFIRMED');
       }
     });
 
@@ -89,7 +89,7 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
       const fetchedOrder = await fetchOrder(order.id, hostAdminUser);
       expect(fetchedOrder.activities.totalCount).to.eq(3);
       expect(fetchedOrder.activities.nodes[0].type).to.eq('ORDER_PENDING');
-      expect(fetchedOrder.activities.nodes[1].type).to.eq('ORDER_THANKYOU');
+      expect(fetchedOrder.activities.nodes[1].type).to.eq('ORDER_CONFIRMED');
       expect(fetchedOrder.activities.nodes[2].type).to.eq('ORDERS_SUSPICIOUS');
     });
   });

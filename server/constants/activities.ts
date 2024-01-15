@@ -90,7 +90,7 @@ enum ActivityTypes {
   ORDER_PENDING_CONTRIBUTION_REMINDER = 'order.reminder.pendingFinancialContribution',
   ORDER_PROCESSING = 'order.processing',
   ORDER_PAYMENT_FAILED = 'order.payment.failed',
-  ORDER_THANKYOU = 'order.thankyou',
+  ORDER_CONFIRMED = 'order.confirmed',
   // Vendors
   VENDOR_CREATED = 'vendor.created',
   VENDOR_EDITED = 'vendor.edited',
@@ -147,6 +147,7 @@ enum ActivityTypes {
   COLLECTIVE_COMMENT_CREATED = 'collective.comment.created',
   ORDER_PENDING_CRYPTO = 'order.pending.crypto',
   BACKYOURSTACK_DISPATCH_CONFIRMED = 'backyourstack.dispatch.confirmed',
+  ORDER_THANKYOU = 'order.thankyou', // renamed to ORDER_CONFIRMED
 }
 
 /** This array defines the type of activities that are transactional and can not be unsubscribed by the user. */
@@ -155,7 +156,7 @@ export const TransactionalActivities = [
   ActivityTypes.USER_CHANGE_EMAIL,
   ActivityTypes.ORDER_PENDING,
   ActivityTypes.ORDER_PENDING_CRYPTO,
-  ActivityTypes.ORDER_THANKYOU,
+  ActivityTypes.ORDER_CONFIRMED,
   ActivityTypes.PAYMENT_CREDITCARD_EXPIRING,
   ActivityTypes.PAYMENT_CREDITCARD_CONFIRMATION,
   ActivityTypes.PAYMENT_FAILED,
@@ -231,7 +232,7 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
     ActivityTypes.ORDER_PENDING_CRYPTO,
     ActivityTypes.ORDER_PENDING,
     ActivityTypes.ORDER_PROCESSING,
-    ActivityTypes.ORDER_THANKYOU,
+    ActivityTypes.ORDER_CONFIRMED,
     ActivityTypes.ORDERS_SUSPICIOUS,
     ActivityTypes.PAYMENT_CREDITCARD_CONFIRMATION,
     ActivityTypes.PAYMENT_CREDITCARD_EXPIRING,
