@@ -81,6 +81,7 @@ paymentMethodProvider.processOrder = async (order, options) => {
     description: order.description,
     data: {
       // No platform tip for now here
+      platformTipEligible: false,
       isSharedRevenue,
       hostFeeSharePercent,
       tax: order.data?.tax,

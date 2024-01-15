@@ -1000,6 +1000,7 @@ const orderMutations = {
         currency: args.order.amount.currency,
         description: args.order.description || models.Order.generateDescription(toAccount, undefined, undefined),
         taxAmount,
+        platformTipEligible: false, // Pending Contributions are not eligible to Platform Tips
         data: {
           fromAccountInfo: args.order.fromAccountInfo,
           expectedAt: args.order.expectedAt,

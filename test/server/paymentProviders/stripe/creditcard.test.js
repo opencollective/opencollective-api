@@ -169,10 +169,10 @@ describe('server/paymentProviders/stripe/creditcard', () => {
         });
       });
 
-      it('should work with custom creditCardHostFeeSharePercent', async () => {
+      it('should work with custom stripeHostFeeSharePercent', async () => {
         await order.update({ totalAmount: 1000 });
         await collective.update({ hostFeePercent: 10 });
-        await host.update({ plan: 'grow-plan-2021', data: { plan: { creditCardHostFeeSharePercent: 20 } } });
+        await host.update({ plan: 'grow-plan-2021', data: { plan: { stripeHostFeeSharePercent: 20 } } });
         await cache.clear();
 
         await creditcard.processOrder(order);
@@ -183,10 +183,10 @@ describe('server/paymentProviders/stripe/creditcard', () => {
         });
       });
 
-      it('should work with creditCardHostFeeSharePercent = 0', async () => {
+      it('should work with stripeHostFeeSharePercent = 0', async () => {
         await order.update({ totalAmount: 1000 });
         await collective.update({ hostFeePercent: 10, platformFeePercent: 0 });
-        await host.update({ plan: 'grow-plan-2021', data: { plan: { creditCardHostFeeSharePercent: 0 } } });
+        await host.update({ plan: 'grow-plan-2021', data: { plan: { stripeHostFeeSharePercent: 0 } } });
         await cache.clear();
 
         await creditcard.processOrder(order);
@@ -249,6 +249,29 @@ describe('server/paymentProviders/stripe/creditcard', () => {
         const transactions = await order.getTransactions();
         expect(transactions.filter(t => t.kind === 'HOST_FEE_SHARE_DEBT')).to.have.lengthOf(2);
         expect(transactions.filter(t => t.kind === 'PLATFORM_TIP_DEBT')).to.have.lengthOf(2);
+      });
+
+      it('should consider platform tip eligibility', async () => {
+        await order.update({ currency: 'USD', totalAmount: 1000, platformTipAmount: 0, platformTipEligible: true });
+        await collective.update({ hostFeePercent: 10 });
+        await host.update({ currency: 'USD', plan: 'grow-plan-2021' });
+        await cache.clear();
+
+        stripe.balanceTransactions.retrieve.resolves({
+          amount: 1000,
+          currency: 'USD',
+          fee_details: [],
+        });
+
+        await creditcard.processOrder(order);
+
+        assert.calledWithMatch(stripe.paymentIntents.create, {
+          amount: 1000,
+          application_fee_amount: undefined,
+        });
+
+        const transactions = await order.getTransactions();
+        expect(transactions.filter(t => t.kind === 'HOST_FEE_SHARE')).to.have.lengthOf(0);
       });
     });
   });

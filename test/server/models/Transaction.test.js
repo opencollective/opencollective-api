@@ -463,7 +463,7 @@ describe('server/models/Transaction', () => {
         data: {
           plan: {
             hostFeeSharePercent: 20,
-            creditCardHostFeeSharePercent: 0,
+            stripeHostFeeSharePercent: 0,
             paypalHostFeeSharePercent: 0,
           },
         },
