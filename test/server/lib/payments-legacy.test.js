@@ -245,7 +245,7 @@ describe('server/lib/payments-legacy', () => {
 
             it('successfully sends out an email to donor1', async () => {
               await utils.waitForCondition(() => emailSendSpy.callCount > 0);
-              expect(emailSendSpy.lastCall.args[0]).to.equal(activities.ORDER_THANKYOU);
+              expect(emailSendSpy.lastCall.args[0]).to.equal(activities.ORDER_PROCESSED);
               expect(emailSendSpy.lastCall.args[1]).to.equal(user.email);
             });
           });
@@ -324,7 +324,7 @@ describe('server/lib/payments-legacy', () => {
 
           it('successfully sends out an email to donor', async () => {
             await utils.waitForCondition(() => emailSendSpy.callCount > 0);
-            expect(emailSendSpy.lastCall.args[0]).to.equal(activities.ORDER_THANKYOU);
+            expect(emailSendSpy.lastCall.args[0]).to.equal(activities.ORDER_PROCESSED);
             expect(emailSendSpy.lastCall.args[1]).to.equal(user2.email);
           });
         });

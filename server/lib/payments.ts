@@ -768,7 +768,7 @@ export const sendEmailNotifications = (order: Order, transaction?: Transaction |
     // choosing the source as itself. In this case do not send an email.
     order.fromCollective?.id !== order.collective?.id
   ) {
-    sendOrderConfirmedEmail(order, transaction); // async
+    recordOrderConfirmation(order, transaction); // async
   } else if (order.status === status.PENDING) {
     sendOrderPendingEmail(order); // This is the one for the Contributor
     sendManualPendingOrderEmail(order); // This is the one for the Host Admins
@@ -909,7 +909,7 @@ const validatePayment = (payment): void => {
   }
 };
 
-const sendOrderConfirmedEmail = async (order: Order, transaction: Transaction): Promise<void> => {
+const recordOrderConfirmation = async (order: Order, transaction: Transaction): Promise<void> => {
   const attachments = [];
   const { collective, interval, fromCollective, paymentMethod } = order;
   const user = await order.getUserForActivity();
@@ -987,7 +987,7 @@ const sendOrderConfirmedEmail = async (order: Order, transaction: Transaction): 
       }
     }
 
-    const activity = { type: activities.ORDER_THANKYOU, data };
+    const activity = await order.createProcessedActivity({ user, data });
     await notify.collective(activity, {
       collectiveId: data.fromCollective.id,
       role: [roles.ACCOUNTANT, roles.ADMIN],

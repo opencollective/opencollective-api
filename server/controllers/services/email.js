@@ -8,7 +8,8 @@ import logger from '../../lib/logger';
 import models from '../../models';
 
 export const unsubscribe = async (req, res, next) => {
-  const { type, email, slug, token } = req.params;
+  const { email, slug, token } = req.params;
+  let type = req.params.type;
 
   if (!emailLib.isValidUnsubscribeToken(token, email, slug, type)) {
     return next(new errors.BadRequest('Invalid token'));
@@ -19,6 +20,11 @@ export const unsubscribe = async (req, res, next) => {
     const user = await models.User.findOne({ where: { email } });
     if (!user) {
       throw new errors.NotFound(`Cannot find a user with email "${email}"`);
+    }
+
+    // Convert legacy types to new types. This must be done after `isValidUnsubscribeToken` because the template name influences the token.
+    if (type === 'order.thankyou') {
+      type = 'order.processed';
     }
 
     await models.Notification.unsubscribe(type, 'email', user.id, collective?.id);

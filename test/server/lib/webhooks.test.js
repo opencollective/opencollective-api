@@ -1,17 +1,17 @@
 import { expect } from 'chai';
 
 import { activities } from '../../../server/constants';
-import { enrichActivity, sanitizeActivity } from '../../../server/lib/webhooks';
+import { enrichActivityForWebhookPayload, sanitizeActivityForWebhookPayload } from '../../../server/lib/webhooks';
 
 describe('server/lib/webhooks', () => {
   describe('sanitizeActivity', () => {
     it('Strips the data for unknown types', () => {
-      const sanitized = sanitizeActivity({ type: 'NOT_A_VALID_TYPE', data: { hello: 'world' } });
+      const sanitized = sanitizeActivityForWebhookPayload({ type: 'NOT_A_VALID_TYPE', data: { hello: 'world' } });
       expect(sanitized.data).to.be.empty;
     });
 
     it('COLLECTIVE_MEMBER_CREATED', () => {
-      const sanitized = sanitizeActivity({
+      const sanitized = sanitizeActivityForWebhookPayload({
         type: activities.COLLECTIVE_MEMBER_CREATED,
         data: {
           order: { totalAmount: 4200 },
@@ -30,7 +30,7 @@ describe('server/lib/webhooks', () => {
     });
 
     it('Sanitizes COLLECTIVE_EXPENSE_CREATED', () => {
-      const sanitized = sanitizeActivity({
+      const sanitized = sanitizeActivityForWebhookPayload({
         type: activities.COLLECTIVE_EXPENSE_CREATED,
         data: {
           user: {
@@ -53,7 +53,7 @@ describe('server/lib/webhooks', () => {
     });
 
     it('Sanitizes COLLECTIVE_EXPENSE_REJECTED', () => {
-      const sanitized = sanitizeActivity({
+      const sanitized = sanitizeActivityForWebhookPayload({
         type: activities.COLLECTIVE_EXPENSE_REJECTED,
         data: {
           user: {
@@ -76,7 +76,7 @@ describe('server/lib/webhooks', () => {
     });
 
     it('Sanitizes TICKET_CONFIRMED', () => {
-      const sanitized = sanitizeActivity({
+      const sanitized = sanitizeActivityForWebhookPayload({
         type: activities.TICKET_CONFIRMED,
         id: 42,
         UserId: 7676,
@@ -123,7 +123,7 @@ describe('server/lib/webhooks', () => {
         },
       };
 
-      const enrichedActivity = enrichActivity(activity);
+      const enrichedActivity = enrichActivityForWebhookPayload(activity);
       expect(enrichedActivity).to.eq(activity); // base object is mutated
       expect(enrichedActivity).to.deep.eqInAnyOrder({
         type: 'DoesNotReallyMatter',
