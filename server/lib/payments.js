@@ -1069,7 +1069,7 @@ export const getHostFeePercent = async (order, { host = null, loaders = null } =
     // Fixed for Bank Transfers at host level
     // As of December 2023, this is only set on a selection of Hosts:
     // foundation 8% (instead of 5%), europe 10% (instead of 8%)
-    possibleValues.push(host.data?.bankTransfersHostFeePercent);
+    possibleValues.push(host?.data?.bankTransfersHostFeePercent);
   }
 
   if (order.paymentMethod?.service === 'opencollective' && order.paymentMethod?.type === 'prepaid') {
@@ -1093,7 +1093,7 @@ export const getHostFeePercent = async (order, { host = null, loaders = null } =
     }
 
     // Fixed for Added Funds at host level
-    possibleValues.push(host.data?.addedFundsHostFeePercent);
+    possibleValues.push(host?.data?.addedFundsHostFeePercent);
   }
 
   if (order.paymentMethod?.service === 'opencollective' && order.paymentMethod?.type === 'collective') {
@@ -1116,7 +1116,7 @@ export const getHostFeePercent = async (order, { host = null, loaders = null } =
 
     // To help OSC transition to Platform Tips
     if (order.platformTipEligible !== true) {
-      possibleValues.push(host.data?.stripeNotPlatformTipEligibleHostFeePercent);
+      possibleValues.push(host?.data?.stripeNotPlatformTipEligibleHostFeePercent);
     }
 
     // possibleValues.push(host.data?.stripeHostFeePercent); // not used in the wild so far
@@ -1137,7 +1137,7 @@ export const getHostFeePercent = async (order, { host = null, loaders = null } =
 
     // To help OSC transition to Platform Tips
     if (order.platformTipEligible !== true) {
-      possibleValues.push(host.data?.paypalNotPlatformTipEligibleHostFeePercent);
+      possibleValues.push(host?.data?.paypalNotPlatformTipEligibleHostFeePercent);
     }
 
     // possibleValues.push(host.data?.paypalHostFeePercent); // not used in the wild so far
