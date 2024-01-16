@@ -65,8 +65,8 @@ const uploadedFileMutations = {
       // Sanity checks
       if (args.files.length === 0) {
         throw new Error('No file provided');
-      } else if (args.files.length > 10) {
-        throw new Error('You can only upload up to 10 files at once');
+      } else if (args.files.length > 15) {
+        throw new Error('You can only upload up to 15 files at once');
       }
 
       // Rate limiting: max 100 files/user/hour
