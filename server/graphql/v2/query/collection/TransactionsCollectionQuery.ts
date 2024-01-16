@@ -373,34 +373,9 @@ export const TransactionsCollectionResolver = async (
   */
   const order: Order = parseToBoolean(config.ledger.orderedTransactions)
     ? [
-        [
-          sequelize.fn('ROUND', sequelize.literal('ROUND(EXTRACT(epoch FROM "Transaction"."createdAt") / 10)')),
-          args.orderBy.direction,
-        ],
+        [sequelize.literal('SortDate("Transaction")'), args.orderBy.direction],
         ['TransactionGroup', args.orderBy.direction],
-        [
-          sequelize.literal(`
-        CASE
-          WHEN "Transaction"."kind" IN ('CONTRIBUTION', 'EXPENSE', 'ADDED_FUNDS', 'BALANCE_TRANSFER', 'PREPAID_PAYMENT_METHOD') THEN 1
-          WHEN "Transaction"."kind" IN ('PLATFORM_TIP') THEN 2
-          WHEN "Transaction"."kind" IN ('PLATFORM_TIP_DEBT') THEN 3
-          WHEN "Transaction"."kind" IN ('PAYMENT_PROCESSOR_FEE') THEN 4
-          WHEN "Transaction"."kind" IN ('PAYMENT_PROCESSOR_COVER') THEN 5
-          WHEN "Transaction"."kind" IN ('HOST_FEE') THEN 6
-          WHEN "Transaction"."kind" IN ('HOST_FEE_SHARE') THEN 7
-          WHEN "Transaction"."kind" IN ('HOST_FEE_SHARE_DEBT') THEN 8
-          ELSE 9
-        END`),
-          args.orderBy.direction,
-        ],
-        [
-          sequelize.literal(`
-        CASE
-          WHEN "Transaction"."type" = 'DEBIT' THEN 1
-          ELSE 2
-        END`),
-          args.orderBy.direction,
-        ],
+        [sequelize.literal('SortPriority("Transaction")'), args.orderBy.direction],
       ]
     : [
         [args.orderBy.field, args.orderBy.direction],
