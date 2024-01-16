@@ -11,6 +11,7 @@ import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
 import { GraphQLContributionFrequency } from '../enum';
 
+import { GraphQLAccountingCategoryReferenceInput } from './AccountingCategoryInput';
 import { GraphQLAccountReferenceInput } from './AccountReferenceInput';
 import { GraphQLAmountInput } from './AmountInput';
 import { GraphQLGuestInfoInput } from './GuestInfoInput';
@@ -183,6 +184,10 @@ export const GraphQLPendingOrderCreateInput = new GraphQLInputObjectType({
       type: GraphQLFloat,
       description: 'Custom Host fee percent for this order',
     },
+    accountingCategory: {
+      type: GraphQLAccountingCategoryReferenceInput,
+      description: 'The accounting category of this order',
+    },
   }),
 });
 
@@ -245,6 +250,10 @@ export const GraphQLPendingOrderEditInput = new GraphQLInputObjectType({
     hostFeePercent: {
       type: GraphQLFloat,
       description: 'Custom Host fee percent for this order',
+    },
+    accountingCategory: {
+      type: GraphQLAccountingCategoryReferenceInput,
+      description: 'The accounting category of this order',
     },
   }),
 });

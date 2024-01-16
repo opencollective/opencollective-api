@@ -27,6 +27,7 @@ import { GraphQLAmount } from '../object/Amount';
 import { GraphQLPaymentMethod } from '../object/PaymentMethod';
 import { GraphQLTier } from '../object/Tier';
 
+import GraphQLAccountingCategory from './AccountingCategory';
 import { GraphQLMemberOf } from './Member';
 import GraphQLOrderPermissions, { canComment, canSeeOrderPrivateActivities } from './OrderPermissions';
 import { GraphQLOrderTax } from './OrderTax';
@@ -278,6 +279,15 @@ export const GraphQLOrder = new GraphQLObjectType({
         description: 'The permissions given to current logged in user for this order',
         async resolve(order) {
           return order; // Individual fields are set by OrderPermissions resolvers
+        },
+      },
+      accountingCategory: {
+        type: GraphQLAccountingCategory,
+        description: 'The accounting category attached to this order',
+        async resolve(order, _, req) {
+          if (order.AccountingCategoryId) {
+            return req.loaders.AccountingCategory.byId.load(order.AccountingCategoryId);
+          }
         },
       },
       activities: {

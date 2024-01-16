@@ -10,9 +10,11 @@ import type {
 
 import ActivityTypes from '../constants/activities';
 import ExpenseTypes from '../constants/expense-type';
+import { TransactionKind } from '../constants/transaction-kind';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 import Collective from './Collective';
+import { OrderModelInterface } from './Order';
 import User from './User';
 import models, { Expense } from '.';
 
@@ -27,12 +29,22 @@ type AccountingCategoryEditActivityData = {
   edited?: Array<{ previousData: Partial<AccountingCategory>; newData: Partial<AccountingCategory> }>;
 };
 
+/** Accounting category kind is a subset of transaction kinds */
+export const AccountingCategoryKindList: readonly (TransactionKind | `${TransactionKind}`)[] = [
+  TransactionKind.ADDED_FUNDS,
+  TransactionKind.CONTRIBUTION,
+  TransactionKind.EXPENSE,
+] as const;
+
+export type AccountingCategoryKind = (typeof AccountingCategoryKindList)[number];
+
 class AccountingCategory extends Model<InferAttributes<AccountingCategory>, AccountingCategoryCreationAttributes> {
   declare id: number;
   declare CollectiveId: ForeignKey<Collective['id']>;
   declare code: string;
   declare name: string;
   declare friendlyName?: string;
+  declare kind?: AccountingCategoryKind;
   declare expensesTypes?: Array<ExpenseTypes | `${ExpenseTypes}`>;
   declare createdAt: Date;
   declare updatedAt: Date;
@@ -40,9 +52,11 @@ class AccountingCategory extends Model<InferAttributes<AccountingCategory>, Acco
   // Associations
   declare getCollective: BelongsToGetAssociationMixin<Collective>;
   declare getExpenses: HasManyGetAssociationsMixin<Expense>;
+  declare getOrders: HasManyGetAssociationsMixin<OrderModelInterface>;
 
   declare collective?: Collective;
   declare expenses?: Expense[];
+  declare orders?: OrderModelInterface[];
 
   // Static methods
   public static async createEditActivity(
@@ -110,6 +124,10 @@ AccountingCategory.init(
       set(value: string): void {
         this.setDataValue('friendlyName', value?.trim());
       },
+    },
+    kind: {
+      type: DataTypes.ENUM(...Object.values(AccountingCategoryKindList)),
+      allowNull: true,
     },
     expensesTypes: {
       type: DataTypes.ENUM(...Object.keys(ExpenseTypes)),

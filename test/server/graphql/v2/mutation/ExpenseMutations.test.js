@@ -380,7 +380,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       const anotherCategory = await fakeAccountingCategory();
       result = await callMutation({ id: idEncode(anotherCategory.id, 'accounting-category') });
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.eq('This accounting category is not allowed for this expense');
+      expect(result.errors[0].message).to.eq('This accounting category is not allowed for this host');
     });
 
     it('creates the expense with the linked items', async () => {
@@ -876,7 +876,27 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const anotherCategory = await fakeAccountingCategory();
         result = await callMutation({ id: idEncode(anotherCategory.id, 'accounting-category') });
         expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.eq('This accounting category is not allowed for this expense');
+        expect(result.errors[0].message).to.eq('This accounting category is not allowed for this host');
+      });
+
+      it('fails if the accounting category has invalid kind', async () => {
+        const expense = await fakeExpense();
+        const accountingCategory = await fakeAccountingCategory({
+          CollectiveId: expense.collective.HostCollectiveId,
+          kind: 'CONTRIBUTION',
+        });
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          {
+            expense: {
+              id: idEncode(expense.id, 'expense'),
+              accountingCategory: { id: idEncode(accountingCategory.id, 'accounting-category') },
+            },
+          },
+          expense.User,
+        );
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('This accounting category is not allowed for expenses');
       });
 
       it('reserves the accounting category changes of paid expenses to host admins', async () => {
