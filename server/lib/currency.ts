@@ -121,7 +121,8 @@ export async function fetchFxRates(
 ): Promise<Record<string, number>> {
   date = getDate(date);
 
-  const useFixerApi = Boolean(get(config, 'fixer.accessKey'));
+  const isFutureDate = date !== 'latest' && moment(date).isAfter(moment(), 'day'); // Fixer API is not able to fetch future rates. Ideally, this function should return null when requesting a future date.
+  const useFixerApi = Boolean(get(config, 'fixer.accessKey')) && !isFutureDate;
   const isLiveEnv = ['staging', 'production'].includes(config.env);
   const useMockRate = !isLiveEnv && !parseToBoolean(get(config, 'fixer.disableMock'));
 
@@ -140,7 +141,7 @@ export async function fetchFxRates(
       const res = await fetch(`https://data.fixer.io/${simplifiedDate}?${searchParams.toString()}`);
       const json = await res.json();
       if (json.error) {
-        throw new Error(json.error.info);
+        throw new Error(`${json.error.info} (${searchParams.toString()})`);
       }
       const rates = {};
       keys(json.rates).forEach(to => {
