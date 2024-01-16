@@ -8,6 +8,11 @@ import { Collective } from '../../../models';
 import { addFunds } from '../../common/orders';
 import { checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { ValidationFailed } from '../../errors';
+import {
+  fetchAccountingCategoryWithReference,
+  GraphQLAccountingCategoryReferenceInput,
+  GraphQLAccountingCategoryReferenceInputFields,
+} from '../input/AccountingCategoryInput';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { AmountInputType, getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/AmountInput';
 import { GraphQLTaxInput, TaxInput } from '../input/TaxInput';
@@ -25,6 +30,7 @@ type AddFundsMutationArgs = {
   hostFeePercent: number;
   invoiceTemplate: string;
   tax: TaxInput;
+  accountingCategory: GraphQLAccountingCategoryReferenceInputFields;
 };
 
 export const addFundsMutation = {
@@ -70,6 +76,10 @@ export const addFundsMutation = {
     tax: {
       type: GraphQLTaxInput,
       description: 'The tax to apply to the order',
+    },
+    accountingCategory: {
+      type: GraphQLAccountingCategoryReferenceInput,
+      description: 'The accounting category of this order',
     },
   },
   resolve: async (_, args: AddFundsMutationArgs, req: express.Request) => {
@@ -137,6 +147,12 @@ export const addFundsMutation = {
         tier,
         invoiceTemplate: args.invoiceTemplate,
         tax: args.tax,
+        accountingCategory:
+          args.accountingCategory &&
+          (await fetchAccountingCategoryWithReference(args.accountingCategory, {
+            throwIfMissing: true,
+            loaders: req.loaders,
+          })),
       },
       req.remoteUser,
     );

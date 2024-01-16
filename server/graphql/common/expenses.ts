@@ -1205,7 +1205,9 @@ const checkCanUseAccountingCategory = (
   if (!accountingCategory) {
     return;
   } else if (accountingCategory.CollectiveId !== host?.id) {
-    throw new ValidationFailed('This accounting category is not allowed for this expense');
+    throw new ValidationFailed('This accounting category is not allowed for this host');
+  } else if (accountingCategory.kind && accountingCategory.kind !== 'EXPENSE') {
+    throw new ValidationFailed('This accounting category is not allowed for expenses');
   }
 };
 

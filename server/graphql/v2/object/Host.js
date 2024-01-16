@@ -42,6 +42,7 @@ import {
   GraphQLPaymentMethodLegacyType,
   GraphQLPayoutMethodType,
 } from '../enum';
+import { GraphQLAccountingCategoryKind } from '../enum/AccountingCategoryKind';
 import { GraphQLHostApplicationStatus } from '../enum/HostApplicationStatus';
 import { GraphQLHostFeeStructure } from '../enum/HostFeeStructure';
 import { PaymentMethodLegacyTypeEnum } from '../enum/PaymentMethodLegacyType';
@@ -118,10 +119,20 @@ export const GraphQLHost = new GraphQLObjectType({
       accountingCategories: {
         type: new GraphQLNonNull(GraphQLAccountingCategoryCollection),
         description: 'List of accounting categories for this host',
+        args: {
+          kind: {
+            type: new GraphQLList(new GraphQLNonNull(GraphQLAccountingCategoryKind)),
+            description: 'Filter accounting categories by kind',
+          },
+        },
         // Not paginated yet as we don't expect to have too many categories for now
-        async resolve(host) {
+        async resolve(host, args) {
           const where = { CollectiveId: host.id };
           const order = [['code', 'ASC']]; // Code is unique per host, so sorting on it here should be consistent
+          if (args.kind) {
+            where.kind = uniq(args.kind);
+          }
+
           const categories = await models.AccountingCategory.findAll({ where, order });
           return {
             nodes: categories,

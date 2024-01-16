@@ -5,9 +5,11 @@ import { createSandbox } from 'sinon';
 
 import { roles } from '../../../../../server/constants';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
+import { idEncode } from '../../../../../server/graphql/v2/identifiers';
 import * as libcurrency from '../../../../../server/lib/currency';
 import models from '../../../../../server/models';
 import {
+  fakeAccountingCategory,
   fakeActiveHost,
   fakeCollective,
   fakeOrganization,
@@ -26,6 +28,7 @@ const addFundsMutation = gql`
     $amount: AmountInput!
     $description: String!
     $hostFeePercent: Float!
+    $accountingCategory: AccountingCategoryReferenceInput
     $tier: TierReferenceInput
     $tax: TaxInput
   ) {
@@ -35,11 +38,15 @@ const addFundsMutation = gql`
       amount: $amount
       description: $description
       hostFeePercent: $hostFeePercent
+      accountingCategory: $accountingCategory
       tier: $tier
       tax: $tax
     ) {
       id
       legacyId
+      accountingCategory {
+        id
+      }
       taxAmount {
         valueInCents
         currency
@@ -177,12 +184,15 @@ describe('server/graphql/v2/mutation/AddFundsMutations', () => {
     });
 
     it('can add funds as host admin', async () => {
+      const accountingCategory = await fakeAccountingCategory({ CollectiveId: collective.host.id });
+      const encodedAccountingCategoryId = idEncode(accountingCategory.id, 'accounting-category');
       const result = await graphqlQueryV2(
         addFundsMutation,
         {
           ...validMutationVariables,
           account: { legacyId: collective.id },
           fromAccount: { legacyId: randomUser.CollectiveId },
+          accountingCategory: { id: encodedAccountingCategoryId },
         },
         hostAdmin,
       );
@@ -190,6 +200,7 @@ describe('server/graphql/v2/mutation/AddFundsMutations', () => {
       expect(result.errors).to.not.exist;
       expect(result.data.addFunds.amount.valueInCents).to.equal(2000);
       expect(result.data.addFunds.amount.currency).to.equal('USD');
+      expect(result.data.addFunds.accountingCategory.id).to.equal(encodedAccountingCategoryId);
     });
 
     it('can add funds as host admin with authorization', async () => {
@@ -477,6 +488,63 @@ describe('server/graphql/v2/mutation/AddFundsMutations', () => {
 
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.match(/Tier #\d is not part of collective #\d/);
+      });
+    });
+
+    describe('accounting category', () => {
+      it('must exist', async () => {
+        const result = await graphqlQueryV2(
+          addFundsMutation,
+          {
+            ...validMutationVariables,
+            account: { legacyId: collective.id },
+            fromAccount: { legacyId: randomUser.CollectiveId },
+            accountingCategory: { id: idEncode(424242, 'accounting-category') },
+          },
+          hostAdmin,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.match(/Accounting category .+ not found/);
+      });
+
+      it('must belong to host', async () => {
+        const accountingCategory = await fakeAccountingCategory(); // Will create an accounting category on a random account
+        const encodedAccountingCategoryId = idEncode(accountingCategory.id, 'accounting-category');
+        const result = await graphqlQueryV2(
+          addFundsMutation,
+          {
+            ...validMutationVariables,
+            account: { legacyId: collective.id },
+            fromAccount: { legacyId: randomUser.CollectiveId },
+            accountingCategory: { id: encodedAccountingCategoryId },
+          },
+          hostAdmin,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('This accounting category is not allowed for this host');
+      });
+
+      it('must be allowed for added funds', async () => {
+        const accountingCategory = await fakeAccountingCategory({
+          kind: 'CONTRIBUTION',
+          CollectiveId: collective.host.id,
+        });
+        const encodedAccountingCategoryId = idEncode(accountingCategory.id, 'accounting-category');
+        const result = await graphqlQueryV2(
+          addFundsMutation,
+          {
+            ...validMutationVariables,
+            account: { legacyId: collective.id },
+            fromAccount: { legacyId: randomUser.CollectiveId },
+            accountingCategory: { id: encodedAccountingCategoryId },
+          },
+          hostAdmin,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('This accounting category is not allowed for added funds');
       });
     });
   });

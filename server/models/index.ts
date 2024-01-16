@@ -99,6 +99,7 @@ const models = {
 // AccountingCategory
 models.AccountingCategory.belongsTo(models.Collective, { foreignKey: 'CollectiveId', as: 'collective' });
 models.AccountingCategory.hasMany(models.Expense, { foreignKey: 'AccountingCategoryId', as: 'expenses' });
+models.AccountingCategory.hasMany(models.Order, { foreignKey: 'AccountingCategoryId', as: 'orders' });
 
 // Applications
 models.Application.belongsTo(models.Collective, { foreignKey: 'CollectiveId', as: 'collective' });
@@ -321,7 +322,11 @@ models.Comment.belongsTo(models.User, { foreignKey: 'CreatedByUserId', as: 'user
 models.EmojiReaction.belongsTo(models.Comment);
 models.EmojiReaction.belongsTo(models.User);
 
-// Order.
+// Order
+models.Order.belongsTo(models.AccountingCategory, {
+  as: 'accountingCategory',
+  foreignKey: 'AccountingCategoryId',
+});
 models.Order.belongsTo(models.User, {
   foreignKey: 'CreatedByUserId',
   as: 'createdByUser',

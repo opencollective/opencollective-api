@@ -41,6 +41,7 @@ import { canUseFeature } from '../../../lib/user-permissions';
 import models, { Op, sequelize } from '../../../models';
 import { MigrationLogType } from '../../../models/MigrationLog';
 import { updateSubscriptionWithPaypal } from '../../../paymentProviders/paypal/subscription';
+import { checkCanUseAccountingCategoryForOrder } from '../../common/orders';
 import { checkRemoteUserCanRoot, checkRemoteUserCanUseOrders, checkScope } from '../../common/scope-check';
 import { BadRequest, FeatureNotAllowedForUser, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import {
@@ -51,6 +52,7 @@ import {
 import { getIntervalFromContributionFrequency } from '../enum/ContributionFrequency';
 import { GraphQLProcessOrderAction } from '../enum/ProcessOrderAction';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
+import { fetchAccountingCategoryWithReference } from '../input/AccountingCategoryInput';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { assertAmountInputCurrency, getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/AmountInput';
 import { GraphQLGuestInfoInput } from '../input/GuestInfoInput';
@@ -969,6 +971,18 @@ const orderMutations = {
         throw new Unauthorized('Only host admins can create pending orders');
       }
 
+      // Check accounting category
+      let AccountingCategoryId = null;
+      if (args.order.accountingCategory) {
+        const accountingCategory = await fetchAccountingCategoryWithReference(args.order.accountingCategory, {
+          throwIfMissing: true,
+          loaders: req.loaders,
+        });
+
+        checkCanUseAccountingCategoryForOrder(accountingCategory, host, 'CONTRIBUTION');
+        AccountingCategoryId = accountingCategory.id;
+      }
+
       // Ensure amounts are provided with the right currency
       const expectedCurrency = tier?.currency || toAccount.currency;
       ['amount', 'tax.amount'].forEach(field => {
@@ -1000,6 +1014,7 @@ const orderMutations = {
         description: args.order.description || models.Order.generateDescription(toAccount, undefined, undefined),
         taxAmount,
         platformTipEligible: false, // Pending Contributions are not eligible to Platform Tips
+        AccountingCategoryId,
         data: {
           fromAccountInfo: args.order.fromAccountInfo,
           expectedAt: args.order.expectedAt,
@@ -1102,6 +1117,18 @@ const orderMutations = {
         ? await fetchTierWithReference(args.order.tier, { throwIfMissing: true })
         : order.tier;
 
+      // Check accounting category
+      let AccountingCategoryId = isUndefined(args.order.accountingCategory) ? order.AccountingCategoryId : null;
+      if (args.order.accountingCategory) {
+        const accountingCategory = await fetchAccountingCategoryWithReference(args.order.accountingCategory, {
+          throwIfMissing: true,
+          loaders: req.loaders,
+        });
+
+        checkCanUseAccountingCategoryForOrder(accountingCategory, host, 'CONTRIBUTION');
+        AccountingCategoryId = accountingCategory.id;
+      }
+
       // Ensure amounts are provided with the right currency
       const expectedCurrency = tier?.currency || order.collective.currency;
       ['amount', 'tax.amount', 'platformTipAmount'].forEach(field => {
@@ -1134,6 +1161,7 @@ const orderMutations = {
         taxAmount: taxAmount || null,
         currency: args.order.amount.currency,
         description: args.order.description,
+        AccountingCategoryId,
         data: {
           ...order.data,
           tax: taxInfo || null,

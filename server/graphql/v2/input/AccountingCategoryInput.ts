@@ -43,7 +43,7 @@ export const AccountingCategoryInput = new GraphQLInputObjectType({
 
 // Reference
 
-export type AccountCategoryReferenceInputFields = {
+export type GraphQLAccountingCategoryReferenceInputFields = {
   id: string;
 };
 
@@ -51,10 +51,10 @@ export type AccountCategoryReferenceInputFields = {
  * Only `id` is used at the moment, but we're implementing this as a reference type as we may want
  * to support fetching with a combination of `account` + `code` in the future.
  */
-export const AccountingCategoryReferenceInput = new GraphQLInputObjectType({
+export const GraphQLAccountingCategoryReferenceInput = new GraphQLInputObjectType({
   name: 'AccountingCategoryReferenceInput',
   description: 'Reference to an accounting category',
-  fields: (): Record<keyof AccountCategoryReferenceInputFields, GraphQLInputFieldConfig> => ({
+  fields: (): Record<keyof GraphQLAccountingCategoryReferenceInputFields, GraphQLInputFieldConfig> => ({
     id: {
       type: new GraphQLNonNull(GraphQLNonEmptyString),
       description: 'The ID of the accounting category',
@@ -63,7 +63,7 @@ export const AccountingCategoryReferenceInput = new GraphQLInputObjectType({
 });
 
 export const fetchAccountingCategoryWithReference = async (
-  input: AccountCategoryReferenceInputFields,
+  input: GraphQLAccountingCategoryReferenceInputFields,
   { loaders = null, throwIfMissing = false } = {},
 ) => {
   const id = idDecode(input.id, 'accounting-category');
