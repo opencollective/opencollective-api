@@ -178,9 +178,9 @@ export async function verifyAuthenticationResponse(user: User, response: Authent
 
   let expectedChallenge;
   if (req.jwtPayload.scope === 'twofactorauth') {
-    expectedChallenge = req.jwtPayload?.authenticationOptions?.webauthn?.challenge;
+    expectedChallenge = req.jwtPayload.authenticationOptions?.webauthn?.challenge;
   } else {
-    expectedChallenge = await cache.get(`webauth-authentication-challenge:${user.id}:${req.jwtPayload?.sessionId}`);
+    expectedChallenge = await cache.get(`webauth-authentication-challenge:${user.id}:${req.jwtPayload.sessionId}`);
   }
 
   const verificationResponse = await simplewebauthn.verifyAuthenticationResponse({

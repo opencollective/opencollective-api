@@ -23,9 +23,10 @@ const processOrder = async (order: OrderModelInterface): Promise<void> => {
 async function processNewOrder(order: OrderModelInterface) {
   const hostStripeAccount = await order.collective.getHostStripeAccount();
   const host = await order.collective.getHostCollective();
-  const isPlatformRevenueDirectlyCollected = APPLICATION_FEE_INCOMPATIBLE_CURRENCIES.includes(toUpper(host.currency))
-    ? false
-    : host?.settings?.isPlatformRevenueDirectlyCollected ?? true;
+  const isPlatformRevenueDirectlyCollected =
+    host && APPLICATION_FEE_INCOMPATIBLE_CURRENCIES.includes(toUpper(host.currency))
+      ? false
+      : host?.settings?.isPlatformRevenueDirectlyCollected ?? true;
   const applicationFee = await getApplicationFee(order, { host });
   const paymentIntentParams: Stripe.PaymentIntentUpdateParams = {
     currency: order.currency,
@@ -90,9 +91,10 @@ async function processNewOrder(order: OrderModelInterface) {
 async function processRecurringOrder(order: OrderModelInterface) {
   const hostStripeAccount = await order.collective.getHostStripeAccount();
   const host = await order.collective.getHostCollective();
-  const isPlatformRevenueDirectlyCollected = APPLICATION_FEE_INCOMPATIBLE_CURRENCIES.includes(toUpper(host.currency))
-    ? false
-    : host?.settings?.isPlatformRevenueDirectlyCollected ?? true;
+  const isPlatformRevenueDirectlyCollected =
+    host && APPLICATION_FEE_INCOMPATIBLE_CURRENCIES.includes(toUpper(host.currency))
+      ? false
+      : host?.settings?.isPlatformRevenueDirectlyCollected ?? true;
   const applicationFee = await getApplicationFee(order, { host });
   const paymentIntentParams: Stripe.PaymentIntentCreateParams = {
     currency: order.currency,
@@ -109,7 +111,7 @@ async function processRecurringOrder(order: OrderModelInterface) {
   paymentIntentParams.payment_method_types = [order.paymentMethod?.type];
   // eslint-disable-next-line camelcase
   paymentIntentParams.payment_method = order.paymentMethod?.data?.stripePaymentMethodId;
-  paymentIntentParams.customer = order?.paymentMethod?.customerId;
+  paymentIntentParams.customer = order.paymentMethod?.customerId;
   paymentIntentParams.metadata = {
     from: order.fromCollective ? `${config.host.website}/${order.fromCollective.slug}` : undefined,
     to: `${config.host.website}/${order.collective.slug}`,

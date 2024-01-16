@@ -115,9 +115,10 @@ export const refundTransactionOnlyInDatabase = async (
 export const createChargeTransactions = async (charge, { order }) => {
   const host = await order.collective.getHostCollective();
   const hostStripeAccount = await order.collective.getHostStripeAccount();
-  const isPlatformRevenueDirectlyCollected = APPLICATION_FEE_INCOMPATIBLE_CURRENCIES.includes(toUpper(host.currency))
-    ? false
-    : host?.settings?.isPlatformRevenueDirectlyCollected ?? true;
+  const isPlatformRevenueDirectlyCollected =
+    host && APPLICATION_FEE_INCOMPATIBLE_CURRENCIES.includes(toUpper(host.currency))
+      ? false
+      : host?.settings?.isPlatformRevenueDirectlyCollected ?? true;
 
   const hostFeeSharePercent = await getHostFeeSharePercent(order, { host });
   const isSharedRevenue = !!hostFeeSharePercent;
@@ -209,17 +210,17 @@ export async function resolvePaymentMethodForOrder(
   }
 
   const isPlatformPaymentMethod =
-    !paymentMethod?.data?.stripeAccount || paymentMethod?.data?.stripeAccount === config.stripe.accountId;
+    !paymentMethod.data?.stripeAccount || paymentMethod.data?.stripeAccount === config.stripe.accountId;
 
   if (isPlatformHost && !isPlatformPaymentMethod) {
     throw new Error('Cannot clone payment method from connected account to platform account');
   }
 
-  if (!isPlatformPaymentMethod && order.paymentMethod?.data?.stripeAccount !== hostStripeAccount) {
+  if (!isPlatformPaymentMethod && paymentMethod.data?.stripeAccount !== hostStripeAccount) {
     throw new Error('Cannot clone payment method that are not attached to the platform account');
   }
 
-  if ((isPlatformHost && isPlatformPaymentMethod) || paymentMethod?.data?.stripeAccount === hostStripeAccount) {
+  if ((isPlatformHost && isPlatformPaymentMethod) || paymentMethod.data?.stripeAccount === hostStripeAccount) {
     return {
       id: paymentMethod.data?.stripePaymentMethodId,
       customer: paymentMethod.customerId,
@@ -322,7 +323,7 @@ export async function getOrCloneCardPaymentMethod(
 
     await platformPaymentMethod.update({
       data: {
-        ...platformPaymentMethod?.data,
+        ...platformPaymentMethod.data,
         fingerprint: platformCardFingerprint,
         stripePaymentMethodId: platformCardTokenCardId,
       },

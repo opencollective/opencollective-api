@@ -1043,7 +1043,7 @@ export const GraphQLHost = new GraphQLObjectType({
           }
 
           const searchTermConditions =
-            args?.searchTerm &&
+            args.searchTerm &&
             buildSearchConditions(args.searchTerm, {
               idFields: ['id'],
               slugFields: ['slug'],
@@ -1056,7 +1056,7 @@ export const GraphQLHost = new GraphQLObjectType({
           }
 
           const findArgs = { where, limit: args.limit, offset: args.offset };
-          if (args?.forAccount) {
+          if (args.forAccount) {
             const account = await fetchAccountWithReference(args.forAccount);
             findArgs['attributes'] = {
               include: [
@@ -1072,7 +1072,7 @@ export const GraphQLHost = new GraphQLObjectType({
           }
 
           const { rows, count } = await models.Collective.findAndCountAll(findArgs);
-          const vendors = args?.forAccount && !isAdmin ? rows.filter(v => v.dataValues['expenseCount'] > 0) : rows;
+          const vendors = args.forAccount && !isAdmin ? rows.filter(v => v.dataValues['expenseCount'] > 0) : rows;
 
           return { nodes: vendors, totalCount: count, limit: args.limit, offset: args.offset };
         },

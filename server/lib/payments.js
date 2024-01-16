@@ -720,7 +720,7 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
     order.tier = await order.getTier();
   }
 
-  if (order?.tier?.type === tiers.TICKET) {
+  if (order.tier?.type === tiers.TICKET) {
     return models.Activity.create({
       type: activities.TICKET_CONFIRMED,
       CollectiveId: collective.id,

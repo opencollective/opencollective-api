@@ -33,7 +33,9 @@ export const messageSupport = async (req, res) => {
 
   if (!(body && body.name && body.email && body.message?.length)) {
     res.status(400).send('All inputs required');
+    return;
   }
+
   const {
     ip,
     remoteUser,

@@ -28,7 +28,7 @@ export async function run() {
     // For each currency, we pay all the expenses of the same currency in a single batch due to PayPal limitations
     for (const currencyBatch of currencyBatches) {
       logger.info(
-        `Paying collective ${currencyBatch[0]?.CollectiveId} batch with ${currencyBatch.length} expense(s) in ${currencyBatch[0].currency}...`,
+        `Paying collective ${currencyBatch[0].CollectiveId} batch with ${currencyBatch.length} expense(s) in ${currencyBatch[0].currency}...`,
       );
       await paypal.payExpensesBatch(currencyBatch).catch(console.error);
     }

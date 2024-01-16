@@ -971,7 +971,7 @@ const orderMutations = {
       }
 
       // Ensure amounts are provided with the right currency
-      const expectedCurrency = tier?.currency || toAccount?.currency;
+      const expectedCurrency = tier?.currency || toAccount.currency;
       ['amount', 'tax.amount'].forEach(field => {
         const amount = get(args.order, field);
         if (amount) {
@@ -1008,7 +1008,7 @@ const orderMutations = {
           memo: args.order.memo,
           paymentMethod: args.order.paymentMethod,
           isPendingContribution: true,
-          hostFeePercent: args.order?.hostFeePercent,
+          hostFeePercent: args.order.hostFeePercent,
           tax: taxInfo,
         },
         status: OrderStatuses.PENDING,
@@ -1146,7 +1146,7 @@ const orderMutations = {
               fromAccountInfo: args.order.fromAccountInfo,
               expectedAt: args.order.expectedAt,
               isPendingContribution: true,
-              hostFeePercent: args.order?.hostFeePercent,
+              hostFeePercent: args.order.hostFeePercent,
             },
             isUndefined,
           ),

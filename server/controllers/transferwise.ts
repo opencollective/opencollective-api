@@ -42,7 +42,7 @@ export async function payBatch(
     if (!remoteUser.isAdmin(host.id)) {
       throw new errors.Unauthorized('User must be admin of host collective');
     }
-    const expenseIds = body?.expenseIds?.map(id => idDecode(id, IDENTIFIER_TYPES.EXPENSE));
+    const expenseIds = body.expenseIds?.map(id => idDecode(id, IDENTIFIER_TYPES.EXPENSE));
     const expenses = await models.Expense.findAll({
       where: { id: { [Op.in]: expenseIds } },
       include: [

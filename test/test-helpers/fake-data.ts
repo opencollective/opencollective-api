@@ -215,7 +215,7 @@ export const fakeCollective = async (
 
   const collectiveSequelizeParams = Object.assign({}, sequelizeParams);
 
-  if (collectiveData?.location) {
+  if (collectiveData.location) {
     collectiveSequelizeParams.include = [{ association: 'location' }];
   }
 
@@ -457,7 +457,7 @@ export const fakeExpense = async (expenseData: Record<string, unknown> = {}) => 
     legacyPayoutMethod,
   });
 
-  const items = expenseData?.items as Array<Record<string, unknown>> | undefined;
+  const items = expenseData.items as Array<Record<string, unknown>> | undefined;
   if (typeof items === 'undefined') {
     // Helper to generate an attachment. Ensures that items match expense amount
     const generateAttachment = (idx, nbItems) => {
@@ -930,7 +930,7 @@ export const fakeVirtualCard = async (virtualCardData: Partial<InferCreationAttr
     ...virtualCardData,
     data: {
       status: VirtualCardStatus.ACTIVE,
-      ...virtualCardData?.data,
+      ...virtualCardData.data,
     },
     CollectiveId,
     HostCollectiveId,

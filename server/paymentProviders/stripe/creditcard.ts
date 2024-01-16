@@ -31,9 +31,10 @@ const createChargeAndTransactions = async (
   { order, stripePaymentMethod }: { order: OrderModelInterface; stripePaymentMethod: { id: string; customer: string } },
 ) => {
   const host = await order.collective.getHostCollective();
-  const isPlatformRevenueDirectlyCollected = APPLICATION_FEE_INCOMPATIBLE_CURRENCIES.includes(toUpper(host.currency))
-    ? false
-    : host?.settings?.isPlatformRevenueDirectlyCollected ?? true;
+  const isPlatformRevenueDirectlyCollected =
+    host && APPLICATION_FEE_INCOMPATIBLE_CURRENCIES.includes(toUpper(host.currency))
+      ? false
+      : host?.settings?.isPlatformRevenueDirectlyCollected ?? true;
 
   // Compute Application Fee (Shared Revenue + Platform Tip)
   const applicationFee = await getApplicationFee(order, { host });
@@ -71,7 +72,7 @@ const createChargeAndTransactions = async (
       createPayload.setup_future_usage = 'on_session';
     }
 
-    const stripePaymentMethodId = stripePaymentMethod?.id;
+    const stripePaymentMethodId = stripePaymentMethod.id;
     if (stripePaymentMethodId) {
       createPayload.payment_method = stripePaymentMethodId;
     } else {

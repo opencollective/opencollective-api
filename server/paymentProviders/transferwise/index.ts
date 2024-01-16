@@ -415,7 +415,7 @@ async function payExpensesBatchGroup(host, expenses, x2faApproval?: string, remo
   const connectedAccount = remoteUser
     ? find(connectedAccounts, { CreatedByUserId: remoteUser?.id }) || connectedAccounts[0]
     : connectedAccounts[0];
-  assert(connectedAccount, `No connected account found for host ${host?.id} and user ${remoteUser?.id}`);
+  assert(connectedAccount, `No connected account found for host ${host.id} and user ${remoteUser?.id}`);
 
   const profileId = connectedAccount.data.id;
   const token = await transferwise.getToken(connectedAccount);

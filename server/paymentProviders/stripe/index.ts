@@ -9,7 +9,7 @@ import { get } from 'lodash';
 import FEATURE from '../../constants/feature';
 import errors from '../../lib/errors';
 import logger from '../../lib/logger';
-import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
+import { reportErrorToSentry } from '../../lib/sentry';
 import stripe from '../../lib/stripe';
 import { addParamsToUrl } from '../../lib/utils';
 import models from '../../models';
@@ -119,11 +119,6 @@ export default {
             account: data,
           },
         });
-
-        if (!connectedAccount) {
-          console.error('>>> updateHost: error: no connectedAccount');
-          reportMessageToSentry(`updateHost: error: no connectedAccount`, { extra: { CollectiveId } });
-        }
 
         const { account } = connectedAccount.data;
         const location = await collective.getLocation();

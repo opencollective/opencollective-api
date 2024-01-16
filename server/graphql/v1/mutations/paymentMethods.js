@@ -20,20 +20,23 @@ import { Forbidden, ValidationFailed } from '../../errors';
 export async function createPaymentMethod(args, remoteUser) {
   if (!remoteUser) {
     throw new Error('You need to be logged in to create this payment method.');
-  } else if (!remoteUser.isAdmin(args.CollectiveId)) {
+  }
+  if (!remoteUser.isAdmin(args.CollectiveId)) {
     throw new Error('You must be an admin of this Collective.');
-  } else if (!args || !args.type) {
-    throw Error('Missing PaymentMethod type');
-  } else if (args.type === PAYMENT_METHOD_TYPE.GIFTCARD) {
+  }
+  if (!args.type) {
+    throw new Error('Missing PaymentMethod type');
+  }
+  if (args.type === PAYMENT_METHOD_TYPE.GIFTCARD) {
     // either amount or monthlyLimitPerMember needs to be present
     if (!args.amount && !args.monthlyLimitPerMember) {
-      throw Error('you need to define either the amount or the monthlyLimitPerMember of the payment method.');
+      throw new Error('you need to define either the amount or the monthlyLimitPerMember of the payment method.');
     }
     return createGiftCardPaymentMethod(args, remoteUser);
   } else if (args.service === 'stripe' && args.type === 'creditcard') {
     return createStripeCreditCard(args, remoteUser);
   } else {
-    throw Error('Payment method type not supported');
+    throw new Error('Payment method type not supported');
   }
 }
 

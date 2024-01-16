@@ -345,7 +345,7 @@ async function createOrderCanceledArchivedCollectiveActivity(order) {
     type: activities.ORDER_CANCELED_ARCHIVED_COLLECTIVE,
     CollectiveId: order.CollectiveId,
     FromCollectiveId: order.FromCollectiveId,
-    HostCollectiveId: order.collective?.approvedAt ? order.collective.HostCollectiveId : null,
+    HostCollectiveId: order.collective.approvedAt ? order.collective.HostCollectiveId : null,
     OrderId: order.id,
     data: {
       order: order.info,
@@ -363,7 +363,7 @@ async function createPaymentFailedActivity(order, lastAttempt) {
     type: activities.PAYMENT_FAILED,
     CollectiveId: order.CollectiveId,
     FromCollectiveId: order.FromCollectiveId,
-    HostCollectiveId: order.collective?.approvedAt ? order.collective.HostCollectiveId : null,
+    HostCollectiveId: order.collective.approvedAt ? order.collective.HostCollectiveId : null,
     OrderId: order.id,
     data: {
       lastAttempt,
