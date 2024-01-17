@@ -225,6 +225,7 @@ describe('server/lib/budget', () => {
           HostCollectiveId: collective.host.id,
           amount: 20e2,
           currency: 'USD',
+          createdAt: new Date(Date.now() - 1000 * 60 * 10),
         },
         { createDoubleEntry: true },
       );
@@ -235,6 +236,7 @@ describe('server/lib/budget', () => {
           HostCollectiveId: collective.host.id,
           amount: 30e2,
           currency: 'USD',
+          createdAt: new Date(Date.now() - 1000 * 60 * 9),
         },
         { createDoubleEntry: true },
       );
@@ -246,6 +248,7 @@ describe('server/lib/budget', () => {
           HostCollectiveId: otherCollective.host.id,
           amount: 50e2,
           currency: 'USD',
+          createdAt: new Date(Date.now() - 1000 * 60 * 8),
         },
         { createDoubleEntry: true },
       );
@@ -256,6 +259,7 @@ describe('server/lib/budget', () => {
           HostCollectiveId: otherCollective.host.id,
           amount: 60e2,
           currency: 'USD',
+          createdAt: new Date(Date.now() - 1000 * 60 * 7),
         },
         { createDoubleEntry: true },
       );
@@ -272,6 +276,7 @@ describe('server/lib/budget', () => {
           HostCollectiveId: collective.host.id,
           amount: 40e2,
           currency: 'USD',
+          createdAt: new Date(Date.now() - 1000 * 60 * 6),
         },
         { createDoubleEntry: true },
       );
@@ -283,6 +288,7 @@ describe('server/lib/budget', () => {
           amount: 50e2,
           currency: 'USD',
           isDisputed: true,
+          createdAt: new Date(Date.now() - 1000 * 60 * 5),
         },
         { createDoubleEntry: true },
       );
@@ -294,6 +300,7 @@ describe('server/lib/budget', () => {
           HostCollectiveId: otherCollective.host.id,
           amount: 10e2,
           currency: 'USD',
+          createdAt: new Date(Date.now() - 1000 * 60 * 4),
         },
         { createDoubleEntry: true },
       );
@@ -304,6 +311,7 @@ describe('server/lib/budget', () => {
           HostCollectiveId: otherCollective.host.id,
           amount: 10e2,
           currency: 'USD',
+          createdAt: new Date(Date.now() - 1000 * 60 * 3),
         },
         { createDoubleEntry: true },
       );
