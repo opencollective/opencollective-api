@@ -2,6 +2,7 @@ import DataLoader from 'dataloader';
 import { groupBy } from 'lodash';
 
 import ACTIVITY from '../../constants/activities';
+import { SupportedCurrency } from '../../constants/currencies';
 import { TransactionKind } from '../../constants/transaction-kind';
 import queries from '../../lib/queries';
 import { checkExpensesBatch } from '../../lib/security/expense';
@@ -95,7 +96,7 @@ export const taxFormRequiredBeforePayment = (): DataLoader<number, boolean> => {
  */
 export const generateExpenseToHostTransactionFxRateLoader = (): DataLoader<
   number,
-  { rate: number; currency: string }
+  { rate: number; currency: SupportedCurrency }
 > =>
   new DataLoader(async (expenseIds: number[]) => {
     const transactions = (await models.Transaction.findAll({
@@ -112,7 +113,7 @@ export const generateExpenseToHostTransactionFxRateLoader = (): DataLoader<
     })) as unknown as [
       {
         ExpenseId: number;
-        currency: string;
+        currency: SupportedCurrency;
         expenseToHostFxRate: string;
       },
     ];

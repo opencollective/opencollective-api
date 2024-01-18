@@ -1,10 +1,11 @@
 import DataLoader from 'dataloader';
 
+import { SupportedCurrency } from '../../constants/currencies';
 import { loadFxRatesMap } from '../../lib/currency';
 
 interface CurrencyFxRateRequest {
-  fromCurrency: string;
-  toCurrency: string;
+  fromCurrency: SupportedCurrency;
+  toCurrency: SupportedCurrency;
   date?: string;
 }
 
@@ -25,8 +26,8 @@ export const generateFxRateLoader = (): DataLoader<CurrencyFxRateRequest, number
 
 export type ConvertToCurrencyArgs = {
   amount: number;
-  fromCurrency: string;
-  toCurrency: string;
+  fromCurrency: SupportedCurrency;
+  toCurrency: SupportedCurrency;
 };
 
 export const generateConvertToCurrencyLoader = (): DataLoader<ConvertToCurrencyArgs, number> => {

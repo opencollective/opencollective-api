@@ -13,6 +13,7 @@ import validator from 'validator';
 
 import { roles } from '../constants';
 import ActivityTypes from '../constants/activities';
+import { SupportedCurrency } from '../constants/currencies';
 import ExpenseStatus from '../constants/expense-status';
 import ExpenseType from '../constants/expense-type';
 import { reduceArrayToCurrency } from '../lib/currency';
@@ -83,7 +84,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
     draftKey?: string;
   };
 
-  public declare currency: string;
+  public declare currency: SupportedCurrency;
   public declare amount: number;
   public declare description: string;
   public declare longDescription: CreationOptional<string>;
@@ -391,7 +392,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   static getCollectiveExpensesTags = async function (
     collective,
     { dateFrom = null, dateTo = null, limit = 100, includeChildren = false } = {},
-  ): Promise<Array<{ label: string; count: number; amount: number; currency: string }>> {
+  ): Promise<Array<{ label: string; count: number; amount: number; currency: SupportedCurrency }>> {
     const noTag = 'no tag';
     const collectiveIds = [collective.id];
     if (includeChildren) {

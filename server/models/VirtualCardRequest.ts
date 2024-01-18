@@ -9,6 +9,7 @@ import {
   NonAttribute,
 } from 'sequelize';
 
+import { SupportedCurrency } from '../constants/currencies';
 import { VirtualCardLimitIntervals } from '../constants/virtual-cards';
 import sequelize from '../lib/sequelize';
 
@@ -30,7 +31,7 @@ class VirtualCardRequest extends Model<
   declare purpose: string;
   declare notes: string;
   declare status: VirtualCardRequestStatus;
-  declare currency: string;
+  declare currency: SupportedCurrency;
   declare spendingLimitAmount: number;
   declare spendingLimitInterval: VirtualCardLimitIntervals;
 

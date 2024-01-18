@@ -5,6 +5,7 @@ import pMap from 'p-map';
 import { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
+import { SupportedCurrency } from '../constants/currencies';
 import { maxInteger } from '../constants/math';
 import orderStatus from '../constants/order-status';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
@@ -46,7 +47,7 @@ class Tier extends Model<InferAttributes<Tier>, InferCreationAttributes<Tier>> {
   public declare presets: number[];
   public declare amountType: 'FIXED' | 'FLEXIBLE';
   public declare minimumAmount: number;
-  public declare currency: string;
+  public declare currency: SupportedCurrency;
   public declare interval: 'month' | 'year' | 'flexible';
   public declare maxQuantity: number;
   public declare goal: number;

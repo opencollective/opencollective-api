@@ -2,6 +2,7 @@ import config from 'config';
 import { get, pick } from 'lodash';
 import moment from 'moment';
 
+import { SupportedCurrency } from '../../constants/currencies';
 import INTERVALS from '../../constants/intervals';
 import ORDER_STATUS from '../../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
@@ -162,7 +163,7 @@ export async function getOrCreatePlan(
   collective: Collective,
   interval: INTERVALS,
   amount: number,
-  currency: string,
+  currency: SupportedCurrency,
   tier: Tier = null,
 ): Promise<PaypalPlan> {
   const product = await models.PaypalProduct.findOne({

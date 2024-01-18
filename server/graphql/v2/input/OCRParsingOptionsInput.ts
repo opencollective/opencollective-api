@@ -1,9 +1,10 @@
 import { GraphQLInputFieldConfig, GraphQLInputObjectType } from 'graphql';
 
+import { SupportedCurrency } from '../../../constants/currencies';
 import { GraphQLCurrency } from '../enum';
 
 export type GraphQLOCRParsingOptionsInputType = {
-  currency: string;
+  currency: SupportedCurrency;
 };
 
 export const GraphQLOCRParsingOptionsInput = new GraphQLInputObjectType({

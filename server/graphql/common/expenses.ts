@@ -32,6 +32,7 @@ import { v4 as uuid } from 'uuid';
 import { activities, roles } from '../../constants';
 import ActivityTypes from '../../constants/activities';
 import { CollectiveType } from '../../constants/collectives';
+import { SupportedCurrency } from '../../constants/currencies';
 import { ExpenseFeesPayer } from '../../constants/expense-fees-payer';
 import { ExpenseRoles } from '../../constants/expense-roles';
 import statuses from '../../constants/expense-status';
@@ -1154,7 +1155,7 @@ type ExpenseData = {
   invoiceInfo?: string;
   longDescription?: string;
   amount?: number;
-  currency?: string;
+  currency?: SupportedCurrency;
   tax?: TaxDefinition[];
   customData: Record<string, unknown>;
   accountingCategory?: AccountingCategory;
@@ -1212,7 +1213,7 @@ const checkCanUseAccountingCategory = (
 };
 
 export const prepareExpenseItemInputs = async (
-  expenseCurrency: string,
+  expenseCurrency: SupportedCurrency,
   itemsInput: Array<ExpenseItem | Record<string, unknown>>,
   { isEditing = false } = {},
 ): Promise<Array<Partial<ExpenseItem>>> => {
@@ -1229,8 +1230,8 @@ export const prepareExpenseItemInputs = async (
   if (itemsThatNeedFXRates.length) {
     fxRates = await loadFxRatesMap(
       itemsThatNeedFXRates.map(item => ({
-        fromCurrency: item['amountV2'].currency,
-        toCurrency: expenseCurrency,
+        fromCurrency: item['amountV2'].currency as SupportedCurrency,
+        toCurrency: expenseCurrency as SupportedCurrency,
         date: getDateKeyForItem(item),
       })),
     );

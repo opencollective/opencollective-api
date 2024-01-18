@@ -13,6 +13,7 @@ import {
 import Temporal from 'sequelize-temporal';
 
 import { roles } from '../constants';
+import { SupportedCurrency } from '../constants/currencies';
 import OrderStatus from '../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import TierType from '../constants/tiers';
@@ -76,7 +77,7 @@ export interface OrderModelInterface
   getTier: Promise<Tier>;
 
   quantity: number;
-  currency: string;
+  currency: SupportedCurrency;
   tags: string[];
   totalAmount: number;
   platformTipAmount: number;

@@ -2,6 +2,7 @@ import { pick } from 'lodash';
 import type { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes } from 'sequelize';
 import { DataTypes, Model, Transaction } from 'sequelize';
 
+import { SUPPORTED_CURRENCIES, SupportedCurrency } from '../constants/currencies';
 import { diffDBEntries } from '../lib/data';
 import { isValidUploadedImage } from '../lib/images';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
@@ -23,7 +24,7 @@ class ExpenseItem extends Model<InferAttributes<ExpenseItem>, InferCreationAttri
   public declare ExpenseId: ForeignKey<Expense['id']>;
   public declare CreatedByUserId: ForeignKey<User['id']>;
   public declare amount: number;
-  public declare currency: string;
+  public declare currency: SupportedCurrency;
   public declare expenseCurrencyFxRate: number;
   public declare expenseCurrencyFxRateSource: FX_RATE_SOURCE | `${FX_RATE_SOURCE}`;
   public declare url: string;
@@ -116,6 +117,10 @@ ExpenseItem.init(
       validate: {
         len: [3, 3],
         notEmpty: true,
+        isIn: {
+          args: [SUPPORTED_CURRENCIES],
+          msg: 'Currency not supported',
+        },
       },
     },
     expenseCurrencyFxRate: {

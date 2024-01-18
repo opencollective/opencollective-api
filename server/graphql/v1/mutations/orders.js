@@ -197,7 +197,7 @@ export const getOrderTaxInfoFromTaxInput = (tax, fromCollective, collective, hos
 //   platformTipAmount: number;
 //   taxAmount: number;
 //   totalAmount: number;
-//   currency: string;
+//   currency: SupportedCurrency;
 //   interval: string;
 //   tax: any;
 //   paymentMethod: any;

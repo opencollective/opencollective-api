@@ -2,10 +2,12 @@ import { omit, pick } from 'lodash';
 import type Stripe from 'stripe';
 
 import { activities } from '../../constants';
+import { SupportedCurrency } from '../../constants/currencies';
 import ExpenseStatus from '../../constants/expense-status';
 import ExpenseType from '../../constants/expense-type';
 import VirtualCardProviders from '../../constants/virtual-card-providers';
 import { VirtualCardLimitIntervals } from '../../constants/virtual-cards';
+import { isSupportedCurrency } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { reportMessageToSentry } from '../../lib/sentry';
 import stripe, { convertToStripeAmount, StripeCustomToken } from '../../lib/stripe';
@@ -160,7 +162,11 @@ export const processAuthorization = async (event: Stripe.Event) => {
     return;
   }
 
-  const currency = stripeAuthorization.pending_request.currency.toUpperCase();
+  const currency = stripeAuthorization.pending_request.currency.toUpperCase() as SupportedCurrency;
+  if (!isSupportedCurrency(currency)) {
+    reportMessageToSentry('Unsupported currency for Stripe Virtual Card', { extra: { currency, event } });
+  }
+
   const amount = convertToStripeAmount(currency, Math.abs(stripeAuthorization.pending_request.amount));
   const collective = virtualCard.collective;
   const balance = await collective.getBalanceAmount({ currency, withBlockedFunds: true });

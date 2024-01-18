@@ -8,6 +8,7 @@ import type {
   NonAttribute,
 } from 'sequelize';
 
+import { SupportedCurrency } from '../constants/currencies';
 import VirtualCardProviders from '../constants/virtual-card-providers';
 import { crypto } from '../lib/encryption';
 import sequelize, { DataTypes, Model, Op } from '../lib/sequelize';
@@ -36,7 +37,7 @@ class VirtualCard extends Model<InferAttributes<VirtualCard, { omit: 'info' }>, 
   public declare provider: VirtualCardProviders;
   public declare spendingLimitAmount: number;
   public declare spendingLimitInterval: string;
-  public declare currency: string;
+  public declare currency: SupportedCurrency;
   public declare createdAt: CreationOptional<Date>;
   public declare updatedAt: CreationOptional<Date>;
   public declare deletedAt: CreationOptional<Date>;

@@ -1,6 +1,7 @@
 import { GraphQLFloat, GraphQLObjectType } from 'graphql';
 import { isNil } from 'lodash';
 
+import { SupportedCurrency } from '../../../constants/currencies';
 import { GraphQLCurrency } from '../enum/Currency';
 
 import GraphQLCurrencyExchangeRate, { GraphQLCurrencyExchangeRateFields } from './CurrencyExchangeRate';
@@ -11,7 +12,7 @@ import GraphQLCurrencyExchangeRate, { GraphQLCurrencyExchangeRateFields } from '
  */
 export type GraphQLAmountFields = {
   value: number;
-  currency: string;
+  currency: SupportedCurrency;
   exchangeRate?: GraphQLCurrencyExchangeRateFields;
 };
 

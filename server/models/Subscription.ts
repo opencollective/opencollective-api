@@ -1,6 +1,7 @@
 import { InferAttributes, InferCreationAttributes, Model, ModelStatic } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
+import { SupportedCurrency } from '../constants/currencies';
 import sequelize, { DataTypes } from '../lib/sequelize';
 import { cancelPaypalSubscription } from '../paymentProviders/paypal/subscription';
 
@@ -11,7 +12,7 @@ export interface SubscriptionInterface
   extends Model<InferAttributes<SubscriptionInterface>, InferCreationAttributes<SubscriptionInterface>> {
   id: number;
   amount: number;
-  currency: string;
+  currency: SupportedCurrency;
   interval: 'month' | 'year' | null;
   isActive: boolean;
   nextChargeDate: Date;

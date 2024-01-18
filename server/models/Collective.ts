@@ -48,6 +48,7 @@ import validator from 'validator';
 import activities from '../constants/activities';
 import { CollectiveType, CollectiveTypesList } from '../constants/collectives';
 import { Service } from '../constants/connected-account';
+import { SupportedCurrency } from '../constants/currencies';
 import expenseStatus from '../constants/expense-status';
 import expenseTypes from '../constants/expense-type';
 import FEATURE from '../constants/feature';
@@ -272,7 +273,7 @@ class Collective extends Model<
   public declare longDescription: string;
   public declare expensePolicy: string;
   public declare contributionPolicy: string;
-  public declare currency: string;
+  public declare currency: SupportedCurrency;
   public declare image: string;
   public declare backgroundImage: string;
   public declare countryISO: string;

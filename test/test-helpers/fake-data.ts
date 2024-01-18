@@ -15,6 +15,7 @@ import { v4 as uuid } from 'uuid';
 
 import { activities, channels, roles } from '../../server/constants';
 import { CollectiveType } from '../../server/constants/collectives';
+import { SupportedCurrency } from '../../server/constants/currencies';
 import { SUPPORTED_FILE_KINDS } from '../../server/constants/file-kind';
 import OAuthScopes from '../../server/constants/oauth-scopes';
 import OrderStatuses from '../../server/constants/order-status';
@@ -581,7 +582,7 @@ export const fakeConversation = async (
 export const fakeTier = async (tierData: Partial<InferCreationAttributes<Tier>> = {}) => {
   const name = randStr('tier');
   const interval = <'month' | 'year'>sample(['month', 'year']);
-  const currency = <string>tierData.currency || sample(['USD', 'EUR']);
+  const currency = <SupportedCurrency>tierData.currency || sample<SupportedCurrency>(['USD', 'EUR']);
   const amount = <number>tierData.amount || randAmount(1, 100) * 100;
   const description = `$${amount / 100}/${interval}`;
 
@@ -700,7 +701,7 @@ export const fakeOrder = async (
 export const fakeSubscription = (params = {}) => {
   return models.Subscription.create({
     amount: randAmount(),
-    currency: sample(['USD', 'EUR']),
+    currency: sample<SupportedCurrency>(['USD', 'EUR']),
     interval: <'month' | 'year'>sample(['month', 'year']),
     isActive: true,
     quantity: 1,

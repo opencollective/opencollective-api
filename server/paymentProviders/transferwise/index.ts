@@ -9,6 +9,7 @@ import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../../constants/activities';
+import { SupportedCurrency } from '../../constants/currencies';
 import status from '../../constants/expense-status';
 import { TransferwiseError } from '../../graphql/errors';
 import cache from '../../lib/cache';
@@ -556,7 +557,7 @@ function validatePayoutMethod(connectedAccount: ConnectedAccount, payoutMethod: 
 
 async function getRequiredBankInformation(
   host: Collective,
-  currency: string,
+  currency: SupportedCurrency,
   accountDetails?: Record<string, unknown>,
 ): Promise<Array<TransactionRequirementsType>> {
   const cacheKey = accountDetails

@@ -1,12 +1,13 @@
 import type { InferAttributes } from 'sequelize';
 
+import { SupportedCurrency } from '../constants/currencies';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 import { PaypalProductCreateAttributes } from './PaypalProduct';
 
 interface PaypalPlanCommonCreateAttributes {
   id: string;
-  currency: string;
+  currency: SupportedCurrency;
   interval: string;
   amount: number;
 }
@@ -24,7 +25,7 @@ type PaypalPlanCreateAttributes = PaypalPlanCreateWithProductIdAttributes | Payp
 class PaypalPlan extends Model<InferAttributes<PaypalPlan>, PaypalPlanCreateAttributes> {
   public declare id: string;
   public declare ProductId: string;
-  public declare currency: string;
+  public declare currency: SupportedCurrency;
   public declare interval: string;
   public declare amount: number;
   public declare createdAt: Date;
