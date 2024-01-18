@@ -24,8 +24,9 @@ paymentMethodProvider.getBalance = (paymentMethod, parameters = {}) => {
 paymentMethodProvider.processOrder = async order => {
   if (!order.fromCollective.isActive) {
     throw new Error('Cannot use the Open Collective payment method if not active.');
-  }
-  if (order.paymentMethod.CollectiveId !== order.fromCollective.id) {
+  } else if (!order.paymentMethod) {
+    throw new Error('No payment method set on this order');
+  } else if (order.paymentMethod.CollectiveId !== order.fromCollective.id) {
     throw new Error('Cannot use the Open Collective payment method to make a payment on behalf of another collective');
   }
 
