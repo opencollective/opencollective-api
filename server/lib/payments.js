@@ -913,6 +913,7 @@ const sendManualPendingOrderEmail = async order => {
     fromCollective: fromCollective.activity,
     pendingOrderLink: `${config.host.website}/${host.slug}/admin/orders?searchTerm=%23${order.id}`,
     replyTo,
+    isSystem: true,
   };
   return models.Activity.create({
     type: activities.ORDER_PENDING_CONTRIBUTION_NEW,
@@ -920,6 +921,7 @@ const sendManualPendingOrderEmail = async order => {
     FromCollectiveId: order.FromCollectiveId,
     HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
     OrderId: order.id,
+    UserId: order.CreatedByUserId,
     data,
   });
 };
@@ -941,6 +943,7 @@ export const sendReminderPendingOrderEmail = async order => {
     host: host.info,
     fromCollective: fromCollective.activity,
     viewDetailsLink: `${config.host.website}/${host.slug}/admin/orders?searchTerm=%23${order.id}`,
+    isSystem: true,
   };
   return await models.Activity.create({
     type: activities.ORDER_PENDING_CONTRIBUTION_REMINDER,
