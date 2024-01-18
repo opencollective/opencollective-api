@@ -37,6 +37,10 @@ export const AccountingCategoryKindList: readonly (TransactionKind | `${Transact
 
 export type AccountingCategoryKind = (typeof AccountingCategoryKindList)[number];
 
+class ExpenseTypesEnum extends DataTypes.ABSTRACT {
+  key = `"enum_Expenses_type"`
+}
+
 class AccountingCategory extends Model<InferAttributes<AccountingCategory>, AccountingCategoryCreationAttributes> {
   declare id: number;
   declare CollectiveId: ForeignKey<Collective['id']>;
@@ -129,15 +133,8 @@ AccountingCategory.init(
       allowNull: true,
     },
     expensesTypes: {
-      type: DataTypes.ENUM(...Object.keys(ExpenseTypes)),
+      type: DataTypes.ARRAY(new ExpenseTypesEnum()),
       allowNull: true,
-      set(values: Array<ExpenseTypes | `${ExpenseTypes}`>): void {
-        const value =
-          values && values.length > 0
-            ? sequelize.literal(`ARRAY[${values.map(t => `'${t}'`).join(',')}]::"enum_Expenses_type"[]`)
-            : null;
-        this.setDataValue('expensesTypes', value);
-      },
     },
     CollectiveId: {
       type: DataTypes.INTEGER,
