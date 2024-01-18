@@ -9,41 +9,6 @@ module.exports = {
 
     await queryInterface.sequelize.query(`DROP MATERIALIZED VIEW IF EXISTS "TransactionBalances"`);
 
-    await queryInterface.sequelize.query(`
-      CREATE OR REPLACE FUNCTION SortDate(_row "Transactions")
-      RETURNS INTEGER AS $$
-      BEGIN
-        return ROUND(EXTRACT(epoch FROM _row."createdAt") / 10);
-      END;
-      $$ LANGUAGE plpgsql;
-    `);
-
-    await queryInterface.sequelize.query(`
-      CREATE OR REPLACE FUNCTION SortPriority(_row "Transactions")
-      RETURNS INTEGER AS $$
-      DECLARE
-          sortPriority INTEGER := 0;
-      BEGIN
-       sortPriority := sortPriority + CASE
-           WHEN _row."kind" IN ('CONTRIBUTION', 'EXPENSE', 'ADDED_FUNDS', 'BALANCE_TRANSFER', 'PREPAID_PAYMENT_METHOD') THEN 100
-           WHEN _row."kind" IN ('PLATFORM_TIP') THEN 200
-           WHEN _row."kind" IN ('PLATFORM_TIP_DEBT') THEN 300
-           WHEN _row."kind" IN ('PAYMENT_PROCESSOR_FEE') THEN 400
-           WHEN _row."kind" IN ('PAYMENT_PROCESSOR_COVER') THEN 500
-           WHEN _row."kind" IN ('HOST_FEE') THEN 600
-           WHEN _row."kind" IN ('HOST_FEE_SHARE') THEN 700
-           WHEN _row."kind" IN ('HOST_FEE_SHARE_DEBT') THEN 800
-           ELSE 900
-       END;
-       sortPriority := sortPriority + CASE
-           WHEN _row."type" IN ('DEBIT') THEN 10
-           ELSE 20
-       END;
-          RETURN sortPriority;
-      END;
-      $$ LANGUAGE plpgsql;
-    `);
-
     // Same as before, except the new sort
     await queryInterface.sequelize.query(`
       CREATE MATERIALIZED VIEW "TransactionBalances" AS (
@@ -69,10 +34,30 @@ module.exports = {
             + COALESCE("taxAmount" * "hostCurrencyFxRate", 0)
           ) OVER (
             PARTITION BY "CollectiveId", "hostCurrency"
-            ORDER BY SortDate("Transactions") ASC, "TransactionGroup" ASC, SortPriority("Transactions") ASC
+            ORDER BY
+            ROUND(EXTRACT(epoch FROM "createdAt") / 10) ASC,
+            "TransactionGroup" ASC,
+            CASE
+              WHEN "kind" IN ('CONTRIBUTION', 'EXPENSE', 'ADDED_FUNDS', 'BALANCE_TRANSFER', 'PREPAID_PAYMENT_METHOD') THEN 1
+              WHEN "kind" IN ('PLATFORM_TIP') THEN 2
+              WHEN "kind" IN ('PLATFORM_TIP_DEBT') THEN 3
+              WHEN "kind" IN ('PAYMENT_PROCESSOR_FEE') THEN 4
+              WHEN "kind" IN ('PAYMENT_PROCESSOR_COVER') THEN 5
+              WHEN "kind" IN ('HOST_FEE') THEN 6
+              WHEN "kind" IN ('HOST_FEE_SHARE') THEN 7
+              WHEN "kind" IN ('HOST_FEE_SHARE_DEBT') THEN 8
+                ELSE 9
+              END
+            ASC,
+            CASE
+              WHEN "type" = 'DEBIT' THEN 1
+                ELSE 2
+              END
+            ASC
           ) as "balance"
           FROM "Transactions", "ActiveCollectives"
           WHERE "CollectiveId" = "ActiveCollectives"."ActiveCollectiveId"
+          AND "deletedAt" IS NULL
        )
     `);
 
@@ -88,10 +73,6 @@ module.exports = {
     await queryInterface.sequelize.query(`DROP MATERIALIZED VIEW IF EXISTS "CollectiveBalanceCheckpoint"`);
 
     await queryInterface.sequelize.query(`DROP MATERIALIZED VIEW IF EXISTS "TransactionBalances"`);
-
-    await queryInterface.sequelize.query(`DROP FUNCTION SortDate("Transactions")`);
-
-    await queryInterface.sequelize.query(`DROP FUNCTION SortPriority("Transactions")`);
 
     // Copied from migrations/20230104225718-transaction-balances-order-by-create-date.js
     await queryInterface.sequelize.query(`
