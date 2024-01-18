@@ -207,6 +207,13 @@ describe('server/models/Collective', () => {
     await expect(models.Collective.create({ name: 'جهاد', slug: randStr() })).to.be.eventually.fulfilled;
   });
 
+  it('validates currency', async () => {
+    await expect(fakeCollective({ currency: 'XXX' })).to.be.rejectedWith(
+      Error,
+      'Validation error: Currency not supported',
+    );
+  });
+
   it('trims name', async () => {
     const collective = await models.Collective.create({ name: '   Frank   Zappa    ', slug: randStr() });
     expect(collective.name).to.eq('Frank Zappa');

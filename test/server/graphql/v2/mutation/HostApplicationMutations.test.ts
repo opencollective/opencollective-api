@@ -151,11 +151,11 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
         admin: collectiveAdmin,
         isActive: false,
         approvedAt: null,
-        currency: 'ZWL',
+        currency: 'VUV',
       });
       children = await Promise.all([
-        fakeProject({ ParentCollectiveId: collective.id, currency: 'ZWL' }),
-        fakeEvent({ ParentCollectiveId: collective.id, currency: 'ZWL' }),
+        fakeProject({ ParentCollectiveId: collective.id, currency: 'VUV' }),
+        fakeEvent({ ParentCollectiveId: collective.id, currency: 'VUV' }),
       ]);
       application = await fakeHostApplication({
         CollectiveId: collective.id,
@@ -163,8 +163,8 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
         status: 'PENDING',
       });
       tiersInDifferentCurrency = await Promise.all([
-        fakeTier({ CollectiveId: collective.id, currency: 'ZWL' }),
-        ...children.map(child => fakeTier({ CollectiveId: child.id, currency: 'ZWL' })),
+        fakeTier({ CollectiveId: collective.id, currency: 'VUV' }),
+        ...children.map(child => fakeTier({ CollectiveId: child.id, currency: 'VUV' })),
       ]);
     });
 
