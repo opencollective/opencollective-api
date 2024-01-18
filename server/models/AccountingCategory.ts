@@ -1,3 +1,4 @@
+import { uniq } from 'lodash';
 import type {
   BelongsToGetAssociationMixin,
   ForeignKey,
@@ -135,6 +136,10 @@ AccountingCategory.init(
     expensesTypes: {
       type: DataTypes.ARRAY(new ExpenseTypesEnum()),
       allowNull: true,
+      set(values: Array<ExpenseTypes | `${ExpenseTypes}`>): void {
+        // Sequelize doesn't work with empty arrays ("cannot determine type of empty array"). We force `null` if it's empty
+        this.setDataValue('expensesTypes', values?.length ? uniq(values).sort() : null);
+      },
     },
     CollectiveId: {
       type: DataTypes.INTEGER,
