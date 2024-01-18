@@ -1289,12 +1289,16 @@ export const prepareExpenseItemInputs = async (
             );
           }
         }
+      } else {
+        values.expenseCurrencyFxRate = 1;
+        values.expenseCurrencyFxRateSource = null;
       }
     } else if (itemInput['amount']) {
       // For backwards compatibility, we force expense currency if not provided
       values.amount = itemInput['amount'] as number;
       values.currency = expenseCurrency;
       values.expenseCurrencyFxRate = 1;
+      values.expenseCurrencyFxRateSource = null;
     }
 
     return values;
