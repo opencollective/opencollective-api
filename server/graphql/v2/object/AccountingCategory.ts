@@ -43,7 +43,7 @@ const GraphQLAccountingCategory = new GraphQLObjectType({
     createdAt: {
       type: new GraphQLNonNull(GraphQLDateTime),
       description: 'The time of creation of this accounting category',
-    }
+    },
   }),
 });
 

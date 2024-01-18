@@ -39,7 +39,7 @@ export const AccountingCategoryKindList: readonly (TransactionKind | `${Transact
 export type AccountingCategoryKind = (typeof AccountingCategoryKindList)[number];
 
 class ExpenseTypesEnum extends DataTypes.ABSTRACT {
-  key = `"enum_Expenses_type"`
+  key = `"enum_Expenses_type"`;
 }
 
 class AccountingCategory extends Model<InferAttributes<AccountingCategory>, AccountingCategoryCreationAttributes> {
