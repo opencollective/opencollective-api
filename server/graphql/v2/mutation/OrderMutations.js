@@ -545,25 +545,24 @@ const orderMutations = {
 
         order = await order.markAsPaid(req.remoteUser);
 
-        if (order.data.isPendingContribution) {
-          const tier = order.TierId && (await req.loaders.Tier.byId.load(order.TierId));
-          await models.Activity.create({
-            type: activities.ORDER_PENDING_RECEIVED,
-            UserId: req.remoteUser.id,
-            CollectiveId: order.CollectiveId,
-            FromCollectiveId: order.FromCollectiveId,
-            OrderId: order.id,
-            HostCollectiveId: host.id,
-            data: {
-              order: { ...order.info, ...pick(order.data, ['expectedAt', 'memo']) },
-              fromAccountInfo: order.data.fromAccountInfo,
-              fromCollective: fromAccount.info,
-              host: host.info,
-              toCollective: toAccount.info,
-              tierName: tier?.name,
-            },
-          });
-        }
+        const tier = order.TierId && (await req.loaders.Tier.byId.load(order.TierId));
+        await models.Activity.create({
+          type: activities.ORDER_PENDING_RECEIVED,
+          UserId: req.remoteUser.id,
+          CollectiveId: order.CollectiveId,
+          FromCollectiveId: order.FromCollectiveId,
+          OrderId: order.id,
+          HostCollectiveId: host.id,
+          data: {
+            order: { ...order.info, ...pick(order.data, ['expectedAt', 'memo']) },
+            fromAccountInfo: order.data.fromAccountInfo,
+            fromCollective: fromAccount.info,
+            host: host.info,
+            toCollective: toAccount.info,
+            tierName: tier?.name,
+            isPendingContribution: order.data.isPendingContribution,
+          },
+        });
 
         return order;
       } else if (args.action === 'MARK_AS_EXPIRED') {
