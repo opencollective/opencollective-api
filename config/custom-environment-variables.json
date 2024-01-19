@@ -57,7 +57,8 @@
     "secret": "STRIPE_SECRET",
     "key": "STRIPE_KEY",
     "clientId": "STRIPE_CLIENT_ID",
-    "webhookSigningSecret": "STRIPE_WEBHOOK_SIGNING_SECRET"
+    "webhookSigningSecret": "STRIPE_WEBHOOK_SIGNING_SECRET",
+    "paymentIntentEnabled": "STRIPE_PAYMENT_INTENT_ENABLED"
   },
   "aws": {
     "s3": {
