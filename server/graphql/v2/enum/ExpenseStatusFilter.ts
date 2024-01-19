@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
-import expenseStatus from '../../../constants/expense_status';
+import expenseStatus from '../../../constants/expense-status';
 
 const GraphQLExpenseStatusFilter = new GraphQLEnumType({
   name: 'ExpenseStatusFilter',

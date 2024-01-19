@@ -4,7 +4,7 @@ import { expect } from 'chai';
 import config from 'config';
 import { round } from 'lodash';
 
-import ExpenseStatuses from '../../server/constants/expense_status';
+import ExpenseStatuses from '../../server/constants/expense-status';
 import { payExpense } from '../../server/graphql/common/expenses';
 import cache from '../../server/lib/cache';
 import models from '../../server/models';

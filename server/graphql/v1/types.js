@@ -18,7 +18,7 @@ import moment from 'moment';
 import FEATURE from '../../constants/feature';
 import INTERVALS from '../../constants/intervals';
 import { maxInteger } from '../../constants/math';
-import orderStatus from '../../constants/order_status';
+import orderStatus from '../../constants/order-status';
 import { PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import roles from '../../constants/roles';
 import { getCollectiveAvatarUrl } from '../../lib/collectivelib';

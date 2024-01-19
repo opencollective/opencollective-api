@@ -2,8 +2,8 @@ import { expect } from 'chai';
 import moment from 'moment';
 import { createSandbox } from 'sinon';
 
-import ExpenseStatuses from '../../../server/constants/expense_status';
-import OrderStatuses from '../../../server/constants/order_status';
+import ExpenseStatuses from '../../../server/constants/expense-status';
+import OrderStatuses from '../../../server/constants/order-status';
 import { TransactionTypes } from '../../../server/constants/transactions';
 import {
   getBalances,

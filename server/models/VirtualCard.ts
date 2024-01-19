@@ -8,7 +8,7 @@ import type {
   NonAttribute,
 } from 'sequelize';
 
-import VirtualCardProviders from '../constants/virtual_card_providers';
+import VirtualCardProviders from '../constants/virtual-card-providers';
 import { crypto } from '../lib/encryption';
 import sequelize, { DataTypes, Model, Op } from '../lib/sequelize';
 import * as stripeVirtualCards from '../paymentProviders/stripe/virtual-cards';

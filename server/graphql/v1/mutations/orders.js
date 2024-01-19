@@ -8,7 +8,7 @@ import { get, isEmpty, isNil, omit, pick, set } from 'lodash';
 import activities from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
-import status from '../../../constants/order_status';
+import status from '../../../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import roles from '../../../constants/roles';
 import { VAT_OPTIONS } from '../../../constants/vat';

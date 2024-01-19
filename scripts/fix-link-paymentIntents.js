@@ -3,7 +3,7 @@ import '../server/env';
 
 import { get, last, omit } from 'lodash';
 
-import OrderStatuses from '../server/constants/order_status';
+import OrderStatuses from '../server/constants/order-status';
 import logger from '../server/lib/logger';
 import { createSubscription, sendEmailNotifications } from '../server/lib/payments';
 import stripe from '../server/lib/stripe';

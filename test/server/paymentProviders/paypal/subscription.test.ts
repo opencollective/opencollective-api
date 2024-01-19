@@ -4,7 +4,7 @@ import { expect } from 'chai';
 import nock from 'nock';
 import { assert, createSandbox } from 'sinon';
 
-import OrderStatuses from '../../../../server/constants/order_status';
+import OrderStatuses from '../../../../server/constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
 import * as PaypalAPI from '../../../../server/paymentProviders/paypal/api';
 import {

@@ -6,7 +6,7 @@ import { assert, createSandbox } from 'sinon';
 import request from 'supertest';
 
 import { roles } from '../../../../server/constants';
-import status from '../../../../server/constants/expense_status';
+import status from '../../../../server/constants/expense-status';
 import app from '../../../../server/index';
 import emailLib from '../../../../server/lib/email';
 import * as transferwiseLib from '../../../../server/lib/transferwise';

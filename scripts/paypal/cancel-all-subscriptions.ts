@@ -15,7 +15,7 @@ import '../../server/env';
 import { Command } from 'commander';
 import { flatten, get, uniq } from 'lodash';
 
-import OrderStatuses from '../../server/constants/order_status';
+import OrderStatuses from '../../server/constants/order-status';
 import logger from '../../server/lib/logger';
 import models, { Op } from '../../server/models';
 import { OrderModelInterface } from '../../server/models/Order';

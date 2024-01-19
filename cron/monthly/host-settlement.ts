@@ -7,8 +7,8 @@ import { groupBy, sumBy } from 'lodash';
 import moment from 'moment';
 
 import activityType from '../../server/constants/activities';
-import expenseStatus from '../../server/constants/expense_status';
-import expenseTypes from '../../server/constants/expense_type';
+import expenseStatus from '../../server/constants/expense-status';
+import expenseTypes from '../../server/constants/expense-type';
 import { TransactionKind } from '../../server/constants/transaction-kind';
 import { SETTLEMENT_EXPENSE_PROPERTIES } from '../../server/constants/transactions';
 import { getTransactionsCsvUrl } from '../../server/lib/csv';

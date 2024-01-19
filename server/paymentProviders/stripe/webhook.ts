@@ -7,9 +7,9 @@ import { get, omit } from 'lodash';
 import type Stripe from 'stripe';
 import { v4 as uuid } from 'uuid';
 
-import { Service } from '../../constants/connected_account';
+import { Service } from '../../constants/connected-account';
 import FEATURE from '../../constants/feature';
-import OrderStatuses from '../../constants/order_status';
+import OrderStatuses from '../../constants/order-status';
 import { PAYMENT_METHOD_TYPE, PAYMENT_METHOD_TYPES } from '../../constants/paymentMethods';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';

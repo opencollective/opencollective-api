@@ -13,8 +13,8 @@ import validator from 'validator';
 
 import { roles } from '../constants';
 import ActivityTypes from '../constants/activities';
-import ExpenseStatus from '../constants/expense_status';
-import ExpenseType from '../constants/expense_type';
+import ExpenseStatus from '../constants/expense-status';
+import ExpenseType from '../constants/expense-type';
 import { reduceArrayToCurrency } from '../lib/currency';
 import logger from '../lib/logger';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';

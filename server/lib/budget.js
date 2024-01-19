@@ -2,7 +2,7 @@ import config from 'config';
 import { difference } from 'lodash';
 
 import { CollectiveType } from '../constants/collectives';
-import expenseStatus from '../constants/expense_status';
+import expenseStatus from '../constants/expense-status';
 import { TransactionTypes } from '../constants/transactions';
 import models, { Op, sequelize } from '../models';
 

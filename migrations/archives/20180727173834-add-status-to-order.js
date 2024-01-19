@@ -4,7 +4,7 @@
 
 /*
 'use strict';
-import status from '../server/constants/order_status';
+import status from '../server/constants/order-status';
 import models, { sequelize } from '../server/models';
 
 module.exports = {

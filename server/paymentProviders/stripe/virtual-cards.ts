@@ -2,9 +2,9 @@ import { omit, pick } from 'lodash';
 import type Stripe from 'stripe';
 
 import { activities } from '../../constants';
-import ExpenseStatus from '../../constants/expense_status';
-import ExpenseType from '../../constants/expense_type';
-import VirtualCardProviders from '../../constants/virtual_card_providers';
+import ExpenseStatus from '../../constants/expense-status';
+import ExpenseType from '../../constants/expense-type';
+import VirtualCardProviders from '../../constants/virtual-card-providers';
 import { VirtualCardLimitIntervals } from '../../constants/virtual-cards';
 import logger from '../../lib/logger';
 import { reportMessageToSentry } from '../../lib/sentry';

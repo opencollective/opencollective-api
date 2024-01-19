@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { pick } from 'lodash';
 
-import { Service } from '../../../../server/constants/connected_account';
+import { Service } from '../../../../server/constants/connected-account';
 import { checkExpense, checkExpensesBatch } from '../../../../server/lib/security/expense';
 import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
 import {

@@ -6,7 +6,7 @@ import { Command } from 'commander';
 import { get } from 'lodash';
 import moment from 'moment';
 
-import OrderStatus from '../../server/constants/order_status';
+import OrderStatus from '../../server/constants/order-status';
 import { TransactionKind } from '../../server/constants/transaction-kind';
 import logger from '../../server/lib/logger';
 import { getHostsWithPayPalConnected } from '../../server/lib/paypal';

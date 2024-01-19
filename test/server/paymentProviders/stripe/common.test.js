@@ -4,7 +4,7 @@ import { expect } from 'chai';
 import config from 'config';
 import { assert, createSandbox } from 'sinon';
 
-import { Service } from '../../../../server/constants/connected_account';
+import { Service } from '../../../../server/constants/connected-account';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
 import stripe from '../../../../server/lib/stripe';
 import * as common from '../../../../server/paymentProviders/stripe/common';

@@ -1,6 +1,6 @@
 import { GraphQLString } from 'graphql';
 
-import expenseStatus from '../../../constants/expense_status';
+import expenseStatus from '../../../constants/expense-status';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { fetchExpenseWithReference, GraphQLExpenseReferenceInput } from '../input/ExpenseReferenceInput';
 import { GraphQLExpense } from '../object/Expense';

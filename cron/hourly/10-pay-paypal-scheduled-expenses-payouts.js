@@ -4,7 +4,7 @@ import '../../server/env';
 
 import { groupBy, values } from 'lodash';
 
-import status from '../../server/constants/expense_status';
+import status from '../../server/constants/expense-status';
 import logger from '../../server/lib/logger';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import models from '../../server/models';

@@ -6,7 +6,7 @@ import { get, intersection } from 'lodash';
 
 import { activities } from '../../server/constants';
 import { MODERATION_CATEGORIES_ALIASES } from '../../server/constants/moderation-categories';
-import orderStatus from '../../server/constants/order_status';
+import orderStatus from '../../server/constants/order-status';
 import { purgeCacheForCollective } from '../../server/lib/cache';
 import logger from '../../server/lib/logger';
 import * as libPayments from '../../server/lib/payments';

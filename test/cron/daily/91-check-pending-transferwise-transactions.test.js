@@ -3,7 +3,7 @@ import { assert, createSandbox } from 'sinon';
 
 import { run as checkPendingTransfers } from '../../../cron/daily/91-check-pending-transferwise-transactions';
 import { roles } from '../../../server/constants';
-import status from '../../../server/constants/expense_status';
+import status from '../../../server/constants/expense-status';
 import emailLib from '../../../server/lib/email';
 import logger from '../../../server/lib/logger';
 import * as transferwiseLib from '../../../server/lib/transferwise';

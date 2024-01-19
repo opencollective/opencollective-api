@@ -1,7 +1,7 @@
 /**
  * This file wraps Sentry for our API server. We are plugging it in 3 places:
  * 1. For the GraphQL API, in `server/routes.js` > GraphQL server plugin
- * 2. For all other REST endpoints, in `server/middleware/error_handler.js`
+ * 2. For all other REST endpoints, in `server/middleware/error-handler.js`
  * 3. As a fallback for the entire APP (esp. CRON jobs), in this own file (see `.on('unhandledRejection')`)
  */
 

@@ -6,7 +6,7 @@ import moment from 'moment';
 import { createSandbox, useFakeTimers } from 'sinon';
 
 import { roles } from '../../../../../server/constants';
-import OrderStatuses from '../../../../../server/constants/order_status';
+import OrderStatuses from '../../../../../server/constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../server/constants/paymentMethods';
 import MemberRoles from '../../../../../server/constants/roles';
 import { TransactionTypes } from '../../../../../server/constants/transactions';

@@ -2,8 +2,8 @@ import type { Request } from 'express';
 import { capitalize, compact, filter, find, first, isEqual, isNil, keyBy, max, startCase, uniq, uniqBy } from 'lodash';
 import moment from 'moment';
 
-import status from '../../constants/expense_status';
-import expenseType from '../../constants/expense_type';
+import status from '../../constants/expense-status';
+import expenseType from '../../constants/expense-type';
 import type { ConvertToCurrencyArgs } from '../../graphql/loaders/currency-exchange-rate';
 import models, { Op, sequelize } from '../../models';
 import Expense from '../../models/Expense';

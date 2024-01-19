@@ -3,7 +3,7 @@ import { get, pick } from 'lodash';
 import moment from 'moment';
 
 import INTERVALS from '../../constants/intervals';
-import ORDER_STATUS from '../../constants/order_status';
+import ORDER_STATUS from '../../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import TierType from '../../constants/tiers';
 import logger from '../../lib/logger';

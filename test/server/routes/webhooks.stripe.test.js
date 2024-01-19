@@ -3,7 +3,7 @@ import _ from 'lodash';
 import { createSandbox } from 'sinon';
 import request from 'supertest';
 
-import { Service } from '../../../server/constants/connected_account';
+import { Service } from '../../../server/constants/connected-account';
 import app from '../../../server/index';
 import stripe from '../../../server/lib/stripe';
 import originalStripeMock from '../../mocks/stripe';

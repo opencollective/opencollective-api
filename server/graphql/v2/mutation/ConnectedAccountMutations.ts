@@ -2,7 +2,7 @@ import express from 'express';
 import { GraphQLNonNull } from 'graphql';
 import { pick } from 'lodash';
 
-import { Service } from '../../../constants/connected_account';
+import { Service } from '../../../constants/connected-account';
 import { crypto } from '../../../lib/encryption';
 import * as paypal from '../../../lib/paypal';
 import * as transferwise from '../../../lib/transferwise';

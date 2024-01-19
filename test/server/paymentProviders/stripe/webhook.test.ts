@@ -5,9 +5,9 @@ import { set } from 'lodash';
 import { assert, createSandbox } from 'sinon';
 import Stripe from 'stripe';
 
-import { Service } from '../../../../server/constants/connected_account';
+import { Service } from '../../../../server/constants/connected-account';
 import FEATURE from '../../../../server/constants/feature';
-import OrderStatuses from '../../../../server/constants/order_status';
+import OrderStatuses from '../../../../server/constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
 import * as libPayments from '../../../../server/lib/payments';
 import stripe from '../../../../server/lib/stripe';

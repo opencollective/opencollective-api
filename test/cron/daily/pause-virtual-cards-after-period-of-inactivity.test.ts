@@ -4,7 +4,7 @@ import { createSandbox } from 'sinon';
 
 import { run as runCron } from '../../../cron/daily/52-pause-virtual-cards-after-period-of-inactivity';
 import ActivityTypes from '../../../server/constants/activities';
-import VirtualCardProviders from '../../../server/constants/virtual_card_providers';
+import VirtualCardProviders from '../../../server/constants/virtual-card-providers';
 import { Activity, VirtualCard } from '../../../server/models';
 import { VirtualCardStatus } from '../../../server/models/VirtualCard';
 import * as stripeVirtualCards from '../../../server/paymentProviders/stripe/virtual-cards';

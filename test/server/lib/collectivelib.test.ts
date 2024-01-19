@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import OrderStatuses from '../../../server/constants/order_status';
+import OrderStatuses from '../../../server/constants/order-status';
 import { isCollectiveDeletable } from '../../../server/lib/collectivelib';
 import {
   fakeCollective,

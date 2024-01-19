@@ -11,7 +11,7 @@ import {
 import { GraphQLDateTime } from 'graphql-scalars';
 import { isNil, round } from 'lodash';
 
-import orderStatus from '../../../constants/order_status';
+import orderStatus from '../../../constants/order-status';
 import roles from '../../../constants/roles';
 import { TransactionKind as TransactionKinds } from '../../../constants/transaction-kind';
 import { generateDescription } from '../../../lib/transactions';

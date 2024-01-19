@@ -4,7 +4,7 @@ import moment from 'moment';
 import { createSandbox, stub, useFakeTimers } from 'sinon';
 
 import activities from '../../../server/constants/activities';
-import status from '../../../server/constants/order_status';
+import status from '../../../server/constants/order-status';
 import emailLib from '../../../server/lib/email';
 import * as paymentsLib from '../../../server/lib/payments';
 import {

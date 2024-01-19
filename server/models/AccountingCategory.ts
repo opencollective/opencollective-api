@@ -9,7 +9,7 @@ import type {
 } from 'sequelize';
 
 import ActivityTypes from '../constants/activities';
-import ExpenseTypes from '../constants/expense_type';
+import ExpenseTypes from '../constants/expense-type';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 import Collective from './Collective';

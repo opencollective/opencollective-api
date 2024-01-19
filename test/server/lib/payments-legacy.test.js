@@ -4,7 +4,7 @@ import nock from 'nock';
 import { createSandbox } from 'sinon';
 
 import { activities } from '../../../server/constants';
-import status from '../../../server/constants/order_status';
+import status from '../../../server/constants/order-status';
 import { PLANS_COLLECTIVE_SLUG } from '../../../server/constants/plans';
 import roles from '../../../server/constants/roles';
 import { TransactionKind } from '../../../server/constants/transaction-kind';

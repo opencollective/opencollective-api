@@ -1,7 +1,7 @@
 import activities from './activities';
 import channels from './channels';
-import expenseStatus from './expense_status';
-import expenseTypes from './expense_type';
+import expenseStatus from './expense-status';
+import expenseTypes from './expense-type';
 import frequencies from './frequencies';
 import roles from './roles';
 

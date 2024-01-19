@@ -5,7 +5,7 @@ import { Op } from 'sequelize';
 
 import activities from '../constants/activities';
 import intervals from '../constants/intervals';
-import status from '../constants/order_status';
+import status from '../constants/order-status';
 import { PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import roles from '../constants/roles';
 import models from '../models';

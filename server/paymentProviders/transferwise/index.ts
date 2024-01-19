@@ -9,7 +9,7 @@ import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../../constants/activities';
-import status from '../../constants/expense_status';
+import status from '../../constants/expense-status';
 import { TransferwiseError } from '../../graphql/errors';
 import cache from '../../lib/cache';
 import { getFxRate } from '../../lib/currency';

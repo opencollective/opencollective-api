@@ -9,7 +9,7 @@ import fetch from 'node-fetch';
 import showdown from 'showdown';
 
 import activities from '../../server/constants/activities';
-import expenseStatus from '../../server/constants/expense_status';
+import expenseStatus from '../../server/constants/expense-status';
 import { reduceArrayToCurrency } from '../../server/lib/currency';
 import emailLib from '../../server/lib/email';
 import { formatCurrency, pluralize } from '../../server/lib/utils';

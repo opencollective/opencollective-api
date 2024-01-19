@@ -3,7 +3,7 @@ import HelloWorks from 'helloworks-sdk';
 import moment from 'moment';
 import { assert, fake, replace, restore, spy } from 'sinon';
 
-import expenseTypes from '../../../server/constants/expense_type';
+import expenseTypes from '../../../server/constants/expense-type';
 import { US_TAX_FORM_THRESHOLD } from '../../../server/constants/tax-form';
 import emailLib from '../../../server/lib/email';
 import { findAccountsThatNeedToBeSentTaxForm, sendHelloWorksUsTaxForm } from '../../../server/lib/tax-forms';

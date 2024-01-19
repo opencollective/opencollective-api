@@ -5,7 +5,7 @@ import { DataTypes, Model } from 'sequelize';
 import { v4 as uuid } from 'uuid';
 
 import { activities } from '../constants';
-import expenseStatus from '../constants/expense_status';
+import expenseStatus from '../constants/expense-status';
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize from '../lib/sequelize';
 

@@ -9,9 +9,9 @@ import Temporal from 'sequelize-temporal';
 
 import activities from '../constants/activities';
 import { CollectiveType } from '../constants/collectives';
-import { Service } from '../constants/connected_account';
+import { Service } from '../constants/connected-account';
 import FEATURE from '../constants/feature';
-import OrderStatuses from '../constants/order_status';
+import OrderStatuses from '../constants/order-status';
 import roles from '../constants/roles';
 import * as auth from '../lib/auth';
 import emailLib from '../lib/email';

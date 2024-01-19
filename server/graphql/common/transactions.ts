@@ -3,7 +3,7 @@ import { isNull } from 'lodash';
 import moment from 'moment';
 
 import { roles } from '../../constants';
-import orderStatus from '../../constants/order_status';
+import orderStatus from '../../constants/order-status';
 import POLICIES from '../../constants/policies';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
