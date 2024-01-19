@@ -56,17 +56,18 @@ const updateExpenseParsingResultWithCurrency = async (
 
   // First get a list of all required currency conversions
   const toConvert: Array<{ amount: GraphQLAmountFields; date: Date }> = [];
+  const fileDate = result.date || new Date(); // Fallback on NOW, as we need a date for the FX rates
 
   // Main amount
   if (result.amount?.currency && result.amount.currency !== targetCurrency) {
-    toConvert.push({ amount: result.amount, date: result.date });
+    toConvert.push({ amount: result.amount, date: fileDate });
   }
 
   // Items
   if (result.items) {
     result.items.forEach(item => {
       if (item.amount?.currency && item.amount.currency !== targetCurrency) {
-        toConvert.push({ amount: item.amount, date: item.incurredAt });
+        toConvert.push({ amount: item.amount, date: item.incurredAt || fileDate });
       }
     });
   }
