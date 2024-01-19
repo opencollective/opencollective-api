@@ -1,4 +1,5 @@
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLDateTime } from 'graphql-scalars';
 
 import { GraphQLAccountingCategoryKind } from '../enum/AccountingCategoryKind';
 import { GraphQLExpenseType } from '../enum/ExpenseType';
@@ -38,6 +39,10 @@ const GraphQLAccountingCategory = new GraphQLObjectType({
     kind: {
       type: GraphQLAccountingCategoryKind,
       description: 'The kind of transactions this category applies to',
+    },
+    createdAt: {
+      type: new GraphQLNonNull(GraphQLDateTime),
+      description: 'The time of creation of this accounting category',
     },
   }),
 });

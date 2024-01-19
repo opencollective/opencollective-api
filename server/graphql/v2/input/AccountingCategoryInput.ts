@@ -2,7 +2,10 @@ import { GraphQLInputFieldConfig, GraphQLInputObjectType, GraphQLList, GraphQLNo
 import { GraphQLNonEmptyString } from 'graphql-scalars';
 
 import ExpenseTypes from '../../../constants/expense-type';
+import { TransactionKind } from '../../../constants/transaction-kind';
 import models from '../../../models';
+import { AccountingCategoryKind } from '../../../models/AccountingCategory';
+import { GraphQLAccountingCategoryKind } from '../enum/AccountingCategoryKind';
 import { GraphQLExpenseType } from '../enum/ExpenseType';
 import { idDecode } from '../identifiers';
 
@@ -12,6 +15,7 @@ export type AccountingCategoryInputFields = {
   name?: string;
   friendlyName?: string;
   expensesTypes?: ExpenseTypes[];
+  kind?: AccountingCategoryKind;
 };
 
 export const AccountingCategoryInput = new GraphQLInputObjectType({
@@ -21,6 +25,10 @@ export const AccountingCategoryInput = new GraphQLInputObjectType({
     id: {
       type: GraphQLNonEmptyString,
       description: 'The ID of the accounting category to edit',
+    },
+    kind: {
+      type: new GraphQLNonNull(GraphQLAccountingCategoryKind),
+      defaultValue: TransactionKind.EXPENSE,
     },
     code: {
       type: GraphQLNonEmptyString,

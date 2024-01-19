@@ -38,6 +38,10 @@ export const AccountingCategoryKindList: readonly (TransactionKind | `${Transact
 
 export type AccountingCategoryKind = (typeof AccountingCategoryKindList)[number];
 
+class ExpenseTypesEnum extends DataTypes.ABSTRACT {
+  key = `"enum_Expenses_type"`;
+}
+
 class AccountingCategory extends Model<InferAttributes<AccountingCategory>, AccountingCategoryCreationAttributes> {
   declare id: number;
   declare CollectiveId: ForeignKey<Collective['id']>;
@@ -130,7 +134,7 @@ AccountingCategory.init(
       allowNull: true,
     },
     expensesTypes: {
-      type: DataTypes.ENUM(...Object.keys(ExpenseTypes)),
+      type: DataTypes.ARRAY(new ExpenseTypesEnum()),
       allowNull: true,
       set(values: Array<ExpenseTypes | `${ExpenseTypes}`>): void {
         // Sequelize doesn't work with empty arrays ("cannot determine type of empty array"). We force `null` if it's empty
