@@ -1,3 +1,4 @@
+import config from 'config';
 import {
   GraphQLBoolean,
   GraphQLFloat,
@@ -24,7 +25,7 @@ import { FEATURE, hasFeature } from '../../../lib/allowed-features';
 import { getPolicy } from '../../../lib/policies';
 import { buildSearchConditions } from '../../../lib/search';
 import sequelize from '../../../lib/sequelize';
-import { ifStr } from '../../../lib/utils';
+import { ifStr, parseToBoolean } from '../../../lib/utils';
 import models, { Collective, Op } from '../../../models';
 import Agreement from '../../../models/Agreement';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
@@ -238,7 +239,10 @@ export const GraphQLHost = new GraphQLObjectType({
 
           if (find(connectedAccounts, ['service', 'stripe'])) {
             supportedPaymentMethods.push('CREDIT_CARD');
-            if (hasFeature(collective, FEATURE.STRIPE_PAYMENT_INTENT)) {
+            if (
+              parseToBoolean(config.stripe.paymentIntentEnabled) ||
+              hasFeature(collective, FEATURE.STRIPE_PAYMENT_INTENT)
+            ) {
               supportedPaymentMethods.push(PaymentMethodLegacyTypeEnum.PAYMENT_INTENT);
             }
           }
