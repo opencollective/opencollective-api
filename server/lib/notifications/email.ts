@@ -641,10 +641,12 @@ export const notifyByEmail = async (activity: Activity) => {
       break;
 
     case ActivityTypes.ORDER_PENDING_RECEIVED:
-      if (activity.data?.fromAccountInfo?.email) {
-        await emailLib.send(activity.type, activity.data.fromAccountInfo.email, activity.data);
+      if (activity.data?.isPendingContribution) {
+        if (activity.data?.fromAccountInfo?.email) {
+          await emailLib.send(activity.type, activity.data.fromAccountInfo.email, activity.data);
+        }
+        await notify.collective(activity);
       }
-      await notify.collective(activity);
       break;
 
     case ActivityTypes.ORDER_PENDING_CONTRIBUTION_NEW:
