@@ -84,19 +84,19 @@ describe('server/paymentProviders/opencollective/manual', () => {
     it("throws if Collective currency doesn't match Host currency unless CROSS_CURRENCY_MANUAL_TRANSACTIONS is enabled", async () => {
       const otherCollective = await models.Collective.create({
         name: 'collective4',
-        currency: 'FKA',
+        currency: 'EUR',
         HostCollectiveId: host.id,
         isActive: true,
         hostFeePercent,
       });
 
-      const order = await createOrder(50, otherCollective, { currency: 'FKA' });
+      const order = await createOrder(50, otherCollective, { currency: 'EUR' });
       await expect(ManualPaymentMethod.processOrder(order)).to.be.eventually.rejectedWith(Error);
 
       await host.update({ settings: { features: { crossCurrencyManualTransactions: true } } });
 
       const transaction = await ManualPaymentMethod.processOrder(order);
-      expect(transaction.currency).to.equal('FKA');
+      expect(transaction.currency).to.equal('EUR');
     });
   });
 
