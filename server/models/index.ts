@@ -97,370 +97,234 @@ const models = {
  */
 
 // AccountingCategory
-models.AccountingCategory.belongsTo(models.Collective, { foreignKey: 'CollectiveId', as: 'collective' });
-models.AccountingCategory.hasMany(models.Expense, { foreignKey: 'AccountingCategoryId', as: 'expenses' });
-
-// Applications
-models.Application.belongsTo(models.Collective, { foreignKey: 'CollectiveId', as: 'collective' });
-models.Application.belongsTo(models.User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
-models.Application.hasMany(models.UserToken, { foreignKey: 'ApplicationId', as: 'userTokens' });
-
-// Collective
-models.Collective.belongsTo(models.Collective, { foreignKey: 'HostCollectiveId', as: 'host' });
-models.Collective.belongsTo(models.Collective, { foreignKey: 'ParentCollectiveId', as: 'parent' });
-models.Collective.belongsTo(models.Collective, { as: 'HostCollective' });
-models.Collective.belongsToMany(models.Collective, {
-  as: 'memberCollectives',
-  through: {
-    model: models.Member,
-    unique: false,
-    foreignKey: 'MemberCollectiveId',
-  } as any,
-});
-models.Collective.belongsToMany(models.Collective, {
-  through: { model: models.Member, unique: false, foreignKey: 'CollectiveId' } as any,
-  as: 'memberOfCollectives',
-});
-models.Collective.hasMany(models.AccountingCategory, { foreignKey: 'CollectiveId', as: 'accountingCategories' });
-models.Collective.hasMany(models.Member, { foreignKey: 'MemberCollectiveId', as: 'memberships' });
-models.Collective.hasMany(models.Member); // TODO: This one probably has the same effect as the one below, we should check and remove if that's the case
-models.Collective.hasMany(models.Member, { foreignKey: 'CollectiveId', as: 'members' });
-models.Collective.hasMany(models.Activity);
-models.Collective.hasMany(models.Notification);
-models.Collective.hasMany(models.Tier, { as: 'tiers' });
-models.Collective.hasMany(models.LegalDocument);
-models.Collective.hasMany(models.RequiredLegalDocument, { foreignKey: 'HostCollectiveId' });
-models.Collective.hasMany(models.Collective, { as: 'hostedCollectives', foreignKey: 'HostCollectiveId' });
-models.Collective.hasMany(models.Expense, { foreignKey: 'CollectiveId', as: 'expenses' });
-models.Collective.hasMany(models.Expense, { foreignKey: 'FromCollectiveId', as: 'submittedExpenses' });
-models.Collective.hasMany(models.ConnectedAccount);
-
-// Connected accounts
-models.ConnectedAccount.belongsTo(models.Collective, { foreignKey: 'CollectiveId', as: 'collective' });
-
-// Conversations
-models.Conversation.belongsTo(models.Collective, { foreignKey: 'CollectiveId', as: 'collective' });
-models.Conversation.belongsTo(models.Collective, { foreignKey: 'FromCollectiveId', as: 'fromCollective' });
-
-// Conversations followers
-models.ConversationFollower.belongsTo(models.User, { foreignKey: 'UserId', as: 'user' });
-models.ConversationFollower.belongsTo(models.Conversation, { foreignKey: 'ConversationId', as: 'conversation' });
-
-// PaymentMethod
-models.PaymentMethod.belongsTo(models.Collective);
-models.PaymentMethod.belongsTo(models.PaymentMethod, {
-  as: 'sourcePaymentMethod',
-  foreignKey: 'SourcePaymentMethodId',
-});
-
-// User
-models.User.hasMany(models.Activity);
-models.User.hasMany(models.Notification);
-models.User.hasMany(models.Transaction, {
-  foreignKey: 'CreatedByUserId',
-  as: 'transactions',
-});
-models.User.hasMany(models.Order, { foreignKey: 'CreatedByUserId', as: 'orders' });
-models.User.hasMany(models.PaymentMethod, { foreignKey: 'CreatedByUserId' });
-models.User.hasMany(models.Member, { foreignKey: 'CreatedByUserId' });
-models.User.hasMany(models.ConnectedAccount, { foreignKey: 'CreatedByUserId' });
-models.User.hasMany(models.UserToken, { foreignKey: 'UserId' });
-models.User.belongsTo(models.Collective, {
-  as: 'collective',
-  foreignKey: 'CollectiveId',
-  constraints: false,
-});
-
-// User tokens
-models.UserToken.belongsTo(models.User, { foreignKey: 'UserId', as: 'user' });
-models.UserToken.belongsTo(models.Application, { foreignKey: 'ApplicationId', as: 'client' });
-
-// Personal tokens
-models.PersonalToken.belongsTo(models.User, { foreignKey: 'UserId', as: 'user' });
-models.PersonalToken.belongsTo(models.Collective, { foreignKey: 'CollectiveId', as: 'collective' });
-
-// Members
-models.Member.belongsTo(models.User, {
-  foreignKey: 'CreatedByUserId',
-  as: 'createdByUser',
-});
-models.Member.belongsTo(models.Collective, {
-  foreignKey: 'MemberCollectiveId',
-  as: 'memberCollective',
-});
-models.Member.belongsTo(models.Collective, {
-  foreignKey: 'CollectiveId',
-  as: 'collective',
-});
-models.Member.belongsTo(models.Tier);
-
-// Member invitations
-models.MemberInvitation.belongsTo(models.User, {
-  foreignKey: 'CreatedByUserId',
-  as: 'createdByUser',
-});
-
-models.MemberInvitation.belongsTo(models.Collective, {
-  foreignKey: 'MemberCollectiveId',
-  as: 'memberCollective',
-});
-
-models.MemberInvitation.belongsTo(models.Collective, {
-  foreignKey: 'CollectiveId',
-  as: 'collective',
-});
-
-models.MemberInvitation.belongsTo(models.Tier);
+AccountingCategory.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+AccountingCategory.hasMany(Expense, { foreignKey: 'AccountingCategoryId', as: 'expenses' });
 
 // Activity.
-models.Activity.belongsTo(models.Collective);
-models.Activity.belongsTo(models.User);
-models.Activity.belongsTo(models.Transaction);
-models.Activity.belongsTo(models.Expense);
+Activity.belongsTo(Collective);
+Activity.belongsTo(Expense);
+Activity.belongsTo(Transaction);
+Activity.belongsTo(User);
 
-// Notification.
-models.Notification.belongsTo(models.User);
+// Applications
+Application.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+Application.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
+Application.hasMany(UserToken, { foreignKey: 'ApplicationId', as: 'userTokens' });
 
-models.Notification.belongsTo(models.Collective);
-
-// OAuthAuthorizationCode
-models.OAuthAuthorizationCode.belongsTo(models.Application, { foreignKey: 'ApplicationId', as: 'application' });
-models.OAuthAuthorizationCode.belongsTo(models.User, { foreignKey: 'UserId', as: 'user' });
-
-// Transactions
-models.Collective.hasMany(models.Transaction, { foreignKey: 'CollectiveId' });
-models.Transaction.belongsTo(models.Collective, {
-  foreignKey: 'CollectiveId',
-  as: 'collective',
-});
-models.Transaction.belongsTo(models.Collective, {
-  foreignKey: 'FromCollectiveId',
-  as: 'fromCollective',
-});
-models.Transaction.belongsTo(models.Collective, {
-  foreignKey: 'UsingGiftCardFromCollectiveId',
-  as: 'usingGiftCardFromCollective',
-});
-
-models.Transaction.belongsTo(models.User, {
-  foreignKey: 'CreatedByUserId',
-  as: 'createdByUser',
-});
-models.Transaction.belongsTo(models.Collective, {
-  foreignKey: 'HostCollectiveId',
-  as: 'host',
-});
-models.Transaction.belongsTo(models.PaymentMethod);
-models.Transaction.belongsTo(models.PayoutMethod);
-
-models.PaymentMethod.hasMany(models.Transaction);
-
-// Transaction settlements
-models.TransactionSettlement.belongsTo(models.Expense);
-
-// Expense
-models.Expense.belongsTo(models.AccountingCategory, {
-  as: 'accountingCategory',
-  foreignKey: 'AccountingCategoryId',
-});
-models.Expense.belongsTo(models.User);
-models.Expense.belongsTo(models.PayoutMethod);
-models.Expense.belongsTo(models.Collective, {
-  foreignKey: 'CollectiveId',
-  as: 'collective',
-});
-models.Expense.belongsTo(models.Collective, {
-  foreignKey: 'FromCollectiveId',
-  as: 'fromCollective',
-});
-models.Expense.belongsTo(models.Collective, {
-  foreignKey: 'HostCollectiveId',
-  as: 'host',
-});
-models.Expense.belongsTo(models.VirtualCard, {
-  foreignKey: 'VirtualCardId',
-  as: 'virtualCard',
-});
-models.Expense.belongsTo(models.RecurringExpense, {
-  foreignKey: 'RecurringExpenseId',
-  as: 'recurringExpense',
-});
-models.Expense.hasMany(models.ExpenseAttachedFile, { as: 'attachedFiles' });
-models.Expense.hasMany(models.ExpenseItem, { as: 'items' });
-models.Expense.hasMany(models.Comment, { as: 'comments' });
-models.Expense.hasMany(models.Transaction);
-models.Expense.hasMany(models.Activity, { as: 'activities' });
-models.Transaction.belongsTo(models.Expense);
-models.Transaction.belongsTo(models.Order);
-
-// Expense items
-models.ExpenseItem.belongsTo(models.Expense);
-
-// Expense attached files
-models.ExpenseAttachedFile.belongsTo(models.Expense);
-
-// Recurring Expenses
-models.RecurringExpense.hasMany(models.Expense, { as: 'expenses' });
-models.RecurringExpense.belongsTo(models.Collective, {
-  foreignKey: 'CollectiveId',
-  as: 'collective',
-});
-models.RecurringExpense.belongsTo(models.Collective, {
-  foreignKey: 'FromCollectiveId',
-  as: 'fromCollective',
-});
-
-// Comment
-models.Comment.belongsTo(models.Collective, { foreignKey: 'CollectiveId', as: 'collective' });
-models.Comment.belongsTo(models.Collective, { foreignKey: 'FromCollectiveId', as: 'fromCollective' });
-models.Comment.belongsTo(models.Expense, { foreignKey: 'ExpenseId', as: 'expense' });
-models.Comment.belongsTo(models.Update, { foreignKey: 'UpdateId', as: 'update' });
-models.Comment.belongsTo(models.User, { foreignKey: 'CreatedByUserId', as: 'user' });
-
-// Comment reactions
-models.EmojiReaction.belongsTo(models.Comment);
-models.EmojiReaction.belongsTo(models.User);
-
-// Order.
-models.Order.belongsTo(models.User, {
-  foreignKey: 'CreatedByUserId',
-  as: 'createdByUser',
-});
-models.Order.belongsTo(models.Collective, {
-  foreignKey: 'FromCollectiveId',
-  as: 'fromCollective',
-});
-models.Order.belongsTo(models.Collective, {
-  foreignKey: 'CollectiveId',
-  as: 'collective',
-});
-models.Order.belongsTo(models.Tier);
-// m.Collective.hasMany(m.Order); // makes the test `mocha test/graphql.transaction.test.js -g "insensitive" fail
-models.Collective.hasMany(models.Collective, { foreignKey: 'ParentCollectiveId', as: 'children' });
-models.Collective.hasMany(models.Order, { foreignKey: 'CollectiveId', as: 'orders' });
-models.Collective.hasMany(models.LegalDocument, { foreignKey: 'CollectiveId', as: 'legalDocuments' });
-models.Collective.hasOne(models.User, {
-  as: 'user',
-  foreignKey: 'CollectiveId',
-  constraints: false,
-});
-models.Transaction.belongsTo(models.Order);
-models.Order.hasMany(models.Transaction);
-models.Tier.hasMany(models.Order);
-
-// Legal documents
-models.LegalDocument.belongsTo(models.Collective, { foreignKey: 'CollectiveId', as: 'collective' });
-
-// Location
-models.Location.belongsTo(models.Collective, { foreignKey: 'CollectiveId', as: 'collective' });
-models.Collective.hasOne(models.Location, { foreignKey: 'CollectiveId', as: 'location' });
-
-// RequiredLegalDocument
-models.RequiredLegalDocument.belongsTo(models.Collective, { foreignKey: 'HostCollectiveId', as: 'hostCollective' });
-
-// Subscription
-models.Order.belongsTo(models.Subscription); // adds SubscriptionId to the Orders table
-models.Subscription.hasOne(models.Order);
-
-// PaymentMethod
-models.Order.belongsTo(models.PaymentMethod, {
-  foreignKey: 'PaymentMethodId',
-  as: 'paymentMethod',
-});
-models.PaymentMethod.hasMany(models.Order);
-models.Transaction.belongsTo(models.PaymentMethod);
-
-// Payout method
-models.PayoutMethod.belongsTo(models.User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
-models.PayoutMethod.belongsTo(models.Collective);
-models.Collective.hasMany(models.PayoutMethod);
-
-// Paypal
-models.PaypalPlan.belongsTo(models.PaypalProduct, {
-  foreignKey: 'ProductId',
-  as: 'product',
-});
-
-models.PaypalProduct.hasMany(models.PaypalPlan, {
-  foreignKey: 'ProductId',
-  as: 'plans',
-});
-
-// Tier
-models.Tier.belongsTo(models.Collective);
-
-// Update
-models.Update.belongsTo(models.Collective, { foreignKey: 'CollectiveId', as: 'collective' });
-models.Update.belongsTo(models.Collective, { foreignKey: 'FromCollectiveId', as: 'fromCollective' });
-models.Update.belongsTo(models.Tier, { foreignKey: 'TierId', as: 'tier' });
-models.Update.belongsTo(models.User, { foreignKey: 'LastEditedByUserId', as: 'user' });
-
-// Uploaded files
-models.UploadedFile.belongsTo(models.User, { foreignKey: 'CreatedByUserId', as: 'user' });
-
-// VirtualCard
-models.VirtualCard.belongsTo(models.Collective, {
-  foreignKey: 'CollectiveId',
-  as: 'collective',
-});
-models.VirtualCard.belongsTo(models.Collective, {
-  foreignKey: 'HostCollectiveId',
-  as: 'host',
-});
-models.VirtualCard.belongsTo(models.User, {
-  foreignKey: 'UserId',
-  as: 'user',
-});
-
-models.VirtualCard.belongsTo(models.VirtualCardRequest, {
-  foreignKey: 'VirtualCardRequestId',
-  as: 'virtualCardRequest',
-});
-models.VirtualCard.hasMany(models.Expense, { foreignKey: 'VirtualCardId', as: 'expenses' });
-models.Collective.hasMany(models.VirtualCard, { foreignKey: 'HostCollectiveId', as: 'virtualCards' });
-models.Collective.hasMany(models.VirtualCard, { foreignKey: 'CollectiveId', as: 'virtualCardCollectives' });
-
-// VirtualCardRequest
-models.VirtualCardRequest.belongsTo(models.Collective, {
-  foreignKey: 'CollectiveId',
-  as: 'collective',
-});
-models.VirtualCardRequest.belongsTo(models.Collective, {
-  foreignKey: 'HostCollectiveId',
-  as: 'host',
-});
-models.VirtualCardRequest.belongsTo(models.User, {
-  foreignKey: 'UserId',
-  as: 'user',
-});
-models.VirtualCardRequest.belongsTo(models.VirtualCard, {
-  foreignKey: 'VirtualCardId',
-  as: 'virtualCard',
-});
-
-// SocialLink
-models.SocialLink.belongsTo(models.Collective, {
-  foreignKey: 'CollectiveId',
-  as: 'collective',
-});
-models.Collective.hasMany(models.SocialLink, { foreignKey: 'CollectiveId', as: 'socialLinks' });
-
-UserTwoFactorMethod.belongsTo(User);
-User.hasMany(UserTwoFactorMethod);
-
-Agreement.belongsTo(Collective, { foreignKey: 'HostCollectiveId', as: 'Host' });
+// Agreement
 Agreement.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'Collective' });
+Agreement.belongsTo(Collective, { foreignKey: 'HostCollectiveId', as: 'Host' });
 Agreement.belongsTo(User, { foreignKey: 'UserId', as: 'User' });
 
+// Collective
+Collective.belongsTo(Collective, { as: 'HostCollective' });
+Collective.belongsTo(Collective, { foreignKey: 'HostCollectiveId', as: 'host' });
+Collective.belongsTo(Collective, { foreignKey: 'ParentCollectiveId', as: 'parent' });
+Collective.belongsToMany(Collective, {
+  as: 'memberCollectives',
+  through: { model: Member, unique: false, foreignKey: 'MemberCollectiveId' } as any,
+});
+Collective.belongsToMany(Collective, {
+  through: { model: Member, unique: false, foreignKey: 'CollectiveId' } as any,
+  as: 'memberOfCollectives',
+});
+Collective.hasMany(AccountingCategory, { foreignKey: 'CollectiveId', as: 'accountingCategories' });
+Collective.hasMany(Activity);
+Collective.hasMany(Collective, { as: 'hostedCollectives', foreignKey: 'HostCollectiveId' });
+Collective.hasMany(Collective, { foreignKey: 'ParentCollectiveId', as: 'children' });
+Collective.hasMany(ConnectedAccount);
+Collective.hasMany(Expense, { foreignKey: 'CollectiveId', as: 'expenses' });
+Collective.hasMany(Expense, { foreignKey: 'FromCollectiveId', as: 'submittedExpenses' });
+Collective.hasMany(HostApplication, { foreignKey: 'CollectiveId', as: 'hostApplications' });
+Collective.hasMany(LegalDocument);
+Collective.hasMany(LegalDocument, { foreignKey: 'CollectiveId', as: 'legalDocuments' });
+Collective.hasMany(Member); // TODO: This one probably has the same effect as the one below, we should check and remove if that's the case
+Collective.hasMany(Member, { foreignKey: 'CollectiveId', as: 'members' });
+Collective.hasMany(Member, { foreignKey: 'MemberCollectiveId', as: 'memberships' });
+Collective.hasMany(Notification);
+Collective.hasMany(Order, { foreignKey: 'CollectiveId', as: 'orders' });
+Collective.hasMany(PayoutMethod);
+Collective.hasMany(RequiredLegalDocument, { foreignKey: 'HostCollectiveId' });
+Collective.hasMany(SocialLink, { foreignKey: 'CollectiveId', as: 'socialLinks' });
+Collective.hasMany(Tier, { as: 'tiers' });
+Collective.hasMany(Transaction, { foreignKey: 'CollectiveId' });
+Collective.hasMany(VirtualCard, { foreignKey: 'CollectiveId', as: 'virtualCardCollectives' });
+Collective.hasMany(VirtualCard, { foreignKey: 'HostCollectiveId', as: 'virtualCards' });
+// Collective.hasMany(Order); // makes the test `mocha test/graphql.transaction.test.js -g "insensitive" fail
+Collective.hasOne(Location, { foreignKey: 'CollectiveId', as: 'location' });
+Collective.hasOne(User, { as: 'user', foreignKey: 'CollectiveId', constraints: false });
+
+// Comment
+Comment.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+Comment.belongsTo(Collective, { foreignKey: 'FromCollectiveId', as: 'fromCollective' });
+Comment.belongsTo(Expense, { foreignKey: 'ExpenseId', as: 'expense' });
+Comment.belongsTo(Update, { foreignKey: 'UpdateId', as: 'update' });
+Comment.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'user' });
+
+// ConnectedAccount
+ConnectedAccount.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+
+// Conversations
+Conversation.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+Conversation.belongsTo(Collective, { foreignKey: 'FromCollectiveId', as: 'fromCollective' });
+
+// ConversationFollower
+ConversationFollower.belongsTo(Conversation, { foreignKey: 'ConversationId', as: 'conversation' });
+ConversationFollower.belongsTo(User, { foreignKey: 'UserId', as: 'user' });
+
+// EmojiReaction
+EmojiReaction.belongsTo(Comment);
+EmojiReaction.belongsTo(User);
+
+// Expense
+Expense.belongsTo(AccountingCategory, { as: 'accountingCategory', foreignKey: 'AccountingCategoryId' });
+Expense.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+Expense.belongsTo(Collective, { foreignKey: 'FromCollectiveId', as: 'fromCollective' });
+Expense.belongsTo(Collective, { foreignKey: 'HostCollectiveId', as: 'host' });
+Expense.belongsTo(PayoutMethod);
+Expense.belongsTo(RecurringExpense, { foreignKey: 'RecurringExpenseId', as: 'recurringExpense' });
+Expense.belongsTo(User);
+Expense.belongsTo(VirtualCard, { foreignKey: 'VirtualCardId', as: 'virtualCard' });
+Expense.hasMany(Activity, { as: 'activities' });
+Expense.hasMany(Comment, { as: 'comments' });
+Expense.hasMany(ExpenseAttachedFile, { as: 'attachedFiles' });
+Expense.hasMany(ExpenseItem, { as: 'items' });
+Expense.hasMany(Transaction);
+
+// ExpenseAttachedFile
+ExpenseAttachedFile.belongsTo(Expense);
+
+// ExpenseItem
+ExpenseItem.belongsTo(Expense);
+
 // HostApplication
-models.HostApplication.belongsTo(models.Collective, {
-  foreignKey: 'CollectiveId',
-  as: 'collective',
-});
-Collective.hasMany(models.HostApplication, {
-  foreignKey: 'CollectiveId',
-  as: 'hostApplications',
-});
+HostApplication.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+
+// LegalDocument
+LegalDocument.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+
+// Location
+Location.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+
+// Members
+Member.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+Member.belongsTo(Collective, { foreignKey: 'MemberCollectiveId', as: 'memberCollective' });
+Member.belongsTo(Tier);
+Member.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
+
+// MemberInvitation
+MemberInvitation.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+MemberInvitation.belongsTo(Collective, { foreignKey: 'MemberCollectiveId', as: 'memberCollective' });
+MemberInvitation.belongsTo(Tier);
+MemberInvitation.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
+
+// Notification.
+Notification.belongsTo(Collective);
+Notification.belongsTo(User);
+
+// OAuthAuthorizationCode
+OAuthAuthorizationCode.belongsTo(Application, { foreignKey: 'ApplicationId', as: 'application' });
+OAuthAuthorizationCode.belongsTo(User, { foreignKey: 'UserId', as: 'user' });
+
+// Order.
+Order.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+Order.belongsTo(Collective, { foreignKey: 'FromCollectiveId', as: 'fromCollective' });
+Order.belongsTo(PaymentMethod, { foreignKey: 'PaymentMethodId', as: 'paymentMethod' });
+Order.belongsTo(Subscription); // adds SubscriptionId to the Orders table
+Order.belongsTo(Tier);
+Order.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
+Order.hasMany(Transaction);
+
+// PaymentMethod
+PaymentMethod.belongsTo(Collective);
+PaymentMethod.belongsTo(PaymentMethod, { as: 'sourcePaymentMethod', foreignKey: 'SourcePaymentMethodId' });
+PaymentMethod.hasMany(Order);
+PaymentMethod.hasMany(Transaction);
+
+// Payout method
+PayoutMethod.belongsTo(Collective);
+PayoutMethod.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
+
+// PaypalPlan
+PaypalPlan.belongsTo(PaypalProduct, { foreignKey: 'ProductId', as: 'product' });
+PaypalProduct.hasMany(PaypalPlan, { foreignKey: 'ProductId', as: 'plans' });
+
+// PersonalToken
+PersonalToken.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+PersonalToken.belongsTo(User, { foreignKey: 'UserId', as: 'user' });
+
+// Recurring Expenses
+RecurringExpense.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+RecurringExpense.belongsTo(Collective, { foreignKey: 'FromCollectiveId', as: 'fromCollective' });
+RecurringExpense.hasMany(Expense, { as: 'expenses' });
+
+// RequiredLegalDocument
+RequiredLegalDocument.belongsTo(Collective, { foreignKey: 'HostCollectiveId', as: 'hostCollective' });
+
+// SocialLink
+SocialLink.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+
+// Subscription
+Subscription.hasOne(Order);
+
+// Tier
+Tier.belongsTo(Collective);
+Tier.hasMany(Order);
+
+// Transaction
+Transaction.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+Transaction.belongsTo(Collective, { foreignKey: 'FromCollectiveId', as: 'fromCollective' });
+Transaction.belongsTo(Collective, { foreignKey: 'HostCollectiveId', as: 'host' });
+Transaction.belongsTo(Collective, { foreignKey: 'UsingGiftCardFromCollectiveId', as: 'usingGiftCardFromCollective' });
+Transaction.belongsTo(Expense);
+Transaction.belongsTo(Order);
+Transaction.belongsTo(PaymentMethod);
+Transaction.belongsTo(PayoutMethod);
+Transaction.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
+
+// TransactionSettlement
+TransactionSettlement.belongsTo(Expense);
+
+// Update
+Update.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+Update.belongsTo(Collective, { foreignKey: 'FromCollectiveId', as: 'fromCollective' });
+Update.belongsTo(Tier, { foreignKey: 'TierId', as: 'tier' });
+Update.belongsTo(User, { foreignKey: 'LastEditedByUserId', as: 'user' });
+
+// Uploaded files
+UploadedFile.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'user' });
+
+// User
+User.belongsTo(Collective, { as: 'collective', foreignKey: 'CollectiveId', constraints: false });
+User.hasMany(Activity);
+User.hasMany(ConnectedAccount, { foreignKey: 'CreatedByUserId' });
+User.hasMany(Member, { foreignKey: 'CreatedByUserId' });
+User.hasMany(Notification);
+User.hasMany(Order, { foreignKey: 'CreatedByUserId', as: 'orders' });
+User.hasMany(PaymentMethod, { foreignKey: 'CreatedByUserId' });
+User.hasMany(Transaction, { foreignKey: 'CreatedByUserId', as: 'transactions' });
+User.hasMany(UserToken, { foreignKey: 'UserId' });
+User.hasMany(UserTwoFactorMethod);
+
+// UserToken
+UserToken.belongsTo(Application, { foreignKey: 'ApplicationId', as: 'client' });
+UserToken.belongsTo(User, { foreignKey: 'UserId', as: 'user' });
+
+// UserTwoFactorMethod
+UserTwoFactorMethod.belongsTo(User);
+
+// VirtualCard
+VirtualCard.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+VirtualCard.belongsTo(Collective, { foreignKey: 'HostCollectiveId', as: 'host' });
+VirtualCard.belongsTo(User, { foreignKey: 'UserId', as: 'user' });
+VirtualCard.belongsTo(VirtualCardRequest, { foreignKey: 'VirtualCardRequestId', as: 'virtualCardRequest' });
+VirtualCard.hasMany(Expense, { foreignKey: 'VirtualCardId', as: 'expenses' });
+
+// VirtualCardRequest
+VirtualCardRequest.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+VirtualCardRequest.belongsTo(Collective, { foreignKey: 'HostCollectiveId', as: 'host' });
+VirtualCardRequest.belongsTo(User, { foreignKey: 'UserId', as: 'user' });
+VirtualCardRequest.belongsTo(VirtualCard, { foreignKey: 'VirtualCardId', as: 'virtualCard' });
 
 export default models;
 
