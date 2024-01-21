@@ -6,7 +6,7 @@ import { v4 as uuid } from 'uuid';
 
 import activities from '../constants/activities';
 import { ExpenseFeesPayer } from '../constants/expense-fees-payer';
-import status from '../constants/order_status';
+import status from '../constants/order-status';
 import { PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import roles from '../constants/roles';
 import tiers from '../constants/tiers';

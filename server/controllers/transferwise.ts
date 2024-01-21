@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 
-import expenseStatus from '../constants/expense_status';
+import expenseStatus from '../constants/expense-status';
 import { getExpenseFees, setTransferWiseExpenseAsProcessing } from '../graphql/common/expenses';
 import { idDecode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
 import errors from '../lib/errors';

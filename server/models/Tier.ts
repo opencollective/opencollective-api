@@ -6,7 +6,7 @@ import { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribut
 import Temporal from 'sequelize-temporal';
 
 import { maxInteger } from '../constants/math';
-import orderStatus from '../constants/order_status';
+import orderStatus from '../constants/order-status';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize, { DataTypes, Model, Op } from '../lib/sequelize';
 import { capitalize, days, formatCurrency } from '../lib/utils';

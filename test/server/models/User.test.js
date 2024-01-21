@@ -5,7 +5,7 @@ import config from 'config';
 import { SequelizeValidationError } from 'sequelize';
 import { stub, useFakeTimers } from 'sinon';
 
-import { Service } from '../../../server/constants/connected_account';
+import { Service } from '../../../server/constants/connected-account';
 import * as auth from '../../../server/lib/auth';
 import models from '../../../server/models';
 import { randEmail } from '../../stores';

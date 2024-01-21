@@ -3,7 +3,7 @@ import assert from 'assert';
 import { get, groupBy, mapValues, round, set, sumBy, truncate } from 'lodash';
 import { Order } from 'sequelize';
 
-import ExpenseType from '../constants/expense_type';
+import ExpenseType from '../constants/expense-type';
 import TierType from '../constants/tiers';
 import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';

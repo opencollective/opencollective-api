@@ -3,7 +3,7 @@ import { isEmpty, keys, pick } from 'lodash';
 import moment from 'moment';
 
 import INTERVALS from '../constants/intervals';
-import OrderStatus from '../constants/order_status';
+import OrderStatus from '../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import { BadRequest, Unauthorized, UnexpectedError } from '../graphql/errors';
 import { sequelize } from '../models';

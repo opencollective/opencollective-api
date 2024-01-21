@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
 
-import OrderStatuses from '../../../../../server/constants/order_status';
+import OrderStatuses from '../../../../../server/constants/order-status';
 import { fakeOrder, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 

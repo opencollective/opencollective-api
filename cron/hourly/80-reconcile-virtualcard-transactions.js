@@ -5,7 +5,7 @@ import config from 'config';
 import { compact, omit } from 'lodash';
 import Stripe from 'stripe';
 
-import { Service as ConnectedAccountServices } from '../../server/constants/connected_account';
+import { Service as ConnectedAccountServices } from '../../server/constants/connected-account';
 import logger from '../../server/lib/logger';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import models from '../../server/models';

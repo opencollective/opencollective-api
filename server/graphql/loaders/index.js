@@ -4,8 +4,8 @@ import { get, groupBy } from 'lodash';
 import moment from 'moment';
 
 import { CollectiveType } from '../../constants/collectives';
-import { Service } from '../../constants/connected_account';
-import orderStatus from '../../constants/order_status';
+import { Service } from '../../constants/connected-account';
+import orderStatus from '../../constants/order-status';
 import { TransactionTypes } from '../../constants/transactions';
 import {
   getBalances,

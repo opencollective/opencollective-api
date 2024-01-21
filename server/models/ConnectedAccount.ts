@@ -2,7 +2,7 @@ import config from 'config';
 import { isNil } from 'lodash';
 import { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
 
-import { supportedServices } from '../constants/connected_account';
+import { supportedServices } from '../constants/connected-account';
 import { crypto } from '../lib/encryption';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 

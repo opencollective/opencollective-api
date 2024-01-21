@@ -9,7 +9,7 @@ import debugLib from 'debug';
 import { groupBy, isEmpty, pick, uniq } from 'lodash';
 import moment from 'moment';
 
-import ORDER_STATUS from '../../server/constants/order_status';
+import ORDER_STATUS from '../../server/constants/order-status';
 import roles from '../../server/constants/roles';
 import emailLib from '../../server/lib/email';
 import { getConsolidatedInvoicePdfs } from '../../server/lib/pdf';

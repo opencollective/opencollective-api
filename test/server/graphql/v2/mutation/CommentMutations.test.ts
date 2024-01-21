@@ -5,7 +5,7 @@ import { assert, createSandbox } from 'sinon';
 
 import { roles } from '../../../../../server/constants';
 import ActivityTypes from '../../../../../server/constants/activities';
-import ExpenseStatuses from '../../../../../server/constants/expense_status';
+import ExpenseStatuses from '../../../../../server/constants/expense-status';
 import { idDecode, idEncode } from '../../../../../server/graphql/v2/identifiers';
 import emailLib from '../../../../../server/lib/email';
 import models from '../../../../../server/models';

@@ -2,8 +2,8 @@ import slugify from 'limax';
 
 import activities from '../constants/activities';
 import { CollectiveType } from '../constants/collectives';
-import ExpenseStatus from '../constants/expense_status';
-import ExpenseType from '../constants/expense_type';
+import ExpenseStatus from '../constants/expense-status';
+import ExpenseType from '../constants/expense-type';
 import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
 import { getFxRate } from '../lib/currency';

@@ -11,7 +11,7 @@ import { isNil, pick, size } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import { CollectiveType } from '../../../constants/collectives';
-import expenseStatus from '../../../constants/expense_status';
+import expenseStatus from '../../../constants/expense-status';
 import RateLimit from '../../../lib/rate-limit';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication/lib';
 import models from '../../../models';

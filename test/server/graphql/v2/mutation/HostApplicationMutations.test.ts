@@ -4,9 +4,9 @@ import moment from 'moment';
 import { createSandbox } from 'sinon';
 
 import { activities, roles } from '../../../../../server/constants';
-import OrderStatuses from '../../../../../server/constants/order_status';
+import OrderStatuses from '../../../../../server/constants/order-status';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
-import VirtualCardProviders from '../../../../../server/constants/virtual_card_providers';
+import VirtualCardProviders from '../../../../../server/constants/virtual-card-providers';
 import { GraphQLProcessHostApplicationAction } from '../../../../../server/graphql/v2/enum';
 import emailLib from '../../../../../server/lib/email';
 import models from '../../../../../server/models';

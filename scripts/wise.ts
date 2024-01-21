@@ -8,7 +8,7 @@ import '../server/env';
 import { Command } from 'commander';
 import { toNumber } from 'lodash';
 
-import { Service } from '../server/constants/connected_account';
+import { Service } from '../server/constants/connected-account';
 import * as transferwiseLib from '../server/lib/transferwise';
 import models, { sequelize } from '../server/models';
 

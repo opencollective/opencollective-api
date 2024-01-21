@@ -2,7 +2,7 @@ import config from 'config';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { omit, pick } from 'lodash';
 
-import { Service } from '../../../constants/connected_account';
+import { Service } from '../../../constants/connected-account';
 import FEATURE_STATUS from '../../../constants/feature-status';
 import stripe from '../../../lib/stripe';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';

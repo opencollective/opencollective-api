@@ -1,7 +1,7 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
-import ORDER_STATUS from '../../../constants/order_status';
+import ORDER_STATUS from '../../../constants/order-status';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
 const isHostAdmin = async (req: express.Request, order): Promise<boolean> => {

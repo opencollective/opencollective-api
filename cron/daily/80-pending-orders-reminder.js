@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import '../../server/env';
 
-import status from '../../server/constants/order_status';
+import status from '../../server/constants/order-status';
 import logger from '../../server/lib/logger';
 import * as libPayments from '../../server/lib/payments';
 import models, { Op } from '../../server/models';

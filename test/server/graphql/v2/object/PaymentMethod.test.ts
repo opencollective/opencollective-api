@@ -3,7 +3,7 @@ import gql from 'fake-tag';
 import { times } from 'lodash';
 import moment from 'moment';
 
-import OrderStatuses from '../../../../../server/constants/order_status';
+import OrderStatuses from '../../../../../server/constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../server/constants/paymentMethods';
 import { fakeOrder, fakePaymentMethod, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';

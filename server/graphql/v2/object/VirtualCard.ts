@@ -1,7 +1,7 @@
 import { GraphQLInt, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSONObject } from 'graphql-scalars';
 
-import ExpenseStatus from '../../../constants/expense_status';
+import ExpenseStatus from '../../../constants/expense-status';
 import { VirtualCardLimitIntervals } from '../../../constants/virtual-cards';
 import { getSpendingLimitIntervalDates } from '../../../lib/stripe';
 import models, { Op, VirtualCard } from '../../../models';

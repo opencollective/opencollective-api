@@ -1,7 +1,7 @@
 import { GraphQLInputFieldConfig, GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLNonEmptyString } from 'graphql-scalars';
 
-import ExpenseTypes from '../../../constants/expense_type';
+import ExpenseTypes from '../../../constants/expense-type';
 import models from '../../../models';
 import { GraphQLExpenseType } from '../enum/ExpenseType';
 import { idDecode } from '../identifiers';

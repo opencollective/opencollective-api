@@ -8,7 +8,7 @@ import {
   QueryTypes,
 } from 'sequelize';
 
-import expenseType from '../constants/expense_type';
+import expenseType from '../constants/expense-type';
 import { TransactionKind } from '../constants/transaction-kind';
 import sequelize, { DataTypes, Model, Op, Transaction as SQLTransaction } from '../lib/sequelize';
 

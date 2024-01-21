@@ -29,9 +29,9 @@ import { createRedisClient } from './lib/redis';
 import { HandlerType, reportMessageToSentry, SentryGraphQLPlugin, sentryHandleSlowRequests } from './lib/sentry';
 import { parseToBoolean } from './lib/utils';
 import * as authentication from './middleware/authentication';
-import errorHandler from './middleware/error_handler';
+import errorHandler from './middleware/error-handler';
 import * as params from './middleware/params';
-import required from './middleware/required_param';
+import required from './middleware/required-param';
 import sanitizer from './middleware/sanitizer';
 
 const upload = multer();

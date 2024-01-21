@@ -12,7 +12,7 @@ import {
 import Temporal from 'sequelize-temporal';
 
 import { roles } from '../constants';
-import OrderStatus from '../constants/order_status';
+import OrderStatus from '../constants/order-status';
 import TierType from '../constants/tiers';
 import { PLATFORM_TIP_TRANSACTION_PROPERTIES, TransactionTypes } from '../constants/transactions';
 import * as libPayments from '../lib/payments';

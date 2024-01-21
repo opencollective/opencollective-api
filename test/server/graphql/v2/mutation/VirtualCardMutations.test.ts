@@ -4,7 +4,7 @@ import { createSandbox, match } from 'sinon';
 
 import { frequencies } from '../../../../../server/constants';
 import ActivityTypes from '../../../../../server/constants/activities';
-import VirtualCardProviders from '../../../../../server/constants/virtual_card_providers';
+import VirtualCardProviders from '../../../../../server/constants/virtual-card-providers';
 import { VirtualCardLimitIntervals } from '../../../../../server/constants/virtual-cards';
 import models from '../../../../../server/models';
 import { VirtualCardStatus } from '../../../../../server/models/VirtualCard';

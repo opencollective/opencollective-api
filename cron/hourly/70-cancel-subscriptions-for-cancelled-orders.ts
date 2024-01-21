@@ -6,7 +6,7 @@ import { groupBy, size, uniq } from 'lodash';
 
 import { activities } from '../../server/constants';
 import FEATURE from '../../server/constants/feature';
-import OrderStatuses from '../../server/constants/order_status';
+import OrderStatuses from '../../server/constants/order-status';
 import logger from '../../server/lib/logger';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import { sleep } from '../../server/lib/utils';

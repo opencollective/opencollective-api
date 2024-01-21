@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import { expect } from 'chai';
 import { assert, createSandbox } from 'sinon';
 
-import status from '../../../../server/constants/expense_status';
+import status from '../../../../server/constants/expense-status';
 import * as paypalLib from '../../../../server/lib/paypal';
 import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
 import * as paypalPayouts from '../../../../server/paymentProviders/paypal/payouts';

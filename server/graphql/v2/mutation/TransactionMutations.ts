@@ -2,7 +2,7 @@ import express from 'express';
 import { GraphQLNonNull, GraphQLString } from 'graphql';
 
 import { activities } from '../../../constants';
-import orderStatus from '../../../constants/order_status';
+import orderStatus from '../../../constants/order-status';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';

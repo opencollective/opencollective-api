@@ -1,7 +1,7 @@
 import { isNil } from 'lodash';
 import { InferCreationAttributes } from 'sequelize';
 
-import status from '../../constants/order_status';
+import status from '../../constants/order-status';
 import { purgeCacheForCollective } from '../../lib/cache';
 import * as libPayments from '../../lib/payments';
 import models, { Collective, Tier, User } from '../../models';

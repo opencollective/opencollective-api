@@ -12,8 +12,8 @@ import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { pick, round, takeRightWhile, toString, uniq } from 'lodash';
 
 import ActivityTypes from '../../../constants/activities';
-import expenseStatus from '../../../constants/expense_status';
-import ExpenseTypes from '../../../constants/expense_type';
+import expenseStatus from '../../../constants/expense-status';
+import ExpenseTypes from '../../../constants/expense-type';
 import models, { Activity } from '../../../models';
 import { CommentType } from '../../../models/Comment';
 import ExpenseModel from '../../../models/Expense';

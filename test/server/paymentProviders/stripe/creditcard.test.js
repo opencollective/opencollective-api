@@ -3,7 +3,7 @@
 import { expect } from 'chai';
 import { assert, createSandbox } from 'sinon';
 
-import { Service } from '../../../../server/constants/connected_account';
+import { Service } from '../../../../server/constants/connected-account';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
 import cache from '../../../../server/lib/cache';
 import stripe from '../../../../server/lib/stripe';

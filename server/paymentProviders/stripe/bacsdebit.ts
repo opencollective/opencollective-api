@@ -2,7 +2,7 @@ import config from 'config';
 import { pick, toUpper } from 'lodash';
 import type Stripe from 'stripe';
 
-import OrderStatuses from '../../constants/order_status';
+import OrderStatuses from '../../constants/order-status';
 import logger from '../../lib/logger';
 import { getApplicationFee } from '../../lib/payments';
 import { reportMessageToSentry } from '../../lib/sentry';

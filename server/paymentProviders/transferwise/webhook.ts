@@ -4,7 +4,7 @@ import { Request } from 'express';
 import { pick, toString } from 'lodash';
 
 import activities from '../../constants/activities';
-import expenseStatus from '../../constants/expense_status';
+import expenseStatus from '../../constants/expense-status';
 import { TransactionKind } from '../../constants/transaction-kind';
 import logger from '../../lib/logger';
 import * as libPayments from '../../lib/payments';

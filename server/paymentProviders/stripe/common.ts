@@ -3,7 +3,7 @@ import { get, result, toUpper } from 'lodash';
 import type { CreateOptions } from 'sequelize';
 import Stripe from 'stripe';
 
-import { Service } from '../../constants/connected_account';
+import { Service } from '../../constants/connected-account';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import * as constants from '../../constants/transactions';
 import logger from '../../lib/logger';

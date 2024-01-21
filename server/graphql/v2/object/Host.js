@@ -14,9 +14,9 @@ import moment from 'moment';
 
 import { roles } from '../../../constants';
 import { CollectiveType } from '../../../constants/collectives';
-import expenseType from '../../../constants/expense_type';
+import expenseType from '../../../constants/expense-type';
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
-import OrderStatuses from '../../../constants/order_status';
+import OrderStatuses from '../../../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import POLICIES from '../../../constants/policies';
 import { TransactionKind } from '../../../constants/transaction-kind';

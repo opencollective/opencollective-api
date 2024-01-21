@@ -3,8 +3,8 @@
 import { expect } from 'chai';
 import { assert, createSandbox } from 'sinon';
 
-import { Service } from '../../../../server/constants/connected_account';
-import OrderStatuses from '../../../../server/constants/order_status';
+import { Service } from '../../../../server/constants/connected-account';
+import OrderStatuses from '../../../../server/constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
 import stripe from '../../../../server/lib/stripe';
 import models from '../../../../server/models';

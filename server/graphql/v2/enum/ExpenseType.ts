@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
-import expenseType from '../../../constants/expense_type';
+import expenseType from '../../../constants/expense-type';
 
 export const GraphQLExpenseType = new GraphQLEnumType({
   name: 'ExpenseType',

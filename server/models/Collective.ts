@@ -47,9 +47,9 @@ import validator from 'validator';
 
 import activities from '../constants/activities';
 import { CollectiveType, CollectiveTypesList } from '../constants/collectives';
-import { Service } from '../constants/connected_account';
-import expenseStatus from '../constants/expense_status';
-import expenseTypes from '../constants/expense_type';
+import { Service } from '../constants/connected-account';
+import expenseStatus from '../constants/expense-status';
+import expenseTypes from '../constants/expense-type';
 import FEATURE from '../constants/feature';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import plans from '../constants/plans';

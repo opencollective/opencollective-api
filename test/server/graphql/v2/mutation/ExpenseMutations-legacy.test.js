@@ -7,7 +7,7 @@ import { createSandbox } from 'sinon';
 import speakeasy from 'speakeasy';
 
 import { expenseStatus, expenseTypes } from '../../../../../server/constants';
-import ExpenseTypes from '../../../../../server/constants/expense_type';
+import ExpenseTypes from '../../../../../server/constants/expense-type';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import { payExpense } from '../../../../../server/graphql/common/expenses';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';

@@ -3,7 +3,7 @@ import { URLSearchParams } from 'url';
 import { pick } from 'lodash';
 
 import { activities } from '../../../constants';
-import ORDER_STATUS from '../../../constants/order_status';
+import ORDER_STATUS from '../../../constants/order-status';
 import { PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import logger from '../../../lib/logger';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';

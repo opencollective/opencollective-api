@@ -3,7 +3,7 @@ import '../server/env';
 
 import { ArgumentParser } from 'argparse';
 
-import status from '../server/constants/order_status';
+import status from '../server/constants/order-status';
 import { PLANS_COLLECTIVE_SLUG } from '../server/constants/plans';
 import models, { Op } from '../server/models';
 

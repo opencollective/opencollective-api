@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { createSandbox } from 'sinon';
 
 import { run as payPaypalScheduledExpenses } from '../../../cron/hourly/10-pay-paypal-scheduled-expenses-payouts';
-import status from '../../../server/constants/expense_status';
+import status from '../../../server/constants/expense-status';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 import * as paypal from '../../../server/paymentProviders/paypal/payouts';
 import { fakeCollective, fakeExpense, fakePayoutMethod, multiple } from '../../test-helpers/fake-data';

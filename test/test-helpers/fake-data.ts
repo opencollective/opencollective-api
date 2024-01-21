@@ -17,7 +17,7 @@ import { activities, channels, roles } from '../../server/constants';
 import { CollectiveType } from '../../server/constants/collectives';
 import { SUPPORTED_FILE_KINDS } from '../../server/constants/file-kind';
 import OAuthScopes from '../../server/constants/oauth-scopes';
-import OrderStatuses from '../../server/constants/order_status';
+import OrderStatuses from '../../server/constants/order-status';
 import { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPES } from '../../server/constants/paymentMethods';
 import { REACTION_EMOJI } from '../../server/constants/reaction-emoji';
 import MemberRoles from '../../server/constants/roles';

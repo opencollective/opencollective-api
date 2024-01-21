@@ -5,7 +5,7 @@ import { createHash } from 'crypto';
 import { isNil, round, toNumber } from 'lodash';
 
 import activities from '../../constants/activities';
-import status from '../../constants/expense_status';
+import status from '../../constants/expense-status';
 import FEATURE from '../../constants/feature';
 import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
