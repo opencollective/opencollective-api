@@ -343,7 +343,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       const anotherCategory = await fakeAccountingCategory();
       result = await callMutation({ id: idEncode(anotherCategory.id, 'accounting-category') });
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.eq('This accounting category is not allowed for this expense');
+      expect(result.errors[0].message).to.eq('This accounting category is not allowed for this host');
     });
 
     it('creates the expense with the linked items', async () => {
@@ -574,7 +574,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const anotherCategory = await fakeAccountingCategory();
         result = await callMutation({ id: idEncode(anotherCategory.id, 'accounting-category') });
         expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.eq('This accounting category is not allowed for this expense');
+        expect(result.errors[0].message).to.eq('This accounting category is not allowed for this host');
       });
 
       it('reserves the accounting category changes of paid expenses to host admins', async () => {

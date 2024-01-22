@@ -2,7 +2,10 @@ import { GraphQLInputFieldConfig, GraphQLInputObjectType, GraphQLList, GraphQLNo
 import { GraphQLNonEmptyString } from 'graphql-scalars';
 
 import ExpenseTypes from '../../../constants/expense-type';
+import { TransactionKind } from '../../../constants/transaction-kind';
 import models from '../../../models';
+import { AccountingCategoryKind } from '../../../models/AccountingCategory';
+import { GraphQLAccountingCategoryKind } from '../enum/AccountingCategoryKind';
 import { GraphQLExpenseType } from '../enum/ExpenseType';
 import { idDecode } from '../identifiers';
 
@@ -12,6 +15,7 @@ export type AccountingCategoryInputFields = {
   name?: string;
   friendlyName?: string;
   expensesTypes?: ExpenseTypes[];
+  kind?: AccountingCategoryKind;
 };
 
 export const AccountingCategoryInput = new GraphQLInputObjectType({
@@ -21,6 +25,10 @@ export const AccountingCategoryInput = new GraphQLInputObjectType({
     id: {
       type: GraphQLNonEmptyString,
       description: 'The ID of the accounting category to edit',
+    },
+    kind: {
+      type: new GraphQLNonNull(GraphQLAccountingCategoryKind),
+      defaultValue: TransactionKind.EXPENSE,
     },
     code: {
       type: GraphQLNonEmptyString,
@@ -43,7 +51,7 @@ export const AccountingCategoryInput = new GraphQLInputObjectType({
 
 // Reference
 
-export type AccountCategoryReferenceInputFields = {
+export type GraphQLAccountingCategoryReferenceInputFields = {
   id: string;
 };
 
@@ -51,10 +59,10 @@ export type AccountCategoryReferenceInputFields = {
  * Only `id` is used at the moment, but we're implementing this as a reference type as we may want
  * to support fetching with a combination of `account` + `code` in the future.
  */
-export const AccountingCategoryReferenceInput = new GraphQLInputObjectType({
+export const GraphQLAccountingCategoryReferenceInput = new GraphQLInputObjectType({
   name: 'AccountingCategoryReferenceInput',
   description: 'Reference to an accounting category',
-  fields: (): Record<keyof AccountCategoryReferenceInputFields, GraphQLInputFieldConfig> => ({
+  fields: (): Record<keyof GraphQLAccountingCategoryReferenceInputFields, GraphQLInputFieldConfig> => ({
     id: {
       type: new GraphQLNonNull(GraphQLNonEmptyString),
       description: 'The ID of the accounting category',
@@ -63,7 +71,7 @@ export const AccountingCategoryReferenceInput = new GraphQLInputObjectType({
 });
 
 export const fetchAccountingCategoryWithReference = async (
-  input: AccountCategoryReferenceInputFields,
+  input: GraphQLAccountingCategoryReferenceInputFields,
   { loaders = null, throwIfMissing = false } = {},
 ) => {
   const id = idDecode(input.id, 'accounting-category');

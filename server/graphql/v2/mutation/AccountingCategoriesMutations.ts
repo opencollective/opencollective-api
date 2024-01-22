@@ -14,6 +14,7 @@ import { GraphQLAccount } from '../interface/Account';
 type AccountingCategoryInputWithNormalizedId = Omit<AccountingCategoryInputFields, 'id'> & { id?: number };
 
 const EDITABLE_FIELDS: readonly (keyof AccountingCategoryInputFields)[] = [
+  'kind',
   'code',
   'name',
   'friendlyName',

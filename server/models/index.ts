@@ -99,6 +99,7 @@ const models = {
 // AccountingCategory
 AccountingCategory.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
 AccountingCategory.hasMany(Expense, { foreignKey: 'AccountingCategoryId', as: 'expenses' });
+AccountingCategory.hasMany(Order, { foreignKey: 'AccountingCategoryId', as: 'orders' });
 
 // Activity.
 Activity.belongsTo(Collective);
@@ -227,6 +228,7 @@ OAuthAuthorizationCode.belongsTo(Application, { foreignKey: 'ApplicationId', as:
 OAuthAuthorizationCode.belongsTo(User, { foreignKey: 'UserId', as: 'user' });
 
 // Order.
+Order.belongsTo(AccountingCategory, { as: 'accountingCategory', foreignKey: 'AccountingCategoryId' });
 Order.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
 Order.belongsTo(Collective, { foreignKey: 'FromCollectiveId', as: 'fromCollective' });
 Order.belongsTo(PaymentMethod, { foreignKey: 'PaymentMethodId', as: 'paymentMethod' });

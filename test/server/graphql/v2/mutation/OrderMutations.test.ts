@@ -20,6 +20,7 @@ import models from '../../../../../server/models';
 import * as StripeCommon from '../../../../../server/paymentProviders/stripe/common';
 import { randEmail, stripeConnectedAccount } from '../../../../stores';
 import {
+  fakeAccountingCategory,
   fakeActiveHost,
   fakeCollective,
   fakeConnectedAccount,
@@ -128,6 +129,9 @@ const PENDING_ORDER_FIELDS_FRAGMENT = gql`
         name
         email
       }
+    }
+    accountingCategory {
+      id
     }
     tier {
       legacyId
@@ -1539,18 +1543,20 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
   });
 
   describe('createPendingOrder', () => {
-    let validOrderPrams, hostAdmin, collectiveAdmin;
+    let validOrderPrams, host, hostAdmin, collectiveAdmin;
 
     before(async () => {
       hostAdmin = await fakeUser();
       collectiveAdmin = await fakeUser();
-      const host = await fakeHost({ admin: hostAdmin });
+      host = await fakeHost({ admin: hostAdmin });
       const collective = await fakeCollective({ currency: 'USD', HostCollectiveId: host.id, admin: collectiveAdmin });
       const user = await fakeUser();
+      const validAccountingCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'CONTRIBUTION' });
       validOrderPrams = {
         fromAccount: { legacyId: user.CollectiveId },
         toAccount: { legacyId: collective.id },
         amount: { valueInCents: 100e2, currency: 'USD' },
+        accountingCategory: { id: idEncode(validAccountingCategory.id, IDENTIFIER_TYPES.ACCOUNTING_CATEGORY) },
       };
     });
 
@@ -1582,6 +1588,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       expect(resultOrder.frequency).to.equal('ONETIME');
       expect(resultOrder.fromAccount.legacyId).to.equal(validOrderPrams.fromAccount.legacyId);
       expect(resultOrder.toAccount.legacyId).to.equal(validOrderPrams.toAccount.legacyId);
+      expect(resultOrder.accountingCategory.id).to.equal(validOrderPrams.accountingCategory.id);
     });
 
     it('creates a pending order with a custom tier', async () => {
@@ -1610,27 +1617,86 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       expect(resultOrder.taxes[0].type).to.equal('VAT');
       expect(resultOrder.taxes[0].percentage).to.equal(21);
     });
+
+    describe('accounting category', () => {
+      it('must exist', async () => {
+        const orderInput = {
+          ...validOrderPrams,
+          accountingCategory: { id: idEncode(424242, IDENTIFIER_TYPES.ACCOUNTING_CATEGORY) },
+        };
+        const result = await callCreatePendingOrder({ order: orderInput }, hostAdmin);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.match(/Accounting category .+ not found/);
+      });
+
+      it('must belong to host', async () => {
+        const otherHostAccountingCategory = await fakeAccountingCategory({ kind: 'CONTRIBUTION' });
+        const orderInput = {
+          ...validOrderPrams,
+          accountingCategory: { id: idEncode(otherHostAccountingCategory.id, IDENTIFIER_TYPES.ACCOUNTING_CATEGORY) },
+        };
+        const result = await callCreatePendingOrder({ order: orderInput }, hostAdmin);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal('This accounting category is not allowed for this host');
+      });
+
+      it('must be allowed for added funds', async () => {
+        const accountingCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'EXPENSE' });
+        const orderInput = {
+          ...validOrderPrams,
+          accountingCategory: { id: idEncode(accountingCategory.id, IDENTIFIER_TYPES.ACCOUNTING_CATEGORY) },
+        };
+        const result = await callCreatePendingOrder({ order: orderInput }, hostAdmin);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal('This accounting category is not allowed for contributions');
+      });
+    });
   });
 
   describe('editPendingOrder', () => {
-    let order, hostAdmin, collectiveAdmin;
+    let order, host, hostAdmin, collectiveAdmin, validEditOrderParams;
 
     before(async () => {
       hostAdmin = await fakeUser();
       collectiveAdmin = await fakeUser();
-      const host = await fakeHost({ admin: hostAdmin });
+      host = await fakeHost({ admin: hostAdmin });
       const collective = await fakeCollective({ currency: 'USD', HostCollectiveId: host.id, admin: collectiveAdmin });
       const user = await fakeUser();
+      const accountingCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'CONTRIBUTION' });
       order = await fakeOrder({
         status: OrderStatuses.PENDING,
         FromCollectiveId: user.CollectiveId,
         CollectiveId: collective.id,
         totalAmount: 1000,
         currency: 'USD',
+        AccountingCategoryId: accountingCategory.id,
         data: {
           isPendingContribution: true,
         },
       });
+
+      const newTier = await fakeTier({ CollectiveId: order.CollectiveId, currency: 'USD' });
+      const newFromUser = await fakeUser();
+      validEditOrderParams = {
+        legacyId: order.id,
+        tier: { legacyId: newTier.id },
+        fromAccount: { legacyId: newFromUser.CollectiveId },
+        fromAccountInfo: { name: 'Hey', email: 'hey@opencollective.com' },
+        description: 'New description',
+        memo: 'New memo',
+        ponumber: 'New ponumber',
+        paymentMethod: 'New PM',
+        expectedAt: '2023-01-01T00:00:00.000Z',
+        amount: { valueInCents: 150e2, currency: 'USD' },
+        hostFeePercent: 12.5,
+        tax: {
+          type: 'VAT',
+          rate: 0.21,
+          idNumber: '123456789',
+          country: 'FR',
+          amount: { valueInCents: 3150, currency: 'USD' },
+        },
+      };
     });
 
     it('must be authenticated', async () => {
@@ -1713,33 +1779,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
     });
 
     it('edits a pending order', async () => {
-      const tier = await fakeTier({ CollectiveId: order.CollectiveId, currency: 'USD' });
-      const newFromUser = await fakeUser();
-      const result = await callEditPendingOrder(
-        {
-          order: {
-            legacyId: order.id,
-            tier: { legacyId: tier.id },
-            fromAccount: { legacyId: newFromUser.CollectiveId },
-            fromAccountInfo: { name: 'Hey', email: 'hey@opencollective.com' },
-            description: 'New description',
-            memo: 'New memo',
-            ponumber: 'New ponumber',
-            paymentMethod: 'New PM',
-            expectedAt: '2023-01-01T00:00:00.000Z',
-            amount: { valueInCents: 150e2, currency: 'USD' },
-            hostFeePercent: 12.5,
-            tax: {
-              type: 'VAT',
-              rate: 0.21,
-              idNumber: '123456789',
-              country: 'FR',
-              amount: { valueInCents: 3150, currency: 'USD' },
-            },
-          },
-        },
-        hostAdmin,
-      );
+      const result = await callEditPendingOrder({ order: validEditOrderParams }, hostAdmin);
 
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
@@ -1747,8 +1787,8 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       expect(resultOrder.status).to.equal('PENDING');
       expect(resultOrder.amount.valueInCents).to.equal(18150); // $150 + $31.50 (21%) tax
       expect(resultOrder.amount.currency).to.equal('USD');
-      expect(resultOrder.fromAccount.legacyId).to.equal(newFromUser.CollectiveId);
-      expect(resultOrder.tier.legacyId).to.equal(tier.id);
+      expect(resultOrder.fromAccount.legacyId).to.equal(validEditOrderParams.fromAccount.legacyId);
+      expect(resultOrder.tier.legacyId).to.equal(validEditOrderParams.tier.legacyId);
       expect(resultOrder.description).to.equal('New description');
       expect(resultOrder.memo).to.equal('New memo');
       expect(resultOrder.pendingContributionData).to.exist;
@@ -1765,6 +1805,53 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       expect(resultOrder.taxes).to.exist;
       expect(resultOrder.taxes.length).to.equal(1);
       expect(resultOrder.taxes[0].type).to.equal('VAT');
+
+      // Make sure the accounting category is not reset if not provided
+      expect(resultOrder.accountingCategory.id).to.equal(
+        idEncode(order.AccountingCategoryId, IDENTIFIER_TYPES.ACCOUNTING_CATEGORY),
+      );
+    });
+
+    describe('accounting category', () => {
+      it('must exist', async () => {
+        const orderInput = {
+          ...validEditOrderParams,
+          accountingCategory: { id: idEncode(424242, IDENTIFIER_TYPES.ACCOUNTING_CATEGORY) },
+        };
+        const result = await callEditPendingOrder({ order: orderInput }, hostAdmin);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.match(/Accounting category .+ not found/);
+      });
+
+      it('must belong to host', async () => {
+        const otherHostAccountingCategory = await fakeAccountingCategory({ kind: 'CONTRIBUTION' });
+        const orderInput = {
+          ...validEditOrderParams,
+          accountingCategory: { id: idEncode(otherHostAccountingCategory.id, IDENTIFIER_TYPES.ACCOUNTING_CATEGORY) },
+        };
+        const result = await callEditPendingOrder({ order: orderInput }, hostAdmin);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal('This accounting category is not allowed for this host');
+      });
+
+      it('must be allowed for added funds', async () => {
+        const accountingCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'EXPENSE' });
+        const orderInput = {
+          ...validEditOrderParams,
+          accountingCategory: { id: idEncode(accountingCategory.id, IDENTIFIER_TYPES.ACCOUNTING_CATEGORY) },
+        };
+        const result = await callEditPendingOrder({ order: orderInput }, hostAdmin);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal('This accounting category is not allowed for contributions');
+      });
+
+      it('can be set to null', async () => {
+        const orderInput = { ...validEditOrderParams, accountingCategory: null };
+        const result = await callEditPendingOrder({ order: orderInput }, hostAdmin);
+        expect(result.errors).to.not.exist;
+        const resultOrder = result.data.editPendingOrder;
+        expect(resultOrder.accountingCategory).to.be.null;
+      });
     });
   });
 

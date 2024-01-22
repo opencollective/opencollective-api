@@ -2,6 +2,7 @@ import { TaxType } from '@opencollective/taxes';
 import debugLib from 'debug';
 import { get } from 'lodash';
 import {
+  ForeignKey,
   HasManyGetAssociationsMixin,
   HasOneGetAssociationMixin,
   InferAttributes,
@@ -20,6 +21,7 @@ import sequelize, { DataTypes, Op, QueryTypes } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
 import { capitalize } from '../lib/utils';
 
+import AccountingCategory from './AccountingCategory';
 import Collective from './Collective';
 import CustomDataTypes from './DataTypes';
 import { MemberModelInterface } from './Member';
@@ -86,6 +88,10 @@ export interface OrderModelInterface
   SubscriptionId?: number;
   Subscription?: SubscriptionInterface;
   getSubscription: HasOneGetAssociationMixin<SubscriptionInterface>;
+
+  AccountingCategoryId?: ForeignKey<AccountingCategory['id']>;
+  accountingCategory?: AccountingCategory;
+  getAccountingCategory: HasOneGetAssociationMixin<AccountingCategory>;
 
   PaymentMethodId: number;
   paymentMethod?: PaymentMethodModelInterface;
@@ -235,6 +241,14 @@ const Order: ModelStatic<OrderModelInterface> & OrderModelStaticInterface = sequ
       onUpdate: 'CASCADE',
     },
 
+    AccountingCategoryId: {
+      type: DataTypes.INTEGER,
+      references: { key: 'id', model: 'AccountingCategories' },
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE',
+      allowNull: true,
+    },
+
     PaymentMethodId: {
       type: DataTypes.INTEGER,
       references: {
@@ -313,6 +327,7 @@ const Order: ModelStatic<OrderModelInterface> & OrderModelStaticInterface = sequ
           privateMessage: this.privateMessage,
           publicMessage: this.publicMessage,
           SubscriptionId: this.SubscriptionId,
+          AccountingCategoryId: this.AccountingCategoryId,
           createdAt: this.createdAt,
           updatedAt: this.updatedAt,
           processedAt: this.processedAt,

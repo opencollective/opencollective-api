@@ -1,11 +1,13 @@
-import { isNil } from 'lodash';
+import { isNil, lowerCase } from 'lodash';
 import { InferCreationAttributes } from 'sequelize';
 
 import status from '../../constants/order-status';
 import { purgeCacheForCollective } from '../../lib/cache';
 import * as libPayments from '../../lib/payments';
-import models, { Collective, Tier, User } from '../../models';
+import { pluralize } from '../../lib/utils';
+import models, { AccountingCategory, Collective, Tier, User } from '../../models';
 import { OrderModelInterface } from '../../models/Order';
+import { ValidationFailed } from '../errors';
 import { getOrderTaxInfoFromTaxInput } from '../v1/mutations/orders';
 import { TaxInput } from '../v2/input/TaxInput';
 
@@ -21,6 +23,24 @@ type AddFundsInput = {
   tier: Tier;
   invoiceTemplate: string;
   tax: TaxInput;
+  accountingCategory?: AccountingCategory;
+};
+
+/*
+ * Throws if the accounting category is not allowed for this order/host
+ */
+export const checkCanUseAccountingCategoryForOrder = (
+  accountingCategory: AccountingCategory | undefined | null,
+  host: Collective | undefined,
+  kind: 'ADDED_FUNDS' | 'CONTRIBUTION',
+): void => {
+  if (!accountingCategory) {
+    return;
+  } else if (accountingCategory.CollectiveId !== host?.id) {
+    throw new ValidationFailed('This accounting category is not allowed for this host');
+  } else if (accountingCategory.kind && accountingCategory.kind !== kind) {
+    throw new ValidationFailed(`This accounting category is not allowed for ${pluralize(lowerCase(kind), 2)}`);
+  }
 };
 
 export async function addFunds(order: AddFundsInput, remoteUser: User) {
@@ -51,6 +71,8 @@ export async function addFunds(order: AddFundsInput, remoteUser: User) {
 
   if (order.tier && order.tier.CollectiveId !== order.collective.id) {
     throw new Error(`Tier #${order.tier.id} is not part of collective #${order.collective.id}`);
+  } else if (order.accountingCategory) {
+    checkCanUseAccountingCategoryForOrder(order.accountingCategory, host, 'ADDED_FUNDS');
   }
 
   const orderData: Partial<InferCreationAttributes<OrderModelInterface>> = {
@@ -62,6 +84,7 @@ export async function addFunds(order: AddFundsInput, remoteUser: User) {
     description: order.description,
     status: status.NEW,
     TierId: order.tier?.id || null,
+    AccountingCategoryId: order.accountingCategory?.id || null,
     data: {
       hostFeePercent: order.hostFeePercent,
     },
