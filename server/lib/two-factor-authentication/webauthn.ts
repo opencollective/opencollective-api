@@ -11,7 +11,7 @@ import type {
   PublicKeyCredentialDescriptorFuture,
   RegistrationResponseJSON,
   // eslint-disable-next-line import/no-unresolved, node/no-missing-import
-} from '@simplewebauthn/typescript-types';
+} from '@simplewebauthn/types';
 import config from 'config';
 
 import { ApolloError } from '../../graphql/errors';
