@@ -2,7 +2,7 @@ import { pick } from 'lodash';
 
 import { invalidateContributorsCache } from '../../lib/contributors';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
-import models, { Collective } from '../../models';
+import { Collective, Member, MemberInvitation, User } from '../../models';
 import { Forbidden, NotFound, Unauthorized } from '../errors';
 import { fetchAccountWithReference } from '../v2/input/AccountReferenceInput';
 
@@ -29,7 +29,7 @@ export async function editPublicMessage(
 
   await twoFactorAuthLib.enforceForAccount(req, fromAccount, { onlyAskOnLogin: true });
 
-  const [quantityUpdated, updatedMembers] = await models.Member.update(
+  const [quantityUpdated, updatedMembers] = await Member.update(
     {
       publicMessage: message,
     },
@@ -72,15 +72,15 @@ export async function processInviteMembersInput(
     if (inviteMember.memberAccount) {
       memberAccount = await fetchAccountWithReference(inviteMember.memberAccount, { throwIfMissing: true });
     } else if (inviteMember.memberInfo) {
-      let user = await models.User.findOne({
+      let user = await User.findOne({
         where: { email: inviteMember.memberInfo.email.toLowerCase() },
         transaction: options.transaction,
       });
       if (!user) {
         const userData = pick(inviteMember.memberInfo, ['name', 'email']);
-        user = await models.User.createUserWithCollective(userData, options.transaction);
+        user = await User.createUserWithCollective(userData, options.transaction);
       }
-      memberAccount = await models.Collective.findByPk(user.CollectiveId, { transaction: options.transaction });
+      memberAccount = await Collective.findByPk(user.CollectiveId, { transaction: options.transaction });
     }
 
     const memberParams = {
@@ -88,7 +88,7 @@ export async function processInviteMembersInput(
       MemberCollectiveId: memberAccount.id,
       CreatedByUserId: options.user?.id,
     };
-    await models.MemberInvitation.invite(collective, memberParams, {
+    await MemberInvitation.invite(collective, memberParams, {
       transaction: options.transaction,
       skipDefaultAdmin: options.skipDefaultAdmin,
     });

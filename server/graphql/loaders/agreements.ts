@@ -1,6 +1,6 @@
 import DataLoader from 'dataloader';
 
-import { sequelize } from '../../models';
+import sequelize from '../../lib/sequelize';
 
 import { sortResultsSimple } from './helpers';
 

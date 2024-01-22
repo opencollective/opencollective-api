@@ -6,11 +6,12 @@ import { SupportedCurrency } from '../../constants/currencies';
 import { TransactionKind } from '../../constants/transaction-kind';
 import queries from '../../lib/queries';
 import { checkExpensesBatch } from '../../lib/security/expense';
-import models, { Op, sequelize } from '../../models';
+import sequelize, { Op } from '../../lib/sequelize';
 import Activity from '../../models/Activity';
 import Expense from '../../models/Expense';
 import ExpenseAttachedFile from '../../models/ExpenseAttachedFile';
 import ExpenseItem from '../../models/ExpenseItem';
+import Transaction from '../../models/Transaction';
 
 import { populateModelAssociations, sortResultsArray } from './helpers';
 
@@ -19,7 +20,7 @@ import { populateModelAssociations, sortResultsArray } from './helpers';
  */
 export const generateExpenseItemsLoader = (): DataLoader<number, ExpenseItem[]> => {
   return new DataLoader(async (expenseIds: number[]) => {
-    const items = await models.ExpenseItem.findAll({
+    const items = await ExpenseItem.findAll({
       where: { ExpenseId: { [Op.in]: expenseIds } },
       order: [['id', 'ASC']],
     });
@@ -33,7 +34,7 @@ export const generateExpenseItemsLoader = (): DataLoader<number, ExpenseItem[]> 
  */
 export const generateExpenseActivitiesLoader = (): DataLoader<number, Activity[]> => {
   return new DataLoader(async (expenseIDs: number[]) => {
-    const activities = await models.Activity.findAll({
+    const activities = await Activity.findAll({
       order: [['createdAt', 'ASC']],
       where: {
         ExpenseId: {
@@ -73,7 +74,7 @@ export const generateExpenseActivitiesLoader = (): DataLoader<number, Activity[]
  */
 export const attachedFiles = (): DataLoader<number, ExpenseAttachedFile[]> => {
   return new DataLoader(async (expenseIds: number[]) => {
-    const attachedFiles = await models.ExpenseAttachedFile.findAll({
+    const attachedFiles = await ExpenseAttachedFile.findAll({
       where: { ExpenseId: { [Op.in]: expenseIds } },
     });
 
@@ -99,7 +100,7 @@ export const generateExpenseToHostTransactionFxRateLoader = (): DataLoader<
   { rate: number; currency: SupportedCurrency }
 > =>
   new DataLoader(async (expenseIds: number[]) => {
-    const transactions = (await models.Transaction.findAll({
+    const transactions = (await Transaction.findAll({
       raw: true,
       attributes: ['ExpenseId', 'currency', [sequelize.json('data.expenseToHostFxRate'), 'expenseToHostFxRate']],
       where: {

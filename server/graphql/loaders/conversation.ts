@@ -1,6 +1,7 @@
 import DataLoader from 'dataloader';
 
-import models, { sequelize } from '../../models';
+import sequelize, { QueryTypes } from '../../lib/sequelize';
+import Collective from '../../models/Collective';
 
 export default {
   followers: (): DataLoader<number, object> =>
@@ -16,8 +17,8 @@ export default {
         GROUP BY    f."ConversationId", c.id
       `,
         {
-          type: sequelize.QueryTypes.SELECT,
-          model: models.Collective,
+          type: QueryTypes.SELECT,
+          model: Collective,
           mapToModel: true,
           replacements: { conversationIds },
         },
@@ -49,7 +50,7 @@ export default {
         GROUP BY "ConversationId"
       `,
         {
-          type: sequelize.QueryTypes.SELECT,
+          type: QueryTypes.SELECT,
           mapToModel: false,
           replacements: { conversationsIds },
         },

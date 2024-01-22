@@ -4,7 +4,7 @@ import { first, groupBy, uniq } from 'lodash';
 import { roles } from '../../constants';
 import { CollectiveType } from '../../constants/collectives';
 import MemberRoles from '../../constants/roles';
-import models, { Collective, Op, sequelize } from '../../models';
+import { Collective, Member, Op, sequelize } from '../../models';
 
 import { sortResultsSimple } from './helpers';
 
@@ -23,7 +23,7 @@ export default {
           GROUP BY    u."id", c.id`,
         {
           type: sequelize.QueryTypes.SELECT,
-          model: models.Collective,
+          model: Collective,
           mapToModel: true,
           replacements: { userIds },
         },
@@ -40,7 +40,7 @@ export default {
   mainProfileFromIncognito: (): DataLoader<number, Collective> => {
     return new DataLoader(async incognitoProfilesIds => {
       // Get all the admins for the incognito profiles
-      const members = await models.Member.findAll({
+      const members = await Member.findAll({
         where: {
           CollectiveId: incognitoProfilesIds,
           role: roles.ADMIN,
@@ -95,7 +95,7 @@ export default {
       if (otherAccountsCollectiveIds.length) {
         await remoteUser.populateRoles();
         const adminOfCollectiveIds = Object.keys(remoteUser.rolesByCollectiveId).filter(id => remoteUser.isAdmin(id));
-        administratedMembers = await models.Member.findAll({
+        administratedMembers = await Member.findAll({
           attributes: ['MemberCollectiveId'],
           group: ['MemberCollectiveId'],
           raw: true,

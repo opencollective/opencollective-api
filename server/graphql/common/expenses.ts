@@ -60,14 +60,22 @@ import { CreateTransfer } from '../../lib/transferwise';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import { canUseFeature } from '../../lib/user-permissions';
 import { formatCurrency, parseToBoolean } from '../../lib/utils';
-import models, { Collective, sequelize } from '../../models';
-import AccountingCategory from '../../models/AccountingCategory';
+import {
+  AccountingCategory,
+  Activity,
+  Collective,
+  Comment,
+  CurrencyExchangeRate,
+  ExpenseAttachedFile,
+  ExpenseItem,
+  RecurringExpense,
+  sequelize,
+  Transaction,
+  User,
+} from '../../models';
 import Expense, { ExpenseDataValuesByRole, ExpenseStatus } from '../../models/Expense';
-import ExpenseAttachedFile from '../../models/ExpenseAttachedFile';
-import ExpenseItem from '../../models/ExpenseItem';
-import { MigrationLogType } from '../../models/MigrationLog';
-import { PayoutMethodTypes } from '../../models/PayoutMethod';
-import User from '../../models/User';
+import MigrationLog, { MigrationLogType } from '../../models/MigrationLog';
+import PayoutMethod, { PayoutMethodTypes } from '../../models/PayoutMethod';
 import paymentProviders from '../../paymentProviders';
 import paypalAdaptive from '../../paymentProviders/paypal/adaptiveGateway';
 import { Location } from '../../types/Location';
@@ -1032,7 +1040,7 @@ const checkExpenseItems = (expenseType, items: ExpenseItem[] | Record<string, un
     }
   });
 
-  const sumItems = models.Expense.computeTotalAmountForExpense(items, taxes);
+  const sumItems = Expense.computeTotalAmountForExpense(items, taxes);
   if (!sumItems) {
     throw new ValidationFailed(`The sum of all items must be above 0`);
   }
@@ -1085,7 +1093,7 @@ const checkExpenseType = (
 export const getPayoutMethodFromExpenseData = async (expenseData, remoteUser, fromCollective, dbTransaction?) => {
   if (expenseData.payoutMethod) {
     if (expenseData.payoutMethod.id) {
-      const pm = await models.PayoutMethod.findByPk(expenseData.payoutMethod.id);
+      const pm = await PayoutMethod.findByPk(expenseData.payoutMethod.id);
       if (!pm) {
         throw new Error('This payout method does not exist.');
       }
@@ -1105,12 +1113,7 @@ export const getPayoutMethodFromExpenseData = async (expenseData, remoteUser, fr
       }
       return pm;
     } else {
-      return models.PayoutMethod.getOrCreateFromData(
-        expenseData.payoutMethod,
-        remoteUser,
-        fromCollective,
-        dbTransaction,
-      );
+      return PayoutMethod.getOrCreateFromData(expenseData.payoutMethod, remoteUser, fromCollective, dbTransaction);
     }
   } else {
     return null;
@@ -1122,7 +1125,7 @@ const createAttachedFiles = async (expense, attachedFilesData, remoteUser, trans
   if (size(attachedFilesData) > 0) {
     return Promise.all(
       attachedFilesData.map(attachedFile => {
-        return models.ExpenseAttachedFile.createFromData(attachedFile, remoteUser, expense, transaction);
+        return ExpenseAttachedFile.createFromData(attachedFile, remoteUser, expense, transaction);
       }),
     );
   } else {
@@ -1334,7 +1337,7 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
     throw new FeatureNotAllowedForUser();
   }
 
-  const collective = await models.Collective.findByPk(expenseData.collective.id, {
+  const collective = await Collective.findByPk(expenseData.collective.id, {
     include: [
       { association: 'host', required: false },
       { association: 'parent', required: false },
@@ -1468,7 +1471,7 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
 
   const expense = await sequelize.transaction(async t => {
     // Create expense
-    const createdExpense = await models.Expense.create(
+    const createdExpense = await Expense.create(
       {
         ...(<Pick<ExpenseData, ExpenseEditableFieldsUnion>>pick(expenseData, EXPENSE_EDITABLE_FIELDS)),
         currency: expenseCurrency,
@@ -1480,8 +1483,8 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
         UserId: remoteUser.id,
         incurredAt: expenseData.incurredAt || new Date(),
         PayoutMethodId: payoutMethod && payoutMethod.id,
-        legacyPayoutMethod: models.Expense.getLegacyPayoutMethodTypeFromPayoutMethod(payoutMethod),
-        amount: models.Expense.computeTotalAmountForExpense(itemsData, taxes),
+        legacyPayoutMethod: Expense.getLegacyPayoutMethodTypeFromPayoutMethod(payoutMethod),
+        amount: Expense.computeTotalAmountForExpense(itemsData, taxes),
         AccountingCategoryId: expenseData.accountingCategory?.id,
         data,
       },
@@ -1491,7 +1494,7 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
     // Create items
     createdExpense.items = await Promise.all(
       itemsData.map(itemData => {
-        return models.ExpenseItem.createFromData(itemData, remoteUser, createdExpense, t);
+        return ExpenseItem.createFromData(itemData, remoteUser, createdExpense, t);
       }),
     );
 
@@ -1531,7 +1534,7 @@ export const getItemsChanges = async (
   items: ExpenseData['items'],
 ): Promise<[boolean, [Record<string, unknown>[], ExpenseItem[], Record<string, unknown>[]]]> => {
   if (items) {
-    const itemsDiff = models.ExpenseItem.diffDBEntries(existingItems, items);
+    const itemsDiff = ExpenseItem.diffDBEntries(existingItems, items);
     const hasItemChanges = flatten(<unknown[]>itemsDiff).length > 0;
     return [hasItemChanges, itemsDiff];
   } else {
@@ -1581,10 +1584,10 @@ export async function submitExpenseDraft(
   }: { args?: Record<string, any>; originalPayee?: Collective; requestedPayee?: Collective } = {},
 ) {
   // It is a submit on behalf being completed
-  let existingExpense = await models.Expense.findByPk(expenseData.id, {
+  let existingExpense = await Expense.findByPk(expenseData.id, {
     include: [
-      { model: models.Collective, as: 'collective' },
-      { model: models.Collective, as: 'fromCollective' },
+      { model: Collective, as: 'collective' },
+      { model: Collective, as: 'fromCollective' },
     ],
   });
 
@@ -1695,8 +1698,8 @@ export async function sendDraftExpenseInvite(
 }
 
 export async function editExpenseDraft(req: express.Request, expenseData: ExpenseData, args?: Record<string, any>) {
-  const existingExpense = await models.Expense.findByPk(expenseData.id, {
-    include: [{ model: models.ExpenseItem, as: 'items' }],
+  const existingExpense = await Expense.findByPk(expenseData.id, {
+    include: [{ model: ExpenseItem, as: 'items' }],
   });
   if (!existingExpense) {
     throw new NotFound('Expense not found.');
@@ -1714,7 +1717,7 @@ export async function editExpenseDraft(req: express.Request, expenseData: Expens
     (await prepareExpenseItemInputs(currency, expenseData.items, { isEditing: true })) || existingExpense.items;
   const newExpenseValues = {
     ...pick(expenseData, DRAFT_EXPENSE_FIELDS),
-    amount: models.Expense.computeTotalAmountForExpense(items, expenseData.tax),
+    amount: Expense.computeTotalAmountForExpense(items, expenseData.tax),
     lastEditedById: req.remoteUser.id,
     UserId: req.remoteUser.id,
     data: {
@@ -1783,7 +1786,7 @@ const editOnlyTagsAndAccountingCategory = async (
   const updatedExpense = await sequelize.query(
     `UPDATE "Expenses" SET ${updateClauses.join(', ')} WHERE id = :id RETURNING *`,
     {
-      model: models.Expense,
+      model: Expense,
       plain: true,
       mapToModel: true,
       replacements: {
@@ -1807,10 +1810,10 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
     throw new FeatureNotAllowedForUser();
   }
 
-  const expense = await models.Expense.findByPk(expenseData.id, {
+  const expense = await Expense.findByPk(expenseData.id, {
     include: [
       {
-        model: models.Collective,
+        model: Collective,
         as: 'collective',
         required: true,
         include: [
@@ -1818,9 +1821,9 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
           { association: 'parent', required: false },
         ],
       },
-      { model: models.Collective, as: 'fromCollective' },
-      { model: models.ExpenseAttachedFile, as: 'attachedFiles' },
-      { model: models.PayoutMethod },
+      { model: Collective, as: 'fromCollective' },
+      { model: ExpenseAttachedFile, as: 'attachedFiles' },
+      { model: PayoutMethod },
       { association: 'items' },
       { association: 'accountingCategory' },
     ],
@@ -1971,7 +1974,7 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
           : await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, null);
 
       // Reset fees payer when changing the payout method and the new one doesn't support it
-      if (feesPayer === ExpenseFeesPayer.PAYEE && !models.PayoutMethod.typeSupportsFeesPayer(payoutMethod?.type)) {
+      if (feesPayer === ExpenseFeesPayer.PAYEE && !PayoutMethod.typeSupportsFeesPayer(payoutMethod?.type)) {
         feesPayer = ExpenseFeesPayer.COLLECTIVE;
       }
     }
@@ -1988,7 +1991,7 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
         }),
         // Create
         ...newItemsData.map(itemData => {
-          return models.ExpenseItem.createFromData(
+          return ExpenseItem.createFromData(
             { ...itemData, currency: itemData.currency || expenseData.currency || expense.currency },
             remoteUser,
             expense,
@@ -1997,7 +2000,7 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
         }),
         // Update
         ...itemsToUpdate.map(itemData => {
-          return models.ExpenseItem.updateFromData(
+          return ExpenseItem.updateFromData(
             { ...itemData, currency: itemData.currency || expenseData.currency || expense.currency },
             transaction,
           );
@@ -2020,7 +2023,7 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
 
     // Update attached files
     if (expenseData.attachedFiles) {
-      const [newAttachedFiles, removedAttachedFiles, updatedAttachedFiles] = models.ExpenseAttachedFile.diffDBEntries(
+      const [newAttachedFiles, removedAttachedFiles, updatedAttachedFiles] = ExpenseAttachedFile.diffDBEntries(
         expense.attachedFiles,
         expenseData.attachedFiles,
       );
@@ -2029,7 +2032,7 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
       await Promise.all(removedAttachedFiles.map((file: ExpenseAttachedFile) => file.destroy()));
       await Promise.all(
         updatedAttachedFiles.map((file: Record<string, unknown>) =>
-          models.ExpenseAttachedFile.update({ url: file.url }, { where: { id: file.id, ExpenseId: expense.id } }),
+          ExpenseAttachedFile.update({ url: file.url }, { where: { id: file.id, ExpenseId: expense.id } }),
         ),
       );
     }
@@ -2044,13 +2047,13 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
 
     const updatedExpenseProps = {
       ...cleanExpenseData,
-      amount: models.Expense.computeTotalAmountForExpense(expense.items, taxes), // We've reloaded the items above
+      amount: Expense.computeTotalAmountForExpense(expense.items, taxes), // We've reloaded the items above
       lastEditedById: remoteUser.id,
       incurredAt: expenseData.incurredAt || new Date(),
       status,
       FromCollectiveId: fromCollective.id,
       PayoutMethodId: PayoutMethodId,
-      legacyPayoutMethod: models.Expense.getLegacyPayoutMethodTypeFromPayoutMethod(payoutMethod),
+      legacyPayoutMethod: Expense.getLegacyPayoutMethodTypeFromPayoutMethod(payoutMethod),
       tags: cleanExpenseData.tags,
     };
 
@@ -2070,7 +2073,7 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
 
   if (isPaidCreditCardCharge) {
     if (cleanExpenseData.description) {
-      await models.Transaction.update(
+      await Transaction.update(
         { description: cleanExpenseData.description },
         { where: { ExpenseId: updatedExpense.id } },
       );
@@ -2099,8 +2102,8 @@ export async function deleteExpense(req: express.Request, expenseId: number): Pr
     throw new FeatureNotAllowedForUser();
   }
 
-  const expense = await models.Expense.findByPk(expenseId, {
-    include: [{ model: models.Collective, as: 'collective' }],
+  const expense = await Expense.findByPk(expenseId, {
+    include: [{ model: Collective, as: 'collective' }],
   });
 
   if (!expense) {
@@ -2332,7 +2335,7 @@ export async function setTransferWiseExpenseAsProcessing({ host, expense, data, 
 const lockExpense = async (id, callback) => {
   // Lock expense
   await sequelize.transaction(async sqlTransaction => {
-    const expense = await models.Expense.findByPk(id, { lock: true, transaction: sqlTransaction });
+    const expense = await Expense.findByPk(id, { lock: true, transaction: sqlTransaction });
 
     if (!expense) {
       throw new Unauthorized('Expense not found');
@@ -2347,7 +2350,7 @@ const lockExpense = async (id, callback) => {
     return await callback();
   } finally {
     // Unlock expense
-    const expense = await models.Expense.findByPk(id);
+    const expense = await Expense.findByPk(id);
     await expense.update({ data: { ...expense.data, isLocked: false } });
   }
 };
@@ -2386,7 +2389,7 @@ export const getExpenseFees = async (
   };
 
   if (!expense.collective) {
-    expense.collective = await models.Collective.findByPk(expense.CollectiveId);
+    expense.collective = await Collective.findByPk(expense.CollectiveId);
   }
 
   const collectiveToHostFxRate = await getFxRate(expense.collective.currency, host.currency);
@@ -2488,7 +2491,7 @@ export const checkHasBalanceToPayExpense = async (
 
   if (expense.feesPayer === 'PAYEE') {
     assert(
-      models.PayoutMethod.typeSupportsFeesPayer(payoutMethodType),
+      PayoutMethod.typeSupportsFeesPayer(payoutMethodType),
       'Putting the payment processor fees on the payee is only supported for bank accounts and manual payouts at the moment',
     );
     assert(
@@ -2519,7 +2522,7 @@ export const checkHasBalanceToPayExpense = async (
   }
 
   const exchangeStats =
-    !isSameCurrency && (await models.CurrencyExchangeRate.getPairStats(expense.collective.currency, expense.currency));
+    !isSameCurrency && (await CurrencyExchangeRate.getPairStats(expense.collective.currency, expense.currency));
 
   // Ensure the collective has enough funds to pay the expense, with an error margin of 2σ (standard deviations) the exchange rate of past 5 days
   // to account for fluctuating rates. If no exchange rate is available, fallback to the 20% rule.
@@ -2617,10 +2620,10 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
   }
 
   const expense = await lockExpense(args.id, async () => {
-    const expense = await models.Expense.findByPk(expenseId, {
+    const expense = await Expense.findByPk(expenseId, {
       include: [
-        { model: models.Collective, as: 'collective' },
-        { model: models.Collective, as: 'fromCollective' },
+        { model: Collective, as: 'collective' },
+        { model: Collective, as: 'fromCollective' },
       ],
     });
     if (!expense) {
@@ -2821,12 +2824,8 @@ export async function markExpenseAsUnpaid(
       throw new FeatureNotAllowedForUser();
     }
 
-    const expense = await models.Expense.findByPk(expenseId, {
-      include: [
-        { model: models.Collective, as: 'collective' },
-        { model: models.User, as: 'User' },
-        { model: models.PayoutMethod },
-      ],
+    const expense = await Expense.findByPk(expenseId, {
+      include: [{ model: Collective, as: 'collective' }, { model: User, as: 'User' }, { model: PayoutMethod }],
     });
 
     if (!expense) {
@@ -2841,14 +2840,14 @@ export async function markExpenseAsUnpaid(
       throw new Unauthorized('Expense has not been paid yet');
     }
 
-    const transaction = await models.Transaction.findOne({
+    const transaction = await Transaction.findOne({
       where: {
         ExpenseId: expenseId,
         RefundTransactionId: null,
         kind: TransactionKind.EXPENSE,
         isRefund: false,
       },
-      include: [{ model: models.Expense }],
+      include: [{ model: Expense }],
     });
 
     // Load payment processor fee amount, either from the column or from the related transaction
@@ -2879,10 +2878,10 @@ export async function markExpenseAsUnpaid(
 }
 
 export async function quoteExpense(expense_, { req }) {
-  const expense = await models.Expense.findByPk(expense_.id, {
+  const expense = await Expense.findByPk(expense_.id, {
     include: [
-      { model: models.Collective, as: 'collective' },
-      { model: models.Collective, as: 'fromCollective' },
+      { model: Collective, as: 'collective' },
+      { model: Collective, as: 'fromCollective' },
     ],
   });
   const payoutMethod = await expense.getPayoutMethod();
@@ -2976,7 +2975,7 @@ export const getExpenseAmountInDifferentCurrency = async (expense, toCurrency, r
 
 /**
  * Move expenses to destination account
- * @param expenses the list of models.Expense, with the collective association preloaded
+ * @param expenses the list of Expense, with the collective association preloaded
  */
 export const moveExpenses = async (req: express.Request, expenses: Expense[], destinationAccount: Collective) => {
   // Root also checked in the mutation resolver, but duplicating just to be safe if someone decides to use this elsewhere
@@ -2991,7 +2990,7 @@ export const moveExpenses = async (req: express.Request, expenses: Expense[], de
   const expenseIds: number[] = uniq(expenses.map(expense => expense.id));
   const recurringExpenseIds: number[] = uniq(expenses.map(expense => expense.RecurringExpenseId).filter(Boolean));
   const result = await sequelize.transaction(async dbTransaction => {
-    const associatedTransactionsCount = await models.Transaction.count({
+    const associatedTransactionsCount = await Transaction.count({
       where: { ExpenseId: expenseIds },
       transaction: dbTransaction,
     });
@@ -3001,7 +3000,7 @@ export const moveExpenses = async (req: express.Request, expenses: Expense[], de
     }
 
     // Moving associated models
-    const [, updatedExpenses] = await models.Expense.update(
+    const [, updatedExpenses] = await Expense.update(
       { CollectiveId: destinationAccount.id },
       {
         transaction: dbTransaction,
@@ -3011,7 +3010,7 @@ export const moveExpenses = async (req: express.Request, expenses: Expense[], de
       },
     );
 
-    const [, updatedComments] = await models.Comment.update(
+    const [, updatedComments] = await Comment.update(
       { CollectiveId: destinationAccount.id },
       {
         transaction: dbTransaction,
@@ -3021,7 +3020,7 @@ export const moveExpenses = async (req: express.Request, expenses: Expense[], de
       },
     );
 
-    const [, updatedActivities] = await models.Activity.update(
+    const [, updatedActivities] = await Activity.update(
       { CollectiveId: destinationAccount.id },
       {
         transaction: dbTransaction,
@@ -3033,7 +3032,7 @@ export const moveExpenses = async (req: express.Request, expenses: Expense[], de
 
     let updatedRecurringExpenses = [];
     if (recurringExpenseIds.length) {
-      [, updatedRecurringExpenses] = await models.RecurringExpense.update(
+      [, updatedRecurringExpenses] = await RecurringExpense.update(
         { CollectiveId: destinationAccount.id },
         {
           transaction: dbTransaction,
@@ -3045,7 +3044,7 @@ export const moveExpenses = async (req: express.Request, expenses: Expense[], de
     }
 
     // Record the individual activities for moving the expenses
-    await models.Activity.bulkCreate(
+    await Activity.bulkCreate(
       updatedExpenses.map(expense => {
         const originalExpense = find(expenses, { id: expense.id });
         return {
@@ -3070,7 +3069,7 @@ export const moveExpenses = async (req: express.Request, expenses: Expense[], de
     );
 
     // Record the migration log
-    await models.MigrationLog.create(
+    await MigrationLog.create(
       {
         type: MigrationLogType.MOVE_EXPENSES,
         description: `Moved ${updatedExpenses.length} expenses`,

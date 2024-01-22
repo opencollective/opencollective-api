@@ -1,7 +1,6 @@
 import DataLoader from 'dataloader';
 
 import ACTIVITY from '../../constants/activities';
-import models from '../../models';
 import Activity from '../../models/Activity';
 
 import { sortResultsArray } from './helpers';
@@ -27,7 +26,7 @@ export const PRIVATE_ORDER_ACTIVITIES = [ACTIVITY.ORDERS_SUSPICIOUS, ACTIVITY.OR
  */
 export const generateOrderActivitiesLoader = (): DataLoader<number, Activity[]> => {
   return new DataLoader(async (orderIDs: number[]) => {
-    const activities = await models.Activity.findAll({
+    const activities = await Activity.findAll({
       where: { OrderId: orderIDs, type: [...PRIVATE_ORDER_ACTIVITIES, ...PUBLIC_ORDER_ACTIVITIES] },
       order: [
         ['createdAt', 'ASC'],

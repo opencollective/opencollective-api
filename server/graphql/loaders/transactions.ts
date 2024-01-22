@@ -2,7 +2,7 @@ import DataLoader from 'dataloader';
 import { groupBy } from 'lodash';
 
 import { TransactionKind } from '../../constants/transaction-kind';
-import models, { Op } from '../../models';
+import { Op } from '../../lib/sequelize';
 import Transaction, { TransactionInterface } from '../../models/Transaction';
 
 export const generateHostFeeAmountForTransactionLoader = (): DataLoader<TransactionInterface, number> =>
@@ -14,7 +14,7 @@ export const generateHostFeeAmountForTransactionLoader = (): DataLoader<Transact
         return !transaction.hostFeeInHostCurrency && Transaction.canHaveFees(transaction);
       });
 
-      const hostFeeTransactions = await models.Transaction.findAll({
+      const hostFeeTransactions = await Transaction.findAll({
         attributes: ['TransactionGroup', 'CollectiveId', 'amountInHostCurrency'],
         mapToModel: false,
         raw: true,
@@ -58,7 +58,7 @@ export const generatePaymentProcessorFeeAmountForTransactionLoader = (): DataLoa
         return !transaction.paymentProcessorFeeInHostCurrency && Transaction.canHaveFees(transaction);
       });
 
-      const processorFeesTransactions = await models.Transaction.findAll({
+      const processorFeesTransactions = await Transaction.findAll({
         attributes: ['TransactionGroup', 'CollectiveId', 'amountInHostCurrency'],
         mapToModel: false,
         raw: true,
@@ -103,7 +103,7 @@ export const generateTaxAmountForTransactionLoader = (): DataLoader<TransactionI
         return !transaction.taxAmount && Transaction.canHaveFees(transaction);
       });
 
-      const taxTransactions = await models.Transaction.findAll({
+      const taxTransactions = await Transaction.findAll({
         attributes: ['TransactionGroup', 'CollectiveId', 'amount'], // Using `amount` as we want to return the result in transaction currency
         mapToModel: false,
         raw: true,
@@ -142,7 +142,7 @@ export const generateRelatedTransactionsLoader = (): DataLoader<TransactionInter
   new DataLoader(
     async (transactions: TransactionInterface[]) => {
       const transactionGroups = transactions.map(transaction => transaction.TransactionGroup);
-      const relatedTransactions = await models.Transaction.findAll({ where: { TransactionGroup: transactionGroups } });
+      const relatedTransactions = await Transaction.findAll({ where: { TransactionGroup: transactionGroups } });
       const groupedTransactions = groupBy(relatedTransactions, 'TransactionGroup');
       return transactions.map(transaction => {
         if (groupedTransactions[transaction.TransactionGroup]) {

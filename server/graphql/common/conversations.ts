@@ -3,7 +3,6 @@ import { pick } from 'lodash';
 
 import FEATURE from '../../constants/feature';
 import { hasFeature } from '../../lib/allowed-features';
-import models from '../../models';
 import Conversation from '../../models/Conversation';
 import { FeatureNotSupportedForCollective, NotFound, Unauthorized } from '../errors';
 
@@ -53,7 +52,7 @@ export const editConversation = async (req: Request, params: EditConversationPar
   checkRemoteUserCanUseConversations(req);
 
   // Collective must exist and use be author or collective admin
-  const conversation = await models.Conversation.findByPk(params.id);
+  const conversation = await Conversation.findByPk(params.id);
   if (!conversation) {
     throw new NotFound();
   } else if (

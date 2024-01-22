@@ -2,12 +2,10 @@ import { pick } from 'lodash';
 
 import ActivityTypes from '../../constants/activities';
 import { mustBeLoggedInTo } from '../../lib/auth';
-import models from '../../models';
+import { Activity, Conversation, ConversationFollower, Update } from '../../models';
 import Comment, { CommentType } from '../../models/Comment';
-import Conversation from '../../models/Conversation';
 import Expense, { ExpenseStatus } from '../../models/Expense';
-import { OrderModelInterface } from '../../models/Order';
-import Update from '../../models/Update';
+import Order, { OrderModelInterface } from '../../models/Order';
 import { NotFound, Unauthorized, ValidationFailed } from '../errors';
 import { canComment as canCommentOrder } from '../v2/object/OrderPermissions';
 
@@ -32,7 +30,7 @@ const loadCommentedEntity = async (commentValues): Promise<[CommentableEntity, A
     entity = (await Update.findByPk(commentValues.UpdateId, { include })) as Update;
     activityType = ActivityTypes.UPDATE_COMMENT_CREATED;
   } else if (commentValues.OrderId) {
-    entity = (await models.Order.findByPk(commentValues.OrderId, { include })) as OrderModelInterface;
+    entity = (await Order.findByPk(commentValues.OrderId, { include })) as OrderModelInterface;
     activityType = ActivityTypes.ORDER_COMMENT_CREATED;
   }
 
@@ -72,7 +70,7 @@ async function editComment(commentData, req): Promise<Comment> {
 async function deleteComment(id: number, req): Promise<void> {
   mustBeLoggedInTo(req.remoteUser, 'delete this comment');
 
-  const comment = await models.Comment.findByPk(id);
+  const comment = await Comment.findByPk(id);
   if (!comment) {
     throw new NotFound(`This comment does not exist or has been deleted.`);
   }
@@ -144,7 +142,7 @@ async function createComment(commentData, req, options?: { triggerStatusChange?:
   });
 
   // Create activity
-  await models.Activity.create({
+  await Activity.create({
     type: activityType,
     UserId: comment.CreatedByUserId,
     CollectiveId: comment.CollectiveId,
@@ -174,7 +172,7 @@ async function createComment(commentData, req, options?: { triggerStatusChange?:
       await expense.createActivity(ActivityTypes.COLLECTIVE_EXPENSE_APPROVED);
     }
   } else if (ConversationId) {
-    models.ConversationFollower.follow(remoteUser.id, ConversationId);
+    ConversationFollower.follow(remoteUser.id, ConversationId);
   }
 
   return comment;

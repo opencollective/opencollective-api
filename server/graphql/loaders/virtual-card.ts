@@ -1,13 +1,13 @@
 import DataLoader from 'dataloader';
 
-import models, { Op } from '../../models';
+import { Op } from '../../lib/sequelize';
 import VirtualCard from '../../models/VirtualCard';
 
 import { sortResultsArray } from './helpers';
 
 export const generateCollectiveVirtualCardLoader = (): DataLoader<number, VirtualCard[]> => {
   return new DataLoader(async (collectiveIds: number[]) => {
-    const virtualCards = await models.VirtualCard.findAll({
+    const virtualCards = await VirtualCard.findAll({
       where: { CollectiveId: { [Op.in]: collectiveIds } },
     });
 
@@ -17,7 +17,7 @@ export const generateCollectiveVirtualCardLoader = (): DataLoader<number, Virtua
 
 export const generateHostCollectiveVirtualCardLoader = (): DataLoader<number, VirtualCard[]> => {
   return new DataLoader(async (collectiveIds: number[]) => {
-    const virtualCards = await models.VirtualCard.findAll({
+    const virtualCards = await VirtualCard.findAll({
       where: { HostCollectiveId: { [Op.in]: collectiveIds } },
     });
 

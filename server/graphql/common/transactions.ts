@@ -10,8 +10,8 @@ import { TransactionTypes } from '../../constants/transactions';
 import * as libPayments from '../../lib/payments';
 import { getPolicy } from '../../lib/policies';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
-import models from '../../models';
-import { TransactionInterface } from '../../models/Transaction';
+import { Order, PaymentMethod } from '../../models';
+import Transaction, { TransactionInterface } from '../../models/Transaction';
 import { Forbidden, NotFound } from '../errors';
 
 const getPayee = async (req, transaction) => {
@@ -186,10 +186,10 @@ export async function refundTransaction(
   args: { message?: string } = {},
 ) {
   // 0. Retrieve transaction from database
-  const transaction = await models.Transaction.findByPk(passedTransaction.id, {
+  const transaction = await Transaction.findByPk(passedTransaction.id, {
     include: [
-      models.Order,
-      models.PaymentMethod,
+      Order,
+      PaymentMethod,
       { association: 'collective', required: false },
       { association: 'fromCollective', required: false },
     ],

@@ -2,7 +2,7 @@ import DataLoader from 'dataloader';
 import _, { groupBy, partition, uniq } from 'lodash';
 
 import MemberRoles from '../../constants/roles';
-import models, { Collective, sequelize } from '../../models';
+import { Collective, Member, sequelize } from '../../models';
 
 export const generateAdminUsersEmailsForCollectiveLoader = () => {
   return new DataLoader(
@@ -56,7 +56,7 @@ export const generateAdminUsersEmailsForCollectiveLoader = () => {
 
 export const generateCountAdminMembersOfCollective = () => {
   return new DataLoader(async (collectiveIds: number[]): Promise<number[]> => {
-    const adminsByCollective = await models.Member.findAll({
+    const adminsByCollective = await Member.findAll({
       group: ['CollectiveId'],
       attributes: ['CollectiveId', [sequelize.fn('COUNT', sequelize.col('MemberCollectiveId')), 'adminCount']],
       where: {
@@ -75,7 +75,7 @@ export const generateRemoteUserIsAdminOfHostedAccountLoader = req => {
       return hostIds.map(() => false);
     }
 
-    const results = await models.Member.findAll({
+    const results = await Member.findAll({
       attributes: ['collective.HostCollectiveId', [sequelize.fn('COUNT', 'Member.id'), 'MembersCount']],
       group: ['collective.HostCollectiveId'],
       raw: true,

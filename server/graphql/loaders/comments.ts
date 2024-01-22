@@ -3,8 +3,7 @@ import express from 'express';
 import { set } from 'lodash';
 
 import { ReactionEmoji } from '../../constants/reaction-emoji';
-import models, { Op, sequelize } from '../../models';
-import EmojiReaction from '../../models/EmojiReaction';
+import { Comment, EmojiReaction, Op, sequelize } from '../../models';
 
 type CommentCountByExpenseIdAndType = {
   ExpenseId: number;
@@ -15,7 +14,7 @@ export default {
   countByExpenseAndType: (): DataLoader<CommentCountByExpenseIdAndType, number> =>
     new DataLoader(
       async (ExpenseIdAndType: Array<CommentCountByExpenseIdAndType>) => {
-        const counters = await models.Comment.count({
+        const counters = await Comment.count({
           attributes: ['ExpenseId'],
           where: { [Op.or]: ExpenseIdAndType },
           group: ['ExpenseId'],
@@ -33,7 +32,7 @@ export default {
   reactionsByCommentId: (): DataLoader<number, EmojiReaction> => {
     return new DataLoader(async commentIds => {
       type ReactionsListQueryResult = [{ CommentId: number; emoji: ReactionEmoji; count: number }];
-      const reactionsList = (await models.EmojiReaction.count({
+      const reactionsList = (await EmojiReaction.count({
         where: { CommentId: { [Op.in]: commentIds } },
         group: ['CommentId', 'emoji'],
       })) as unknown as ReactionsListQueryResult;
@@ -47,14 +46,14 @@ export default {
     });
   },
 
-  remoteUserReactionsByCommentId: (req: express.Request): DataLoader<number, typeof models.EmojiReaction> => {
+  remoteUserReactionsByCommentId: (req: express.Request): DataLoader<number, typeof EmojiReaction> => {
     return new DataLoader(async commentIds => {
       if (!req.remoteUser) {
         return commentIds.map(() => []);
       }
 
       type ReactionsListQueryResult = [{ CommentId: number; emojis: ReactionEmoji[] }];
-      const reactionsList = (await models.EmojiReaction.findAll({
+      const reactionsList = (await EmojiReaction.findAll({
         attributes: ['CommentId', [sequelize.fn('ARRAY_AGG', sequelize.col('emoji')), 'emojis']],
         where: { FromCollectiveId: req.remoteUser.CollectiveId, CommentId: { [Op.in]: commentIds } },
         group: ['CommentId'],

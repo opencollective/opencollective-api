@@ -15,7 +15,20 @@ import {
   sumCollectivesTransactions,
 } from '../../lib/budget';
 import { getFxRate } from '../../lib/currency';
-import models, { Op, sequelize } from '../../models';
+import {
+  Collective,
+  ConnectedAccount,
+  Expense,
+  Member,
+  Op,
+  Order,
+  PaymentMethod,
+  sequelize,
+  SocialLink,
+  Subscription,
+  Transaction,
+  UploadedFile,
+} from '../../models';
 
 import { generateTotalAccountHostAgreementsLoader } from './agreements';
 import collectiveLoaders from './collective';
@@ -58,7 +71,7 @@ export const loaders = req => {
 
   // Uploaded files
   context.loaders.UploadedFile.byUrl = new DataLoader(async urls => {
-    const files = await models.UploadedFile.findAll({ where: { url: urls } });
+    const files = await UploadedFile.findAll({ where: { url: urls } });
     return sortResultsSimple(urls, files, file => file.url);
   });
 
@@ -106,10 +119,10 @@ export const loaders = req => {
 
   // Collective - Host
   context.loaders.Collective.hostByCollectiveId = new DataLoader(ids =>
-    models.Collective.findAll({
+    Collective.findAll({
       attributes: ['id'],
       where: { id: { [Op.in]: ids }, isActive: true },
-      include: [{ model: models.Collective, as: 'host' }],
+      include: [{ model: Collective, as: 'host' }],
     }).then(results => {
       const resultsById = {};
       for (const result of results) {
@@ -120,10 +133,10 @@ export const loaders = req => {
   );
 
   context.loaders.Collective.hostByStripeAccount = new DataLoader(ids =>
-    models.ConnectedAccount.findAll({
+    ConnectedAccount.findAll({
       attributes: ['id', 'username'],
       where: { username: { [Op.in]: ids }, service: Service.STRIPE },
-      include: [{ model: models.Collective, as: 'collective', where: { isHostAccount: true } }],
+      include: [{ model: Collective, as: 'collective', where: { isHostAccount: true } }],
     }).then(results => {
       const resultsById = {};
       for (const result of results) {
@@ -133,13 +146,13 @@ export const loaders = req => {
     }),
   );
 
-  context.loaders.Collective.host = buildLoaderForAssociation(models.Collective, 'host', {
+  context.loaders.Collective.host = buildLoaderForAssociation(Collective, 'host', {
     filter: collective => Boolean(collective.approvedAt),
     loader: hostIds => context.loaders.Collective.byId.loadMany(hostIds),
   });
 
   context.loaders.Collective.hostedCollectivesCount = new DataLoader(async collectiveIds => {
-    const results = await models.Collective.findAll({
+    const results = await Collective.findAll({
       raw: true,
       attributes: ['HostCollectiveId', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
       group: ['HostCollectiveId'],
@@ -156,7 +169,7 @@ export const loaders = req => {
 
   // Collective - Parent
 
-  context.loaders.Collective.parent = buildLoaderForAssociation(models.Collective, 'parent', {
+  context.loaders.Collective.parent = buildLoaderForAssociation(Collective, 'parent', {
     loader: parentIds => context.loaders.Collective.byId.loadMany(parentIds),
   });
 
@@ -288,7 +301,7 @@ export const loaders = req => {
 
   // Collective - ConnectedAccounts
   context.loaders.Collective.connectedAccounts = new DataLoader(ids =>
-    models.ConnectedAccount.findAll({
+    ConnectedAccount.findAll({
       where: { CollectiveId: { [Op.in]: ids } },
     }).then(results => sortResults(ids, results, 'CollectiveId', [])),
   );
@@ -302,7 +315,7 @@ export const loaders = req => {
   // Collective - Stats
   context.loaders.Collective.stats = {
     backers: new DataLoader(ids => {
-      return models.Member.findAll({
+      return Member.findAll({
         attributes: [
           'CollectiveId',
           'memberCollective.type',
@@ -320,7 +333,7 @@ export const loaders = req => {
           role: 'BACKER',
         },
         include: {
-          model: models.Collective,
+          model: Collective,
           as: 'memberCollective',
           attributes: ['type'],
         },
@@ -348,7 +361,7 @@ export const loaders = req => {
         .then(results => sortResults(ids, results, 'CollectiveId'));
     }),
     expenses: new DataLoader(ids =>
-      models.Expense.findAll({
+      Expense.findAll({
         attributes: [
           'CollectiveId',
           'status',
@@ -373,7 +386,7 @@ export const loaders = req => {
         .then(results => sortResults(ids, results, 'CollectiveId')),
     ),
     activeRecurringContributions: new DataLoader(ids =>
-      models.Order.findAll({
+      Order.findAll({
         attributes: [
           'Order.CollectiveId',
           'Order.currency',
@@ -393,7 +406,7 @@ export const loaders = req => {
         group: ['Subscription.interval', 'CollectiveId', 'Order.currency'],
         include: [
           {
-            model: models.Subscription,
+            model: Subscription,
             attributes: [],
             where: { isActive: true },
           },
@@ -469,7 +482,7 @@ export const loaders = req => {
   );
   // Tier - totalDistinctOrders
   context.loaders.Tier.totalDistinctOrders = new DataLoader(ids =>
-    models.Order.findAll({
+    Order.findAll({
       attributes: [
         'TierId',
         [
@@ -488,7 +501,7 @@ export const loaders = req => {
 
   // Tier - totalOrders
   context.loaders.Tier.totalOrders = new DataLoader(ids =>
-    models.Order.findAll({
+    Order.findAll({
       attributes: ['TierId', [sequelize.fn('COALESCE', sequelize.fn('COUNT', sequelize.col('id')), 0), 'count']],
       where: { TierId: { [Op.in]: ids }, processedAt: { [Op.ne]: null } },
       group: ['TierId'],
@@ -497,7 +510,7 @@ export const loaders = req => {
 
   // Tier - totalActiveDistinctOrders
   context.loaders.Tier.totalActiveDistinctOrders = new DataLoader(ids =>
-    models.Order.findAll({
+    Order.findAll({
       attributes: [
         'TierId',
         [
@@ -618,7 +631,7 @@ export const loaders = req => {
 
   // Tier - contributorsStats
   context.loaders.Tier.contributorsStats = new DataLoader(tiersIds =>
-    models.Member.findAll({
+    Member.findAll({
       attributes: [
         'TierId',
         sequelize.col('memberCollective.type'),
@@ -630,7 +643,7 @@ export const loaders = req => {
       group: ['TierId', sequelize.col('memberCollective.type')],
       include: [
         {
-          model: models.Collective,
+          model: Collective,
           as: 'memberCollective',
           attributes: [],
           required: true,
@@ -666,7 +679,7 @@ export const loaders = req => {
   /** *** PaymentMethod *****/
   // PaymentMethod - findByCollectiveId
   context.loaders.PaymentMethod.findByCollectiveId = new DataLoader(CollectiveIds =>
-    models.PaymentMethod.findAll({
+    PaymentMethod.findAll({
       where: {
         CollectiveId: { [Op.in]: CollectiveIds },
         name: { [Op.ne]: null },
@@ -682,7 +695,7 @@ export const loaders = req => {
   /** *** Order *****/
   // Order - findByMembership
   context.loaders.Order.findByMembership = new DataLoader(combinedKeys =>
-    models.Order.findAll({
+    Order.findAll({
       where: {
         CollectiveId: { [Op.in]: combinedKeys.map(k => k.split(':')[0]) },
         FromCollectiveId: {
@@ -696,14 +709,14 @@ export const loaders = req => {
   // Order - stats
   context.loaders.Order.stats = {
     transactions: new DataLoader(ids =>
-      models.Transaction.findAll({
+      Transaction.findAll({
         attributes: ['OrderId', [sequelize.fn('COALESCE', sequelize.fn('COUNT', sequelize.col('id')), 0), 'count']],
         where: { OrderId: { [Op.in]: ids } },
         group: ['OrderId'],
       }).then(results => sortResults(ids, results, 'OrderId').map(result => get(result, 'dataValues.count') || 0)),
     ),
     totalTransactions: new DataLoader(keys =>
-      models.Transaction.findAll({
+      Transaction.findAll({
         attributes: ['OrderId', [sequelize.fn('SUM', sequelize.col('amount')), 'totalAmount']],
         where: { OrderId: { [Op.in]: keys } },
         group: ['OrderId'],
@@ -718,7 +731,7 @@ export const loaders = req => {
   /** *** Member *****/
 
   context.loaders.Member.transactions = new DataLoader(combinedKeys =>
-    models.Transaction.findAll({
+    Transaction.findAll({
       where: {
         CollectiveId: { [Op.in]: combinedKeys.map(k => k.split(':')[0]) },
         FromCollectiveId: {
@@ -735,7 +748,7 @@ export const loaders = req => {
 
   /** SocialLink */
   context.loaders.SocialLink.byCollectiveId = new DataLoader(async keys => {
-    const socialLinks = await models.SocialLink.findAll({
+    const socialLinks = await SocialLink.findAll({
       where: {
         CollectiveId: { [Op.in]: keys },
       },
@@ -754,11 +767,11 @@ export const loaders = req => {
     byOrderId: new DataLoader(async keys => {
       const where = { OrderId: { [Op.in]: keys } };
       const order = [['createdAt', 'ASC']];
-      const transactions = await models.Transaction.findAll({ where, order });
+      const transactions = await Transaction.findAll({ where, order });
       return sortResults(keys, transactions, 'OrderId', []);
     }),
     directDonationsFromTo: new DataLoader(keys =>
-      models.Transaction.findAll({
+      Transaction.findAll({
         attributes: ['FromCollectiveId', 'CollectiveId', [sequelize.fn('SUM', sequelize.col('amount')), 'totalAmount']],
         where: {
           FromCollectiveId: { [Op.in]: keys.map(k => k.FromCollectiveId) },
@@ -777,7 +790,7 @@ export const loaders = req => {
       }),
     ),
     totalAmountDonatedFromTo: new DataLoader(keys =>
-      models.Transaction.findAll({
+      Transaction.findAll({
         attributes: [
           'FromCollectiveId',
           'UsingGiftCardFromCollectiveId',

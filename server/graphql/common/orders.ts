@@ -4,8 +4,9 @@ import { InferCreationAttributes } from 'sequelize';
 import status from '../../constants/order-status';
 import { purgeCacheForCollective } from '../../lib/cache';
 import * as libPayments from '../../lib/payments';
-import models, { AccountingCategory, Collective, Tier, User } from '../../models';
-import { OrderModelInterface } from '../../models/Order';
+import { pluralize } from '../../lib/utils';
+import { AccountingCategory, Collective, Tier, User } from '../../models';
+import Order, { OrderModelInterface } from '../../models/Order';
 import { ValidationFailed } from '../errors';
 import { getOrderTaxInfoFromTaxInput } from '../v1/mutations/orders';
 import { TaxInput } from '../v2/input/TaxInput';
@@ -104,7 +105,7 @@ export async function addFunds(order: AddFundsInput, remoteUser: User) {
   // Added Funds are not eligible to Platform Tips
   orderData.platformTipEligible = false;
 
-  const orderCreated = await models.Order.create(orderData);
+  const orderCreated = await Order.create(orderData);
 
   const hostPaymentMethod = await host.getOrCreateHostPaymentMethod();
   await orderCreated.setPaymentMethod({ uuid: hostPaymentMethod.uuid });
@@ -118,5 +119,5 @@ export async function addFunds(order: AddFundsInput, remoteUser: User) {
   purgeCacheForCollective(collective.slug);
   purgeCacheForCollective(fromCollective.slug);
 
-  return models.Order.findByPk(orderCreated.id);
+  return Order.findByPk(orderCreated.id);
 }

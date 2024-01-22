@@ -3,8 +3,7 @@ import { get } from 'lodash';
 import MemberRoles from '../../constants/roles';
 import cache, { purgeCacheForCollective } from '../../lib/cache';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
-import models from '../../models';
-import { UPDATE_NOTIFICATION_AUDIENCE } from '../../models/Update';
+import Update, { UPDATE_NOTIFICATION_AUDIENCE } from '../../models/Update';
 import { Forbidden, NotFound, ValidationFailed } from '../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../v2/identifiers';
 import { fetchAccountWithReference } from '../v2/input/AccountReferenceInput';
@@ -25,7 +24,7 @@ export async function createUpdate(_, args, req) {
 
   await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
 
-  const update = await models.Update.create({
+  const update = await Update.create({
     title: args.update.title,
     html: args.update.html,
     CollectiveId: collective.id,
@@ -49,7 +48,7 @@ async function fetchUpdateForEdit(id, req) {
     throw new ValidationFailed(`Update ID is required`);
   }
 
-  const update = await models.Update.findByPk(idDecode(id, IDENTIFIER_TYPES.UPDATE), {
+  const update = await Update.findByPk(idDecode(id, IDENTIFIER_TYPES.UPDATE), {
     include: { association: 'collective', required: true },
   });
   if (!update) {

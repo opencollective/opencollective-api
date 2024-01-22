@@ -7,8 +7,7 @@ import roles from '../../constants/roles';
 import cache, { fetchCollectiveId } from '../../lib/cache';
 import emailLib from '../../lib/email';
 import logger from '../../lib/logger';
-import models, { Collective, Op, sequelize } from '../../models';
-import User from '../../models/User';
+import { Activity, Collective, Op, sequelize, Update, User } from '../../models';
 import { ValidationFailed } from '../errors';
 
 type CreateUserOptions = {
@@ -40,7 +39,7 @@ export const createUser = (
   { organizationData, sendSignInLink, throwIfExists, redirect, websiteUrl, creationRequest }: CreateUserOptions,
 ): Promise<{ user: User; organization?: Collective }> => {
   return sequelize.transaction(async transaction => {
-    let user = await models.User.findOne({ where: { email: userData.email.toLowerCase() }, transaction });
+    let user = await User.findOne({ where: { email: userData.email.toLowerCase() }, transaction });
 
     if (throwIfExists && user) {
       throw new ValidationFailed(
@@ -49,7 +48,7 @@ export const createUser = (
       );
     } else if (!user) {
       // Create user
-      user = await models.User.createUserWithCollective(userData, transaction);
+      user = await User.createUserWithCollective(userData, transaction);
       user = await user.update({ data: { creationRequest } }, { transaction });
     }
 
@@ -70,7 +69,7 @@ export const createUser = (
           'repositoryUrl',
         ]),
       };
-      organization = await models.Collective.create(organizationParams, { transaction });
+      organization = await Collective.create(organizationParams, { transaction });
       await organization.addUserWithRole(user, roles.ADMIN, { CreatedByUserId: user.id }, {}, transaction);
     }
 
@@ -81,7 +80,7 @@ export const createUser = (
         logger.info(`Login Link: ${loginLink}`);
       }
       await emailLib.send(activities.USER_NEW_TOKEN, user.email, { loginLink }, { sendEvenIfNotProduction: true });
-      await models.Activity.create(
+      await Activity.create(
         {
           type: activities.USER_NEW_TOKEN,
           UserId: user.id,
@@ -105,7 +104,7 @@ export const hasSeenLatestChangelogEntry = async (user: User): Promise<boolean> 
     return userChangelogViewDate >= new Date(latestChangelogUpdatePublishDate);
   } else {
     const collectiveId = await fetchCollectiveId('opencollective');
-    const latestChangelogUpdate = await models.Update.findOne({
+    const latestChangelogUpdate = await Update.findOne({
       where: {
         CollectiveId: collectiveId,
         publishedAt: { [Op.ne]: null },

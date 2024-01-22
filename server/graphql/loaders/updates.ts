@@ -3,7 +3,8 @@ import express from 'express';
 import { set } from 'lodash';
 
 import { ReactionEmoji } from '../../constants/reaction-emoji';
-import models, { Op, sequelize } from '../../models';
+import sequelize, { Op } from '../../lib/sequelize';
+import EmojiReaction from '../../models/EmojiReaction';
 
 type ReactionsCount = Partial<Record<ReactionEmoji, number>>;
 
@@ -11,7 +12,7 @@ export default {
   reactionsByUpdateId: (): DataLoader<number, ReactionsCount> => {
     return new DataLoader(async updateIds => {
       type ReactionsListQueryResult = [{ UpdateId: number; emoji: ReactionEmoji; count: number }];
-      const reactionsList = (await models.EmojiReaction.count({
+      const reactionsList = (await EmojiReaction.count({
         where: { UpdateId: { [Op.in]: updateIds } },
         group: ['UpdateId', 'emoji'],
       })) as ReactionsListQueryResult;
@@ -32,7 +33,7 @@ export default {
       }
 
       type ReactionsListQueryResult = [{ UpdateId: number; emojis: ReactionEmoji[] }];
-      const reactionsList = (await models.EmojiReaction.findAll({
+      const reactionsList = (await EmojiReaction.findAll({
         attributes: ['UpdateId', [sequelize.fn('ARRAY_AGG', sequelize.col('emoji')), 'emojis']],
         where: { FromCollectiveId: req.remoteUser.CollectiveId, UpdateId: { [Op.in]: updateIds } },
         group: ['UpdateId'],
