@@ -2,7 +2,7 @@
 
 import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
-import models from '../../../models';
+import Conversation from '../../../models/Conversation';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
@@ -39,7 +39,7 @@ export const fetchConversationWithReference = async (input, { loaders = null, th
   let conversation = null;
   const dbId = getConversationDatabaseIdFromReference(input);
   if (dbId) {
-    conversation = await (loaders ? loaders.Conversation.byId.load(dbId) : models.Conversation.findByPk(dbId));
+    conversation = await (loaders ? loaders.Conversation.byId.load(dbId) : Conversation.findByPk(dbId));
   }
 
   if (!conversation && throwIfMissing) {

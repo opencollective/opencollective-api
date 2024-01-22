@@ -18,6 +18,7 @@ import Activity from './Activity';
 import Collective from './Collective';
 import Expense from './Expense';
 import { OrderModelInterface } from './Order';
+import User from './User';
 
 const instructionsSanitizeOptions = buildSanitizerOptions({
   basicTextFormatting: true,

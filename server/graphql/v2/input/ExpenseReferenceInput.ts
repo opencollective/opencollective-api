@@ -2,7 +2,6 @@ import { GraphQLInputFieldConfig, GraphQLInputObjectType, GraphQLInt, GraphQLStr
 import { uniq } from 'lodash';
 import { Includeable } from 'sequelize';
 
-import models from '../../../models';
 import Expense from '../../../models/Expense';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
@@ -46,7 +45,7 @@ const fetchExpenseWithReference = async (
   const dbId = getDatabaseIdFromExpenseReference(input);
   let expense = null;
   if (dbId) {
-    expense = await (loaders ? loaders.Expense.byId.load(dbId) : models.Expense.findByPk(dbId));
+    expense = await (loaders ? loaders.Expense.byId.load(dbId) : Expense.findByPk(dbId));
   }
 
   if (!expense && throwIfMissing) {
@@ -72,7 +71,7 @@ const fetchExpensesWithReferences = async (
   }
 
   const ids = uniq(inputs.map(getDatabaseIdFromExpenseReference));
-  const expenses = await models.Expense.findAll({ where: { id: ids }, include: opts.include });
+  const expenses = await Expense.findAll({ where: { id: ids }, include: opts.include });
 
   // Check if all expenses were found
   if (opts.throwIfMissing && ids.length !== expenses.length) {

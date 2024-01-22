@@ -2,7 +2,7 @@ import { GraphQLBoolean, GraphQLInputObjectType, GraphQLInt, GraphQLString } fro
 import { intersection, uniq } from 'lodash';
 import { FindOptions, InferAttributes, ProjectionAlias } from 'sequelize';
 
-import models, { Collective, Op } from '../../../models';
+import { Collective, Op } from '../../../models';
 import { NotFound } from '../../errors';
 import { idDecode } from '../identifiers';
 
@@ -75,7 +75,7 @@ export const fetchAccountWithReference = async (
 ): Promise<Collective> => {
   const loadCollectiveById = id => {
     if (!loaders || dbTransaction) {
-      return models.Collective.findByPk(id, { transaction: dbTransaction, lock, paranoid });
+      return Collective.findByPk(id, { transaction: dbTransaction, lock, paranoid });
     } else {
       return loaders.Collective.byId.load(id);
     }
@@ -89,7 +89,7 @@ export const fetchAccountWithReference = async (
     // TODO: It makes no sense to check for `input.id` being a number here, we're suppose to only use this function with account references
     collective = await loadCollectiveById(input.legacyId || input.id);
   } else if (input.slug) {
-    collective = await models.Collective.findOne({
+    collective = await Collective.findOne({
       where: { slug: input.slug.toLowerCase() },
       paranoid,
       transaction: dbTransaction,
@@ -170,7 +170,7 @@ export const fetchAccountsWithReferences = async (
 
   // Fetch accounts
   const conditions = getSQLConditionFromAccountReferenceInput(inputs);
-  const accounts = await models.Collective.findAll({
+  const accounts = await Collective.findAll({
     attributes,
     include,
     where: { [Op.or]: conditions },

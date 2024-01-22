@@ -1,6 +1,6 @@
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 
-import models from '../../../models';
+import Notification from '../../../models/Notification';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { CollectionArgs, CollectionFields, GraphQLCollection } from '../interface/Collection';
 import { GraphQLWebhook } from '../object/Webhook';
@@ -41,7 +41,7 @@ export const WebhookCollectionResolver = async (args, req) => {
 
   const { offset, limit } = args;
 
-  const result = await models.Notification.findAndCountAll({
+  const result = await Notification.findAndCountAll({
     where,
     limit,
     offset,

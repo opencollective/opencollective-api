@@ -1,6 +1,6 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
-import models from '../../../models';
+import Application from '../../../models/Application';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
@@ -33,11 +33,11 @@ export const fetchApplicationWithReference = async (input, sequelizeOps = undefi
   let application;
   if (input.id) {
     const id = idDecode(input.id, IDENTIFIER_TYPES.APPLICATION);
-    application = await models.Application.findByPk(id, sequelizeOps);
+    application = await Application.findByPk(id, sequelizeOps);
   } else if (input.legacyId) {
-    application = await models.Application.findByPk(input.legacyId, sequelizeOps);
+    application = await Application.findByPk(input.legacyId, sequelizeOps);
   } else if (input.clientId) {
-    application = await models.Application.findOne({ where: { clientId: input.clientId } }, sequelizeOps);
+    application = await Application.findOne({ where: { clientId: input.clientId } }, sequelizeOps);
   } else {
     throw new Error('Please provide an id');
   }

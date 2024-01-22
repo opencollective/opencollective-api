@@ -1,6 +1,6 @@
 import { GraphQLInputObjectType, GraphQLString } from 'graphql';
 
-import models from '../../../models';
+import PaymentMethod from '../../../models/PaymentMethod';
 import { NotFound } from '../../errors';
 import { idDecode } from '../identifiers';
 
@@ -22,7 +22,7 @@ export const GraphQLPaymentMethodReferenceInput = new GraphQLInputObjectType({
 export const fetchPaymentMethodWithReference = async (input, { sequelizeOpts } = {}) => {
   // Load payment by ID using GQL loaders if we're not using a transaction & loaders are available
   const loadPaymentById = id => {
-    return models.PaymentMethod.findByPk(id, sequelizeOpts);
+    return PaymentMethod.findByPk(id, sequelizeOpts);
   };
 
   let paymentMethod;

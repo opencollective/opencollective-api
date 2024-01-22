@@ -1,7 +1,7 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 import { Includeable } from 'sequelize';
 
-import models from '../../../models';
+import Order from '../../../models/Order';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
@@ -39,7 +39,7 @@ export const fetchOrderWithReference = async (
   }: { include?: Includeable | Includeable[]; throwIfMissing?: boolean } = {},
 ) => {
   const loadOrderById = id => {
-    return models.Order.findByPk(id, { include });
+    return Order.findByPk(id, { include });
   };
 
   const id = getDatabaseIdFromOrderReference(input);
@@ -59,7 +59,7 @@ export const fetchOrdersWithReferences = async (
   }
 
   // Fetch orders
-  const orders = await models.Order.findAll({
+  const orders = await Order.findAll({
     where: { id: inputs.map(getDatabaseIdFromOrderReference) },
     include,
   });

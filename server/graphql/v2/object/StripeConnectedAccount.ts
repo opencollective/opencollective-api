@@ -2,7 +2,7 @@ import { GraphQLObjectType, GraphQLString } from 'graphql';
 
 import { reportErrorToSentry } from '../../../lib/sentry';
 import stripe from '../../../lib/stripe';
-import { ConnectedAccount } from '../../../models';
+import ConnectedAccount from '../../../models/ConnectedAccount';
 
 import { GraphQLAmount } from './Amount';
 

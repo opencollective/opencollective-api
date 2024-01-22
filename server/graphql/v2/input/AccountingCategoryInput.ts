@@ -10,8 +10,7 @@ import { GraphQLNonEmptyString } from 'graphql-scalars';
 
 import ExpenseTypes from '../../../constants/expense-type';
 import { TransactionKind } from '../../../constants/transaction-kind';
-import models from '../../../models';
-import { AccountingCategoryKind } from '../../../models/AccountingCategory';
+import AccountingCategory, { AccountingCategoryKind } from '../../../models/AccountingCategory';
 import { GraphQLAccountingCategoryKind } from '../enum/AccountingCategoryKind';
 import { GraphQLExpenseType } from '../enum/ExpenseType';
 import { idDecode } from '../identifiers';
@@ -92,7 +91,7 @@ export const fetchAccountingCategoryWithReference = async (
   { loaders = null, throwIfMissing = false } = {},
 ) => {
   const id = idDecode(input.id, 'accounting-category');
-  const category = await (loaders ? loaders.AccountingCategory.byId.load(id) : models.AccountingCategory.findByPk(id));
+  const category = await (loaders ? loaders.AccountingCategory.byId.load(id) : AccountingCategory.findByPk(id));
   if (!category && throwIfMissing) {
     throw new Error(`Accounting category with id ${input.id} not found`);
   }

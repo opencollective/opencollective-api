@@ -1,6 +1,6 @@
 import { GraphQLInputObjectType, GraphQLString } from 'graphql';
 
-import models from '../../../models';
+import UserToken from '../../../models/UserToken';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
@@ -25,7 +25,7 @@ export const fetchOAuthAuthorizationWithReference = async input => {
   let userToken;
   if (input.id) {
     const id = idDecode(input.id, IDENTIFIER_TYPES.USER_TOKEN);
-    userToken = await models.UserToken.findByPk(id);
+    userToken = await UserToken.findByPk(id);
   } else {
     throw new Error('Please provide an id');
   }

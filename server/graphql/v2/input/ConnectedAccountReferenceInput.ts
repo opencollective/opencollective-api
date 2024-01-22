@@ -1,6 +1,6 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
-import models from '../../../models';
+import ConnectedAccount from '../../../models/ConnectedAccount';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
@@ -28,9 +28,9 @@ export const fetchConnectedAccountWithReference = async (
   let connectedAccount;
   if (input.id) {
     const id = idDecode(input.id, IDENTIFIER_TYPES.CONNECTED_ACCOUNT);
-    connectedAccount = await models.ConnectedAccount.findByPk(id);
+    connectedAccount = await ConnectedAccount.findByPk(id);
   } else if (input.legacyId) {
-    connectedAccount = await models.ConnectedAccount.findByPk(input.legacyId);
+    connectedAccount = await ConnectedAccount.findByPk(input.legacyId);
   } else {
     throw new Error('Please provide an id or a legacyId');
   }

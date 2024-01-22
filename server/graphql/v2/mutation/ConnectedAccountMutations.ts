@@ -7,8 +7,7 @@ import { crypto } from '../../../lib/encryption';
 import * as paypal from '../../../lib/paypal';
 import * as transferwise from '../../../lib/transferwise';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import type { ConnectedAccount as ConnectedAccountModel } from '../../../models';
-import models from '../../../models';
+import { ConnectedAccount } from '../../../models';
 import { checkRemoteUserCanUseConnectedAccounts } from '../../common/scope-check';
 import { Unauthorized, ValidationFailed } from '../../errors';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
@@ -33,7 +32,7 @@ const connectedAccountMutations = {
         description: 'Account where the external account will be connected',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<ConnectedAccountModel> {
+    async resolve(_: void, args, req: express.Request): Promise<ConnectedAccount> {
       checkRemoteUserCanUseConnectedAccounts(req);
 
       const collective = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
@@ -47,7 +46,7 @@ const connectedAccountMutations = {
         if (!args.connectedAccount.token) {
           throw new ValidationFailed('A token is required');
         }
-        const sameTokenCount = await models.ConnectedAccount.count({
+        const sameTokenCount = await ConnectedAccount.count({
           where: { hash: crypto.hash(args.connectedAccount.service + args.connectedAccount.token) },
         });
         if (sameTokenCount > 0) {
@@ -69,7 +68,7 @@ const connectedAccountMutations = {
         }
       }
 
-      const connectedAccount = await models.ConnectedAccount.create({
+      const connectedAccount = await ConnectedAccount.create({
         ...pick(args.connectedAccount, [
           'clientId',
           'data',

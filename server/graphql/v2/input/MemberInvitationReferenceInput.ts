@@ -1,6 +1,6 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
-import models from '../../../models';
+import MemberInvitation from '../../../models/MemberInvitation';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
@@ -28,9 +28,9 @@ export const fetchMemberInvitationWithReference = async (
   let memberInvitation;
   if (input.id) {
     const id = idDecode(input.id, IDENTIFIER_TYPES.MEMBER_INVITATION);
-    memberInvitation = await models.MemberInvitation.findByPk(id);
+    memberInvitation = await MemberInvitation.findByPk(id);
   } else if (input.legacyId) {
-    memberInvitation = await models.MemberInvitation.findByPk(input.legacyId);
+    memberInvitation = await MemberInvitation.findByPk(input.legacyId);
   } else {
     throw new Error('Please provide an id or a legacyId');
   }
