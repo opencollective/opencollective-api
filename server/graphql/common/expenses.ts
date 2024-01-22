@@ -2238,8 +2238,11 @@ async function payExpenseWithPayPalAdaptive(remoteUser, expense, host, paymentMe
     const hostCurrencyFxRate = 1 / parseFloat(currencyConversion.exchangeRate); // paypal returns a float from host.currency to expense.currency
     fees['paymentProcessorFeeInHostCurrency'] = Math.round(hostCurrencyFxRate * senderFees);
 
+    // Set the paymentMethod so it's persisted to Expense and Transactions
+    expense.setPaymentMethod(paymentMethod);
+    await expense.save();
     // Adaptive does not work with multi-currency expenses, so we can safely assume that expense.currency = collective.currency
-    await createTransactionsFromPaidExpense(host, expense, fees, hostCurrencyFxRate, paymentResponse, paymentMethod);
+    await createTransactionsFromPaidExpense(host, expense, fees, hostCurrencyFxRate, paymentResponse);
     const updatedExpense = await markExpenseAsPaid(expense, remoteUser);
     await paymentMethod.updateBalance();
     return updatedExpense;
@@ -2694,6 +2697,8 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
 
     try {
       if (forceManual) {
+        await expense.setPaymentMethod(null);
+        await expense.save();
         await createTransactionsForManuallyPaidExpense(
           host,
           expense,
@@ -2770,9 +2775,13 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
             'The payee needs to be on the same Host than the payer to be paid on its Open Collective balance.',
           );
         }
+        // This will detect that payoutMethodType=ACCOUNT_BALANCE and set service=opencollective AND type=collective
+        await expense.setAndSavePaymentMethodIfMissing();
         await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto');
       } else if (expense.legacyPayoutMethod === 'manual' || expense.legacyPayoutMethod === 'other') {
         // note: we need to check for manual and other for legacy reasons
+        await expense.setPaymentMethod(null);
+        await expense.save();
         await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto');
       }
     } catch (error) {

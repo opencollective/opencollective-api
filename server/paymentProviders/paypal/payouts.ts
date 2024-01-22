@@ -135,8 +135,10 @@ export const checkBatchItemStatus = async (
             });
           }
         }
-
+        // This will detect that payoutMethodType=PAYPAL and set service=paypal AND type=payout
+        await expense.setAndSavePaymentMethodIfMissing();
         await createTransactionsFromPaidExpense(host, expense, fees, fxRate, item);
+        // NOTE: why not use markExpenseAsPaid helper?
         await expense.setPaid(expense.lastEditedById);
         const user = await models.User.findByPk(expense.lastEditedById);
         await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID, user);

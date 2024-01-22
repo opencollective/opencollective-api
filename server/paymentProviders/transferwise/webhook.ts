@@ -43,6 +43,7 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
     event.data.current_state === 'outgoing_payment_sent'
   ) {
     logger.info(`Wise: Transfer sent, marking expense as paid.`, event);
+    // NOTE: why not use markExpenseAsPaid helper?
     await expense.setPaid(expense.lastEditedById);
     const user = await models.User.findByPk(expense.lastEditedById);
     await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID, user);
@@ -68,6 +69,9 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
     assert(hostAmount, 'Expense is missing paymentOption information');
     const expenseToHostRate = hostAmount ? (hostAmount * 100) / expense.amount : 'auto';
 
+    // This will detect that payoutMethodType=BANK_ACCOUNT and set service=wise AND type=bank_transfer
+    await expense.setAndSavePaymentMethodIfMissing();
+
     const user = await models.User.findByPk(expense.lastEditedById);
     await createTransactionsFromPaidExpense(
       expense.host,
@@ -78,6 +82,8 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
     );
 
     await expense.update({ data: { ...expense.data, feesInHostCurrency } });
+
+    // NOTE: why not use markExpenseAsPaid helper?
     await expense.setPaid(expense.lastEditedById);
     await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID, user);
   } else if (

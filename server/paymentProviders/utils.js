@@ -76,6 +76,7 @@ export const persistTransaction = async (virtualCard, transaction) => {
       // Sometimes there's a difference between the authorized amount and the charged amount.
       await models.ExpenseItem.update({ amount }, { where: { ExpenseId: processingExpense.id } });
       await processingExpense.update({ amount, data: { ...expenseData, missingDetails: true, ...transaction.data } });
+      await processingExpense.setAndSavePaymentMethodIfMissing();
       await processingExpense.setPaid();
 
       await models.Transaction.createDoubleEntry({

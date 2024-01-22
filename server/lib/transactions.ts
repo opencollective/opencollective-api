@@ -155,8 +155,6 @@ export async function createTransactionsFromPaidExpense(
   expenseToHostFxRateConfig: number | 'auto',
   /** Will be stored in transaction.data */
   transactionData: Record<string, unknown> = null,
-  /** @deprecated Only used for paypal adaptive, to link the payment method */
-  paymentMethod = null,
 ) {
   fees = { ...DEFAULT_FEES, ...fees };
   if (!expense.collective) {
@@ -178,6 +176,8 @@ export async function createTransactionsFromPaidExpense(
       percentage: round(expense.data.taxes[0].rate * 100), // @deprecated for legacy compatibility
     };
   }
+
+  const paymentMethod = await expense.getPaymentMethod();
 
   // To group all the info we retrieved from the payment. All amounts are expected to be in expense currency
   const { paymentProcessorFeeInHostCurrency, hostFeeInHostCurrency, platformFeeInHostCurrency } = fees;
@@ -205,7 +205,7 @@ export async function createTransactionsFromPaidExpense(
     CollectiveId: expense.CollectiveId,
     FromCollectiveId: expense.FromCollectiveId,
     HostCollectiveId: host.id,
-    PaymentMethodId: paymentMethod ? paymentMethod.id : null,
+    PaymentMethodId: paymentMethod?.id,
     PayoutMethodId: expense.PayoutMethodId,
     taxAmount: processedAmounts.tax.inCollectiveCurrency,
     data: {

@@ -16,13 +16,14 @@ import ActivityTypes from '../constants/activities';
 import { SupportedCurrency } from '../constants/currencies';
 import ExpenseStatus from '../constants/expense-status';
 import ExpenseType from '../constants/expense-type';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import { reduceArrayToCurrency } from '../lib/currency';
 import logger from '../lib/logger';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Model, Op, QueryTypes } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
-import { computeDatesAsISOStrings } from '../lib/utils';
+import { capitalize, computeDatesAsISOStrings } from '../lib/utils';
 import CustomDataTypes from '../models/DataTypes';
 import { Location } from '../types/Location';
 import { BatchGroup, ExpenseDataQuoteV2, ExpenseDataQuoteV3, Transfer } from '../types/transferwise';
@@ -32,6 +33,7 @@ import Activity from './Activity';
 import Collective from './Collective';
 import ExpenseAttachedFile from './ExpenseAttachedFile';
 import ExpenseItem from './ExpenseItem';
+import PaymentMethod from './PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
 import RecurringExpense from './RecurringExpense';
 import Transaction, { TransactionInterface } from './Transaction';
@@ -66,6 +68,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   public declare FromCollectiveId: number;
   public declare CollectiveId: number;
   public declare PayoutMethodId: ForeignKey<PayoutMethod['id']>;
+  public declare PaymentMethodId: number;
   public declare VirtualCardId: ForeignKey<VirtualCard['id']>;
   public declare RecurringExpenseId: ForeignKey<RecurringExpense['id']>;
   public declare AccountingCategoryId: ForeignKey<AccountingCategory['id']>;
@@ -109,6 +112,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   public declare host?: Collective;
   public declare User?: User;
   public declare PayoutMethod?: PayoutMethod;
+  public declare PaymentMethod?: typeof PaymentMethod;
   public declare virtualCard?: VirtualCard;
   public declare items?: ExpenseItem[];
   public declare attachedFiles?: ExpenseAttachedFile[];
@@ -118,6 +122,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   declare getCollective: BelongsToGetAssociationMixin<Collective>;
   declare getItems: HasManyGetAssociationsMixin<ExpenseItem>;
   declare getPayoutMethod: BelongsToGetAssociationMixin<PayoutMethod>;
+  declare getPaymentMethod: BelongsToGetAssociationMixin<typeof PaymentMethod>;
   declare getRecurringExpense: BelongsToGetAssociationMixin<RecurringExpense>;
   declare getTransactions: HasManyGetAssociationsMixin<TransactionInterface>;
   declare getVirtualCard: BelongsToGetAssociationMixin<VirtualCard>;
@@ -213,10 +218,97 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
     return this.user;
   };
 
+  setAndSavePaymentMethodIfMissing = async function () {
+    let paymentMethod = this.getPaymentMethod();
+    if (!paymentMethod) {
+      const virtualCard = this.virtualCard || (await this.getVirtualCard());
+      if (virtualCard) {
+        const attributes = {
+          CollectiveId: host.id,
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
+          type: PAYMENT_METHOD_TYPE.VIRTUAL_CARD,
+        };
+        paymentMethod = await models.PaymentMethod.findOrCreate({
+          where: attributes,
+          defaults: {
+            currency: host.currency,
+          },
+        });
+      }
+      const payoutMethod = this.payoutMethod || (await this.getPayoutMethod());
+      if (payoutMethod) {
+        paymentMethod = await this.fetchPaymentMethod(payoutMethod.type);
+      }
+      if (paymentMethod) {
+        this.setPaymentMethod(paymentMethod);
+        await this.save();
+      }
+    }
+    return this;
+  };
+
+  fetchPaymentMethod = async function (payoutMethodType) {
+    const collective = this.collective || (await this.getCollective());
+    const host = await collective.getHostCollective();
+
+    switch (payoutMethodType) {
+      case PayoutMethodTypes.PAYPAL: {
+        const attributes = {
+          CollectiveId: host.id,
+          service: PAYMENT_METHOD_SERVICE.PAYPAL,
+          type: PAYMENT_METHOD_TYPE.PAYOUT,
+        };
+        return models.PaymentMethod.findOrCreate({
+          where: attributes,
+          defaults: {
+            name: `${capitalize(attributes.service.toLowerCase())} ${capitalize(attributes.type.toLowerCase())}`,
+            currency: host.currency,
+          },
+        });
+      }
+
+      case PayoutMethodTypes.BANK_ACCOUNT: {
+        const attributes = {
+          CollectiveId: host.id,
+          service: PAYMENT_METHOD_SERVICE.WISE,
+          type: PAYMENT_METHOD_TYPE.BANK_TRANSFER,
+        };
+        return models.PaymentMethod.findOrCreate({
+          where: attributes,
+          defaults: {
+            name: `${capitalize(attributes.service.toLowerCase())} ${capitalize(attributes.type.toLowerCase())}`,
+            currency: host.currency,
+          },
+        });
+      }
+
+      case PayoutMethodTypes.ACCOUNT_BALANCE: {
+        const collective = this.collective || (await this.getCollective());
+        const attributes = {
+          CollectiveId: collective.id,
+          service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+          type: PAYMENT_METHOD_TYPE.COLLECTIVE,
+        };
+        return models.PaymentMethod.findOrCreate({
+          where: attributes,
+          defaults: {
+            primary: true,
+            name: `${capitalize(collective.name)} (${capitalize(collective.type.toLowerCase())})`,
+            currency: host.currency,
+          },
+        });
+      }
+    }
+  };
+
   setPaid = async function (editedById) {
     const collective = this.collective || (await this.getCollective());
     const lastEditedById = editedById || this.lastEditedById;
-    await this.update({ status: ExpenseStatus.PAID, lastEditedById, HostCollectiveId: collective.HostCollectiveId });
+    await this.update({
+      status: ExpenseStatus.PAID,
+      lastEditedById,
+      HostCollectiveId: collective.HostCollectiveId,
+    });
 
     // Update transactions settlement
     if (this.type === ExpenseType.SETTLEMENT || this.data?.['isPlatformTipSettlement']) {
@@ -673,6 +765,14 @@ Expense.init(
     PayoutMethodId: {
       type: DataTypes.INTEGER,
       references: { key: 'id', model: 'PayoutMethods' },
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE',
+      allowNull: true,
+    },
+
+    PaymentMethodId: {
+      type: DataTypes.INTEGER,
+      references: { key: 'id', model: 'PaymentMethods' },
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
       allowNull: true,
