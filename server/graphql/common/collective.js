@@ -5,7 +5,7 @@ import activities from '../../constants/activities';
 import FEATURE from '../../constants/feature';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../lib/rate-limit';
 import { canUseFeature } from '../../lib/user-permissions';
-import models from '../../models';
+import Activity from '../../models/Activity';
 import { FeatureNotAllowedForUser, NotFound, RateLimitExceeded, Unauthorized } from '../errors';
 
 import { checkRemoteUserCanUseAccount } from './scope-check';
@@ -71,7 +71,7 @@ async function sendMessage({ req, collective, args, isGqlV2 }) {
   }
 
   // Create the activity (which will send the message to the users)
-  await models.Activity.create({
+  await Activity.create({
     type: activities.COLLECTIVE_CONTACT,
     UserId: user.id,
     UserTokenId: req.userToken?.id,
