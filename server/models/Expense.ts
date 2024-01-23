@@ -1,6 +1,7 @@
 import { get, isEmpty, pick, sumBy } from 'lodash';
 import {
   BelongsToGetAssociationMixin,
+  BelongsToSetAssociationMixin,
   CreationOptional,
   ForeignKey,
   HasManyGetAssociationsMixin,
@@ -129,7 +130,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   declare getAccountingCategory: BelongsToGetAssociationMixin<AccountingCategory>;
 
   // Association setters
-  declare setPaymentMethod: PaymentMethod;
+  declare setPaymentMethod: BelongsToSetAssociationMixin<typeof PaymentMethod, number>;
 
   /**
    * Instance Methods
