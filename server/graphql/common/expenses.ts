@@ -2118,14 +2118,6 @@ export async function deleteExpense(req: express.Request, expenseId: number): Pr
   return expense.reload({ paranoid: false });
 }
 
-/** Helper that finishes the process of paying an expense */
-async function markExpenseAsPaid(expense, remoteUser, isManualPayout = false): Promise<Expense> {
-  debug('update expense status to PAID', expense.id);
-  await expense.setPaid(remoteUser.id);
-  await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID, remoteUser, { isManualPayout });
-  return expense;
-}
-
 async function payExpenseWithPayPalAdaptive(remoteUser, expense, host, paymentMethod, toPaypalEmail, fees = {}) {
   debug('payExpenseWithPayPalAdaptive', expense.id);
 
@@ -2243,7 +2235,8 @@ async function payExpenseWithPayPalAdaptive(remoteUser, expense, host, paymentMe
     await expense.save();
     // Adaptive does not work with multi-currency expenses, so we can safely assume that expense.currency = collective.currency
     await createTransactionsFromPaidExpense(host, expense, fees, hostCurrencyFxRate, paymentResponse);
-    const updatedExpense = await markExpenseAsPaid(expense, remoteUser);
+    // Mark Expense as Paid, create activity and send notifications
+    const updatedExpense = await expense.markAsPaid({ user: remoteUser });
     await paymentMethod.updateBalance();
     return updatedExpense;
   } catch (err) {
@@ -2794,7 +2787,8 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
       throw error;
     }
 
-    return markExpenseAsPaid(expense, remoteUser, true);
+    // Mark Expense as Paid, create activity and send notifications
+    return expense.markAsPaid({ user: remoteUser, isManualPayout: true });
   });
 
   return expense;

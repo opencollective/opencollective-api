@@ -256,9 +256,9 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
     }
   };
 
-  setPaid = async function (editedById) {
+  markAsPaid = async function ({ user = null, isManualPayout = false, skipActivity = false } = {}) {
     const collective = this.collective || (await this.getCollective());
-    const lastEditedById = editedById || this.lastEditedById;
+    const lastEditedById = user?.id || this.lastEditedById;
     await this.update({
       status: ExpenseStatus.PAID,
       lastEditedById,
@@ -276,6 +276,11 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
       // Don't crash if member can't be added as a contributor
       reportErrorToSentry(e);
       logger.error(`Error when trying to add MEMBER in setPaid for expense ${this.id}: ${e}`);
+    }
+
+    if (!skipActivity) {
+      user = user ?? (await models.User.findByPk(lastEditedById));
+      await this.createActivity(activities.COLLECTIVE_EXPENSE_PAID, user, { isManualPayout });
     }
   };
 
