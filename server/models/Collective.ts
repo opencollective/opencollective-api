@@ -3405,7 +3405,7 @@ class Collective extends Model<
       service: paymentMethodService,
       type: paymentMethodType,
     };
-    return models.PaymentMethod.findOrCreate({
+    return PaymentMethod.findOrCreate({
       where: attributes,
       defaults: {
         currency: host?.currency ?? this.currency,

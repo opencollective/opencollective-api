@@ -12,12 +12,12 @@ import {
 import Temporal from 'sequelize-temporal';
 import validator from 'validator';
 
-import { roles } from '../constants';
 import ActivityTypes from '../constants/activities';
 import { SupportedCurrency } from '../constants/currencies';
 import ExpenseStatus from '../constants/expense-status';
 import ExpenseType from '../constants/expense-type';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
+import roles from '../constants/roles';
 import { reduceArrayToCurrency } from '../lib/currency';
 import logger from '../lib/logger';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
@@ -280,7 +280,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
 
     if (!skipActivity) {
       user = user ?? (await models.User.findByPk(lastEditedById));
-      await this.createActivity(activities.COLLECTIVE_EXPENSE_PAID, user, { isManualPayout });
+      await this.createActivity(ActivityTypes.COLLECTIVE_EXPENSE_PAID, user, { isManualPayout });
     }
   };
 
