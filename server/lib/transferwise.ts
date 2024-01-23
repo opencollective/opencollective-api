@@ -13,8 +13,7 @@ import moment from 'moment';
 
 import ActivityTypes from '../constants/activities';
 import { TransferwiseError } from '../graphql/errors';
-import models from '../models';
-import { ConnectedAccount } from '../models/ConnectedAccount';
+import { Activity, ConnectedAccount } from '../models';
 import {
   AccessToken,
   BalanceV4,
@@ -93,7 +92,7 @@ export async function getToken(connectedAccount: ConnectedAccount, refresh = fal
   if (refresh || isOutdated) {
     const newToken = await getOrRefreshToken({ refreshToken: connectedAccount.refreshToken });
     if (!newToken) {
-      models.Activity.create({
+      Activity.create({
         type: ActivityTypes.CONNECTED_ACCOUNT_ERROR,
         data: { connectedAccount: connectedAccount.activity, error: 'There was an error refreshing the Wise token' },
         CollectiveId: connectedAccount.CollectiveId,

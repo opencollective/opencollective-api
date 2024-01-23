@@ -14,6 +14,7 @@ import Temporal from 'sequelize-temporal';
 
 import { roles } from '../constants';
 import OrderStatus from '../constants/order-status';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import TierType from '../constants/tiers';
 import { PLATFORM_TIP_TRANSACTION_PROPERTIES, TransactionTypes } from '../constants/transactions';
 import * as libPayments from '../lib/payments';
@@ -451,8 +452,8 @@ Order.prototype.markAsExpired = async function () {
 
 Order.prototype.markAsPaid = async function (user) {
   this.paymentMethod = {
-    service: 'opencollective',
-    type: 'manual',
+    service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+    type: PAYMENT_METHOD_TYPE.MANUAL,
     paid: true,
   };
 

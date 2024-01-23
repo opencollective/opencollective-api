@@ -5,8 +5,8 @@ import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes,
 import oAuthScopes from '../constants/oauth-scopes';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
+import Application from './Application';
 import User from './User';
-import models from '.';
 
 class PersonalToken extends Model<InferAttributes<PersonalToken>, InferCreationAttributes<PersonalToken>> {
   public declare readonly id: CreationOptional<number>;
@@ -23,8 +23,8 @@ class PersonalToken extends Model<InferAttributes<PersonalToken>, InferCreationA
   public declare name: string;
   public declare preAuthorize2FA: CreationOptional<boolean>;
 
-  public declare application?: NonAttribute<typeof models.Application>;
-  public declare user?: NonAttribute<typeof models.User>;
+  public declare application?: NonAttribute<typeof Application>;
+  public declare user?: NonAttribute<typeof User>;
 
   public static generateToken(): string {
     return randomBytes(20).toString('hex');

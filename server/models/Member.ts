@@ -3,7 +3,6 @@ import { InferAttributes, InferCreationAttributes, Model, ModelStatic } from 'se
 
 import { CollectiveType } from '../constants/collectives';
 import roles from '../constants/roles';
-import MemberRoles from '../constants/roles';
 import { invalidateContributorsCache } from '../lib/contributors';
 import sequelize, { DataTypes } from '../lib/sequelize';
 import { days } from '../lib/utils';
@@ -36,7 +35,7 @@ export interface MemberModelInterface
   MemberCollectiveId: number;
   CollectiveId: number;
   TierId: number;
-  role: MemberRoles;
+  role: roles;
   description: string;
   publicMessage: string;
 

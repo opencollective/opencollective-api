@@ -1,7 +1,6 @@
 import DataLoader from 'dataloader';
 
-import models, { Op } from '../../models';
-import { PayoutMethod } from '../../models/PayoutMethod';
+import { Op, PayoutMethod } from '../../models';
 
 import { sortResultsArray } from './helpers';
 
@@ -10,7 +9,7 @@ import { sortResultsArray } from './helpers';
  */
 export const generateCollectivePaypalPayoutMethodsLoader = (): DataLoader<number, PayoutMethod[]> => {
   return new DataLoader(async (collectiveIds: number[]) => {
-    const payoutMethods = await models.PayoutMethod.scope('paypal').findAll({
+    const payoutMethods = await PayoutMethod.scope('paypal').findAll({
       where: { CollectiveId: { [Op.in]: collectiveIds }, isSaved: true },
     });
 
@@ -23,7 +22,7 @@ export const generateCollectivePaypalPayoutMethodsLoader = (): DataLoader<number
  */
 export const generateCollectivePayoutMethodsLoader = (): DataLoader<number, PayoutMethod[]> => {
   return new DataLoader(async (collectiveIds: number[]) => {
-    const payoutMethods = await models.PayoutMethod.findAll({
+    const payoutMethods = await PayoutMethod.findAll({
       where: { CollectiveId: { [Op.in]: collectiveIds }, isSaved: true },
     });
 

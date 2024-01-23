@@ -48,9 +48,10 @@ export type UserTwoFactorMethodData = {
   [TwoFactorMethod.WEBAUTHN]: UserTwoFactorMethodWebAuthnData;
 };
 
-export default class UserTwoFactorMethod<
-  T extends Exclude<TwoFactorMethod, TwoFactorMethod.RECOVERY_CODE>,
-> extends Model<InferAttributes<UserTwoFactorMethod<T>>, InferCreationAttributes<UserTwoFactorMethod<T>>> {
+class UserTwoFactorMethod<T extends Exclude<TwoFactorMethod, TwoFactorMethod.RECOVERY_CODE>> extends Model<
+  InferAttributes<UserTwoFactorMethod<T>>,
+  InferCreationAttributes<UserTwoFactorMethod<T>>
+> {
   declare id: CreationOptional<number>;
   declare method: T;
 
@@ -178,3 +179,5 @@ UserTwoFactorMethod.init(
     paranoid: true,
   },
 );
+
+export default UserTwoFactorMethod;

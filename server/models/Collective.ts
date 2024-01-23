@@ -93,7 +93,7 @@ import { getPolicy } from '../lib/policies';
 import queries from '../lib/queries';
 import { buildSanitizerOptions, sanitizeHTML, stripHTML } from '../lib/sanitize-html';
 import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
-import sequelize, { DataTypes, Op, Sequelize, Transaction } from '../lib/sequelize';
+import sequelize, { DataTypes, Op, Sequelize, Transaction as SequelizeTransaction } from '../lib/sequelize';
 import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective, SpamAnalysisReport } from '../lib/spam';
 import { sanitizeTags, validateTags } from '../lib/tags';
 import { canUseFeature } from '../lib/user-permissions';
@@ -101,15 +101,27 @@ import userlib from '../lib/userlib';
 import { capitalize, formatCurrency, getDomain, md5 } from '../lib/utils';
 import { Location as LocationType, StructuredAddress } from '../types/Location';
 
+import AccountingCategory from './AccountingCategory';
+import Activity from './Activity';
 import ConnectedAccount from './ConnectedAccount';
 import CustomDataTypes from './DataTypes';
-import { HostApplicationStatus } from './HostApplication';
+import Expense from './Expense';
+import HostApplication, { HostApplicationStatus } from './HostApplication';
 import { LegalDocumentModelInterface } from './LegalDocument';
 import Location from './Location';
+import Member from './Member';
+import MemberInvitation from './MemberInvitation';
 import Order from './Order';
+import PaymentMethod from './PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
 import SocialLink, { SocialLinkType } from './SocialLink';
+import Subscription from './Subscription';
+import Tier from './Tier';
+import Transaction from './Transaction';
+import Update from './Update';
 import { MAX_UPLOADED_FILE_URL_LENGTH } from './UploadedFile';
+import User from './User';
+import VirtualCard from './VirtualCard';
 
 const debug = debugLib('models:Collective');
 
@@ -235,8 +247,6 @@ const sanitizeSettingsValue = value => {
   return value;
 };
 
-const { models } = sequelize;
-
 class Collective extends Model<
   InferAttributes<
     Collective,
@@ -291,13 +301,13 @@ class Collective extends Model<
 
   public declare host?: NonAttribute<Collective>;
 
-  public declare members?: NonAttribute<Array<typeof models.Member>>;
-  public declare getMembers: HasManyGetAssociationsMixin<typeof models.Member>;
+  public declare members?: NonAttribute<Array<typeof Member>>;
+  public declare getMembers: HasManyGetAssociationsMixin<typeof Member>;
 
   public declare legalDocuments?: NonAttribute<LegalDocumentModelInterface[]>;
 
-  public declare accountingCategories?: NonAttribute<Array<typeof models.AccountingCategory>>;
-  public declare getAccountingCategories: HasManyGetAssociationsMixin<typeof models.AccountingCategory>;
+  public declare accountingCategories?: NonAttribute<Array<AccountingCategory>>;
+  public declare getAccountingCategories: HasManyGetAssociationsMixin<AccountingCategory>;
 
   public declare getConnectedAccounts: HasManyGetAssociationsMixin<ConnectedAccount>;
   public declare getPayoutMethods: HasManyGetAssociationsMixin<PayoutMethod>;
@@ -316,7 +326,7 @@ class Collective extends Model<
       type: CollectiveType.ORGANIZATION,
       isActive: true,
     });
-    await models.Member.create({
+    await Member.create({
       CreatedByUserId,
       CollectiveId: collective.id,
       MemberCollectiveId: adminUser.CollectiveId,
@@ -345,7 +355,7 @@ class Collective extends Model<
   };
 
   static getHostCollectiveId = async CollectiveId => {
-    const res = await models.Member.findOne({
+    const res = await Member.findOne({
       attributes: ['MemberCollectiveId'],
       where: { CollectiveId, role: roles.HOST },
     });
@@ -380,7 +390,7 @@ class Collective extends Model<
     }
 
     // fetch any existing slugs which match or start with baseSlug. Used as list for helper function.
-    return models.Collective.findAll({
+    return Collective.findAll({
       attributes: ['slug'],
       where: { slug: { [Op.startsWith]: baseSlug } },
       paranoid: false,
@@ -598,7 +608,7 @@ class Collective extends Model<
     }
 
     if (socialLinks.length === 0) {
-      await models.SocialLink.destroy({
+      await SocialLink.destroy({
         where: {
           CollectiveId: this.id,
         },
@@ -619,7 +629,7 @@ class Collective extends Model<
       const removedLinks = differenceWith(existingLinks, socialLinks, isSameLink);
 
       if (removedLinks.length !== 0) {
-        await models.SocialLink.destroy({
+        await SocialLink.destroy({
           where: {
             CollectiveId: this.id,
             [Op.and]: {
@@ -633,7 +643,7 @@ class Collective extends Model<
         });
       }
 
-      const updatedSocialLinks = await models.SocialLink.bulkCreate(
+      const updatedSocialLinks = await SocialLink.bulkCreate(
         socialLinks.map((socialLink, order) => ({
           url: socialLink.url,
           type: socialLink.type,
@@ -696,14 +706,14 @@ class Collective extends Model<
     if (!this.ParentCollectiveId) {
       return null;
     } else if (attributes) {
-      return models.Collective.findByPk(this.ParentCollectiveId, { attributes });
+      return Collective.findByPk(this.ParentCollectiveId, { attributes });
     } else if (this.parentCollective) {
       return this.parentCollective;
     } else if (loaders) {
       this.parentCollective = await loaders.Collective.byId.load(this.ParentCollectiveId);
       return this.parentCollective;
     } else {
-      this.parentCollective = await models.Collective.findByPk(this.ParentCollectiveId);
+      this.parentCollective = await Collective.findByPk(this.ParentCollectiveId);
       return this.parentCollective;
     }
   };
@@ -825,8 +835,8 @@ class Collective extends Model<
    * Returns the incognito member for this collective (or null if none exists).
    * Be careful: the link between an account and the incognito profile is a private information.
    */
-  getIncognitoMember = async function ({ transaction }: { transaction?: Transaction } = {}) {
-    return models.Member.findOne({
+  getIncognitoMember = async function ({ transaction }: { transaction?: SequelizeTransaction } = {}) {
+    return Member.findOne({
       transaction,
       where: {
         [this.isIncognito ? 'CollectiveId' : 'MemberCollectiveId']: this.id,
@@ -843,7 +853,7 @@ class Collective extends Model<
    * Returns the incognito profile for this collective (or null if none exists).
    * Be careful: the link between an account and the incognito profile is a private information.
    */
-  getIncognitoProfile = async function ({ transaction }: { transaction?: Transaction } = {}) {
+  getIncognitoProfile = async function ({ transaction }: { transaction?: SequelizeTransaction } = {}) {
     if (this.type !== CollectiveType.USER) {
       return null;
     } else if (this.isIncognito) {
@@ -857,7 +867,7 @@ class Collective extends Model<
   /**
    * Returns the incognito profile for this collective, creating it if necessary
    */
-  getOrCreateIncognitoProfile = async function ({ transaction }: { transaction?: Transaction } = {}) {
+  getOrCreateIncognitoProfile = async function ({ transaction }: { transaction?: SequelizeTransaction } = {}) {
     if (this.type !== CollectiveType.USER) {
       throw new Error(`Incognito profiles can only be created for users (not ${this.type})`);
     }
@@ -870,7 +880,7 @@ class Collective extends Model<
       }
 
       const user = await this.getUser({ transaction }); // Ideally we should store the user that created the profile (can be a root admin), but User.getIncognitoProfile relies on this
-      const account = await models.Collective.create(
+      const account = await Collective.create(
         {
           name: 'Incognito',
           currency: this.currency,
@@ -882,7 +892,7 @@ class Collective extends Model<
         { transaction },
       );
 
-      await models.Member.create(
+      await Member.create(
         {
           MemberCollectiveId: user.CollectiveId,
           CollectiveId: account.id,
@@ -951,7 +961,7 @@ class Collective extends Model<
     await this.getOrCreateHostPaymentMethod();
 
     if (this.type === 'ORGANIZATION' || this.type === 'USER') {
-      await models.Activity.create({
+      await Activity.create({
         type: activities.ACTIVATED_COLLECTIVE_AS_HOST,
         CollectiveId: this.id,
         FromCollectiveId: this.id,
@@ -959,7 +969,7 @@ class Collective extends Model<
         data: { collective: this.info },
       });
     } else if (this.type === CollectiveType.COLLECTIVE) {
-      await models.Activity.create({
+      await Activity.create({
         type: activities.ACTIVATED_COLLECTIVE_AS_INDEPENDENT,
         CollectiveId: this.id,
         FromCollectiveId: this.id,
@@ -974,18 +984,23 @@ class Collective extends Model<
   };
 
   getOrCreateHostPaymentMethod = async function () {
-    const hostPaymentMethod = await models.PaymentMethod.findOne({
-      where: { service: 'opencollective', type: 'host', CollectiveId: this.id, currency: this.currency },
+    const hostPaymentMethod = await PaymentMethod.findOne({
+      where: {
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.HOST,
+        CollectiveId: this.id,
+        currency: this.currency,
+      },
     });
 
     if (hostPaymentMethod) {
       return hostPaymentMethod;
     }
 
-    return models.PaymentMethod.create({
+    return PaymentMethod.create({
       CollectiveId: this.id,
-      service: 'opencollective',
-      type: 'host',
+      service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+      type: PAYMENT_METHOD_TYPE.HOST,
       name: `${this.name} (Host)`,
       primary: true,
       currency: this.currency,
@@ -1005,14 +1020,11 @@ class Collective extends Model<
     }
 
     // Make sure we clean up all pending applications
-    await models.HostApplication.update(
-      { status: HostApplicationStatus.EXPIRED },
-      { where: { HostCollectiveId: this.id } },
-    );
+    await HostApplication.update({ status: HostApplicationStatus.EXPIRED }, { where: { HostCollectiveId: this.id } });
 
-    await models.Member.destroy({ where: { MemberCollectiveId: this.id, role: 'HOST' } });
+    await Member.destroy({ where: { MemberCollectiveId: this.id, role: 'HOST' } });
 
-    await models.Collective.update(
+    await Collective.update(
       { HostCollectiveId: null },
       { hooks: false, where: { HostCollectiveId: this.id, isActive: false } },
     );
@@ -1026,21 +1038,21 @@ class Collective extends Model<
 
     await this.update({ isHostAccount: false, plan: null, settings });
 
-    await models.PayoutMethod.destroy({
+    await PayoutMethod.destroy({
       where: {
         data: { isManualBankTransfer: true },
         CollectiveId: this.id,
       },
     });
 
-    await models.ConnectedAccount.destroy({
+    await ConnectedAccount.destroy({
       where: {
         service: 'stripe',
         CollectiveId: this.id,
       },
     });
 
-    await models.Activity.create({
+    await Activity.create({
       type: activities.DEACTIVATED_COLLECTIVE_AS_HOST,
       CollectiveId: this.id,
       FromCollectiveId: this.id,
@@ -1050,7 +1062,7 @@ class Collective extends Model<
     return this;
   };
 
-  enableFeature = async function (feature, { transaction }: { transaction?: Transaction } = {}) {
+  enableFeature = async function (feature, { transaction }: { transaction?: SequelizeTransaction } = {}) {
     assert(FEATURE[feature], `Feature ${feature} is not supported`);
 
     const children = await this.getChildren({ transaction });
@@ -1060,7 +1072,7 @@ class Collective extends Model<
     return Promise.all([this, ...children].map(processCollective));
   };
 
-  disableFeature = async function (feature, { transaction }: { transaction?: Transaction } = {}) {
+  disableFeature = async function (feature, { transaction }: { transaction?: SequelizeTransaction } = {}) {
     assert(FEATURE[feature], `Feature ${feature} is not supported`);
 
     const children = await this.getChildren({ transaction });
@@ -1080,7 +1092,7 @@ class Collective extends Model<
       await this.disableFeature(FEATURE.ALL, { transaction });
 
       // Create the notification
-      await models.Activity.create(
+      await Activity.create(
         {
           type: activities.COLLECTIVE_FROZEN,
           CollectiveId: this.id,
@@ -1101,7 +1113,7 @@ class Collective extends Model<
     await sequelize.transaction(async transaction => {
       await this.enableFeature(FEATURE.ALL, { transaction });
 
-      await models.Activity.create(
+      await Activity.create(
         {
           type: activities.COLLECTIVE_UNFROZEN,
           CollectiveId: this.id,
@@ -1148,18 +1160,18 @@ class Collective extends Model<
       approvedAt: new Date(),
     });
 
-    await models.PaymentMethod.destroy({
+    await PaymentMethod.destroy({
       where: {
         CollectiveId: this.id,
-        service: 'opencollective',
-        type: 'collective',
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.COLLECTIVE,
       },
     });
 
-    await models.PaymentMethod.create({
+    await PaymentMethod.create({
       CollectiveId: this.id,
-      service: 'opencollective',
-      type: 'collective',
+      service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+      type: PAYMENT_METHOD_TYPE.COLLECTIVE,
       name: `${capitalize(this.name)} (${capitalize(this.type.toLowerCase())})`,
       primary: true,
       currency: this.currency,
@@ -1179,7 +1191,7 @@ class Collective extends Model<
       approvedAt: null,
     });
 
-    await models.Member.destroy({
+    await Member.destroy({
       where: {
         role: roles.HOST,
         MemberCollectiveId: this.id,
@@ -1187,11 +1199,11 @@ class Collective extends Model<
       },
     });
 
-    await models.PaymentMethod.destroy({
+    await PaymentMethod.destroy({
       where: {
         CollectiveId: this.id,
-        service: 'opencollective',
-        type: 'collective',
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.COLLECTIVE,
       },
     });
 
@@ -1263,30 +1275,30 @@ class Collective extends Model<
   // Returns the User model of the User that created this collective
   getUser = async function (queryParams = undefined) {
     if (this.type === CollectiveType.USER) {
-      return models.User.findOne({ where: { CollectiveId: this.id }, ...queryParams });
+      return User.findOne({ where: { CollectiveId: this.id }, ...queryParams });
     } else {
       return null;
     }
   };
 
   getAdmins = async function () {
-    const members = await models.Member.findAll({
+    const members = await Member.findAll({
       where: {
         CollectiveId: this.id,
         role: roles.ADMIN,
       },
-      include: [{ model: models.Collective, as: 'memberCollective' }],
+      include: [{ model: Collective, as: 'memberCollective' }],
     });
     return members.map(member => member.memberCollective);
   };
 
   getMemberships = async function ({ role }: { role?: string } = {}) {
-    const members = await models.Member.findAll({
+    const members = await Member.findAll({
       where: {
         MemberCollectiveId: this.id,
         role: role,
       },
-      include: [{ model: models.Collective, as: 'collective' }],
+      include: [{ model: Collective, as: 'collective' }],
     });
     return members.map(member => member.collective);
   };
@@ -1333,7 +1345,7 @@ class Collective extends Model<
     collectiveAttributes = [], // Don't include the member collective by default. Pass `null` to fetch all attributes.
     paranoid = true,
   } = {}) {
-    return models.User.findAll({
+    return User.findAll({
       group: ['User.id', 'collective.id'],
       order: [['id', 'ASC']], // Not needed, but it's always nice to have a consistent order (e.g. for tests)
       paranoid,
@@ -1400,7 +1412,7 @@ class Collective extends Model<
    */
   getBackersStats = function (startDate, endDate) {
     const getBackersUntil = until =>
-      models.Member.count({
+      Member.count({
         where: {
           CollectiveId: this.id,
           role: roles.BACKER,
@@ -1425,7 +1437,7 @@ class Collective extends Model<
    * @param {*} endDate end of the time period
    */
   getNewOrders = async function (startDate = 0, endDate = new Date(), where = {}) {
-    const orders = await models.Order.findAll({
+    const orders = await Order.findAll({
       where: {
         CollectiveId: this.id,
         FromCollectiveId: { [Op.ne]: this.id },
@@ -1433,7 +1445,7 @@ class Collective extends Model<
         ...where,
       },
       paranoid: false,
-      include: [{ model: models.Collective, as: 'fromCollective' }, { model: models.Tier }],
+      include: [{ model: Collective, as: 'fromCollective' }, { model: Tier }],
     });
     orders.sort((a, b) => {
       if (a.dataValues.totalAmount > b.dataValues.totalAmount) {
@@ -1457,24 +1469,24 @@ class Collective extends Model<
    * @param {*} endDate end of the time period
    */
   getCancelledOrders = async function (startDate = 0, endDate = new Date()) {
-    let orders = <Array<any>>await models.Order.findAll({
+    let orders = <Array<any>>await Order.findAll({
       where: {
         CollectiveId: this.id,
       },
       include: [
         {
-          model: models.Subscription,
+          model: Subscription,
           required: true,
           where: {
             deactivatedAt: { [Op.gte]: startDate, [Op.lt]: endDate },
           },
         },
         {
-          model: models.Collective,
+          model: Collective,
           as: 'fromCollective',
         },
         {
-          model: models.Tier,
+          model: Tier,
         },
       ],
     });
@@ -1532,7 +1544,7 @@ class Collective extends Model<
       const types = typeof options.type === 'string' ? [options.type] : options.type;
       query.include = [
         {
-          model: models.Collective,
+          model: Collective,
           as: 'fromCollective',
           attributes: [],
           required: true,
@@ -1547,7 +1559,7 @@ class Collective extends Model<
       query.attributes.push('fromCollective.type');
       query.include = [
         {
-          model: models.Collective,
+          model: Collective,
           as: 'fromCollective',
           attributes: [],
           required: true,
@@ -1560,7 +1572,7 @@ class Collective extends Model<
       method = 'findOne';
     }
 
-    return models.Transaction[method](query).then(res => {
+    return Transaction[method](query).then(res => {
       if (options.group) {
         const stats = { id: this.id, all: undefined };
         let all = 0;
@@ -1591,7 +1603,7 @@ class Collective extends Model<
       options,
       { clone: false },
     );
-    return models.Order.findAll(query);
+    return Order.findAll(query);
   };
 
   getOutgoingOrders = function (options) {
@@ -1602,14 +1614,14 @@ class Collective extends Model<
       options,
       { clone: false },
     );
-    return models.Order.findAll(query);
+    return Order.findAll(query);
   };
 
   getRoleForMemberCollective = function (MemberCollectiveId) {
     if (!MemberCollectiveId) {
       return null;
     }
-    return models.Member.findOne({
+    return Member.findOne({
       where: { MemberCollectiveId, CollectiveId: this.id },
     }).then(member => member.role);
   };
@@ -1630,7 +1642,7 @@ class Collective extends Model<
     const tiersById = {};
 
     // Get the list of tiers for the collective (including deleted ones)
-    const tiers = await models.Tier.findAll({ where: { CollectiveId: this.id }, paranoid: false });
+    const tiers = await Tier.findAll({ where: { CollectiveId: this.id }, paranoid: false });
     for (const tier of tiers) {
       tiersById[tier.id] = tier;
     }
@@ -1642,8 +1654,8 @@ class Collective extends Model<
     // Map the users to their respective tier
     await Promise.all(
       backerCollectives.map(backerCollective => {
-        const include = options.active ? [{ model: models.Subscription, attributes: ['isActive'] }] : [];
-        return models.Order.findOne({
+        const include = options.active ? [{ model: Subscription, attributes: ['isActive'] }] : [];
+        return Order.findOne({
           attributes: ['TierId'],
           where: {
             FromCollectiveId: backerCollective.id,
@@ -1686,12 +1698,12 @@ class Collective extends Model<
     if (backerCollective.role && backerCollective.role !== 'BACKER') {
       return backerCollective;
     }
-    return models.Order.findOne({
+    return Order.findOne({
       where: {
         FromCollectiveId: backerCollective.id,
         CollectiveId: this.id,
       },
-      include: [{ model: models.Tier }],
+      include: [{ model: Tier }],
     }).then(order => order && order.Tier);
   };
 
@@ -1725,7 +1737,7 @@ class Collective extends Model<
       ...defaultAttributes,
     };
 
-    const existingMember = await models.Member.findOne({
+    const existingMember = await Member.findOne({
       where: {
         role,
         MemberCollectiveId: user.CollectiveId,
@@ -1740,7 +1752,7 @@ class Collective extends Model<
 
     debug('addUserWithRole', user.id, role, 'member', memberAttributes);
 
-    const member = await models.Member.create(memberAttributes, sequelizeParams);
+    const member = await Member.create(memberAttributes, sequelizeParams);
 
     switch (role) {
       case roles.BACKER:
@@ -1760,7 +1772,7 @@ class Collective extends Model<
         // Sanitization: Clean memberships of children collectives
         const children = await this.getChildren();
         if (children.length > 0) {
-          await models.Member.destroy({
+          await Member.destroy({
             where: {
               MemberCollectiveId: user.CollectiveId,
               CollectiveId: children.map(c => c.id),
@@ -1780,21 +1792,19 @@ class Collective extends Model<
     // We refetch to preserve historic behavior and make sure it's up to date
     let order;
     if (context.order) {
-      order = await models.Order.findOne(
-        {
-          where: { id: context.order.id },
-          include: [{ model: models.Tier }, { model: models.Subscription }],
-        },
-        sequelizeParams,
-      );
+      order = await Order.findOne({
+        ...sequelizeParams,
+        where: { id: context.order.id },
+        include: [{ model: Tier }, { model: Subscription }],
+      });
     }
 
     const urlPath = await this.getUrlPath();
-    const memberCollective = await models.Collective.findByPk(member.MemberCollectiveId, sequelizeParams);
+    const memberCollective = await Collective.findByPk(member.MemberCollectiveId, sequelizeParams);
 
     let memberCollectiveUser;
     if (memberCollective.type === CollectiveType.USER && !memberCollective.isIncognito) {
-      memberCollectiveUser = await models.User.findOne({ where: { CollectiveId: memberCollective.id } });
+      memberCollectiveUser = await User.findOne({ where: { CollectiveId: memberCollective.id } });
     }
 
     const data = {
@@ -1813,7 +1823,7 @@ class Collective extends Model<
       },
     };
 
-    return models.Activity.create(
+    return Activity.create(
       {
         type: activities.COLLECTIVE_MEMBER_CREATED,
         FromCollectiveId: memberCollective.id,
@@ -1827,17 +1837,15 @@ class Collective extends Model<
   };
 
   sendNewMemberEmail = async function (user, role, member, sequelizeParams) {
-    const remoteUser = await models.User.findByPk(
-      member.CreatedByUserId,
-      { include: [{ model: models.Collective, as: 'collective' }] },
-      sequelizeParams,
-    );
+    const remoteUser = await User.findByPk(member.CreatedByUserId, {
+      ...sequelizeParams,
+      include: [{ model: Collective, as: 'collective' }],
+    });
 
-    const memberUser = await models.User.findByPk(
-      user.id,
-      { include: [{ model: models.Collective, as: 'collective' }] },
-      sequelizeParams,
-    );
+    const memberUser = await User.findByPk(user.id, {
+      ...sequelizeParams,
+      include: [{ model: Collective, as: 'collective' }],
+    });
 
     // We don't notify if the new member is the logged in user
     if (get(remoteUser, 'collective.id') === get(memberUser, 'collective.id')) {
@@ -1875,7 +1883,7 @@ class Collective extends Model<
    * A new membership is registered for each `defaultAttributes.TierId`.
    */
   findOrAddUserWithRole = function (user, role, defaultAttributes, context, transaction) {
-    return models.Member.findOne({
+    return Member.findOne({
       where: {
         role,
         MemberCollectiveId: user.CollectiveId,
@@ -1897,18 +1905,18 @@ class Collective extends Model<
    * It's expected that child Collectives like EVENTS are returned
    */
   getHostedCollectives = async function (queryParams = {}) {
-    return models.Collective.findAll({
+    return Collective.findAll({
       ...queryParams,
       where: { isActive: true, HostCollectiveId: this.id, approvedAt: { [Op.not]: null } },
     });
   };
 
   getHostedCollectiveAdmins = async function () {
-    const adminMembersIds = await models.Member.findAll({
+    const adminMembersIds = await Member.findAll({
       where: { MemberCollectiveId: this.id, role: roles.HOST },
     }).then(async collectives => {
       const hostedCollectiveIds = collectives.map(c => c.CollectiveId);
-      return models.Member.findAll({
+      return Member.findAll({
         where: {
           CollectiveId: { [Op.in]: hostedCollectiveIds },
           role: roles.ADMIN,
@@ -1916,10 +1924,10 @@ class Collective extends Model<
       }).then(admins => admins.map(a => a.MemberCollectiveId));
     });
 
-    return models.User.findAll({ where: { CollectiveId: { [Op.in]: adminMembersIds } } });
+    return User.findAll({ where: { CollectiveId: { [Op.in]: adminMembersIds } } });
   };
 
-  setLocation = async function (locationInput: LocationType, transaction?: any) {
+  setLocation = async function (locationInput: LocationType, transaction?: SequelizeTransaction) {
     const sequelizeParams = transaction ? { transaction } : undefined;
 
     const location = await this.getLocation(sequelizeParams);
@@ -1963,7 +1971,7 @@ class Collective extends Model<
       }
 
       promises.push(
-        models.Location.create(
+        Location.create(
           {
             CollectiveId: this.id,
             name: name || null,
@@ -1999,7 +2007,7 @@ class Collective extends Model<
           throw new Error('You must be an admin of this host to change the host fee');
         }
 
-        await models.Collective.update(
+        await Collective.update(
           { hostFeePercent },
           {
             hooks: false,
@@ -2039,7 +2047,7 @@ class Collective extends Model<
           throw new Error('You must be an admin of this host to change the platform fee');
         }
 
-        await models.Collective.update(
+        await Collective.update(
           { platformFeePercent },
           {
             hooks: false,
@@ -2098,7 +2106,7 @@ class Collective extends Model<
     if (isHost) {
       // We only expect currency change at the beginning of the history of the Host
       // We're however good with it if currency is already recorded as hostCurrency in the ledger
-      const transactionCount = await models.Transaction.count({
+      const transactionCount = await Transaction.count({
         where: { HostCollectiveId: this.id, hostCurrency: { [Op.not]: currency } },
       });
       if (transactionCount > 0) {
@@ -2113,7 +2121,7 @@ class Collective extends Model<
         await pMap(
           collectives,
           async collective => {
-            const collectiveTransactionCount = await models.Transaction.count({
+            const collectiveTransactionCount = await Transaction.count({
               where: { CollectiveId: collective.id },
             });
             // We only proceed with Collectives without Transactions
@@ -2136,7 +2144,7 @@ class Collective extends Model<
         tiers,
         async tier => {
           // We only proceed with Tiers without Orders
-          const orderCount = await models.Order.count({ where: { TierId: tier.id } });
+          const orderCount = await Order.count({ where: { TierId: tier.id } });
           if (orderCount === 0) {
             return tier.setCurrency(currency);
           }
@@ -2160,7 +2168,7 @@ class Collective extends Model<
 
   /**
    * Add the host in the Members table and updates HostCollectiveId
-   * @param {*} hostCollective instanceof models.Collective
+   * @param {*} hostCollective instanceof Collective
    * @param {*} creatorUser { id } (optional, falls back to hostCollective.CreatedByUserId)
    * @param {object} [options] (optional, to peform specific actions)
    */
@@ -2187,7 +2195,7 @@ class Collective extends Model<
         shouldAutomaticallyApprove = true;
       } else if (this.ParentCollectiveId && creatorUser.isAdmin(this.ParentCollectiveId)) {
         // If there's a parent collective already approved by the host and user is admin of it, we can also approve
-        const parentCollective = await models.Collective.findByPk(this.ParentCollectiveId);
+        const parentCollective = await Collective.findByPk(this.ParentCollectiveId);
         if (parentCollective && parentCollective.HostCollectiveId === hostCollective.id && parentCollective.isActive) {
           shouldAutomaticallyApprove = true;
         }
@@ -2212,11 +2220,11 @@ class Collective extends Model<
       updatedValues.currency = hostCollective.currency;
     }
 
-    const promises = [models.Member.create(member), this.update(updatedValues)];
+    const promises = [Member.create(member), this.update(updatedValues)];
 
     // If collective does not have enough admins, block it from receiving contributions when automatically approving
     if (shouldAutomaticallyApprove) {
-      const adminCount = await models.Member.count({
+      const adminCount = await Member.count({
         where: {
           CollectiveId: this.ParentCollectiveId || this.id,
           role: roles.ADMIN,
@@ -2229,11 +2237,11 @@ class Collective extends Model<
     }
 
     // Invalidate current collective payment method if there's one
-    await models.PaymentMethod.destroy({
+    await PaymentMethod.destroy({
       where: {
         CollectiveId: this.id,
-        service: 'opencollective',
-        type: 'collective',
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.COLLECTIVE,
       },
     });
 
@@ -2242,10 +2250,10 @@ class Collective extends Model<
       [CollectiveType.COLLECTIVE, CollectiveType.FUND, CollectiveType.EVENT, CollectiveType.PROJECT].includes(this.type)
     ) {
       promises.push(
-        models.PaymentMethod.create({
+        PaymentMethod.create({
           CollectiveId: this.id,
-          service: 'opencollective',
-          type: 'collective',
+          service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+          type: PAYMENT_METHOD_TYPE.COLLECTIVE,
           name: `${capitalize(this.name)} (${capitalize(this.type.toLowerCase())})`,
           primary: true,
           currency: hostCollective.currency,
@@ -2257,7 +2265,7 @@ class Collective extends Model<
       let tiers = await this.getTiers();
       if (!tiers || tiers.length === 0) {
         tiers = defaultTiers(hostCollective.currency);
-        promises.push(models.Tier.createMany(tiers, { CollectiveId: this.id }));
+        promises.push(Tier.createMany(tiers, { CollectiveId: this.id }));
       } else {
         // if the collective already had some tiers, we delete the ones that don't have the same currency
         // and we recreate new ones
@@ -2265,7 +2273,7 @@ class Collective extends Model<
           if (t.currency !== hostCollective.currency) {
             const newTierData = omit(t.dataValues, ['id']);
             newTierData.currency = hostCollective.currency;
-            promises.push(models.Tier.create(newTierData));
+            promises.push(Tier.create(newTierData));
             promises.push(t.destroy());
           }
         });
@@ -2310,7 +2318,7 @@ class Collective extends Model<
 
         // Record application
         promises.push(
-          models.HostApplication.recordApplication(hostCollective, this, creatorUser, {
+          HostApplication.recordApplication(hostCollective, this, creatorUser, {
             message: options?.message,
             customData: options?.applicationData,
           }),
@@ -2318,7 +2326,7 @@ class Collective extends Model<
 
         if (!options?.skipCollectiveApplyActivity && !shouldAutomaticallyApprove) {
           promises.push(
-            models.Activity.create({
+            Activity.create({
               UserId: creatorUser.id,
               CollectiveId: this.id,
               HostCollectiveId: hostCollective.id,
@@ -2380,7 +2388,7 @@ class Collective extends Model<
       }
     }
 
-    await models.Member.destroy({
+    await Member.destroy({
       where: {
         CollectiveId: this.id,
         MemberCollectiveId: this.HostCollectiveId,
@@ -2390,7 +2398,7 @@ class Collective extends Model<
 
     // Self Hosted Collective
     if (this.id === this.HostCollectiveId) {
-      await models.ConnectedAccount.destroy({
+      await ConnectedAccount.destroy({
         where: {
           service: 'stripe',
           CollectiveId: this.id,
@@ -2400,7 +2408,7 @@ class Collective extends Model<
 
     await Order.cancelNonTransferableActiveOrdersByCollectiveId(this.id);
 
-    const virtualCards = await models.VirtualCard.findAll({ where: { CollectiveId: this.id } });
+    const virtualCards = await VirtualCard.findAll({ where: { CollectiveId: this.id } });
     await Promise.all(virtualCards.map(virtualCard => virtualCard.delete()));
 
     // Prepare events and projects to receive a new host
@@ -2410,7 +2418,7 @@ class Collective extends Model<
     }
 
     // Unlink accounting categories from unpaid expenses, as these categories are host-specific
-    await models.Expense.update(
+    await Expense.update(
       { AccountingCategoryId: null },
       {
         where: {
@@ -2439,7 +2447,7 @@ class Collective extends Model<
 
     // Add new host
     if (newHostCollectiveId) {
-      const newHostCollective = await models.Collective.findByPk(newHostCollectiveId);
+      const newHostCollective = await Collective.findByPk(newHostCollectiveId);
       if (!newHostCollective) {
         throw new Error('Host not found');
       } else if (!newHostCollective.isHostAccount) {
@@ -2480,7 +2488,7 @@ class Collective extends Model<
     // Load existing data
     const [oldMembers, oldInvitations] = <[Array<any>, Array<any>]>await Promise.all([
       this.getMembers({ where: { role: { [Op.in]: allowedRoles } } }),
-      models.MemberInvitation.findAll({
+      MemberInvitation.findAll({
         where: { CollectiveId: this.id, role: { [Op.in]: allowedRoles } },
       }),
     ]);
@@ -2497,7 +2505,7 @@ class Collective extends Model<
 
       debug('editMembers', 'delete', diff);
       const diffMemberIds = diff.map(m => m.id);
-      await models.Member.update({ deletedAt: new Date() }, { where: { id: { [Op.in]: diffMemberIds } } });
+      await Member.update({ deletedAt: new Date() }, { where: { id: { [Op.in]: diffMemberIds } } });
     }
 
     // Remove the invitations that are not present anymore
@@ -2508,7 +2516,7 @@ class Collective extends Model<
     });
 
     if (invitationsDiff.length > 0) {
-      await models.MemberInvitation.update(
+      await MemberInvitation.update(
         { deletedAt: new Date() },
         {
           where: {
@@ -2532,7 +2540,7 @@ class Collective extends Model<
         // Edit an existing membership (edit the role/description)
         const editableAttributes = pick(member, ['role', 'description', 'since']);
         debug('editMembers', 'update member', member.id, editableAttributes);
-        await models.Member.update(editableAttributes, {
+        await Member.update(editableAttributes, {
           where: {
             id: member.id,
             CollectiveId: this.id,
@@ -2541,19 +2549,19 @@ class Collective extends Model<
         });
       } else if (remoteUserCollectiveId && member.member?.id === remoteUserCollectiveId) {
         // When users try to add themselves (ie. when creating a collective) we don't need to send an invitation
-        await models.Member.create({
+        await Member.create({
           ...memberAttributes,
           MemberCollectiveId: member.member.id,
           CollectiveId: this.id,
         });
       } else if (member.member?.id) {
         // Create new membership invitation
-        await models.MemberInvitation.invite(this, { ...memberAttributes, MemberCollectiveId: member.member.id });
+        await MemberInvitation.invite(this, { ...memberAttributes, MemberCollectiveId: member.member.id });
       } else if (member.member?.email) {
         // Add user by email
-        const user = await models.User.findOne({
+        const user = await User.findOne({
           include: {
-            model: models.Collective,
+            model: Collective,
             as: 'collective',
             where: { type: CollectiveType.USER, isIncognito: false },
           },
@@ -2562,11 +2570,11 @@ class Collective extends Model<
 
         if (user) {
           // If user exists for this email, send an invitation
-          await models.MemberInvitation.invite(this, { ...memberAttributes, MemberCollectiveId: user.collective.id });
+          await MemberInvitation.invite(this, { ...memberAttributes, MemberCollectiveId: user.collective.id });
         } else {
           // Otherwise create and add the user directly
           const userFields = ['email', 'name', 'company', 'website'];
-          const user = await models.User.createUserWithCollective(pick(member.member, userFields));
+          const user = await User.createUserWithCollective(pick(member.member, userFields));
           await this.addUserWithRole(user, member.role, {
             ...memberAttributes,
             MemberCollectiveId: user.collective.id,
@@ -2607,7 +2615,7 @@ class Collective extends Model<
           tiers.map(t => t.id),
         );
         if (diff.length > 0) {
-          return models.Tier.destroy({ where: { id: { [Op.in]: diff } } });
+          return Tier.destroy({ where: { id: { [Op.in]: diff } } });
         }
       })
       .then(() => {
@@ -2621,11 +2629,11 @@ class Collective extends Model<
               tier.data = { ...tier.data, invoiceTemplate: tier.invoiceTemplate };
             }
             if (tier.id) {
-              return models.Tier.update(tier, { where: { id: tier.id, CollectiveId: this.id } });
+              return Tier.update(tier, { where: { id: tier.id, CollectiveId: this.id } });
             } else {
               tier.CollectiveId = this.id;
               tier.currency = tier.currency || this.currency;
-              return models.Tier.create(tier);
+              return Tier.create(tier);
             }
           }),
         );
@@ -2651,12 +2659,12 @@ class Collective extends Model<
       where.type = { [Op.or]: [{ [Op.eq]: null }, { [Op.notIn]: excludedTypes }] };
     }
 
-    return models.Expense.findAll({
+    return Expense.findAll({
       where,
       order: [['createdAt', 'DESC']],
       include: [
         {
-          model: models.Collective,
+          model: Collective,
           as: 'collective',
           where: { HostCollectiveId: this.id },
         },
@@ -2682,7 +2690,7 @@ class Collective extends Model<
       where.type = { [Op.or]: [{ [Op.eq]: null }, { [Op.notIn]: excludedTypes }] };
     }
 
-    return models.Expense.findAll({
+    return Expense.findAll({
       where,
       order: [['createdAt', 'DESC']],
     });
@@ -2700,7 +2708,7 @@ class Collective extends Model<
       where.publishedAt = { [Op.ne]: null };
     }
 
-    return models.Update.findAll({
+    return Update.findAll({
       where,
       order: [['createdAt', 'DESC']],
     });
@@ -2720,7 +2728,7 @@ class Collective extends Model<
     } else {
       query.order = [['createdAt', 'DESC']];
     }
-    const paymentMethod = await models.PaymentMethod.findOne(query);
+    const paymentMethod = await PaymentMethod.findOne(query);
     if (!paymentMethod) {
       throw new Error('No payment method found');
     } else if (paymentMethod.expiryDate && paymentMethod.expiryDate < new Date()) {
@@ -2904,7 +2912,7 @@ class Collective extends Model<
       query.order = order;
     }
 
-    return models.Transaction.findAll(query);
+    return Transaction.findAll(query);
   };
 
   /**
@@ -2933,7 +2941,7 @@ class Collective extends Model<
     if (type === 'expense') {
       where.amount = { [Op.lt]: 0 };
     }
-    return models.Transaction.findOne({
+    return Transaction.findOne({
       attributes: [[Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col(attribute)), 0), 'total']],
       where,
     }).then(result => Promise.resolve(parseInt(result.toJSON().total, 10)));
@@ -2950,7 +2958,7 @@ class Collective extends Model<
     if (tags) {
       conditionOnCollective.tags = { [Op.overlap]: tags };
     }
-    return models.Transaction.findAll({
+    return Transaction.findAll({
       where: {
         FromCollectiveId: this.id,
         createdAt: { [Op.gte]: since || 0, [Op.lt]: until || new Date() },
@@ -2958,7 +2966,7 @@ class Collective extends Model<
       order: [['amount', 'DESC']],
       include: [
         {
-          model: models.Collective,
+          model: Collective,
           as: 'collective',
           where: conditionOnCollective,
         },
@@ -2975,11 +2983,11 @@ class Collective extends Model<
       return Promise.resolve(false);
     }
 
-    return models.Member.findOne({ where: { MemberCollectiveId: this.id, role: 'HOST' } }).then(r => Boolean(r));
+    return Member.findOne({ where: { MemberCollectiveId: this.id, role: 'HOST' } }).then(r => Boolean(r));
   };
 
   isHostOf = function (CollectiveId) {
-    return models.Collective.findOne({
+    return Collective.findOne({
       where: { id: CollectiveId, HostCollectiveId: this.id },
     }).then(r => Boolean(r));
   };
@@ -2991,15 +2999,13 @@ class Collective extends Model<
     }
 
     if (this.HostCollectiveId) {
-      return loaders
-        ? loaders.Collective.byId.load(this.HostCollectiveId)
-        : models.Collective.findByPk(this.HostCollectiveId);
+      return loaders ? loaders.Collective.byId.load(this.HostCollectiveId) : Collective.findByPk(this.HostCollectiveId);
     }
 
-    return models.Member.findOne({
+    return Member.findOne({
       attributes: ['MemberCollectiveId'],
       where: { role: roles.HOST, CollectiveId: this.ParentCollectiveId },
-      include: [{ model: models.Collective, as: 'memberCollective' }],
+      include: [{ model: Collective, as: 'memberCollective' }],
     }).then(m => {
       if (m && m.memberCollective) {
         return m.memberCollective;
@@ -3016,7 +3022,7 @@ class Collective extends Model<
     if (this.HostCollectiveId) {
       return Promise.resolve(this.HostCollectiveId);
     }
-    return models.Collective.getHostCollectiveId(this.ParentCollectiveId || this.id).then(HostCollectiveId => {
+    return Collective.getHostCollectiveId(this.ParentCollectiveId || this.id).then(HostCollectiveId => {
       this.HostCollectiveId = HostCollectiveId;
       return HostCollectiveId;
     });
@@ -3041,7 +3047,7 @@ class Collective extends Model<
         debug('getHostStripeAccount for collective', this.slug, `(id: ${this.id})`, 'HostCollectiveId', id);
         return (
           id &&
-          models.ConnectedAccount.findOne({
+          ConnectedAccount.findOne({
             where: { service: 'stripe', CollectiveId: id },
             order: [['createdAt', 'DESC']],
           })
@@ -3064,7 +3070,7 @@ class Collective extends Model<
   };
 
   getAccountForPaymentProvider = async function (provider) {
-    const connectedAccount = await models.ConnectedAccount.findOne({
+    const connectedAccount = await ConnectedAccount.findOne({
       where: { service: provider, CollectiveId: this.id },
     });
 
@@ -3123,7 +3129,7 @@ class Collective extends Model<
     if (!this.isHostAccount) {
       return Promise.resolve(null);
     }
-    return models.Collective.count({
+    return Collective.count({
       where: {
         HostCollectiveId: this.id,
         type: [CollectiveType.COLLECTIVE, CollectiveType.FUND],
@@ -3139,7 +3145,7 @@ class Collective extends Model<
       return Promise.resolve(null);
     }
 
-    const transactions = await models.Transaction.findAll({
+    const transactions = await Transaction.findAll({
       attributes: [
         [Sequelize.col('Transaction.currency'), 'currency'],
         [Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('amount')), 0), 'total'],
@@ -3151,12 +3157,12 @@ class Collective extends Model<
       },
       include: [
         {
-          model: models.Order,
+          model: Order,
           attributes: [],
           where: { status: 'PAID' },
           include: [
             {
-              model: models.PaymentMethod,
+              model: PaymentMethod,
               as: 'paymentMethod',
               attributes: [],
               // This is the main characteristic of Added Funds
@@ -3187,7 +3193,7 @@ class Collective extends Model<
       return Promise.resolve(null);
     }
 
-    const transactions = await models.Transaction.findAll({
+    const transactions = await Transaction.findAll({
       attributes: [
         [Sequelize.col('Transaction.currency'), 'currency'],
         [Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('Transaction.amount')), 0), 'total'],
@@ -3199,12 +3205,12 @@ class Collective extends Model<
       },
       include: [
         {
-          model: models.Expense,
+          model: Expense,
           attributes: [],
           where: { status: 'PAID' },
           include: [
             {
-              model: models.PayoutMethod,
+              model: PayoutMethod,
               attributes: [],
               where: {
                 type: PayoutMethodTypes.BANK_ACCOUNT,
@@ -3230,7 +3236,7 @@ class Collective extends Model<
       return Promise.resolve(null);
     }
 
-    const transactions = await models.Transaction.findAll({
+    const transactions = await Transaction.findAll({
       attributes: [
         [Sequelize.col('Transaction.currency'), 'currency'],
         [Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('amount')), 0), 'total'],
@@ -3242,7 +3248,7 @@ class Collective extends Model<
       },
       include: [
         {
-          model: models.Order,
+          model: Order,
           attributes: [],
           where: {
             status: 'PAID',
@@ -3366,7 +3372,7 @@ class Collective extends Model<
       type = activities.ORGANIZATION_COLLECTIVE_CREATED;
     }
 
-    return models.Activity.create({
+    return Activity.create({
       type,
       UserId: user.id,
       UserTokenId: userToken?.id,
@@ -3854,7 +3860,7 @@ Collective.init(
       },
       beforeCreate: async instance => {
         // Make sure user is not prevented from creating collectives
-        const user = instance.CreatedByUserId && (await models.User.findByPk(instance.CreatedByUserId));
+        const user = instance.CreatedByUserId && (await User.findByPk(instance.CreatedByUserId));
         if (user && !canUseFeature(user, FEATURE.CREATE_COLLECTIVE)) {
           throw new Error("You're not authorized to create new collectives at the moment.");
         }
@@ -3874,11 +3880,11 @@ Collective.init(
             instance.type,
           )
         ) {
-          await models.PaymentMethod.create(
+          await PaymentMethod.create(
             {
               CollectiveId: instance.id,
-              service: 'opencollective',
-              type: 'collective',
+              service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+              type: PAYMENT_METHOD_TYPE.COLLECTIVE,
               name: `${instance.name} (${capitalize(instance.type.toLowerCase())})`,
               primary: true,
               currency: instance.currency,

@@ -2,7 +2,7 @@ import DataLoader from 'dataloader';
 
 import ACTIVITY from '../../constants/activities';
 import models from '../../models';
-import { Activity } from '../../models/Activity';
+import Activity from '../../models/Activity';
 
 import { sortResultsArray } from './helpers';
 

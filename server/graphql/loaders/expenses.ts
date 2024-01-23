@@ -6,10 +6,10 @@ import { TransactionKind } from '../../constants/transaction-kind';
 import queries from '../../lib/queries';
 import { checkExpensesBatch } from '../../lib/security/expense';
 import models, { Op, sequelize } from '../../models';
-import { Activity } from '../../models/Activity';
+import Activity from '../../models/Activity';
 import Expense from '../../models/Expense';
-import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile';
-import { ExpenseItem } from '../../models/ExpenseItem';
+import ExpenseAttachedFile from '../../models/ExpenseAttachedFile';
+import ExpenseItem from '../../models/ExpenseItem';
 
 import { populateModelAssociations, sortResultsArray } from './helpers';
 
