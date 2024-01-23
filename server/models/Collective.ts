@@ -3397,6 +3397,21 @@ class Collective extends Model<
 
     return userTotal >= threshold;
   };
+
+  async findOrCreatePaymentMethod(paymentMethodService, paymentMethodType) {
+    const host = this.isHostAccount ? this : await this.getHostCollective();
+    const attributes = {
+      CollectiveId: this.id,
+      service: paymentMethodService,
+      type: paymentMethodType,
+    };
+    return models.PaymentMethod.findOrCreate({
+      where: attributes,
+      defaults: {
+        currency: host?.currency ?? this.currency,
+      },
+    });
+  }
 }
 
 Collective.init(

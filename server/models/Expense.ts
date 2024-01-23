@@ -23,7 +23,7 @@ import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Model, Op, QueryTypes } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
-import { capitalize, computeDatesAsISOStrings } from '../lib/utils';
+import { computeDatesAsISOStrings } from '../lib/utils';
 import CustomDataTypes from '../models/DataTypes';
 import { Location } from '../types/Location';
 import { BatchGroup, ExpenseDataQuoteV2, ExpenseDataQuoteV3, Transfer } from '../types/transferwise';
@@ -128,6 +128,9 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   declare getVirtualCard: BelongsToGetAssociationMixin<VirtualCard>;
   declare getAccountingCategory: BelongsToGetAssociationMixin<AccountingCategory>;
 
+  // Association setters
+  declare setPaymentMethod: PaymentMethod;
+
   /**
    * Instance Methods
    */
@@ -221,24 +224,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   setAndSavePaymentMethodIfMissing = async function () {
     let paymentMethod = this.getPaymentMethod();
     if (!paymentMethod) {
-      const virtualCard = this.virtualCard || (await this.getVirtualCard());
-      if (virtualCard) {
-        const attributes = {
-          CollectiveId: host.id,
-          service: PAYMENT_METHOD_SERVICE.STRIPE,
-          type: PAYMENT_METHOD_TYPE.VIRTUAL_CARD,
-        };
-        paymentMethod = await models.PaymentMethod.findOrCreate({
-          where: attributes,
-          defaults: {
-            currency: host.currency,
-          },
-        });
-      }
-      const payoutMethod = this.payoutMethod || (await this.getPayoutMethod());
-      if (payoutMethod) {
-        paymentMethod = await this.fetchPaymentMethod(payoutMethod.type);
-      }
+      paymentMethod = await this.fetchPaymentMethod();
       if (paymentMethod) {
         this.setPaymentMethod(paymentMethod);
         await this.save();
@@ -247,57 +233,25 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
     return this;
   };
 
-  fetchPaymentMethod = async function (payoutMethodType) {
+  fetchPaymentMethod = async function () {
     const collective = this.collective || (await this.getCollective());
     const host = await collective.getHostCollective();
 
-    switch (payoutMethodType) {
-      case PayoutMethodTypes.PAYPAL: {
-        const attributes = {
-          CollectiveId: host.id,
-          service: PAYMENT_METHOD_SERVICE.PAYPAL,
-          type: PAYMENT_METHOD_TYPE.PAYOUT,
-        };
-        return models.PaymentMethod.findOrCreate({
-          where: attributes,
-          defaults: {
-            name: `${capitalize(attributes.service.toLowerCase())} ${capitalize(attributes.type.toLowerCase())}`,
-            currency: host.currency,
-          },
-        });
-      }
+    const payoutMethod = this.payoutMethod || (await this.getPayoutMethod());
+    if (payoutMethod?.type === PayoutMethodTypes.PAYPAL) {
+      return host.findOrCreatePaymentMethod(PAYMENT_METHOD_SERVICE.PAYPAL, PAYMENT_METHOD_TYPE.PAYOUT);
+    } else if (payoutMethod?.type === PayoutMethodTypes.BANK_ACCOUNT) {
+      return host.findOrCreatePaymentMethod(PAYMENT_METHOD_SERVICE.WISE, PAYMENT_METHOD_TYPE.BANK_TRANSFER);
+    } else if (payoutMethod?.type === PayoutMethodTypes.ACCOUNT_BALANCE) {
+      return collective.findOrCreatePaymentMethod(
+        PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        PAYMENT_METHOD_TYPE.COLLECTIVE,
+      );
+    }
 
-      case PayoutMethodTypes.BANK_ACCOUNT: {
-        const attributes = {
-          CollectiveId: host.id,
-          service: PAYMENT_METHOD_SERVICE.WISE,
-          type: PAYMENT_METHOD_TYPE.BANK_TRANSFER,
-        };
-        return models.PaymentMethod.findOrCreate({
-          where: attributes,
-          defaults: {
-            name: `${capitalize(attributes.service.toLowerCase())} ${capitalize(attributes.type.toLowerCase())}`,
-            currency: host.currency,
-          },
-        });
-      }
-
-      case PayoutMethodTypes.ACCOUNT_BALANCE: {
-        const collective = this.collective || (await this.getCollective());
-        const attributes = {
-          CollectiveId: collective.id,
-          service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
-          type: PAYMENT_METHOD_TYPE.COLLECTIVE,
-        };
-        return models.PaymentMethod.findOrCreate({
-          where: attributes,
-          defaults: {
-            primary: true,
-            name: `${capitalize(collective.name)} (${capitalize(collective.type.toLowerCase())})`,
-            currency: host.currency,
-          },
-        });
-      }
+    const virtualCard = this.virtualCard || (await this.getVirtualCard());
+    if (virtualCard) {
+      return host.findOrCreatePaymentMethod(PAYMENT_METHOD_SERVICE.STRIPE, PAYMENT_METHOD_TYPE.VIRTUAL_CARD);
     }
   };
 
