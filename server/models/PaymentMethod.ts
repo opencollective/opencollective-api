@@ -23,6 +23,7 @@ import { formatArrayToString, formatCurrency } from '../lib/utils';
 
 import Collective from './Collective';
 import CustomDataTypes from './DataTypes';
+import type Order from './Order';
 import User from './User';
 
 const debug = debugLib('models:PaymentMethod');
@@ -59,9 +60,11 @@ export interface PaymentMethodModelInterface
   SourcePaymentMethodId: number;
   saved: boolean;
 
+  Collective?: Collective;
+
   getCollective(): Promise<Collective>;
   getBalanceForUser(user): Promise<{ amount: number; currency: SupportedCurrency }>;
-  Collective?: Collective;
+  canBeUsedForOrder(order: Order, user: User): Promise<boolean>;
 
   // Getter Methods
   info: Partial<PaymentMethodModelInterface>;

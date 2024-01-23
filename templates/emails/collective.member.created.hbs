@@ -71,11 +71,11 @@ Subject: New financial contributor to {{{collective.name}}}: {{{member.memberCol
     <th>Amount:</th>
     <td>{{currency order.totalAmount currency=order.currency}}</td>
   </tr>
-  {{#if order.subscription}}
-  {{#if order.subscription.interval}}
+  {{#if order.Subscription}}
+  {{#if order.Subscription.interval}}
   <tr>
     <th>Frequency:</th>
-    <td>{{order.subscription.interval}}</td>
+    <td>{{order.Subscription.interval}}</td>
   </tr>
   {{/if}}
   {{else}}

@@ -190,7 +190,7 @@ handlebars.registerHelper('formatOrderAmountWithInterval', order => {
   }
 
   const formattedAmount = formatCurrency(order.totalAmount, order.currency);
-  const subscription = order.subscription;
+  const subscription = order.Subscription;
   const interval = subscription?.interval || order.interval;
 
   if (interval !== null) {

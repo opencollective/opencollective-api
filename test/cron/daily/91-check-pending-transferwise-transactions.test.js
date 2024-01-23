@@ -25,7 +25,7 @@ describe('cron/daily/check-pending-transferwise-transactions', () => {
   let expense, host, collective, payoutMethod;
 
   afterEach(sandbox.restore);
-  beforeEach(utils.resetTestDB);
+  beforeEach(async () => await utils.resetTestDB({ groupedTruncate: false }));
   beforeEach(() => {
     getTransfer = sandbox.stub(transferwiseLib, 'getTransfer');
     sendMessage = sandbox.spy(emailLib, 'sendMessage');

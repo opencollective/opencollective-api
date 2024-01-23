@@ -36,7 +36,6 @@ import models, {
   PaypalProduct,
   PersonalToken,
   sequelize,
-  Subscription,
   Tier,
   Update,
   UploadedFile,
@@ -50,12 +49,12 @@ import { HostApplicationStatus } from '../../server/models/HostApplication';
 import { LegalDocumentModelInterface } from '../../server/models/LegalDocument';
 import { MemberModelInterface } from '../../server/models/Member';
 import { MemberInvitationModelInterface } from '../../server/models/MemberInvitation';
-import { OrderModelInterface } from '../../server/models/Order';
+import Order from '../../server/models/Order';
 import { PaymentMethodModelInterface } from '../../server/models/PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import RecurringExpense, { RecurringExpenseIntervals } from '../../server/models/RecurringExpense';
 import { AssetType } from '../../server/models/SuspendedAsset';
-import { TransactionCreationAttributes, TransactionInterface } from '../../server/models/Transaction';
+import { TransactionCreationAttributes } from '../../server/models/Transaction';
 import { SUPPORTED_FILE_EXTENSIONS, SUPPORTED_FILE_TYPES } from '../../server/models/UploadedFile';
 import User from '../../server/models/User';
 import UserToken, { TokenType } from '../../server/models/UserToken';
@@ -604,7 +603,7 @@ export const fakeTier = async (tierData: Partial<InferCreationAttributes<Tier>> 
  * Creates a fake order. All params are optionals.
  */
 export const fakeOrder = async (
-  orderData: Partial<InferCreationAttributes<OrderModelInterface>> & { subscription?: any } = {},
+  orderData: Partial<InferCreationAttributes<Order>> & { subscription?: any } = {},
   { withSubscription = false, withTransactions = false, withBackerMember = false, withTier = false } = {},
 ) => {
   const CreatedByUserId = orderData.CreatedByUserId || (await fakeUser()).id;
@@ -619,10 +618,7 @@ export const fakeOrder = async (
       ? await fakeTier()
       : null;
 
-  const order: OrderModelInterface & {
-    subscription?: typeof Subscription;
-    transactions?: TransactionInterface[];
-  } = await models.Order.create({
+  const order: Order = await models.Order.create({
     quantity: 1,
     currency: collective.currency,
     totalAmount: randAmount(100, 99999999),
@@ -658,7 +654,7 @@ export const fakeOrder = async (
   }
 
   if (withTransactions) {
-    order.transactions = await Promise.all([
+    order.Transactions = await Promise.all([
       fakeTransaction({
         OrderId: order.id,
         type: 'CREDIT',
@@ -694,7 +690,7 @@ export const fakeOrder = async (
   order.fromCollective = await models.Collective.findByPk(order.FromCollectiveId);
   order.collective = collective;
   order.createdByUser = user;
-  order.tier = tier;
+  order.Tier = tier;
   return order;
 };
 

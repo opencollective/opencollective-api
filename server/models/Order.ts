@@ -1,35 +1,29 @@
 import { TaxType } from '@opencollective/taxes';
 import debugLib from 'debug';
 import { get } from 'lodash';
-import {
-  ForeignKey,
-  HasManyGetAssociationsMixin,
-  HasOneGetAssociationMixin,
-  InferAttributes,
-  InferCreationAttributes,
-  Model,
-  ModelStatic,
-} from 'sequelize';
+import * as Sequelize from 'sequelize';
+import { DataTypes, Model, Op, Optional, QueryTypes } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
-import { roles } from '../constants';
 import { SupportedCurrency } from '../constants/currencies';
 import OrderStatus from '../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
+import roles from '../constants/roles';
 import TierType from '../constants/tiers';
 import { PLATFORM_TIP_TRANSACTION_PROPERTIES, TransactionTypes } from '../constants/transactions';
 import * as libPayments from '../lib/payments';
-import sequelize, { DataTypes, Op, QueryTypes } from '../lib/sequelize';
+import sequelize from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
 import { capitalize } from '../lib/utils';
 
-import AccountingCategory from './AccountingCategory';
+import type AccountingCategory from './AccountingCategory';
+import type Activity from './Activity';
 import Collective from './Collective';
-import CustomDataTypes from './DataTypes';
-import { MemberModelInterface } from './Member';
+import type Comment from './Comment';
+import type { MemberModelInterface } from './Member';
 import PaymentMethod, { PaymentMethodModelInterface } from './PaymentMethod';
-import { SubscriptionInterface } from './Subscription';
-import Tier from './Tier';
+import type { SubscriptionInterface } from './Subscription';
+import type Tier from './Tier';
 import Transaction, { TransactionInterface } from './Transaction';
 import User from './User';
 
@@ -37,12 +31,63 @@ const { models } = sequelize;
 
 const debug = debugLib('models:Order');
 
-interface OrderModelStaticInterface {
-  generateDescription(collective, amount, interval, tier): string;
-  cancelActiveOrdersByCollective(collectiveId: number): Promise<[affectedCount: number]>;
-  cancelActiveOrdersByTierId(tierId: number): Promise<[affectedCount: number]>;
-  cancelNonTransferableActiveOrdersByCollectiveId(collectiveId: number): Promise<[affectedCount: number]>;
+export interface OrderAttributes {
+  id: number;
+  CreatedByUserId?: number;
+  CollectiveId?: number;
+  currency?: string;
+  totalAmount?: number;
+  description?: string;
+  SubscriptionId?: number;
+  createdAt?: Date;
+  updatedAt?: Date;
+  deletedAt?: Date;
+  PaymentMethodId?: number;
+  processedAt?: Date;
+  privateMessage?: string;
+  TierId?: number;
+  FromCollectiveId?: number;
+  publicMessage?: string;
+  quantity?: number;
+  status: string;
+  data?: object;
+  taxAmount?: number;
+  interval?: string;
+  tags?: string[];
+  platformTipAmount?: number;
+  platformTipEligible?: boolean;
+  AccountingCategoryId?: number;
 }
+
+export type OrderPk = 'id';
+export type OrderId = Order[OrderPk];
+export type OrderOptionalAttributes =
+  | 'id'
+  | 'CreatedByUserId'
+  | 'CollectiveId'
+  | 'currency'
+  | 'totalAmount'
+  | 'description'
+  | 'SubscriptionId'
+  | 'createdAt'
+  | 'updatedAt'
+  | 'deletedAt'
+  | 'PaymentMethodId'
+  | 'processedAt'
+  | 'privateMessage'
+  | 'TierId'
+  | 'FromCollectiveId'
+  | 'publicMessage'
+  | 'quantity'
+  | 'status'
+  | 'data'
+  | 'taxAmount'
+  | 'interval'
+  | 'tags'
+  | 'platformTipAmount'
+  | 'platformTipEligible'
+  | 'AccountingCategoryId';
+export type OrderCreationAttributes = Optional<OrderAttributes, OrderOptionalAttributes>;
 
 export type OrderTax = {
   id: TaxType;
@@ -51,61 +96,38 @@ export type OrderTax = {
   taxerCountry: string;
 };
 
-export interface OrderModelInterface
-  extends Model<
-    InferAttributes<OrderModelInterface, { omit: 'info' }>,
-    InferCreationAttributes<OrderModelInterface, { omit: 'info' }>
-  > {
-  id: number;
+type Subscription = SubscriptionInterface;
 
-  CreatedByUserId: number;
-  createdByUser?: User;
+type AccountingCategoryId = AccountingCategory['id'];
+type ActivityId = Activity['id'];
+type CollectiveId = Collective['id'];
+type CommentId = Comment['id'];
+// type PaymentMethodId = PaymentMethodModelInterface['id'];
+type SubscriptionId = SubscriptionInterface['id'];
+type TierId = Tier['id'];
+type TransactionId = TransactionInterface['id'];
+type UserId = User['id'];
 
-  FromCollectiveId: number;
-  fromCollective?: Collective;
-  getFromCollective: HasOneGetAssociationMixin<Collective>;
-
-  CollectiveId: number;
-  collective?: Collective;
-  getCollective: HasOneGetAssociationMixin<Collective>;
-
-  TierId: number;
-  /** @deprecated: We're using both `tier` and `Tier` depending on the places. The association is defined as `Tier` (uppercase). We should consolidate to one or the other. */
-  tier?: Tier;
-  /** @deprecated: We're using both `tier` and `Tier` depending on the places. The association is defined as `Tier` (uppercase). We should consolidate to one or the other. */
-  Tier?: Tier;
-  getTier: Promise<Tier>;
-
-  quantity: number;
-  currency: SupportedCurrency;
-  tags: string[];
-  totalAmount: number;
-  platformTipAmount: number;
-  platformTipEligible?: boolean;
-  taxAmount: number;
-  description: string;
-  publicMessage: string;
-  privateMessage: string;
-
-  SubscriptionId?: number;
-  Subscription?: SubscriptionInterface;
-  getSubscription: HasOneGetAssociationMixin<SubscriptionInterface>;
-
-  AccountingCategoryId?: ForeignKey<AccountingCategory['id']>;
-  accountingCategory?: AccountingCategory;
-  getAccountingCategory: HasOneGetAssociationMixin<AccountingCategory>;
-
-  PaymentMethodId: number;
-  paymentMethod?: PaymentMethodModelInterface;
-  getPaymentMethod: HasOneGetAssociationMixin<PaymentMethodModelInterface>;
-
-  Transactions?: TransactionInterface[];
-  getTransactions: HasManyGetAssociationsMixin<TransactionInterface>;
-
-  processedAt: Date;
-  status: OrderStatus;
-  interval?: string;
-  data:
+class Order extends Model<OrderAttributes, OrderCreationAttributes> implements OrderAttributes {
+  declare id: number;
+  declare CreatedByUserId?: number;
+  declare CollectiveId?: number;
+  declare currency?: SupportedCurrency;
+  declare totalAmount?: number;
+  declare description?: string;
+  declare SubscriptionId?: number;
+  declare createdAt?: Date;
+  declare updatedAt?: Date;
+  declare deletedAt?: Date;
+  declare PaymentMethodId?: number;
+  declare processedAt?: Date;
+  declare privateMessage?: string;
+  declare TierId?: number;
+  declare FromCollectiveId?: number;
+  declare publicMessage?: string;
+  declare quantity?: number;
+  declare status: string;
+  declare data:
     | {
         hostFeePercent?: number;
         memo?: string;
@@ -113,146 +135,226 @@ export interface OrderModelInterface
       }
     | any; // TODO: Remove `any` once we have a proper type for this
 
-  createdAt: Date;
-  updatedAt: Date;
-  deletedAt: Date;
+  declare taxAmount?: number;
+  declare interval?: string;
+  declare tags?: string[];
+  declare platformTipAmount?: number;
+  declare platformTipEligible?: boolean;
+  declare AccountingCategoryId?: number;
 
-  info: any;
+  // Order belongsTo AccountingCategory via AccountingCategoryId
+  declare accountingCategory: AccountingCategory;
+  declare getAccountingCategory: Sequelize.BelongsToGetAssociationMixin<AccountingCategory>;
+  declare setAccountingCategory: Sequelize.BelongsToSetAssociationMixin<AccountingCategory, AccountingCategoryId>;
+  declare createAccountingCategory: Sequelize.BelongsToCreateAssociationMixin<AccountingCategory>;
+  // Order belongsTo Collective via CollectiveId
+  declare collective: Collective;
+  declare getCollective: Sequelize.BelongsToGetAssociationMixin<Collective>;
+  declare setCollective: Sequelize.BelongsToSetAssociationMixin<Collective, CollectiveId>;
+  declare createCollective: Sequelize.BelongsToCreateAssociationMixin<Collective>;
+  // Order belongsTo Collective via FromCollectiveId
+  declare fromCollective: Collective;
+  declare getFromCollective: Sequelize.BelongsToGetAssociationMixin<Collective>;
+  declare setFromCollective: Sequelize.BelongsToSetAssociationMixin<Collective, CollectiveId>;
+  declare createFromCollective: Sequelize.BelongsToCreateAssociationMixin<Collective>;
+  // Order hasMany Activity via OrderId
+  declare activities: Activity[];
+  declare getActivities: Sequelize.HasManyGetAssociationsMixin<Activity>;
+  declare setActivities: Sequelize.HasManySetAssociationsMixin<Activity, ActivityId>;
+  declare addActivity: Sequelize.HasManyAddAssociationMixin<Activity, ActivityId>;
+  declare addActivities: Sequelize.HasManyAddAssociationsMixin<Activity, ActivityId>;
+  declare createActivity: Sequelize.HasManyCreateAssociationMixin<Activity>;
+  declare removeActivity: Sequelize.HasManyRemoveAssociationMixin<Activity, ActivityId>;
+  declare removeActivities: Sequelize.HasManyRemoveAssociationsMixin<Activity, ActivityId>;
+  declare hasActivity: Sequelize.HasManyHasAssociationMixin<Activity, ActivityId>;
+  declare hasActivities: Sequelize.HasManyHasAssociationsMixin<Activity, ActivityId>;
+  declare countActivities: Sequelize.HasManyCountAssociationsMixin;
+  // Order hasMany Comment via OrderId
+  declare comments: Comment[];
+  declare getComments: Sequelize.HasManyGetAssociationsMixin<Comment>;
+  declare setComments: Sequelize.HasManySetAssociationsMixin<Comment, CommentId>;
+  declare addComment: Sequelize.HasManyAddAssociationMixin<Comment, CommentId>;
+  declare addComments: Sequelize.HasManyAddAssociationsMixin<Comment, CommentId>;
+  declare createComment: Sequelize.HasManyCreateAssociationMixin<Comment>;
+  declare removeComment: Sequelize.HasManyRemoveAssociationMixin<Comment, CommentId>;
+  declare removeComments: Sequelize.HasManyRemoveAssociationsMixin<Comment, CommentId>;
+  declare hasComment: Sequelize.HasManyHasAssociationMixin<Comment, CommentId>;
+  declare hasComments: Sequelize.HasManyHasAssociationsMixin<Comment, CommentId>;
+  declare countComments: Sequelize.HasManyCountAssociationsMixin;
+  // Order hasMany Transaction via OrderId
+  declare Transactions: TransactionInterface[];
+  declare getTransactions: Sequelize.HasManyGetAssociationsMixin<TransactionInterface>;
+  declare setTransactions: Sequelize.HasManySetAssociationsMixin<TransactionInterface, TransactionId>;
+  declare addTransaction: Sequelize.HasManyAddAssociationMixin<TransactionInterface, TransactionId>;
+  declare addTransactions: Sequelize.HasManyAddAssociationsMixin<TransactionInterface, TransactionId>;
+  declare createTransaction: Sequelize.HasManyCreateAssociationMixin<TransactionInterface>;
+  declare removeTransaction: Sequelize.HasManyRemoveAssociationMixin<TransactionInterface, TransactionId>;
+  declare removeTransactions: Sequelize.HasManyRemoveAssociationsMixin<TransactionInterface, TransactionId>;
+  declare hasTransaction: Sequelize.HasManyHasAssociationMixin<TransactionInterface, TransactionId>;
+  declare hasTransactions: Sequelize.HasManyHasAssociationsMixin<TransactionInterface, TransactionId>;
+  declare countTransactions: Sequelize.HasManyCountAssociationsMixin;
+  // Order belongsTo PaymentMethod via PaymentMethodId
+  declare paymentMethod: PaymentMethodModelInterface;
+  declare getPaymentMethod: Sequelize.BelongsToGetAssociationMixin<PaymentMethodModelInterface>;
+  // declare setPaymentMethod: Sequelize.BelongsToSetAssociationMixin<PaymentMethodModelInterface, PaymentMethodId>;
+  declare createPaymentMethod: Sequelize.BelongsToCreateAssociationMixin<PaymentMethodModelInterface>;
+  // Order belongsTo Subscription via SubscriptionId
+  declare Subscription: Subscription;
+  declare getSubscription: Sequelize.BelongsToGetAssociationMixin<Subscription>;
+  declare setSubscription: Sequelize.BelongsToSetAssociationMixin<Subscription, SubscriptionId>;
+  declare createSubscription: Sequelize.BelongsToCreateAssociationMixin<Subscription>;
+  // Order belongsTo Tier via TierId
+  declare Tier: Tier;
+  declare getTier: Sequelize.BelongsToGetAssociationMixin<Tier>;
+  declare setTier: Sequelize.BelongsToSetAssociationMixin<Tier, TierId>;
+  declare createTier: Sequelize.BelongsToCreateAssociationMixin<Tier>;
+  // Order belongsTo User via CreatedByUserId
+  declare createdByUser: User;
+  declare getCreatedByUser: Sequelize.BelongsToGetAssociationMixin<User>;
+  declare setCreatedByUser: Sequelize.BelongsToSetAssociationMixin<User, UserId>;
+  declare createCreatedByUser: Sequelize.BelongsToCreateAssociationMixin<User>;
 
-  getOrCreateMembers(): Promise<[MemberModelInterface, MemberModelInterface]>;
-  getUser(): Promise<User>;
-  setPaymentMethod(paymentMethodData);
+  // Class methods
+  declare getOrCreateMembers: () => Promise<[MemberModelInterface, MemberModelInterface]>;
+  declare getUser: () => Promise<User | undefined>;
+  declare getSubscriptionForUser: (user: User) => Promise<Subscription | null>;
+  declare markAsExpired: () => Promise<Order>;
+  declare markAsPaid: (user: User) => Promise<Order>;
+  declare getTotalTransactions: () => Promise<number> | number;
+  declare getUserForActivity: () => Promise<User | undefined>;
+  declare validatePaymentMethod: (paymentMethod: PaymentMethodModelInterface) => Promise<PaymentMethodModelInterface>;
+  declare populate: () => Promise<Order>;
+  declare setPaymentMethod: (paymentMethodData: object) => Promise<Order>;
+
+  declare info: any;
+
+  // Static Methods
+
+  static generateDescription(collective: Collective, amount: number | undefined, interval: string, tier: Tier): string {
+    const tierNameInfo = tier?.name ? ` (${tier.name})` : '';
+    if (interval) {
+      return `${capitalize(interval)}ly financial contribution to ${collective.name}${tierNameInfo}`;
+    } else {
+      const isRegistration = tier?.type === TierType.TICKET;
+      return `${isRegistration ? 'Registration' : 'Financial contribution'} to ${collective.name}${tierNameInfo}`;
+    }
+  }
+
+  /**
+   * Cancels all subscription orders in the given tier
+   */
+  static cancelActiveOrdersByTierId(tierId: number): Promise<[affectedCount: number]> {
+    return Order.update(
+      { status: OrderStatus.CANCELLED },
+      {
+        where: {
+          TierId: tierId,
+          SubscriptionId: { [Op.not]: null },
+          status: {
+            [Op.not]: [OrderStatus.PAID, OrderStatus.CANCELLED, OrderStatus.REJECTED, OrderStatus.EXPIRED],
+          },
+        },
+      },
+    );
+  }
+
+  /**
+   * Cancels all subscription orders for the given collective
+   */
+  static cancelActiveOrdersByCollective(collectiveIds: number | number[]): Promise<[affectedCount: number]> {
+    return Order.update(
+      { status: OrderStatus.CANCELLED },
+      {
+        where: {
+          FromCollectiveId: collectiveIds,
+          SubscriptionId: { [Op.not]: null },
+          status: {
+            [Op.not]: [OrderStatus.PAID, OrderStatus.CANCELLED, OrderStatus.REJECTED, OrderStatus.EXPIRED],
+          },
+        },
+      },
+    );
+  }
+
+  /**
+   * Cancels all orders with subscriptions that cannot be transferred when changing hosts (i.e. PayPal)
+   */
+  static cancelNonTransferableActiveOrdersByCollectiveId(collectiveId: number): Promise<[affectedCount: number]> {
+    return sequelize.query(
+      `
+        UPDATE public."Orders"
+        SET
+          status = 'CANCELLED',
+          "updatedAt" = NOW()
+        WHERE id IN (
+          SELECT "Orders".id FROM public."Orders"
+          INNER JOIN public."Subscriptions" ON "Subscriptions".id = "Orders"."SubscriptionId"
+          WHERE
+            "Orders".status NOT IN ('PAID', 'CANCELLED', 'REJECTED', 'EXPIRED') AND
+            "Subscriptions"."isManagedExternally" AND
+            "Subscriptions"."isActive" AND
+            "Orders"."CollectiveId" = ?
+        )
+      `,
+      {
+        type: QueryTypes.UPDATE,
+        replacements: [collectiveId],
+      },
+    );
+  }
 }
 
-const Order: ModelStatic<OrderModelInterface> & OrderModelStaticInterface = sequelize.define(
-  'Order',
+Order.init(
   {
     id: {
-      type: DataTypes.INTEGER,
-      primaryKey: true,
       autoIncrement: true,
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      primaryKey: true,
     },
-
     CreatedByUserId: {
       type: DataTypes.INTEGER,
+      allowNull: true,
       references: {
         model: 'Users',
         key: 'id',
       },
-      onDelete: 'SET NULL',
-      onUpdate: 'CASCADE',
     },
-
-    // User|Organization|Collective that is author of this Order
-    FromCollectiveId: {
-      type: DataTypes.INTEGER,
-      references: {
-        model: 'Collectives',
-        key: 'id',
-      },
-      onDelete: 'SET NULL',
-      onUpdate: 'CASCADE',
-      allowNull: false,
-    },
-
     CollectiveId: {
       type: DataTypes.INTEGER,
+      allowNull: true,
       references: {
         model: 'Collectives',
         key: 'id',
       },
-      onDelete: 'SET NULL',
-      onUpdate: 'CASCADE',
-      allowNull: false,
     },
-
-    TierId: {
-      type: DataTypes.INTEGER,
-      references: {
-        model: 'Tiers',
-        key: 'id',
-      },
-      onDelete: 'SET NULL',
-      onUpdate: 'CASCADE',
-    },
-
-    quantity: {
-      type: DataTypes.INTEGER,
-      validate: {
-        min: 1,
-      },
-    },
-
-    currency: CustomDataTypes(DataTypes).currency,
-
-    tags: {
-      type: DataTypes.ARRAY(DataTypes.STRING),
+    currency: {
+      type: DataTypes.STRING(255),
       allowNull: true,
-      validate: {
-        validateTags,
-      },
-      set(tags) {
-        this.setDataValue('tags', sanitizeTags(tags));
-      },
+      defaultValue: 'USD',
     },
-
     totalAmount: {
-      type: DataTypes.INTEGER, // Total amount of the order in cents
-      validate: {
-        min: 0,
-      },
-    },
-
-    platformTipAmount: {
-      type: DataTypes.INTEGER, // Total amount of the order in cents
-      allowNull: true,
-      defaultValue: null,
-      validate: {
-        min: 0,
-      },
-    },
-
-    platformTipEligible: {
-      type: DataTypes.BOOLEAN,
-      allowNull: true,
-      defaultValue: null,
-    },
-
-    taxAmount: {
       type: DataTypes.INTEGER,
+      allowNull: true,
       validate: {
         min: 0,
       },
     },
-
-    description: DataTypes.STRING,
-
-    publicMessage: {
-      type: DataTypes.STRING,
+    description: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
     },
-
-    privateMessage: DataTypes.STRING,
-
     SubscriptionId: {
       type: DataTypes.INTEGER,
+      allowNull: true,
       references: {
         model: 'Subscriptions',
         key: 'id',
       },
-      onDelete: 'SET NULL',
-      onUpdate: 'CASCADE',
     },
-
-    AccountingCategoryId: {
-      type: DataTypes.INTEGER,
-      references: { key: 'id', model: 'AccountingCategories' },
-      onDelete: 'SET NULL',
-      onUpdate: 'CASCADE',
-      allowNull: true,
-    },
-
     PaymentMethodId: {
       type: DataTypes.INTEGER,
+      allowNull: true,
       references: {
         model: 'PaymentMethods',
         key: 'id',
@@ -260,13 +362,45 @@ const Order: ModelStatic<OrderModelInterface> & OrderModelStaticInterface = sequ
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
     },
-
-    processedAt: DataTypes.DATE,
-
+    processedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    privateMessage: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    TierId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'Tiers',
+        key: 'id',
+      },
+    },
+    FromCollectiveId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'Collectives',
+        key: 'id',
+      },
+    },
+    publicMessage: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    },
+    quantity: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      validate: {
+        min: 1,
+      },
+    },
     status: {
-      type: DataTypes.STRING,
-      defaultValue: OrderStatus.NEW,
+      type: DataTypes.STRING(255),
       allowNull: false,
+      defaultValue: OrderStatus.NEW,
       validate: {
         isIn: {
           args: [Object.keys(OrderStatus)],
@@ -274,40 +408,72 @@ const Order: ModelStatic<OrderModelInterface> & OrderModelStaticInterface = sequ
         },
       },
     },
-
-    interval: {
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
-
     data: {
       type: DataTypes.JSONB,
       allowNull: true,
     },
-
+    taxAmount: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      validate: {
+        min: 0,
+      },
+    },
+    interval: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    },
+    tags: {
+      type: DataTypes.ARRAY(DataTypes.STRING),
+      allowNull: true,
+      validate: {
+        validateTags,
+      },
+      set(tags: string[] | undefined) {
+        this.setDataValue('tags', sanitizeTags(tags));
+      },
+    },
+    platformTipAmount: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      validate: {
+        min: 0,
+      },
+    },
+    platformTipEligible: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+    },
+    AccountingCategoryId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'AccountingCategories',
+        key: 'id',
+      },
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE',
+    },
     createdAt: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,
     },
-
     updatedAt: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,
     },
-
     deletedAt: {
       type: DataTypes.DATE,
     },
   },
   {
+    sequelize,
+    tableName: 'Orders',
+    schema: 'public',
+    timestamps: true,
     paranoid: true,
 
     getterMethods: {
-      // does this payment method support recurring payments?
-      recurring() {
-        return this.service === 'stripe';
-      },
-
       info() {
         return {
           id: this.id,
@@ -350,24 +516,11 @@ const Order: ModelStatic<OrderModelInterface> & OrderModelStaticInterface = sequ
 );
 
 /**
- * Static Methods
- */
-Order.generateDescription = (collective, amount, interval, tier) => {
-  const tierNameInfo = tier?.name ? ` (${tier.name})` : '';
-  if (interval) {
-    return `${capitalize(interval)}ly financial contribution to ${collective.name}${tierNameInfo}`;
-  } else {
-    const isRegistration = tier?.type === TierType.TICKET;
-    return `${isRegistration ? 'Registration' : 'Financial contribution'} to ${collective.name}${tierNameInfo}`;
-  }
-};
-
-/**
  * Instance Methods
  */
 
 // total Transactions over time for this order
-Order.prototype.getTotalTransactions = function () {
+Order.prototype.getTotalTransactions = function (): Promise<number> | number | undefined {
   if (!this.SubscriptionId) {
     return this.totalAmount;
   }
@@ -401,7 +554,7 @@ Order.prototype.setPaymentMethod = function (paymentMethodData) {
  * Validates the payment method for the current order
  * Makes sure that the user can use this payment method for such order
  */
-Order.prototype.validatePaymentMethod = function (paymentMethod) {
+Order.prototype.validatePaymentMethod = function (paymentMethod: PaymentMethodModelInterface) {
   debug('validatePaymentMethod', paymentMethod.dataValues, 'this.user', this.CreatedByUserId);
   return paymentMethod.canBeUsedForOrder(this, this.createdByUser).then(canBeUsedForOrder => {
     if (canBeUsedForOrder) {
@@ -416,7 +569,7 @@ Order.prototype.validatePaymentMethod = function (paymentMethod) {
  * Get or create the membership(s) related to this order, including the one related to the
  * platform tip.
  */
-Order.prototype.getOrCreateMembers = async function () {
+Order.prototype.getOrCreateMembers = async function (): Promise<[MemberModelInterface, MemberModelInterface]> {
   // Preload data
   this.collective = this.collective || (await this.getCollective());
   let tier;
@@ -425,10 +578,10 @@ Order.prototype.getOrCreateMembers = async function () {
   }
   // Register user as collective backer or an attendee (for events)
   const member = await this.collective.findOrAddUserWithRole(
-    { id: this.CreatedByUserId, CollectiveId: this.FromCollectiveId },
-    tier?.type === TierType.TICKET ? roles.ATTENDEE : roles.BACKER,
-    { TierId: this.TierId },
-    { order: this },
+    { id: this.CreatedByUserId, CollectiveId: this.FromCollectiveId }, // user
+    tier?.type === TierType.TICKET ? roles.ATTENDEE : roles.BACKER, // role
+    { TierId: this.TierId }, // defaultAttributes
+    { order: this }, // context
   );
 
   // Register user as backer of Open Collective
@@ -446,12 +599,12 @@ Order.prototype.getOrCreateMembers = async function () {
   return [member, platformTipMember];
 };
 
-Order.prototype.markAsExpired = async function () {
+Order.prototype.markAsExpired = function (): Promise<Order> {
   // TODO: We should create an activity to record who rejected the order
   return this.update({ status: OrderStatus.EXPIRED });
 };
 
-Order.prototype.markAsPaid = async function (user) {
+Order.prototype.markAsPaid = async function (user: User): Promise<Order> {
   this.paymentMethod = {
     service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
     type: PAYMENT_METHOD_TYPE.MANUAL,
@@ -462,22 +615,23 @@ Order.prototype.markAsPaid = async function (user) {
   return this;
 };
 
-Order.prototype.getUser = function () {
+Order.prototype.getUser = async function (): Promise<User | undefined> {
   if (this.createdByUser) {
-    return Promise.resolve(this.createdByUser);
+    return this.createdByUser;
   }
-  return User.findByPk(this.CreatedByUserId).then(user => {
+  const user = await User.findByPk(this.CreatedByUserId);
+  if (user) {
     this.createdByUser = user;
     debug('getUser', user.dataValues);
     return user.populateRoles();
-  });
+  }
 };
 
 // For legacy purpose, we want to get a single user that we will use for:
 // - authentication with the PDF service
 // - constructing notification/activity objects
 // We can't rely on createdByUser because they have moved out of the Organization, Collective, etc ...
-Order.prototype.getUserForActivity = async function () {
+Order.prototype.getUserForActivity = async function (): Promise<User | undefined> {
   if (!this.fromCollective) {
     this.fromCollective = await this.getFromCollective();
   }
@@ -520,90 +674,28 @@ Order.prototype.populate = function (
         }
         return models[model].findByPk(this[fk]);
       };
-      return promise().then(obj => {
+      return promise().then((obj: object) => {
         this[attribute] = obj;
       });
     }),
   ).then(() => this);
 };
 
-Order.prototype.getSubscriptionForUser = function (user) {
+Order.prototype.getSubscriptionForUser = async function (user: User): Promise<Subscription | null> {
   if (!this.SubscriptionId) {
     return null;
   }
-  return user.populateRoles().then(() => {
-    // this check is necessary to cover organizations as well as user collective
-    if (user.isAdmin(this.FromCollectiveId)) {
-      return this.getSubscription();
-    } else {
-      return null;
-    }
-  });
-};
-
-/**
- * Cancels all subscription orders for the given collective
- */
-Order.cancelActiveOrdersByCollective = function (collectiveIds: number | number[]) {
-  return Order.update(
-    { status: OrderStatus.CANCELLED },
-    {
-      where: {
-        FromCollectiveId: collectiveIds,
-        SubscriptionId: { [Op.not]: null },
-        status: {
-          [Op.not]: [OrderStatus.PAID, OrderStatus.CANCELLED, OrderStatus.REJECTED, OrderStatus.EXPIRED],
-        },
-      },
-    },
-  );
-};
-
-/**
- * Cancels all subscription orders in the given tier
- */
-Order.cancelActiveOrdersByTierId = function (tierId: number) {
-  return Order.update(
-    { status: OrderStatus.CANCELLED },
-    {
-      where: {
-        TierId: tierId,
-        SubscriptionId: { [Op.not]: null },
-        status: {
-          [Op.not]: [OrderStatus.PAID, OrderStatus.CANCELLED, OrderStatus.REJECTED, OrderStatus.EXPIRED],
-        },
-      },
-    },
-  );
-};
-
-/**
- * Cancels all orders with subscriptions that cannot be transferred when changing hosts (i.e. PayPal)
- */
-Order.cancelNonTransferableActiveOrdersByCollectiveId = function (collectiveId: number) {
-  return sequelize.query(
-    `
-        UPDATE public."Orders"
-        SET
-          status = 'CANCELLED',
-          "updatedAt" = NOW()
-        WHERE id IN (
-          SELECT "Orders".id FROM public."Orders"
-          INNER JOIN public."Subscriptions" ON "Subscriptions".id = "Orders"."SubscriptionId"
-          WHERE
-            "Orders".status NOT IN ('PAID', 'CANCELLED', 'REJECTED', 'EXPIRED') AND
-            "Subscriptions"."isManagedExternally" AND
-            "Subscriptions"."isActive" AND
-            "Orders"."CollectiveId" = ?
-        )
-      `,
-    {
-      type: QueryTypes.UPDATE,
-      replacements: [collectiveId],
-    },
-  );
+  await user.populateRoles();
+  // this check is necessary to cover organizations as well as user collective
+  if (user.isAdmin(this.FromCollectiveId)) {
+    return this.getSubscription();
+  } else {
+    return null;
+  }
 };
 
 Temporal(Order, sequelize);
+
+export interface OrderModelInterface extends InstanceType<typeof Order> {}
 
 export default Order;
