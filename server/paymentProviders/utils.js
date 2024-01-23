@@ -4,6 +4,7 @@ import activities from '../constants/activities';
 import { CollectiveType } from '../constants/collectives';
 import ExpenseStatus from '../constants/expense-status';
 import ExpenseType from '../constants/expense-type';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
 import { getFxRate } from '../lib/currency';
@@ -59,6 +60,10 @@ export const persistTransaction = async (virtualCard, transaction) => {
   const currency = transaction.currency || 'USD';
   const hostCurrencyFxRate = await getFxRate(currency, host.currency);
   const description = `Virtual Card charge: ${vendor.name}`;
+  const paymentMethod = await host.findOrCreatePaymentMethod(
+    PAYMENT_METHOD_SERVICE.STRIPE,
+    PAYMENT_METHOD_TYPE.VIRTUAL_CARD,
+  );
 
   // Case when expense is already created after the stripe authorization request event
   // Double check if transaction is a refund because sometimes the refund event is sent before the charge event
@@ -75,8 +80,11 @@ export const persistTransaction = async (virtualCard, transaction) => {
       // Make sure we update the Expense and ExpenseItem amounts.
       // Sometimes there's a difference between the authorized amount and the charged amount.
       await models.ExpenseItem.update({ amount }, { where: { ExpenseId: processingExpense.id } });
-      await processingExpense.update({ amount, data: { ...expenseData, missingDetails: true, ...transaction.data } });
-      await processingExpense.setAndSavePaymentMethodIfMissing();
+      await processingExpense.update({
+        amount,
+        paymentMethodId: paymentMethod.id,
+        data: { ...expenseData, missingDetails: true, ...transaction.data },
+      });
       await processingExpense.setPaid();
 
       await models.Transaction.createDoubleEntry({
@@ -87,6 +95,7 @@ export const persistTransaction = async (virtualCard, transaction) => {
         type: 'DEBIT',
         currency,
         ExpenseId: processingExpense.id,
+        PaymentMethodId: paymentMethod.id,
         amount: toNegative(amount),
         netAmountInCollectiveCurrency: toNegative(amount),
         hostCurrency: host.currency,
@@ -185,6 +194,7 @@ export const persistTransaction = async (virtualCard, transaction) => {
       isRefund: true,
       kind: TransactionKind.EXPENSE,
       ExpenseId: expense?.id,
+      PaymentMethodId: paymentMethod.id,
       data: { refundTransactionId: transactionId },
     });
 
@@ -203,6 +213,7 @@ export const persistTransaction = async (virtualCard, transaction) => {
       amount,
       description,
       VirtualCardId: virtualCard.id,
+      PaymentMethodId: paymentMethod.id,
       lastEditedById: UserId,
       status: ExpenseStatus.PAID,
       type: ExpenseType.CHARGE,
@@ -226,6 +237,7 @@ export const persistTransaction = async (virtualCard, transaction) => {
       type: 'DEBIT',
       currency,
       ExpenseId: expense.id,
+      PaymentMethodId: paymentMethod.id,
       amount: toNegative(amount),
       netAmountInCollectiveCurrency: toNegative(amount),
       hostCurrency: host.currency,
