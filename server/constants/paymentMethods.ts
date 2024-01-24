@@ -5,6 +5,7 @@ export enum PAYMENT_METHOD_SERVICE {
   PREPAID = 'prepaid',
   THEGIVINGBLOCK = 'thegivingblock', // @deprecated
   WISE = 'wise',
+  BANK = 'bank',
 }
 
 export const PAYMENT_METHOD_SERVICES = Object.values(PAYMENT_METHOD_SERVICE);

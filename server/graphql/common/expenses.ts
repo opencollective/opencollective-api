@@ -38,6 +38,7 @@ import { ExpenseRoles } from '../../constants/expense-roles';
 import statuses from '../../constants/expense-status';
 import EXPENSE_TYPE from '../../constants/expense-type';
 import FEATURE from '../../constants/feature';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import { EXPENSE_PERMISSION_ERROR_CODES } from '../../constants/permissions';
 import POLICIES from '../../constants/policies';
 import { TransactionKind } from '../../constants/transaction-kind';
@@ -2591,6 +2592,7 @@ type PayExpenseArgs = {
   paymentProcessorFeeInHostCurrency?: number; // Defaults to 0
   totalAmountPaidInHostCurrency?: number;
   transferDetails?: CreateTransfer['details'];
+  paymentMethodService?: PAYMENT_METHOD_SERVICE;
 };
 
 /**
@@ -2690,7 +2692,10 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
 
     try {
       if (forceManual) {
-        await expense.setPaymentMethod(null);
+        const paymentMethod = args.paymentMethodService
+          ? await host.findOrCreatePaymentMethod(args.paymentMethodService, PAYMENT_METHOD_TYPE.MANUAL)
+          : null;
+        await expense.setPaymentMethod(paymentMethod.id);
         await expense.save();
         await createTransactionsForManuallyPaidExpense(
           host,
@@ -2772,9 +2777,10 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
         await expense.setAndSavePaymentMethodIfMissing();
         await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto');
       } else if (expense.legacyPayoutMethod === 'manual' || expense.legacyPayoutMethod === 'other') {
-        // note: we need to check for manual and other for legacy reasons
-        await expense.setPaymentMethod(null);
-        await expense.save();
+        const paymentMethod = args.paymentMethodService
+          ? await host.findOrCreatePaymentMethod(args.paymentMethodService, PAYMENT_METHOD_TYPE.MANUAL)
+          : null;
+        await expense.update({ PaymentMethodId: paymentMethod.id });
         await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto');
       }
     } catch (error) {
@@ -2788,7 +2794,8 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
     }
 
     // Mark Expense as Paid, create activity and send notifications
-    return expense.markAsPaid({ user: remoteUser, isManualPayout: true });
+    await expense.markAsPaid({ user: remoteUser, isManualPayout: true });
+    return expense;
   });
 
   return expense;
@@ -2853,7 +2860,7 @@ export async function markExpenseAsUnpaid(
 
     await libPayments.createRefundTransaction(transaction, refundedPaymentProcessorFeeAmount, null, expense.User);
 
-    await expense.update({ status: newExpenseStatus, lastEditedById: remoteUser.id });
+    await expense.update({ status: newExpenseStatus, lastEditedById: remoteUser.id, PayoutMethodId: null });
     return { expense, transaction };
   });
 
