@@ -35,7 +35,9 @@ describe('server/paymentProviders/paypal/api', () => {
        the PayPal url `/v1/oauth2/token'. Which is pretty much
        everything besides `paypalUrl` and`retrieveOAuthToken`. */
 
-    before(utils.resetTestDB);
+    before(async () => {
+      await utils.resetTestDB({ groupedTruncate: false });
+    });
 
     let configStub;
     before(() => {
