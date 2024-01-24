@@ -1726,13 +1726,13 @@ class Collective extends Model<
     context: {
       skipActivity?: any;
     } = {},
-    transaction = undefined,
+    sequelizeTransaction = undefined,
   ) {
     if (role === roles.HOST) {
       return logger.info('Please use Collective.addHost(hostCollective, remoteUser);');
     }
 
-    const sequelizeParams = transaction ? { transaction } : undefined;
+    const sequelizeParams = sequelizeTransaction ? { transaction: sequelizeTransaction } : undefined;
 
     const memberAttributes = {
       role,
@@ -1887,7 +1887,13 @@ class Collective extends Model<
    * Used when creating a transactin to add a user to the collective as a backer if needed.
    * A new membership is registered for each `defaultAttributes.TierId`.
    */
-  findOrAddUserWithRole = function (user, role, defaultAttributes, context, transaction?: SequelizeTransaction) {
+  findOrAddUserWithRole = function (
+    user,
+    role,
+    defaultAttributes,
+    context,
+    sequelizeTransaction?: SequelizeTransaction,
+  ) {
     return Member.findOne({
       where: {
         role,
@@ -1897,7 +1903,7 @@ class Collective extends Model<
       },
     }).then(Member => {
       if (!Member) {
-        return this.addUserWithRole(user, role, defaultAttributes, context, transaction);
+        return this.addUserWithRole(user, role, defaultAttributes, context, sequelizeTransaction);
       } else {
         return Member;
       }
