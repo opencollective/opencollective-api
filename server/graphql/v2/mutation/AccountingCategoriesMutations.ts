@@ -19,6 +19,8 @@ const EDITABLE_FIELDS: readonly (keyof AccountingCategoryInputFields)[] = [
   'name',
   'friendlyName',
   'expensesTypes',
+  'hostOnly',
+  'instructions',
 ];
 
 export default {

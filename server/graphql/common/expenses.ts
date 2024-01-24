@@ -1199,6 +1199,8 @@ const checkTaxes = (account, host, expenseType: string, taxes): void => {
  * Throws if the accounting category is not allowed for this expense/host
  */
 const checkCanUseAccountingCategory = (
+  remoteUser: User | null,
+  expenseType: EXPENSE_TYPE,
   accountingCategory: AccountingCategory | undefined | null,
   host: Collective | undefined,
 ): void => {
@@ -1208,6 +1210,14 @@ const checkCanUseAccountingCategory = (
     throw new ValidationFailed('This accounting category is not allowed for this host');
   } else if (accountingCategory.kind && accountingCategory.kind !== 'EXPENSE') {
     throw new ValidationFailed('This accounting category is not allowed for expenses');
+  } else if (
+    accountingCategory.expensesTypes &&
+    accountingCategory.expensesTypes.length > 0 &&
+    !accountingCategory.expensesTypes.includes(expenseType)
+  ) {
+    throw new ValidationFailed(`This accounting category is not allowed for expenses type: ${expenseType}`);
+  } else if (accountingCategory.hostOnly && !remoteUser?.isAdmin(host.id)) {
+    throw new ValidationFailed('This accounting category can only be used by the host admin');
   }
 };
 
@@ -1363,7 +1373,7 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
   checkTaxes(collective, collective.host, expenseData.type, taxes);
   checkExpenseItems(expenseData.type, itemsData, taxes);
   checkExpenseType(expenseData.type, collective, collective.parent, collective.host);
-  checkCanUseAccountingCategory(expenseData.accountingCategory, collective.host);
+  checkCanUseAccountingCategory(remoteUser, expenseData.type, expenseData.accountingCategory, collective.host);
 
   if (size(expenseData.attachedFiles) > 15) {
     throw new ValidationFailed('The number of files that you can attach to an expense is limited to 15');
@@ -1854,7 +1864,7 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
   const taxes = expenseData.tax || (expense.data?.taxes as TaxDefinition[]) || [];
   const expenseType = expenseData.type || expense.type;
   checkTaxes(expense.collective, expense.collective.host, expenseType, taxes);
-  checkCanUseAccountingCategory(expenseData.accountingCategory, expense.collective.host);
+  checkCanUseAccountingCategory(remoteUser, expenseType, expenseData.accountingCategory, expense.collective.host);
 
   // Edit directly the expense when touching only tags and/or accounting category
   const modifiedFields = omitBy(expenseData, (_, key) => key === 'id' || !isValueChanging(expense, expenseData, key));
@@ -1914,7 +1924,12 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
     if (!(await canEditExpenseAccountingCategory(req, expense))) {
       throw new Unauthorized("You don't have permission to edit the accounting category for this expense");
     } else {
-      checkCanUseAccountingCategory(expenseData.accountingCategory, expense.collective.host);
+      checkCanUseAccountingCategory(
+        remoteUser,
+        expenseData.type,
+        expenseData.accountingCategory,
+        expense.collective.host,
+      );
       cleanExpenseData['AccountingCategoryId'] = expenseData.accountingCategory?.id || null;
       const dataValuePath = `data.valuesByRole.${getUserRole(remoteUser, collective)}.accountingCategory`;
       set(cleanExpenseData, dataValuePath, expenseData.accountingCategory?.publicInfo || null);

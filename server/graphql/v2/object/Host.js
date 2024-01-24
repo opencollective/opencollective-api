@@ -127,11 +127,15 @@ export const GraphQLHost = new GraphQLObjectType({
           },
         },
         // Not paginated yet as we don't expect to have too many categories for now
-        async resolve(host, args) {
+        async resolve(host, args, req) {
           const where = { CollectiveId: host.id };
           const order = [['code', 'ASC']]; // Code is unique per host, so sorting on it here should be consistent
           if (args.kind) {
             where.kind = uniq(args.kind);
+          }
+
+          if (!req.remoteUser?.isAdmin(host.id)) {
+            where.hostOnly = false;
           }
 
           const categories = await models.AccountingCategory.findAll({ where, order });

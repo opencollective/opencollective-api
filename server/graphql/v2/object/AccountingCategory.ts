@@ -1,4 +1,4 @@
-import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
 import { GraphQLAccountingCategoryKind } from '../enum/AccountingCategoryKind';
@@ -26,6 +26,12 @@ const GraphQLAccountingCategory = new GraphQLObjectType({
     friendlyName: {
       type: GraphQLString,
       description: 'A friendly name for non-accountants (i.e. expense submitters and collective admins)',
+    },
+    hostOnly: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+    },
+    instructions: {
+      type: GraphQLString,
     },
     account: {
       type: new GraphQLNonNull(GraphQLHost),

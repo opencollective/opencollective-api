@@ -1,4 +1,11 @@
-import { GraphQLInputFieldConfig, GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import {
+  GraphQLBoolean,
+  GraphQLInputFieldConfig,
+  GraphQLInputObjectType,
+  GraphQLList,
+  GraphQLNonNull,
+  GraphQLString,
+} from 'graphql';
 import { GraphQLNonEmptyString } from 'graphql-scalars';
 
 import ExpenseTypes from '../../../constants/expense-type';
@@ -16,6 +23,8 @@ export type AccountingCategoryInputFields = {
   friendlyName?: string;
   expensesTypes?: ExpenseTypes[];
   kind?: AccountingCategoryKind;
+  hostOnly?: boolean;
+  instructions?: string;
 };
 
 export const AccountingCategoryInput = new GraphQLInputObjectType({
@@ -41,6 +50,13 @@ export const AccountingCategoryInput = new GraphQLInputObjectType({
     friendlyName: {
       type: GraphQLString,
       description: 'A friendly name for non-accountants (i.e. expense submitters and collective admins)',
+    },
+    hostOnly: {
+      type: GraphQLBoolean,
+      defaultValue: false,
+    },
+    instructions: {
+      type: GraphQLString,
     },
     expensesTypes: {
       type: new GraphQLList(GraphQLExpenseType),
