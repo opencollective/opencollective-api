@@ -22,7 +22,7 @@ export enum VirtualCardRequestStatus {
   PENDING = 'PENDING',
 }
 
-export default class VirtualCardRequest extends Model<
+class VirtualCardRequest extends Model<
   InferAttributes<VirtualCardRequest>,
   InferCreationAttributes<VirtualCardRequest>
 > {
@@ -183,3 +183,5 @@ VirtualCardRequest.init(
     paranoid: true,
   },
 );
+
+export default VirtualCardRequest;

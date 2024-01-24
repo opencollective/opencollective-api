@@ -28,10 +28,10 @@ import { BatchGroup, ExpenseDataQuoteV2, ExpenseDataQuoteV3, Transfer } from '..
 
 import AccountingCategory from './AccountingCategory';
 import Collective from './Collective';
-import { ExpenseAttachedFile } from './ExpenseAttachedFile';
-import { ExpenseItem } from './ExpenseItem';
+import ExpenseAttachedFile from './ExpenseAttachedFile';
+import ExpenseItem from './ExpenseItem';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
-import { RecurringExpense } from './RecurringExpense';
+import RecurringExpense from './RecurringExpense';
 import { TransactionInterface } from './Transaction';
 import User from './User';
 import VirtualCard from './VirtualCard';

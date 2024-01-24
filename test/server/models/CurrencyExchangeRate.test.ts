@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import moment from 'moment';
 
-import { CurrencyExchangeRate } from '../../../server/models/CurrencyExchangeRate';
+import CurrencyExchangeRate from '../../../server/models/CurrencyExchangeRate';
 import { fakeCurrencyExchangeRate } from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
 

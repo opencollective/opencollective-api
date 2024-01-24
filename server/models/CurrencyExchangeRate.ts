@@ -12,7 +12,7 @@ export enum FX_RATE_SOURCE {
 /**
  * Sequelize model to represent an CurrencyExchangeRate, linked to the `CurrencyExchangeRates` table.
  */
-export class CurrencyExchangeRate extends Model<
+class CurrencyExchangeRate extends Model<
   InferAttributes<CurrencyExchangeRate>,
   InferCreationAttributes<CurrencyExchangeRate>
 > {
@@ -106,7 +106,5 @@ CurrencyExchangeRate.init(
     tableName: 'CurrencyExchangeRates',
   },
 );
-
-// ignore unused exports default
 
 export default CurrencyExchangeRate;

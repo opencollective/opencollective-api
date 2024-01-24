@@ -12,8 +12,11 @@ import sequelize, { DataTypes, Model, Op } from '../lib/sequelize';
 import { capitalize, days, formatCurrency } from '../lib/utils';
 import { isSupportedVideoProvider, supportedVideoProviders } from '../lib/validators';
 
+import Collective from './Collective';
 import CustomDataTypes from './DataTypes';
-import models, { Collective } from '.';
+import Member from './Member';
+import Order from './Order';
+import Transaction from './Transaction';
 
 const debug = debugLib('models:Tier');
 
@@ -68,7 +71,7 @@ class Tier extends Model<InferAttributes<Tier>, InferCreationAttributes<Tier>> {
    * or if the last transaction happened wihtin the month/year
    */
   isBackerActive = function (backerCollective, until = new Date()) {
-    return models.Member.findOne({
+    return Member.findOne({
       where: {
         CollectiveId: this.CollectiveId,
         MemberCollectiveId: backerCollective.id,
@@ -88,7 +91,7 @@ class Tier extends Model<InferAttributes<Tier>, InferCreationAttributes<Tier>> {
       if (this.interval === 'year' && days(membership.createdAt, until) <= 365) {
         return true;
       }
-      return models.Order.findOne({
+      return Order.findOne({
         where: {
           CollectiveId: this.CollectiveId,
           FromCollectiveId: backerCollective.id,
@@ -98,7 +101,7 @@ class Tier extends Model<InferAttributes<Tier>, InferCreationAttributes<Tier>> {
         if (!order) {
           return false;
         }
-        return models.Transaction.findOne({
+        return Transaction.findOne({
           where: { OrderId: order.id, CollectiveId: this.CollectiveId },
           order: [['createdAt', 'DESC']],
         }).then(transaction => {
@@ -123,7 +126,7 @@ class Tier extends Model<InferAttributes<Tier>, InferCreationAttributes<Tier>> {
       return Promise.resolve(maxInteger);
     }
 
-    return models.Order.sum('quantity', {
+    return Order.sum('quantity', {
       where: {
         TierId: this.id,
         status: { [Op.notIn]: [orderStatus.ERROR, orderStatus.CANCELLED, orderStatus.EXPIRED, orderStatus.REJECTED] },
@@ -182,12 +185,12 @@ class Tier extends Model<InferAttributes<Tier>, InferCreationAttributes<Tier>> {
   static appendTier = (collective, backerCollectives) => {
     const backerCollectivesIds = backerCollectives.map(b => b.id);
     debug('appendTier', collective.name, 'backers: ', backerCollectives.length);
-    return models.Member.findAll({
+    return Member.findAll({
       where: {
         MemberCollectiveId: { [Op.in]: backerCollectivesIds },
         CollectiveId: collective.id,
       },
-      include: [{ model: models.Tier }],
+      include: [{ model: Tier }],
     }).then(memberships => {
       const membershipsForBackerCollective = {};
       memberships.map(m => {

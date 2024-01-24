@@ -3,8 +3,7 @@ import config from 'config';
 
 import { activities, channels } from '../../constants';
 import ActivityTypes from '../../constants/activities';
-import models from '../../models';
-import { Activity } from '../../models/Activity';
+import { Activity, Notification } from '../../models';
 import { reportErrorToSentry } from '../sentry';
 import slackLib from '../slack';
 import twitter from '../twitter';
@@ -63,7 +62,7 @@ const dispatch = async (activity: Activity) => {
     active: true,
   };
 
-  const notificationChannels = await models.Notification.findAll({ where });
+  const notificationChannels = await Notification.findAll({ where });
   return Promise.all(
     notificationChannels.map(notifConfig => {
       if (notifConfig.channel === channels.SLACK) {

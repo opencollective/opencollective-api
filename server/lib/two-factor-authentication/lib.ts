@@ -4,9 +4,7 @@ import { isNil, pick } from 'lodash';
 import { activities } from '../../constants';
 import POLICIES from '../../constants/policies';
 import { ApolloError, Unauthorized } from '../../graphql/errors';
-import { Activity, Collective } from '../../models';
-import User from '../../models/User';
-import UserTwoFactorMethod from '../../models/UserTwoFactorMethod';
+import { Activity, Collective, User, UserTwoFactorMethod } from '../../models';
 import cache from '../cache';
 import { hasPolicy } from '../policies';
 

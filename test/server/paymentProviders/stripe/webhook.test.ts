@@ -1,6 +1,7 @@
 /* eslint-disable camelcase */
 
 import { expect } from 'chai';
+import config from 'config';
 import { set } from 'lodash';
 import { assert, createSandbox } from 'sinon';
 import Stripe from 'stripe';
@@ -27,10 +28,20 @@ import {
 import * as utils from '../../../utils';
 
 describe('webhook', () => {
+  let sandbox;
+
+  beforeEach(async () => {
+    await utils.resetTestDB();
+    sandbox = createSandbox();
+    sandbox.stub(config, 'activities').value({ ...config.activities, skipCreationForTransactions: true }); // Async activities are created async, which doesn't play well with `resetTestDb`
+  });
+
+  afterEach(() => {
+    sandbox.restore();
+  });
+
   describe('chargeDisputeCreated()', () => {
     let order, user;
-
-    beforeEach(() => utils.resetTestDB());
 
     beforeEach(async () => {
       const paymentMethod = await fakePaymentMethod({
@@ -91,8 +102,6 @@ describe('webhook', () => {
 
   describe('chargeDisputeClosed()', () => {
     let order, user, paymentMethod;
-
-    beforeEach(() => utils.resetTestDB());
 
     beforeEach(async () => {
       const collective = await fakeCollective({ isHostAccount: true });
@@ -243,8 +252,6 @@ describe('webhook', () => {
   describe('reviewOpened()', () => {
     let order, user;
 
-    beforeEach(() => utils.resetTestDB());
-
     beforeEach(async () => {
       const paymentMethod = await fakePaymentMethod({
         service: PAYMENT_METHOD_SERVICE.STRIPE,
@@ -301,8 +308,6 @@ describe('webhook', () => {
 
   describe('reviewClosed()', () => {
     let order, user;
-
-    beforeEach(() => utils.resetTestDB());
 
     beforeEach(async () => {
       const paymentMethod = await fakePaymentMethod({
@@ -470,7 +475,6 @@ describe('webhook', () => {
 
   describe('paymentIntent', () => {
     let order, event;
-    const sandbox = createSandbox();
 
     beforeEach(async () => {
       const paymentMethod = await fakePaymentMethod({
@@ -512,8 +516,6 @@ describe('webhook', () => {
         },
       };
     });
-
-    afterEach(sandbox.restore);
 
     describe('paymentIntentSucceeded()', () => {
       it('returns if no order is found', async () => {
@@ -611,9 +613,6 @@ describe('webhook', () => {
   });
 
   describe('mandate.updated', () => {
-    const sandbox = createSandbox();
-    afterEach(sandbox.restore);
-
     it('saves mandate to payment method', async () => {
       const stripePaymentMethodId = randStr('pm_');
       const paymentMethod = await fakePaymentMethod({
