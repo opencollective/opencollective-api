@@ -3405,12 +3405,13 @@ class Collective extends Model<
       service: paymentMethodService,
       type: paymentMethodType,
     };
-    return PaymentMethod.findOrCreate({
+    const [paymentMethod] = await PaymentMethod.findOrCreate({
       where: attributes,
       defaults: {
         currency: host?.currency ?? this.currency,
       },
     });
+    return paymentMethod;
   }
 }
 
