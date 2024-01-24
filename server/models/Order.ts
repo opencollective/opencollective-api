@@ -527,10 +527,10 @@ Order.prototype.populate = async function () {
     this.fromCollective = await Collective.findByPk(this.FromCollectiveId);
   }
   if (this.CreatedByUserId && !this.createdByUser) {
-    this.createdByUser = await User.findByPk(this.createdByUser);
+    this.createdByUser = await User.findByPk(this.CreatedByUserId);
   }
   if (this.TierId && !this.Tier) {
-    this.Tier = await Tier.findByPk(this.TierId);
+    this.Tier = this.tier = await Tier.findByPk(this.TierId);
   }
   if (this.PaymentMethodId && !this.paymentMethod) {
     this.paymentMethod = await PaymentMethod.findByPk(this.PaymentMethodId);
