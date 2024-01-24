@@ -61,7 +61,7 @@ describe('server/lib/payments', () => {
   });
 
   beforeEach(async () => {
-    await utils.resetTestDB();
+    await utils.resetTestDB({ groupedTruncate: false });
     await utils.seedDefaultVendors();
   });
 

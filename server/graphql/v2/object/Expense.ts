@@ -33,7 +33,7 @@ import { GraphQLChronologicalOrderInput } from '../input/ChronologicalOrderInput
 import { GraphQLAccount } from '../interface/Account';
 import { CollectionArgs } from '../interface/Collection';
 
-import GraphQLAccountingCategory from './AccountingCategory';
+import { GraphQLAccountingCategory } from './AccountingCategory';
 import { GraphQLActivity } from './Activity';
 import { GraphQLAmount } from './Amount';
 import GraphQLExpenseAttachedFile from './ExpenseAttachedFile';
@@ -84,7 +84,7 @@ const loadHostForExpense = async (expense, req) => {
     : req.loaders.Collective.hostByCollectiveId.load(expense.CollectiveId);
 };
 
-const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Request>({
+export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Request>({
   name: 'Expense',
   description: 'This represents an Expense',
   fields: () => {
@@ -566,5 +566,3 @@ const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Request>({
     };
   },
 });
-
-export { GraphQLExpense };

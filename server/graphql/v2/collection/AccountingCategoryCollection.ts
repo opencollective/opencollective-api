@@ -1,7 +1,7 @@
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 
 import { CollectionFields, GraphQLCollection } from '../interface/Collection';
-import GraphQLAccountingCategory from '../object/AccountingCategory';
+import { GraphQLAccountingCategory } from '../object/AccountingCategory';
 
 export const GraphQLAccountingCategoryCollection = new GraphQLObjectType({
   name: 'AccountingCategoryCollection',
