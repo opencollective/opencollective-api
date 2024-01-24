@@ -27,7 +27,7 @@ import { GraphQLAmount } from '../object/Amount';
 import { GraphQLPaymentMethod } from '../object/PaymentMethod';
 import { GraphQLTier } from '../object/Tier';
 
-import GraphQLAccountingCategory from './AccountingCategory';
+import { GraphQLAccountingCategory } from './AccountingCategory';
 import { GraphQLMemberOf } from './Member';
 import GraphQLOrderPermissions, { canComment, canSeeOrderPrivateActivities } from './OrderPermissions';
 import { GraphQLOrderTax } from './OrderTax';
