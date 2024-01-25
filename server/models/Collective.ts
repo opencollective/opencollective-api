@@ -2995,7 +2995,10 @@ class Collective extends Model<
   };
 
   // get the host of the parent collective if any, or of this collective
-  getHostCollective = async function ({ loaders = null, returnEvenIfNotApproved = false } = {}) {
+  getHostCollective = async function ({
+    loaders = null,
+    returnEvenIfNotApproved = false,
+  } = {}): Promise<null | Collective> {
     if (!this.isActive && !returnEvenIfNotApproved) {
       return null;
     }

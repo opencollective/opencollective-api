@@ -2695,8 +2695,7 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
         const paymentMethod = args.paymentMethodService
           ? await host.findOrCreatePaymentMethod(args.paymentMethodService, PAYMENT_METHOD_TYPE.MANUAL)
           : null;
-        await expense.setPaymentMethod(paymentMethod.id);
-        await expense.save();
+        await expense.update({ PaymentMethodId: paymentMethod?.id || null });
         await createTransactionsForManuallyPaidExpense(
           host,
           expense,
@@ -2780,7 +2779,7 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
         const paymentMethod = args.paymentMethodService
           ? await host.findOrCreatePaymentMethod(args.paymentMethodService, PAYMENT_METHOD_TYPE.MANUAL)
           : null;
-        await expense.update({ PaymentMethodId: paymentMethod.id });
+        await expense.update({ PaymentMethodId: paymentMethod?.id || null });
         await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto');
       }
     } catch (error) {
