@@ -25,7 +25,7 @@ const accountQuery = gql`
 
 describe('server/graphql/v2/object/AccountStats', () => {
   before(async () => {
-    await resetTestDB({ groupedTruncate: false });
+    await resetTestDB();
   });
 
   let collective, project;

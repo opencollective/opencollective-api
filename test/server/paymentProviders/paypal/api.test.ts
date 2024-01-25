@@ -36,7 +36,7 @@ describe('server/paymentProviders/paypal/api', () => {
        everything besides `paypalUrl` and`retrieveOAuthToken`. */
 
     before(async () => {
-      await utils.resetTestDB({ groupedTruncate: false });
+      await utils.resetTestDB();
     });
 
     let configStub;

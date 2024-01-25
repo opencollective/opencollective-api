@@ -21,7 +21,7 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
   let expense, host, collective, payoutMethod, sandbox;
 
   beforeEach(async () => {
-    await utils.resetTestDB({ groupedTruncate: false });
+    await utils.resetTestDB();
     sandbox = createSandbox();
   });
 
