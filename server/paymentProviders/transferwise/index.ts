@@ -169,7 +169,8 @@ async function validateTransferRequirements(
       ? (expense.data.recipient as RecipientAccount)
       : await createRecipient(connectedAccount, payoutMethod);
 
-  const quote = await quoteExpense(connectedAccount, payoutMethod, expense);
+  await expense.update({ data: { ...expense.data, recipient } });
+  const quote = await quoteExpense(connectedAccount, payoutMethod, expense, recipient.id);
   return await transferwise.validateTransferRequirements(connectedAccount, {
     accountId: recipient.id,
     quoteUuid: quote.id,
