@@ -72,7 +72,7 @@ async function run({ dryRun } = {}) {
     if (!dryRun) {
       if (order) {
         await order.update({ status: status.CANCELLED });
-        await order.Subscription.deactivate();
+        await order.subscription.deactivate();
       }
     }
   }

@@ -33,7 +33,7 @@ const getHostFromOrder = async order => {
 };
 
 const getOrderCancelationReason = (collective, order, orderHost) => {
-  if (order.TierId && !order.Tier) {
+  if (order.TierId && !order.tier) {
     return ['DELETED_TIER', `Order tier deleted`];
   } else if (collective.deactivatedAt) {
     return ['ARCHIVED_ACCOUNT', `@${collective.slug} archived their account`];
@@ -87,10 +87,10 @@ export async function run() {
         const host = await getHostFromOrder(order);
         const [reasonCode, reason] = getOrderCancelationReason(collective, order, host);
         logger.debug(
-          `Cancelling subscription ${order.Subscription.id} from order ${order.id} of @${collectiveHandle} (host: ${host.slug})`,
+          `Cancelling subscription ${order.subscription.id} from order ${order.id} of @${collectiveHandle} (host: ${host.slug})`,
         );
         if (!process.env.DRY) {
-          await order.Subscription.deactivate(reason, host);
+          await order.subscription.deactivate(reason, host);
           await models.Activity.create({
             type: activities.SUBSCRIPTION_CANCELED,
             CollectiveId: order.CollectiveId,
@@ -99,13 +99,13 @@ export async function run() {
             OrderId: order.id,
             UserId: order.CreatedByUserId,
             data: {
-              subscription: order.Subscription,
+              subscription: order.subscription,
               collective: order.collective.minimal,
               fromCollective: order.fromCollective.minimal,
               reasonCode: reasonCode,
               reason: reason,
               order: order.info,
-              tier: order.Tier?.info,
+              tier: order.tier?.info,
             },
           });
           await sleep(500); // To prevent rate-limiting issues when calling 3rd party payment processor APIs

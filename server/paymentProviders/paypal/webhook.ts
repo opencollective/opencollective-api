@@ -131,16 +131,16 @@ async function handleSaleCompleted(req: Request): Promise<void> {
   }
 
   const nextChargeDate = moment().add(1, order.interval as any);
-  await order.Subscription.update({
-    chargeNumber: (order.Subscription.chargeNumber || 0) + 1,
+  await order.subscription.update({
+    chargeNumber: (order.subscription.chargeNumber || 0) + 1,
     nextChargeDate: nextChargeDate,
     nextPeriodStart: nextChargeDate,
     isActive: true,
-    activatedAt: order.Subscription.activatedAt || new Date(),
+    activatedAt: order.subscription.activatedAt || new Date(),
   });
 
   // 4. Send thankyou email
-  const isFirstPayment = order.Subscription.chargeNumber === 1;
+  const isFirstPayment = order.subscription.chargeNumber === 1;
   await sendThankYouEmail(order, transaction, isFirstPayment);
 
   // 5. Register user as a member, since the transaction is not created in `processOrder`
@@ -304,7 +304,7 @@ async function handleSubscriptionCancelled(req: Request): Promise<void> {
       status: OrderStatus.CANCELLED,
       data: { ...order.data, paypalStatusChangeNote: subscription.status_change_note },
     });
-    await order.Subscription.update({
+    await order.subscription.update({
       isActive: false,
       deactivatedAt: new Date(),
       nextChargeDate: null,

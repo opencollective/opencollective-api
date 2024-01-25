@@ -46,7 +46,7 @@ async function createOrderWithSubscription(interval, date, quantity = 1) {
     currency: payment.currency,
     interval: payment.interval,
   });
-  order.Subscription = subscription;
+  order.subscription = subscription;
   order.fromCollective = fromCollective;
   order.collective = collective;
   order.createdByUser = user;
@@ -300,7 +300,7 @@ describe('server/lib/recurring-contributions', () => {
 
     it('not do anything if dryRun is true', async () => {
       const order = await fakeOrder({}, { withSubscription: true, withBackerMember: true });
-      sandbox.spy(order.Subscription, 'save');
+      sandbox.spy(order.subscription, 'save');
 
       const entry = await processOrderWithSubscription(order, { dryRun: true });
       // Wait for potential emails
@@ -308,7 +308,7 @@ describe('server/lib/recurring-contributions', () => {
 
       // Then nothing was attempted
       expect(entry.status).to.equal('unattempted');
-      expect(order.Subscription.save.called).to.equal(false);
+      expect(order.subscription.save.called).to.equal(false);
       expect(sendSpy.called).to.equal(false);
     });
 
@@ -343,8 +343,8 @@ describe('server/lib/recurring-contributions', () => {
         expect(entry.status).to.equal('success');
 
         // And then the dates are incremented by one month
-        expect(order.Subscription.nextChargeDate.getTime()).to.equal(new Date('2018-02-27 0:0').getTime());
-        expect(order.Subscription.nextPeriodStart.getTime()).to.equal(new Date('2018-02-27 0:0').getTime());
+        expect(order.subscription.nextChargeDate.getTime()).to.equal(new Date('2018-02-27 0:0').getTime());
+        expect(order.subscription.nextPeriodStart.getTime()).to.equal(new Date('2018-02-27 0:0').getTime());
       });
 
       it('should update dates after successfully processing yearly', async () => {
@@ -367,8 +367,8 @@ describe('server/lib/recurring-contributions', () => {
         expect(entry.status).to.equal('success');
 
         // And then the dates are incremented by one month
-        expect(order.Subscription.nextChargeDate.getTime()).to.equal(new Date('2019-01-27 0:0').getTime());
-        expect(order.Subscription.nextPeriodStart.getTime()).to.equal(new Date('2019-01-27 0:0').getTime());
+        expect(order.subscription.nextChargeDate.getTime()).to.equal(new Date('2019-01-27 0:0').getTime());
+        expect(order.subscription.nextPeriodStart.getTime()).to.equal(new Date('2019-01-27 0:0').getTime());
       });
 
       it('should update nextChargeDate after failed processing yearly', async () => {
@@ -389,11 +389,11 @@ describe('server/lib/recurring-contributions', () => {
         expect(entry.status).to.equal('failure');
 
         // And then the nextChargeDate is ajusted for two days later
-        expect(order.Subscription.nextChargeDate.getTime()).to.equal(moment().startOf('day').add(2, 'days').valueOf());
+        expect(order.subscription.nextChargeDate.getTime()).to.equal(moment().startOf('day').add(2, 'days').valueOf());
 
         // And the nextPeriodStart doesn't change for a failed
         // processing
-        expect(order.Subscription.nextPeriodStart.getTime()).to.equal(new Date('2018-01-27 0:0').getTime());
+        expect(order.subscription.nextPeriodStart.getTime()).to.equal(new Date('2018-01-27 0:0').getTime());
       });
 
       it('should increment chargeNumber after successfully processing the order', async () => {
@@ -412,7 +412,7 @@ describe('server/lib/recurring-contributions', () => {
         expect(entry.status).to.equal('success');
 
         // Then charge number (that started with 0) should be 1
-        expect(order.Subscription.chargeNumber).to.equal(1);
+        expect(order.subscription.chargeNumber).to.equal(1);
       });
 
       it('should NOT increment chargeNumber after failure processing order', async () => {
@@ -432,10 +432,10 @@ describe('server/lib/recurring-contributions', () => {
         expect(entry.status).to.equal('failure');
 
         // And then charge number continues to be 0
-        expect(order.Subscription.chargeNumber).to.equal(0);
+        expect(order.subscription.chargeNumber).to.equal(0);
 
         // And the subscription shoult not be canceled
-        expect(order.Subscription.deactivatedAt).to.be.null;
+        expect(order.subscription.deactivatedAt).to.be.null;
       });
 
       it('should cancel the subscription if chargeNumber === quantity', async () => {
@@ -456,11 +456,11 @@ describe('server/lib/recurring-contributions', () => {
         expect(entry.status).to.equal('failure');
 
         // And then charge number continues to be unchanged
-        expect(order.Subscription.chargeNumber).to.equal(2);
+        expect(order.subscription.chargeNumber).to.equal(2);
 
         // And the subscription should be marked as deactivated
-        expect(order.Subscription.isActive).to.be.false;
-        expect(order.Subscription.deactivatedAt.getTime()).to.be.at.most(new Date().getTime());
+        expect(order.subscription.isActive).to.be.false;
+        expect(order.subscription.deactivatedAt.getTime()).to.be.at.most(new Date().getTime());
         expect(order.status).to.eql(status.CANCELLED);
       });
     });

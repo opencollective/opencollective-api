@@ -16,6 +16,7 @@ import {
   fakeHost,
   fakeOrder,
   fakePaymentMethod,
+  fakeSubscription,
 } from '../../../test-helpers/fake-data';
 import { resetTestDB } from '../../../utils';
 
@@ -24,10 +25,11 @@ const createOrderWithSubscription = async (params = {}): Promise<OrderModelInter
     service: PAYMENT_METHOD_SERVICE.PAYPAL,
     type: PAYMENT_METHOD_TYPE.SUBSCRIPTION,
   });
+  const subscription = await fakeSubscription({ paypalSubscriptionId: paymentMethod.token });
   return fakeOrder(
     {
       PaymentMethodId: paymentMethod.id,
-      subscription: { paypalSubscriptionId: paymentMethod.token },
+      subscription,
       ...params,
     },
     { withSubscription: true },

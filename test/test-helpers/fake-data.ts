@@ -36,7 +36,6 @@ import models, {
   PaypalProduct,
   PersonalToken,
   sequelize,
-  Subscription,
   Tier,
   Update,
   UploadedFile,
@@ -620,7 +619,6 @@ export const fakeOrder = async (
       : null;
 
   const order: OrderModelInterface & {
-    subscription?: typeof Subscription;
     transactions?: TransactionInterface[];
   } = await models.Order.create({
     quantity: 1,
@@ -654,7 +652,7 @@ export const fakeOrder = async (
 
     const subscription = await fakeSubscription(subscriptionData);
     await order.update({ SubscriptionId: subscription.id });
-    order.Subscription = subscription;
+    order.subscription = subscription;
   }
 
   if (withTransactions) {

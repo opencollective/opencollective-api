@@ -273,7 +273,7 @@ const orderMutations = {
 
       if (!req.remoteUser.isAdminOfCollective(order.fromCollective) && !req.remoteUser.isRoot()) {
         throw new Unauthorized("You don't have permission to cancel this recurring contribution");
-      } else if (!order.Subscription?.isActive && order.status === OrderStatuses.CANCELLED) {
+      } else if (!order.subscription?.isActive && order.status === OrderStatuses.CANCELLED) {
         throw new Error('Recurring contribution already canceled');
       } else if (order.status === OrderStatuses.PAID) {
         throw new Error('Cannot cancel a paid order');
@@ -283,7 +283,7 @@ const orderMutations = {
       await twoFactorAuthLib.enforceForAccount(req, order.fromCollective, { onlyAskOnLogin: true });
 
       await order.update({ status: OrderStatuses.CANCELLED });
-      await order.Subscription.deactivate();
+      await order.subscription.deactivate();
 
       await models.Activity.create({
         type: activities.SUBSCRIPTION_CANCELED,
@@ -294,14 +294,14 @@ const orderMutations = {
         UserId: order.CreatedByUserId,
         UserTokenId: req.userToken?.id,
         data: {
-          subscription: order.Subscription,
+          subscription: order.subscription,
           collective: order.collective.minimal,
           user: req.remoteUser.minimal,
           fromCollective: order.fromCollective.minimal,
           reason: args.reason,
           reasonCode: args.reasonCode,
           order: order.info,
-          tier: order.Tier?.info,
+          tier: order.tier?.info,
         },
       });
 
@@ -355,7 +355,7 @@ const orderMutations = {
         throw new ValidationFailed('This order does not seem to exist');
       } else if (!req.remoteUser.isAdminOfCollective(order.fromCollective) && !req.remoteUser.isRoot()) {
         throw new Unauthorized("You don't have permission to update this order");
-      } else if (!order.Subscription.isActive) {
+      } else if (!order.subscription.isActive) {
         throw new Error('Order must be active to be updated');
       } else if (args.paypalSubscriptionId && args.paymentMethod) {
         throw new Error('paypalSubscriptionId and paymentMethod are mutually exclusive');
@@ -379,7 +379,7 @@ const orderMutations = {
             ? null
             : args.tier
               ? await fetchTierWithReference(args.tier, { throwIfMissing: true })
-              : order.Tier;
+              : order.tier;
 
         const membership =
           !isNull(order) &&

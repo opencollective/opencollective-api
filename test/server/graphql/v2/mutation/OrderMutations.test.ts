@@ -29,6 +29,7 @@ import {
   fakeOrder,
   fakeOrganization,
   fakePaymentMethod,
+  fakeSubscription,
   fakeTier,
   fakeUser,
   randStr,
@@ -2774,7 +2775,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         it('from monthly to yearly', async () => {
           const today = moment(new Date(2022, 0, 1)); // 1st of January 2022
           clock = useFakeTimers(today.toDate()); // Manually setting today's date
-          const subscription = { nextChargeDate: moment(today) };
+          const subscription = await fakeSubscription({ nextChargeDate: moment(today) });
           const monthlyOrder = await fakeOrder(
             {
               interval: 'month',
@@ -2808,14 +2809,14 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             include: [{ model: models.Subscription, required: true }],
           });
 
-          expect(updatedOrder.Subscription.nextChargeDate.toISOString()).to.equal('2023-01-01T00:00:00.000Z');
-          expect(updatedOrder.Subscription.nextPeriodStart.toISOString()).to.equal('2023-01-01T00:00:00.000Z');
+          expect(updatedOrder.subscription.nextChargeDate.toISOString()).to.equal('2023-01-01T00:00:00.000Z');
+          expect(updatedOrder.subscription.nextPeriodStart.toISOString()).to.equal('2023-01-01T00:00:00.000Z');
         });
 
         it('from yearly to monthly (before the 15th of the month)', async () => {
           const today = moment(new Date(2022, 0, 1)); // 1st of January 2022
           clock = useFakeTimers(today.toDate()); // Manually setting today's date
-          const subscription = { nextChargeDate: moment(today) };
+          const subscription = await fakeSubscription({ nextChargeDate: moment(today) });
           const yearlyOrder = await fakeOrder(
             {
               interval: 'year',
@@ -2849,14 +2850,14 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             include: [{ model: models.Subscription, required: true }],
           });
 
-          expect(updatedOrder.Subscription.nextChargeDate.toISOString()).to.equal('2022-02-01T00:00:00.000Z');
-          expect(updatedOrder.Subscription.nextPeriodStart.toISOString()).to.equal('2022-02-01T00:00:00.000Z');
+          expect(updatedOrder.subscription.nextChargeDate.toISOString()).to.equal('2022-02-01T00:00:00.000Z');
+          expect(updatedOrder.subscription.nextPeriodStart.toISOString()).to.equal('2022-02-01T00:00:00.000Z');
         });
 
         it('from yearly to monthly (after the 15th of the month)', async () => {
           const today = moment(new Date(2022, 0, 18)); // 18th of January 2022
           clock = useFakeTimers(today.toDate()); // Manually setting today's date
-          const subscription = { nextChargeDate: moment(today) };
+          const subscription = await fakeSubscription({ nextChargeDate: moment(today) });
           const yearlyOrder = await fakeOrder(
             {
               interval: 'year',
@@ -2890,8 +2891,8 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             include: [{ model: models.Subscription, required: true }],
           });
 
-          expect(updatedOrder.Subscription.nextChargeDate.toISOString()).to.equal('2022-03-01T00:00:00.000Z');
-          expect(updatedOrder.Subscription.nextPeriodStart.toISOString()).to.equal('2022-03-01T00:00:00.000Z');
+          expect(updatedOrder.subscription.nextChargeDate.toISOString()).to.equal('2022-03-01T00:00:00.000Z');
+          expect(updatedOrder.subscription.nextPeriodStart.toISOString()).to.equal('2022-03-01T00:00:00.000Z');
         });
       });
     });

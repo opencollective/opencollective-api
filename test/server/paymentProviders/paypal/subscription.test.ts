@@ -18,6 +18,7 @@ import {
   fakeOrder,
   fakePaymentMethod,
   fakePaypalPlan,
+  fakeSubscription,
   randStr,
 } from '../../../test-helpers/fake-data';
 import { resetTestDB } from '../../../utils';
@@ -163,13 +164,14 @@ describe('server/paymentProviders/paypal/subscription', () => {
       const generateOrderWithSubscription = async () => {
         const paypalSubscriptionId = randStr();
         const paymentMethod = await fakePaypalSubscriptionPm({ ...validSubscriptionParams, id: paypalSubscriptionId });
+        const subscription = await fakeSubscription({ paypalSubscriptionId, isActive: false });
         return fakeOrder(
           {
             CollectiveId: host.id,
             status: OrderStatuses.NEW,
             TierId: null,
             totalAmount: 1000,
-            subscription: { paypalSubscriptionId, isActive: false },
+            subscription,
             PaymentMethodId: paymentMethod.id,
           },
           {
@@ -180,7 +182,7 @@ describe('server/paymentProviders/paypal/subscription', () => {
 
       it('cancels/updates existing subscription', async () => {
         const order = await generateOrderWithSubscription();
-        const previousSubscription = order.Subscription;
+        const previousSubscription = order.subscription;
         const newSubscriptionPm = await fakePaypalSubscriptionPm({ ...validSubscriptionParams, id: randStr() });
 
         // PayPal API stubs

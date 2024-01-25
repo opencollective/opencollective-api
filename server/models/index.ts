@@ -232,8 +232,8 @@ Order.belongsTo(AccountingCategory, { as: 'accountingCategory', foreignKey: 'Acc
 Order.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
 Order.belongsTo(Collective, { foreignKey: 'FromCollectiveId', as: 'fromCollective' });
 Order.belongsTo(PaymentMethod, { foreignKey: 'PaymentMethodId', as: 'paymentMethod' });
-Order.belongsTo(Subscription); // adds SubscriptionId to the Orders table
-Order.belongsTo(Tier);
+Order.belongsTo(Subscription, { foreignKey: 'SubscriptionId', as: 'subscription' });
+Order.belongsTo(Tier, { foreignKey: 'TierId', as: 'tier' });
 Order.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
 Order.hasMany(Transaction);
 

@@ -628,13 +628,13 @@ export async function confirmOrder(order, remoteUser, guestToken) {
 
       order.status = status.ACTIVE;
       order.data = omit(order.data, ['error', 'latestError', 'paymentIntent', 'needsConfirmation']);
-      order.Subscription = Object.assign(order.Subscription, getNextChargeAndPeriodStartDates('success', order));
-      order.Subscription.chargeRetryCount = getChargeRetryCount('success', order);
-      if (order.Subscription.chargeNumber !== null) {
-        order.Subscription.chargeNumber += 1;
+      order.subscription = Object.assign(order.subscription, getNextChargeAndPeriodStartDates('success', order));
+      order.subscription.chargeRetryCount = getChargeRetryCount('success', order);
+      if (order.subscription.chargeNumber !== null) {
+        order.subscription.chargeNumber += 1;
       }
 
-      await order.Subscription.save();
+      await order.subscription.save();
       await order.save();
     }
 

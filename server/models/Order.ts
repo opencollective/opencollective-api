@@ -28,7 +28,7 @@ import Collective from './Collective';
 import CustomDataTypes from './DataTypes';
 import { MemberModelInterface } from './Member';
 import PaymentMethod, { PaymentMethodModelInterface } from './PaymentMethod';
-import type { SubscriptionInterface } from './Subscription';
+import Subscription, { SubscriptionInterface } from './Subscription';
 import Tier from './Tier';
 import Transaction, { TransactionInterface } from './Transaction';
 import User from './User';
@@ -68,10 +68,7 @@ export interface OrderModelInterface
   getCollective: HasOneGetAssociationMixin<Collective>;
 
   TierId: number;
-  /** @deprecated: We're using both `tier` and `Tier` depending on the places. The association is defined as `Tier` (uppercase). We should consolidate to one or the other. */
   tier?: Tier;
-  /** @deprecated: We're using both `tier` and `Tier` depending on the places. The association is defined as `Tier` (uppercase). We should consolidate to one or the other. */
-  Tier?: Tier;
   getTier: Promise<Tier>;
 
   quantity: number;
@@ -86,7 +83,7 @@ export interface OrderModelInterface
   privateMessage: string;
 
   SubscriptionId?: number;
-  Subscription?: SubscriptionInterface;
+  subscription?: SubscriptionInterface;
   getSubscription: HasOneGetAssociationMixin<SubscriptionInterface>;
 
   AccountingCategoryId?: ForeignKey<AccountingCategory['id']>;
@@ -529,11 +526,14 @@ Order.prototype.populate = async function () {
   if (this.CreatedByUserId && !this.createdByUser) {
     this.createdByUser = await User.findByPk(this.CreatedByUserId);
   }
-  if (this.TierId && !this.Tier) {
-    this.Tier = this.tier = await Tier.findByPk(this.TierId);
+  if (this.TierId && !this.tier) {
+    this.tier = await Tier.findByPk(this.TierId);
   }
   if (this.PaymentMethodId && !this.paymentMethod) {
     this.paymentMethod = await PaymentMethod.findByPk(this.PaymentMethodId);
+  }
+  if (this.SubscriptionId && !this.subscription) {
+    this.subscription = await Subscription.findByPk(this.SubscriptionId);
   }
   return this;
 };

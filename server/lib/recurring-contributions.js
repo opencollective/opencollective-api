@@ -57,7 +57,7 @@ export async function ordersWithPendingCharges({ limit, startDate } = {}) {
 }
 
 function hasReachedQuantity(order) {
-  return order.Subscription.chargeNumber !== null && order.Subscription.chargeNumber === order.Subscription.quantity;
+  return order.subscription.chargeNumber !== null && order.subscription.chargeNumber === order.subscription.quantity;
 }
 
 /** Process order and trigger result handlers.
@@ -76,24 +76,24 @@ export async function processOrderWithSubscription(order, options) {
   }
 
   logger.info(
-    `order: ${order.id}, subscription: ${order.Subscription.id}, ` +
-      `attempt: #${order.Subscription.chargeRetryCount}, ` +
-      `due: ${order.Subscription.nextChargeDate}`,
+    `order: ${order.id}, subscription: ${order.subscription.id}, ` +
+      `attempt: #${order.subscription.chargeRetryCount}, ` +
+      `due: ${order.subscription.nextChargeDate}`,
   );
 
   const csvEntry = {
     orderId: order.id,
-    subscriptionId: order.Subscription.id,
+    subscriptionId: order.subscription.id,
     amount: order.totalAmount,
     from: order.fromCollective.slug,
     to: order.collective.slug,
     status: null,
     error: null,
-    retriesBefore: order.Subscription.chargeRetryCount,
+    retriesBefore: order.subscription.chargeRetryCount,
     retriesAfter: null,
-    chargeDateBefore: dateFormat(order.Subscription.nextCharge),
+    chargeDateBefore: dateFormat(order.subscription.nextCharge),
     chargeDateAfter: null,
-    nextPeriodStartBefore: dateFormat(order.Subscription.nextPeriodStart),
+    nextPeriodStartBefore: dateFormat(order.subscription.nextPeriodStart),
     nextPeriodStartAfter: null,
   };
 
@@ -129,15 +129,15 @@ export async function processOrderWithSubscription(order, options) {
         order.data = { ...order.data, error: { message: error.message }, latestError: error.message };
       }
 
-      order.Subscription.chargeRetryCount = getChargeRetryCount(orderProcessedStatus, order);
-      order.Subscription = Object.assign(
-        order.Subscription,
+      order.subscription.chargeRetryCount = getChargeRetryCount(orderProcessedStatus, order);
+      order.subscription = Object.assign(
+        order.subscription,
         getNextChargeAndPeriodStartDates(orderProcessedStatus, order),
       );
 
       if (orderProcessedStatus === 'success') {
-        if (order.Subscription.chargeNumber !== null) {
-          order.Subscription.chargeNumber += 1;
+        if (order.subscription.chargeNumber !== null) {
+          order.subscription.chargeNumber += 1;
         }
         order.status = status.ACTIVE;
         // TODO: we should consolidate on error and remove latestError
@@ -149,16 +149,16 @@ export async function processOrderWithSubscription(order, options) {
   }
 
   csvEntry.status = orderProcessedStatus;
-  csvEntry.retriesAfter = order.Subscription.chargeRetryCount;
-  csvEntry.chargeDateAfter = dateFormat(order.Subscription.nextChargeDate);
-  csvEntry.nextPeriodStartAfter = dateFormat(order.Subscription.nextPeriodStart);
+  csvEntry.retriesAfter = order.subscription.chargeRetryCount;
+  csvEntry.chargeDateAfter = dateFormat(order.subscription.nextChargeDate);
+  csvEntry.nextPeriodStartAfter = dateFormat(order.subscription.nextPeriodStart);
 
   if (!options.dryRun) {
     try {
       if (collectiveIsArchived) {
         await createOrderCanceledArchivedCollectiveActivity(order);
       } else if (creditCardNeedsConfirmation) {
-        if (order.Subscription.chargeRetryCount >= MAX_RETRIES) {
+        if (order.subscription.chargeRetryCount >= MAX_RETRIES) {
           await cancelSubscriptionAndNotifyUser(order);
         } else {
           order.data = order.data || {};
@@ -172,7 +172,7 @@ export async function processOrderWithSubscription(order, options) {
       console.log(`Error notifying order #${order.id} ${error}`);
       reportErrorToSentry(error, { severity: 'fatal', feature: FEATURE.RECURRING_CONTRIBUTIONS });
     } finally {
-      await order.Subscription.save();
+      await order.subscription.save();
       await order.save();
     }
   }
@@ -203,7 +203,7 @@ function dateFormat(date) {
  */
 export async function handleRetryStatus(order, transaction) {
   const errorMessage = get(order, 'data.error.message');
-  switch (order.Subscription.chargeRetryCount) {
+  switch (order.subscription.chargeRetryCount) {
     case 0:
       return sendThankYouEmail(order, transaction);
     case 1:
@@ -235,19 +235,19 @@ export async function handleRetryStatus(order, transaction) {
  *   2. failure: Two days after today.
  */
 export function getNextChargeAndPeriodStartDates(status, order) {
-  const initial = order.Subscription.nextPeriodStart || order.Subscription.createdAt;
+  const initial = order.subscription.nextPeriodStart || order.subscription.createdAt;
   let nextChargeDate = moment(initial);
   const response = {};
 
   if (status === 'new' || status === 'success') {
-    if (order.Subscription.interval === intervals.MONTH) {
+    if (order.subscription.interval === intervals.MONTH) {
       nextChargeDate.add(1, 'months');
-    } else if (order.Subscription.interval === intervals.YEAR) {
+    } else if (order.subscription.interval === intervals.YEAR) {
       nextChargeDate.add(1, 'years');
     }
 
     // Set the next charge date to 2 months time if the subscription was made after 15th of the month.
-    if (status === 'new' && order.Subscription.interval === intervals.MONTH && nextChargeDate.date() > 15) {
+    if (status === 'new' && order.subscription.interval === intervals.MONTH && nextChargeDate.date() > 15) {
       nextChargeDate.add(1, 'months');
     }
 
@@ -257,7 +257,7 @@ export function getNextChargeAndPeriodStartDates(status, order) {
 
     response.nextPeriodStart = nextChargeDate.toDate();
   } else if (status === 'failure') {
-    if (order.Subscription.chargeRetryCount > 2) {
+    if (order.subscription.chargeRetryCount > 2) {
       // How do I remove time part from JavaScript date?
       // https://stackoverflow.com/questions/34722862/how-do-i-remove-time-part-from-javascript-date/34722927
       nextChargeDate = moment(new Date(new Date().toDateString())).add(5, 'days');
@@ -274,12 +274,12 @@ export function getNextChargeAndPeriodStartDates(status, order) {
 
 /** Update counter that records retry attempts.
  *
- * When status is 'failure', `order.Subscription.chargeRetryCount` is
+ * When status is 'failure', `order.subscription.chargeRetryCount` is
  * incremented by one. The counter is reset to zero if the status is
  * 'success'.
  */
 export function getChargeRetryCount(status, order) {
-  return status === 'success' || status === 'updated' ? 0 : order.Subscription.chargeRetryCount + 1;
+  return status === 'success' || status === 'updated' ? 0 : order.subscription.chargeRetryCount + 1;
 }
 
 /** Cancel subscription
@@ -288,12 +288,12 @@ export function getChargeRetryCount(status, order) {
  * `deactivatedAt` will be updated with the current time.
  *
  * Notice that this function doesn't save the changes to the database
- * so a call to `order.Subscription.save()` is required after this
+ * so a call to `order.subscription.save()` is required after this
  * function.
  */
 function cancelSubscription(order) {
-  order.Subscription.isActive = false;
-  order.Subscription.deactivatedAt = new Date();
+  order.subscription.isActive = false;
+  order.subscription.deactivatedAt = new Date();
   order.status = status.CANCELLED;
 }
 
@@ -395,7 +395,7 @@ export async function sendThankYouEmail(order, transaction, isFirstPayment = fal
     host: host ? host.info : {},
     fromCollective: order.fromCollective.minimal,
     config: { host: config.host },
-    interval: order.Subscription?.interval || order.interval,
+    interval: order.subscription?.interval || order.interval,
     subscriptionsLink: getEditRecurringContributionsUrl(order.fromCollective),
     customMessage: collective.settings?.customEmailMessage || parentCollective?.settings?.customEmailMessage,
   };

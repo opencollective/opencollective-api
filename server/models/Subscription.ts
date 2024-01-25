@@ -99,7 +99,7 @@ Subscription.prototype.deactivate = async function (reason = undefined, host = u
   // If subscription exists on a third party, cancel it there
   if (this.paypalSubscriptionId) {
     const order = await this.getOrder();
-    order.Subscription = this;
+    order.subscription = this;
     await cancelPaypalSubscription(order, reason, host);
   }
 

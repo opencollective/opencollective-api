@@ -1464,7 +1464,7 @@ class Collective extends Model<
     return orders.map(order => ({
       ...order.info,
       fromCollective: order.fromCollective.info,
-      Tier: order.Tier ? order.Tier.info : null,
+      Tier: order.tier ? order.tier.info : null,
     }));
   };
 
@@ -1515,7 +1515,7 @@ class Collective extends Model<
     return orders.map(order => ({
       ...order.info,
       fromCollective: order.fromCollective.info,
-      Tier: order.Tier ? order.Tier.info : null,
+      Tier: order.tier ? order.tier.info : null,
       totalTransactions: order.totalTransactions,
     }));
   };
@@ -1677,14 +1677,14 @@ class Collective extends Model<
             return null;
           }
           const TierId = order.TierId;
-          tiersById[TierId] = tiersById[TierId] || order.Tier;
+          tiersById[TierId] = tiersById[TierId] || order.tier;
           if (!tiersById[TierId]) {
             logger.error(">>> Couldn't find a tier with id", order.TierId, 'collective: ', this.slug);
             tiersById[TierId] = { dataValues: { users: [] } };
           }
           tiersById[TierId].dataValues.users = tiersById[TierId].dataValues.users || [];
           if (options.active) {
-            backerCollective.isActive = order.Subscription.isActive;
+            backerCollective.isActive = order.subscription.isActive;
           }
           debug('adding to tier', TierId, 'backer: ', backerCollective.dataValues.slug);
           tiersById[TierId].dataValues.users.push(backerCollective.dataValues);
@@ -1709,7 +1709,7 @@ class Collective extends Model<
         CollectiveId: this.id,
       },
       include: [{ model: Tier }],
-    }).then(order => order && order.Tier);
+    }).then(order => order && order.tier);
   };
 
   /**
@@ -1821,9 +1821,9 @@ class Collective extends Model<
       },
       order: order && {
         ...order.info,
-        tier: order.Tier && order.Tier.minimal,
+        tier: order.tier && order.tier.minimal,
         subscription: {
-          interval: order.Subscription && order.Subscription.interval,
+          interval: order.subscription && order.subscription.interval,
         },
       },
     };

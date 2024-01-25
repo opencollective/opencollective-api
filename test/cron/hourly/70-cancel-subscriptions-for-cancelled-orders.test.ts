@@ -13,6 +13,7 @@ import {
   fakeHost,
   fakeOrder,
   fakePaymentMethod,
+  fakeSubscription,
   fakeTier,
   fakeTransaction,
   fakeUser,
@@ -27,13 +28,14 @@ const fakePayPalSubscriptionOrder = async collective => {
     type: PAYMENT_METHOD_TYPE.SUBSCRIPTION,
     token: paypalSubscriptionId,
   });
+  const subscription = await fakeSubscription({ paypalSubscriptionId, isActive: true, isManagedExternally: true });
   return fakeOrder(
     {
       CollectiveId: collective.id,
       interval: 'month',
       status: OrderStatuses.ACTIVE,
       totalAmount: 1000,
-      subscription: { paypalSubscriptionId, isActive: true, isManagedExternally: true },
+      subscription,
       PaymentMethodId: paymentMethod.id,
     },
     {
@@ -80,9 +82,9 @@ describe('cron/hourly/70-cancel-subscriptions-for-cancelled-orders', () => {
     expect(paypalRequest.args[2].id).to.eq(host.id);
 
     await paypalOrder.reload();
-    await paypalOrder.Subscription.reload();
+    await paypalOrder.subscription.reload();
     expect(paypalOrder.status).to.eq(OrderStatuses.CANCELLED);
-    expect(paypalOrder.Subscription.isActive).to.be.false;
+    expect(paypalOrder.subscription.isActive).to.be.false;
 
     const activity = await models.Activity.findOne({ where: { type: activities.SUBSCRIPTION_CANCELED } });
     expect(activity).to.exist;
@@ -102,9 +104,9 @@ describe('cron/hourly/70-cancel-subscriptions-for-cancelled-orders', () => {
     await runCronJob();
 
     await order.reload();
-    await order.Subscription.reload();
+    await order.subscription.reload();
     expect(order.status).to.eq(OrderStatuses.CANCELLED);
-    expect(order.Subscription.isActive).to.be.false;
+    expect(order.subscription.isActive).to.be.false;
 
     const activity = await models.Activity.findOne({ where: { type: activities.SUBSCRIPTION_CANCELED } });
     expect(activity).to.exist;
@@ -126,9 +128,9 @@ describe('cron/hourly/70-cancel-subscriptions-for-cancelled-orders', () => {
     await runCronJob();
 
     await order.reload();
-    await order.Subscription.reload();
+    await order.subscription.reload();
     expect(order.status).to.eq(OrderStatuses.CANCELLED);
-    expect(order.Subscription.isActive).to.be.false;
+    expect(order.subscription.isActive).to.be.false;
 
     const activity = await models.Activity.findOne({ where: { type: activities.SUBSCRIPTION_CANCELED } });
     expect(activity).to.exist;
@@ -161,9 +163,9 @@ describe('cron/hourly/70-cancel-subscriptions-for-cancelled-orders', () => {
     expect(paypalRequest.args[2].id).to.eq(host.id);
 
     await paypalOrder.reload();
-    await paypalOrder.Subscription.reload();
+    await paypalOrder.subscription.reload();
     expect(paypalOrder.status).to.eq(OrderStatuses.CANCELLED);
-    expect(paypalOrder.Subscription.isActive).to.be.false;
+    expect(paypalOrder.subscription.isActive).to.be.false;
 
     const activity = await models.Activity.findOne({ where: { type: activities.SUBSCRIPTION_CANCELED } });
     expect(activity).to.exist;
@@ -179,6 +181,6 @@ describe('cron/hourly/70-cancel-subscriptions-for-cancelled-orders', () => {
 
     await order.reload();
     expect(order.status).to.eq(OrderStatuses.ACTIVE);
-    expect(order.Subscription.isActive).to.be.true;
+    expect(order.subscription.isActive).to.be.true;
   });
 });

@@ -21,6 +21,7 @@ import {
   fakeMember,
   fakeOrder,
   fakeProject,
+  fakeSubscription,
   fakeTier,
   fakeTransaction,
   fakeUser,
@@ -555,8 +556,9 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
       const user = await fakeUser();
       const host = await fakeHost({ admin: user });
       const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const subscription = await fakeSubscription({ isManagedExternally: true });
       const orderWithExternalSubscription = await fakeOrder(
-        { CollectiveId: collective.id, status: OrderStatuses.ACTIVE, subscription: { isManagedExternally: true } },
+        { CollectiveId: collective.id, status: OrderStatuses.ACTIVE, subscription },
         { withSubscription: true },
       );
       const orderWithInternalSubscription = await fakeOrder(
