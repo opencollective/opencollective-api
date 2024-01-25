@@ -155,6 +155,17 @@ class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCreationAtt
           },
         });
       }
+    } else if (payoutMethodData['type'] === PayoutMethodTypes.ACCOUNT_BALANCE) {
+      // Just in case as the model doesn't accept empty data
+      if (!payoutMethodData.data) {
+        payoutMethodData.data = {};
+      }
+      existingPm = await PayoutMethod.findOne({
+        where: {
+          CollectiveId: collective.id,
+          type: PayoutMethodTypes.ACCOUNT_BALANCE,
+        },
+      });
     }
 
     // Otherwise we just call createFromData
