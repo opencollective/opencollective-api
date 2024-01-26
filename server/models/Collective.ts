@@ -1450,7 +1450,10 @@ class Collective extends Model<
         ...where,
       },
       paranoid: false,
-      include: [{ model: Collective, as: 'fromCollective' }, { model: Tier }],
+      include: [
+        { model: Collective, as: 'fromCollective' },
+        { model: Tier, as: 'tier' },
+      ],
     });
     orders.sort((a, b) => {
       if (a.dataValues.totalAmount > b.dataValues.totalAmount) {
@@ -1481,6 +1484,7 @@ class Collective extends Model<
       include: [
         {
           model: Subscription,
+          as: 'subscription',
           required: true,
           where: {
             deactivatedAt: { [Op.gte]: startDate, [Op.lt]: endDate },
@@ -1492,6 +1496,7 @@ class Collective extends Model<
         },
         {
           model: Tier,
+          as: 'tier',
         },
       ],
     });
@@ -1659,7 +1664,7 @@ class Collective extends Model<
     // Map the users to their respective tier
     await Promise.all(
       backerCollectives.map(backerCollective => {
-        const include = options.active ? [{ model: Subscription, attributes: ['isActive'] }] : [];
+        const include = options.active ? [{ model: Subscription, as: 'subscription', attributes: ['isActive'] }] : [];
         return Order.findOne({
           attributes: ['TierId'],
           where: {
@@ -1708,7 +1713,7 @@ class Collective extends Model<
         FromCollectiveId: backerCollective.id,
         CollectiveId: this.id,
       },
-      include: [{ model: Tier }],
+      include: [{ model: Tier, as: 'tier' }],
     }).then(order => order && order.tier);
   };
 
@@ -1800,7 +1805,10 @@ class Collective extends Model<
       order = await Order.findOne({
         ...sequelizeParams,
         where: { id: context.order.id },
-        include: [{ model: Tier }, { model: Subscription }],
+        include: [
+          { model: Tier, as: 'tier' },
+          { model: Subscription, as: 'subscription' },
+        ],
       });
     }
 

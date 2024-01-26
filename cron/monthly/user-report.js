@@ -170,7 +170,7 @@ const processBacker = async FromCollectiveId => {
       },
       deletedAt: null,
     },
-    include: [{ model: models.Subscription }],
+    include: [{ model: models.Subscription, as: 'subscription' }],
   });
   // group orders(by collective) that either don't have subscription or have active subscription
   const ordersByCollectiveId = groupBy(

@@ -73,6 +73,7 @@ const main = async () => {
     include: [
       {
         model: models.Subscription,
+        as: 'subscription',
         where: {
           isActive: true,
           paypalSubscriptionId: { [Op.ne]: null },

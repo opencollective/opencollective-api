@@ -260,10 +260,10 @@ const orderMutations = {
         throwIfMissing: false,
         include: [
           { association: 'paymentMethod' },
-          { model: models.Subscription },
+          { model: models.Subscription, as: 'subscription' },
           { model: models.Collective, as: 'collective' },
           { model: models.Collective, as: 'fromCollective' },
-          { model: models.Tier, as: 'Tier', required: false },
+          { model: models.Tier, as: 'tier', required: false },
         ],
       });
 
@@ -1158,7 +1158,7 @@ const orderMutations = {
         throwIfMissing: true,
         include: [
           { model: models.Collective, as: 'collective', required: true },
-          { model: models.Tier, required: false },
+          { model: models.Tier, as: 'tier', required: false },
         ],
       });
 

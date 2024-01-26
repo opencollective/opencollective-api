@@ -57,11 +57,12 @@ export async function run() {
     include: [
       {
         model: models.Tier,
-        as: 'Tier',
+        as: 'tier',
         required: false,
       },
       {
         model: models.Subscription,
+        as: 'subscription',
         required: true,
         where: { isActive: true },
       },
