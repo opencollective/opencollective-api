@@ -2,10 +2,11 @@ import config from 'config';
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { cloneDeep, flatten, isEmpty, isNil, pick, uniq } from 'lodash';
+import { cloneDeep, flatten, isEmpty, isNil, uniq } from 'lodash';
 import { Order } from 'sequelize';
 
 import { CollectiveType } from '../../../../constants/collectives';
+import cache from '../../../../lib/cache';
 import { buildSearchConditions } from '../../../../lib/search';
 import { parseToBoolean } from '../../../../lib/utils';
 import models, { Op, sequelize } from '../../../../models';
@@ -419,43 +420,93 @@ export const TransactionsCollectionResolver = async (
     include,
   };
 
-  let totalCount, nodes;
-  if (limit === 0) {
-    totalCount = await models.Transaction.count(pick(queryParameters, ['where']));
-    nodes = [];
-  } else {
-    const result = await models.Transaction.findAndCountAll(queryParameters);
-    totalCount = result.count;
-    nodes = result.rows;
-  }
-
   return {
-    nodes,
-    totalCount,
+    nodes: () => models.Transaction.findAll(queryParameters),
+    totalCount: () => fetchTransactionsCount(queryParameters),
     limit: args.limit,
     offset: args.offset,
-    kinds: async () => {
-      const results = await models.Transaction.findAll({
-        attributes: ['kind'],
-        where: whereKinds,
-        group: ['kind'],
-        raw: true,
-      });
-
-      return results.map(m => m.kind).filter(kind => !!kind);
-    },
-    paymentMethodTypes: () => {
-      return models.Transaction.findAll({
-        attributes: ['PaymentMethod.type'],
-        where: whereKinds,
-        include: [{ model: models.PaymentMethod, required: false, attributes: [] }],
-        group: ['PaymentMethod.type'],
-        raw: true,
-      }).then(results => {
-        return results.map(result => result.type || null);
-      });
-    },
+    kinds: () => fetchTransactionsKinds(whereKinds),
+    paymentMethodTypes: () => fetchTransactionsPaymentMethodTypes(whereKinds),
   };
+};
+
+const getTransactionsCacheKey = (resource, condition) => {
+  const conditionKeys = Object.keys(condition);
+  if (conditionKeys.length === 1 && conditionKeys[0] === 'HostCollectiveId') {
+    return `transactions_${resource}_HostCollectiveId_${condition.HostCollectiveId}`;
+  }
+};
+
+const fetchTransactionsKinds = async whereKinds => {
+  let cacheKey;
+  if (whereKinds.length === 1) {
+    const condition = whereKinds[0];
+    cacheKey = getTransactionsCacheKey('kinds', condition);
+  }
+  if (cacheKey) {
+    const fromCache = await cache.get(cacheKey);
+    if (fromCache) {
+      return fromCache;
+    }
+  }
+  const results = await models.Transaction.findAll({
+    attributes: ['kind'],
+    where: whereKinds,
+    group: ['kind'],
+    raw: true,
+  }).then(results => {
+    return results.map(m => m.kind).filter(kind => !!kind);
+  });
+  if (cacheKey) {
+    cache.set(cacheKey, results);
+  }
+  return results;
+};
+
+const fetchTransactionsPaymentMethodTypes = async whereKinds => {
+  let cacheKey;
+  if (whereKinds.length === 1) {
+    const condition = whereKinds[0];
+    cacheKey = getTransactionsCacheKey('paymentMethodTypes', condition);
+  }
+  if (cacheKey) {
+    const fromCache = await cache.get(cacheKey);
+    if (fromCache) {
+      return fromCache;
+    }
+  }
+  const results = await models.Transaction.findAll({
+    attributes: ['PaymentMethod.type'],
+    where: whereKinds,
+    include: [{ model: models.PaymentMethod, required: false, attributes: [] }],
+    group: ['PaymentMethod.type'],
+    raw: true,
+  }).then(results => {
+    return results.map(result => result.type || null);
+  });
+  if (cacheKey) {
+    cache.set(cacheKey, results);
+  }
+  return results;
+};
+
+const fetchTransactionsCount = async queryParameters => {
+  let cacheKey;
+  if (queryParameters.where[Op.and].length === 1) {
+    const condition = queryParameters.where[Op.and][0];
+    cacheKey = getTransactionsCacheKey('count', condition);
+  }
+  if (cacheKey) {
+    const fromCache = await cache.get(cacheKey);
+    if (fromCache) {
+      return fromCache;
+    }
+  }
+  const result = await models.Transaction.count(queryParameters);
+  if (cacheKey) {
+    cache.set(cacheKey, result);
+  }
+  return models.Transaction.count(queryParameters);
 };
 
 const TransactionsCollectionQuery = {
