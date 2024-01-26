@@ -16,7 +16,7 @@ module.exports = {
     await queryInterface.sequelize.query(`
       CREATE INDEX CONCURRENTLY IF NOT EXISTS "transactions__collective_id"
       ON "Transactions"("CollectiveId")
-      WHERE "deletedAt" IS NULL AND "CollectiveId" IS NOT NULL
+      WHERE "deletedAt" IS NULL
     `);
     await queryInterface.sequelize.query(`
       DROP INDEX IF EXISTS "Transactions_GroupId"
@@ -25,7 +25,7 @@ module.exports = {
     await queryInterface.sequelize.query(`
       CREATE INDEX CONCURRENTLY IF NOT EXISTS "transactions__collective_id_createdAt"
       ON "Transactions"("CollectiveId", ROUND(EXTRACT(epoch FROM "createdAt" AT TIME ZONE 'UTC') / 10) DESC)
-      WHERE "deletedAt" IS NULL AND "CollectiveId" IS NOT NULL
+      WHERE "deletedAt" IS NULL
     `);
     await queryInterface.sequelize.query(`
       DROP INDEX IF EXISTS "transactions__collective_id_sorted"
@@ -58,15 +58,15 @@ module.exports = {
     // Already looking good
 
     // Indexes that are not looking useful
-    await queryInterface.sequelize.query(`
-      DROP INDEX IF EXISTS "CollectiveId-FromCollectiveId-type"
-    `);
-    await queryInterface.sequelize.query(`
-      DROP INDEX IF EXISTS "CollectiveId-type"
-    `);
-    await queryInterface.sequelize.query(`
-      DROP INDEX IF EXISTS "transactions__created_by_user_id"
-    `);
+    // await queryInterface.sequelize.query(`
+    //   DROP INDEX IF EXISTS "CollectiveId-FromCollectiveId-type"
+    // `);
+    // await queryInterface.sequelize.query(`
+    //   DROP INDEX IF EXISTS "CollectiveId-type"
+    // `);
+    // await queryInterface.sequelize.query(`
+    //   DROP INDEX IF EXISTS "transactions__created_by_user_id"
+    // `);
   },
 
   down: async queryInterface => {
@@ -121,17 +121,17 @@ module.exports = {
     `);
 
     // Indexes that were not looking useful
-    await queryInterface.sequelize.query(`
-      CREATE INDEX CONCURRENTLY IF NOT EXISTS "CollectiveId-FromCollectiveId-type"
-      ON "Transactions"("CollectiveId", "FromCollectiveId", "deletedAt")
-    `);
-    await queryInterface.sequelize.query(`
-      CREATE INDEX CONCURRENTLY IF NOT EXISTS "CollectiveId-type"
-      ON "Transactions"("CollectiveId", "type")
-    `);
-    await queryInterface.sequelize.query(`
-      CREATE INDEX CONCURRENTLY IF NOT EXISTS "transactions__created_by_user_id"
-      ON "Transactions"("CreatedByUserId")
-    `);
+    // await queryInterface.sequelize.query(`
+    //   CREATE INDEX CONCURRENTLY IF NOT EXISTS "CollectiveId-FromCollectiveId-type"
+    //   ON "Transactions"("CollectiveId", "FromCollectiveId", "deletedAt")
+    // `);
+    // await queryInterface.sequelize.query(`
+    //   CREATE INDEX CONCURRENTLY IF NOT EXISTS "CollectiveId-type"
+    //   ON "Transactions"("CollectiveId", "type")
+    // `);
+    // await queryInterface.sequelize.query(`
+    //   CREATE INDEX CONCURRENTLY IF NOT EXISTS "transactions__created_by_user_id"
+    //   ON "Transactions"("CreatedByUserId")
+    // `);
   },
 };
