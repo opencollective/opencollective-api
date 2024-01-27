@@ -29,7 +29,6 @@ import {
   fakeOrder,
   fakeOrganization,
   fakePaymentMethod,
-  fakeSubscription,
   fakeTier,
   fakeUser,
   randStr,
@@ -2775,17 +2774,15 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         it('from monthly to yearly', async () => {
           const today = moment(new Date(2022, 0, 1)); // 1st of January 2022
           clock = useFakeTimers(today.toDate()); // Manually setting today's date
-          const subscription = await fakeSubscription({ nextChargeDate: moment(today) });
           const monthlyOrder = await fakeOrder(
             {
               interval: 'month',
-              subscription,
               CreatedByUserId: user.id,
               FromCollectiveId: user.CollectiveId,
               CollectiveId: collective.id,
               status: OrderStatuses.ACTIVE,
             },
-            { withSubscription: true },
+            { withSubscription: true, subscription: { nextChargeDate: moment(today) } },
           );
 
           const result = await graphqlQueryV2(
@@ -2806,7 +2803,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
           const updatedOrder = await models.Order.findOne({
             where: { id: monthlyOrder.id },
-            include: [{ model: models.Subscription, required: true }],
+            include: [{ model: models.Subscription, as: 'subscription', required: true }],
           });
 
           expect(updatedOrder.subscription.nextChargeDate.toISOString()).to.equal('2023-01-01T00:00:00.000Z');
@@ -2816,17 +2813,15 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         it('from yearly to monthly (before the 15th of the month)', async () => {
           const today = moment(new Date(2022, 0, 1)); // 1st of January 2022
           clock = useFakeTimers(today.toDate()); // Manually setting today's date
-          const subscription = await fakeSubscription({ nextChargeDate: moment(today) });
           const yearlyOrder = await fakeOrder(
             {
               interval: 'year',
-              subscription,
               CreatedByUserId: user.id,
               FromCollectiveId: user.CollectiveId,
               CollectiveId: collective.id,
               status: OrderStatuses.ACTIVE,
             },
-            { withSubscription: true },
+            { withSubscription: true, subscription: { nextChargeDate: moment(today) } },
           );
 
           const result = await graphqlQueryV2(
@@ -2847,7 +2842,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
           const updatedOrder = await models.Order.findOne({
             where: { id: yearlyOrder.id },
-            include: [{ model: models.Subscription, required: true }],
+            include: [{ model: models.Subscription, as: 'subscription', required: true }],
           });
 
           expect(updatedOrder.subscription.nextChargeDate.toISOString()).to.equal('2022-02-01T00:00:00.000Z');
@@ -2857,17 +2852,15 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         it('from yearly to monthly (after the 15th of the month)', async () => {
           const today = moment(new Date(2022, 0, 18)); // 18th of January 2022
           clock = useFakeTimers(today.toDate()); // Manually setting today's date
-          const subscription = await fakeSubscription({ nextChargeDate: moment(today) });
           const yearlyOrder = await fakeOrder(
             {
               interval: 'year',
-              subscription,
               CreatedByUserId: user.id,
               FromCollectiveId: user.CollectiveId,
               CollectiveId: collective.id,
               status: OrderStatuses.ACTIVE,
             },
-            { withSubscription: true },
+            { withSubscription: true, subscription: { nextChargeDate: moment(today) } },
           );
 
           const result = await graphqlQueryV2(
@@ -2888,7 +2881,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
           const updatedOrder = await models.Order.findOne({
             where: { id: yearlyOrder.id },
-            include: [{ model: models.Subscription, required: true }],
+            include: [{ model: models.Subscription, as: 'subscription', required: true }],
           });
 
           expect(updatedOrder.subscription.nextChargeDate.toISOString()).to.equal('2022-03-01T00:00:00.000Z');

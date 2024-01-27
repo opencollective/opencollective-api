@@ -6,7 +6,7 @@ import INTERVALS from '../../../server/constants/intervals';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../server/constants/paymentMethods';
 import { updatePaymentMethodForSubscription } from '../../../server/lib/subscriptions';
 import * as PaypalSubscriptionAPI from '../../../server/paymentProviders/paypal/subscription';
-import { fakeConnectedAccount, fakeOrder, fakePaymentMethod, fakeSubscription } from '../../test-helpers/fake-data';
+import { fakeConnectedAccount, fakeOrder, fakePaymentMethod } from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
 
 describe('server/lib/subscriptions', () => {
@@ -41,10 +41,13 @@ describe('server/lib/subscriptions', () => {
               service: PAYMENT_METHOD_SERVICE.PAYPAL,
               type: PAYMENT_METHOD_TYPE.SUBSCRIPTION,
             });
-            const subscription = await fakeSubscription({ nextChargeDate: moment(today).subtract(1, 'days') }); // Past payment: 2021-12-31
+            const subscription = { nextChargeDate: moment(today).subtract(1, 'days') }; // Past payment: 2021-12-31
             const order = await fakeOrder(
-              { PaymentMethodId: paypalPm.id, interval: INTERVALS.MONTH, subscription },
-              { withSubscription: true },
+              { PaymentMethodId: paypalPm.id, interval: INTERVALS.MONTH },
+              {
+                withSubscription: true,
+                subscription,
+              },
             );
             const host = order.collective.host;
             await fakeConnectedAccount({
@@ -76,10 +79,12 @@ describe('server/lib/subscriptions', () => {
               service: PAYMENT_METHOD_SERVICE.PAYPAL,
               type: PAYMENT_METHOD_TYPE.SUBSCRIPTION,
             });
-            const subscription = await fakeSubscription({ nextChargeDate: moment(today).add(5, 'days') }); // Future payment: 2022-01-06
             const order = await fakeOrder(
-              { PaymentMethodId: paypalPm.id, interval: INTERVALS.MONTH, subscription },
-              { withSubscription: true },
+              { PaymentMethodId: paypalPm.id, interval: INTERVALS.MONTH },
+              {
+                withSubscription: true,
+                subscription: { nextChargeDate: moment(today).add(5, 'days') }, // Future payment: 2022-01-06
+              },
             );
             const host = order.collective.host;
             await fakeConnectedAccount({
@@ -108,10 +113,12 @@ describe('server/lib/subscriptions', () => {
               service: PAYMENT_METHOD_SERVICE.PAYPAL,
               type: PAYMENT_METHOD_TYPE.SUBSCRIPTION,
             });
-            const subscription = await fakeSubscription({ nextChargeDate: moment(today).add(5, 'days') }); // Future payment: 2022-01-23
             const order = await fakeOrder(
-              { PaymentMethodId: paypalPm.id, interval: INTERVALS.MONTH, subscription },
-              { withSubscription: true },
+              { PaymentMethodId: paypalPm.id, interval: INTERVALS.MONTH },
+              {
+                withSubscription: true,
+                subscription: { nextChargeDate: moment(today).add(5, 'days') }, // Future payment: 2022-01-23
+              },
             );
             const host = order.collective.host;
             await fakeConnectedAccount({
@@ -170,10 +177,9 @@ describe('server/lib/subscriptions', () => {
           service: PAYMENT_METHOD_SERVICE.PAYPAL,
           type: PAYMENT_METHOD_TYPE.SUBSCRIPTION,
         });
-        const subscription = await fakeSubscription({ paypalSubscriptionId: 'XXXXXX' });
         const order = await fakeOrder(
-          { PaymentMethodId: paypalPm.id, interval: INTERVALS.MONTH, subscription },
-          { withSubscription: true },
+          { PaymentMethodId: paypalPm.id, interval: INTERVALS.MONTH },
+          { withSubscription: true, subscription: { paypalSubscriptionId: 'XXXXXX' } },
         );
 
         const host = order.collective.host;

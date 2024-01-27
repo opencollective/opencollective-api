@@ -58,7 +58,7 @@ describe('server/lib/recurring-contributions', () => {
     it("should use the next month's first day for monthly recurring contributions", () => {
       // Given the following order with subscription
       const order = {
-        Subscription: {
+        subscription: {
           interval: 'month',
           nextPeriodStart: new Date('2018-01-01'),
           nextChargeDate: new Date('2018-01-01'),
@@ -77,7 +77,7 @@ describe('server/lib/recurring-contributions', () => {
     it('should use the next 2 months first day for monthly recurring contributions on or after 15th', () => {
       // Given the following order with subscription
       const order = {
-        Subscription: {
+        subscription: {
           interval: 'month',
           nextPeriodStart: new Date('2018-01-30'),
           nextChargeDate: new Date('2018-01-30'),
@@ -95,7 +95,7 @@ describe('server/lib/recurring-contributions', () => {
     it('should use first day of the same month next year for yearly subscriptions', () => {
       // Given the following order & subscription
       const order = {
-        Subscription: {
+        subscription: {
           interval: 'year',
           nextPeriodStart: new Date('2018-01-30'),
           nextChargeDate: new Date('2018-01-30'),
@@ -113,7 +113,7 @@ describe('server/lib/recurring-contributions', () => {
     it('should bump the nextChargeDate by two days from today on failure', () => {
       // Given the following order & subscription
       const order = {
-        Subscription: {
+        subscription: {
           interval: 'year',
           nextPeriodStart: new Date('2018-01-20 0:0'),
           nextChargeDate: new Date('2018-01-20 0:0'),
@@ -139,7 +139,7 @@ describe('server/lib/recurring-contributions', () => {
     it('should bump nextChargeDate according to nextPeriodStart after success', () => {
       // Given the following order & subscription
       const order = {
-        Subscription: {
+        subscription: {
           interval: 'month',
           nextPeriodStart: new Date('2018-01-20 0:0'),
           nextChargeDate: new Date('2018-01-22 0:0'),
@@ -158,7 +158,7 @@ describe('server/lib/recurring-contributions', () => {
     it('should use the createdAt field when `nextChargeDate` is null', () => {
       // Given the following order & subscription
       const order = {
-        Subscription: {
+        subscription: {
           interval: 'month',
           nextPeriodStart: null,
           nextChargeDate: null,
@@ -177,7 +177,7 @@ describe('server/lib/recurring-contributions', () => {
     it("should set the nextChargeDate to today and not modify nextPeriodStart when status is 'updated'", () => {
       // Given the following order & subscription
       const order = {
-        Subscription: {
+        subscription: {
           interval: 'year',
           nextPeriodStart: new Date('2018-01-20 0:0'),
           nextChargeDate: new Date('2018-01-20 0:0'),
@@ -201,17 +201,17 @@ describe('server/lib/recurring-contributions', () => {
 
   describe('#getChargeRetryCount', () => {
     it('should increment the counter if status is fail', () => {
-      const order = { Subscription: { chargeRetryCount: 0 } };
+      const order = { subscription: { chargeRetryCount: 0 } };
       const chargeRetryCount = getChargeRetryCount('failure', order);
       expect(chargeRetryCount).to.equal(1);
     });
     it('should reset the counter to zero on success', () => {
-      const order = { Subscription: { chargeRetryCount: 5 } };
+      const order = { subscription: { chargeRetryCount: 5 } };
       const chargeRetryCount = getChargeRetryCount('success', order);
       expect(chargeRetryCount).to.equal(0);
     });
     it('should reset the counter to zero on updated', () => {
-      const order = { Subscription: { chargeRetryCount: 5 } };
+      const order = { subscription: { chargeRetryCount: 5 } };
       const chargeRetryCount = getChargeRetryCount('updated', order);
       expect(chargeRetryCount).to.equal(0);
     });
@@ -231,8 +231,12 @@ describe('server/lib/recurring-contributions', () => {
 
     it('should send confirmation email when processing is successful', async () => {
       const order = await fakeOrder(
-        { subscription: { chargeRetryCount: 0 } },
-        { withSubscription: true, withBackerMember: true },
+        {},
+        {
+          withSubscription: true,
+          subscription: { chargeRetryCount: 0 },
+          withBackerMember: true,
+        },
       );
 
       await handleRetryStatus(order);
@@ -243,8 +247,12 @@ describe('server/lib/recurring-contributions', () => {
 
     it('should send a failure email if retries are > 0 & < MAX_RETRIES', async () => {
       const order = await fakeOrder(
-        { subscription: { chargeRetryCount: 1 } },
-        { withSubscription: true, withBackerMember: true },
+        {},
+        {
+          withSubscription: true,
+          subscription: { chargeRetryCount: 1 },
+          withBackerMember: true,
+        },
       );
 
       await handleRetryStatus(order);
@@ -265,8 +273,8 @@ describe('server/lib/recurring-contributions', () => {
 
     it('should send a cancelation email if retries are >= MAX_RETRIES', async () => {
       const order = await fakeOrder(
-        { subscription: { chargeRetryCount: MAX_RETRIES } },
-        { withSubscription: true, withBackerMember: true },
+        {},
+        { withSubscription: true, subscription: { chargeRetryCount: MAX_RETRIES }, withBackerMember: true },
       );
 
       await handleRetryStatus(order);

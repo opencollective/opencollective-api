@@ -27,7 +27,7 @@ import {
 } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
-describe('webhook', () => {
+describe('server/paymentProviders/stripe/webhook', () => {
   let sandbox;
 
   beforeEach(async () => {

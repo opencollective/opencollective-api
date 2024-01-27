@@ -18,7 +18,6 @@ import {
   fakeOrder,
   fakePaymentMethod,
   fakePaypalPlan,
-  fakeSubscription,
   randStr,
 } from '../../../test-helpers/fake-data';
 import { resetTestDB } from '../../../utils';
@@ -164,18 +163,17 @@ describe('server/paymentProviders/paypal/subscription', () => {
       const generateOrderWithSubscription = async () => {
         const paypalSubscriptionId = randStr();
         const paymentMethod = await fakePaypalSubscriptionPm({ ...validSubscriptionParams, id: paypalSubscriptionId });
-        const subscription = await fakeSubscription({ paypalSubscriptionId, isActive: false });
         return fakeOrder(
           {
             CollectiveId: host.id,
             status: OrderStatuses.NEW,
             TierId: null,
             totalAmount: 1000,
-            subscription,
             PaymentMethodId: paymentMethod.id,
           },
           {
             withSubscription: true,
+            subscription: { paypalSubscriptionId, isActive: false },
           },
         );
       };

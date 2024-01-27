@@ -188,6 +188,7 @@ export async function removePaymentMethod(paymentMethodId, req) {
     include: [
       {
         model: models.Subscription,
+        as: 'subscription',
         where: { isActive: true },
         required: true,
       },

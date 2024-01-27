@@ -1545,6 +1545,7 @@ const CollectiveFields = () => {
           query.include = [
             {
               model: models.Subscription,
+              as: 'subscription',
               required: true,
             },
           ];

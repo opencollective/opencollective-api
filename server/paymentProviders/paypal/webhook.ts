@@ -74,7 +74,7 @@ const loadSubscriptionForWebhookEvent = async (
       { association: 'createdByUser', required: false },
       { association: 'collective', required: true },
       {
-        association: 'Subscription',
+        association: 'subscription',
         required: true,
         where: { paypalSubscriptionId: subscriptionId },
       },

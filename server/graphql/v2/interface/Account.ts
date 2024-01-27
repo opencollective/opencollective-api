@@ -1061,7 +1061,15 @@ export const AccountFields = {
             model: models.Order,
             required: true,
             attributes: [],
-            include: [{ model: models.Subscription, required: true, attributes: [], where: { isActive: true } }],
+            include: [
+              {
+                model: models.Subscription,
+                as: 'subscription',
+                required: true,
+                attributes: [],
+                where: { isActive: true },
+              },
+            ],
             where: {
               data: { needsConfirmation: true },
               status: {

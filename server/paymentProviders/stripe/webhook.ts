@@ -340,7 +340,12 @@ export const chargeDisputeCreated = async (event: Stripe.Event) => {
     include: {
       model: models.Order,
       required: true,
-      include: [models.Subscription],
+      include: [
+        {
+          model: models.Subscription,
+          as: 'subscription',
+        },
+      ],
     },
   });
 
@@ -371,7 +376,12 @@ export const chargeDisputeClosed = async (event: Stripe.Event) => {
       {
         model: models.Order,
         required: true,
-        include: [models.Subscription],
+        include: [
+          {
+            model: models.Subscription,
+            as: 'subscription',
+          },
+        ],
       },
       {
         model: models.User,
@@ -401,7 +411,12 @@ export const chargeDisputeClosed = async (event: Stripe.Event) => {
     include: {
       model: models.Order,
       required: true,
-      include: [models.Subscription],
+      include: [
+        {
+          model: models.Subscription,
+          as: 'subscription',
+        },
+      ],
     },
   });
 
@@ -513,7 +528,12 @@ export const reviewOpened = async (event: Stripe.Event) => {
       {
         model: models.Order,
         required: true,
-        include: [models.Subscription],
+        include: [
+          {
+            model: models.Subscription,
+            as: 'subscription',
+          },
+        ],
       },
     ],
   });
@@ -529,7 +549,12 @@ export const reviewOpened = async (event: Stripe.Event) => {
     include: {
       model: models.Order,
       required: true,
-      include: [models.Subscription],
+      include: [
+        {
+          model: models.Subscription,
+          as: 'subscription',
+        },
+      ],
     },
   });
 
@@ -561,7 +586,12 @@ export const reviewClosed = async (event: Stripe.Event) => {
       {
         model: models.Order,
         required: true,
-        include: [models.Subscription],
+        include: [
+          {
+            model: models.Subscription,
+            as: 'subscription',
+          },
+        ],
       },
       {
         model: models.User,
@@ -584,7 +614,12 @@ export const reviewClosed = async (event: Stripe.Event) => {
     include: {
       model: models.Order,
       required: true,
-      include: [models.Subscription],
+      include: [
+        {
+          model: models.Subscription,
+          as: 'subscription',
+        },
+      ],
     },
   });
 

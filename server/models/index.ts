@@ -210,7 +210,7 @@ Location.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' })
 // Members
 Member.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
 Member.belongsTo(Collective, { foreignKey: 'MemberCollectiveId', as: 'memberCollective' });
-Member.belongsTo(Tier);
+Member.belongsTo(Tier, { foreignKey: 'TierId', as: 'tier' });
 Member.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
 
 // MemberInvitation

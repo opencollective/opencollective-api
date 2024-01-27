@@ -77,7 +77,7 @@ const transactionMutations = {
 
       const orderToUpdate = await models.Order.findOne({
         where: { id: refundedTransaction.OrderId },
-        include: { model: models.Subscription },
+        include: { model: models.Subscription, as: 'subscription' },
       });
 
       if (!orderToUpdate) {

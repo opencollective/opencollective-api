@@ -589,7 +589,7 @@ export async function confirmOrder(order, remoteUser, guestToken) {
       { model: models.Collective, as: 'collective' },
       { model: models.Collective, as: 'fromCollective' },
       { model: models.PaymentMethod, as: 'paymentMethod' },
-      { model: models.Subscription, as: 'Subscription' },
+      { model: models.Subscription, as: 'subscription' },
       { association: 'createdByUser' },
     ],
   });

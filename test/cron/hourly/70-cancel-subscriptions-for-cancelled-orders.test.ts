@@ -13,7 +13,6 @@ import {
   fakeHost,
   fakeOrder,
   fakePaymentMethod,
-  fakeSubscription,
   fakeTier,
   fakeTransaction,
   fakeUser,
@@ -28,19 +27,18 @@ const fakePayPalSubscriptionOrder = async collective => {
     type: PAYMENT_METHOD_TYPE.SUBSCRIPTION,
     token: paypalSubscriptionId,
   });
-  const subscription = await fakeSubscription({ paypalSubscriptionId, isActive: true, isManagedExternally: true });
   return fakeOrder(
     {
       CollectiveId: collective.id,
       interval: 'month',
       status: OrderStatuses.ACTIVE,
       totalAmount: 1000,
-      subscription,
       PaymentMethodId: paymentMethod.id,
     },
     {
       withTier: true,
       withSubscription: true,
+      subscription: { paypalSubscriptionId, isActive: true, isManagedExternally: true },
       withTransactions: true,
     },
   );

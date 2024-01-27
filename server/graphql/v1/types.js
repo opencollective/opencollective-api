@@ -1724,6 +1724,7 @@ export const PaymentMethodType = new GraphQLObjectType({
             query.include = [
               {
                 model: models.Subscription,
+                as: 'subscription',
                 where: { isActive: true },
                 required: true,
               },
