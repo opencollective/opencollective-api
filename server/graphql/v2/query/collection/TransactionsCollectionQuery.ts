@@ -2,14 +2,15 @@ import config from 'config';
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { cloneDeep, flatten, isEmpty, isNil, uniq } from 'lodash';
+import { cloneDeep, flatten, isEmpty, isNil, pick, uniq } from 'lodash';
 import { Order } from 'sequelize';
 
 import { CollectiveType } from '../../../../constants/collectives';
 import cache from '../../../../lib/cache';
 import { buildSearchConditions } from '../../../../lib/search';
 import { parseToBoolean } from '../../../../lib/utils';
-import models, { Op, sequelize } from '../../../../models';
+import { Expense, Op, PaymentMethod, sequelize } from '../../../../models';
+import Transaction from '../../../../models/Transaction';
 import { checkScope } from '../../../common/scope-check';
 import {
   GraphQLTransactionCollection,
@@ -322,7 +323,7 @@ export const TransactionsCollectionResolver = async (
   }
   if (args.expenseType) {
     include.push({
-      model: models.Expense,
+      model: Expense,
       attributes: [],
       required: true,
       where: { type: { [Op.in]: args.expenseType } },
@@ -348,7 +349,7 @@ export const TransactionsCollectionResolver = async (
     });
 
     if (paymentMethodConditions.length) {
-      include.push({ model: models.PaymentMethod });
+      include.push({ model: PaymentMethod });
       where.push({ [Op.or]: paymentMethodConditions });
     }
   }
@@ -356,7 +357,7 @@ export const TransactionsCollectionResolver = async (
   if (!isEmpty(args.virtualCard)) {
     include.push({
       attributes: [],
-      model: models.Expense,
+      model: Expense,
       required: true,
       where: {
         VirtualCardId: args.virtualCard.map(vc => vc.id),
@@ -421,7 +422,7 @@ export const TransactionsCollectionResolver = async (
   };
 
   return {
-    nodes: () => models.Transaction.findAll(queryParameters),
+    nodes: () => Transaction.findAll(queryParameters),
     totalCount: () => fetchTransactionsCount(queryParameters),
     limit: args.limit,
     offset: args.offset,
@@ -449,7 +450,7 @@ const fetchTransactionsKinds = async whereKinds => {
       return fromCache;
     }
   }
-  const results = await models.Transaction.findAll({
+  const results = await Transaction.findAll({
     attributes: ['kind'],
     where: whereKinds,
     group: ['kind'],
@@ -475,10 +476,10 @@ const fetchTransactionsPaymentMethodTypes = async whereKinds => {
       return fromCache;
     }
   }
-  const results = await models.Transaction.findAll({
+  const results = await Transaction.findAll({
     attributes: ['PaymentMethod.type'],
     where: whereKinds,
-    include: [{ model: models.PaymentMethod, required: false, attributes: [] }],
+    include: [{ model: PaymentMethod, required: false, attributes: [] }],
     group: ['PaymentMethod.type'],
     raw: true,
   }).then(results => {
@@ -490,7 +491,7 @@ const fetchTransactionsPaymentMethodTypes = async whereKinds => {
   return results;
 };
 
-const fetchTransactionsCount = async queryParameters => {
+const fetchTransactionsCount = async (queryParameters): Promise<number> => {
   let cacheKey;
   if (queryParameters.where[Op.and].length === 1) {
     const condition = queryParameters.where[Op.and][0];
@@ -502,11 +503,11 @@ const fetchTransactionsCount = async queryParameters => {
       return fromCache;
     }
   }
-  const result = await models.Transaction.count(queryParameters);
+  const result = await Transaction.count(pick(queryParameters, ['where', 'include']));
   if (cacheKey) {
     cache.set(cacheKey, result);
   }
-  return models.Transaction.count(queryParameters);
+  return result;
 };
 
 const TransactionsCollectionQuery = {
