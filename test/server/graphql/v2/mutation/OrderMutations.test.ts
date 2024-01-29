@@ -450,7 +450,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           expect(order.fromAccount.legacyId).to.eq(fromUser.CollectiveId);
           expect(order.toAccount.legacyId).to.eq(toCollective.id);
           expect(order.quantity).to.eq(3);
-          expect(order.tier.legacyId).to.eq(tier.id);
+          expect(order.Tier.legacyId).to.eq(tier.id);
           expect(order.tags).to.deep.eq(['wow', 'it', 'supports', 'tags!']);
           expect(order.customData).to.deep.eq({ message: 'Hello world' });
         });

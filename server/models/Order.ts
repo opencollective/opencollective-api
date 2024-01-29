@@ -68,7 +68,7 @@ export interface OrderModelInterface
   getCollective: HasOneGetAssociationMixin<Collective>;
 
   TierId: number;
-  tier?: Tier;
+  Tier?: Tier;
   getTier: Promise<Tier>;
 
   quantity: number;
@@ -526,8 +526,8 @@ Order.prototype.populate = async function () {
   if (this.CreatedByUserId && !this.createdByUser) {
     this.createdByUser = await User.findByPk(this.CreatedByUserId);
   }
-  if (this.TierId && !this.tier) {
-    this.tier = await Tier.findByPk(this.TierId);
+  if (this.TierId && !this.Tier) {
+    this.Tier = await Tier.findByPk(this.TierId);
   }
   if (this.PaymentMethodId && !this.paymentMethod) {
     this.paymentMethod = await PaymentMethod.findByPk(this.PaymentMethodId);

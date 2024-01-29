@@ -186,7 +186,7 @@ const orderMutations = {
       const platformTipAmount = platformTip ? getValueInCentsFromAmountInput(platformTip) : 0;
       const loadersParams = { loaders: req.loaders, throwIfMissing: true };
       const loadAccount = account => fetchAccountWithReference(account, loadersParams);
-      const tier = order.tier && (await fetchTierWithReference(order.tier, loadersParams));
+      const tier = order.Tier && (await fetchTierWithReference(order.Tier, loadersParams));
       const fromCollective = order.fromAccount && (await loadAccount(order.fromAccount));
       const collective = await loadAccount(order.toAccount);
       const expectedCurrency = (tier && tier.currency) || collective.currency;
@@ -301,7 +301,7 @@ const orderMutations = {
           reason: args.reason,
           reasonCode: args.reasonCode,
           order: order.info,
-          tier: order.tier?.info,
+          tier: order.Tier?.info,
         },
       });
 
@@ -379,7 +379,7 @@ const orderMutations = {
             ? null
             : args.tier
               ? await fetchTierWithReference(args.tier, { throwIfMissing: true })
-              : order.tier;
+              : order.Tier;
 
         const membership =
           !isNull(order) &&
@@ -1032,7 +1032,7 @@ const orderMutations = {
       const fromAccount = await fetchAccountWithReference(args.order.fromAccount, { throwIfMissing: true });
       const toAccount = await fetchAccountWithReference(args.order.toAccount, { throwIfMissing: true });
       const host = await toAccount.getHostCollective({ loaders: req.loaders });
-      const tier = args.order.tier && (await fetchTierWithReference(args.order.tier, { throwIfMissing: true }));
+      const tier = args.order.Tier && (await fetchTierWithReference(args.order.Tier, { throwIfMissing: true }));
 
       if (!req.remoteUser?.isAdminOfCollective(host)) {
         throw new Unauthorized('Only host admins can create pending orders');
@@ -1180,9 +1180,9 @@ const orderMutations = {
 
       // Load data
       const fromAccount = await fetchAccountWithReference(args.order.fromAccount);
-      const tier = args.order.tier
-        ? await fetchTierWithReference(args.order.tier, { throwIfMissing: true })
-        : order.tier;
+      const tier = args.order.Tier
+        ? await fetchTierWithReference(args.order.Tier, { throwIfMissing: true })
+        : order.Tier;
 
       // Check accounting category
       let AccountingCategoryId = isUndefined(args.order.accountingCategory) ? order.AccountingCategoryId : null;

@@ -1466,7 +1466,7 @@ class Collective extends Model<
     return orders.map(order => ({
       ...order.info,
       fromCollective: order.fromCollective.info,
-      Tier: order.tier ? order.tier.info : null,
+      Tier: order.Tier ? order.Tier.info : null,
     }));
   };
 
@@ -1518,7 +1518,7 @@ class Collective extends Model<
     return orders.map(order => ({
       ...order.info,
       fromCollective: order.fromCollective.info,
-      Tier: order.tier ? order.tier.info : null,
+      Tier: order.Tier ? order.Tier.info : null,
       totalTransactions: order.totalTransactions,
     }));
   };
@@ -1680,7 +1680,7 @@ class Collective extends Model<
             return null;
           }
           const TierId = order.TierId;
-          tiersById[TierId] = tiersById[TierId] || order.tier;
+          tiersById[TierId] = tiersById[TierId] || order.Tier;
           if (!tiersById[TierId]) {
             logger.error(">>> Couldn't find a tier with id", order.TierId, 'collective: ', this.slug);
             tiersById[TierId] = { dataValues: { users: [] } };
@@ -1712,7 +1712,7 @@ class Collective extends Model<
         CollectiveId: this.id,
       },
       include: [{ model: Tier, as: 'tier' }],
-    }).then(order => order && order.tier);
+    }).then(order => order && order.Tier);
   };
 
   /**
@@ -1824,7 +1824,7 @@ class Collective extends Model<
       },
       order: order && {
         ...order.info,
-        tier: order.tier && order.tier.minimal,
+        tier: order.Tier && order.Tier.minimal,
         subscription: {
           interval: order.Subscription && order.Subscription.interval,
         },

@@ -33,7 +33,7 @@ const getHostFromOrder = async order => {
 };
 
 const getOrderCancelationReason = (collective, order, orderHost) => {
-  if (order.TierId && !order.tier) {
+  if (order.TierId && !order.Tier) {
     return ['DELETED_TIER', `Order tier deleted`];
   } else if (collective.deactivatedAt) {
     return ['ARCHIVED_ACCOUNT', `@${collective.slug} archived their account`];
@@ -105,7 +105,7 @@ export async function run() {
               reasonCode: reasonCode,
               reason: reason,
               order: order.info,
-              tier: order.tier?.info,
+              tier: order.Tier?.info,
             },
           });
           await sleep(500); // To prevent rate-limiting issues when calling 3rd party payment processor APIs

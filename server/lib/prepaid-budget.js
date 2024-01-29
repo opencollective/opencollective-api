@@ -6,7 +6,7 @@ import models from '../models';
 
 export function isPrepaidBudgetOrder(order) {
   return (
-    order.tier?.slug === 'prepaid-budget' && ['opensource', 'foundation', 'europe'].includes(order.collective.slug)
+    order.Tier?.slug === 'prepaid-budget' && ['opensource', 'foundation', 'europe'].includes(order.collective.slug)
   );
 }
 

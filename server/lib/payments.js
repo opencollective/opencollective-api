@@ -720,11 +720,11 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
   const parentCollective = await collective.getParentCollective();
   const customMessage = collective.settings?.customEmailMessage || parentCollective?.settings?.customEmailMessage;
 
-  if (!order.tier && order.TierId) {
-    order.tier = await order.getTier();
+  if (!order.Tier && order.TierId) {
+    order.Tier = await order.getTier();
   }
 
-  if (order.tier?.type === tiers.TICKET) {
+  if (order.Tier?.type === tiers.TICKET) {
     return models.Activity.create({
       type: activities.TICKET_CONFIRMED,
       CollectiveId: collective.id,
@@ -737,7 +737,7 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
         UserId: user.id,
         recipient: { name: fromCollective.name },
         order: order.info,
-        tier: order.tier.info,
+        tier: order.Tier.info,
         host: host ? host.info : {},
         customMessage,
       },

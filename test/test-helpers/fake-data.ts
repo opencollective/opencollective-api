@@ -699,7 +699,7 @@ export const fakeOrder = async (
   order.fromCollective = await models.Collective.findByPk(order.FromCollectiveId);
   order.collective = collective;
   order.createdByUser = user;
-  order.tier = tier;
+  order.Tier = tier;
   return order;
 };
 
