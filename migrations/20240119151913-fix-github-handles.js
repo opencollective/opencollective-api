@@ -10,7 +10,12 @@ module.exports = {
   async up(queryInterface) {
     await queryInterface.sequelize.query(`
       WITH entries_to_fix AS (
-        SELECT c.id, c."githubHandle" AS current, ARRAY_AGG(DISTINCT h."githubHandle") AS initial, c."repositoryUrl"
+        SELECT
+          c.id,
+          c."githubHandle" AS current,
+          (ARRAY_AGG(DISTINCT h."githubHandle"))[1] AS initial,
+          regexp_replace((ARRAY_AGG(DISTINCT h."githubHandle"))[1], '\\s', '') AS expected, -- Not falling into the trap a second-time, double-escaping the backslash!
+          c."repositoryUrl"
         FROM "Collectives" c
         INNER JOIN "CollectiveHistories" h ON h."id" = c.id
         WHERE c."githubHandle" IS NOT NULL
@@ -20,17 +25,24 @@ module.exports = {
         AND c."githubHandle" = regexp_replace(regexp_replace(h."githubHandle", '\\s', ''), 's', '') -- Handle is equal to the initial one, but stripped of all whitespace and "s" characters
         GROUP BY c.id
         ORDER BY c."githubHandle" ASC
-      ) UPDATE "Collectives" c
-      SET
-        -- Not falling into the trap a second-time, double-escaping the backslash!
-        "githubHandle" = regexp_replace(initial[1], '\\s', ''),
-        -- We also want to update the "repositoryUrl" column
-        "repositoryUrl" = CASE
-          WHEN c."repositoryUrl" = 'https://github.com/' || current THEN 'https://github.com/' || regexp_replace(initial[1], '\\s', '')
-          ELSE c."repositoryUrl"
-        END
-      FROM entries_to_fix
-      WHERE c.id = entries_to_fix.id
+      ), updated_collectives AS (
+        UPDATE "Collectives" c
+        SET
+          "githubHandle" = entries_to_fix.expected,
+          "repositoryUrl" = CASE
+            WHEN c."repositoryUrl" = 'https://github.com/' || entries_to_fix.current THEN 'https://github.com/' || entries_to_fix.expected
+            ELSE c."repositoryUrl"
+          END
+        FROM entries_to_fix
+        WHERE c.id = entries_to_fix.id
+      ), updated_social_links AS (
+        UPDATE "SocialLinks" sl
+        SET "url" = 'https://github.com/' || entries_to_fix.expected
+        FROM entries_to_fix
+        WHERE sl."CollectiveId" = entries_to_fix.id
+        AND sl.type = 'GITHUB'
+        AND sl.url = 'https://github.com/' || entries_to_fix.current
+      ) SELECT 1;
     `);
   },
 
