@@ -240,12 +240,12 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     if (args.frequency === 'ONETIME') {
       where['SubscriptionId'] = { [Op.is]: null };
     } else if (args.frequency === 'MONTHLY') {
-      include.push({ model: models.Subscription, as: 'subscription', required: true, where: { interval: 'month' } });
+      include.push({ association: 'Subscription', required: true, where: { interval: 'month' } });
     } else if (args.frequency === 'YEARLY') {
-      include.push({ model: models.Subscription, as: 'subscription', required: true, where: { interval: 'year' } });
+      include.push({ association: 'Subscription', required: true, where: { interval: 'year' } });
     }
   } else if (args.onlySubscriptions) {
-    include.push({ model: models.Subscription, as: 'subscription', required: false });
+    include.push({ association: 'Subscription', required: false });
     where[Op.and].push({
       [Op.or]: [
         { ['$subscription.id$']: { [Op.ne]: null } },
@@ -253,7 +253,7 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
       ],
     });
   } else if (args.onlyActiveSubscriptions) {
-    include.push({ model: models.Subscription, as: 'subscription', required: true, where: { isActive: true } });
+    include.push({ association: 'Subscription', required: true, where: { isActive: true } });
   }
 
   if (args.tierSlug) {

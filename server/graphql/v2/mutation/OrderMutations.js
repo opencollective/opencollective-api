@@ -260,7 +260,7 @@ const orderMutations = {
         throwIfMissing: false,
         include: [
           { association: 'paymentMethod' },
-          { model: models.Subscription, as: 'subscription' },
+          { association: 'Subscription' },
           { model: models.Collective, as: 'collective' },
           { model: models.Collective, as: 'fromCollective' },
           { model: models.Tier, as: 'tier', required: false },
@@ -273,7 +273,7 @@ const orderMutations = {
 
       if (!req.remoteUser.isAdminOfCollective(order.fromCollective) && !req.remoteUser.isRoot()) {
         throw new Unauthorized("You don't have permission to cancel this recurring contribution");
-      } else if (!order.subscription?.isActive && order.status === OrderStatuses.CANCELLED) {
+      } else if (!order.Subscription?.isActive && order.status === OrderStatuses.CANCELLED) {
         throw new Error('Recurring contribution already canceled');
       } else if (order.status === OrderStatuses.PAID) {
         throw new Error('Cannot cancel a paid order');
@@ -283,7 +283,7 @@ const orderMutations = {
       await twoFactorAuthLib.enforceForAccount(req, order.fromCollective, { onlyAskOnLogin: true });
 
       await order.update({ status: OrderStatuses.CANCELLED });
-      await order.subscription.deactivate();
+      await order.Subscription.deactivate();
 
       await models.Activity.create({
         type: activities.SUBSCRIPTION_CANCELED,
@@ -294,7 +294,7 @@ const orderMutations = {
         UserId: order.CreatedByUserId,
         UserTokenId: req.userToken?.id,
         data: {
-          subscription: order.subscription,
+          subscription: order.Subscription,
           collective: order.collective.minimal,
           user: req.remoteUser.minimal,
           fromCollective: order.fromCollective.minimal,
@@ -355,7 +355,7 @@ const orderMutations = {
         throw new ValidationFailed('This order does not seem to exist');
       } else if (!req.remoteUser.isAdminOfCollective(order.fromCollective) && !req.remoteUser.isRoot()) {
         throw new Unauthorized("You don't have permission to update this order");
-      } else if (!order.subscription.isActive) {
+      } else if (!order.Subscription.isActive) {
         throw new Error('Order must be active to be updated');
       } else if (args.paypalSubscriptionId && args.paymentMethod) {
         throw new Error('paypalSubscriptionId and paymentMethod are mutually exclusive');

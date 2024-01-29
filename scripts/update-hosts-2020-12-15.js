@@ -44,7 +44,7 @@ async function run({ dryRun } = {}) {
         include: [
           { model: models.Collective, as: 'collective', where: { slug: PLANS_COLLECTIVE_SLUG } },
           { model: models.Collective, as: 'fromCollective', where: { id: host.id } },
-          { model: models.Subscription, as: 'subscription' },
+          { association: 'Subscription' },
           { model: models.Tier, as: 'tier', where: { slug: { [Op.in]: existingPlansSlugs } } },
         ],
         order: [['updatedAt', 'DESC']],
@@ -55,7 +55,7 @@ async function run({ dryRun } = {}) {
       if (!dryRun) {
         if (order) {
           await order.update({ status: status.CANCELLED });
-          await order.subscription.deactivate();
+          await order.Subscription.deactivate();
         }
       }
     }

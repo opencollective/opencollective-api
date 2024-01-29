@@ -133,8 +133,8 @@
           <td><p class="CollectiveMission">{{description}}</p></td>
         </tr>
         <tr>
-          {{#if order.subscription}}
-            <td><p>You’re contributing <b>{{currency order.subscription.amount currency=order.subscription.currency}}</b> per {{order.subscription.interval}} since {{moment order.subscription.createdAt format="MMMM YYYY"}}</p></td>
+          {{#if order.Subscription}}
+            <td><p>You’re contributing <b>{{currency order.Subscription.amount currency=order.Subscription.currency}}</b> per {{order.Subscription.interval}} since {{moment order.Subscription.createdAt format="MMMM YYYY"}}</p></td>
           {{else}}
             <td><p>You've contributed <b>{{order.totalAmount}}</b></p></td>
           {{/if}}

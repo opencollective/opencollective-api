@@ -73,7 +73,7 @@ describe('server/lib/budget', () => {
         { totalAmount: 1000, interval: 'month', status: OrderStatuses.CANCELLED },
         { withSubscription: true },
       );
-      await cancelledOrder.subscription.deactivate();
+      await cancelledOrder.Subscription.deactivate();
       const cancelledOrderTransactionValues = {
         type: TransactionTypes.CREDIT,
         kind: 'CONTRIBUTION',

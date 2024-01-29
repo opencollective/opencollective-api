@@ -32,7 +32,7 @@ export const cancelPaypalSubscription = async (
 ): Promise<void> => {
   const collective = order.collective || (await order.getCollective());
   const hostCollective = host || (await collective.getHostCollective());
-  const subscription = order.subscription || (await order.getSubscription());
+  const subscription = order.Subscription || (await order.getSubscription());
 
   try {
     await paypalRequest(

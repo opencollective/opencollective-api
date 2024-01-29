@@ -1063,8 +1063,7 @@ export const AccountFields = {
             attributes: [],
             include: [
               {
-                model: models.Subscription,
-                as: 'subscription',
+                association: 'Subscription',
                 required: true,
                 attributes: [],
                 where: { isActive: true },

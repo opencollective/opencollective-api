@@ -116,7 +116,6 @@ import Order from './Order';
 import PaymentMethod from './PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
 import SocialLink, { SocialLinkType } from './SocialLink';
-import Subscription from './Subscription';
 import Tier from './Tier';
 import Transaction from './Transaction';
 import Update from './Update';
@@ -1483,8 +1482,7 @@ class Collective extends Model<
       },
       include: [
         {
-          model: Subscription,
-          as: 'subscription',
+          association: 'Subscription',
           required: true,
           where: {
             deactivatedAt: { [Op.gte]: startDate, [Op.lt]: endDate },
@@ -1664,7 +1662,7 @@ class Collective extends Model<
     // Map the users to their respective tier
     await Promise.all(
       backerCollectives.map(backerCollective => {
-        const include = options.active ? [{ model: Subscription, as: 'subscription', attributes: ['isActive'] }] : [];
+        const include = options.active ? [{ association: 'Subscription', attributes: ['isActive'] }] : [];
         return Order.findOne({
           attributes: ['TierId'],
           where: {
@@ -1689,7 +1687,7 @@ class Collective extends Model<
           }
           tiersById[TierId].dataValues.users = tiersById[TierId].dataValues.users || [];
           if (options.active) {
-            backerCollective.isActive = order.subscription.isActive;
+            backerCollective.isActive = order.Subscription.isActive;
           }
           debug('adding to tier', TierId, 'backer: ', backerCollective.dataValues.slug);
           tiersById[TierId].dataValues.users.push(backerCollective.dataValues);
@@ -1805,10 +1803,7 @@ class Collective extends Model<
       order = await Order.findOne({
         ...sequelizeParams,
         where: { id: context.order.id },
-        include: [
-          { model: Tier, as: 'tier' },
-          { model: Subscription, as: 'subscription' },
-        ],
+        include: [{ model: Tier, as: 'tier' }, { association: 'Subscription' }],
       });
     }
 
@@ -1831,7 +1826,7 @@ class Collective extends Model<
         ...order.info,
         tier: order.tier && order.tier.minimal,
         subscription: {
-          interval: order.subscription && order.subscription.interval,
+          interval: order.Subscription && order.Subscription.interval,
         },
       },
     };

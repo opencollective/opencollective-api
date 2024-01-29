@@ -589,7 +589,7 @@ export async function confirmOrder(order, remoteUser, guestToken) {
       { model: models.Collective, as: 'collective' },
       { model: models.Collective, as: 'fromCollective' },
       { model: models.PaymentMethod, as: 'paymentMethod' },
-      { model: models.Subscription, as: 'subscription' },
+      { association: 'Subscription' },
       { association: 'createdByUser' },
     ],
   });
@@ -628,13 +628,13 @@ export async function confirmOrder(order, remoteUser, guestToken) {
 
       order.status = status.ACTIVE;
       order.data = omit(order.data, ['error', 'latestError', 'paymentIntent', 'needsConfirmation']);
-      order.subscription = Object.assign(order.subscription, getNextChargeAndPeriodStartDates('success', order));
-      order.subscription.chargeRetryCount = getChargeRetryCount('success', order);
-      if (order.subscription.chargeNumber !== null) {
-        order.subscription.chargeNumber += 1;
+      order.Subscription = Object.assign(order.Subscription, getNextChargeAndPeriodStartDates('success', order));
+      order.Subscription.chargeRetryCount = getChargeRetryCount('success', order);
+      if (order.Subscription.chargeNumber !== null) {
+        order.Subscription.chargeNumber += 1;
       }
 
-      await order.subscription.save();
+      await order.Subscription.save();
       await order.save();
     }
 

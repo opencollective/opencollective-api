@@ -94,15 +94,15 @@ export const updatePaymentMethodForSubscription = async (
     newSubscriptionData['paypalSubscriptionId'] = null;
 
     // Update the next charge dates
-    const previousNextChargeDate = order.subscription.nextChargeDate;
-    const interval = order.subscription.interval;
+    const previousNextChargeDate = order.Subscription.nextChargeDate;
+    const interval = order.Subscription.interval;
     const nextChargeDate = getNextChargeDateForUpdateContribution(previousNextChargeDate, interval);
     newSubscriptionData['nextChargeDate'] = nextChargeDate.toDate();
     newSubscriptionData['nextPeriodStart'] = nextChargeDate.toDate();
   }
 
   // Need to cancel previous subscription
-  await order.subscription.deactivate();
+  await order.Subscription.deactivate();
   const { order: updatedOrder } = await updateOrderSubscription(order, null, newOrderData, newSubscriptionData, {});
   return updatedOrder;
 };
@@ -147,7 +147,7 @@ export const updateOrderSubscription = async (
   newMemberData: Record<string, unknown>,
 ): Promise<OrderSubscriptionUpdate> => {
   const previousOrderValues = pick(order.dataValues, keys(newOrderData));
-  const previousSubscriptionValues = pick(order.subscription.dataValues, keys(newSubscriptionData));
+  const previousSubscriptionValues = pick(order.Subscription.dataValues, keys(newSubscriptionData));
 
   if (isEmpty(newOrderData) && isEmpty(newSubscriptionData)) {
     return { order, previousOrderValues, previousSubscriptionValues };
@@ -159,7 +159,7 @@ export const updateOrderSubscription = async (
     }
 
     if (!isEmpty(newSubscriptionData)) {
-      order.subscription = await order.subscription.update(newSubscriptionData, { transaction });
+      order.Subscription = await order.Subscription.update(newSubscriptionData, { transaction });
     }
 
     if (member && !isEmpty(newMemberData)) {
@@ -209,7 +209,7 @@ export const updateSubscriptionDetails = async (
     newOrderData['interval'] !== INTERVALS.FLEXIBLE
   ) {
     const newInterval = newOrderData['interval'];
-    const previousNextChargeDate = order.subscription.nextChargeDate;
+    const previousNextChargeDate = order.Subscription.nextChargeDate;
     const nextChargeDate = getNextChargeDateForUpdateContribution(previousNextChargeDate, newInterval);
     newSubscriptionData['nextChargeDate'] = nextChargeDate.toDate();
     newSubscriptionData['nextPeriodStart'] = nextChargeDate.toDate();

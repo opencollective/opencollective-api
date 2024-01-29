@@ -61,8 +61,7 @@ export async function run() {
         required: false,
       },
       {
-        model: models.Subscription,
-        as: 'subscription',
+        association: 'Subscription',
         required: true,
         where: { isActive: true },
       },
@@ -88,10 +87,10 @@ export async function run() {
         const host = await getHostFromOrder(order);
         const [reasonCode, reason] = getOrderCancelationReason(collective, order, host);
         logger.debug(
-          `Cancelling subscription ${order.subscription.id} from order ${order.id} of @${collectiveHandle} (host: ${host.slug})`,
+          `Cancelling subscription ${order.Subscription.id} from order ${order.id} of @${collectiveHandle} (host: ${host.slug})`,
         );
         if (!process.env.DRY) {
-          await order.subscription.deactivate(reason, host);
+          await order.Subscription.deactivate(reason, host);
           await models.Activity.create({
             type: activities.SUBSCRIPTION_CANCELED,
             CollectiveId: order.CollectiveId,
@@ -100,7 +99,7 @@ export async function run() {
             OrderId: order.id,
             UserId: order.CreatedByUserId,
             data: {
-              subscription: order.subscription,
+              subscription: order.Subscription,
               collective: order.collective.minimal,
               fromCollective: order.fromCollective.minimal,
               reasonCode: reasonCode,

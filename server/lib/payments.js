@@ -598,21 +598,21 @@ export const createSubscription = async order => {
   // here because it was just created and no models were
   // included so we're doing that manually here. Not the
   // cutest but works.
-  order.subscription = subscription;
+  order.Subscription = subscription;
   const updatedDates = getNextChargeAndPeriodStartDates('new', order);
-  order.subscription.nextChargeDate = updatedDates.nextChargeDate;
-  order.subscription.nextPeriodStart = updatedDates.nextPeriodStart || order.subscription.nextPeriodStart;
+  order.Subscription.nextChargeDate = updatedDates.nextChargeDate;
+  order.Subscription.nextPeriodStart = updatedDates.nextPeriodStart || order.Subscription.nextPeriodStart;
 
   // Both subscriptions and one time donations are charged
   // immediately and there won't be a better time to update
   // this field after this. Please notice that it will change
   // when the issue #729 is tackled.
   // https://github.com/opencollective/opencollective/issues/729
-  order.subscription.chargeNumber = 1;
-  order.subscription.activate();
+  order.Subscription.chargeNumber = 1;
+  order.Subscription.activate();
   await order.update({
     status: status.ACTIVE,
-    SubscriptionId: order.subscription.id,
+    SubscriptionId: order.Subscription.id,
   });
 };
 

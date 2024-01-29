@@ -659,7 +659,7 @@ export const fakeOrder = async (
 
     const subscriptionObj = await fakeSubscription(subscriptionData);
     await order.update({ SubscriptionId: subscriptionObj.id });
-    order.subscription = subscriptionObj;
+    order.Subscription = subscriptionObj;
   }
 
   if (withTransactions) {

@@ -116,8 +116,8 @@ async function processRecurringOrder(order: OrderModelInterface) {
     from: order.fromCollective ? `${config.host.website}/${order.fromCollective.slug}` : undefined,
     to: `${config.host.website}/${order.collective.slug}`,
     orderId: order.id,
-    chargeNumber: order.subscription.chargeNumber,
-    chargeRetryCount: order.subscription.chargeRetryCount,
+    chargeNumber: order.Subscription.chargeNumber,
+    chargeRetryCount: order.Subscription.chargeRetryCount,
   };
 
   try {

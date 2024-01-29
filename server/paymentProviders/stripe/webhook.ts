@@ -342,8 +342,7 @@ export const chargeDisputeCreated = async (event: Stripe.Event) => {
       required: true,
       include: [
         {
-          model: models.Subscription,
-          as: 'subscription',
+          association: 'Subscription',
         },
       ],
     },
@@ -360,7 +359,7 @@ export const chargeDisputeCreated = async (event: Stripe.Event) => {
         await order.update({ status: OrderStatuses.DISPUTED });
 
         if (order.SubscriptionId) {
-          await order.subscription.deactivate();
+          await order.Subscription.deactivate();
         }
       }
     }),
@@ -378,8 +377,7 @@ export const chargeDisputeClosed = async (event: Stripe.Event) => {
         required: true,
         include: [
           {
-            model: models.Subscription,
-            as: 'subscription',
+            association: 'Subscription',
           },
         ],
       },
@@ -413,8 +411,7 @@ export const chargeDisputeClosed = async (event: Stripe.Event) => {
       required: true,
       include: [
         {
-          model: models.Subscription,
-          as: 'subscription',
+          association: 'Subscription',
         },
       ],
     },
@@ -497,7 +494,7 @@ export const chargeDisputeClosed = async (event: Stripe.Event) => {
       if (order.status === OrderStatuses.DISPUTED) {
         if (order.SubscriptionId) {
           await order.update({ status: OrderStatuses.ACTIVE });
-          await order.subscription.activate();
+          await order.Subscription.activate();
         } else {
           await order.update({ status: OrderStatuses.PAID });
         }
@@ -530,8 +527,7 @@ export const reviewOpened = async (event: Stripe.Event) => {
         required: true,
         include: [
           {
-            model: models.Subscription,
-            as: 'subscription',
+            association: 'Subscription',
           },
         ],
       },
@@ -551,8 +547,7 @@ export const reviewOpened = async (event: Stripe.Event) => {
       required: true,
       include: [
         {
-          model: models.Subscription,
-          as: 'subscription',
+          association: 'Subscription',
         },
       ],
     },
@@ -566,7 +561,7 @@ export const reviewOpened = async (event: Stripe.Event) => {
         await order.update({ status: OrderStatuses.IN_REVIEW });
 
         if (order.SubscriptionId) {
-          await order.subscription.deactivate();
+          await order.Subscription.deactivate();
         }
       }
     }),
@@ -588,8 +583,7 @@ export const reviewClosed = async (event: Stripe.Event) => {
         required: true,
         include: [
           {
-            model: models.Subscription,
-            as: 'subscription',
+            association: 'Subscription',
           },
         ],
       },
@@ -616,8 +610,7 @@ export const reviewClosed = async (event: Stripe.Event) => {
       required: true,
       include: [
         {
-          model: models.Subscription,
-          as: 'subscription',
+          association: 'Subscription',
         },
       ],
     },
@@ -667,7 +660,7 @@ export const reviewClosed = async (event: Stripe.Event) => {
       if (order.status === OrderStatuses.IN_REVIEW) {
         if (order.SubscriptionId) {
           await order.update({ status: OrderStatuses.ACTIVE });
-          await order.subscription.activate();
+          await order.Subscription.activate();
         } else {
           await order.update({ status: OrderStatuses.PAID });
         }

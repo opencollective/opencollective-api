@@ -77,7 +77,7 @@ const transactionMutations = {
 
       const orderToUpdate = await models.Order.findOne({
         where: { id: refundedTransaction.OrderId },
-        include: { model: models.Subscription, as: 'subscription' },
+        include: { association: 'Subscription' },
       });
 
       if (!orderToUpdate) {
@@ -93,7 +93,7 @@ const transactionMutations = {
 
       if (orderToUpdate.SubscriptionId) {
         await orderToUpdate.update({ status: orderStatus.REJECTED });
-        await orderToUpdate.subscription.deactivate('Contribution rejected');
+        await orderToUpdate.Subscription.deactivate('Contribution rejected');
       } else {
         // else just update the status to REJECTED
         await orderToUpdate.update({

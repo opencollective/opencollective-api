@@ -180,7 +180,7 @@ describe('server/paymentProviders/paypal/subscription', () => {
 
       it('cancels/updates existing subscription', async () => {
         const order = await generateOrderWithSubscription();
-        const previousSubscription = order.subscription;
+        const previousSubscription = order.Subscription;
         const newSubscriptionPm = await fakePaypalSubscriptionPm({ ...validSubscriptionParams, id: randStr() });
 
         // PayPal API stubs

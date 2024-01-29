@@ -377,7 +377,7 @@ export const loaders = req => {
         attributes: [
           'Order.CollectiveId',
           'Order.currency',
-          'subscription.interval',
+          'Subscription.interval',
           [
             sequelize.fn(
               'SUM',
@@ -390,11 +390,10 @@ export const loaders = req => {
           CollectiveId: { [Op.in]: ids },
           status: 'ACTIVE',
         },
-        group: ['subscription.interval', 'CollectiveId', 'Order.currency'],
+        group: ['Subscription.interval', 'CollectiveId', 'Order.currency'],
         include: [
           {
-            model: models.Subscription,
-            as: 'subscription',
+            association: 'Subscription',
             attributes: [],
             where: { isActive: true },
           },

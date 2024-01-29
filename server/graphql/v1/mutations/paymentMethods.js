@@ -187,8 +187,7 @@ export async function removePaymentMethod(paymentMethodId, req) {
     where: { status: { [Op.or]: [ORDER_STATUS.ACTIVE, ORDER_STATUS.ERROR] } },
     include: [
       {
-        model: models.Subscription,
-        as: 'subscription',
+        association: 'Subscription',
         where: { isActive: true },
         required: true,
       },

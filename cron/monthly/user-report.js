@@ -170,11 +170,11 @@ const processBacker = async FromCollectiveId => {
       },
       deletedAt: null,
     },
-    include: [{ model: models.Subscription, as: 'subscription' }],
+    include: [{ association: 'Subscription' }],
   });
   // group orders(by collective) that either don't have subscription or have active subscription
   const ordersByCollectiveId = groupBy(
-    orders.filter(o => !o.subscription || o.subscription.isActive),
+    orders.filter(o => !o.Subscription || o.Subscription.isActive),
     'CollectiveId',
   );
   const collectivesWithOrders = [];
@@ -359,8 +359,8 @@ const computeOrderSummary = orders => {
       orderSummary.totalAmountPerCurrency[order.currency] = orderSummary.totalAmountPerCurrency[order.currency] || 0;
       orderSummary.totalAmountPerCurrency[order.currency] += order.totalAmount;
 
-      if (order.subscription && order.subscription.isActive) {
-        orderSummary.Subscription = order.subscription.dataValues;
+      if (order.Subscription && order.Subscription.isActive) {
+        orderSummary.Subscription = order.Subscription.dataValues;
       }
     }
   }

@@ -83,7 +83,7 @@ export interface OrderModelInterface
   privateMessage: string;
 
   SubscriptionId?: number;
-  subscription?: SubscriptionInterface;
+  Subscription?: SubscriptionInterface;
   getSubscription: HasOneGetAssociationMixin<SubscriptionInterface>;
 
   AccountingCategoryId?: ForeignKey<AccountingCategory['id']>;
@@ -532,8 +532,8 @@ Order.prototype.populate = async function () {
   if (this.PaymentMethodId && !this.paymentMethod) {
     this.paymentMethod = await PaymentMethod.findByPk(this.PaymentMethodId);
   }
-  if (this.SubscriptionId && !this.subscription) {
-    this.subscription = await Subscription.findByPk(this.SubscriptionId);
+  if (this.SubscriptionId && !this.Subscription) {
+    this.Subscription = await Subscription.findByPk(this.SubscriptionId);
   }
   return this;
 };

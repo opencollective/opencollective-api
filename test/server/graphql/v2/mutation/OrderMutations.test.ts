@@ -2803,11 +2803,11 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
           const updatedOrder = await models.Order.findOne({
             where: { id: monthlyOrder.id },
-            include: [{ model: models.Subscription, as: 'subscription', required: true }],
+            include: [{ association: 'Subscription', required: true }],
           });
 
-          expect(updatedOrder.subscription.nextChargeDate.toISOString()).to.equal('2023-01-01T00:00:00.000Z');
-          expect(updatedOrder.subscription.nextPeriodStart.toISOString()).to.equal('2023-01-01T00:00:00.000Z');
+          expect(updatedOrder.Subscription.nextChargeDate.toISOString()).to.equal('2023-01-01T00:00:00.000Z');
+          expect(updatedOrder.Subscription.nextPeriodStart.toISOString()).to.equal('2023-01-01T00:00:00.000Z');
         });
 
         it('from yearly to monthly (before the 15th of the month)', async () => {
@@ -2842,11 +2842,11 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
           const updatedOrder = await models.Order.findOne({
             where: { id: yearlyOrder.id },
-            include: [{ model: models.Subscription, as: 'subscription', required: true }],
+            include: [{ association: 'Subscription', required: true }],
           });
 
-          expect(updatedOrder.subscription.nextChargeDate.toISOString()).to.equal('2022-02-01T00:00:00.000Z');
-          expect(updatedOrder.subscription.nextPeriodStart.toISOString()).to.equal('2022-02-01T00:00:00.000Z');
+          expect(updatedOrder.Subscription.nextChargeDate.toISOString()).to.equal('2022-02-01T00:00:00.000Z');
+          expect(updatedOrder.Subscription.nextPeriodStart.toISOString()).to.equal('2022-02-01T00:00:00.000Z');
         });
 
         it('from yearly to monthly (after the 15th of the month)', async () => {
@@ -2881,11 +2881,11 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
           const updatedOrder = await models.Order.findOne({
             where: { id: yearlyOrder.id },
-            include: [{ model: models.Subscription, as: 'subscription', required: true }],
+            include: [{ association: 'Subscription', required: true }],
           });
 
-          expect(updatedOrder.subscription.nextChargeDate.toISOString()).to.equal('2022-03-01T00:00:00.000Z');
-          expect(updatedOrder.subscription.nextPeriodStart.toISOString()).to.equal('2022-03-01T00:00:00.000Z');
+          expect(updatedOrder.Subscription.nextChargeDate.toISOString()).to.equal('2022-03-01T00:00:00.000Z');
+          expect(updatedOrder.Subscription.nextPeriodStart.toISOString()).to.equal('2022-03-01T00:00:00.000Z');
         });
       });
     });

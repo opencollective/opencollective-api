@@ -29,7 +29,7 @@ import {
 } from '../../server/paymentProviders/paypal/subscription';
 
 const getUnrecordedTransactions = async (host, order) => {
-  const paypalSubscriptionId = order.subscription.paypalSubscriptionId;
+  const paypalSubscriptionId = order.Subscription.paypalSubscriptionId;
   const responseTransactions = await fetchPaypalTransactionsForSubscription(host, paypalSubscriptionId);
   const totalPages = responseTransactions.total_pages;
   if (totalPages > 1) {
@@ -72,8 +72,7 @@ const main = async () => {
     },
     include: [
       {
-        model: models.Subscription,
-        as: 'subscription',
+        association: 'Subscription',
         where: {
           isActive: true,
           paypalSubscriptionId: { [Op.ne]: null },
@@ -146,7 +145,7 @@ const main = async () => {
 
   // Cancel the order / subscription
   for (const order of orders) {
-    const paypalSubscriptionId = order.subscription.paypalSubscriptionId;
+    const paypalSubscriptionId = order.Subscription.paypalSubscriptionId;
     const subscription = await fetchPaypalSubscription(host, paypalSubscriptionId);
 
     // Cancel on PayPal
@@ -164,7 +163,7 @@ const main = async () => {
     // Cancel in DB
     if (options['fix']) {
       await order.update({ status: OrderStatuses.CANCELLED });
-      await order.subscription.update({ isActive: false, deactivatedAt: new Date() });
+      await order.Subscription.update({ isActive: false, deactivatedAt: new Date() });
     }
   }
 };

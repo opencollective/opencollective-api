@@ -66,8 +66,8 @@ describe('server/lib/subscriptions', () => {
             sandbox.stub(PaypalSubscriptionAPI, 'cancelPaypalSubscription').resolves();
             const updatedOrder = await updatePaymentMethodForSubscription(user, order, newPaymentMethod);
             const expectedNextChargeDate = subscription.nextChargeDate.toISOString();
-            expect(updatedOrder.subscription.nextChargeDate.toISOString()).to.equal(expectedNextChargeDate);
-            expect(updatedOrder.subscription.nextPeriodStart.toISOString()).to.equal(expectedNextChargeDate);
+            expect(updatedOrder.Subscription.nextChargeDate.toISOString()).to.equal(expectedNextChargeDate);
+            expect(updatedOrder.Subscription.nextPeriodStart.toISOString()).to.equal(expectedNextChargeDate);
           });
         });
 
@@ -102,8 +102,8 @@ describe('server/lib/subscriptions', () => {
 
             sandbox.stub(PaypalSubscriptionAPI, 'cancelPaypalSubscription').resolves();
             const updatedOrder = await updatePaymentMethodForSubscription(user, order, newPaymentMethod);
-            expect(updatedOrder.subscription.nextChargeDate.toISOString()).to.equal('2022-02-01T00:00:00.000Z');
-            expect(updatedOrder.subscription.nextPeriodStart.toISOString()).to.equal('2022-02-01T00:00:00.000Z');
+            expect(updatedOrder.Subscription.nextChargeDate.toISOString()).to.equal('2022-02-01T00:00:00.000Z');
+            expect(updatedOrder.Subscription.nextPeriodStart.toISOString()).to.equal('2022-02-01T00:00:00.000Z');
           });
 
           it('after the 15th of the month => skip next month', async () => {
@@ -136,8 +136,8 @@ describe('server/lib/subscriptions', () => {
 
             sandbox.stub(PaypalSubscriptionAPI, 'cancelPaypalSubscription').resolves();
             const updatedOrder = await updatePaymentMethodForSubscription(user, order, newPaymentMethod);
-            expect(updatedOrder.subscription.nextChargeDate.toISOString()).to.equal('2022-03-01T00:00:00.000Z');
-            expect(updatedOrder.subscription.nextPeriodStart.toISOString()).to.equal('2022-03-01T00:00:00.000Z');
+            expect(updatedOrder.Subscription.nextChargeDate.toISOString()).to.equal('2022-03-01T00:00:00.000Z');
+            expect(updatedOrder.Subscription.nextPeriodStart.toISOString()).to.equal('2022-03-01T00:00:00.000Z');
           });
         });
       });
@@ -167,8 +167,8 @@ describe('server/lib/subscriptions', () => {
 
         sandbox.stub(PaypalSubscriptionAPI, 'cancelPaypalSubscription').resolves();
         const updatedOrder = await updatePaymentMethodForSubscription(user, order, newPaymentMethod);
-        expect(updatedOrder.subscription.isManagedExternally).to.be.false;
-        expect(updatedOrder.subscription.paypalSubscriptionId).to.be.null;
+        expect(updatedOrder.Subscription.isManagedExternally).to.be.false;
+        expect(updatedOrder.Subscription.paypalSubscriptionId).to.be.null;
       });
 
       it('deactivates the previous subscription', async () => {
