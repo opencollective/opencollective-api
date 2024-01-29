@@ -4,6 +4,7 @@ import { isEmpty } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import { CollectiveType } from '../constants/collectives';
+import { SUPPORTED_CURRENCIES } from '../constants/currencies';
 import { BadRequest, InvalidToken, NotFound } from '../graphql/errors';
 import models, { Collective, sequelize } from '../models';
 import User from '../models/User';
@@ -40,6 +41,7 @@ type UserInfoInput = {
   name?: string | null;
   legalName?: string | null;
   location?: Location;
+  currency?: (typeof SUPPORTED_CURRENCIES)[number];
 };
 
 type UserCreationRequest = {
@@ -51,7 +53,7 @@ type UserCreationRequest = {
  * Retrieves or create an guest profile by email.
  */
 export const getOrCreateGuestProfile = async (
-  { email, name, legalName, location }: UserInfoInput,
+  { email, name, legalName, location, currency }: UserInfoInput,
   creationRequest: UserCreationRequest = null,
 ): Promise<GuestProfileDetails> => {
   const emailConfirmationToken = crypto.randomBytes(48).toString('hex');
@@ -99,6 +101,7 @@ export const getOrCreateGuestProfile = async (
           data: { isGuest: true },
           CreatedByUserId: user.id,
           location,
+          currency,
         },
         { transaction, include: [{ association: 'location' }] },
       );
