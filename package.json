@@ -76,7 +76,7 @@
     "errorhandler": "1.5.1",
     "express": "4.18.2",
     "express-basic-auth": "1.2.1",
-    "express-session": "1.17.3",
+    "express-session": "1.18.0",
     "express-ws": "5.0.2",
     "fast-redact": "3.3.0",
     "fs-extra": "11.2.0",
