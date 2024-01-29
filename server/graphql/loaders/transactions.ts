@@ -89,7 +89,7 @@ export const generatePaymentProcessorFeeAmountForTransactionLoader = (): DataLoa
           if (!isEmpty(processorFeeTransactions)) {
             const processorFeeTransaction =
               // 1st we try to match the same CollectiveId to guarantee transaction type consistency
-              find(processorFeeTransactions, { CollectiveId: transaction.CollectiveId }) ||
+              // find(processorFeeTransactions, { CollectiveId: transaction.CollectiveId }) ||
               // 2nd we fall back to debit, because a fee should always be negative unless the beneficiary of transaction is the processor itself (catch on 1st condition)
               find(processorFeeTransactions, {
                 type: transaction.isRefund ? TransactionTypes.CREDIT : TransactionTypes.DEBIT,

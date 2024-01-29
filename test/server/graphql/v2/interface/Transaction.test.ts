@@ -46,7 +46,7 @@ describe('Transaction', () => {
       },
       include: [{ model: models.Expense }],
     });
-    await createRefundTransaction(transaction, 390, null, hostAdmin);
+    await createRefundTransaction(transaction, 0, null, hostAdmin);
   });
 
   it('should fetch the correct payment processor fee', async () => {
@@ -64,11 +64,11 @@ describe('Transaction', () => {
             toAccount {
               slug
             }
-            amount {
+            amountInHostCurrency {
               valueInCents
               currency
             }
-            netAmount {
+            netAmountInHostCurrency(fetchPaymentProcessorFee: true) {
               valueInCents
               currency
             }
@@ -87,37 +87,54 @@ describe('Transaction', () => {
     expect(result.data.transactions.nodes).to.containSubset([
       // Original Transactions
       {
+        kind: 'PAYMENT_PROCESSOR_FEE',
+        type: 'CREDIT',
+        amountInHostCurrency: { valueInCents: 390 },
+        netAmountInHostCurrency: { valueInCents: 390 },
+        paymentProcessorFee: { valueInCents: 0 },
+        isRefund: false,
+      },
+      {
+        kind: 'PAYMENT_PROCESSOR_FEE',
+        type: 'DEBIT',
+        amountInHostCurrency: { valueInCents: -390 },
+        netAmountInHostCurrency: { valueInCents: -390 },
+        paymentProcessorFee: { valueInCents: 0 },
+        isRefund: false,
+      },
+      {
         kind: 'EXPENSE',
         type: 'CREDIT',
-        netAmount: { valueInCents: 10000 },
-        paymentProcessorFee: { valueInCents: -390 },
+        amountInHostCurrency: { valueInCents: 10000 },
+        netAmountInHostCurrency: { valueInCents: 10000 },
+        paymentProcessorFee: { valueInCents: 0 },
         isRefund: false,
       },
       {
         kind: 'EXPENSE',
         type: 'DEBIT',
-        amount: { valueInCents: -10000 },
+        amountInHostCurrency: { valueInCents: -10000 },
+        netAmountInHostCurrency: { valueInCents: -10390 },
         paymentProcessorFee: { valueInCents: -390 },
         isRefund: false,
       },
-      { kind: 'PAYMENT_PROCESSOR_FEE', type: 'DEBIT', amount: { valueInCents: -390 }, isRefund: false },
       // Refund Transactions
       {
         kind: 'EXPENSE',
         type: 'DEBIT',
-        netAmount: { valueInCents: -10000 },
-        paymentProcessorFee: { valueInCents: 390 },
+        amountInHostCurrency: { valueInCents: -10000 },
+        paymentProcessorFee: { valueInCents: 0 },
+        netAmountInHostCurrency: { valueInCents: -10000 },
         isRefund: true,
       },
       {
         kind: 'EXPENSE',
         type: 'CREDIT',
-        amount: { valueInCents: 10000 },
-        paymentProcessorFee: { valueInCents: 390 },
-        netAmount: { valueInCents: 10000 },
+        amountInHostCurrency: { valueInCents: 10000 },
+        paymentProcessorFee: { valueInCents: 0 },
+        netAmountInHostCurrency: { valueInCents: 10000 },
         isRefund: true,
       },
-      { kind: 'PAYMENT_PROCESSOR_FEE', type: 'CREDIT', amount: { valueInCents: 390 }, isRefund: true },
     ]);
   });
 });

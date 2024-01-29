@@ -13,7 +13,7 @@ import { isNil, round } from 'lodash';
 
 import orderStatus from '../../../constants/order-status';
 import roles from '../../../constants/roles';
-import { TransactionKind as TransactionKinds } from '../../../constants/transaction-kind';
+import { TransactionKind } from '../../../constants/transaction-kind';
 import { generateDescription } from '../../../lib/transactions';
 import models from '../../../models';
 import { allowContextPermission, getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
@@ -29,6 +29,8 @@ import GraphQLPayoutMethod from '../object/PayoutMethod';
 import { GraphQLTaxInfo } from '../object/TaxInfo';
 
 import { GraphQLAccount } from './Account';
+
+const { CONTRIBUTION, EXPENSE } = TransactionKind;
 
 const GraphQLTransactionPermissions = new GraphQLObjectType({
   name: 'TransactionPermissions',
@@ -351,23 +353,25 @@ export const TransactionFields = () => {
       async resolve(transaction, args, req) {
         let { netAmountInCollectiveCurrency, hostFeeInHostCurrency, paymentProcessorFeeInHostCurrency, taxAmount } =
           transaction;
-        if (args.fetchHostFee && !hostFeeInHostCurrency) {
-          hostFeeInHostCurrency = await req.loaders.Transaction.hostFeeAmountForTransaction.load(transaction);
-        }
-        if (args.fetchPaymentProcessorFee && !paymentProcessorFeeInHostCurrency) {
-          paymentProcessorFeeInHostCurrency =
-            await req.loaders.Transaction.paymentProcessorFeeAmountForTransaction.load(transaction);
-        }
-        if (args.fetchTax && !taxAmount) {
-          taxAmount = await req.loaders.Transaction.taxAmountForTransaction.load(transaction);
-        }
-        if (args.fetchHostFee || args.fetchPaymentProcessorFee || args.fetchTax) {
-          netAmountInCollectiveCurrency = models.Transaction.calculateNetAmountInCollectiveCurrency({
-            ...transaction.dataValues,
-            hostFeeInHostCurrency,
-            paymentProcessorFeeInHostCurrency,
-            taxAmount,
-          });
+        if (models.Transaction.shouldFetchFeesAndRecalculateNetAmount(transaction)) {
+          if (args.fetchHostFee && !hostFeeInHostCurrency) {
+            hostFeeInHostCurrency = await req.loaders.Transaction.hostFeeAmountForTransaction.load(transaction);
+          }
+          if (args.fetchPaymentProcessorFee && !paymentProcessorFeeInHostCurrency) {
+            paymentProcessorFeeInHostCurrency =
+              await req.loaders.Transaction.paymentProcessorFeeAmountForTransaction.load(transaction);
+          }
+          if (args.fetchTax && !taxAmount) {
+            taxAmount = await req.loaders.Transaction.taxAmountForTransaction.load(transaction);
+          }
+          if (args.fetchHostFee || args.fetchPaymentProcessorFee || args.fetchTax) {
+            netAmountInCollectiveCurrency = models.Transaction.calculateNetAmountInCollectiveCurrency({
+              ...transaction.dataValues,
+              hostFeeInHostCurrency,
+              paymentProcessorFeeInHostCurrency,
+              taxAmount,
+            });
+          }
         }
         return {
           value: netAmountInCollectiveCurrency,
@@ -397,23 +401,25 @@ export const TransactionFields = () => {
       async resolve(transaction, args, req) {
         let { netAmountInHostCurrency, hostFeeInHostCurrency, paymentProcessorFeeInHostCurrency, taxAmount } =
           transaction;
-        if (args.fetchHostFee && !hostFeeInHostCurrency) {
-          hostFeeInHostCurrency = await req.loaders.Transaction.hostFeeAmountForTransaction.load(transaction);
-        }
-        if (args.fetchPaymentProcessorFee && !paymentProcessorFeeInHostCurrency) {
-          paymentProcessorFeeInHostCurrency =
-            await req.loaders.Transaction.paymentProcessorFeeAmountForTransaction.load(transaction);
-        }
-        if (args.fetchTax && !taxAmount) {
-          taxAmount = await req.loaders.Transaction.taxAmountForTransaction.load(transaction);
-        }
-        if (args.fetchHostFee || args.fetchPaymentProcessorFee || args.fetchTax) {
-          netAmountInHostCurrency = models.Transaction.calculateNetAmountInHostCurrency({
-            ...transaction.dataValues,
-            hostFeeInHostCurrency,
-            paymentProcessorFeeInHostCurrency,
-            taxAmount,
-          });
+        if (models.Transaction.shouldFetchFeesAndRecalculateNetAmount(transaction)) {
+          if (args.fetchHostFee && !hostFeeInHostCurrency) {
+            hostFeeInHostCurrency = await req.loaders.Transaction.hostFeeAmountForTransaction.load(transaction);
+          }
+          if (args.fetchPaymentProcessorFee && !paymentProcessorFeeInHostCurrency) {
+            paymentProcessorFeeInHostCurrency =
+              await req.loaders.Transaction.paymentProcessorFeeAmountForTransaction.load(transaction);
+          }
+          if (args.fetchTax && !taxAmount) {
+            taxAmount = await req.loaders.Transaction.taxAmountForTransaction.load(transaction);
+          }
+          if (args.fetchHostFee || args.fetchPaymentProcessorFee || args.fetchTax) {
+            netAmountInHostCurrency = models.Transaction.calculateNetAmountInHostCurrency({
+              ...transaction.dataValues,
+              hostFeeInHostCurrency,
+              paymentProcessorFeeInHostCurrency,
+              taxAmount,
+            });
+          }
         }
         return {
           value: netAmountInHostCurrency,
@@ -486,8 +492,10 @@ export const TransactionFields = () => {
       },
       async resolve(transaction, args, req) {
         let hostFeeInHostCurrency = transaction.hostFeeInHostCurrency;
-        if (args.fetchHostFee && !hostFeeInHostCurrency) {
-          hostFeeInHostCurrency = await req.loaders.Transaction.hostFeeAmountForTransaction.load(transaction);
+        if (models.Transaction.shouldFetchFeesAndRecalculateNetAmount(transaction)) {
+          if (args.fetchHostFee && !hostFeeInHostCurrency) {
+            hostFeeInHostCurrency = await req.loaders.Transaction.hostFeeAmountForTransaction.load(transaction);
+          }
         }
         return {
           value: hostFeeInHostCurrency || 0,
@@ -507,9 +515,11 @@ export const TransactionFields = () => {
       description: 'Payment Processor Fee (usually in host currency)',
       async resolve(transaction, args, req) {
         let paymentProcessorFeeInHostCurrency = transaction.paymentProcessorFeeInHostCurrency;
-        if (args.fetchPaymentProcessorFee && !paymentProcessorFeeInHostCurrency) {
-          paymentProcessorFeeInHostCurrency =
-            await req.loaders.Transaction.paymentProcessorFeeAmountForTransaction.load(transaction);
+        if (models.Transaction.shouldFetchFeesAndRecalculateNetAmount(transaction)) {
+          if (args.fetchPaymentProcessorFee && !paymentProcessorFeeInHostCurrency) {
+            paymentProcessorFeeInHostCurrency =
+              await req.loaders.Transaction.paymentProcessorFeeAmountForTransaction.load(transaction);
+          }
         }
         return {
           value: paymentProcessorFeeInHostCurrency || 0,
@@ -674,7 +684,7 @@ export const TransactionFields = () => {
           return;
         }
 
-        if (transaction.kind === TransactionKinds.CONTRIBUTION) {
+        if (transaction.kind === CONTRIBUTION) {
           const stripeId = transaction.data?.charge?.id;
           const onetimePaypalPaymentId = transaction.data?.capture?.id;
           const recurringPaypalPaymentId = transaction.data?.paypalSale?.id;
@@ -684,7 +694,7 @@ export const TransactionFields = () => {
           return stripeId || onetimePaypalPaymentId || recurringPaypalPaymentId || paypalResponseId;
         }
 
-        if (transaction.kind === TransactionKinds.EXPENSE) {
+        if (transaction.kind === EXPENSE) {
           let expense = transaction.expense;
           if (!expense && transaction.ExpenseId) {
             expense = await req.loaders.Expense.byId.load(transaction.ExpenseId);
