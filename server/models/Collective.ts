@@ -1799,7 +1799,7 @@ class Collective extends Model<
       order = await Order.findOne({
         ...sequelizeParams,
         where: { id: context.order.id },
-        include: [{ association: 'tier' }, { association: 'Subscription' }],
+        include: [{ association: 'Tier' }, { association: 'Subscription' }],
       });
     }
 

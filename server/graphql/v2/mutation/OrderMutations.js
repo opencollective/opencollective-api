@@ -347,7 +347,7 @@ const orderMutations = {
           { association: 'collective', required: true },
           { association: 'fromCollective', required: true },
           { association: 'paymentMethod' },
-          { association: 'tier' },
+          { association: 'Tier' },
         ],
       });
 
