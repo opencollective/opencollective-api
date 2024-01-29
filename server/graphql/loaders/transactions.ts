@@ -1,7 +1,8 @@
 import DataLoader from 'dataloader';
-import { groupBy } from 'lodash';
+import { find, groupBy, isEmpty } from 'lodash';
 
 import { TransactionKind } from '../../constants/transaction-kind';
+import { TransactionTypes } from '../../constants/transactions';
 import models, { Op } from '../../models';
 import { TransactionInterface } from '../../models/Transaction';
 
@@ -85,9 +86,15 @@ export const generatePaymentProcessorFeeAmountForTransactionLoader = (): DataLoa
         } else {
           const key = keyBuilder(transaction);
           const processorFeeTransactions = groupedTransactions[key];
-          if (processorFeeTransactions) {
-            const amount = processorFeeTransactions[0].amountInHostCurrency;
-            return transaction.isRefund ? amount : -amount;
+          if (!isEmpty(processorFeeTransactions)) {
+            const processorFeeTransaction =
+              // 1st we try to match the same CollectiveId to guarantee transaction type consistency
+              find(processorFeeTransactions, { CollectiveId: transaction.CollectiveId }) ||
+              // 2nd we fall back to debit, because a fee should always be negative unless the beneficiary of transaction is the processor itself (catch on 1st condition)
+              find(processorFeeTransactions, { type: TransactionTypes.DEBIT }) ||
+              // Fall back to the first one
+              processorFeeTransactions[0];
+            return processorFeeTransaction.amountInHostCurrency;
           } else {
             return 0;
           }
