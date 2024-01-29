@@ -45,7 +45,7 @@ async function run({ dryRun } = {}) {
           { model: models.Collective, as: 'collective', where: { slug: PLANS_COLLECTIVE_SLUG } },
           { model: models.Collective, as: 'fromCollective', where: { id: host.id } },
           { association: 'Subscription' },
-          { model: models.Tier, as: 'tier', where: { slug: { [Op.in]: existingPlansSlugs } } },
+          { association: 'Tier', where: { slug: { [Op.in]: existingPlansSlugs } } },
         ],
         order: [['updatedAt', 'DESC']],
       });

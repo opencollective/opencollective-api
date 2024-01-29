@@ -40,7 +40,7 @@ export async function ordersWithPendingCharges({ limit, startDate } = {}) {
       { model: models.Collective, as: 'collective', required: true },
       { model: models.Collective, as: 'fromCollective', required: true },
       { model: models.PaymentMethod, as: 'paymentMethod' },
-      { model: models.Tier, as: 'tier' },
+      { association: 'Tier' },
       {
         association: 'Subscription',
         where: {

@@ -263,7 +263,7 @@ const orderMutations = {
           { association: 'Subscription' },
           { model: models.Collective, as: 'collective' },
           { model: models.Collective, as: 'fromCollective' },
-          { model: models.Tier, as: 'tier', required: false },
+          { association: 'Tier', required: false },
         ],
       });
 
@@ -1158,7 +1158,7 @@ const orderMutations = {
         throwIfMissing: true,
         include: [
           { model: models.Collective, as: 'collective', required: true },
-          { model: models.Tier, as: 'tier', required: false },
+          { association: 'Tier', required: false },
         ],
       });
 

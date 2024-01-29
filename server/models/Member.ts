@@ -19,7 +19,7 @@ const invalidateContributorsCacheUsingInstance = instance => {
 };
 
 interface MemberModelStaticInterface {
-  isActive(member: { tier?: Tier; lastDonation?: Date }): boolean;
+  isActive(member: { Tier?: Tier; lastDonation?: Date }): boolean;
   connectCollectives(
     childCollective: Collective,
     parentCollective: Collective,
@@ -45,7 +45,7 @@ export interface MemberModelInterface
   updatedAt: Date;
   deletedAt?: Date;
 
-  tier?: Tier;
+  Tier?: Tier;
   memberCollective?: Collective;
   collective?: Collective;
 
@@ -184,16 +184,16 @@ const Member: ModelStatic<MemberModelInterface> & MemberModelStaticInterface = s
  * @param {*} member { tier: { interval }, lastDonation}
  */
 Member.isActive = member => {
-  if (!member.tier || !member.tier.interval) {
+  if (!member.Tier || !member.Tier.interval) {
     return true;
   }
   if (!member.lastDonation) {
     return false;
   }
-  if (member.tier.interval === 'month' && days(new Date(member.lastDonation)) <= 31) {
+  if (member.Tier.interval === 'month' && days(new Date(member.lastDonation)) <= 31) {
     return true;
   }
-  if (['year', 'flexible'].includes(member.tier.interval) && days(new Date(member.lastDonation)) <= 365) {
+  if (['year', 'flexible'].includes(member.Tier.interval) && days(new Date(member.lastDonation)) <= 365) {
     return true;
   }
 

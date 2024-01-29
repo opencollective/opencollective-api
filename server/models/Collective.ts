@@ -1449,10 +1449,7 @@ class Collective extends Model<
         ...where,
       },
       paranoid: false,
-      include: [
-        { model: Collective, as: 'fromCollective' },
-        { model: Tier, as: 'tier' },
-      ],
+      include: [{ model: Collective, as: 'fromCollective' }, { association: 'Tier' }],
     });
     orders.sort((a, b) => {
       if (a.dataValues.totalAmount > b.dataValues.totalAmount) {
@@ -1493,8 +1490,7 @@ class Collective extends Model<
           as: 'fromCollective',
         },
         {
-          model: Tier,
-          as: 'tier',
+          association: 'Tier',
         },
       ],
     });
@@ -1711,7 +1707,7 @@ class Collective extends Model<
         FromCollectiveId: backerCollective.id,
         CollectiveId: this.id,
       },
-      include: [{ model: Tier, as: 'tier' }],
+      include: [{ association: 'Tier' }],
     }).then(order => order && order.Tier);
   };
 

@@ -191,15 +191,15 @@ class Tier extends Model<InferAttributes<Tier>, InferCreationAttributes<Tier>> {
         MemberCollectiveId: { [Op.in]: backerCollectivesIds },
         CollectiveId: collective.id,
       },
-      include: [{ model: Tier, as: 'tier' }],
+      include: [{ association: 'Tier' }],
     }).then(memberships => {
       const membershipsForBackerCollective = {};
       memberships.map(m => {
-        membershipsForBackerCollective[m.MemberCollectiveId] = (m as any).tier;
+        membershipsForBackerCollective[m.MemberCollectiveId] = (m as any).Tier;
       });
       return backerCollectives.map(backerCollective => {
-        backerCollective.tier = membershipsForBackerCollective[backerCollective.id];
-        debug('appendTier for', backerCollective.name, ':', backerCollective.tier && backerCollective.tier.slug);
+        backerCollective.Tier = membershipsForBackerCollective[backerCollective.id];
+        debug('appendTier for', backerCollective.name, ':', backerCollective.Tier && backerCollective.Tier.slug);
         return backerCollective;
       });
     });

@@ -1303,8 +1303,7 @@ const CollectiveFields = () => {
 
         if (args.tierSlug) {
           query.include.push({
-            model: models.Tier,
-            as: 'tier',
+            association: 'Tier',
             where: { slug: args.tierSlug },
           });
         }

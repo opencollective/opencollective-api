@@ -1622,7 +1622,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       expect(result.errors).to.not.exist;
       const resultOrder = result.data.createPendingOrder;
       expect(resultOrder.status).to.equal('PENDING');
-      expect(resultOrder.tier.legacyId).to.equal(tier.id);
+      expect(resultOrder.Tier.legacyId).to.equal(tier.id);
     });
 
     it('creates a pending order with tax', async () => {
@@ -1927,7 +1927,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       expect(resultOrder.amount.valueInCents).to.equal(18150); // $150 + $31.50 (21%) tax
       expect(resultOrder.amount.currency).to.equal('USD');
       expect(resultOrder.fromAccount.legacyId).to.equal(validEditOrderParams.fromAccount.legacyId);
-      expect(resultOrder.tier.legacyId).to.equal(validEditOrderParams.tier.legacyId);
+      expect(resultOrder.Tier.legacyId).to.equal(validEditOrderParams.tier.legacyId);
       expect(resultOrder.description).to.equal('New description');
       expect(resultOrder.memo).to.equal('New memo');
       expect(resultOrder.pendingContributionData).to.exist;
@@ -2243,7 +2243,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       // Check order
       expect(migrationLog.data['orders']).to.deep.eq([order.id]);
       expect(resultOrder.toAccount.legacyId).to.eq(order.CollectiveId); // Should stay the same
-      expect(resultOrder.tier).to.be.null;
+      expect(resultOrder.Tier).to.be.null;
 
       // Check transactions
       expect(migrationLog.data['transactions']).to.be.empty;
@@ -2294,7 +2294,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       expect(migrationLog.data['orders']).to.deep.eq([order.id]);
       expect(resultOrder.fromAccount.legacyId).to.eq(newProfile.id);
       expect(resultOrder.toAccount.legacyId).to.eq(order.CollectiveId); // Should stay the same
-      expect(resultOrder.tier.legacyId).to.eq(newTier.id);
+      expect(resultOrder.Tier.legacyId).to.eq(newTier.id);
 
       // Check transactions
       const allOrderTransactions = await models.Transaction.findAll({ where: { OrderId: order.id } });
@@ -2723,7 +2723,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
         expect(result.errors).to.not.exist;
         expect(result.data.updateOrder.amount.value).to.eq(73);
-        expect(result.data.updateOrder.tier.name).to.eq(fixedTier.name);
+        expect(result.data.updateOrder.Tier.name).to.eq(fixedTier.name);
       });
 
       it('when changing the amount, the tax amount is updated too', async () => {
@@ -2799,7 +2799,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
           expect(result.errors).to.not.exist;
           expect(result.data.updateOrder.amount.value).to.eq(88);
-          expect(result.data.updateOrder.tier.name).to.eq(fixedYearlyTier.name);
+          expect(result.data.updateOrder.Tier.name).to.eq(fixedYearlyTier.name);
 
           const updatedOrder = await models.Order.findOne({
             where: { id: monthlyOrder.id },
@@ -2838,7 +2838,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
           expect(result.errors).to.not.exist;
           expect(result.data.updateOrder.amount.value).to.eq(77);
-          expect(result.data.updateOrder.tier.name).to.eq(fixedMonthlyTier.name);
+          expect(result.data.updateOrder.Tier.name).to.eq(fixedMonthlyTier.name);
 
           const updatedOrder = await models.Order.findOne({
             where: { id: yearlyOrder.id },
@@ -2877,7 +2877,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
           expect(result.errors).to.not.exist;
           expect(result.data.updateOrder.amount.value).to.eq(77);
-          expect(result.data.updateOrder.tier.name).to.eq(fixedMonthlyTier.name);
+          expect(result.data.updateOrder.Tier.name).to.eq(fixedMonthlyTier.name);
 
           const updatedOrder = await models.Order.findOne({
             where: { id: yearlyOrder.id },

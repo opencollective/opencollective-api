@@ -56,8 +56,7 @@ export async function run() {
     where: { status: OrderStatuses.CANCELLED },
     include: [
       {
-        model: models.Tier,
-        as: 'tier',
+        association: 'Tier',
         required: false,
       },
       {
