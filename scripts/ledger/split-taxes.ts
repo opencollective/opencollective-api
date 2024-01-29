@@ -74,6 +74,9 @@ const migrate = async () => {
       ...transactionsData,
       ...transactionToMigrate.data,
     });
+    if (!result) {
+      continue;
+    }
 
     // We're assuming that there are no other fees left. Don't migrate further than what has been done for host fees/processor fees!
     let creditAmount, debitAmount;

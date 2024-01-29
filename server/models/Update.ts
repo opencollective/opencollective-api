@@ -19,7 +19,10 @@ import { buildSanitizerOptions, generateSummaryForHTML, sanitizeHTML } from '../
 import sequelize, { DataTypes, Model, Op, QueryTypes } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
 
+import Activity from './Activity';
 import Collective from './Collective';
+import Comment from './Comment';
+import Tier from './Tier';
 import User from './User';
 
 export const sanitizerOptions = buildSanitizerOptions({
@@ -56,8 +59,6 @@ const PRIVATE_UPDATE_TARGET_ROLES = [
 ];
 
 const PUBLIC_UPDATE_TARGET_ROLES = [...PRIVATE_UPDATE_TARGET_ROLES, MemberRoles.FOLLOWER];
-
-const { models } = sequelize;
 
 class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Update>> {
   public declare id: CreationOptional<number>;
@@ -97,7 +98,7 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
   // Edit an update
   edit = async function (remoteUser, newUpdateData) {
     if (newUpdateData.TierId) {
-      const tier = await models.Tier.findByPk(newUpdateData.TierId);
+      const tier = await Tier.findByPk(newUpdateData.TierId);
       if (!tier) {
         throw new errors.ValidationFailed('Tier not found');
       }
@@ -118,10 +119,10 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
   publish = async function (remoteUser, notificationAudience) {
     this.publishedAt = new Date();
     this.notificationAudience = notificationAudience;
-    this.collective = this.collective || (await models.Collective.findByPk(this.CollectiveId));
-    this.fromCollective = this.fromCollective || (await models.Collective.findByPk(this.FromCollectiveId));
+    this.collective = this.collective || (await Collective.findByPk(this.CollectiveId));
+    this.fromCollective = this.fromCollective || (await Collective.findByPk(this.FromCollectiveId));
 
-    models.Activity.create({
+    Activity.create({
       type: activities.COLLECTIVE_UPDATE_PUBLISHED,
       UserId: remoteUser.id,
       CollectiveId: this.CollectiveId,
@@ -143,18 +144,15 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
   };
 
   delete = async function (remoteUser) {
-    await models.Comment.destroy({ where: { UpdateId: this.id } });
-    await models.Update.update(
-      { deletedAt: new Date(), LastEditedByUserId: remoteUser.id },
-      { where: { id: this.id } },
-    );
+    await Comment.destroy({ where: { UpdateId: this.id } });
+    await Update.update({ deletedAt: new Date(), LastEditedByUserId: remoteUser.id }, { where: { id: this.id } });
 
     return this;
   };
 
   // Returns the User model of the User that created this Update
   getUser = function () {
-    return models.User.findByPk(this.CreatedByUserId);
+    return User.findByPk(this.CreatedByUserId);
   };
 
   includeHostedAccountsInNotification = async function (notificationAudience) {
@@ -335,7 +333,7 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
 
   static makeUpdatesPublic = function () {
     const today = new Date().setUTCHours(0, 0, 0, 0);
-    return models.Update.update(
+    return Update.update(
       {
         isPrivate: false,
       },
@@ -517,9 +515,9 @@ Update.init(
         await instance.save({ hooks: false });
       },
       afterCreate: async instance => {
-        const collective = await models.Collective.findByPk(instance.CollectiveId);
-        const fromCollective = await models.Collective.findByPk(instance.FromCollectiveId);
-        models.Activity.create({
+        const collective = await Collective.findByPk(instance.CollectiveId);
+        const fromCollective = await Collective.findByPk(instance.FromCollectiveId);
+        Activity.create({
           type: activities.COLLECTIVE_UPDATE_CREATED,
           UserId: instance.CreatedByUserId,
           CollectiveId: instance.CollectiveId,

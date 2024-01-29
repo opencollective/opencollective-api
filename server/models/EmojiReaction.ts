@@ -17,7 +17,7 @@ class EmojiReaction extends Model<InferAttributes<EmojiReaction>, InferCreationA
 
   static async addReactionOnComment(user, commentId: number, emoji: ReactionEmoji) {
     try {
-      return EmojiReaction.create({
+      return await EmojiReaction.create({
         UserId: user.id,
         FromCollectiveId: user.CollectiveId,
         CommentId: commentId,
@@ -42,7 +42,7 @@ class EmojiReaction extends Model<InferAttributes<EmojiReaction>, InferCreationA
 
   static async addReactionOnUpdate(user, updateId, emoji: ReactionEmoji) {
     try {
-      return EmojiReaction.create({
+      return await EmojiReaction.create({
         UserId: user.id,
         FromCollectiveId: user.CollectiveId,
         UpdateId: updateId,

@@ -75,7 +75,12 @@ const migrate = async () => {
 
     // Create host fee transaction
     const creditPreMigrationData = pick(credit.dataValues, BACKUP_COLUMNS);
-    const { hostFeeTransaction } = await models.Transaction.createHostFeeTransactions(credit, host, transactionsData);
+    const result = await models.Transaction.createHostFeeTransactions(credit, host, transactionsData);
+    if (!result) {
+      continue;
+    }
+
+    const { hostFeeTransaction } = result;
 
     // Update hostFeeInHostCurrency for both DEBIT and CREDIT
     const transactionFees = credit.platformFeeInHostCurrency + credit.paymentProcessorFeeInHostCurrency;

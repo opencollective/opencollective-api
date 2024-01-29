@@ -10,7 +10,7 @@ import {
   InferCreationAttributes,
   Model,
   ModelStatic,
-  Transaction as SQLTransaction,
+  Transaction as SequelizeTransaction,
 } from 'sequelize';
 import { v4 as uuid } from 'uuid';
 
@@ -31,18 +31,18 @@ import { reportErrorToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op } from '../lib/sequelize';
 import { exportToCSV, parseToBoolean } from '../lib/utils';
 
+import Activity from './Activity';
 import Collective from './Collective';
 import CustomDataTypes from './DataTypes';
-import { OrderModelInterface } from './Order';
+import Order, { OrderModelInterface } from './Order';
+import PaymentMethod, { PaymentMethodModelInterface } from './PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
-import { TransactionSettlementStatus } from './TransactionSettlement';
+import TransactionSettlement, { TransactionSettlementStatus } from './TransactionSettlement';
 import User from './User';
 
 const { CREDIT, DEBIT } = TransactionTypes;
 
 const debug = debugLib('models:Transaction');
-
-const { models } = sequelize;
 
 export interface TransactionInterface
   extends Model<InferAttributes<TransactionInterface>, InferCreationAttributes<TransactionInterface>> {
@@ -92,7 +92,7 @@ export interface TransactionInterface
   host?: Collective;
   usingGiftCardFromCollective?: Collective;
   collective?: Collective;
-  PaymentMethod?: typeof models.PaymentMethod;
+  PaymentMethod?: PaymentMethodModelInterface;
   PayoutMethod?: PayoutMethod;
   Order?: OrderModelInterface;
 
@@ -150,7 +150,10 @@ interface TransactionModelStaticInterface {
   validateContributionPayload(payload: Record<string, unknown>): void;
   getPaymentProcessorFeeVendor(service: string): Promise<Collective>;
   getTaxVendor(taxId: string): Promise<Collective>;
-  createActivity(transaction: TransactionInterface, options?: { transaction: SQLTransaction }): Promise<void>;
+  createActivity(
+    transaction: TransactionInterface,
+    options?: { sequelizeTransaction?: SequelizeTransaction },
+  ): Promise<Activity | void>;
   createPlatformTipTransactions(
     transaction: TransactionCreationAttributes,
     host: Collective,
@@ -165,34 +168,34 @@ interface TransactionModelStaticInterface {
     host: Collective,
   ): Promise<TransactionInterface>;
   createPaymentProcessorFeeTransactions(
-    transaction: TransactionInterface | TransactionCreationAttributes,
+    transaction: TransactionCreationAttributes,
     data: Record<string, unknown> | null,
   ): Promise<{
     /** The original transaction, potentially modified if a payment processor fees was set */
     transaction: TransactionInterface | TransactionCreationAttributes;
     /** The payment processor fee transaction */
     paymentProcessorFeeTransaction: TransactionInterface;
-  }>;
+  } | void>;
   createTaxTransactions(
-    transaction: TransactionInterface | TransactionCreationAttributes,
+    transaction: TransactionCreationAttributes,
     data: Record<string, unknown> | null,
   ): Promise<{
     /** The original transaction, potentially modified if a tax was set */
     transaction: TransactionInterface | TransactionCreationAttributes;
     /** The tax transaction */
     taxTransaction: TransactionInterface;
-  }>;
+  } | void>;
   createHostFeeTransactions(
-    transaction: TransactionInterface | TransactionCreationAttributes,
+    transaction: TransactionCreationAttributes,
     host: Collective,
     data?: Record<string, unknown>,
   ): Promise<{
     transaction: TransactionInterface | TransactionCreationAttributes;
     hostFeeTransaction: TransactionInterface;
-  }>;
+  } | void>;
   createHostFeeShareTransactions(
     params: {
-      transaction: TransactionInterface | TransactionCreationAttributes;
+      transaction: TransactionCreationAttributes;
       hostFeeTransaction: TransactionInterface;
     },
     host: Collective,
@@ -200,7 +203,7 @@ interface TransactionModelStaticInterface {
   ): Promise<{
     hostFeeShareTransaction: TransactionInterface;
     hostFeeShareDebtTransaction: TransactionInterface;
-  }>;
+  } | void>;
   createHostFeeShareDebtTransactions(params: {
     hostFeeShareTransaction: TransactionInterface;
   }): Promise<TransactionInterface>;
@@ -492,12 +495,12 @@ const Transaction: ModelStatic<TransactionInterface> & TransactionModelStaticInt
  * Instance Methods
  */
 Transaction.prototype.getUser = function () {
-  return models.User.findByPk(this.CreatedByUserId);
+  return User.findByPk(this.CreatedByUserId);
 };
 
 Transaction.prototype.getGiftCardEmitterCollective = function () {
   if (this.UsingGiftCardFromCollectiveId) {
-    return models.Collective.findByPk(this.UsingGiftCardFromCollectiveId);
+    return Collective.findByPk(this.UsingGiftCardFromCollectiveId);
   }
 };
 
@@ -507,10 +510,10 @@ Transaction.prototype.getHostCollective = async function ({ loaders = undefined 
   if (!HostCollectiveId) {
     const fromCollective = loaders
       ? await loaders.Collective.byId.load(this.FromCollectiveId)
-      : await models.Collective.findByPk(this.FromCollectiveId);
+      : await Collective.findByPk(this.FromCollectiveId);
     HostCollectiveId = await fromCollective.getHostCollectiveId();
   }
-  return loaders ? loaders.Collective.byId.load(HostCollectiveId) : models.Collective.findByPk(HostCollectiveId);
+  return loaders ? loaders.Collective.byId.load(HostCollectiveId) : Collective.findByPk(HostCollectiveId);
 };
 
 Transaction.prototype.getSource = function () {
@@ -550,7 +553,7 @@ Transaction.prototype.hasPlatformTip = function () {
 };
 
 Transaction.prototype.getRelatedTransaction = function (options) {
-  return models.Transaction.findOne({
+  return Transaction.findOne({
     where: {
       TransactionGroup: this.TransactionGroup,
       type: options.type || this.type,
@@ -606,7 +609,7 @@ Transaction.prototype.setCurrency = async function (currency) {
 /**
  * Class Methods
  */
-Transaction.createMany = (transactions, defaultValues) => {
+Transaction.createMany = (transactions: TransactionCreationAttributes[], defaultValues) => {
   return Promise.all(
     transactions.map(transaction => {
       for (const attr in defaultValues) {
@@ -620,7 +623,7 @@ Transaction.createMany = (transactions, defaultValues) => {
   });
 };
 
-Transaction.createManyDoubleEntry = (transactions, defaultValues) => {
+Transaction.createManyDoubleEntry = (transactions: TransactionCreationAttributes[], defaultValues) => {
   return Promise.all(
     transactions.map(transaction => {
       for (const attr in defaultValues) {
@@ -732,7 +735,10 @@ Transaction.exportCSV = (transactions, collectivesById) => {
  * and we should move paymentProcessorFee, platformFee, hostFee to the Order model
  *
  */
-Transaction.createDoubleEntry = async (transaction, opts) => {
+Transaction.createDoubleEntry = async (
+  transaction: TransactionCreationAttributes,
+  opts,
+): Promise<TransactionInterface> => {
   // Force transaction type based on amount sign
   if (transaction.amount > 0) {
     transaction.type = CREDIT;
@@ -784,7 +790,7 @@ Transaction.createDoubleEntry = async (transaction, opts) => {
     transaction.amountInHostCurrency = Math.round(transaction.amountInHostCurrency);
   }
 
-  const fromCollective = await models.Collective.findByPk(transaction.FromCollectiveId);
+  const fromCollective = await Collective.findByPk(transaction.FromCollectiveId);
   const fromCollectiveHost = await fromCollective.getHostCollective();
 
   let oppositeTransaction = {
@@ -845,7 +851,7 @@ Transaction.createDoubleEntry = async (transaction, opts) => {
     // Handle Host Fee when paying an Expense between Hosts
     // TODO: This should not be part of `createDoubleEntry`, maybe `createTransactionsFromPaidExpense`?
     if (oppositeTransaction.kind === 'EXPENSE' && !oppositeTransaction.isRefund) {
-      const collective = await models.Collective.findByPk(transaction.CollectiveId);
+      const collective = await Collective.findByPk(transaction.CollectiveId);
       const collectiveHost = await collective.getHostCollective();
       if (collectiveHost.id !== fromCollectiveHost.id) {
         const hostFeePercent = fromCollective.isHostAccount ? 0 : fromCollective.hostFeePercent;
@@ -857,7 +863,7 @@ Transaction.createDoubleEntry = async (transaction, opts) => {
           hostFeePercent,
         );
         if (oppositeTransaction.hostFeeInHostCurrency) {
-          await models.Transaction.createHostFeeTransactions(oppositeTransaction, fromCollectiveHost);
+          await Transaction.createHostFeeTransactions(oppositeTransaction, fromCollectiveHost);
         }
       }
     }
@@ -880,7 +886,10 @@ Transaction.createDoubleEntry = async (transaction, opts) => {
 /**
  * Record a debt transaction and its associated settlement
  */
-Transaction.createPlatformTipDebtTransactions = async ({ platformTipTransaction }, host) => {
+Transaction.createPlatformTipDebtTransactions = async (
+  { platformTipTransaction }: { platformTipTransaction: TransactionInterface },
+  host: Collective,
+): Promise<TransactionInterface> => {
   if (platformTipTransaction.type === DEBIT) {
     throw new Error('createPlatformTipDebtTransactions must be given a CREDIT transaction');
   }
@@ -917,7 +926,7 @@ Transaction.createPlatformTipDebtTransactions = async ({ platformTipTransaction 
 
   // Create settlement
   const settlementStatus = TransactionSettlementStatus.OWED;
-  await models.TransactionSettlement.createForTransaction(platformTipDebtTransaction, settlementStatus);
+  await TransactionSettlement.createForTransaction(platformTipDebtTransaction, settlementStatus);
 
   return platformTipDebtTransaction;
 };
@@ -925,10 +934,18 @@ Transaction.createPlatformTipDebtTransactions = async ({ platformTipTransaction 
 /**
  * Creates platform tip transactions from a given transaction.
  * @param {Transaction} The actual transaction
- * @param {models.Collective} The host
+ * @param {Collective} The host
  * @param {boolean} Whether tip has been collected already (no debt needed)
  */
-Transaction.createPlatformTipTransactions = async (transactionData, host, isDirectlyCollected = false) => {
+Transaction.createPlatformTipTransactions = async (
+  transactionData: TransactionCreationAttributes,
+  host: Collective,
+  isDirectlyCollected: boolean = false,
+): Promise<void | {
+  transaction: TransactionCreationAttributes;
+  platformTipTransaction: TransactionInterface;
+  platformTipDebtTransaction: TransactionInterface | null;
+}> => {
   const platformTip = getPlatformTip(transactionData);
   if (!platformTip) {
     return;
@@ -1009,7 +1026,7 @@ Transaction.createPlatformTipTransactions = async (transactionData, host, isDire
   return { transaction: transactionData, platformTipTransaction, platformTipDebtTransaction };
 };
 
-Transaction.validateContributionPayload = payload => {
+Transaction.validateContributionPayload = (payload: TransactionCreationAttributes): void => {
   if (!payload.amount || typeof payload.amount !== 'number' || payload.amount < 0) {
     throw new Error('amount should be set and positive');
   }
@@ -1035,7 +1052,11 @@ Transaction.validateContributionPayload = payload => {
   }
 };
 
-Transaction.createHostFeeTransactions = async (transaction, host, data) => {
+Transaction.createHostFeeTransactions = async (
+  transaction: TransactionCreationAttributes,
+  host: Collective,
+  data,
+): Promise<{ transaction: TransactionCreationAttributes; hostFeeTransaction: TransactionInterface } | void> => {
   if (!transaction.hostFeeInHostCurrency) {
     return;
   }
@@ -1099,26 +1120,25 @@ Transaction.getPaymentProcessorFeeVendor = memoize(
       OTHER: 'other-payment-processor-vendor',
     };
 
-    return models.Collective.findBySlug(vendorSlugs[service] || vendorSlugs['OTHER']);
+    return Collective.findBySlug(vendorSlugs[service] || vendorSlugs['OTHER']);
   },
 );
 
 Transaction.createPaymentProcessorFeeTransactions = async (
-  transaction: TransactionInterface | TransactionCreationAttributes,
+  transaction: TransactionCreationAttributes,
   data: Record<string, unknown> | null = null,
 ): Promise<{
   /** The original transaction, potentially modified if a payment processor fees was set */
-  transaction: TransactionInterface | TransactionCreationAttributes;
+  transaction: TransactionCreationAttributes;
   /** The payment processor fee transaction */
   paymentProcessorFeeTransaction: TransactionInterface;
-}> => {
+} | void> => {
   if (!transaction.paymentProcessorFeeInHostCurrency) {
     return;
   }
 
-  const paymentMethod =
-    transaction.PaymentMethodId && (await models.PaymentMethod.findByPk(transaction.PaymentMethodId));
-  const payoutMethod = transaction.PayoutMethodId && (await models.PayoutMethod.findByPk(transaction.PayoutMethodId));
+  const paymentMethod = transaction.PaymentMethodId && (await PaymentMethod.findByPk(transaction.PaymentMethodId));
+  const payoutMethod = transaction.PayoutMethodId && (await PayoutMethod.findByPk(transaction.PayoutMethodId));
   let service = paymentMethod?.service || payoutMethod?.type || 'OTHER';
   if (service === PayoutMethodTypes.BANK_ACCOUNT && !data?.transfer) {
     service = 'OTHER';
@@ -1182,7 +1202,7 @@ Transaction.getTaxVendor = memoize(async (taxId): Promise<Collective> => {
     OTHER: 'other-tax-vendor',
   };
 
-  return models.Collective.findBySlug(vendorByTaxId[taxId] || vendorByTaxId['OTHER']);
+  return Collective.findBySlug(vendorByTaxId[taxId] || vendorByTaxId['OTHER']);
 });
 
 interface Tax {
@@ -1194,14 +1214,14 @@ interface Tax {
  * For expenses, the collective pays the full amount to the payee, then the payee is debited from the tax amount (to the TAX vendor)
  */
 Transaction.createTaxTransactions = async (
-  transaction: TransactionInterface | TransactionCreationAttributes,
+  transaction: TransactionCreationAttributes,
   data: Record<string, unknown> | null = null,
 ): Promise<{
   /** The original transaction, potentially modified if a payment processor fees was set */
-  transaction: TransactionInterface | TransactionCreationAttributes;
+  transaction: TransactionCreationAttributes;
   /** The payment processor fee transaction */
   taxTransaction: TransactionInterface;
-}> => {
+} | void> => {
   if (!transaction.taxAmount) {
     return;
   } else if (transaction.kind === TransactionKind.EXPENSE && transaction.type !== DEBIT) {
@@ -1281,13 +1301,22 @@ Transaction.createTaxTransactions = async (
 };
 
 Transaction.createHostFeeShareTransactions = async (
-  { transaction, hostFeeTransaction },
-  host,
-  isDirectlyCollected = false,
-) => {
+  {
+    transaction,
+    hostFeeTransaction,
+  }: {
+    transaction: TransactionInterface | TransactionCreationAttributes;
+    hostFeeTransaction: TransactionInterface;
+  },
+  host: Collective,
+  isDirectlyCollected: boolean = false,
+): Promise<{
+  hostFeeShareTransaction: TransactionInterface;
+  hostFeeShareDebtTransaction: TransactionInterface;
+} | void> => {
   let order;
   if (transaction.OrderId) {
-    order = await models.Order.findByPk(transaction.OrderId);
+    order = await Order.findByPk(transaction.OrderId);
   }
   const hostFeeSharePercent = await getHostFeeSharePercent(order, { host });
   if (!hostFeeSharePercent) {
@@ -1295,10 +1324,8 @@ Transaction.createHostFeeShareTransactions = async (
   }
 
   // Skip if missing or misconfigured
-  const hostFeeShareCollective = await models.Collective.findByPk(HOST_FEE_SHARE_TRANSACTION_PROPERTIES.CollectiveId);
-  const hostFeeShareHostCollective = await models.Collective.findByPk(
-    HOST_FEE_SHARE_TRANSACTION_PROPERTIES.HostCollectiveId,
-  );
+  const hostFeeShareCollective = await Collective.findByPk(HOST_FEE_SHARE_TRANSACTION_PROPERTIES.CollectiveId);
+  const hostFeeShareHostCollective = await Collective.findByPk(HOST_FEE_SHARE_TRANSACTION_PROPERTIES.HostCollectiveId);
   if (!hostFeeShareCollective || !hostFeeShareHostCollective) {
     return;
   }
@@ -1350,7 +1377,11 @@ Transaction.createHostFeeShareTransactions = async (
   return { hostFeeShareTransaction, hostFeeShareDebtTransaction };
 };
 
-Transaction.createHostFeeShareDebtTransactions = async ({ hostFeeShareTransaction }) => {
+Transaction.createHostFeeShareDebtTransactions = async ({
+  hostFeeShareTransaction,
+}: {
+  hostFeeShareTransaction: TransactionInterface;
+}): Promise<TransactionInterface> => {
   if (hostFeeShareTransaction.type === DEBIT) {
     throw new Error('createHostFeeShareDebtTransactions must be given a CREDIT transaction');
   }
@@ -1387,7 +1418,7 @@ Transaction.createHostFeeShareDebtTransactions = async ({ hostFeeShareTransactio
 
   // Create settlement
   const settlementStatus = TransactionSettlementStatus.OWED;
-  await models.TransactionSettlement.createForTransaction(hostFeeShareDebtTransaction, settlementStatus);
+  await TransactionSettlement.createForTransaction(hostFeeShareDebtTransaction, settlementStatus);
 
   return hostFeeShareDebtTransaction;
 };
@@ -1397,9 +1428,9 @@ Transaction.createHostFeeShareDebtTransactions = async ({ hostFeeShareTransactio
  * specified otherwise.
  */
 Transaction.createFromContributionPayload = async (
-  transaction,
+  transaction: TransactionCreationAttributes,
   opts = { isPlatformRevenueDirectlyCollected: false },
-) => {
+): Promise<TransactionInterface> => {
   try {
     Transaction.validateContributionPayload(transaction);
   } catch (error) {
@@ -1407,7 +1438,7 @@ Transaction.createFromContributionPayload = async (
   }
 
   // Retrieve Host
-  const collective = await models.Collective.findByPk(transaction.CollectiveId);
+  const collective = await Collective.findByPk(transaction.CollectiveId);
   const host = await collective.getHostCollective();
   transaction.HostCollectiveId = collective.isHostAccount ? collective.id : host.id;
   if (!transaction.HostCollectiveId) {
@@ -1469,19 +1500,22 @@ Transaction.createFromContributionPayload = async (
   return Transaction.createDoubleEntry(transaction);
 };
 
-Transaction.createActivity = (transaction, options) => {
+Transaction.createActivity = async (
+  transaction: TransactionInterface,
+  options: { sequelizeTransaction?: SequelizeTransaction } = {},
+): Promise<Activity | void> => {
   if (transaction.deletedAt || ['TAX', 'PAYMENT_PROCESSOR_FEE'].includes(transaction.kind)) {
     return Promise.resolve();
   }
   return (
     Transaction.findByPk(transaction.id, {
       include: [
-        { model: models.Collective, as: 'fromCollective' },
-        { model: models.Collective, as: 'collective' },
-        { model: models.User, as: 'createdByUser' },
-        { model: models.PaymentMethod },
+        { model: Collective, as: 'fromCollective' },
+        { model: Collective, as: 'collective' },
+        { model: User, as: 'createdByUser' },
+        { model: PaymentMethod },
       ],
-      transaction: options?.transaction,
+      transaction: options?.sequelizeTransaction,
     })
       // Create activity.
       .then(transaction => {
@@ -1506,7 +1540,7 @@ Transaction.createActivity = (transaction, options) => {
         if (transaction.PaymentMethod) {
           activityPayload.data['paymentMethod'] = transaction.PaymentMethod.info;
         }
-        return models.Activity.create(activityPayload, { transaction: options?.transaction });
+        return Activity.create(activityPayload, { transaction: options?.sequelizeTransaction });
       })
       .catch(err => {
         console.error(
@@ -1607,7 +1641,7 @@ Transaction.getFxRate = async function (fromCurrency, toCurrency, transaction) {
   return getFxRate(fromCurrency, toCurrency, transaction.createdAt);
 };
 
-Transaction.updateCurrency = async function (currency: SupportedCurrency, transaction) {
+Transaction.updateCurrency = async function (currency: SupportedCurrency, transaction: TransactionInterface) {
   // Nothing to do
   if (currency === transaction.currency) {
     return transaction;
@@ -1645,7 +1679,10 @@ Transaction.updateCurrency = async function (currency: SupportedCurrency, transa
  * @param {Transaction} options.oppositeTransaction the opposite transaction to validate. Will be fetched if not provided and validateOppositeTransaction is true.
  * @returns
  */
-Transaction.validate = async (transaction, { validateOppositeTransaction = true, oppositeTransaction = null } = {}) => {
+Transaction.validate = async (
+  transaction: TransactionInterface,
+  { validateOppositeTransaction = true, oppositeTransaction = null } = {},
+) => {
   // Skip as there is a known bug there
   // https://github.com/opencollective/opencollective/issues/3935
   if (transaction.kind === TransactionKind.PLATFORM_TIP) {
