@@ -186,7 +186,7 @@ const orderMutations = {
       const platformTipAmount = platformTip ? getValueInCentsFromAmountInput(platformTip) : 0;
       const loadersParams = { loaders: req.loaders, throwIfMissing: true };
       const loadAccount = account => fetchAccountWithReference(account, loadersParams);
-      const tier = order.Tier && (await fetchTierWithReference(order.Tier, loadersParams));
+      const tier = order.tier && (await fetchTierWithReference(order.tier, loadersParams));
       const fromCollective = order.fromAccount && (await loadAccount(order.fromAccount));
       const collective = await loadAccount(order.toAccount);
       const expectedCurrency = (tier && tier.currency) || collective.currency;
