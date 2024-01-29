@@ -86,7 +86,13 @@ describe('Transaction', () => {
     expect(result.errors).to.not.exist;
     expect(result.data.transactions.nodes).to.containSubset([
       // Original Transactions
-      { kind: 'EXPENSE', type: 'CREDIT', netAmount: { valueInCents: 10000 }, isRefund: false },
+      {
+        kind: 'EXPENSE',
+        type: 'CREDIT',
+        netAmount: { valueInCents: 10000 },
+        paymentProcessorFee: { valueInCents: -390 },
+        isRefund: false,
+      },
       {
         kind: 'EXPENSE',
         type: 'DEBIT',
@@ -96,7 +102,13 @@ describe('Transaction', () => {
       },
       { kind: 'PAYMENT_PROCESSOR_FEE', type: 'DEBIT', amount: { valueInCents: -390 }, isRefund: false },
       // Refund Transactions
-      { kind: 'EXPENSE', type: 'DEBIT', netAmount: { valueInCents: -10000 }, isRefund: true },
+      {
+        kind: 'EXPENSE',
+        type: 'DEBIT',
+        netAmount: { valueInCents: -10000 },
+        paymentProcessorFee: { valueInCents: 390 },
+        isRefund: true,
+      },
       {
         kind: 'EXPENSE',
         type: 'CREDIT',

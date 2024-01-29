@@ -63,7 +63,7 @@ export const generatePaymentProcessorFeeAmountForTransactionLoader = (): DataLoa
       });
 
       const processorFeesTransactions = await models.Transaction.findAll({
-        attributes: ['TransactionGroup', 'type', 'amountInHostCurrency'],
+        attributes: ['TransactionGroup', 'type', 'amountInHostCurrency', 'CollectiveId'],
         mapToModel: false,
         raw: true,
         where: {
@@ -75,23 +75,25 @@ export const generatePaymentProcessorFeeAmountForTransactionLoader = (): DataLoa
         },
       });
 
-      const keyBuilder = (transaction: TransactionInterface) => `${transaction.TransactionGroup}-${transaction.type}`;
+      // const keyBuilder = (transaction: TransactionInterface) => `${transaction.TransactionGroup}-${transaction.type}`;
       const groupedTransactions: Record<string, TransactionInterface[]> = groupBy(
         processorFeesTransactions,
-        keyBuilder,
+        'TransactionGroup',
       );
       return transactions.map(transaction => {
         if (transaction.paymentProcessorFeeInHostCurrency) {
           return transaction.paymentProcessorFeeInHostCurrency;
         } else {
-          const key = keyBuilder(transaction);
-          const processorFeeTransactions = groupedTransactions[key];
+          // const key = keyBuilder(transaction);
+          const processorFeeTransactions = groupedTransactions[transaction.TransactionGroup];
           if (!isEmpty(processorFeeTransactions)) {
             const processorFeeTransaction =
               // 1st we try to match the same CollectiveId to guarantee transaction type consistency
               find(processorFeeTransactions, { CollectiveId: transaction.CollectiveId }) ||
               // 2nd we fall back to debit, because a fee should always be negative unless the beneficiary of transaction is the processor itself (catch on 1st condition)
-              find(processorFeeTransactions, { type: TransactionTypes.DEBIT }) ||
+              find(processorFeeTransactions, {
+                type: transaction.isRefund ? TransactionTypes.CREDIT : TransactionTypes.DEBIT,
+              }) ||
               // Fall back to the first one
               processorFeeTransactions[0];
             return processorFeeTransaction.amountInHostCurrency;
