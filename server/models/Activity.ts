@@ -6,7 +6,7 @@ import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 import Expense from './Expense';
 
-export class Activity extends Model<InferAttributes<Activity>, InferCreationAttributes<Activity>> {
+class Activity extends Model<InferAttributes<Activity>, InferCreationAttributes<Activity>> {
   public declare readonly id: CreationOptional<number>;
   public declare type: ActivityTypes;
   public declare data: CreationOptional<Record<string, any> & { notify?: boolean }>;
@@ -114,7 +114,5 @@ Activity.init(
     },
   },
 );
-
-// ignore unused exports default
 
 export default Activity;

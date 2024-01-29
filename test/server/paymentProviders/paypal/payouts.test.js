@@ -17,12 +17,17 @@ import {
 } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
-describe('paymentMethods/paypal/payouts.js', () => {
-  const sandbox = createSandbox();
-  let expense, host, collective, payoutMethod;
+describe('server/paymentProviders/paypal/payouts.js', () => {
+  let expense, host, collective, payoutMethod, sandbox;
 
-  afterEach(sandbox.restore);
-  beforeEach(utils.resetTestDB);
+  beforeEach(async () => {
+    await utils.resetTestDB({ groupedTruncate: false });
+    sandbox = createSandbox();
+  });
+
+  afterEach(() => {
+    sandbox.restore();
+  });
 
   describe('payExpensesBatch', () => {
     let expense, host, collective, payoutMethod;

@@ -1,26 +1,26 @@
 import sequelize, { Op } from '../lib/sequelize';
 
 import AccountingCategory from './AccountingCategory';
-import { Activity } from './Activity';
+import Activity from './Activity';
 import Agreement from './Agreement';
 import Application from './Application';
 import Collective from './Collective';
 import Comment from './Comment';
-import { ConnectedAccount } from './ConnectedAccount';
+import ConnectedAccount from './ConnectedAccount';
 import Conversation from './Conversation';
 import ConversationFollower from './ConversationFollower';
-import { CurrencyExchangeRate } from './CurrencyExchangeRate';
+import CurrencyExchangeRate from './CurrencyExchangeRate';
 import EmojiReaction from './EmojiReaction';
 import Expense from './Expense';
-import { ExpenseAttachedFile } from './ExpenseAttachedFile';
-import { ExpenseItem } from './ExpenseItem';
-import { HostApplication } from './HostApplication';
+import ExpenseAttachedFile from './ExpenseAttachedFile';
+import ExpenseItem from './ExpenseItem';
+import HostApplication from './HostApplication';
 import LegalDocument from './LegalDocument';
 import Location from './Location';
 import Member from './Member';
 import MemberInvitation from './MemberInvitation';
 import MigrationLog from './MigrationLog';
-import { Notification } from './Notification';
+import Notification from './Notification';
 import OAuthAuthorizationCode from './OAuthAuthorizationCode';
 import Order from './Order';
 import PaymentMethod from './PaymentMethod';
@@ -28,7 +28,7 @@ import PayoutMethod from './PayoutMethod';
 import PaypalPlan from './PaypalPlan';
 import PaypalProduct from './PaypalProduct';
 import PersonalToken from './PersonalToken';
-import { RecurringExpense } from './RecurringExpense';
+import RecurringExpense from './RecurringExpense';
 import RequiredLegalDocument from './RequiredLegalDocument';
 import SocialLink from './SocialLink';
 import Subscription from './Subscription';
@@ -139,7 +139,6 @@ Collective.hasMany(Expense, { foreignKey: 'FromCollectiveId', as: 'submittedExpe
 Collective.hasMany(HostApplication, { foreignKey: 'CollectiveId', as: 'hostApplications' });
 Collective.hasMany(LegalDocument);
 Collective.hasMany(LegalDocument, { foreignKey: 'CollectiveId', as: 'legalDocuments' });
-Collective.hasMany(Member); // TODO: This one probably has the same effect as the one below, we should check and remove if that's the case
 Collective.hasMany(Member, { foreignKey: 'CollectiveId', as: 'members' });
 Collective.hasMany(Member, { foreignKey: 'MemberCollectiveId', as: 'memberships' });
 Collective.hasMany(Notification);
@@ -151,7 +150,6 @@ Collective.hasMany(Tier, { as: 'tiers' });
 Collective.hasMany(Transaction, { foreignKey: 'CollectiveId' });
 Collective.hasMany(VirtualCard, { foreignKey: 'CollectiveId', as: 'virtualCardCollectives' });
 Collective.hasMany(VirtualCard, { foreignKey: 'HostCollectiveId', as: 'virtualCards' });
-// Collective.hasMany(Order); // makes the test `mocha test/graphql.transaction.test.js -g "insensitive" fail
 Collective.hasOne(Location, { foreignKey: 'CollectiveId', as: 'location' });
 Collective.hasOne(User, { as: 'user', foreignKey: 'CollectiveId', constraints: false });
 

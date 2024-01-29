@@ -15,7 +15,7 @@ import Collective from './Collective';
 import UploadedFile from './UploadedFile';
 import User from './User';
 
-export default class Agreement extends Model<InferAttributes<Agreement>, InferCreationAttributes<Agreement>> {
+class Agreement extends Model<InferAttributes<Agreement>, InferCreationAttributes<Agreement>> {
   declare id: CreationOptional<number>;
   declare title: string;
   declare notes: string;
@@ -153,3 +153,5 @@ Agreement.init(
     paranoid: true,
   },
 );
+
+export default Agreement;

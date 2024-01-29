@@ -374,7 +374,7 @@ export const TransactionsCollectionResolver = async (
   const order: Order = parseToBoolean(config.ledger.orderedTransactions)
     ? [
         [
-          sequelize.fn('ROUND', sequelize.literal('ROUND(EXTRACT(epoch FROM "Transaction"."createdAt") / 10)')),
+          sequelize.literal('ROUND(EXTRACT(epoch FROM "Transaction"."createdAt" AT TIME ZONE \'UTC\') / 10)'),
           args.orderBy.direction,
         ],
         ['TransactionGroup', args.orderBy.direction],

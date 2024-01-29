@@ -1,16 +1,17 @@
 import config from 'config';
 import { pick } from 'lodash';
 import moment from 'moment';
-import { DataTypes, Model } from 'sequelize';
 import { v4 as uuid } from 'uuid';
 
 import { activities } from '../constants';
 import expenseStatus from '../constants/expense-status';
 import { reportErrorToSentry } from '../lib/sentry';
-import sequelize from '../lib/sequelize';
+import sequelize, { DataTypes, Model, Op } from '../lib/sequelize';
 
+import Collective from './Collective';
 import Expense from './Expense';
-import models, { Op } from '.';
+import ExpenseItem from './ExpenseItem';
+import User from './User';
 
 export enum RecurringExpenseIntervals {
   DAY = 'day',
@@ -36,7 +37,7 @@ type RecurringExpenseCreateAttributes =
   | Required<Pick<RecurringExpenseAttributes, 'interval' | 'CollectiveId' | 'FromCollectiveId'>>
   | Pick<RecurringExpenseAttributes, 'endsAt' | 'lastDraftedAt'>;
 
-export class RecurringExpense extends Model<RecurringExpenseAttributes, RecurringExpenseCreateAttributes> {
+class RecurringExpense extends Model<RecurringExpenseAttributes, RecurringExpenseCreateAttributes> {
   public declare id: number;
   public declare interval: string;
   public declare CollectiveId: number;
@@ -50,7 +51,7 @@ export class RecurringExpense extends Model<RecurringExpenseAttributes, Recurrin
   public static RecurringExpenseIntervals = RecurringExpenseIntervals;
 
   async getLastExpense(options = {}) {
-    return models.Expense.findOne({
+    return Expense.findOne({
       ...options,
       where: { RecurringExpenseId: this.id },
       order: [['createdAt', 'DESC']],
@@ -60,9 +61,9 @@ export class RecurringExpense extends Model<RecurringExpenseAttributes, Recurrin
   async createNextExpense() {
     const expense = await this.getLastExpense({
       include: [
-        { model: models.Collective, as: 'collective' },
-        { model: models.ExpenseItem, as: 'items' },
-        { model: models.User, as: 'User' },
+        { model: Collective, as: 'collective' },
+        { model: ExpenseItem, as: 'items' },
+        { model: User, as: 'User' },
       ],
     });
     if (!expense) {
@@ -119,7 +120,7 @@ export class RecurringExpense extends Model<RecurringExpenseAttributes, Recurrin
       status: expenseStatus.DRAFT,
     };
 
-    const draftedExpense = await models.Expense.create(draft);
+    const draftedExpense = await Expense.create(draft);
     await this.update({ lastDraftedAt: incurredAt });
 
     // Payee is always an user of the website, we can redirect them to the signin page to make sure they're logged in

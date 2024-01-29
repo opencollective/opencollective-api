@@ -24,11 +24,15 @@ if [[ ! -d ${DBDUMPS_DIR} ]]; then
 fi
 
 if [[ ! -s ${DBDUMPS_DIR}${FILENAME} ]]; then
-  PG_URL_ENVIRONMENT_VARIABLE=`heroku config:get PG_URL_ENVIRONMENT_VARIABLE -a "opencollective-${ENV}-api"`
-  PG_URL_ENVIRONMENT_VARIABLE="${PG_URL_ENVIRONMENT_VARIABLE:-DATABASE_URL}"
-  PG_URL=`heroku config:get ${PG_URL_ENVIRONMENT_VARIABLE} -a "opencollective-${ENV}-api"`
   echo "Dumping ${ENV} database"
-  pg_dump -O -F t "${PG_URL}" > "${DBDUMPS_DIR}${FILENAME}"
+  if [ -x "$(command -v heroku)" ]; then
+    heroku pg:backups:download -a "opencollective-${ENV}-api" -o "${DBDUMPS_DIR}${FILENAME}"
+  else
+    PG_URL_ENVIRONMENT_VARIABLE=`heroku config:get PG_URL_ENVIRONMENT_VARIABLE -a "opencollective-${ENV}-api"`
+    PG_URL_ENVIRONMENT_VARIABLE="${PG_URL_ENVIRONMENT_VARIABLE:-DATABASE_URL}"
+    PG_URL=`heroku config:get ${PG_URL_ENVIRONMENT_VARIABLE} -a "opencollective-${ENV}-api"`
+    pg_dump -O -F t "${PG_URL}" > "${DBDUMPS_DIR}${FILENAME}"
+  fi
 fi
 
 echo "DB dump saved in ${DBDUMPS_DIR}${FILENAME}"

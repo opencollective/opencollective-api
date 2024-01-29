@@ -7,8 +7,7 @@ import ActivityTypes, { ActivitiesPerClass, ActivityClasses } from '../constants
 import { CollectiveType } from '../constants/collectives';
 import MemberRoles from '../constants/roles';
 import { createRedisClient, RedisInstanceType } from '../lib/redis';
-import models, { Collective } from '../models';
-import { Activity } from '../models/Activity';
+import { Activity, Collective } from '../models';
 import { MemberModelInterface } from '../models/Member';
 
 import cache from './cache';
@@ -126,7 +125,7 @@ const createOrUpdateFeed = async (collective: Collective, sinceId?: number) => {
   if (sinceId) {
     where['id'] = { [Op.gt]: sinceId };
   }
-  const result = await models.Activity.findAll({
+  const result = await Activity.findAll({
     where,
     attributes: ['id', 'type', 'createdAt'],
     order,
@@ -184,7 +183,7 @@ export const getCollectiveFeed = async ({
       where['createdAt'] = { [Op.lt]: dateTo };
     }
 
-    const activities = await models.Activity.findAll({
+    const activities = await Activity.findAll({
       where,
       order,
       limit,
@@ -257,7 +256,7 @@ export const getCollectiveFeed = async ({
   }
 
   // Return the actual activities from the database
-  const activities = await models.Activity.findAll({ where: { id: ids }, order });
+  const activities = await Activity.findAll({ where: { id: ids }, order });
   stopWatch();
   return activities;
 };

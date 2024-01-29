@@ -14,10 +14,11 @@ import { TransactionKind } from '../constants/transaction-kind';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
+import Activity from './Activity';
 import Collective from './Collective';
+import Expense from './Expense';
 import { OrderModelInterface } from './Order';
 import User from './User';
-import models, { Expense } from '.';
 
 const instructionsSanitizeOptions = buildSanitizerOptions({
   basicTextFormatting: true,
@@ -77,7 +78,7 @@ class AccountingCategory extends Model<InferAttributes<AccountingCategory>, Acco
     user: User,
     data: AccountingCategoryEditActivityData,
   ): Promise<void> {
-    await models.Activity.create({
+    await Activity.create({
       type: ActivityTypes.ACCOUNTING_CATEGORIES_EDITED,
       UserId: user.id,
       CollectiveId: collective.id,

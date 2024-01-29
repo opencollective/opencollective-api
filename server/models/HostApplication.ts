@@ -13,7 +13,7 @@ export enum HostApplicationStatus {
   EXPIRED = 'EXPIRED',
 }
 
-export class HostApplication extends Model<InferAttributes<HostApplication>, InferCreationAttributes<HostApplication>> {
+class HostApplication extends Model<InferAttributes<HostApplication>, InferCreationAttributes<HostApplication>> {
   public declare readonly id: CreationOptional<number>;
   public declare CollectiveId: number;
   public declare HostCollectiveId: number;
@@ -154,7 +154,5 @@ HostApplication.init(
     paranoid: true,
   },
 );
-
-// ignore unused exports default
 
 export default HostApplication;

@@ -6,7 +6,7 @@ import { supportedServices } from '../constants/connected-account';
 import { crypto } from '../lib/encryption';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
-export class ConnectedAccount extends Model<
+class ConnectedAccount extends Model<
   InferAttributes<ConnectedAccount, { omit: 'info' | 'activity' | 'paypalConfig' }>,
   InferCreationAttributes<ConnectedAccount>
 > {

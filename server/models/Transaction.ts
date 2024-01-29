@@ -2,7 +2,7 @@ import assert from 'assert';
 
 import config from 'config';
 import debugLib from 'debug';
-import { get, isNil, isNull, isUndefined, memoize, omit, pick, startCase } from 'lodash';
+import { get, isNil, isNull, isUndefined, memoize, omit, pick } from 'lodash';
 import moment from 'moment';
 import {
   CreationOptional,
@@ -1135,7 +1135,7 @@ Transaction.createPaymentProcessorFeeTransactions = async (
   const paymentProcessorFeeTransactionData = {
     type: CREDIT,
     kind: TransactionKind.PAYMENT_PROCESSOR_FEE,
-    description: `${startCase(vendor.name)} payment processor fee`,
+    description: `${vendor.name} payment processor fee`,
     TransactionGroup: transaction.TransactionGroup,
     FromCollectiveId: transaction.CollectiveId,
     CollectiveId: vendor.id,
@@ -1237,7 +1237,7 @@ Transaction.createTaxTransactions = async (
   const taxTransactionData = {
     type: CREDIT,
     kind: TransactionKind.TAX,
-    description: `${startCase(vendor.name)} tax`,
+    description: `${vendor.name} tax`,
     TransactionGroup: transaction.TransactionGroup,
     FromCollectiveId,
     CollectiveId,

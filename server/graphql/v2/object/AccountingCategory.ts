@@ -7,7 +7,7 @@ import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
 import { GraphQLHost } from './Host';
 
-const GraphQLAccountingCategory = new GraphQLObjectType({
+export const GraphQLAccountingCategory = new GraphQLObjectType({
   name: 'AccountingCategory',
   description: 'Fields for an accounting category',
   fields: () => ({
@@ -52,5 +52,3 @@ const GraphQLAccountingCategory = new GraphQLObjectType({
     },
   }),
 });
-
-export default GraphQLAccountingCategory;

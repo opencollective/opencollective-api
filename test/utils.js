@@ -45,12 +45,19 @@ export const data = path => {
 
 export const resetCaches = () => cache.clear();
 
-export const resetTestDB = async () => {
+export const resetTestDB = async ({ groupedTruncate = true } = {}) => {
   const resetFn = async () => {
     // Using a manual query rather than `await sequelize.truncate({ cascade: true,  restartIdentity: true });`
     // for performance reasons: https://github.com/sequelize/sequelize/issues/15865
     const tableNames = values(sequelize.models).map(m => `"${m.tableName}"`);
-    await sequelize.query(`TRUNCATE TABLE ${tableNames.join(', ')} RESTART IDENTITY CASCADE`);
+    if (groupedTruncate) {
+      await sequelize.query(`TRUNCATE TABLE ${tableNames.join(', ')} RESTART IDENTITY CASCADE`);
+    } else {
+      // It was noted that using this syntax could avoid deadlocks
+      for (const tableName of tableNames) {
+        await sequelize.query(`TRUNCATE TABLE ${tableName} RESTART IDENTITY CASCADE`);
+      }
+    }
     // TODO: Do we really want to refresh all materialized views? That sounds expensive
     await sequelize.query(`REFRESH MATERIALIZED VIEW "TransactionBalances"`);
     await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"`);

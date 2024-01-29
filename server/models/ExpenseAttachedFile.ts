@@ -12,7 +12,7 @@ import User from './User';
 /**
  * Sequelize model to represent an ExpenseAttachedFile, linked to the `ExpenseAttachedFiles` table.
  */
-export class ExpenseAttachedFile extends Model {
+class ExpenseAttachedFile extends Model {
   public declare readonly id: number;
   public declare ExpenseId: ForeignKey<Expense['id']>;
   public declare CreatedByUserId: ForeignKey<User['id']>;
@@ -98,7 +98,5 @@ ExpenseAttachedFile.init(
     tableName: 'ExpenseAttachedFiles',
   },
 );
-
-// ignore unused exports default
 
 export default ExpenseAttachedFile;

@@ -10,8 +10,8 @@ import { ValidationFailed } from '../graphql/errors';
 import sequelize, { DataTypes, Model, Op } from '../lib/sequelize';
 import { getRootDomain } from '../lib/url-utils';
 
+import Collective from './Collective';
 import User from './User';
-import models, { Collective } from '.';
 
 const debug = debugLib('models:Notification');
 
@@ -22,7 +22,7 @@ const DEFAULT_ACTIVE_STATE_BY_CHANNEL = {
   [channels.WEBHOOK]: false,
 };
 
-export class Notification extends Model<InferAttributes<Notification>, InferCreationAttributes<Notification>> {
+class Notification extends Model<InferAttributes<Notification>, InferCreationAttributes<Notification>> {
   public declare readonly id: CreationOptional<number>;
   public declare channel: channels;
   public declare type: ActivityTypes | ActivityClasses | string;
@@ -35,7 +35,7 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
   public declare Collective?: Collective;
 
   getUser() {
-    return models.User.findByPk(this.UserId);
+    return User.findByPk(this.UserId);
   }
 
   static async createMany(
@@ -148,10 +148,10 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
    */
   static async getSubscribers(collectiveSlug: string | number, mailinglist: string) {
     const findByAttribute = typeof collectiveSlug === 'string' ? 'findBySlug' : 'findById';
-    const collective = await models.Collective[findByAttribute](collectiveSlug);
+    const collective = await Collective[findByAttribute](collectiveSlug);
 
     const getMembersForEvent = mailinglist =>
-      models.Collective.findOne({
+      Collective.findOne({
         where: { slug: mailinglist, type: 'EVENT' },
       }).then(event => {
         if (!event) {
@@ -194,7 +194,7 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
     if (!memberships || memberships.length === 0) {
       return [];
     }
-    return models.User.findAll({
+    return User.findAll({
       where: {
         CollectiveId: { [Op.in]: memberships.map(m => m.MemberCollectiveId) },
       },
@@ -207,7 +207,7 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
     if (!memberships || memberships.length === 0) {
       return [];
     }
-    return models.Collective.findAll({
+    return Collective.findAll({
       where: {
         id: { [Op.in]: memberships.map(m => m.MemberCollectiveId) },
       },
@@ -249,13 +249,13 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
     const getUsers = notifications => notifications.map(notification => notification.User);
 
     const userAttributes = _where.attributes && uniq([..._where.attributes, 'id']);
-    const include = [{ model: models.User, required: true, attributes: userAttributes }];
+    const include = [{ model: User, required: true, attributes: userAttributes }];
     const where = { active: false, ...pick(_where, ['UserId', 'channel']) };
 
     const classes = keys(pickBy(ActivitiesPerClass, array => array.includes(_where.type as ActivityTypes)));
     where['type'] = compact([_where.type, `${_where.type}.for.host`, ...classes]);
 
-    const collective = _where.CollectiveId && (await models.Collective.findByPk(_where.CollectiveId));
+    const collective = _where.CollectiveId && (await Collective.findByPk(_where.CollectiveId));
     if (collective) {
       // When looking for Notifications about specific Collective, we're also including the Collective parent and
       // it's host because:
@@ -321,7 +321,7 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
    * Counts registered webhooks for a user, for a collective.
    */
   static countRegisteredWebhooks(CollectiveId: number) {
-    return models.Notification.count({ where: { CollectiveId, channel: channels.WEBHOOK } });
+    return Notification.count({ where: { CollectiveId, channel: channels.WEBHOOK } });
   }
 }
 
@@ -426,7 +426,5 @@ Notification.init(
     },
   },
 );
-
-// ignore unused exports default
 
 export default Notification;

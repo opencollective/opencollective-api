@@ -5,8 +5,7 @@ import express from 'express';
 import { difference, find } from 'lodash';
 import moment from 'moment';
 
-import models, { Collective, Op, sequelize } from '../models';
-import { ConnectedAccount } from '../models/ConnectedAccount';
+import { Collective, ConnectedAccount, Op, sequelize } from '../models';
 import { paypalRequest } from '../paymentProviders/paypal/api';
 import {
   PayoutBatchDetails,
@@ -100,7 +99,7 @@ export const getHostPaypalAccount = async (host): Promise<ConnectedAccount> => {
 };
 
 export const getHostsWithPayPalConnected = async (): Promise<Collective[]> => {
-  return models.Collective.findAll({
+  return Collective.findAll({
     where: { isHostAccount: true },
     group: [sequelize.col('Collective.id')],
     order: [[sequelize.col('Collective.slug'), 'ASC']],

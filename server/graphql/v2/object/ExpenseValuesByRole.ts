@@ -5,7 +5,7 @@ import { Expense } from '../../../models';
 import { ExpenseDataValuesRoleDetails } from '../../../models/Expense';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
-import GraphQLAccountingCategory from './AccountingCategory';
+import { GraphQLAccountingCategory } from './AccountingCategory';
 
 const GraphQLExpenseValuesRoleDetails = new GraphQLObjectType({
   name: 'ExpenseValuesRoleDetails',
