@@ -1032,7 +1032,7 @@ const orderMutations = {
       const fromAccount = await fetchAccountWithReference(args.order.fromAccount, { throwIfMissing: true });
       const toAccount = await fetchAccountWithReference(args.order.toAccount, { throwIfMissing: true });
       const host = await toAccount.getHostCollective({ loaders: req.loaders });
-      const tier = args.order.Tier && (await fetchTierWithReference(args.order.Tier, { throwIfMissing: true }));
+      const tier = args.order.tier && (await fetchTierWithReference(args.order.tier, { throwIfMissing: true }));
 
       if (!req.remoteUser?.isAdminOfCollective(host)) {
         throw new Unauthorized('Only host admins can create pending orders');
@@ -1180,8 +1180,8 @@ const orderMutations = {
 
       // Load data
       const fromAccount = await fetchAccountWithReference(args.order.fromAccount);
-      const tier = args.order.Tier
-        ? await fetchTierWithReference(args.order.Tier, { throwIfMissing: true })
+      const tier = args.order.tier
+        ? await fetchTierWithReference(args.order.tier, { throwIfMissing: true })
         : order.Tier;
 
       // Check accounting category
