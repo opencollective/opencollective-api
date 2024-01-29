@@ -5,8 +5,6 @@ import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 import User from './User';
 
-const { models } = sequelize;
-
 class EmojiReaction extends Model<InferAttributes<EmojiReaction>, InferCreationAttributes<EmojiReaction>> {
   public declare readonly id: CreationOptional<number>;
   public declare UserId: ForeignKey<User['id']>;
@@ -19,7 +17,7 @@ class EmojiReaction extends Model<InferAttributes<EmojiReaction>, InferCreationA
 
   static async addReactionOnComment(user, commentId: number, emoji: ReactionEmoji) {
     try {
-      return await models.EmojiReaction.create({
+      return EmojiReaction.create({
         UserId: user.id,
         FromCollectiveId: user.CollectiveId,
         CommentId: commentId,
@@ -28,7 +26,7 @@ class EmojiReaction extends Model<InferAttributes<EmojiReaction>, InferCreationA
     } catch (e) {
       // Don't scream if the reaction already exists
       if (e.name === 'SequelizeUniqueConstraintError') {
-        return models.EmojiReaction.findOne({
+        return EmojiReaction.findOne({
           where: {
             UserId: user.id,
             FromCollectiveId: user.CollectiveId,
@@ -44,7 +42,7 @@ class EmojiReaction extends Model<InferAttributes<EmojiReaction>, InferCreationA
 
   static async addReactionOnUpdate(user, updateId, emoji: ReactionEmoji) {
     try {
-      return await models.EmojiReaction.create({
+      return EmojiReaction.create({
         UserId: user.id,
         FromCollectiveId: user.CollectiveId,
         UpdateId: updateId,
@@ -53,7 +51,7 @@ class EmojiReaction extends Model<InferAttributes<EmojiReaction>, InferCreationA
     } catch (e) {
       // Don't scream if the reaction already exists
       if (e.name === 'SequelizeUniqueConstraintError') {
-        return models.EmojiReaction.findOne({
+        return EmojiReaction.findOne({
           where: {
             UserId: user.id,
             FromCollectiveId: user.CollectiveId,

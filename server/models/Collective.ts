@@ -1718,7 +1718,7 @@ class Collective extends Model<
   addUserWithRole = async function (
     user,
     role,
-    defaultAttributes: { TierId?: any } = {},
+    defaultAttributes: { TierId?: number; CreatedByUserId?: number; description?: string; since?: Date } = {},
     context: {
       skipActivity?: any;
     } = {},

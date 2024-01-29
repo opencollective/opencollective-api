@@ -96,8 +96,10 @@ export interface TransactionInterface
   PayoutMethod?: PayoutMethod;
   Order?: OrderModelInterface;
 
+  // Getter Methods
+  info: Partial<TransactionInterface>;
+
   // Class methods
-  info: () => Partial<TransactionInterface>;
   getHostCollective: (options?: { loaders?: any }) => Promise<Collective>;
   getCollective: () => Promise<Collective | null>;
   getOrder: (options?: { paranoid?: boolean }) => Promise<OrderModelInterface | null>;
