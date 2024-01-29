@@ -343,7 +343,7 @@ const orderMutations = {
       const order = await models.Order.findOne({
         where: { id: decodedId },
         include: [
-          { association: 'subscription', required: true },
+          { association: 'Subscription', required: true },
           { association: 'collective', required: true },
           { association: 'fromCollective', required: true },
           { association: 'paymentMethod' },
