@@ -341,6 +341,13 @@ export async function createOrder(order, req) {
       fromCollective = await loaders.Collective.byId.load(remoteUser.CollectiveId);
     }
 
+    // Check currency
+    const currency = (tier && tier.currency) || collective.currency;
+    if (order.currency && order.currency !== currency) {
+      throw new Error(`Invalid currency. Expected ${currency}.`);
+    }
+
+    // Guest contribution
     let captchaResponse;
     if (!fromCollective) {
       // Create or retrieve guest profile from GUEST_TOKEN
@@ -355,7 +362,9 @@ export async function createOrder(order, req) {
           throw new BadRequest(err.message, undefined, order.guestInfo?.captcha);
         }
       }
-      const guestProfile = await getOrCreateGuestProfile(order.guestInfo, creationRequest);
+
+      const guestInfoInput = { ...order.guestInfo, currency: order.currency };
+      const guestProfile = await getOrCreateGuestProfile(guestInfoInput, creationRequest);
       if (!canUseFeature(guestProfile.user, FEATURE.ORDER)) {
         throw new FeatureNotAllowedForUser();
       }
@@ -368,12 +377,6 @@ export async function createOrder(order, req) {
 
     // Update the contributing profile with legal name / location
     await checkAndUpdateProfileInfo(order, fromCollective, isGuest);
-
-    // Check currency
-    const currency = (tier && tier.currency) || collective.currency;
-    if (order.currency && order.currency !== currency) {
-      throw new Error(`Invalid currency. Expected ${currency}.`);
-    }
 
     // ---- Taxes ----
     const taxInfo = await getOrderTaxInfo(order, collective, host, tier, loaders);

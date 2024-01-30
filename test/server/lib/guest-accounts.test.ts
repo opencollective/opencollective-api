@@ -16,7 +16,15 @@ describe('server/lib/guest-accounts.ts', () => {
       const user = await models.User.findOne({ where: { CollectiveId: collective.id } });
 
       expect(collective).to.exist;
+      expect(collective.currency).to.eq('USD'); // Default currency if not provided
       expect(user.email).to.eq(email);
+    });
+
+    it('Creates an account with the given currency', async () => {
+      const email = randEmail();
+      const { collective } = await getOrCreateGuestProfile({ email, currency: 'EUR' });
+      expect(collective).to.exist;
+      expect(collective.currency).to.eq('EUR');
     });
 
     it('Stores the creation request in user data', async () => {
