@@ -28,12 +28,14 @@ import { Location } from '../types/Location';
 import { BatchGroup, ExpenseDataQuoteV2, ExpenseDataQuoteV3, Transfer } from '../types/transferwise';
 
 import AccountingCategory from './AccountingCategory';
+import Activity from './Activity';
 import Collective from './Collective';
 import ExpenseAttachedFile from './ExpenseAttachedFile';
 import ExpenseItem from './ExpenseItem';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
 import RecurringExpense from './RecurringExpense';
-import { TransactionInterface } from './Transaction';
+import Transaction, { TransactionInterface } from './Transaction';
+import TransactionSettlement from './TransactionSettlement';
 import User from './User';
 import VirtualCard from './VirtualCard';
 
@@ -55,8 +57,6 @@ const PRIVATE_MESSAGE_SANITIZE_OPTS = buildSanitizerOptions({
   multilineTextFormatting: true,
   links: true,
 });
-
-const { models } = sequelize;
 
 class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Expense>> {
   public declare readonly id: CreationOptional<number>;
@@ -120,7 +120,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   declare getPayoutMethod: BelongsToGetAssociationMixin<PayoutMethod>;
   declare getRecurringExpense: BelongsToGetAssociationMixin<RecurringExpense>;
   declare getTransactions: HasManyGetAssociationsMixin<TransactionInterface>;
-  declare getVirtualCard: BelongsToGetAssociationMixin<typeof models.VirtualCard>;
+  declare getVirtualCard: BelongsToGetAssociationMixin<VirtualCard>;
   declare getAccountingCategory: BelongsToGetAssociationMixin<AccountingCategory>;
 
   /**
@@ -135,26 +135,31 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   createActivity = async function (
     type: ActivityTypes,
     user: User | { id: number } | null = null,
-    data: ({ notifyCollective?: boolean } & Record<string, unknown>) | null = {},
+    data:
+      | ({ notifyCollective?: boolean; ledgerTransaction?: TransactionInterface } & Record<string, unknown>)
+      | null = {},
   ) {
     const submittedByUser = await this.getSubmitterUser();
-    const submittedByUserCollective = await models.Collective.findByPk(submittedByUser.CollectiveId);
-    const fromCollective = this.fromCollective || (await models.Collective.findByPk(this.FromCollectiveId));
+    const submittedByUserCollective = await Collective.findByPk(submittedByUser.CollectiveId);
+    const fromCollective = this.fromCollective || (await Collective.findByPk(this.FromCollectiveId));
     if (!this.collective) {
       this.collective = await this.getCollective();
     }
     const host = await this.collective.getHostCollective(); // may be null
     const payoutMethod = await this.getPayoutMethod();
     const items = this.items || this.data?.items || (await this.getItems());
-    const transaction =
-      data?.ledgerTransaction ||
-      (this.status === ExpenseStatus.PAID &&
-        (await models.Transaction.findOne({
-          where: { type: 'DEBIT', kind: 'EXPENSE', ExpenseId: this.id },
-          order: [['id', 'DESC']],
-        })));
 
-    return models.Activity.create({
+    let transaction;
+    if (data?.ledgerTransaction) {
+      transaction = data.ledgerTransaction;
+    } else if (this.status === ExpenseStatus.PAID) {
+      transaction = await Transaction.findOne({
+        where: { type: 'DEBIT', kind: 'EXPENSE', ExpenseId: this.id },
+        order: [['id', 'DESC']],
+      });
+    }
+
+    return Activity.create({
       type,
       UserId: user?.id,
       CollectiveId: this.collective.id,
@@ -203,7 +208,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
 
   getSubmitterUser = async function () {
     if (!this.user) {
-      this.user = await models.User.findByPk(this.UserId);
+      this.user = await User.findByPk(this.UserId);
     }
     return this.user;
   };
@@ -215,7 +220,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
 
     // Update transactions settlement
     if (this.type === ExpenseType.SETTLEMENT || this.data?.['isPlatformTipSettlement']) {
-      await models.TransactionSettlement.markExpenseAsSettled(this);
+      await TransactionSettlement.markExpenseAsSettled(this);
     }
 
     try {
@@ -232,7 +237,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
    */
   createContributorMember = async function () {
     // This will return `null` if the payee is not a user
-    const fromUser = await models.User.findOne({ where: { CollectiveId: this.FromCollectiveId } });
+    const fromUser = await User.findOne({ where: { CollectiveId: this.FromCollectiveId } });
     if (!fromUser) {
       return null;
     }
@@ -500,8 +505,8 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
       },
       include: [
         ...include,
-        { model: models.ExpenseItem, as: 'items', required: true },
-        { model: models.Transaction, as: 'Transactions' },
+        { model: ExpenseItem, as: 'items', required: true },
+        { model: Transaction, as: 'Transactions' },
       ],
     });
 
@@ -777,8 +782,8 @@ Expense.init(
     paranoid: true,
     tableName: 'Expenses',
     hooks: {
-      afterDestroy(expense) {
-        return models.ExpenseItem.destroy({ where: { ExpenseId: expense.id } });
+      async afterDestroy(expense: Expense) {
+        await ExpenseItem.destroy({ where: { ExpenseId: expense.id } });
       },
     },
   },

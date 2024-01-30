@@ -30,7 +30,7 @@ import { MemberModelInterface } from './Member';
 import PaymentMethod, { PaymentMethodModelInterface } from './PaymentMethod';
 import { SubscriptionInterface } from './Subscription';
 import Tier from './Tier';
-import { TransactionInterface } from './Transaction';
+import Transaction, { TransactionInterface } from './Transaction';
 import User from './User';
 
 const { models } = sequelize;
@@ -371,7 +371,7 @@ Order.prototype.getTotalTransactions = function () {
   if (!this.SubscriptionId) {
     return this.totalAmount;
   }
-  return models.Transaction.sum('amount', {
+  return Transaction.sum('amount', {
     where: {
       OrderId: this.id,
       type: TransactionTypes.CREDIT,
@@ -434,7 +434,7 @@ Order.prototype.getOrCreateMembers = async function () {
   // Register user as backer of Open Collective
   let platformTipMember;
   if (this.platformTipAmount) {
-    const platform = await models.Collective.findByPk(PLATFORM_TIP_TRANSACTION_PROPERTIES.CollectiveId);
+    const platform = await Collective.findByPk(PLATFORM_TIP_TRANSACTION_PROPERTIES.CollectiveId);
     platformTipMember = await platform.findOrAddUserWithRole(
       { id: this.CreatedByUserId, CollectiveId: this.FromCollectiveId },
       roles.BACKER,
@@ -466,7 +466,7 @@ Order.prototype.getUser = function () {
   if (this.createdByUser) {
     return Promise.resolve(this.createdByUser);
   }
-  return models.User.findByPk(this.CreatedByUserId).then(user => {
+  return User.findByPk(this.CreatedByUserId).then(user => {
     this.createdByUser = user;
     debug('getUser', user.dataValues);
     return user.populateRoles();

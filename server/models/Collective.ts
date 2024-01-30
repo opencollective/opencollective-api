@@ -1718,7 +1718,7 @@ class Collective extends Model<
   addUserWithRole = async function (
     user,
     role,
-    defaultAttributes: { TierId?: any } = {},
+    defaultAttributes: { TierId?: number; CreatedByUserId?: number; description?: string; since?: Date } = {},
     context: {
       skipActivity?: any;
     } = {},
@@ -1883,7 +1883,7 @@ class Collective extends Model<
    * Used when creating a transactin to add a user to the collective as a backer if needed.
    * A new membership is registered for each `defaultAttributes.TierId`.
    */
-  findOrAddUserWithRole = function (user, role, defaultAttributes, context, transaction) {
+  findOrAddUserWithRole = function (user, role, defaultAttributes, context, transaction?: SequelizeTransaction) {
     return Member.findOne({
       where: {
         role,
@@ -2927,7 +2927,7 @@ class Collective extends Model<
     }
   };
 
-  getTotalTransactions = function (startDate, endDate, type, attribute = 'netAmountInCollectiveCurrency') {
+  getTotalTransactions = async function (startDate, endDate, type, attribute = 'netAmountInCollectiveCurrency') {
     endDate = endDate || new Date();
     const where = {
       ...this.transactionsWhereQuery(),
@@ -2942,10 +2942,11 @@ class Collective extends Model<
     if (type === 'expense') {
       where.amount = { [Op.lt]: 0 };
     }
-    return Transaction.findOne({
+    const result = (await Transaction.findOne({
       attributes: [[Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col(attribute)), 0), 'total']],
       where,
-    }).then(result => Promise.resolve(parseInt(result.toJSON().total, 10)));
+    })) as unknown as { total: string };
+    return parseInt(result.total, 10);
   };
 
   /**

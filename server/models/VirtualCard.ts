@@ -15,6 +15,7 @@ import sequelize, { DataTypes, Model, Op } from '../lib/sequelize';
 import * as stripeVirtualCards from '../paymentProviders/stripe/virtual-cards';
 
 import Collective from './Collective';
+import Expense from './Expense';
 import User from './User';
 import VirtualCardRequest from './VirtualCardRequest';
 
@@ -53,7 +54,7 @@ class VirtualCard extends Model<InferAttributes<VirtualCard, { omit: 'info' }>, 
   public declare getVirtualCardRequest?: BelongsToGetAssociationMixin<VirtualCardRequest>;
 
   async getExpensesMissingDetails(): Promise<Array<any>> {
-    return sequelize.models.Expense.findPendingCardCharges({
+    return Expense.findPendingCardCharges({
       where: { VirtualCardId: this.id, createdAt: { [Op.lte]: moment.utc().subtract(30, 'days') } },
     });
   }
