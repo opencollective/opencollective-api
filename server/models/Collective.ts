@@ -142,6 +142,7 @@ type Settings = {
   goals?: Array<Goal>;
   allowCollectiveAdminsToEditPrivateExpenseData?: boolean;
   disablePublicExpenseSubmission?: boolean;
+  isPlatformRevenueDirectlyCollected?: boolean;
   features?: {
     contactForm?: boolean;
   };
@@ -158,6 +159,7 @@ type Settings = {
       enabled: boolean;
       period: number;
     };
+    requestcard?: boolean;
   };
   payoutsTwoFactorAuth?: {
     enabled?: boolean;
