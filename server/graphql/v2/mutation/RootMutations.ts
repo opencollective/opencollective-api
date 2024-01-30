@@ -225,6 +225,9 @@ export default {
       const fromAccount = await fetchAccountWithReference(args.fromAccount, { throwIfMissing: true });
       const toAccount = await fetchAccountWithReference(args.toAccount, { throwIfMissing: true });
 
+      // Query can take a long time, change the default timeout
+      req.setTimeout(3 * 60 * 1000); // 3 minutes
+
       if (args.dryRun) {
         const message = await simulateMergeAccounts(fromAccount, toAccount);
         return { account: toAccount, message };
@@ -269,6 +272,9 @@ export default {
       } else if (!accounts.length) {
         return { isAllowed: false, accounts, message: 'No accounts to ban' };
       }
+
+      // Query can take a long time, change the default timeout
+      req.setTimeout(3 * 60 * 1000); // 3 minutes
 
       const banSummary = await getBanSummary(accounts);
       const isAllowed = !(banSummary.undeletableTransactionsCount || banSummary.newOrdersCount);
