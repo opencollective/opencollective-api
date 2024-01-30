@@ -8,12 +8,13 @@ import type Stripe from 'stripe';
 import { v4 as uuid } from 'uuid';
 
 import { Service } from '../../constants/connected-account';
+import { SupportedCurrency } from '../../constants/currencies';
 import FEATURE from '../../constants/feature';
 import OrderStatuses from '../../constants/order-status';
 import { PAYMENT_METHOD_TYPE, PAYMENT_METHOD_TYPES } from '../../constants/paymentMethods';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
-import { getFxRate } from '../../lib/currency';
+import { getFxRate, isSupportedCurrency } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { toNegative } from '../../lib/math';
 import {
@@ -22,6 +23,7 @@ import {
   sendEmailNotifications,
   sendOrderFailedEmail,
 } from '../../lib/payments';
+import { reportMessageToSentry } from '../../lib/sentry';
 import stripe from '../../lib/stripe';
 import models, { sequelize } from '../../models';
 import { OrderModelInterface } from '../../models/Order';
@@ -442,7 +444,13 @@ export const chargeDisputeClosed = async (event: Stripe.Event) => {
 
       // Create transaction for dispute fee debiting the fiscal host
       const feeDetails = disputeTransaction.fee_details.find(feeDetails => feeDetails.description === 'Dispute fee');
-      const currency = feeDetails.currency.toUpperCase();
+      const currency = feeDetails.currency.toUpperCase() as SupportedCurrency;
+      if (!isSupportedCurrency(currency)) {
+        reportMessageToSentry(`Unsupported currency ${currency} for dispute fee`, {
+          extra: { dispute, chargeTransaction },
+        });
+      }
+
       const amount = feeDetails.amount;
       const fiscalHost = await models.Collective.findByPk(chargeTransaction.HostCollectiveId);
       const hostCurrencyFxRate = await getFxRate(currency, fiscalHost.currency);

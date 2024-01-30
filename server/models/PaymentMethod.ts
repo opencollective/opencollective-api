@@ -3,6 +3,7 @@ import debugLib from 'debug';
 import { get, intersection } from 'lodash';
 import { InferAttributes, InferCreationAttributes, Model, ModelStatic } from 'sequelize';
 
+import { SupportedCurrency } from '../constants/currencies';
 import { maxInteger } from '../constants/math';
 import {
   PAYMENT_METHOD_SERVICE,
@@ -44,7 +45,7 @@ export interface PaymentMethodModelInterface
   token: string;
   primary: boolean;
   monthlyLimitPerMember: number;
-  currency: string;
+  currency: SupportedCurrency;
   service: PAYMENT_METHOD_SERVICE;
   type: PAYMENT_METHOD_TYPE;
   data: any;
@@ -61,7 +62,7 @@ export interface PaymentMethodModelInterface
   saved: boolean;
 
   getCollective(): Promise<Collective>;
-  getBalanceForUser(user): Promise<{ amount: number; currency: string }>;
+  getBalanceForUser(user): Promise<{ amount: number; currency: SupportedCurrency }>;
   Collective?: Collective;
 }
 

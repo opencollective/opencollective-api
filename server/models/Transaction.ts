@@ -15,6 +15,7 @@ import {
 import { v4 as uuid } from 'uuid';
 
 import activities from '../constants/activities';
+import { SupportedCurrency } from '../constants/currencies';
 import { PAYMENT_METHOD_SERVICE } from '../constants/paymentMethods';
 import { TransactionKind } from '../constants/transaction-kind';
 import {
@@ -51,8 +52,8 @@ export interface TransactionInterface
   uuid: CreationOptional<string>;
   description: string;
   amount: number;
-  currency: string;
-  hostCurrency: string;
+  currency: SupportedCurrency;
+  hostCurrency: SupportedCurrency;
   hostCurrencyFxRate: number;
   netAmountInCollectiveCurrency: number;
   amountInHostCurrency: number;
@@ -114,7 +115,7 @@ export interface TransactionInterface
   getGiftCardEmitterCollective: () => Promise<Collective | null>;
   getSource: () => Promise<Collective | null>;
   getUser: () => Promise<User | null>;
-  setCurrency: (currency: string) => Promise<TransactionInterface>;
+  setCurrency: (currency: SupportedCurrency) => Promise<TransactionInterface>;
   paymentMethodProviderCollectiveId: () => number;
 }
 
@@ -123,7 +124,7 @@ export interface TransactionInterface
 export type TransactionCreationAttributes = Partial<TransactionInterface>;
 
 interface TransactionModelStaticInterface {
-  updateCurrency(currency: string, transaction: TransactionInterface): Promise<TransactionInterface>;
+  updateCurrency(currency: SupportedCurrency, transaction: TransactionInterface): Promise<TransactionInterface>;
   createMany(
     transactions: TransactionCreationAttributes[],
     defaultValues?: TransactionCreationAttributes,
@@ -136,8 +137,8 @@ interface TransactionModelStaticInterface {
   exportCSV(transactions: TransactionInterface[], collectivesById: Record<number, Collective>): string;
 
   getFxRate(
-    fromCurrency: string,
-    toCurrency: string,
+    fromCurrency: SupportedCurrency,
+    toCurrency: SupportedCurrency,
     transaction?: TransactionInterface | TransactionCreationAttributes,
   ): Promise<number>;
   calculateNetAmountInCollectiveCurrency(transaction: TransactionInterface | TransactionCreationAttributes): number;
@@ -1604,7 +1605,7 @@ Transaction.getFxRate = async function (fromCurrency, toCurrency, transaction) {
   return getFxRate(fromCurrency, toCurrency, transaction.createdAt);
 };
 
-Transaction.updateCurrency = async function (currency, transaction) {
+Transaction.updateCurrency = async function (currency: SupportedCurrency, transaction) {
   // Nothing to do
   if (currency === transaction.currency) {
     return transaction;

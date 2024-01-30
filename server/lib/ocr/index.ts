@@ -1,6 +1,7 @@
 import config from 'config';
 import { get, uniq } from 'lodash';
 
+import { SupportedCurrency } from '../../constants/currencies';
 import { GraphQLAmountFields } from '../../graphql/v2/object/Amount';
 import { ParseUploadedFileResult } from '../../graphql/v2/object/ParseUploadedFileResult';
 import { UploadedFile, User } from '../../models';
@@ -48,7 +49,7 @@ const processFile = async (parser: ExpenseOCRService, uploadedFile: UploadedFile
  */
 const updateExpenseParsingResultWithCurrency = async (
   result: ExpenseOCRParseResult,
-  targetCurrency: string,
+  targetCurrency: SupportedCurrency,
 ): Promise<ParseUploadedFileResult> => {
   if (!targetCurrency) {
     return { success: true, expense: result };

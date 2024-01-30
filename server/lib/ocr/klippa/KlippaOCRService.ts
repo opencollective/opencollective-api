@@ -1,7 +1,9 @@
 import axios from 'axios';
 import config from 'config';
 
+import { SupportedCurrency } from '../../../constants/currencies';
 import { sequelize, User } from '../../../models';
+import { isSupportedCurrency } from '../../currency';
 import RateLimit from '../../rate-limit';
 import { reportErrorToSentry, reportMessageToSentry } from '../../sentry';
 import { ExpenseOCRParseResult, ExpenseOCRService } from '../ExpenseOCRService';
@@ -62,9 +64,11 @@ export class KlippaOCRService implements ExpenseOCRService {
       raw: result,
       confidence: this.getConfidenceFromResult(result.data),
       description: this.generateDescriptionFromResult(parsedData),
-      amount: !parsedData.currency ? null : { value: parsedData.amount, currency: parsedData.currency },
       date: !parsedData.date ? null : new Date(parsedData.date),
       items: this.getItemsFromResult(url, result.data),
+      amount: !isSupportedCurrency(parsedData.currency)
+        ? null
+        : { value: parsedData.amount, currency: parsedData.currency as SupportedCurrency },
     };
   }
 
@@ -134,18 +138,22 @@ export class KlippaOCRService implements ExpenseOCRService {
       const parsedData = resultData.parsed;
       return allLines.map(item => ({
         url,
-        amount: !parsedData.currency ? null : { value: item.amount, currency: parsedData.currency },
         description: item.title || item.description,
         incurredAt: !parsedData.date ? null : new Date(parsedData.date),
+        amount: !isSupportedCurrency(parsedData.currency)
+          ? null
+          : { value: item.amount, currency: parsedData.currency as SupportedCurrency },
       }));
     } else if (resultData.parsed.currency) {
       // If there's no item, we return the whole document as a single item
       return [
         {
           url,
-          amount: { value: resultData.parsed.amount, currency: resultData.parsed.currency },
           description: this.generateDescriptionFromResult(resultData.parsed),
           incurredAt: !resultData.parsed.date ? null : new Date(resultData.parsed.date),
+          amount: !isSupportedCurrency(resultData.parsed.currency)
+            ? null
+            : { value: resultData.parsed.amount, currency: resultData.parsed.currency as SupportedCurrency },
         },
       ];
     } else {

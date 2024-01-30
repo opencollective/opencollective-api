@@ -1,11 +1,13 @@
+import { SupportedCurrency } from '../constants/currencies';
+
 /**
  * Describes an exchange rate between two currencies. Safe to pass to the `CurrencyExchangeRate` GraphQL type.
  */
 export type CurrencyExchangeRateType = {
   value: number;
   source: 'OPENCOLLECTIVE' | 'PAYPAL' | 'WISE' | 'USER';
-  fromCurrency: string;
-  toCurrency: string;
+  fromCurrency: SupportedCurrency;
+  toCurrency: SupportedCurrency;
   date: Date;
   isApproximate: boolean;
 };
@@ -16,6 +18,6 @@ export type CurrencyExchangeRateType = {
  */
 export type AmountWithExchangeRate = {
   value: number;
-  currency: string;
+  currency: SupportedCurrency;
   exchangeRate?: CurrencyExchangeRateType;
 };

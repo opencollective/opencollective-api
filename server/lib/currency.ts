@@ -4,7 +4,7 @@ import { difference, get, groupBy, has, keys, mapValues, merge, set, uniq, zipOb
 import moment from 'moment';
 import fetch from 'node-fetch';
 
-import { currencyFormats, SUPPORTED_CURRENCIES } from '../constants/currencies';
+import { currencyFormats, SUPPORTED_CURRENCIES, SupportedCurrency } from '../constants/currencies';
 import models from '../models';
 
 import cache from './cache';
@@ -49,18 +49,20 @@ const showFixerWarning = () => {
 // Show fixer warning when booting the APP
 showFixerWarning();
 
+type ResultCurrencyMap = { [currency in SupportedCurrency]?: number };
+
 export const getRatesFromDb = async (
-  fromCurrency: string,
-  toCurrencies: string[],
+  fromCurrency: SupportedCurrency,
+  toCurrencies: SupportedCurrency[],
   date: string | Date = 'latest',
-): Promise<Record<string, number>> => {
+): Promise<ResultCurrencyMap> => {
   // TODO: This function is a bit messy, refactor it
 
   const hasOnlyOneCurrency = toCurrencies.length === 1;
   let isInverted = false;
-  if (!SUPPORTED_CURRENCIES.includes(fromCurrency)) {
+  if (!isSupportedCurrency(fromCurrency)) {
     isInverted = true;
-    if (!hasOnlyOneCurrency || !SUPPORTED_CURRENCIES.includes(toCurrencies[0])) {
+    if (!hasOnlyOneCurrency || !isSupportedCurrency(toCurrencies[0])) {
       // Can only convert *currency* -> *one of the supported currency* at the moment (so we don't support multiple targets)
       logger.warn(
         `getRatesFromDb: Tried to convert ${fromCurrency} to ${toCurrencies.join(', ')}, which is not supported `,
@@ -89,8 +91,8 @@ export const getRatesFromDb = async (
     if (
       !isInverted &&
       hasOnlyOneCurrency &&
-      SUPPORTED_CURRENCIES.includes(toCurrencies[0]) &&
-      SUPPORTED_CURRENCIES.includes(fromCurrency)
+      isSupportedCurrency(toCurrencies[0]) &&
+      isSupportedCurrency(fromCurrency)
     ) {
       const usdRates = await models.CurrencyExchangeRate.getMany(toCurrencies[0], [fromCurrency], date);
       if (usdRates[0]) {
@@ -115,10 +117,10 @@ export const getRatesFromDb = async (
 };
 
 export async function fetchFxRates(
-  fromCurrency: string,
-  toCurrencies: string[],
+  fromCurrency: SupportedCurrency,
+  toCurrencies: SupportedCurrency[],
   date: string | Date = 'latest',
-): Promise<Record<string, number>> {
+): Promise<ResultCurrencyMap> {
   date = getDate(date);
 
   const isFutureDate = date !== 'latest' && moment(date).isAfter(moment(), 'day'); // Fixer API is not able to fetch future rates. Ideally, this function should return null when requesting a future date.
@@ -171,13 +173,13 @@ export async function fetchFxRates(
 }
 
 export async function getFxRate(
-  fromCurrency: string,
-  toCurrency: string,
+  fromCurrency: SupportedCurrency,
+  toCurrency: SupportedCurrency,
   date: string | Date = 'latest',
 ): Promise<number> {
   debug(`getFxRate for ${date} ${fromCurrency} -> ${toCurrency}`);
-  fromCurrency = fromCurrency?.toUpperCase();
-  toCurrency = toCurrency?.toUpperCase();
+  fromCurrency = fromCurrency?.toUpperCase() as SupportedCurrency;
+  toCurrency = toCurrency?.toUpperCase() as SupportedCurrency;
 
   if (fromCurrency === toCurrency) {
     return 1;
@@ -207,12 +209,12 @@ export async function getFxRate(
  * Same as getFxRate, but optimized to handle multiple `toCurrency`
  */
 export async function getFxRates(
-  fromCurrency: string,
-  toCurrencies: string[],
+  fromCurrency: SupportedCurrency,
+  toCurrencies: SupportedCurrency[],
   date: string | Date = 'latest',
-): Promise<Record<string, number>> {
-  fromCurrency = fromCurrency?.toUpperCase();
-  toCurrencies = uniq(toCurrencies.map(c => c.toUpperCase()));
+): Promise<ResultCurrencyMap> {
+  fromCurrency = fromCurrency?.toUpperCase() as SupportedCurrency;
+  toCurrencies = uniq(toCurrencies.map(c => c.toUpperCase())) as SupportedCurrency[];
   date = getDate(date);
 
   // Retrieve everything we can from the cache
@@ -234,7 +236,7 @@ export async function getFxRates(
   if (Object.keys(rates).length === toCurrencies.length) {
     return rates;
   } else {
-    const currenciesLeftToFetch = difference(toCurrencies, Object.keys(rates));
+    const currenciesLeftToFetch = difference(toCurrencies, Object.keys(rates)) as SupportedCurrency[];
     const missingRates = await fetchFxRates(fromCurrency, currenciesLeftToFetch, date);
     return merge(rates, missingRates);
   }
@@ -242,8 +244,8 @@ export async function getFxRates(
 
 export function convertToCurrency(
   amount: number,
-  fromCurrency: string,
-  toCurrency: string,
+  fromCurrency: SupportedCurrency,
+  toCurrency: SupportedCurrency,
   date: string | Date = 'latest',
 ): Promise<number> {
   if (amount === 0) {
@@ -262,7 +264,7 @@ export function convertToCurrency(
 }
 
 type AmountWithCurrencyAndDate = {
-  currency: string;
+  currency: SupportedCurrency;
   amount: number;
   date: Date | string;
 };
@@ -272,7 +274,10 @@ type AmountWithCurrencyAndDate = {
  * to one total amount in the given currency
  * @param {*} array [ { currency, amount[, date] }]
  */
-export function reduceArrayToCurrency(array: AmountWithCurrencyAndDate[], currency: string): Promise<number> {
+export function reduceArrayToCurrency(
+  array: AmountWithCurrencyAndDate[],
+  currency: SupportedCurrency,
+): Promise<number> {
   return Promise.all(array.map(entry => convertToCurrency(entry.amount, entry.currency, currency, entry.date))).then(
     arrayInBaseCurrency => {
       return arrayInBaseCurrency.reduce((accumulator, amount) => accumulator + amount, 0);
@@ -281,13 +286,13 @@ export function reduceArrayToCurrency(array: AmountWithCurrencyAndDate[], curren
 }
 
 export type LoadFxRateRequest = {
-  fromCurrency: string;
-  toCurrency: string;
+  fromCurrency: SupportedCurrency;
+  toCurrency: SupportedCurrency;
   date?: string;
 };
 
 type LoadFxRateResultMap = {
-  [date: string | 'latest']: { [fromCurrency: string]: { [toCurrency: string]: number } };
+  [date: string | 'latest']: { [fromCurrency in SupportedCurrency]: { [toCurrency in SupportedCurrency]: number } };
 };
 
 export const getDateKeyForFxRateMap = (date: string | Date): 'latest' | string => {
@@ -315,10 +320,17 @@ export const loadFxRatesMap = async (requests: Array<LoadFxRateRequest>): Promis
   for (const [dateStr, requestsByCurrency] of Object.entries(groupedByDateAndFromCurrency)) {
     for (const [fromCurrency, requests] of Object.entries(requestsByCurrency)) {
       const toCurrencies = uniq(requests.map(request => request.toCurrency));
-      const fxRates = await getFxRates(fromCurrency, toCurrencies, dateStr);
+      const fxRates = await getFxRates(fromCurrency as SupportedCurrency, toCurrencies, dateStr);
       set(result, [dateStr, fromCurrency], fxRates);
     }
   }
 
   return result;
+};
+
+/**
+ * Checks if the given currency satisfies the `SUPPORTED_CURRENCIES` list.
+ */
+export const isSupportedCurrency = (value: string): boolean => {
+  return Boolean(value && SUPPORTED_CURRENCIES.includes(value as SupportedCurrency));
 };

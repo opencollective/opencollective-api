@@ -2,6 +2,7 @@ import type { Request } from 'express';
 import { capitalize, compact, filter, find, first, isEqual, isNil, keyBy, max, startCase, uniq, uniqBy } from 'lodash';
 import moment from 'moment';
 
+import { SupportedCurrency } from '../../constants/currencies';
 import status from '../../constants/expense-status';
 import expenseType from '../../constants/expense-type';
 import type { ConvertToCurrencyArgs } from '../../graphql/loaders/currency-exchange-rate';
@@ -294,8 +295,8 @@ const getDisplayCurrency = async expenses => {
 const getCollectiveBalances = async (
   req: Request,
   expenses: Expense[],
-  displayCurrency: string,
-): Promise<Record<string, { currency: string; value: number }>> => {
+  displayCurrency: SupportedCurrency,
+): Promise<Record<string, { currency: SupportedCurrency; value: number }>> => {
   const collectiveIds = uniq(expenses.map(e => e.CollectiveId));
   const balanceLoader = req.loaders.Collective.balance.buildLoader({ withBlockedFunds: true }); // Use the same loader as https://github.com/opencollective/opencollective-api/blob/main/server/graphql/v2/object/AccountStats.js#L70 to make sure we don't hit the DB twice
   const collectiveBalances = await balanceLoader.loadMany(collectiveIds);

@@ -4,8 +4,10 @@ import type { CreateOptions } from 'sequelize';
 import Stripe from 'stripe';
 
 import { Service } from '../../constants/connected-account';
+import { SupportedCurrency } from '../../constants/currencies';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import * as constants from '../../constants/transactions';
+import { isSupportedCurrency } from '../../lib/currency';
 import logger from '../../lib/logger';
 import {
   createRefundTransaction,
@@ -14,6 +16,7 @@ import {
   getPlatformTip,
   isPlatformTipEligible,
 } from '../../lib/payments';
+import { reportMessageToSentry } from '../../lib/sentry';
 import stripe, { convertFromStripeAmount, extractFees, retrieveChargeWithRefund } from '../../lib/stripe';
 import models, { Collective, ConnectedAccount } from '../../models';
 import { OrderModelInterface } from '../../models/Order';
@@ -112,7 +115,14 @@ export const refundTransactionOnlyInDatabase = async (
   );
 };
 
-export const createChargeTransactions = async (charge, { order }) => {
+export const createChargeTransactions = async (
+  charge,
+  {
+    order,
+  }: {
+    order: OrderModelInterface;
+  },
+) => {
   const host = await order.collective.getHostCollective();
   const hostStripeAccount = await order.collective.getHostStripeAccount();
   const isPlatformRevenueDirectlyCollected =
@@ -129,7 +139,11 @@ export const createChargeTransactions = async (charge, { order }) => {
   // Create a Transaction
   const amount = order.totalAmount;
   const currency = order.currency;
-  const hostCurrency = balanceTransaction.currency.toUpperCase();
+  const hostCurrency = balanceTransaction.currency.toUpperCase() as SupportedCurrency;
+  if (!isSupportedCurrency(hostCurrency)) {
+    reportMessageToSentry(`Unsupported currency ${hostCurrency} for transaction ${order.id}`);
+  }
+
   const amountInHostCurrency = convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount);
   const hostCurrencyFxRate = amountInHostCurrency / order.totalAmount;
 

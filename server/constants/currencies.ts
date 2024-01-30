@@ -308,7 +308,9 @@ export const SUPPORTED_CURRENCIES = [
   'YER',
   'ZAR',
   'ZMW',
-];
+] as const;
+
+export type SupportedCurrency = (typeof SUPPORTED_CURRENCIES)[number];
 
 export const SupportedCurrencies = pick(IBANCurrencies, SUPPORTED_CURRENCIES);
 

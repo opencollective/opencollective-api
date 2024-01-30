@@ -7,6 +7,7 @@
  * contributors should surface only unique collectives.
  */
 
+import { SupportedCurrency } from '../constants/currencies';
 import MemberRoles from '../constants/roles';
 import { Collective, sequelize } from '../models';
 
@@ -145,7 +146,7 @@ const contributorsQuery = `
 /**
  * Load contributors cache, filling it from DB if necessary.
  */
-const loadContributors = async (collectiveId: number, currency: string): Promise<ContributorsCacheEntry> => {
+const loadContributors = async (collectiveId: number, currency: SupportedCurrency): Promise<ContributorsCacheEntry> => {
   const cacheKey = getCacheKey(collectiveId);
   const fromCache = await cache.get(cacheKey);
   if (fromCache) {

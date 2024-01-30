@@ -3,6 +3,7 @@ import gql from 'fake-tag';
 import nock from 'nock';
 import { createSandbox } from 'sinon';
 
+import { SupportedCurrency } from '../../../../../server/constants/currencies';
 import MemberRoles from '../../../../../server/constants/roles';
 import { TransactionTypes } from '../../../../../server/constants/transactions';
 import * as TransactionMutationHelpers from '../../../../../server/graphql/common/transactions';
@@ -279,7 +280,7 @@ describe('refundTransaction legacy tests', () => {
   }
   /* eslint-enable camelcase */
 
-  async function setupTestObjects(currency = 'USD') {
+  async function setupTestObjects(currency: SupportedCurrency = 'USD') {
     const user = await models.User.createUserWithCollective(utils.data('user1'));
     const host = await models.User.createUserWithCollective(utils.data('host1'));
     const collective = await models.Collective.create(utils.data('collective1'));
