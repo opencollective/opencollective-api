@@ -41,6 +41,7 @@ describe('server/graphql/v2/mutation/TransactionMutations', () => {
 
   before(async () => {
     await utils.resetTestDB();
+    await utils.seedDefaultVendors();
   });
 
   before(() => {
