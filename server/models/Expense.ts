@@ -149,7 +149,10 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
     const transaction =
       data?.ledgerTransaction ||
       (this.status === ExpenseStatus.PAID &&
-        (await models.Transaction.findOne({ where: { type: 'DEBIT', kind: 'EXPENSE', ExpenseId: this.id } })));
+        (await models.Transaction.findOne({
+          where: { type: 'DEBIT', kind: 'EXPENSE', ExpenseId: this.id },
+          order: [['id', 'DESC']],
+        })));
 
     return models.Activity.create({
       type,
