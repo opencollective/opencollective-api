@@ -12,7 +12,7 @@ import models, { Collective, Member, Op, sequelize } from '../models';
 import Expense from '../models/Expense';
 import { MemberModelInterface } from '../models/Member';
 import { MemberInvitationModelInterface } from '../models/MemberInvitation';
-import { OrderModelInterface } from '../models/Order';
+import Order from '../models/Order';
 import { PaymentMethodModelInterface } from '../models/PaymentMethod';
 
 import logger from './logger';
@@ -398,7 +398,7 @@ export async function deleteCollective(collective) {
       status: { [Op.not]: ['PAID', 'ACTIVE', 'CANCELLED'] },
     },
   });
-  await map(orders, (order: OrderModelInterface) => order.destroy(), { concurrency: 3 });
+  await map(orders, (order: Order) => order.destroy(), { concurrency: 3 });
 
   const expenses = await models.Expense.findAll({
     where: {

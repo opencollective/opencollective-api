@@ -52,7 +52,7 @@ const backYourStackCollectiveData = {
 
 describe('server/graphql/v2/mutation/CreateCollectiveMutations', () => {
   beforeEach('reset db', async () => {
-    await utils.resetTestDB({ groupedTruncate: false });
+    await utils.resetTestDB();
   });
 
   let host;

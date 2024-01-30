@@ -696,6 +696,6 @@ Order.prototype.getSubscriptionForUser = async function (user: User): Promise<Su
 
 Temporal(Order, sequelize);
 
-export interface OrderModelInterface extends InstanceType<typeof Order> {}
+// export interface OrderModelInterface extends InstanceType<typeof Order> {}
 
 export default Order;
