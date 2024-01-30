@@ -248,7 +248,7 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     include.push({ association: 'Subscription', required: false });
     where[Op.and].push({
       [Op.or]: [
-        { ['$subscription.id$']: { [Op.ne]: null } },
+        { ['$Subscription.id$']: { [Op.ne]: null } },
         { interval: { [Op.in]: ['year', 'month'] }, status: 'PROCESSING' },
       ],
     });
