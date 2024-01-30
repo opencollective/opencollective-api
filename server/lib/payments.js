@@ -286,6 +286,8 @@ export async function refundPaymentProcessorFee(
   transactionGroup,
   data,
 ) {
+  const isLegacyPaymentProcessorFee = Boolean(transaction.paymentProcessorFeeInHostCurrency);
+
   // Refund processor fees if the processor sent money back
   if (refundedPaymentProcessorFee) {
     // Load processor fee transaction if using separate transactions
@@ -322,15 +324,17 @@ export async function refundPaymentProcessorFee(
     }
   }
 
-  // When refunding an Expense, we need to use the DEBIT transaction which is attached to the Collective and its Host.
-  const transactionToRefundPaymentProcessorFee = transaction.ExpenseId
-    ? await transaction.getRelatedTransaction({ type: DEBIT })
-    : transaction;
+  if (!refundedPaymentProcessorFee || isLegacyPaymentProcessorFee) {
+    // When refunding an Expense, we need to use the DEBIT transaction which is attached to the Collective and its Host.
+    const transactionToRefundPaymentProcessorFee = transaction.ExpenseId
+      ? await transaction.getRelatedTransaction({ type: DEBIT })
+      : transaction;
 
-  const feesPayer = transaction.data?.feesPayer || ExpenseFeesPayer.COLLECTIVE;
-  if (feesPayer === ExpenseFeesPayer.COLLECTIVE) {
-    // Host take at their charge the payment processor fee that is lost when refunding a transaction
-    await refundPaymentProcessorFeeToCollective(transactionToRefundPaymentProcessorFee, transactionGroup);
+    const feesPayer = transaction.data?.feesPayer || ExpenseFeesPayer.COLLECTIVE;
+    if (feesPayer === ExpenseFeesPayer.COLLECTIVE) {
+      // Host take at their charge the payment processor fee that is lost when refunding a transaction
+      await refundPaymentProcessorFeeToCollective(transactionToRefundPaymentProcessorFee, transactionGroup);
+    }
   }
 }
 

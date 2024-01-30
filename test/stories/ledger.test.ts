@@ -359,7 +359,7 @@ describe('test/stories/ledger', () => {
       // TODO: We should run the opposite settlement and check amount
     });
 
-    it('6. Expense with Payment Processor fees marked as unpaid', async () => {
+    it('6. Expense marked as unpaid with Payment Processor fees NOT REFUNDED', async () => {
       await collective.update({ hostFeePercent: 0 });
       const order = await fakeOrder({ ...baseOrderData, totalAmount: 150000 });
       order.paymentMethod = {
@@ -406,6 +406,56 @@ describe('test/stories/ledger', () => {
 
         expect(await host.getTotalMoneyManaged({ useMaterializedView })).to.eq(150000 - 500);
         expect(await host.getBalance({ useMaterializedView })).to.eq(-500);
+      }
+    });
+
+    it('7. Expense marked as unpaid with Payment Processor fees REFUNDED', async () => {
+      await collective.update({ hostFeePercent: 0 });
+      const order = await fakeOrder({ ...baseOrderData, totalAmount: 150000 });
+      order.paymentMethod = {
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.MANUAL,
+        paid: true,
+      } as any;
+      await executeOrder(contributorUser, order);
+
+      const expense = await fakeExpense({
+        description: `Invoice #1`,
+        amount: 100000,
+        currency: host.currency,
+        FromCollectiveId: contributorUser.CollectiveId,
+        CollectiveId: collective.id,
+        legacyPayoutMethod: 'manual',
+        status: 'APPROVED',
+      });
+
+      await payExpense({ remoteUser: hostAdmin } as any, {
+        id: expense.id,
+        forceManual: true,
+        totalAmountPaidInHostCurrency: 100000 + 500,
+        paymentProcessorFeeInHostCurrency: 500,
+      });
+
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
+      for (const useMaterializedView of [false, true]) {
+        expect(await collective.getBalance({ useMaterializedView })).to.eq(150000 - 100000 - 500);
+        expect(await collective.getTotalAmountSpent({ useMaterializedView })).to.eq(100000);
+        expect(await collective.getTotalAmountSpent({ useMaterializedView, net: true })).to.eq(100000 + 500);
+      }
+
+      await markExpenseAsUnpaid({ remoteUser: hostAdmin } as any, expense.id, true);
+      await snapshotLedger(SNAPSHOT_COLUMNS);
+
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
+      for (const useMaterializedView of [false, true]) {
+        expect(await collective.getBalance({ useMaterializedView })).to.eq(150000);
+        expect(await collective.getTotalAmountReceived({ useMaterializedView })).to.eq(150000);
+        expect(await collective.getTotalAmountReceived({ useMaterializedView, net: true })).to.eq(150000);
+        expect(await collective.getTotalAmountSpent({ useMaterializedView })).to.eq(0);
+        expect(await collective.getTotalAmountSpent({ useMaterializedView, net: true })).to.eq(0);
+
+        expect(await host.getTotalMoneyManaged({ useMaterializedView })).to.eq(150000);
+        expect(await host.getBalance({ useMaterializedView })).to.eq(0);
       }
     });
   });
