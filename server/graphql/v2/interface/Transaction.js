@@ -353,25 +353,23 @@ export const TransactionFields = () => {
       async resolve(transaction, args, req) {
         let { netAmountInCollectiveCurrency, hostFeeInHostCurrency, paymentProcessorFeeInHostCurrency, taxAmount } =
           transaction;
-        if (models.Transaction.canHaveFees(transaction)) {
-          if (args.fetchHostFee && !hostFeeInHostCurrency) {
-            hostFeeInHostCurrency = await req.loaders.Transaction.hostFeeAmountForTransaction.load(transaction);
-          }
-          if (args.fetchPaymentProcessorFee && !paymentProcessorFeeInHostCurrency) {
-            paymentProcessorFeeInHostCurrency =
-              await req.loaders.Transaction.paymentProcessorFeeAmountForTransaction.load(transaction);
-          }
-          if (args.fetchTax && !taxAmount) {
-            taxAmount = await req.loaders.Transaction.taxAmountForTransaction.load(transaction);
-          }
-          if (args.fetchHostFee || args.fetchPaymentProcessorFee || args.fetchTax) {
-            netAmountInCollectiveCurrency = models.Transaction.calculateNetAmountInCollectiveCurrency({
-              ...transaction.dataValues,
-              hostFeeInHostCurrency,
-              paymentProcessorFeeInHostCurrency,
-              taxAmount,
-            });
-          }
+        if (args.fetchHostFee && !hostFeeInHostCurrency) {
+          hostFeeInHostCurrency = await req.loaders.Transaction.hostFeeAmountForTransaction.load(transaction);
+        }
+        if (args.fetchPaymentProcessorFee && !paymentProcessorFeeInHostCurrency) {
+          paymentProcessorFeeInHostCurrency =
+            await req.loaders.Transaction.paymentProcessorFeeAmountForTransaction.load(transaction);
+        }
+        if (args.fetchTax && !taxAmount) {
+          taxAmount = await req.loaders.Transaction.taxAmountForTransaction.load(transaction);
+        }
+        if (args.fetchHostFee || args.fetchPaymentProcessorFee || args.fetchTax) {
+          netAmountInCollectiveCurrency = models.Transaction.calculateNetAmountInCollectiveCurrency({
+            ...transaction.dataValues,
+            hostFeeInHostCurrency,
+            paymentProcessorFeeInHostCurrency,
+            taxAmount,
+          });
         }
         return {
           value: netAmountInCollectiveCurrency,
@@ -401,25 +399,23 @@ export const TransactionFields = () => {
       async resolve(transaction, args, req) {
         let { netAmountInHostCurrency, hostFeeInHostCurrency, paymentProcessorFeeInHostCurrency, taxAmount } =
           transaction;
-        if (models.Transaction.canHaveFees(transaction)) {
-          if (args.fetchHostFee && !hostFeeInHostCurrency) {
-            hostFeeInHostCurrency = await req.loaders.Transaction.hostFeeAmountForTransaction.load(transaction);
-          }
-          if (args.fetchPaymentProcessorFee && !paymentProcessorFeeInHostCurrency) {
-            paymentProcessorFeeInHostCurrency =
-              await req.loaders.Transaction.paymentProcessorFeeAmountForTransaction.load(transaction);
-          }
-          if (args.fetchTax && !taxAmount) {
-            taxAmount = await req.loaders.Transaction.taxAmountForTransaction.load(transaction);
-          }
-          if (args.fetchHostFee || args.fetchPaymentProcessorFee || args.fetchTax) {
-            netAmountInHostCurrency = models.Transaction.calculateNetAmountInHostCurrency({
-              ...transaction.dataValues,
-              hostFeeInHostCurrency,
-              paymentProcessorFeeInHostCurrency,
-              taxAmount,
-            });
-          }
+        if (args.fetchHostFee && !hostFeeInHostCurrency) {
+          hostFeeInHostCurrency = await req.loaders.Transaction.hostFeeAmountForTransaction.load(transaction);
+        }
+        if (args.fetchPaymentProcessorFee && !paymentProcessorFeeInHostCurrency) {
+          paymentProcessorFeeInHostCurrency =
+            await req.loaders.Transaction.paymentProcessorFeeAmountForTransaction.load(transaction);
+        }
+        if (args.fetchTax && !taxAmount) {
+          taxAmount = await req.loaders.Transaction.taxAmountForTransaction.load(transaction);
+        }
+        if (args.fetchHostFee || args.fetchPaymentProcessorFee || args.fetchTax) {
+          netAmountInHostCurrency = models.Transaction.calculateNetAmountInHostCurrency({
+            ...transaction.dataValues,
+            hostFeeInHostCurrency,
+            paymentProcessorFeeInHostCurrency,
+            taxAmount,
+          });
         }
         return {
           value: netAmountInHostCurrency,
@@ -492,10 +488,8 @@ export const TransactionFields = () => {
       },
       async resolve(transaction, args, req) {
         let hostFeeInHostCurrency = transaction.hostFeeInHostCurrency;
-        if (models.Transaction.canHaveFees(transaction)) {
-          if (args.fetchHostFee && !hostFeeInHostCurrency) {
-            hostFeeInHostCurrency = await req.loaders.Transaction.hostFeeAmountForTransaction.load(transaction);
-          }
+        if (args.fetchHostFee && !hostFeeInHostCurrency) {
+          hostFeeInHostCurrency = await req.loaders.Transaction.hostFeeAmountForTransaction.load(transaction);
         }
         return {
           value: hostFeeInHostCurrency || 0,
@@ -515,11 +509,9 @@ export const TransactionFields = () => {
       description: 'Payment Processor Fee (usually in host currency)',
       async resolve(transaction, args, req) {
         let paymentProcessorFeeInHostCurrency = transaction.paymentProcessorFeeInHostCurrency;
-        if (models.Transaction.canHaveFees(transaction)) {
-          if (args.fetchPaymentProcessorFee && !paymentProcessorFeeInHostCurrency) {
-            paymentProcessorFeeInHostCurrency =
-              await req.loaders.Transaction.paymentProcessorFeeAmountForTransaction.load(transaction);
-          }
+        if (args.fetchPaymentProcessorFee && !paymentProcessorFeeInHostCurrency) {
+          paymentProcessorFeeInHostCurrency =
+            await req.loaders.Transaction.paymentProcessorFeeAmountForTransaction.load(transaction);
         }
         return {
           value: paymentProcessorFeeInHostCurrency || 0,

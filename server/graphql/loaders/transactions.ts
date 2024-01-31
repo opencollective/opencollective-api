@@ -36,7 +36,7 @@ export const generateHostFeeAmountForTransactionLoader = (): DataLoader<Transact
         } else {
           const key = keyBuilder(transaction);
           const hostFeeTransactions = groupedTransactions[key];
-          if (hostFeeTransactions) {
+          if (hostFeeTransactions && Transaction.canHaveFees(transaction)) {
             return hostFeeTransactions[0].amountInHostCurrency;
           } else {
             return 0;
@@ -83,7 +83,7 @@ export const generatePaymentProcessorFeeAmountForTransactionLoader = (): DataLoa
         } else {
           const key = keyBuilder(transaction);
           const processorFeeTransactions = groupedTransactions[key];
-          if (processorFeeTransactions) {
+          if (processorFeeTransactions && Transaction.canHaveFees(transaction)) {
             return processorFeeTransactions[0].amountInHostCurrency;
           } else {
             return 0;
@@ -125,7 +125,7 @@ export const generateTaxAmountForTransactionLoader = (): DataLoader<TransactionI
         } else {
           const key = keyBuilder(transaction);
           const taxTransactions = groupedTransactions[key];
-          if (taxTransactions) {
+          if (taxTransactions && Transaction.canHaveFees(transaction)) {
             return taxTransactions[0].amount;
           } else {
             return 0;
