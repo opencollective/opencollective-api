@@ -13,7 +13,7 @@ import { isNil, round } from 'lodash';
 
 import orderStatus from '../../../constants/order-status';
 import roles from '../../../constants/roles';
-import { TransactionKind as TransactionKinds } from '../../../constants/transaction-kind';
+import { TransactionKind } from '../../../constants/transaction-kind';
 import { generateDescription } from '../../../lib/transactions';
 import models from '../../../models';
 import { allowContextPermission, getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
@@ -29,6 +29,8 @@ import GraphQLPayoutMethod from '../object/PayoutMethod';
 import { GraphQLTaxInfo } from '../object/TaxInfo';
 
 import { GraphQLAccount } from './Account';
+
+const { CONTRIBUTION, EXPENSE } = TransactionKind;
 
 const GraphQLTransactionPermissions = new GraphQLObjectType({
   name: 'TransactionPermissions',
@@ -674,7 +676,7 @@ export const TransactionFields = () => {
           return;
         }
 
-        if (transaction.kind === TransactionKinds.CONTRIBUTION) {
+        if (transaction.kind === CONTRIBUTION) {
           const stripeId = transaction.data?.charge?.id;
           const onetimePaypalPaymentId = transaction.data?.capture?.id;
           const recurringPaypalPaymentId = transaction.data?.paypalSale?.id;
@@ -684,7 +686,7 @@ export const TransactionFields = () => {
           return stripeId || onetimePaypalPaymentId || recurringPaypalPaymentId || paypalResponseId;
         }
 
-        if (transaction.kind === TransactionKinds.EXPENSE) {
+        if (transaction.kind === EXPENSE) {
           let expense = transaction.expense;
           if (!expense && transaction.ExpenseId) {
             expense = await req.loaders.Expense.byId.load(transaction.ExpenseId);

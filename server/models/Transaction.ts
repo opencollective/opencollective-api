@@ -42,6 +42,8 @@ import User from './User';
 
 const { CREDIT, DEBIT } = TransactionTypes;
 
+const { CONTRIBUTION, EXPENSE, ADDED_FUNDS } = TransactionKind;
+
 const debug = debugLib('models:Transaction');
 
 export interface TransactionInterface
@@ -144,6 +146,7 @@ interface TransactionModelStaticInterface {
     transaction?: TransactionInterface | TransactionCreationAttributes,
   ): Promise<number>;
   calculateNetAmountInCollectiveCurrency(transaction: TransactionInterface | TransactionCreationAttributes): number;
+  canHaveFees(transaction: Partial<TransactionInterface>): boolean;
   assertAmountsLooselyEqual(a: number, b: number, message?: string): void;
   assertAmountsStrictlyEqual(a: number, b: number, message?: string): void;
   calculateNetAmountInHostCurrency(transaction: TransactionInterface): number;
@@ -748,9 +751,9 @@ Transaction.createDoubleEntry = async (
     throw new Error('Transaction type must be set when amount is 0');
   }
 
-  if (transaction.kind === TransactionKind.EXPENSE && transaction.type === CREDIT && !transaction.isRefund) {
+  if (transaction.kind === EXPENSE && transaction.type === CREDIT && !transaction.isRefund) {
     throw new Error('Transaction kind=EXPENSE should be initiated as a DEBIT transaction.');
-  } else if (transaction.kind === TransactionKind.CONTRIBUTION && transaction.type === DEBIT && !transaction.isRefund) {
+  } else if (transaction.kind === CONTRIBUTION && transaction.type === DEBIT && !transaction.isRefund) {
     throw new Error('Transaction kind=CONTRIBUTION should be initiated as a CREDIT transaction.');
   }
   // TODO: should we check for refunds also?
@@ -1224,7 +1227,7 @@ Transaction.createTaxTransactions = async (
 } | void> => {
   if (!transaction.taxAmount) {
     return;
-  } else if (transaction.kind === TransactionKind.EXPENSE && transaction.type !== DEBIT) {
+  } else if (transaction.kind === EXPENSE && transaction.type !== DEBIT) {
     throw new Error('createTaxTransactions should always be passed a DEBIT when kind=EXPENSE');
   }
 
@@ -1242,7 +1245,7 @@ Transaction.createTaxTransactions = async (
   let FromCollectiveId, CollectiveId;
   if (!transaction.isRefund) {
     CollectiveId = vendor.id;
-    if (transaction.kind === TransactionKind.EXPENSE) {
+    if (transaction.kind === EXPENSE) {
       FromCollectiveId = transaction.FromCollectiveId;
     } else {
       FromCollectiveId = transaction.CollectiveId;
@@ -1250,7 +1253,7 @@ Transaction.createTaxTransactions = async (
   } else {
     // it's not likely to be used like this, as taxes are separated
     FromCollectiveId = vendor.id;
-    if (transaction.kind === TransactionKind.EXPENSE) {
+    if (transaction.kind === EXPENSE) {
       CollectiveId = transaction.FromCollectiveId;
     } else {
       CollectiveId = transaction.CollectiveId;
@@ -1289,7 +1292,7 @@ Transaction.createTaxTransactions = async (
 
   // For expenses, tax needs to be added on top
   // amount: -10000, taxAmount: -2000 -> amount: -12000, taxAmount: 0
-  if (transaction.kind === TransactionKind.EXPENSE) {
+  if (transaction.kind === EXPENSE) {
     transaction.amount = transaction.amount + transaction.taxAmount;
     transaction.amountInHostCurrency = transaction.amount * transaction.hostCurrencyFxRate;
   }
@@ -1550,6 +1553,10 @@ Transaction.createActivity = async (
         reportErrorToSentry(err);
       })
   );
+};
+
+Transaction.canHaveFees = function ({ kind }: { kind: TransactionKind }) {
+  return [CONTRIBUTION, EXPENSE, ADDED_FUNDS].includes(kind);
 };
 
 Transaction.calculateNetAmountInCollectiveCurrency = function ({
