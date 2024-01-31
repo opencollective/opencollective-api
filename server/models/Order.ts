@@ -2,7 +2,16 @@ import { TaxType } from '@opencollective/taxes';
 import debugLib from 'debug';
 import { get } from 'lodash';
 import * as Sequelize from 'sequelize';
-import { DataTypes, Model, Op, Optional, QueryTypes } from 'sequelize';
+import {
+  CreationOptional,
+  DataTypes,
+  ForeignKey,
+  InferAttributes,
+  InferCreationAttributes,
+  Model,
+  Op,
+  QueryTypes,
+} from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
 import { SupportedCurrency } from '../constants/currencies';
@@ -11,7 +20,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymen
 import roles from '../constants/roles';
 import TierType from '../constants/tiers';
 import { PLATFORM_TIP_TRANSACTION_PROPERTIES, TransactionTypes } from '../constants/transactions';
-import * as libPayments from '../lib/payments';
+import { executeOrder } from '../lib/payments';
 import sequelize from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
 import { capitalize } from '../lib/utils';
@@ -31,64 +40,6 @@ const { models } = sequelize;
 
 const debug = debugLib('models:Order');
 
-export interface OrderAttributes {
-  id: number;
-  CreatedByUserId?: number;
-  CollectiveId?: number;
-  currency?: string;
-  totalAmount?: number;
-  description?: string;
-  SubscriptionId?: number;
-  createdAt?: Date;
-  updatedAt?: Date;
-  deletedAt?: Date;
-  PaymentMethodId?: number;
-  processedAt?: Date;
-  privateMessage?: string;
-  TierId?: number;
-  FromCollectiveId?: number;
-  publicMessage?: string;
-  quantity?: number;
-  status: string;
-  data?: object;
-  taxAmount?: number;
-  interval?: string;
-  tags?: string[];
-  platformTipAmount?: number;
-  platformTipEligible?: boolean;
-  AccountingCategoryId?: number;
-}
-
-export type OrderPk = 'id';
-export type OrderId = Order[OrderPk];
-export type OrderOptionalAttributes =
-  | 'id'
-  | 'CreatedByUserId'
-  | 'CollectiveId'
-  | 'currency'
-  | 'totalAmount'
-  | 'description'
-  | 'SubscriptionId'
-  | 'createdAt'
-  | 'updatedAt'
-  | 'deletedAt'
-  | 'PaymentMethodId'
-  | 'processedAt'
-  | 'privateMessage'
-  | 'TierId'
-  | 'FromCollectiveId'
-  | 'publicMessage'
-  | 'quantity'
-  | 'status'
-  | 'data'
-  | 'taxAmount'
-  | 'interval'
-  | 'tags'
-  | 'platformTipAmount'
-  | 'platformTipEligible'
-  | 'AccountingCategoryId';
-export type OrderCreationAttributes = Optional<OrderAttributes, OrderOptionalAttributes>;
-
 export type OrderTax = {
   id: TaxType;
   percentage: number;
@@ -96,128 +47,129 @@ export type OrderTax = {
   taxerCountry: string;
 };
 
-type Subscription = SubscriptionInterface;
-
-type AccountingCategoryId = AccountingCategory['id'];
-type ActivityId = Activity['id'];
-type CollectiveId = Collective['id'];
-type CommentId = Comment['id'];
-// type PaymentMethodId = PaymentMethodModelInterface['id'];
-type SubscriptionId = SubscriptionInterface['id'];
-type TierId = Tier['id'];
-type TransactionId = TransactionInterface['id'];
-type UserId = User['id'];
-
-class Order extends Model<OrderAttributes, OrderCreationAttributes> implements OrderAttributes {
-  declare id: number;
-  declare CreatedByUserId?: number;
-  declare CollectiveId?: number;
-  declare currency?: SupportedCurrency;
-  declare totalAmount?: number;
+class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>> {
+  declare id: CreationOptional<number>;
+  declare CreatedByUserId: ForeignKey<User['id']>;
+  declare CollectiveId: ForeignKey<Collective['id']>;
+  declare currency: SupportedCurrency;
+  declare totalAmount: number;
   declare description?: string;
   declare SubscriptionId?: number;
-  declare createdAt?: Date;
-  declare updatedAt?: Date;
+  declare createdAt: CreationOptional<Date>;
+  declare updatedAt: CreationOptional<Date>;
   declare deletedAt?: Date;
-  declare PaymentMethodId?: number;
+  declare PaymentMethodId?: ForeignKey<PaymentMethodModelInterface['id']>;
   declare processedAt?: Date;
   declare privateMessage?: string;
-  declare TierId?: number;
-  declare FromCollectiveId?: number;
+  declare TierId?: ForeignKey<Tier['id']>;
+  declare FromCollectiveId: ForeignKey<Collective['id']>;
   declare publicMessage?: string;
   declare quantity?: number;
   declare status: string;
-  declare data:
-    | {
-        hostFeePercent?: number;
-        memo?: string;
-        tax?: OrderTax;
-      }
-    | any; // TODO: Remove `any` once we have a proper type for this
+  declare data: {
+    hostFeePercent?: number;
+    memo?: string;
+    tax?: OrderTax;
+    paymentIntent?: any;
+    previousPaymentIntents?: any[];
+    customData?: any;
+    needsConfirmation?: boolean;
+    paypalStatusChangeNote?: string;
+    savePaymentMethod?: boolean;
+    isGuest?: boolean;
+    isPendingContribution?: boolean;
+    closedReason?: string;
+    taxRemovedFromMigration?: OrderTax;
+    taxAmountRemovedFromMigration?: number;
+  };
 
   declare taxAmount?: number;
   declare interval?: string;
   declare tags?: string[];
-  declare platformTipAmount?: number;
-  declare platformTipEligible?: boolean;
+  declare platformTipAmount: number;
+  declare platformTipEligible: boolean;
   declare AccountingCategoryId?: number;
 
-  // Order belongsTo AccountingCategory via AccountingCategoryId
-  declare accountingCategory: AccountingCategory;
+  // Order belongsTo AccountingCategory via AccountingCategory['id']
+  declare accountingCategory?: AccountingCategory;
   declare getAccountingCategory: Sequelize.BelongsToGetAssociationMixin<AccountingCategory>;
-  declare setAccountingCategory: Sequelize.BelongsToSetAssociationMixin<AccountingCategory, AccountingCategoryId>;
+  declare setAccountingCategory: Sequelize.BelongsToSetAssociationMixin<AccountingCategory, AccountingCategory['id']>;
   declare createAccountingCategory: Sequelize.BelongsToCreateAssociationMixin<AccountingCategory>;
-  // Order belongsTo Collective via CollectiveId
-  declare collective: Collective;
+  // Order belongsTo Collective via Collective['id']
+  declare collective?: Collective;
   declare getCollective: Sequelize.BelongsToGetAssociationMixin<Collective>;
-  declare setCollective: Sequelize.BelongsToSetAssociationMixin<Collective, CollectiveId>;
+  declare setCollective: Sequelize.BelongsToSetAssociationMixin<Collective, Collective['id']>;
   declare createCollective: Sequelize.BelongsToCreateAssociationMixin<Collective>;
-  // Order belongsTo Collective via FromCollectiveId
-  declare fromCollective: Collective;
+  // Order belongsTo Collective via Collective['id']
+  declare fromCollective?: Collective;
   declare getFromCollective: Sequelize.BelongsToGetAssociationMixin<Collective>;
-  declare setFromCollective: Sequelize.BelongsToSetAssociationMixin<Collective, CollectiveId>;
+  declare setFromCollective: Sequelize.BelongsToSetAssociationMixin<Collective, Collective['id']>;
   declare createFromCollective: Sequelize.BelongsToCreateAssociationMixin<Collective>;
   // Order hasMany Activity via OrderId
-  declare activities: Activity[];
+  declare activities?: Activity[];
   declare getActivities: Sequelize.HasManyGetAssociationsMixin<Activity>;
-  declare setActivities: Sequelize.HasManySetAssociationsMixin<Activity, ActivityId>;
-  declare addActivity: Sequelize.HasManyAddAssociationMixin<Activity, ActivityId>;
-  declare addActivities: Sequelize.HasManyAddAssociationsMixin<Activity, ActivityId>;
+  declare setActivities: Sequelize.HasManySetAssociationsMixin<Activity, Activity['id']>;
+  declare addActivity: Sequelize.HasManyAddAssociationMixin<Activity, Activity['id']>;
+  declare addActivities: Sequelize.HasManyAddAssociationsMixin<Activity, Activity['id']>;
   declare createActivity: Sequelize.HasManyCreateAssociationMixin<Activity>;
-  declare removeActivity: Sequelize.HasManyRemoveAssociationMixin<Activity, ActivityId>;
-  declare removeActivities: Sequelize.HasManyRemoveAssociationsMixin<Activity, ActivityId>;
-  declare hasActivity: Sequelize.HasManyHasAssociationMixin<Activity, ActivityId>;
-  declare hasActivities: Sequelize.HasManyHasAssociationsMixin<Activity, ActivityId>;
+  declare removeActivity: Sequelize.HasManyRemoveAssociationMixin<Activity, Activity['id']>;
+  declare removeActivities: Sequelize.HasManyRemoveAssociationsMixin<Activity, Activity['id']>;
+  declare hasActivity: Sequelize.HasManyHasAssociationMixin<Activity, Activity['id']>;
+  declare hasActivities: Sequelize.HasManyHasAssociationsMixin<Activity, Activity['id']>;
   declare countActivities: Sequelize.HasManyCountAssociationsMixin;
   // Order hasMany Comment via OrderId
-  declare comments: Comment[];
+  declare comments?: Comment[];
   declare getComments: Sequelize.HasManyGetAssociationsMixin<Comment>;
-  declare setComments: Sequelize.HasManySetAssociationsMixin<Comment, CommentId>;
-  declare addComment: Sequelize.HasManyAddAssociationMixin<Comment, CommentId>;
-  declare addComments: Sequelize.HasManyAddAssociationsMixin<Comment, CommentId>;
+  declare setComments: Sequelize.HasManySetAssociationsMixin<Comment, Comment['id']>;
+  declare addComment: Sequelize.HasManyAddAssociationMixin<Comment, Comment['id']>;
+  declare addComments: Sequelize.HasManyAddAssociationsMixin<Comment, Comment['id']>;
   declare createComment: Sequelize.HasManyCreateAssociationMixin<Comment>;
-  declare removeComment: Sequelize.HasManyRemoveAssociationMixin<Comment, CommentId>;
-  declare removeComments: Sequelize.HasManyRemoveAssociationsMixin<Comment, CommentId>;
-  declare hasComment: Sequelize.HasManyHasAssociationMixin<Comment, CommentId>;
-  declare hasComments: Sequelize.HasManyHasAssociationsMixin<Comment, CommentId>;
+  declare removeComment: Sequelize.HasManyRemoveAssociationMixin<Comment, Comment['id']>;
+  declare removeComments: Sequelize.HasManyRemoveAssociationsMixin<Comment, Comment['id']>;
+  declare hasComment: Sequelize.HasManyHasAssociationMixin<Comment, Comment['id']>;
+  declare hasComments: Sequelize.HasManyHasAssociationsMixin<Comment, Comment['id']>;
   declare countComments: Sequelize.HasManyCountAssociationsMixin;
   // Order hasMany Transaction via OrderId
-  declare Transactions: TransactionInterface[];
+  declare Transactions?: TransactionInterface[];
   declare getTransactions: Sequelize.HasManyGetAssociationsMixin<TransactionInterface>;
-  declare setTransactions: Sequelize.HasManySetAssociationsMixin<TransactionInterface, TransactionId>;
-  declare addTransaction: Sequelize.HasManyAddAssociationMixin<TransactionInterface, TransactionId>;
-  declare addTransactions: Sequelize.HasManyAddAssociationsMixin<TransactionInterface, TransactionId>;
+  declare setTransactions: Sequelize.HasManySetAssociationsMixin<TransactionInterface, TransactionInterface['id']>;
+  declare addTransaction: Sequelize.HasManyAddAssociationMixin<TransactionInterface, TransactionInterface['id']>;
+  declare addTransactions: Sequelize.HasManyAddAssociationsMixin<TransactionInterface, TransactionInterface['id']>;
   declare createTransaction: Sequelize.HasManyCreateAssociationMixin<TransactionInterface>;
-  declare removeTransaction: Sequelize.HasManyRemoveAssociationMixin<TransactionInterface, TransactionId>;
-  declare removeTransactions: Sequelize.HasManyRemoveAssociationsMixin<TransactionInterface, TransactionId>;
-  declare hasTransaction: Sequelize.HasManyHasAssociationMixin<TransactionInterface, TransactionId>;
-  declare hasTransactions: Sequelize.HasManyHasAssociationsMixin<TransactionInterface, TransactionId>;
+  declare removeTransaction: Sequelize.HasManyRemoveAssociationMixin<TransactionInterface, TransactionInterface['id']>;
+  declare removeTransactions: Sequelize.HasManyRemoveAssociationsMixin<
+    TransactionInterface,
+    TransactionInterface['id']
+  >;
+
+  declare hasTransaction: Sequelize.HasManyHasAssociationMixin<TransactionInterface, TransactionInterface['id']>;
+  declare hasTransactions: Sequelize.HasManyHasAssociationsMixin<TransactionInterface, TransactionInterface['id']>;
   declare countTransactions: Sequelize.HasManyCountAssociationsMixin;
   // Order belongsTo PaymentMethod via PaymentMethodId
-  declare paymentMethod: PaymentMethodModelInterface;
+  declare paymentMethod?: PaymentMethodModelInterface;
   declare getPaymentMethod: Sequelize.BelongsToGetAssociationMixin<PaymentMethodModelInterface>;
   // declare setPaymentMethod: Sequelize.BelongsToSetAssociationMixin<PaymentMethodModelInterface, PaymentMethodId>;
   declare createPaymentMethod: Sequelize.BelongsToCreateAssociationMixin<PaymentMethodModelInterface>;
-  // Order belongsTo Subscription via SubscriptionId
-  declare Subscription: Subscription;
-  declare getSubscription: Sequelize.BelongsToGetAssociationMixin<Subscription>;
-  declare setSubscription: Sequelize.BelongsToSetAssociationMixin<Subscription, SubscriptionId>;
-  declare createSubscription: Sequelize.BelongsToCreateAssociationMixin<Subscription>;
+  // Order belongsTo SubscriptionInterface via SubscriptionInterface['id']
+  declare Subscription?: SubscriptionInterface;
+  declare getSubscription: Sequelize.BelongsToGetAssociationMixin<SubscriptionInterface>;
+  declare setSubscription: Sequelize.BelongsToSetAssociationMixin<SubscriptionInterface, SubscriptionInterface['id']>;
+  declare createSubscription: Sequelize.BelongsToCreateAssociationMixin<SubscriptionInterface>;
   // Order belongsTo Tier via TierId
-  declare Tier: Tier;
+  declare Tier?: Tier;
   declare getTier: Sequelize.BelongsToGetAssociationMixin<Tier>;
-  declare setTier: Sequelize.BelongsToSetAssociationMixin<Tier, TierId>;
+  declare setTier: Sequelize.BelongsToSetAssociationMixin<Tier, Tier['id']>;
   declare createTier: Sequelize.BelongsToCreateAssociationMixin<Tier>;
   // Order belongsTo User via CreatedByUserId
-  declare createdByUser: User;
+  declare createdByUser?: User;
   declare getCreatedByUser: Sequelize.BelongsToGetAssociationMixin<User>;
-  declare setCreatedByUser: Sequelize.BelongsToSetAssociationMixin<User, UserId>;
+  declare setCreatedByUser: Sequelize.BelongsToSetAssociationMixin<User, User['id']>;
   declare createCreatedByUser: Sequelize.BelongsToCreateAssociationMixin<User>;
 
   // Class methods
   declare getOrCreateMembers: () => Promise<[MemberModelInterface, MemberModelInterface]>;
   declare getUser: () => Promise<User | undefined>;
-  declare getSubscriptionForUser: (user: User) => Promise<Subscription | null>;
+  declare getSubscriptionForUser: (user: User) => Promise<SubscriptionInterface | null>;
   declare markAsExpired: () => Promise<Order>;
   declare markAsPaid: (user: User) => Promise<Order>;
   declare getTotalTransactions: () => Promise<number> | number;
@@ -226,7 +178,8 @@ class Order extends Model<OrderAttributes, OrderCreationAttributes> implements O
   declare populate: () => Promise<Order>;
   declare setPaymentMethod: (paymentMethodData: object) => Promise<Order>;
 
-  declare info: any;
+  // Getter Methods
+  declare info?: Partial<Order>;
 
   // Static Methods
 
@@ -243,8 +196,8 @@ class Order extends Model<OrderAttributes, OrderCreationAttributes> implements O
   /**
    * Cancels all subscription orders in the given tier
    */
-  static cancelActiveOrdersByTierId(tierId: number): Promise<[affectedCount: number]> {
-    return Order.update(
+  static async cancelActiveOrdersByTierId(tierId: number): Promise<void> {
+    await Order.update(
       { status: OrderStatus.CANCELLED },
       {
         where: {
@@ -261,8 +214,8 @@ class Order extends Model<OrderAttributes, OrderCreationAttributes> implements O
   /**
    * Cancels all subscription orders for the given collective
    */
-  static cancelActiveOrdersByCollective(collectiveIds: number | number[]): Promise<[affectedCount: number]> {
-    return Order.update(
+  static async cancelActiveOrdersByCollective(collectiveIds: number | number[]): Promise<void> {
+    await Order.update(
       { status: OrderStatus.CANCELLED },
       {
         where: {
@@ -520,7 +473,7 @@ Order.init(
  */
 
 // total Transactions over time for this order
-Order.prototype.getTotalTransactions = function (): Promise<number> | number | undefined {
+Order.prototype.getTotalTransactions = function (): Promise<number> | number {
   if (!this.SubscriptionId) {
     return this.totalAmount;
   }
@@ -611,7 +564,7 @@ Order.prototype.markAsPaid = async function (user: User): Promise<Order> {
     paid: true,
   };
 
-  await libPayments.executeOrder(user, this);
+  await executeOrder(user, this);
   return this;
 };
 
@@ -681,7 +634,7 @@ Order.prototype.populate = function (
   ).then(() => this);
 };
 
-Order.prototype.getSubscriptionForUser = async function (user: User): Promise<Subscription | null> {
+Order.prototype.getSubscriptionForUser = async function (user: User): Promise<SubscriptionInterface | null> {
   if (!this.SubscriptionId) {
     return null;
   }
@@ -695,7 +648,5 @@ Order.prototype.getSubscriptionForUser = async function (user: User): Promise<Su
 };
 
 Temporal(Order, sequelize);
-
-// export interface OrderModelInterface extends InstanceType<typeof Order> {}
 
 export default Order;

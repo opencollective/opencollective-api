@@ -1,3 +1,4 @@
+import { TaxType } from '@opencollective/taxes';
 import { expect } from 'chai';
 import config from 'config';
 import gql from 'fake-tag';
@@ -2737,7 +2738,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             taxAmount: 200,
             platformTipAmount: 100,
             currency: 'USD',
-            data: { tax: { id: 'VAT', percentage: 20 } },
+            data: { tax: { id: TaxType.VAT, percentage: 20, taxedCountry: 'FR', taxerCountry: 'FR' } },
           },
           {
             withSubscription: true,
