@@ -7,6 +7,7 @@ import config from 'config';
 import fastRedact from 'fast-redact';
 import pdf from 'html-pdf';
 import { filter, get, isEqual, padStart, sumBy } from 'lodash';
+import moment from 'moment';
 import pFilter from 'p-filter';
 
 import { ZERO_DECIMAL_CURRENCIES } from '../constants/currencies';
@@ -592,3 +593,45 @@ export const redactSensitiveFields = fastRedact({
     'variables.currentPassword',
   ],
 });
+
+/**
+ * Generates a continuous time series array from an array of nodes,
+ * ensuring there are entries for each interval between a specified start and end date.
+ */
+export function fillTimeSeriesWithNodes(nodes, startDate, endDate, timeUnit) {
+  const sortedNodes = nodes.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  const dateFrom = startDate ? moment(startDate).utc() : moment(sortedNodes[0].date).utc();
+  let dateTo = endDate ? moment(endDate).utc() : moment().utc();
+  if (endDate) {
+    const now = moment().utc();
+    if (dateTo.isAfter(now)) {
+      dateTo = now;
+    }
+  }
+  const currentDate = moment(dateFrom).utc();
+  const keyedData = {};
+
+  // Create entries for each interval between the start and end date
+  while (currentDate.isBefore(dateTo)) {
+    keyedData[currentDate.toISOString()] = {
+      date: currentDate.toISOString(),
+      amount: 0,
+    };
+    currentDate.add(1, timeUnit);
+  }
+
+  // Add the time series data
+  for (let i = 0; i < sortedNodes.length; i++) {
+    const { date, amount } = sortedNodes[i];
+    const dateString = moment(date).utc().toISOString();
+
+    if (keyedData[dateString]) {
+      keyedData[dateString].amount = amount;
+    } else {
+      throw new Error('Time series data not aligned');
+    }
+  }
+
+  return Object.values(keyedData);
+}

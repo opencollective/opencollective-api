@@ -7,7 +7,7 @@ import { TransactionTypes } from '../constants/transactions';
 import models, { Op, sequelize } from '../models';
 
 import { getFxRate } from './currency';
-import { parseToBoolean } from './utils';
+import { fillTimeSeriesWithNodes, parseToBoolean } from './utils';
 
 const { CREDIT, DEBIT } = TransactionTypes;
 const { PROCESSING, SCHEDULED_FOR_PAYMENT } = expenseStatus;
@@ -358,6 +358,57 @@ export async function getTotalAmountReceivedTimeSeries(
     dateTo: endDate,
     timeUnit,
     nodes,
+  };
+}
+
+export async function getBalanceTimeSeries(
+  collective,
+  { startDate, endDate, timeUnit, currency, version, includeChildren } = {},
+) {
+  version = version || collective.settings?.budget?.version || DEFAULT_BUDGET_VERSION;
+  currency = currency || collective.currency;
+
+  const promises = [];
+
+  promises.push(
+    sumCollectivesTransactions([collective.id], {
+      column: ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency',
+      startDate,
+      endDate,
+      includeChildren,
+      excludeRefunds: false,
+      hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
+      groupByAttributes: [[sequelize.fn('DATE_TRUNC', timeUnit, sequelize.col('Transaction.createdAt')), 'date']],
+    }),
+  );
+
+  if (startDate) {
+    promises.push(getBalanceAmount(collective, { endDate: startDate, includeChildren, version, currency }));
+  }
+
+  const [balanceTimeSeries, startingBalance] = await Promise.all(promises);
+  const result = balanceTimeSeries[collective.id];
+
+  const nodes = result.groupBy?.date ? Object.values(result.groupBy.date) : [];
+  const nodesWithAllDates = fillTimeSeriesWithNodes(nodes, startDate, endDate, timeUnit);
+
+  const fxRate = await getFxRate(result.currency, currency);
+
+  let runningBalance = startingBalance?.value ?? 0;
+
+  const nodesWithTotalBalance = nodesWithAllDates.map(node => {
+    runningBalance += node.amount * fxRate;
+    return {
+      date: node.date,
+      amount: { value: Math.round(runningBalance), currency },
+    };
+  });
+
+  return {
+    dateFrom: startDate,
+    dateTo: endDate,
+    timeUnit,
+    nodes: nodesWithTotalBalance,
   };
 }
 

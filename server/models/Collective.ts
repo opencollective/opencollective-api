@@ -59,6 +59,7 @@ import roles, { MemberRoleLabels } from '../constants/roles';
 import { hasOptedOutOfFeature, isFeatureAllowedForCollectiveType } from '../lib/allowed-features';
 import {
   getBalanceAmount,
+  getBalanceTimeSeries,
   getContributionsAndContributorsCount,
   getTotalAmountPaidExpenses,
   getTotalAmountReceivedAmount,
@@ -2792,6 +2793,10 @@ class Collective extends Model<
 
   getTotalAmountReceivedTimeSeries = function (options) {
     return getTotalAmountReceivedTimeSeries(this, options);
+  };
+
+  getBalanceTimeSeries = function (options) {
+    return getBalanceTimeSeries(this, options);
   };
 
   getContributionsAndContributorsCount = function (options) {
