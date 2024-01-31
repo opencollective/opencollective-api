@@ -46,7 +46,7 @@ describe('Transaction', () => {
       },
       include: [{ model: models.Expense }],
     });
-    await createRefundTransaction(transaction, 0, null, hostAdmin);
+    await createRefundTransaction(transaction, 390, null, hostAdmin);
   });
 
   it('should fetch the correct payment processor fee', async () => {
@@ -131,8 +131,24 @@ describe('Transaction', () => {
         kind: 'EXPENSE',
         type: 'CREDIT',
         amountInHostCurrency: { valueInCents: 10000 },
+        paymentProcessorFee: { valueInCents: 390 },
+        netAmountInHostCurrency: { valueInCents: 10390 },
+        isRefund: true,
+      },
+      {
+        kind: 'PAYMENT_PROCESSOR_FEE',
+        type: 'CREDIT',
+        amountInHostCurrency: { valueInCents: 390 },
+        netAmountInHostCurrency: { valueInCents: 390 },
         paymentProcessorFee: { valueInCents: 0 },
-        netAmountInHostCurrency: { valueInCents: 10000 },
+        isRefund: true,
+      },
+      {
+        kind: 'PAYMENT_PROCESSOR_FEE',
+        type: 'DEBIT',
+        amountInHostCurrency: { valueInCents: -390 },
+        netAmountInHostCurrency: { valueInCents: -390 },
+        paymentProcessorFee: { valueInCents: 0 },
         isRefund: true,
       },
     ]);
