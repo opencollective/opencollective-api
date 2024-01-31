@@ -1,8 +1,7 @@
 import DataLoader from 'dataloader';
-import { find, groupBy, isEmpty } from 'lodash';
+import { groupBy } from 'lodash';
 
 import { TransactionKind } from '../../constants/transaction-kind';
-import { TransactionTypes } from '../../constants/transactions';
 import models, { Op } from '../../models';
 import Transaction, { TransactionInterface } from '../../models/Transaction';
 
@@ -67,7 +66,8 @@ export const generatePaymentProcessorFeeAmountForTransactionLoader = (): DataLoa
           kind: TransactionKind.PAYMENT_PROCESSOR_FEE,
           [Op.or]: transactionsWithoutProcessorFee.map(transaction => ({
             TransactionGroup: transaction.TransactionGroup,
-            type: transaction.isRefund ? TransactionTypes.CREDIT : TransactionTypes.DEBIT,
+            // type: transaction.isRefund ? TransactionTypes.CREDIT : TransactionTypes.DEBIT,
+            CollectiveId: transaction.CollectiveId,
           })),
         },
       });
@@ -104,14 +104,15 @@ export const generateTaxAmountForTransactionLoader = (): DataLoader<TransactionI
       });
 
       const taxTransactions = await models.Transaction.findAll({
-        attributes: ['TransactionGroup', 'type', 'amount'], // Using `amount` as we want to return the result in transaction currency
+        attributes: ['TransactionGroup', 'amount'], // Using `amount` as we want to return the result in transaction currency
         mapToModel: false,
         raw: true,
         where: {
           kind: TransactionKind.TAX,
           [Op.or]: transactionsThatMayHaveSeparateTaxes.map(transaction => ({
             TransactionGroup: transaction.TransactionGroup,
-            type: transaction.isRefund ? TransactionTypes.CREDIT : TransactionTypes.DEBIT,
+            // type: transaction.isRefund ? TransactionTypes.CREDIT : TransactionTypes.DEBIT,
+            CollectiveId: transaction.CollectiveId,
           })),
         },
       });
