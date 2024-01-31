@@ -72,6 +72,24 @@ module.exports = {
       RETURNING e.*;
     `);
     console.info(metadata.rowCount, 'expenses updated with paypal adaptive payment method');
+
+    [, metadata] = await queryInterface.sequelize.query(`
+      WITH accountbalance AS (SELECT DISTINCT e."HostCollectiveId" FROM "Expenses" e INNER JOIN "PayoutMethods" as po ON po.id = e."PayoutMethodId" WHERE e."createdAt" > '2024-01-01' AND e.status = 'PAID' AND po.type = 'ACCOUNT_BALANCE')
+      INSERT INTO "PaymentMethods" ("service", "type", "CollectiveId", "saved", "data")
+      SELECT 'opencollective' as "service", 'collective' as "type", "HostCollectiveId" as "CollectiveId", False as "saved", '{ "migration": "20240130125545-add-expense-payment-method" }'::JSONB as "data" FROM accountbalance ON CONFLICT DO NOTHING;
+    `);
+    console.info(metadata.rowCount, 'account balance methods created');
+    [, metadata] = await queryInterface.sequelize.query(`
+      UPDATE "Expenses" as e
+      SET "PaymentMethodId" = pm.id, "data" = '{ "migration": "20240130125545-add-expense-payment-method" }'::JSONB || e.data
+      FROM "PaymentMethods" pm, "PayoutMethods" po
+      WHERE
+        e."deletedAt" IS NULL AND e."createdAt" > '2024-01-01' AND e.status = 'PAID'
+        AND po.id = e."PayoutMethodId" AND po.type = 'ACCOUNT_BALANCE'
+        AND pm."CollectiveId" = e."HostCollectiveId" AND pm."service" = 'opencollective' AND pm.type = 'collective'
+      RETURNING e.*;
+    `);
+    console.info(metadata.rowCount, 'expenses updated with account balance method');
   },
 
   async down(queryInterface) {
