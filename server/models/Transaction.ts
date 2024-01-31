@@ -147,7 +147,6 @@ interface TransactionModelStaticInterface {
   ): Promise<number>;
   calculateNetAmountInCollectiveCurrency(transaction: TransactionInterface | TransactionCreationAttributes): number;
   canHaveFees(transaction: Partial<TransactionInterface>): boolean;
-  shouldFetchFeesAndRecalculateNetAmount(transaction: Partial<TransactionInterface>): boolean;
   assertAmountsLooselyEqual(a: number, b: number, message?: string): void;
   assertAmountsStrictlyEqual(a: number, b: number, message?: string): void;
   calculateNetAmountInHostCurrency(transaction: TransactionInterface): number;
@@ -1558,23 +1557,6 @@ Transaction.createActivity = async (
 
 Transaction.canHaveFees = function ({ kind }: { kind: TransactionKind }) {
   return [CONTRIBUTION, EXPENSE, ADDED_FUNDS].includes(kind);
-};
-
-Transaction.shouldFetchFeesAndRecalculateNetAmount = function ({ kind, type, isRefund }) {
-  if (!Transaction.canHaveFees({ kind })) {
-    return false;
-  }
-  if (kind === EXPENSE && type === CREDIT && !isRefund) {
-    return false;
-  } else if (kind === EXPENSE && type === DEBIT && isRefund) {
-    return false;
-  } else if ([CONTRIBUTION, ADDED_FUNDS].includes(kind) && type === DEBIT && !isRefund) {
-    return false;
-  } else if ([CONTRIBUTION, ADDED_FUNDS].includes(kind) && type === CREDIT && isRefund) {
-    return false;
-  } else {
-    return true;
-  }
 };
 
 Transaction.calculateNetAmountInCollectiveCurrency = function ({
