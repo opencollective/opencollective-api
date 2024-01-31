@@ -1864,7 +1864,11 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
   const taxes = expenseData.tax || (expense.data?.taxes as TaxDefinition[]) || [];
   const expenseType = expenseData.type || expense.type;
   checkTaxes(expense.collective, expense.collective.host, expenseType, taxes);
-  checkCanUseAccountingCategory(remoteUser, expenseType, expenseData.accountingCategory, expense.collective.host);
+
+  // Check category only if it's changing
+  if (expenseData.accountingCategory) {
+    checkCanUseAccountingCategory(remoteUser, expenseType, expenseData.accountingCategory, expense.collective.host);
+  }
 
   // Edit directly the expense when touching only tags and/or accounting category
   const modifiedFields = omitBy(expenseData, (_, key) => key === 'id' || !isValueChanging(expense, expenseData, key));
