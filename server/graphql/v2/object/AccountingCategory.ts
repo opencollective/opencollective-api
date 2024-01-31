@@ -29,9 +29,11 @@ export const GraphQLAccountingCategory = new GraphQLObjectType({
     },
     hostOnly: {
       type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether this category is only meant for the host admins',
     },
     instructions: {
       type: GraphQLString,
+      description: 'Instructions for the expense submitters',
     },
     account: {
       type: new GraphQLNonNull(GraphQLHost),

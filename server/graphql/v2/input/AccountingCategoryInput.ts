@@ -52,8 +52,9 @@ export const AccountingCategoryInput = new GraphQLInputObjectType({
       description: 'A friendly name for non-accountants (i.e. expense submitters and collective admins)',
     },
     hostOnly: {
-      type: GraphQLBoolean,
+      type: new GraphQLNonNull(GraphQLBoolean),
       defaultValue: false,
+      description: 'Whether this category is only meant for the host admins',
     },
     instructions: {
       type: GraphQLString,
