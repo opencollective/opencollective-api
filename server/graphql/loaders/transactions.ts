@@ -4,7 +4,7 @@ import { find, groupBy, isEmpty } from 'lodash';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
 import models, { Op } from '../../models';
-import { TransactionInterface } from '../../models/Transaction';
+import Transaction, { TransactionInterface } from '../../models/Transaction';
 
 export const generateHostFeeAmountForTransactionLoader = (): DataLoader<TransactionInterface, number> =>
   new DataLoader(
@@ -56,47 +56,35 @@ export const generatePaymentProcessorFeeAmountForTransactionLoader = (): DataLoa
       const transactionsWithoutProcessorFee = transactions.filter(transaction => {
         // Legacy transactions have their payment processor fee set on `paymentProcessorFeeInHostCurrency`. No need to fetch for them.
         // Platform tips also had processor fees as we used to split them with the collective, but we stopped doing that on 2021-04-01.
-        return (
-          !transaction.paymentProcessorFeeInHostCurrency &&
-          ['EXPENSE', 'ADDED_FUNDS', 'CONTRIBUTION'].includes(transaction.kind)
-        );
+        return !transaction.paymentProcessorFeeInHostCurrency && Transaction.canHaveFees(transaction);
       });
 
       const processorFeesTransactions = await models.Transaction.findAll({
-        attributes: ['TransactionGroup', 'type', 'amountInHostCurrency', 'CollectiveId'],
+        attributes: ['TransactionGroup', 'amountInHostCurrency'],
         mapToModel: false,
         raw: true,
         where: {
           kind: TransactionKind.PAYMENT_PROCESSOR_FEE,
           [Op.or]: transactionsWithoutProcessorFee.map(transaction => ({
             TransactionGroup: transaction.TransactionGroup,
-            type: transaction.type,
+            type: transaction.isRefund ? TransactionTypes.CREDIT : TransactionTypes.DEBIT,
           })),
         },
       });
 
-      // const keyBuilder = (transaction: TransactionInterface) => `${transaction.TransactionGroup}-${transaction.type}`;
+      const keyBuilder = (transaction: TransactionInterface) => `${transaction.TransactionGroup}`;
       const groupedTransactions: Record<string, TransactionInterface[]> = groupBy(
         processorFeesTransactions,
-        'TransactionGroup',
+        keyBuilder,
       );
       return transactions.map(transaction => {
         if (transaction.paymentProcessorFeeInHostCurrency) {
           return transaction.paymentProcessorFeeInHostCurrency;
         } else {
-          // const key = keyBuilder(transaction);
-          const processorFeeTransactions = groupedTransactions[transaction.TransactionGroup];
-          if (!isEmpty(processorFeeTransactions)) {
-            const processorFeeTransaction =
-              // 1st we try to match the same CollectiveId to guarantee transaction type consistency
-              // find(processorFeeTransactions, { CollectiveId: transaction.CollectiveId }) ||
-              // 2nd we fall back to debit, because a fee should always be negative unless the beneficiary of transaction is the processor itself (catch on 1st condition)
-              find(processorFeeTransactions, {
-                type: transaction.isRefund ? TransactionTypes.CREDIT : TransactionTypes.DEBIT,
-              }) ||
-              // Fall back to the first one
-              processorFeeTransactions[0];
-            return processorFeeTransaction.amountInHostCurrency;
+          const key = keyBuilder(transaction);
+          const processorFeeTransactions = groupedTransactions[key];
+          if (processorFeeTransactions) {
+            return processorFeeTransactions[0].amountInHostCurrency;
           } else {
             return 0;
           }
@@ -112,7 +100,7 @@ export const generateTaxAmountForTransactionLoader = (): DataLoader<TransactionI
   new DataLoader(
     async (transactions: TransactionInterface[]) => {
       const transactionsThatMayHaveSeparateTaxes = transactions.filter(transaction => {
-        return !transaction.taxAmount && ['EXPENSE', 'ADDED_FUNDS', 'CONTRIBUTION'].includes(transaction.kind);
+        return !transaction.taxAmount && Transaction.canHaveFees(transaction);
       });
 
       const taxTransactions = await models.Transaction.findAll({
@@ -123,12 +111,12 @@ export const generateTaxAmountForTransactionLoader = (): DataLoader<TransactionI
           kind: TransactionKind.TAX,
           [Op.or]: transactionsThatMayHaveSeparateTaxes.map(transaction => ({
             TransactionGroup: transaction.TransactionGroup,
-            type: transaction.type,
+            type: transaction.isRefund ? TransactionTypes.CREDIT : TransactionTypes.DEBIT,
           })),
         },
       });
 
-      const keyBuilder = (transaction: TransactionInterface) => `${transaction.TransactionGroup}-${transaction.type}`;
+      const keyBuilder = (transaction: TransactionInterface) => `${transaction.TransactionGroup}`;
       const groupedTransactions: Record<string, TransactionInterface[]> = groupBy(taxTransactions, keyBuilder);
       return transactions.map(transaction => {
         if (transaction.taxAmount) {
@@ -137,8 +125,7 @@ export const generateTaxAmountForTransactionLoader = (): DataLoader<TransactionI
           const key = keyBuilder(transaction);
           const taxTransactions = groupedTransactions[key];
           if (taxTransactions) {
-            const amount = taxTransactions[0].amount;
-            return transaction.isRefund ? amount : -amount;
+            return taxTransactions[0].amount;
           } else {
             return 0;
           }

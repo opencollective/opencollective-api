@@ -1568,6 +1568,10 @@ Transaction.shouldFetchFeesAndRecalculateNetAmount = function ({ kind, type, isR
     return false;
   } else if (kind === EXPENSE && type === DEBIT && isRefund) {
     return false;
+  } else if ([CONTRIBUTION, EXPENSE].includes(kind) && type === DEBIT && !isRefund) {
+    return false;
+  } else if ([CONTRIBUTION, EXPENSE].includes(kind) && type === CREDIT && isRefund) {
+    return false;
   } else {
     return true;
   }
