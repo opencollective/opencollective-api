@@ -11,23 +11,24 @@ export const generateHostFeeAmountForTransactionLoader = (): DataLoader<Transact
       const transactionsWithoutHostFee = transactions.filter(transaction => {
         // Legacy transactions have their host fee set on `hostFeeInHostCurrency`. No need to fetch for them
         // Also only contributions and added funds can have host fees
-        return !transaction.hostFeeInHostCurrency && ['CONTRIBUTION', 'ADDED_FUNDS'].includes(transaction.kind);
+        return !transaction.hostFeeInHostCurrency && Transaction.canHaveFees(transaction);
       });
 
       const hostFeeTransactions = await models.Transaction.findAll({
-        attributes: ['TransactionGroup', 'type', 'amount'],
+        attributes: ['TransactionGroup', 'CollectiveId', 'amountInHostCurrency'],
         mapToModel: false,
         raw: true,
         where: {
           kind: TransactionKind.HOST_FEE,
           [Op.or]: transactionsWithoutHostFee.map(transaction => ({
             TransactionGroup: transaction.TransactionGroup,
-            type: transaction.type,
+            CollectiveId: transaction.CollectiveId,
           })),
         },
       });
 
-      const keyBuilder = (transaction: TransactionInterface) => `${transaction.TransactionGroup}-${transaction.type}`;
+      const keyBuilder = (transaction: TransactionInterface) =>
+        `${transaction.TransactionGroup}-${transaction.CollectiveId}`;
       const groupedTransactions: Record<string, TransactionInterface[]> = groupBy(hostFeeTransactions, keyBuilder);
       return transactions.map(transaction => {
         if (transaction.hostFeeInHostCurrency) {
@@ -36,8 +37,7 @@ export const generateHostFeeAmountForTransactionLoader = (): DataLoader<Transact
           const key = keyBuilder(transaction);
           const hostFeeTransactions = groupedTransactions[key];
           if (hostFeeTransactions) {
-            const amount = hostFeeTransactions[0].amount;
-            return transaction.isRefund ? amount : -amount;
+            return hostFeeTransactions[0].amountInHostCurrency;
           } else {
             return 0;
           }
@@ -59,20 +59,20 @@ export const generatePaymentProcessorFeeAmountForTransactionLoader = (): DataLoa
       });
 
       const processorFeesTransactions = await models.Transaction.findAll({
-        attributes: ['TransactionGroup', 'amountInHostCurrency'],
+        attributes: ['TransactionGroup', 'CollectiveId', 'amountInHostCurrency'],
         mapToModel: false,
         raw: true,
         where: {
           kind: TransactionKind.PAYMENT_PROCESSOR_FEE,
           [Op.or]: transactionsWithoutProcessorFee.map(transaction => ({
             TransactionGroup: transaction.TransactionGroup,
-            // type: transaction.isRefund ? TransactionTypes.CREDIT : TransactionTypes.DEBIT,
             CollectiveId: transaction.CollectiveId,
           })),
         },
       });
 
-      const keyBuilder = (transaction: TransactionInterface) => `${transaction.TransactionGroup}`;
+      const keyBuilder = (transaction: TransactionInterface) =>
+        `${transaction.TransactionGroup}-${transaction.CollectiveId}`;
       const groupedTransactions: Record<string, TransactionInterface[]> = groupBy(
         processorFeesTransactions,
         keyBuilder,
@@ -104,20 +104,20 @@ export const generateTaxAmountForTransactionLoader = (): DataLoader<TransactionI
       });
 
       const taxTransactions = await models.Transaction.findAll({
-        attributes: ['TransactionGroup', 'amount'], // Using `amount` as we want to return the result in transaction currency
+        attributes: ['TransactionGroup', 'CollectiveId', 'amount'], // Using `amount` as we want to return the result in transaction currency
         mapToModel: false,
         raw: true,
         where: {
           kind: TransactionKind.TAX,
           [Op.or]: transactionsThatMayHaveSeparateTaxes.map(transaction => ({
             TransactionGroup: transaction.TransactionGroup,
-            // type: transaction.isRefund ? TransactionTypes.CREDIT : TransactionTypes.DEBIT,
             CollectiveId: transaction.CollectiveId,
           })),
         },
       });
 
-      const keyBuilder = (transaction: TransactionInterface) => `${transaction.TransactionGroup}`;
+      const keyBuilder = (transaction: TransactionInterface) =>
+        `${transaction.TransactionGroup}-${transaction.CollectiveId}`;
       const groupedTransactions: Record<string, TransactionInterface[]> = groupBy(taxTransactions, keyBuilder);
       return transactions.map(transaction => {
         if (transaction.taxAmount) {

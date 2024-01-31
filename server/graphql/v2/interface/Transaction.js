@@ -353,7 +353,7 @@ export const TransactionFields = () => {
       async resolve(transaction, args, req) {
         let { netAmountInCollectiveCurrency, hostFeeInHostCurrency, paymentProcessorFeeInHostCurrency, taxAmount } =
           transaction;
-        if (models.Transaction.shouldFetchFeesAndRecalculateNetAmount(transaction)) {
+        if (models.Transaction.canHaveFees(transaction)) {
           if (args.fetchHostFee && !hostFeeInHostCurrency) {
             hostFeeInHostCurrency = await req.loaders.Transaction.hostFeeAmountForTransaction.load(transaction);
           }
@@ -401,7 +401,7 @@ export const TransactionFields = () => {
       async resolve(transaction, args, req) {
         let { netAmountInHostCurrency, hostFeeInHostCurrency, paymentProcessorFeeInHostCurrency, taxAmount } =
           transaction;
-        if (models.Transaction.shouldFetchFeesAndRecalculateNetAmount(transaction)) {
+        if (models.Transaction.canHaveFees(transaction)) {
           if (args.fetchHostFee && !hostFeeInHostCurrency) {
             hostFeeInHostCurrency = await req.loaders.Transaction.hostFeeAmountForTransaction.load(transaction);
           }
@@ -492,7 +492,7 @@ export const TransactionFields = () => {
       },
       async resolve(transaction, args, req) {
         let hostFeeInHostCurrency = transaction.hostFeeInHostCurrency;
-        if (models.Transaction.shouldFetchFeesAndRecalculateNetAmount(transaction)) {
+        if (models.Transaction.canHaveFees(transaction)) {
           if (args.fetchHostFee && !hostFeeInHostCurrency) {
             hostFeeInHostCurrency = await req.loaders.Transaction.hostFeeAmountForTransaction.load(transaction);
           }
@@ -515,7 +515,7 @@ export const TransactionFields = () => {
       description: 'Payment Processor Fee (usually in host currency)',
       async resolve(transaction, args, req) {
         let paymentProcessorFeeInHostCurrency = transaction.paymentProcessorFeeInHostCurrency;
-        if (models.Transaction.shouldFetchFeesAndRecalculateNetAmount(transaction)) {
+        if (models.Transaction.canHaveFees(transaction)) {
           if (args.fetchPaymentProcessorFee && !paymentProcessorFeeInHostCurrency) {
             paymentProcessorFeeInHostCurrency =
               await req.loaders.Transaction.paymentProcessorFeeAmountForTransaction.load(transaction);
