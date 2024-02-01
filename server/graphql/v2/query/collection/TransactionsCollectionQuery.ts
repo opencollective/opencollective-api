@@ -276,8 +276,8 @@ export const TransactionsCollectionResolver = async (
     where.push({ HostCollectiveId: host.id });
   }
 
-  // Backup the conditions as they're now to fetch the list of all available kinds
-  const whereKinds = cloneDeep(where);
+  // Store the current where as it will be later used to fetch available kinds and paymentMethodTypes
+  const baseWhere = cloneDeep(where);
 
   // Handle search query
   const searchTermConditions = buildSearchConditions(args.searchTerm, {
@@ -426,23 +426,26 @@ export const TransactionsCollectionResolver = async (
     totalCount: () => fetchTransactionsCount(queryParameters),
     limit: args.limit,
     offset: args.offset,
-    kinds: () => fetchTransactionsKinds(whereKinds),
-    paymentMethodTypes: () => fetchTransactionsPaymentMethodTypes(whereKinds),
+    kinds: () => fetchTransactionsKinds(baseWhere),
+    paymentMethodTypes: () => fetchTransactionsPaymentMethodTypes(baseWhere),
   };
 };
 
-const getTransactionsCacheKey = (resource, condition) => {
+const getCacheKey = (resource, condition) => {
   const conditionKeys = Object.keys(condition);
-  if (conditionKeys.length === 1 && conditionKeys[0] === 'HostCollectiveId') {
+  if (
+    conditionKeys.length === 1 &&
+    conditionKeys[0] === 'HostCollectiveId' &&
+    config.performance.hostsWithManyTransactions.includes(condition.HostCollectiveId)
+  ) {
     return `transactions_${resource}_HostCollectiveId_${condition.HostCollectiveId}`;
   }
 };
 
-const fetchTransactionsKinds = async whereKinds => {
+const fetchWithCache = async (resource: string, condition, fetchFunction: () => Promise<any>) => {
   let cacheKey;
-  if (whereKinds.length === 1) {
-    const condition = whereKinds[0];
-    cacheKey = getTransactionsCacheKey('kinds', condition);
+  if (condition) {
+    cacheKey = getCacheKey(resource, condition);
   }
   if (cacheKey) {
     const fromCache = await cache.get(cacheKey);
@@ -450,64 +453,44 @@ const fetchTransactionsKinds = async whereKinds => {
       return fromCache;
     }
   }
-  const results = await Transaction.findAll({
-    attributes: ['kind'],
-    where: whereKinds,
-    group: ['kind'],
-    raw: true,
-  }).then(results => {
-    return results.map(m => m.kind).filter(kind => !!kind);
-  });
+  const results = await fetchFunction();
   if (cacheKey) {
     cache.set(cacheKey, results);
   }
   return results;
+};
+
+const fetchTransactionsKinds = async whereKinds => {
+  const condition = whereKinds.length === 1 ? whereKinds[0] : null;
+
+  return fetchWithCache('kinds', condition, () =>
+    Transaction.findAll({
+      attributes: ['kind'],
+      where: whereKinds,
+      group: ['kind'],
+      raw: true,
+    }).then(results => results.map(m => m.kind).filter(kind => !!kind)),
+  );
 };
 
 const fetchTransactionsPaymentMethodTypes = async whereKinds => {
-  let cacheKey;
-  if (whereKinds.length === 1) {
-    const condition = whereKinds[0];
-    cacheKey = getTransactionsCacheKey('paymentMethodTypes', condition);
-  }
-  if (cacheKey) {
-    const fromCache = await cache.get(cacheKey);
-    if (fromCache) {
-      return fromCache;
-    }
-  }
-  const results = await Transaction.findAll({
-    attributes: ['PaymentMethod.type'],
-    where: whereKinds,
-    include: [{ model: PaymentMethod, required: false, attributes: [] }],
-    group: ['PaymentMethod.type'],
-    raw: true,
-  }).then(results => {
-    return results.map(result => result.type || null);
-  });
-  if (cacheKey) {
-    cache.set(cacheKey, results);
-  }
-  return results;
+  const condition = whereKinds.length === 1 ? whereKinds[0] : null;
+
+  return fetchWithCache('paymentMethodTypes', condition, () =>
+    Transaction.findAll({
+      attributes: ['PaymentMethod.type'],
+      where: whereKinds,
+      include: [{ model: PaymentMethod, required: false, attributes: [] }],
+      group: ['PaymentMethod.type'],
+      raw: true,
+    }).then(results => results.map(result => result.type || null)),
+  );
 };
 
 const fetchTransactionsCount = async (queryParameters): Promise<number> => {
-  let cacheKey;
-  if (queryParameters.where[Op.and].length === 1) {
-    const condition = queryParameters.where[Op.and][0];
-    cacheKey = getTransactionsCacheKey('count', condition);
-  }
-  if (cacheKey) {
-    const fromCache = await cache.get(cacheKey);
-    if (fromCache) {
-      return fromCache;
-    }
-  }
-  const result = await Transaction.count(pick(queryParameters, ['where', 'include']));
-  if (cacheKey) {
-    cache.set(cacheKey, result);
-  }
-  return result;
+  const condition = queryParameters.where[Op.and].length === 1 ? queryParameters.where[Op.and][0] : null;
+
+  return fetchWithCache('count', condition, () => Transaction.count(pick(queryParameters, ['where', 'include'])));
 };
 
 const TransactionsCollectionQuery = {

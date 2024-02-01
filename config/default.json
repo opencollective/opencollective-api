@@ -261,5 +261,8 @@
     "dashboard": {
       "redirect": false
     }
+  },
+  "performance": {
+    "hostsWithManyTransactions": []
   }
 }

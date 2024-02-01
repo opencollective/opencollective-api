@@ -68,5 +68,15 @@
     "rpName": "Open Collective",
     "rpId": "opencollective.com",
     "expectedOrigins": ["https://opencollective.com"]
+  },
+  "performance": {
+    "hostsWithManyTransactions": [
+      11004, // OSC
+      8686, // OC
+      11049, // OCF
+      98478, // SCN
+      9807, // OCE
+      73495 // AFC
+    ]
   }
 }
