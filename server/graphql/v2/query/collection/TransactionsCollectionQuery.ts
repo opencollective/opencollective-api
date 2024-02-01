@@ -6,9 +6,11 @@ import { cloneDeep, flatten, isEmpty, isNil, pick, uniq } from 'lodash';
 import { Order } from 'sequelize';
 
 import { CollectiveType } from '../../../../constants/collectives';
+import cache from '../../../../lib/cache';
 import { buildSearchConditions } from '../../../../lib/search';
 import { parseToBoolean } from '../../../../lib/utils';
-import models, { Op, sequelize } from '../../../../models';
+import { Expense, Op, PaymentMethod, sequelize } from '../../../../models';
+import Transaction from '../../../../models/Transaction';
 import { checkScope } from '../../../common/scope-check';
 import {
   GraphQLTransactionCollection,
@@ -274,8 +276,8 @@ export const TransactionsCollectionResolver = async (
     where.push({ HostCollectiveId: host.id });
   }
 
-  // Backup the conditions as they're now to fetch the list of all available kinds
-  const whereKinds = cloneDeep(where);
+  // Store the current where as it will be later used to fetch available kinds and paymentMethodTypes
+  const baseWhere = cloneDeep(where);
 
   // Handle search query
   const searchTermConditions = buildSearchConditions(args.searchTerm, {
@@ -321,7 +323,7 @@ export const TransactionsCollectionResolver = async (
   }
   if (args.expenseType) {
     include.push({
-      model: models.Expense,
+      model: Expense,
       attributes: [],
       required: true,
       where: { type: { [Op.in]: args.expenseType } },
@@ -347,7 +349,7 @@ export const TransactionsCollectionResolver = async (
     });
 
     if (paymentMethodConditions.length) {
-      include.push({ model: models.PaymentMethod });
+      include.push({ model: PaymentMethod });
       where.push({ [Op.or]: paymentMethodConditions });
     }
   }
@@ -355,7 +357,7 @@ export const TransactionsCollectionResolver = async (
   if (!isEmpty(args.virtualCard)) {
     include.push({
       attributes: [],
-      model: models.Expense,
+      model: Expense,
       required: true,
       where: {
         VirtualCardId: args.virtualCard.map(vc => vc.id),
@@ -419,43 +421,76 @@ export const TransactionsCollectionResolver = async (
     include,
   };
 
-  let totalCount, nodes;
-  if (limit === 0) {
-    totalCount = await models.Transaction.count(pick(queryParameters, ['where']));
-    nodes = [];
-  } else {
-    const result = await models.Transaction.findAndCountAll(queryParameters);
-    totalCount = result.count;
-    nodes = result.rows;
-  }
-
   return {
-    nodes,
-    totalCount,
+    nodes: () => Transaction.findAll(queryParameters),
+    totalCount: () => fetchTransactionsCount(queryParameters),
     limit: args.limit,
     offset: args.offset,
-    kinds: async () => {
-      const results = await models.Transaction.findAll({
-        attributes: ['kind'],
-        where: whereKinds,
-        group: ['kind'],
-        raw: true,
-      });
-
-      return results.map(m => m.kind).filter(kind => !!kind);
-    },
-    paymentMethodTypes: () => {
-      return models.Transaction.findAll({
-        attributes: ['PaymentMethod.type'],
-        where: whereKinds,
-        include: [{ model: models.PaymentMethod, required: false, attributes: [] }],
-        group: ['PaymentMethod.type'],
-        raw: true,
-      }).then(results => {
-        return results.map(result => result.type || null);
-      });
-    },
+    kinds: () => fetchTransactionsKinds(baseWhere),
+    paymentMethodTypes: () => fetchTransactionsPaymentMethodTypes(baseWhere),
   };
+};
+
+const getCacheKey = (resource, condition) => {
+  const conditionKeys = Object.keys(condition);
+  if (
+    conditionKeys.length === 1 &&
+    conditionKeys[0] === 'HostCollectiveId' &&
+    config.performance.hostsWithManyTransactions.includes(condition.HostCollectiveId)
+  ) {
+    return `transactions_${resource}_HostCollectiveId_${condition.HostCollectiveId}`;
+  }
+};
+
+const fetchWithCache = async (resource: string, condition, fetchFunction: () => Promise<any>) => {
+  let cacheKey;
+  if (condition) {
+    cacheKey = getCacheKey(resource, condition);
+  }
+  if (cacheKey) {
+    const fromCache = await cache.get(cacheKey);
+    if (fromCache) {
+      return fromCache;
+    }
+  }
+  const results = await fetchFunction();
+  if (cacheKey) {
+    cache.set(cacheKey, results);
+  }
+  return results;
+};
+
+const fetchTransactionsKinds = async whereKinds => {
+  const condition = whereKinds.length === 1 ? whereKinds[0] : null;
+
+  return fetchWithCache('kinds', condition, () =>
+    Transaction.findAll({
+      attributes: ['kind'],
+      where: whereKinds,
+      group: ['kind'],
+      raw: true,
+    }).then(results => results.map(m => m.kind).filter(kind => !!kind)),
+  );
+};
+
+const fetchTransactionsPaymentMethodTypes = async whereKinds => {
+  const condition = whereKinds.length === 1 ? whereKinds[0] : null;
+
+  return fetchWithCache('paymentMethodTypes', condition, () =>
+    Transaction.findAll({
+      attributes: ['PaymentMethod.type'],
+      where: whereKinds,
+      include: [{ model: PaymentMethod, required: false, attributes: [] }],
+      group: ['PaymentMethod.type'],
+      raw: true,
+    }).then(results => results.map(result => result.type || null)),
+  );
+};
+
+const fetchTransactionsCount = async (queryParameters): Promise<number> => {
+  const condition = queryParameters.where[Op.and].length === 1 ? queryParameters.where[Op.and][0] : null;
+
+  return fetchWithCache('count', condition, () => Transaction.count(pick(queryParameters, ['where', 'include'])));
 };
 
 const TransactionsCollectionQuery = {

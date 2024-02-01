@@ -1,5 +1,6 @@
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 
+import { PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import { TransactionKind } from '../../../constants/transaction-kind';
 import { TransactionInterface } from '../../../models/Transaction';
 import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType';
@@ -27,12 +28,16 @@ export const GraphQLTransactionCollection = new GraphQLObjectType({
 });
 
 type AnyTransactionKind = TransactionKind | `${TransactionKind}`;
+type AnyPaymentMethodType = PAYMENT_METHOD_TYPE | `${PAYMENT_METHOD_TYPE}`;
 
 export interface GraphQLTransactionsCollectionReturnType {
-  nodes: TransactionInterface[];
-  totalCount: number;
+  nodes: TransactionInterface[] | Promise<TransactionInterface[]> | (() => Promise<TransactionInterface[]>);
+  totalCount: number | Promise<number> | (() => Promise<number>);
   limit: number;
   offset: number;
   kinds?: AnyTransactionKind[] | (() => AnyTransactionKind[]) | (() => Promise<AnyTransactionKind[]>);
-  paymentMethodTypes?: string[] | (() => string[]) | (() => Promise<string[]>);
+  paymentMethodTypes?:
+    | AnyPaymentMethodType[]
+    | (() => AnyPaymentMethodType[])
+    | (() => Promise<AnyPaymentMethodType[]>);
 }
