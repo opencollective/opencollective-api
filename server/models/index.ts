@@ -140,6 +140,7 @@ Collective.hasMany(HostApplication, { foreignKey: 'CollectiveId', as: 'hostAppli
 Collective.hasMany(LegalDocument);
 Collective.hasMany(LegalDocument, { foreignKey: 'CollectiveId', as: 'legalDocuments' });
 Collective.hasMany(Member, { foreignKey: 'CollectiveId', as: 'members' });
+Collective.hasMany(Member, { foreignKey: 'CollectiveId', as: 'adminMembers', scope: { role: 'ADMIN' } });
 Collective.hasMany(Member, { foreignKey: 'MemberCollectiveId', as: 'memberships' });
 Collective.hasMany(Notification);
 Collective.hasMany(Order, { foreignKey: 'CollectiveId', as: 'orders' });

@@ -100,7 +100,7 @@ type CaptureErrorParams = {
   extra?: Record<string, unknown>;
   breadcrumbs?: Sentry.Breadcrumb[];
   user?: Sentry.User | User;
-  handler?: HandlerType;
+  handler?: HandlerType | `${HandlerType}`;
   feature?: FEATURE;
   transactionName?: string;
   /** Used to group Axios errors, when the URL includes parameters */

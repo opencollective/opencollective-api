@@ -55,6 +55,7 @@ export const templateNames = [
   'confirm-guest-account',
   'event.reminder.1d',
   'event.reminder.7d',
+  'expense-accounting-category-educational',
   'fund.created.foundation',
   'fund.approved.foundation',
   'host.application.contact',

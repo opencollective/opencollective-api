@@ -107,6 +107,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   public declare updatedAt: CreationOptional<Date>;
   public declare deletedAt: CreationOptional<Date>;
 
+  public declare activities?: Activity[];
   public declare Transactions?: TransactionInterface[];
   public declare collective?: Collective;
   public declare fromCollective?: Collective;
@@ -120,6 +121,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   public declare accountingCategory?: AccountingCategory;
 
   // Association getters
+  declare getActivities: HasManyGetAssociationsMixin<Activity>;
   declare getCollective: BelongsToGetAssociationMixin<Collective>;
   declare getItems: HasManyGetAssociationsMixin<ExpenseItem>;
   declare getPayoutMethod: BelongsToGetAssociationMixin<PayoutMethod>;

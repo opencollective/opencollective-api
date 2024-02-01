@@ -1212,12 +1212,8 @@ const checkCanUseAccountingCategory = (
     throw new ValidationFailed('This accounting category is not allowed for this host');
   } else if (accountingCategory.kind && accountingCategory.kind !== 'EXPENSE') {
     throw new ValidationFailed('This accounting category is not allowed for expenses');
-  } else if (
-    accountingCategory.expensesTypes &&
-    accountingCategory.expensesTypes.length > 0 &&
-    !accountingCategory.expensesTypes.includes(expenseType)
-  ) {
-    throw new ValidationFailed(`This accounting category is not allowed for expenses type: ${expenseType}`);
+  } else if (!accountingCategory.isCompatibleWithExpenseType(expenseType)) {
+    throw new ValidationFailed(`This accounting category is not allowed for expense type: ${expenseType}`);
   } else if (accountingCategory.hostOnly && !remoteUser?.isAdmin(host.id)) {
     throw new ValidationFailed('This accounting category can only be used by the host admin');
   }

@@ -87,6 +87,13 @@ class AccountingCategory extends Model<InferAttributes<AccountingCategory>, Acco
     });
   }
 
+  // Instance methods
+  public isCompatibleWithExpenseType(expenseType: ExpenseTypes): boolean {
+    return (
+      this.kind === TransactionKind.EXPENSE && (!this.expensesTypes?.length || this.expensesTypes.includes(expenseType))
+    );
+  }
+
   // Getters
   get publicInfo(): NonAttribute<Partial<AccountingCategory>> {
     return {
