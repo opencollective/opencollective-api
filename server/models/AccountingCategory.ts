@@ -11,6 +11,7 @@ import type {
 import ActivityTypes from '../constants/activities';
 import ExpenseTypes from '../constants/expense-type';
 import { TransactionKind } from '../constants/transaction-kind';
+import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 import Activity from './Activity';
@@ -18,6 +19,12 @@ import Collective from './Collective';
 import Expense from './Expense';
 import { OrderModelInterface } from './Order';
 import User from './User';
+
+const instructionsSanitizeOptions = buildSanitizerOptions({
+  basicTextFormatting: true,
+  multilineTextFormatting: true,
+  links: true,
+});
 
 type AccountingCategoryCreationAttributes = InferCreationAttributes<
   AccountingCategory,
@@ -50,6 +57,8 @@ class AccountingCategory extends Model<InferAttributes<AccountingCategory>, Acco
   declare name: string;
   declare friendlyName?: string;
   declare kind?: AccountingCategoryKind;
+  declare hostOnly: boolean;
+  declare instructions?: string;
   declare expensesTypes?: Array<ExpenseTypes | `${ExpenseTypes}`>;
   declare createdAt: Date;
   declare updatedAt: Date;
@@ -85,6 +94,9 @@ class AccountingCategory extends Model<InferAttributes<AccountingCategory>, Acco
       code: this.code,
       name: this.name,
       friendlyName: this.friendlyName,
+      hostOnly: this.hostOnly,
+      kind: this.kind,
+      instructions: this.instructions,
       CollectiveId: this.CollectiveId,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
@@ -128,6 +140,24 @@ AccountingCategory.init(
       },
       set(value: string): void {
         this.setDataValue('friendlyName', value?.trim());
+      },
+    },
+    hostOnly: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+    },
+    instructions: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      validate: {
+        len: [0, 50000], // just to prevent people from putting a lot of text in there
+      },
+      set(instructions: string) {
+        if (instructions) {
+          this.setDataValue('instructions', sanitizeHTML(instructions, instructionsSanitizeOptions));
+        } else {
+          this.setDataValue('instructions', null);
+        }
       },
     },
     kind: {
