@@ -77,6 +77,9 @@
       98478, // SCN
       9807, // OCE
       73495 // AFC
+    ],
+    "collectivesWithManyTransactions": [
+      8686 // OC
     ]
   }
 }

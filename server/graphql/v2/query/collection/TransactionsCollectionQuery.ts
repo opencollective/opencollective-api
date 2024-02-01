@@ -440,6 +440,13 @@ const getCacheKey = (resource, condition) => {
   ) {
     return `transactions_${resource}_HostCollectiveId_${condition.HostCollectiveId}`;
   }
+  if (
+    conditionKeys.length === 1 &&
+    conditionKeys[0] === 'CollectiveId' &&
+    config.performance.hostsWithManyTransactions.includes(condition.CollectiveId)
+  ) {
+    return `transactions_${resource}_CollectiveId_${condition.CollectiveId}`;
+  }
 };
 
 const fetchWithCache = async (resource: string, condition, fetchFunction: () => Promise<any>) => {
