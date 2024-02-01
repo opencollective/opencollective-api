@@ -113,7 +113,7 @@ export async function fetchCollectiveId(collectiveSlug) {
   }
 }
 
-export function memoize(func, { key, maxAge = 0, serialize, unserialize }) {
+export function memoize(func, { key, maxAge = 0, serialize = JSON.stringify, unserialize = JSON.parse }) {
   const cacheKey = args => {
     return args.length ? `${key}_${md5(JSON.stringify(args))}` : key;
   };

@@ -79,7 +79,12 @@
       73495 // AFC
     ],
     "collectivesWithManyTransactions": [
-      8686 // OC
+      11004, // OSC
+      8686, // OC
+      11049, // OCF
+      166914, // Logseq
+      9807, // OCE
+      73495 // AFC
     ]
   }
 }

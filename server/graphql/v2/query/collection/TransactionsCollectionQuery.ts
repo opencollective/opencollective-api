@@ -2,11 +2,11 @@ import config from 'config';
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { cloneDeep, flatten, isEmpty, isNil, pick, uniq } from 'lodash';
+import { cloneDeep, flatten, intersection, isEmpty, isNil, pick, uniq } from 'lodash';
 import { Order } from 'sequelize';
 
 import { CollectiveType } from '../../../../constants/collectives';
-import cache from '../../../../lib/cache';
+import cache, { memoize } from '../../../../lib/cache';
 import { buildSearchConditions } from '../../../../lib/search';
 import { parseToBoolean } from '../../../../lib/utils';
 import { Expense, Op, PaymentMethod, sequelize } from '../../../../models';
@@ -178,6 +178,10 @@ export const TransactionsCollectionResolver = async (
     ),
   );
 
+  const accountIdsWithGiftCardTransactions = args.includeGiftCardTransactions
+    ? await getCollectiveIdsWithGiftCardTransactions()
+    : [];
+
   if (fromAccount) {
     const fromAccountCondition = [];
 
@@ -203,7 +207,7 @@ export const TransactionsCollectionResolver = async (
       }
     }
 
-    if (args.includeGiftCardTransactions) {
+    if (args.includeGiftCardTransactions && accountIdsWithGiftCardTransactions.includes(fromAccount.id)) {
       where.push({
         [Op.or]: [
           { UsingGiftCardFromCollectiveId: fromAccount.id, type: 'CREDIT' },
@@ -250,10 +254,10 @@ export const TransactionsCollectionResolver = async (
       }
     }
 
-    if (args.includeGiftCardTransactions) {
+    if (args.includeGiftCardTransactions && intersection(accountsIds, accountIdsWithGiftCardTransactions).length > 0) {
       where.push({
         [Op.or]: [
-          { UsingGiftCardFromCollectiveId: accounts.map(account => account.id), type: 'DEBIT' },
+          { UsingGiftCardFromCollectiveId: accountsIds, type: 'DEBIT' },
           // prettier, please keep line break for readability please
           { CollectiveId: accountCondition },
         ],
@@ -432,20 +436,18 @@ export const TransactionsCollectionResolver = async (
 };
 
 const getCacheKey = (resource, condition) => {
-  const conditionKeys = Object.keys(condition);
   if (
-    conditionKeys.length === 1 &&
-    conditionKeys[0] === 'HostCollectiveId' &&
+    Object.keys(condition).length === 1 &&
+    condition.HostCollectiveId &&
     config.performance.hostsWithManyTransactions.includes(condition.HostCollectiveId)
   ) {
     return `transactions_${resource}_HostCollectiveId_${condition.HostCollectiveId}`;
   }
-  if (
-    conditionKeys.length === 1 &&
-    conditionKeys[0] === 'CollectiveId' &&
-    config.performance.hostsWithManyTransactions.includes(condition.CollectiveId)
-  ) {
-    return `transactions_${resource}_CollectiveId_${condition.CollectiveId}`;
+  if (Object.keys(condition).length === 1 && condition.CollectiveId) {
+    const collectiveIds = Array.isArray(condition.CollectiveId) ? condition.CollectiveId : [condition.CollectiveId];
+    if (intersection(config.performance.collectivesWithManyTransactions, collectiveIds).length > 0) {
+      return `transactions_${resource}_CollectiveId_${collectiveIds.join('_')}`;
+    }
   }
 };
 
@@ -499,6 +501,17 @@ const fetchTransactionsCount = async (queryParameters): Promise<number> => {
 
   return fetchWithCache('count', condition, () => Transaction.count(pick(queryParameters, ['where', 'include'])));
 };
+
+const getCollectiveIdsWithGiftCardTransactions = memoize(
+  (): Promise<number[]> =>
+    Transaction.findAll({
+      attributes: ['UsingGiftCardFromCollectiveId'],
+      where: { UsingGiftCardFromCollectiveId: { [Op.not]: null } },
+      group: ['UsingGiftCardFromCollectiveId'],
+      raw: true,
+    }).then(results => results.map(result => result.UsingGiftCardFromCollectiveId)),
+  { key: 'collectiveIdsWithGiftCardTransactions' },
+);
 
 const TransactionsCollectionQuery = {
   type: new GraphQLNonNull(GraphQLTransactionCollection),
