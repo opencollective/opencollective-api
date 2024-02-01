@@ -1728,7 +1728,12 @@ export async function editExpenseDraft(req: express.Request, expenseData: Expens
   };
 
   if (args.expense.payee && isDifferentInvitedPayee(existingExpense, args.expense.payee)) {
-    const payee = args.expense.payee as { email: string; name?: string };
+    let payee = args.expense.payee as { id?: number; email?: string };
+    const existingUser = payee.email && (await models.User.findByEmail(payee.email));
+    const existingUserCollective = existingUser && (await existingUser.getCollective());
+    if (existingUserCollective) {
+      payee = existingUserCollective.minimal;
+    }
     newExpenseValues.data['payee'] = payee;
     newExpenseValues.data['draftKey'] =
       process.env.OC_ENV === 'e2e' || process.env.OC_ENV === 'ci' ? 'draft-key' : uuid();
