@@ -460,6 +460,9 @@ const expenseMutations = {
       let payee = payeeLegacyId
         ? (await fetchAccountWithReference({ legacyId: payeeLegacyId }, { throwIfMissing: true }))?.minimal
         : expenseData.payee;
+      if (!payee) {
+        throw new ValidationFailed('Payee not found');
+      }
       const existingUser = payee.email && (await models.User.findByEmail(payee.email));
       const existingUserCollective = existingUser && (await existingUser.getCollective());
       if (existingUserCollective) {
