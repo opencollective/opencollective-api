@@ -266,10 +266,16 @@ export const TransactionsCollectionResolver = async (
       where.push({ CollectiveId: accountCondition });
     }
 
-    // Database optimization, it seems faster to add the HostCollectiveId if there is one
-    const hostCollectiveIds = uniq(accounts.map(account => account.HostCollectiveId).filter(el => !!el));
-    if (accountsIds.length > 1 && hostCollectiveIds.length === 1) {
-      where.push({ HostCollectiveId: hostCollectiveIds[0] });
+    // Database optimization, it seems faster to add the HostCollectiveId if possible
+    // Only do this when they are multiple accountsIds and one of them has many transactions
+    if (
+      accountsIds.length > 1 &&
+      intersection(config.performance.collectivesWithManyTransactions, accountsIds).length > 0
+    ) {
+      const hostCollectiveIds = uniq(accounts.map(account => account.HostCollectiveId).filter(el => !!el));
+      if (hostCollectiveIds.length === 1) {
+        where.push({ HostCollectiveId: hostCollectiveIds[0] });
+      }
     }
   }
 
@@ -470,7 +476,7 @@ const fetchWithCache = async (resource: string, condition, fetchFunction: () => 
   }
   const results = await fetchFunction();
   if (cacheKey) {
-    cache.set(cacheKey, results);
+    cache.set(cacheKey, results, 60 * 60 * 24);
   }
   return results;
 };
