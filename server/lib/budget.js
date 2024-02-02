@@ -557,12 +557,14 @@ export async function sumCollectivesTransactions(
         as: 'fromCollective',
         attributes: [],
       });
-      where[Op.and] = where[Op.and] || [];
-      where[Op.and].push(
-        sequelize.literal(
-          '(("collective"."id" = "fromCollective"."id") OR (COALESCE("collective"."ParentCollectiveId", "collective"."id") != COALESCE("fromCollective"."ParentCollectiveId", "fromCollective"."id")))',
-        ),
-      );
+      if (excludeInternals) {
+        where[Op.and] = where[Op.and] || [];
+        where[Op.and].push(
+          sequelize.literal(
+            '(("collective"."id" = "fromCollective"."id") OR (COALESCE("collective"."ParentCollectiveId", "collective"."id") != COALESCE("fromCollective"."ParentCollectiveId", "fromCollective"."id")))',
+          ),
+        );
+      }
     } else {
       where.CollectiveId = ids;
     }

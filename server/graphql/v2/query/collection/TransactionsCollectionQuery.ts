@@ -222,7 +222,7 @@ export const TransactionsCollectionResolver = async (
 
   if (args.account) {
     const accountCondition = [];
-    const attributes = ['id']; // We only need IDs
+    const attributes = ['id', 'HostCollectiveId']; // We only need IDs
     const fetchAccountsParams = { throwIfMissing: true, attributes };
     if (args.includeChildrenTransactions) {
       fetchAccountsParams['include'] = [
@@ -264,6 +264,12 @@ export const TransactionsCollectionResolver = async (
       });
     } else {
       where.push({ CollectiveId: accountCondition });
+    }
+
+    // Database optimization, it seems faster to add the HostCollectiveId if there is one
+    const hostCollectiveIds = uniq(accounts.map(account => account.HostCollectiveId).filter(el => !!el));
+    if (accountsIds.length > 1 && hostCollectiveIds.length === 1) {
+      where.push({ HostCollectiveId: hostCollectiveIds[0] });
     }
   }
 
