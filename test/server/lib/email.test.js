@@ -86,6 +86,14 @@ describe('server/lib/email', () => {
 
       expect(nm.sendMail.lastCall.args[0].html).to.matchSnapshot();
       expect(nm.sendMail.lastCall.args[0].text).to.matchSnapshot();
+
+      expect(nm.sendMail.lastCall.args[0].headers).to.containSubset({
+        'X-OpenCollective-Account': 'enmarchebe',
+        'List-ID': 'enmarchebe::order.thankyou',
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+        'List-Unsubscribe':
+          '<http://localhost:3000/email/unsubscribe/user1%40opencollective.com/enmarchebe/order.thankyou/54349853da7f4493e08265f3a6d600a9b705aec3bea42cb8ce23688c3060c3837d04a6285263edfdcdc83cfd7a7f95692f274a1c4d7f40f4c0db031e638589e9>',
+      });
     });
 
     it('sends the thankyou.wwcode email template', async () => {
@@ -117,6 +125,14 @@ describe('server/lib/email', () => {
       expect(nm.sendMail.lastCall.args[0].subject).to.contain(
         `Thank you for your ${amountStr}/month donation to WWCode Austin`,
       );
+
+      expect(nm.sendMail.lastCall.args[0].headers).to.containSubset({
+        'X-OpenCollective-Account': 'wwcodeaustin',
+        'List-ID': 'wwcodeaustin::order.thankyou',
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+        'List-Unsubscribe':
+          '<http://localhost:3000/email/unsubscribe/user1%40opencollective.com/wwcodeaustin/order.thankyou/d33986f22d66bf7254173f354874ba1557b094f96ac12ebb0afbabfd9a3fe76ed1fc5c30662d7ecc318ff6a0a47f9b09b9e71797b72627423b9694710fd0c80e>',
+      });
     });
   });
 
