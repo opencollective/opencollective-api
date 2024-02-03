@@ -428,7 +428,7 @@ export async function sendThankYouEmail(order, transaction, isFirstPayment = fal
     }
   }
 
-  const activity = { type: activities.ORDER_THANKYOU, data };
+  const activity = { type: activities.ORDER_CONFIRMED, data };
   return notify.collective(activity, {
     collectiveId: data.fromCollective.id,
     role: [roles.ACCOUNTANT, roles.ADMIN],

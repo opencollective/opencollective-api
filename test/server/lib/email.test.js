@@ -51,8 +51,8 @@ describe('server/lib/email', () => {
       nodemailer.createTransport.restore();
     });
 
-    it('sends the thankyou.fr email template', async () => {
-      const template = 'order.thankyou';
+    it('sends the order.confirmed.fr email template', async () => {
+      const template = 'order.confirmed';
       const collective = { name: 'En Marche', slug: 'enmarchebe' };
       const data = {
         order: { totalAmount: 5000, currency: 'EUR' },
@@ -88,7 +88,7 @@ describe('server/lib/email', () => {
       expect(nm.sendMail.lastCall.args[0].text).to.matchSnapshot();
     });
 
-    it('sends the thankyou.wwcode email template', async () => {
+    it('sends the order.confirmed.wwcode email template', async () => {
       const paymentData = {
         totalAmount: 5000,
         currency: 'USD',
@@ -105,7 +105,7 @@ describe('server/lib/email', () => {
           slug: 'wwcodeaustin',
         },
       };
-      await emailLib.send('order.thankyou', data.user.email, data);
+      await emailLib.send('order.confirmed', data.user.email, data);
       let amountStr = 50;
       amountStr = amountStr.toLocaleString('en-US', {
         style: 'currency',

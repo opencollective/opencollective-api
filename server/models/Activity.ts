@@ -28,7 +28,16 @@ Activity.init(
       primaryKey: true,
       autoIncrement: true,
     },
-    type: DataTypes.STRING,
+
+    type: {
+      type: DataTypes.STRING,
+      get() {
+        const value = this.getDataValue('type');
+        if (value === 'order.thankyou') {
+          return 'order.confirmed';
+        }
+      },
+    },
 
     data: DataTypes.JSONB,
 
