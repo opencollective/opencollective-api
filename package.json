@@ -187,7 +187,7 @@
     "npm-run-all2": "^6.0.0",
     "nyc": "^15.1.0",
     "opentelemetry-instrumentation-sequelize": "^0.40.0",
-    "prettier": "3.2.4",
+    "prettier": "3.2.5",
     "sinon": "^17.0.1",
     "sinon-chai": "^3.7.0",
     "supertest": "^6.3.4",
