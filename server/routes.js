@@ -383,7 +383,8 @@ export default async app => {
   /**
    * External services
    */
-  app.get('/services/email/unsubscribe/:email/:slug/:type/:token', email.unsubscribe);
+  app.get('/services/email/unsubscribe/:email/:slug/:type/:token', email.unsubscribe); // When users click on the unsubscribe link in the email
+  app.post('/services/email/unsubscribe/:email/:slug/:type/:token', email.unsubscribe); // For compatibility with the `List-Unsubscribe-Post` header
 
   /**
    * Github API - fetch all repositories using the user's access_token
