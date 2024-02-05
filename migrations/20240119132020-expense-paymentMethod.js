@@ -15,12 +15,6 @@ module.exports = {
     });
     await queryInterface.addColumn('ExpenseHistories', 'PaymentMethodId', {
       type: Sequelize.INTEGER,
-      references: {
-        model: 'PaymentMethods',
-        key: 'id',
-      },
-      onDelete: 'SET NULL',
-      onUpdate: 'CASCADE',
       allowNull: true,
     });
   },
