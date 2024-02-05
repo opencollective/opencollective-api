@@ -27,6 +27,9 @@ type SendMessageOptions = Pick<
   sendEvenIfNotProduction?: boolean;
   type?: EmailTemplates;
   isTransactional?: boolean;
+  unsubscribeUrl?: string;
+  accountSlug?: string;
+  listId?: string;
 };
 
 type SendMessageData = {
@@ -125,6 +128,7 @@ const sendMessage = (
     recipients = [recipients];
   }
 
+  // Double-check email validity
   recipients = recipients.filter(recipient => {
     if (!recipient || !recipient.match(/.+@.+\..+/)) {
       debug(`${recipient} is an invalid email address, skipping`);
@@ -134,6 +138,7 @@ const sendMessage = (
     }
   }) as string[];
 
+  // Add environment to subject if not prod
   if (config.env === 'staging') {
     subject = `[STAGING] ${subject}`;
   } else if (config.env !== 'production' && config.host.website !== 'https://opencollective.com') {
@@ -187,6 +192,17 @@ const sendMessage = (
       if (replyTo) {
         headers['Reply-To'] = replyTo;
       }
+      if (options.accountSlug) {
+        headers['X-OpenCollective-Account'] = options.accountSlug;
+      }
+      if (options.listId) {
+        headers['List-ID'] = options.listId;
+      }
+      if (options.unsubscribeUrl) {
+        headers['List-Unsubscribe'] = `<${options.unsubscribeUrl}>`;
+        headers['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click';
+      }
+
       debug('mailer> sending email to ', to, 'bcc', bcc);
 
       return mailer.sendMail({ from, cc, to, bcc, subject, text, html, headers, attachments }, (err, info) => {
@@ -211,6 +227,7 @@ const sendMessage = (
  */
 const getNotificationLabel = (template): string => {
   const notificationTypeLabels = {
+    'collective.apply.for.host': 'notifications of new collectives applying to this host',
     'collective.order.created': 'notifications of new donations for this collective',
     'collective.comment.created': 'notifications of new comments submitted to this collective',
     'collective.expense.created': 'notifications of new expenses submitted to this collective',
@@ -248,20 +265,28 @@ const generateEmailFromTemplate = (
   data: SendMessageData = {},
   options: SendMessageOptions = {},
 ) => {
-  const slug = get(options, 'collective.slug') || get(data, 'collective.slug') || 'undefined';
+  const slug = get(options, 'collective.slug') || get(data, 'collective.slug') || '';
   const hostSlug = get(data, 'host.slug');
   const eventSlug = get(data, 'event.slug');
+  const projectSlug = get(data, 'project.slug');
+  const emailId = get(options, 'type') || template;
+
+  // Populate the `listId` and `accountSlug` options to later populate the email headers. We're doing that here for
+  // consistency with the unsubscribe link handling below, but mutating `data` is not ideal and should be refactored.
+  if (options) {
+    options.listId = slug ? `${slug}::${emailId}` : emailId;
+    options.accountSlug = eventSlug ?? projectSlug ?? slug;
+  }
 
   // If we are sending the same email to multiple recipients, it doesn't make sense to allow them to unsubscribe
   if (!isArray(recipient) && !options?.isTransactional) {
-    data.notificationTypeLabel = getNotificationLabel(options.type || template);
-    data.unsubscribeUrl = `${config.host.website}/email/unsubscribe/${encodeURIComponent(
-      recipient || options.bcc,
-    )}/${slug}/${options.type || template}/${generateUnsubscribeToken(
-      recipient || options.bcc,
-      slug,
-      options.type || template,
-    )}`;
+    data.notificationTypeLabel = getNotificationLabel(emailId);
+    if (data.notificationTypeLabel) {
+      const encodedEmail = encodeURIComponent(recipient || options.bcc);
+      const unsubscribeToken = generateUnsubscribeToken(recipient || options.bcc, slug || 'undefined', emailId);
+      // We don't support unsubscribe at the event/project level, so we use the collective `slug`. See https://github.com/opencollective/opencollective/issues/7243.
+      data.unsubscribeUrl = `${config.host.website}/email/unsubscribe/${encodedEmail}/${slug || 'undefined'}/${emailId}/${unsubscribeToken}`;
+    }
   }
 
   if (template === 'ticket.confirmed') {
@@ -377,6 +402,7 @@ const generateEmailFromTemplateAndSend = async (
       const attributes = getTemplateAttributes(renderedTemplate.html);
       options.text = renderedTemplate.text;
       options.tag = template;
+      options.unsubscribeUrl = data.unsubscribeUrl;
       debug(`Sending email to: ${recipient} subject: ${attributes.subject}`);
       return emailLib.sendMessage(recipient, attributes.subject, attributes.body, options);
     })
