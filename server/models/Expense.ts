@@ -279,7 +279,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
     }
 
     if (!skipActivity) {
-      user = user ?? (await models.User.findByPk(lastEditedById));
+      user = user ?? (await User.findByPk(lastEditedById));
       await this.createActivity(ActivityTypes.COLLECTIVE_EXPENSE_PAID, user, { isManualPayout });
     }
   };
