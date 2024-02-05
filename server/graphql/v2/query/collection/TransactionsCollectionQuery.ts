@@ -34,6 +34,8 @@ import { getDatabaseIdFromOrderReference, GraphQLOrderReferenceInput } from '../
 import { GraphQLVirtualCardReferenceInput } from '../../input/VirtualCardReferenceInput';
 import { CollectionArgs } from '../../interface/Collection';
 
+const oneDayInSeconds = 60 * 60 * 24;
+
 export const TransactionsCollectionArgs = {
   limit: { ...CollectionArgs.limit, defaultValue: 100 },
   offset: CollectionArgs.offset,
@@ -476,12 +478,14 @@ const fetchWithCache = async (resource: string, condition, fetchFunction: () => 
   }
   const results = await fetchFunction();
   if (cacheKey) {
-    cache.set(cacheKey, results, 60 * 60 * 24);
+    cache.set(cacheKey, results, oneDayInSeconds);
   }
   return results;
 };
 
 const fetchTransactionsKinds = async whereKinds => {
+  console.log('fetchTransactionsKinds', whereKinds);
+
   const condition = whereKinds.length === 1 ? whereKinds[0] : null;
 
   return fetchWithCache('kinds', condition, () =>
@@ -522,7 +526,7 @@ const getCollectiveIdsWithGiftCardTransactions = memoize(
       group: ['UsingGiftCardFromCollectiveId'],
       raw: true,
     }).then(results => results.map(result => result.UsingGiftCardFromCollectiveId)),
-  { key: 'collectiveIdsWithGiftCardTransactions' },
+  { key: 'collectiveIdsWithGiftCardTransactions', maxAge: oneDayInSeconds },
 );
 
 const TransactionsCollectionQuery = {
