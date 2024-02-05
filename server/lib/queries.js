@@ -856,6 +856,7 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
     AND analyzed_expenses.status IN ('PENDING', 'APPROVED')
     AND analyzed_expenses."deletedAt" IS NULL
     AND (from_collective."HostCollectiveId" IS NULL OR from_collective."HostCollectiveId" != c."HostCollectiveId")
+    AND (from_collective."type" != 'VENDOR' OR from_collective."data"#>>'{vendorInfo, taxFormRequired}' = 'true')
     AND all_expenses.type NOT IN (:ignoredExpenseTypes)
     AND all_expenses.status NOT IN (:ignoredExpenseStatuses)
     AND all_expenses."deletedAt" IS NULL
