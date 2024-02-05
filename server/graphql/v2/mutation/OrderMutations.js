@@ -52,7 +52,10 @@ import {
 import { getIntervalFromContributionFrequency } from '../enum/ContributionFrequency';
 import { GraphQLProcessOrderAction } from '../enum/ProcessOrderAction';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
-import { fetchAccountingCategoryWithReference } from '../input/AccountingCategoryInput';
+import {
+  fetchAccountingCategoryWithReference,
+  GraphQLAccountingCategoryReferenceInput,
+} from '../input/AccountingCategoryInput';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { assertAmountInputCurrency, getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/AmountInput';
 import { GraphQLGuestInfoInput } from '../input/GuestInfoInput';
@@ -414,6 +417,70 @@ const orderMutations = {
         // Update payment method
         const newPaymentMethod = await fetchPaymentMethodWithReference(args.paymentMethod);
         return updatePaymentMethodForSubscription(req.remoteUser, order, newPaymentMethod);
+      }
+
+      return order;
+    },
+  },
+  updateOrderAccountingCategory: {
+    type: new GraphQLNonNull(GraphQLOrder),
+    description: 'Update the accounting category of an order. Scope: "orders".',
+    args: {
+      order: {
+        type: new GraphQLNonNull(GraphQLOrderReferenceInput),
+        description: 'Reference to the Order to update',
+      },
+      accountingCategory: {
+        type: GraphQLAccountingCategoryReferenceInput,
+        description: 'Reference to the Accounting Category to update the order with',
+      },
+    },
+    async resolve(_, args, req) {
+      checkRemoteUserCanUseOrders(req);
+
+      // Load order
+      const order = await fetchOrderWithReference(args.order, {
+        throwIfMissing: true,
+        include: [
+          { association: 'collective', required: true },
+          { association: 'accountingCategory', required: false },
+        ],
+      });
+      if (!req.remoteUser.isAdmin(order.collective.HostCollectiveId)) {
+        throw new Unauthorized('Only host admins can update the accounting category of an order');
+      } else if (!order.collective.isActive) {
+        throw new ValidationFailed('The collective is not active');
+      }
+
+      // Load accounting category
+      let newAccountingCategory = null;
+      if (args.accountingCategory === undefined) {
+        throw new ValidationFailed('accountingCategory is required');
+      } else if (args.accountingCategory) {
+        newAccountingCategory = await fetchAccountingCategoryWithReference(args.accountingCategory, {
+          throwIfMissing: true,
+        });
+      }
+
+      // Check validity
+      checkCanUseAccountingCategoryForOrder(newAccountingCategory, order.collective.HostCollectiveId);
+
+      // Trigger update
+      const previousAccountingCategory = order.accountingCategory;
+      if (previousAccountingCategory?.id !== newAccountingCategory?.id) {
+        await order.update({ AccountingCategoryId: newAccountingCategory?.id || null });
+        await models.Activity.create({
+          type: activities.ORDER_UPDATED,
+          UserId: req.remoteUser.id,
+          CollectiveId: order.CollectiveId,
+          FromCollectiveId: req.remoteUser.CollectiveId,
+          OrderId: order.id,
+          HostCollectiveId: order.collective.HostCollectiveId,
+          data: {
+            previousData: { accountingCategory: previousAccountingCategory?.publicInfo || null },
+            newData: { accountingCategory: newAccountingCategory?.publicInfo || null },
+          },
+        });
       }
 
       return order;
@@ -979,7 +1046,7 @@ const orderMutations = {
           loaders: req.loaders,
         });
 
-        checkCanUseAccountingCategoryForOrder(accountingCategory, host, 'CONTRIBUTION');
+        checkCanUseAccountingCategoryForOrder(accountingCategory, host.id);
         AccountingCategoryId = accountingCategory.id;
       }
 
@@ -1125,7 +1192,7 @@ const orderMutations = {
           loaders: req.loaders,
         });
 
-        checkCanUseAccountingCategoryForOrder(accountingCategory, host, 'CONTRIBUTION');
+        checkCanUseAccountingCategoryForOrder(accountingCategory, host?.id);
         AccountingCategoryId = accountingCategory.id;
       }
 

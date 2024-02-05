@@ -211,6 +211,22 @@ const updateOrderMutation = gql`
   }
 `;
 
+const updateOrderAccountingCategoryMutation = gql`
+  mutation UpdateOrderAccountingCategory(
+    $order: OrderReferenceInput!
+    $accountingCategory: AccountingCategoryReferenceInput
+  ) {
+    updateOrderAccountingCategory(order: $order, accountingCategory: $accountingCategory) {
+      id
+      accountingCategory {
+        id
+        code
+        name
+      }
+    }
+  }
+`;
+
 const moveOrdersMutation = gql`
   mutation MoveOrders(
     $orders: [OrderReferenceInput!]!
@@ -291,6 +307,10 @@ const callCreatePendingOrder = (params, remoteUser = null) => {
 
 const callEditPendingOrder = (params, remoteUser = null) => {
   return graphqlQueryV2(EDIT_PENDING_ORDER_MUTATION, params, remoteUser);
+};
+
+const callUpdateOrderAccountingCategory = (variables, remoteUser = null) => {
+  return graphqlQueryV2(updateOrderAccountingCategoryMutation, variables, remoteUser);
 };
 
 const stubStripePayments = sandbox => {
@@ -1648,8 +1668,127 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         };
         const result = await callCreatePendingOrder({ order: orderInput }, hostAdmin);
         expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.equal('This accounting category is not allowed for contributions');
+        expect(result.errors[0].message).to.equal(
+          'This accounting category is not allowed for contributions and added funds',
+        );
       });
+    });
+  });
+
+  describe('updateOrderAccountingCategory', () => {
+    it('must be authenticated', async () => {
+      const order = await fakeOrder();
+      const result = await callUpdateOrderAccountingCategory({
+        order: { legacyId: order.id },
+        accountingCategory: null,
+      });
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('You need to be logged in to manage orders');
+    });
+
+    it('must be host admin', async () => {
+      const fromCollectiveAdmin = await fakeUser();
+      const fromCollective = await fakeOrganization({ admin: fromCollectiveAdmin });
+      const order = await fakeOrder({ FromCollectiveId: fromCollective.id });
+      const orderReference = { legacyId: order.id };
+
+      // Random user
+      const randomUser = await fakeUser();
+      const resultRandomUser = await callUpdateOrderAccountingCategory(
+        { order: orderReference, accountingCategory: null },
+        randomUser,
+      );
+      expect(resultRandomUser.errors).to.exist;
+      expect(resultRandomUser.errors[0].message).to.equal(
+        'Only host admins can update the accounting category of an order',
+      );
+
+      // Collective Admin
+      const collectiveAdmin = await fakeUser();
+      await order.collective.addUserWithRole(collectiveAdmin, 'ADMIN');
+      const resultCollectiveAdmin = await callUpdateOrderAccountingCategory(
+        { order: orderReference, accountingCategory: null },
+        collectiveAdmin,
+      );
+      expect(resultCollectiveAdmin.errors).to.exist;
+      expect(resultCollectiveAdmin.errors[0].message).to.equal(
+        'Only host admins can update the accounting category of an order',
+      );
+
+      // From Collective Admin
+      const resultFromCollectiveAdmin = await callUpdateOrderAccountingCategory(
+        { order: orderReference, accountingCategory: null },
+        fromCollectiveAdmin,
+      );
+      expect(resultFromCollectiveAdmin.errors).to.exist;
+      expect(resultFromCollectiveAdmin.errors[0].message).to.equal(
+        'Only host admins can update the accounting category of an order',
+      );
+
+      // Host Admin
+      const hostAdmin = await fakeUser();
+      await order.collective.host.addUserWithRole(hostAdmin, 'ADMIN');
+      const resultHostAdmin = await callUpdateOrderAccountingCategory(
+        { order: orderReference, accountingCategory: null },
+        hostAdmin,
+      );
+      expect(resultHostAdmin.errors).to.not.exist;
+    });
+
+    it('cannot use expense categories', async () => {
+      const hostAdmin = await fakeUser();
+      const order = await fakeOrder();
+      await order.collective.host.addUserWithRole(hostAdmin, 'ADMIN');
+      const accountingCategory = await fakeAccountingCategory({
+        CollectiveId: order.collective.HostCollectiveId,
+        kind: 'EXPENSE',
+      });
+      const result = await callUpdateOrderAccountingCategory(
+        {
+          order: { legacyId: order.id },
+          accountingCategory: { id: idEncode(accountingCategory.id, 'accounting-category') },
+        },
+        hostAdmin,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(
+        'This accounting category is not allowed for contributions and added funds',
+      );
+    });
+
+    it('cannot use categories from another host', async () => {
+      const hostAdmin = await fakeUser();
+      const order = await fakeOrder();
+      await order.collective.host.addUserWithRole(hostAdmin, 'ADMIN');
+      const otherHostAccountingCategory = await fakeAccountingCategory({ kind: 'CONTRIBUTION' });
+      const result = await callUpdateOrderAccountingCategory(
+        {
+          order: { legacyId: order.id },
+          accountingCategory: { id: idEncode(otherHostAccountingCategory.id, 'accounting-category') },
+        },
+        hostAdmin,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('This accounting category is not allowed for this host');
+    });
+
+    it('updates the accounting category of an order', async () => {
+      const hostAdmin = await fakeUser();
+      const order = await fakeOrder();
+      await order.collective.host.addUserWithRole(hostAdmin, 'ADMIN');
+      const accountingCategory = await fakeAccountingCategory({
+        CollectiveId: order.collective.HostCollectiveId,
+        kind: 'CONTRIBUTION',
+      });
+      const result = await callUpdateOrderAccountingCategory(
+        {
+          order: { legacyId: order.id },
+          accountingCategory: { id: idEncode(accountingCategory.id, 'accounting-category') },
+        },
+        hostAdmin,
+      );
+      expect(result.errors).to.not.exist;
+      expect(result.data.updateOrderAccountingCategory.accountingCategory.code).to.equal(accountingCategory.code);
     });
   });
 
@@ -1834,7 +1973,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(result.errors[0].message).to.equal('This accounting category is not allowed for this host');
       });
 
-      it('must be allowed for added funds', async () => {
+      it('must be allowed for added funds or contributions', async () => {
         const accountingCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'EXPENSE' });
         const orderInput = {
           ...validEditOrderParams,
@@ -1842,7 +1981,9 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         };
         const result = await callEditPendingOrder({ order: orderInput }, hostAdmin);
         expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.equal('This accounting category is not allowed for contributions');
+        expect(result.errors[0].message).to.equal(
+          'This accounting category is not allowed for contributions and added funds',
+        );
       });
 
       it('can be set to null', async () => {
