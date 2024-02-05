@@ -6,8 +6,8 @@ module.exports = {
     let metadata;
     [, metadata] = await queryInterface.sequelize.query(`
       WITH wise AS (SELECT DISTINCT e."HostCollectiveId" FROM "Expenses" e WHERE e."createdAt" > '2024-01-01' AND e.status = 'PAID' AND e.data#>>'{fund,status}' = 'COMPLETED')
-      INSERT INTO "PaymentMethods" ("service", "type", "CollectiveId", "saved", "data")
-      SELECT 'wise' as "service", 'bank_transfer' as "type", "HostCollectiveId" as "CollectiveId", False as "saved", '{ "migration": "20240130125545-add-expense-payment-method" }'::JSONB as "data" FROM wise ON CONFLICT DO NOTHING;
+      INSERT INTO "PaymentMethods" ("service", "type", "CollectiveId", "saved", "data", "createdAt", "updatedAt")
+      SELECT 'wise' as "service", 'bank_transfer' as "type", "HostCollectiveId" as "CollectiveId", False as "saved", '{ "migration": "20240130125545-add-expense-payment-method" }'::JSONB as "data", NOW() as "createdAt", NOW() as "updatedAt" FROM wise ON CONFLICT DO NOTHING;
     `);
     console.info(metadata.rowCount, 'wise payment methods created');
     [, metadata] = await queryInterface.sequelize.query(`
@@ -23,8 +23,8 @@ module.exports = {
 
     [, metadata] = await queryInterface.sequelize.query(`
       WITH stripevirtualcard AS (SELECT DISTINCT e."HostCollectiveId" FROM "Expenses" e WHERE e."createdAt" > '2024-01-01' AND e.status = 'PAID' AND e.data#>>'{transaction,card}' IS NOT NULL)
-      INSERT INTO "PaymentMethods" ("service", "type", "CollectiveId", "saved", "data")
-      SELECT 'stripe' as "service", 'virtual_card' as "type", "HostCollectiveId" as "CollectiveId", False as "saved", '{ "migration": "20240130125545-add-expense-payment-method" }'::JSONB as "data" FROM stripevirtualcard ON CONFLICT DO NOTHING;
+      INSERT INTO "PaymentMethods" ("service", "type", "CollectiveId", "saved", "data", "createdAt", "updatedAt")
+      SELECT 'stripe' as "service", 'virtual_card' as "type", "HostCollectiveId" as "CollectiveId", False as "saved", '{ "migration": "20240130125545-add-expense-payment-method" }'::JSONB as "data", NOW() as "createdAt", NOW() as "updatedAt" FROM stripevirtualcard ON CONFLICT DO NOTHING;
     `);
     console.info(metadata.rowCount, 'stripe virtual card payment methods created');
     [, metadata] = await queryInterface.sequelize.query(`
@@ -40,8 +40,8 @@ module.exports = {
 
     [, metadata] = await queryInterface.sequelize.query(`
       WITH paypalpayouts AS (SELECT DISTINCT e."HostCollectiveId" FROM "Expenses" e WHERE e."createdAt" > '2024-01-01' AND e.status = 'PAID' AND e.data#>>'{payout_batch_id}' IS NOT NULL)
-      INSERT INTO "PaymentMethods" ("service", "type", "CollectiveId", "saved", "data")
-      SELECT 'paypal' as "service", 'payout' as "type", "HostCollectiveId" as "CollectiveId", False as "saved", '{ "migration": "20240130125545-add-expense-payment-method" }'::JSONB as "data" FROM paypalpayouts ON CONFLICT DO NOTHING;
+      INSERT INTO "PaymentMethods" ("service", "type", "CollectiveId", "saved", "data", "createdAt", "updatedAt")
+      SELECT 'paypal' as "service", 'payout' as "type", "HostCollectiveId" as "CollectiveId", False as "saved", '{ "migration": "20240130125545-add-expense-payment-method" }'::JSONB as "data", NOW() as "createdAt", NOW() as "updatedAt" FROM paypalpayouts ON CONFLICT DO NOTHING;
     `);
     console.info(metadata.rowCount, 'paypal payout payment methods created');
     [, metadata] = await queryInterface.sequelize.query(`
@@ -57,8 +57,8 @@ module.exports = {
 
     [, metadata] = await queryInterface.sequelize.query(`
       WITH paypaladaptive AS (SELECT DISTINCT e."HostCollectiveId" FROM "Expenses" e INNER JOIN "PayoutMethods" as po ON po.id = e."PayoutMethodId" WHERE e."createdAt" > '2024-01-01' AND e.status = 'PAID' AND e.data#>>'{payout_batch_id}' IS NULL AND e.data#>>'{quote,id}' IS NULL AND e.data#>>'{transaction,id}' IS NULL AND po.type = 'PAYPAL')
-      INSERT INTO "PaymentMethods" ("service", "type", "CollectiveId", "saved", "data")
-      SELECT 'paypal' as "service", 'adaptive' as "type", "HostCollectiveId" as "CollectiveId", False as "saved", '{ "migration": "20240130125545-add-expense-payment-method" }'::JSONB as "data" FROM paypaladaptive ON CONFLICT DO NOTHING;
+      INSERT INTO "PaymentMethods" ("service", "type", "CollectiveId", "saved", "data", "createdAt", "updatedAt")
+      SELECT 'paypal' as "service", 'adaptive' as "type", "HostCollectiveId" as "CollectiveId", False as "saved", '{ "migration": "20240130125545-add-expense-payment-method" }'::JSONB as "data", NOW() as "createdAt", NOW() as "updatedAt" FROM paypaladaptive ON CONFLICT DO NOTHING;
     `);
     console.info(metadata.rowCount, 'paypal adaptive payment methods created');
     [, metadata] = await queryInterface.sequelize.query(`
@@ -75,8 +75,8 @@ module.exports = {
 
     [, metadata] = await queryInterface.sequelize.query(`
       WITH accountbalance AS (SELECT DISTINCT e."HostCollectiveId" FROM "Expenses" e INNER JOIN "PayoutMethods" as po ON po.id = e."PayoutMethodId" WHERE e."createdAt" > '2024-01-01' AND e.status = 'PAID' AND po.type = 'ACCOUNT_BALANCE')
-      INSERT INTO "PaymentMethods" ("service", "type", "CollectiveId", "saved", "data")
-      SELECT 'opencollective' as "service", 'collective' as "type", "HostCollectiveId" as "CollectiveId", False as "saved", '{ "migration": "20240130125545-add-expense-payment-method" }'::JSONB as "data" FROM accountbalance ON CONFLICT DO NOTHING;
+      INSERT INTO "PaymentMethods" ("service", "type", "CollectiveId", "saved", "data", "createdAt", "updatedAt")
+      SELECT 'opencollective' as "service", 'collective' as "type", "HostCollectiveId" as "CollectiveId", False as "saved", '{ "migration": "20240130125545-add-expense-payment-method" }'::JSONB as "data", NOW() as "createdAt", NOW() as "updatedAt" FROM accountbalance ON CONFLICT DO NOTHING;
     `);
     console.info(metadata.rowCount, 'account balance methods created');
     [, metadata] = await queryInterface.sequelize.query(`
