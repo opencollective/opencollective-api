@@ -2,11 +2,11 @@ import config from 'config';
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { cloneDeep, flatten, isEmpty, isNil, pick, uniq } from 'lodash';
+import { cloneDeep, flatten, intersection, isEmpty, isNil, pick, uniq } from 'lodash';
 import { Order } from 'sequelize';
 
 import { CollectiveType } from '../../../../constants/collectives';
-import cache from '../../../../lib/cache';
+import cache, { memoize } from '../../../../lib/cache';
 import { buildSearchConditions } from '../../../../lib/search';
 import { parseToBoolean } from '../../../../lib/utils';
 import { Expense, Op, PaymentMethod, sequelize } from '../../../../models';
@@ -33,6 +33,8 @@ import { getDatabaseIdFromExpenseReference, GraphQLExpenseReferenceInput } from 
 import { getDatabaseIdFromOrderReference, GraphQLOrderReferenceInput } from '../../input/OrderReferenceInput';
 import { GraphQLVirtualCardReferenceInput } from '../../input/VirtualCardReferenceInput';
 import { CollectionArgs } from '../../interface/Collection';
+
+const oneDayInSeconds = 60 * 60 * 24;
 
 export const TransactionsCollectionArgs = {
   limit: { ...CollectionArgs.limit, defaultValue: 100 },
@@ -178,6 +180,10 @@ export const TransactionsCollectionResolver = async (
     ),
   );
 
+  const accountIdsWithGiftCardTransactions = args.includeGiftCardTransactions
+    ? await getCollectiveIdsWithGiftCardTransactions()
+    : [];
+
   if (fromAccount) {
     const fromAccountCondition = [];
 
@@ -203,7 +209,7 @@ export const TransactionsCollectionResolver = async (
       }
     }
 
-    if (args.includeGiftCardTransactions) {
+    if (args.includeGiftCardTransactions && accountIdsWithGiftCardTransactions.includes(fromAccount.id)) {
       where.push({
         [Op.or]: [
           { UsingGiftCardFromCollectiveId: fromAccount.id, type: 'CREDIT' },
@@ -218,7 +224,7 @@ export const TransactionsCollectionResolver = async (
 
   if (args.account) {
     const accountCondition = [];
-    const attributes = ['id']; // We only need IDs
+    const attributes = ['id', 'HostCollectiveId']; // We only need IDs
     const fetchAccountsParams = { throwIfMissing: true, attributes };
     if (args.includeChildrenTransactions) {
       fetchAccountsParams['include'] = [
@@ -250,16 +256,28 @@ export const TransactionsCollectionResolver = async (
       }
     }
 
-    if (args.includeGiftCardTransactions) {
+    if (args.includeGiftCardTransactions && intersection(accountsIds, accountIdsWithGiftCardTransactions).length > 0) {
       where.push({
         [Op.or]: [
-          { UsingGiftCardFromCollectiveId: accounts.map(account => account.id), type: 'DEBIT' },
+          { UsingGiftCardFromCollectiveId: accountsIds, type: 'DEBIT' },
           // prettier, please keep line break for readability please
           { CollectiveId: accountCondition },
         ],
       });
     } else {
       where.push({ CollectiveId: accountCondition });
+    }
+
+    // Database optimization, it seems faster to add the HostCollectiveId if possible
+    // Only do this when they are multiple accountsIds and one of them has many transactions
+    if (
+      accountsIds.length > 1 &&
+      intersection(config.performance.collectivesWithManyTransactions, accountsIds).length > 0
+    ) {
+      const hostCollectiveIds = uniq(accounts.map(account => account.HostCollectiveId).filter(el => !!el));
+      if (hostCollectiveIds.length === 1) {
+        where.push({ HostCollectiveId: hostCollectiveIds[0] });
+      }
     }
   }
 
@@ -432,13 +450,18 @@ export const TransactionsCollectionResolver = async (
 };
 
 const getCacheKey = (resource, condition) => {
-  const conditionKeys = Object.keys(condition);
   if (
-    conditionKeys.length === 1 &&
-    conditionKeys[0] === 'HostCollectiveId' &&
+    Object.keys(condition).length === 1 &&
+    condition.HostCollectiveId &&
     config.performance.hostsWithManyTransactions.includes(condition.HostCollectiveId)
   ) {
     return `transactions_${resource}_HostCollectiveId_${condition.HostCollectiveId}`;
+  }
+  if (Object.keys(condition).length === 1 && condition.CollectiveId) {
+    const collectiveIds = Array.isArray(condition.CollectiveId) ? condition.CollectiveId : [condition.CollectiveId];
+    if (intersection(config.performance.collectivesWithManyTransactions, collectiveIds).length > 0) {
+      return `transactions_${resource}_CollectiveId_${collectiveIds.join('_')}`;
+    }
   }
 };
 
@@ -455,12 +478,14 @@ const fetchWithCache = async (resource: string, condition, fetchFunction: () => 
   }
   const results = await fetchFunction();
   if (cacheKey) {
-    cache.set(cacheKey, results);
+    cache.set(cacheKey, results, oneDayInSeconds);
   }
   return results;
 };
 
 const fetchTransactionsKinds = async whereKinds => {
+  console.log('fetchTransactionsKinds', whereKinds);
+
   const condition = whereKinds.length === 1 ? whereKinds[0] : null;
 
   return fetchWithCache('kinds', condition, () =>
@@ -492,6 +517,17 @@ const fetchTransactionsCount = async (queryParameters): Promise<number> => {
 
   return fetchWithCache('count', condition, () => Transaction.count(pick(queryParameters, ['where', 'include'])));
 };
+
+const getCollectiveIdsWithGiftCardTransactions = memoize(
+  (): Promise<number[]> =>
+    Transaction.findAll({
+      attributes: ['UsingGiftCardFromCollectiveId'],
+      where: { UsingGiftCardFromCollectiveId: { [Op.not]: null } },
+      group: ['UsingGiftCardFromCollectiveId'],
+      raw: true,
+    }).then(results => results.map(result => result.UsingGiftCardFromCollectiveId)),
+  { key: 'collectiveIdsWithGiftCardTransactions', maxAge: oneDayInSeconds },
+);
 
 const TransactionsCollectionQuery = {
   type: new GraphQLNonNull(GraphQLTransactionCollection),

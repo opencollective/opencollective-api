@@ -231,7 +231,7 @@ export const getFeatureStatusResolver =
           [
             // Using two EXISTS as Postgres is not using the best indexes otherwise
             `SELECT 1 FROM "Transactions" WHERE "CollectiveId" = :CollectiveId AND "deletedAt" IS NULL`,
-            `SELECT 1 FROM "Transactions" WHERE "FromCollectiveId" = :CollectiveId AND "deletedAt" IS NULL`,
+            // `SELECT 1 FROM "Transactions" WHERE "FromCollectiveId" = :CollectiveId AND "deletedAt" IS NULL`,
           ],
           { replacements: { CollectiveId: collective.id } },
         );

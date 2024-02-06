@@ -77,6 +77,14 @@
       98478, // SCN
       9807, // OCE
       73495 // AFC
+    ],
+    "collectivesWithManyTransactions": [
+      11004, // OSC
+      8686, // OC
+      11049, // OCF
+      166914, // Logseq
+      9807, // OCE
+      73495 // AFC
     ]
   }
 }
