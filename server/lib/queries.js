@@ -856,6 +856,7 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
     AND analyzed_expenses.status IN ('PENDING', 'APPROVED')
     AND analyzed_expenses."deletedAt" IS NULL
     AND (from_collective."HostCollectiveId" IS NULL OR from_collective."HostCollectiveId" != c."HostCollectiveId")
+    AND (from_collective."type" != 'VENDOR' OR from_collective."data"#>>'{vendorInfo, taxFormRequired}' = 'true') -- Ignore tax from tax exempt vendors
     AND all_expenses.type NOT IN (:ignoredExpenseTypes)
     AND all_expenses.status NOT IN (:ignoredExpenseStatuses)
     AND all_expenses."deletedAt" IS NULL
@@ -927,6 +928,7 @@ const getTaxFormsRequiredForAccounts = async (accountIds = [], year) => {
     ${ifStr(accountIds?.length, 'AND account.id IN (:accountIds)')}
     AND account.id != d."HostCollectiveId"
     AND (account."HostCollectiveId" IS NULL OR account."HostCollectiveId" != d."HostCollectiveId") -- Ignore tax forms when the submitter is hosted by a host that has tax form enabled (OCF, OSC, OC)
+    AND (account."type" != 'VENDOR' OR account."data"#>>'{vendorInfo, taxFormRequired}' = 'true') -- Ignore tax from tax exempt vendors
     AND all_expenses.status NOT IN (:ignoredExpenseStatuses)
     AND all_expenses."deletedAt" IS NULL
     AND EXTRACT('year' FROM all_expenses."incurredAt") = :year
