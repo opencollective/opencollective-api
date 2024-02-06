@@ -43,6 +43,7 @@ import GraphQLExpenseQuote from './ExpenseQuote';
 import { GraphQLExpenseValuesByRole } from './ExpenseValuesByRole';
 import { GraphQLHost } from './Host';
 import { GraphQLLocation } from './Location';
+import { GraphQLPaymentMethod } from './PaymentMethod';
 import GraphQLPayoutMethod from './PayoutMethod';
 import GraphQLRecurringExpense from './RecurringExpense';
 import { GraphQLSecurityCheck } from './SecurityCheck';
@@ -346,6 +347,16 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Reques
             }
 
             return req.loaders.PayoutMethod.byId.load(expense.PayoutMethodId);
+          }
+        },
+      },
+      paymentMethod: {
+        type: GraphQLPaymentMethod,
+        resolve(expense, _, req) {
+          if (expense.PaymentMethodId) {
+            return req.loaders.PaymentMethod.byId.load(expense.PaymentMethodId);
+          } else {
+            return null;
           }
         },
       },

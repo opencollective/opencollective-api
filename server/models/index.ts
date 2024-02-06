@@ -181,6 +181,7 @@ Expense.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
 Expense.belongsTo(Collective, { foreignKey: 'FromCollectiveId', as: 'fromCollective' });
 Expense.belongsTo(Collective, { foreignKey: 'HostCollectiveId', as: 'host' });
 Expense.belongsTo(PayoutMethod);
+Expense.belongsTo(PaymentMethod, { foreignKey: 'PaymentMethodId', as: 'paymentMethod' });
 Expense.belongsTo(RecurringExpense, { foreignKey: 'RecurringExpenseId', as: 'recurringExpense' });
 Expense.belongsTo(User);
 Expense.belongsTo(VirtualCard, { foreignKey: 'VirtualCardId', as: 'virtualCard' });
@@ -238,6 +239,7 @@ Order.hasMany(Transaction);
 // PaymentMethod
 PaymentMethod.belongsTo(Collective);
 PaymentMethod.belongsTo(PaymentMethod, { as: 'sourcePaymentMethod', foreignKey: 'SourcePaymentMethodId' });
+PaymentMethod.hasMany(Expense);
 PaymentMethod.hasMany(Order);
 PaymentMethod.hasMany(Transaction);
 

@@ -4,6 +4,7 @@ export enum PAYMENT_METHOD_SERVICE {
   OPENCOLLECTIVE = 'opencollective',
   PREPAID = 'prepaid',
   THEGIVINGBLOCK = 'thegivingblock', // @deprecated
+  WISE = 'wise',
 }
 
 export const PAYMENT_METHOD_SERVICES = Object.values(PAYMENT_METHOD_SERVICE);
@@ -26,6 +27,9 @@ export enum PAYMENT_METHOD_TYPE {
   BACS_DEBIT = 'bacs_debit',
   BANCONTACT = 'bancontact',
   LINK = 'link',
+  BANK_TRANSFER = 'bank_transfer',
+  PAYOUT = 'payout',
+  VIRTUAL_CARD = 'virtual_card',
 }
 
 export const PAYMENT_METHOD_TYPES = Object.values(PAYMENT_METHOD_TYPE);

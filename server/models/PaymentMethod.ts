@@ -28,7 +28,6 @@ import User from './User';
 const debug = debugLib('models:PaymentMethod');
 
 interface PaymentMethodStaticInterface {
-  payoutMethods: PAYMENT_METHOD_SERVICE[];
   getOrCreate(user, paymentMethod): Promise<PaymentMethodModelInterface>;
 }
 
@@ -278,8 +277,6 @@ const PaymentMethod: ModelStatic<PaymentMethodModelInterface> & PaymentMethodSta
     },
   },
 );
-
-PaymentMethod.payoutMethods = PAYMENT_METHOD_SERVICES;
 
 /**
  * Instance Methods

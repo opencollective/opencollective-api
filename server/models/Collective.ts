@@ -142,6 +142,7 @@ type Settings = {
   goals?: Array<Goal>;
   allowCollectiveAdminsToEditPrivateExpenseData?: boolean;
   disablePublicExpenseSubmission?: boolean;
+  isPlatformRevenueDirectlyCollected?: boolean;
   features?: {
     contactForm?: boolean;
   };
@@ -158,6 +159,7 @@ type Settings = {
       enabled: boolean;
       period: number;
     };
+    requestcard?: boolean;
   };
   payoutsTwoFactorAuth?: {
     enabled?: boolean;
@@ -2995,7 +2997,10 @@ class Collective extends Model<
   };
 
   // get the host of the parent collective if any, or of this collective
-  getHostCollective = async function ({ loaders = null, returnEvenIfNotApproved = false } = {}) {
+  getHostCollective = async function ({
+    loaders = null,
+    returnEvenIfNotApproved = false,
+  } = {}): Promise<null | Collective> {
     if (!this.isActive && !returnEvenIfNotApproved) {
       return null;
     }
@@ -3397,6 +3402,22 @@ class Collective extends Model<
 
     return userTotal >= threshold;
   };
+
+  async findOrCreatePaymentMethod(paymentMethodService, paymentMethodType) {
+    const host = this.isHostAccount ? this : await this.getHostCollective();
+    const attributes = {
+      CollectiveId: this.id,
+      service: paymentMethodService,
+      type: paymentMethodType,
+    };
+    const [paymentMethod] = await PaymentMethod.findOrCreate({
+      where: attributes,
+      defaults: {
+        currency: host?.currency ?? this.currency,
+      },
+    });
+    return paymentMethod;
+  }
 }
 
 Collective.init(

@@ -38,6 +38,7 @@ import { ExpenseRoles } from '../../constants/expense-roles';
 import statuses from '../../constants/expense-status';
 import EXPENSE_TYPE from '../../constants/expense-type';
 import FEATURE from '../../constants/feature';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import { EXPENSE_PERMISSION_ERROR_CODES } from '../../constants/permissions';
 import POLICIES from '../../constants/policies';
 import { TransactionKind } from '../../constants/transaction-kind';
@@ -2118,14 +2119,6 @@ export async function deleteExpense(req: express.Request, expenseId: number): Pr
   return expense.reload({ paranoid: false });
 }
 
-/** Helper that finishes the process of paying an expense */
-async function markExpenseAsPaid(expense, remoteUser, isManualPayout = false): Promise<Expense> {
-  debug('update expense status to PAID', expense.id);
-  await expense.setPaid(remoteUser.id);
-  await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID, remoteUser, { isManualPayout });
-  return expense;
-}
-
 async function payExpenseWithPayPalAdaptive(remoteUser, expense, host, paymentMethod, toPaypalEmail, fees = {}) {
   debug('payExpenseWithPayPalAdaptive', expense.id);
 
@@ -2238,9 +2231,13 @@ async function payExpenseWithPayPalAdaptive(remoteUser, expense, host, paymentMe
     const hostCurrencyFxRate = 1 / parseFloat(currencyConversion.exchangeRate); // paypal returns a float from host.currency to expense.currency
     fees['paymentProcessorFeeInHostCurrency'] = Math.round(hostCurrencyFxRate * senderFees);
 
+    // Set the paymentMethod so it's persisted to Expense and Transactions
+    expense.setPaymentMethod(paymentMethod);
+    await expense.save();
     // Adaptive does not work with multi-currency expenses, so we can safely assume that expense.currency = collective.currency
-    await createTransactionsFromPaidExpense(host, expense, fees, hostCurrencyFxRate, paymentResponse, paymentMethod);
-    const updatedExpense = await markExpenseAsPaid(expense, remoteUser);
+    await createTransactionsFromPaidExpense(host, expense, fees, hostCurrencyFxRate, paymentResponse);
+    // Mark Expense as Paid, create activity and send notifications
+    const updatedExpense = await expense.markAsPaid({ user: remoteUser });
     await paymentMethod.updateBalance();
     return updatedExpense;
   } catch (err) {
@@ -2595,6 +2592,7 @@ type PayExpenseArgs = {
   paymentProcessorFeeInHostCurrency?: number; // Defaults to 0
   totalAmountPaidInHostCurrency?: number;
   transferDetails?: CreateTransfer['details'];
+  paymentMethodService?: PAYMENT_METHOD_SERVICE;
 };
 
 /**
@@ -2694,6 +2692,10 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
 
     try {
       if (forceManual) {
+        const paymentMethod = args.paymentMethodService
+          ? await host.findOrCreatePaymentMethod(args.paymentMethodService, PAYMENT_METHOD_TYPE.MANUAL)
+          : null;
+        await expense.update({ PaymentMethodId: paymentMethod?.id || null });
         await createTransactionsForManuallyPaidExpense(
           host,
           expense,
@@ -2770,9 +2772,14 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
             'The payee needs to be on the same Host than the payer to be paid on its Open Collective balance.',
           );
         }
+        // This will detect that payoutMethodType=ACCOUNT_BALANCE and set service=opencollective AND type=collective
+        await expense.setAndSavePaymentMethodIfMissing();
         await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto');
       } else if (expense.legacyPayoutMethod === 'manual' || expense.legacyPayoutMethod === 'other') {
-        // note: we need to check for manual and other for legacy reasons
+        const paymentMethod = args.paymentMethodService
+          ? await host.findOrCreatePaymentMethod(args.paymentMethodService, PAYMENT_METHOD_TYPE.MANUAL)
+          : null;
+        await expense.update({ PaymentMethodId: paymentMethod?.id || null });
         await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto');
       }
     } catch (error) {
@@ -2785,7 +2792,9 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
       throw error;
     }
 
-    return markExpenseAsPaid(expense, remoteUser, true);
+    // Mark Expense as Paid, create activity and send notifications
+    await expense.markAsPaid({ user: remoteUser, isManualPayout: true });
+    return expense;
   });
 
   return expense;
@@ -2850,7 +2859,7 @@ export async function markExpenseAsUnpaid(
 
     await libPayments.createRefundTransaction(transaction, refundedPaymentProcessorFeeAmount, null, expense.User);
 
-    await expense.update({ status: newExpenseStatus, lastEditedById: remoteUser.id });
+    await expense.update({ status: newExpenseStatus, lastEditedById: remoteUser.id, PayoutMethodId: null });
     return { expense, transaction };
   });
 

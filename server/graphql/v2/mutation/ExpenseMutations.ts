@@ -45,6 +45,7 @@ import { checkRemoteUserCanUseExpenses, enforceScope } from '../../common/scope-
 import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 import { GraphQLExpenseProcessAction } from '../enum/ExpenseProcessAction';
 import { GraphQLFeesPayer } from '../enum/FeesPayer';
+import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { fetchAccountingCategoryWithReference } from '../input/AccountingCategoryInput';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
@@ -321,6 +322,10 @@ const expenseMutations = {
                 }),
               }),
             },
+            paymentMethodService: {
+              type: GraphQLPaymentMethodService,
+              description: 'Payment method using for paying the expense',
+            },
           }),
         }),
       },
@@ -379,6 +384,7 @@ const expenseMutations = {
             id: expense.id,
             forceManual: args.paymentParams?.forceManual,
             feesPayer: args.paymentParams?.feesPayer,
+            paymentMethodService: args.paymentParams?.paymentMethodService,
             paymentProcessorFeeInHostCurrency: args.paymentParams?.paymentProcessorFeeInHostCurrency,
             totalAmountPaidInHostCurrency: args.paymentParams?.totalAmountPaidInHostCurrency,
             transferDetails: args.paymentParams?.transfer?.details,
