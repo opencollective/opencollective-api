@@ -102,12 +102,7 @@ module.exports = {
     console.info(metadata.rowCount, 'expenses updated with null payment method');
 
     [, metadata] = await queryInterface.sequelize.query(`
-      DELETE FROM "PaymentMethods" WHERE "data"#>>'{migration}' = '20240130125545-add-expense-payment-method' AND (
-        ("type" = 'bank_transfer' AND "service" = 'wise') OR
-        ("type" = 'virtual_card' AND "service" = 'stripe') OR
-        ("type" = 'payout' AND "service" = 'paypal') OR
-        ("type" = 'adaptive' AND "service" = 'paypal')
-      );
+      DELETE FROM "PaymentMethods" WHERE "data"#>>'{migration}' = '20240130125545-add-expense-payment-method';
     `);
     console.info(metadata.rowCount, 'payment methods deleted');
   },
