@@ -30,7 +30,7 @@
   },
   "dependencies": {
     "@apollo/server": "4.10.0",
-    "@aws-sdk/client-s3": "3.504.0",
+    "@aws-sdk/client-s3": "3.507.0",
     "@babel/core": "7.23.9",
     "@babel/node": "7.23.9",
     "@babel/plugin-transform-typescript": "7.23.6",
@@ -126,7 +126,7 @@
     "showdown": "2.1.0",
     "spdx-license-list": "6.8.0",
     "speakeasy": "2.0.0",
-    "stripe": "14.14.0",
+    "stripe": "14.15.0",
     "throng": "5.0.0",
     "tweetnacl": "1.0.3",
     "tweetnacl-util": "0.15.1",
