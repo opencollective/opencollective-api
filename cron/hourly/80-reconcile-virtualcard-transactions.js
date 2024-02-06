@@ -22,6 +22,11 @@ async function reconcileConnectedAccount(connectedAccount) {
   for (const card of cards) {
     try {
       if (card.provider === 'STRIPE') {
+        if (card.data.status === 'canceled') {
+          logger.info(`\nSkipping card ${card.id}: card is canceled`);
+          continue;
+        }
+
         logger.info(`\nReconciling card ${card.id}: fetching STRIPE transactions`);
 
         const expenses = await models.Expense.findAll({
