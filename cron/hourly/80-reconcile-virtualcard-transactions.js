@@ -52,15 +52,11 @@ async function reconcileConnectedAccount(connectedAccount) {
 
           logger.info(`Refreshing card details'...`);
           const stripeCard = await stripe.issuing.cards.retrieve(card.id);
-          if (stripeCard.status === 'canceled' || stripeCard.deleted) {
-            await card.destroy();
-          } else {
-            await card.update({
-              spendingLimitAmount: stripeCard['spending_controls']['spending_limits'][0]['amount'],
-              spendingLimitInterval: stripeCard['spending_controls']['spending_limits'][0]['interval'].toUpperCase(),
-              data: omit(stripeCard, ['number', 'cvc', 'exp_year', 'exp_month']),
-            });
-          }
+          await card.update({
+            spendingLimitAmount: stripeCard['spending_controls']['spending_limits'][0]['amount'],
+            spendingLimitInterval: stripeCard['spending_controls']['spending_limits'][0]['interval'].toUpperCase(),
+            data: omit(stripeCard, ['number', 'cvc', 'exp_year', 'exp_month']),
+          });
         }
       } else {
         logger.warn(`\nUnsupported provider ${card.provider} for card ${card.id}.`);

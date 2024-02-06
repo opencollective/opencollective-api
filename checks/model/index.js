@@ -12,6 +12,7 @@ import { checkMembers } from './members';
 import { checkPaymentMethods } from './payment-methods';
 import { checkTransactions } from './transactions';
 import { checkUsers } from './users';
+import { checkVirtualCards } from './virtual-cards';
 
 const allModelChecks = [
   checkCollectives,
@@ -22,6 +23,7 @@ const allModelChecks = [
   checkPaymentMethods,
   checkTransactions,
   checkUsers,
+  checkVirtualCards,
 ];
 
 export async function checkAllModels({ fix = false } = {}) {
