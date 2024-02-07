@@ -32,7 +32,11 @@ const processVirtualCard = async (expenses: Array<Expense>) => {
     daysLeft: 31 - maxDaysPending,
     isSystem: true,
   };
-  if (host.settings?.virtualcards?.reminder && (maxDaysPending === 15 || maxDaysPending === 29)) {
+  if (
+    host.settings?.virtualcards?.reminder &&
+    (maxDaysPending === 15 || maxDaysPending === 29) &&
+    virtualCard.isActive()
+  ) {
     logger.info(`Virtual Card ${virtualCard.id} is being notified about pending expenses...`);
     await models.Activity.create({
       type: activityTypes.COLLECTIVE_VIRTUAL_CARD_MISSING_RECEIPTS,
