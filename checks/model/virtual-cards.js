@@ -12,6 +12,7 @@ async function checkDeletedVirtualCardsWithExpenses({ fix = false } = {}) {
     `SELECT COUNT(*) as count
      FROM "VirtualCards", "Expenses"
      WHERE "VirtualCards"."id" = "Expenses"."VirtualCardId"
+     AND "Expenses"."deletedAt" IS NULL
      AND "VirtualCards"."deletedAt" IS NOT NULL
      AND "VirtualCards"."provider" = 'STRIPE'
      GROUP BY "VirtualCards"."id"`,
@@ -28,6 +29,7 @@ async function checkDeletedVirtualCardsWithExpenses({ fix = false } = {}) {
          SET "deletedAt" = NULL
          FROM "Expenses"
          WHERE "VirtualCards"."id" = "Expenses"."VirtualCardId"
+         AND "Expenses"."deletedAt" IS NULL
          AND "VirtualCards"."deletedAt" IS NOT NULL
          AND "VirtualCards"."provider" = 'STRIPE'`,
       );
