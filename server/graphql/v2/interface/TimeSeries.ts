@@ -5,11 +5,11 @@ import { GraphQLTimeUnit } from '../enum/TimeUnit';
 
 export const getTimeSeriesFields = () => ({
   dateFrom: {
-    type: new GraphQLNonNull(GraphQLDateTime),
+    type: GraphQLDateTime,
     description: 'The start date of the time series',
   },
   dateTo: {
-    type: new GraphQLNonNull(GraphQLDateTime),
+    type: GraphQLDateTime,
     description: 'The end date of the time series',
   },
   timeUnit: {

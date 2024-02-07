@@ -215,13 +215,16 @@ export const GraphQLAccountStats = new GraphQLObjectType({
             dateFrom = moment().subtract(args.periodInMonths, 'months').seconds(0).milliseconds(0).toDate();
             dateTo = null;
           }
+
+          const timeUnit = args.timeUnit || getTimeUnit(getNumberOfDays(dateFrom, dateTo, collective) || 1);
+
           return collective.getTotalAmountReceivedTimeSeries({
             loaders: req.loaders,
             net: args.net,
             kind,
             startDate: dateFrom,
             endDate: dateTo,
-            timeUnit: args.timeUnit,
+            timeUnit,
             includeChildren: args.includeChildren,
             currency: args.currency,
           });
