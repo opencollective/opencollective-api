@@ -178,13 +178,13 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
     }
   };
 
-  isOcIncUpdate = function () {
+  isPlatformUpdate = function () {
     return defaultHostCollective('opencollective').CollectiveId === this.CollectiveId;
   };
 
   shouldNotify = function (notificationAudience = this.notificationAudience) {
     const audience = notificationAudience || this.notificationAudience || 'ALL';
-    return !(audience === 'NO_ONE' || this.isChangelog || this.isOcIncUpdate());
+    return !(audience === 'NO_ONE' || this.isChangelog || this.isPlatformUpdate());
   };
 
   /**
