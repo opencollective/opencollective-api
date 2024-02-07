@@ -223,7 +223,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   };
 
   setAndSavePaymentMethodIfMissing = async function () {
-    let paymentMethod = this.getPaymentMethod();
+    let paymentMethod = await this.getPaymentMethod();
     if (!paymentMethod) {
       paymentMethod = await this.fetchPaymentMethod();
       if (paymentMethod) {
