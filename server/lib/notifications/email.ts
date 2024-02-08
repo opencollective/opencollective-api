@@ -302,9 +302,14 @@ export const notifyByEmail = async (activity: Activity) => {
 
     case ActivityTypes.COLLECTIVE_UPDATE_PUBLISHED: {
       twitter.tweetActivity(activity);
-      if (activity.data.update?.isChangelog) {
+
+      // Never notify for certain updates (changelog, coming from OC Inc, etc)
+      const update = await models.Update.findByPk(activity.data.update.id);
+      if (!update?.shouldNotify()) {
         return;
       }
+
+      // Load associated data
       const collective = await models.Collective.findByPk(activity.data.collective.id);
       activity.data.fromCollective = (await models.Collective.findByPk(activity.data.fromCollective.id))?.info;
       activity.data.collective = collective.info;
@@ -312,11 +317,9 @@ export const notifyByEmail = async (activity: Activity) => {
       activity.CollectiveId = collective.id;
       activity.data.update.html = replaceVideosByImagePreviews(activity.data.update.html);
 
-      const emailOpts = { from: activity.data.fromEmail };
-      const update = await models.Update.findByPk(activity.data.update.id);
-
       // Updates can have many subscribers (e.g. OSC has 6000+). We only load the ID and defer the rest to the email functions.
       const usersIdsToNotify = await update.getUsersIdsToNotify(UpdateChannel.EMAIL);
+      const emailOpts = { from: activity.data.fromEmail };
       await notify.users(usersIdsToNotify, activity, emailOpts);
       break;
     }

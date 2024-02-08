@@ -267,7 +267,7 @@ export function exportToPDF(template, data, options) {
 /**
  * Default host id, set this for new collectives created through our flow
  *
- * @param {"opensource" | "foundation" | "europe" | null} category of the collective
+ * @param {"opensource" | "foundation" | "europe" | "opencollective" | null} category of the collective
  */
 export const defaultHostCollective = category => {
   if (config.env === 'production' || config.env === 'staging') {

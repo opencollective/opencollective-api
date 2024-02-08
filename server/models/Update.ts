@@ -18,6 +18,7 @@ import * as SQLQueries from '../lib/queries';
 import { buildSanitizerOptions, generateSummaryForHTML, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize, { DataTypes, Model, Op, QueryTypes } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
+import { defaultHostCollective } from '../lib/utils';
 
 import Activity from './Activity';
 import Collective from './Collective';
@@ -177,13 +178,22 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
     }
   };
 
+  isPlatformUpdate = function () {
+    return defaultHostCollective('opencollective').CollectiveId === this.CollectiveId;
+  };
+
+  shouldNotify = function (notificationAudience = this.notificationAudience) {
+    const audience = notificationAudience || this.notificationAudience || 'ALL';
+    return !(audience === 'NO_ONE' || this.isChangelog || this.isPlatformUpdate());
+  };
+
   /**
    * Get the member users to notify for this update.
    */
   getUsersIdsToNotify = async function (channel?: UpdateChannel): Promise<Array<number>> {
     const audience = this.notificationAudience || 'ALL';
 
-    if (audience === 'NO_ONE') {
+    if (!this.shouldNotify(audience)) {
       return [];
     }
 
@@ -209,7 +219,7 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
     this.collective = this.collective || (await this.getCollective());
     const audience = notificationAudience || this.notificationAudience || 'ALL';
 
-    if (audience === 'NO_ONE') {
+    if (!this.shouldNotify(audience)) {
       return 0;
     }
 
@@ -230,6 +240,10 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
    * Gets a summary of who will be notified about this update
    */
   getAudienceMembersStats = async function (audience, channel?: UpdateChannel) {
+    if (!this.shouldNotify(audience)) {
+      return {};
+    }
+
     const result = await sequelize.query(SQLQueries.countMembersToNotifyForUpdateSQLQuery, {
       type: sequelize.QueryTypes.SELECT,
       replacements: {
