@@ -649,21 +649,24 @@ export const GraphQLHost = new GraphQLObjectType({
             searchTerm: searchTerm,
           };
 
-          const [virtualCards, { total }] = await Promise.all([
+          const nodes = () =>
             sequelize.query(pageQuery, {
               replacements: queryReplacements,
               type: sequelize.QueryTypes.SELECT,
               model: models.VirtualCard,
-            }),
-            sequelize.query(countQuery, {
-              plain: true,
-              replacements: queryReplacements,
-            }),
-          ]);
+            });
+
+          const totalCount = () =>
+            sequelize
+              .query(countQuery, {
+                plain: true,
+                replacements: queryReplacements,
+              })
+              .then(result => result.total);
 
           return {
-            nodes: virtualCards,
-            totalCount: total,
+            nodes,
+            totalCount,
             limit: args.limit,
             offset: args.offset,
           };
