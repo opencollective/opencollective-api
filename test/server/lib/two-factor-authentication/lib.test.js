@@ -4,7 +4,7 @@ import { expect } from 'chai';
 import { createSandbox, stub } from 'sinon';
 
 import { activities } from '../../../../server/constants';
-import cache from '../../../../server/lib/cache';
+import { sessionCache } from '../../../../server/lib/cache';
 import twoFactorAuthLib from '../../../../server/lib/two-factor-authentication';
 import { TwoFactorAuthenticationHeader } from '../../../../server/lib/two-factor-authentication/lib';
 import totpProvider from '../../../../server/lib/two-factor-authentication/totp';
@@ -282,8 +282,8 @@ describe('lib/two-factor-authentication', () => {
       const totpValidateStub = sandbox.stub(totpProvider, 'validateToken');
       totpValidateStub.resolves();
 
-      sandbox.stub(cache, 'set').withArgs(`2fa:${req.remoteUser.id}:session`, {}, 2000).resolves(null);
-      const cacheGet = sandbox.stub(cache, 'get').withArgs(`2fa:${req.remoteUser.id}:session`).resolves(null);
+      sandbox.stub(sessionCache, 'set').withArgs(`2fa:${req.remoteUser.id}:session`, {}, 2000).resolves(null);
+      const cacheGet = sandbox.stub(sessionCache, 'get').withArgs(`2fa:${req.remoteUser.id}:session`).resolves(null);
 
       await twoFactorAuthLib.validateRequest(req, { sessionDuration: 2000, sessionKey: 'session' });
       cacheGet.withArgs(`2fa:${req.remoteUser.id}:session`).resolves({});
