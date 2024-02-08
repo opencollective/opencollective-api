@@ -56,6 +56,7 @@ export default async app => {
   app.use('*', authentication.authorizeClient);
 
   // Setup rate limiter
+  // TODO: move to RedisInstanceType.SESSION ?
   const redisClient = await createRedisClient();
   if (redisClient) {
     const expressLimiterOptions = {
