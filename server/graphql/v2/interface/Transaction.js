@@ -15,7 +15,8 @@ import orderStatus from '../../../constants/order-status';
 import roles from '../../../constants/roles';
 import { TransactionKind } from '../../../constants/transaction-kind';
 import { generateDescription } from '../../../lib/transactions';
-import models from '../../../models';
+import PaymentMethod from '../../../models/PaymentMethod';
+import Transaction from '../../../models/Transaction';
 import { allowContextPermission, getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import * as TransactionLib from '../../common/transactions';
 import { GraphQLTransactionKind } from '../enum/TransactionKind';
@@ -364,7 +365,7 @@ export const TransactionFields = () => {
           taxAmount = await req.loaders.Transaction.taxAmountForTransaction.load(transaction);
         }
         if (args.fetchHostFee || args.fetchPaymentProcessorFee || args.fetchTax) {
-          netAmountInCollectiveCurrency = models.Transaction.calculateNetAmountInCollectiveCurrency({
+          netAmountInCollectiveCurrency = Transaction.calculateNetAmountInCollectiveCurrency({
             ...transaction.dataValues,
             hostFeeInHostCurrency,
             paymentProcessorFeeInHostCurrency,
@@ -410,7 +411,7 @@ export const TransactionFields = () => {
           taxAmount = await req.loaders.Transaction.taxAmountForTransaction.load(transaction);
         }
         if (args.fetchHostFee || args.fetchPaymentProcessorFee || args.fetchTax) {
-          netAmountInHostCurrency = models.Transaction.calculateNetAmountInHostCurrency({
+          netAmountInHostCurrency = Transaction.calculateNetAmountInHostCurrency({
             ...transaction.dataValues,
             hostFeeInHostCurrency,
             paymentProcessorFeeInHostCurrency,
@@ -586,9 +587,15 @@ export const TransactionFields = () => {
     },
     paymentMethod: {
       type: GraphQLPaymentMethod,
-      resolve(transaction, _, req) {
+      async resolve(transaction, _, req) {
         if (transaction.PaymentMethodId) {
-          return req.loaders.PaymentMethod.byId.load(transaction.PaymentMethodId);
+          let result = await req.loaders.PaymentMethod.byId.load(transaction.PaymentMethodId);
+          // NOTE: we're curently sometime soft-deleting paymentMethods instead of archiving them
+          // For the time being, we'll need to fetch them with paranoid=false
+          if (!result) {
+            result = await PaymentMethod.findByPk(transaction.PaymentMethodId, { paranoid: false });
+          }
+          return result;
         } else {
           return null;
         }
