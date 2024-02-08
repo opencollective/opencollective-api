@@ -1,8 +1,8 @@
 import debug from 'debug';
 
-import { createRedisClient } from '../redis';
+import { createRedisClient, RedisInstanceType } from '../redis';
 
-const makeRedisProvider = async (instanceType = null) => {
+const makeRedisProvider = async (instanceType = RedisInstanceType.DEFAULT) => {
   const debugCache = debug('cache');
 
   const redisClient = await createRedisClient(instanceType);

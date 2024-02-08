@@ -21,7 +21,7 @@ const debugCache = debug('cache');
 
 const oneDayInSeconds = 60 * 60 * 24;
 
-export const getProvider = async (providerType, instanceType = null) => {
+export const getProvider = async (providerType, instanceType = RedisInstanceType.DEFAULT) => {
   switch (providerType) {
     case PROVIDER_TYPES.REDIS:
       return makeRedisProvider(instanceType);
@@ -40,17 +40,17 @@ const getDefaultProviderType = () => {
   }
 };
 
-let defaultProvider;
+const providers = {};
 
-const getDefaultProvider = (instanceType = null): Promise<ReturnType<typeof getProvider>> => {
+const getDefaultProvider = (instanceType = RedisInstanceType.DEFAULT): Promise<ReturnType<typeof getProvider>> => {
   const defaultProviderType = getDefaultProviderType();
-  if (!defaultProvider) {
-    defaultProvider = getProvider(defaultProviderType, instanceType);
+  if (!providers[instanceType]) {
+    providers[instanceType] = getProvider(defaultProviderType, instanceType);
   }
-  return defaultProvider;
+  return providers[instanceType];
 };
 
-const buildCache = (instanceType = null) => ({
+const buildCache = (instanceType = RedisInstanceType.DEFAULT) => ({
   clear: async () => {
     try {
       debugCache('clear');
