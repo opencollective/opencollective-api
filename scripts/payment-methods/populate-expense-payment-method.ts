@@ -56,6 +56,7 @@ const migrate = async () => {
       createdAt: { [Op.gte]: DATE_FROM },
     },
     include: [PayoutMethod, { association: 'Transactions', where: { type: 'DEBIT', kind: 'EXPENSE' } }],
+    order: [['updatedAt', 'DESC']],
   });
   console.log(`Found ${expenses.length} expenses missing payment method`);
   for (const expense of expenses) {

@@ -236,7 +236,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
 
   fetchPaymentMethod = async function () {
     const collective = this.collective || (await this.getCollective());
-    const host = await collective.getHostCollective();
+    const host = (await this.getHost()) || (await collective.getHostCollective());
 
     const payoutMethod = this.payoutMethod || (await this.getPayoutMethod());
     if (payoutMethod?.type === PayoutMethodTypes.PAYPAL) {
