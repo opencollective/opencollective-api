@@ -53,9 +53,15 @@ const migrate = async () => {
     where: {
       status: 'PAID',
       PaymentMethodId: null,
-      createdAt: { [Op.gte]: DATE_FROM },
     },
-    include: [PayoutMethod, { association: 'Transactions', where: { type: 'DEBIT', kind: 'EXPENSE' } }],
+    include: [
+      PayoutMethod,
+      {
+        association: 'Transactions',
+        where: { type: 'DEBIT', kind: 'EXPENSE', createdAt: { [Op.gte]: DATE_FROM }, isRefund: false },
+        required: true,
+      },
+    ],
     order: [['updatedAt', 'DESC']],
   });
   console.log(`Found ${expenses.length} expenses missing payment method`);
