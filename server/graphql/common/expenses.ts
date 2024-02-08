@@ -1836,10 +1836,24 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
 
   const { collective } = expense;
   const { host } = collective;
+  const expenseType = expenseData.type || expense.type;
   const isPaidCreditCardCharge =
     expense.type === EXPENSE_TYPE.CHARGE &&
     ['PAID', 'PROCESSING'].includes(expense.status) &&
     Boolean(expense.VirtualCardId);
+
+  // Check category only if it's changing
+  if (expenseData.accountingCategory) {
+    checkCanUseAccountingCategory(remoteUser, expenseType, expenseData.accountingCategory, expense.collective.host);
+  }
+
+  // Edit directly the expense when touching only tags and/or accounting category. It's ok to do that here,
+  // before the `canEditExpense` permissions check, because `editOnlyTagsAndAccountingCategory` has its
+  // own permissions checks that are more permissive (e.g. tags can be edited even if the expense is paid)
+  const modifiedFields = omitBy(expenseData, (_, key) => key === 'id' || !isValueChanging(expense, expenseData, key));
+  if (Object.keys(modifiedFields).every(field => ['tags', 'accountingCategory'].includes(field))) {
+    return editOnlyTagsAndAccountingCategory(expense, modifiedFields, req);
+  }
 
   // Check if 2FA is enforced on any of the account remote user is admin of, unless it's a paid credit card charge
   // since we strictly limit the fields that can be updated in that case
@@ -1864,19 +1878,7 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
     (await prepareExpenseItemInputs(expenseCurrency, expenseData.items, { isEditing: true })) || expense.items;
   const [hasItemChanges, itemsDiff] = await getItemsChanges(expense.items, updatedItemsData);
   const taxes = expenseData.tax || (expense.data?.taxes as TaxDefinition[]) || [];
-  const expenseType = expenseData.type || expense.type;
   checkTaxes(expense.collective, expense.collective.host, expenseType, taxes);
-
-  // Check category only if it's changing
-  if (expenseData.accountingCategory) {
-    checkCanUseAccountingCategory(remoteUser, expenseType, expenseData.accountingCategory, expense.collective.host);
-  }
-
-  // Edit directly the expense when touching only tags and/or accounting category
-  const modifiedFields = omitBy(expenseData, (_, key) => key === 'id' || !isValueChanging(expense, expenseData, key));
-  if (Object.keys(modifiedFields).every(field => ['tags', 'accountingCategory'].includes(field))) {
-    return editOnlyTagsAndAccountingCategory(expense, modifiedFields, req);
-  }
 
   if (!options?.['skipPermissionCheck'] && !(await canEditExpense(req, expense))) {
     throw new Unauthorized("You don't have permission to edit this expense");
