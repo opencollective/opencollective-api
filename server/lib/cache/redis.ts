@@ -2,10 +2,10 @@ import debug from 'debug';
 
 import { createRedisClient } from '../redis';
 
-const makeRedisProvider = async () => {
+const makeRedisProvider = async (instanceType = null) => {
   const debugCache = debug('cache');
 
-  const redisClient = await createRedisClient();
+  const redisClient = await createRedisClient(instanceType);
 
   return {
     clear: async () => redisClient?.flushAll(),

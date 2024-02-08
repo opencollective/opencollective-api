@@ -5,7 +5,7 @@ import { activities } from '../../constants';
 import POLICIES from '../../constants/policies';
 import { ApolloError, Unauthorized } from '../../graphql/errors';
 import { Activity, Collective, User, UserTwoFactorMethod } from '../../models';
-import cache from '../cache';
+import { sessionCache } from '../cache';
 import { hasPolicy } from '../policies';
 
 import recoveryCode from './recovery-code';
@@ -120,7 +120,7 @@ async function hasValidTwoFactorSession(
 ): Promise<boolean> {
   const sessionKey = getSessionKey(req, options);
 
-  const twoFactorSession = await cache.get(sessionKey);
+  const twoFactorSession = await sessionCache.get(sessionKey);
 
   if (isNil(twoFactorSession)) {
     return false;
@@ -131,7 +131,7 @@ async function hasValidTwoFactorSession(
 
 async function storeTwoFactorSession(req: Request, options: ValidateRequestOptions = DefaultValidateRequestOptions) {
   const sessionKey = getSessionKey(req, options);
-  return cache.set(sessionKey, {}, options.sessionDuration);
+  return sessionCache.set(sessionKey, {}, options.sessionDuration);
 }
 
 function inferContextFromRequest(req: Request) {

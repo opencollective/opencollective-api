@@ -36,7 +36,8 @@
   },
   "redis": {
     "serverUrl": "REDIS_URL",
-    "serverUrlTimeline": "REDIS_TIMELINE_URL"
+    "serverUrlTimeline": "REDIS_TIMELINE_URL",
+    "serverUrlSession": "REDIS_SESSION_URL"
   },
   "keys": {
     "opencollective": {

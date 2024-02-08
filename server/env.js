@@ -69,3 +69,9 @@ if (!process.env.REDIS_TIMELINE_URL) {
     process.env.REDIS_TIMELINE_URL = get(process.env, redisTimelineUrlEnvironmentVariable);
   }
 }
+if (!process.env.REDIS_SESSION_URL) {
+  const redisSessionUrlEnvironmentVariable = process.env.REDIS_SESSION_URL_ENVIRONMENT_VARIABLE;
+  if (redisSessionUrlEnvironmentVariable && has(process.env, redisSessionUrlEnvironmentVariable)) {
+    process.env.REDIS_SESSION_URL = get(process.env, redisSessionUrlEnvironmentVariable);
+  }
+}
