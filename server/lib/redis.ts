@@ -7,11 +7,13 @@ import logger from './logger';
 export enum RedisInstanceType {
   DEFAULT = 'DEFAULT',
   TIMELINE = 'TIMELINE',
+  SESSION = 'SESSION',
 }
 
 const RedisTypeURLs = {
   [RedisInstanceType.DEFAULT]: get(config, 'redis.serverUrl'),
   [RedisInstanceType.TIMELINE]: get(config, 'redis.serverUrlTimeline'),
+  [RedisInstanceType.SESSION]: get(config, 'redis.serverUrlSession'),
 };
 
 // Holds a singleton instance of Redis client for each instance type

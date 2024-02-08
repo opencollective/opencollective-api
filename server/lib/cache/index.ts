@@ -6,6 +6,7 @@ import models from '../../models';
 import { purgeCacheForPage } from '../cloudflare';
 import { invalidateContributorsCache } from '../contributors';
 import logger from '../logger';
+import { RedisInstanceType } from '../redis';
 import { md5 } from '../utils';
 
 import makeMemoryProvider from './memory';
@@ -20,10 +21,10 @@ const debugCache = debug('cache');
 
 const oneDayInSeconds = 60 * 60 * 24;
 
-export const getProvider = async providerType => {
+export const getProvider = async (providerType, instanceType = null) => {
   switch (providerType) {
     case PROVIDER_TYPES.REDIS:
-      return makeRedisProvider();
+      return makeRedisProvider(instanceType);
     case PROVIDER_TYPES.MEMORY:
       return makeMemoryProvider({ max: 1000 });
     default:
@@ -41,19 +42,19 @@ const getDefaultProviderType = () => {
 
 let defaultProvider;
 
-const getDefaultProvider = (): Promise<ReturnType<typeof getProvider>> => {
+const getDefaultProvider = (instanceType = null): Promise<ReturnType<typeof getProvider>> => {
   const defaultProviderType = getDefaultProviderType();
   if (!defaultProvider) {
-    defaultProvider = getProvider(defaultProviderType);
+    defaultProvider = getProvider(defaultProviderType, instanceType);
   }
   return defaultProvider;
 };
 
-const cache = {
+const buildCache = (instanceType = null) => ({
   clear: async () => {
     try {
       debugCache('clear');
-      const provider = await getDefaultProvider();
+      const provider = await getDefaultProvider(instanceType);
       return provider.clear();
     } catch (err) {
       logger.warn(`Error while clearing cache: ${err.message}`);
@@ -62,7 +63,7 @@ const cache = {
   delete: async (key: string) => {
     try {
       debugCache(`delete ${key}`);
-      const provider = await getDefaultProvider();
+      const provider = await getDefaultProvider(instanceType);
       return provider.delete(key);
     } catch (err) {
       logger.warn(`Error while deleting from cache: ${err.message}`);
@@ -71,7 +72,7 @@ const cache = {
   get: async (key: string, options?) => {
     try {
       debugCache(`get ${key}`);
-      const provider = await getDefaultProvider();
+      const provider = await getDefaultProvider(instanceType);
       return provider.get(key, options);
     } catch (err) {
       logger.warn(`Error while fetching from cache: ${err.message}`);
@@ -80,7 +81,7 @@ const cache = {
   has: async (key: string) => {
     try {
       debugCache(`has ${key}`);
-      const provider = await getDefaultProvider();
+      const provider = await getDefaultProvider(instanceType);
       return provider.has(key);
     } catch (err) {
       logger.warn(`Error while checking from cache: ${err.message}`);
@@ -89,13 +90,13 @@ const cache = {
   set: async (key: string, value: any, expirationInSeconds?: number, options?) => {
     try {
       debugCache(`set ${key}`);
-      const provider = await getDefaultProvider();
+      const provider = await getDefaultProvider(instanceType);
       return provider.set(key, value, expirationInSeconds, options);
     } catch (err) {
       logger.warn(`Error while writing to cache: ${err.message}`);
     }
   },
-};
+});
 
 export async function fetchCollectiveId(collectiveSlug) {
   const cacheKey = `collective_id_with_slug_${collectiveSlug}`;
@@ -162,5 +163,9 @@ export async function purgeAllCachesForAccount(account) {
   purgeCacheForCollective(account.slug);
   await invalidateContributorsCache(account.id);
 }
+
+export const cache = buildCache(RedisInstanceType.DEFAULT);
+
+export const sessionCache = buildCache(RedisInstanceType.SESSION);
 
 export default cache;
