@@ -223,7 +223,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   };
 
   setAndSavePaymentMethodIfMissing = async function () {
-    let paymentMethod = this.getPaymentMethod();
+    let paymentMethod = await this.getPaymentMethod();
     if (!paymentMethod) {
       paymentMethod = await this.fetchPaymentMethod();
       if (paymentMethod) {
@@ -236,7 +236,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
 
   fetchPaymentMethod = async function () {
     const collective = this.collective || (await this.getCollective());
-    const host = await collective.getHostCollective();
+    const host = (await this.getHost()) || (await collective.getHostCollective());
 
     const payoutMethod = this.payoutMethod || (await this.getPayoutMethod());
     if (payoutMethod?.type === PayoutMethodTypes.PAYPAL) {

@@ -250,6 +250,7 @@ const PaymentMethod: ModelStatic<PaymentMethodModelInterface> & PaymentMethodSta
           uuid: this.uuid,
           token: this.token,
           service: this.service,
+          type: this.type,
           createdAt: this.createdAt,
           updatedAt: this.updatedAt,
           confirmedAt: this.confirmedAt,
