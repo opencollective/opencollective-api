@@ -1,10 +1,9 @@
-import { isNil, lowerCase } from 'lodash';
+import { isNil } from 'lodash';
 import { InferCreationAttributes } from 'sequelize';
 
 import status from '../../constants/order-status';
 import { purgeCacheForCollective } from '../../lib/cache';
 import * as libPayments from '../../lib/payments';
-import { pluralize } from '../../lib/utils';
 import models, { AccountingCategory, Collective, Tier, User } from '../../models';
 import { OrderModelInterface } from '../../models/Order';
 import { ValidationFailed } from '../errors';
@@ -31,15 +30,14 @@ type AddFundsInput = {
  */
 export const checkCanUseAccountingCategoryForOrder = (
   accountingCategory: AccountingCategory | undefined | null,
-  host: Collective | undefined,
-  kind: 'ADDED_FUNDS' | 'CONTRIBUTION',
+  hostId: number,
 ): void => {
   if (!accountingCategory) {
     return;
-  } else if (accountingCategory.CollectiveId !== host?.id) {
+  } else if (accountingCategory.CollectiveId !== hostId) {
     throw new ValidationFailed('This accounting category is not allowed for this host');
-  } else if (accountingCategory.kind && accountingCategory.kind !== kind) {
-    throw new ValidationFailed(`This accounting category is not allowed for ${pluralize(lowerCase(kind), 2)}`);
+  } else if (accountingCategory.kind && !['ADDED_FUNDS', 'CONTRIBUTION'].includes(accountingCategory.kind)) {
+    throw new ValidationFailed(`This accounting category is not allowed for contributions and added funds`);
   }
 };
 
@@ -72,7 +70,7 @@ export async function addFunds(order: AddFundsInput, remoteUser: User) {
   if (order.tier && order.tier.CollectiveId !== order.collective.id) {
     throw new Error(`Tier #${order.tier.id} is not part of collective #${order.collective.id}`);
   } else if (order.accountingCategory) {
-    checkCanUseAccountingCategoryForOrder(order.accountingCategory, host, 'ADDED_FUNDS');
+    checkCanUseAccountingCategoryForOrder(order.accountingCategory, host.id);
   }
 
   const orderData: Partial<InferCreationAttributes<OrderModelInterface>> = {

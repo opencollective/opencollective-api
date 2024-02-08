@@ -526,9 +526,9 @@ describe('server/graphql/v2/mutation/AddFundsMutations', () => {
         expect(result.errors[0].message).to.eq('This accounting category is not allowed for this host');
       });
 
-      it('must be allowed for added funds', async () => {
+      it('must be allowed for added funds or contributions', async () => {
         const accountingCategory = await fakeAccountingCategory({
-          kind: 'CONTRIBUTION',
+          kind: 'EXPENSE',
           CollectiveId: collective.host.id,
         });
         const encodedAccountingCategoryId = idEncode(accountingCategory.id, 'accounting-category');
@@ -544,7 +544,9 @@ describe('server/graphql/v2/mutation/AddFundsMutations', () => {
         );
 
         expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.eq('This accounting category is not allowed for added funds');
+        expect(result.errors[0].message).to.eq(
+          'This accounting category is not allowed for contributions and added funds',
+        );
       });
     });
   });

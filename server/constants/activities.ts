@@ -91,6 +91,7 @@ enum ActivityTypes {
   ORDER_PROCESSING = 'order.processing',
   ORDER_PAYMENT_FAILED = 'order.payment.failed',
   ORDER_THANKYOU = 'order.thankyou',
+  ORDER_UPDATED = 'order.updated',
   // Vendors
   VENDOR_CREATED = 'vendor.created',
   VENDOR_EDITED = 'vendor.edited',

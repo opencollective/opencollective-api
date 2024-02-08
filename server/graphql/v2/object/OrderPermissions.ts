@@ -95,6 +95,13 @@ const GraphQLOrderPermissions = new GraphQLObjectType({
         return canSetOrderTags(req, order);
       },
     },
+    canUpdateAccountingCategory: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can update the accounting category of this order',
+      async resolve(order, _, req: express.Request): Promise<boolean> {
+        return isHostAdmin(req, order);
+      },
+    },
   }),
 });
 
