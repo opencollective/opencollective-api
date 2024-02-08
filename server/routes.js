@@ -25,7 +25,7 @@ import errors from './lib/errors';
 import expressLimiter from './lib/express-limiter';
 import logger from './lib/logger';
 import oauth, { authorizeAuthenticateHandler } from './lib/oauth';
-import { createRedisClient } from './lib/redis';
+import { createRedisClient, RedisInstanceType } from './lib/redis';
 import { HandlerType, reportMessageToSentry, SentryGraphQLPlugin, sentryHandleSlowRequests } from './lib/sentry';
 import { parseToBoolean } from './lib/utils';
 import * as authentication from './middleware/authentication';
@@ -57,7 +57,7 @@ export default async app => {
 
   // Setup rate limiter
   // TODO: move to RedisInstanceType.SESSION ?
-  const redisClient = await createRedisClient();
+  const redisClient = await createRedisClient(RedisInstanceType.DEFAULT);
   if (redisClient) {
     const expressLimiterOptions = {
       lookup: function (req, res, opts, next) {
