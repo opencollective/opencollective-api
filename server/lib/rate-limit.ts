@@ -1,6 +1,6 @@
 import config from 'config';
 
-import cache from './cache';
+import { sessionCache } from './cache';
 
 export const ONE_HOUR_IN_SECONDS = 60 * 60;
 
@@ -44,18 +44,18 @@ export default class RateLimit {
     if (count >= this.limit) {
       return false;
     } else {
-      cache.set(this.cacheKey, count + nbCalls, this.expiryTimeInSeconds);
+      sessionCache.set(this.cacheKey, count + nbCalls, this.expiryTimeInSeconds);
       return true;
     }
   }
 
   /** Resets the limit */
   public async reset() {
-    return cache.delete(this.cacheKey);
+    return sessionCache.delete(this.cacheKey);
   }
 
   /** Load existing count from cache returns it */
   public async getCallsCount(): Promise<number> {
-    return (await cache.get(this.cacheKey)) || 0;
+    return (await sessionCache.get(this.cacheKey)) || 0;
   }
 }
