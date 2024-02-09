@@ -2117,7 +2117,14 @@ export async function deleteExpense(req: express.Request, expenseId: number): Pr
   return expense.reload({ paranoid: false });
 }
 
-async function payExpenseWithPayPalAdaptive(remoteUser, expense, host, paymentMethod, toPaypalEmail, fees = {}) {
+async function payExpenseWithPayPalAdaptive(
+  remoteUser,
+  expense,
+  host,
+  paymentMethod,
+  toPaypalEmail,
+  fees = {},
+): Promise<Expense> {
   debug('payExpenseWithPayPalAdaptive', expense.id);
 
   if (expense.currency !== expense.collective.currency) {
@@ -2235,9 +2242,9 @@ async function payExpenseWithPayPalAdaptive(remoteUser, expense, host, paymentMe
     // Adaptive does not work with multi-currency expenses, so we can safely assume that expense.currency = collective.currency
     await createTransactionsFromPaidExpense(host, expense, fees, hostCurrencyFxRate, paymentResponse);
     // Mark Expense as Paid, create activity and send notifications
-    const updatedExpense = await expense.markAsPaid({ user: remoteUser });
+    await expense.markAsPaid({ user: remoteUser });
     await paymentMethod.updateBalance();
-    return updatedExpense;
+    return expense;
   } catch (err) {
     debug('paypal> error', JSON.stringify(err, null, '  '));
     if (
