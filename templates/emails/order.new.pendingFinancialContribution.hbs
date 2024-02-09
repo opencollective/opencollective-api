@@ -1,4 +1,4 @@
-Subject: New pending financial contribution of {{{currency order.totalAmount currency=order.currency}}} to {{collective.name}}
+Subject: New pending financial contribution of {{currency order.totalAmount currency=order.currency}} to {{collective.name}}
 
 <style>
   code {
@@ -15,7 +15,7 @@ Subject: New pending financial contribution of {{{currency order.totalAmount cur
 {{> toplogo}}
 
 <p>
-  {{collective.name}} has a pending financial contribution of {{{currency order.totalAmount
+  {{collective.name}} has a pending financial contribution of {{currency order.totalAmount
   currency=order.currency}}} from {{fromCollective.name}}. The payer has been sent instructions
   to transmit the funds to the Fiscal Host, {{host.name}}. Once the funds arrive, the amount
   will be credited to the balance of {{collective.name}}.
