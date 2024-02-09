@@ -5,7 +5,9 @@ import { isNil, last } from 'lodash';
 
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../server/constants/paymentMethods';
 import { parseToBoolean } from '../../server/lib/utils';
-import { Expense, Op, PayoutMethod } from '../../server/models';
+import { Op, sequelize } from '../../server/models';
+import Expense from '../../server/models/Expense';
+import PayoutMethod from '../../server/models/PayoutMethod';
 import { TransactionInterface } from '../../server/models/Transaction';
 
 const IS_DRY = !process.env.DRY ? true : parseToBoolean(process.env.DRY);
@@ -53,10 +55,21 @@ const migrate = async () => {
     where: {
       status: 'PAID',
       PaymentMethodId: null,
-      createdAt: { [Op.gte]: DATE_FROM },
     },
-    include: [PayoutMethod, { association: 'Transactions', where: { type: 'DEBIT', kind: 'EXPENSE' } }],
-    order: [['updatedAt', 'DESC']],
+    include: [
+      PayoutMethod,
+      {
+        association: 'Transactions',
+        where: {
+          type: 'DEBIT',
+          kind: 'EXPENSE',
+          createdAt: { [Op.gte]: DATE_FROM },
+          isRefund: false,
+        },
+        required: true,
+      },
+    ],
+    order: [[sequelize.col('Transactions.createdAt'), 'DESC']],
   });
   console.log(`Found ${expenses.length} expenses missing payment method`);
   for (const expense of expenses) {
