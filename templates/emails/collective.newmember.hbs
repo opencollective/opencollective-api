@@ -9,7 +9,7 @@ Subject: {{{remoteUser.collective.name}}} added you as {{{collective.name}}} {{r
 <p>{{remoteUser.collective.name}} (cced) added you to <a href="https://opencollective.com/{{collective.slug}}">{{collective.name}}</a> as {{role}} on Open Collective.</p>
 
 {{#if isAdmin }}
-<p>As an Admin, you can submit and approve <a href="https://opencollective.com/{{collective.slug}}/expenses">expenses</a>, edit <a href="https://opencollective.com/{{collective.slug}}/admin">settings</a>, post <a href="https://opencollective.com/{{collective.slug}}/updates">updates</a>, and create <a href="https://opencollective.com/{{collective.slug}}/events/new">events</a>.</p>
+<p>As an Admin, you can submit and approve <a href="{{config.host.website}}/dashboard/{{collective.slug}}/expenses">expenses</a>, edit <a href="https://opencollective.com/{{collective.slug}}">settings</a>, post <a href="https://opencollective.com/{{collective.slug}}/updates">updates</a>, and create <a href="https://opencollective.com/{{collective.slug}}/events/new">events</a>.</p>
 {{else}}
 <p>As a team member, you will appear in the <a href="https://opencollective.com/{{collective.slug}}#category-ABOUT">about section</a>. You can also <a href="https://opencollective.com/{{collective.slug}}/expenses">submit expenses</a> and <a href="https://opencollective.com/{{collective.slug}}/events/new">create events</a>.</p>
 {{/if}}

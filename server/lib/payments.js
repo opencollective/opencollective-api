@@ -946,7 +946,7 @@ export const sendReminderPendingOrderEmail = async order => {
     collective: collective.info,
     host: host.info,
     fromCollective: fromCollective.activity,
-    viewDetailsLink: `${config.host.website}/${host.slug}/admin/orders?searchTerm=%23${order.id}`,
+    viewDetailsLink: `${config.host.website}/${host.slug}/dashboard/orders/contributions/${order.id}`,
     isSystem: true,
   };
   return await models.Activity.create({
