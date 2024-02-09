@@ -15,6 +15,7 @@ import emailLib from '../../server/lib/email';
 import logger from '../../server/lib/logger';
 import { reportErrorToSentry, reportMessageToSentry } from '../../server/lib/sentry';
 import { deepJSONBSet } from '../../server/lib/sql';
+import { parseToBoolean } from '../../server/lib/utils';
 import { AccountingCategory, Expense, Op, sequelize, User } from '../../server/models';
 import { onlyExecuteInProdOnMondays } from '../utils';
 
@@ -305,7 +306,9 @@ export const run = async () => {
         .join(`, `),
     );
 
-    await sendAllEmails(groupedMistakes);
+    if (!parseToBoolean(process.env.DRY_RUN)) {
+      await sendAllEmails(groupedMistakes);
+    }
   }
 
   logger.info('Done.');
