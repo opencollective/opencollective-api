@@ -21,7 +21,7 @@ import { PLATFORM_TIP_TRANSACTION_PROPERTIES, TransactionTypes } from '../consta
 import * as libPayments from '../lib/payments';
 import sequelize, { DataTypes, Op, QueryTypes } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
-import { capitalize } from '../lib/utils';
+import { capitalize, sleep } from '../lib/utils';
 
 import AccountingCategory from './AccountingCategory';
 import Collective from './Collective';
@@ -110,6 +110,7 @@ export interface OrderModelInterface
         hostFeePercent?: number;
         memo?: string;
         tax?: OrderTax;
+        isLocked?: boolean;
       }
     | any; // TODO: Remove `any` once we have a proper type for this
 
@@ -122,6 +123,19 @@ export interface OrderModelInterface
   getOrCreateMembers(): Promise<[MemberModelInterface, MemberModelInterface]>;
   getUser(): Promise<User>;
   setPaymentMethod(paymentMethodData);
+
+  /**
+   * Similar to what we do in `lockExpense`, this locks an order by setting a special flag in `data`
+   * to prevent concurrent processing of the same order. This is important because PayPal webhooks
+   * can be received multiple times for the same event, and sales can be processed both in the webhook
+   * and the direct API call (depending on PayPal's response).
+   * @param callback - The function to be executed while the order is locked
+   * @param options - Additional options
+   * @param options.retries - Number of retries before giving up (default: 0)
+   * @param options.retryInterval - Interval between retries in milliseconds (default: 500)
+   */
+  lock<T>(callback: () => T | Promise<T>, options?: { timeout?: boolean }): Promise<T>;
+  isLocked(): boolean;
 }
 
 const Order: ModelStatic<OrderModelInterface> & OrderModelStaticInterface = sequelize.define(
@@ -539,6 +553,48 @@ Order.prototype.getSubscriptionForUser = function (user) {
       return null;
     }
   });
+};
+
+Order.prototype.lock = async function (
+  callback,
+  { retries = 0, retryDelay = 500 } = {},
+): Promise<ReturnType<typeof callback>> {
+  // Reload the order and mark it as locked
+  const success = await sequelize.transaction(async sqlTransaction => {
+    const orderToLock = await models.Order.findByPk(this.id, { transaction: sqlTransaction, lock: true });
+    if (!orderToLock) {
+      throw new Error('Order not found'); // Not supposed to happen, just in case we try to lock a deleted order
+    } else if (orderToLock.isLocked()) {
+      return false;
+    } else {
+      await orderToLock.update({ data: { ...orderToLock.data, isLocked: true } }, { transaction: sqlTransaction });
+      return true;
+    }
+  });
+
+  // If the order is already locked, we retry
+  if (!success) {
+    if (retries <= 0) {
+      throw new Error('This order is already been processed, please try again later');
+    } else {
+      await sleep(retryDelay);
+      return this.lock(callback, { retries: retries - 1, retryDelay });
+    }
+  }
+
+  // Call the callback
+  try {
+    return await callback();
+  } finally {
+    // Unlock order
+    await sequelize.query(`UPDATE "Orders" SET data = data - 'isLocked' WHERE id = :orderId`, {
+      replacements: { orderId: this.id },
+    });
+  }
+};
+
+Order.prototype.isLocked = function (): boolean {
+  return Boolean(this.data?.isLocked);
 };
 
 /**

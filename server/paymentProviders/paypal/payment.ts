@@ -12,7 +12,7 @@ import {
   isPlatformTipEligible,
 } from '../../lib/payments';
 import { paypalAmountToCents } from '../../lib/paypal';
-import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
+import { reportErrorToSentry } from '../../lib/sentry';
 import { formatCurrency } from '../../lib/utils';
 import models from '../../models';
 import { OrderModelInterface } from '../../models/Order';
@@ -171,7 +171,7 @@ const processPaypalOrder = async (order, paypalOrderId): Promise<TransactionInte
   captureParams['invoice_id'] = `Contribution #${order.id}`;
   const triggerCaptureURL = `payments/authorizations/${authorizationId}/capture`;
   const captureResult = await paypalRequestV2(triggerCaptureURL, hostCollective, 'POST', captureParams);
-  const captureId = captureResult.id;
+  const captureId = captureResult.id as string;
   await order.update({ data: { ...order.data, paypalCaptureId: captureId } }); // Store immediately in the order to keep track of it in case anything goes wrong with the next queries
 
   if (captureResult.status !== 'COMPLETED') {
@@ -183,26 +183,29 @@ const processPaypalOrder = async (order, paypalOrderId): Promise<TransactionInte
   const captureUrl = `payments/captures/${captureId}`;
   const captureDetails = (await paypalRequestV2(captureUrl, hostCollective, 'GET')) as PaypalCapture;
 
-  // Prevent double-records in the (quite unlikely) case where the webhook event would be processed before the API replies
-  const existingTransaction = await models.Transaction.findOne({
-    where: {
-      OrderId: order.id,
-      type: 'CREDIT',
-      kind: 'CONTRIBUTION',
-      data: { capture: { id: captureId } },
-    },
-  });
+  // Prevent double-records in case the webhook event gets processed before the API replies
+  return order.lock(
+    async () => {
+      const existingTransaction = await models.Transaction.findOne({
+        where: {
+          OrderId: order.id,
+          type: 'CREDIT',
+          kind: 'CONTRIBUTION',
+          data: { capture: { id: captureId } },
+        },
+      });
 
-  if (existingTransaction) {
-    reportMessageToSentry(`PayPal: Found existing transaction for capture`, {
-      extra: { captureId, orderId: order.id },
-      severity: 'warning',
-      feature: FEATURE.PAYPAL_DONATIONS,
-    });
-    return existingTransaction;
-  } else {
-    return recordPaypalCapture(order, captureDetails);
-  }
+      if (existingTransaction) {
+        return existingTransaction;
+      } else {
+        return recordPaypalCapture(order, captureDetails);
+      }
+    },
+    {
+      retryDelay: 500,
+      retries: 20,
+    },
+  );
 };
 
 export const refundPaypalCapture = async (
