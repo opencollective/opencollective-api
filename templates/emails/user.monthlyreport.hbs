@@ -227,7 +227,7 @@ Subject: {{capitalize month}} Open Collective Report
           {{#each collectives}}
             {{#if nextGoal}}
               <li><a href="{{../config.host.website}}/{{slug}}">{{name}}</a> needs {{currency nextGoal.missing.amount currency=currency}} more {{#if nextGoal.missing.interval}}per {{nextGoal.missing.interval}}{{/if}} to reach their next goal of {{nextGoal.title}} ({{nextGoal.percentage}} there).
-              {{#if order.Subscription}}
+              {{#if order.subscription}}
               You are currently contributing {{currency order.Subscription.amount currency=order.Subscription.currency}} per {{order.Subscription.interval}}.
               (<a href="{{../config.host.website}}/recurring-contributions">increase your contribution</a>)
               (<a href="https://twitter.com/intent/tweet?text={{{encodeURIComponent nextGoal.tweet}}}">share their goal</a>)
