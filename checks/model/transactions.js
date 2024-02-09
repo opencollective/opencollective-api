@@ -57,6 +57,9 @@ async function checkOrphanTransactions() {
      -- there are sometime issues WHERE PAYMENT_PROCESSOR_COVER end up with a different TransactionGroup
      -- this should be adressed separetely
      AND secondaryTransactions."kind" != 'PAYMENT_PROCESSOR_COVER'
+     -- we have older entries with this issue
+     -- for now, we just want to get alerts if this happen again in the future
+     AND secondaryTransactions."createdAt" > '2024-01-01'
      AND secondaryTransactions."deletedAt" IS NULL
      AND primaryTransactions."id" IS NULL`,
     { type: sequelize.QueryTypes.SELECT, raw: true },
