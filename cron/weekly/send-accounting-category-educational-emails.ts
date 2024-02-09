@@ -11,6 +11,7 @@ import { difference, get, has, isEmpty, orderBy, pick, size, uniq, uniqBy } from
 
 import ActivityTypes from '../../server/constants/activities';
 import { ExpenseRoles } from '../../server/constants/expense-roles';
+import POLICIES from '../../server/constants/policies';
 import emailLib from '../../server/lib/email';
 import logger from '../../server/lib/logger';
 import { reportErrorToSentry, reportMessageToSentry } from '../../server/lib/sentry';
@@ -69,8 +70,19 @@ export const getRecentMisclassifiedExpenses = async () => {
         where: { isActive: true },
         include: [
           { association: 'adminMembers', required: true, order: [['id', 'ASC']] }, // The collective admins to send the email to
-          { association: 'host', required: true, include: [{ association: 'adminMembers', required: true }] }, // The host admins, to prevent sending the email to them
         ],
+      },
+      // Only hosts with expense categorization policies enabled
+      {
+        association: 'host',
+        required: true,
+        include: [{ association: 'adminMembers', required: true }], // The host admins, to prevent sending them the email
+        where: {
+          [Op.or]: [
+            { data: { policies: { [POLICIES.EXPENSE_CATEGORIZATION]: { requiredForExpenseSubmitters: true } } } },
+            { data: { policies: { [POLICIES.EXPENSE_CATEGORIZATION]: { requiredForCollectiveAdmins: true } } } },
+          ],
+        },
       },
       // Activities, to prevent sending the email to people who picked the right category when there are multiple admins
       {
@@ -155,7 +167,7 @@ export const groupMisclassifiedExpensesByAccount = async (
     }
 
     // Filter out host admins
-    expense.collective.host.adminMembers.forEach(admin => delete collectiveIdsToCheck[admin.MemberCollectiveId]);
+    expense.host.adminMembers.forEach(admin => delete collectiveIdsToCheck[admin.MemberCollectiveId]);
 
     // Add to the list of expenses to check
     if (size(collectiveIdsToCheck) > 0) {
@@ -232,7 +244,7 @@ const prepareEmailData = (
   if (!mistakesWithCategories.length) {
     return null;
   } else {
-    const allHostsInfo = mistakesWithCategories.map(({ expense }) => expense.collective.host.info);
+    const allHostsInfo = mistakesWithCategories.map(({ expense }) => expense.host.info);
     return {
       recipientName: user.collective.name || user.collective.legalName,
       user: user.info,

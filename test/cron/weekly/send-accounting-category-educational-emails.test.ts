@@ -8,6 +8,7 @@ import {
   run as runCron,
 } from '../../../cron/weekly/send-accounting-category-educational-emails';
 import ActivityTypes from '../../../server/constants/activities';
+import POLICIES from '../../../server/constants/policies';
 import emailLib from '../../../server/lib/email';
 import { AccountingCategory, Collective, User } from '../../../server/models';
 import {
@@ -18,39 +19,6 @@ import {
   fakeUser,
 } from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
-
-const fakeExpenseWithAccountingCategories = async ({
-  editors = [] as { role: 'collectiveAdmin' | 'submitter'; user: User; category: AccountingCategory | null }[],
-  ...fields
-}) => {
-  const data = fields.data || {};
-  const submitterCategory = findLast(editors, e => e.role === 'submitter')?.category;
-  const collectiveAdminCategory = findLast(editors, e => e.role === 'collectiveAdmin')?.category;
-  if (submitterCategory) {
-    set(data, 'valuesByRole.submitter.accountingCategory', submitterCategory.publicInfo);
-  }
-  if (collectiveAdminCategory) {
-    set(data, 'valuesByRole.collectiveAdmin.accountingCategory', collectiveAdminCategory.publicInfo);
-  }
-
-  const expense = await fakeExpense({ ...fields, data });
-  await expense.createActivity(ActivityTypes.COLLECTIVE_EXPENSE_CREATED, expense.User);
-
-  // Create some edit activities for realistic setup
-  await Promise.all(
-    editors.map(async ({ user, category }) => {
-      await expense.update({ AccountingCategoryId: category.id });
-      await expense.createActivity(ActivityTypes.COLLECTIVE_EXPENSE_UPDATED, user);
-    }),
-  );
-
-  // Restore requested category, if set
-  if (fields.AccountingCategoryId !== undefined && fields.AccountingCategoryId !== expense.AccountingCategoryId) {
-    await expense.update({ AccountingCategoryId: fields.AccountingCategoryId });
-  }
-
-  return expense;
-};
 
 describe('cron/weekly/send-accounting-category-educational-emails', () => {
   const expensesWithWrongPicks = [];
@@ -65,6 +33,45 @@ describe('cron/weekly/send-accounting-category-educational-emails', () => {
     accountingCategoryGeneric1: AccountingCategory,
     accountingCategoryGeneric2: AccountingCategory;
 
+  const fakeExpenseWithAccountingCategories = async ({
+    editors = [] as { role: 'collectiveAdmin' | 'submitter'; user: User; category: AccountingCategory | null }[],
+    ...fields
+  }) => {
+    const data = fields.data || {};
+    const submitterCategory = findLast(editors, e => e.role === 'submitter')?.category;
+    const collectiveAdminCategory = findLast(editors, e => e.role === 'collectiveAdmin')?.category;
+    if (submitterCategory) {
+      set(data, 'valuesByRole.submitter.accountingCategory', submitterCategory.publicInfo);
+    }
+    if (collectiveAdminCategory) {
+      set(data, 'valuesByRole.collectiveAdmin.accountingCategory', collectiveAdminCategory.publicInfo);
+    }
+
+    const expense = await fakeExpense({
+      HostCollectiveId: host?.id,
+      CollectiveId: collective?.id,
+      ...fields,
+      data,
+    });
+
+    await expense.createActivity(ActivityTypes.COLLECTIVE_EXPENSE_CREATED, expense.User);
+
+    // Create some edit activities for realistic setup
+    await Promise.all(
+      editors.map(async ({ user, category }) => {
+        await expense.update({ AccountingCategoryId: category.id });
+        await expense.createActivity(ActivityTypes.COLLECTIVE_EXPENSE_UPDATED, user);
+      }),
+    );
+
+    // Restore requested category, if set
+    if (fields.AccountingCategoryId !== undefined && fields.AccountingCategoryId !== expense.AccountingCategoryId) {
+      await expense.update({ AccountingCategoryId: fields.AccountingCategoryId });
+    }
+
+    return expense;
+  };
+
   before(async () => {
     await resetTestDB();
 
@@ -74,7 +81,10 @@ describe('cron/weekly/send-accounting-category-educational-emails', () => {
     collectiveAdmin = await fakeUser();
     anotherCollectiveAdmin = await fakeUser();
     collectiveAdminThatIsAlsoHostAdmin = await fakeUser();
-    host = await fakeActiveHost({ admin: hostAdmin });
+    const hostPolicies = {
+      [POLICIES.EXPENSE_CATEGORIZATION]: { requiredForExpenseSubmitters: true, requiredForCollectiveAdmins: true },
+    };
+    host = await fakeActiveHost({ admin: hostAdmin, data: { policies: hostPolicies } });
     collective = await fakeCollective({ isActive: true, HostCollectiveId: host.id });
     await collective.addUserWithRole(collectiveAdmin, 'ADMIN');
     await collective.addUserWithRole(anotherCollectiveAdmin, 'ADMIN');
