@@ -299,6 +299,7 @@ export async function createTransactionsForManuallyPaidExpense(
     FromCollectiveId: expense.FromCollectiveId,
     HostCollectiveId: host.id,
     PayoutMethodId: expense.PayoutMethodId,
+    PaymentMethodId: expense.PaymentMethodId,
     data: {
       isManual: true,
       ...transactionData,
