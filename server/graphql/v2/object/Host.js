@@ -1236,7 +1236,7 @@ export const GraphQLHost = new GraphQLObjectType({
               where: { type: 'collective.unhosted', HostCollectiveId: host.id },
               attributes: ['CollectiveId'],
             });
-            where.HostCollectiveId = { [Op.ne]: host.id };
+            where.HostCollectiveId = { [Op.or]: [{ [Op.ne]: host.id }, { [Op.is]: null }] };
             where.id = { [Op.in]: unhostedActivities.map(a => a.CollectiveId) };
           } else {
             where.isActive = true;
