@@ -177,8 +177,8 @@
     "fake-tag": "^3.0.0",
     "find-unused-exports": "^5.0.0",
     "geoip-lite": "^1.4.9",
-    "husky": "^4.3.8",
-    "lint-staged": "^10.5.4",
+    "husky": "^9.0.10",
+    "lint-staged": "^15.2.2",
     "maildev": "2.1.0",
     "markdown-table": "^2.0.0",
     "mocha": "^10.2.0",
@@ -260,19 +260,16 @@
     "test:routes": "npm run test test/server/routes",
     "test:scripts": "npm run test test/scripts",
     "test:sql": "npm run test test/sql",
-    "type:check": "tsc"
+    "type:check": "tsc",
+    "prepare": "husky",
+    "lint-staged": "lint-staged"
   },
   "engines": {
     "node": "20.x",
     "npm": "10.x"
   },
-  "husky": {
-    "hooks": {
-      "pre-commit": "lint-staged"
-    }
-  },
   "lint-staged": {
-    "*.{js,json,md}": [
+    "*.{js,ts,json,md}": [
       "prettier --write"
     ]
   },
