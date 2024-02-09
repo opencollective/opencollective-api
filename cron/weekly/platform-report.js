@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import '../../server/env';
 
-import config from 'config';
 import merge from 'deepmerge';
 import _ from 'lodash';
 import moment from 'moment-timezone';
@@ -14,6 +13,7 @@ import { reduceArrayToCurrency } from '../../server/lib/currency';
 import emailLib from '../../server/lib/email';
 import { formatCurrency, pluralize } from '../../server/lib/utils';
 import models, { Op } from '../../server/models';
+import { onlyExecuteInProdOnMondays } from '../utils';
 
 const markdownConverter = new showdown.Converter();
 
@@ -354,19 +354,6 @@ async function run() {
     process.exit();
   } catch (err) {
     console.log('err', err);
-    process.exit();
-  }
-}
-
-/**
- * Heroku scheduler only has daily or hourly cron jobs, we only want to run
- * this script once per week on Monday (1). If the day is not Monday on production
- * we won't execute the script
- */
-function onlyExecuteInProdOnMondays() {
-  const today = new Date();
-  if (config.env === 'production' && today.getDay() !== 1) {
-    console.log('OC_ENV is production and day is not Monday, script aborted!');
     process.exit();
   }
 }

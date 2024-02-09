@@ -155,6 +155,14 @@ handlebars.registerHelper('currency', (value, props) => {
   return res;
 });
 
+handlebars.registerHelper('formatAccountingCategory', category => {
+  if (!category) {
+    return 'None';
+  } else {
+    return `${category.code} - ${category.friendlyName || category.name}`;
+  }
+});
+
 handlebars.registerHelper('number', (value, props) => {
   const { precision, currency } = props.hash;
   let locale = 'en-US';

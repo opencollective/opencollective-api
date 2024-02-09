@@ -387,7 +387,10 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       const user = await fakeUser();
       const collectiveAdmin = await fakeUser();
       const collective = await fakeCollective({ admin: collectiveAdmin.collective });
-      const accountingCategory = await fakeAccountingCategory({ CollectiveId: collective.HostCollectiveId });
+      const accountingCategory = await fakeAccountingCategory({
+        CollectiveId: collective.HostCollectiveId,
+        kind: 'EXPENSE',
+      });
       const encodedAccountingCategoryId = idEncode(accountingCategory.id, 'accounting-category');
       const payee = await fakeCollective({ type: 'ORGANIZATION', admin: user.collective, location: { address: null } });
       const expenseData = {
@@ -907,6 +910,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         await expense.collective.host.addUserWithRole(hostAdmin, 'ADMIN');
         const newAccountingCategory = await fakeAccountingCategory({
           CollectiveId: expense.collective.HostCollectiveId,
+          kind: 'EXPENSE',
         });
         const newAccountingCategoryIdV2 = idEncode(newAccountingCategory.id, 'accounting-category');
         const mutationParams = {
@@ -957,9 +961,18 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         await expense.collective.addUserWithRole(collectiveAdmin, 'ADMIN');
         await expense.collective.host.addUserWithRole(hostAdmin, 'ADMIN');
 
-        const initialCategory = await fakeAccountingCategory({ CollectiveId: expense.collective.HostCollectiveId });
-        const category2 = await fakeAccountingCategory({ CollectiveId: expense.collective.HostCollectiveId });
-        const category3 = await fakeAccountingCategory({ CollectiveId: expense.collective.HostCollectiveId });
+        const initialCategory = await fakeAccountingCategory({
+          CollectiveId: expense.collective.HostCollectiveId,
+          kind: 'EXPENSE',
+        });
+        const category2 = await fakeAccountingCategory({
+          CollectiveId: expense.collective.HostCollectiveId,
+          kind: 'EXPENSE',
+        });
+        const category3 = await fakeAccountingCategory({
+          CollectiveId: expense.collective.HostCollectiveId,
+          kind: 'EXPENSE',
+        });
         await expense.update({ AccountingCategoryId: initialCategory.id });
 
         // Trigger all the edits at the same time. This is to ensure that we don't run into concurrency issues
@@ -1004,9 +1017,18 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         await expense.collective.addUserWithRole(collectiveAdmin, 'ADMIN');
         await expense.collective.host.addUserWithRole(hostAdmin, 'ADMIN');
 
-        const initialCategory = await fakeAccountingCategory({ CollectiveId: expense.collective.HostCollectiveId });
-        const category2 = await fakeAccountingCategory({ CollectiveId: expense.collective.HostCollectiveId });
-        const category3 = await fakeAccountingCategory({ CollectiveId: expense.collective.HostCollectiveId });
+        const initialCategory = await fakeAccountingCategory({
+          CollectiveId: expense.collective.HostCollectiveId,
+          kind: 'EXPENSE',
+        });
+        const category2 = await fakeAccountingCategory({
+          CollectiveId: expense.collective.HostCollectiveId,
+          kind: 'EXPENSE',
+        });
+        const category3 = await fakeAccountingCategory({
+          CollectiveId: expense.collective.HostCollectiveId,
+          kind: 'EXPENSE',
+        });
         await expense.update({ AccountingCategoryId: initialCategory.id });
 
         for (const [user, accountingCategory] of [
@@ -1269,7 +1291,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const host = await fakeActiveHost();
         const collective = await fakeCollective({ admin: adminUser.collective, HostCollectiveId: host.id });
         const expense = await fakeExpense({ data: { valuesByRole: null }, CollectiveId: collective.id });
-        const accountingCategory = await fakeAccountingCategory({ CollectiveId: host.id });
+        const accountingCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'EXPENSE' });
         const updatedExpenseData = {
           id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
           accountingCategory: { id: idEncode(accountingCategory.id, 'accounting-category') },

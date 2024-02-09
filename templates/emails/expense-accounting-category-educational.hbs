@@ -1,0 +1,82 @@
+{{#ifCond mistakes.length '===' 1}}
+  {{#ifCond mistakes.[0].role '===' 'submitter'}}
+Subject: Your expense to {{{mistakes.[0].expense.collective.name}}} has been re-categorized
+  {{else}}
+Subject: An expense you approved on behalf of {{{mistakes.[0].expense.collective.name}}} has been re-categorized
+  {{/ifCond}}
+{{else}}
+Subject: Some of your expenses have been re-categorized
+{{/ifCond}}
+
+{{> header}}
+
+<p>
+  {{> greeting}}
+</p>
+
+<p>
+  We are writing to let you know that
+{{#ifCond mistakes.length '===' 1}}
+  {{#ifCond mistakes.[0].role '===' 'submitter'}}
+    the expense you submitted to {{>linkCollective collective=mistakes.[0].expense.collective}} was reviewed by
+    their fiscal host {{> linkCollective collective=allHosts.[0]}} and in the process the expense category was changed:
+  {{else}}
+    an expense you approved on behalf of your collective {{>linkCollective collective=mistakes.[0].expense.collective}} was reviewed by
+    your fiscal host {{> linkCollective collective=allHosts.[0]}} and in the process the expense category was changed:
+  {{/ifCond}}
+{{else}}
+  {{#ifCond allHosts.length '>' 1}}
+    some of the expenses you edited were reviewed by fiscal hosts and in the process the expense categories were changed:
+  {{else}}
+    {{#ifCond allRoles.length '>' 1 }}
+      some of the expenses you edited were reviewed by the fiscal host {{> linkCollective collective=allHosts.[0]}} and in the process the expense categories were changed:
+    {{else}}
+      {{#ifCond allRoles.[0] '===' 'submitter'}}
+        some of the expenses you submitted were reviewed by the fiscal host {{> linkCollective collective=allHosts.[0]}} and in the process the expense categories were changed:
+      {{else}}
+        some expenses you approved on behalf of your collective(s) were reviewed by your fiscal host {{> linkCollective collective=allHosts.[0]}} and in the process the expense categories were changed:
+      {{/ifCond}}
+    {{/ifCond}}
+  {{/ifCond}}
+{{/ifCond}}
+</p>
+
+<ul>
+{{#each mistakes}}
+  <li>
+    <a href="{{../config.host.website}}/{{this.expense.collective.slug}}/expenses/{{this.expense.id}}">{{this.expense.description}}</a>
+    <ul>
+      <li>
+        <strong>The expense category you selected:</strong> {{formatAccountingCategory this.selectedCategory}}.
+      </li>
+      <li>
+        <strong>The expense category selected by the fiscal host:</strong> {{formatAccountingCategory this.expense.accountingCategory}}.
+      </li>
+    </ul>
+  </li>
+{{/each}}
+</ul>
+
+<p>
+  {{#ifCond mistakes.length '===' 1}}
+  The category selected by the fiscal host administrator better matches the contents of the expense you submitted.
+  {{else}}
+  The categories selected by the fiscal host administrators better match the contents of the expenses you submitted.
+  {{/ifCond}}
+</p>
+
+<p>
+  <strong>You don't need to do anything</strong>. This message was sent to let you know about the change as a reference for future expenses.
+</p>
+
+<p>
+Sincerely,
+<br />
+{{#ifCond allHosts.length '===' 1}}
+The {{> linkCollective collective=allHosts.[0]}} team
+{{else}}
+The Open Collective team
+{{/ifCond}}
+</p>
+
+{{> footer}}

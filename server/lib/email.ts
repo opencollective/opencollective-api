@@ -208,6 +208,10 @@ const sendMessage = (
       return mailer.sendMail({ from, cc, to, bcc, subject, text, html, headers, attachments }, (err, info) => {
         if (err) {
           debug('>>> mailer.sendMail error', err);
+          reportErrorToSentry(err, {
+            transactionName: 'emailLib.sendMessage',
+            extra: { recipients, subject, html, options },
+          });
           return reject(err);
         } else {
           debug('>>> mailer.sendMail success', info);
