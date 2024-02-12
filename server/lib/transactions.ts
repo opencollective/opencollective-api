@@ -185,7 +185,7 @@ export async function createTransactionsFromPaidExpense(
   /** Set this to a different value if the expense was paid in a currency that differs form the host's */
   expenseToHostFxRateConfig: number | 'auto',
   /** Will be stored in transaction.data */
-  transactionData: Record<string, unknown> = null,
+  transactionData: Record<string, unknown> & { clearedAt?: Date } = null,
 ) {
   fees = { ...DEFAULT_FEES, ...fees };
   if (!expense.collective) {
@@ -209,6 +209,7 @@ export async function createTransactionsFromPaidExpense(
   }
 
   const paymentMethod = await expense.getPaymentMethod();
+  // const clearedAt =
 
   // To group all the info we retrieved from the payment. All amounts are expected to be in expense currency
   const { paymentProcessorFeeInHostCurrency, hostFeeInHostCurrency, platformFeeInHostCurrency } = fees;
@@ -239,6 +240,7 @@ export async function createTransactionsFromPaidExpense(
     PaymentMethodId: paymentMethod?.id,
     PayoutMethodId: expense.PayoutMethodId,
     taxAmount: processedAmounts.tax.inCollectiveCurrency,
+    clearedAt: transactionData?.clearedAt || null,
     data: {
       ...(transactionData || {}),
       ...expenseDataForTransaction,

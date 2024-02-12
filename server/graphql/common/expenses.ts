@@ -2137,7 +2137,7 @@ async function payExpenseWithPayPalAdaptive(
     throw new Error('PayPal adaptive is currently under maintenance. Please try again later.');
   }
 
-  let paymentResponse = null;
+  let paymentResponse: Awaited<ReturnType<typeof paymentProviders.paypal.types.adaptive.pay>> = null;
   try {
     paymentResponse = await paymentProviders.paypal.types['adaptive'].pay(
       expense.collective,
@@ -2165,7 +2165,7 @@ async function payExpenseWithPayPalAdaptive(
         // Backward compatible error message parsing
         // eslint-disable-next-line no-case-declarations
         const errorMessage =
-          executePaymentResponse.payErrorList?.payError?.[0].error?.message ||
+          (executePaymentResponse.payErrorList as any)?.payError?.[0].error?.message ||
           executePaymentResponse.payErrorList?.[0].error?.message;
         throw new errors.ServerError(
           `Error while paying the expense with PayPal: "${errorMessage}". Please contact support@opencollective.com or pay it manually through PayPal.`,
@@ -2232,6 +2232,7 @@ async function payExpenseWithPayPalAdaptive(
       }
     }
 
+    const clearedAt = new Date(executePaymentResponse.responseEnvelope.timestamp);
     const currencyConversion = defaultFundingPlan?.currencyConversion || { exchangeRate: 1 };
     const hostCurrencyFxRate = 1 / parseFloat(currencyConversion.exchangeRate); // paypal returns a float from host.currency to expense.currency
     fees['paymentProcessorFeeInHostCurrency'] = Math.round(hostCurrencyFxRate * senderFees);
@@ -2240,7 +2241,7 @@ async function payExpenseWithPayPalAdaptive(
     expense.setPaymentMethod(paymentMethod);
     await expense.save();
     // Adaptive does not work with multi-currency expenses, so we can safely assume that expense.currency = collective.currency
-    await createTransactionsFromPaidExpense(host, expense, fees, hostCurrencyFxRate, paymentResponse);
+    await createTransactionsFromPaidExpense(host, expense, fees, hostCurrencyFxRate, { ...paymentResponse, clearedAt });
     // Mark Expense as Paid, create activity and send notifications
     await expense.markAsPaid({ user: remoteUser });
     await paymentMethod.updateBalance();

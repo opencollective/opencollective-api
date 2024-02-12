@@ -1,4 +1,5 @@
 import { omit, pick } from 'lodash';
+import moment from 'moment';
 import type Stripe from 'stripe';
 
 import { activities } from '../../constants';
@@ -282,6 +283,7 @@ export const processTransaction = async (stripeTransaction: Stripe.Issuing.Trans
   const currency = stripeTransaction.currency.toUpperCase();
   const amount = convertToStripeAmount(currency, stripeTransaction.amount);
   const isRefund = stripeTransaction.type === 'refund';
+  const clearedAt = moment.unix(stripeTransaction.created).toDate();
 
   return persistTransaction(virtualCard, {
     id: stripeTransaction.id,
@@ -289,7 +291,8 @@ export const processTransaction = async (stripeTransaction: Stripe.Issuing.Trans
     currency,
     vendorProviderId: stripeTransaction['merchant_data']['network_id'],
     vendorName: stripeTransaction['merchant_data']['name'],
-    incurredAt: new Date(stripeTransaction.created * 1000),
+    clearedAt,
+    incurredAt: clearedAt,
     isRefund,
     fromAuthorizationId: stripeTransaction.authorization,
     data: { transaction: stripeTransaction },

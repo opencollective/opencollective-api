@@ -54,6 +54,7 @@ paypalAdaptive.callPaypal = (endpointName, payload) => {
 
 paypalAdaptive.pay = payload => paypalAdaptive.callPaypal('pay', payload);
 paypalAdaptive.paymentDetails = payload => paypalAdaptive.callPaypal('paymentDetails', payload);
+/** @returns {{httpStatusCode: number, paymentExecStatus: string, responseEnvelope: { ack: string, build: string, timestamp: string, correlationId: string }, payErrorList?: Array<{ error: { message: string }}> }} */
 paypalAdaptive.executePayment = payKey => paypalAdaptive.callPaypal('executePayment', { payKey });
 paypalAdaptive.preapproval = payload => paypalAdaptive.callPaypal('preapproval', payload);
 paypalAdaptive.preapprovalDetails = preapprovalKey =>

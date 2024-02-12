@@ -1,5 +1,6 @@
 import config from 'config';
 import { get, result, toUpper } from 'lodash';
+import moment from 'moment';
 import type { CreateOptions } from 'sequelize';
 import Stripe from 'stripe';
 
@@ -116,7 +117,7 @@ export const refundTransactionOnlyInDatabase = async (
 };
 
 export const createChargeTransactions = async (
-  charge,
+  charge: Stripe.Charge,
   {
     order,
   }: {
@@ -132,7 +133,7 @@ export const createChargeTransactions = async (
 
   const hostFeeSharePercent = await getHostFeeSharePercent(order, { host });
   const isSharedRevenue = !!hostFeeSharePercent;
-  const balanceTransaction = await stripe.balanceTransactions.retrieve(charge.balance_transaction, {
+  const balanceTransaction = await stripe.balanceTransactions.retrieve(charge.balance_transaction as string, {
     stripeAccount: hostStripeAccount.username,
   });
 
@@ -165,6 +166,8 @@ export const createChargeTransactions = async (
     // TODO: we need to stop supporting this
     platformFeeInHostCurrency = fees.applicationFee;
   }
+
+  const clearedAt = charge.created ? moment.unix(charge.created).toDate() : null;
 
   const paymentProcessorFeeInHostCurrency = fees.stripeFee;
 
@@ -199,6 +202,7 @@ export const createChargeTransactions = async (
     description: order.description,
     hostFeeInHostCurrency,
     data,
+    clearedAt,
   };
 
   return models.Transaction.createFromContributionPayload(transactionPayload, {
