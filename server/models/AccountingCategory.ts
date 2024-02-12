@@ -17,7 +17,7 @@ import sequelize, { DataTypes, Model } from '../lib/sequelize';
 import Activity from './Activity';
 import Collective from './Collective';
 import Expense from './Expense';
-import { OrderModelInterface } from './Order';
+import Order from './Order';
 import User from './User';
 
 const instructionsSanitizeOptions = buildSanitizerOptions({
@@ -66,11 +66,11 @@ class AccountingCategory extends Model<InferAttributes<AccountingCategory>, Acco
   // Associations
   declare getCollective: BelongsToGetAssociationMixin<Collective>;
   declare getExpenses: HasManyGetAssociationsMixin<Expense>;
-  declare getOrders: HasManyGetAssociationsMixin<OrderModelInterface>;
+  declare getOrders: HasManyGetAssociationsMixin<Order>;
 
   declare collective?: Collective;
   declare expenses?: Expense[];
-  declare orders?: OrderModelInterface[];
+  declare orders?: Order[];
 
   // Static methods
   public static async createEditActivity(

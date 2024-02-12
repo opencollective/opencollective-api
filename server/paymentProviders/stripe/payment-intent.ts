@@ -8,11 +8,11 @@ import { getApplicationFee } from '../../lib/payments';
 import { reportMessageToSentry } from '../../lib/sentry';
 import stripe, { convertToStripeAmount } from '../../lib/stripe';
 import models from '../../models';
-import { OrderModelInterface } from '../../models/Order';
+import Order from '../../models/Order';
 
 import { APPLICATION_FEE_INCOMPATIBLE_CURRENCIES, refundTransaction, refundTransactionOnlyInDatabase } from './common';
 
-const processOrder = async (order: OrderModelInterface): Promise<void> => {
+const processOrder = async (order: Order): Promise<void> => {
   if (order.SubscriptionId) {
     return processRecurringOrder(order);
   }
@@ -20,7 +20,7 @@ const processOrder = async (order: OrderModelInterface): Promise<void> => {
   return processNewOrder(order);
 };
 
-async function processNewOrder(order: OrderModelInterface) {
+async function processNewOrder(order: Order) {
   const hostStripeAccount = await order.collective.getHostStripeAccount();
   const host = await order.collective.getHostCollective();
   const isPlatformRevenueDirectlyCollected =
@@ -88,7 +88,7 @@ async function processNewOrder(order: OrderModelInterface) {
   }
 }
 
-async function processRecurringOrder(order: OrderModelInterface) {
+async function processRecurringOrder(order: Order) {
   const hostStripeAccount = await order.collective.getHostStripeAccount();
   const host = await order.collective.getHostCollective();
   const isPlatformRevenueDirectlyCollected =

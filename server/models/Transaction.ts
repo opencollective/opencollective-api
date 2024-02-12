@@ -34,7 +34,7 @@ import { exportToCSV, parseToBoolean } from '../lib/utils';
 import Activity from './Activity';
 import Collective from './Collective';
 import CustomDataTypes from './DataTypes';
-import Order, { OrderModelInterface } from './Order';
+import Order from './Order';
 import PaymentMethod, { PaymentMethodModelInterface } from './PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
 import TransactionSettlement, { TransactionSettlementStatus } from './TransactionSettlement';
@@ -96,7 +96,7 @@ export interface TransactionInterface
   collective?: Collective;
   PaymentMethod?: PaymentMethodModelInterface;
   PayoutMethod?: PayoutMethod;
-  Order?: OrderModelInterface;
+  Order?: Order;
 
   // Getter Methods
   info: Partial<TransactionInterface>;
@@ -104,7 +104,7 @@ export interface TransactionInterface
   // Class methods
   getHostCollective: (options?: { loaders?: any }) => Promise<Collective>;
   getCollective: () => Promise<Collective | null>;
-  getOrder: (options?: { paranoid?: boolean }) => Promise<OrderModelInterface | null>;
+  getOrder: (options?: { paranoid?: boolean }) => Promise<Order | null>;
   hasPlatformTip: () => boolean;
   getRelatedTransaction: (options: { type?: string; kind?: string; isDebt?: boolean }) => Promise<TransactionInterface>;
   getOppositeTransaction: () => Promise<TransactionInterface | null>;

@@ -198,6 +198,9 @@ handlebars.registerHelper('formatOrderAmountWithInterval', order => {
   }
 
   const formattedAmount = formatCurrency(order.totalAmount, order.currency);
+  // `order.subscription` or `order.Subscription` ?
+  // Come from:
+  // https://github.com/opencollective/opencollective-api/blob/ef2c3845349886048f181b4622404f965a2cf134/server/models/Collective.ts#L1821-L1823
   const subscription = order.subscription;
   const interval = subscription?.interval || order.interval;
 

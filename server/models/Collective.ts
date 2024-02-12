@@ -878,7 +878,7 @@ class Collective extends Model<
     }
 
     // Always run in a transaction (we manually start one below if not provided)
-    const getOrCreateIncognitoProfileInTransaction = async transaction => {
+    const getOrCreateIncognitoProfileInTransaction = async (transaction: SequelizeTransaction) => {
       const existingProfile = await this.getIncognitoProfile({ transaction });
       if (existingProfile) {
         return existingProfile;

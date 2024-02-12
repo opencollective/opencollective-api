@@ -7,7 +7,7 @@ import { getApplicationFee } from '../../lib/payments';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
 import stripe, { convertToStripeAmount } from '../../lib/stripe';
 import { Collective } from '../../models';
-import { OrderModelInterface } from '../../models/Order';
+import Order from '../../models/Order';
 import { PaymentMethodModelInterface } from '../../models/PaymentMethod';
 import User from '../../models/User';
 
@@ -28,7 +28,7 @@ const UNKNOWN_ERROR_MSG = 'Something went wrong with the payment, please contact
  */
 const createChargeAndTransactions = async (
   hostStripeAccount,
-  { order, stripePaymentMethod }: { order: OrderModelInterface; stripePaymentMethod: { id: string; customer: string } },
+  { order, stripePaymentMethod }: { order: Order; stripePaymentMethod: { id: string; customer: string } },
 ) => {
   const host = await order.collective.getHostCollective();
   const isPlatformRevenueDirectlyCollected =

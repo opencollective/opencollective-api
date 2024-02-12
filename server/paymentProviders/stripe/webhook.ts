@@ -26,7 +26,7 @@ import {
 import { reportMessageToSentry } from '../../lib/sentry';
 import stripe from '../../lib/stripe';
 import models, { sequelize } from '../../models';
-import { OrderModelInterface } from '../../models/Order';
+import Order from '../../models/Order';
 import { PaymentMethodModelInterface } from '../../models/PaymentMethod';
 
 import { getVirtualCardForTransaction } from './../utils';
@@ -36,7 +36,7 @@ import * as virtualcard from './virtual-cards';
 const debug = debugLib('stripe');
 
 export async function createOrUpdateOrderStripePaymentMethod(
-  order: OrderModelInterface,
+  order: Order,
   stripeAccount: string,
   paymentIntent: Stripe.PaymentIntent,
 ): Promise<PaymentMethodModelInterface> {

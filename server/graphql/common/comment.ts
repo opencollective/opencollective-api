@@ -6,7 +6,7 @@ import models from '../../models';
 import Comment, { CommentType } from '../../models/Comment';
 import Conversation from '../../models/Conversation';
 import Expense, { ExpenseStatus } from '../../models/Expense';
-import { OrderModelInterface } from '../../models/Order';
+import Order from '../../models/Order';
 import Update from '../../models/Update';
 import { NotFound, Unauthorized, ValidationFailed } from '../errors';
 import { canComment as canCommentOrder } from '../v2/object/OrderPermissions';
@@ -15,7 +15,7 @@ import { canComment as canCommentExpense, canUsePrivateNotes as canUseExpensePri
 import { checkRemoteUserCanUseComment } from './scope-check';
 import { canSeeUpdate } from './update';
 
-type CommentableEntity = Update | Expense | Conversation | OrderModelInterface;
+type CommentableEntity = Update | Expense | Conversation | Order;
 
 const loadCommentedEntity = async (commentValues): Promise<[CommentableEntity, ActivityTypes]> => {
   const include = { association: 'collective', required: true };
@@ -32,7 +32,7 @@ const loadCommentedEntity = async (commentValues): Promise<[CommentableEntity, A
     entity = (await Update.findByPk(commentValues.UpdateId, { include })) as Update;
     activityType = ActivityTypes.UPDATE_COMMENT_CREATED;
   } else if (commentValues.OrderId) {
-    entity = (await models.Order.findByPk(commentValues.OrderId, { include })) as OrderModelInterface;
+    entity = (await models.Order.findByPk(commentValues.OrderId, { include })) as Order;
     activityType = ActivityTypes.ORDER_COMMENT_CREATED;
   }
 
