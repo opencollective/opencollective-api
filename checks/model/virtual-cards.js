@@ -19,7 +19,7 @@ async function checkDeletedVirtualCardsWithExpenses({ fix = false } = {}) {
     { type: sequelize.QueryTypes.SELECT, raw: true },
   );
 
-  if (results[0].count > 0) {
+  if (results[0]?.count > 0) {
     if (!fix) {
       throw new Error(message);
     } else {
