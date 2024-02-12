@@ -133,7 +133,7 @@ Subject: {{{collective.name}}} {{month}} {{year}} Report
   <table border=0 class="section">
     <tr>
       <td><h2>📌 Goals</h2></td>
-      <td><div class="action"><a href="{{@root.collective.publicUrl}}/admin/goals">Edit goals</a></div></td>
+      <td><div class="action"><a href="{{config.host.website}}/dashboard/{{@root.collective.slug}}/goals">Edit goals</a></div></td>
     </tr>
   </table>
 
@@ -147,23 +147,23 @@ Subject: {{{collective.name}}} {{month}} {{year}} Report
   (<a href="https://twitter.com/intent/tweet?text={{{encodeURIComponent collective.nextGoal.tweet}}}">share this goal</a>)
   </div>
   {{else}}
-  <p><a href="{{@root.collective.publicUrl}}/admin/goals">Set a goal</a> to motivate contributions.</p>
+  <p><a href="{{config.host.website}}/dashboard/{{@root.collective.slug}}/goals">Set a goal</a> to motivate contributions.</p>
   {{/if}}
 
   <table border=0 class="section">
     <tr>
       <td><h2>🗞 Updates</h2></td>
-      <td><div class="action"><a href="{{@root.collective.publicUrl}}/updates/new">Post an Update</a></div></td>
+      <td><div class="action"><a href="{{config.host.website}}/dashboard/{{@root.collective.slug}}/updates/new">Post an Update</a></div></td>
     </tr>
   </table>
   {{#if collective.updates}}
   <ul>
     {{#each collective.updates}}
-    <li>{{moment publishedAt format="MM/DD"}} <a href="https://opencollective.com/{{@root.collective.slug}}/updates/{{slug}}">{{title}}</a></li>
+    <li>{{moment publishedAt format="MM/DD"}} <a href="{{config.host.website}}/dashboard/{{@root.collective.slug}}/updates/{{slug}}">{{title}}</a></li>
     {{/each}}
   </ul>
   {{else}}
-    <p>{{#if collective.stats.backers.lastMonth}}Your {{collective.stats.backers.lastMonth}} contributors haven't heard from you this month.{{/if}} <a href="https://opencollective.com/{{collective.slug}}/updates">Post an Update</a> to let your community know what you're up to.</p>
+    <p>{{#if collective.stats.backers.lastMonth}}Your {{collective.stats.backers.lastMonth}} contributors haven't heard from you this month.{{/if}} <a href="{{config.host.website}}/{{collective.slug}}/updates">Post an Update</a> to let your community know what you're up to.</p>
   {{/if}}
 
   {{#if collective.newOrders}}
@@ -239,7 +239,7 @@ Subject: {{{collective.name}}} {{month}} {{year}} Report
   <table border=0 class="section">
     <tr>
       <td><h2>🗒 Expenses</h2></td>
-      <td><div class="action"><a href="{{@root.collective.publicUrl}}/expenses/new">Submit Expense</a></div></td>
+      <td><div class="action"><a href="{{config.host.website}}/{{@root.collective.slug}}/expenses/new">Submit Expense</a></div></td>
     </tr>
   </table>
 
@@ -261,7 +261,7 @@ Subject: {{{collective.name}}} {{month}} {{year}} Report
   <table border=0 class="section">
     <tr>
       <td><h2>🏷 Tiers</h2></td>
-      <td><div class="action"><a href="{{@root.collective.publicUrl}}/admin/tiers">Edit tiers</a></div></td>
+      <td><div class="action"><a href="{{config.host.website}}/dashboard/{{@root.collective.slug}}/tiers">Edit tiers</a></div></td>
     </tr>
   </table>
   <ul>

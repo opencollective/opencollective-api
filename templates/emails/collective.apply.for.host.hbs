@@ -17,7 +17,7 @@ Dear admin of {{host.name}},
 <p>
   {{user.collective.name}} wants their Collective, {{collective.name}}, to join your Fiscal Host. If you approve this application, you agree to hold and account for money on their behalf.
 
-<p>{{host.name}} charges a default Host Fee of {{host.hostFeePercent}}%. You can edit your default Host Fee <a href="https://opencollective.com/{{host.slug}}/admin/fiscal-hosting">in your settings</a>, or set a custom fee per Collective in the Hosted Collectives area of <a href="https://opencollective.com/{{host.slug}}/admin/hosted-collectives">your Host Dashboard</a>. Or read more <a href="https://docs.opencollective.com/help/fiscal-hosts/fiscal-hosts">about Fiscal Hosting</a>.</p>
+<p>{{host.name}} charges a default Host Fee of {{host.hostFeePercent}}%. You can edit your default Host Fee <a href="{{config.host.website}}/dashboard/{{host.slug}}/fiscal-hosting">in your settings</a>, or set a custom fee per Collective in the Hosted Collectives area of <a href="{{config.host.website}}/dashboard/{{host.slug}}/hosted-collectives">your Host Dashboard</a>. Or read more <a href="https://docs.opencollective.com/help/fiscal-hosts/fiscal-hosts">about Fiscal Hosting</a>.</p>
 
 <h2>Collective details</h2>
 <table>
@@ -98,7 +98,7 @@ Dear admin of {{host.name}},
 <center>
   <a
     class="btn blue"
-    href="{{config.host.website}}/{{host.slug}}/admin/host-applications?application={{collective.id}}"
+    href="{{config.host.website}}/dashboard/{{host.slug}}/host-applications?accountId={{collective.id}}"
   >
     <div style="font-size: 15px;">View application</div>
   </a>

@@ -17,7 +17,7 @@ Dear admin of {{host.name}},
 <p>
   {{userCollective.name}} ({{userCollective.slug}}) wants a virtual card for their {{toLowerCase collective.type}}, {{collective.name}}.
   To create one, set up a new virtual card and assign it to {{collective.name}}
-  in <a href="https://opencollective.com/{{host.slug}}/admin/host-virtual-cards">your settings</a>.
+  in <a href="{{config.host.website}}/dashboard/{{host.slug}}/host-virtual-cards">your settings</a>.
 </p>
 
 <h2>Collective details</h2>
@@ -49,7 +49,7 @@ Dear admin of {{host.name}},
 </table>
 
 <h2>Request Details</h2>
-<a href="{{config.host.website}}/{{host.slug}}/admin/host-virtual-card-requests?virtualCardRequest={{virtualCardRequest.id}}">View request</a>
+<a href="{{config.host.website}}/dashboard/{{host.slug}}/host-virtual-card-requests?virtualCardRequest={{virtualCardRequest.id}}">View request</a>
 <p>
   <strong>Assignee</strong><br />
   {{userCollective.name}}
