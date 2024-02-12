@@ -358,7 +358,7 @@ async function HostReport(year, month, hostId) {
 
       const totalAmountDonations = sumBy(donations, 'amountInHostCurrency');
       const paymentProcessorFees =
-        sumBy(donations, 'paymentProcessorFeeInHostCurrency') -
+        sumBy(donations, 'paymentProcessorFeeInHostCurrency') +
         sumBy(paymentProcessorFeesTransactions, 'amountInHostCurrency');
       const platformFees = sumBy(donations, 'platformFeeInHostCurrency');
       const totalAmountOtherCredits = sumBy(otherCredits, 'amountInHostCurrency');
