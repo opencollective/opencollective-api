@@ -12,7 +12,7 @@ import emailLib from '../server/lib/email';
 import { getBackersStats, getHostedCollectives, sumTransactions } from '../server/lib/hostlib';
 import { stripHTML } from '../server/lib/sanitize-html';
 import { reportErrorToSentry, reportMessageToSentry } from '../server/lib/sentry';
-import { getTaxesSummary, getTransactions } from '../server/lib/transactions';
+import { getPaidTaxTransactions, getTaxesSummary, getTransactions } from '../server/lib/transactions';
 import { exportToPDF, sumByWhen } from '../server/lib/utils';
 import models, { Op, sequelize } from '../server/models';
 
@@ -290,11 +290,12 @@ async function HostReport(year, month, hostId) {
         ],
       });
 
-      if (!transactions || transactions.length === 0) {
+      const paidTaxTransactions = await getPaidTaxTransactions(host.id, startDate, endDate);
+      if (!transactions.length && !paidTaxTransactions.length) {
         console.log(`No transaction found for ${host.slug}, skipping`);
         return;
       }
-      console.log(`>>> processing ${transactions.length} transactions`);
+      console.log(`>>> processing ${transactions.length + paidTaxTransactions.length} transactions`);
       await enrichTransactionsWithHostFee(transactions);
       transactions = await Promise.all(transactions.map(processTransaction));
 
@@ -396,7 +397,7 @@ async function HostReport(year, month, hostId) {
         totalAmountOtherCredits +
         paymentProcessorFeesOtherCredits +
         platformFeesOtherCredits;
-      const taxesSummary = getTaxesSummary(transactions, taxesCollectedTransactions);
+      const taxesSummary = getTaxesSummary(transactions, taxesCollectedTransactions, paidTaxTransactions);
       const totalAmountPaidExpenses = sumByWhen(expenses, 'netAmountInHostCurrency');
       const totalNetAmountReceivedForCollectives = totalNetAmountReceived - totalHostFees;
       const totalAmountSpent =

@@ -1,6 +1,6 @@
 import assert from 'assert';
 
-import { get, groupBy, mapValues, round, set, sumBy, truncate } from 'lodash';
+import { get, groupBy, round, set, sumBy, truncate, uniq } from 'lodash';
 import { Order } from 'sequelize';
 
 import ExpenseType from '../constants/expense-type';
@@ -9,7 +9,7 @@ import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
 import { toNegative } from '../lib/math';
 import { exportToCSV, sumByWhen } from '../lib/utils';
-import models, { Op } from '../models';
+import models, { Op, sequelize } from '../models';
 import Tier from '../models/Tier';
 import { TransactionInterface } from '../models/Transaction';
 
@@ -50,7 +50,12 @@ export function exportTransactions(transactions, attributes) {
  * @param {*} endDate
  * @param {*} limit
  */
-export function getTransactions(collectiveids, startDate = new Date('2015-01-01'), endDate = new Date(), options) {
+export function getTransactions(
+  collectiveids,
+  startDate = new Date('2015-01-01'),
+  endDate = new Date(),
+  options,
+): Promise<TransactionInterface[]> {
   const where = options.where || {};
   const query = {
     where: {
@@ -79,6 +84,32 @@ const DEFAULT_FEES = {
   paymentProcessorFeeInHostCurrency: 0,
   hostFeeInHostCurrency: 0,
   platformFeeInHostCurrency: 0,
+};
+
+export const getPaidTaxTransactions = async (
+  hostId: number,
+  startDate = new Date('2015-01-01'),
+  endDate = new Date(),
+): Promise<TransactionInterface[]> => {
+  return sequelize.query(
+    `
+    SELECT t.*
+    FROM "Transactions" t
+    INNER JOIN "Transactions" expense_transaction
+      ON expense_transaction.kind = 'EXPENSE'
+      AND expense_transaction.type = 'DEBIT'
+      AND expense_transaction."TransactionGroup" = t."TransactionGroup"
+    WHERE expense_transaction."HostCollectiveId" = :hostId
+      AND t.kind = 'TAX'
+      AND t.type = 'DEBIT'
+      AND t."createdAt" >= :startDate
+      AND t."createdAt" < :endDate
+  `,
+    {
+      model: models.Transaction,
+      replacements: { hostId, startDate, endDate },
+    },
+  );
 };
 
 /**
@@ -462,18 +493,42 @@ export async function generateDescription(transaction, { req = null, full = fals
 export const getTaxesSummary = (
   allTransactions: TransactionInterface[],
   taxesCollectedTransactions: TransactionInterface[] = [],
+  paidTaxTransactions: TransactionInterface[] = [],
 ) => {
-  const transactionsWithTaxes = allTransactions.filter(t => t.taxAmount);
-  if (!transactionsWithTaxes.length) {
+  const legacyTransactionsWithTaxes = allTransactions.filter(t => t.taxAmount);
+  if (!legacyTransactionsWithTaxes.length && !taxesCollectedTransactions.length && !paidTaxTransactions.length) {
     return null;
   }
 
-  const groupedTransactions = groupBy(transactionsWithTaxes, 'data.tax.id');
-  const getTaxAmountInHostCurrency = transaction => transaction.taxAmount * (transaction.hostCurrencyRate || 1) || 0;
-  return mapValues(groupedTransactions, transactions => ({
-    collected:
-      Math.abs(sumByWhen(transactions, getTaxAmountInHostCurrency, t => t.type === 'CREDIT')) -
-      sumBy(taxesCollectedTransactions, 'amountInHostCurrency'),
-    paid: sumByWhen(transactions, getTaxAmountInHostCurrency, t => t.type === 'DEBIT'),
-  }));
+  // A helper to get the tax amount in host currency from legacy transactions
+  const getLegacyTaxAmountInHostCurrency = transaction =>
+    transaction.taxAmount * (transaction.hostCurrencyRate || 1) || 0;
+
+  // Group transactions by tax id
+  const groupedLegacyTransactions = groupBy(legacyTransactionsWithTaxes, 'data.tax.id');
+  const groupedTaxesCollectedTransactions = groupBy(taxesCollectedTransactions, 'data.tax.id');
+  const groupedPaidTaxTransactions = groupBy(paidTaxTransactions, 'data.tax.id');
+  const allTaxIds = uniq([
+    ...Object.keys(groupedLegacyTransactions),
+    ...Object.keys(groupedTaxesCollectedTransactions),
+    ...Object.keys(groupedPaidTaxTransactions),
+  ]);
+
+  return Object.fromEntries(
+    allTaxIds.map(taxId => {
+      const legacyTransactions = groupedLegacyTransactions[taxId] || [];
+      return [
+        taxId,
+        {
+          collected: Math.abs(
+            sumByWhen(legacyTransactions, getLegacyTaxAmountInHostCurrency, t => t.type === 'CREDIT') +
+              sumByWhen(groupedTaxesCollectedTransactions[taxId], 'amountInHostCurrency', t => t.type === 'DEBIT'),
+          ),
+          paid:
+            sumByWhen(legacyTransactions, getLegacyTaxAmountInHostCurrency, t => t.type === 'DEBIT') +
+            sumBy(groupedPaidTaxTransactions[taxId], 'amountInHostCurrency'),
+        },
+      ];
+    }),
+  );
 };
