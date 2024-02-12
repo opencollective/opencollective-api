@@ -1,5 +1,6 @@
 import axios, { AxiosError } from 'axios';
 import config from 'config';
+import moment from 'moment';
 
 import { activities, channels } from '../../constants';
 import ActivityTypes from '../../constants/activities';
@@ -24,29 +25,37 @@ const shouldSkipActivity = (activity: Activity) => {
   return false;
 };
 
-const publishToWebhook = (activity: Activity, webhookUrl: string) => {
-  if (slackLib.isSlackWebhookUrl(webhookUrl)) {
-    return slackLib.postActivityOnPublicChannel(activity, webhookUrl);
+const publishToWebhook = async (notification: Notification, activity: Activity) => {
+  if (slackLib.isSlackWebhookUrl(notification.webhookUrl)) {
+    return slackLib.postActivityOnPublicChannel(activity, notification.webhookUrl);
   } else {
     const sanitizedActivity = sanitizeActivity(activity);
     const enrichedActivity = enrichActivity(sanitizedActivity);
-    return axios.post(webhookUrl, enrichedActivity, { maxRedirects: 0 });
+    const response = await axios.post(notification.webhookUrl, enrichedActivity, { maxRedirects: 0 });
+    const isSuccess = response.status >= 200 && response.status < 300;
+    if (isSuccess && (!notification.lastSuccessAt || !moment(notification.lastSuccessAt).isSame(moment(), 'day'))) {
+      await notification.update({ lastSuccessAt: new Date() });
+    }
   }
 };
 
-const dispatch = async (activity: Activity) => {
-  notifyByEmail(activity).catch(e => {
-    if (!['ci', 'test', 'e2e'].includes(config.env)) {
-      console.error(e);
-    }
-  });
+const dispatch = async (activity: Activity, { onlyChannels = null, force = false } = {}) => {
+  const shouldNotifyChannel = channel => !onlyChannels || onlyChannels.includes(channel);
+
+  if (shouldNotifyChannel(channels.EMAIL)) {
+    notifyByEmail(activity).catch(e => {
+      if (!['ci', 'test', 'e2e'].includes(config.env)) {
+        console.error(e);
+      }
+    });
+  }
 
   // process notification entries for slack, twitter, etc...
   if (!activity.CollectiveId || !activity.type) {
     return;
   }
 
-  if (shouldSkipActivity(activity)) {
+  if (shouldSkipActivity(activity) && !force) {
     return;
   }
 
@@ -64,26 +73,28 @@ const dispatch = async (activity: Activity) => {
 
   const notificationChannels = await Notification.findAll({ where });
   return Promise.all(
-    notificationChannels.map(notifConfig => {
-      if (notifConfig.channel === channels.SLACK) {
-        return slackLib.postActivityOnPublicChannel(activity, notifConfig.webhookUrl);
-      } else if (notifConfig.channel === channels.TWITTER) {
-        return twitter.tweetActivity(activity);
-      } else if (notifConfig.channel === channels.WEBHOOK) {
-        return publishToWebhook(activity, notifConfig.webhookUrl);
+    notificationChannels.map(async notifConfig => {
+      if (!shouldNotifyChannel(notifConfig.channel)) {
+        return;
+      }
+
+      try {
+        if (notifConfig.channel === channels.SLACK) {
+          return await slackLib.postActivityOnPublicChannel(activity, notifConfig.webhookUrl);
+        } else if (notifConfig.channel === channels.TWITTER) {
+          return await twitter.tweetActivity(activity);
+        } else if (notifConfig.channel === channels.WEBHOOK) {
+          return await publishToWebhook(notifConfig, activity);
+        }
+      } catch (e) {
+        const stringifiedError =
+          e instanceof AxiosError ? `${e.response?.status} ${e.response?.statusText} ${e.config?.url}` : e;
+        reportErrorToSentry(e, {
+          extra: { activity, notifConfig, onlyChannels, force, stringifiedError },
+        });
       }
     }),
-  ).catch(err => {
-    reportErrorToSentry(err);
-    const stringifiedError =
-      err instanceof AxiosError ? `${err.response?.status} ${err.response?.statusText} ${err.config?.url}` : err;
-    console.error(
-      `Error while publishing activity type ${activity.type} for collective ${activity.CollectiveId}`,
-      activity,
-      'error: ',
-      stringifiedError,
-    );
-  });
+  );
 };
 
 export default dispatch;
