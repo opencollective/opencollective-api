@@ -18,6 +18,7 @@ import { reportErrorToSentry, reportMessageToSentry } from '../../server/lib/sen
 import { deepJSONBSet } from '../../server/lib/sql';
 import { parseToBoolean } from '../../server/lib/utils';
 import { AccountingCategory, Expense, Op, sequelize, User } from '../../server/models';
+import Collective from '../../server/models/Collective';
 import { onlyExecuteInProdOnMondays } from '../utils';
 
 if (!process.env.MANUAL) {
@@ -53,30 +54,24 @@ export const getRecentMisclassifiedExpenses = async () => {
       ],
     },
     include: [
-      { association: 'accountingCategory', required: true },
+      { association: 'accountingCategory', required: true, where: { hostOnly: { [Op.ne]: true } } },
       // The expense submitter
       { model: User, required: true, as: 'User' },
       // If not an individual, the payee profile and its admins
       {
         association: 'fromCollective',
         required: true,
-        attributes: ['id', 'type'],
-        include: [{ association: 'adminMembers', required: false, order: [['id', 'ASC']] }],
       },
       // The Collective, to get the admins
       {
         association: 'collective',
         required: true,
         where: { isActive: true },
-        include: [
-          { association: 'adminMembers', required: true, order: [['id', 'ASC']] }, // The collective admins to send the email to
-        ],
       },
       // Only hosts with expense categorization policies enabled
       {
         association: 'host',
         required: true,
-        include: [{ association: 'adminMembers', required: true }], // The host admins, to prevent sending them the email
         where: {
           [Op.or]: [
             { data: { policies: { [POLICIES.EXPENSE_CATEGORIZATION]: { requiredForExpenseSubmitters: true } } } },
@@ -87,6 +82,7 @@ export const getRecentMisclassifiedExpenses = async () => {
       // Activities, to prevent sending the email to people who picked the right category when there are multiple admins
       {
         association: 'activities',
+        attributes: ['id', 'UserId', 'type', 'data'],
         required: false,
         order: [['id', 'DESC']],
         where: {
@@ -98,7 +94,7 @@ export const getRecentMisclassifiedExpenses = async () => {
 
   return expenses.filter(expense => {
     // Check the submitter/admins were allowed to pick the category
-    return !expense.accountingCategory.hostOnly && expense.accountingCategory.isCompatibleWithExpenseType(expense.type);
+    return expense.accountingCategory.isCompatibleWithExpenseType(expense.type);
   });
 };
 
@@ -136,20 +132,36 @@ type ClassificationMistake = {
 
 type GroupedMisclassifiedExpenses = Map<User, ClassificationMistake[]>;
 
+const adminsCache = {};
+
+const getAdminIds = async (collective: Collective): Promise<number[]> => {
+  if (adminsCache[collective.id]) {
+    return adminsCache[collective.id];
+  } else {
+    const admins = await collective.getAdminMembers({ attributes: ['MemberCollectiveId'] });
+    adminsCache[collective.id] = admins.map(admin => admin.MemberCollectiveId);
+    return adminsCache[collective.id];
+  }
+};
+
 export const groupMisclassifiedExpensesByAccount = async (
   expenses: Expense[],
 ): Promise<GroupedMisclassifiedExpenses> => {
   // Build a list of collectiveIds to check for each expense, when needed
+  let i = 0;
   const toCheck = new Array<{ expense: Expense; collectiveIdsToCheck: Record<number, ExpenseRoles> }>();
   for (const expense of expenses) {
+    if (i++ % 10 === 0) {
+      logger.info(`Analyzing expense ${i}/${expenses.length}...`);
+    }
+
     const collectiveIdsToCheck: Record<number, ExpenseRoles> = {};
     const addCollectiveIdToCheck = (id: number, role: ExpenseRoles) => (collectiveIdsToCheck[id] = role);
 
     // For collective admins
     if (shouldSendEmailForRole(expense, 'collectiveAdmin')) {
-      expense.collective.adminMembers.forEach(admin =>
-        addCollectiveIdToCheck(admin.MemberCollectiveId, ExpenseRoles.collectiveAdmin),
-      );
+      const collectiveAdmins = await getAdminIds(expense.collective);
+      collectiveAdmins.forEach(id => addCollectiveIdToCheck(id, ExpenseRoles.collectiveAdmin));
     }
     // For submitters & payee
     if (shouldSendEmailForRole(expense, 'submitter')) {
@@ -160,14 +172,14 @@ export const groupMisclassifiedExpensesByAccount = async (
       if (expense.fromCollective.type === 'USER') {
         addCollectiveIdToCheck(expense.FromCollectiveId, ExpenseRoles.submitter);
       } else {
-        expense.fromCollective.adminMembers.map(admin =>
-          addCollectiveIdToCheck(admin.MemberCollectiveId, ExpenseRoles.submitter),
-        );
+        const fromCollectiveAdmins = await getAdminIds(expense.fromCollective);
+        fromCollectiveAdmins.map(id => addCollectiveIdToCheck(id, ExpenseRoles.submitter));
       }
     }
 
     // Filter out host admins
-    expense.host.adminMembers.forEach(admin => delete collectiveIdsToCheck[admin.MemberCollectiveId]);
+    const hostAdmins = await getAdminIds(expense.host);
+    hostAdmins.forEach(id => delete collectiveIdsToCheck[id]);
 
     // Add to the list of expenses to check
     if (size(collectiveIdsToCheck) > 0) {
@@ -305,11 +317,12 @@ export const run = async () => {
   logger.info(`Starting accounting category educational emails job...`);
 
   const expenses = await getRecentMisclassifiedExpenses();
+  logger.info(`Accounting category educational email: Found ${expenses.length} expenses to analyze.`);
   const groupedMistakes = await groupMisclassifiedExpensesByAccount(expenses);
   if (isEmpty(groupedMistakes)) {
     logger.info('No expenses to send emails for.');
   } else {
-    logger.info(`Found ${expenses.length} expenses to send emails for across ${size(groupedMistakes)} users.`);
+    logger.info(`Found ${size(groupedMistakes)} users to send emails to.`);
     logger.info(
       Array.from(groupedMistakes.entries())
         .map(
