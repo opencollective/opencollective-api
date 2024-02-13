@@ -208,6 +208,9 @@ const transactionFieldsDefinition = () => ({
   updatedAt: {
     type: GraphQLDateTime,
   },
+  clearedAt: {
+    type: GraphQLDateTime,
+  },
   expense: {
     type: GraphQLExpense,
   },
