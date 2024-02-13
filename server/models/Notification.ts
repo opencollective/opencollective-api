@@ -33,6 +33,7 @@ class Notification extends Model<InferAttributes<Notification>, InferCreationAtt
   public declare webhookUrl: CreationOptional<string>;
   public declare User?: User;
   public declare Collective?: Collective;
+  public declare lastSuccessAt: CreationOptional<Date>;
 
   getUser() {
     return User.findByPk(this.UserId);
@@ -364,6 +365,11 @@ Notification.init(
     createdAt: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,
+    },
+
+    lastSuccessAt: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
     },
 
     CollectiveId: {
