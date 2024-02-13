@@ -2864,7 +2864,7 @@ export async function markExpenseAsUnpaid(
 
     await libPayments.createRefundTransaction(transaction, refundedPaymentProcessorFeeAmount, null, expense.User);
 
-    await expense.update({ status: newExpenseStatus, lastEditedById: remoteUser.id, PayoutMethodId: null });
+    await expense.update({ status: newExpenseStatus, lastEditedById: remoteUser.id, PaymentMethodId: null });
     return { expense, transaction };
   });
 
