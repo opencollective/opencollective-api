@@ -184,9 +184,10 @@ const processPaypalOrder = async (order, paypalOrderId): Promise<TransactionInte
   const captureDetails = (await paypalRequestV2(captureUrl, hostCollective, 'GET')) as PaypalCapture;
 
   // Prevent double-records in case the webhook event gets processed before the API replies
-  return order.lock(
+  let transaction;
+  await order.lock(
     async () => {
-      const existingTransaction = await models.Transaction.findOne({
+      transaction = await models.Transaction.findOne({
         where: {
           OrderId: order.id,
           type: 'CREDIT',
@@ -195,17 +196,18 @@ const processPaypalOrder = async (order, paypalOrderId): Promise<TransactionInte
         },
       });
 
-      if (existingTransaction) {
-        return existingTransaction;
-      } else {
-        return recordPaypalCapture(order, captureDetails);
+      if (!transaction) {
+        transaction = await recordPaypalCapture(order, captureDetails);
       }
     },
     {
+      // Retry for 10 seconds
       retryDelay: 500,
       retries: 20,
     },
   );
+
+  return transaction;
 };
 
 export const refundPaypalCapture = async (

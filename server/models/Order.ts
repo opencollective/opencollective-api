@@ -42,6 +42,7 @@ interface OrderModelStaticInterface {
   cancelActiveOrdersByCollective(collectiveId: number): Promise<[affectedCount: number]>;
   cancelActiveOrdersByTierId(tierId: number): Promise<[affectedCount: number]>;
   cancelNonTransferableActiveOrdersByCollectiveId(collectiveId: number): Promise<[affectedCount: number]>;
+  clearExpiredLocks(): Promise<[null, number]>;
 }
 
 export type OrderTax = {
@@ -110,7 +111,8 @@ export interface OrderModelInterface
         hostFeePercent?: number;
         memo?: string;
         tax?: OrderTax;
-        isLocked?: boolean;
+        lockedAt?: string;
+        deadlocks?: string[];
       }
     | any; // TODO: Remove `any` once we have a proper type for this
 
@@ -129,6 +131,10 @@ export interface OrderModelInterface
    * to prevent concurrent processing of the same order. This is important because PayPal webhooks
    * can be received multiple times for the same event, and sales can be processed both in the webhook
    * and the direct API call (depending on PayPal's response).
+   *
+   * Locks have an expiration time (see `clearExpiredLocks`). Orders that are locked for more than the expiration
+   * will be automatically unlocked by the system.
+   *
    * @param callback - The function to be executed while the order is locked
    * @param options - Additional options
    * @param options.retries - Number of retries before giving up (default: 0)
@@ -567,7 +573,10 @@ Order.prototype.lock = async function (
     } else if (orderToLock.isLocked()) {
       return false;
     } else {
-      await orderToLock.update({ data: { ...orderToLock.data, isLocked: true } }, { transaction: sqlTransaction });
+      await orderToLock.update(
+        { data: { ...orderToLock.data, lockedAt: new Date() } },
+        { transaction: sqlTransaction },
+      );
       return true;
     }
   });
@@ -584,17 +593,41 @@ Order.prototype.lock = async function (
 
   // Call the callback
   try {
-    return await callback();
+    await callback();
+    return success;
   } finally {
     // Unlock order
-    await sequelize.query(`UPDATE "Orders" SET data = data - 'isLocked' WHERE id = :orderId`, {
+    await sequelize.query(`UPDATE "Orders" SET data = data - 'lockedAt' WHERE id = :orderId`, {
       replacements: { orderId: this.id },
     });
   }
 };
 
 Order.prototype.isLocked = function (): boolean {
-  return Boolean(this.data?.isLocked);
+  return Boolean(this.data?.lockedAt);
+};
+
+// ---- Static methods ----
+
+/**
+ * Clear all lock that timed out (for example, if the server crashed while processing an order).
+ * Also record the deadlocks in the order's data.
+ */
+Order.clearExpiredLocks = function () {
+  return sequelize.query(
+    `
+      UPDATE "Orders"
+      SET data = data
+        - 'lockedAt'
+        || JSONB_BUILD_OBJECT('deadlocks', COALESCE(data -> 'deadlocks', '[]'::JSONB) || TO_JSONB(ARRAY[data ->> 'lockedAt']))
+      WHERE data -> 'lockedAt' IS NOT NULL
+      AND (data ->> 'lockedAt')::TIMESTAMP < NOW() - INTERVAL '30 minutes'
+      AND "deletedAt" IS NULL
+    `,
+    {
+      type: QueryTypes.UPDATE,
+    },
+  );
 };
 
 /**
