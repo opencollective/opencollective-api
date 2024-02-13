@@ -13,7 +13,7 @@ import { floatAmountToCents } from '../../lib/math';
 import { createRefundTransaction } from '../../lib/payments';
 import { validateWebhookEvent } from '../../lib/paypal';
 import { sendThankYouEmail } from '../../lib/recurring-contributions';
-import { reportMessageToSentry } from '../../lib/sentry';
+import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
 import models, { Op } from '../../models';
 import { PayoutWebhookRequest } from '../../types/paypal';
 
@@ -92,6 +92,8 @@ const loadSubscriptionForWebhookEvent = async (
     } else {
       return null;
     }
+  } else if (order.isLocked()) {
+    throw new Error('This order is already been processed, please try again later');
   }
 
   const host = await order.collective.getHostCollective();
@@ -113,37 +115,40 @@ async function handleSaleCompleted(req: Request): Promise<void> {
     return;
   }
 
+  // 2. Lock & process the order
+  let transaction;
   const { order } = await loadSubscriptionForWebhookEvent(req, subscriptionId);
+  await order.lock(async () => {
+    // 2.1 Make sure the sale hasn't already been recorded
+    const existingTransaction = await findTransactionByPaypalId(sale.id, { OrderId: order.id });
+    if (existingTransaction) {
+      logger.debug(`PayPal: Transaction for sale ${sale.id} already recorded, ignoring`);
+      return;
+    }
 
-  // Make sure the sale hasn't already been recorded
-  const existingTransaction = await findTransactionByPaypalId(sale.id, { OrderId: order.id });
-  if (existingTransaction) {
-    logger.debug(`PayPal: Transaction for sale ${sale.id} already recorded, ignoring`);
-    return;
-  }
+    // 2.2 Record the transaction
+    transaction = await recordPaypalSale(order, sale);
 
-  // 2. Record the transaction
-  const transaction = await recordPaypalSale(order, sale);
+    // 2.3 Mark order/subscription as active
+    if (order.status !== OrderStatus.ACTIVE) {
+      await order.update({ status: OrderStatus.ACTIVE, processedAt: new Date() });
+    }
 
-  // 3. Mark order/subscription as active
-  if (order.status !== OrderStatus.ACTIVE) {
-    await order.update({ status: OrderStatus.ACTIVE, processedAt: new Date() });
-  }
-
-  const nextChargeDate = moment().add(1, order.interval as any);
-  await order.Subscription.update({
-    chargeNumber: (order.Subscription.chargeNumber || 0) + 1,
-    nextChargeDate: nextChargeDate,
-    nextPeriodStart: nextChargeDate,
-    isActive: true,
-    activatedAt: order.Subscription.activatedAt || new Date(),
+    const nextChargeDate = moment().add(1, order.interval as any);
+    await order.Subscription.update({
+      chargeNumber: (order.Subscription.chargeNumber || 0) + 1,
+      nextChargeDate: nextChargeDate,
+      nextPeriodStart: nextChargeDate,
+      isActive: true,
+      activatedAt: order.Subscription.activatedAt || new Date(),
+    });
   });
 
-  // 4. Send thankyou email
+  // 3. Send thankyou email
   const isFirstPayment = order.Subscription.chargeNumber === 1;
   await sendThankYouEmail(order, transaction, isFirstPayment);
 
-  // 5. Register user as a member, since the transaction is not created in `processOrder`
+  // 4. Register user as a member, since the transaction is not created in `processOrder`
   // for PayPal subscriptions.
   await order.getOrCreateMembers();
 }
@@ -172,6 +177,8 @@ async function handleCaptureCompleted(req: Request): Promise<void> {
   if (!order) {
     logger.debug(`No pending order found for capture ${capture.id}`);
     return;
+  } else if (order.isLocked()) {
+    throw new Error('This order is already been processed, please try again later');
   }
 
   // Validate webhook event
@@ -183,22 +190,25 @@ async function handleCaptureCompleted(req: Request): Promise<void> {
   const paypalAccount = await getPaypalAccount(host);
   await validateWebhookEvent(paypalAccount, req);
 
-  // Make sure the transaction is not already recorded
-  const existingTransaction = await models.Transaction.findOne({
-    where: {
-      OrderId: order.id,
-      data: { capture: { id: capture.id } },
-    },
+  let transaction;
+  await order.lock(async () => {
+    // Make sure the transaction is not already recorded
+    const existingTransaction = await models.Transaction.findOne({
+      where: {
+        OrderId: order.id,
+        data: { capture: { id: capture.id } },
+      },
+    });
+
+    if (existingTransaction) {
+      logger.debug(`Transaction for PayPal capture ${capture.id} already exists`);
+      return;
+    }
+
+    // Record the transaction
+    transaction = await recordPaypalCapture(order, capture);
+    await order.update({ processedAt: new Date(), status: OrderStatus.PAID });
   });
-
-  if (existingTransaction) {
-    logger.debug(`Transaction for PayPal capture ${capture.id} already exists`);
-    return;
-  }
-
-  // Record the transaction
-  const transaction = await recordPaypalCapture(order, capture);
-  await order.update({ processedAt: new Date(), status: OrderStatus.PAID });
 
   // Send thankyou email
   await sendThankYouEmail(order, transaction);
@@ -265,13 +275,23 @@ async function handleCaptureRefunded(req: Request): Promise<void> {
   } else if (transaction.data.isRefundedFromOurSystem) {
     // Ignore
     return;
+  } else if (transaction.Order.isLocked()) {
+    throw new Error('This order is already been processed, please try again later');
   }
 
-  // Record the refund transactions
-  const rawRefundedPaypalFee = <string>get(refundDetails, 'seller_payable_breakdown.paypal_fee.value', '0.00');
-  const refundedPaypalFee = floatAmountToCents(parseFloat(rawRefundedPaypalFee));
-  const dataPayload = { paypalResponse: refundDetails, isRefundedFromPayPal: true };
-  await createRefundTransaction(transaction, refundedPaypalFee, dataPayload, null);
+  await transaction.Order.lock(async () => {
+    // Reload the transaction to make sure it hasn't been refunded already in the meantime
+    const reloadedTransaction = await models.Transaction.findByPk(transaction.id);
+    if (reloadedTransaction.data.isRefundedFromOurSystem || reloadedTransaction.RefundTransactionId) {
+      return;
+    }
+
+    // Record the refund transactions
+    const rawRefundedPaypalFee = <string>get(refundDetails, 'seller_payable_breakdown.paypal_fee.value', '0.00');
+    const refundedPaypalFee = floatAmountToCents(parseFloat(rawRefundedPaypalFee));
+    const dataPayload = { paypalResponse: refundDetails, isRefundedFromPayPal: true };
+    await createRefundTransaction(transaction, refundedPaypalFee, dataPayload, null);
+  });
 }
 
 /**
@@ -328,25 +348,37 @@ async function handleSubscriptionActivated(req: Request): Promise<void> {
  */
 async function webhook(req: Request): Promise<void> {
   debug('new event', req.body);
-  const eventType = get(req, 'body.event_type');
-  switch (eventType) {
-    case 'PAYMENT.PAYOUTS-ITEM':
-      return handlePayoutTransactionUpdate(req);
-    case 'PAYMENT.SALE.COMPLETED':
-      return handleSaleCompleted(req);
-    case 'PAYMENT.CAPTURE.COMPLETED':
-      return handleCaptureCompleted(req);
-    case 'PAYMENT.CAPTURE.REFUNDED':
-    case 'PAYMENT.CAPTURE.REVERSED':
-      return handleCaptureRefunded(req);
-    case 'BILLING.SUBSCRIPTION.CANCELLED':
-    case 'BILLING.SUBSCRIPTION.SUSPENDED':
-      return handleSubscriptionCancelled(req);
-    case 'BILLING.SUBSCRIPTION.ACTIVATED':
-      return handleSubscriptionActivated(req);
-    default:
-      logger.info(`Received unhandled PayPal event (${eventType}), ignoring it.`);
-      break;
+  try {
+    const eventType = get(req, 'body.event_type');
+    switch (eventType) {
+      case 'PAYMENT.PAYOUTS-ITEM':
+        return handlePayoutTransactionUpdate(req);
+      case 'PAYMENT.SALE.COMPLETED':
+        return handleSaleCompleted(req);
+      case 'PAYMENT.CAPTURE.COMPLETED':
+        return handleCaptureCompleted(req);
+      case 'PAYMENT.CAPTURE.REFUNDED':
+      case 'PAYMENT.CAPTURE.REVERSED':
+        return handleCaptureRefunded(req);
+      case 'BILLING.SUBSCRIPTION.CANCELLED':
+      case 'BILLING.SUBSCRIPTION.SUSPENDED':
+        return handleSubscriptionCancelled(req);
+      case 'BILLING.SUBSCRIPTION.ACTIVATED':
+        return handleSubscriptionActivated(req);
+      default:
+        logger.info(`Received unhandled PayPal event (${eventType}), ignoring it.`);
+        break;
+    }
+  } catch (e) {
+    reportErrorToSentry(e, {
+      req,
+      feature: FEATURE.PAYPAL_DONATIONS,
+      extra: { body: req.body },
+      severity: 'error',
+      tags: { paypalWebhook: 'true' },
+    });
+
+    throw e;
   }
 }
 
