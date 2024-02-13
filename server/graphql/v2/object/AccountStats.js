@@ -230,6 +230,36 @@ export const GraphQLAccountStats = new GraphQLObjectType({
           });
         },
       },
+      balanceTimeSeries: {
+        description: 'Balance time series',
+        type: new GraphQLNonNull(GraphQLTimeSeriesAmount),
+        args: {
+          ...TimeSeriesArgs, // dateFrom / dateTo / timeUnit
+          ...pick(TransactionArgs, ['net', 'kind', 'periodInMonths', 'includeChildren', 'currency']),
+        },
+        async resolve(collective, args, req) {
+          const kind = args.kind && args.kind.length > 0 ? args.kind : undefined;
+          let { dateFrom, dateTo } = args;
+
+          if (args.periodInMonths) {
+            dateFrom = moment().subtract(args.periodInMonths, 'months').seconds(0).milliseconds(0).toDate();
+            dateTo = null;
+          }
+
+          const timeUnit = args.timeUnit || getTimeUnit(getNumberOfDays(dateFrom, dateTo, collective) || 1);
+
+          return collective.getBalanceTimeSeries({
+            loaders: req.loaders,
+            net: args.net,
+            kind,
+            startDate: dateFrom,
+            endDate: dateTo,
+            timeUnit,
+            includeChildren: args.includeChildren,
+            currency: args.currency,
+          });
+        },
+      },
       totalPaidExpenses: {
         description: 'Total of paid expenses to the account, filter per expense type',
         type: new GraphQLNonNull(GraphQLAmount),
