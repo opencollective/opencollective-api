@@ -1,8 +1,6 @@
 /* eslint-disable camelcase */
-
-import { createHash } from 'crypto';
-
 import { isNil, round, toNumber } from 'lodash';
+import { v4 as uuid } from 'uuid';
 
 import activities from '../../constants/activities';
 import status from '../../constants/expense-status';
@@ -51,11 +49,7 @@ export const payExpensesBatch = async (expenses: Expense[]): Promise<Expense[]> 
 
   // Map expense items...
   const items = expenses.map(getExpenseItem);
-
-  // Calculate unique sender_batch_id hash
-  const hash = createHash('SHA1');
-  expenses.forEach(e => hash.update(e.id.toString()));
-  const sender_batch_id = hash.digest('hex');
+  const sender_batch_id = uuid();
 
   const requestBody = {
     sender_batch_header: {

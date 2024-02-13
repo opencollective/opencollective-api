@@ -1,6 +1,4 @@
 /* eslint-disable camelcase */
-import crypto from 'crypto';
-
 import { expect } from 'chai';
 import { assert, createSandbox } from 'sinon';
 
@@ -77,15 +75,6 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
 
       assert.calledOnce(paypalLib.executePayouts);
       expect(expense.data).to.deep.equals({ payout_batch_id: 'fake' });
-    });
-
-    it('should generate unique sender_batch_id', async () => {
-      await paypalPayouts.payExpensesBatch([expense]);
-      const expectedHash = crypto.createHash('SHA1').update(expense.id.toString()).digest('hex');
-
-      expect(paypalLib.executePayouts.firstCall.lastArg)
-        .to.have.nested.property('sender_batch_header.sender_batch_id')
-        .equals(expectedHash);
     });
   });
 
