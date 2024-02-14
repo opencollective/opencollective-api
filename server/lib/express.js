@@ -16,7 +16,7 @@ import { loadersMiddleware } from '../graphql/loaders';
 
 import hyperwatch from './hyperwatch';
 import logger from './logger';
-import { createRedisClient } from './redis';
+import { createRedisClient, RedisInstanceType } from './redis';
 
 export default async function (app) {
   app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal'].concat(cloudflareIps));
@@ -89,7 +89,7 @@ export default async function (app) {
 
   // Setup session (required by passport)
 
-  const redisClient = await createRedisClient();
+  const redisClient = await createRedisClient(RedisInstanceType.SESSION);
   if (redisClient || process.env.OC_ENV === 'development') {
     const store = !redisClient ? undefined : new RedisStore({ client: redisClient });
     app.use(
@@ -98,6 +98,11 @@ export default async function (app) {
         secret: config.keys.opencollective.sessionSecret,
         resave: false,
         saveUninitialized: false,
+        cookie: {
+          maxAge: 24 * 60 * 60 * 1000, // 1 day
+          httpOnly: true,
+          secure: config.env === 'production' || config.env === 'staging',
+        },
       }),
     );
 
