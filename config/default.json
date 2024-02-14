@@ -1,5 +1,6 @@
 {
   "port": "3060",
+  "webConcurrency": 1,
   "maildev": {
     "client": false,
     "server": false
