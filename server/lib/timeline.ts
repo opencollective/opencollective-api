@@ -104,9 +104,74 @@ const makeTimelineQuery = async (
       }
     }
     return { [Op.or]: conditionals };
-  } else {
-    return { [Op.or]: [{ CollectiveId: collective.id }, { FromCollectiveId: collective.id }] };
   }
+
+  const types = [];
+  if (classes.includes(ActivityClasses.EXPENSES)) {
+    types.push(
+      ...[
+        ActivityTypes.COLLECTIVE_EXPENSE_APPROVED,
+        ActivityTypes.COLLECTIVE_EXPENSE_CREATED,
+        ActivityTypes.COLLECTIVE_EXPENSE_DELETED,
+        ActivityTypes.COLLECTIVE_EXPENSE_INVITE_DRAFTED,
+        ActivityTypes.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE,
+        ActivityTypes.COLLECTIVE_EXPENSE_MARKED_AS_SPAM,
+        ActivityTypes.COLLECTIVE_EXPENSE_MARKED_AS_UNPAID,
+        ActivityTypes.COLLECTIVE_EXPENSE_PAID,
+        ActivityTypes.COLLECTIVE_EXPENSE_RECURRING_DRAFTED,
+        ActivityTypes.COLLECTIVE_EXPENSE_REJECTED,
+        ActivityTypes.COLLECTIVE_EXPENSE_UNAPPROVED,
+        ActivityTypes.COLLECTIVE_EXPENSE_RE_APPROVAL_REQUESTED,
+        ActivityTypes.COLLECTIVE_EXPENSE_UPDATED,
+        ActivityTypes.EXPENSE_COMMENT_CREATED,
+        ActivityTypes.TAXFORM_REQUEST,
+      ],
+    );
+  }
+  if (classes.includes(ActivityClasses.VIRTUAL_CARDS)) {
+    types.push(
+      ...[
+        ActivityTypes.COLLECTIVE_VIRTUAL_CARD_ADDED,
+        ActivityTypes.COLLECTIVE_VIRTUAL_CARD_SUSPENDED,
+        ActivityTypes.COLLECTIVE_VIRTUAL_CARD_REQUEST_APPROVED,
+        ActivityTypes.COLLECTIVE_VIRTUAL_CARD_REQUEST_REJECTED,
+        ActivityTypes.VIRTUAL_CARD_REQUESTED,
+        ActivityTypes.VIRTUAL_CARD_PURCHASE,
+      ],
+    );
+  }
+  if (classes.includes(ActivityClasses.CONTRIBUTIONS)) {
+    types.push(
+      ...[
+        ActivityTypes.COLLECTIVE_MEMBER_CREATED,
+        ActivityTypes.CONTRIBUTION_REJECTED,
+        ActivityTypes.ORDER_PAYMENT_FAILED,
+        ActivityTypes.ORDER_PENDING_CONTRIBUTION_NEW,
+        ActivityTypes.ORDER_PENDING_CONTRIBUTION_REMINDER,
+        ActivityTypes.ORDER_THANKYOU,
+        ActivityTypes.ORDERS_SUSPICIOUS,
+        ActivityTypes.PAYMENT_CREDITCARD_CONFIRMATION,
+        ActivityTypes.PAYMENT_CREDITCARD_EXPIRING,
+        ActivityTypes.PAYMENT_FAILED,
+        ActivityTypes.SUBSCRIPTION_CANCELED,
+      ],
+    );
+  }
+  if (classes.includes(ActivityClasses.ACTIVITIES_UPDATES)) {
+    types.push(
+      ...[
+        ActivityTypes.HOST_APPLICATION_CONTACT,
+        ActivityTypes.COLLECTIVE_CONVERSATION_CREATED,
+        ActivityTypes.COLLECTIVE_UPDATE_PUBLISHED,
+        ActivityTypes.CONVERSATION_COMMENT_CREATED,
+        ActivityTypes.UPDATE_COMMENT_CREATED,
+      ],
+    );
+  }
+  return {
+    type: { [Op.in]: types },
+    [Op.or]: [{ CollectiveId: collective.id }, { FromCollectiveId: collective.id }],
+  };
 };
 
 type SerializedActivity = { id: number; type: ActivityTypes };

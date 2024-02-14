@@ -5195,6 +5195,11 @@ type Activity {
   update: Update
 
   """
+  The conversation related to this activity, if any
+  """
+  conversation: Conversation
+
+  """
   The transaction related to this activity, if any
   """
   transaction: Transaction
