@@ -58,3 +58,4 @@
 | TRANSFERWISE_BLOCKED_CURRENCIES_NONPROFIT | .transferwise.blockedCurrenciesForNonProfits       |                                                                                |
 | KLIPPA_API_KEY                            | .klippa.apiKey                                     | The API key for Klippa                                                         |
 | KLIPPA_ENABLED                            | .klippa.enabled                                    | Whether Klippa is enabled                                                      |
+| WEB_CONCURRENCY                           | .webConcurrency                                    | Number of workers. Automatically set by Heroku, otherwise defaults to 1.       |

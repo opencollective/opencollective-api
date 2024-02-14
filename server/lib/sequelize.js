@@ -47,11 +47,14 @@ if (config.database.options.logging) {
 }
 
 if (config.database.options.pool) {
+  const webConcurrency = parseInt(config.webConcurrency) || 1;
   if (config.database.options.pool.min) {
-    config.database.options.pool.min = parseInt(config.database.options.pool.min, 10);
+    const min = parseInt(config.database.options.pool.min);
+    config.database.options.pool.min = Math.max(1, Math.floor(min / webConcurrency));
   }
   if (config.database.options.pool.max) {
-    config.database.options.pool.max = parseInt(config.database.options.pool.max, 10);
+    const max = parseInt(config.database.options.pool.max);
+    config.database.options.pool.max = Math.max(1, Math.floor(max / webConcurrency));
   }
 }
 

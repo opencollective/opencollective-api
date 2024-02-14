@@ -1,6 +1,7 @@
 {
   "port": "PORT",
   "env": "OC_ENV",
+  "webConcurrency": "WEB_CONCURRENCY",
   "maildev": {
     "client": "MAILDEV_CLIENT",
     "server": "MAILDEV_SERVER"
