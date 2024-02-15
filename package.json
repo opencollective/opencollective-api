@@ -224,7 +224,7 @@
     "db:sanitize-collective-tags": "babel-node --extensions .js,.ts scripts/sanitize-collective-tags",
     "db:seed": "./scripts/sequelize.sh db:seed",
     "db:setup": "babel-node --extensions .js,.ts ./scripts/db_setup.js",
-    "depcheck": "npx depcheck .",
+    "depcheck": "npx @opencollective/depcheck .",
     "deploy:production": "./scripts/pre-deploy.sh production && git push production main",
     "deploy:staging": "./scripts/pre-deploy.sh staging && git push -f staging main",
     "dev": "nodemon server/index.js -x \"babel-node --extensions .js,.ts\" . -e js,hbs,ts",
@@ -278,7 +278,7 @@
     ],
     "cache": true
   },
-  "depcheck": {
+  "@opencollective/depcheck": {
     "ignoreDirs": [
       "dist",
       "dbdumps",
