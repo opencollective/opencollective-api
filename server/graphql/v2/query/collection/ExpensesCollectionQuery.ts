@@ -10,6 +10,7 @@ import { getBalances } from '../../../../lib/budget';
 import { loadFxRatesMap } from '../../../../lib/currency';
 import { buildSearchConditions } from '../../../../lib/search';
 import { expenseMightBeSubjectToTaxForm } from '../../../../lib/tax-forms';
+import { sleep } from '../../../../lib/utils';
 import { Op, sequelize } from '../../../../models';
 import Expense, { ExpenseType } from '../../../../models/Expense';
 import { PayoutMethodTypes } from '../../../../models/PayoutMethod';
@@ -377,9 +378,30 @@ export const ExpensesCollectionQueryResolver = async (
 
   const { offset, limit } = args;
 
+  let nodes;
+
+  const fetchNodes = () => {
+    if (!nodes) {
+      // We don't await on purpose, we set and return the Promise
+      nodes = Expense.findAll({ include, where, order, offset, limit });
+    }
+    return nodes;
+  };
+
+  const fetchTotalCount = async () => {
+    await sleep(1); // Give time for fetchNodes to be triggered
+    if (nodes) {
+      const result = await nodes;
+      if (result.length < limit) {
+        return result.length;
+      }
+    }
+    return Expense.count({ include, where });
+  };
+
   return {
-    nodes: () => Expense.findAll({ include, where, order, offset, limit }),
-    totalCount: () => Expense.count({ include, where }),
+    nodes: fetchNodes,
+    totalCount: fetchTotalCount,
     totalAmount: async () => {
       const query = (await Expense.findAll({
         attributes: [
