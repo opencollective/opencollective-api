@@ -100,42 +100,33 @@ jobs:
 
       - run: npm run type:check
 
-  # depcheck:
-  #   runs-on: ubuntu-latest
+  depcheck:
+    runs-on: ubuntu-latest
 
-  #   timeout-minutes: 15
+    timeout-minutes: 15
 
-  #   steps:
-  #     - name: Checkout
-  #       uses: actions/checkout@v3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-  #     - name: Setup node
-  #       uses: actions/setup-node@v2
-  #       with:
-  #         node-version-file: 'package.json'
+      - name: Setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: 'package.json'
+          cache: 'npm'
 
-  #     - name: Restore node_modules
-  #       uses: actions/cache@v2
-  #       id: api-node-modules
-  #       with:
-  #         path: node_modules
-  #         key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
+      - name: Restore node_modules
+        uses: actions/cache@v4
+        id: api-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
 
-  #     - name: Restore .npm cache
-  #       if: steps.api-node-modules.outputs.cache-hit != 'true'
-  #       uses: actions/cache@v2
-  #       with:
-  #         path: ~/.npm
-  #         key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-  #         restore-keys: |
-  #           - ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-  #           - ${{ runner.os }}-api-npm-cache-
+      - name: Install dependencies
+        if: steps.api-node-modules.outputs.cache-hit != 'true'
+        run: npm ci --prefer-offline --no-audit
 
-  #     - name: Install dependencies
-  #       if: steps.api-node-modules.outputs.cache-hit != 'true'
-  #       run: npm ci --prefer-offline --no-audit
-
-  #     - run: npm run depcheck
+      - run: npm run depcheck
 
   unused-exports:
     runs-on: ubuntu-latest
