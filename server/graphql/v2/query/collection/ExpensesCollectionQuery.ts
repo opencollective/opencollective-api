@@ -392,7 +392,7 @@ export const ExpensesCollectionQueryResolver = async (
     await sleep(1); // Give time for fetchNodes to be triggered
     if (nodes) {
       const result = await nodes;
-      if (!limit || result.length < limit) {
+      if (!offset && (!limit || result.length < limit)) {
         return result.length;
       }
     }
