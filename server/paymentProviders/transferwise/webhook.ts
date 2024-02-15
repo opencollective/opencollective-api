@@ -72,7 +72,7 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
 
     await createTransactionsFromPaidExpense(expense.host, expense, feesInHostCurrency, expenseToHostRate, {
       ...pick(expense.data, ['fund', 'transfer']),
-      clearedAt: new Date(event.data.occurred_at),
+      clearedAt: event.data?.occurred_at && new Date(event.data.occurred_at),
     });
 
     await expense.update({ data: { ...expense.data, feesInHostCurrency } });

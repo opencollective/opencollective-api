@@ -133,7 +133,7 @@ export const checkBatchItemStatus = async (
         await expense.setAndSavePaymentMethodIfMissing();
         await createTransactionsFromPaidExpense(host, expense, fees, fxRate, {
           ...item,
-          clearedAt: new Date(item.time_processed),
+          clearedAt: item.time_processed && new Date(item.time_processed),
         });
         // Mark Expense as Paid, create activity and send notifications
         await expense.markAsPaid();
