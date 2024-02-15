@@ -34,17 +34,25 @@ describe('cron/weekly/send-accounting-category-educational-emails', () => {
     accountingCategoryGeneric2: AccountingCategory;
 
   const fakeExpenseWithAccountingCategories = async ({
-    editors = [] as { role: 'collectiveAdmin' | 'submitter'; user: User; category: AccountingCategory | null }[],
+    editors = [] as Array<{
+      role: 'collectiveAdmin' | 'submitter' | 'hostAdmin';
+      user: User;
+      category: AccountingCategory | null;
+    }>,
     ...fields
   }) => {
     const data = fields.data || {};
     const submitterCategory = findLast(editors, e => e.role === 'submitter')?.category;
     const collectiveAdminCategory = findLast(editors, e => e.role === 'collectiveAdmin')?.category;
+    const hostAdminCategory = findLast(editors, e => e.role === 'hostAdmin')?.category;
     if (submitterCategory) {
       set(data, 'valuesByRole.submitter.accountingCategory', submitterCategory.publicInfo);
     }
     if (collectiveAdminCategory) {
       set(data, 'valuesByRole.collectiveAdmin.accountingCategory', collectiveAdminCategory.publicInfo);
+    }
+    if (hostAdminCategory) {
+      set(data, 'valuesByRole.hostAdmin.accountingCategory', hostAdminCategory.publicInfo);
     }
 
     const expense = await fakeExpense({
@@ -57,12 +65,10 @@ describe('cron/weekly/send-accounting-category-educational-emails', () => {
     await expense.createActivity(ActivityTypes.COLLECTIVE_EXPENSE_CREATED, expense.User);
 
     // Create some edit activities for realistic setup
-    await Promise.all(
-      editors.map(async ({ user, category }) => {
-        await expense.update({ AccountingCategoryId: category.id });
-        await expense.createActivity(ActivityTypes.COLLECTIVE_EXPENSE_UPDATED, user);
-      }),
-    );
+    for (const { user, category } of editors) {
+      await expense.update({ AccountingCategoryId: category ? category.id : null });
+      await expense.createActivity(ActivityTypes.COLLECTIVE_EXPENSE_UPDATED, user);
+    }
 
     // Restore requested category, if set
     if (fields.AccountingCategoryId !== undefined && fields.AccountingCategoryId !== expense.AccountingCategoryId) {
@@ -138,6 +144,7 @@ describe('cron/weekly/send-accounting-category-educational-emails', () => {
         editors: [
           { role: 'submitter', user: submitter, category: accountingCategoryGeneric1 },
           { role: 'collectiveAdmin', user: collectiveAdmin, category: accountingCategoryGeneric1 },
+          { role: 'hostAdmin', user: hostAdmin, category: null },
         ],
       }),
       // Only paid expenses
@@ -149,6 +156,7 @@ describe('cron/weekly/send-accounting-category-educational-emails', () => {
         editors: [
           { role: 'submitter', user: submitter, category: accountingCategoryGeneric1 },
           { role: 'collectiveAdmin', user: collectiveAdmin, category: accountingCategoryGeneric1 },
+          { role: 'hostAdmin', user: hostAdmin, category: accountingCategoryGeneric2 },
         ],
       }),
       // Only expenses with a non-host-only accounting category
@@ -160,6 +168,7 @@ describe('cron/weekly/send-accounting-category-educational-emails', () => {
         editors: [
           { role: 'submitter', user: submitter, category: accountingCategoryGeneric1 },
           { role: 'collectiveAdmin', user: collectiveAdmin, category: accountingCategoryGeneric1 },
+          { role: 'hostAdmin', user: hostAdmin, category: accountingCategoryHostOnly },
         ],
       }),
       // Only expenses with a compatible kind
@@ -171,6 +180,7 @@ describe('cron/weekly/send-accounting-category-educational-emails', () => {
         editors: [
           { role: 'submitter', user: submitter, category: accountingCategoryGeneric1 },
           { role: 'collectiveAdmin', user: collectiveAdmin, category: accountingCategoryGeneric1 },
+          { role: 'hostAdmin', user: hostAdmin, category: accountingCategoryContribution },
         ],
       }),
       // Only expenses with an expense type compatible with the user pick
@@ -183,6 +193,7 @@ describe('cron/weekly/send-accounting-category-educational-emails', () => {
         editors: [
           { role: 'submitter', user: submitter, category: accountingCategoryGeneric1 },
           { role: 'collectiveAdmin', user: collectiveAdmin, category: accountingCategoryGeneric1 },
+          { role: 'hostAdmin', user: hostAdmin, category: accountingCategoryInvoice },
         ],
       }),
       // Only expenses created in the last 7 day s
@@ -196,6 +207,7 @@ describe('cron/weekly/send-accounting-category-educational-emails', () => {
         editors: [
           { role: 'submitter', user: submitter, category: accountingCategoryGeneric1 },
           { role: 'collectiveAdmin', user: collectiveAdmin, category: accountingCategoryGeneric1 },
+          { role: 'hostAdmin', user: hostAdmin, category: accountingCategoryGeneric2 },
         ],
       }),
       // Emails already sent
@@ -206,10 +218,11 @@ describe('cron/weekly/send-accounting-category-educational-emails', () => {
         status: 'PAID',
         description: 'Expense with a different category picked by the submitter',
         AccountingCategoryId: accountingCategoryGeneric2.id,
-        editors: [{ role: 'submitter', user: submitter, category: accountingCategoryGeneric1 }],
-        data: {
-          sentEmails: { 'expense-accounting-category-educational': true },
-        },
+        data: { sentEmails: { 'expense-accounting-category-educational': true } },
+        editors: [
+          { role: 'submitter', user: submitter, category: accountingCategoryGeneric1 },
+          { role: 'hostAdmin', user: hostAdmin, category: accountingCategoryGeneric2 },
+        ],
       }),
       fakeExpenseWithAccountingCategories({
         CollectiveId: collective.id,
@@ -218,10 +231,11 @@ describe('cron/weekly/send-accounting-category-educational-emails', () => {
         status: 'PAID',
         description: 'Expense with a different category picked by the collective admin',
         AccountingCategoryId: accountingCategoryGeneric2.id,
-        editors: [{ role: 'collectiveAdmin', user: collectiveAdmin, category: accountingCategoryGeneric1 }],
-        data: {
-          sentEmails: { 'expense-accounting-category-educational': true },
-        },
+        data: { sentEmails: { 'expense-accounting-category-educational': true } },
+        editors: [
+          { role: 'collectiveAdmin', user: collectiveAdmin, category: accountingCategoryGeneric1 },
+          { role: 'hostAdmin', user: hostAdmin, category: accountingCategoryGeneric2 },
+        ],
       }),
       // Get only the latest activity: if user sets category A then B, only notify about B even if A was wrong
       fakeExpenseWithAccountingCategories({
@@ -234,6 +248,7 @@ describe('cron/weekly/send-accounting-category-educational-emails', () => {
         editors: [
           { role: 'collectiveAdmin', user: collectiveAdmin, category: accountingCategoryGeneric1 },
           { role: 'collectiveAdmin', user: collectiveAdmin, category: accountingCategoryGeneric2 },
+          { role: 'hostAdmin', user: hostAdmin, category: accountingCategoryGeneric2 },
         ],
       }),
     ]);
@@ -248,7 +263,10 @@ describe('cron/weekly/send-accounting-category-educational-emails', () => {
           status: 'PAID',
           description: 'Expense with a different category picked by the submitter',
           AccountingCategoryId: accountingCategoryGeneric2.id,
-          editors: [{ role: 'submitter', user: submitter, category: accountingCategoryGeneric1 }],
+          editors: [
+            { role: 'submitter', user: submitter, category: accountingCategoryGeneric1 },
+            { role: 'hostAdmin', user: hostAdmin, category: accountingCategoryGeneric2 },
+          ],
         }),
         fakeExpenseWithAccountingCategories({
           CollectiveId: collective.id,
@@ -257,7 +275,10 @@ describe('cron/weekly/send-accounting-category-educational-emails', () => {
           status: 'PAID',
           description: 'Expense n.2 with a different category picked by the submitter',
           AccountingCategoryId: accountingCategoryGeneric1.id,
-          editors: [{ role: 'submitter', user: submitter, category: accountingCategoryGeneric2 }],
+          editors: [
+            { role: 'submitter', user: submitter, category: accountingCategoryGeneric2 },
+            { role: 'hostAdmin', user: hostAdmin, category: accountingCategoryGeneric1 },
+          ],
         }),
         fakeExpenseWithAccountingCategories({
           CollectiveId: collective.id,
@@ -266,7 +287,10 @@ describe('cron/weekly/send-accounting-category-educational-emails', () => {
           status: 'PAID',
           description: 'Expense with a different category picked by the collective admin',
           AccountingCategoryId: accountingCategoryGeneric2.id,
-          editors: [{ role: 'collectiveAdmin', user: collectiveAdmin, category: accountingCategoryGeneric1 }],
+          editors: [
+            { role: 'collectiveAdmin', user: collectiveAdmin, category: accountingCategoryGeneric1 },
+            { role: 'hostAdmin', user: hostAdmin, category: accountingCategoryGeneric2 },
+          ],
         }),
         // This one will be returned as misclassified, but no email will be sent since the collective admin is also a host admin
         fakeExpenseWithAccountingCategories({
@@ -277,6 +301,7 @@ describe('cron/weekly/send-accounting-category-educational-emails', () => {
           UserId: collectiveAdminThatIsAlsoHostAdmin.id,
           editors: [
             { role: 'collectiveAdmin', user: collectiveAdminThatIsAlsoHostAdmin, category: accountingCategoryGeneric1 },
+            { role: 'hostAdmin', user: hostAdmin, category: accountingCategoryGeneric2 },
           ],
         }),
       ])),
