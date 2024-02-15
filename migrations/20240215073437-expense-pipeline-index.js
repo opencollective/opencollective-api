@@ -35,7 +35,7 @@ module.exports = {
     `);
 
     await queryInterface.sequelize.query(`
-      DROP INDEX IF EXISTS "connected_accounts__username"
+      DROP INDEX IF EXISTS "connected_accounts__service_username"
     `);
 
     await queryInterface.sequelize.query(`
