@@ -16,8 +16,8 @@ module.exports = {
 
     // Related to security check and findRelatedUsersByConnectedAccounts
     await queryInterface.sequelize.query(`
-      CREATE INDEX CONCURRENTLY IF NOT EXISTS "connected_accounts__username"
-      ON "ConnectedAccounts"("username")
+      CREATE INDEX CONCURRENTLY IF NOT EXISTS "connected_accounts__service_username"
+      ON "ConnectedAccounts"("service", "username")
       WHERE "deletedAt" IS NULL
     `);
 
