@@ -10,8 +10,8 @@ import { getBalances } from '../../../../lib/budget';
 import { loadFxRatesMap } from '../../../../lib/currency';
 import { buildSearchConditions } from '../../../../lib/search';
 import { expenseMightBeSubjectToTaxForm } from '../../../../lib/tax-forms';
-import models, { Op, sequelize } from '../../../../models';
-import { ExpenseType } from '../../../../models/Expense';
+import { Op, sequelize } from '../../../../models';
+import Expense, { ExpenseType } from '../../../../models/Expense';
 import { PayoutMethodTypes } from '../../../../models/PayoutMethod';
 import { validateExpenseCustomData } from '../../../common/expenses';
 import { Unauthorized } from '../../../errors';
@@ -32,7 +32,7 @@ const updateFilterConditionsForReadyToPay = async (where, include, host, loaders
   where['onHold'] = false;
 
   // Get all collectives matching the search that have APPROVED expenses
-  const expenses = await models.Expense.findAll({
+  const expenses = await Expense.findAll({
     where,
     include,
     attributes: [
@@ -374,13 +374,14 @@ export const ExpensesCollectionQueryResolver = async (
   }
 
   const order = [[args.orderBy.field, args.orderBy.direction]] as OrderItem[];
+
   const { offset, limit } = args;
-  const result = await models.Expense.findAndCountAll({ include, where, order, offset, limit });
+
   return {
-    nodes: result.rows,
-    totalCount: result.count,
+    nodes: () => Expense.findAll({ include, where, order, offset, limit }),
+    totalCount: () => Expense.count({ include, where }),
     totalAmount: async () => {
-      const query = (await models.Expense.findAll({
+      const query = (await Expense.findAll({
         attributes: [
           [Sequelize.col('"Expense"."currency"'), 'expenseCurrency'],
           [Sequelize.fn('SUM', Sequelize.col('amount')), 'amount'],
