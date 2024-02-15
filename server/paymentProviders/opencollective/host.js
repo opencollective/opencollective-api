@@ -79,6 +79,7 @@ paymentMethodProvider.processOrder = async (order, options) => {
     amountInHostCurrency,
     hostFeeInHostCurrency,
     description: order.description,
+    clearedAt: order.processedAt || null,
     data: {
       // No platform tip for now here
       platformTipEligible: false,

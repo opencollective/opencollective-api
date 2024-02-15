@@ -209,7 +209,7 @@ export async function createTransactionsFromPaidExpense(
   }
 
   const paymentMethod = await expense.getPaymentMethod();
-  // const clearedAt =
+  const { clearedAt, ...data } = transactionData || {};
 
   // To group all the info we retrieved from the payment. All amounts are expected to be in expense currency
   const { paymentProcessorFeeInHostCurrency, hostFeeInHostCurrency, platformFeeInHostCurrency } = fees;
@@ -240,9 +240,9 @@ export async function createTransactionsFromPaidExpense(
     PaymentMethodId: paymentMethod?.id,
     PayoutMethodId: expense.PayoutMethodId,
     taxAmount: processedAmounts.tax.inCollectiveCurrency,
-    clearedAt: transactionData?.clearedAt || null,
+    clearedAt: clearedAt || null,
     data: {
-      ...(transactionData || {}),
+      ...(data || {}),
       ...expenseDataForTransaction,
     },
   };
@@ -264,7 +264,7 @@ export async function createTransactionsForManuallyPaidExpense(
   paymentProcessorFeeInHostCurrency,
   totalAmountPaidInHostCurrency,
   /** Will be stored in transaction.data */
-  transactionData: Record<string, unknown> = {},
+  transactionData: Record<string, unknown> & { clearedAt?: Date } = {},
 ) {
   assert(paymentProcessorFeeInHostCurrency >= 0, 'Payment processor fee must be positive');
   assert(totalAmountPaidInHostCurrency > 0, 'Total amount paid must be positive');
@@ -316,6 +316,7 @@ export async function createTransactionsForManuallyPaidExpense(
     };
   }
 
+  const { clearedAt, ...data } = transactionData || {};
   // To group all the info we retrieved from the payment. All amounts are expected to be in expense currency
   const transaction = {
     ...amounts,
@@ -333,9 +334,10 @@ export async function createTransactionsForManuallyPaidExpense(
     HostCollectiveId: host.id,
     PayoutMethodId: expense.PayoutMethodId,
     PaymentMethodId: expense.PaymentMethodId,
+    clearedAt: clearedAt || null,
     data: {
       isManual: true,
-      ...transactionData,
+      ...data,
       ...expenseDataForTransaction,
     },
   };

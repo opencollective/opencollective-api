@@ -7,6 +7,7 @@ import {
   GraphQLNonNull,
   GraphQLString,
 } from 'graphql';
+import { GraphQLDateTime } from 'graphql-scalars';
 import { isNil, pick, size } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
@@ -326,6 +327,11 @@ const expenseMutations = {
               type: GraphQLPaymentMethodService,
               description: 'Payment method using for paying the expense',
             },
+            clearedAt: {
+              type: GraphQLDateTime,
+              description:
+                'Date funds were cleared on the fiscal host bank, Wise, PayPal, Stripe or any other external account holding these funds.',
+            },
           }),
         }),
       },
@@ -388,6 +394,7 @@ const expenseMutations = {
             paymentProcessorFeeInHostCurrency: args.paymentParams?.paymentProcessorFeeInHostCurrency,
             totalAmountPaidInHostCurrency: args.paymentParams?.totalAmountPaidInHostCurrency,
             transferDetails: args.paymentParams?.transfer?.details,
+            clearedAt: args.paymentParams?.clearedAt,
           });
           break;
         case 'HOLD':

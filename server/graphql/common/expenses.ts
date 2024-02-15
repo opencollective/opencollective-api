@@ -2599,6 +2599,7 @@ type PayExpenseArgs = {
   totalAmountPaidInHostCurrency?: number;
   transferDetails?: CreateTransfer['details'];
   paymentMethodService?: PAYMENT_METHOD_SERVICE;
+  clearedAt?: Date;
 };
 
 /**
@@ -2707,6 +2708,7 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
           expense,
           paymentProcessorFeeInHostCurrency,
           totalAmountPaidInHostCurrency,
+          { clearedAt: args.clearedAt },
         );
         await expense.update({
           // Remove all fields related to a previous automatic payment
@@ -2780,13 +2782,17 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
         }
         // This will detect that payoutMethodType=ACCOUNT_BALANCE and set service=opencollective AND type=collective
         await expense.setAndSavePaymentMethodIfMissing();
-        await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto');
+        await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto', {
+          clearedAt: args.clearedAt,
+        });
       } else if (expense.legacyPayoutMethod === 'manual' || expense.legacyPayoutMethod === 'other') {
         const paymentMethod = args.paymentMethodService
           ? await host.findOrCreatePaymentMethod(args.paymentMethodService, PAYMENT_METHOD_TYPE.MANUAL)
           : null;
         await expense.update({ PaymentMethodId: paymentMethod?.id || null });
-        await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto');
+        await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto', {
+          clearedAt: args.clearedAt,
+        });
       }
     } catch (error) {
       if (use2FARollingLimit) {

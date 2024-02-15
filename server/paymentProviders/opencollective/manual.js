@@ -80,6 +80,7 @@ async function processOrder(order) {
     taxAmount: order.taxAmount,
     description: order.description,
     paymentProcessorFeeInHostCurrency,
+    clearedAt: order.processedAt || null,
     data: {
       hasPlatformTip: platformTip ? true : false,
       isSharedRevenue,
