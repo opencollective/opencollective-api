@@ -47,6 +47,8 @@ export const getRecentMisclassifiedExpenses = async () => {
       createdAt: { [Op.gt]: sequelize.literal("NOW() - INTERVAL '1 month'") },
       // Only when we haven't sent the email yet
       data: { sentEmails: { 'expense-accounting-category-educational': { [Op.is]: null } } },
+      // Only when the host admin has picked a category
+      [Op.not]: { 'data.valuesByRole.hostAdmin.accountingCategory': null },
       // Only entries where the submitter/admin picked a different category
       [Op.or]: [
         { 'data.valuesByRole.collectiveAdmin.accountingCategory.id': valuesByRoleMismatchCondition },
