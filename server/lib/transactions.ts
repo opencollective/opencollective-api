@@ -242,7 +242,7 @@ export async function createTransactionsFromPaidExpense(
     taxAmount: processedAmounts.tax.inCollectiveCurrency,
     clearedAt: clearedAt || null,
     data: {
-      ...(data || {}),
+      ...data,
       ...expenseDataForTransaction,
     },
   };
