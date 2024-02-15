@@ -1,6 +1,3 @@
-import config from 'config';
-import { createSandbox } from 'sinon';
-
 import { main as splitTaxes } from '../../../scripts/ledger/split-taxes';
 import { refundTransaction } from '../../../server/lib/payments';
 import Transaction from '../../../server/models/Transaction';
@@ -23,17 +20,9 @@ const SNAPSHOT_COLUMNS = [
 ];
 
 describe('scripts/ledger/split-taxes', () => {
-  let sandbox;
-
   beforeEach('reset test database', async () => {
     await resetTestDB();
     await seedDefaultVendors();
-    sandbox = createSandbox();
-    sandbox.stub(config, 'activities').value({ ...config.activities, skipCreationForTransactions: true }); // Async activities are created async, which doesn't play well with `resetTestDb`
-  });
-
-  afterEach(() => {
-    sandbox.restore();
   });
 
   it('1. migrate a regular contribution with taxes', async () => {
