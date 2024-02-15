@@ -84,6 +84,14 @@ export const TransactionsCollectionArgs = {
     type: GraphQLDateTime,
     description: 'Only return transactions that were created before this date',
   },
+  clearedFrom: {
+    type: GraphQLDateTime,
+    description: 'Only return transactions that were cleared after this date',
+  },
+  clearedTo: {
+    type: GraphQLDateTime,
+    description: 'Only return transactions that were cleared before this date',
+  },
   searchTerm: {
     type: GraphQLString,
     description: 'The term to search',
@@ -331,6 +339,12 @@ export const TransactionsCollectionResolver = async (
   }
   if (args.dateTo) {
     where.push({ createdAt: { [Op.lte]: args.dateTo } });
+  }
+  if (args.clearedFrom) {
+    where.push({ clearedAt: { [Op.gte]: args.clearedFrom } });
+  }
+  if (args.clearedTo) {
+    where.push({ clearedAt: { [Op.lte]: args.clearedTo } });
   }
   if (args.expense) {
     const expenseId = getDatabaseIdFromExpenseReference(args.expense);
