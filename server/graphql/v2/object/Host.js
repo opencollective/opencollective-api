@@ -1202,6 +1202,7 @@ export const GraphQLHost = new GraphQLObjectType({
           },
         },
         async resolve(host, args) {
+          /** @type {Parameters<typeof models.Collective.findAndCountAll>[0]['where']} */
           const where = {
             HostCollectiveId: host.id,
             id: { [Op.not]: host.id },
@@ -1232,12 +1233,12 @@ export const GraphQLHost = new GraphQLObjectType({
           }
 
           if (args.isUnhosted) {
-            const unhostedActivities = await models.Activity.findAll({
-              where: { type: 'collective.unhosted', HostCollectiveId: host.id },
+            const collectiveIds = await models.HostApplication.findAll({
               attributes: ['CollectiveId'],
+              where: { HostCollectiveId: host.id, status: 'APPROVED' },
             });
             where.HostCollectiveId = { [Op.or]: [{ [Op.ne]: host.id }, { [Op.is]: null }] };
-            where.id = { [Op.in]: unhostedActivities.map(a => a.CollectiveId) };
+            where.id = collectiveIds.map(({ CollectiveId }) => CollectiveId);
           } else {
             where.isActive = true;
             where.approvedAt = args.isApproved ? { [Op.not]: null } : null;
