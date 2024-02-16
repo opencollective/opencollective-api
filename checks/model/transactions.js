@@ -71,9 +71,28 @@ async function checkOrphanTransactions() {
   }
 }
 
+async function checkUniqueUuid() {
+  const message = 'No Transaction with duplicate UUID';
+
+  const results = await sequelize.query(
+    `SELECT "uuid"
+     FROM "Transactions"
+     WHERE "deletedAt" IS NULL
+     GROUP BY "uuid"
+     HAVING COUNT(*) > 1`,
+    { type: sequelize.QueryTypes.SELECT, raw: true },
+  );
+
+  if (results.length > 0) {
+    // Not fixable
+    throw new Error(message);
+  }
+}
+
 export async function checkTransactions({ fix = false } = {}) {
   await checkDeletedCollectives({ fix });
   await checkOrphanTransactions();
+  await checkUniqueUuid();
 }
 
 if (!module.parent) {
