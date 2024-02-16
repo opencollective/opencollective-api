@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import '../../server/env';
 
+import { Parser } from '@json2csv/plainjs';
 import config from 'config';
-import { parse as json2csv } from 'json2csv';
 import { groupBy, sumBy } from 'lodash';
 import moment from 'moment';
 
@@ -17,6 +17,8 @@ import { reportErrorToSentry, reportMessageToSentry } from '../../server/lib/sen
 import { parseToBoolean } from '../../server/lib/utils';
 import models, { sequelize } from '../../server/models';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
+
+const json2csv = (data, opts = undefined) => new Parser(opts).parse(data);
 
 const today = moment.utc();
 
