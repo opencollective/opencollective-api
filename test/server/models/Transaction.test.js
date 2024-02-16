@@ -176,7 +176,7 @@ describe('server/models/Transaction', () => {
     };
 
     return Transaction.createFromContributionPayload(transactionPayload).then(() => {
-      return Transaction.findAll().then(transactions => {
+      return Transaction.findAll({ order: [['id', 'asc']] }).then(transactions => {
         expect(transactions.length).to.equal(4);
 
         const contributions = transactions.filter(t => t.kind === TransactionKind.CONTRIBUTION);
@@ -349,7 +349,10 @@ describe('server/models/Transaction', () => {
 
       await Transaction.createFromContributionPayload(transactionPayload);
 
-      const allTransactions = await Transaction.findAll({ where: { OrderId: order.id } });
+      const allTransactions = await Transaction.findAll({
+        where: { OrderId: order.id },
+        order: [['id', 'asc']],
+      });
       expect(allTransactions).to.have.length(8);
 
       const donationCredit = allTransactions.find(t => t.CollectiveId === inc.id);
