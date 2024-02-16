@@ -143,10 +143,18 @@ describe('server/graphql/loaders/expense', () => {
           amount: US_TAX_FORM_THRESHOLD + 100,
           PayoutMethodId: otherPayoutMethod.id,
         });
+        const expense3 = await fakeExpense({
+          type: 'GRANT',
+          CollectiveId: collective.id,
+          amount: US_TAX_FORM_THRESHOLD + 100,
+          PayoutMethodId: otherPayoutMethod.id,
+        });
         const result = await loader.load(expense1.id);
         expect(result).to.be.true;
         const result2 = await loader.load(expense2.id);
         expect(result2).to.be.true;
+        const result3 = await loader.load(expense3.id);
+        expect(result3).to.be.true;
       });
     });
 
@@ -241,18 +249,6 @@ describe('server/graphql/loaders/expense', () => {
         });
         const result = await loader.load(expense1.id);
         expect(result).to.be.false;
-      });
-
-      it('When expenses are FUNDING_REQUEST', async () => {
-        const grantExpense = await fakeExpense({
-          type: 'FUNDING_REQUEST',
-          CollectiveId: collective.id,
-          amount: US_TAX_FORM_THRESHOLD + 100,
-          PayoutMethodId: otherPayoutMethod.id,
-        });
-
-        const result3 = await loader.load(grantExpense.id);
-        expect(result3).to.be.false;
       });
 
       it('When expenses were submitted last year', async () => {
