@@ -11,7 +11,7 @@ import fs from 'fs';
 import path from 'path';
 
 import { Command } from 'commander';
-import { parse as json2CSV } from 'json2csv';
+import { Parser as json2csv } from '@json2csv/plainjs';
 import { get, truncate } from 'lodash';
 import markdownTable from 'markdown-table'; // eslint-disable-line node/no-unpublished-import
 
@@ -212,7 +212,7 @@ const generateExport = async (
     });
   }
 
-  const csv = json2CSV(preparedData, { header: true });
+  const csv = new json2csv().parse(preparedData, { header: true });
   if (outputDir) {
     const tmpDir = path.join(outputDir, `${hostSlug}-${year}`);
 

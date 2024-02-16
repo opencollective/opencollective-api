@@ -2,7 +2,7 @@
 import '../../server/env';
 
 import config from 'config';
-import { parse as json2csv } from 'json2csv';
+import { Parser as json2csv } from '@json2csv/plainjs';
 import { groupBy, sumBy } from 'lodash';
 import moment from 'moment';
 
@@ -192,7 +192,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
     };
     if (DRY) {
       console.debug(`Expense:\n${JSON.stringify(expenseData, null, 2)}`);
-      console.debug(`Items:\n${json2csv(items)}\n`);
+      console.debug(`Items:\n${new json2csv().parse(items)}\n`);
     } else {
       // Create the Expense
       const expense = await models.Expense.create(expenseData);

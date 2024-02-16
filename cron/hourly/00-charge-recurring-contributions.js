@@ -4,7 +4,7 @@ import '../../server/env';
 import fs from 'fs';
 
 import { ArgumentParser } from 'argparse';
-import { parse as json2csv } from 'json2csv';
+import { Parser as json2csv } from '@json2csv/plainjs';
 import PQueue from 'p-queue';
 
 import FEATURE from '../../server/constants/feature';
@@ -84,7 +84,7 @@ async function run(options) {
     }
     console.log('Writing the output to a CSV file');
     try {
-      const csv = json2csv(data, { fields: csvFields });
+      const csv = new json2csv().parse(data, { fields: csvFields });
       if (options.dryRun) {
         fs.writeFileSync('charge_recurring_contributions.output.csv', csv);
       }

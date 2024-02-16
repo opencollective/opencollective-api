@@ -2,7 +2,7 @@
 import '../server/env';
 
 import config from 'config';
-import { parse as json2csv } from 'json2csv';
+import { Parser as json2csv } from '@json2csv/plainjs';
 import { entries, groupBy, pick, round, sumBy } from 'lodash';
 import moment from 'moment';
 
@@ -336,10 +336,10 @@ async function run() {
         totalAmountCharged / 100
       } (${currency})`,
     );
-    const csv = json2csv(transactions.map(t => pick(t, ATTACHED_CSV_COLUMNS)));
+    const csv = new json2csv().parse(transactions.map(t => pick(t, ATTACHED_CSV_COLUMNS)));
 
     if (DRY) {
-      console.debug(`Items:\n${json2csv(items)}\n`);
+      console.debug(`Items:\n${new json2csv().parse(items)}\n`);
       console.debug(csv);
     } else {
       console.log('This script is not active anymore and can only be used in DRY mode!');
