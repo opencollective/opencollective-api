@@ -5,7 +5,7 @@ import '../server/env';
 import { crypto } from '../server/lib/encryption';
 
 if (process.argv.length < 2) {
-  console.error('Usage: npm run script ./scripts/encrypt.js [+d] CONTENT');
+  console.error('Usage: pnpm script ./scripts/encrypt.js [+d] CONTENT');
   process.exit(1);
 }
 

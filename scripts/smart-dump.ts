@@ -378,8 +378,8 @@ program.addHelpText(
   `
 
 Example call:
-  $ npm run script scripts/smart-dump.ts dump prod
-  $ PG_DATABASE=opencollective_prod_snapshot npm run script scripts/smart-dump.ts restore dbdumps/2023-03-21.c5292.json
+  $ pnpm script scripts/smart-dump.ts dump prod
+  $ PG_DATABASE=opencollective_prod_snapshot pnpm script scripts/smart-dump.ts restore dbdumps/2023-03-21.c5292.json
 `,
 );
 

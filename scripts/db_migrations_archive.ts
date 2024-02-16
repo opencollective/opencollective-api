@@ -36,7 +36,7 @@ const getMovedFilesList = (until: moment.Moment): string[] => {
   // Step 1: run migrations to make sure we're up to date
   console.log('Running migrations to make sure local DB is up to date...');
   try {
-    execSync('npm run db:migrate', { stdio: 'inherit' });
+    execSync('pnpm db:migrate', { stdio: 'inherit' });
   } catch (e) {
     console.error(e);
     process.exit(1);
@@ -44,7 +44,7 @@ const getMovedFilesList = (until: moment.Moment): string[] => {
 
   // Step 2: Dump database
   try {
-    execSync('npm run db:dump:dev', { stdio: 'inherit' });
+    execSync('pnpm db:dump:dev', { stdio: 'inherit' });
   } catch (e) {
     console.error(e);
     process.exit(1);

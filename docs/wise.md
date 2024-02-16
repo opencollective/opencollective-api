@@ -22,7 +22,7 @@ $ ngrok http 3060
 To set up the Wise webhook, run:
 
 ```sh
-$ API_URL="https://cd6e-2-138-96-138.ngrok.io" npm run script scripts/setup-transferwise-webhook.js up
+$ API_URL="https://cd6e-2-138-96-138.ngrok.io" pnpm script scripts/setup-transferwise-webhook.js up
 
 > script
 > babel-node --extensions .js,.ts $1 scripts/setup-transferwise-webhook.js up
@@ -39,7 +39,7 @@ Done.
 Make sure you delete the webhook later on with:
 
 ```sh
-$ npm run script scripts/setup-transferwise-webhook.js down "b0acf39d-73ed-4ad2-a3c6-25f11ac785d5"
+$ pnpm script scripts/setup-transferwise-webhook.js down "b0acf39d-73ed-4ad2-a3c6-25f11ac785d5"
 
 > script
 > babel-node --extensions .js,.ts $1 scripts/setup-transferwise-webhook.js down b0acf39d-73ed-4ad2-a3c6-25f11ac785d5

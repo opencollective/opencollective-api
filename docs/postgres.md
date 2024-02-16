@@ -86,17 +86,17 @@ sudo apt-get install postgresql-client
 
 Please be aware of the `NODE_ENV`/`OC_ENV` variable. By default, it's set to `development` and the `opencollective_dvl` database will be used.
 
-The development database should be automatically installed after `npm install`.
+The development database should be automatically installed after `pnpm install`.
 
-To trigger the postinstall script again, run `npm run postinstall`.
+To trigger the postinstall script again, run `pnpm postinstall`.
 
-To force a restore run `npm run db:restore`, then `npm run db:migrate`.
+To force a restore run `pnpm db:restore`, then `pnpm db:migrate`.
 
 #### Test
 
 Please be aware of the `NODE_ENV`/`OC_ENV` variable. By default, it's set to `development` and the `opencollective_dvl` database will be used. You have to set it yourself to `test` to switch to the test environment and use `opencollective_test` instead.
 
-To setup the database for tests, run `npm run db:setup` or run `NODE_ENV=test npm run db:setup` to force the environment.
+To setup the database for tests, run `pnpm db:setup` or run `NODE_ENV=test pnpm db:setup` to force the environment.
 
 If you want to do the steps manually, first, make sure the `opencollective` user is existing:
 
@@ -130,7 +130,7 @@ This will create a file in `migrations/` where you'll be able to put your migrat
 ```
 # The name of the migration should use kebab case
 
-npm run db:migration:create -- --name <name-of-your-migration>
+pnpm db:migration:create -- --name <name-of-your-migration>
 ```
 
 **Note:** To create a migration, always use the above command, so that it aligns with the default [Sequelize](https://sequelize.org/) file naming conventions.
@@ -140,13 +140,13 @@ npm run db:migration:create -- --name <name-of-your-migration>
 This will run all the pending migrations in `migrations/`:
 
 ```
-npm run db:migrate
+pnpm db:migrate
 ```
 
 ### Rollback last migration
 
 ```
-npm run db:migrate:undo
+pnpm db:migrate:undo
 ```
 
 ## Troubleshooting

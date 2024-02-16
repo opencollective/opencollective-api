@@ -4,7 +4,7 @@
 # Ensure we are on root folder
 cd -- "$(dirname $0)/.."
 
-npm run dev &
+pnpm dev &
 API_PID=$!
 
 # Wait for a service to be up
@@ -24,12 +24,12 @@ function wait_for_service() {
 wait_for_service API 127.0.0.1 3060
 
 # Build schema files
-npm run graphql:update || exit 1
+pnpm graphql:update || exit 1
 
 # Check if files changed
 CHANGED=$(git status --porcelain | grep lang)
 if [ -n "${CHANGED}" ] ; then
-  echo "GraphQL schema files are not up to date, Please run 'npm run graphql:update' with the API started"
+  echo "GraphQL schema files are not up to date, Please run 'pnpm graphql:update' with the API started"
   echo "-------- FILES --------"
   git status
   echo "-------- DIFF --------"

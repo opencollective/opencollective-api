@@ -54,22 +54,22 @@ const getNumberOfPendingMigrations = async () => {
 
 const runMigrations = (snapshotPath, { warnIfTooSlow = false } = {}) => {
   const start = Date.now();
-  execSync('npm run db:migrate', { stdio: 'inherit' });
+  execSync('pnpm db:migrate', { stdio: 'inherit' });
   const end = Date.now();
   const duration = end - start;
 
   if (warnIfTooSlow) {
     if (duration > 15000) {
       throw new Error(
-        `[TEST] Migrating ${snapshotPath} after restore took ${duration}ms. Consider updating the snapshots with 'npm run test:update-db-snapshots`,
+        `[TEST] Migrating ${snapshotPath} after restore took ${duration}ms. Consider updating the snapshots with 'pnpm test:update-db-snapshots`,
       );
     } else if (duration > 10000) {
       logger.warn(
-        `[TEST] Migrating ${snapshotPath} after restore took ${duration}ms. Consider updating the snapshots with 'npm run test:update-db-snapshots`,
+        `[TEST] Migrating ${snapshotPath} after restore took ${duration}ms. Consider updating the snapshots with 'pnpm test:update-db-snapshots`,
       );
     } else if (duration > 5000) {
       logger.info(
-        `[TEST] Migrating ${snapshotPath} after restore took ${duration}ms. Consider updating the snapshots with 'npm run test:update-db-snapshots`,
+        `[TEST] Migrating ${snapshotPath} after restore took ${duration}ms. Consider updating the snapshots with 'pnpm test:update-db-snapshots`,
       );
     }
   }
@@ -92,7 +92,7 @@ export const getOrCreateDBSnapshot = async (
   if (forceSnapshotUpdate || !existsSync(snapshotPath)) {
     if (config.env === 'ci') {
       throw new Error(
-        `[TEST] Snapshot ${snapshotPath} does not exists. Please run 'npm run test:update-db-snapshots' on your local machine to generate it.`,
+        `[TEST] Snapshot ${snapshotPath} does not exists. Please run 'pnpm test:update-db-snapshots' on your local machine to generate it.`,
       );
     }
 
