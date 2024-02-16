@@ -89,10 +89,30 @@ async function checkUniqueUuid() {
   }
 }
 
+async function checkUniqueTransactionGroup() {
+  const message = 'No duplicate TransactionGroup';
+
+  const results = await sequelize.query(
+    `SELECT "TransactionGroup"
+    FROM "Transactions"
+    WHERE "kind" IN ('EXPENSE', 'CONTRIBUTION', 'ADDED_FUNDS', 'BALANCE_TRANSFER', 'PREPAID_PAYMENT_METHOD')
+    AND "deletedAt" IS NULL
+    GROUP BY "TransactionGroup"
+    HAVING COUNT(*) > 2`,
+    { type: sequelize.QueryTypes.SELECT, raw: true },
+  );
+
+  if (results.length > 0) {
+    // Not fixable
+    throw new Error(message);
+  }
+}
+
 export async function checkTransactions({ fix = false } = {}) {
   await checkDeletedCollectives({ fix });
   await checkOrphanTransactions();
   await checkUniqueUuid();
+  await checkUniqueTransactionGroup();
 }
 
 if (!module.parent) {
