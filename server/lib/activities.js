@@ -260,3 +260,15 @@ const getUserString = (format, userCollective, email) => {
   }
   return returnVal;
 };
+
+const LEGACY_TRANSACTION_ACTIVITY_COLLECTIVE_IDS = config.activities?.legacyTransactionsCollectiveIds
+  ? config.activities.legacyTransactionsCollectiveIds.split(',').map(Number)
+  : [];
+
+/**
+ * Returns true if a `collective.transaction.created` activity should be generated for the given collective.
+ * Implemented as a separate function to allow for easy testing.
+ */
+export const shouldGenerateTransactionActivities = collectiveId => {
+  return LEGACY_TRANSACTION_ACTIVITY_COLLECTIVE_IDS.includes(collectiveId);
+};

@@ -209,7 +209,8 @@
     "daysCached": "TIMELINE_DAYS_CACHED"
   },
   "activities": {
-    "skipTransactions": "SKIP_TRANSACTION_ACTIVITIES"
+    "skipTransactions": "SKIP_TRANSACTION_ACTIVITIES",
+    "legacyTransactionsCollectiveIds": "LEGACY_TRANSACTIONS_ACTIVITY_COLLECTIVE_IDS"
   },
   "twoFactorAuthentication": {
     "enabled": "TWO_FACTOR_AUTHENTICATION_ENABLED"

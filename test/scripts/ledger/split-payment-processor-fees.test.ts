@@ -1,6 +1,3 @@
-import config from 'config';
-import { createSandbox } from 'sinon';
-
 import { main as splitPaymentProcessorFees } from '../../../scripts/ledger/split-payment-processor-fees';
 import { refundTransaction } from '../../../server/lib/payments';
 import { fakeCollective, fakeHost, fakeTransaction, fakeUser } from '../../test-helpers/fake-data';
@@ -19,17 +16,9 @@ const SNAPSHOT_COLUMNS = [
 ];
 
 describe('scripts/ledger/split-payment-processor-fees', () => {
-  let sandbox;
-
   beforeEach('reset test database', async () => {
     await resetTestDB();
     await seedDefaultVendors();
-    sandbox = createSandbox();
-    sandbox.stub(config, 'activities').value({ ...config.activities, skipCreationForTransactions: true }); // Async activities are created async, which doesn't play well with `resetTestDb`
-  });
-
-  afterEach(() => {
-    sandbox.restore();
   });
 
   it('1. migrate a regular contribution with payment processor fees', async () => {

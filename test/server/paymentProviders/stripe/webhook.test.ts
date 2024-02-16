@@ -1,7 +1,6 @@
 /* eslint-disable camelcase */
 
 import { expect } from 'chai';
-import config from 'config';
 import { set } from 'lodash';
 import { assert, createSandbox } from 'sinon';
 import Stripe from 'stripe';
@@ -33,7 +32,6 @@ describe('webhook', () => {
   beforeEach(async () => {
     await utils.resetTestDB();
     sandbox = createSandbox();
-    sandbox.stub(config, 'activities').value({ ...config.activities, skipCreationForTransactions: true }); // Async activities are created async, which doesn't play well with `resetTestDb`
   });
 
   afterEach(() => {

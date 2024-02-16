@@ -23,6 +23,7 @@ import {
   PLATFORM_TIP_TRANSACTION_PROPERTIES,
   TransactionTypes,
 } from '../constants/transactions';
+import { shouldGenerateTransactionActivities } from '../lib/activities';
 import { getFxRate } from '../lib/currency';
 import { toNegative } from '../lib/math';
 import { calcFee, getHostFeeSharePercent, getPlatformTip } from '../lib/payments';
@@ -483,7 +484,7 @@ const Transaction: ModelStatic<TransactionInterface> & TransactionModelStaticInt
 
     hooks: {
       afterCreate: transaction => {
-        if (!config.activities?.skipCreationForTransactions) {
+        if (shouldGenerateTransactionActivities(transaction.CollectiveId)) {
           Transaction.createActivity(transaction);
         }
 

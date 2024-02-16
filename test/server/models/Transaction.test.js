@@ -1,8 +1,8 @@
 import { expect } from 'chai';
-import config from 'config';
 import { createSandbox } from 'sinon';
 
 import { TransactionKind } from '../../../server/constants/transaction-kind';
+import * as LibActivities from '../../../server/lib/activities';
 import models from '../../../server/models';
 import {
   fakeCollective,
@@ -53,7 +53,6 @@ describe('server/models/Transaction', () => {
   beforeEach(async () => {
     await utils.resetTestDB();
     sandbox = createSandbox();
-    sandbox.stub(config, 'activities').value({ ...config.activities, skipCreationForTransactions: true }); // Async activities are created async, which doesn't play well with `resetTestDb`
     user = await fakeUser({}, { name: 'User' });
     inc = await fakeHost({
       id: 8686,
@@ -204,8 +203,8 @@ describe('server/models/Transaction', () => {
     });
   });
 
-  it('createFromContributionPayload() generates a new activity', async () => {
-    sandbox.stub(config, 'activities').value({ ...config.activities, skipCreationForTransactions: false }); // Async activities are created async, which doesn't play well with `resetTestDb`
+  it('createFromContributionPayload() generates a new activity for allowed collectives', async () => {
+    sandbox.stub(LibActivities, 'shouldGenerateTransactionActivities').returns(true);
     const createActivityStub = sandbox.stub(Transaction, 'createActivity');
 
     const transaction = await Transaction.createFromContributionPayload({
