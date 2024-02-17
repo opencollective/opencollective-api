@@ -556,8 +556,8 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
       const host = await fakeHost({ admin: user });
       const collective = await fakeCollective({ HostCollectiveId: host.id });
       const orderWithExternalSubscription = await fakeOrder(
-        { CollectiveId: collective.id, status: OrderStatuses.ACTIVE, subscription: { isManagedExternally: true } },
-        { withSubscription: true },
+        { CollectiveId: collective.id, status: OrderStatuses.ACTIVE },
+        { withSubscription: true, subscription: { isManagedExternally: true } },
       );
       const orderWithInternalSubscription = await fakeOrder(
         { CollectiveId: collective.id, status: OrderStatuses.ACTIVE },

@@ -169,11 +169,11 @@ describe('server/paymentProviders/paypal/subscription', () => {
             status: OrderStatuses.NEW,
             TierId: null,
             totalAmount: 1000,
-            subscription: { paypalSubscriptionId, isActive: false },
             PaymentMethodId: paymentMethod.id,
           },
           {
             withSubscription: true,
+            subscription: { paypalSubscriptionId, isActive: false },
           },
         );
       };

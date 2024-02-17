@@ -231,8 +231,12 @@ describe('server/lib/recurring-contributions', () => {
 
     it('should send confirmation email when processing is successful', async () => {
       const order = await fakeOrder(
-        { subscription: { chargeRetryCount: 0 } },
-        { withSubscription: true, withBackerMember: true },
+        {},
+        {
+          withSubscription: true,
+          subscription: { chargeRetryCount: 0 },
+          withBackerMember: true,
+        },
       );
 
       await handleRetryStatus(order);
@@ -243,8 +247,12 @@ describe('server/lib/recurring-contributions', () => {
 
     it('should send a failure email if retries are > 0 & < MAX_RETRIES', async () => {
       const order = await fakeOrder(
-        { subscription: { chargeRetryCount: 1 } },
-        { withSubscription: true, withBackerMember: true },
+        {},
+        {
+          withSubscription: true,
+          subscription: { chargeRetryCount: 1 },
+          withBackerMember: true,
+        },
       );
 
       await handleRetryStatus(order);
@@ -265,8 +273,8 @@ describe('server/lib/recurring-contributions', () => {
 
     it('should send a cancelation email if retries are >= MAX_RETRIES', async () => {
       const order = await fakeOrder(
-        { subscription: { chargeRetryCount: MAX_RETRIES } },
-        { withSubscription: true, withBackerMember: true },
+        {},
+        { withSubscription: true, subscription: { chargeRetryCount: MAX_RETRIES }, withBackerMember: true },
       );
 
       await handleRetryStatus(order);

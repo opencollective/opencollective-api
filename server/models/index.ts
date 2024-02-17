@@ -210,7 +210,7 @@ Location.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' })
 // Members
 Member.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
 Member.belongsTo(Collective, { foreignKey: 'MemberCollectiveId', as: 'memberCollective' });
-Member.belongsTo(Tier);
+Member.belongsTo(Tier, { foreignKey: 'TierId', as: 'Tier' });
 Member.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
 
 // MemberInvitation
@@ -232,8 +232,8 @@ Order.belongsTo(AccountingCategory, { as: 'accountingCategory', foreignKey: 'Acc
 Order.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
 Order.belongsTo(Collective, { foreignKey: 'FromCollectiveId', as: 'fromCollective' });
 Order.belongsTo(PaymentMethod, { foreignKey: 'PaymentMethodId', as: 'paymentMethod' });
-Order.belongsTo(Subscription); // adds SubscriptionId to the Orders table
-Order.belongsTo(Tier);
+Order.belongsTo(Subscription, { foreignKey: 'SubscriptionId', as: 'Subscription' });
+Order.belongsTo(Tier, { foreignKey: 'TierId', as: 'Tier' });
 Order.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
 Order.hasMany(Transaction);
 
@@ -291,7 +291,7 @@ TransactionSettlement.belongsTo(Expense);
 // Update
 Update.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
 Update.belongsTo(Collective, { foreignKey: 'FromCollectiveId', as: 'fromCollective' });
-Update.belongsTo(Tier, { foreignKey: 'TierId', as: 'tier' });
+Update.belongsTo(Tier, { foreignKey: 'TierId', as: 'Tier' });
 Update.belongsTo(User, { foreignKey: 'LastEditedByUserId', as: 'user' });
 
 // Uploaded files

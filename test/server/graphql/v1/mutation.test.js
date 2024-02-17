@@ -386,8 +386,8 @@ describe('server/graphql/v1/mutation', () => {
         const admin = await fakeUser();
         const project = await fakeProject({ admin });
         const order = await fakeOrder(
-          { CollectiveId: project.id, status: 'ACTIVE', subscription: { isManagedExternally: true } },
-          { withSubscription: true },
+          { CollectiveId: project.id, status: 'ACTIVE' },
+          { withSubscription: true, subscription: { isManagedExternally: true } },
         );
 
         // Setup some spies

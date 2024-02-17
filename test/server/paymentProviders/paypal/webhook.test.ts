@@ -27,10 +27,9 @@ const createOrderWithSubscription = async (params = {}): Promise<OrderModelInter
   return fakeOrder(
     {
       PaymentMethodId: paymentMethod.id,
-      subscription: { paypalSubscriptionId: paymentMethod.token },
       ...params,
     },
-    { withSubscription: true },
+    { withSubscription: true, subscription: { paypalSubscriptionId: paymentMethod.token } },
   );
 };
 

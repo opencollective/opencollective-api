@@ -393,7 +393,7 @@ export const loaders = req => {
         group: ['Subscription.interval', 'CollectiveId', 'Order.currency'],
         include: [
           {
-            model: models.Subscription,
+            association: 'Subscription',
             attributes: [],
             where: { isActive: true },
           },

@@ -28,12 +28,10 @@ import Collective from './Collective';
 import CustomDataTypes from './DataTypes';
 import { MemberModelInterface } from './Member';
 import PaymentMethod, { PaymentMethodModelInterface } from './PaymentMethod';
-import { SubscriptionInterface } from './Subscription';
+import Subscription, { SubscriptionInterface } from './Subscription';
 import Tier from './Tier';
 import Transaction, { TransactionInterface } from './Transaction';
 import User from './User';
-
-const { models } = sequelize;
 
 const debug = debugLib('models:Order');
 
@@ -71,9 +69,6 @@ export interface OrderModelInterface
   getCollective: HasOneGetAssociationMixin<Collective>;
 
   TierId: number;
-  /** @deprecated: We're using both `tier` and `Tier` depending on the places. The association is defined as `Tier` (uppercase). We should consolidate to one or the other. */
-  tier?: Tier;
-  /** @deprecated: We're using both `tier` and `Tier` depending on the places. The association is defined as `Tier` (uppercase). We should consolidate to one or the other. */
   Tier?: Tier;
   getTier: Promise<Tier>;
 
@@ -521,30 +516,46 @@ Order.prototype.getUserForActivity = async function () {
 
 /**
  * Populate all the foreign keys if necessary
- * (order.fromCollective, order.collective, order.createdByUser, order.tier)
  * @param {*} order
  */
-Order.prototype.populate = function (
-  foreignKeys = ['FromCollectiveId', 'CollectiveId', 'CreatedByUserId', 'TierId', 'PaymentMethodId'],
-) {
-  return Promise.all(
-    foreignKeys.map(fk => {
-      const attribute = (fk.substr(0, 1).toLowerCase() + fk.substr(1)).replace(/Id$/, '');
-      const model = fk.replace(/(from|to|createdby)/i, '').replace(/Id$/, '');
-      const promise = () => {
-        if (this[attribute]) {
-          return Promise.resolve(this[attribute]);
-        }
-        if (!this[fk]) {
-          return Promise.resolve(null);
-        }
-        return models[model].findByPk(this[fk]);
-      };
-      return promise().then(obj => {
-        this[attribute] = obj;
-      });
+Order.prototype.populate = async function () {
+  /*
+  const associations = [
+    ['CollectiveId', 'collective', Collective],
+    ['FromCollectiveId', 'fromCollective', Collective],
+    ['CreatedByUserId', 'createdByUser', User],
+    ['TierId', 'Tier', Tier],
+    ['PaymentMethodId', 'paymentMethod', PaymentMethod],
+  ];
+  await Promise.all(
+    associations.map(([foreignKey, attribute, model]) => {
+      if (this[foreignKey] && !this[attribute]) {
+        return model.findByPk(this[foreignKey]).then(result => {
+          this[attribute] = result;
+        });
+      }
     }),
-  ).then(() => this);
+  );
+  */
+  if (this.CollectiveId && !this.collective) {
+    this.collective = await Collective.findByPk(this.CollectiveId);
+  }
+  if (this.FromCollectiveId && !this.fromCollective) {
+    this.fromCollective = await Collective.findByPk(this.FromCollectiveId);
+  }
+  if (this.CreatedByUserId && !this.createdByUser) {
+    this.createdByUser = await User.findByPk(this.CreatedByUserId);
+  }
+  if (this.TierId && !this.Tier) {
+    this.Tier = await Tier.findByPk(this.TierId);
+  }
+  if (this.PaymentMethodId && !this.paymentMethod) {
+    this.paymentMethod = await PaymentMethod.findByPk(this.PaymentMethodId);
+  }
+  if (this.SubscriptionId && !this.Subscription) {
+    this.Subscription = await Subscription.findByPk(this.SubscriptionId);
+  }
+  return this;
 };
 
 Order.prototype.getSubscriptionForUser = function (user) {

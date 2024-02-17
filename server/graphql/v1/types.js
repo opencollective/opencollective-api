@@ -1723,7 +1723,7 @@ export const PaymentMethodType = new GraphQLObjectType({
             query.where = { status: { [Op.or]: [orderStatus.ACTIVE, orderStatus.ERROR] } };
             query.include = [
               {
-                model: models.Subscription,
+                association: 'Subscription',
                 where: { isActive: true },
                 required: true,
               },

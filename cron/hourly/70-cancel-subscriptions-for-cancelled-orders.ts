@@ -56,12 +56,11 @@ export async function run() {
     where: { status: OrderStatuses.CANCELLED },
     include: [
       {
-        model: models.Tier,
-        as: 'Tier',
+        association: 'Tier',
         required: false,
       },
       {
-        model: models.Subscription,
+        association: 'Subscription',
         required: true,
         where: { isActive: true },
       },

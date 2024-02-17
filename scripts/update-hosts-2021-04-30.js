@@ -61,8 +61,8 @@ async function run({ dryRun } = {}) {
       include: [
         { model: models.Collective, as: 'collective', where: { slug: PLANS_COLLECTIVE_SLUG } },
         { model: models.Collective, as: 'fromCollective', where: { id: host.id } },
-        { model: models.Subscription, as: 'Subscription' },
-        { model: models.Tier, as: 'Tier', where: { slug: { [Op.in]: previousPlansSlugs } } },
+        { association: 'Subscription' },
+        { association: 'Tier', where: { slug: { [Op.in]: previousPlansSlugs } } },
       ],
       order: [['updatedAt', 'DESC']],
     });

@@ -340,7 +340,11 @@ export const chargeDisputeCreated = async (event: Stripe.Event) => {
     include: {
       model: models.Order,
       required: true,
-      include: [models.Subscription],
+      include: [
+        {
+          association: 'Subscription',
+        },
+      ],
     },
   });
 
@@ -371,7 +375,11 @@ export const chargeDisputeClosed = async (event: Stripe.Event) => {
       {
         model: models.Order,
         required: true,
-        include: [models.Subscription],
+        include: [
+          {
+            association: 'Subscription',
+          },
+        ],
       },
       {
         model: models.User,
@@ -401,7 +409,11 @@ export const chargeDisputeClosed = async (event: Stripe.Event) => {
     include: {
       model: models.Order,
       required: true,
-      include: [models.Subscription],
+      include: [
+        {
+          association: 'Subscription',
+        },
+      ],
     },
   });
 
@@ -513,7 +525,11 @@ export const reviewOpened = async (event: Stripe.Event) => {
       {
         model: models.Order,
         required: true,
-        include: [models.Subscription],
+        include: [
+          {
+            association: 'Subscription',
+          },
+        ],
       },
     ],
   });
@@ -529,7 +545,11 @@ export const reviewOpened = async (event: Stripe.Event) => {
     include: {
       model: models.Order,
       required: true,
-      include: [models.Subscription],
+      include: [
+        {
+          association: 'Subscription',
+        },
+      ],
     },
   });
 
@@ -561,7 +581,11 @@ export const reviewClosed = async (event: Stripe.Event) => {
       {
         model: models.Order,
         required: true,
-        include: [models.Subscription],
+        include: [
+          {
+            association: 'Subscription',
+          },
+        ],
       },
       {
         model: models.User,
@@ -584,7 +608,11 @@ export const reviewClosed = async (event: Stripe.Event) => {
     include: {
       model: models.Order,
       required: true,
-      include: [models.Subscription],
+      include: [
+        {
+          association: 'Subscription',
+        },
+      ],
     },
   });
 

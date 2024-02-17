@@ -260,10 +260,10 @@ const orderMutations = {
         throwIfMissing: false,
         include: [
           { association: 'paymentMethod' },
-          { model: models.Subscription },
+          { association: 'Subscription' },
           { model: models.Collective, as: 'collective' },
           { model: models.Collective, as: 'fromCollective' },
-          { model: models.Tier, as: 'Tier', required: false },
+          { association: 'Tier', required: false },
         ],
       });
 
@@ -343,7 +343,7 @@ const orderMutations = {
       const order = await models.Order.findOne({
         where: { id: decodedId },
         include: [
-          { model: models.Subscription, required: true },
+          { association: 'Subscription', required: true },
           { association: 'collective', required: true },
           { association: 'fromCollective', required: true },
           { association: 'paymentMethod' },
@@ -1158,7 +1158,7 @@ const orderMutations = {
         throwIfMissing: true,
         include: [
           { model: models.Collective, as: 'collective', required: true },
-          { model: models.Tier, required: false },
+          { association: 'Tier', required: false },
         ],
       });
 
@@ -1182,7 +1182,7 @@ const orderMutations = {
       const fromAccount = await fetchAccountWithReference(args.order.fromAccount);
       const tier = args.order.tier
         ? await fetchTierWithReference(args.order.tier, { throwIfMissing: true })
-        : order.tier;
+        : order.Tier;
 
       // Check accounting category
       let AccountingCategoryId = isUndefined(args.order.accountingCategory) ? order.AccountingCategoryId : null;

@@ -36,7 +36,6 @@ import models, {
   PaypalProduct,
   PersonalToken,
   sequelize,
-  Subscription,
   Tier,
   Update,
   UploadedFile,
@@ -605,7 +604,13 @@ export const fakeTier = async (tierData: Partial<InferCreationAttributes<Tier>> 
  */
 export const fakeOrder = async (
   orderData: Partial<InferCreationAttributes<OrderModelInterface>> & { subscription?: any } = {},
-  { withSubscription = false, withTransactions = false, withBackerMember = false, withTier = false } = {},
+  {
+    withSubscription = false,
+    subscription = {},
+    withTransactions = false,
+    withBackerMember = false,
+    withTier = false,
+  } = {},
 ) => {
   const CreatedByUserId = orderData.CreatedByUserId || (await fakeUser()).id;
   const user = await models.User.findByPk(<number>CreatedByUserId);
@@ -620,7 +625,6 @@ export const fakeOrder = async (
       : null;
 
   const order: OrderModelInterface & {
-    subscription?: typeof Subscription;
     transactions?: TransactionInterface[];
   } = await models.Order.create({
     quantity: 1,
@@ -645,16 +649,17 @@ export const fakeOrder = async (
       currency: order.currency,
       isActive: true,
       quantity: order.quantity,
-      ...orderData.subscription,
+      paypalSubscriptionId: null,
+      ...subscription,
     };
 
     if (order.paymentMethod?.type === 'subscription' && order.paymentMethod.service === 'paypal') {
       subscriptionData.paypalSubscriptionId = order.paymentMethod.token;
     }
 
-    const subscription = await fakeSubscription(subscriptionData);
-    await order.update({ SubscriptionId: subscription.id });
-    order.Subscription = subscription;
+    const subscriptionObj = await fakeSubscription(subscriptionData);
+    await order.update({ SubscriptionId: subscriptionObj.id });
+    order.Subscription = subscriptionObj;
   }
 
   if (withTransactions) {
@@ -694,7 +699,7 @@ export const fakeOrder = async (
   order.fromCollective = await models.Collective.findByPk(order.FromCollectiveId);
   order.collective = collective;
   order.createdByUser = user;
-  order.tier = tier;
+  order.Tier = tier;
   return order;
 };
 

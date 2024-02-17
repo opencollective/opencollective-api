@@ -42,7 +42,7 @@ describe('server/models/Order', () => {
       expect(order.createdByUser.id).to.equal(user.id);
       expect(order.fromCollective.id).to.equal(user.CollectiveId);
       expect(order.collective.id).to.equal(collective.id);
-      expect(order.tier.id).to.equal(tier.id);
+      expect(order.Tier.id).to.equal(tier.id);
       expect(order.paymentMethod).to.not.exist;
       done();
     });

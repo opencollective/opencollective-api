@@ -269,6 +269,7 @@ export async function newOrder(opt) {
     FromCollectiveId: from.id,
     CollectiveId: to.id,
   });
+  console.log(order);
   await order.setPaymentMethod(
     paymentMethodData || {
       token: 'tok_123456781234567812345678',

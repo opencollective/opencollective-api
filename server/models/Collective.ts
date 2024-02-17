@@ -117,7 +117,6 @@ import Order from './Order';
 import PaymentMethod from './PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
 import SocialLink, { SocialLinkType } from './SocialLink';
-import Subscription from './Subscription';
 import Tier from './Tier';
 import Transaction from './Transaction';
 import Update from './Update';
@@ -1451,7 +1450,7 @@ class Collective extends Model<
         ...where,
       },
       paranoid: false,
-      include: [{ model: Collective, as: 'fromCollective' }, { model: Tier }],
+      include: [{ model: Collective, as: 'fromCollective' }, { association: 'Tier' }],
     });
     orders.sort((a, b) => {
       if (a.dataValues.totalAmount > b.dataValues.totalAmount) {
@@ -1481,7 +1480,7 @@ class Collective extends Model<
       },
       include: [
         {
-          model: Subscription,
+          association: 'Subscription',
           required: true,
           where: {
             deactivatedAt: { [Op.gte]: startDate, [Op.lt]: endDate },
@@ -1492,7 +1491,7 @@ class Collective extends Model<
           as: 'fromCollective',
         },
         {
-          model: Tier,
+          association: 'Tier',
         },
       ],
     });
@@ -1660,7 +1659,7 @@ class Collective extends Model<
     // Map the users to their respective tier
     await Promise.all(
       backerCollectives.map(backerCollective => {
-        const include = options.active ? [{ model: Subscription, attributes: ['isActive'] }] : [];
+        const include = options.active ? [{ association: 'Subscription', attributes: ['isActive'] }] : [];
         return Order.findOne({
           attributes: ['TierId'],
           where: {
@@ -1709,7 +1708,7 @@ class Collective extends Model<
         FromCollectiveId: backerCollective.id,
         CollectiveId: this.id,
       },
-      include: [{ model: Tier }],
+      include: [{ association: 'Tier' }],
     }).then(order => order && order.Tier);
   };
 
@@ -1727,13 +1726,13 @@ class Collective extends Model<
     context: {
       skipActivity?: any;
     } = {},
-    transaction = undefined,
+    sequelizeTransaction = undefined,
   ) {
     if (role === roles.HOST) {
       return logger.info('Please use Collective.addHost(hostCollective, remoteUser);');
     }
 
-    const sequelizeParams = transaction ? { transaction } : undefined;
+    const sequelizeParams = sequelizeTransaction ? { transaction: sequelizeTransaction } : undefined;
 
     const memberAttributes = {
       role,
@@ -1801,7 +1800,7 @@ class Collective extends Model<
       order = await Order.findOne({
         ...sequelizeParams,
         where: { id: context.order.id },
-        include: [{ model: Tier }, { model: Subscription }],
+        include: [{ association: 'Tier' }, { association: 'Subscription' }],
       });
     }
 
@@ -1888,7 +1887,13 @@ class Collective extends Model<
    * Used when creating a transactin to add a user to the collective as a backer if needed.
    * A new membership is registered for each `defaultAttributes.TierId`.
    */
-  findOrAddUserWithRole = function (user, role, defaultAttributes, context, transaction?: SequelizeTransaction) {
+  findOrAddUserWithRole = function (
+    user,
+    role,
+    defaultAttributes,
+    context,
+    sequelizeTransaction?: SequelizeTransaction,
+  ) {
     return Member.findOne({
       where: {
         role,
@@ -1898,7 +1903,7 @@ class Collective extends Model<
       },
     }).then(Member => {
       if (!Member) {
-        return this.addUserWithRole(user, role, defaultAttributes, context, transaction);
+        return this.addUserWithRole(user, role, defaultAttributes, context, sequelizeTransaction);
       } else {
         return Member;
       }

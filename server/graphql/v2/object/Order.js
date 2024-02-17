@@ -147,8 +147,8 @@ export const GraphQLOrder = new GraphQLObjectType({
       tier: {
         type: GraphQLTier,
         resolve(order, args, req) {
-          if (order.tier) {
-            return order.tier;
+          if (order.Tier) {
+            return order.Tier;
           }
           if (order.TierId) {
             return req.loaders.Tier.byId.load(order.TierId);
