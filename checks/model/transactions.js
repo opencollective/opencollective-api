@@ -71,9 +71,35 @@ async function checkOrphanTransactions() {
   }
 }
 
+async function checkOffBalancePaymentTransactions() {
+  const message = 'No off balance payments (Stripe, PayPal) with HostCollectiveId set';
+
+  // We only check /opencollective and /opensource as it's meant to be a non-regression check for those
+  // The problem can still be seen on other accounts and that needs to be manually reviewed and fixed
+  const results = await sequelize.query(
+    `SELECT COUNT(*)
+     FROM "Collectives" c
+     INNER JOIN "Transactions" t ON t."CollectiveId" = c."id"
+     LEFT JOIN "PaymentMethods" pm ON pm."id" = t."PaymentMethodId"
+     WHERE c."HostCollectiveId" IN (8686, 11004) AND c."approvedAt" IS NOT NULL
+     AND t."HostCollectiveId" IS NOT NULL
+     AND t."deletedAt" IS NULL
+     AND ( pm."service" IN ('stripe') OR pm."type" IN ('payment') )
+     AND ( (t."type" = 'DEBIT' AND t."isRefund" IS FALSE) OR (t."type" = 'CREDIT' AND t."isRefund" IS TRUE) )
+     AND c."id" NOT IN (8686, 11004)`,
+    { type: sequelize.QueryTypes.SELECT, raw: true },
+  );
+
+  if (results[0].count > 0) {
+    // Not fixable
+    throw new Error(message);
+  }
+}
+
 export async function checkTransactions({ fix = false } = {}) {
   await checkDeletedCollectives({ fix });
   await checkOrphanTransactions();
+  await checkOffBalancePaymentTransactions();
 }
 
 if (!module.parent) {
