@@ -119,7 +119,7 @@
     "prepend-http": "3.0.1",
     "redis": "4.6.6",
     "sanitize-html": "2.11.0",
-    "sequelize": "6.37.0",
+    "sequelize": "6.37.1",
     "sequelize-cli": "6.6.2",
     "sequelize-temporal": "1.0.8",
     "sharp": "0.33.2",
