@@ -34,7 +34,7 @@ class SuspendedAsset extends Model<InferAttributes<SuspendedAsset>, InferCreatio
   }): Promise<void> {
     const asset = await this.findOne({ where: { type, fingerprint } });
     if (asset) {
-      const error = Error(`Asset ${fingerprint} of type ${type} is suspended.`);
+      const error = new Error(`Asset ${fingerprint} of type ${type} is suspended.`);
       logger.warn(`Suspended Asset: ${error.message}`);
       throw error;
     }
