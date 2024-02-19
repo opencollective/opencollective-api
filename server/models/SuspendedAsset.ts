@@ -2,6 +2,7 @@ import { pick } from 'lodash';
 import type { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
 
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
+import logger from '../lib/logger';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 export enum AssetType {
@@ -33,7 +34,9 @@ class SuspendedAsset extends Model<InferAttributes<SuspendedAsset>, InferCreatio
   }): Promise<void> {
     const asset = await this.findOne({ where: { type, fingerprint } });
     if (asset) {
-      throw new Error(`Asset ${fingerprint} of type ${type} is suspended.`);
+      const error = new Error(`Asset ${fingerprint} of type ${type} is suspended.`);
+      logger.warn(`Suspended Asset: ${error.message}`);
+      throw error;
     }
   }
 
