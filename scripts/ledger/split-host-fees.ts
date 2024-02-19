@@ -3,7 +3,11 @@ import '../../server/env';
 
 import { groupBy, omit, pick } from 'lodash';
 
-import * as PaymentLib from '../../server/lib/payments';
+import {
+  associateTransactionRefundId,
+  buildRefundForTransaction,
+  refundPaymentProcessorFeeToCollective,
+} from '../../server/lib/payments';
 import models, { Op, sequelize } from '../../server/models';
 
 const startDate = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date('2021-06-01');
@@ -138,16 +142,16 @@ const migrate = async () => {
 
       // Create a refund for the host fee
       const hostFeeRefund = {
-        ...PaymentLib.buildRefundForTransaction(hostFeeTransaction, null, transactionsData),
+        ...buildRefundForTransaction(hostFeeTransaction, null, transactionsData),
         TransactionGroup: refundCredit.TransactionGroup,
         createdAt: refundCredit.createdAt,
       };
 
       const hostFeeRefundTransaction = await models.Transaction.createDoubleEntry(hostFeeRefund);
-      await PaymentLib.associateTransactionRefundId(hostFeeTransaction, hostFeeRefundTransaction);
+      await associateTransactionRefundId(hostFeeTransaction, hostFeeRefundTransaction);
 
       // Refund payment processor fee from the host to the collective
-      await PaymentLib.refundPaymentProcessorFeeToCollective(
+      await refundPaymentProcessorFeeToCollective(
         credit,
         refundCredit.TransactionGroup,
         transactionsData,

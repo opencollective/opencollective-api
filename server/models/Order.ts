@@ -19,7 +19,7 @@ import OrderStatus from '../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import TierType from '../constants/tiers';
 import { PLATFORM_TIP_TRANSACTION_PROPERTIES, TransactionTypes } from '../constants/transactions';
-import * as libPayments from '../lib/payments';
+import { executeOrder } from '../lib/payments';
 import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize, { DataTypes, Op, QueryTypes } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
@@ -486,7 +486,7 @@ Order.prototype.markAsPaid = async function (user) {
     paid: true,
   };
 
-  await libPayments.executeOrder(user, this);
+  await executeOrder(user, this);
   return this;
 };
 

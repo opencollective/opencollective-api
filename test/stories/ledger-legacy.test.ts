@@ -20,8 +20,7 @@ import {
   SETTLEMENT_EXPENSE_PROPERTIES,
 } from '../../server/constants/transactions';
 import { markExpenseAsUnpaid, payExpense } from '../../server/graphql/common/expenses';
-import { createRefundTransaction, executeOrder } from '../../server/lib/payments';
-import * as libPayments from '../../server/lib/payments';
+import { createRefundTransaction, executeOrder, findPaymentMethodProvider } from '../../server/lib/payments';
 import models from '../../server/models';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import paymentProviders from '../../server/paymentProviders';
@@ -623,7 +622,7 @@ describe('test/stories/ledger', () => {
         where: { OrderId: order.id, kind: TransactionKind.ADDED_FUNDS, type: 'CREDIT' },
       });
 
-      const paymentMethod = libPayments.findPaymentMethodProvider(order.paymentMethod);
+      const paymentMethod = findPaymentMethodProvider(order.paymentMethod);
       await paymentMethod.refundTransaction(contributionTransaction, 0, null, null);
       await snapshotLedger(SNAPSHOT_COLUMNS);
       expect(await collective.getBalance()).to.eq(0);

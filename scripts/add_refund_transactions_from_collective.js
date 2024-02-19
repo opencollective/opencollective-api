@@ -13,7 +13,7 @@ import '../server/env';
 import debug from 'debug';
 
 import { purgeCacheForCollective } from '../server/lib/cache';
-import * as libPayments from '../server/lib/payments';
+import { findPaymentMethodProvider } from '../server/lib/payments';
 import models from '../server/models';
 
 // the user id of the one who's running this script, will be set on the field `CreatedByUserId`.
@@ -27,7 +27,7 @@ const debugRefund = debug('refundTransactions');
 
 async function refundTransaction(transaction) {
   // find the kind of payment method type
-  const paymentMethod = libPayments.findPaymentMethodProvider(transaction.PaymentMethod);
+  const paymentMethod = findPaymentMethodProvider(transaction.PaymentMethod);
   // look for the Stripe Connected Account
   const stripeAccounts = await models.ConnectedAccount.findAll({
     where: {

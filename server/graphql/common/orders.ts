@@ -3,7 +3,7 @@ import { InferCreationAttributes } from 'sequelize';
 
 import status from '../../constants/order-status';
 import { purgeCacheForCollective } from '../../lib/cache';
-import * as libPayments from '../../lib/payments';
+import { executeOrder } from '../../lib/payments';
 import models, { AccountingCategory, Collective, Tier, User } from '../../models';
 import { OrderModelInterface } from '../../models/Order';
 import { ValidationFailed } from '../errors';
@@ -109,7 +109,7 @@ export async function addFunds(order: AddFundsInput, remoteUser: User) {
   const hostPaymentMethod = await host.getOrCreateHostPaymentMethod();
   await orderCreated.setPaymentMethod({ uuid: hostPaymentMethod.uuid });
 
-  await libPayments.executeOrder(remoteUser, orderCreated, {
+  await executeOrder(remoteUser, orderCreated, {
     invoiceTemplate: order.invoiceTemplate,
     isAddedFund: true,
   });

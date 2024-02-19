@@ -8,7 +8,7 @@ import { createSandbox } from 'sinon';
 import { v4 as uuid } from 'uuid';
 
 import * as expenses from '../../server/graphql/common/expenses';
-import * as libpayments from '../../server/lib/payments';
+import { executeOrder } from '../../server/lib/payments';
 /* Libraries that create the objects */
 import models from '../../server/models';
 import { randStr } from '../test-helpers/fake-data';
@@ -352,7 +352,7 @@ export async function stripeOneTimeDonation(opt) {
     // Although it's supposed to be OK to omit `await' when returning
     // a promise, it's causing this call to fail probably because of
     // the try/catch so I'm keeping it here.
-    return await libpayments.executeOrder(remoteUser, order);
+    return await executeOrder(remoteUser, order);
   } finally {
     sandbox.restore();
   }

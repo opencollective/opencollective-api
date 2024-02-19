@@ -9,7 +9,7 @@ import { MODERATION_CATEGORIES_ALIASES } from '../../server/constants/moderation
 import orderStatus from '../../server/constants/order-status';
 import { purgeCacheForCollective } from '../../server/lib/cache';
 import logger from '../../server/lib/logger';
-import * as libPayments from '../../server/lib/payments';
+import { createRefundTransaction, findPaymentMethodProvider, refundTransaction } from '../../server/lib/payments';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import models, { Op, sequelize } from '../../server/models';
 
@@ -92,7 +92,7 @@ async function run({ dryRun, limit, force } = {}) {
       if (!transaction.RefundTransactionId) {
         logger.info(`  - Refunding transaction`);
         const paymentMethodProvider = transaction.PaymentMethod
-          ? libPayments.findPaymentMethodProvider(transaction.PaymentMethod)
+          ? findPaymentMethodProvider(transaction.PaymentMethod)
           : null;
         if (!paymentMethodProvider || !paymentMethodProvider.refundTransaction) {
           if (force) {
@@ -104,9 +104,9 @@ async function run({ dryRun, limit, force } = {}) {
         if (!dryRun) {
           try {
             if (paymentMethodProvider.refundTransaction) {
-              await libPayments.refundTransaction(transaction, null, 'Contribution rejected');
+              await refundTransaction(transaction, null, 'Contribution rejected');
             } else if (force) {
-              await libPayments.createRefundTransaction(transaction, 0, null);
+              await createRefundTransaction(transaction, 0, null);
             } else {
               if (order.status === 'PAID') {
                 shouldMarkAsRejected = false;

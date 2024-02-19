@@ -8,7 +8,7 @@ import MemberRoles from '../../../../../server/constants/roles';
 import { TransactionTypes } from '../../../../../server/constants/transactions';
 import * as TransactionMutationHelpers from '../../../../../server/graphql/common/transactions';
 import emailLib from '../../../../../server/lib/email';
-import * as payments from '../../../../../server/lib/payments';
+import { calcFee, executeOrder } from '../../../../../server/lib/payments';
 import stripe, { convertFromStripeAmount, convertToStripeAmount, extractFees } from '../../../../../server/lib/stripe';
 import models from '../../../../../server/models';
 import stripeMocks from '../../../../mocks/stripe';
@@ -101,7 +101,7 @@ describe('server/graphql/v2/mutation/TransactionMutations', () => {
       token: 'abc',
       CollectiveId: collective.host.id,
     });
-    await payments.executeOrder(randomUser, order1);
+    await executeOrder(randomUser, order1);
     transaction1 = await models.Transaction.findOne({
       where: {
         OrderId: order1.id,
@@ -109,7 +109,7 @@ describe('server/graphql/v2/mutation/TransactionMutations', () => {
         kind: 'CONTRIBUTION',
       },
     });
-    await payments.executeOrder(randomUser, order2);
+    await executeOrder(randomUser, order2);
     transaction2 = await models.Transaction.findOne({
       where: {
         OrderId: order2.id,
@@ -348,7 +348,7 @@ describe('refundTransaction legacy tests', () => {
       amountInHostCurrency: convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount),
       hostCurrencyFxRate:
         order.totalAmount / convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount),
-      hostFeeInHostCurrency: payments.calcFee(
+      hostFeeInHostCurrency: calcFee(
         convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount),
         collective.hostFeePercent,
       ),

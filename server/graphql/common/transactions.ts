@@ -7,7 +7,7 @@ import orderStatus from '../../constants/order-status';
 import POLICIES from '../../constants/policies';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
-import * as libPayments from '../../lib/payments';
+import { refundTransaction as refundTransactionPayment } from '../../lib/payments';
 import { getPolicy } from '../../lib/policies';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import models from '../../models';
@@ -234,7 +234,7 @@ export async function refundTransaction(
 
   // 2. Refund via payment method
   // 3. Create new transactions with the refund value in our database
-  const result = await libPayments.refundTransaction(transaction, req.remoteUser, args.message);
+  const result = await refundTransactionPayment(transaction, req.remoteUser, args.message);
 
   // Return the transaction passed to the `refundTransaction` method
   // after it was updated.

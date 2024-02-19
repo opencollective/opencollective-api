@@ -49,7 +49,7 @@ import errors from '../../lib/errors';
 import { formatAddress } from '../../lib/format-address';
 import logger from '../../lib/logger';
 import { floatAmountToCents } from '../../lib/math';
-import * as libPayments from '../../lib/payments';
+import { createRefundTransaction } from '../../lib/payments';
 import { listPayPalTransactions } from '../../lib/paypal';
 import { getPolicy } from '../../lib/policies';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
@@ -2877,7 +2877,7 @@ export async function markExpenseAsUnpaid(
       }
     }
 
-    await libPayments.createRefundTransaction(transaction, refundedPaymentProcessorFeeAmount, null, expense.User);
+    await createRefundTransaction(transaction, refundedPaymentProcessorFeeAmount, null, expense.User);
 
     await expense.update({ status: newExpenseStatus, lastEditedById: remoteUser.id, PaymentMethodId: null });
     return { expense, transaction };
