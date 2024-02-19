@@ -24,7 +24,7 @@ const { CHARGE } = ExpenseType;
  * Export transactions as CSV
  * @param {*} transactions
  */
-export function exportTransactions(transactions, attributes) {
+export function exportTransactions(transactions, attributes?) {
   attributes = attributes || [
     'id',
     'createdAt',
@@ -240,7 +240,7 @@ export async function createTransactionsFromPaidExpense(
     PaymentMethodId: paymentMethod?.id,
     PayoutMethodId: expense.PayoutMethodId,
     taxAmount: processedAmounts.tax.inCollectiveCurrency,
-    clearedAt: clearedAt || null,
+    clearedAt: clearedAt,
     data: {
       ...data,
       ...expenseDataForTransaction,
@@ -334,7 +334,7 @@ export async function createTransactionsForManuallyPaidExpense(
     HostCollectiveId: host.id,
     PayoutMethodId: expense.PayoutMethodId,
     PaymentMethodId: expense.PaymentMethodId,
-    clearedAt: clearedAt || null,
+    clearedAt: clearedAt,
     data: {
       isManual: true,
       ...data,

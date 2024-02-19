@@ -17,7 +17,8 @@ module.exports = {
                 (data #>> '{paypalTransaction,time}')::TIMESTAMP,
                 (data #>> '{capture,create_time}')::TIMESTAMP,
                 (data #>> '{time_processed}')::TIMESTAMP,
-                (data #>> '{transfer,created}')::TIMESTAMP
+                (data #>> '{transfer,created}')::TIMESTAMP,
+                "createdAt"
         ) AS "clearedAt"
       FROM "Transactions"
       WHERE

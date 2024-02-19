@@ -433,6 +433,7 @@ const Transaction: ModelStatic<TransactionInterface> & TransactionModelStaticInt
 
     clearedAt: {
       type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
     },
 
     /** A virtual field to make working with settlements easier. Must be preloaded manually. */
@@ -1104,7 +1105,7 @@ Transaction.createHostFeeTransactions = async (
     paymentProcessorFeeInHostCurrency: 0,
     OrderId: transaction.OrderId,
     createdAt: transaction.createdAt,
-    clearedAt: transaction.clearedAt,
+    clearedAt: transaction.clearedAt || transaction.createdAt,
     data,
   };
 
@@ -1193,7 +1194,7 @@ Transaction.createPaymentProcessorFeeTransactions = async (
     PaymentMethodId: transaction.PaymentMethodId,
     PayoutMethodId: transaction.PayoutMethodId,
     createdAt: transaction.createdAt,
-    clearedAt: transaction.clearedAt,
+    clearedAt: transaction.clearedAt || transaction.createdAt,
     data,
   };
 
@@ -1297,7 +1298,7 @@ Transaction.createTaxTransactions = async (
     isRefund: transaction.isRefund,
     CreatedByUserId: transaction.CreatedByUserId,
     createdAt: transaction.createdAt,
-    clearedAt: transaction.clearedAt,
+    clearedAt: transaction.clearedAt || transaction.createdAt,
     data: { ...data, ...pick(transaction.data, ['tax']) },
   };
 
@@ -1381,7 +1382,7 @@ Transaction.createHostFeeShareTransactions = async (
     paymentProcessorFeeInHostCurrency: 0,
     OrderId: hostFeeTransaction.OrderId,
     createdAt: hostFeeTransaction.createdAt,
-    clearedAt: hostFeeTransaction.clearedAt,
+    clearedAt: hostFeeTransaction.clearedAt || hostFeeTransaction.createdAt,
   };
 
   const hostFeeShareTransaction = await Transaction.createDoubleEntry(hostFeeShareTransactionData);

@@ -562,6 +562,12 @@ export const TransactionFields = () => {
         return transaction.createdAt;
       },
     },
+    clearedAt: {
+      type: GraphQLDateTime,
+      resolve(transaction) {
+        return transaction.clearedAt || transaction.createdAt;
+      },
+    },
     expense: {
       type: GraphQLExpense,
       resolve(transaction, _, req) {

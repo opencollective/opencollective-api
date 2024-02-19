@@ -3,7 +3,7 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.addColumn('Transactions', 'clearedAt', { type: Sequelize.DATE });
+    await queryInterface.addColumn('Transactions', 'clearedAt', { type: Sequelize.DATE, defaultValue: Sequelize.NOW });
 
     await queryInterface.sequelize.query(`
       CREATE INDEX CONCURRENTLY IF NOT EXISTS "transactions__collective_clearedAt"
