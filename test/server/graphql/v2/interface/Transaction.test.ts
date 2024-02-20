@@ -5,7 +5,7 @@ import { roles } from '../../../../../server/constants';
 import { createRefundTransaction } from '../../../../../server/lib/payments';
 import { createTransactionsFromPaidExpense } from '../../../../../server/lib/transactions';
 import models from '../../../../../server/models';
-import { fakeExpense, fakeUser } from '../../../../test-helpers/fake-data';
+import { fakeExpense, fakeTransaction, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB, seedDefaultVendors } from '../../../../utils';
 
 describe('Transaction', () => {
@@ -152,5 +152,52 @@ describe('Transaction', () => {
         isRefund: true,
       },
     ]);
+  });
+
+  describe('clearedAt', () => {
+    it('should fetch clearedAt date', async () => {
+      const transaction = await fakeTransaction(
+        { amount: 1000, CollectiveId: expense.CollectiveId, clearedAt: new Date('2024-02-20T00:00:00Z') },
+        { createDoubleEntry: true },
+      );
+      const query = `
+      query Transaction($id: String!) {
+        transaction(id: $id) {
+          id
+          legacyId
+          clearedAt
+          createdAt
+        }
+      }
+    `;
+
+      const result = await graphqlQueryV2(query, { id: transaction.uuid }, hostAdmin);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.transaction.clearedAt.toISOString()).to.equal('2024-02-20T00:00:00.000Z');
+      expect(result.data.transaction.createdAt.toISOString()).to.not.equal('2024-02-20T00:00:00.000Z');
+    });
+
+    it('should default to createdAt if null', async () => {
+      const transaction = await fakeTransaction(
+        { amount: 1000, CollectiveId: expense.CollectiveId, clearedAt: null },
+        { createDoubleEntry: true },
+      );
+      const query = `
+      query Transaction($id: String!) {
+        transaction(id: $id) {
+          id
+          legacyId
+          clearedAt
+          createdAt
+        }
+      }
+    `;
+
+      const result = await graphqlQueryV2(query, { id: transaction.uuid }, hostAdmin);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.transaction.clearedAt.toISOString()).to.equal(transaction.createdAt.toISOString());
+    });
   });
 });
