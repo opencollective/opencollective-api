@@ -67,6 +67,12 @@ Subject: New financial contributor to {{{collective.name}}}: {{{member.memberCol
     <td>{{order.tier.name}}</td>
   </tr>
   {{/if}}
+  {{#ifCond order.quantity '>' 1}}
+  <tr>
+    <th>Quantity:</th>
+    <td>{{order.quantity}}</td>
+  </tr>
+  {{/ifCond}}
   <tr>
     <th>Amount:</th>
     <td>{{currency order.totalAmount currency=order.currency}}</td>
