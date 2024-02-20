@@ -2,6 +2,7 @@
 
 import { expect } from 'chai';
 import { set } from 'lodash';
+import proxyquire from 'proxyquire';
 import { assert, createSandbox } from 'sinon';
 import Stripe from 'stripe';
 
@@ -9,11 +10,9 @@ import { Service } from '../../../../server/constants/connected-account';
 import FEATURE from '../../../../server/constants/feature';
 import OrderStatuses from '../../../../server/constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
-import * as libPayments from '../../../../server/lib/payments';
 import stripe from '../../../../server/lib/stripe';
 import models from '../../../../server/models';
 import * as common from '../../../../server/paymentProviders/stripe/common';
-import * as webhook from '../../../../server/paymentProviders/stripe/webhook';
 import stripeMocks from '../../../mocks/stripe';
 import {
   fakeCollective,
@@ -27,11 +26,21 @@ import {
 import * as utils from '../../../utils';
 
 describe('webhook', () => {
-  let sandbox;
+  let sandbox, webhook, sendEmailNotificationsStub, sendOrderFailedEmailStub;
 
   beforeEach(async () => {
     await utils.resetTestDB();
     sandbox = createSandbox();
+
+    sendEmailNotificationsStub = sandbox.stub();
+    sendOrderFailedEmailStub = sandbox.stub();
+
+    webhook = proxyquire('../../../../server/paymentProviders/stripe/webhook', {
+      '../../lib/payments': {
+        sendEmailNotifications: sendEmailNotificationsStub,
+        sendOrderFailedEmail: sendOrderFailedEmailStub,
+      },
+    });
   });
 
   afterEach(() => {
@@ -528,7 +537,6 @@ describe('webhook', () => {
 
       it('create transactions, send notifications, and updates the order', async () => {
         sandbox.stub(common, 'createChargeTransactions').resolves();
-        sandbox.stub(libPayments, 'sendEmailNotifications').resolves();
         await webhook.paymentIntentSucceeded(event);
 
         assert.calledOnceWithMatch(common.createChargeTransactions, event.data.object.charges.data[0], {
@@ -536,7 +544,7 @@ describe('webhook', () => {
             dataValues: { id: order.id },
           },
         });
-        assert.calledOnceWithMatch(libPayments.sendEmailNotifications, {
+        assert.calledOnceWithMatch(sendEmailNotificationsStub, {
           dataValues: { id: order.id },
         });
 
@@ -589,7 +597,6 @@ describe('webhook', () => {
       });
 
       it('send email notification and updates order.status', async () => {
-        sandbox.stub(libPayments, 'sendOrderFailedEmail').resolves();
         set(event, 'data.object.last_payment_error', {
           message: "You invested all your money on FTX and now you don't have anything left",
         });
@@ -600,7 +607,7 @@ describe('webhook', () => {
         expect(order.status).to.equal(OrderStatuses.ERROR);
         expect(order.data.paymentIntent.charges).to.not.be.null;
         assert.calledOnceWithMatch(
-          libPayments.sendOrderFailedEmail,
+          sendOrderFailedEmailStub,
           {
             dataValues: { id: order.id },
           },

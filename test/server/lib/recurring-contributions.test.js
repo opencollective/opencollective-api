@@ -1,12 +1,12 @@
 import { expect } from 'chai';
 import config from 'config';
 import moment from 'moment';
-import { createSandbox, stub, useFakeTimers } from 'sinon';
+import proxyquire from 'proxyquire';
+import { createSandbox, useFakeTimers } from 'sinon';
 
 import activities from '../../../server/constants/activities';
 import status from '../../../server/constants/order-status';
 import emailLib from '../../../server/lib/email';
-import * as paymentsLib from '../../../server/lib/payments';
 import {
   getChargeRetryCount,
   getNextChargeAndPeriodStartDates,
@@ -14,7 +14,6 @@ import {
   handleRetryStatus,
   MAX_RETRIES,
   ordersWithPendingCharges,
-  processOrderWithSubscription,
 } from '../../../server/lib/recurring-contributions';
 import models from '../../../server/models';
 import { randEmail } from '../../stores';
@@ -287,11 +286,19 @@ describe('server/lib/recurring-contributions', () => {
   });
 
   describe('#processOrderWithSubscription', () => {
-    let sandbox, sendSpy;
+    let sandbox, sendSpy, processOrderStub, recurringContributions;
 
     beforeEach(() => {
       sandbox = createSandbox();
       sendSpy = sandbox.spy(emailLib, 'send');
+
+      processOrderStub = sandbox.stub();
+
+      recurringContributions = proxyquire('../../../server/lib/recurring-contributions', {
+        './payments': {
+          processOrder: processOrderStub,
+        },
+      });
     });
 
     afterEach(() => {
@@ -302,7 +309,7 @@ describe('server/lib/recurring-contributions', () => {
       const order = await fakeOrder({}, { withSubscription: true, withBackerMember: true });
       sandbox.spy(order.Subscription, 'save');
 
-      const entry = await processOrderWithSubscription(order, { dryRun: true });
+      const entry = await recurringContributions.processOrderWithSubscription(order, { dryRun: true });
       // Wait for potential emails
       await utils.sleep(200);
 
@@ -313,31 +320,24 @@ describe('server/lib/recurring-contributions', () => {
     });
 
     describe('Update dates after processing an order @database', () => {
-      let paymentsStub;
-
       beforeEach(async () => {
-        paymentsStub = stub(paymentsLib, 'processOrder');
         await utils.resetTestDB();
-      });
-
-      afterEach(() => {
-        paymentsStub.restore();
       });
 
       it('should update dates after successfully processing monthly ', async () => {
         // Given an order with a subscription
         const { order } = await createOrderWithSubscription('month', '2018-01-27');
 
-        paymentsStub.resolves(null);
+        processOrderStub.resolves(null);
 
-        const entry = await processOrderWithSubscription(order, { dryRun: false });
+        const entry = await recurringContributions.processOrderWithSubscription(order, { dryRun: false });
 
         await utils.waitForCondition(() => sendSpy.callCount > 0);
         // And given that an email should be sent afterwards
         expect(sendSpy.args[0]).to.containSubset([activities.ORDER_THANKYOU, order.createdByUser.email]);
 
         // Expect the processOrder function was called
-        expect(paymentsStub.called).to.be.true;
+        expect(processOrderStub.called).to.be.true;
 
         // And then the status of the processing is successful
         expect(entry.status).to.equal('success');
@@ -353,15 +353,15 @@ describe('server/lib/recurring-contributions', () => {
 
         // And that the payments library will return a transaction (to
         // be included in the email)
-        paymentsStub.resolves(null);
+        processOrderStub.resolves(null);
 
         // When the order is processed
-        const entry = await processOrderWithSubscription(order, { dryRun: false });
+        const entry = await recurringContributions.processOrderWithSubscription(order, { dryRun: false });
         await utils.waitForCondition(() => sendSpy.callCount > 0);
 
         expect(sendSpy.args[0]).to.containSubset([activities.ORDER_THANKYOU, order.createdByUser.email]);
         // Expect the processOrder function was called
-        expect(paymentsStub.called).to.be.true;
+        expect(processOrderStub.called).to.be.true;
 
         // And then the status of the processing is successful
         expect(entry.status).to.equal('success');
@@ -376,14 +376,14 @@ describe('server/lib/recurring-contributions', () => {
         const { order } = await createOrderWithSubscription('year', '2018-01-27');
 
         // And that the payments library will throw an error
-        paymentsStub.rejects('TypeError -- Whatever');
+        processOrderStub.rejects('TypeError -- Whatever');
 
         // When the order is processed
-        const entry = await processOrderWithSubscription(order, { dryRun: false });
+        const entry = await recurringContributions.processOrderWithSubscription(order, { dryRun: false });
         await utils.waitForCondition(() => sendSpy.callCount > 0);
 
         // Expect the processOrder function was called
-        expect(paymentsStub.called).to.be.true;
+        expect(processOrderStub.called).to.be.true;
 
         // And then the status of the processing is successful
         expect(entry.status).to.equal('failure');
@@ -400,13 +400,13 @@ describe('server/lib/recurring-contributions', () => {
         // Given an order with a subscription
         const { order } = await createOrderWithSubscription('month', '2018-04-17');
 
-        paymentsStub.resolves({});
+        processOrderStub.resolves({});
 
         // When the order is processed
-        const entry = await processOrderWithSubscription(order, { dryRun: false });
+        const entry = await recurringContributions.processOrderWithSubscription(order, { dryRun: false });
 
         // Then expect the stub of the payment lib to be called
-        expect(paymentsStub.called).to.be.true;
+        expect(processOrderStub.called).to.be.true;
 
         // And then the status of the processing is successful
         expect(entry.status).to.equal('success');
@@ -420,13 +420,13 @@ describe('server/lib/recurring-contributions', () => {
         const { order } = await createOrderWithSubscription('month', '2018-04-17');
 
         // And that the payments library will throw an error
-        paymentsStub.rejects('TypeError -- Whatever');
+        processOrderStub.rejects('TypeError -- Whatever');
 
         // When the order is processed
-        const entry = await processOrderWithSubscription(order, { dryRun: false });
+        const entry = await recurringContributions.processOrderWithSubscription(order, { dryRun: false });
 
         // Then expect the stub of the payment lib to be called
-        expect(paymentsStub.called).to.be.true;
+        expect(processOrderStub.called).to.be.true;
 
         // And then the status of the processing fails
         expect(entry.status).to.equal('failure');
@@ -446,11 +446,11 @@ describe('server/lib/recurring-contributions', () => {
         await subscription.update({ chargeNumber: 2 });
 
         // When the order is processed
-        const entry = await processOrderWithSubscription(order, { dryRun: false });
+        const entry = await recurringContributions.processOrderWithSubscription(order, { dryRun: false });
 
         // Then expect the stub of the payment lib to NOT be called!
         // No charge should happen!!!
-        expect(paymentsStub.called).to.be.false;
+        expect(processOrderStub.called).to.be.false;
 
         // And then the status of the processing fails
         expect(entry.status).to.equal('failure');
