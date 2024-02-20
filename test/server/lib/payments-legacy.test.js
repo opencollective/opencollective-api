@@ -172,9 +172,7 @@ describe('server/lib/payments', () => {
       });
 
       it('stripe token is missing', () => {
-        order
-          .PexecuteOrder(user, order)
-          .catch(err => expect(err.message).to.equal('PaymentMethodId missing in the order'));
+        executeOrder(user, order).catch(err => expect(err.message).to.equal('PaymentMethodId missing in the order'));
       });
     });
 
