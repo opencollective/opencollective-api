@@ -1,7 +1,6 @@
 import { expect } from 'chai';
 import config from 'config';
 import moment from 'moment';
-import proxyquire from 'proxyquire';
 import { createSandbox, useFakeTimers } from 'sinon';
 
 import activities from '../../../server/constants/activities';
@@ -14,8 +13,10 @@ import {
   handleRetryStatus,
   MAX_RETRIES,
   ordersWithPendingCharges,
+  processOrderWithSubscription,
 } from '../../../server/lib/recurring-contributions';
 import models from '../../../server/models';
+import collective from '../../../server/paymentProviders/opencollective/collective';
 import { randEmail } from '../../stores';
 import { fakeCollective, fakeOrder } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
@@ -292,13 +293,7 @@ describe('server/lib/recurring-contributions', () => {
       sandbox = createSandbox();
       sendSpy = sandbox.spy(emailLib, 'send');
 
-      processOrderStub = sandbox.stub();
-
-      recurringContributions = proxyquire('../../../server/lib/recurring-contributions', {
-        './payments': {
-          processOrder: processOrderStub,
-        },
-      });
+      processOrderStub = sandbox.stub(collective, 'processOrder');
     });
 
     afterEach(() => {
@@ -309,7 +304,7 @@ describe('server/lib/recurring-contributions', () => {
       const order = await fakeOrder({}, { withSubscription: true, withBackerMember: true });
       sandbox.spy(order.Subscription, 'save');
 
-      const entry = await recurringContributions.processOrderWithSubscription(order, { dryRun: true });
+      const entry = await processOrderWithSubscription(order, { dryRun: true });
       // Wait for potential emails
       await utils.sleep(200);
 
@@ -330,7 +325,7 @@ describe('server/lib/recurring-contributions', () => {
 
         processOrderStub.resolves(null);
 
-        const entry = await recurringContributions.processOrderWithSubscription(order, { dryRun: false });
+        const entry = await processOrderWithSubscription(order, { dryRun: false });
 
         await utils.waitForCondition(() => sendSpy.callCount > 0);
         // And given that an email should be sent afterwards
@@ -356,7 +351,7 @@ describe('server/lib/recurring-contributions', () => {
         processOrderStub.resolves(null);
 
         // When the order is processed
-        const entry = await recurringContributions.processOrderWithSubscription(order, { dryRun: false });
+        const entry = await processOrderWithSubscription(order, { dryRun: false });
         await utils.waitForCondition(() => sendSpy.callCount > 0);
 
         expect(sendSpy.args[0]).to.containSubset([activities.ORDER_THANKYOU, order.createdByUser.email]);
@@ -379,7 +374,7 @@ describe('server/lib/recurring-contributions', () => {
         processOrderStub.rejects('TypeError -- Whatever');
 
         // When the order is processed
-        const entry = await recurringContributions.processOrderWithSubscription(order, { dryRun: false });
+        const entry = await processOrderWithSubscription(order, { dryRun: false });
         await utils.waitForCondition(() => sendSpy.callCount > 0);
 
         // Expect the processOrder function was called
@@ -403,7 +398,7 @@ describe('server/lib/recurring-contributions', () => {
         processOrderStub.resolves({});
 
         // When the order is processed
-        const entry = await recurringContributions.processOrderWithSubscription(order, { dryRun: false });
+        const entry = await processOrderWithSubscription(order, { dryRun: false });
 
         // Then expect the stub of the payment lib to be called
         expect(processOrderStub.called).to.be.true;
@@ -423,7 +418,7 @@ describe('server/lib/recurring-contributions', () => {
         processOrderStub.rejects('TypeError -- Whatever');
 
         // When the order is processed
-        const entry = await recurringContributions.processOrderWithSubscription(order, { dryRun: false });
+        const entry = await processOrderWithSubscription(order, { dryRun: false });
 
         // Then expect the stub of the payment lib to be called
         expect(processOrderStub.called).to.be.true;
@@ -446,7 +441,7 @@ describe('server/lib/recurring-contributions', () => {
         await subscription.update({ chargeNumber: 2 });
 
         // When the order is processed
-        const entry = await recurringContributions.processOrderWithSubscription(order, { dryRun: false });
+        const entry = await processOrderWithSubscription(order, { dryRun: false });
 
         // Then expect the stub of the payment lib to NOT be called!
         // No charge should happen!!!
