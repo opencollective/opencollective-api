@@ -125,6 +125,7 @@ export interface OrderModelInterface
   getOrCreateMembers(): Promise<[MemberModelInterface, MemberModelInterface]>;
   getUser(): Promise<User>;
   setPaymentMethod(paymentMethodData);
+  populate(): Promise<void>;
 
   /**
    * Similar to what we do in `lockExpense`, this locks an order by setting a special flag in `data`

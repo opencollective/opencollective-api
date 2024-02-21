@@ -13,8 +13,10 @@ import tiers from '../constants/tiers';
 import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
 import models, { Op } from '../models';
+import { PayoutMethodTypes } from '../models/PayoutMethod';
 import TransactionSettlement, { TransactionSettlementStatus } from '../models/TransactionSettlement';
 import paymentProviders from '../paymentProviders';
+import { RecipientAccount as BankAccountPayoutMethodData } from '../types/transferwise';
 
 import { notify } from './notifications/email';
 import { getFxRate } from './currency';
@@ -158,7 +160,7 @@ export function calcFee(amount, fee) {
   return Math.round((amount * fee) / 100);
 }
 
-export const buildRefundForTransaction = (t, user, data, refundedPaymentProcessorFee) => {
+export const buildRefundForTransaction = (t, user, data, refundedPaymentProcessorFee = 0) => {
   const refund = pick(t, [
     'currency',
     'FromCollectiveId',
@@ -179,7 +181,7 @@ export const buildRefundForTransaction = (t, user, data, refundedPaymentProcesso
     'kind',
     'isDebt',
     'PayoutMethodId',
-  ]);
+  ]) as any;
 
   refund.CreatedByUserId = user?.id || null;
   refund.description = `Refund of "${t.description}"`;
@@ -234,7 +236,12 @@ export const buildRefundForTransaction = (t, user, data, refundedPaymentProcesso
   return refund;
 };
 
-export const refundPaymentProcessorFeeToCollective = async (transaction, refundTransactionGroup, data, createdAt) => {
+export const refundPaymentProcessorFeeToCollective = async (
+  transaction,
+  refundTransactionGroup,
+  data = {},
+  createdAt = null,
+) => {
   if (transaction.CollectiveId === transaction.HostCollectiveId) {
     return;
   }
@@ -279,13 +286,13 @@ export const refundPaymentProcessorFeeToCollective = async (transaction, refundT
   });
 };
 
-export async function refundPaymentProcessorFee(
+async function refundPaymentProcessorFee(
   transaction,
   user,
   refundedPaymentProcessorFee,
   transactionGroup,
-  data,
-  clearedAt,
+  data = {},
+  clearedAt = null,
 ) {
   const isLegacyPaymentProcessorFee = Boolean(transaction.paymentProcessorFeeInHostCurrency);
 
@@ -340,7 +347,14 @@ export async function refundPaymentProcessorFee(
   }
 }
 
-export async function refundHostFee(transaction, user, refundedPaymentProcessorFee, transactionGroup, data, clearedAt) {
+export async function refundHostFee(
+  transaction,
+  user,
+  refundedPaymentProcessorFee,
+  transactionGroup,
+  data = {},
+  clearedAt = null,
+) {
   const hostFeeTransaction = await transaction.getHostFeeTransaction();
   const buildRefund = transaction => {
     return {
@@ -391,7 +405,7 @@ export async function refundHostFee(transaction, user, refundedPaymentProcessorF
   }
 }
 
-export async function refundTax(transaction, user, transactionGroup, data, clearedAt) {
+async function refundTax(transaction, user, transactionGroup, data = {}, clearedAt = null) {
   const taxTransaction = await transaction.getTaxTransaction();
   if (taxTransaction) {
     const taxRefundData = {
@@ -511,7 +525,7 @@ export async function createRefundTransaction(
   return associateTransactionRefundId(transaction, refundTransaction, data);
 }
 
-export async function associateTransactionRefundId(transaction, refund, data) {
+export async function associateTransactionRefundId(transaction, refund, data = {}) {
   const transactions = await models.Transaction.findAll({
     order: ['id'],
     where: {
@@ -628,7 +642,7 @@ export const createSubscription = async order => {
  * @param {Object} order { tier, description, totalAmount, currency, interval (null|month|year), paymentMethod }
  * @param {Object} options { hostFeePercent, platformFeePercent} (only for add funds and if remoteUser is admin of host or root)
  */
-export const executeOrder = async (user, order, options = {}) => {
+export const executeOrder = async (user, order, options: { isAddedFund?: boolean; invoiceTemplate?: string } = {}) => {
   if (!(user instanceof models.User)) {
     return Promise.reject(new Error('user should be an instance of the User model'));
   }
@@ -762,6 +776,8 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
       firstPayment: true,
       subscriptionsLink: interval && getEditRecurringContributionsUrl(fromCollective),
       customMessage,
+      transactionPdf: false,
+      platformTipPdf: false,
     };
 
     // hit PDF service and get PDF (unless payment method type is gift card)
@@ -810,7 +826,10 @@ export const sendOrderPendingEmail = async order => {
   const manualPayoutMethod = await models.PayoutMethod.findOne({
     where: { CollectiveId: host.id, data: { isManualBankTransfer: true } },
   });
-  const account = manualPayoutMethod ? formatAccountDetails(manualPayoutMethod.data) : '';
+  const account =
+    manualPayoutMethod?.type === PayoutMethodTypes.BANK_ACCOUNT
+      ? formatAccountDetails(manualPayoutMethod.data as BankAccountPayoutMethodData)
+      : '';
 
   const data = {
     account,
@@ -820,6 +839,7 @@ export const sendOrderPendingEmail = async order => {
     host: host.info,
     fromCollective: fromCollective.activity,
     subscriptionsLink: getEditRecurringContributionsUrl(fromCollective),
+    instructions: null,
   };
   const instructions = get(host, 'settings.paymentMethods.manual.instructions');
   if (instructions) {
@@ -851,7 +871,7 @@ export const sendOrderPendingEmail = async order => {
   });
 };
 
-export const sendOrderProcessingEmail = async order => {
+const sendOrderProcessingEmail = async order => {
   const { collective, fromCollective } = order;
   const user = order.createdByUser;
   const host = await collective.getHostCollective();
