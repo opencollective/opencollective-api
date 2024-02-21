@@ -1,9 +1,9 @@
 /* eslint-disable camelcase */
-
 import config from 'config';
 import debugLib from 'debug';
 import { Request } from 'express';
 import { get, omit } from 'lodash';
+import moment from 'moment';
 import type Stripe from 'stripe';
 import { v4 as uuid } from 'uuid';
 
@@ -412,6 +412,7 @@ export const chargeDisputeClosed = async (event: Stripe.Event) => {
     const disputeTransaction = dispute.balance_transactions.find(
       tx => tx.type === 'adjustment' && tx.reporting_category === 'dispute',
     );
+    const clearedAt = disputeTransaction?.created && moment.unix(disputeTransaction.created).toDate();
 
     // A lost dispute means it was decided as fraudulent
     if (disputeStatus === 'lost') {
@@ -440,6 +441,7 @@ export const chargeDisputeClosed = async (event: Stripe.Event) => {
         },
         null,
         transactionGroup,
+        clearedAt,
       );
 
       // Create transaction for dispute fee debiting the fiscal host
@@ -474,6 +476,7 @@ export const chargeDisputeClosed = async (event: Stripe.Event) => {
         platformFeeInHostCurrency: 0,
         hostCurrencyFxRate,
         kind: TransactionKind.PAYMENT_PROCESSOR_DISPUTE_FEE,
+        clearedAt,
         data: { dispute },
       });
 
@@ -553,6 +556,7 @@ export const reviewClosed = async (event: Stripe.Event) => {
   const review = event.data.object as Stripe.Review;
   const stripePaymentIntentId = review.payment_intent;
   const closedReason = review.closed_reason;
+  const clearedAt = event.created && moment.unix(event.created).toDate();
 
   const paymentIntentTransaction = await models.Transaction.findOne({
     // eslint-disable-next-line camelcase
@@ -613,6 +617,7 @@ export const reviewClosed = async (event: Stripe.Event) => {
         },
         null,
         transactionGroup,
+        clearedAt,
       );
 
       // charge review was determined to be fraudulent
