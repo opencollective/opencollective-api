@@ -285,6 +285,7 @@ export async function refundPaymentProcessorFee(
   refundedPaymentProcessorFee,
   transactionGroup,
   data,
+  clearedAt,
 ) {
   const isLegacyPaymentProcessorFee = Boolean(transaction.paymentProcessorFeeInHostCurrency);
 
@@ -317,6 +318,7 @@ export async function refundPaymentProcessorFee(
       const processorFeeRefund = {
         ...buildRefundForTransaction(processorFeeTransaction, user, data),
         TransactionGroup: transactionGroup,
+        clearedAt,
       };
 
       const processorFeeRefundTransaction = await models.Transaction.createDoubleEntry(processorFeeRefund);
@@ -338,12 +340,13 @@ export async function refundPaymentProcessorFee(
   }
 }
 
-export async function refundHostFee(transaction, user, refundedPaymentProcessorFee, transactionGroup, data) {
+export async function refundHostFee(transaction, user, refundedPaymentProcessorFee, transactionGroup, data, clearedAt) {
   const hostFeeTransaction = await transaction.getHostFeeTransaction();
   const buildRefund = transaction => {
     return {
       ...buildRefundForTransaction(transaction, user, data, refundedPaymentProcessorFee),
       TransactionGroup: transactionGroup,
+      clearedAt,
     };
   };
 
@@ -388,12 +391,13 @@ export async function refundHostFee(transaction, user, refundedPaymentProcessorF
   }
 }
 
-export async function refundTax(transaction, user, transactionGroup, data) {
+export async function refundTax(transaction, user, transactionGroup, data, clearedAt) {
   const taxTransaction = await transaction.getTaxTransaction();
   if (taxTransaction) {
     const taxRefundData = {
       ...buildRefundForTransaction(taxTransaction, user, data),
       TransactionGroup: transactionGroup,
+      clearedAt,
     };
     const taxRefundTransaction = await models.Transaction.createDoubleEntry(taxRefundData);
     await associateTransactionRefundId(taxTransaction, taxRefundTransaction, data);
@@ -430,6 +434,7 @@ export async function createRefundTransaction(
   data,
   user,
   transactionGroupId = null,
+  clearedAt = null,
 ) {
   /* If the transaction passed isn't the one from the collective
    * perspective, the opposite transaction is retrieved.
@@ -453,6 +458,7 @@ export async function createRefundTransaction(
   const buildRefund = transaction => {
     return {
       ...buildRefundForTransaction(transaction, user, data, refundedPaymentProcessorFee),
+      clearedAt: clearedAt,
       TransactionGroup: transactionGroup,
     };
   };
@@ -491,13 +497,13 @@ export async function createRefundTransaction(
   }
 
   // Refund Payment Processor Fee
-  await refundPaymentProcessorFee(transaction, user, refundedPaymentProcessorFee, transactionGroup);
+  await refundPaymentProcessorFee(transaction, user, refundedPaymentProcessorFee, transactionGroup, clearedAt);
 
   // Refund Host Fee
-  await refundHostFee(transaction, user, refundedPaymentProcessorFee, transactionGroup);
+  await refundHostFee(transaction, user, refundedPaymentProcessorFee, transactionGroup, clearedAt);
 
   // Refund Tax
-  await refundTax(transaction, user, transactionGroup);
+  await refundTax(transaction, user, transactionGroup, clearedAt);
 
   // Refund main transaction
   const creditTransactionRefund = buildRefund(transaction);
