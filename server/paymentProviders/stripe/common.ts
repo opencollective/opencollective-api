@@ -14,6 +14,7 @@ import {
   createRefundTransaction,
   getHostFee,
   getHostFeeSharePercent,
+  getPlatformFee,
   getPlatformTip,
   isPlatformTipEligible,
 } from '../../lib/payments';
@@ -156,10 +157,16 @@ export const createChargeTransactions = async (
   const platformTipEligible = await isPlatformTipEligible(order, host);
   const platformTip = getPlatformTip(order);
 
+  const platformFee = await getPlatformFee(order);
+
   let platformTipInHostCurrency, platformFeeInHostCurrency;
   if (platformTip) {
     platformTipInHostCurrency = isSharedRevenue
       ? Math.round(platformTip * hostCurrencyFxRate) || 0
+      : fees.applicationFee;
+  } else if (platformFee) {
+    platformFeeInHostCurrency = isSharedRevenue
+      ? Math.round(platformFee * hostCurrencyFxRate) || 0
       : fees.applicationFee;
   } else if (config.env === 'test' || config.env === 'ci') {
     // Retro Compatibility with some tests expecting Platform Fees, not for production anymore
@@ -193,14 +200,14 @@ export const createChargeTransactions = async (
     OrderId: order.id,
     amount,
     currency,
-    hostCurrency,
     amountInHostCurrency,
+    hostCurrency,
     hostCurrencyFxRate,
     paymentProcessorFeeInHostCurrency,
+    hostFeeInHostCurrency,
     platformFeeInHostCurrency,
     taxAmount: order.taxAmount,
     description: order.description,
-    hostFeeInHostCurrency,
     data,
     clearedAt,
   };

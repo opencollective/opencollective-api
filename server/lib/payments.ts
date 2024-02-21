@@ -7,7 +7,7 @@ import { v4 as uuid } from 'uuid';
 import activities from '../constants/activities';
 import { ExpenseFeesPayer } from '../constants/expense-fees-payer';
 import status from '../constants/order-status';
-import { PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import roles from '../constants/roles';
 import tiers from '../constants/tiers';
 import { TransactionKind } from '../constants/transaction-kind';
@@ -999,13 +999,23 @@ export const sendExpiringCreditCardUpdateEmail = async data => {
 };
 
 export const getApplicationFee = async (order, { host = null } = {}) => {
-  let applicationFee = getPlatformTip(order);
+  let applicationFee = 0;
 
+  const platformTipAmount = getPlatformTip(order);
+  if (platformTipAmount) {
+    applicationFee += platformTipAmount;
+  }
+
+  const hostFeeAmount = await getHostFee(order, { host });
   const hostFeeSharePercent = await getHostFeeSharePercent(order, { host });
-  if (hostFeeSharePercent) {
-    const hostFee = await getHostFee(order, { host });
-    const sharedRevenue = calcFee(hostFee, hostFeeSharePercent);
-    applicationFee += sharedRevenue;
+  if (hostFeeAmount && hostFeeSharePercent) {
+    const hostFeeShareAmount = calcFee(hostFeeAmount, hostFeeSharePercent);
+    applicationFee += hostFeeShareAmount;
+  }
+
+  const platformFeeAmount = await getPlatformFee(order);
+  if (platformFeeAmount) {
+    applicationFee += platformFeeAmount;
   }
 
   return applicationFee;
@@ -1022,23 +1032,64 @@ export const getPlatformTip = object => {
   return 0;
 };
 
-export const getPlatformFeePercent = async () => {
-  // Platform Fees are deprecated
+export const getPlatformFeePercent = async (order, { loaders = null } = {}) => {
+  // Platform Fees are back!
+
+  // Make sure paymentMethod is set
+  if (!order.paymentMethod && order.PaymentMethodId) {
+    order.paymentMethod = await order.getPaymentMethod();
+  }
+
+  // If "crowdfunding" (Stripe or PayPal)
+  if ([PAYMENT_METHOD_SERVICE.STRIPE, PAYMENT_METHOD_SERVICE.PAYPAL].includes(order.paymentMethod?.service)) {
+    const collective =
+      order.collective || (await (loaders?.Collective.byId.load(order.CollectiveId) || order.getCollective()));
+    const parentCollective = await collective.getParentCollective({ loaders });
+    // const data = parentCollective ? parentCollective.data : collective.data;
+    const settings = parentCollective ? parentCollective.settings : collective.settings;
+
+    // And collective has opt out platform tips
+    if (
+      // We used the data field to disable Platform Tips for a bunch of BRL collectives
+      // (!isNil(data?.platformTips) && !data.platformTips) ||
+      !isNil(settings?.platformTips) &&
+      !settings.platformTips
+    ) {
+      return config.fees.default.platformPercent;
+    }
+  }
+
   return 0;
 };
 
 export const getHostFee = async (order, { host = null } = {}) => {
-  const platformTip = getPlatformTip(order);
+  const totalAmount = order.totalAmount || 0;
   const taxAmount = order.taxAmount || 0;
+  const platformTip = getPlatformTip(order);
 
   const hostFeePercent = await getHostFeePercent(order, { host });
 
-  return calcFee(order.totalAmount - platformTip - taxAmount, hostFeePercent);
+  return calcFee(totalAmount - taxAmount - platformTip, hostFeePercent);
+};
+
+export const getPlatformFee = async order => {
+  const totalAmount = order.totalAmount || 0;
+  const taxAmount = order.taxAmount || 0;
+  const platformTip = getPlatformTip(order);
+
+  const platformFeePercent = await getPlatformFeePercent(order);
+
+  return calcFee(totalAmount - taxAmount - platformTip, platformFeePercent);
 };
 
 export const isPlatformTipEligible = async (order, host = null) => {
+  // We used the data field to disable Platform Tips for a bunch of BRL collectives
   if (!isNil(order.collective.data?.platformTips)) {
     return order.collective.data.platformTips;
+  }
+
+  if (!isNil(order.collective.settings?.platformTips)) {
+    return order.collective.settings.platformTips;
   }
 
   if (!order.paymentMethod && order.PaymentMethodId) {
@@ -1187,10 +1238,11 @@ export const getHostFeePercent = async (order, { host = null, loaders = null } =
 };
 
 export const getHostFeeSharePercent = async (order, { host = null, loaders = null } = {}) => {
+  if (!order.collective) {
+    order.collective = (await loaders?.Collective.byId.load(order.CollectiveId)) || (await order.getCollective());
+  }
+
   if (!host) {
-    if (!order.collective) {
-      order.collective = (await loaders?.Collective.byId.load(order.CollectiveId)) || (await order.getCollective());
-    }
     host = await order.collective.getHostCollective({ loaders });
   }
 
@@ -1199,8 +1251,15 @@ export const getHostFeeSharePercent = async (order, { host = null, loaders = nul
   const possibleValues = [];
 
   if (order) {
-    // Platform Tip Eligible? No Host Fee Share, that's it
-    if (order.platformTipEligible === true) {
+    if (isNil(order.platformTipEligible)) {
+      order.platformTipEligible = await isPlatformTipEligible(order, host);
+    }
+    if (isNil(order.platformFee)) {
+      order.platformFee = await getPlatformFee(order);
+    }
+
+    // Platform Tip Eligible or Platform Fee? No Host Fee Share, that's it
+    if (order.platformTipEligible === true || order.platformFee !== 0) {
       return 0;
     }
 

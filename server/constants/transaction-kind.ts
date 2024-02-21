@@ -21,6 +21,8 @@ export enum TransactionKind {
   PAYMENT_PROCESSOR_FEE = 'PAYMENT_PROCESSOR_FEE',
   /** Reserved keyword in case we want to use in the future */
   PLATFORM_FEE = 'PLATFORM_FEE',
+  /** Reserved keyword in case we want to use in the future */
+  PLATFORM_FEE_DEBT = 'PLATFORM_FEE_DEBT',
   /** Financial contribution to Open Collective added on top of another contribution */
   PLATFORM_TIP = 'PLATFORM_TIP',
   /** Financial contribution to Open Collective added on top of another contribution */

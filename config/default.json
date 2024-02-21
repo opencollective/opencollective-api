@@ -39,7 +39,7 @@
   "fees": {
     "default": {
       "hostPercent": 0,
-      "platformPercent": 0
+      "platformPercent": 5
     }
   },
   "limits": {
