@@ -131,7 +131,10 @@ export const checkBatchItemStatus = async (
         }
         // This will detect that payoutMethodType=PAYPAL and set service=paypal AND type=payout
         await expense.setAndSavePaymentMethodIfMissing();
-        await createTransactionsFromPaidExpense(host, expense, fees, fxRate, item);
+        await createTransactionsFromPaidExpense(host, expense, fees, fxRate, {
+          ...item,
+          clearedAt: item.time_processed && new Date(item.time_processed),
+        });
         // Mark Expense as Paid, create activity and send notifications
         await expense.markAsPaid();
       }

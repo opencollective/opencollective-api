@@ -208,6 +208,9 @@ const transactionFieldsDefinition = () => ({
   updatedAt: {
     type: GraphQLDateTime,
   },
+  clearedAt: {
+    type: GraphQLDateTime,
+  },
   expense: {
     type: GraphQLExpense,
   },
@@ -557,6 +560,12 @@ export const TransactionFields = () => {
       resolve(transaction) {
         // Transactions are immutable right?
         return transaction.createdAt;
+      },
+    },
+    clearedAt: {
+      type: GraphQLDateTime,
+      resolve(transaction) {
+        return transaction.clearedAt || transaction.createdAt;
       },
     },
     expense: {

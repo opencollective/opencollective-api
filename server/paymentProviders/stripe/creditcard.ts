@@ -114,8 +114,8 @@ const createChargeAndTransactions = async (
     },
   });
 
-  const charge = paymentIntent.latest_charge || ((paymentIntent as any).charges.data[0] as Stripe.Charge);
-  return createChargeTransactions(charge, { order });
+  const charge = paymentIntent.latest_charge || (paymentIntent as any).charges.data[0];
+  return createChargeTransactions(charge as Stripe.Charge, { order });
 };
 
 export const setupCreditCard = async (

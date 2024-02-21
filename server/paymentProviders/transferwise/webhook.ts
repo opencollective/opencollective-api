@@ -70,13 +70,10 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
     // This will detect that payoutMethodType=BANK_ACCOUNT and set service=wise AND type=bank_transfer
     await expense.setAndSavePaymentMethodIfMissing();
 
-    await createTransactionsFromPaidExpense(
-      expense.host,
-      expense,
-      feesInHostCurrency,
-      expenseToHostRate,
-      pick(expense.data, ['fund', 'transfer']),
-    );
+    await createTransactionsFromPaidExpense(expense.host, expense, feesInHostCurrency, expenseToHostRate, {
+      ...pick(expense.data, ['fund', 'transfer']),
+      clearedAt: event.data?.occurred_at && new Date(event.data.occurred_at),
+    });
 
     await expense.update({ data: { ...expense.data, feesInHostCurrency } });
 

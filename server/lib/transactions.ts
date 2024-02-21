@@ -24,7 +24,7 @@ const { CHARGE } = ExpenseType;
  * Export transactions as CSV
  * @param {*} transactions
  */
-export function exportTransactions(transactions, attributes) {
+export function exportTransactions(transactions, attributes?) {
   attributes = attributes || [
     'id',
     'createdAt',
@@ -185,7 +185,7 @@ export async function createTransactionsFromPaidExpense(
   /** Set this to a different value if the expense was paid in a currency that differs form the host's */
   expenseToHostFxRateConfig: number | 'auto',
   /** Will be stored in transaction.data */
-  transactionData: Record<string, unknown> = null,
+  transactionData: Record<string, unknown> & { clearedAt?: Date } = null,
 ) {
   fees = { ...DEFAULT_FEES, ...fees };
   if (!expense.collective) {
@@ -209,6 +209,7 @@ export async function createTransactionsFromPaidExpense(
   }
 
   const paymentMethod = await expense.getPaymentMethod();
+  const { clearedAt, ...data } = transactionData || {};
 
   // To group all the info we retrieved from the payment. All amounts are expected to be in expense currency
   const { paymentProcessorFeeInHostCurrency, hostFeeInHostCurrency, platformFeeInHostCurrency } = fees;
@@ -239,8 +240,9 @@ export async function createTransactionsFromPaidExpense(
     PaymentMethodId: paymentMethod?.id,
     PayoutMethodId: expense.PayoutMethodId,
     taxAmount: processedAmounts.tax.inCollectiveCurrency,
+    clearedAt: clearedAt,
     data: {
-      ...(transactionData || {}),
+      ...data,
       ...expenseDataForTransaction,
     },
   };
@@ -262,7 +264,7 @@ export async function createTransactionsForManuallyPaidExpense(
   paymentProcessorFeeInHostCurrency,
   totalAmountPaidInHostCurrency,
   /** Will be stored in transaction.data */
-  transactionData: Record<string, unknown> = {},
+  transactionData: Record<string, unknown> & { clearedAt?: Date } = {},
 ) {
   assert(paymentProcessorFeeInHostCurrency >= 0, 'Payment processor fee must be positive');
   assert(totalAmountPaidInHostCurrency > 0, 'Total amount paid must be positive');
@@ -314,6 +316,7 @@ export async function createTransactionsForManuallyPaidExpense(
     };
   }
 
+  const { clearedAt, ...data } = transactionData || {};
   // To group all the info we retrieved from the payment. All amounts are expected to be in expense currency
   const transaction = {
     ...amounts,
@@ -331,9 +334,10 @@ export async function createTransactionsForManuallyPaidExpense(
     HostCollectiveId: host.id,
     PayoutMethodId: expense.PayoutMethodId,
     PaymentMethodId: expense.PaymentMethodId,
+    clearedAt: clearedAt,
     data: {
       isManual: true,
-      ...transactionData,
+      ...data,
       ...expenseDataForTransaction,
     },
   };

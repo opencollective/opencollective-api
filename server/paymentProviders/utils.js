@@ -107,6 +107,7 @@ export const persistTransaction = async (virtualCard, transaction) => {
         hostCurrencyFxRate,
         kind: TransactionKind.EXPENSE,
         data: transaction.data,
+        clearedAt: transaction.clearedAt,
       });
 
       const expenseAttachment = await models.ExpenseAttachedFile.findOne({

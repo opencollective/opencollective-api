@@ -76,6 +76,8 @@ export interface TransactionInterface
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date;
+  /** The effective date the transaction was settled outside the platform, in the account it transacted. */
+  clearedAt: Date;
 
   // Foreign keys
   CreatedByUserId: number;
@@ -429,6 +431,11 @@ const Transaction: ModelStatic<TransactionInterface> & TransactionModelStaticInt
       type: DataTypes.DATE,
     },
 
+    clearedAt: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+    },
+
     /** A virtual field to make working with settlements easier. Must be preloaded manually. */
     settlementStatus: {
       type: DataTypes.VIRTUAL,
@@ -459,6 +466,7 @@ const Transaction: ModelStatic<TransactionInterface> & TransactionModelStaticInt
           amount: this.amount,
           currency: this.currency,
           createdAt: this.createdAt,
+          clearedAt: this.clearedAt,
           CreatedByUserId: this.CreatedByUserId,
           FromCollectiveId: this.FromCollectiveId,
           CollectiveId: this.CollectiveId,
@@ -907,6 +915,7 @@ Transaction.createPlatformTipDebtTransactions = async (
       'HostCollectiveId',
       'OrderId',
       'createdAt',
+      'clearedAt',
       'currency',
       'hostCurrency',
       'hostCurrencyFxRate',
@@ -980,6 +989,7 @@ Transaction.createPlatformTipTransactions = async (
       'CreatedByUserId',
       'PaymentMethodId',
       'UsingGiftCardFromCollectiveId',
+      'clearedAt',
     ]),
     type: CREDIT,
     kind: TransactionKind.PLATFORM_TIP,
@@ -1095,6 +1105,7 @@ Transaction.createHostFeeTransactions = async (
     paymentProcessorFeeInHostCurrency: 0,
     OrderId: transaction.OrderId,
     createdAt: transaction.createdAt,
+    clearedAt: transaction.clearedAt || transaction.createdAt,
     data,
   };
 
@@ -1183,6 +1194,7 @@ Transaction.createPaymentProcessorFeeTransactions = async (
     PaymentMethodId: transaction.PaymentMethodId,
     PayoutMethodId: transaction.PayoutMethodId,
     createdAt: transaction.createdAt,
+    clearedAt: transaction.clearedAt || transaction.createdAt,
     data,
   };
 
@@ -1286,6 +1298,7 @@ Transaction.createTaxTransactions = async (
     isRefund: transaction.isRefund,
     CreatedByUserId: transaction.CreatedByUserId,
     createdAt: transaction.createdAt,
+    clearedAt: transaction.clearedAt || transaction.createdAt,
     data: { ...data, ...pick(transaction.data, ['tax']) },
   };
 
@@ -1369,6 +1382,7 @@ Transaction.createHostFeeShareTransactions = async (
     paymentProcessorFeeInHostCurrency: 0,
     OrderId: hostFeeTransaction.OrderId,
     createdAt: hostFeeTransaction.createdAt,
+    clearedAt: hostFeeTransaction.clearedAt || hostFeeTransaction.createdAt,
   };
 
   const hostFeeShareTransaction = await Transaction.createDoubleEntry(hostFeeShareTransactionData);
@@ -1400,6 +1414,7 @@ Transaction.createHostFeeShareDebtTransactions = async ({
       'HostCollectiveId',
       'OrderId',
       'createdAt',
+      'clearedAt',
       'currency',
       'hostCurrency',
       'hostCurrencyFxRate',
