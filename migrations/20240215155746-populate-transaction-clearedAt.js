@@ -5,12 +5,10 @@ module.exports = {
   async up(queryInterface) {
     const [, metadata] = await queryInterface.sequelize.query(`
       WITH to_update AS (SELECT
-        id,
-        data,
-        kind,
-        "createdAt",
         "TransactionGroup",
-        COALESCE(
+        MIN(COALESCE(
+                to_timestamp((data#>>'{dispute,created}')::INT),
+                to_timestamp((data#>>'{refund,created}')::INT),
                 to_timestamp((data#>>'{charge,created}')::INT),
                 to_timestamp((data#>>'{transaction,created}')::INT),
                 (data #>> '{paypalSale,create_time}')::TIMESTAMP,
@@ -19,13 +17,13 @@ module.exports = {
                 (data #>> '{time_processed}')::TIMESTAMP,
                 (data #>> '{transfer,created}')::TIMESTAMP,
                 "createdAt"
-        ) AS "clearedAt"
+        )) AS "clearedAt"
       FROM "Transactions"
       WHERE
         "deletedAt" IS NULL
-        AND "createdAt" >= '2024-01-01'::DATE
-        AND kind IN ('CONTRIBUTION', 'EXPENSE')
-        AND type = 'CREDIT')
+        AND "createdAt" >= '2024-01-01'
+        AND kind IN ('CONTRIBUTION', 'EXPENSE', 'ADDED_FUNDS', 'BALANCE_TRANSFER', 'PREPAID_PAYMENT_METHOD')
+        GROUP BY "TransactionGroup")
 
       UPDATE "Transactions"
       SET "clearedAt" = u."clearedAt"
