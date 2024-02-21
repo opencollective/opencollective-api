@@ -27,7 +27,7 @@ const defaultDate = process.env.START_DATE ? moment.utc(process.env.START_DATE) 
 const DRY = process.env.DRY;
 const HOST_ID = process.env.HOST_ID;
 const isProduction = config.env === 'production';
-const { PLATFORM_TIP_DEBT, HOST_FEE_SHARE_DEBT } = TransactionKind;
+const { PLATFORM_TIP_DEBT, HOST_FEE_SHARE_DEBT, PLATFORM_FEE_DEBT } = TransactionKind;
 
 // Only run on the 1th of the month
 if (isProduction && new Date().getDate() !== 1 && !process.env.OFFCYCLE) {
@@ -86,6 +86,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
 
     const pendingPlatformTips = await getPendingPlatformTips(host, { status: ['OWED'], endDate });
     const pendingHostFeeShare = await getPendingHostFeeShare(host, { status: ['OWED'], endDate });
+    const pendingPlatformFees = await getPendingPlatformFees(host, { status: ['OWED'], endDate });
 
     const plan = await host.getPlan();
 
@@ -97,7 +98,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       FROM "Transactions" as t
       INNER JOIN "TransactionSettlements" ts ON ts."TransactionGroup" = t."TransactionGroup" AND t.kind = ts.kind
       WHERE t."CollectiveId" = :CollectiveId
-        AND t."kind" IN ('PLATFORM_TIP_DEBT', 'HOST_FEE_SHARE_DEBT')
+        AND t."kind" IN ('PLATFORM_TIP_DEBT', 'HOST_FEE_SHARE_DEBT', 'PLATFORM_FEE_DEBT')
         AND t."isDebt" IS TRUE
         AND t."deletedAt" IS NULL
         AND ts."status" = 'OWED'
@@ -116,6 +117,15 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
         amount: pendingPlatformTips,
         currency: host.currency,
         description: 'Platform Tips',
+      });
+    }
+
+    if (pendingPlatformFees) {
+      items.push({
+        incurredAt: new Date(),
+        amount: pendingPlatformFees,
+        currency: host.currency,
+        description: 'Platform Fees',
       });
     }
 
@@ -211,7 +221,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       const csvUrl = getTransactionsCsvUrl('transactions', host, {
         startDate,
         endDate,
-        kind: [PLATFORM_TIP_DEBT, HOST_FEE_SHARE_DEBT],
+        kind: [PLATFORM_TIP_DEBT, HOST_FEE_SHARE_DEBT, PLATFORM_FEE_DEBT],
         add: ['orderLegacyId'],
       });
       if (csvUrl) {
