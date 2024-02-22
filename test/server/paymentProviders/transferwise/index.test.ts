@@ -447,7 +447,7 @@ describe('server/paymentProviders/transferwise/index', () => {
       const call = transferwise.payExpensesBatchGroup(host, [expense]);
       await expect(call).to.be.eventually.rejectedWith(
         Error,
-        `Can not pay batch group, existing batch group was already processed`,
+        `Can not pay batch group, existing batch group was already paid`,
       );
     });
 
