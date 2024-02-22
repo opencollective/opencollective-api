@@ -7,7 +7,7 @@ import models from '../../models';
 import { bulkCreateGiftCards, createGiftCardsForEmails } from '../../paymentProviders/opencollective/giftcard';
 import { checkCanEmitGiftCards } from '../common/features';
 import { editPublicMessage } from '../common/members';
-import { createUser } from '../common/user';
+import { confirmUserEmail, createUser } from '../common/user';
 import { NotFound, RateLimitExceeded, Unauthorized } from '../errors';
 
 import {
@@ -26,7 +26,7 @@ import { editConnectedAccount } from './mutations/connectedAccounts';
 import { createWebhook, deleteNotification, editWebhooks } from './mutations/notifications';
 import * as paymentMethodsMutation from './mutations/paymentMethods';
 import { editTier, editTiers } from './mutations/tiers';
-import { confirmUserEmail, updateUserEmail } from './mutations/users';
+import { updateUserEmail } from './mutations/users';
 import { CollectiveInterfaceType } from './CollectiveInterface';
 import {
   CollectiveInputType,
