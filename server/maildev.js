@@ -2,6 +2,6 @@
 
 import MailDev from 'maildev'; // eslint-disable-line node/no-unpublished-import
 
-const maildev = new MailDev();
+const maildev = new MailDev({ smtp: 1025, ip: 'localhost' });
 
 export default maildev;
