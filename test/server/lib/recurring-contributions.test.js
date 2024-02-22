@@ -287,7 +287,7 @@ describe('server/lib/recurring-contributions', () => {
   });
 
   describe('#processOrderWithSubscription', () => {
-    let sandbox, sendSpy, processOrderStub, recurringContributions;
+    let sandbox, sendSpy, processOrderStub;
 
     beforeEach(() => {
       sandbox = createSandbox();
