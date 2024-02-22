@@ -120,6 +120,7 @@ const transactionMutations = {
         FromCollectiveId: orderToUpdate.FromCollectiveId,
         CollectiveId: orderToUpdate.CollectiveId,
         HostCollectiveId: toAccount.approvedAt ? toAccount.HostCollectiveId : null,
+        UserId: req.remoteUser.id,
         data: {
           rejectionReason,
           collective: toAccount.info,
