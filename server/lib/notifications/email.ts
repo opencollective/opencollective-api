@@ -24,6 +24,8 @@ import { replaceVideosByImagePreviews } from './utils';
 
 const debug = debugLib('notifications');
 
+const VENDOR_SUBSCRIBED_ACTIVITIES = [ActivityTypes.ORDER_THANKYOU];
+
 type NotifySubscribersOptions = {
   attachments?: any[];
   bcc?: string;
@@ -147,7 +149,12 @@ export const notify = {
     const collectiveId = options?.collectiveId || activity.CollectiveId;
     const collective = options?.collective || (await models.Collective.findByPk(collectiveId));
     const isVendor = collective?.type === CollectiveType.VENDOR;
-    if (isVendor) {
+    if (isVendor && VENDOR_SUBSCRIBED_ACTIVITIES.includes(activity.type)) {
+      // Notify the vendor, prioritizing the contact information used on the pending contribution data
+      const email = activity.data?.fromAccountInfo?.email || collective?.data?.vendorInfo?.contact?.email;
+      if (email) {
+        await emailLib.send(options?.template || activity.type, email, activity.data, options);
+      }
       return;
     }
 
