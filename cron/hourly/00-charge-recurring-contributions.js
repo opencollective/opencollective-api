@@ -3,8 +3,8 @@ import '../../server/env';
 
 import fs from 'fs';
 
+import { Parser } from '@json2csv/plainjs';
 import { ArgumentParser } from 'argparse';
-import { parse as json2csv } from 'json2csv';
 import PQueue from 'p-queue';
 
 import FEATURE from '../../server/constants/feature';
@@ -17,6 +17,8 @@ import {
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import { parseToBoolean } from '../../server/lib/utils';
 import { sequelize } from '../../server/models';
+
+const json2csv = (data, opts = undefined) => new Parser(opts).parse(data);
 
 const REPORT_EMAIL = 'ops@opencollective.com';
 

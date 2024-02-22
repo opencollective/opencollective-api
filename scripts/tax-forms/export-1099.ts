@@ -10,8 +10,8 @@ import '../../server/env';
 import fs from 'fs';
 import path from 'path';
 
+import { Parser } from '@json2csv/plainjs';
 import { Command } from 'commander';
-import { parse as json2CSV } from 'json2csv';
 import { get, truncate } from 'lodash';
 import markdownTable from 'markdown-table'; // eslint-disable-line node/no-unpublished-import
 
@@ -22,6 +22,8 @@ import {
 } from '../../server/controllers/helloworks';
 import { formatCurrency } from '../../server/lib/utils';
 import models, { sequelize } from '../../server/models';
+
+const json2csv = (data, opts = undefined) => new Parser(opts).parse(data);
 
 const taxFormsQuery = `
   -- Get tax forms
@@ -212,7 +214,7 @@ const generateExport = async (
     });
   }
 
-  const csv = json2CSV(preparedData, { header: true });
+  const csv = json2csv(preparedData, { header: true });
   if (outputDir) {
     const tmpDir = path.join(outputDir, `${hostSlug}-${year}`);
 
