@@ -1,5 +1,6 @@
 import debugLib from 'debug';
 
+import logger from './logger';
 import { createRedisClient } from './redis';
 import { sleep } from './utils';
 
@@ -15,6 +16,7 @@ export async function lockUntilResolved<T>(
 ): Promise<T> {
   const redis = await createRedisClient();
   if (!redis) {
+    logger.warn(`Redis is not available, ${key} running without a mutex lock!`);
     return until();
   }
   const _key = `lock:${key}`;
