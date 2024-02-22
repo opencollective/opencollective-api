@@ -67,6 +67,7 @@
       "update": 10,
       "confirmToken": 15
     },
+    "setPasswordPerUserPerHour": 10,
     "skipCleanOrdersLimitSlugs": "",
     "enabledMasks": "",
     "sendGuestConfirmPerMinutePerEmail": 1,

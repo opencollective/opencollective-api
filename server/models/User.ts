@@ -125,7 +125,11 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
 
   generateResetPasswordLink = function ({ websiteUrl = null } = {}) {
     const passwordUpdatedAt = this.passwordUpdatedAt ? this.passwordUpdatedAt.getTime() : null;
-    const token = this.jwt({ scope: 'reset-password', passwordUpdatedAt }, auth.TOKEN_EXPIRATION_RESET_PASSWORD);
+    const token = this.jwt(
+      { scope: 'reset-password', passwordUpdatedAt, email: this.email },
+      auth.TOKEN_EXPIRATION_RESET_PASSWORD,
+    );
+
     // if a different websiteUrl is passed
     // we don't accept that in production to avoid fishing related issues
     if (websiteUrl && !['production', 'staging'].includes(config.env)) {
@@ -136,8 +140,11 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   };
 
   setPassword = async function (password, { userToken = null } = {}) {
-    if (Buffer.from(password).length > 72) {
+    const passwordBuffer = Buffer.from(password);
+    if (passwordBuffer.length > 72) {
       throw new Error('Password is too long, should not be more than 72 bytes.');
+    } else if (passwordBuffer.length < 6) {
+      throw new Error('Password must be at least 6 characters long.');
     }
 
     const passwordHash = await bcrypt.hash(password, /* saltRounds */ 10);

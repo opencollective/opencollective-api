@@ -1,4 +1,7 @@
+import assert from 'assert';
+
 import bcrypt from 'bcrypt';
+import config from 'config';
 import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
@@ -55,7 +58,9 @@ const individualMutations = {
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
       checkRemoteUserCanUseAccount(req);
 
-      const rateLimit = new RateLimit(`individual_set_password_${req.remoteUser.id}`, 10, ONE_HOUR_IN_SECONDS, true);
+      const rateLimitKey = `individual_set_password_${req.remoteUser.id}`;
+      const rateLimitMax = config.limits.setPasswordPerUserPerHour;
+      const rateLimit = new RateLimit(rateLimitKey, rateLimitMax, ONE_HOUR_IN_SECONDS);
       if (!(await rateLimit.registerCall())) {
         throw new RateLimitExceeded();
       }
@@ -64,8 +69,11 @@ const individualMutations = {
       const account = await req.remoteUser.getCollective({ loaders: req.loaders });
       await TwoFactorAuthLib.enforceForAccount(req, account, { alwaysAskForToken: true });
 
-      // Check current password if one already set
-      if (req.remoteUser.passwordHash && req.jwtPayload?.scope !== 'reset-password') {
+      if (req.jwtPayload?.scope === 'reset-password') {
+        // If resetting with a reset token, the email must match
+        assert(req.jwtPayload['email'] === req.remoteUser.email, 'This token has expired');
+      } else if (req.remoteUser.passwordHash) {
+        // Check current password if one already set
         if (!args.currentPassword) {
           throw new Unauthorized('Submit current password to change password.');
         }
