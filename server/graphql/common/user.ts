@@ -9,7 +9,7 @@ import emailLib from '../../lib/email';
 import logger from '../../lib/logger';
 import models, { Collective, Op, sequelize } from '../../models';
 import User from '../../models/User';
-import { ValidationFailed } from '../errors';
+import { InvalidToken, ValidationFailed } from '../errors';
 
 type CreateUserOptions = {
   organizationData?: {
@@ -122,4 +122,28 @@ export const hasSeenLatestChangelogEntry = async (user: User): Promise<boolean> 
     cache.set(cacheKey, latestChangelogUpdatePublishDate, 24 * 60 * 60);
   }
   return userChangelogViewDate >= latestChangelogUpdatePublishDate;
+};
+
+/**
+ * From a given token (generated in `updateUserEmail`) confirm the new email
+ * and updates the user record.
+ */
+export const confirmUserEmail = async emailConfirmationToken => {
+  if (!emailConfirmationToken) {
+    throw new ValidationFailed('Email confirmation token must be set');
+  }
+
+  const user = await models.User.findOne({ where: { emailConfirmationToken } });
+
+  if (!user) {
+    throw new InvalidToken('Invalid email confirmation token', 'INVALID_TOKEN', {
+      internalData: { emailConfirmationToken },
+    });
+  }
+
+  return user.update({
+    email: user.emailWaitingForValidation,
+    emailWaitingForValidation: null,
+    emailConfirmationToken: null,
+  });
 };
