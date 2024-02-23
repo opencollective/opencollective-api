@@ -1661,8 +1661,7 @@ Transaction.getFxRate = async function (fromCurrency, toCurrency, transaction) {
     }
   }
 
-  const createdAt = transaction.createdAt || new Date();
-  return getFxRate(fromCurrency, toCurrency, createdAt);
+  return getFxRate(fromCurrency, toCurrency, transaction.createdAt || 'latest');
 };
 
 Transaction.updateCurrency = async function (currency: SupportedCurrency, transaction: TransactionInterface) {
