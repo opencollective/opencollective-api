@@ -50,6 +50,11 @@ const accountQuery = gql`
         id
         legacyId
       }
+      permissions {
+        canDownloadPaymentReceipts {
+          allowed
+        }
+      }
       stats {
         balance {
           value
@@ -511,6 +516,81 @@ describe('server/graphql/v2/query/AccountQuery', () => {
         result.errors && console.error(result.errors);
         expect(result.data.account.stats.balance.value).to.eq(64424509.41);
         expect(result.data.account.stats.balance.valueInCents).to.eq(6442450941);
+      });
+    });
+  });
+
+  describe('permissions', () => {
+    describe('canDownloadPaymentReceipts', () => {
+      it('is false if unauthenticated', async () => {
+        const collective = await fakeCollective();
+        const result = await graphqlQueryV2(accountQuery, { slug: collective.slug });
+        expect(result.data.account.permissions.canDownloadPaymentReceipts.allowed).to.be.false;
+      });
+
+      it('is false for random users', async () => {
+        const collective = await fakeCollective();
+        const randomUser = await fakeUser();
+        const result = await graphqlQueryV2(accountQuery, { slug: collective.slug }, randomUser);
+        expect(result.data.account.permissions.canDownloadPaymentReceipts.allowed).to.be.false;
+      });
+
+      it('is false for backers', async () => {
+        const collective = await fakeCollective();
+        const backer = await fakeUser();
+        await collective.addUserWithRole(backer, 'BACKER');
+        const result = await graphqlQueryV2(accountQuery, { slug: collective.slug }, backer);
+        expect(result.data.account.permissions.canDownloadPaymentReceipts.allowed).to.be.false;
+      });
+
+      it('is true for collective admins', async () => {
+        const collective = await fakeCollective();
+        const admin = await fakeUser();
+        await collective.addUserWithRole(admin, 'ADMIN');
+        const result = await graphqlQueryV2(accountQuery, { slug: collective.slug }, admin);
+        expect(result.data.account.permissions.canDownloadPaymentReceipts.allowed).to.be.true;
+      });
+
+      it('is true for parent collective admins', async () => {
+        const collective = await fakeCollective();
+        const project = await fakeProject({ ParentCollectiveId: collective.id });
+        const collectiveAdmin = await fakeUser();
+        await collective.addUserWithRole(collectiveAdmin, 'ADMIN');
+        const result = await graphqlQueryV2(accountQuery, { slug: project.slug }, collectiveAdmin);
+        expect(result.data.account.permissions.canDownloadPaymentReceipts.allowed).to.be.true;
+      });
+
+      it('is true for host admins', async () => {
+        const collective = await fakeCollective();
+        const admin = await fakeUser();
+        await collective.host.addUserWithRole(admin, 'ADMIN');
+        const result = await graphqlQueryV2(accountQuery, { slug: collective.slug }, admin);
+        expect(result.data.account.permissions.canDownloadPaymentReceipts.allowed).to.be.true;
+      });
+
+      it('is true for collective accountants', async () => {
+        const collective = await fakeCollective();
+        const accountant = await fakeUser();
+        await collective.addUserWithRole(accountant, 'ACCOUNTANT');
+        const result = await graphqlQueryV2(accountQuery, { slug: collective.slug }, accountant);
+        expect(result.data.account.permissions.canDownloadPaymentReceipts.allowed).to.be.true;
+      });
+
+      it('is true for parent collective accountants', async () => {
+        const collective = await fakeCollective();
+        const project = await fakeProject({ ParentCollectiveId: collective.id });
+        const accountant = await fakeUser();
+        await collective.addUserWithRole(accountant, 'ACCOUNTANT');
+        const result = await graphqlQueryV2(accountQuery, { slug: project.slug }, accountant);
+        expect(result.data.account.permissions.canDownloadPaymentReceipts.allowed).to.be.true;
+      });
+
+      it('is true for host accountants', async () => {
+        const collective = await fakeCollective();
+        const accountant = await fakeUser();
+        await collective.host.addUserWithRole(accountant, 'ACCOUNTANT');
+        const result = await graphqlQueryV2(accountQuery, { slug: collective.slug }, accountant);
+        expect(result.data.account.permissions.canDownloadPaymentReceipts.allowed).to.be.true;
       });
     });
   });

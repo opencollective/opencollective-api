@@ -28,7 +28,11 @@ const recordTransaction = async (
   amount,
   currency,
   paypalFee,
-  { data = undefined, createdAt = undefined, clearedAt = undefined } = {},
+  {
+    data = undefined,
+    createdAt = undefined,
+    clearedAt = undefined,
+  }: { data?: object; createdAt?: Date; clearedAt?: Date } = {},
 ): Promise<TransactionInterface> => {
   order.collective = order.collective || (await order.getCollective());
   const host = await order.collective.getHostCollective();
@@ -66,8 +70,8 @@ const recordTransaction = async (
     paymentProcessorFeeInHostCurrency,
     taxAmount: order.taxAmount,
     description: order.description,
-    createdAt: createdAt || null,
-    clearedAt: clearedAt || null,
+    clearedAt,
+    createdAt,
     data: {
       ...data,
       hasPlatformTip: platformTip ? true : false,

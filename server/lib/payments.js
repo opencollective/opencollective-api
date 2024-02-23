@@ -497,13 +497,13 @@ export async function createRefundTransaction(
   }
 
   // Refund Payment Processor Fee
-  await refundPaymentProcessorFee(transaction, user, refundedPaymentProcessorFee, transactionGroup, clearedAt);
+  await refundPaymentProcessorFee(transaction, user, refundedPaymentProcessorFee, transactionGroup, {}, clearedAt);
 
   // Refund Host Fee
-  await refundHostFee(transaction, user, refundedPaymentProcessorFee, transactionGroup, clearedAt);
+  await refundHostFee(transaction, user, refundedPaymentProcessorFee, transactionGroup, {}, clearedAt);
 
   // Refund Tax
-  await refundTax(transaction, user, transactionGroup, clearedAt);
+  await refundTax(transaction, user, transactionGroup, {}, clearedAt);
 
   // Refund main transaction
   const creditTransactionRefund = buildRefund(transaction);
