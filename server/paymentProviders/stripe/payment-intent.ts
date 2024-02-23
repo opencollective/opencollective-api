@@ -9,6 +9,7 @@ import { reportMessageToSentry } from '../../lib/sentry';
 import stripe, { convertToStripeAmount } from '../../lib/stripe';
 import models from '../../models';
 import { OrderModelInterface } from '../../models/Order';
+import { PaymentProviderService } from '../types';
 
 import { APPLICATION_FEE_INCOMPATIBLE_CURRENCIES, refundTransaction, refundTransactionOnlyInDatabase } from './common';
 
@@ -160,4 +161,4 @@ export default {
   processOrder,
   refundTransaction,
   refundTransactionOnlyInDatabase,
-};
+} as PaymentProviderService;

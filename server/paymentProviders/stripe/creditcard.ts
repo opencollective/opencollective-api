@@ -10,6 +10,7 @@ import { Collective } from '../../models';
 import { OrderModelInterface } from '../../models/Order';
 import { PaymentMethodModelInterface } from '../../models/PaymentMethod';
 import User from '../../models/User';
+import { PaymentProviderService } from '../types';
 
 import {
   APPLICATION_FEE_INCOMPATIBLE_CURRENCIES,
@@ -158,6 +159,7 @@ export const setupCreditCard = async (
 export default {
   features: {
     recurring: true,
+    isRecurringManagedExternally: false,
     waitToCharge: false,
   },
 
@@ -243,4 +245,4 @@ export default {
 
   refundTransaction,
   refundTransactionOnlyInDatabase,
-};
+} as PaymentProviderService;

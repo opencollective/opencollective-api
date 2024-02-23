@@ -19,6 +19,7 @@ import { OrderModelInterface } from '../../models/Order';
 import { TransactionInterface } from '../../models/Transaction';
 import User from '../../models/User';
 import { PaypalCapture, PaypalSale, PaypalTransaction } from '../../types/paypal';
+import { PaymentProviderService } from '../types';
 
 import { paypalRequestV2 } from './api';
 
@@ -303,4 +304,4 @@ export default {
   processOrder,
   refundTransaction: refundPaypalPaymentTransaction,
   refundTransactionOnlyInDatabase,
-};
+} as PaymentProviderService;
