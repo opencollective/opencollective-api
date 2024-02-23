@@ -12,6 +12,7 @@ import {
   ModelStatic,
   Transaction as SequelizeTransaction,
 } from 'sequelize';
+import Stripe from 'stripe';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../constants/activities';
@@ -31,11 +32,14 @@ import { stripHTML } from '../lib/sanitize-html';
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op } from '../lib/sequelize';
 import { exportToCSV, parseToBoolean } from '../lib/utils';
+import type { PaypalCapture, PaypalSale, PaypalTransaction } from '../types/paypal';
+import type { Transfer } from '../types/transferwise';
 
 import Activity from './Activity';
 import Collective from './Collective';
 import CustomDataTypes from './DataTypes';
-import Order, { OrderModelInterface } from './Order';
+import type Expense from './Expense';
+import Order, { OrderModelInterface, OrderTax } from './Order';
 import PaymentMethod, { PaymentMethodModelInterface } from './PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
 import TransactionSettlement, { TransactionSettlementStatus } from './TransactionSettlement';
@@ -46,6 +50,39 @@ const { CREDIT, DEBIT } = TransactionTypes;
 const { CONTRIBUTION, EXPENSE, ADDED_FUNDS } = TransactionKind;
 
 const debug = debugLib('models:Transaction');
+
+type Tax = Partial<OrderTax>;
+
+export type TransactionData = {
+  balanceTransaction?: Stripe.BalanceTransaction;
+  capture?: Partial<PaypalCapture>;
+  charge?: Stripe.Charge | { id?: any; payment_intent?: any }; // Second part to accomodate weird tests.
+  dispute?: Stripe.Dispute;
+  expenseToHostFxRate?: number;
+  feesPayer?: Expense['feesPayer'];
+  hostFeeMigration?: string;
+  hostToPlatformFxRate?: number;
+  isManual?: boolean;
+  isRefundedFromOurSystem?: boolean;
+  oppositeTransactionFeesCurrencyFxRate?: number;
+  oppositeTransactionHostCurrencyFxRate?: number;
+  paypalResponse?: Record<string, unknown>;
+  paypalSale?: Partial<PaypalSale>;
+  paypalTransaction?: Partial<PaypalTransaction>;
+  platformTipInHostCurrency?: number;
+  preMigrationData?: TransactionData;
+  refund?: Stripe.Refund;
+  refundedFromDoubleTransactionsScript?: boolean;
+  refundReason?: string;
+  refundTransactionId?: TransactionInterface['id'];
+  review?: Stripe.Event; // Why not Stripe.Review? Who knows
+  settled?: boolean;
+  tax?: Tax;
+  taxAmountRemovedFromMigration?: number;
+  taxMigration?: string;
+  taxRemovedFromMigration?: Tax;
+  transfer?: Transfer;
+};
 
 export interface TransactionInterface
   extends Model<InferAttributes<TransactionInterface>, InferCreationAttributes<TransactionInterface>> {
@@ -64,7 +101,7 @@ export interface TransactionInterface
   paymentProcessorFeeInHostCurrency: number | null;
   platformFeeInHostCurrency: number | null;
   taxAmount: number | null;
-  data: Record<string, unknown> | null;
+  data: TransactionData | null;
   TransactionGroup: string;
   isRefund: boolean;
   isDebt: boolean;
@@ -1220,10 +1257,6 @@ Transaction.getTaxVendor = memoize(async (taxId): Promise<Collective> => {
 
   return Collective.findBySlug(vendorByTaxId[taxId] || vendorByTaxId['OTHER']);
 });
-
-interface Tax {
-  id?: string;
-}
 
 /**
  * For contributions, the contributor pays the full amount then the tax is debited from the collective balance (to the TAX vendor)

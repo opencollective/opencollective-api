@@ -3,7 +3,6 @@ import config from 'config';
 import debugLib from 'debug';
 import { find, get, includes, isNil, isNumber, omit, pick } from 'lodash';
 import { v4 as uuid } from 'uuid';
-import type Stripe from 'stripe';
 
 import activities from '../constants/activities';
 import { ExpenseFeesPayer } from '../constants/expense-fees-payer';
@@ -15,7 +14,7 @@ import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
 import models, { Op } from '../models';
 import { PayoutMethodTypes } from '../models/PayoutMethod';
-import { TransactionInterface } from '../models/Transaction';
+import { TransactionCreationAttributes, TransactionData, TransactionInterface } from '../models/Transaction';
 import TransactionSettlement, { TransactionSettlementStatus } from '../models/TransactionSettlement';
 import User from '../models/User';
 import paymentProviders from '../paymentProviders';
@@ -163,7 +162,12 @@ export function calcFee(amount, fee) {
   return Math.round((amount * fee) / 100);
 }
 
-export const buildRefundForTransaction = (t, user, data, refundedPaymentProcessorFee = 0) => {
+export const buildRefundForTransaction = (
+  t: TransactionInterface,
+  user: User,
+  data: TransactionData,
+  refundedPaymentProcessorFee: number = 0,
+): TransactionCreationAttributes => {
   const refund = pick(t, [
     'currency',
     'FromCollectiveId',
@@ -454,17 +458,7 @@ async function refundTax(
 export async function createRefundTransaction(
   transaction: TransactionInterface,
   refundedPaymentProcessorFee: number,
-  data: {
-    refundReason?: string;
-    charge?: Stripe.Charge;
-    dispute?: Stripe.Dispute;
-    review?: Stripe.Event;
-    refund?: Stripe.Refund;
-    balanceTransaction?: Stripe.BalanceTransaction;
-    refundTransactionId?: TransactionInterface['id'];
-    paypalResponse?: Record<string, unknown>;
-    refundedFromDoubleTransactionsScript?: boolean;
-  },
+  data: TransactionData,
   user: User,
   transactionGroupId: string = null,
   clearedAt: Date = null,

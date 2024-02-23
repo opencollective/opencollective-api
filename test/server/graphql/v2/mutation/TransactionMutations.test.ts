@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import gql from 'fake-tag';
 import nock from 'nock';
 import { createSandbox } from 'sinon';
+import Stripe from 'stripe';
 
 import { SupportedCurrency } from '../../../../../server/constants/currencies';
 import MemberRoles from '../../../../../server/constants/roles';
@@ -331,7 +332,7 @@ describe('refundTransaction legacy tests', () => {
       net: convertToStripeAmount(currency, 457500),
       status: 'pending',
       type: 'charge',
-    };
+    } as Stripe.BalanceTransaction;
     /* eslint-enable camelcase */
     const fees = extractFees(balanceTransaction, balanceTransaction.currency);
     const transactionPayload = {
@@ -344,7 +345,7 @@ describe('refundTransaction legacy tests', () => {
       amount: order.totalAmount,
       taxAmount: order.taxAmount,
       currency: order.currency,
-      hostCurrency: balanceTransaction.currency,
+      hostCurrency: balanceTransaction.currency as SupportedCurrency,
       amountInHostCurrency: convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount),
       hostCurrencyFxRate:
         order.totalAmount / convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount),

@@ -15,7 +15,7 @@ import { validateWebhookEvent } from '../../lib/paypal';
 import { sendThankYouEmail } from '../../lib/recurring-contributions';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
 import models, { Op } from '../../models';
-import { PayoutWebhookRequest } from '../../types/paypal';
+import { PaypalCapture, PayoutWebhookRequest } from '../../types/paypal';
 
 import { paypalRequestV2 } from './api';
 import { findTransactionByPaypalId, recordPaypalCapture, recordPaypalSale } from './payment';
@@ -238,7 +238,7 @@ async function handleCaptureRefunded(req: Request): Promise<void> {
   const refundLinks = <Record<string, string>[]>refundDetails.links;
   const captureLink = refundLinks.find(l => l.rel === 'up' && l.method === 'GET');
   const capturePath = captureLink.href.replace(/^.+\/v2\//, ''); // https://api.sandbox.paypal.com/v2/payments/captures/... -> payments/captures/...
-  const captureDetails = await paypalRequestV2(capturePath, host, 'GET');
+  const captureDetails = (await paypalRequestV2(capturePath, host, 'GET')) as PaypalCapture;
 
   // Load associated transaction, make sure they're not refunded already
   const transaction = await models.Transaction.findOne({

@@ -46,10 +46,12 @@ interface OrderModelStaticInterface {
 }
 
 export type OrderTax = {
-  id: TaxType;
+  id: TaxType | `${TaxType}`;
   percentage: number;
   taxedCountry: string;
   taxerCountry: string;
+  taxIDNumber?: string;
+  taxIDNumberFrom?: string;
 };
 
 export interface OrderModelInterface
