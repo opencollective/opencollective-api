@@ -9,7 +9,7 @@ import { Service } from '../../../server/constants/connected-account';
 import * as auth from '../../../server/lib/auth';
 import models from '../../../server/models';
 import { randEmail } from '../../stores';
-import { fakeConnectedAccount, fakeUser, multiple } from '../../test-helpers/fake-data';
+import { fakeCollective, fakeConnectedAccount, fakeEvent, fakeUser, multiple } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 const userData = utils.data('user1');
 
@@ -106,6 +106,73 @@ describe('server/models/User', () => {
       // And then the default expiration of the token should have a
       // short life time
       expect(decoded.exp).to.equal(auth.TOKEN_EXPIRATION_LOGIN);
+    });
+  });
+
+  describe('permissions', () => {
+    describe('isAdminOfCollective', () => {
+      it('returns true if user is a direct admin of the collective', async () => {
+        const user = await fakeUser();
+        const collective = await fakeCollective({ admin: user });
+        await user.populateRoles();
+        expect(user.isAdminOfCollective(collective)).to.be.true;
+      });
+
+      it('returns true if user is an admin of the parent', async () => {
+        const user = await fakeUser();
+        const parent = await fakeCollective({ admin: user });
+        const collective = await fakeEvent({ ParentCollectiveId: parent.id });
+        await user.populateRoles();
+        expect(user.isAdminOfCollective(collective)).to.be.true;
+      });
+
+      it('returns false if user is not an admin of the collective', async () => {
+        const collective = await fakeCollective();
+
+        const randomUser = await fakeUser();
+        await randomUser.populateRoles();
+        expect(randomUser.isAdminOfCollective(collective)).to.be.false;
+
+        const hostAdmin = await fakeUser();
+        await collective.host.addUserWithRole(hostAdmin, 'ADMIN');
+        await hostAdmin.populateRoles();
+        expect(hostAdmin.isAdminOfCollective(collective)).to.be.false;
+      });
+    });
+
+    describe('hasRoleInCollectiveOrHost', () => {
+      it('returns true if user has any of the roles in the collective', async () => {
+        const user = await fakeUser();
+        const collective = await fakeCollective({ admin: user });
+        await user.populateRoles();
+        expect(user.hasRoleInCollectiveOrHost(['ADMIN', 'ACCOUNTANT'], collective)).to.be.true;
+      });
+
+      it('returns true if user has any of the roles on the parent collective', async () => {
+        const user = await fakeUser();
+        const parent = await fakeCollective({ admin: user });
+        const collective = await fakeEvent({ ParentCollectiveId: parent.id });
+        await user.populateRoles();
+        expect(user.hasRoleInCollectiveOrHost('ADMIN', collective)).to.be.true;
+      });
+
+      it('returns true if user has any of the roles in the host', async () => {
+        const user = await fakeUser();
+        const collective = await fakeCollective();
+        await collective.host.addUserWithRole(user, 'ADMIN');
+        await user.populateRoles();
+        expect(user.hasRoleInCollectiveOrHost(['ADMIN', 'ACCOUNTANT'], collective)).to.be.true;
+      });
+
+      it('returns false if user does not have any of the roles in the collective or host', async () => {
+        const user = await fakeUser();
+        const collective = await fakeCollective();
+        await user.populateRoles();
+        expect(user.hasRoleInCollectiveOrHost(['ADMIN', 'ACCOUNTANT'], collective)).to.be.false;
+
+        await collective.addUserWithRole(user, 'ADMIN');
+        expect(user.hasRoleInCollectiveOrHost(['BACKER'], collective)).to.be.false;
+      });
     });
   });
 

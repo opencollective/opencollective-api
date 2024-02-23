@@ -224,6 +224,22 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     return result;
   };
 
+  hasRoleInCollectiveOrHost = function (roles, collective) {
+    if (!collective) {
+      return false;
+    } else {
+      const collectiveIds = [collective.id];
+      if (collective.HostCollectiveId) {
+        collectiveIds.push(collective.HostCollectiveId);
+      }
+      if (collective.type === 'EVENT' || collective.type === 'PROJECT' || collective.type === 'VENDOR') {
+        collectiveIds.push(collective.ParentCollectiveId);
+      }
+
+      return collectiveIds.some(collectiveId => this.hasRole(roles, collectiveId));
+    }
+  };
+
   // Adding some sugars
   isAdmin = function (CollectiveId) {
     const result = this.CollectiveId === Number(CollectiveId) || this.hasRole([roles.HOST, roles.ADMIN], CollectiveId);
