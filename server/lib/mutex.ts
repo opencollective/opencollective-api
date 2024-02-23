@@ -12,7 +12,7 @@ const debug = debugLib('mutex');
 export async function lockUntilResolved<T>(
   key: string,
   until: () => Promise<T>,
-  { lockAcquireTimeoutMs = 15 * 1000, unlockTimeoutMs = 60 * 1000, retryDelayMs = 100 } = {},
+  { lockAcquireTimeoutMs = 15 * 1000, unlockTimeoutMs = 10 * 60 * 1000, retryDelayMs = 100 } = {},
 ): Promise<T> {
   const redis = await createRedisClient();
   if (!redis) {
