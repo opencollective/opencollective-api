@@ -34,6 +34,15 @@ const GraphQLAccountPermissions = new GraphQLObjectType({
         }
       },
     },
+    canDownloadPaymentReceipts: {
+      type: new GraphQLNonNull(GraphQLPermission),
+      description: "Whether the current user can download this account's payment receipts",
+      resolve(collective, _, req: express.Request): PermissionFields {
+        return {
+          allowed: Boolean(req.remoteUser?.hasRoleInCollectiveOrHost(['ADMIN', 'ACCOUNTANT'], collective)),
+        };
+      },
+    },
   }),
 });
 
