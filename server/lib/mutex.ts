@@ -12,7 +12,7 @@ const debug = debugLib('mutex');
 export async function lockUntilResolved<T>(
   key: string,
   until: () => Promise<T>,
-  { lockAcquireTimeoutMs = 15 * 1000, unlockTimeoutMs = 60 * 1000 } = {},
+  { lockAcquireTimeoutMs = 15 * 1000, unlockTimeoutMs = 60 * 1000, retryDelayMs = 100 } = {},
 ): Promise<T> {
   const redis = await createRedisClient();
   if (!redis) {
@@ -24,7 +24,7 @@ export async function lockUntilResolved<T>(
   let lockAcquired = await redis.mSetNX([_key, '1']);
   while (!lockAcquired) {
     debug(`Waiting for lock ${_key}`);
-    await sleep(100);
+    await sleep(retryDelayMs);
     lockAcquired = await redis.mSetNX([_key, '1']);
     if (Date.now() - start > lockAcquireTimeoutMs) {
       debug(`Timeouted waiting for lock ${_key}`);
