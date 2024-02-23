@@ -1,5 +1,6 @@
 /** @module lib/payments */
 import config from 'config';
+import DataLoader from 'dataloader';
 import debugLib from 'debug';
 import { find, get, includes, isNil, isNumber, omit, pick } from 'lodash';
 import { v4 as uuid } from 'uuid';
@@ -12,12 +13,22 @@ import roles from '../constants/roles';
 import tiers from '../constants/tiers';
 import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
-import models, { Op } from '../models';
-import { PayoutMethodTypes } from '../models/PayoutMethod';
-import { TransactionCreationAttributes, TransactionData, TransactionInterface } from '../models/Transaction';
+import { Op } from '../models';
+import Activity from '../models/Activity';
+import Collective from '../models/Collective';
+import Order, { OrderModelInterface } from '../models/Order';
+import PaymentMethod, { PaymentMethodModelInterface } from '../models/PaymentMethod';
+import PayoutMethod, { PayoutMethodTypes } from '../models/PayoutMethod';
+import Subscription from '../models/Subscription';
+import Transaction, {
+  TransactionCreationAttributes,
+  TransactionData,
+  TransactionInterface,
+} from '../models/Transaction';
 import TransactionSettlement, { TransactionSettlementStatus } from '../models/TransactionSettlement';
 import User from '../models/User';
 import paymentProviders from '../paymentProviders';
+import type { PaymentProviderService } from '../paymentProviders/types';
 import { RecipientAccount as BankAccountPayoutMethodData } from '../types/transferwise';
 
 import { notify } from './notifications/email';
@@ -37,6 +48,8 @@ const { CREDIT, DEBIT } = TransactionTypes;
 
 const debug = debugLib('payments');
 
+type loaders = Record<string, Record<string, DataLoader<number | string, any>>>;
+
 /** Check if paymentMethod has a given fully qualified name
  *
  * Payment Provider names are composed by service and type joined with
@@ -45,7 +58,7 @@ const debug = debugLib('payments');
  * given *fqn*.
  *
  * @param {String} fqn is the fully qualified name to be matched.
- * @param {models.PaymentMethod} paymentMethod is the instance that
+ * @param {PaymentMethod} paymentMethod is the instance that
  *  will have the fully qualified name compared to the parameter
  *  *fqn*.
  * @returns {Boolean} true if *paymentMethod* has a fully qualified
@@ -56,22 +69,25 @@ const debug = debugLib('payments');
  * > isProvider('stripe.creditcard', { service: 'stripe', type: 'creditcard' })
  * true
  */
-export function isProvider(fqn, paymentMethod) {
-  const pmFqn = `${paymentMethod.service}.${paymentMethod.type || 'default'}`;
+export function isProvider(fqn, paymentMethod: PaymentMethodModelInterface): boolean {
+  const pmFqn = `${paymentMethod.service}.${paymentMethod.type || PAYMENT_METHOD_TYPE.DEFAULT}`;
   return fqn === pmFqn;
 }
 
 /** Find payment method handler
  *
- * @param {models.PaymentMethod} paymentMethod This must point to a row in the
+ * @param {PaymentMethod} paymentMethod This must point to a row in the
  *  `PaymentMethods` table. That information is retrieved and the
  *  fields `service' & `type' are used to figure out which payment
  *  {service: 'stripe', type: 'creditcard'}.
  * @return the payment method's JS module.
  */
-export function findPaymentMethodProvider(paymentMethod, { throwIfMissing = true } = {}) {
-  const provider = get(paymentMethod, 'service') || 'opencollective';
-  const methodType = get(paymentMethod, 'type') || 'default';
+export function findPaymentMethodProvider(
+  paymentMethod: PaymentMethodModelInterface,
+  { throwIfMissing = true }: { throwIfMissing?: boolean } = {},
+): PaymentProviderService {
+  const provider = get(paymentMethod, 'service') || PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE;
+  const methodType = get(paymentMethod, 'type') || PAYMENT_METHOD_TYPE.DEFAULT;
   let paymentMethodProvider = paymentProviders[provider];
   if (!paymentMethodProvider) {
     if (throwIfMissing) {
@@ -94,12 +110,12 @@ export function findPaymentMethodProvider(paymentMethod, { throwIfMissing = true
  *  field. Which means that the query to select the order must include
  *  the `PaymentMethods` table.
  */
-export async function processOrder(order, options) {
+export async function processOrder(order: OrderModelInterface, options): Promise<TransactionInterface | void> {
   const paymentMethodProvider = findPaymentMethodProvider(order.paymentMethod);
   if (get(paymentMethodProvider, 'features.waitToCharge') && !get(order, 'paymentMethod.paid')) {
     return;
   } else {
-    return await paymentMethodProvider.processOrder(order, options);
+    return paymentMethodProvider.processOrder(order, options);
   }
 }
 
@@ -112,11 +128,15 @@ export async function processOrder(order, options) {
  *  associated to the refund transaction as who performed the refund.
  * @param {string} message a optional message to explain why the transaction is rejected
  */
-export async function refundTransaction(transaction, user, message = undefined, opts = {}) {
+export async function refundTransaction(
+  transaction: TransactionInterface,
+  user?: User,
+  message?: string,
+): Promise<TransactionInterface> {
   // Make sure to fetch PaymentMethod
   // Fetch PaymentMethod even if it's deleted
   if (!transaction.PaymentMethod && transaction.PaymentMethodId) {
-    transaction.PaymentMethod = await models.PaymentMethod.findByPk(transaction.PaymentMethodId, { paranoid: false });
+    transaction.PaymentMethod = await PaymentMethod.findByPk(transaction.PaymentMethodId, { paranoid: false });
   }
 
   // If no payment method was used, it means that we're using a manual payment method
@@ -124,8 +144,8 @@ export async function refundTransaction(transaction, user, message = undefined, 
     ? findPaymentMethodProvider(transaction.PaymentMethod)
     : // TODO: Drop this in favor of findPaymentMethodProvider when persisting PaymentIntents as Payment Methods
       ['us_bank_account', 'sepa_debit'].includes(transaction.data?.charge?.payment_method_details?.type)
-      ? paymentProviders.stripe.types.paymentintent
-      : paymentProviders.opencollective.types.manual;
+      ? (paymentProviders.stripe.types.paymentintent as PaymentProviderService)
+      : (paymentProviders.opencollective.types.manual as PaymentProviderService);
 
   if (!paymentMethodProvider.refundTransaction) {
     throw new Error('This payment method provider does not support refunds');
@@ -134,7 +154,7 @@ export async function refundTransaction(transaction, user, message = undefined, 
   let result;
 
   try {
-    result = await paymentMethodProvider.refundTransaction(transaction, user, message, opts);
+    result = await paymentMethodProvider.refundTransaction(transaction, user, message);
   } catch (e) {
     if (
       (e.message.includes('has already been refunded') || e.message.includes('has been charged back')) &&
@@ -158,15 +178,15 @@ export async function refundTransaction(transaction, user, message = undefined, 
  * calcFee(100, 3.5); // 4.0
  * @return {Number} fee-percent of the amount rounded
  */
-export function calcFee(amount, fee) {
+export function calcFee(amount: number, fee: number): number {
   return Math.round((amount * fee) / 100);
 }
 
 export const buildRefundForTransaction = (
   t: TransactionInterface,
-  user: User,
-  data: TransactionData,
-  refundedPaymentProcessorFee: number = 0,
+  user?: User,
+  data?: TransactionData,
+  refundedPaymentProcessorFee?: number,
 ): TransactionCreationAttributes => {
   const refund = pick(t, [
     'currency',
@@ -188,7 +208,7 @@ export const buildRefundForTransaction = (
     'kind',
     'isDebt',
     'PayoutMethodId',
-  ]) as any;
+  ]) as TransactionCreationAttributes;
 
   refund.CreatedByUserId = user?.id || null;
   refund.description = `Refund of "${t.description}"`;
@@ -206,7 +226,7 @@ export const buildRefundForTransaction = (
   /* Amount fields. Must be calculated after tweaking all the fees */
   refund.amount = -t.amount;
   refund.amountInHostCurrency = -t.amountInHostCurrency;
-  refund.netAmountInCollectiveCurrency = -models.Transaction.calculateNetAmountInCollectiveCurrency(t);
+  refund.netAmountInCollectiveCurrency = -Transaction.calculateNetAmountInCollectiveCurrency(t);
   refund.isRefund = true;
 
   // We're handling host fees in separate transactions
@@ -238,7 +258,7 @@ export const buildRefundForTransaction = (
   }
 
   // Re-compute the net amount
-  refund.netAmountInCollectiveCurrency = models.Transaction.calculateNetAmountInCollectiveCurrency(refund);
+  refund.netAmountInCollectiveCurrency = Transaction.calculateNetAmountInCollectiveCurrency(refund);
 
   return refund;
 };
@@ -248,7 +268,7 @@ export const refundPaymentProcessorFeeToCollective = async (
   refundTransactionGroup: string,
   data: { hostFeeMigration?: string } = {},
   createdAt: Date = null,
-) => {
+): Promise<void> => {
   if (transaction.CollectiveId === transaction.HostCollectiveId) {
     return;
   }
@@ -268,7 +288,7 @@ export const refundPaymentProcessorFeeToCollective = async (
     processorFeeTransaction?.amountInHostCurrency || transaction.paymentProcessorFeeInHostCurrency,
   );
   const amount = Math.round(amountInHostCurrency / hostCurrencyFxRate);
-  await models.Transaction.createDoubleEntry({
+  await Transaction.createDoubleEntry({
     type: CREDIT,
     kind: TransactionKind.PAYMENT_PROCESSOR_COVER,
     CollectiveId: transaction.CollectiveId,
@@ -300,7 +320,7 @@ async function refundPaymentProcessorFee(
   transactionGroup: string,
   data: Record<string, never> = {},
   clearedAt: Date = null,
-) {
+): Promise<void> {
   const isLegacyPaymentProcessorFee = Boolean(transaction.paymentProcessorFeeInHostCurrency);
 
   // Refund processor fees if the processor sent money back
@@ -335,7 +355,7 @@ async function refundPaymentProcessorFee(
         clearedAt,
       };
 
-      const processorFeeRefundTransaction = await models.Transaction.createDoubleEntry(processorFeeRefund);
+      const processorFeeRefundTransaction = await Transaction.createDoubleEntry(processorFeeRefund);
       await associateTransactionRefundId(processorFeeTransaction, processorFeeRefundTransaction, data);
     }
   }
@@ -361,7 +381,7 @@ export async function refundHostFee(
   transactionGroup: string,
   data: Record<string, never> = {},
   clearedAt: Date = null,
-) {
+): Promise<void> {
   const hostFeeTransaction = await transaction.getHostFeeTransaction();
   const buildRefund = transaction => {
     return {
@@ -373,20 +393,20 @@ export async function refundHostFee(
 
   if (hostFeeTransaction) {
     const hostFeeRefund = buildRefund(hostFeeTransaction);
-    const hostFeeRefundTransaction = await models.Transaction.createDoubleEntry(hostFeeRefund);
+    const hostFeeRefundTransaction = await Transaction.createDoubleEntry(hostFeeRefund);
     await associateTransactionRefundId(hostFeeTransaction, hostFeeRefundTransaction, data);
 
     // Refund Host Fee Share
     const hostFeeShareTransaction = await transaction.getHostFeeShareTransaction();
     if (hostFeeShareTransaction) {
       const hostFeeShareRefund = buildRefund(hostFeeShareTransaction);
-      const hostFeeShareRefundTransaction = await models.Transaction.createDoubleEntry(hostFeeShareRefund);
+      const hostFeeShareRefundTransaction = await Transaction.createDoubleEntry(hostFeeShareRefund);
       await associateTransactionRefundId(hostFeeShareTransaction, hostFeeShareRefundTransaction, data);
 
       // Refund Host Fee Share Debt
       const hostFeeShareDebtTransaction = await transaction.getHostFeeShareDebtTransaction();
       if (hostFeeShareDebtTransaction) {
-        const hostFeeShareSettlement = await models.TransactionSettlement.findOne({
+        const hostFeeShareSettlement = await TransactionSettlement.findOne({
           where: {
             TransactionGroup: transaction.TransactionGroup,
             kind: TransactionKind.HOST_FEE_SHARE_DEBT,
@@ -401,7 +421,7 @@ export async function refundHostFee(
         }
 
         const hostFeeShareDebtRefund = buildRefund(hostFeeShareDebtTransaction);
-        const hostFeeShareDebtRefundTransaction = await models.Transaction.createDoubleEntry(hostFeeShareDebtRefund);
+        const hostFeeShareDebtRefundTransaction = await Transaction.createDoubleEntry(hostFeeShareDebtRefund);
         await associateTransactionRefundId(hostFeeShareDebtTransaction, hostFeeShareDebtRefundTransaction, data);
         await TransactionSettlement.createForTransaction(
           hostFeeShareDebtRefundTransaction,
@@ -418,7 +438,7 @@ async function refundTax(
   transactionGroup: string,
   data: Record<string, never> = {},
   clearedAt: Date = null,
-) {
+): Promise<void> {
   const taxTransaction = await transaction.getTaxTransaction();
   if (taxTransaction) {
     const taxRefundData = {
@@ -426,7 +446,7 @@ async function refundTax(
       TransactionGroup: transactionGroup,
       clearedAt,
     };
-    const taxRefundTransaction = await models.Transaction.createDoubleEntry(taxRefundData);
+    const taxRefundTransaction = await Transaction.createDoubleEntry(taxRefundData);
     await associateTransactionRefundId(taxTransaction, taxRefundTransaction, data);
   }
 }
@@ -442,7 +462,7 @@ async function refundTax(
  *   1. CREDIT from collective B to collective A
  *   2. DEBIT from collective A to collective B
  *
- * @param {models.Transaction} transaction Can be either a
+ * @param {Transaction} transaction Can be either a
  *  DEBIT or a CREDIT transaction and it will generate a pair of
  *  transactions that debit the collective that was credited and
  *  credit the user that was debited.
@@ -460,9 +480,9 @@ export async function createRefundTransaction(
   refundedPaymentProcessorFee: number,
   data: TransactionData,
   user: User,
-  transactionGroupId: string = null,
-  clearedAt: Date = null,
-) {
+  transactionGroupId?: string,
+  clearedAt?: Date,
+): Promise<TransactionInterface> {
   /* If the transaction passed isn't the one from the collective
    * perspective, the opposite transaction is retrieved.
    *
@@ -494,7 +514,7 @@ export async function createRefundTransaction(
   const platformTipTransaction = await transaction.getPlatformTipTransaction();
   if (platformTipTransaction) {
     const platformTipRefund = buildRefund(platformTipTransaction);
-    const platformTipRefundTransaction = await models.Transaction.createDoubleEntry(platformTipRefund);
+    const platformTipRefundTransaction = await Transaction.createDoubleEntry(platformTipRefund);
     await associateTransactionRefundId(platformTipTransaction, platformTipRefundTransaction, data);
 
     // Refund Platform Tip Debt
@@ -502,7 +522,7 @@ export async function createRefundTransaction(
     const platformTipDebtTransaction = await transaction.getPlatformTipDebtTransaction();
     if (platformTipDebtTransaction) {
       // Update tip settlement status
-      const tipSettlement = await models.TransactionSettlement.findOne({
+      const tipSettlement = await TransactionSettlement.findOne({
         where: {
           TransactionGroup: transaction.TransactionGroup,
           kind: TransactionKind.PLATFORM_TIP_DEBT,
@@ -517,7 +537,7 @@ export async function createRefundTransaction(
       }
 
       const platformTipDebtRefund = buildRefund(platformTipDebtTransaction);
-      const platformTipDebtRefundTransaction = await models.Transaction.createDoubleEntry(platformTipDebtRefund);
+      const platformTipDebtRefundTransaction = await Transaction.createDoubleEntry(platformTipDebtRefund);
       await associateTransactionRefundId(platformTipDebtTransaction, platformTipDebtRefundTransaction, data);
       await TransactionSettlement.createForTransaction(platformTipDebtRefundTransaction, tipRefundSettlementStatus);
     }
@@ -534,12 +554,16 @@ export async function createRefundTransaction(
 
   // Refund main transaction
   const creditTransactionRefund = buildRefund(transaction);
-  const refundTransaction = await models.Transaction.createDoubleEntry(creditTransactionRefund);
+  const refundTransaction = await Transaction.createDoubleEntry(creditTransactionRefund);
   return associateTransactionRefundId(transaction, refundTransaction, data);
 }
 
-export async function associateTransactionRefundId(transaction, refund, data = {}) {
-  const transactions = await models.Transaction.findAll({
+export async function associateTransactionRefundId(
+  transaction: TransactionInterface,
+  refund: TransactionInterface,
+  data: TransactionData = {},
+): Promise<TransactionInterface> {
+  const transactions = await Transaction.findAll({
     order: ['id'],
     where: {
       [Op.or]: [
@@ -592,7 +616,7 @@ export async function associateTransactionRefundId(transaction, refund, data = {
  * In all cases, transaction.type is CREDIT.
  *
  */
-export const sendEmailNotifications = (order, transaction) => {
+export const sendEmailNotifications = (order: OrderModelInterface, transaction?: TransactionInterface): void => {
   debug('sendEmailNotifications');
   if (
     transaction &&
@@ -621,8 +645,8 @@ export const sendEmailNotifications = (order, transaction) => {
   }
 };
 
-export const createSubscription = async order => {
-  const subscription = await models.Subscription.create({
+export const createSubscription = async (order: OrderModelInterface): Promise<void> => {
+  const subscription = await Subscription.create({
     amount: order.totalAmount,
     interval: order.interval,
     currency: order.currency,
@@ -651,18 +675,22 @@ export const createSubscription = async order => {
 
 /**
  * Execute an order as user using paymentMethod
- * Note: validation of the paymentMethod happens in `models.Order.setPaymentMethod`. Not here anymore.
+ * Note: validation of the paymentMethod happens in `Order.setPaymentMethod`. Not here anymore.
  * @param {Object} order { tier, description, totalAmount, currency, interval (null|month|year), paymentMethod }
  * @param {Object} options { hostFeePercent, platformFeePercent} (only for add funds and if remoteUser is admin of host or root)
  */
-export const executeOrder = async (user, order, options: { isAddedFund?: boolean; invoiceTemplate?: string } = {}) => {
-  if (!(user instanceof models.User)) {
+export const executeOrder = async (
+  user: User,
+  order: OrderModelInterface,
+  options: { isAddedFund?: boolean; invoiceTemplate?: string } = {},
+): Promise<void> => {
+  if (!(user instanceof User)) {
     return Promise.reject(new Error('user should be an instance of the User model'));
   }
   if (!order) {
     return Promise.reject(new Error('No order provided'));
   }
-  if (!(order instanceof models.Order)) {
+  if (!(order instanceof Order)) {
     return Promise.reject(new Error('order should be an instance of the Order model'));
   }
 
@@ -722,7 +750,9 @@ export const executeOrder = async (user, order, options: { isAddedFund?: boolean
     order.paymentMethod.save();
   }
 
-  sendEmailNotifications(order, transaction);
+  if (transaction) {
+    sendEmailNotifications(order, transaction);
+  }
 
   // Register gift card emitter as collective backer too
   if (transaction && transaction.UsingGiftCardFromCollectiveId) {
@@ -735,7 +765,7 @@ export const executeOrder = async (user, order, options: { isAddedFund?: boolean
   }
 };
 
-const validatePayment = payment => {
+const validatePayment = (payment): void => {
   if (payment.interval && !includes(['month', 'year'], payment.interval)) {
     throw new Error('Interval should be null, month or year.');
   }
@@ -745,7 +775,10 @@ const validatePayment = payment => {
   }
 };
 
-const sendOrderConfirmedEmail = async (order, transaction) => {
+const sendOrderConfirmedEmail = async (
+  order: OrderModelInterface,
+  transaction: TransactionInterface,
+): Promise<void> => {
   const attachments = [];
   const { collective, interval, fromCollective, paymentMethod } = order;
   const user = await order.getUserForActivity();
@@ -758,7 +791,7 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
   }
 
   if (order.tier?.type === tiers.TICKET) {
-    return models.Activity.create({
+    await Activity.create({
       type: activities.TICKET_CONFIRMED,
       CollectiveId: collective.id,
       FromCollectiveId: fromCollective.id,
@@ -822,7 +855,7 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
     }
 
     const activity = { type: activities.ORDER_THANKYOU, data };
-    return notify.collective(activity, {
+    await notify.collective(activity, {
       collectiveId: data.fromCollective.id,
       role: [roles.ACCOUNTANT, roles.ADMIN],
       from: emailLib.generateFromEmailHeader(collective.name),
@@ -832,11 +865,11 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
 };
 
 // Assumes one-time payments,
-export const sendOrderPendingEmail = async order => {
+export const sendOrderPendingEmail = async (order: OrderModelInterface): Promise<void> => {
   const { collective, fromCollective } = order;
   const user = order.createdByUser;
   const host = await collective.getHostCollective();
-  const manualPayoutMethod = await models.PayoutMethod.findOne({
+  const manualPayoutMethod = await PayoutMethod.findOne({
     where: { CollectiveId: host.id, data: { isManualBankTransfer: true } },
   });
   const account =
@@ -873,7 +906,7 @@ export const sendOrderPendingEmail = async order => {
       }
     });
   }
-  await models.Activity.create({
+  await Activity.create({
     type: activities.ORDER_PENDING,
     UserId: user.id,
     CollectiveId: collective.id,
@@ -884,7 +917,7 @@ export const sendOrderPendingEmail = async order => {
   });
 };
 
-const sendOrderProcessingEmail = async order => {
+const sendOrderProcessingEmail = async (order: OrderModelInterface): Promise<void> => {
   const { collective, fromCollective } = order;
   const user = order.createdByUser;
   const host = await collective.getHostCollective();
@@ -897,7 +930,7 @@ const sendOrderProcessingEmail = async order => {
     fromCollective: fromCollective.activity,
   };
 
-  await models.Activity.create({
+  await Activity.create({
     type: activities.ORDER_PROCESSING,
     UserId: user.id,
     CollectiveId: collective.id,
@@ -908,7 +941,7 @@ const sendOrderProcessingEmail = async order => {
   });
 };
 
-export const sendOrderFailedEmail = async (order, reason) => {
+export const sendOrderFailedEmail = async (order: OrderModelInterface, reason: string): Promise<void> => {
   const user = order.createdByUser;
   const { collective, fromCollective } = order;
   const host = await collective.getHostCollective();
@@ -922,7 +955,7 @@ export const sendOrderFailedEmail = async (order, reason) => {
     reason,
   };
 
-  await models.Activity.create({
+  await Activity.create({
     type: activities.ORDER_PAYMENT_FAILED,
     UserId: user.id,
     CollectiveId: collective.id,
@@ -933,14 +966,14 @@ export const sendOrderFailedEmail = async (order, reason) => {
   });
 };
 
-const sendManualPendingOrderEmail = async order => {
+const sendManualPendingOrderEmail = async (order: OrderModelInterface): Promise<void> => {
   const { collective, fromCollective } = order;
   const host = await collective.getHostCollective();
 
   let replyTo = [];
   if (fromCollective.isIncognito) {
     // We still want to surface incognito emails to the host as they often need to contact them to reconciliate the bank transfer
-    const user = await models.User.findByPk(fromCollective.CreatedByUserId);
+    const user = await User.findByPk(fromCollective.CreatedByUserId);
     if (user) {
       replyTo.push(user.email);
     }
@@ -958,7 +991,7 @@ const sendManualPendingOrderEmail = async order => {
     replyTo,
     isSystem: true,
   };
-  return models.Activity.create({
+  await Activity.create({
     type: activities.ORDER_PENDING_CONTRIBUTION_NEW,
     CollectiveId: order.CollectiveId,
     FromCollectiveId: order.FromCollectiveId,
@@ -969,7 +1002,7 @@ const sendManualPendingOrderEmail = async order => {
   });
 };
 
-export const sendReminderPendingOrderEmail = async order => {
+export const sendReminderPendingOrderEmail = async (order: OrderModelInterface): Promise<void> => {
   const { collective, fromCollective } = order;
   const host = await collective.getHostCollective();
 
@@ -988,7 +1021,7 @@ export const sendReminderPendingOrderEmail = async order => {
     viewDetailsLink: `${config.host.website}/${host.slug}/dashboard/orders/contributions/${order.id}`,
     isSystem: true,
   };
-  return await models.Activity.create({
+  await Activity.create({
     type: activities.ORDER_PENDING_CONTRIBUTION_REMINDER,
     CollectiveId: order.CollectiveId,
     FromCollectiveId: order.FromCollectiveId,
@@ -998,20 +1031,23 @@ export const sendReminderPendingOrderEmail = async order => {
   });
 };
 
-export const sendExpiringCreditCardUpdateEmail = async data => {
+export const sendExpiringCreditCardUpdateEmail = async (data): Promise<void> => {
   data = {
     ...data,
     updateDetailsLink: `${config.host.website}/paymentmethod/${data.id}/update`,
     isSystem: true,
   };
-  await models.Activity.create({
+  await Activity.create({
     type: activities.PAYMENT_CREDITCARD_EXPIRING,
     CollectiveId: data.CollectiveId,
     data,
   });
 };
 
-export const getApplicationFee = async (order, { host = null } = {}) => {
+export const getApplicationFee = async (
+  order: OrderModelInterface,
+  { host = null }: { host?: Collective } = {},
+): Promise<number> => {
   let applicationFee = 0;
 
   const platformTipAmount = getPlatformTip(order);
@@ -1034,18 +1070,21 @@ export const getApplicationFee = async (order, { host = null } = {}) => {
   return applicationFee;
 };
 
-export const getPlatformTip = object => {
+export const getPlatformTip = (object: OrderModelInterface): number => {
   if (!isNil(object.platformTipAmount)) {
     return object.platformTipAmount;
   }
-  // Legacy form, but still being used sometime when extracting platformTip from transactionData
+  // Legacy form, but still being used sometime (to be verified and removed)
   if (!isNil(object.data?.platformTip)) {
     return object.data?.platformTip;
   }
   return 0;
 };
 
-export const getPlatformFeePercent = async (order, { loaders = null } = {}) => {
+export const getPlatformFeePercent = async (
+  order: OrderModelInterface,
+  { loaders = null }: { loaders?: loaders } = {},
+): Promise<number> => {
   // Platform Fees are back!
 
   // Make sure paymentMethod is set
@@ -1075,7 +1114,10 @@ export const getPlatformFeePercent = async (order, { loaders = null } = {}) => {
   return 0;
 };
 
-export const getHostFee = async (order, { host = null } = {}) => {
+export const getHostFee = async (
+  order: OrderModelInterface,
+  { host = null }: { host?: Collective } = {},
+): Promise<number> => {
   const totalAmount = order.totalAmount || 0;
   const taxAmount = order.taxAmount || 0;
   const platformTip = getPlatformTip(order);
@@ -1085,7 +1127,7 @@ export const getHostFee = async (order, { host = null } = {}) => {
   return calcFee(totalAmount - taxAmount - platformTip, hostFeePercent);
 };
 
-export const getPlatformFee = async order => {
+export const getPlatformFee = async (order: OrderModelInterface): Promise<number> => {
   const totalAmount = order.totalAmount || 0;
   const taxAmount = order.taxAmount || 0;
   const platformTip = getPlatformTip(order);
@@ -1095,7 +1137,7 @@ export const getPlatformFee = async order => {
   return calcFee(totalAmount - taxAmount - platformTip, platformFeePercent);
 };
 
-export const isPlatformTipEligible = async (order, host = null) => {
+export const isPlatformTipEligible = async (order: OrderModelInterface, host?: Collective): Promise<boolean> => {
   // We used the data field to disable Platform Tips for a bunch of BRL collectives
   if (!isNil(order.collective.data?.platformTips)) {
     return order.collective.data.platformTips;
@@ -1123,7 +1165,10 @@ export const isPlatformTipEligible = async (order, host = null) => {
   return false;
 };
 
-export const getHostFeePercent = async (order, { host = null, loaders = null } = {}) => {
+export const getHostFeePercent = async (
+  order: OrderModelInterface,
+  { host = null, loaders = null }: { host?: Collective; loaders?: loaders } = {},
+): Promise<number> => {
   const collective =
     order.collective || (await loaders?.Collective.byId.load(order.CollectiveId)) || (await order.getCollective());
 
@@ -1250,7 +1295,10 @@ export const getHostFeePercent = async (order, { host = null, loaders = null } =
   return possibleValues.find(isNumber);
 };
 
-export const getHostFeeSharePercent = async (order, { host = null, loaders = null } = {}) => {
+export const getHostFeeSharePercent = async (
+  order: OrderModelInterface,
+  { host = null, loaders = null }: { host?: Collective; loaders?: any } = {},
+): Promise<number> => {
   if (!order.collective) {
     order.collective = (await loaders?.Collective.byId.load(order.CollectiveId)) || (await order.getCollective());
   }
@@ -1267,12 +1315,11 @@ export const getHostFeeSharePercent = async (order, { host = null, loaders = nul
     if (isNil(order.platformTipEligible)) {
       order.platformTipEligible = await isPlatformTipEligible(order, host);
     }
-    if (isNil(order.platformFee)) {
-      order.platformFee = await getPlatformFee(order);
-    }
+
+    const platformFee = await getPlatformFee(order);
 
     // Platform Tip Eligible or Platform Fee? No Host Fee Share, that's it
-    if (order.platformTipEligible === true || order.platformFee !== 0) {
+    if (order.platformTipEligible === true || platformFee !== 0) {
       return 0;
     }
 

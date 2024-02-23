@@ -77,7 +77,7 @@ export interface OrderModelInterface
   tier?: Tier;
   /** @deprecated: We're using both `tier` and `Tier` depending on the places. The association is defined as `Tier` (uppercase). We should consolidate to one or the other. */
   Tier?: Tier;
-  getTier: Promise<Tier>;
+  getTier(): Promise<Tier | null>;
 
   quantity: number;
   currency: SupportedCurrency;
@@ -107,7 +107,7 @@ export interface OrderModelInterface
 
   processedAt: Date;
   status: OrderStatus;
-  interval?: string;
+  interval: 'month' | 'year' | null;
   data:
     | {
         hostFeePercent?: number;
@@ -128,6 +128,7 @@ export interface OrderModelInterface
   getUser(): Promise<User>;
   setPaymentMethod(paymentMethodData);
   populate(): Promise<void>;
+  getUserForActivity(): Promise<User>;
 
   /**
    * Similar to what we do in `lockExpense`, this locks an order by setting a special flag in `data`

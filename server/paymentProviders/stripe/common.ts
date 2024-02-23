@@ -31,7 +31,8 @@ export const APPLICATION_FEE_INCOMPATIBLE_CURRENCIES = ['BRL'];
 /** Refund a given transaction */
 export const refundTransaction = async (
   transaction: TransactionInterface,
-  user: User,
+  user?: User,
+  reason?: string,
 ): Promise<TransactionInterface> => {
   /* What's going to be refunded */
   const chargeId: string = result(transaction.data, 'charge.id');
@@ -73,6 +74,7 @@ export const refundTransaction = async (
       refund,
       balanceTransaction: refundBalance, // TODO: This is overwriting the original balanceTransaction with the refund balance transaction, which remove important info
       charge,
+      refundReason: reason,
     },
     user,
   );
@@ -83,7 +85,8 @@ export const refundTransaction = async (
  */
 export const refundTransactionOnlyInDatabase = async (
   transaction: TransactionInterface,
-  user: User,
+  user?: User,
+  reason?: string,
 ): Promise<TransactionInterface> => {
   /* What's going to be refunded */
   const chargeId = result(transaction.data, 'charge.id');
@@ -111,7 +114,7 @@ export const refundTransactionOnlyInDatabase = async (
   return await createRefundTransaction(
     transaction,
     refund ? fees.stripeFee : 0, // With disputes, we get 1500 as a value but will not handle this
-    { ...transaction.data, charge, refund, balanceTransaction: refundBalance },
+    { ...transaction.data, charge, refund, balanceTransaction: refundBalance, refundReason: reason },
     user,
   );
 };

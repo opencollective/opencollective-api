@@ -318,7 +318,7 @@ describe('refundTransaction legacy tests', () => {
       created: 1517834264,
       currency: currency,
       customer: 'cus_9sKDFZkPwuFAF8',
-    };
+    } as Stripe.Charge;
     const balanceTransaction = {
       id: 'txn_1Bs9EEBYycQg1OMfTR33Y5Xr',
       object: 'balance_transaction',

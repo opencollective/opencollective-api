@@ -154,6 +154,7 @@ async function processRecurringOrder(order: OrderModelInterface) {
 export default {
   features: {
     recurring: true,
+    isRecurringManagedExternally: false,
     waitToCharge: false,
   },
   processOrder,

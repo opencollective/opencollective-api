@@ -60,7 +60,9 @@ describe('webhook', () => {
           CreatedByUserId: user.id,
           OrderId: order.id,
           amount: 10,
-          data: { charge: { id: (stripeMocks.webhook_dispute_created.data.object as Stripe.Dispute).charge } },
+          data: {
+            charge: { id: (stripeMocks.webhook_dispute_created.data.object as Stripe.Dispute).charge } as Stripe.Charge,
+          },
         },
         { createDoubleEntry: true },
       );
@@ -122,7 +124,9 @@ describe('webhook', () => {
           OrderId: order.id,
           HostCollectiveId: collective.id,
           amount: 10,
-          data: { charge: { id: (stripeMocks.webhook_dispute_created.data.object as Stripe.Dispute).charge } },
+          data: {
+            charge: { id: (stripeMocks.webhook_dispute_created.data.object as Stripe.Dispute).charge } as Stripe.Charge,
+          },
         },
         { createDoubleEntry: true },
       );
@@ -270,7 +274,9 @@ describe('webhook', () => {
           OrderId: order.id,
           amount: 10,
           data: {
-            charge: { payment_intent: (stripeMocks.webhook_review_opened.data.object as Stripe.Review).payment_intent },
+            charge: {
+              payment_intent: (stripeMocks.webhook_review_opened.data.object as Stripe.Review).payment_intent,
+            } as Stripe.Charge,
           },
         },
         { createDoubleEntry: true },
@@ -327,7 +333,9 @@ describe('webhook', () => {
           OrderId: order.id,
           amount: 10,
           data: {
-            charge: { payment_intent: (stripeMocks.webhook_review_opened.data.object as Stripe.Review).payment_intent },
+            charge: {
+              payment_intent: (stripeMocks.webhook_review_opened.data.object as Stripe.Review).payment_intent,
+            } as Stripe.Charge,
           },
         },
         { createDoubleEntry: true },

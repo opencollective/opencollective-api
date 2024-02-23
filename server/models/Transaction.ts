@@ -27,7 +27,7 @@ import {
 import { shouldGenerateTransactionActivities } from '../lib/activities';
 import { getFxRate } from '../lib/currency';
 import { toNegative } from '../lib/math';
-import { calcFee, getHostFeeSharePercent, getPlatformTip } from '../lib/payments';
+import { calcFee, getHostFeeSharePercent } from '../lib/payments';
 import { stripHTML } from '../lib/sanitize-html';
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op } from '../lib/sequelize';
@@ -56,7 +56,7 @@ type Tax = Partial<OrderTax>;
 export type TransactionData = {
   balanceTransaction?: Stripe.BalanceTransaction;
   capture?: Partial<PaypalCapture>;
-  charge?: Stripe.Charge | { id?: any; payment_intent?: any }; // Second part to accomodate weird tests.
+  charge?: Stripe.Charge;
   dispute?: Stripe.Dispute;
   expenseToHostFxRate?: number;
   feesPayer?: Expense['feesPayer'];
@@ -69,6 +69,7 @@ export type TransactionData = {
   paypalResponse?: Record<string, unknown>;
   paypalSale?: Partial<PaypalSale>;
   paypalTransaction?: Partial<PaypalTransaction>;
+  platformTip?: number;
   platformTipInHostCurrency?: number;
   preMigrationData?: TransactionData;
   refund?: Stripe.Refund;
@@ -996,7 +997,7 @@ Transaction.createPlatformTipTransactions = async (
   platformTipTransaction: TransactionInterface;
   platformTipDebtTransaction: TransactionInterface | null;
 }> => {
-  const platformTip = getPlatformTip(transactionData);
+  const platformTip = transactionData.data?.platformTip;
   if (!platformTip) {
     return;
   }

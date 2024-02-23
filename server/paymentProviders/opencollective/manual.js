@@ -102,14 +102,15 @@ async function processOrder(order) {
  * There's nothing more to do because it's up to the host/collective to see how
  * they want to actually refund the money.
  */
-const refundTransaction = async (transaction, user, _, opts = null) => {
-  return await createRefundTransaction(transaction, 0, null, user, opts?.TransactionGroup);
+const refundTransaction = async (transaction, user, reason, opts = null) => {
+  return await createRefundTransaction(transaction, 0, { refundReason: reason }, user, opts?.TransactionGroup);
 };
 
 /* Expected API of a Payment Method Type */
 export default {
   features: {
     recurring: false,
+    isRecurringManagedExternally: false,
     waitToCharge: true, // don't process the order automatically. Wait for host to "mark it as paid"
   },
   getBalance,

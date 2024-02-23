@@ -15,7 +15,7 @@ import { validateWebhookEvent } from '../../lib/paypal';
 import { sendThankYouEmail } from '../../lib/recurring-contributions';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
 import models, { Op } from '../../models';
-import { PaypalCapture, PayoutWebhookRequest } from '../../types/paypal';
+import { PayoutWebhookRequest, PaypalCapture } from '../../types/paypal';
 
 import { paypalRequestV2 } from './api';
 import { findTransactionByPaypalId, recordPaypalCapture, recordPaypalSale } from './payment';
