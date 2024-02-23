@@ -19,20 +19,22 @@ export async function lockUntilResolved<T>(
     logger.warn(`Redis is not available, ${key} running without a mutex lock!`);
     return until();
   }
-  const _key = `lock:${key}`;
+
   const start = Date.now();
-  let lockAcquired = await redis.mSetNX([_key, '1']);
+  const _key = `lock:${key}`;
+  const lock = () => redis.set(_key, 1, { NX: true, PX: unlockTimeoutMs });
+
+  let lockAcquired = await lock();
   while (!lockAcquired) {
     debug(`Waiting for lock ${_key}`);
     await sleep(retryDelayMs);
-    lockAcquired = await redis.mSetNX([_key, '1']);
+    lockAcquired = await lock();
     if (Date.now() - start > lockAcquireTimeoutMs) {
       debug(`Timeouted waiting for lock ${_key}`);
       throw new Error(`Timeout to acquire lock for key ${_key}`);
     }
   }
 
-  await redis.expire(_key, unlockTimeoutMs / 1000);
   debug(`Acquired lock ${_key}`);
   return until().finally(async () => {
     await redis.del(_key);

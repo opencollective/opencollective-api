@@ -11,10 +11,10 @@ describe('lockUntilResolved', () => {
     const pRedis = createRedisClient();
 
     beforeEach(async () => {
-      (await pRedis).del('lock:test');
+      await (await pRedis).del('*');
     });
-    after(async () => {
-      (await pRedis).del('lock:test');
+    afterEach(async () => {
+      await (await pRedis).del('*');
     });
 
     it('should wait for the first lock to finish', async () => {
@@ -55,7 +55,7 @@ describe('lockUntilResolved', () => {
           await sleep(50);
           return 'second';
         },
-        { retryDelayMs: 1 },
+        { retryDelayMs: 5 },
       );
       const endSecond = Date.now();
 
@@ -66,9 +66,19 @@ describe('lockUntilResolved', () => {
     });
 
     it('throws if it fails to acquire a lock', async () => {
-      lockUntilResolved('test', async () => sleep(100));
-      const pSecond = lockUntilResolved('test', async () => sleep(100), { lockAcquireTimeoutMs: 50 });
-      assert.isRejected(pSecond, /Timeout to acquire lock for key lock:test/);
+      lockUntilResolved('test3', async () => sleep(100));
+      const pSecond = lockUntilResolved('test3', async () => sleep(1), { lockAcquireTimeoutMs: 50 });
+      assert.isRejected(pSecond, /Timeout to acquire lock for key lock:test3/);
+    });
+
+    it('automatically releases the lock after expiring', async () => {
+      lockUntilResolved('test4', async () => sleep(1000), { unlockTimeoutMs: 100 });
+      await sleep(101);
+      const second = await lockUntilResolved('test4', async () => 'second', {
+        retryDelayMs: 1,
+        lockAcquireTimeoutMs: 10,
+      });
+      assert.equal(second, 'second');
     });
   }
 });
