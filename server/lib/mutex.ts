@@ -1,7 +1,7 @@
 import debugLib from 'debug';
 
 import logger from './logger';
-import { createRedisClient } from './redis';
+import { createRedisClient, RedisInstanceType } from './redis';
 import { sleep } from './utils';
 
 const debug = debugLib('mutex');
@@ -14,7 +14,7 @@ export async function lockUntilResolved<T>(
   until: () => Promise<T>,
   { lockAcquireTimeoutMs = 15 * 1000, unlockTimeoutMs = 10 * 60 * 1000, retryDelayMs = 100 } = {},
 ): Promise<T> {
-  const redis = await createRedisClient();
+  const redis = await createRedisClient(RedisInstanceType.SESSION);
   if (!redis) {
     logger.warn(`Redis is not available, ${key} running without a mutex lock!`);
     return until();
