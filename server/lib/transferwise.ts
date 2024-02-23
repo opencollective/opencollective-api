@@ -117,14 +117,18 @@ export async function getToken(connectedAccount: ConnectedAccount, refresh = fal
   if (!checkTokenIsExpired(connectedAccount)) {
     return connectedAccount.token;
   } else {
-    return lockUntilResolved(`wise-token-${connectedAccount.id}`, async () => {
-      await connectedAccount.reload();
-      if (!checkTokenIsExpired(connectedAccount)) {
-        return connectedAccount.token;
-      } else {
-        return refreshAndUpdateToken(connectedAccount);
-      }
-    });
+    return lockUntilResolved(
+      `wise-token-${connectedAccount.id}`,
+      async () => {
+        await connectedAccount.reload();
+        if (!checkTokenIsExpired(connectedAccount)) {
+          return connectedAccount.token;
+        } else {
+          return refreshAndUpdateToken(connectedAccount);
+        }
+      },
+      { unlockTimeoutMs: 60 * 1000 },
+    );
   }
 }
 
