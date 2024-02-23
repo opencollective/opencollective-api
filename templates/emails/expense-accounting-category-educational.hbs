@@ -26,7 +26,7 @@ Subject: Some of your expenses have been re-categorized
   {{/ifCond}}
 {{else}}
   {{#ifCond allHosts.length '>' 1}}
-    some of the expenses you edited were reviewed by fiscal hosts and in the process the expense categories were changed:
+    some of the expenses you edited were reviewed by fiscal hosts and in the process the expense categories were changed for the following expenses:
   {{else}}
     {{#ifCond allRoles.length '>' 1 }}
       some of the expenses you edited were reviewed by the fiscal host {{> linkCollective collective=allHosts.[0]}} and in the process the expense categories were changed:
@@ -44,7 +44,7 @@ Subject: Some of your expenses have been re-categorized
 <ul>
 {{#each mistakes}}
   <li>
-    <a href="{{../config.host.website}}/{{this.expense.collective.slug}}/expenses/{{this.expense.id}}">{{this.expense.description}}</a>
+    Expense: <a href="{{../config.host.website}}/{{this.expense.collective.slug}}/expenses/{{this.expense.id}}">{{this.expense.description}}</a>
     <ul>
       <li>
         <strong>The expense category you selected:</strong> {{formatAccountingCategory this.selectedCategory}}.
