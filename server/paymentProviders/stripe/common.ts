@@ -32,7 +32,6 @@ export const APPLICATION_FEE_INCOMPATIBLE_CURRENCIES = ['BRL'];
 export const refundTransaction = async (
   transaction: TransactionInterface,
   user: User,
-  options?: { checkRefundStatus: boolean },
 ): Promise<TransactionInterface> => {
   /* What's going to be refunded */
   const chargeId: string = result(transaction.data, 'charge.id');
@@ -54,10 +53,10 @@ export const refundTransaction = async (
     { stripeAccount: hostStripeAccount.username },
   );
 
-  if (options?.checkRefundStatus && refund.status !== 'succeeded') {
-    await transaction.update({ data: { ...transaction.data, refund } });
-    return null;
-  }
+  // if (options?.checkRefundStatus && refund.status !== 'succeeded') {
+  //   await transaction.update({ data: { ...transaction.data, refund } });
+  //   return null;
+  // }
 
   const charge = await stripe.charges.retrieve(chargeId, { stripeAccount: hostStripeAccount.username });
   const refundBalance = await stripe.balanceTransactions.retrieve(refund.balance_transaction as string, {
