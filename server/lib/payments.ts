@@ -3,6 +3,7 @@ import config from 'config';
 import debugLib from 'debug';
 import { find, get, includes, isNil, isNumber, omit, pick } from 'lodash';
 import { v4 as uuid } from 'uuid';
+import type Stripe from 'stripe';
 
 import activities from '../constants/activities';
 import { ExpenseFeesPayer } from '../constants/expense-fees-payer';
@@ -14,7 +15,9 @@ import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
 import models, { Op } from '../models';
 import { PayoutMethodTypes } from '../models/PayoutMethod';
+import { TransactionInterface } from '../models/Transaction';
 import TransactionSettlement, { TransactionSettlementStatus } from '../models/TransactionSettlement';
+import User from '../models/User';
 import paymentProviders from '../paymentProviders';
 import { RecipientAccount as BankAccountPayoutMethodData } from '../types/transferwise';
 
@@ -237,10 +240,10 @@ export const buildRefundForTransaction = (t, user, data, refundedPaymentProcesso
 };
 
 export const refundPaymentProcessorFeeToCollective = async (
-  transaction,
-  refundTransactionGroup,
-  data = {},
-  createdAt = null,
+  transaction: TransactionInterface,
+  refundTransactionGroup: string,
+  data: { hostFeeMigration?: string } = {},
+  createdAt: Date = null,
 ) => {
   if (transaction.CollectiveId === transaction.HostCollectiveId) {
     return;
@@ -287,12 +290,12 @@ export const refundPaymentProcessorFeeToCollective = async (
 };
 
 async function refundPaymentProcessorFee(
-  transaction,
-  user,
-  refundedPaymentProcessorFee,
-  transactionGroup,
-  data = {},
-  clearedAt = null,
+  transaction: TransactionInterface,
+  user: User,
+  refundedPaymentProcessorFee: number,
+  transactionGroup: string,
+  data: Record<string, never> = {},
+  clearedAt: Date = null,
 ) {
   const isLegacyPaymentProcessorFee = Boolean(transaction.paymentProcessorFeeInHostCurrency);
 
@@ -348,12 +351,12 @@ async function refundPaymentProcessorFee(
 }
 
 export async function refundHostFee(
-  transaction,
-  user,
-  refundedPaymentProcessorFee,
-  transactionGroup,
-  data = {},
-  clearedAt = null,
+  transaction: TransactionInterface,
+  user: User,
+  refundedPaymentProcessorFee: number,
+  transactionGroup: string,
+  data: Record<string, never> = {},
+  clearedAt: Date = null,
 ) {
   const hostFeeTransaction = await transaction.getHostFeeTransaction();
   const buildRefund = transaction => {
@@ -405,7 +408,13 @@ export async function refundHostFee(
   }
 }
 
-async function refundTax(transaction, user, transactionGroup, data = {}, clearedAt = null) {
+async function refundTax(
+  transaction: TransactionInterface,
+  user: User,
+  transactionGroup: string,
+  data: Record<string, never> = {},
+  clearedAt: Date = null,
+) {
   const taxTransaction = await transaction.getTaxTransaction();
   if (taxTransaction) {
     const taxRefundData = {
@@ -443,12 +452,22 @@ async function refundTax(transaction, user, transactionGroup, data = {}, cleared
  *  transactions being created.
  */
 export async function createRefundTransaction(
-  transaction,
-  refundedPaymentProcessorFee,
-  data,
-  user,
-  transactionGroupId = null,
-  clearedAt = null,
+  transaction: TransactionInterface,
+  refundedPaymentProcessorFee: number,
+  data: {
+    refundReason?: string;
+    charge?: Stripe.Charge;
+    dispute?: Stripe.Dispute;
+    review?: Stripe.Event;
+    refund?: Stripe.Refund;
+    balanceTransaction?: Stripe.BalanceTransaction;
+    refundTransactionId?: TransactionInterface['id'];
+    paypalResponse?: Record<string, unknown>;
+    refundedFromDoubleTransactionsScript?: boolean;
+  },
+  user: User,
+  transactionGroupId: string = null,
+  clearedAt: Date = null,
 ) {
   /* If the transaction passed isn't the one from the collective
    * perspective, the opposite transaction is retrieved.
