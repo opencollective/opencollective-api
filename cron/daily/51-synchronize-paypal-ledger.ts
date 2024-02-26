@@ -12,7 +12,7 @@ import FEATURE from '../../server/constants/feature';
 import logger from '../../server/lib/logger';
 import { getHostsWithPayPalConnected, listPayPalTransactions } from '../../server/lib/paypal';
 import { closeRedisClient } from '../../server/lib/redis';
-import { reportErrorToSentry } from '../../server/lib/sentry';
+import { reportErrorToSentry, reportMessageToSentry } from '../../server/lib/sentry';
 import { parseToBoolean } from '../../server/lib/utils';
 import models, { Collective, sequelize } from '../../server/models';
 import { paypalRequestV2 } from '../../server/paymentProviders/paypal/api';
@@ -32,8 +32,8 @@ const WATCHED_EVENT_TYPES = [
   'T0002',
   // PayPal checkout. These ones are now necessarily recorded in the database, but before we moved to "AUTHORIZE" intent
   // instead of "CAPTURE" (in https://github.com/opencollective/opencollective-frontend/pull/8601) we got some cases where
-  // the transactions were never recorded. We'll iterate on these in a follow-up PR.
-  // 'T0006',
+  // the transactions were never recorded.
+  'T0006',
 ];
 
 // Ignore some hosts, usually because they haven't enabled transactions search API yet
@@ -210,6 +210,40 @@ const handleSubscriptionTransaction = async (
 };
 
 /**
+ * Records a checkout transaction
+ */
+const handleCheckoutTransaction = async (
+  host: Collective,
+  transaction: PaypalTransactionSearchResult['transaction_details'][0],
+  captureDetails: PaypalCapture,
+) => {
+  const captureId = transaction.transaction_info.transaction_id;
+  const order = await models.Order.findOne({
+    where: { data: { paypalCaptureId: captureId } },
+    include: [{ association: 'collective', required: true, where: { HostCollectiveId: host.id } }],
+  });
+
+  if (!order) {
+    // The transaction could be something that happened outside the platform, just log a warning
+    reportMessageToSentry(`Could not find order for PayPal capture ${captureId}`, {
+      extra: { hostSlug: host.slug, captureDetails, transaction },
+      feature: FEATURE.PAYPAL_DONATIONS,
+      severity: 'warning',
+    });
+    return;
+  }
+
+  const msg = `Record checkout transaction ${transaction.transaction_info.transaction_id} for order #${order.id}`;
+  logger.info(DRY_RUN ? `DRY RUN: ${msg}` : msg);
+  if (!DRY_RUN) {
+    return recordPaypalCapture(order, captureDetails, {
+      data: { recordedFrom: 'cron/daily/51-synchronize-paypal-ledger' },
+      createdAt: new Date(captureDetails.create_time),
+    });
+  }
+};
+
+/**
  * Split a given period in chunks of `nbOfDays` days
  */
 const getDateChunks = (fromDate: moment.Moment, toDate: moment.Moment, nbOfDays = 30) => {
@@ -238,7 +272,7 @@ const processHost = async (host, periodStart: moment.Moment, periodEnd: moment.M
       // Fetch all (paginated) transactions from PayPal for this date range
       try {
         ({ transactions, currentPage, totalPages } = await listPayPalTransactions(host, fromDate, toDate, {
-          transactionStatus: 'S',
+          transactionStatus: 'S', // Successful transactions
           fields: 'transaction_info',
           currentPage,
         }));
@@ -283,6 +317,8 @@ const processHost = async (host, periodStart: moment.Moment, periodEnd: moment.M
         // Handle the transaction differently based on its type
         if (transaction.transaction_info.transaction_event_code === 'T0002') {
           await handleSubscriptionTransaction(host, transaction, captureDetails);
+        } else if (transaction.transaction_info.transaction_event_code === 'T0006') {
+          await handleCheckoutTransaction(host, transaction, captureDetails);
         }
       }
     } while (currentPage++ < totalPages);
