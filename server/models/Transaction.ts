@@ -801,7 +801,7 @@ Transaction.createDoubleEntry = async (transaction: TransactionCreationAttribute
   transaction.hostCurrencyFxRate = transaction.hostCurrencyFxRate || 1;
 
   // Create Platform Tip transaction
-  if (transaction.data.platformTip) {
+  if (transaction.data?.platformTip) {
     // Separate donation transaction and remove platformTip from the main transaction
     const result = await Transaction.createPlatformTipTransactions(transaction);
     // Transaction was modified by createPlatformTipTransactions, we get it from the result
@@ -829,7 +829,7 @@ Transaction.createDoubleEntry = async (transaction: TransactionCreationAttribute
 
   // Create Tax transaction
   if (transaction.taxAmount && parseToBoolean(config.ledger.separateTaxes) === true) {
-    const result = await Transaction.createTaxTransactions(transaction, null);
+    const result = await Transaction.createTaxTransactions(transaction);
     if (result) {
       // Transaction was modified by createTaxTransactions, we get it from the result
       transaction = result.transaction;
@@ -841,7 +841,7 @@ Transaction.createDoubleEntry = async (transaction: TransactionCreationAttribute
     transaction.paymentProcessorFeeInHostCurrency &&
     parseToBoolean(config.ledger.separatePaymentProcessorFees) === true
   ) {
-    const result = await Transaction.createPaymentProcessorFeeTransactions(transaction, null);
+    const result = await Transaction.createPaymentProcessorFeeTransactions(transaction);
     if (result) {
       // Transaction was modified by paymentProcessorFeeTransactions, we get it from the result
       transaction = result.transaction;

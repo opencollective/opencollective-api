@@ -64,6 +64,7 @@ describe('server/graphql/v2/query/HostMetricsQuery', () => {
       const order1 = await fakeOrder({
         CollectiveId: collective1.id,
         totalAmount: 1000,
+        platformTipEligible: false,
       });
       order1.paymentMethod = { service: 'opencollective', type: 'manual', paid: true };
       await ManualPaymentMethod.processOrder(order1);
@@ -76,6 +77,7 @@ describe('server/graphql/v2/query/HostMetricsQuery', () => {
       const order2 = await fakeOrder({
         CollectiveId: collective2.id,
         totalAmount: 2000,
+        platformTipEligible: false,
       });
       order2.paymentMethod = { service: 'opencollective', type: 'manual', paid: true };
       await ManualPaymentMethod.processOrder(order2);

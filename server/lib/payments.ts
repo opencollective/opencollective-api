@@ -1138,6 +1138,10 @@ export const getPlatformFee = async (order: OrderModelInterface): Promise<number
 };
 
 export const isPlatformTipEligible = async (order: OrderModelInterface, host?: Collective): Promise<boolean> => {
+  if (!isNil(order.platformTipEligible)) {
+    return order.platformTipEligible;
+  }
+
   // We used the data field to disable Platform Tips for a bunch of BRL collectives
   if (!isNil(order.collective.data?.platformTips)) {
     return order.collective.data.platformTips;
