@@ -1297,7 +1297,7 @@ export const getHostFeePercent = async (
 
 export const getHostFeeSharePercent = async (
   order: OrderModelInterface,
-  { host = null, loaders = null }: { host?: Collective; loaders?: any } = {},
+  { host = null, loaders = null }: { host?: Collective; loaders?: loaders } = {},
 ): Promise<number> => {
   if (!order.collective) {
     order.collective = (await loaders?.Collective.byId.load(order.CollectiveId)) || (await order.getCollective());
@@ -1311,35 +1311,33 @@ export const getHostFeeSharePercent = async (
 
   const possibleValues = [];
 
-  if (order) {
-    if (isNil(order.platformTipEligible)) {
-      order.platformTipEligible = await isPlatformTipEligible(order, host);
-    }
+  if (isNil(order.platformTipEligible)) {
+    order.platformTipEligible = await isPlatformTipEligible(order, host);
+  }
 
-    const platformFee = await getPlatformFee(order);
+  const platformFee = await getPlatformFee(order);
 
-    // Platform Tip Eligible or Platform Fee? No Host Fee Share, that's it
-    if (order.platformTipEligible === true || platformFee !== 0) {
-      return 0;
-    }
+  // Platform Tip Eligible or Platform Fee? No Host Fee Share, that's it
+  if (order.platformTipEligible === true || platformFee !== 0) {
+    return 0;
+  }
 
-    // Make sure payment method is available
-    if (!order.paymentMethod && order.PaymentMethodId) {
-      order.paymentMethod = await order.getPaymentMethod();
-    }
+  // Make sure payment method is available
+  if (!order.paymentMethod && order.PaymentMethodId) {
+    order.paymentMethod = await order.getPaymentMethod();
+  }
 
-    // Used by 1st party hosts to set Stripe and PayPal (aka "Crowfunding") share percent to zero
-    // Ideally, this will not be used in the future as we'll always rely on the platformTipEligible flag to do that
-    // We still have a lot of old orders were platformTipEligible is not set, so we'll keep that configuration for now
+  // Used by 1st party hosts to set Stripe and PayPal (aka "Crowfunding") share percent to zero
+  // Ideally, this will not be used in the future as we'll always rely on the platformTipEligible flag to do that
+  // We still have a lot of old orders were platformTipEligible is not set, so we'll keep that configuration for now
 
-    // Assign different fees based on the payment provider
-    if (order.paymentMethod?.service === 'stripe') {
-      possibleValues.push(host.data?.stripeHostFeeSharePercent);
-      possibleValues.push(plan?.stripeHostFeeSharePercent); // deprecated
-    } else if (order.paymentMethod?.service === 'paypal') {
-      possibleValues.push(host.data?.paypalHostFeeSharePercent);
-      possibleValues.push(plan?.paypalHostFeeSharePercent); // deprecated
-    }
+  // Assign different fees based on the payment provider
+  if (order.paymentMethod?.service === 'stripe') {
+    possibleValues.push(host.data?.stripeHostFeeSharePercent);
+    possibleValues.push(plan?.stripeHostFeeSharePercent); // deprecated
+  } else if (order.paymentMethod?.service === 'paypal') {
+    possibleValues.push(host.data?.paypalHostFeeSharePercent);
+    possibleValues.push(plan?.paypalHostFeeSharePercent); // deprecated
   }
 
   // Default

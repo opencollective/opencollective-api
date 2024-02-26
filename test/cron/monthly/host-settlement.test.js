@@ -115,7 +115,7 @@ describe('cron/monthly/host-settlement', () => {
     // Create host fee share
     const hostFeeResults = await Promise.all(
       [contribution1, contribution2, contribution3, unsettledRefundedContribution, settledRefundedContribution].map(
-        transaction => models.Transaction.createHostFeeTransactions(transaction, gbpHost),
+        transaction => models.Transaction.createHostFeeTransactions(transaction),
       ),
     );
 
@@ -191,8 +191,8 @@ describe('cron/monthly/host-settlement', () => {
 
     // Refund contributions that must be
     let clock = sinon.useFakeTimers(moment(lastMonth).add(1, 'day').toDate());
-    await refundTransaction(unsettledRefundedContribution, user, null, { TransactionGroup: fakeUUID('00000008') });
-    await refundTransaction(settledRefundedContribution, user, null, { TransactionGroup: fakeUUID('00000009') });
+    await refundTransaction(unsettledRefundedContribution, user);
+    await refundTransaction(settledRefundedContribution, user);
     clock.restore();
 
     // ---- EUR Host ----

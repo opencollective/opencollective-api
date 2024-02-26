@@ -23,7 +23,7 @@ import stripe, { convertFromStripeAmount, extractFees, retrieveChargeWithRefund 
 import models, { Collective, ConnectedAccount } from '../../models';
 import { OrderModelInterface } from '../../models/Order';
 import PaymentMethod, { PaymentMethodModelInterface } from '../../models/PaymentMethod';
-import { TransactionInterface } from '../../models/Transaction';
+import { TransactionCreationAttributes, TransactionData, TransactionInterface } from '../../models/Transaction';
 import User from '../../models/User';
 
 export const APPLICATION_FEE_INCOMPATIBLE_CURRENCIES = ['BRL'];
@@ -191,7 +191,8 @@ export const createChargeTransactions = async (
     hostFeeSharePercent,
     settled: true,
     tax: order.data?.tax,
-  };
+    isPlatformRevenueDirectlyCollected,
+  } as TransactionData;
 
   const transactionPayload = {
     CreatedByUserId: order.CreatedByUserId,
@@ -212,11 +213,9 @@ export const createChargeTransactions = async (
     description: order.description,
     data,
     clearedAt,
-  };
+  } as TransactionCreationAttributes;
 
-  return models.Transaction.createFromContributionPayload(transactionPayload, {
-    isPlatformRevenueDirectlyCollected,
-  });
+  return models.Transaction.createFromContributionPayload(transactionPayload);
 };
 
 /**
