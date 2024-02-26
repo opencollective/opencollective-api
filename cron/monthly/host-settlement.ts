@@ -12,7 +12,7 @@ import expenseTypes from '../../server/constants/expense-type';
 import { TransactionKind } from '../../server/constants/transaction-kind';
 import { SETTLEMENT_EXPENSE_PROPERTIES } from '../../server/constants/transactions';
 import { getTransactionsCsvUrl } from '../../server/lib/csv';
-import { getPendingHostFeeShare, getPendingPlatformTips } from '../../server/lib/host-metrics';
+import { getPendingHostFeeShare, getPendingPlatformFees, getPendingPlatformTips } from '../../server/lib/host-metrics';
 import { reportErrorToSentry, reportMessageToSentry } from '../../server/lib/sentry';
 import { parseToBoolean } from '../../server/lib/utils';
 import models, { sequelize } from '../../server/models';
