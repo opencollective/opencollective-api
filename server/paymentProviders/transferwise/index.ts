@@ -422,7 +422,9 @@ async function payExpensesBatchGroup(host, expenses, x2faApproval?: string, remo
   try {
     if (!x2faApproval && expenses) {
       let batchGroup = await transferwise.getBatchGroup(connectedAccount, expenses[0].data.batchGroup.id);
-      if (batchGroup.status !== 'NEW') {
+      if (batchGroup.status === 'COMPLETED' && batchGroup.alreadyPaid !== false) {
+        throw new Error('Can not pay batch group, existing batch group was already paid');
+      } else if (batchGroup.status !== 'NEW') {
         throw new Error('Can not pay batch group, existing batch group was already processed');
       }
       const expenseTransferIds = expenses.map(e => e.data.transfer.id);

@@ -427,6 +427,7 @@ export type BatchGroup = {
   status: 'NEW' | 'COMPLETED' | 'MARKED_FOR_CANCELLATION' | 'PROCESSING_CANCEL' | 'CANCELLED';
   transferIds: Array<number>;
   payInDetails?: Array<Record<string, any>>;
+  alreadyPaid?: boolean;
 };
 
 export type TransactionRequiredFieldsGroup = {
