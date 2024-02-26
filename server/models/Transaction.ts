@@ -51,7 +51,7 @@ const { CONTRIBUTION, EXPENSE, ADDED_FUNDS } = TransactionKind;
 
 const debug = debugLib('models:Transaction');
 
-type Tax = Partial<OrderTax>;
+type Tax = Partial<OrderTax> & { rate?: number; idNumber?: string };
 
 export type TransactionData = {
   balanceTransaction?: Stripe.BalanceTransaction;
@@ -587,14 +587,14 @@ Transaction.prototype.paymentMethodProviderCollectiveId = function () {
   return this.type === 'DEBIT' ? this.CollectiveId : this.FromCollectiveId;
 };
 
-Transaction.prototype.getRefundTransaction = function () {
+Transaction.prototype.getRefundTransaction = function (): Promise<TransactionInterface | null> {
   if (!this.RefundTransactionId) {
     return null;
   }
   return Transaction.findByPk(this.RefundTransactionId);
 };
 
-Transaction.prototype.hasPlatformTip = function () {
+Transaction.prototype.hasPlatformTip = function (): boolean {
   return Boolean(
     (this.data?.hasPlatformTip || this.data?.isFeesOnTop) &&
       this.kind !== TransactionKind.PLATFORM_TIP &&
@@ -602,7 +602,9 @@ Transaction.prototype.hasPlatformTip = function () {
   );
 };
 
-Transaction.prototype.getRelatedTransaction = function (options) {
+Transaction.prototype.getRelatedTransaction = function (
+  options: Pick<TransactionInterface, 'type' | 'kind' | 'isDebt'>,
+): Promise<TransactionInterface | null> {
   return Transaction.findOne({
     where: {
       TransactionGroup: this.TransactionGroup,
@@ -785,10 +787,7 @@ Transaction.exportCSV = (transactions, collectivesById) => {
  * and we should move paymentProcessorFee, platformFee, hostFee to the Order model
  *
  */
-Transaction.createDoubleEntry = async (
-  transaction: TransactionCreationAttributes,
-  opts,
-): Promise<TransactionInterface> => {
+Transaction.createDoubleEntry = async (transaction: TransactionCreationAttributes): Promise<TransactionInterface> => {
   // Force transaction type based on amount sign
   if (transaction.amount > 0) {
     transaction.type = CREDIT;
@@ -832,7 +831,7 @@ Transaction.createDoubleEntry = async (
 
   // If FromCollectiveId = CollectiveId, we only create one transaction (DEBIT or CREDIT)
   if (transaction.FromCollectiveId === transaction.CollectiveId) {
-    return Transaction.create(transaction, opts) as Promise<TransactionInterface>;
+    return Transaction.create(transaction) as Promise<TransactionInterface>;
   }
 
   if (!isUndefined(transaction.amountInHostCurrency)) {
@@ -924,12 +923,12 @@ Transaction.createDoubleEntry = async (
   // We first record the negative transaction
   // and only then we can create the transaction to add money somewhere else
   if (transaction.type === DEBIT) {
-    const t = await Transaction.create(transaction, opts);
-    await Transaction.create(oppositeTransaction, opts);
-    return t as TransactionInterface;
+    const t = await Transaction.create(transaction);
+    await Transaction.create(oppositeTransaction);
+    return t;
   } else {
-    await Transaction.create(oppositeTransaction, opts);
-    return (await Transaction.create(transaction, opts)) as TransactionInterface;
+    await Transaction.create(oppositeTransaction);
+    return Transaction.create(transaction);
   }
 };
 
@@ -1053,9 +1052,7 @@ Transaction.createPlatformTipTransactions = async (
     },
   };
 
-  const platformTipTransaction = (await Transaction.createDoubleEntry(
-    platformTipTransactionData,
-  )) as TransactionInterface;
+  const platformTipTransaction = await Transaction.createDoubleEntry(platformTipTransactionData);
 
   let platformTipDebtTransaction;
   if (!isDirectlyCollected) {
@@ -1605,7 +1602,7 @@ Transaction.createActivity = async (
   );
 };
 
-Transaction.canHaveFees = function ({ kind }: { kind: TransactionKind }) {
+Transaction.canHaveFees = function ({ kind }: { kind: TransactionKind }): boolean {
   return [CONTRIBUTION, EXPENSE, ADDED_FUNDS].includes(kind);
 };
 
@@ -1698,7 +1695,10 @@ Transaction.getFxRate = async function (fromCurrency, toCurrency, transaction) {
   return getFxRate(fromCurrency, toCurrency, transaction.createdAt || 'latest');
 };
 
-Transaction.updateCurrency = async function (currency: SupportedCurrency, transaction: TransactionInterface) {
+Transaction.updateCurrency = async function (
+  currency: SupportedCurrency,
+  transaction: TransactionInterface,
+): Promise<TransactionInterface> {
   // Nothing to do
   if (currency === transaction.currency) {
     return transaction;
