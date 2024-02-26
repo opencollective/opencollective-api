@@ -24,6 +24,7 @@ import { REACTION_EMOJI } from '../../server/constants/reaction-emoji';
 import MemberRoles from '../../server/constants/roles';
 import { TransactionKind } from '../../server/constants/transaction-kind';
 import { crypto } from '../../server/lib/encryption';
+import { createTransactionsForManuallyPaidExpense } from '../../server/lib/transactions';
 import { TwoFactorMethod } from '../../server/lib/two-factor-authentication';
 import models, {
   Agreement,
@@ -493,6 +494,28 @@ export const fakeExpense = async (expenseData: Record<string, unknown> = {}) => 
   expense.collective = await models.Collective.findByPk(expense.CollectiveId, {
     include: [{ association: 'host' }],
   });
+  return expense;
+};
+
+export const fakePaidExpense = async (
+  expenseData: { paymentProcessorFeeInHostCurrency?: number; createdAt?: Date } & Parameters<
+    typeof fakeExpense
+  >[0] = {},
+) => {
+  const expense = await fakeExpense({ ...expenseData, status: 'PAID' });
+  const paymentProcessorFeeInHostCurrency =
+    expenseData.paymentProcessorFeeInHostCurrency || randAmount(1, expense.amount / 10);
+  const totalAmountPaidInHostCurrency = expense.amount + paymentProcessorFeeInHostCurrency;
+  expense['Transactions'] = [
+    await createTransactionsForManuallyPaidExpense(
+      expense.collective.host,
+      expense,
+      paymentProcessorFeeInHostCurrency,
+      totalAmountPaidInHostCurrency,
+      { clearedAt: expenseData.createdAt || new Date() },
+    ),
+  ];
+
   return expense;
 };
 

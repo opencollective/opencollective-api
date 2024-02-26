@@ -24,7 +24,6 @@ import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../lib/sanitize-htm
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Model, Op, QueryTypes } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
-import { computeDatesAsISOStrings } from '../lib/utils';
 import CustomDataTypes from '../models/DataTypes';
 import { Location } from '../types/Location';
 import { BatchGroup, ExpenseDataQuoteV2, ExpenseDataQuoteV3, Transfer } from '../types/transferwise';
@@ -41,6 +40,7 @@ import Transaction, { TransactionInterface } from './Transaction';
 import TransactionSettlement from './TransactionSettlement';
 import User from './User';
 import VirtualCard from './VirtualCard';
+import models from '.';
 
 export { ExpenseStatus, ExpenseType };
 
@@ -456,41 +456,58 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
         .then(children => children.map(child => child.id));
       collectiveIds.push(...collectiveChildrenIds);
     }
-    return sequelize.query(
-      `
-      SELECT
-        TRIM(UNNEST(COALESCE(e."tags", '{"${noTag}"}'))) AS label,
-        COUNT(DISTINCT e."id") as "count",
-        ABS(SUM(t."amount")) as "amount",
-        t."currency" as "currency"
-      FROM "Expenses" e
-      INNER JOIN "Transactions" t
-        ON t."ExpenseId" = e."id"
-      INNER JOIN "Collectives" c
-        ON c."id" = t."CollectiveId" AND c."deletedAt" IS NULL
-      WHERE e."CollectiveId" = c."id"
-        AND e."deletedAt" IS NULL
-        AND e."status" = 'PAID'
-        AND t."CollectiveId" IN (:collectiveIds)
-        AND t."FromCollectiveId" NOT IN (:collectiveIds)
-        AND t."RefundTransactionId" IS NULL
-        AND t."type" = 'DEBIT'
-        AND t."deletedAt" IS NULL
-        ${dateFrom ? `AND t."createdAt" >= :startDate` : ``}
-        ${dateTo ? `AND t."createdAt" <= :endDate` : ``}
-      GROUP BY TRIM(UNNEST(COALESCE(e."tags", '{"${noTag}"}'))), t."currency"
-      ORDER BY ABS(SUM(t."amount")) DESC
-      LIMIT :limit
-    `,
+
+    const wheres = [
       {
-        type: QueryTypes.SELECT,
-        replacements: {
-          collectiveIds,
-          limit,
-          ...computeDatesAsISOStrings(dateFrom, dateTo),
-        },
+        CollectiveId: { [Op.in]: collectiveIds },
+        FromCollectiveId: { [Op.notIn]: collectiveIds },
+        type: 'DEBIT',
+        RefundTransactionId: null,
       },
-    );
+    ];
+    if (dateFrom) {
+      wheres.push(
+        sequelize.where(
+          sequelize.literal(`COALESCE("Transaction"."clearedAt", "Transaction"."createdAt")`),
+          Op.gte,
+          dateFrom,
+        ),
+      );
+    }
+    if (dateTo) {
+      wheres.push(
+        sequelize.where(
+          sequelize.literal(`COALESCE("Transaction"."clearedAt", "Transaction"."createdAt")`),
+          Op.lte,
+          dateTo,
+        ),
+      );
+    }
+
+    return (await models.Transaction.findAll({
+      where: { [Op.and]: wheres },
+      attributes: [
+        [
+          sequelize.fn('TRIM', sequelize.fn('UNNEST', sequelize.literal(`COALESCE("Expense".tags, '{"${noTag}"}')`))),
+          'label',
+        ],
+        [sequelize.fn('COUNT', sequelize.literal('DISTINCT "Expense".id')), 'count'],
+        [sequelize.fn('ABS', sequelize.fn('SUM', sequelize.literal('"Transaction".amount'))), 'amount'],
+        [sequelize.literal('"Transaction".currency'), 'currency'],
+      ],
+      include: [
+        {
+          model: models.Expense,
+          required: true,
+          where: { status: 'PAID' },
+          attributes: [],
+        },
+      ],
+      group: ['label', '"Transaction".currency'],
+      order: [[sequelize.literal('ABS(SUM("Transaction".amount))'), 'DESC']],
+      limit: limit,
+      raw: true,
+    })) as unknown as Array<{ label: string; count: number; amount: number; currency: SupportedCurrency }>;
   };
 
   static getCollectiveExpensesTagsTimeSeries = async function (
@@ -506,40 +523,68 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
         .then(children => children.map(child => child.id));
       collectiveIds.push(...collectiveChildrenIds);
     }
-    return sequelize.query(
-      `
-      SELECT
-        DATE_TRUNC(:timeUnit, t."createdAt") AS "date",
-        TRIM(UNNEST(COALESCE(e."tags", '{"${noTag}"}'))) AS label,
-        COUNT(DISTINCT e."id") as "count",
-        ABS(SUM(t."amount")) as "amount",
-        t."currency" as "currency"
-      FROM "Expenses" e
-      INNER JOIN "Transactions" t
-        ON t."ExpenseId" = e."id" AND t."deletedAt" IS NULL
-      INNER JOIN "Collectives" c
-        ON c."id" = t."CollectiveId" AND c."deletedAt" IS NULL
-      WHERE e."CollectiveId" = c."id"
-        AND e."deletedAt" IS NULL
-        AND e."status" = 'PAID'
-        AND t."CollectiveId" IN (:collectiveIds)
-        AND t."FromCollectiveId" NOT IN (:collectiveIds)
-        AND t."RefundTransactionId" IS NULL
-        AND t."type" = 'DEBIT'
-        ${dateFrom ? `AND t."createdAt" >= :startDate` : ``}
-        ${dateTo ? `AND t."createdAt" <= :endDate` : ``}
-      GROUP BY DATE_TRUNC(:timeUnit, t."createdAt"), TRIM(UNNEST(COALESCE(e."tags", '{"${noTag}"}'))), t."currency"
-      ORDER BY DATE_TRUNC(:timeUnit, t."createdAt") DESC, ABS(SUM(t."amount")) DESC
-    `,
+
+    const wheres = [
       {
-        type: QueryTypes.SELECT,
-        replacements: {
-          collectiveIds,
-          timeUnit,
-          ...computeDatesAsISOStrings(dateFrom, dateTo),
-        },
+        CollectiveId: { [Op.in]: collectiveIds },
+        FromCollectiveId: { [Op.notIn]: collectiveIds },
+        type: 'DEBIT',
+        RefundTransactionId: null,
       },
-    );
+    ];
+    if (dateFrom) {
+      wheres.push(
+        sequelize.where(
+          sequelize.literal(`COALESCE("Transaction"."clearedAt", "Transaction"."createdAt")`),
+          Op.gte,
+          dateFrom,
+        ),
+      );
+    }
+    if (dateTo) {
+      wheres.push(
+        sequelize.where(
+          sequelize.literal(`COALESCE("Transaction"."clearedAt", "Transaction"."createdAt")`),
+          Op.lte,
+          dateTo,
+        ),
+      );
+    }
+
+    return (await models.Transaction.findAll({
+      where: { [Op.and]: wheres },
+      attributes: [
+        [
+          sequelize.fn(
+            'DATE_TRUNC',
+            timeUnit,
+            sequelize.literal(`COALESCE("Transaction"."clearedAt", "Transaction"."createdAt")`),
+          ),
+          'date',
+        ],
+        [
+          sequelize.fn('TRIM', sequelize.fn('UNNEST', sequelize.literal(`COALESCE("Expense".tags, '{"${noTag}"}')`))),
+          'label',
+        ],
+        [sequelize.fn('COUNT', sequelize.literal('DISTINCT "Expense".id')), 'count'],
+        [sequelize.fn('ABS', sequelize.fn('SUM', sequelize.literal('"Transaction".amount'))), 'amount'],
+        [sequelize.literal('"Transaction".currency'), 'currency'],
+      ],
+      include: [
+        {
+          model: models.Expense,
+          required: true,
+          where: { status: 'PAID' },
+          attributes: [],
+        },
+      ],
+      group: ['date', 'label', '"Transaction".currency'],
+      order: [
+        ['date', 'DESC'],
+        [sequelize.fn('ABS', sequelize.fn('SUM', sequelize.literal('"Transaction".amount'))), 'DESC'],
+      ],
+      raw: true,
+    })) as unknown as Array<{ date: Date; label: string; count: number; amount: number; currency: SupportedCurrency }>;
   };
 
   static findPendingCardCharges = async function ({ where = {}, include = [] } = {}) {

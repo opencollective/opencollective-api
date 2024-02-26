@@ -1,11 +1,21 @@
 import { expect } from 'chai';
+import config from 'config';
 import { pick } from 'lodash';
+import moment from 'moment';
+import sinon from 'sinon';
 
 import { expenseStatus, expenseTypes } from '../../../server/constants';
 import models from '../../../server/models';
 import Expense from '../../../server/models/Expense';
-import { fakeCollective, fakeExpense, fakeExpenseItem, fakeTransaction, fakeUser } from '../../test-helpers/fake-data';
-import { resetTestDB } from '../../utils';
+import {
+  fakeCollective,
+  fakeExpense,
+  fakeExpenseItem,
+  fakePaidExpense,
+  fakeTransaction,
+  fakeUser,
+} from '../../test-helpers/fake-data';
+import { resetTestDB, seedDefaultVendors } from '../../utils';
 
 describe('test/server/models/Expense', () => {
   describe('Create', () => {
@@ -85,6 +95,149 @@ describe('test/server/models/Expense', () => {
       });
 
       expect(pendingCharges).to.have.length(0);
+    });
+  });
+
+  describe('getCollectiveExpensesTags and getCollectiveExpensesTagsTimeSeries', () => {
+    let collective;
+    const sandbox = sinon.createSandbox();
+
+    before(async () => {
+      await resetTestDB();
+      await seedDefaultVendors();
+      sandbox.stub(config.ledger, 'separatePaymentProcessorFees').value(true);
+
+      collective = await fakeCollective();
+      await fakePaidExpense({
+        CollectiveId: collective.id,
+        createdAt: moment().subtract(1, 'days'),
+        amount: 200,
+        tags: ['food', 'team'],
+        paymentProcessorFeeInHostCurrency: 10,
+      });
+      await fakePaidExpense({
+        CollectiveId: collective.id,
+        createdAt: moment().subtract(2, 'days'),
+        amount: 400,
+        tags: ['food', 'team'],
+        paymentProcessorFeeInHostCurrency: 20,
+      });
+      await fakePaidExpense({
+        CollectiveId: collective.id,
+        createdAt: moment().subtract(3, 'days'),
+        amount: 800,
+        tags: ['team', 'office'],
+        paymentProcessorFeeInHostCurrency: 40,
+      });
+    });
+
+    after(() => sandbox.restore());
+
+    it('should return all tags for a collective expenses', async () => {
+      const tags = await Expense.getCollectiveExpensesTags(collective);
+
+      expect(tags).to.deep.eq([
+        { label: 'team', count: 3, amount: 1470, currency: 'USD' },
+        { label: 'office', count: 1, amount: 840, currency: 'USD' },
+        { label: 'food', count: 2, amount: 630, currency: 'USD' },
+      ]);
+    });
+
+    it('should return all tags for a collective expenses filtered by date', async () => {
+      const tags = await Expense.getCollectiveExpensesTags(collective, {
+        dateFrom: moment().subtract(2.5, 'days').toDate(),
+      });
+
+      expect(tags).to.deep.eq([
+        { label: 'food', count: 2, amount: 630, currency: 'USD' },
+        { label: 'team', count: 2, amount: 630, currency: 'USD' },
+      ]);
+    });
+
+    it('should return the time series of tags for a collective expenses', async () => {
+      const timeSeries = await Expense.getCollectiveExpensesTagsTimeSeries(collective, 'day').catch(console.error);
+
+      expect(timeSeries).to.deep.eq([
+        {
+          date: moment.utc().subtract(1, 'days').startOf('day').toDate(),
+          label: 'food',
+          count: 1,
+          amount: 210,
+          currency: 'USD',
+        },
+        {
+          date: moment.utc().subtract(1, 'days').startOf('day').toDate(),
+          label: 'team',
+          count: 1,
+          amount: 210,
+          currency: 'USD',
+        },
+        {
+          date: moment.utc().subtract(2, 'days').startOf('day').toDate(),
+          label: 'food',
+          count: 1,
+          amount: 420,
+          currency: 'USD',
+        },
+        {
+          date: moment.utc().subtract(2, 'days').startOf('day').toDate(),
+          label: 'team',
+          count: 1,
+          amount: 420,
+          currency: 'USD',
+        },
+        {
+          date: moment.utc().subtract(3, 'days').startOf('day').toDate(),
+          label: 'office',
+          count: 1,
+          amount: 840,
+          currency: 'USD',
+        },
+        {
+          date: moment.utc().subtract(3, 'days').startOf('day').toDate(),
+          label: 'team',
+          count: 1,
+          amount: 840,
+          currency: 'USD',
+        },
+      ]);
+    });
+
+    it('should return the time series of tags for a collective expenses filtered by date', async () => {
+      const timeSeries = await Expense.getCollectiveExpensesTagsTimeSeries(collective, 'day', {
+        dateFrom: moment().subtract(2.5, 'days').toDate(),
+      });
+
+      expect(timeSeries).to.deep.eq([
+        {
+          date: moment.utc().subtract(1, 'days').startOf('day').toDate(),
+          label: 'food',
+          count: 1,
+          amount: 210,
+          currency: 'USD',
+        },
+        {
+          date: moment.utc().subtract(1, 'days').startOf('day').toDate(),
+          label: 'team',
+          count: 1,
+          amount: 210,
+          currency: 'USD',
+        },
+        {
+          date: moment.utc().subtract(2, 'days').startOf('day').toDate(),
+          label: 'food',
+          count: 1,
+          amount: 420,
+          currency: 'USD',
+        },
+        {
+          date: moment.utc().subtract(2, 'days').startOf('day').toDate(),
+          label: 'team',
+          count: 1,
+          amount: 420,
+          currency: 'USD',
+        },
+      ]);
     });
   });
 });
