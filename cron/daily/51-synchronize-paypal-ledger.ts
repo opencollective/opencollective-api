@@ -38,44 +38,28 @@ const WATCHED_EVENT_TYPES = [
 
 // Ignore some hosts, usually because they haven't enabled transactions search API yet
 const IGNORED_HOSTS = [
-  // Transactions search not enabled
+  // Token is invalid
   'access2perspectives',
-  'allforclimate',
-  'better-together',
-  'access2perspectives',
+  // Transactions search API is not enabled
   'allforclimate',
   'arcadianodes',
-  'belovedcommune',
   'better-together',
   'bruijnlogistics',
-  'chesskeep',
+  'deeptimewalk-cic',
   'cct',
-  'connectedpapers',
-  'dynamicpress',
-  'gaianet1',
   'heroes-of-newerth-community',
-  'hisham-bin-ateya',
   'lucy-parsons-labs',
   'madeinjlm',
   'monachelle',
-  'nbgrp',
   'nfsc',
-  'novastra',
-  'openmiami-host',
   'osgeo-foundation',
   'ppy',
   'proofing-future',
-  'queens-care-collective-host',
-  'rollenspielmonster',
-  'sacred-economy-llc',
   'secdsm',
   'stroud-district-community-hubs',
   'the-book-haven-npc',
-  'thecodebulbs',
   'thenewoilmedia',
-  'voltarails',
   'wildseed-society',
-  'wujimacha',
 ];
 
 /**
