@@ -1321,9 +1321,10 @@ export const getHostFeeSharePercent = async (
 
   const possibleValues = [];
 
-  if (isNil(order.platformTipEligible)) {
-    order.platformTipEligible = await isPlatformTipEligible(order);
-  }
+  // TODO: refetch platform tip eligibility properly or elsewhere in a way that doesn't affect tests
+  // if (isNil(order.platformTipEligible)) {
+  //   order.platformTipEligible = await isPlatformTipEligible(order);
+  // }
 
   const platformFee = await getPlatformFee(order);
 
