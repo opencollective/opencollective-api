@@ -4,7 +4,7 @@ import sinon, { useFakeTimers } from 'sinon';
 
 import { run as invoicePlatformFees } from '../../../cron/monthly/host-settlement';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
-import { refundTransaction } from '../../../server/lib/payments';
+import { createRefundTransaction } from '../../../server/lib/payments';
 import { getTaxesSummary } from '../../../server/lib/transactions';
 import models, { sequelize } from '../../../server/models';
 import {
@@ -193,8 +193,8 @@ describe('cron/monthly/host-settlement', () => {
 
     // Refund contributions that must be
     let clock = sinon.useFakeTimers(moment(lastMonth).add(1, 'day').toDate());
-    await refundTransaction(unsettledRefundedContribution, user);
-    await refundTransaction(settledRefundedContribution, user);
+    await createRefundTransaction(unsettledRefundedContribution, 0, null, user, fakeUUID('00000008'));
+    await createRefundTransaction(settledRefundedContribution, 0, null, user, fakeUUID('00000009'));
     clock.restore();
 
     // ---- EUR Host ----
