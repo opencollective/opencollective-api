@@ -9,6 +9,7 @@ import { groupBy } from 'lodash';
 import moment from 'moment';
 
 import FEATURE from '../../server/constants/feature';
+import OrderStatuses from '../../server/constants/order-status';
 import logger from '../../server/lib/logger';
 import { getHostsWithPayPalConnected, listPayPalTransactions } from '../../server/lib/paypal';
 import { closeRedisClient } from '../../server/lib/redis';
@@ -200,7 +201,7 @@ const handleCheckoutTransaction = async (
   host: Collective,
   transaction: PaypalTransactionSearchResult['transaction_details'][0],
   captureDetails: PaypalCapture,
-) => {
+): Promise<void> => {
   const captureId = transaction.transaction_info.transaction_id;
   const order = await models.Order.findOne({
     where: { data: { paypalCaptureId: captureId } },
@@ -220,10 +221,14 @@ const handleCheckoutTransaction = async (
   const msg = `Record checkout transaction ${transaction.transaction_info.transaction_id} for order #${order.id}`;
   logger.info(DRY_RUN ? `DRY RUN: ${msg}` : msg);
   if (!DRY_RUN) {
-    return recordPaypalCapture(order, captureDetails, {
+    await recordPaypalCapture(order, captureDetails, {
       data: { recordedFrom: 'cron/daily/51-synchronize-paypal-ledger' },
       createdAt: new Date(captureDetails.create_time),
     });
+
+    if (order.status !== OrderStatuses.PAID) {
+      await order.update({ status: OrderStatuses.PAID });
+    }
   }
 };
 
