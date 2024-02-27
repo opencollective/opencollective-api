@@ -71,6 +71,9 @@ describe('cron/monthly/host-settlement', () => {
       hostCurrency: 'GBP',
       HostCollectiveId: gbpHost.id,
       createdAt: lastMonth,
+      data: {
+        hostFeeSharePercent: 15,
+      },
     };
     // Create Contributions
     const contribution1 = await fakeTransaction({
@@ -121,11 +124,10 @@ describe('cron/monthly/host-settlement', () => {
 
     await Promise.all(
       hostFeeResults.map(({ transaction, hostFeeTransaction }) =>
-        models.Transaction.createHostFeeShareTransactions(
-          { transaction: transaction, hostFeeTransaction: hostFeeTransaction },
-          gbpHost,
-          false,
-        ),
+        models.Transaction.createHostFeeShareTransactions({
+          transaction: transaction,
+          hostFeeTransaction: hostFeeTransaction,
+        }),
       ),
     );
 
