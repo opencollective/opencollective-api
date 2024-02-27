@@ -1064,13 +1064,13 @@ export const getApplicationFee = async (order: OrderModelInterface): Promise<num
   return applicationFee;
 };
 
-export const getPlatformTip = (object: OrderModelInterface): number => {
-  if (!isNil(object.platformTipAmount)) {
-    return object.platformTipAmount;
+export const getPlatformTip = (order: OrderModelInterface): number => {
+  if (!isNil(order.platformTipAmount)) {
+    return order.platformTipAmount;
   }
   // Legacy form, but still being used sometime (to be verified and removed)
-  if (!isNil(object.data?.platformTip)) {
-    return object.data?.platformTip;
+  if (!isNil(order.data?.platformTip)) {
+    return order.data?.platformTip;
   }
   return 0;
 };
@@ -1081,7 +1081,7 @@ export const getPlatformFeePercent = async (
 ): Promise<number> => {
   // Platform Fees are back!
 
-  // Make sure paymentMethod is set
+  // Make sure payment method is available
   if (!order.paymentMethod && order.PaymentMethodId) {
     order.paymentMethod = await order.getPaymentMethod();
   }
@@ -1132,7 +1132,8 @@ export const isPlatformTipEligible = async (order: OrderModelInterface): Promise
     return order.collective.settings.platformTips;
   }
 
-  if (!order.paymentMethod) {
+  // Make sure payment method is available
+  if (!order.paymentMethod && order.PaymentMethodId) {
     order.paymentMethod = await order.getPaymentMethod();
   }
 
