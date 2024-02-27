@@ -209,6 +209,7 @@ interface TransactionModelStaticInterface {
   }>;
   createPlatformTipDebtTransactions(args: {
     platformTipTransaction: TransactionInterface;
+    transaction: TransactionCreationAttributes;
   }): Promise<TransactionInterface>;
   createPaymentProcessorFeeTransactions(
     transaction: TransactionCreationAttributes,
@@ -956,14 +957,17 @@ Transaction.createDoubleEntry = async (transaction: TransactionCreationAttribute
  */
 Transaction.createPlatformTipDebtTransactions = async ({
   platformTipTransaction,
+  transaction,
 }: {
   platformTipTransaction: TransactionInterface;
+  transaction: TransactionCreationAttributes;
 }): Promise<TransactionInterface> => {
   if (platformTipTransaction.type === DEBIT) {
     throw new Error('createPlatformTipDebtTransactions must be given a CREDIT transaction');
   }
 
-  const host = await Transaction.fetchHost(platformTipTransaction);
+  // This should be the host of the original transaction
+  const host = await Transaction.fetchHost(transaction);
 
   // Create debt transaction
   const platformTipDebtTransactionData = {
@@ -1075,7 +1079,10 @@ Transaction.createPlatformTipTransactions = async (
 
   let platformTipDebtTransaction;
   if (!transaction.data.isPlatformRevenueDirectlyCollected) {
-    platformTipDebtTransaction = await Transaction.createPlatformTipDebtTransactions({ platformTipTransaction });
+    platformTipDebtTransaction = await Transaction.createPlatformTipDebtTransactions({
+      platformTipTransaction,
+      transaction,
+    });
   }
 
   // If we have platformTipInHostCurrency available, we trust it, otherwise we compute it
