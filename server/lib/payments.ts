@@ -559,7 +559,7 @@ export async function createRefundTransaction(
 export async function associateTransactionRefundId(
   transaction: TransactionInterface,
   refund: TransactionInterface,
-  data: TransactionData = {},
+  data?: TransactionData,
 ): Promise<TransactionInterface> {
   const transactions = await Transaction.findAll({
     order: ['id'],
@@ -577,7 +577,7 @@ export async function associateTransactionRefundId(
   const refundDebit = transactions.find(t => t.isRefund && t.type === DEBIT);
 
   // After refunding a transaction, in some cases the data may be updated as well (stripe data changes after refunds)
-  if (data) {
+  if (data && Object.keys(data).length) {
     debit.data = data;
     credit.data = data;
   }
