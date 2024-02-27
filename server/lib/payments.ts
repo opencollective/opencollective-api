@@ -1091,16 +1091,10 @@ export const getPlatformFeePercent = async (
     const collective =
       order.collective || (await (loaders?.Collective.byId.load(order.CollectiveId) || order.getCollective()));
     const parentCollective = await collective.getParentCollective({ loaders });
-    // const data = parentCollective ? parentCollective.data : collective.data;
     const settings = parentCollective ? parentCollective.settings : collective.settings;
 
-    // And collective has opt out platform tips
-    if (
-      // We used the data field to disable Platform Tips for a bunch of BRL collectives
-      // (!isNil(data?.platformTips) && !data.platformTips) ||
-      !isNil(settings?.platformTips) &&
-      !settings.platformTips
-    ) {
+    // And collective has opt-out platform tips
+    if (!isNil(settings?.platformTips) && !settings.platformTips) {
       return config.fees.default.platformPercent;
     }
   }
@@ -1132,12 +1126,6 @@ export const isPlatformTipEligible = async (order: OrderModelInterface): Promise
   if (!isNil(order.platformTipEligible)) {
     return order.platformTipEligible;
   }
-
-  // We used the data field to disable Platform Tips for a bunch of BRL collectives
-  // That should be oudated now
-  // if (!isNil(order.collective.data?.platformTips)) {
-  //   return order.collective.data.platformTips;
-  // }
 
   // Platform Tips opt out
   if (!isNil(order.collective.settings?.platformTips)) {
@@ -1321,7 +1309,7 @@ export const getHostFeeSharePercent = async (
 
   const possibleValues = [];
 
-  // TODO: refetch platform tip eligibility properly or elsewhere in a way that doesn't affect tests
+  // TODO(platform-fee): refetch platform tip eligibility properly or elsewhere in a way that doesn't affect tests
   // if (isNil(order.platformTipEligible)) {
   //   order.platformTipEligible = await isPlatformTipEligible(order);
   // }
