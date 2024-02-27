@@ -38,7 +38,7 @@ const createChargeAndTransactions = async (
       : host?.settings?.isPlatformRevenueDirectlyCollected ?? true;
 
   // Compute Application Fee (Shared Revenue + Platform Tip)
-  const applicationFee = await getApplicationFee(order, { host });
+  const applicationFee = await getApplicationFee(order);
 
   // Make sure data is available (breaking in some old tests)
   order.data = order.data || {};

@@ -15,7 +15,6 @@ import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
 import { Op } from '../models';
 import Activity from '../models/Activity';
-import Collective from '../models/Collective';
 import Order, { OrderModelInterface } from '../models/Order';
 import PaymentMethod, { PaymentMethodModelInterface } from '../models/PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from '../models/PayoutMethod';
@@ -203,7 +202,6 @@ export const buildRefundForTransaction = (
     'paymentProcessorFeeInHostCurrency',
     'taxAmount',
     'data.hasPlatformTip',
-    'data.isFeesOnTop', // deprecated form, replaced by hasPlatformTip
     'data.tax',
     'kind',
     'isDebt',
@@ -1044,19 +1042,15 @@ export const sendExpiringCreditCardUpdateEmail = async (data): Promise<void> => 
   });
 };
 
-export const getApplicationFee = async (
-  order: OrderModelInterface,
-  { host = null }: { host?: Collective } = {},
-): Promise<number> => {
+export const getApplicationFee = async (order: OrderModelInterface): Promise<number> => {
   let applicationFee = 0;
 
-  const platformTipAmount = getPlatformTip(order);
-  if (platformTipAmount) {
-    applicationFee += platformTipAmount;
+  if (order.platformTipAmount) {
+    applicationFee += order.platformTipAmount;
   }
 
-  const hostFeeAmount = await getHostFee(order, { host });
-  const hostFeeSharePercent = await getHostFeeSharePercent(order, { host });
+  const hostFeeAmount = await getHostFee(order);
+  const hostFeeSharePercent = await getHostFeeSharePercent(order);
   if (hostFeeAmount && hostFeeSharePercent) {
     const hostFeeShareAmount = calcFee(hostFeeAmount, hostFeeSharePercent);
     applicationFee += hostFeeShareAmount;
@@ -1114,55 +1108,58 @@ export const getPlatformFeePercent = async (
   return 0;
 };
 
-export const getHostFee = async (
-  order: OrderModelInterface,
-  { host = null }: { host?: Collective } = {},
-): Promise<number> => {
+export const getHostFee = async (order: OrderModelInterface): Promise<number> => {
   const totalAmount = order.totalAmount || 0;
   const taxAmount = order.taxAmount || 0;
-  const platformTip = getPlatformTip(order);
+  const platformTipAmount = order.platformTipAmount || 0;
 
-  const hostFeePercent = await getHostFeePercent(order, { host });
+  const hostFeePercent = await getHostFeePercent(order);
 
-  return calcFee(totalAmount - taxAmount - platformTip, hostFeePercent);
+  return calcFee(totalAmount - taxAmount - platformTipAmount, hostFeePercent);
 };
 
 export const getPlatformFee = async (order: OrderModelInterface): Promise<number> => {
   const totalAmount = order.totalAmount || 0;
   const taxAmount = order.taxAmount || 0;
-  const platformTip = getPlatformTip(order);
+  const platformTipAmount = order.platformTipAmount || 0;
 
   const platformFeePercent = await getPlatformFeePercent(order);
 
-  return calcFee(totalAmount - taxAmount - platformTip, platformFeePercent);
+  return calcFee(totalAmount - taxAmount - platformTipAmount, platformFeePercent);
 };
 
-export const isPlatformTipEligible = async (order: OrderModelInterface, host?: Collective): Promise<boolean> => {
+export const isPlatformTipEligible = async (order: OrderModelInterface): Promise<boolean> => {
   if (!isNil(order.platformTipEligible)) {
     return order.platformTipEligible;
   }
 
   // We used the data field to disable Platform Tips for a bunch of BRL collectives
-  if (!isNil(order.collective.data?.platformTips)) {
-    return order.collective.data.platformTips;
-  }
+  // That should be oudated now
+  // if (!isNil(order.collective.data?.platformTips)) {
+  //   return order.collective.data.platformTips;
+  // }
 
+  // Platform Tips opt out
   if (!isNil(order.collective.settings?.platformTips)) {
     return order.collective.settings.platformTips;
   }
 
-  if (!order.paymentMethod && order.PaymentMethodId) {
+  if (!order.paymentMethod) {
     order.paymentMethod = await order.getPaymentMethod();
   }
 
   // Added Funds are not eligible to Platform Tips
-  if (order.paymentMethod?.service === 'opencollective' && order.paymentMethod?.type === 'host') {
+  if (
+    order.paymentMethod?.service === PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE &&
+    order.paymentMethod?.type === PAYMENT_METHOD_TYPE.HOST
+  ) {
     return false;
   }
 
-  host = host || (await order.collective.getHostCollective());
+  const host = await order.collective.getHostCollective();
   if (host) {
     const plan = await host.getPlan();
+    // At this stage, only OSC /opensourcce and Open Collective /opencollective will return false
     return plan.platformTips;
   }
 
@@ -1171,14 +1168,13 @@ export const isPlatformTipEligible = async (order: OrderModelInterface, host?: C
 
 export const getHostFeePercent = async (
   order: OrderModelInterface,
-  { host = null, loaders = null }: { host?: Collective; loaders?: loaders } = {},
+  { loaders = null }: { loaders?: loaders } = {},
 ): Promise<number> => {
   const collective =
     order.collective || (await loaders?.Collective.byId.load(order.CollectiveId)) || (await order.getCollective());
 
+  const host = await collective.getHostCollective({ loaders });
   const parent = await collective.getParentCollective({ loaders });
-
-  host = host || (await collective.getHostCollective({ loaders }));
 
   // Make sure payment method is available
   if (!order.paymentMethod && order.PaymentMethodId) {
@@ -1195,7 +1191,10 @@ export const getHostFeePercent = async (
     order.data?.hostFeePercent,
   ];
 
-  if (order.paymentMethod?.service === 'opencollective' && order.paymentMethod?.type === 'manual') {
+  if (
+    order.paymentMethod?.service === PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE &&
+    order.paymentMethod?.type === PAYMENT_METHOD_TYPE.MANUAL
+  ) {
     // Fixed for Bank Transfers at collective level
     // As of December 2023, this will be only set on a selection of OCF Collectives
     // 1kproject 6%, mealsofgratitude 5%, modulo 5%
@@ -1218,13 +1217,19 @@ export const getHostFeePercent = async (
     possibleValues.push(host?.data?.bankTransfersHostFeePercent);
   }
 
-  if (order.paymentMethod?.service === 'opencollective' && order.paymentMethod?.type === 'prepaid') {
+  if (
+    order.paymentMethod?.service === PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE &&
+    order.paymentMethod?.type === PAYMENT_METHOD_TYPE.PREPAID
+  ) {
     if (order.paymentMethod.data?.hostFeePercent) {
       possibleValues.push(order.paymentMethod.data?.hostFeePercent);
     }
   }
 
-  if (order.paymentMethod?.service === 'opencollective' && order.paymentMethod?.type === 'host') {
+  if (
+    order.paymentMethod?.service === PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE &&
+    order.paymentMethod?.type === PAYMENT_METHOD_TYPE.COLLECTIVE
+  ) {
     // Fixed for Added Funds at collective level
     possibleValues.push(collective.data?.addedFundsHostFeePercent);
     // Fixed for Added Funds at parent level
@@ -1242,12 +1247,15 @@ export const getHostFeePercent = async (
     possibleValues.push(host?.data?.addedFundsHostFeePercent);
   }
 
-  if (order.paymentMethod?.service === 'opencollective' && order.paymentMethod?.type === 'collective') {
+  if (
+    order.paymentMethod?.service === PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE &&
+    order.paymentMethod?.type === PAYMENT_METHOD_TYPE.COLLECTIVE
+  ) {
     // Default to 0 for Collective to Collective on the same Host
     possibleValues.push(0);
   }
 
-  if (order.paymentMethod?.service === 'stripe') {
+  if (order.paymentMethod?.service === PAYMENT_METHOD_SERVICE.STRIPE) {
     // Configurable by the Host globally, at the Collective or Parent level
     // possibleValues.push(collective.data?.stripeHostFeePercent); // not used in the wild so far
     // possibleValues.push(parent?.data?.stripeHostFeePercent); // not used in the wild so far
@@ -1268,7 +1276,7 @@ export const getHostFeePercent = async (
     // possibleValues.push(host.data?.stripeHostFeePercent); // not used in the wild so far
   }
 
-  if (order.paymentMethod?.service === 'paypal') {
+  if (order.paymentMethod?.service === PAYMENT_METHOD_SERVICE.PAYPAL) {
     // Configurable by the Host globally or at the Collective level
     // possibleValues.push(collective.data?.paypalHostFeePercent); // not used in the wild so far
     // possibleValues.push(parent?.data?.paypalHostFeePercent); // not used in the wild so far
@@ -1301,22 +1309,20 @@ export const getHostFeePercent = async (
 
 export const getHostFeeSharePercent = async (
   order: OrderModelInterface,
-  { host = null, loaders = null }: { host?: Collective; loaders?: loaders } = {},
+  { loaders = null }: { loaders?: loaders } = {},
 ): Promise<number> => {
   if (!order.collective) {
     order.collective = (await loaders?.Collective.byId.load(order.CollectiveId)) || (await order.getCollective());
   }
 
-  if (!host) {
-    host = await order.collective.getHostCollective({ loaders });
-  }
+  const host = await order.collective.getHostCollective({ loaders });
 
   const plan = await host.getPlan();
 
   const possibleValues = [];
 
   if (isNil(order.platformTipEligible)) {
-    order.platformTipEligible = await isPlatformTipEligible(order, host);
+    order.platformTipEligible = await isPlatformTipEligible(order);
   }
 
   const platformFee = await getPlatformFee(order);
@@ -1336,10 +1342,10 @@ export const getHostFeeSharePercent = async (
   // We still have a lot of old orders were platformTipEligible is not set, so we'll keep that configuration for now
 
   // Assign different fees based on the payment provider
-  if (order.paymentMethod?.service === 'stripe') {
+  if (order.paymentMethod?.service === PAYMENT_METHOD_SERVICE.STRIPE) {
     possibleValues.push(host.data?.stripeHostFeeSharePercent);
     possibleValues.push(plan?.stripeHostFeeSharePercent); // deprecated
-  } else if (order.paymentMethod?.service === 'paypal') {
+  } else if (order.paymentMethod?.service === PAYMENT_METHOD_SERVICE.PAYPAL) {
     possibleValues.push(host.data?.paypalHostFeeSharePercent);
     possibleValues.push(plan?.paypalHostFeeSharePercent); // deprecated
   }

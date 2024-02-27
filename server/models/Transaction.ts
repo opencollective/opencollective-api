@@ -1010,36 +1010,36 @@ Transaction.createPlatformTipDebtTransactions = async ({
  * @param {boolean} Whether tip has been collected already (no debt needed)
  */
 Transaction.createPlatformTipTransactions = async (
-  transactionData: TransactionCreationAttributes,
+  transaction: TransactionCreationAttributes,
 ): Promise<void | {
   transaction: TransactionCreationAttributes;
   platformTipTransaction: TransactionInterface;
   platformTipDebtTransaction: TransactionInterface | null;
 }> => {
-  const platformTip = transactionData.data?.platformTip;
+  const platformTip = transaction.data?.platformTip;
   if (!platformTip) {
     return;
   }
 
   // amount of the CREDIT should be in the same currency as the original transaction
   const amount = platformTip;
-  const currency = transactionData.currency;
+  const currency = transaction.currency;
 
   // amountInHostCurrency of the CREDIT should be in platform currency
   const hostCurrency = PLATFORM_TIP_TRANSACTION_PROPERTIES.currency;
-  const hostCurrencyFxRate = await Transaction.getFxRate(currency, hostCurrency, transactionData);
+  const hostCurrencyFxRate = await Transaction.getFxRate(currency, hostCurrency, transaction);
   const amountInHostCurrency = Math.round(amount * hostCurrencyFxRate);
 
   // we compute the Fx Rate between the original hostCurrency and the platform currency
   // it might be used later
   const hostToPlatformFxRate = await Transaction.getFxRate(
-    transactionData.hostCurrency,
+    transaction.hostCurrency,
     PLATFORM_TIP_TRANSACTION_PROPERTIES.currency,
-    transactionData,
+    transaction,
   );
 
   const platformTipTransactionData = {
-    ...pick(transactionData, [
+    ...pick(transaction, [
       'TransactionGroup',
       'FromCollectiveId',
       'OrderId',
@@ -1068,32 +1068,30 @@ Transaction.createPlatformTipTransactions = async (
     isDebt: false,
     data: {
       hostToPlatformFxRate,
-      settled: transactionData.data?.settled,
     },
   };
 
   const platformTipTransaction = await Transaction.createDoubleEntry(platformTipTransactionData);
 
   let platformTipDebtTransaction;
-  if (!transactionData.data.isPlatformRevenueDirectlyCollected) {
+  if (!transaction.data.isPlatformRevenueDirectlyCollected) {
     platformTipDebtTransaction = await Transaction.createPlatformTipDebtTransactions({ platformTipTransaction });
   }
 
   // If we have platformTipInHostCurrency available, we trust it, otherwise we compute it
   const platformTipInHostCurrency =
-    <number>transactionData.data?.platformTipInHostCurrency ||
-    Math.round(platformTip * transactionData.hostCurrencyFxRate);
+    <number>transaction.data?.platformTipInHostCurrency || Math.round(platformTip * transaction.hostCurrencyFxRate);
 
   // Recalculate amount
-  transactionData.amountInHostCurrency = Math.round(transactionData.amountInHostCurrency - platformTipInHostCurrency);
-  transactionData.amount = Math.round(transactionData.amount - platformTip);
+  transaction.amountInHostCurrency = Math.round(transaction.amountInHostCurrency - platformTipInHostCurrency);
+  transaction.amount = Math.round(transaction.amount - platformTip);
 
   // Reset the platformFee because we're accounting for this value in a separate set of transactions
   // This way of passing tips is deprecated but still used in some older tests
-  transactionData.platformFeeInHostCurrency = 0;
-  transactionData.netAmountInCollectiveCurrency = Transaction.calculateNetAmountInCollectiveCurrency(transactionData);
+  transaction.platformFeeInHostCurrency = 0;
+  transaction.netAmountInCollectiveCurrency = Transaction.calculateNetAmountInCollectiveCurrency(transaction);
 
-  return { transaction: transactionData, platformTipTransaction, platformTipDebtTransaction };
+  return { transaction, platformTipTransaction, platformTipDebtTransaction };
 };
 
 Transaction.validateContributionPayload = (payload: TransactionCreationAttributes): void => {
@@ -1383,10 +1381,10 @@ Transaction.createHostFeeShareTransactions = async ({
 } | void> => {
   const host = await Transaction.fetchHost(transaction);
 
-  let hostFeeSharePercent = transaction.data.hostFeeSharePercent;
+  let hostFeeSharePercent = transaction.data?.hostFeeSharePercent;
   if (isNil(hostFeeSharePercent) && transaction.OrderId) {
     const order = await Order.findByPk(transaction.OrderId);
-    hostFeeSharePercent = await getHostFeeSharePercent(order, { host });
+    hostFeeSharePercent = await getHostFeeSharePercent(order);
   }
 
   if (!hostFeeSharePercent) {

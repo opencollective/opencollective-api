@@ -28,7 +28,7 @@ async function processNewOrder(order: OrderModelInterface) {
     host && APPLICATION_FEE_INCOMPATIBLE_CURRENCIES.includes(toUpper(host.currency))
       ? false
       : host?.settings?.isPlatformRevenueDirectlyCollected ?? true;
-  const applicationFee = await getApplicationFee(order, { host });
+  const applicationFee = await getApplicationFee(order);
   const paymentIntentParams: Stripe.PaymentIntentUpdateParams = {
     currency: order.currency,
     amount: convertToStripeAmount(order.currency, order.totalAmount),
@@ -96,7 +96,7 @@ async function processRecurringOrder(order: OrderModelInterface) {
     host && APPLICATION_FEE_INCOMPATIBLE_CURRENCIES.includes(toUpper(host.currency))
       ? false
       : host?.settings?.isPlatformRevenueDirectlyCollected ?? true;
-  const applicationFee = await getApplicationFee(order, { host });
+  const applicationFee = await getApplicationFee(order);
   const paymentIntentParams: Stripe.PaymentIntentCreateParams = {
     currency: order.currency,
     amount: convertToStripeAmount(order.currency, order.totalAmount),

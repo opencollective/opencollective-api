@@ -134,7 +134,7 @@ export const createChargeTransactions = async (
       ? false
       : host?.settings?.isPlatformRevenueDirectlyCollected ?? true;
 
-  const hostFeeSharePercent = await getHostFeeSharePercent(order, { host });
+  const hostFeeSharePercent = await getHostFeeSharePercent(order);
   const isSharedRevenue = !!hostFeeSharePercent;
   const balanceTransaction = await stripe.balanceTransactions.retrieve(charge.balance_transaction as string, {
     stripeAccount: hostStripeAccount.username,
@@ -151,12 +151,12 @@ export const createChargeTransactions = async (
   const amountInHostCurrency = convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount);
   const hostCurrencyFxRate = amountInHostCurrency / order.totalAmount;
 
-  const hostFee = await getHostFee(order, { host });
+  const hostFee = await getHostFee(order);
   const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
 
   const fees = extractFees(balanceTransaction, balanceTransaction.currency);
 
-  const platformTipEligible = await isPlatformTipEligible(order, host);
+  const platformTipEligible = await isPlatformTipEligible(order);
   const platformTip = getPlatformTip(order);
 
   const platformFee = await getPlatformFee(order);
@@ -189,7 +189,6 @@ export const createChargeTransactions = async (
     platformTip,
     platformTipInHostCurrency,
     hostFeeSharePercent,
-    settled: true,
     tax: order.data?.tax,
     isPlatformRevenueDirectlyCollected,
   } as TransactionData;
