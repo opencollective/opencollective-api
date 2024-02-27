@@ -467,7 +467,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
       `
       SELECT
         TRIM(UNNEST(COALESCE(e."tags", '{"${noTag}"}'))) AS label,
-        COUNT(e."id") as "count",
+        COUNT(DISTINCT e."id") as "count",
         ABS(SUM(t."amount")) as "amount",
         t."currency" as "currency"
       FROM "Expenses" e
@@ -518,7 +518,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
       SELECT
         DATE_TRUNC(:timeUnit, t."createdAt") AS "date",
         TRIM(UNNEST(COALESCE(e."tags", '{"${noTag}"}'))) AS label,
-        COUNT(e."id") as "count",
+        COUNT(DISTINCT e."id") as "count",
         ABS(SUM(t."amount")) as "amount",
         t."currency" as "currency"
       FROM "Expenses" e
