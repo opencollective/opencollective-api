@@ -798,6 +798,7 @@ Transaction.createDoubleEntry = async (transaction: TransactionCreationAttribute
   // TODO: should we check for refunds also?
 
   transaction.netAmountInCollectiveCurrency = transaction.netAmountInCollectiveCurrency || transaction.amount;
+  // transaction.netAmountInCollectiveCurrency = Transaction.calculateNetAmountInCollectiveCurrency(transaction);
   transaction.TransactionGroup = transaction.TransactionGroup || uuid();
   transaction.hostCurrencyFxRate = transaction.hostCurrencyFxRate || 1;
 
@@ -1536,6 +1537,8 @@ Transaction.createFromContributionPayload = async (
   transaction.platformFeeInHostCurrency = toNegative(transaction.platformFeeInHostCurrency) || 0;
   transaction.paymentProcessorFeeInHostCurrency = toNegative(transaction.paymentProcessorFeeInHostCurrency) || 0;
   transaction.taxAmount = toNegative(transaction.taxAmount);
+
+  transaction.netAmountInCollectiveCurrency = Transaction.calculateNetAmountInCollectiveCurrency(transaction);
 
   return Transaction.createDoubleEntry(transaction);
 };
