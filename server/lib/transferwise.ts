@@ -97,21 +97,26 @@ export async function getToken(connectedAccount: ConnectedAccount, refresh = fal
   };
 
   const refreshAndUpdateToken = async connectedAccount => {
-    const newToken = await getOrRefreshToken({ refreshToken: connectedAccount.refreshToken });
-    if (!newToken) {
-      Activity.create({
-        type: ActivityTypes.CONNECTED_ACCOUNT_ERROR,
-        data: {
-          connectedAccount: connectedAccount.activity,
-          error: 'There was an error refreshing the Wise token',
-        },
-        CollectiveId: connectedAccount.CollectiveId,
-      });
-      throw new Error('There was an error refreshing the Wise token');
+    try {
+      const newToken = await getOrRefreshToken({ refreshToken: connectedAccount.refreshToken });
+      if (!newToken) {
+        Activity.create({
+          type: ActivityTypes.CONNECTED_ACCOUNT_ERROR,
+          data: {
+            connectedAccount: connectedAccount.activity,
+            error: 'There was an error refreshing the Wise token',
+          },
+          CollectiveId: connectedAccount.CollectiveId,
+        });
+        throw new Error('There was an error refreshing the Wise token');
+      }
+      const { access_token: token, refresh_token: refreshToken, ...data } = newToken;
+      await connectedAccount.update({ token, refreshToken, data: { ...connectedAccount.data, ...data } });
+      return token;
+    } catch (e) {
+      logger.error(`Error refreshing Wise token for connected account #${connectedAccount.id}`, e);
+      throw e;
     }
-    const { access_token: token, refresh_token: refreshToken, ...data } = newToken;
-    await connectedAccount.update({ token, refreshToken, data: { ...connectedAccount.data, ...data } });
-    return token;
   };
 
   if (!checkTokenIsExpired(connectedAccount)) {
@@ -773,9 +778,8 @@ export const getOrRefreshToken = async ({
     return token;
   } catch (e) {
     debug(JSON.stringify(e));
-    const error = parseError(e, "There was an error while refreshing host's Wise token");
-    logger.error(error.toString());
     reportErrorToSentry(e, { feature: FEATURE.TRANSFERWISE });
+    const error = parseError(e, "There was an error while refreshing host's Wise token");
     throw error;
   }
 };
