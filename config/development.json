@@ -32,5 +32,8 @@
   },
   "host": {
     "pdf": "http://localhost:3002"
+  },
+  "turnstile": {
+    "secret": "1x0000000000000000000000000000000AA"
   }
 }
