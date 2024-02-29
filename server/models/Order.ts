@@ -41,7 +41,10 @@ interface OrderModelStaticInterface {
   generateDescription(collective, amount, interval, tier): string;
   cancelActiveOrdersByCollective(collectiveId: number): Promise<[affectedCount: number]>;
   cancelActiveOrdersByTierId(tierId: number): Promise<[affectedCount: number]>;
-  cancelNonTransferableActiveOrdersByCollectiveId(collectiveId: number): Promise<[affectedCount: number]>;
+  updateNonTransferableActiveOrdersStatusesByCollectiveId(
+    collectiveId: number,
+    newStatus: OrderStatus,
+  ): Promise<[affectedCount: number]>;
   clearExpiredLocks(): Promise<[null, number]>;
 }
 
@@ -667,28 +670,44 @@ Order.cancelActiveOrdersByTierId = function (tierId: number) {
 };
 
 /**
- * Cancels all orders with subscriptions that cannot be transferred when changing hosts (i.e. PayPal)
+ * Update the status of all non-transferable active orders for the given collective.
+ * Note: for externally managed subscriptions (PayPal), marking the orders as CANCELLED will trigger the
+ * cancellation of the associated subscriptions on the payment provider.
+ * See `cron/hourly/70-cancel-subscriptions-for-cancelled-orders.ts`.
  */
-Order.cancelNonTransferableActiveOrdersByCollectiveId = function (collectiveId: number) {
+Order.updateNonTransferableActiveOrdersStatusesByCollectiveId = function (
+  collectiveId: number,
+  newStatus: OrderStatus,
+  updateContext = 'Bulk update for non-transferable active orders',
+): Promise<[affectedCount: number]> {
   return sequelize.query(
     `
-        UPDATE public."Orders"
+        UPDATE "Orders"
         SET
-          status = 'CANCELLED',
-          "updatedAt" = NOW()
+          status = :newStatus,
+          "updatedAt" = NOW(),
+          "data" = COALESCE("data", '{}'::JSONB) || JSONB_BUILD_OBJECT('updateContext', :updateContext)
         WHERE id IN (
-          SELECT "Orders".id FROM public."Orders"
-          INNER JOIN public."Subscriptions" ON "Subscriptions".id = "Orders"."SubscriptionId"
+          SELECT "Orders".id FROM "Orders"
+          INNER JOIN "Subscriptions" ON "Subscriptions".id = "Orders"."SubscriptionId"
+          LEFT JOIN "PaymentMethods" pm ON "Orders"."PaymentMethodId" = pm.id
           WHERE
-            "Orders".status NOT IN ('PAID', 'CANCELLED', 'REJECTED', 'EXPIRED') AND
-            "Subscriptions"."isManagedExternally" AND
-            "Subscriptions"."isActive" AND
-            "Orders"."CollectiveId" = ?
+            "Orders"."CollectiveId" = :collectiveId
+            AND "Subscriptions"."isActive"
+            AND "Orders".status NOT IN ('PAID', 'CANCELLED', 'REJECTED', 'EXPIRED')
+            AND (
+              -- External subscription (PayPal)
+              "Subscriptions"."isManagedExternally"
+              -- Or Stripe connect
+              OR (
+
+              )
+            )
         )
       `,
     {
       type: QueryTypes.UPDATE,
-      replacements: [collectiveId],
+      replacements: { collectiveId, newStatus, updateContext },
     },
   );
 };

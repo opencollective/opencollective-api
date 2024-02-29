@@ -154,6 +154,7 @@ const makeTimelineQuery = async (
         ActivityTypes.PAYMENT_CREDITCARD_EXPIRING,
         ActivityTypes.PAYMENT_FAILED,
         ActivityTypes.SUBSCRIPTION_CANCELED,
+        ActivityTypes.SUBSCRIPTION_PAUSED,
       ],
     );
   }

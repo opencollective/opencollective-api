@@ -2412,7 +2412,11 @@ class Collective extends Model<
       });
     }
 
-    await Order.cancelNonTransferableActiveOrdersByCollectiveId(this.id);
+    if (options?.pauseContributions) {
+      await Order.pauseNonTransferableActiveOrdersByCollectiveId(this.id);
+    } else {
+      await Order.cancelNonTransferableActiveOrdersByCollectiveId(this.id);
+    }
 
     const virtualCards = await VirtualCard.findAll({ where: { CollectiveId: this.id } });
     await Promise.all(virtualCards.map(virtualCard => virtualCard.delete()));
