@@ -4,7 +4,6 @@ import { get, has, pick } from 'lodash';
 import moment from 'moment';
 
 import { getCollectiveIds } from '../../../lib/budget';
-import { getFxRate } from '../../../lib/currency';
 import queries from '../../../lib/queries';
 import sequelize, { QueryTypes } from '../../../lib/sequelize';
 import { computeDatesAsISOStrings } from '../../../lib/utils';
@@ -359,11 +358,16 @@ export const GraphQLAccountStats = new GraphQLObjectType({
         type: GraphQLJSON,
         deprecationReason: '2022-10-21: Use activeRecurringContributionsV2 while we migrate to better semantics.',
         resolve(collective, args, req) {
-          return req.loaders.Collective.stats.activeRecurringContributions.load(collective.id);
+          const loader = req.loaders.Collective.stats.activeRecurringContributions.buildLoader({
+            currency: collective.currency,
+          });
+          return loader.load(collective.id);
         },
       },
       activeRecurringContributionsV2: {
         type: GraphQLAmount,
+        deprecationReason:
+          '2024-03-04: Use activeRecurringContributionsBreakdown while we migrate to better semantics.',
         args: {
           frequency: {
             type: new GraphQLNonNull(GraphQLContributionFrequency),
@@ -376,15 +380,58 @@ export const GraphQLAccountStats = new GraphQLObjectType({
           if (!['monthly', 'yearly'].includes(key)) {
             throw new Error('Unsupported frequency.');
           }
-          const stats = await req.loaders.Collective.stats.activeRecurringContributions.load(collective.id);
-          const currency = collective.currency;
-          // There is no guarantee that stats are returned in collective.currency, we convert to be sure
-          const fxRate = await getFxRate(stats.currency, currency);
-          const value = Math.round(stats[key] * fxRate);
+          const loader = req.loaders.Collective.stats.activeRecurringContributions.buildLoader({
+            currency: collective.currency,
+          });
+          const stats = await loader.load(collective.id);
           return {
-            value: value,
-            currency: currency,
+            value: stats[key],
+            currency: collective.currency,
           };
+        },
+      },
+      activeRecurringContributionsBreakdown: {
+        description: 'Returns some statistics about active recurring contributions, broken down by frequency',
+        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLAmountStats))),
+        args: {
+          frequency: {
+            type: GraphQLContributionFrequency,
+            description: 'Return only the stats for this frequency',
+          },
+          hasPortability: {
+            type: GraphQLBoolean,
+            description: 'Filter contributions on whether they can be ported to another fiscal host directly',
+          },
+          includeChildren: {
+            type: GraphQLBoolean,
+            description: 'Include contributions to children accounts (Projects and Events)',
+            defaultValue: false,
+          },
+        },
+        async resolve(collective, args, req) {
+          const interval = args.frequency?.toLowerCase();
+          if (interval && !['monthly', 'yearly'].includes(interval)) {
+            throw new Error('Unsupported frequency.');
+          }
+          const currency = collective.currency;
+          const loader = req.loaders.Collective.stats.activeRecurringContributions.buildLoader({
+            hasPortability: args.hasPortability,
+            includeChildren: args.includeChildren,
+            currency,
+          });
+          const stats = await loader.load(collective.id);
+          const getStatsForInterval = interval => ({
+            label: interval,
+            count: stats[`${interval}Count`],
+            amount: stats[interval],
+            currency,
+          });
+
+          if (interval) {
+            return [getStatsForInterval(interval)];
+          } else {
+            return ['monthly', 'yearly'].map(getStatsForInterval);
+          }
         },
       },
       expensesTags: {

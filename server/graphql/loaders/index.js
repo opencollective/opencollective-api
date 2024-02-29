@@ -1,6 +1,6 @@
 import DataLoader from 'dataloader';
 import { createContext } from 'dataloader-sequelize';
-import { get, groupBy } from 'lodash';
+import { get, groupBy, isNil } from 'lodash';
 import moment from 'moment';
 
 import { CollectiveType } from '../../constants/collectives';
@@ -372,54 +372,79 @@ export const loaders = req => {
         })
         .then(results => sortResults(ids, results, 'CollectiveId')),
     ),
-    activeRecurringContributions: new DataLoader(ids =>
-      models.Order.findAll({
-        attributes: [
-          'Order.CollectiveId',
-          'Order.currency',
-          'Subscription.interval',
-          [
-            sequelize.fn(
-              'SUM',
-              sequelize.literal(`COALESCE("Order"."totalAmount", 0) - COALESCE("Order"."platformTipAmount", 0)`),
-            ),
-            'total',
-          ],
-        ],
-        where: {
-          CollectiveId: { [Op.in]: ids },
-          status: 'ACTIVE',
-        },
-        group: ['Subscription.interval', 'CollectiveId', 'Order.currency'],
-        include: [
-          {
-            model: models.Subscription,
-            attributes: [],
-            where: { isActive: true },
-          },
-        ],
-        raw: true,
-      }).then(rows => {
-        const results = groupBy(rows, 'CollectiveId');
-        return Promise.all(
-          ids.map(async collectiveId => {
-            const stats = { CollectiveId: Number(collectiveId), monthly: 0, yearly: 0, currency: null };
-            if (results[collectiveId]) {
-              for (const result of results[collectiveId]) {
-                const interval = result.interval === 'month' ? 'monthly' : 'yearly';
-                // If it's the first total collected, set the currency
-                if (!stats.currency) {
-                  stats.currency = result.currency;
-                }
-                const fxRate = await getFxRate(result.currency, stats.currency);
-                stats[interval] += result.total * fxRate;
-              }
-            }
-            return stats;
-          }),
-        );
-      }),
-    ),
+    activeRecurringContributions: {
+      buildLoader({ currency, hasPortability = undefined, includeChildren = undefined } = {}) {
+        const key = `${currency}-${hasPortability}-${includeChildren}`;
+        if (!context.loaders.Collective.stats.activeRecurringContributions[key]) {
+          const collectiveIdCol = !includeChildren
+            ? 'CollectiveId'
+            : sequelize.fn('COALESCE', sequelize.col('collective.ParentCollectiveId'), sequelize.col('collective.id'));
+
+          context.loaders.Collective.stats.activeRecurringContributions[key] = new DataLoader(ids =>
+            models.Order.findAll({
+              attributes: [
+                [collectiveIdCol, 'CollectiveId'],
+                'Order.currency',
+                'Subscription.interval',
+                [sequelize.fn('COUNT', sequelize.literal(`DISTINCT "Order"."id"`)), 'count'],
+                [
+                  sequelize.fn(
+                    'SUM',
+                    sequelize.literal(`COALESCE("Order"."totalAmount", 0) - COALESCE("Order"."platformTipAmount", 0)`),
+                  ),
+                  'total',
+                ],
+              ],
+              where: {
+                status: 'ACTIVE',
+              },
+              group: ['Subscription.interval', collectiveIdCol, 'Order.currency'],
+              include: [
+                {
+                  association: 'collective',
+                  attributes: [],
+                  required: true,
+                  where: !includeChildren ? { id: ids } : { [Op.or]: [{ id: ids }, { ParentCollectiveId: ids }] },
+                },
+                {
+                  model: models.Subscription,
+                  attributes: [],
+                  required: true,
+                  where: {
+                    isActive: true,
+                    ...(!isNil(hasPortability) && { isManagedExternally: !hasPortability }),
+                  },
+                },
+              ],
+              raw: true,
+            }).then(rows => {
+              const results = groupBy(rows, 'CollectiveId');
+              return Promise.all(
+                ids.map(async collectiveId => {
+                  const stats = {
+                    CollectiveId: Number(collectiveId),
+                    monthly: 0,
+                    monthlyCount: 0,
+                    yearly: 0,
+                    yearlyCount: 0,
+                  };
+                  if (results[collectiveId]) {
+                    for (const result of results[collectiveId]) {
+                      const interval = result.interval === 'month' ? 'monthly' : 'yearly';
+                      const fxRate = await getFxRate(result.currency, currency);
+                      stats[interval] += result.total * fxRate;
+                      stats[`${interval}Count`] += result.count;
+                    }
+                  }
+                  return stats;
+                }),
+              );
+            }),
+          );
+        }
+        return context.loaders.Collective.stats.activeRecurringContributions[key];
+      },
+    },
     orders: new DataLoader(async collectiveIds => {
       const stats = await sequelize.query(
         `SELECT * FROM "CollectiveOrderStats" WHERE "CollectiveId" IN (:collectiveIds)`,

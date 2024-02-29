@@ -10,7 +10,7 @@ import OrderStatuses from '../../server/constants/order-status';
 import logger from '../../server/lib/logger';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import { sleep } from '../../server/lib/utils';
-import models, { Op } from '../../server/models';
+import models, { Collective, Op } from '../../server/models';
 import { OrderModelInterface } from '../../server/models/Order';
 
 /**
@@ -32,17 +32,29 @@ const getHostFromOrder = async order => {
   return models.Collective.findByPk(hostIds[0]);
 };
 
-const getOrderCancelationReason = (collective, order, orderHost) => {
-  if (order.TierId && !order.Tier) {
-    return ['DELETED_TIER', `Order tier deleted`];
+const getOrderCancelationReason = (
+  collective: Collective,
+  order: OrderModelInterface,
+  orderHost: Collective,
+): {
+  code: 'TRANSFER' | 'DELETED_TIER' | 'ARCHIVED_ACCOUNT' | 'UNHOSTED_COLLECTIVE' | 'CHANGED_HOST' | 'CANCELLED_ORDER';
+  message: string;
+} => {
+  if (order.status === 'PAUSED' && order.data?.pausedForTransfer) {
+    return {
+      code: 'TRANSFER',
+      message: `Your contribution to the Collective was paused. We'll inform you when it will be ready for re-activation.`,
+    };
+  } else if (order.TierId && !order.Tier) {
+    return { code: 'DELETED_TIER', message: `Order tier deleted` };
   } else if (collective.deactivatedAt) {
-    return ['ARCHIVED_ACCOUNT', `@${collective.slug} archived their account`];
+    return { code: 'ARCHIVED_ACCOUNT', message: `@${collective.slug} archived their account` };
   } else if (!collective.HostCollectiveId) {
-    return ['UNHOSTED_COLLECTIVE', `@${collective.slug} was un-hosted`];
+    return { code: 'UNHOSTED_COLLECTIVE', message: `@${collective.slug} was un-hosted` };
   } else if (collective.HostCollectiveId !== orderHost.id) {
-    return ['CHANGED_HOST', `@${collective.slug} changed host`];
+    return { code: 'CHANGED_HOST', message: `@${collective.slug} changed host` };
   } else {
-    return ['CANCELLED_ORDER', `Order cancelled`];
+    return { code: 'CANCELLED_ORDER', message: `Order cancelled` };
   }
 };
 
@@ -53,7 +65,7 @@ const getOrderCancelationReason = (collective, order, orderHost) => {
  */
 export async function run() {
   const orphanOrders = await models.Order.findAll<OrderModelInterface>({
-    where: { status: OrderStatuses.CANCELLED },
+    where: { status: [OrderStatuses.CANCELLED, OrderStatuses.PAUSED] },
     include: [
       {
         model: models.Tier,
@@ -85,14 +97,14 @@ export async function run() {
     for (const order of accountOrders) {
       try {
         const host = await getHostFromOrder(order);
-        const [reasonCode, reason] = getOrderCancelationReason(collective, order, host);
+        const reason = getOrderCancelationReason(collective, order, host);
         logger.debug(
           `Cancelling subscription ${order.Subscription.id} from order ${order.id} of @${collectiveHandle} (host: ${host.slug})`,
         );
         if (!process.env.DRY) {
-          await order.Subscription.deactivate(reason, host);
+          await order.Subscription.deactivate(reason.message, host);
           await models.Activity.create({
-            type: activities.SUBSCRIPTION_CANCELED,
+            type: reason.code === 'TRANSFER' ? activities.SUBSCRIPTION_PAUSED : activities.SUBSCRIPTION_CANCELED,
             CollectiveId: order.CollectiveId,
             FromCollectiveId: order.FromCollectiveId,
             HostCollectiveId: order.collective.HostCollectiveId,
@@ -102,8 +114,8 @@ export async function run() {
               subscription: order.Subscription,
               collective: order.collective.minimal,
               fromCollective: order.fromCollective.minimal,
-              reasonCode: reasonCode,
-              reason: reason,
+              reasonCode: reason.code,
+              reason: reason.message,
               order: order.info,
               tier: order.Tier?.info,
             },

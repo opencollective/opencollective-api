@@ -24,6 +24,7 @@ enum OrderStatuses {
   // Disputed charges from Stripe
   DISPUTED = 'DISPUTED',
   REFUNDED = 'REFUNDED',
+  PAUSED = 'PAUSED',
   // In review charges from Stripe,
   IN_REVIEW = 'IN_REVIEW',
 }

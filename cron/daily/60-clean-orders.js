@@ -20,6 +20,14 @@ Promise.all([
   AND "Orders"."createdAt" <  (NOW() - interval '2 month')
   `,
   ),
+  // Mark all paused Orders as EXPIRED after 1 year
+  sequelize.query(
+    `UPDATE "Orders"
+  SET "status" = 'EXPIRED', "updatedAt" = NOW()
+  WHERE "Orders"."status" = 'PAUSED'
+  AND "Orders"."updatedAt" <  (NOW() - interval '1 year')
+  `,
+  ),
 ]).then(() => {
   console.log('>>> Clean Orders: done');
   process.exit(0);

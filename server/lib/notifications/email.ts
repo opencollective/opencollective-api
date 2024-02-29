@@ -239,6 +239,7 @@ export const notifyByEmail = async (activity: Activity) => {
       break;
 
     case ActivityTypes.SUBSCRIPTION_CANCELED:
+    case ActivityTypes.SUBSCRIPTION_PAUSED:
       await notify.user(activity);
       break;
 

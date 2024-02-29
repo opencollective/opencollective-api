@@ -52,6 +52,7 @@ import { SupportedCurrency } from '../constants/currencies';
 import expenseStatus from '../constants/expense-status';
 import expenseTypes from '../constants/expense-type';
 import FEATURE from '../constants/feature';
+import OrderStatuses from '../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import plans from '../constants/plans';
 import POLICIES, { Policies } from '../constants/policies';
@@ -2412,7 +2413,12 @@ class Collective extends Model<
       });
     }
 
-    await Order.cancelNonTransferableActiveOrdersByCollectiveId(this.id);
+    // Pause or cancel all orders that cannot be transferred
+    await Order.updateNonTransferableActiveOrdersStatusesByCollectiveId(
+      this.id,
+      options?.pauseContributions ? OrderStatuses.PAUSED : OrderStatuses.CANCELLED,
+      'Changing host',
+    );
 
     const virtualCards = await VirtualCard.findAll({ where: { CollectiveId: this.id } });
     await Promise.all(virtualCards.map(virtualCard => virtualCard.delete()));

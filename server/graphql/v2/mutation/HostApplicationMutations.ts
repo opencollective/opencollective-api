@@ -1,6 +1,6 @@
 import config from 'config';
 import express from 'express';
-import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
 
 import { activities } from '../../../constants';
@@ -12,7 +12,7 @@ import { purgeAllCachesForAccount, purgeCacheForCollective } from '../../../lib/
 import emailLib from '../../../lib/email';
 import * as github from '../../../lib/github';
 import { OSCValidator, ValidatedRepositoryInfo } from '../../../lib/osc-validator';
-import { getPolicy, hasPolicy } from '../../../lib/policies';
+import { getPolicy } from '../../../lib/policies';
 import { stripHTML } from '../../../lib/sanitize-html';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Collective, Op, sequelize } from '../../../models';
@@ -20,7 +20,7 @@ import ConversationModel from '../../../models/Conversation';
 import { HostApplicationStatus } from '../../../models/HostApplication';
 import { processInviteMembersInput } from '../../common/members';
 import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseHost, checkScope } from '../../common/scope-check';
-import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
+import { Forbidden, NotFound, ValidationFailed } from '../../errors';
 import { GraphQLProcessHostApplicationAction } from '../enum/ProcessHostApplicationAction';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLInviteMemberInput } from '../input/InviteMemberInput';
@@ -224,6 +224,12 @@ const HostApplicationMutations = {
       },
       message: {
         type: GraphQLString,
+        description: 'An optional message to explain the reason for unhosting',
+      },
+      pauseContributions: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        description: 'If true, contributions will be paused rather than canceled',
+        defaultValue: true,
       },
     },
     resolve: async (_, args, req: express.Request): Promise<Collective> => {
@@ -238,19 +244,19 @@ const HostApplicationMutations = {
       if (!host) {
         return account;
       }
-      if (!req.remoteUser.isAdminOfCollective(host) && !(req.remoteUser.isRoot() && checkScope(req, 'root'))) {
-        throw new Unauthorized();
+
+      const isHostAdmin = req.remoteUser.isAdminOfCollective(host);
+      const isAccountAdmin = req.remoteUser.isAdminOfCollective(account);
+      if (!isHostAdmin && !isAccountAdmin && !(req.remoteUser.isRoot() && checkScope(req, 'root'))) {
+        throw new Forbidden('Only the host admin or the account admin can trigger this action');
       }
 
-      if (await hasPolicy(host, POLICIES.REQUIRE_2FA_FOR_ADMINS)) {
-        await twoFactorAuthLib.validateRequest(req, {
-          alwaysAskForToken: true,
-          requireTwoFactorAuthEnabled: true,
-          FromCollectiveId: host.id,
-        });
-      }
+      await twoFactorAuthLib.enforceForAccountsUserIsAdminOf(req, [account, host], { alwaysAskForToken: true });
 
-      await account.changeHost(null);
+      await account.changeHost(null, req.remoteUser, {
+        pauseContributions: args.pauseContributions,
+        messageForContributors: args.message,
+      });
 
       await models.Activity.create({
         type: activities.COLLECTIVE_UNHOSTED,
@@ -262,6 +268,8 @@ const HostApplicationMutations = {
           collective: account.info,
           host: host.info,
           message: args.message,
+          isHostAdmin,
+          isAccountAdmin,
         },
       });
 

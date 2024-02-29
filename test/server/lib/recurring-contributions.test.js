@@ -18,7 +18,7 @@ import {
 } from '../../../server/lib/recurring-contributions';
 import models from '../../../server/models';
 import { randEmail } from '../../stores';
-import { fakeOrder } from '../../test-helpers/fake-data';
+import { fakeCollective, fakeOrder } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
 async function createOrderWithSubscription(interval, date, quantity = 1) {
@@ -472,7 +472,7 @@ describe('server/lib/recurring-contributions', () => {
     beforeEach(async () => {
       await utils.resetTestDB();
       user = await models.User.createUserWithCollective({ email: randEmail(), name: 'Test McTesterson' });
-      collective = await models.Collective.create({ name: 'Parcel' });
+      collective = await fakeCollective({ name: 'Parcel' });
       tier = await models.Tier.create({ name: 'backer', amount: 0, CollectiveId: collective.id });
     });
 

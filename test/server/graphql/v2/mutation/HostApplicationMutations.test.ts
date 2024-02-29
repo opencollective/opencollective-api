@@ -5,6 +5,7 @@ import { createSandbox } from 'sinon';
 
 import { activities, roles } from '../../../../../server/constants';
 import OrderStatuses from '../../../../../server/constants/order-status';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../server/constants/paymentMethods';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import VirtualCardProviders from '../../../../../server/constants/virtual-card-providers';
 import { GraphQLProcessHostApplicationAction } from '../../../../../server/graphql/v2/enum';
@@ -14,12 +15,14 @@ import { VirtualCardStatus } from '../../../../../server/models/VirtualCard';
 import * as stripeVirtualCardService from '../../../../../server/paymentProviders/stripe/virtual-cards';
 import { randEmail } from '../../../../stores';
 import {
+  fakeActiveHost,
   fakeCollective,
   fakeEvent,
   fakeHost,
   fakeHostApplication,
   fakeMember,
   fakeOrder,
+  fakePaymentMethod,
   fakeProject,
   fakeTier,
   fakeTransaction,
@@ -92,8 +95,8 @@ const PROCESS_HOST_APPLICATION_MUTATION = gql`
 `;
 
 const REMOVE_HOST_MUTATION = gql`
-  mutation UnhostAccount($account: AccountReferenceInput!, $message: String) {
-    removeHost(account: $account, message: $message) {
+  mutation UnhostAccount($account: AccountReferenceInput!, $message: String, $pauseContributions: Boolean) {
+    removeHost(account: $account, message: $message, pauseContributions: $pauseContributions) {
       id
       slug
       name
@@ -410,7 +413,7 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
       );
     });
 
-    it('requires token with host scope', async () => {
+    it("can't remove if unauthenticated", async () => {
       const result = await graphqlQueryV2(REMOVE_HOST_MUTATION, {
         account: {
           id: 'some id',
@@ -418,6 +421,14 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
       });
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal('You need to be logged in to manage hosted accounts.');
+    });
+
+    it("can't remove if not an admin", async () => {
+      const randomUser = await fakeUser();
+      const collective = await fakeCollective();
+      const result = await graphqlQueryV2(REMOVE_HOST_MUTATION, { account: { legacyId: collective.id } }, randomUser);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Only the host admin or the account admin can trigger this action');
     });
 
     it('results in error if account does not exist', async () => {
@@ -475,6 +486,67 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
       expect(unhostingActivity.data.host.id).to.eq(host.id);
     });
 
+    it('pauses the contributions if requested', async () => {
+      const host = await fakeActiveHost();
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const stripePm = await fakePaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        type: PAYMENT_METHOD_TYPE.CREDITCARD,
+      });
+      const transferableOrder = await fakeOrder(
+        {
+          status: OrderStatuses.ACTIVE,
+          CollectiveId: collective.id,
+          interval: 'month',
+          subscription: { isManagedExternally: false, isActive: true },
+          PaymentMethodId: stripePm.id,
+        },
+        {
+          withSubscription: true,
+        },
+      );
+
+      const nonTransferableOrder = await fakeOrder(
+        {
+          status: OrderStatuses.ACTIVE,
+          CollectiveId: collective.id,
+          interval: 'month',
+          subscription: { isManagedExternally: true, isActive: true },
+        },
+        {
+          withSubscription: true,
+        },
+      );
+
+      const result = await graphqlQueryV2(
+        REMOVE_HOST_MUTATION,
+        {
+          account: { legacyId: collective.id },
+          message: 'We are transitioning to a new host',
+          pauseContributions: true,
+        },
+        rootUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.removeHost.host).to.be.null;
+
+      const unhostingActivity = await models.Activity.findOne({
+        where: { type: activities.COLLECTIVE_UNHOSTED, CollectiveId: collective.id },
+      });
+      expect(unhostingActivity).to.exist;
+      expect(unhostingActivity.data.message).to.eq('We are transitioning to a new host');
+      expect(unhostingActivity.data.collective.id).to.eq(collective.id);
+      expect(unhostingActivity.data.host.id).to.eq(host.id);
+
+      await nonTransferableOrder.reload();
+      expect(nonTransferableOrder.status).to.eq(OrderStatuses.PAUSED);
+      expect(nonTransferableOrder.data.updateContext).to.eq('Changing host');
+
+      await transferableOrder.reload();
+      expect(transferableOrder.status).to.eq(OrderStatuses.ACTIVE);
+    });
+
     it('validates if collective does not have a parent account', async () => {
       const host = await fakeHost();
       const collective = await fakeCollective({ HostCollectiveId: host.id });
@@ -529,6 +601,30 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
       expect(result.errors[0].message).to.equal('Unable to change host: you still have a balance of $24.00');
     });
 
+    it('removes the host as a collective admin', async () => {
+      const host = await fakeActiveHost();
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const result = await graphqlQueryV2(
+        REMOVE_HOST_MUTATION,
+        {
+          account: { legacyId: collective.id },
+          message: 'removing as collective admin',
+        },
+        rootUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.removeHost.host).to.be.null;
+
+      const unhostingActivity = await models.Activity.findOne({
+        where: { type: activities.COLLECTIVE_UNHOSTED, CollectiveId: collective.id },
+      });
+      expect(unhostingActivity).to.exist;
+      expect(unhostingActivity.data.message).to.eq('removing as collective admin');
+      expect(unhostingActivity.data.collective.id).to.eq(collective.id);
+      expect(unhostingActivity.data.host.id).to.eq(host.id);
+    });
+
     it('validates if user is admin of target host collective', async () => {
       const user = await fakeUser();
       await fakeCollective({ admin: user });
@@ -545,7 +641,7 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
         user,
       );
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.equal('You need to be authenticated to perform this action');
+      expect(result.errors[0].message).to.equal('Only the host admin or the account admin can trigger this action');
     });
 
     it('removes the host from a hosted collective using host admin', async () => {
@@ -555,12 +651,25 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
       const user = await fakeUser();
       const host = await fakeHost({ admin: user });
       const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const stripeCreditCardPm = await fakePaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        type: PAYMENT_METHOD_TYPE.CREDITCARD,
+      });
+      const paypalPm = await fakePaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.PAYPAL,
+        type: PAYMENT_METHOD_TYPE.SUBSCRIPTION,
+      });
       const orderWithExternalSubscription = await fakeOrder(
-        { CollectiveId: collective.id, status: OrderStatuses.ACTIVE, subscription: { isManagedExternally: true } },
+        {
+          CollectiveId: collective.id,
+          status: OrderStatuses.ACTIVE,
+          PaymentMethodId: paypalPm.id,
+          subscription: { isManagedExternally: true },
+        },
         { withSubscription: true },
       );
       const orderWithInternalSubscription = await fakeOrder(
-        { CollectiveId: collective.id, status: OrderStatuses.ACTIVE },
+        { CollectiveId: collective.id, status: OrderStatuses.ACTIVE, PaymentMethodId: stripeCreditCardPm.id },
         { withSubscription: true },
       );
 
@@ -592,7 +701,7 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
       expect(unhostingActivity.data.host.id).to.eq(host.id);
 
       await orderWithExternalSubscription.reload();
-      expect(orderWithExternalSubscription.status).to.eq(OrderStatuses.CANCELLED);
+      expect(orderWithExternalSubscription.status).to.eq(OrderStatuses.PAUSED);
 
       await orderWithInternalSubscription.reload();
       expect(orderWithInternalSubscription.status).to.eq(OrderStatuses.ACTIVE);

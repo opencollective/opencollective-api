@@ -1,0 +1,24 @@
+Subject: Your contribution to {{{collective.name}}} has been paused
+
+{{> header}}
+
+<p>{{> greeting}}</p>
+
+<p>Your recurring contribution to {{collective.name}} for {{currency subscription.amount currency=subscription.currency}}/{{subscription.interval}} has been paused.</p>
+
+{{#if reason}}
+  <p>The reason given by the collective is:</p>
+  <blockquote style="color: #6a737d;font-size: 12px; font-style: italic; text-align: left;padding: 0.5em 0.75em;margin: 1em 0;border-left: 3px solid #e4e4e4;white-space: pre-line;">{{reason}}</blockquote>
+{{/if}}
+
+<p>
+  We'll inform you when your contribution is ready for reactivation. Without any further action from you, your contribution will remained paused.
+</p>
+
+<p>Warmly,</p>
+
+<p>
+  – {{collective.name}}
+</p>
+
+{{> footer}}

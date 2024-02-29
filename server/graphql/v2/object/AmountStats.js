@@ -1,4 +1,5 @@
 import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { isNil } from 'lodash';
 
 import { GraphQLAmount } from '../object/Amount';
 
@@ -14,7 +15,7 @@ export const GraphQLAmountStats = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLAmount),
       description: 'Total amount for this label',
       resolve(entry) {
-        if (entry.amount) {
+        if (!isNil(entry.amount)) {
           return { value: entry.amount, currency: entry.currency };
         }
       },
