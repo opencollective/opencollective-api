@@ -12,6 +12,7 @@ import {
   fakeExpense,
   fakePayoutMethod,
   multiple,
+  randStr,
 } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
@@ -383,12 +384,13 @@ describe('server/paymentProviders/transferwise/index', () => {
   });
 
   describe('payExpensesBatchGroup', () => {
-    const batchGroupId = '123abc';
+    const batchGroupId = randStr('batch_group_');
     const ottToken = 'random-hash';
     let response;
 
     before(async () => {
       sandbox.resetHistory();
+      await cache.clear();
       expense = await fakeExpense({
         payoutMethod: 'transferwise',
         PayoutMethodId: payoutMethod.id,
@@ -408,8 +410,7 @@ describe('server/paymentProviders/transferwise/index', () => {
       });
       expense.PayoutMethod = payoutMethod;
       // Stubs
-      fundBatchGroup.onFirstCall().resolves({ status: 403, headers: { 'x-2fa-approval': ottToken } });
-      fundBatchGroup.onSecondCall().resolves();
+      fundBatchGroup.resolves({ status: 403, headers: { 'x-2fa-approval': ottToken } });
       createBatchGroup.resolves({ id: batchGroupId, version: 0, status: 'NEW' });
       getBatchGroup.resolves({ id: batchGroupId, version: 1, transferIds: [800], status: 'NEW' });
       createBatchGroupTransfer.resolves({ id: 800 });
@@ -420,6 +421,7 @@ describe('server/paymentProviders/transferwise/index', () => {
     it('should complete and fund batch group', () => {
       assert.calledOnceWithMatch(completeBatchGroup, { id: connectedAccount.id }, batchGroupId, 1);
 
+      expect(fundBatchGroup.callCount).to.be.equal(1);
       expect(fundBatchGroup.firstCall).to.have.nested.property('args[2]', batchGroupId);
       expect(fundBatchGroup.firstCall).to.not.have.nested.property('args[3]');
     });
@@ -436,18 +438,37 @@ describe('server/paymentProviders/transferwise/index', () => {
       expect(response).to.have.nested.property('headers.x-2fa-approval', ottToken);
     });
 
-    it('should retry batchGroup if OTT token is provided', async () => {
-      await transferwise.payExpensesBatchGroup(host, undefined, ottToken);
+    it('should retry funding if batchGroup is completed but not paid for', async () => {
+      response = await transferwise.payExpensesBatchGroup(host, [expense]);
+
+      expect(fundBatchGroup.callCount).to.be.equal(2);
       expect(fundBatchGroup.secondCall).to.have.nested.property('args[2]', batchGroupId);
-      expect(fundBatchGroup.secondCall).to.have.nested.property('args[3]', ottToken);
+      expect(fundBatchGroup.secondCall).to.not.have.nested.property('args[3]');
     });
 
-    it('should fail if batchGroup status !== NEW', async () => {
-      getBatchGroup.resolves({ id: batchGroupId, version: 1, transferIds: [], status: 'COMPLETED' });
+    it('should retry batchGroup if OTT token is provided', async () => {
+      fundBatchGroup.resolves();
+      await transferwise.payExpensesBatchGroup(host, undefined, ottToken);
+
+      expect(fundBatchGroup.getCall(2)).to.have.nested.property('args[2]', batchGroupId);
+      expect(fundBatchGroup.getCall(2)).to.have.nested.property('args[3]', ottToken);
+    });
+
+    it('should fail if batchGroup status === COMPLETED and alreadyPaid is true', async () => {
+      getBatchGroup.resolves({ id: batchGroupId, version: 1, transferIds: [], status: 'COMPLETED', alreadyPaid: true });
       const call = transferwise.payExpensesBatchGroup(host, [expense]);
       await expect(call).to.be.eventually.rejectedWith(
         Error,
         `Can not pay batch group, existing batch group was already paid`,
+      );
+    });
+
+    it('should fail if batchGroup was already cancelled', async () => {
+      getBatchGroup.resolves({ id: batchGroupId, version: 1, transferIds: [], status: 'CANCELLED' });
+      const call = transferwise.payExpensesBatchGroup(host, [expense]);
+      await expect(call).to.be.eventually.rejectedWith(
+        Error,
+        `Can not pay batch group, existing batch group was cancelled`,
       );
     });
 
@@ -515,6 +536,7 @@ describe('server/paymentProviders/transferwise/index', () => {
 
   describe('getRequiredBankInformation', () => {
     before(async () => {
+      await cache.clear();
       await transferwise.getRequiredBankInformation(host, 'EUR');
     });
 
@@ -556,6 +578,7 @@ describe('server/paymentProviders/transferwise/index', () => {
   describe('getAvailableCurrencies', () => {
     let data;
     before(async () => {
+      await cache.clear();
       data = await transferwise.getAvailableCurrencies(host);
     });
 

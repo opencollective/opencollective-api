@@ -422,45 +422,51 @@ async function payExpensesBatchGroup(host, expenses, x2faApproval?: string, remo
   try {
     if (!x2faApproval && expenses) {
       let batchGroup = await transferwise.getBatchGroup(connectedAccount, expenses[0].data.batchGroup.id);
-      if (batchGroup.status === 'COMPLETED' && batchGroup.alreadyPaid !== false) {
+      // Throw if batch group was already paid
+      if (batchGroup.status === 'COMPLETED' && batchGroup.alreadyPaid === true) {
         throw new Error('Can not pay batch group, existing batch group was already paid');
-      } else if (batchGroup.status !== 'NEW') {
-        throw new Error('Can not pay batch group, existing batch group was already processed');
       }
-      const expenseTransferIds = expenses.map(e => e.data.transfer.id);
-      if (difference(batchGroup.transferIds, expenseTransferIds).length > 0) {
-        throw new Error(`Expenses requested do not match the transfers added to batch group ${batchGroup.id}`);
+      // Throw if batch group is cancelled
+      else if (['MARKED_FOR_CANCELLATION', 'PROCESSING_CANCEL', 'CANCELLED'].includes(batchGroup.status)) {
+        throw new Error(`Can not pay batch group, existing batch group was cancelled`);
       }
-      expenses.forEach(expense => {
-        if (expense.data.batchGroup.id !== batchGroup.id) {
-          throw new Error(
-            `All expenses should belong to the same batch group. Unschedule expense ${expense.id} and try again`,
-          );
+      // If it is new, check if the expenses match the batch group and mark it as completed
+      else if (batchGroup.status === 'NEW') {
+        const expenseTransferIds = expenses.map(e => e.data.transfer.id);
+        if (difference(batchGroup.transferIds, expenseTransferIds).length > 0) {
+          throw new Error(`Expenses requested do not match the transfers added to batch group ${batchGroup.id}`);
         }
-        if (moment().isSameOrAfter(expense.data.quote.expirationTime)) {
-          throw new Error(`Expense ${expense.id} quote expired. Unschedule expense and try again`);
-        }
-        if (!batchGroup.transferIds.includes(expense.data.transfer.id)) {
-          throw new Error(`Batch group ${batchGroup.id} does not include expense ${expense.id}`);
-        }
-      });
+        expenses.forEach(expense => {
+          if (expense.data.batchGroup.id !== batchGroup.id) {
+            throw new Error(
+              `All expenses should belong to the same batch group. Unschedule expense ${expense.id} and try again`,
+            );
+          }
+          if (moment().isSameOrAfter(expense.data.quote.expirationTime)) {
+            throw new Error(`Expense ${expense.id} quote expired. Unschedule expense and try again`);
+          }
+          if (!batchGroup.transferIds.includes(expense.data.transfer.id)) {
+            throw new Error(`Batch group ${batchGroup.id} does not include expense ${expense.id}`);
+          }
+        });
 
-      batchGroup = await transferwise.completeBatchGroup(connectedAccount, batchGroup.id, batchGroup.version);
+        batchGroup = await transferwise.completeBatchGroup(connectedAccount, batchGroup.id, batchGroup.version);
 
-      // Update batchGroup status to make sure we don't try to reuse a completed batchGroup
-      await sequelize.query(
-        `
+        // Update batchGroup status to make sure we don't try to reuse a completed batchGroup
+        await sequelize.query(
+          `
         UPDATE "Expenses" SET "data" = JSONB_SET("data", '{batchGroup}', :newBatchGroup::JSONB) WHERE "id" IN (:expenseIds) AND "data"#>>'{batchGroup, id}' = :batchGroupId;
       `,
-        {
-          replacements: {
-            expenseIds: expenses.map(e => e.id),
-            newBatchGroup: JSON.stringify(batchGroup),
-            batchGroupId: batchGroup.id,
+          {
+            replacements: {
+              expenseIds: expenses.map(e => e.id),
+              newBatchGroup: JSON.stringify(batchGroup),
+              batchGroupId: batchGroup.id,
+            },
           },
-        },
-      );
-
+        );
+      }
+      // If it is completed, fund it and forward the OTT
       const fundResponse = await transferwise.fundBatchGroup(token, profileId, batchGroup.id);
       if ('status' in fundResponse && 'headers' in fundResponse) {
         const cacheKey = `transferwise_ott_${fundResponse.headers['x-2fa-approval']}`;
