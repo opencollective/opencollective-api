@@ -482,26 +482,6 @@ async function payExpensesBatchGroup(host, expenses, x2faApproval?: string, remo
         batchGroupId,
         x2faApproval,
       )) as BatchGroup;
-      // Simulate transfer success in other environments so transactions don't get stuck.
-      if (['development', 'staging'].includes(config.env)) {
-        logger.debug(`Wise: Simulating transfer success for batch group ${batchGroup.id}`);
-        const expenses = await Expense.findAll({
-          where: { data: { batchGroup: { id: batchGroup.id } } },
-        });
-        for (const transferId of batchGroup.transferIds) {
-          const response = await transferwise.simulateTransferSuccess(connectedAccount, transferId);
-          logger.debug(`Wise: Simulated transfer success for transfer ${transferId}`);
-          const expense = expenses.find(e => e.data.transfer.id === transferId);
-          await expense.update({ data: { ...expense.data, transfer: response } });
-          // In development mode we don't have webhooks set up, so we need to manually trigger the event handler.
-          if (config.env === 'development') {
-            await handleTransferStateChange({
-              // eslint-disable-next-line camelcase
-              data: { resource: response, current_state: 'outgoing_payment_sent' },
-            } as any);
-          }
-        }
-      }
       return batchGroup;
     } else {
       throw new Error('payExpensesBatchGroup: you need to pass either expenses or x2faApproval');

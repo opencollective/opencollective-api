@@ -1,3 +1,4 @@
+import config from 'config';
 import { Request, Response } from 'express';
 
 import expenseStatus from '../constants/expense-status';
@@ -6,22 +7,28 @@ import { idDecode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
 import errors from '../lib/errors';
 import logger from '../lib/logger';
 import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
+import { simulateTransferSuccess } from '../lib/transferwise';
 import models, { Op } from '../models';
 import transferwise from '../paymentProviders/transferwise';
+import { handleTransferStateChange } from '../paymentProviders/transferwise/webhook';
 import { BatchGroup } from '../types/transferwise';
 
 const processPaidExpense = (host, remoteUser, batchGroup: BatchGroup) => async expense => {
-  await expense.reload();
-  if (expense.data?.transfer) {
-    const payoutMethod = await expense.getPayoutMethod();
-    const { feesInHostCurrency } = await getExpenseFees(expense, host, { payoutMethod });
-    return setTransferWiseExpenseAsProcessing({
-      expense,
-      host,
-      data: { batchGroup },
-      feesInHostCurrency,
-      remoteUser,
-    });
+  try {
+    await expense.reload();
+    if (expense.data?.transfer) {
+      const payoutMethod = await expense.getPayoutMethod();
+      const { feesInHostCurrency } = await getExpenseFees(expense, host, { payoutMethod });
+      return setTransferWiseExpenseAsProcessing({
+        expense,
+        host,
+        data: { batchGroup },
+        feesInHostCurrency,
+        remoteUser,
+      });
+    }
+  } catch (e) {
+    logger.error(`Wise Batch Payment: Error processing paid expense ${expense.id}`, e);
   }
 };
 
@@ -83,10 +90,28 @@ export async function payBatch(
       res.setHeader('x-2fa-approval', fundResponse.headers['x-2fa-approval']);
       res.sendStatus(fundResponse.status);
     } else if (fundResponse.status === 'COMPLETED') {
-      // Send 200 to the frontend
-      res.sendStatus(200);
       // Mark expenses as paid and create transactions
       await Promise.all(expenses.map(processPaidExpense(host, remoteUser, fundResponse)));
+      // Send 200 to the frontend
+      res.sendStatus(200);
+      // Simulate transfer success in other environments so transactions don't get stuck.
+      if (['development', 'staging'].includes(config.env)) {
+        const connectedAccount = await host.getAccountForPaymentProvider('transferwise');
+        logger.debug(`Wise: Simulating transfer success for batch group ${fundResponse.id}`);
+        for (const transferId of fundResponse.transferIds) {
+          const response = await simulateTransferSuccess(connectedAccount, transferId);
+          logger.debug(`Wise: Simulated transfer success for transfer ${transferId}`);
+          const expense = expenses.find(e => e.data.transfer.id === transferId);
+          await expense.update({ data: { ...expense.data, transfer: response } });
+          // In development mode we don't have webhooks set up, so we need to manually trigger the event handler.
+          if (config.env === 'development') {
+            await handleTransferStateChange({
+              // eslint-disable-next-line camelcase
+              data: { resource: response, current_state: 'outgoing_payment_sent' },
+            } as any);
+          }
+        }
+      }
     } else {
       throw new Error(`Could not pay for batch group #${fundResponse.id}, please contact support.`);
     }
