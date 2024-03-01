@@ -83,11 +83,13 @@ export const getOrCreateGuestProfile = async (
         transaction,
         include: [{ association: 'location' }],
       });
-      if (!user.confirmedAt) {
-        const newLegalName = legalName || collective.legalName;
-        const newValues = { name, location, legalName: newLegalName };
-        collective = await updateCollective(collective, newValues, transaction);
+      if (user.confirmedAt) {
+        throw new BadRequest('There is already an account associated with this email, please sign in.');
       }
+
+      const newLegalName = legalName || collective.legalName;
+      const newValues = { name, location, legalName: newLegalName };
+      collective = await updateCollective(collective, newValues, transaction);
     }
 
     // Create the public guest profile
