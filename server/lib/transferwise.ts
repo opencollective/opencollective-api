@@ -96,9 +96,12 @@ export async function getToken(connectedAccount: ConnectedAccount, refresh = fal
     return diff > <number>connectedAccount.data.expires_in - 60 * 15;
   };
 
-  const refreshAndUpdateToken = async connectedAccount => {
+  const refreshAndUpdateToken = async (connectedAccount: ConnectedAccount) => {
     try {
-      const newToken = await getOrRefreshToken({ refreshToken: connectedAccount.refreshToken });
+      const newToken = await getOrRefreshToken({
+        refreshToken: connectedAccount.refreshToken,
+        errorMeta: { user: connectedAccount.CollectiveId, extra: { connectedAccountId: connectedAccount.id } },
+      });
       if (!newToken) {
         Activity.create({
           type: ActivityTypes.CONNECTED_ACCOUNT_ERROR,
@@ -740,10 +743,12 @@ export const getOrRefreshToken = async ({
   code,
   refreshToken,
   application,
+  errorMeta,
 }: {
   code?: string;
   refreshToken?: string;
   application?: boolean;
+  errorMeta?: Parameters<typeof reportErrorToSentry>[1];
 }): Promise<AccessToken> => {
   let data;
   // Refresh Token
@@ -778,7 +783,7 @@ export const getOrRefreshToken = async ({
     return token;
   } catch (e) {
     debug(JSON.stringify(e));
-    reportErrorToSentry(e, { feature: FEATURE.TRANSFERWISE });
+    reportErrorToSentry(e, { feature: FEATURE.TRANSFERWISE, ...errorMeta });
     const error = parseError(e, "There was an error while refreshing host's Wise token");
     throw error;
   }
