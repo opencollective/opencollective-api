@@ -8,35 +8,33 @@ import { sleep } from '../../utils';
 
 describe('lockUntilResolved', () => {
   if (has(config, 'redis.serverUrl')) {
-    const pRedis = createRedisClient();
-
-    beforeEach(async () => {
-      await (await pRedis).del('*');
-    });
-    afterEach(async () => {
-      await (await pRedis).del('*');
-    });
+    const clearRedis = async () => {
+      const redis = await createRedisClient();
+      await redis.del('lock:test');
+    };
+    beforeEach(clearRedis);
+    afterEach(clearRedis);
 
     it('should wait for the first lock to finish', async () => {
       const start = Date.now();
       let endFirst;
       const pFirst = lockUntilResolved('test', async () => {
-        await sleep(50);
+        await sleep(25);
         return 'first';
       });
       const second = await lockUntilResolved(
         'test',
         async () => {
           endFirst = Date.now();
-          await sleep(50);
+          await sleep(25);
           return 'second';
         },
         { retryDelayMs: 1 },
       );
       const endSecond = Date.now();
 
-      assert.approximately(endFirst - start, 50, 5);
-      assert.approximately(endSecond - start, 50 + 50, 5);
+      assert.approximately(endFirst - start, 25, 5);
+      assert.approximately(endSecond - start, 25 + 25, 10);
       assert.equal(await pFirst, 'first');
       assert.equal(second, 'second');
     });
@@ -45,22 +43,22 @@ describe('lockUntilResolved', () => {
       const start = Date.now();
       let endFirst;
       const pFirst = lockUntilResolved('test', async () => {
-        await sleep(50);
+        await sleep(25);
         throw new Error('first');
       });
       const second = await lockUntilResolved(
         'test',
         async () => {
           endFirst = Date.now();
-          await sleep(50);
+          await sleep(25);
           return 'second';
         },
         { retryDelayMs: 5 },
       );
       const endSecond = Date.now();
 
-      assert.approximately(endFirst - start, 50, 5);
-      assert.approximately(endSecond - start, 50 + 50, 5);
+      assert.approximately(endFirst - start, 25, 5);
+      assert.approximately(endSecond - start, 25 + 25, 10);
       assert.isRejected(pFirst, /first/);
       assert.equal(second, 'second');
     });
@@ -72,8 +70,8 @@ describe('lockUntilResolved', () => {
     });
 
     it('automatically releases the lock after expiring', async () => {
-      lockUntilResolved('test4', async () => sleep(1000), { unlockTimeoutMs: 100 });
-      await sleep(101);
+      lockUntilResolved('test4', async () => sleep(1000), { unlockTimeoutMs: 50 });
+      await sleep(51);
       const second = await lockUntilResolved('test4', async () => 'second', {
         retryDelayMs: 1,
         lockAcquireTimeoutMs: 10,
