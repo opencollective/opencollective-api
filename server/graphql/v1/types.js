@@ -171,7 +171,7 @@ export const UserType = new GraphQLObjectType({
           if (
             req.remoteUser &&
             user.CollectiveId && // We sometimes pass an empty object as `user`
-            (await req.loaders.Collective.canSeePrivateInfo.load(user.CollectiveId))
+            req.remoteUser.isAdmin(user.CollectiveId)
           ) {
             return user.emailWaitingForValidation;
           }
