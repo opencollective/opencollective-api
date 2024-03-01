@@ -645,7 +645,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           expect(order2.status).to.eq('PAID');
         });
 
-        it('Works with an email that already exists (verified)', async () => {
+        it('Does not work with an email that already exists if verified', async () => {
           const user = await fakeUser({ confirmedAt: new Date() });
           const orderData = {
             ...validOrderParams,
@@ -656,14 +656,10 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             },
           };
           const result = await callCreateOrder({ order: orderData });
-          result.errors && console.error(result.errors);
-          expect(result.errors).to.not.exist;
-
-          const order = result.data.createOrder.order;
-          expect(order.fromAccount.legacyId).to.eq(user.CollectiveId);
-          expect(order.fromAccount.isGuest).to.eq(false);
-          expect(order.paymentMethod.account.id).to.eq(order.fromAccount.id);
-          expect(order.status).to.eq('PAID');
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.equal(
+            'There is already an account associated with this email, please sign in.',
+          );
         });
 
         it('If the account already exists, cannot use an existing payment method', async () => {
