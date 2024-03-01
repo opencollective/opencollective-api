@@ -121,7 +121,7 @@
     "sanitize-html": "2.12.1",
     "sequelize": "6.37.1",
     "sequelize-cli": "6.6.2",
-    "sequelize-temporal": "1.0.8",
+    "sequelize-temporal": "2.0.0",
     "sharp": "0.33.2",
     "spdx-license-list": "6.9.0",
     "speakeasy": "2.0.0",
