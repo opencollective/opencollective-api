@@ -42,12 +42,15 @@ import {
   GraphQLAccountType,
   GraphQLPaymentMethodLegacyType,
   GraphQLPayoutMethodType,
+  GraphQLTransactionType,
 } from '../enum';
 import { GraphQLAccountingCategoryKind } from '../enum/AccountingCategoryKind';
+import { GraphQLExpenseType } from '../enum/ExpenseType';
 import { GraphQLHostApplicationStatus } from '../enum/HostApplicationStatus';
 import { GraphQLHostFeeStructure } from '../enum/HostFeeStructure';
 import { PaymentMethodLegacyTypeEnum } from '../enum/PaymentMethodLegacyType';
 import { GraphQLTimeUnit } from '../enum/TimeUnit';
+import { GraphQLTransactionKind } from '../enum/TransactionKind';
 import { GraphQLVirtualCardStatusEnum } from '../enum/VirtualCardStatus';
 import {
   fetchAccountsIdsWithReference,
@@ -66,6 +69,7 @@ import { AccountWithContributionsFields, GraphQLAccountWithContributions } from 
 import { CollectionArgs, getCollectionArgs } from '../interface/Collection';
 import URL from '../scalar/URL';
 
+import { GraphQLAmount } from './Amount';
 import { GraphQLContributionStats } from './ContributionStats';
 import { GraphQLExpenseStats } from './ExpenseStats';
 import { GraphQLHostMetrics } from './HostMetrics';
@@ -182,6 +186,85 @@ export const GraphQLHost = new GraphQLObjectType({
         type: new GraphQLNonNull(GraphQLHostPlan),
         resolve(host) {
           return host.getPlan();
+        },
+      },
+      transactionsReport: {
+        type: new GraphQLList(
+          new GraphQLObjectType({
+            name: 'TransactionSum',
+            description:
+              'EXPERIMENTAL: Transaction amounts grouped by type, kind, primary kind, isRefund, isHost, expenseType',
+            fields: () => ({
+              amount: { type: GraphQLAmount },
+              type: { type: GraphQLTransactionType },
+              kind: { type: GraphQLTransactionKind },
+              primaryKind: { type: GraphQLTransactionKind },
+              isRefund: { type: GraphQLBoolean },
+              isHost: { type: GraphQLBoolean },
+              expenseType: { type: GraphQLExpenseType },
+            }),
+          }),
+        ),
+        args: {
+          dateFrom: {
+            type: GraphQLDateTime,
+          },
+          dateTo: {
+            type: GraphQLDateTime,
+          },
+        },
+        resolve: async (host, args) => {
+          const hostChildrenIds = await host
+            .getChildren({ attributes: ['id'] })
+            .then(children => children.map(child => child.id));
+          const hostCollectiveIds = [host.id, ...hostChildrenIds];
+
+          const query = `
+          SELECT 
+            SUM(t."amountInHostCurrency") as "amountInHostCurrency",
+            COALESCE(t2."kind", t."kind") as "primaryKind",
+            t."kind",
+            t."isRefund", 
+            t."hostCurrency",
+            t."type",
+            CASE WHEN t."CollectiveId" IN (:hostCollectiveIds) THEN TRUE ELSE FALSE END AS "isHost",
+            e."type" as "expenseType"
+          FROM "Transactions" t
+          LEFT JOIN LATERAL (
+            SELECT e2."type" from "Expenses" e2 where e2.id = t."ExpenseId"
+          ) as e ON t."ExpenseId" IS NOT NULL
+          LEFT JOIN LATERAL (
+            select t2."kind" from "Transactions" t2
+            where t."TransactionGroup" = t2."TransactionGroup"
+            AND t2."kind" IN  ('EXPENSE', 'CONTRIBUTION', 'ADDED_FUNDS', 'BALANCE_TRANSFER', 'PREPAID_PAYMENT_METHOD')
+            AND t2."deletedAt" IS NULL
+            limit 1
+          ) as t2 ON t."kind" NOT IN ('EXPENSE', 'CONTRIBUTION', 'ADDED_FUNDS', 'BALANCE_TRANSFER', 'PREPAID_PAYMENT_METHOD')
+          WHERE 
+            t."HostCollectiveId" = :hostCollectiveId
+            AND t."deletedAt" IS NULL
+            AND t."createdAt" > :dateFrom AND t."createdAt" < :dateTo
+          GROUP BY t."kind", t."hostCurrency", t."isRefund", t."type", "isHost", "primaryKind", "expenseType"
+          ORDER BY t."kind", "primaryKind"; 
+          `;
+
+          const transactionGroups = await sequelize.query(query, {
+            replacements: {
+              hostCollectiveId: host.id,
+              hostCollectiveIds,
+              dateFrom: args.dateFrom,
+              dateTo: args.dateTo,
+            },
+            type: sequelize.QueryTypes.SELECT,
+            raw: true,
+          });
+
+          return transactionGroups.map(t => {
+            return {
+              ...t,
+              amount: { value: t.amountInHostCurrency, currency: t.hostCurrency },
+            };
+          });
         },
       },
       hostMetrics: {
