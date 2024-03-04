@@ -42,7 +42,7 @@ type SendMessageData = {
 export const getMailer = () => {
   if (config.maildev.client) {
     return nodemailer.createTransport({
-      host: 'localhost',
+      host: '127.0.0.1',
       ignoreTLS: true,
       port: 1025,
     });
