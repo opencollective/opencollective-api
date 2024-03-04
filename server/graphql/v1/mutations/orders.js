@@ -364,7 +364,8 @@ export async function createOrder(order, req) {
       }
 
       const guestInfoInput = { ...order.guestInfo, currency: order.currency };
-      const guestProfile = await getOrCreateGuestProfile(guestInfoInput, creationRequest);
+      const guestOptions = { throwIfAVerifiedAccountExists: !host.data?.isTrustedHost };
+      const guestProfile = await getOrCreateGuestProfile(guestInfoInput, creationRequest, guestOptions);
       if (!canUseFeature(guestProfile.user, FEATURE.ORDER)) {
         throw new FeatureNotAllowedForUser();
       }
