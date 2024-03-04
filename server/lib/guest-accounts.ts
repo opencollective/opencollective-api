@@ -55,6 +55,7 @@ type UserCreationRequest = {
 export const getOrCreateGuestProfile = async (
   { email, name, legalName, location, currency }: UserInfoInput,
   creationRequest: UserCreationRequest = null,
+  { throwIfAVerifiedAccountExists = true } = {},
 ): Promise<GuestProfileDetails> => {
   const emailConfirmationToken = crypto.randomBytes(48).toString('hex');
 
@@ -83,7 +84,7 @@ export const getOrCreateGuestProfile = async (
         transaction,
         include: [{ association: 'location' }],
       });
-      if (user.confirmedAt) {
+      if (user.confirmedAt && throwIfAVerifiedAccountExists) {
         throw new BadRequest('There is already an account associated with this email, please sign in.');
       }
 
