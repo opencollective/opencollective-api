@@ -762,6 +762,8 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
       firstPayment: true,
       subscriptionsLink: interval && getEditRecurringContributionsUrl(fromCollective),
       customMessage,
+      // Include Pending Order contact info if available
+      fromAccountInfo: order.data?.fromAccountInfo,
     };
 
     // hit PDF service and get PDF (unless payment method type is gift card)
