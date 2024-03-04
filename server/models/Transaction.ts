@@ -1570,10 +1570,10 @@ Transaction.fetchHost = async (
     host = await Collective.findByPk(transaction.HostCollectiveId);
   }
   if (!host) {
-    throw new Error(`transaction.HostCollectiveId should always bet set`);
-    // console.warn(`transaction.HostCollectiveId should always bet set`);
-    // const collective = await Collective.findByPk(transaction.CollectiveId);
-    // host = await collective.getHostCollective();
+    // throw new Error(`transaction.HostCollectiveId should always bet set`);
+    console.warn(`transaction.HostCollectiveId should always bet set`);
+    const collective = await Collective.findByPk(transaction.CollectiveId);
+    host = await collective.getHostCollective();
   }
   return host;
 };
