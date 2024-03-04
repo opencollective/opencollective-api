@@ -177,6 +177,12 @@ export const canDownloadInvoice = async (
 
 /** Checks if the user can reject this transaction */
 export const canReject = async (transaction: TransactionInterface, _: void, req: express.Request): Promise<boolean> => {
+  if (transaction.OrderId) {
+    const order = await req.loaders.Order.byId.load(transaction.OrderId);
+    if (order.status === orderStatus.REJECTED) {
+      return false;
+    }
+  }
   return canRefund(transaction, _, req);
 };
 
