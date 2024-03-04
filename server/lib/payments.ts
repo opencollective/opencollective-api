@@ -1059,10 +1059,12 @@ export const getApplicationFee = async (order: OrderModelInterface): Promise<num
     applicationFee += hostFeeShareAmount;
   }
 
+  /*
   const platformFeeAmount = await getPlatformFee(order);
   if (platformFeeAmount) {
     applicationFee += platformFeeAmount;
   }
+  */
 
   return applicationFee;
 };
@@ -1078,6 +1080,7 @@ export const getPlatformTip = (order: OrderModelInterface): number => {
   return 0;
 };
 
+/*
 export const getPlatformFeePercent = async (
   order: OrderModelInterface,
   { loaders = null }: { loaders?: loaders } = {},
@@ -1104,6 +1107,7 @@ export const getPlatformFeePercent = async (
 
   return 0;
 };
+*/
 
 export const getHostFee = async (order: OrderModelInterface): Promise<number> => {
   const totalAmount = order.totalAmount || 0;
@@ -1320,10 +1324,10 @@ export const getHostFeeSharePercent = async (
   //   order.platformTipEligible = await isPlatformTipEligible(order);
   // }
 
-  const platformFee = await getPlatformFee(order);
+  // const platformFee = await getPlatformFee(order);
 
   // Platform Tip Eligible or Platform Fee? No Host Fee Share, that's it
-  if (order.platformTipEligible === true || platformFee !== 0) {
+  if (order.platformTipEligible === true) {
     return 0;
   }
 

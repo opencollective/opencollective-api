@@ -14,7 +14,7 @@ import {
   createRefundTransaction,
   getHostFee,
   getHostFeeSharePercent,
-  getPlatformFee,
+  // getPlatformFee,
   getPlatformTip,
   isPlatformTipEligible,
 } from '../../lib/payments';
@@ -159,17 +159,17 @@ export const createChargeTransactions = async (
   const platformTipEligible = await isPlatformTipEligible(order);
   const platformTip = getPlatformTip(order);
 
-  const platformFee = await getPlatformFee(order);
+  // const platformFee = await getPlatformFee(order);
 
   let platformTipInHostCurrency, platformFeeInHostCurrency;
   if (platformTip) {
     platformTipInHostCurrency = isSharedRevenue
       ? Math.round(platformTip * hostCurrencyFxRate) || 0
       : fees.applicationFee;
-  } else if (platformFee) {
-    platformFeeInHostCurrency = isSharedRevenue
-      ? Math.round(platformFee * hostCurrencyFxRate) || 0
-      : fees.applicationFee;
+    // } else if (platformFee) {
+    //   platformFeeInHostCurrency = isSharedRevenue
+    //     ? Math.round(platformFee * hostCurrencyFxRate) || 0
+    //     : fees.applicationFee;
   } else if (config.env === 'test' || config.env === 'ci') {
     // Retro Compatibility with some tests expecting Platform Fees, not for production anymore
     // TODO: we need to stop supporting this
