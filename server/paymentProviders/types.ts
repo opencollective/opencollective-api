@@ -29,7 +29,10 @@ export interface PaymentProviderService {
   /**
    * Triggers the payment for this order and updates it accordingly
    */
-  processOrder(order: OrderModelInterface, options?: Record<string, never>): Promise<TransactionInterface | void>;
+  processOrder(
+    order: OrderModelInterface,
+    options?: { isAddedFund?: boolean; invoiceTemplate?: string },
+  ): Promise<TransactionInterface | void>;
 
   /**
    * Refunds a transaction processed with this payment provider service

@@ -109,7 +109,10 @@ export function findPaymentMethodProvider(
  *  field. Which means that the query to select the order must include
  *  the `PaymentMethods` table.
  */
-export async function processOrder(order: OrderModelInterface, options): Promise<TransactionInterface | void> {
+export async function processOrder(
+  order: OrderModelInterface,
+  options: { isAddedFund?: boolean; invoiceTemplate?: string } = {},
+): Promise<TransactionInterface | void> {
   const paymentMethodProvider = findPaymentMethodProvider(order.paymentMethod);
   if (get(paymentMethodProvider, 'features.waitToCharge') && !get(order, 'paymentMethod.paid')) {
     return;
@@ -316,8 +319,7 @@ async function refundPaymentProcessorFee(
   user: User,
   refundedPaymentProcessorFee: number,
   transactionGroup: string,
-  data: Record<string, never> = {},
-  clearedAt: Date = null,
+  clearedAt?: Date,
 ): Promise<void> {
   const isLegacyPaymentProcessorFee = Boolean(transaction.paymentProcessorFeeInHostCurrency);
 
@@ -348,13 +350,13 @@ async function refundPaymentProcessorFee(
 
     if (processorFeeTransaction) {
       const processorFeeRefund = {
-        ...buildRefundForTransaction(processorFeeTransaction, user, data),
+        ...buildRefundForTransaction(processorFeeTransaction, user),
         TransactionGroup: transactionGroup,
         clearedAt,
       };
 
       const processorFeeRefundTransaction = await Transaction.createDoubleEntry(processorFeeRefund);
-      await associateTransactionRefundId(processorFeeTransaction, processorFeeRefundTransaction, data);
+      await associateTransactionRefundId(processorFeeTransaction, processorFeeRefundTransaction);
     }
   }
 
@@ -377,13 +379,12 @@ export async function refundHostFee(
   user: User,
   refundedPaymentProcessorFee: number,
   transactionGroup: string,
-  data: Record<string, never> = {},
-  clearedAt: Date = null,
+  clearedAt?: Date,
 ): Promise<void> {
   const hostFeeTransaction = await transaction.getHostFeeTransaction();
   const buildRefund = transaction => {
     return {
-      ...buildRefundForTransaction(transaction, user, data, refundedPaymentProcessorFee),
+      ...buildRefundForTransaction(transaction, user, null, refundedPaymentProcessorFee),
       TransactionGroup: transactionGroup,
       clearedAt,
     };
@@ -392,14 +393,14 @@ export async function refundHostFee(
   if (hostFeeTransaction) {
     const hostFeeRefund = buildRefund(hostFeeTransaction);
     const hostFeeRefundTransaction = await Transaction.createDoubleEntry(hostFeeRefund);
-    await associateTransactionRefundId(hostFeeTransaction, hostFeeRefundTransaction, data);
+    await associateTransactionRefundId(hostFeeTransaction, hostFeeRefundTransaction);
 
     // Refund Host Fee Share
     const hostFeeShareTransaction = await transaction.getHostFeeShareTransaction();
     if (hostFeeShareTransaction) {
       const hostFeeShareRefund = buildRefund(hostFeeShareTransaction);
       const hostFeeShareRefundTransaction = await Transaction.createDoubleEntry(hostFeeShareRefund);
-      await associateTransactionRefundId(hostFeeShareTransaction, hostFeeShareRefundTransaction, data);
+      await associateTransactionRefundId(hostFeeShareTransaction, hostFeeShareRefundTransaction);
 
       // Refund Host Fee Share Debt
       const hostFeeShareDebtTransaction = await transaction.getHostFeeShareDebtTransaction();
@@ -420,7 +421,7 @@ export async function refundHostFee(
 
         const hostFeeShareDebtRefund = buildRefund(hostFeeShareDebtTransaction);
         const hostFeeShareDebtRefundTransaction = await Transaction.createDoubleEntry(hostFeeShareDebtRefund);
-        await associateTransactionRefundId(hostFeeShareDebtTransaction, hostFeeShareDebtRefundTransaction, data);
+        await associateTransactionRefundId(hostFeeShareDebtTransaction, hostFeeShareDebtRefundTransaction);
         await TransactionSettlement.createForTransaction(
           hostFeeShareDebtRefundTransaction,
           hostFeeShareRefundSettlementStatus,
@@ -434,18 +435,17 @@ async function refundTax(
   transaction: TransactionInterface,
   user: User,
   transactionGroup: string,
-  data: Record<string, never> = {},
-  clearedAt: Date = null,
+  clearedAt?: Date,
 ): Promise<void> {
   const taxTransaction = await transaction.getTaxTransaction();
   if (taxTransaction) {
     const taxRefundData = {
-      ...buildRefundForTransaction(taxTransaction, user, data),
+      ...buildRefundForTransaction(taxTransaction, user),
       TransactionGroup: transactionGroup,
       clearedAt,
     };
     const taxRefundTransaction = await Transaction.createDoubleEntry(taxRefundData);
-    await associateTransactionRefundId(taxTransaction, taxRefundTransaction, data);
+    await associateTransactionRefundId(taxTransaction, taxRefundTransaction);
   }
 }
 
@@ -542,13 +542,13 @@ export async function createRefundTransaction(
   }
 
   // Refund Payment Processor Fee
-  await refundPaymentProcessorFee(transaction, user, refundedPaymentProcessorFee, transactionGroup, {}, clearedAt);
+  await refundPaymentProcessorFee(transaction, user, refundedPaymentProcessorFee, transactionGroup, clearedAt);
 
   // Refund Host Fee
-  await refundHostFee(transaction, user, refundedPaymentProcessorFee, transactionGroup, {}, clearedAt);
+  await refundHostFee(transaction, user, refundedPaymentProcessorFee, transactionGroup, clearedAt);
 
   // Refund Tax
-  await refundTax(transaction, user, transactionGroup, {}, clearedAt);
+  await refundTax(transaction, user, transactionGroup, clearedAt);
 
   // Refund main transaction
   const creditTransactionRefund = buildRefund(transaction);
@@ -1131,9 +1131,11 @@ export const isPlatformTipEligible = async (order: OrderModelInterface): Promise
   }
 
   // Platform Tips opt out
+  /*
   if (!isNil(order.collective.settings?.platformTips)) {
     return order.collective.settings.platformTips;
   }
+  */
 
   // Make sure payment method is available
   if (!order.paymentMethod && order.PaymentMethodId) {

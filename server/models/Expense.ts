@@ -57,10 +57,11 @@ export type ExpenseDataValuesByRole = {
 };
 
 export type ExpenseTaxDefinition = {
-  type: TaxType;
+  id?: TaxType | `${TaxType}`; // deprecated
+  type: TaxType | `${TaxType}`;
   rate: number;
-  percentage?: number; // deprecated
-  idNumber?: string; // should be mandatory
+  percentage?: number; // deprecated, https://github.com/opencollective/opencollective/issues/5389
+  idNumber?: string;
 };
 
 class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Expense>> {
@@ -76,7 +77,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   public declare RecurringExpenseId: ForeignKey<RecurringExpense['id']>;
   public declare AccountingCategoryId: ForeignKey<AccountingCategory['id']>;
 
-  public declare payeeLocation: Location; // TODO This can be typed
+  public declare payeeLocation: Location;
   public declare data: Record<string, unknown> & {
     batchGroup?: BatchGroup;
     quote?: ExpenseDataQuoteV2 | ExpenseDataQuoteV3;

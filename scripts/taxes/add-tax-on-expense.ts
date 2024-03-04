@@ -45,7 +45,7 @@ const main = async () => {
     }
   }
 
-  const tax = { type: 'GST', rate: 0.15, percentage: 15 } as ExpenseTaxDefinition;
+  const tax = { type: 'GST', id: 'GST', rate: 0.15, percentage: 15 } as ExpenseTaxDefinition;
   const taxAmountFromExpense = getTaxAmount(expense.amount, tax.rate);
   const taxAmountFromItems = sum(expense.items.map(i => getTaxAmount(i.amount, tax.rate)));
   if (taxAmountFromExpense !== taxAmountFromItems) {
