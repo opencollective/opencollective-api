@@ -1,3 +1,4 @@
+import { TaxType } from '@opencollective/taxes';
 import { get, isEmpty, pick, sumBy } from 'lodash';
 import { isMoment } from 'moment';
 import {
@@ -34,7 +35,7 @@ import Activity from './Activity';
 import Collective from './Collective';
 import ExpenseAttachedFile from './ExpenseAttachedFile';
 import ExpenseItem from './ExpenseItem';
-import PaymentMethod from './PaymentMethod';
+import { PaymentMethodModelInterface } from './PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
 import RecurringExpense from './RecurringExpense';
 import Transaction, { TransactionInterface } from './Transaction';
@@ -53,6 +54,13 @@ export type ExpenseDataValuesByRole = {
   hostAdmin?: ExpenseDataValuesRoleDetails;
   collectiveAdmin?: ExpenseDataValuesRoleDetails;
   submitter?: ExpenseDataValuesRoleDetails;
+};
+
+export type ExpenseTaxDefinition = {
+  type: TaxType;
+  rate: number;
+  percentage?: number; // deprecated
+  idNumber?: string; // should be mandatory
 };
 
 class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Expense>> {
@@ -80,6 +88,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
       email?: string;
     };
     draftKey?: string;
+    taxes?: ExpenseTaxDefinition[];
   };
 
   public declare currency: SupportedCurrency;
@@ -108,7 +117,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   public declare host?: Collective;
   public declare User?: User;
   public declare PayoutMethod?: PayoutMethod;
-  public declare PaymentMethod?: typeof PaymentMethod;
+  public declare PaymentMethod?: PaymentMethodModelInterface;
   public declare virtualCard?: VirtualCard;
   public declare items?: ExpenseItem[];
   public declare attachedFiles?: ExpenseAttachedFile[];
@@ -119,14 +128,14 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   declare getCollective: BelongsToGetAssociationMixin<Collective>;
   declare getItems: HasManyGetAssociationsMixin<ExpenseItem>;
   declare getPayoutMethod: BelongsToGetAssociationMixin<PayoutMethod>;
-  declare getPaymentMethod: BelongsToGetAssociationMixin<typeof PaymentMethod>;
+  declare getPaymentMethod: BelongsToGetAssociationMixin<PaymentMethodModelInterface>;
   declare getRecurringExpense: BelongsToGetAssociationMixin<RecurringExpense>;
   declare getTransactions: HasManyGetAssociationsMixin<TransactionInterface>;
   declare getVirtualCard: BelongsToGetAssociationMixin<VirtualCard>;
   declare getAccountingCategory: BelongsToGetAssociationMixin<AccountingCategory>;
 
   // Association setters
-  declare setPaymentMethod: BelongsToSetAssociationMixin<typeof PaymentMethod, number>;
+  declare setPaymentMethod: BelongsToSetAssociationMixin<PaymentMethodModelInterface, number>;
 
   /**
    * Instance Methods
@@ -338,11 +347,11 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   get info(): NonAttribute<
     Partial<Expense> & {
       category: string;
-      taxes: Array<{ type: string; rate: number; idNumber: string }>;
+      taxes: ExpenseTaxDefinition[];
       grossAmount: number;
     }
   > {
-    const taxes = get(this.data, 'taxes', []) as Array<{ type: string; rate: number; idNumber: string }>;
+    const taxes = get(this.data, 'taxes', []) as ExpenseTaxDefinition[];
     return {
       type: this.type,
       id: this.id,
@@ -617,14 +626,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
     return Promise.all(expenses.map(expense => expense.verify(user)));
   };
 
-  static computeTotalAmountForExpense = (
-    items: Partial<ExpenseItem>[],
-    taxes: {
-      type: string;
-      rate: number;
-      idNumber: string;
-    }[],
-  ): number => {
+  static computeTotalAmountForExpense = (items: Partial<ExpenseItem>[], taxes: ExpenseTaxDefinition[]): number => {
     return Math.round(
       sumBy(items, item => {
         const amountInCents = Math.round(item.amount * (item.expenseCurrencyFxRate || 1));

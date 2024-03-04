@@ -1487,7 +1487,7 @@ export const OrderType = new GraphQLObjectType({
         type: GraphQLJSON,
         description: 'Additional information on order: tax and custom fields',
         resolve(order) {
-          return pick(order.data, ['tax', 'customData', 'isFeesOnTop', 'platformFee', 'hasPlatformTip', 'platformTip']);
+          return pick(order.data, ['tax', 'customData', 'platformFee', 'hasPlatformTip', 'platformTip']);
         },
       },
       stripeError: {

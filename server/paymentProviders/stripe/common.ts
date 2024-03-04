@@ -14,6 +14,7 @@ import {
   createRefundTransaction,
   getHostFee,
   getHostFeeSharePercent,
+  getPlatformFee,
   getPlatformTip,
   isPlatformTipEligible,
 } from '../../lib/payments';
@@ -22,7 +23,7 @@ import stripe, { convertFromStripeAmount, extractFees, retrieveChargeWithRefund 
 import models, { Collective, ConnectedAccount } from '../../models';
 import { OrderModelInterface } from '../../models/Order';
 import PaymentMethod, { PaymentMethodModelInterface } from '../../models/PaymentMethod';
-import { TransactionInterface } from '../../models/Transaction';
+import { TransactionCreationAttributes, TransactionData, TransactionInterface } from '../../models/Transaction';
 import User from '../../models/User';
 
 export const APPLICATION_FEE_INCOMPATIBLE_CURRENCIES = ['BRL'];
@@ -30,8 +31,8 @@ export const APPLICATION_FEE_INCOMPATIBLE_CURRENCIES = ['BRL'];
 /** Refund a given transaction */
 export const refundTransaction = async (
   transaction: TransactionInterface,
-  user: User,
-  options?: { checkRefundStatus: boolean },
+  user?: User,
+  reason?: string,
 ): Promise<TransactionInterface> => {
   /* What's going to be refunded */
   const chargeId: string = result(transaction.data, 'charge.id');
@@ -53,10 +54,10 @@ export const refundTransaction = async (
     { stripeAccount: hostStripeAccount.username },
   );
 
-  if (options?.checkRefundStatus && refund.status !== 'succeeded') {
-    await transaction.update({ data: { ...transaction.data, refund } });
-    return null;
-  }
+  // if (options?.checkRefundStatus && refund.status !== 'succeeded') {
+  //   await transaction.update({ data: { ...transaction.data, refund } });
+  //   return null;
+  // }
 
   const charge = await stripe.charges.retrieve(chargeId, { stripeAccount: hostStripeAccount.username });
   const refundBalance = await stripe.balanceTransactions.retrieve(refund.balance_transaction as string, {
@@ -73,6 +74,7 @@ export const refundTransaction = async (
       refund,
       balanceTransaction: refundBalance, // TODO: This is overwriting the original balanceTransaction with the refund balance transaction, which remove important info
       charge,
+      refundReason: reason,
     },
     user,
   );
@@ -83,7 +85,8 @@ export const refundTransaction = async (
  */
 export const refundTransactionOnlyInDatabase = async (
   transaction: TransactionInterface,
-  user: User,
+  user?: User,
+  reason?: string,
 ): Promise<TransactionInterface> => {
   /* What's going to be refunded */
   const chargeId = result(transaction.data, 'charge.id');
@@ -111,7 +114,7 @@ export const refundTransactionOnlyInDatabase = async (
   return await createRefundTransaction(
     transaction,
     refund ? fees.stripeFee : 0, // With disputes, we get 1500 as a value but will not handle this
-    { ...transaction.data, charge, refund, balanceTransaction: refundBalance },
+    { ...transaction.data, charge, refund, balanceTransaction: refundBalance, refundReason: reason },
     user,
   );
 };
@@ -131,7 +134,7 @@ export const createChargeTransactions = async (
       ? false
       : host?.settings?.isPlatformRevenueDirectlyCollected ?? true;
 
-  const hostFeeSharePercent = await getHostFeeSharePercent(order, { host });
+  const hostFeeSharePercent = await getHostFeeSharePercent(order);
   const isSharedRevenue = !!hostFeeSharePercent;
   const balanceTransaction = await stripe.balanceTransactions.retrieve(charge.balance_transaction as string, {
     stripeAccount: hostStripeAccount.username,
@@ -148,18 +151,24 @@ export const createChargeTransactions = async (
   const amountInHostCurrency = convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount);
   const hostCurrencyFxRate = amountInHostCurrency / order.totalAmount;
 
-  const hostFee = await getHostFee(order, { host });
+  const hostFee = await getHostFee(order);
   const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
 
   const fees = extractFees(balanceTransaction, balanceTransaction.currency);
 
-  const platformTipEligible = await isPlatformTipEligible(order, host);
+  const platformTipEligible = await isPlatformTipEligible(order);
   const platformTip = getPlatformTip(order);
+
+  const platformFee = await getPlatformFee(order);
 
   let platformTipInHostCurrency, platformFeeInHostCurrency;
   if (platformTip) {
     platformTipInHostCurrency = isSharedRevenue
       ? Math.round(platformTip * hostCurrencyFxRate) || 0
+      : fees.applicationFee;
+  } else if (platformFee) {
+    platformFeeInHostCurrency = isSharedRevenue
+      ? Math.round(platformFee * hostCurrencyFxRate) || 0
       : fees.applicationFee;
   } else if (config.env === 'test' || config.env === 'ci') {
     // Retro Compatibility with some tests expecting Platform Fees, not for production anymore
@@ -180,9 +189,9 @@ export const createChargeTransactions = async (
     platformTip,
     platformTipInHostCurrency,
     hostFeeSharePercent,
-    settled: true,
     tax: order.data?.tax,
-  };
+    isPlatformRevenueDirectlyCollected,
+  } as TransactionData;
 
   const transactionPayload = {
     CreatedByUserId: order.CreatedByUserId,
@@ -193,21 +202,19 @@ export const createChargeTransactions = async (
     OrderId: order.id,
     amount,
     currency,
-    hostCurrency,
     amountInHostCurrency,
+    hostCurrency,
     hostCurrencyFxRate,
     paymentProcessorFeeInHostCurrency,
+    hostFeeInHostCurrency,
     platformFeeInHostCurrency,
     taxAmount: order.taxAmount,
     description: order.description,
-    hostFeeInHostCurrency,
     data,
     clearedAt,
-  };
+  } as TransactionCreationAttributes;
 
-  return models.Transaction.createFromContributionPayload(transactionPayload, {
-    isPlatformRevenueDirectlyCollected,
-  });
+  return models.Transaction.createFromContributionPayload(transactionPayload);
 };
 
 /**

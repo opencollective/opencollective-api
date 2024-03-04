@@ -47,7 +47,7 @@ async function processOrder(order) {
     order.paymentMethod = { service: 'opencollective', type: 'manual' };
   }
 
-  const hostFeeSharePercent = await getHostFeeSharePercent(order, { host });
+  const hostFeeSharePercent = await getHostFeeSharePercent(order);
   const isSharedRevenue = !!hostFeeSharePercent;
 
   const amount = order.totalAmount;
@@ -56,10 +56,10 @@ async function processOrder(order) {
   const hostCurrencyFxRate = await getFxRate(order.currency, hostCurrency);
   const amountInHostCurrency = Math.round(order.totalAmount * hostCurrencyFxRate);
 
-  const hostFee = await getHostFee(order, { host });
+  const hostFee = await getHostFee(order);
   const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
 
-  const platformTipEligible = await isPlatformTipEligible(order, host);
+  const platformTipEligible = await isPlatformTipEligible(order);
   const platformTip = getPlatformTip(order);
   const platformTipInHostCurrency = Math.round(platformTip * hostCurrencyFxRate);
 
@@ -102,14 +102,15 @@ async function processOrder(order) {
  * There's nothing more to do because it's up to the host/collective to see how
  * they want to actually refund the money.
  */
-const refundTransaction = async (transaction, user, _, opts = null) => {
-  return await createRefundTransaction(transaction, 0, null, user, opts?.TransactionGroup);
+const refundTransaction = async (transaction, user, reason) => {
+  return createRefundTransaction(transaction, 0, { ...transaction.data, refundReason: reason }, user);
 };
 
 /* Expected API of a Payment Method Type */
 export default {
   features: {
     recurring: false,
+    isRecurringManagedExternally: false,
     waitToCharge: true, // don't process the order automatically. Wait for host to "mark it as paid"
   },
   getBalance,

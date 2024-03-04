@@ -42,7 +42,6 @@ const migrate = async () => {
   const groupedTransactions = Object.values(groupBy(transactions, 'TransactionGroup'));
   const timestamp = Date.now().toString();
   const transactionsData = { hostFeeMigration: timestamp };
-  const hostsCache = {};
   let count = 0;
 
   console.log(`Migrating ${groupedTransactions.length} transaction pairs...`);
@@ -64,18 +63,9 @@ const migrate = async () => {
       continue;
     }
 
-    // Caching hosts (small optimization)
-    let host;
-    if (credit.HostCollectiveId && hostsCache[credit.HostCollectiveId]) {
-      host = hostsCache[credit.HostCollectiveId];
-    } else {
-      host = await credit.getHostCollective();
-      hostsCache[host.id] = host;
-    }
-
     // Create host fee transaction
     const creditPreMigrationData = pick(credit.dataValues, BACKUP_COLUMNS);
-    const result = await models.Transaction.createHostFeeTransactions(credit, host, transactionsData);
+    const result = await models.Transaction.createHostFeeTransactions(credit, transactionsData);
     if (!result) {
       continue;
     }
