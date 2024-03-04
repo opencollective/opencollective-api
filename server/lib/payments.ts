@@ -1059,13 +1059,6 @@ export const getApplicationFee = async (order: OrderModelInterface): Promise<num
     applicationFee += hostFeeShareAmount;
   }
 
-  /*
-  const platformFeeAmount = await getPlatformFee(order);
-  if (platformFeeAmount) {
-    applicationFee += platformFeeAmount;
-  }
-  */
-
   return applicationFee;
 };
 
@@ -1080,35 +1073,6 @@ export const getPlatformTip = (order: OrderModelInterface): number => {
   return 0;
 };
 
-/*
-export const getPlatformFeePercent = async (
-  order: OrderModelInterface,
-  { loaders = null }: { loaders?: loaders } = {},
-): Promise<number> => {
-  // Platform Fees are back!
-
-  // Make sure payment method is available
-  if (!order.paymentMethod && order.PaymentMethodId) {
-    order.paymentMethod = await order.getPaymentMethod();
-  }
-
-  // If "crowdfunding" (Stripe or PayPal)
-  if ([PAYMENT_METHOD_SERVICE.STRIPE, PAYMENT_METHOD_SERVICE.PAYPAL].includes(order.paymentMethod?.service)) {
-    const collective =
-      order.collective || (await (loaders?.Collective.byId.load(order.CollectiveId) || order.getCollective()));
-    const parentCollective = await collective.getParentCollective({ loaders });
-    const settings = parentCollective ? parentCollective.settings : collective.settings;
-
-    // And collective has opt-out platform tips
-    if (!isNil(settings?.platformTips) && !settings.platformTips) {
-      return config.fees.default.platformPercent;
-    }
-  }
-
-  return 0;
-};
-*/
-
 export const getHostFee = async (order: OrderModelInterface): Promise<number> => {
   const totalAmount = order.totalAmount || 0;
   const taxAmount = order.taxAmount || 0;
@@ -1119,29 +1083,10 @@ export const getHostFee = async (order: OrderModelInterface): Promise<number> =>
   return calcFee(totalAmount - taxAmount - platformTipAmount, hostFeePercent);
 };
 
-/*
-export const getPlatformFee = async (order: OrderModelInterface): Promise<number> => {
-  const totalAmount = order.totalAmount || 0;
-  const taxAmount = order.taxAmount || 0;
-  const platformTipAmount = order.platformTipAmount || 0;
-
-  const platformFeePercent = await getPlatformFeePercent(order);
-
-  return calcFee(totalAmount - taxAmount - platformTipAmount, platformFeePercent);
-};
-*/
-
 export const isPlatformTipEligible = async (order: OrderModelInterface): Promise<boolean> => {
   if (!isNil(order.platformTipEligible)) {
     return order.platformTipEligible;
   }
-
-  // Platform Tips opt out
-  /*
-  if (!isNil(order.collective.settings?.platformTips)) {
-    return order.collective.settings.platformTips;
-  }
-  */
 
   // Make sure payment method is available
   if (!order.paymentMethod && order.PaymentMethodId) {
@@ -1320,13 +1265,6 @@ export const getHostFeeSharePercent = async (
   const plan = await host.getPlan();
 
   const possibleValues = [];
-
-  // TODO(platform-fee): refetch platform tip eligibility properly or elsewhere in a way that doesn't affect tests
-  // if (isNil(order.platformTipEligible)) {
-  //   order.platformTipEligible = await isPlatformTipEligible(order);
-  // }
-
-  // const platformFee = await getPlatformFee(order);
 
   // Platform Tip Eligible or Platform Fee? No Host Fee Share, that's it
   if (order.platformTipEligible === true) {
