@@ -24,6 +24,8 @@ const BASE_STATS_QUERY = `
     COALESCE(
       COUNT(
         DISTINCT COALESCE(
+          NULLIF(o."data"#>>'{paymentIntent,last_payment_error,payment_method,card,fingerprint}', ''),
+          NULLIF(o."data"#>>'{paymentIntent,last_payment_error,payment_method,us_bank_account,fingerprint}', ''),
           NULLIF(CONCAT(pm."name", pm."data"->>'expYear'), ''),
           pm."id"::TEXT
         )
