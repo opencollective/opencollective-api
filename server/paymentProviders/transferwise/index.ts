@@ -476,6 +476,9 @@ async function payExpensesBatchGroup(host, expenses, x2faApproval?: string, remo
     } else if (x2faApproval) {
       const cacheKey = `transferwise_ott_${x2faApproval}`;
       const batchGroupId = await cache.get(cacheKey);
+      if (!batchGroupId) {
+        throw new Error('Invalid or expired OTT approval code');
+      }
       const batchGroup = (await transferwise.fundBatchGroup(
         token,
         profileId,
