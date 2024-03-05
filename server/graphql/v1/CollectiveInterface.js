@@ -1953,6 +1953,22 @@ export const UserCollectiveType = new GraphQLObjectType({
           }
         },
       },
+      newsletterOptIn: {
+        type: GraphQLBoolean,
+        async resolve(userCollective, args, req) {
+          if (!req.remoteUser) {
+            return null;
+          } else {
+            const user = await (userCollective.isIncognito
+              ? req.loaders.User.byId.load(userCollective.CreatedByUserId) // TODO: Should rely on Member
+              : req.loaders.User.byCollectiveId.load(userCollective.id));
+
+            if (user && (await req.loaders.Collective.canSeePrivateInfo.load(user.CollectiveId))) {
+              return user.newsletterOptIn;
+            }
+          }
+        },
+      },
     };
   },
 });
