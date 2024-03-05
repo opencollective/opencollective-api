@@ -2437,6 +2437,7 @@ type Host implements Account & AccountWithContributions {
   isOpenToApplications: Boolean
   termsUrl: URL
   plan: HostPlan!
+  transactionsReport(dateFrom: DateTime, dateTo: DateTime): [TransactionSum]
   hostMetrics(
     """
     A collection of accounts for which the metrics should be returned.
@@ -5491,6 +5492,19 @@ type HostPlan {
   Ability to collect Platform Tips.
   """
   platformTips: Boolean
+}
+
+"""
+Transaction amounts grouped by type, kind, primary kind, isRefund, isHost, expenseType
+"""
+type TransactionSum {
+  amount: Amount
+  type: TransactionType
+  kind: TransactionKind
+  primaryKind: TransactionKind
+  isRefund: Boolean
+  isHost: Boolean
+  expenseType: ExpenseType
 }
 
 """
