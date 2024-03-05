@@ -16,6 +16,7 @@ import { defaultHostCollective } from '../../../lib/utils';
 import models, { sequelize } from '../../../models';
 import { SocialLinkType } from '../../../models/SocialLink';
 import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
+import { VENDOR_INFO_FIELDS } from '../../v2/mutation/VendorMutations';
 import { CollectiveInputType } from '../inputTypes';
 
 const DEFAULT_COLLECTIVE_SETTINGS = {
@@ -106,6 +107,10 @@ export async function createCollective(_, args, req) {
   } else if (collectiveData.type === CollectiveType.VENDOR) {
     const slug = slugify(args.collective.slug || args.collective.name);
     collectiveData.slug = `${args.collective.ParentCollectiveId}-${slug}-${uuid().substr(0, 8)}`;
+    collectiveData.data = {
+      ...collectiveData.data,
+      vendorInfo: pick(args.collective.vendorInfo, VENDOR_INFO_FIELDS),
+    };
   }
 
   try {
