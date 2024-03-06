@@ -150,7 +150,6 @@ const makeTimelineQuery = async (
         ActivityTypes.ORDER_PENDING_CONTRIBUTION_REMINDER,
         ActivityTypes.ORDER_THANKYOU,
         ActivityTypes.ORDERS_SUSPICIOUS,
-        ActivityTypes.PAYMENT_CREDITCARD_CONFIRMATION,
         ActivityTypes.PAYMENT_CREDITCARD_EXPIRING,
         ActivityTypes.PAYMENT_FAILED,
         ActivityTypes.SUBSCRIPTION_CANCELED,
