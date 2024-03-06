@@ -28,19 +28,15 @@ export const GraphQLIndividual = new GraphQLObjectType({
         type: GraphQLString,
         description: 'Email for the account. For authenticated user: scope: "email".',
         async resolve(userCollective, args, req) {
-          if (!req.remoteUser) {
+          if (!req.remoteUser || userCollective.isIncognito) {
             return null;
-          }
-          if (req.remoteUser.CollectiveId === userCollective.id && !checkScope(req, 'email')) {
+          } else if (req.remoteUser.CollectiveId === userCollective.id && !checkScope(req, 'email')) {
             return null;
-          }
-
-          const user = await (userCollective.isIncognito
-            ? req.loaders.User.byId.load(userCollective.CreatedByUserId) // TODO: Should rely on Member
-            : req.loaders.User.byCollectiveId.load(userCollective.id));
-
-          if (user && (await req.loaders.Collective.canSeePrivateInfo.load(user.CollectiveId))) {
-            return user.email;
+          } else {
+            if (await req.loaders.Collective.canSeePrivateInfo.load(userCollective.id)) {
+              const user = await req.loaders.User.byCollectiveId.load(userCollective.id);
+              return user?.email;
+            }
           }
         },
       },
@@ -111,15 +107,16 @@ export const GraphQLIndividual = new GraphQLObjectType({
       },
       newsletterOptIn: {
         type: GraphQLBoolean,
-        async resolve(collective, _, req) {
-          if (!req.remoteUser?.isAdmin(collective.id) || !checkScope(req, 'account')) {
+        async resolve(userCollective, _, req) {
+          if (!req.remoteUser || userCollective.isIncognito) {
             return null;
-          }
-          const user = await req.loaders.User.byCollectiveId.load(collective.id);
-          if (user.newsletterOptIn) {
-            return true;
+          } else if (req.remoteUser.CollectiveId === userCollective.id && !checkScope(req, 'account')) {
+            return null;
           } else {
-            return false;
+            if (await req.loaders.Collective.canSeePrivateInfo.load(userCollective.id)) {
+              const user = await req.loaders.User.byCollectiveId.load(userCollective.id);
+              return user?.newsletterOptIn;
+            }
           }
         },
       },

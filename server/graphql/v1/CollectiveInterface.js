@@ -1940,15 +1940,12 @@ export const UserCollectiveType = new GraphQLObjectType({
       email: {
         type: GraphQLString,
         async resolve(userCollective, args, req) {
-          if (!req.remoteUser) {
+          if (!req.remoteUser || userCollective.isIncognito) {
             return null;
           } else {
-            const user = await (userCollective.isIncognito
-              ? req.loaders.User.byId.load(userCollective.CreatedByUserId) // TODO: Should rely on Member
-              : req.loaders.User.byCollectiveId.load(userCollective.id));
-
-            if (user && (await req.loaders.Collective.canSeePrivateInfo.load(user.CollectiveId))) {
-              return user.email;
+            if (await req.loaders.Collective.canSeePrivateInfo.load(userCollective.id)) {
+              const user = await req.loaders.User.byCollectiveId.load(userCollective.id);
+              return user?.email;
             }
           }
         },
@@ -1956,15 +1953,12 @@ export const UserCollectiveType = new GraphQLObjectType({
       newsletterOptIn: {
         type: GraphQLBoolean,
         async resolve(userCollective, args, req) {
-          if (!req.remoteUser) {
+          if (!req.remoteUser || userCollective.isIncognito) {
             return null;
           } else {
-            const user = await (userCollective.isIncognito
-              ? req.loaders.User.byId.load(userCollective.CreatedByUserId) // TODO: Should rely on Member
-              : req.loaders.User.byCollectiveId.load(userCollective.id));
-
-            if (user && (await req.loaders.Collective.canSeePrivateInfo.load(user.CollectiveId))) {
-              return user.newsletterOptIn;
+            if (await req.loaders.Collective.canSeePrivateInfo.load(userCollective.id)) {
+              const user = await req.loaders.User.byCollectiveId.load(userCollective.id);
+              return user?.newsletterOptIn;
             }
           }
         },
