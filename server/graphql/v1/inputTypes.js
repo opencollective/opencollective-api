@@ -161,6 +161,7 @@ export const CollectiveInputType = new GraphQLInputObjectType({
     isIncognito: { type: GraphQLBoolean },
     isActive: { type: GraphQLBoolean },
     contributionPolicy: { type: GraphQLString },
+    vendorInfo: { type: GraphQLJSON },
   }),
 });
 

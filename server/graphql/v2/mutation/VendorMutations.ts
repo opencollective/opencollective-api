@@ -17,7 +17,7 @@ import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../inpu
 import { GraphQLVendorCreateInput, GraphQLVendorEditInput } from '../input/VendorInput';
 import { GraphQLVendor } from '../object/Vendor';
 
-const VENDOR_INFO_FIELDS = ['contact', 'taxFormUrl', 'taxFormRequired', 'taxType', 'taxId', 'notes'];
+export const VENDOR_INFO_FIELDS = ['contact', 'taxFormUrl', 'taxFormRequired', 'taxType', 'taxId', 'notes'];
 
 const vendorMutations = {
   createVendor: {
