@@ -32,6 +32,7 @@ import fetch from 'node-fetch';
 import pMap from 'p-map';
 import prependHttp from 'prepend-http';
 import {
+  Attributes,
   CreationOptional,
   FindOptions,
   HasManyGetAssociationsMixin,
@@ -249,7 +250,19 @@ const sanitizeSettingsValue = value => {
 class Collective extends Model<
   InferAttributes<
     Collective,
-    { omit: 'info' | 'previewImage' | 'cards' | 'invoice' | 'minimal' | 'activity' | 'searchIndex' }
+    {
+      omit:
+        | 'info'
+        | 'previewImage'
+        | 'cards'
+        | 'invoice'
+        | 'minimal'
+        | 'activity'
+        | 'searchIndex'
+        | 'getChildren'
+        | 'getEvents'
+        | 'getProjects';
+    }
   >,
   InferCreationAttributes<Collective>
 > {
@@ -299,6 +312,9 @@ class Collective extends Model<
   public declare deletedAt?: CreationOptional<Date>;
 
   public declare host?: NonAttribute<Collective>;
+
+  public declare tiers?: NonAttribute<Array<Tier>>;
+  public declare getTiers: HasManyGetAssociationsMixin<Tier>;
 
   public declare members?: NonAttribute<Array<MemberModelInterface>>;
   public declare getMembers: HasManyGetAssociationsMixin<MemberModelInterface>;
@@ -1274,7 +1290,7 @@ class Collective extends Model<
   };
 
   // Returns the User model of the User that created this collective
-  getUser = async function (queryParams = undefined) {
+  getUser = async function (queryParams: Omit<FindOptions<Attributes<User>>, 'where'> = undefined) {
     if (this.type === CollectiveType.USER) {
       return User.findOne({ where: { CollectiveId: this.id }, ...queryParams });
     } else {
@@ -1311,15 +1327,18 @@ class Collective extends Model<
   getAdminUsers = async function ({
     collectiveAttributes,
     paranoid = true,
+    transaction = undefined,
   }: {
     collectiveAttributes?: any;
     paranoid?: boolean;
+    transaction?: SequelizeTransaction;
   } = {}) {
     if (this.type === 'USER' && !this.isIncognito) {
       // Incognito profiles rely on the `Members` entry to know which user it belongs to
       return [
         await this.getUser({
           paranoid,
+          transaction,
           include: !isUndefined(collectiveAttributes)
             ? [{ association: 'collective', required: true, attributes: collectiveAttributes }]
             : [],
@@ -1331,6 +1350,7 @@ class Collective extends Model<
         role: roles.ADMIN,
         collectiveAttributes,
         paranoid,
+        transaction,
       });
     }
   };
@@ -1345,11 +1365,13 @@ class Collective extends Model<
     role = [],
     collectiveAttributes = [], // Don't include the member collective by default. Pass `null` to fetch all attributes.
     paranoid = true,
+    transaction = undefined,
   } = {}) {
     return User.findAll({
       group: ['User.id', 'collective.id'],
       order: [['id', 'ASC']], // Not needed, but it's always nice to have a consistent order (e.g. for tests)
       paranoid,
+      transaction,
       include: [
         {
           association: 'collective',
@@ -1370,7 +1392,7 @@ class Collective extends Model<
     });
   };
 
-  getChildren = function (query: FindOptions<any> = {}) {
+  getChildren = function (query: FindOptions<InferAttributes<Collective>> = {}) {
     return Collective.findAll({
       order: [
         ['createdAt', 'DESC'],
@@ -1381,7 +1403,7 @@ class Collective extends Model<
     });
   };
 
-  getEvents = function (query: FindOptions<any> = {}) {
+  getEvents = function (query: FindOptions<InferAttributes<Collective>> = {}) {
     return this.getChildren({
       order: [
         ['startsAt', 'DESC'],
@@ -1393,7 +1415,7 @@ class Collective extends Model<
     });
   };
 
-  getProjects = function (query: FindOptions<any> = {}) {
+  getProjects = function (query: FindOptions<InferAttributes<Collective>> = {}) {
     return this.getChildren({
       ...query,
       order: [

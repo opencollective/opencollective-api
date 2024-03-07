@@ -1,5 +1,11 @@
 import { pick } from 'lodash';
-import { InferAttributes, InferCreationAttributes, Model, ModelStatic } from 'sequelize';
+import {
+  InferAttributes,
+  InferCreationAttributes,
+  Model,
+  ModelStatic,
+  Transaction as SequelizeTransaction,
+} from 'sequelize';
 
 import { CollectiveType } from '../constants/collectives';
 import roles from '../constants/roles';
@@ -25,6 +31,7 @@ interface MemberModelStaticInterface {
     parentCollective: Collective,
     user: User,
     memberInfo: any,
+    options?: { transaction?: SequelizeTransaction },
   ): Promise<MemberModelInterface>;
 }
 
@@ -200,7 +207,7 @@ Member.isActive = member => {
   return false;
 };
 
-Member.connectCollectives = (childCollective, parentCollective, user, memberInfo) => {
+Member.connectCollectives = (childCollective, parentCollective, user, memberInfo, options = {}) => {
   const CONNECTED_ACCOUNT_ACCEPTED_TYPES = [
     CollectiveType.COLLECTIVE,
     CollectiveType.EVENT,
@@ -224,7 +231,7 @@ Member.connectCollectives = (childCollective, parentCollective, user, memberInfo
     CollectiveId: parentCollective.id,
   };
 
-  return sequelize.transaction(async transaction => {
+  const createMembership = async transaction => {
     const existingMember = await Member.findOne({ where: uniqueMemberAttributes, transaction });
     if (existingMember) {
       return existingMember;
@@ -238,7 +245,13 @@ Member.connectCollectives = (childCollective, parentCollective, user, memberInfo
         { transaction },
       );
     }
-  });
+  };
+
+  if (options?.transaction) {
+    return createMembership(options.transaction);
+  } else {
+    return sequelize.transaction(createMembership);
+  }
 };
 
 export default Member;

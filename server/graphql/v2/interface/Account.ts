@@ -1,6 +1,6 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { assign, get, invert, isEmpty, isNull, merge, omit, omitBy } from 'lodash';
+import { assign, get, invert, isEmpty, isNil, isNull, merge, omit, omitBy } from 'lodash';
 import { Order } from 'sequelize';
 
 import { CollectiveType } from '../../../constants/collectives';
@@ -646,6 +646,7 @@ const accountFieldsDefinition = () => ({
     args: {
       limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
       offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
+      isActive: { type: GraphQLBoolean },
       accountType: {
         type: new GraphQLList(GraphQLAccountType),
       },
@@ -658,6 +659,9 @@ const accountFieldsDefinition = () => ({
       const where = {
         ParentCollectiveId: account.id,
       };
+      if (!isNil(args.isActive)) {
+        where['isActive'] = args.isActive;
+      }
       if (args.accountType && args.accountType.length > 0) {
         where['type'] = {
           [Op.in]: args.accountType.map(value => AccountTypeToModelMapping[value]),
@@ -668,19 +672,14 @@ const accountFieldsDefinition = () => ({
         };
       }
 
-      const result = await models.Collective.findAndCountAll({
-        where,
-        limit: args.limit,
-        offset: args.offset,
-        order: [
-          ['createdAt', 'DESC'],
-          ['id', 'DESC'],
-        ] as Order,
-      });
+      const order = [
+        ['createdAt', 'DESC'],
+        ['id', 'DESC'],
+      ] as Order;
 
       return {
-        nodes: result.rows,
-        totalCount: result.count,
+        nodes: () => models.Collective.findAll({ where, limit: args.limit, offset: args.offset, order }),
+        totalCount: () => models.Collective.count({ where }),
         limit: args.limit,
         offset: args.offset,
       };

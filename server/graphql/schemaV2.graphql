@@ -795,7 +795,12 @@ interface Account {
   Virtual Cards Merchants used by the account. Admin only. Scope: "virtualCards".
   """
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection
-  childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
+  childrenAccounts(
+    limit: Int! = 100
+    offset: Int! = 0
+    isActive: Boolean
+    accountType: [AccountType]
+  ): AccountCollection!
 
   """
   Policies for the account. To see non-public policies you need to be admin and have the scope: "account".
@@ -2340,7 +2345,12 @@ type Host implements Account & AccountWithContributions {
   Virtual Cards Merchants used by the account. Admin only. Scope: "virtualCards".
   """
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection
-  childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
+  childrenAccounts(
+    limit: Int! = 100
+    offset: Int! = 0
+    isActive: Boolean
+    accountType: [AccountType]
+  ): AccountCollection!
 
   """
   Policies for the account. To see non-public policies you need to be admin and have the scope: "account".
@@ -7122,7 +7132,12 @@ type Bot implements Account {
   Virtual Cards Merchants used by the account. Admin only. Scope: "virtualCards".
   """
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection
-  childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
+  childrenAccounts(
+    limit: Int! = 100
+    offset: Int! = 0
+    isActive: Boolean
+    accountType: [AccountType]
+  ): AccountCollection!
 
   """
   Policies for the account. To see non-public policies you need to be admin and have the scope: "account".
@@ -7806,7 +7821,12 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   Virtual Cards Merchants used by the account. Admin only. Scope: "virtualCards".
   """
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection
-  childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
+  childrenAccounts(
+    limit: Int! = 100
+    offset: Int! = 0
+    isActive: Boolean
+    accountType: [AccountType]
+  ): AccountCollection!
 
   """
   Policies for the account. To see non-public policies you need to be admin and have the scope: "account".
@@ -8921,7 +8941,12 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   Virtual Cards Merchants used by the account. Admin only. Scope: "virtualCards".
   """
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection
-  childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
+  childrenAccounts(
+    limit: Int! = 100
+    offset: Int! = 0
+    isActive: Boolean
+    accountType: [AccountType]
+  ): AccountCollection!
 
   """
   Policies for the account. To see non-public policies you need to be admin and have the scope: "account".
@@ -9823,7 +9848,12 @@ type Individual implements Account {
   Virtual Cards Merchants used by the account. Admin only. Scope: "virtualCards".
   """
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection
-  childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
+  childrenAccounts(
+    limit: Int! = 100
+    offset: Int! = 0
+    isActive: Boolean
+    accountType: [AccountType]
+  ): AccountCollection!
 
   """
   Policies for the account. To see non-public policies you need to be admin and have the scope: "account".
@@ -10713,7 +10743,12 @@ type Organization implements Account & AccountWithContributions {
   Virtual Cards Merchants used by the account. Admin only. Scope: "virtualCards".
   """
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection
-  childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
+  childrenAccounts(
+    limit: Int! = 100
+    offset: Int! = 0
+    isActive: Boolean
+    accountType: [AccountType]
+  ): AccountCollection!
 
   """
   Policies for the account. To see non-public policies you need to be admin and have the scope: "account".
@@ -11489,7 +11524,12 @@ type Vendor implements Account & AccountWithContributions {
   Virtual Cards Merchants used by the account. Admin only. Scope: "virtualCards".
   """
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection
-  childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
+  childrenAccounts(
+    limit: Int! = 100
+    offset: Int! = 0
+    isActive: Boolean
+    accountType: [AccountType]
+  ): AccountCollection!
 
   """
   Policies for the account. To see non-public policies you need to be admin and have the scope: "account".
@@ -14660,7 +14700,12 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   Virtual Cards Merchants used by the account. Admin only. Scope: "virtualCards".
   """
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection
-  childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
+  childrenAccounts(
+    limit: Int! = 100
+    offset: Int! = 0
+    isActive: Boolean
+    accountType: [AccountType]
+  ): AccountCollection!
 
   """
   Policies for the account. To see non-public policies you need to be admin and have the scope: "account".
@@ -15442,7 +15487,12 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   Virtual Cards Merchants used by the account. Admin only. Scope: "virtualCards".
   """
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection
-  childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
+  childrenAccounts(
+    limit: Int! = 100
+    offset: Int! = 0
+    isActive: Boolean
+    accountType: [AccountType]
+  ): AccountCollection!
 
   """
   Policies for the account. To see non-public policies you need to be admin and have the scope: "account".
@@ -15793,6 +15843,36 @@ type Mutation {
     """
     parent: AccountReferenceInput
   ): Project
+
+  """
+  Duplicate an account. Scope: "account".
+  """
+  duplicateAccount(
+    """
+    Account to duplicate
+    """
+    account: AccountReferenceInput!
+
+    """
+    The new slug for the duplicated account. Defaults to an autogenerated slug
+    """
+    newSlug: String
+
+    """
+    The new slug for the duplicated account. Defaults to the same as the original account
+    """
+    newName: String
+
+    """
+    Which data should be copied when duplicating the account
+    """
+    include: DuplicateAccountDataTypeInput
+
+    """
+    Whether to mark both accounts as connected
+    """
+    connect: Boolean! = false
+  ): Account!
 
   """
   Edit the settings for the given account. Scope: "account" or "host".
@@ -17435,6 +17515,16 @@ input ProjectCreateInput {
   description: String!
   tags: [String]
   settings: JSON
+}
+
+"""
+Which data should be copied when duplicating the account
+"""
+input DuplicateAccountDataTypeInput {
+  admins: Boolean! = false
+  tiers: Boolean! = false
+  projects: Boolean! = false
+  events: Boolean! = false
 }
 
 """
