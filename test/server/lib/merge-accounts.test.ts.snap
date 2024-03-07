@@ -2,7 +2,9 @@
 
 exports[`server/lib/merge-accounts mergeAccounts Merges a user profile 1`] = `
 Object {
+  "accountingCategories": 1,
   "activities": 1,
+  "agreements": 1,
   "applications": 1,
   "childrenCollectives": 0,
   "comments": 1,
@@ -18,7 +20,9 @@ Object {
   "giftCardTransactions": 1,
   "hostApplications": 0,
   "hostApplicationsCreated": 0,
+  "hostedAgreements": 0,
   "hostedCollectives": 0,
+  "hostedVirtualCardRequests": 0,
   "legalDocuments": 1,
   "location": 1,
   "memberInvitations": 0,
@@ -31,12 +35,15 @@ Object {
   "paymentMethods": 1,
   "payoutMethods": 1,
   "paypalProducts": 1,
+  "personalTokens": 0,
   "recurringExpenses": 0,
   "recurringExpensesCreated": 0,
   "requiredLegalDocuments": 0,
+  "socialLinks": 1,
   "tiers": 1,
   "updates": 1,
   "updatesCreated": 1,
+  "virtualCardRequests": 0,
   "virtualCards": 0,
   "virtualCardsHosted": 0,
 }
@@ -44,7 +51,9 @@ Object {
 
 exports[`server/lib/merge-accounts mergeAccounts Merges a user profile 2`] = `
 Object {
+  "accountingCategories": 1,
   "activities": 1,
+  "agreements": 1,
   "applications": 1,
   "childrenCollectives": 0,
   "comments": 1,
@@ -60,7 +69,9 @@ Object {
   "giftCardTransactions": 1,
   "hostApplications": 0,
   "hostApplicationsCreated": 0,
+  "hostedAgreements": 0,
   "hostedCollectives": 0,
+  "hostedVirtualCardRequests": 0,
   "legalDocuments": 1,
   "location": 1,
   "memberInvitations": 0,
@@ -73,12 +84,15 @@ Object {
   "paymentMethods": 1,
   "payoutMethods": 1,
   "paypalProducts": 1,
+  "personalTokens": 0,
   "recurringExpenses": 0,
   "recurringExpensesCreated": 0,
   "requiredLegalDocuments": 0,
+  "socialLinks": 1,
   "tiers": 1,
   "updates": 1,
   "updatesCreated": 1,
+  "virtualCardRequests": 0,
   "virtualCards": 0,
   "virtualCardsHosted": 0,
 }
@@ -87,6 +101,7 @@ Object {
 exports[`server/lib/merge-accounts mergeAccounts Merges a user profile 3`] = `
 Object {
   "activities": 0,
+  "agreements": 1,
   "applications": 0,
   "collectives": 1,
   "comments": 0,
@@ -104,10 +119,13 @@ Object {
   "orders": 2,
   "paymentMethods": 0,
   "payoutMethods": 0,
+  "personalTokens": 0,
   "transactions": 0,
+  "twoFactorMethods": 0,
   "updates": 0,
   "uploadedFiles": 0,
   "userTokens": 0,
+  "virtualCardRequests": 0,
   "virtualCards": 0,
 }
 `;
@@ -115,6 +133,7 @@ Object {
 exports[`server/lib/merge-accounts mergeAccounts Merges a user profile 4`] = `
 Object {
   "activities": 0,
+  "agreements": 1,
   "applications": 0,
   "collectives": 1,
   "comments": 0,
@@ -132,17 +151,22 @@ Object {
   "orders": 2,
   "paymentMethods": 0,
   "payoutMethods": 0,
+  "personalTokens": 0,
   "transactions": 0,
+  "twoFactorMethods": 0,
   "updates": 0,
   "uploadedFiles": 0,
   "userTokens": 0,
+  "virtualCardRequests": 0,
   "virtualCards": 0,
 }
 `;
 
 exports[`server/lib/merge-accounts mergeAccounts Merges a user profile 5`] = `
 Object {
+  "accountingCategories": 2,
   "activities": 2,
+  "agreements": 2,
   "applications": 2,
   "childrenCollectives": 0,
   "comments": 2,
@@ -158,7 +182,9 @@ Object {
   "giftCardTransactions": 2,
   "hostApplications": 0,
   "hostApplicationsCreated": 0,
+  "hostedAgreements": 0,
   "hostedCollectives": 0,
+  "hostedVirtualCardRequests": 0,
   "legalDocuments": 1,
   "location": 1,
   "memberInvitations": 0,
@@ -171,12 +197,15 @@ Object {
   "paymentMethods": 2,
   "payoutMethods": 2,
   "paypalProducts": 2,
+  "personalTokens": 0,
   "recurringExpenses": 0,
   "recurringExpensesCreated": 0,
   "requiredLegalDocuments": 0,
+  "socialLinks": 2,
   "tiers": 2,
   "updates": 2,
   "updatesCreated": 2,
+  "virtualCardRequests": 0,
   "virtualCards": 0,
   "virtualCardsHosted": 0,
 }
@@ -184,7 +213,9 @@ Object {
 
 exports[`server/lib/merge-accounts mergeAccounts Merges an organization 1`] = `
 Object {
+  "accountingCategories": 1,
   "activities": 1,
+  "agreements": 1,
   "applications": 1,
   "childrenCollectives": 1,
   "comments": 1,
@@ -200,7 +231,9 @@ Object {
   "giftCardTransactions": 1,
   "hostApplications": 0,
   "hostApplicationsCreated": 0,
+  "hostedAgreements": 0,
   "hostedCollectives": 1,
+  "hostedVirtualCardRequests": 0,
   "legalDocuments": 1,
   "location": 1,
   "memberInvitations": 0,
@@ -213,12 +246,15 @@ Object {
   "paymentMethods": 2,
   "payoutMethods": 1,
   "paypalProducts": 1,
+  "personalTokens": 0,
   "recurringExpenses": 0,
   "recurringExpensesCreated": 0,
   "requiredLegalDocuments": 0,
+  "socialLinks": 1,
   "tiers": 1,
   "updates": 1,
   "updatesCreated": 1,
+  "virtualCardRequests": 0,
   "virtualCards": 1,
   "virtualCardsHosted": 1,
 }
@@ -226,7 +262,9 @@ Object {
 
 exports[`server/lib/merge-accounts mergeAccounts Merges an organization 2`] = `
 Object {
+  "accountingCategories": 1,
   "activities": 1,
+  "agreements": 1,
   "applications": 1,
   "childrenCollectives": 1,
   "comments": 1,
@@ -242,7 +280,9 @@ Object {
   "giftCardTransactions": 1,
   "hostApplications": 0,
   "hostApplicationsCreated": 0,
+  "hostedAgreements": 0,
   "hostedCollectives": 1,
+  "hostedVirtualCardRequests": 0,
   "legalDocuments": 1,
   "location": 1,
   "memberInvitations": 0,
@@ -255,12 +295,15 @@ Object {
   "paymentMethods": 2,
   "payoutMethods": 1,
   "paypalProducts": 1,
+  "personalTokens": 0,
   "recurringExpenses": 0,
   "recurringExpensesCreated": 0,
   "requiredLegalDocuments": 0,
+  "socialLinks": 1,
   "tiers": 1,
   "updates": 1,
   "updatesCreated": 1,
+  "virtualCardRequests": 0,
   "virtualCards": 1,
   "virtualCardsHosted": 1,
 }
@@ -268,7 +311,9 @@ Object {
 
 exports[`server/lib/merge-accounts mergeAccounts Merges an organization 3`] = `
 Object {
+  "accountingCategories": 2,
   "activities": 2,
+  "agreements": 2,
   "applications": 2,
   "childrenCollectives": 2,
   "comments": 2,
@@ -284,7 +329,9 @@ Object {
   "giftCardTransactions": 2,
   "hostApplications": 0,
   "hostApplicationsCreated": 0,
+  "hostedAgreements": 0,
   "hostedCollectives": 2,
+  "hostedVirtualCardRequests": 0,
   "legalDocuments": 1,
   "location": 1,
   "memberInvitations": 0,
@@ -297,12 +344,15 @@ Object {
   "paymentMethods": 4,
   "payoutMethods": 2,
   "paypalProducts": 2,
+  "personalTokens": 0,
   "recurringExpenses": 0,
   "recurringExpensesCreated": 0,
   "requiredLegalDocuments": 0,
+  "socialLinks": 2,
   "tiers": 2,
   "updates": 2,
   "updatesCreated": 2,
+  "virtualCardRequests": 0,
   "virtualCards": 2,
   "virtualCardsHosted": 2,
 }
@@ -312,6 +362,8 @@ exports[`server/lib/merge-accounts simulateMergeAccounts Correctly estimates the
 "The profiles information will be merged.
 
 The following items will be moved to @to-collective:
+  - accountingCategories: 1
+  - agreements: 1
   - activities: 1
   - applications: 1
   - childrenCollectives: 1
@@ -337,6 +389,7 @@ The following items will be moved to @to-collective:
   - paymentMethods: 2
   - payoutMethods: 1
   - paypalProducts: 1
+  - socialLinks: 1
   - tiers: 1
   - updates: 1
   - updatesCreated: 1
@@ -350,6 +403,8 @@ exports[`server/lib/merge-accounts simulateMergeAccounts Correctly estimates the
 "The profiles information will be merged.
 
 The following items will be moved to @to-org:
+  - accountingCategories: 1
+  - agreements: 1
   - activities: 1
   - applications: 1
   - childrenCollectives: 1
@@ -375,6 +430,7 @@ The following items will be moved to @to-org:
   - paymentMethods: 2
   - payoutMethods: 1
   - paypalProducts: 1
+  - socialLinks: 1
   - tiers: 1
   - updates: 1
   - updatesCreated: 1
@@ -388,6 +444,8 @@ exports[`server/lib/merge-accounts simulateMergeAccounts Correctly estimates the
 "The profiles information will be merged.
 
 The following items will be moved to @to-user:
+  - accountingCategories: 1
+  - agreements: 1
   - activities: 1
   - applications: 1
   - comments: 1
@@ -410,6 +468,7 @@ The following items will be moved to @to-user:
   - paymentMethods: 1
   - payoutMethods: 1
   - paypalProducts: 1
+  - socialLinks: 1
   - tiers: 1
   - updates: 1
   - updatesCreated: 1

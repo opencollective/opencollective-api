@@ -88,6 +88,7 @@ const models = {
   UploadedFile,
   User,
   UserToken,
+  UserTwoFactorMethod,
   VirtualCard,
   VirtualCardRequest,
 } as const;
