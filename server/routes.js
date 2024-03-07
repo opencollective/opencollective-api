@@ -5,6 +5,7 @@ import { expressMiddleware } from '@apollo/server/express4';
 import { ApolloServerPluginDrainHttpServer } from '@apollo/server/plugin/drainHttpServer';
 import { ApolloArmor } from '@escape.tech/graphql-armor';
 import config from 'config';
+import { print as convertASTToString } from 'graphql';
 import graphqlUploadExpress from 'graphql-upload/graphqlUploadExpress.js';
 import { get, pick } from 'lodash';
 import multer from 'multer';
@@ -184,18 +185,24 @@ export default async app => {
     next();
   });
 
-  /* GraphQL server protection rules */
+  /*
+   * GraphQL server protection rules
+   * @param {ValidationContext} ctx
+   * @param {GraphQLError} err
+   */
   const logGraphQLComplexityRejection = (ctx, err) => {
     let queryName = 'Query';
-    const operation = ctx?._ast?.definitions?.find(d => d.kind === 'OperationDefinition');
-    queryName = operation?.name?.value || queryName;
+    const document = ctx.getDocument();
+    const operation = document?.definitions?.find(d => d.kind === 'OperationDefinition');
+    queryName = get(operation, 'name.value') || queryName;
     reportMessageToSentry('Query complexity is too high', {
       handler: HandlerType.GQL,
       severity: 'warning',
       transactionName: `GraphQL complexity too high: ${queryName}`,
       extra: {
-        query: ctx?._ast.loc?.source?.body || '',
         message: err.message,
+        body: document?.loc?.source?.body || '',
+        query: document ? convertASTToString(document) : '',
       },
     });
   };
