@@ -1,5 +1,4 @@
 import { TaxType } from '@opencollective/taxes';
-import config from 'config';
 import debugLib from 'debug';
 import { get } from 'lodash';
 import {
@@ -42,11 +41,7 @@ interface OrderModelStaticInterface {
   generateDescription(collective, amount, interval, tier): string;
   cancelActiveOrdersByCollective(collectiveId: number): Promise<[affectedCount: number]>;
   cancelActiveOrdersByTierId(tierId: number): Promise<[affectedCount: number]>;
-  updateNonTransferableActiveOrdersStatusesByCollectiveId(
-    collectiveId: number,
-    newStatus: OrderStatus,
-    context: string,
-  ): Promise<number>;
+  stopActiveSubscriptions(collectiveId: number, newStatus: OrderStatus, context: string): Promise<void>;
   clearExpiredLocks(): Promise<[null, number]>;
 }
 
@@ -677,45 +672,30 @@ Order.cancelActiveOrdersByTierId = function (tierId: number) {
  * The only type of contributions that can be transferred are non-Stripe Connect credit card subscriptions.
  * In the future, we could add support for recurring contributions between children and parent collectives.
  *
- * Note: for externally managed subscriptions (PayPal), marking the orders as CANCELLED will trigger the
- * cancellation of the associated subscriptions on the payment provider.
- * See `cron/hourly/70-cancel-subscriptions-for-cancelled-orders.ts`.
+ * Note: the linked subscriptions will be cancelled in `cron/hourly/70-handle-batch-subscriptions-update.ts`.
  */
-Order.updateNonTransferableActiveOrdersStatusesByCollectiveId = async function (
+Order.stopActiveSubscriptions = async function (
   collectiveId: number,
-  newStatus: OrderStatus,
-  updateContext = 'Bulk update for non-transferable active orders',
-): Promise<number> {
-  const [orders] = await sequelize.query(
+  newStatus: OrderStatus.CANCELLED | OrderStatus.PAUSED,
+  messageForContributors: string,
+): Promise<void> {
+  // Update all orders
+  await sequelize.query(
     `
       UPDATE "Orders"
       SET
         status = :newStatus,
         "updatedAt" = NOW(),
-        "data" = COALESCE("data", '{}'::JSONB) || JSONB_BUILD_OBJECT('updateContext', :updateContext)
+        "data" = COALESCE("data", '{}'::JSONB) || JSONB_BUILD_OBJECT(
+          'messageForContributors', :messageForContributors,
+          'needsAsyncDeactivation', TRUE
+        )
       WHERE id IN (
         SELECT "Orders".id FROM "Orders"
         INNER JOIN "Subscriptions" ON "Subscriptions".id = "Orders"."SubscriptionId"
-        LEFT JOIN "PaymentMethods" pm ON "Orders"."PaymentMethodId" = pm.id
-        LEFT JOIN "PaymentMethods" spm ON pm."SourcePaymentMethodId" = spm.id
         WHERE "Orders"."CollectiveId" = :collectiveId
         AND "Subscriptions"."isActive" IS TRUE
-        AND CASE
-          WHEN spm.id IS NOT NULL THEN (
-            -- For gift cards, we need to check the source payment method
-            spm.service != 'stripe'
-            OR spm.type != 'creditcard'
-            OR COALESCE(spm.data#>>'{stripeAccount}', :platformStripeAccountId) != :platformStripeAccountId
-          ) WHEN pm.id IS NOT NULL THEN (
-            -- Only legacy stripe credit card contributions are transferable
-            pm.service != 'stripe'
-            OR pm.type != 'creditcard'
-            OR COALESCE(pm.data#>>'{stripeAccount}', :platformStripeAccountId) != :platformStripeAccountId
-          )
-          ELSE TRUE
-        END
       )
-      RETURNING id, "SubscriptionId"
     `,
     {
       type: QueryTypes.UPDATE,
@@ -723,31 +703,10 @@ Order.updateNonTransferableActiveOrdersStatusesByCollectiveId = async function (
       replacements: {
         collectiveId,
         newStatus,
-        updateContext,
-        platformStripeAccountId: config.stripe.accountId,
+        messageForContributors: messageForContributors || '',
       },
     },
   );
-
-  // Update related subscriptions that are managed internally. For the ones managed externally, we need to get
-  // the payment provider's confirmation before marking them as cancelled (see `cron/hourly/70-cancel-subscriptions-for-cancelled-orders.ts`).
-  if ([OrderStatus.CANCELLED, OrderStatus.PAUSED].includes(newStatus) && orders.length) {
-    await sequelize.query(
-      `
-      UPDATE "Subscriptions"
-      SET "isActive" = FALSE, "updatedAt" = NOW()
-      WHERE "id" IN (:subscriptionIds)
-      AND "isManagedExternally" = FALSE
-    `,
-      {
-        replacements: {
-          subscriptionIds: orders.map(order => order.SubscriptionId),
-        },
-      },
-    );
-  }
-
-  return orders.length;
 };
 
 Temporal(Order, sequelize);

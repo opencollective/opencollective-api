@@ -2414,12 +2414,10 @@ class Collective extends Model<
     }
 
     // Pause or cancel all orders that cannot be transferred
-    await Order.updateNonTransferableActiveOrdersStatusesByCollectiveId(
-      this.id,
-      options?.pauseContributions ? OrderStatuses.PAUSED : OrderStatuses.CANCELLED,
-      'Changing host',
-    );
+    const newOrderStatus = options?.pauseContributions ? OrderStatuses.PAUSED : OrderStatuses.CANCELLED;
+    await Order.stopActiveSubscriptions(this.id, newOrderStatus, options?.messageForContributors);
 
+    // Delete all virtual cards
     const virtualCards = await VirtualCard.findAll({ where: { CollectiveId: this.id } });
     await Promise.all(virtualCards.map(virtualCard => virtualCard.delete()));
 

@@ -2,7 +2,8 @@
 
 import '../../server/env';
 
-import { groupBy, size, uniq } from 'lodash';
+import { groupBy, size, sortBy, uniq } from 'lodash';
+import moment from 'moment';
 
 import { activities } from '../../server/constants';
 import FEATURE from '../../server/constants/feature';
@@ -14,7 +15,7 @@ import models, { Collective, Op } from '../../server/models';
 import { OrderModelInterface } from '../../server/models/Order';
 
 /**
- * Since the collective has been archived, its HostCollectiveId has been set to null.
+ * If the collective has been archived, its HostCollectiveId has been set to null.
  * We need some more logic to make sure we're loading the right host.
  */
 const getHostFromOrder = async order => {
@@ -37,12 +38,12 @@ const getOrderCancelationReason = (
   order: OrderModelInterface,
   orderHost: Collective,
 ): {
-  code: 'TRANSFER' | 'DELETED_TIER' | 'ARCHIVED_ACCOUNT' | 'UNHOSTED_COLLECTIVE' | 'CHANGED_HOST' | 'CANCELLED_ORDER';
+  code: 'PAUSED' | 'DELETED_TIER' | 'ARCHIVED_ACCOUNT' | 'UNHOSTED_COLLECTIVE' | 'CHANGED_HOST' | 'CANCELLED_ORDER';
   message: string;
 } => {
-  if (order.status === 'PAUSED' && order.data?.pausedForTransfer) {
+  if (order.status === 'PAUSED') {
     return {
-      code: 'TRANSFER',
+      code: 'PAUSED',
       message: `Your contribution to the Collective was paused. We'll inform you when it will be ready for re-activation.`,
     };
   } else if (order.TierId && !order.Tier) {
@@ -65,7 +66,13 @@ const getOrderCancelationReason = (
  */
 export async function run() {
   const orphanOrders = await models.Order.findAll<OrderModelInterface>({
-    where: { status: [OrderStatuses.CANCELLED, OrderStatuses.PAUSED] },
+    where: {
+      status: [OrderStatuses.CANCELLED, OrderStatuses.PAUSED],
+      data: { needsAsyncDeactivation: true },
+      updatedAt: {
+        [Op.gt]: moment().subtract(1, 'month').toDate(), // For performance, only look at orders updated recently
+      },
+    },
     include: [
       {
         model: models.Tier,
@@ -91,10 +98,11 @@ export async function run() {
   logger.info(`Found ${orphanOrders.length} recurring contributions to cancel across ${size(groupedOrders)} accounts`);
 
   for (const accountOrders of Object.values(groupedOrders)) {
-    const collective = accountOrders[0].collective;
+    const sortedAccountOrders = sortBy(accountOrders, ['Subscription.isManagedExternally']);
+    const collective = sortedAccountOrders[0].collective;
     const collectiveHandle = collective.slug;
-    logger.info(`Cancelling ${accountOrders.length} subscriptions for @${collectiveHandle}`);
-    for (const order of accountOrders) {
+    logger.info(`Cancelling ${sortedAccountOrders.length} subscriptions for @${collectiveHandle}`);
+    for (const order of sortedAccountOrders) {
       try {
         const host = await getHostFromOrder(order);
         const reason = getOrderCancelationReason(collective, order, host);
@@ -104,7 +112,7 @@ export async function run() {
         if (!process.env.DRY) {
           await order.Subscription.deactivate(reason.message, host);
           await models.Activity.create({
-            type: reason.code === 'TRANSFER' ? activities.SUBSCRIPTION_PAUSED : activities.SUBSCRIPTION_CANCELED,
+            type: reason.code === 'PAUSED' ? activities.SUBSCRIPTION_PAUSED : activities.SUBSCRIPTION_CANCELED,
             CollectiveId: order.CollectiveId,
             FromCollectiveId: order.FromCollectiveId,
             HostCollectiveId: order.collective.HostCollectiveId,
@@ -116,11 +124,17 @@ export async function run() {
               fromCollective: order.fromCollective.minimal,
               reasonCode: reason.code,
               reason: reason.message,
+              messageForContributors: order.data?.messageForContributors,
               order: order.info,
               tier: order.Tier?.info,
+              awaitForDispatch: true, // To make sure we won't kill the process while emails are still being sent
             },
           });
-          await sleep(500); // To prevent rate-limiting issues when calling 3rd party payment processor APIs
+
+          await order.update({ data: { ...order.data, needsAsyncDeactivation: false } });
+          if (order.Subscription.isManagedExternally) {
+            await sleep(500); // To prevent rate-limiting issues when calling 3rd party payment processor APIs
+          }
         }
       } catch (e) {
         logger.error(`Error while cancelling subscriptions for @${collectiveHandle}: ${e.message}`);

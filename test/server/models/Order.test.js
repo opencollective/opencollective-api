@@ -123,8 +123,8 @@ describe('server/models/Order', () => {
     });
   });
 
-  describe('updateNonTransferableActiveOrdersStatusesByCollectiveId', () => {
-    it('cancels non transferable active orders', async () => {
+  describe('stopActiveSubscriptions', () => {
+    it('pauses all active orders', async () => {
       const collective = await fakeCollective();
 
       // Payment methods
@@ -173,19 +173,14 @@ describe('server/models/Order', () => {
       const activeStripeConnectGiftCardOrder = await fakeActiveOrder(stripeConnectGiftCardPm.id);
       const inactiveOrder = await fakeOrder({
         CollectiveId: collective.id,
-        status: 'CANCELLED',
+        status: 'PAID',
         PaymentMethodId: paypalPm.id,
       });
 
       // Trigger the update
-      const nbUpdated = await models.Order.updateNonTransferableActiveOrdersStatusesByCollectiveId(
-        collective.id,
-        'PAUSED',
-        'Testing',
-      );
+      await models.Order.stopActiveSubscriptions(collective.id, 'PAUSED', 'Testing');
 
       // Check the results
-      expect(nbUpdated).to.equal(3);
       await activePaypalOrder.reload({ include: [models.Subscription] });
       await activeStripeOrder.reload({ include: [models.Subscription] });
       await activeStripeGiftCardOrder.reload({ include: [models.Subscription] });
@@ -194,25 +189,25 @@ describe('server/models/Order', () => {
       await inactiveOrder.reload({ include: [models.Subscription] });
 
       expect(activePaypalOrder.status).to.equal('PAUSED');
-      expect(activeStripeOrder.status).to.equal('ACTIVE'); // Do not touch stripe orders since they can be transfered
-      expect(activeStripeGiftCardOrder.status).to.equal('ACTIVE');
+      expect(activeStripeOrder.status).to.equal('PAUSED');
+      expect(activeStripeGiftCardOrder.status).to.equal('PAUSED');
       expect(activeStripeConnectOrder.status).to.equal('PAUSED');
       expect(activeStripeConnectGiftCardOrder.status).to.equal('PAUSED');
-      expect(inactiveOrder.status).to.equal('CANCELLED');
+      expect(inactiveOrder.status).to.equal('PAID');
 
-      expect(activePaypalOrder.data.updateContext).to.equal('Testing');
-      expect(activeStripeOrder.data?.updateContext).to.not.exist;
-      expect(activeStripeGiftCardOrder.data?.updateContext).to.not.exist;
-      expect(activeStripeConnectOrder.data.updateContext).to.equal('Testing');
-      expect(activeStripeConnectGiftCardOrder.data.updateContext).to.equal('Testing');
-      expect(inactiveOrder.data?.updateContext).to.not.exist;
+      expect(activePaypalOrder.data.messageForContributors).to.equal('Testing');
+      expect(activeStripeOrder.data?.messageForContributors).to.equal('Testing');
+      expect(activeStripeGiftCardOrder.data?.messageForContributors).to.equal('Testing');
+      expect(activeStripeConnectOrder.data.messageForContributors).to.equal('Testing');
+      expect(activeStripeConnectGiftCardOrder.data.messageForContributors).to.equal('Testing');
+      expect(inactiveOrder.data?.messageForContributors).to.not.exist;
 
-      // Check the subscriptions
-      expect(activePaypalOrder.Subscription.isActive).to.be.false;
-      expect(activeStripeOrder.Subscription.isActive).to.be.true;
-      expect(activeStripeGiftCardOrder.Subscription.isActive).to.be.true;
-      expect(activeStripeConnectOrder.Subscription.isActive).to.be.false;
-      expect(activeStripeConnectGiftCardOrder.Subscription.isActive).to.be.false;
+      expect(activePaypalOrder.data.needsAsyncDeactivation).to.be.true;
+      expect(activeStripeOrder.data.needsAsyncDeactivation).to.be.true;
+      expect(activeStripeGiftCardOrder.data.needsAsyncDeactivation).to.be.true;
+      expect(activeStripeConnectOrder.data.needsAsyncDeactivation).to.be.true;
+      expect(activeStripeConnectGiftCardOrder.data.needsAsyncDeactivation).to.be.true;
+      expect(inactiveOrder.data?.needsAsyncDeactivation).to.not.exist;
     });
   });
 });

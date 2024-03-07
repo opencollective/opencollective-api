@@ -43,11 +43,13 @@ const dispatch = async (activity: Activity, { onlyChannels = null, force = false
   const shouldNotifyChannel = channel => !onlyChannels || onlyChannels.includes(channel);
 
   if (shouldNotifyChannel(channels.EMAIL)) {
-    notifyByEmail(activity).catch(e => {
+    try {
+      await notifyByEmail(activity);
+    } catch (e) {
       if (!['ci', 'test', 'e2e'].includes(config.env)) {
         console.error(e);
       }
-    });
+    }
   }
 
   // process notification entries for slack, twitter, etc...

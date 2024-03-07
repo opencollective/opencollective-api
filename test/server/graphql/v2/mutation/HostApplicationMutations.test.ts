@@ -541,10 +541,10 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
 
       await nonTransferableOrder.reload();
       expect(nonTransferableOrder.status).to.eq(OrderStatuses.PAUSED);
-      expect(nonTransferableOrder.data.updateContext).to.eq('Changing host');
+      expect(nonTransferableOrder.data.messageForContributors).to.eq('We are transitioning to a new host');
 
       await transferableOrder.reload();
-      expect(transferableOrder.status).to.eq(OrderStatuses.ACTIVE);
+      expect(transferableOrder.status).to.eq(OrderStatuses.PAUSED);
     });
 
     it('validates if collective does not have a parent account', async () => {
@@ -704,7 +704,7 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
       expect(orderWithExternalSubscription.status).to.eq(OrderStatuses.PAUSED);
 
       await orderWithInternalSubscription.reload();
-      expect(orderWithInternalSubscription.status).to.eq(OrderStatuses.ACTIVE);
+      expect(orderWithInternalSubscription.status).to.eq(OrderStatuses.PAUSED);
 
       await virtualCard.reload();
       expect(virtualCard.data.status).to.eq(VirtualCardStatus.CANCELED);
