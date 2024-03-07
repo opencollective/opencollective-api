@@ -498,8 +498,6 @@ const fetchWithCache = async (resource: string, condition, fetchFunction: () => 
 };
 
 const fetchTransactionsKinds = async whereKinds => {
-  console.log('fetchTransactionsKinds', whereKinds);
-
   const condition = whereKinds.length === 1 ? whereKinds[0] : null;
 
   return fetchWithCache('kinds', condition, () =>
