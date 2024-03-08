@@ -19,7 +19,7 @@ export type MigrationLogDataForMergeAccounts = {
   intoAccount?: number;
   fromUser?: number;
   intoUser?: number;
-  associations?: Record<string, (number | string)[]>;
+  associations?: Record<string, unknown[]>;
   userChanges?: Record<string, (number | string)[]> | null;
 };
 

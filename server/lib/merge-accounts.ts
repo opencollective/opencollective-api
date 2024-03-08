@@ -122,6 +122,7 @@ type CollectiveFieldsConfig = Record<
     model: ModelStatic<Model>;
     field: CollectiveField;
     getIdsToIgnore?: (from: Collective, into: Collective, sqlTransaction) => Promise<number[]>;
+    fieldsToLog?: string[]; // For the migration log, defaults to ['id']
   }
 >;
 
@@ -130,6 +131,8 @@ type CollectiveFieldsConfig = Record<
  * must include a model, and a field where the old account ID will be replaced by the new one.
  */
 const collectiveFieldsConfig: CollectiveFieldsConfig = {
+  accountingCategories: { model: models.AccountingCategory, field: 'CollectiveId' },
+  agreements: { model: models.Agreement, field: 'CollectiveId' },
   activities: { model: models.Activity, field: 'CollectiveId' },
   applications: { model: models.Application, field: 'CollectiveId' },
   childrenCollectives: { model: Collective, field: 'ParentCollectiveId' },
@@ -146,7 +149,9 @@ const collectiveFieldsConfig: CollectiveFieldsConfig = {
   giftCardTransactions: { model: models.Transaction, field: 'UsingGiftCardFromCollectiveId' },
   hostApplications: { model: models.HostApplication, field: 'HostCollectiveId' },
   hostApplicationsCreated: { model: models.HostApplication, field: 'CollectiveId' },
+  hostedAgreements: { model: models.Agreement, field: 'HostCollectiveId' },
   hostedCollectives: { model: models.Collective, field: 'HostCollectiveId' },
+  hostedVirtualCardRequests: { model: models.VirtualCardRequest, field: 'HostCollectiveId' },
   legalDocuments: { model: models.LegalDocument, field: 'CollectiveId', getIdsToIgnore: getLegalDocumentsToIgnore },
   location: { model: models.Location, field: 'CollectiveId' },
   memberInvitations: { model: models.MemberInvitation, field: 'MemberCollectiveId' },
@@ -159,11 +164,14 @@ const collectiveFieldsConfig: CollectiveFieldsConfig = {
   paymentMethods: { model: models.PaymentMethod, field: 'CollectiveId' },
   payoutMethods: { model: models.PayoutMethod, field: 'CollectiveId' },
   paypalProducts: { model: models.PaypalProduct, field: 'CollectiveId' },
+  personalTokens: { model: models.PersonalToken, field: 'CollectiveId' },
   requiredLegalDocuments: { model: models.RequiredLegalDocument, field: 'HostCollectiveId' },
+  socialLinks: { model: models.SocialLink, field: 'CollectiveId', fieldsToLog: ['CollectiveId', 'type', 'url'] },
   tiers: { model: models.Tier, field: 'CollectiveId' },
   updates: { model: models.Update, field: 'CollectiveId' },
   updatesCreated: { model: models.Update, field: 'FromCollectiveId' },
   virtualCards: { model: models.VirtualCard, field: 'CollectiveId' },
+  virtualCardRequests: { model: models.VirtualCardRequest, field: 'CollectiveId' },
   virtualCardsHosted: { model: models.VirtualCard, field: 'HostCollectiveId' },
   recurringExpenses: { model: models.RecurringExpense, field: 'CollectiveId' },
   recurringExpensesCreated: { model: models.RecurringExpense, field: 'FromCollectiveId' },
@@ -175,6 +183,7 @@ type UserField = 'UserId' | 'CreatedByUserId';
 type UserFieldsConfig = Record<string, { model: User; field: UserField }>;
 
 const userFieldsConfig = {
+  agreements: { model: models.Agreement, field: 'UserId' },
   activities: { model: models.Activity, field: 'UserId' },
   applications: { model: models.Application, field: 'CreatedByUserId' },
   collectives: { model: models.Collective, field: 'CreatedByUserId' },
@@ -193,11 +202,14 @@ const userFieldsConfig = {
   orders: { model: models.Order, field: 'CreatedByUserId' },
   paymentMethods: { model: models.PaymentMethod, field: 'CreatedByUserId' },
   payoutMethods: { model: models.PayoutMethod, field: 'CreatedByUserId' },
+  personalTokens: { model: models.PersonalToken, field: 'UserId' },
   transactions: { model: models.Transaction, field: 'CreatedByUserId' },
+  twoFactorMethods: { model: models.UserTwoFactorMethod, field: 'UserId' },
   updates: { model: models.Update, field: 'CreatedByUserId' },
   userTokens: { model: models.UserToken, field: 'UserId' },
   uploadedFiles: { model: models.UploadedFile, field: 'CreatedByUserId' },
   virtualCards: { model: models.VirtualCard, field: 'UserId' },
+  virtualCardRequests: { model: models.VirtualCardRequest, field: 'UserId' },
 };
 
 const mergeCollectiveFields = async (from, into, transaction) => {
@@ -263,7 +275,7 @@ const moveCollectiveAssociations = async (from, into, transaction) => {
         { [entityConfig.field]: into.id },
         {
           where: updateWhere,
-          returning: ['id'],
+          returning: entityConfig.fieldsToLog ?? ['id'],
           fields: [entityConfig.field],
           paranoid: false, // Also update soft-deleted entries
           transaction,
@@ -274,7 +286,11 @@ const moveCollectiveAssociations = async (from, into, transaction) => {
         },
       );
 
-      summary[entity] = (results as unknown as { id: number | string }[]).map(r => r.id);
+      if (!entityConfig.fieldsToLog) {
+        summary[entity] = (results as unknown as { id: number | string }[]).map(r => r.id);
+      } else {
+        summary[entity] = results;
+      }
 
       if (idsToIgnore.length) {
         summary[`${entity}-deleted`] = idsToIgnore;

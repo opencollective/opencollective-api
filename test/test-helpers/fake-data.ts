@@ -26,6 +26,7 @@ import { TransactionKind } from '../../server/constants/transaction-kind';
 import { crypto } from '../../server/lib/encryption';
 import { TwoFactorMethod } from '../../server/lib/two-factor-authentication';
 import models, {
+  Agreement,
   Collective,
   ConnectedAccount,
   EmojiReaction,
@@ -54,6 +55,7 @@ import { OrderModelInterface } from '../../server/models/Order';
 import { PaymentMethodModelInterface } from '../../server/models/PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import RecurringExpense, { RecurringExpenseIntervals } from '../../server/models/RecurringExpense';
+import SocialLink, { SocialLinkType } from '../../server/models/SocialLink';
 import { AssetType } from '../../server/models/SuspendedAsset';
 import { TransactionCreationAttributes, TransactionInterface } from '../../server/models/Transaction';
 import { SUPPORTED_FILE_EXTENSIONS, SUPPORTED_FILE_TYPES } from '../../server/models/UploadedFile';
@@ -111,6 +113,19 @@ export const fakeAccountingCategory = async (
 
   category.collective = await models.Collective.findByPk(category.CollectiveId);
   return category;
+};
+
+/**
+ * Creates a fake host agreement.
+ */
+export const fakeAgreement = async (values: Partial<InferCreationAttributes<Agreement>> = {}) => {
+  return models.Agreement.create({
+    title: randStr('Agreement '),
+    notes: randStr('Notes: Agreement for  '),
+    ...values,
+    CollectiveId: values?.CollectiveId ?? (await fakeCollective()).id,
+    HostCollectiveId: values?.HostCollectiveId ?? (await fakeActiveHost()).id,
+  });
 };
 
 /**
@@ -696,6 +711,16 @@ export const fakeOrder = async (
   order.createdByUser = user;
   order.tier = tier;
   return order;
+};
+
+export const fakeSocialLink = async (data: Partial<InferCreationAttributes<SocialLink>> = {}) => {
+  return models.SocialLink.create({
+    type: sample(Object.values(SocialLinkType)),
+    url: randUrl(),
+    order: 1,
+    ...data,
+    CollectiveId: data.CollectiveId || (await fakeCollective()).id,
+  });
 };
 
 export const fakeSubscription = (params = {}) => {

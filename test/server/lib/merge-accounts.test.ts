@@ -17,6 +17,8 @@ const addFakeDataToAccount = async (account): Promise<void> => {
   const user = account.type === 'USER' ? await account.getUser() : await Faker.fakeUser();
 
   await Promise.all([
+    Faker.fakeAccountingCategory({ CollectiveId: account.id }),
+    Faker.fakeAgreement({ CollectiveId: account.id, UserId: user.id }),
     Faker.fakeActivity({ CollectiveId: account.id }, { hooks: false }),
     Faker.fakeApplication({ CollectiveId: account.id }),
     Faker.fakeComment({ CollectiveId: account.id, FromCollectiveId: randomCollective.id }, { hooks: false }),
@@ -53,6 +55,7 @@ const addFakeDataToAccount = async (account): Promise<void> => {
     Faker.fakePaypalProduct({ CollectiveId: account.id }),
     // TODO Faker.fakeRequiredLegalDocument({ HostCollectiveId: account.id }),
     // TODO: Add Oauth authorization codes
+    Faker.fakeSocialLink({ CollectiveId: account.id }),
     Faker.fakeTier({ CollectiveId: account.id }),
     Faker.fakeTransaction({ FromCollectiveId: account.id, CollectiveId: randomCollective.id }),
     Faker.fakeTransaction({ CollectiveId: account.id, FromCollectiveId: randomCollective.id }),
@@ -215,6 +218,10 @@ describe('server/lib/merge-accounts', () => {
       expect(migrationLogData.associations.members).to.have.length(2);
       expect(migrationLogData.associations.expenses).to.have.length(1);
       expect(migrationLogData.associations.giftCardTransactions).to.have.length(1);
+      expect(migrationLogData.associations.socialLinks).to.have.length(1);
+      expect(migrationLogData.associations.socialLinks[0]['CollectiveId']).to.eq(toOrganization.id);
+      expect(migrationLogData.associations.socialLinks[0]['type']).to.exist;
+      expect(migrationLogData.associations.socialLinks[0]['url']).to.exist;
     });
 
     it('Merges a user profile', async () => {
