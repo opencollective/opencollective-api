@@ -4,23 +4,36 @@ Subject: Your contribution to {{{collective.name}}} has been paused
 
 <p>{{> greeting}}</p>
 
-<p>Your recurring contribution to {{>linkCollective collective=collective}} for {{currency subscription.amount currency=subscription.currency}}/{{subscription.interval}} has been paused.</p>
+{{#if isOCFShutdown}}
+  <p>
+    {{>linkCollective collective=collective}} is in the process of transitioning between fiscal hosts. Your recurring contribution for
+    {{currency subscription.amount currency=subscription.currency}}/{{subscription.interval}} has been paused.
+  </p>
+  <p>
+    We’ll let you know when {{>linkCollective collective=collective}} has successfully transitioned to their new fiscal host. You will be prompted to reactivate your contribution so you can continue supporting {{>linkCollective collective=collective}}’s impactful work.
+  </p>
+  <p>
+    Please don’t hesitate to <a href="https://opencollective.com/contact">reach out to our support team</a> if you have any questions.
+  </p>
+{{else}}
+  <p>Your recurring contribution to {{>linkCollective collective=collective}} for {{currency subscription.amount currency=subscription.currency}}/{{subscription.interval}} has been paused.</p>
 
-{{#if messageForContributors}}
-  {{#if (isEqual messageSource "COLLECTIVE")}}
-    <p>Here is the message from {{collective.name}}:</p>
-    <blockquote style="color: #6a737d;font-size: 14px; text-align: left;padding: 0.5em 0.75em;margin: 1em 0;border-left: 3px solid #e4e4e4;">{{{messageForContributors}}}</blockquote>
-  {{else if (isEqual messageSource "HOST")}}
-    <p>Here is the message from {{host.name}}:</p>
-    <blockquote style="color: #6a737d;font-size: 14px; text-align: left;padding: 0.5em 0.75em;margin: 1em 0;border-left: 3px solid #e4e4e4;">{{{messageForContributors}}}</blockquote>
-  {{else if (isEqual messageSource "PLATFORM")}}
-    <p>{{{messageForContributors}}}</p>
+  {{#if messageForContributors}}
+    {{#if (isEqual messageSource "COLLECTIVE")}}
+      <p>Here is the message from {{collective.name}}:</p>
+      <blockquote style="color: #6a737d;font-size: 14px; text-align: left;padding: 0.5em 0.75em;margin: 1em 0;border-left: 3px solid #e4e4e4;">{{{messageForContributors}}}</blockquote>
+    {{else if (isEqual messageSource "HOST")}}
+      <p>Here is the message from {{host.name}}:</p>
+      <blockquote style="color: #6a737d;font-size: 14px; text-align: left;padding: 0.5em 0.75em;margin: 1em 0;border-left: 3px solid #e4e4e4;">{{{messageForContributors}}}</blockquote>
+    {{else if (isEqual messageSource "PLATFORM")}}
+      <p>{{{messageForContributors}}}</p>
+    {{/if}}
   {{/if}}
-{{/if}}
 
-<p>
-  We'll let you know when your contribution is ready for reactivation. Without any further action from you, your contribution will remain paused.
-</p>
+  <p>
+    We'll let you know when your contribution is ready for reactivation. Without any further action from you, your contribution will remain paused.
+  </p>
+{{/if}}
 
 <p>
   Warmly,

@@ -27,7 +27,9 @@ const getHostFromOrder = async order => {
 
   const hostIds: number[] = uniq(transactions.map(t => t.HostCollectiveId));
   if (!hostIds.length) {
-    throw new Error(`Could not find the host for order ${order.id}`);
+    // If there is no transaction, it could be that the order hasn't been processed yet. We can safely assume
+    // that the current collective host (if any) is the right one.
+    return order.collective.getHostCollective();
   }
 
   return models.Collective.findByPk(hostIds[0]);
@@ -126,6 +128,7 @@ export async function run() {
               reason: reason.message,
               messageForContributors: order.data?.messageForContributors,
               messageSource: order.data?.messageSource,
+              isOCFShutdown: order.data?.isOCFShutdown,
               order: order.info,
               tier: order.Tier?.info,
               awaitForDispatch: true, // To make sure we won't kill the process while emails are still being sent

@@ -5528,13 +5528,12 @@ type HostPlan {
 }
 
 """
-EXPERIMENTAL: Transaction amounts grouped by type, kind, primary kind, isRefund, isHost, expenseType
+EXPERIMENTAL (this may change or be deleted): Transaction amounts grouped by type, kind, isRefund, isHost, expenseType
 """
 type TransactionSum {
   amount: Amount
   type: TransactionType
   kind: TransactionKind
-  primaryKind: TransactionKind
   isRefund: Boolean
   isHost: Boolean
   expenseType: ExpenseType
@@ -16310,7 +16309,7 @@ type Mutation {
     account: AccountReferenceInput!
 
     """
-    An optional message to explain the reason for unhosting
+    An optional HTML message to provide additional context to the action
     """
     message: String
 
