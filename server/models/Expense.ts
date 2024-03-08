@@ -20,7 +20,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymen
 import roles from '../constants/roles';
 import { reduceArrayToCurrency } from '../lib/currency';
 import logger from '../lib/logger';
-import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
+import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../lib/sanitize-html';
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Model, Op, QueryTypes } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
@@ -53,13 +53,6 @@ export type ExpenseDataValuesByRole = {
   collectiveAdmin?: ExpenseDataValuesRoleDetails;
   submitter?: ExpenseDataValuesRoleDetails;
 };
-
-// Options for sanitizing private messages
-const PRIVATE_MESSAGE_SANITIZE_OPTS = buildSanitizerOptions({
-  basicTextFormatting: true,
-  multilineTextFormatting: true,
-  links: true,
-});
 
 class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Expense>> {
   public declare readonly id: CreationOptional<number>;
@@ -698,7 +691,7 @@ Expense.init(
       type: DataTypes.TEXT,
       set(value: string) {
         if (value) {
-          const cleanHtml = sanitizeHTML(value, PRIVATE_MESSAGE_SANITIZE_OPTS).trim();
+          const cleanHtml = sanitizeHTML(value, optsSanitizeHtmlForSimplified).trim();
           this.setDataValue('longDescription', cleanHtml || null);
         } else {
           this.setDataValue('longDescription', null);
@@ -752,7 +745,7 @@ Expense.init(
       type: DataTypes.TEXT,
       set(value: string | null) {
         if (value) {
-          const cleanHtml = sanitizeHTML(value, PRIVATE_MESSAGE_SANITIZE_OPTS).trim();
+          const cleanHtml = sanitizeHTML(value, optsSanitizeHtmlForSimplified).trim();
           this.setDataValue('privateMessage', cleanHtml || null);
         } else {
           this.setDataValue('privateMessage', null);

@@ -11,7 +11,7 @@ import type {
 import ActivityTypes from '../constants/activities';
 import ExpenseTypes from '../constants/expense-type';
 import { TransactionKind } from '../constants/transaction-kind';
-import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
+import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 import Activity from './Activity';
@@ -19,12 +19,6 @@ import Collective from './Collective';
 import Expense from './Expense';
 import { OrderModelInterface } from './Order';
 import User from './User';
-
-const instructionsSanitizeOptions = buildSanitizerOptions({
-  basicTextFormatting: true,
-  multilineTextFormatting: true,
-  links: true,
-});
 
 type AccountingCategoryCreationAttributes = InferCreationAttributes<
   AccountingCategory,
@@ -161,7 +155,7 @@ AccountingCategory.init(
       },
       set(instructions: string) {
         if (instructions) {
-          this.setDataValue('instructions', sanitizeHTML(instructions, instructionsSanitizeOptions));
+          this.setDataValue('instructions', sanitizeHTML(instructions, optsSanitizeHtmlForSimplified));
         } else {
           this.setDataValue('instructions', null);
         }

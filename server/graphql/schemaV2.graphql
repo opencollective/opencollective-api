@@ -5518,7 +5518,7 @@ type HostPlan {
 }
 
 """
-Transaction amounts grouped by type, kind, primary kind, isRefund, isHost, expenseType
+EXPERIMENTAL: Transaction amounts grouped by type, kind, primary kind, isRefund, isHost, expenseType
 """
 type TransactionSum {
   amount: Amount
@@ -16258,6 +16258,11 @@ type Mutation {
     An optional message to explain the reason for unhosting
     """
     message: String
+
+    """
+    An optional HTML message to provide additional context for contributors
+    """
+    messageForContributors: String
 
     """
     If true, contributions will be paused rather than canceled

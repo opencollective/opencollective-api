@@ -178,7 +178,7 @@ describe('server/models/Order', () => {
       });
 
       // Trigger the update
-      await models.Order.stopActiveSubscriptions(collective.id, 'PAUSED', 'Testing');
+      await models.Order.stopActiveSubscriptions(collective.id, 'PAUSED', { messageForContributors: 'Testing' });
 
       // Check the results
       await activePaypalOrder.reload({ include: [models.Subscription] });

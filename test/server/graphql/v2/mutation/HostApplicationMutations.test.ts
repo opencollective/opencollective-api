@@ -95,8 +95,18 @@ const PROCESS_HOST_APPLICATION_MUTATION = gql`
 `;
 
 const REMOVE_HOST_MUTATION = gql`
-  mutation UnhostAccount($account: AccountReferenceInput!, $message: String, $pauseContributions: Boolean) {
-    removeHost(account: $account, message: $message, pauseContributions: $pauseContributions) {
+  mutation UnhostAccount(
+    $account: AccountReferenceInput!
+    $message: String
+    $messageForContributors: String
+    $pauseContributions: Boolean
+  ) {
+    removeHost(
+      account: $account
+      message: $message
+      messageForContributors: $messageForContributors
+      pauseContributions: $pauseContributions
+    ) {
       id
       slug
       name
@@ -523,6 +533,7 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
         {
           account: { legacyId: collective.id },
           message: 'We are transitioning to a new host',
+          messageForContributors: 'Hey folks, we are transitioning to a new host. Please bear with us.',
           pauseContributions: true,
         },
         rootUser,
@@ -541,7 +552,9 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
 
       await nonTransferableOrder.reload();
       expect(nonTransferableOrder.status).to.eq(OrderStatuses.PAUSED);
-      expect(nonTransferableOrder.data.messageForContributors).to.eq('We are transitioning to a new host');
+      expect(nonTransferableOrder.data.messageForContributors).to.eq(
+        'Hey folks, we are transitioning to a new host. Please bear with us.',
+      );
 
       await transferableOrder.reload();
       expect(transferableOrder.status).to.eq(OrderStatuses.PAUSED);
