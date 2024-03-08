@@ -41,7 +41,7 @@ interface OrderModelStaticInterface {
   generateDescription(collective, amount, interval, tier): string;
   cancelActiveOrdersByCollective(collectiveId: number): Promise<[affectedCount: number]>;
   cancelActiveOrdersByTierId(tierId: number): Promise<[affectedCount: number]>;
-  cancelNonTransferableActiveOrdersByCollectiveId(collectiveId: number): Promise<[affectedCount: number]>;
+  stopActiveSubscriptions(collectiveId: number, newStatus: OrderStatus, context: string): Promise<void>;
   clearExpiredLocks(): Promise<[null, number]>;
 }
 
@@ -667,28 +667,44 @@ Order.cancelActiveOrdersByTierId = function (tierId: number) {
 };
 
 /**
- * Cancels all orders with subscriptions that cannot be transferred when changing hosts (i.e. PayPal)
+ * Update the status of all non-transferable active orders for the given collective.
+ *
+ * The only type of contributions that can be transferred are non-Stripe Connect credit card subscriptions.
+ * In the future, we could add support for recurring contributions between children and parent collectives.
+ *
+ * Note: the linked subscriptions will be cancelled in `cron/hourly/70-handle-batch-subscriptions-update.ts`.
  */
-Order.cancelNonTransferableActiveOrdersByCollectiveId = function (collectiveId: number) {
-  return sequelize.query(
+Order.stopActiveSubscriptions = async function (
+  collectiveId: number,
+  newStatus: OrderStatus.CANCELLED | OrderStatus.PAUSED,
+  messageForContributors: string,
+): Promise<void> {
+  // Update all orders
+  await sequelize.query(
     `
-        UPDATE public."Orders"
-        SET
-          status = 'CANCELLED',
-          "updatedAt" = NOW()
-        WHERE id IN (
-          SELECT "Orders".id FROM public."Orders"
-          INNER JOIN public."Subscriptions" ON "Subscriptions".id = "Orders"."SubscriptionId"
-          WHERE
-            "Orders".status NOT IN ('PAID', 'CANCELLED', 'REJECTED', 'EXPIRED') AND
-            "Subscriptions"."isManagedExternally" AND
-            "Subscriptions"."isActive" AND
-            "Orders"."CollectiveId" = ?
+      UPDATE "Orders"
+      SET
+        status = :newStatus,
+        "updatedAt" = NOW(),
+        "data" = COALESCE("data", '{}'::JSONB) || JSONB_BUILD_OBJECT(
+          'messageForContributors', :messageForContributors,
+          'needsAsyncDeactivation', TRUE
         )
-      `,
+      WHERE id IN (
+        SELECT "Orders".id FROM "Orders"
+        INNER JOIN "Subscriptions" ON "Subscriptions".id = "Orders"."SubscriptionId"
+        WHERE "Orders"."CollectiveId" = :collectiveId
+        AND "Subscriptions"."isActive" IS TRUE
+      )
+    `,
     {
       type: QueryTypes.UPDATE,
-      replacements: [collectiveId],
+      raw: true,
+      replacements: {
+        collectiveId,
+        newStatus,
+        messageForContributors: messageForContributors || '',
+      },
     },
   );
 };

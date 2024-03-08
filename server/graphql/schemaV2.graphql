@@ -1194,6 +1194,7 @@ enum OrderStatus {
   EXPIRED
   DISPUTED
   REFUNDED
+  PAUSED
   IN_REVIEW
 }
 
@@ -4617,6 +4618,27 @@ type AccountStats {
     """
     frequency: ContributionFrequency! = MONTHLY
   ): Amount
+    @deprecated(reason: "2024-03-04: Use activeRecurringContributionsBreakdown while we migrate to better semantics.")
+
+  """
+  Returns some statistics about active recurring contributions, broken down by frequency
+  """
+  activeRecurringContributionsBreakdown(
+    """
+    Return only the stats for this frequency
+    """
+    frequency: ContributionFrequency
+
+    """
+    Filter contributions on whether they can be ported to another fiscal host directly
+    """
+    hasPortability: Boolean
+
+    """
+    Include contributions to children accounts (Projects and Events)
+    """
+    includeChildren: Boolean = false
+  ): [AmountStats!]!
 
   """
   Returns expense tags for collective sorted by popularity
@@ -5311,6 +5333,7 @@ enum ActivityType {
   CONTRIBUTION_REJECTED
   SUBSCRIPTION_ACTIVATED
   SUBSCRIPTION_CANCELED
+  SUBSCRIPTION_PAUSED
   TICKET_CONFIRMED
   ORDER_CANCELED_ARCHIVED_COLLECTIVE
   ORDER_PENDING
@@ -13864,6 +13887,7 @@ enum ActivityAndClassesType {
   CONTRIBUTION_REJECTED
   SUBSCRIPTION_ACTIVATED
   SUBSCRIPTION_CANCELED
+  SUBSCRIPTION_PAUSED
   TICKET_CONFIRMED
   ORDER_CANCELED_ARCHIVED_COLLECTIVE
   ORDER_PENDING
@@ -16229,7 +16253,16 @@ type Mutation {
     The account to unhost
     """
     account: AccountReferenceInput!
+
+    """
+    An optional message to explain the reason for unhosting
+    """
     message: String
+
+    """
+    If true, contributions will be paused rather than canceled
+    """
+    pauseContributions: Boolean! = true
   ): Account!
 
   """

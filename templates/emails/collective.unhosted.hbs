@@ -6,11 +6,14 @@ Subject: Important: {{{collective.name}}} has been un-hosted by {{{host.name}}}
   Hi {{collective.name}},
   <br /><br />
   You have been un-hosted by {{> linkCollective collective=host}}. This Fiscal Host will no longer manage money on behalf of your Collective. Any active recurring PayPal contributions or Virtual Cards will be cancelled.
+  {{#if pauseContributions}}
+  Once you're ready to start receiving contributions again (either with a new Fiscal Host or as an Independent Collective), we will help you reach out to your contributors to let them know how to resume their contributions.
+  {{/if}}
 </p>
 
 {{#if message}}
 <p style="font-size: 17px; padding: 0 1em;">
-  Message from {{host.name}}:
+  Message from {{#if isHostAdmin}}{{host.name}}{{else}}{{collective.name}}{{/if}}:
 </p>
   <blockquote style="padding: 1em; color: #6a737d;font-size: 16px;text-align: left;padding: 0.5em 0.75em;margin: 0 24px;border-left: 3px solid #e4e4e4;white-space: pre-line;font-style: italic;">{{message}}</blockquote>
 {{/if}}

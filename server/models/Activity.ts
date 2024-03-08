@@ -105,11 +105,13 @@ Activity.init(
     sequelize,
     updatedAt: false,
     hooks: {
-      afterCreate(activity) {
+      async afterCreate(activity) {
         if (activity.data?.notify !== false) {
-          dispatch(activity); // intentionally no return statement, needs to be async
+          const dispatchPromise = dispatch(activity); // intentionally no return statement, needs to be async by default
+          if (activity.data?.awaitForDispatch) {
+            await dispatchPromise;
+          }
         }
-        return Promise.resolve();
       },
     },
   },

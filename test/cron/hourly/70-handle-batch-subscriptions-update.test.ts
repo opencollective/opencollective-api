@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { assert, createSandbox } from 'sinon';
 
-import { run as runCronJob } from '../../../cron/hourly/70-cancel-subscriptions-for-cancelled-orders';
+import { run as runCronJob } from '../../../cron/hourly/70-handle-batch-subscriptions-update';
 import { activities } from '../../../server/constants';
 import OrderStatuses from '../../../server/constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../server/constants/paymentMethods';
@@ -35,6 +35,7 @@ const fakePayPalSubscriptionOrder = async collective => {
       totalAmount: 1000,
       subscription: { paypalSubscriptionId, isActive: true, isManagedExternally: true },
       PaymentMethodId: paymentMethod.id,
+      data: { needsAsyncDeactivation: true },
     },
     {
       withTier: true,
@@ -44,7 +45,7 @@ const fakePayPalSubscriptionOrder = async collective => {
   );
 };
 
-describe('cron/hourly/70-cancel-subscriptions-for-cancelled-orders', () => {
+describe('cron/hourly/70-handle-batch-subscriptions-update', () => {
   let sandbox, host;
 
   beforeEach(async () => {
@@ -93,7 +94,7 @@ describe('cron/hourly/70-cancel-subscriptions-for-cancelled-orders', () => {
   it('cancels subscriptions from canceled orders', async () => {
     const collective = await fakeCollective({ HostCollectiveId: host.id, slug: 'test-collective' });
     const order = await fakeOrder(
-      { CollectiveId: collective.id },
+      { CollectiveId: collective.id, data: { needsAsyncDeactivation: true } },
       { withSubscription: true, withTransactions: true, withTier: true },
     );
 
@@ -116,7 +117,12 @@ describe('cron/hourly/70-cancel-subscriptions-for-cancelled-orders', () => {
     const collective = await fakeCollective({ HostCollectiveId: host.id, slug: 'test-collective' });
     const tier = await fakeTier({ CollectiveId: collective.id });
     const order = await fakeOrder(
-      { CollectiveId: collective.id, TierId: tier.id, status: OrderStatuses.ACTIVE },
+      {
+        CollectiveId: collective.id,
+        TierId: tier.id,
+        status: OrderStatuses.ACTIVE,
+        data: { needsAsyncDeactivation: true },
+      },
       { withSubscription: true, withTransactions: true, withTier: true },
     );
 

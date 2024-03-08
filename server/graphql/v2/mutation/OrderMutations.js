@@ -357,6 +357,8 @@ const orderMutations = {
         throw new Unauthorized("You don't have permission to update this order");
       } else if (!order.Subscription.isActive) {
         throw new Error('Order must be active to be updated');
+      } else if (order.status === OrderStatuses.PAUSED) {
+        throw new Error('Paused orders cannot be updated');
       } else if (args.paypalSubscriptionId && args.paymentMethod) {
         throw new Error('paypalSubscriptionId and paymentMethod are mutually exclusive');
       } else if (haveDetailsChanged && hasPaymentMethodChanged) {

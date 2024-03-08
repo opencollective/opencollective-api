@@ -31,13 +31,22 @@ export const MAX_RETRIES = 6;
 export async function ordersWithPendingCharges({ limit, startDate } = {}) {
   return models.Order.findAndCountAll({
     where: {
+      status: { [Op.not]: status.PAUSED },
       SubscriptionId: { [Op.ne]: null },
       deletedAt: null,
     },
     limit: limit,
     include: [
       { model: models.User, as: 'createdByUser' },
-      { model: models.Collective, as: 'collective', required: true },
+      {
+        model: models.Collective,
+        as: 'collective',
+        required: true,
+        where: {
+          HostCollectiveId: { [Op.not]: null },
+          isActive: true,
+        },
+      },
       { model: models.Collective, as: 'fromCollective', required: true },
       { model: models.PaymentMethod, as: 'paymentMethod' },
       { model: models.Tier, as: 'Tier' },

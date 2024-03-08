@@ -2,7 +2,8 @@
 
 import '../../server/env';
 
-import { groupBy, size, uniq } from 'lodash';
+import { groupBy, size, sortBy, uniq } from 'lodash';
+import moment from 'moment';
 
 import { activities } from '../../server/constants';
 import FEATURE from '../../server/constants/feature';
@@ -10,11 +11,11 @@ import OrderStatuses from '../../server/constants/order-status';
 import logger from '../../server/lib/logger';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import { sleep } from '../../server/lib/utils';
-import models, { Op } from '../../server/models';
+import models, { Collective, Op } from '../../server/models';
 import { OrderModelInterface } from '../../server/models/Order';
 
 /**
- * Since the collective has been archived, its HostCollectiveId has been set to null.
+ * If the collective has been archived, its HostCollectiveId has been set to null.
  * We need some more logic to make sure we're loading the right host.
  */
 const getHostFromOrder = async order => {
@@ -32,17 +33,29 @@ const getHostFromOrder = async order => {
   return models.Collective.findByPk(hostIds[0]);
 };
 
-const getOrderCancelationReason = (collective, order, orderHost) => {
-  if (order.TierId && !order.Tier) {
-    return ['DELETED_TIER', `Order tier deleted`];
+const getOrderCancelationReason = (
+  collective: Collective,
+  order: OrderModelInterface,
+  orderHost: Collective,
+): {
+  code: 'PAUSED' | 'DELETED_TIER' | 'ARCHIVED_ACCOUNT' | 'UNHOSTED_COLLECTIVE' | 'CHANGED_HOST' | 'CANCELLED_ORDER';
+  message: string;
+} => {
+  if (order.status === 'PAUSED') {
+    return {
+      code: 'PAUSED',
+      message: `Your contribution to the Collective was paused. We'll inform you when it will be ready for re-activation.`,
+    };
+  } else if (order.TierId && !order.Tier) {
+    return { code: 'DELETED_TIER', message: `Order tier deleted` };
   } else if (collective.deactivatedAt) {
-    return ['ARCHIVED_ACCOUNT', `@${collective.slug} archived their account`];
+    return { code: 'ARCHIVED_ACCOUNT', message: `@${collective.slug} archived their account` };
   } else if (!collective.HostCollectiveId) {
-    return ['UNHOSTED_COLLECTIVE', `@${collective.slug} was un-hosted`];
+    return { code: 'UNHOSTED_COLLECTIVE', message: `@${collective.slug} was un-hosted` };
   } else if (collective.HostCollectiveId !== orderHost.id) {
-    return ['CHANGED_HOST', `@${collective.slug} changed host`];
+    return { code: 'CHANGED_HOST', message: `@${collective.slug} changed host` };
   } else {
-    return ['CANCELLED_ORDER', `Order cancelled`];
+    return { code: 'CANCELLED_ORDER', message: `Order cancelled` };
   }
 };
 
@@ -53,7 +66,13 @@ const getOrderCancelationReason = (collective, order, orderHost) => {
  */
 export async function run() {
   const orphanOrders = await models.Order.findAll<OrderModelInterface>({
-    where: { status: OrderStatuses.CANCELLED },
+    where: {
+      status: [OrderStatuses.CANCELLED, OrderStatuses.PAUSED],
+      data: { needsAsyncDeactivation: true },
+      updatedAt: {
+        [Op.gt]: moment().subtract(1, 'month').toDate(), // For performance, only look at orders updated recently
+      },
+    },
     include: [
       {
         model: models.Tier,
@@ -79,20 +98,21 @@ export async function run() {
   logger.info(`Found ${orphanOrders.length} recurring contributions to cancel across ${size(groupedOrders)} accounts`);
 
   for (const accountOrders of Object.values(groupedOrders)) {
-    const collective = accountOrders[0].collective;
+    const sortedAccountOrders = sortBy(accountOrders, ['Subscription.isManagedExternally']);
+    const collective = sortedAccountOrders[0].collective;
     const collectiveHandle = collective.slug;
-    logger.info(`Cancelling ${accountOrders.length} subscriptions for @${collectiveHandle}`);
-    for (const order of accountOrders) {
+    logger.info(`Cancelling ${sortedAccountOrders.length} subscriptions for @${collectiveHandle}`);
+    for (const order of sortedAccountOrders) {
       try {
         const host = await getHostFromOrder(order);
-        const [reasonCode, reason] = getOrderCancelationReason(collective, order, host);
+        const reason = getOrderCancelationReason(collective, order, host);
         logger.debug(
           `Cancelling subscription ${order.Subscription.id} from order ${order.id} of @${collectiveHandle} (host: ${host.slug})`,
         );
         if (!process.env.DRY) {
-          await order.Subscription.deactivate(reason, host);
+          await order.Subscription.deactivate(reason.message, host);
           await models.Activity.create({
-            type: activities.SUBSCRIPTION_CANCELED,
+            type: reason.code === 'PAUSED' ? activities.SUBSCRIPTION_PAUSED : activities.SUBSCRIPTION_CANCELED,
             CollectiveId: order.CollectiveId,
             FromCollectiveId: order.FromCollectiveId,
             HostCollectiveId: order.collective.HostCollectiveId,
@@ -102,13 +122,19 @@ export async function run() {
               subscription: order.Subscription,
               collective: order.collective.minimal,
               fromCollective: order.fromCollective.minimal,
-              reasonCode: reasonCode,
-              reason: reason,
+              reasonCode: reason.code,
+              reason: reason.message,
+              messageForContributors: order.data?.messageForContributors,
               order: order.info,
               tier: order.Tier?.info,
+              awaitForDispatch: true, // To make sure we won't kill the process while emails are still being sent
             },
           });
-          await sleep(500); // To prevent rate-limiting issues when calling 3rd party payment processor APIs
+
+          await order.update({ data: { ...order.data, needsAsyncDeactivation: false } });
+          if (order.Subscription.isManagedExternally) {
+            await sleep(500); // To prevent rate-limiting issues when calling 3rd party payment processor APIs
+          }
         }
       } catch (e) {
         logger.error(`Error while cancelling subscriptions for @${collectiveHandle}: ${e.message}`);

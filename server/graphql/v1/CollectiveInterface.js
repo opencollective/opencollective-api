@@ -522,7 +522,10 @@ export const CollectiveStatsType = new GraphQLObjectType({
       activeRecurringContributions: {
         type: GraphQLJSON,
         resolve(collective, args, req) {
-          return req.loaders.Collective.stats.activeRecurringContributions.load(collective.id);
+          const loader = req.loaders.Collective.stats.activeRecurringContributions.buildLoader({
+            currency: collective.currency,
+          });
+          return loader.load(collective.id);
         },
       },
     };

@@ -4,7 +4,7 @@ import sinon from 'sinon';
 
 import models from '../../../server/models';
 import { randEmail } from '../../stores';
-import { fakeOrder } from '../../test-helpers/fake-data';
+import { fakeCollective, fakeOrder, fakePaymentMethod, randStr } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
 describe('server/models/Order', () => {
@@ -120,6 +120,94 @@ describe('server/models/Order', () => {
         expiredOrderLockDate.toISOString(),
         secondLockDate.toISOString(),
       ]);
+    });
+  });
+
+  describe('stopActiveSubscriptions', () => {
+    it('pauses all active orders', async () => {
+      const collective = await fakeCollective();
+
+      // Payment methods
+      const paypalPm = await fakePaymentMethod({
+        service: 'paypal',
+        type: 'subscription',
+      });
+      const stripePm = await fakePaymentMethod({
+        service: 'stripe',
+        type: 'creditcard',
+      });
+      const stripeGiftCardPm = await fakePaymentMethod({
+        service: 'opencollective',
+        type: 'giftcard',
+        SourcePaymentMethodId: stripePm.id,
+      });
+      const stripeConnectPm = await fakePaymentMethod({
+        service: 'stripe',
+        type: 'creditcard',
+        data: { stripeAccount: randStr() },
+      });
+      const stripeConnectGiftCardPm = await fakePaymentMethod({
+        service: 'opencollective',
+        type: 'giftcard',
+        SourcePaymentMethodId: stripeConnectPm.id,
+      });
+
+      // Orders
+      const fakeActiveOrder = async PaymentMethodId => {
+        return fakeOrder(
+          {
+            CollectiveId: collective.id,
+            status: 'ACTIVE',
+            PaymentMethodId,
+          },
+          {
+            withSubscription: true,
+          },
+        );
+      };
+
+      const activePaypalOrder = await fakeActiveOrder(paypalPm.id);
+      const activeStripeOrder = await fakeActiveOrder(stripePm.id);
+      const activeStripeGiftCardOrder = await fakeActiveOrder(stripeGiftCardPm.id);
+      const activeStripeConnectOrder = await fakeActiveOrder(stripeConnectPm.id);
+      const activeStripeConnectGiftCardOrder = await fakeActiveOrder(stripeConnectGiftCardPm.id);
+      const inactiveOrder = await fakeOrder({
+        CollectiveId: collective.id,
+        status: 'PAID',
+        PaymentMethodId: paypalPm.id,
+      });
+
+      // Trigger the update
+      await models.Order.stopActiveSubscriptions(collective.id, 'PAUSED', 'Testing');
+
+      // Check the results
+      await activePaypalOrder.reload({ include: [models.Subscription] });
+      await activeStripeOrder.reload({ include: [models.Subscription] });
+      await activeStripeGiftCardOrder.reload({ include: [models.Subscription] });
+      await activeStripeConnectOrder.reload({ include: [models.Subscription] });
+      await activeStripeConnectGiftCardOrder.reload({ include: [models.Subscription] });
+      await inactiveOrder.reload({ include: [models.Subscription] });
+
+      expect(activePaypalOrder.status).to.equal('PAUSED');
+      expect(activeStripeOrder.status).to.equal('PAUSED');
+      expect(activeStripeGiftCardOrder.status).to.equal('PAUSED');
+      expect(activeStripeConnectOrder.status).to.equal('PAUSED');
+      expect(activeStripeConnectGiftCardOrder.status).to.equal('PAUSED');
+      expect(inactiveOrder.status).to.equal('PAID');
+
+      expect(activePaypalOrder.data.messageForContributors).to.equal('Testing');
+      expect(activeStripeOrder.data?.messageForContributors).to.equal('Testing');
+      expect(activeStripeGiftCardOrder.data?.messageForContributors).to.equal('Testing');
+      expect(activeStripeConnectOrder.data.messageForContributors).to.equal('Testing');
+      expect(activeStripeConnectGiftCardOrder.data.messageForContributors).to.equal('Testing');
+      expect(inactiveOrder.data?.messageForContributors).to.not.exist;
+
+      expect(activePaypalOrder.data.needsAsyncDeactivation).to.be.true;
+      expect(activeStripeOrder.data.needsAsyncDeactivation).to.be.true;
+      expect(activeStripeGiftCardOrder.data.needsAsyncDeactivation).to.be.true;
+      expect(activeStripeConnectOrder.data.needsAsyncDeactivation).to.be.true;
+      expect(activeStripeConnectGiftCardOrder.data.needsAsyncDeactivation).to.be.true;
+      expect(inactiveOrder.data?.needsAsyncDeactivation).to.not.exist;
     });
   });
 });
