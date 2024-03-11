@@ -1173,7 +1173,10 @@ export const GraphQLHost = new GraphQLObjectType({
                 ],
               ],
             };
-            findArgs['order'] = [[sequelize.literal('"expenseCount"'), 'DESC']];
+            findArgs['order'] = [
+              [sequelize.literal('"expenseCount"'), 'DESC'],
+              ['createdAt', 'DESC'],
+            ];
           }
 
           const { rows, count } = await models.Collective.findAndCountAll(findArgs);
