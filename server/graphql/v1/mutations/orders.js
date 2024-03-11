@@ -16,7 +16,7 @@ import { purgeCacheForCollective } from '../../../lib/cache';
 import { checkCaptcha } from '../../../lib/check-captcha';
 import { getOrCreateGuestProfile } from '../../../lib/guest-accounts';
 import { mustUpdateLocation } from '../../../lib/location';
-import * as libPayments from '../../../lib/payments';
+import { executeOrder, isPlatformTipEligible, processOrder } from '../../../lib/payments';
 import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../lib/recurring-contributions';
 import { checkGuestContribution, checkOrdersLimit, cleanOrdersLimit } from '../../../lib/security/limit';
 import { orderFraudProtection } from '../../../lib/security/order';
@@ -436,7 +436,7 @@ export async function createOrder(order, req) {
       orderPublicData = pick(order.data, []);
     }
 
-    const platformTipEligible = await libPayments.isPlatformTipEligible({ ...order, collective }, host);
+    const platformTipEligible = await isPlatformTipEligible({ ...order, collective }, host);
 
     const orderData = {
       CreatedByUserId: remoteUser.id,
@@ -505,7 +505,7 @@ export async function createOrder(order, req) {
         await orderCreated.setPaymentMethod(order.paymentMethod);
       }
       // also adds the user as a BACKER of collective
-      await libPayments.executeOrder(remoteUser, orderCreated);
+      await executeOrder(remoteUser, orderCreated);
       if (order.paymentMethod.type === 'paymentintent') {
         await orderCreated.reload();
         return { order: orderCreated };
@@ -622,10 +622,10 @@ export async function confirmOrder(order, remoteUser, guestToken) {
     // If it's a first order -> executeOrder
     // If it's a recurring subscription and not the initial order -> processOrder
     if (!order.processedAt) {
-      await libPayments.executeOrder(remoteUser, order);
+      await executeOrder(remoteUser, order);
       // executeOrder is updating the order to PAID
     } else {
-      await libPayments.processOrder(order);
+      await processOrder(order);
 
       order.status = status.ACTIVE;
       order.data = omit(order.data, ['error', 'latestError', 'paymentIntent', 'needsConfirmation']);

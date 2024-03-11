@@ -9,7 +9,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/pay
 import { ValidationFailed } from '../../graphql/errors';
 import cache from '../../lib/cache';
 import * as currency from '../../lib/currency';
-import * as libpayments from '../../lib/payments';
+import { createRefundTransaction, findPaymentMethodProvider, isProvider } from '../../lib/payments';
 import { formatCurrency, isValidEmail } from '../../lib/utils';
 import models, { Op, sequelize } from '../../models';
 
@@ -29,7 +29,7 @@ const LIMIT_REACHED_ERROR =
  * @return {Object} with amount & currency from the payment method.
  */
 async function getBalance(paymentMethod) {
-  if (!libpayments.isProvider('opencollective.giftcard', paymentMethod)) {
+  if (!isProvider('opencollective.giftcard', paymentMethod)) {
     throw new Error(`Expected opencollective.giftcard but got ${paymentMethod.service}.${paymentMethod.type}`);
   }
   let query = {
@@ -108,7 +108,7 @@ async function processOrder(order) {
   }
 
   // finding the payment provider lib to execute the order
-  const sourcePaymentMethodProvider = libpayments.findPaymentMethodProvider(sourcePaymentMethod);
+  const sourcePaymentMethodProvider = findPaymentMethodProvider(sourcePaymentMethod);
 
   let creditTransaction = null;
   try {
@@ -280,7 +280,7 @@ async function getSourcePaymentMethodFromCreateArgs(args, collective) {
  */
 async function checkSourcePaymentMethodBalance(paymentMethod, amount, giftCardCurrency) {
   // Load balance
-  const paymentProvider = libpayments.findPaymentMethodProvider(paymentMethod);
+  const paymentProvider = findPaymentMethodProvider(paymentMethod);
   let balance = 0;
   if (paymentProvider && paymentProvider.getBalance) {
     balance = await paymentProvider.getBalance(paymentMethod);
@@ -603,7 +603,7 @@ async function registerCreateInCache(collectiveId, count) {
 
 async function refundTransaction(transaction, user) {
   /* Create negative transactions for the received transaction */
-  return await libpayments.createRefundTransaction(transaction, 0, null, user);
+  return await createRefundTransaction(transaction, 0, null, user);
 }
 
 /* Expected API of a Payment Method Type */

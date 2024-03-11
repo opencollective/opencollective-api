@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import gql from 'fake-tag';
 import { useFakeTimers } from 'sinon';
 
-import * as ManualPaymentMethod from '../../../../../server/lib/payments';
+import { processOrder } from '../../../../../server/lib/payments';
 import { fakeCollective, fakeHost, fakeOrder, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
@@ -66,7 +66,7 @@ describe('server/graphql/v2/query/HostMetricsQuery', () => {
         totalAmount: 1000,
       });
       order1.paymentMethod = { service: 'opencollective', type: 'manual', paid: true };
-      await ManualPaymentMethod.processOrder(order1);
+      await processOrder(order1);
     } finally {
       clock.restore();
     }
@@ -78,7 +78,7 @@ describe('server/graphql/v2/query/HostMetricsQuery', () => {
         totalAmount: 2000,
       });
       order2.paymentMethod = { service: 'opencollective', type: 'manual', paid: true };
-      await ManualPaymentMethod.processOrder(order2);
+      await processOrder(order2);
     } finally {
       clock.restore();
     }

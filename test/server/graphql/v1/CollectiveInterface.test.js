@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import gqlV1 from 'fake-tag';
 
-import * as libpayments from '../../../../server/lib/payments';
+import { executeOrder } from '../../../../server/lib/payments';
 import * as store from '../../../stores';
 import * as utils from '../../../utils';
 
@@ -84,7 +84,7 @@ describe('server/graphql/v1/CollectiveInterface', () => {
 
       // When the above order is executed; Then the transaction
       // should be unsuccessful.
-      await libpayments.executeOrder(user, order);
+      await executeOrder(user, order);
     });
 
     it("doesn't leak incognito info when querying the api not logged in", async () => {

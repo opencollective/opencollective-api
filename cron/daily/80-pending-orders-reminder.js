@@ -3,7 +3,7 @@ import '../../server/env';
 
 import status from '../../server/constants/order-status';
 import logger from '../../server/lib/logger';
-import * as libPayments from '../../server/lib/payments';
+import { sendReminderPendingOrderEmail } from '../../server/lib/payments';
 import models, { Op } from '../../server/models';
 
 const REMINDER_DAYS = 4;
@@ -37,7 +37,7 @@ const run = async () => {
 
   const orders = await fetchPendingOrders(reminderDate);
   for (const order of orders) {
-    await libPayments.sendReminderPendingOrderEmail(order);
+    await sendReminderPendingOrderEmail(order);
   }
 
   logger.info('Done.');

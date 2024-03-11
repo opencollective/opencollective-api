@@ -14,7 +14,7 @@ import { notify } from './notifications/email';
 import { FEATURE } from './allowed-features';
 import emailLib from './email';
 import logger from './logger';
-import * as paymentsLib from './payments';
+import { processOrder } from './payments';
 import { getTransactionPdf } from './pdf';
 import { reportErrorToSentry } from './sentry';
 import { getEditRecurringContributionsUrl } from './url-utils';
@@ -124,7 +124,7 @@ export async function processOrderWithSubscription(order, options) {
       cancelSubscription(order);
     } else {
       try {
-        transaction = await paymentsLib.processOrder(order);
+        transaction = await processOrder(order);
         orderProcessedStatus = 'success';
       } catch (error) {
         if (error.stripeResponse && error.stripeResponse.paymentIntent) {

@@ -3,7 +3,7 @@ import '../../server/env';
 
 import { groupBy, omit, pick } from 'lodash';
 
-import * as PaymentLib from '../../server/lib/payments';
+import { associateTransactionRefundId, buildRefundForTransaction } from '../../server/lib/payments';
 import models, { Op, sequelize } from '../../server/models';
 
 const startDate = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date('2024-01-01');
@@ -138,13 +138,13 @@ const migrate = async () => {
 
       // Create a refund for the host fee
       const taxRefund = {
-        ...PaymentLib.buildRefundForTransaction(result.taxTransaction, null, transactionsData),
+        ...buildRefundForTransaction(result.taxTransaction, null, transactionsData),
         TransactionGroup: refundCredit.TransactionGroup,
         createdAt: refundCredit.createdAt,
       };
 
       const taxRefundTransaction = await models.Transaction.createDoubleEntry(taxRefund);
-      await PaymentLib.associateTransactionRefundId(result.taxTransaction, taxRefundTransaction);
+      await associateTransactionRefundId(result.taxTransaction, taxRefundTransaction);
     }
   }
 };

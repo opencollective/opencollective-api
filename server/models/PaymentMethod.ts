@@ -14,7 +14,7 @@ import {
 import { TransactionTypes } from '../constants/transactions';
 import { getFxRate } from '../lib/currency';
 import { sumTransactions } from '../lib/hostlib';
-import * as libpayments from '../lib/payments';
+import { findPaymentMethodProvider } from '../lib/payments';
 import { reportMessageToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op } from '../lib/sequelize';
 import { isTestToken } from '../lib/stripe';
@@ -260,7 +260,7 @@ const PaymentMethod: ModelStatic<PaymentMethodModelInterface> & PaymentMethodSta
       },
 
       features() {
-        return libpayments.findPaymentMethodProvider(this).features;
+        return findPaymentMethodProvider(this).features;
       },
 
       minimal() {
@@ -399,7 +399,7 @@ PaymentMethod.prototype.updateBalance = async function () {
   if (this.service !== 'paypal') {
     throw new Error('Can only update balance for paypal preapproved cards');
   }
-  const paymentProvider = libpayments.findPaymentMethodProvider(this);
+  const paymentProvider = findPaymentMethodProvider(this);
   return await paymentProvider.updateBalance(this);
 };
 
@@ -419,7 +419,7 @@ PaymentMethod.prototype.getBalanceForUser = async function (user) {
     throw new Error('Internal error at PaymentMethod.getBalanceForUser(user): user is not an instance of User');
   }
 
-  const paymentProvider = libpayments.findPaymentMethodProvider(this, { throwIfMissing: false });
+  const paymentProvider = findPaymentMethodProvider(this, { throwIfMissing: false });
   if (!paymentProvider) {
     return { amount: 0, currency: this.currency };
   }

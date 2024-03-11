@@ -5,7 +5,7 @@ import config from 'config';
 import moment from 'moment';
 
 import logger from '../../server/lib/logger';
-import * as libPayments from '../../server/lib/payments';
+import { sendExpiringCreditCardUpdateEmail } from '../../server/lib/payments';
 import models, { Op } from '../../server/models';
 
 // Run on the 7th and 21st of the month
@@ -86,7 +86,7 @@ const run = async () => {
           `Payment method ${data.id} for collective '${data.slug}' is expiring, sending an email to ${data.email}, reminder = ${reminder}`,
         );
         if (!process.env.DRY_RUN) {
-          await libPayments.sendExpiringCreditCardUpdateEmail(data);
+          await sendExpiringCreditCardUpdateEmail(data);
         }
       }
     } catch (e) {
