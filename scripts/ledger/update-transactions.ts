@@ -43,7 +43,7 @@ const MODIFIERS = {
         const host = accountsCache[transaction.HostCollectiveId] || (await transaction.getHostCollective());
         accountsCache[transaction.HostCollectiveId] = host;
         transaction.hostFeeInHostCurrency = transaction.amount * (percentage / 100);
-        await models.Transaction.createHostFeeTransactions(transaction, host);
+        await models.Transaction.createHostFeeTransactions(transaction);
       }
     },
   },

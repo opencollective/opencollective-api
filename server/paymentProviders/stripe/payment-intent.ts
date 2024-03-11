@@ -9,6 +9,7 @@ import { reportMessageToSentry } from '../../lib/sentry';
 import stripe, { convertToStripeAmount } from '../../lib/stripe';
 import models from '../../models';
 import { OrderModelInterface } from '../../models/Order';
+import { PaymentProviderService } from '../types';
 
 import { APPLICATION_FEE_INCOMPATIBLE_CURRENCIES, refundTransaction, refundTransactionOnlyInDatabase } from './common';
 
@@ -27,7 +28,7 @@ async function processNewOrder(order: OrderModelInterface) {
     host && APPLICATION_FEE_INCOMPATIBLE_CURRENCIES.includes(toUpper(host.currency))
       ? false
       : host?.settings?.isPlatformRevenueDirectlyCollected ?? true;
-  const applicationFee = await getApplicationFee(order, { host });
+  const applicationFee = await getApplicationFee(order);
   const paymentIntentParams: Stripe.PaymentIntentUpdateParams = {
     currency: order.currency,
     amount: convertToStripeAmount(order.currency, order.totalAmount),
@@ -95,7 +96,7 @@ async function processRecurringOrder(order: OrderModelInterface) {
     host && APPLICATION_FEE_INCOMPATIBLE_CURRENCIES.includes(toUpper(host.currency))
       ? false
       : host?.settings?.isPlatformRevenueDirectlyCollected ?? true;
-  const applicationFee = await getApplicationFee(order, { host });
+  const applicationFee = await getApplicationFee(order);
   const paymentIntentParams: Stripe.PaymentIntentCreateParams = {
     currency: order.currency,
     amount: convertToStripeAmount(order.currency, order.totalAmount),
@@ -154,9 +155,10 @@ async function processRecurringOrder(order: OrderModelInterface) {
 export default {
   features: {
     recurring: true,
+    isRecurringManagedExternally: false,
     waitToCharge: false,
   },
   processOrder,
   refundTransaction,
   refundTransactionOnlyInDatabase,
-};
+} as PaymentProviderService;

@@ -90,7 +90,7 @@ async function processOrder(order) {
     throw new Error("This payment method doesn't have enough funds to complete this order");
   }
 
-  const hostFeeSharePercent = await getHostFeeSharePercent(order, { host });
+  const hostFeeSharePercent = await getHostFeeSharePercent(order);
   const isSharedRevenue = !!hostFeeSharePercent;
 
   const amount = order.totalAmount;
@@ -99,11 +99,11 @@ async function processOrder(order) {
   const hostCurrencyFxRate = await getFxRate(currency, hostCurrency);
   const amountInHostCurrency = Math.round(amount * hostCurrencyFxRate);
 
-  const platformTipEligible = await isPlatformTipEligible(order, host);
+  const platformTipEligible = await isPlatformTipEligible(order);
   const platformTip = getPlatformTip(order);
   const platformTipInHostCurrency = Math.round(platformTip * hostCurrencyFxRate);
 
-  const hostFee = await getHostFee(order, { host });
+  const hostFee = await getHostFee(order);
   const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
 
   // Use the above payment method to donate to Collective

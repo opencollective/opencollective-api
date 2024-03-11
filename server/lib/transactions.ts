@@ -10,8 +10,10 @@ import { TransactionTypes } from '../constants/transactions';
 import { toNegative } from '../lib/math';
 import { exportToCSV, sumByWhen } from '../lib/utils';
 import models, { Op, sequelize } from '../models';
+import Collective from '../models/Collective';
+import Expense from '../models/Expense';
 import Tier from '../models/Tier';
-import { TransactionInterface } from '../models/Transaction';
+import { TransactionData, TransactionInterface } from '../models/Transaction';
 
 import { getFxRate } from './currency';
 
@@ -116,7 +118,7 @@ export const getPaidTaxTransactions = async (
  * From a payout provider response, compute all amounts and FX rates in their proper currency
  */
 const computeExpenseAmounts = async (
-  expense,
+  expense: Expense,
   hostCurrency: string,
   expenseToHostFxRate: number,
   fees: FEES_IN_HOST_CURRENCY,
@@ -179,13 +181,13 @@ const computeExpenseAmounts = async (
  * in case it differs from expense.amount (e.g. when fees are put on the payee)
  */
 export async function createTransactionsFromPaidExpense(
-  host,
-  expense,
+  host: Collective,
+  expense: Expense,
   fees: FEES_IN_HOST_CURRENCY = DEFAULT_FEES,
   /** Set this to a different value if the expense was paid in a currency that differs form the host's */
   expenseToHostFxRateConfig: number | 'auto',
   /** Will be stored in transaction.data */
-  transactionData: Record<string, unknown> & { clearedAt?: Date } = null,
+  transactionData: TransactionData & { clearedAt?: Date } = null,
 ) {
   fees = { ...DEFAULT_FEES, ...fees };
   if (!expense.collective) {
@@ -198,7 +200,7 @@ export async function createTransactionsFromPaidExpense(
       ? await getFxRate(expense.currency, host.currency, new Date())
       : expenseToHostFxRateConfig;
 
-  const expenseDataForTransaction: Record<string, unknown> = { expenseToHostFxRate };
+  const expenseDataForTransaction: TransactionData = { expenseToHostFxRate };
   if (expense.data?.taxes?.length) {
     expenseDataForTransaction['tax'] = {
       ...expense.data.taxes[0],
@@ -259,12 +261,12 @@ export async function createTransactionsFromPaidExpense(
 }
 
 export async function createTransactionsForManuallyPaidExpense(
-  host,
-  expense,
-  paymentProcessorFeeInHostCurrency,
-  totalAmountPaidInHostCurrency,
+  host: Collective,
+  expense: Expense,
+  paymentProcessorFeeInHostCurrency: number,
+  totalAmountPaidInHostCurrency: number,
   /** Will be stored in transaction.data */
-  transactionData: Record<string, unknown> & { clearedAt?: Date } = {},
+  transactionData: TransactionData & { clearedAt?: Date } = {},
 ) {
   assert(paymentProcessorFeeInHostCurrency >= 0, 'Payment processor fee must be positive');
   assert(totalAmountPaidInHostCurrency > 0, 'Total amount paid must be positive');
@@ -275,7 +277,7 @@ export async function createTransactionsForManuallyPaidExpense(
 
   // Values are already adjusted to negative DEBIT values
   const isCoveredByPayee = expense.feesPayer === 'PAYEE';
-  const taxRate = get(expense.data, 'taxes.0.rate') || 0;
+  const taxRate = (get(expense.data, 'taxes.0.rate') as number | null) || 0;
   const grossPaidAmountWithTaxes = toNegative(totalAmountPaidInHostCurrency - paymentProcessorFeeInHostCurrency);
   const grossPaidAmount = Math.round(grossPaidAmountWithTaxes / (1 + taxRate));
   const taxAmountInHostCurrency = grossPaidAmountWithTaxes - grossPaidAmount;
@@ -345,7 +347,7 @@ export async function createTransactionsForManuallyPaidExpense(
   return models.Transaction.createDoubleEntry(transaction);
 }
 
-const computeExpenseTaxes = (expense): number | null => {
+const computeExpenseTaxes = (expense: Expense): number | null => {
   if (!expense.data?.taxes?.length) {
     return null;
   } else {

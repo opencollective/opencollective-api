@@ -1,4 +1,6 @@
+import { SupportedCurrency } from '../constants/currencies';
 import { OrderModelInterface } from '../models/Order';
+import { PaymentMethodModelInterface } from '../models/PaymentMethod';
 import { TransactionInterface } from '../models/Transaction';
 import User from '../models/User';
 import VirtualCardModel from '../models/VirtualCard';
@@ -27,21 +29,30 @@ export interface PaymentProviderService {
   /**
    * Triggers the payment for this order and updates it accordingly
    */
-  processOrder(order: OrderModelInterface): Promise<TransactionInterface | void>;
+  processOrder(
+    order: OrderModelInterface,
+    options?: { isAddedFund?: boolean; invoiceTemplate?: string },
+  ): Promise<TransactionInterface | void>;
 
   /**
    * Refunds a transaction processed with this payment provider service
    */
-  refundTransaction(transaction: TransactionInterface, user: User, reason?: string): Promise<TransactionInterface>;
+  refundTransaction(transaction: TransactionInterface, user?: User, reason?: string): Promise<TransactionInterface>;
 
   /**
    * Refunds a transaction processed with this payment provider service without calling the payment provider
    */
-  refundTransactionOnlyInDatabase(
+  refundTransactionOnlyInDatabase?(
     transaction: TransactionInterface,
-    user: User,
+    user?: User,
     reason?: string,
   ): Promise<TransactionInterface>;
+
+  getBalance?: (
+    paymentMethod: PaymentMethodModelInterface,
+  ) => Promise<number | { amount: number; currency: SupportedCurrency }>;
+
+  updateBalance?: (paymentMethod: PaymentMethodModelInterface) => Promise<number>;
 }
 
 export interface CardProviderService {
