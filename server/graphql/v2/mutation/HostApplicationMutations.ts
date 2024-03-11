@@ -226,6 +226,10 @@ const HostApplicationMutations = {
         type: GraphQLString,
         description: 'An optional message to explain the reason for unhosting',
       },
+      messageForContributors: {
+        type: GraphQLString,
+        description: 'An optional HTML message to provide additional context for contributors',
+      },
       pauseContributions: {
         type: new GraphQLNonNull(GraphQLBoolean),
         description: 'If true, contributions will be paused rather than canceled',
@@ -255,7 +259,8 @@ const HostApplicationMutations = {
 
       await account.changeHost(null, req.remoteUser, {
         pauseContributions: args.pauseContributions,
-        messageForContributors: args.message,
+        messageForContributors: args.messageForContributors,
+        messageSource: isHostAdmin ? 'HOST' : 'COLLECTIVE',
       });
 
       await models.Activity.create({

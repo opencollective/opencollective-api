@@ -129,6 +129,15 @@ const optsStripAll = buildSanitizerOptions();
 const optsSanitizeSummary = buildSanitizerOptions({ links: true, basicTextFormatting: true });
 
 /**
+ * Options preset to pass to `sanitizeHTML` that match the RichTextEditor "simplified" mode.
+ */
+export const optsSanitizeHtmlForSimplified: SanitizeOptions = buildSanitizerOptions({
+  basicTextFormatting: true,
+  multilineTextFormatting: true,
+  links: true,
+});
+
+/**
  * Sanitize the given input to strip the HTML content.
  *
  * This function is a specialization of the one provided by `sanitize-html` with

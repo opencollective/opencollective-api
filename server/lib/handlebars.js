@@ -1,5 +1,5 @@
 import handlebars from 'handlebars';
-import { add, divide, isNil, lowerCase, multiply, subtract, sum } from 'lodash';
+import { add, divide, isEqual, isNil, lowerCase, multiply, subtract, sum } from 'lodash';
 import moment from 'moment-timezone';
 
 import {
@@ -40,6 +40,8 @@ handlebars.registerHelper('ifCond', function (v1, operator, v2, options) {
       return options.inverse(this);
   }
 });
+
+handlebars.registerHelper('isEqual', (v1, v2) => isEqual(v1, v2));
 
 handlebars.registerHelper('sign', value => {
   if (value >= 0) {

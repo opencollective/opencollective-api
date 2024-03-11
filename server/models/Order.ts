@@ -19,6 +19,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymen
 import TierType from '../constants/tiers';
 import { PLATFORM_TIP_TRANSACTION_PROPERTIES, TransactionTypes } from '../constants/transactions';
 import * as libPayments from '../lib/payments';
+import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize, { DataTypes, Op, QueryTypes } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
 import { capitalize, sleep } from '../lib/utils';
@@ -41,7 +42,11 @@ interface OrderModelStaticInterface {
   generateDescription(collective, amount, interval, tier): string;
   cancelActiveOrdersByCollective(collectiveId: number): Promise<[affectedCount: number]>;
   cancelActiveOrdersByTierId(tierId: number): Promise<[affectedCount: number]>;
-  stopActiveSubscriptions(collectiveId: number, newStatus: OrderStatus, context: string): Promise<void>;
+  stopActiveSubscriptions(
+    collectiveId: number,
+    newStatus: OrderStatus,
+    options: { messageForContributors: string; messageSource: 'PLATFORM' | 'COLLECTIVE' | 'HOST' },
+  ): Promise<void>;
   clearExpiredLocks(): Promise<[null, number]>;
 }
 
@@ -677,9 +682,14 @@ Order.cancelActiveOrdersByTierId = function (tierId: number) {
 Order.stopActiveSubscriptions = async function (
   collectiveId: number,
   newStatus: OrderStatus.CANCELLED | OrderStatus.PAUSED,
-  messageForContributors: string,
+  {
+    messageForContributors = '',
+    messageSource = 'PLATFORM',
+  }: { messageForContributors: string; messageSource: 'PLATFORM' | 'COLLECTIVE' | 'HOST' } = {
+    messageForContributors: '',
+    messageSource: 'PLATFORM',
+  },
 ): Promise<void> {
-  // Update all orders
   await sequelize.query(
     `
       UPDATE "Orders"
@@ -688,6 +698,7 @@ Order.stopActiveSubscriptions = async function (
         "updatedAt" = NOW(),
         "data" = COALESCE("data", '{}'::JSONB) || JSONB_BUILD_OBJECT(
           'messageForContributors', :messageForContributors,
+          'messageSource', :messageSource,
           'needsAsyncDeactivation', TRUE
         )
       WHERE id IN (
@@ -703,7 +714,10 @@ Order.stopActiveSubscriptions = async function (
       replacements: {
         collectiveId,
         newStatus,
-        messageForContributors: messageForContributors || '',
+        messageSource: messageSource || '',
+        messageForContributors: messageForContributors
+          ? sanitizeHTML(messageForContributors, optsSanitizeHtmlForSimplified)
+          : '',
       },
     },
   );

@@ -94,7 +94,7 @@ import { mustUpdateLocation } from '../lib/location';
 import logger from '../lib/logger';
 import { getPolicy } from '../lib/policies';
 import queries from '../lib/queries';
-import { buildSanitizerOptions, sanitizeHTML, stripHTML } from '../lib/sanitize-html';
+import { buildSanitizerOptions, optsSanitizeHtmlForSimplified, sanitizeHTML, stripHTML } from '../lib/sanitize-html';
 import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op, Sequelize, Transaction as SequelizeTransaction } from '../lib/sequelize';
 import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective, SpamAnalysisReport } from '../lib/spam';
@@ -221,12 +221,6 @@ const defaultTiers = currency => {
     },
   ];
 };
-
-const policiesSanitizeOptions = buildSanitizerOptions({
-  basicTextFormatting: true,
-  multilineTextFormatting: true,
-  links: true,
-});
 
 const longDescriptionSanitizerOptions = buildSanitizerOptions({
   titles: true,
@@ -2415,7 +2409,7 @@ class Collective extends Model<
 
     // Pause or cancel all orders that cannot be transferred
     const newOrderStatus = options?.pauseContributions ? OrderStatuses.PAUSED : OrderStatuses.CANCELLED;
-    await Order.stopActiveSubscriptions(this.id, newOrderStatus, options?.messageForContributors);
+    await Order.stopActiveSubscriptions(this.id, newOrderStatus, options);
 
     // Delete all virtual cards
     const virtualCards = await VirtualCard.findAll({ where: { CollectiveId: this.id } });
@@ -3596,7 +3590,7 @@ Collective.init(
       },
       set(expensePolicy: string) {
         if (expensePolicy) {
-          this.setDataValue('expensePolicy', sanitizeHTML(expensePolicy, policiesSanitizeOptions));
+          this.setDataValue('expensePolicy', sanitizeHTML(expensePolicy, optsSanitizeHtmlForSimplified));
         } else {
           this.setDataValue('expensePolicy', null);
         }
@@ -3610,7 +3604,7 @@ Collective.init(
       },
       set(contributionPolicy: string) {
         if (contributionPolicy) {
-          this.setDataValue('contributionPolicy', sanitizeHTML(contributionPolicy, policiesSanitizeOptions));
+          this.setDataValue('contributionPolicy', sanitizeHTML(contributionPolicy, optsSanitizeHtmlForSimplified));
         } else {
           this.setDataValue('contributionPolicy', null);
         }
