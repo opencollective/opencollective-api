@@ -142,7 +142,9 @@ export const sanitizeActivity = activity => {
     cleanActivity.data = pick(activity.data, ['recipient.name']);
     cleanActivity.data.tier = getTierInfo(activity.data.tier);
     cleanActivity.data.order = getOrderInfo(activity.data.order);
-  } else if (type === activities.SUBSCRIPTION_CANCELED || type === activities.SUBSCRIPTION_PAUSED) {
+  } else if (
+    [activities.SUBSCRIPTION_CANCELED, activities.SUBSCRIPTION_PAUSED, activities.SUBSCRIPTION_RESUMED].includes(type)
+  ) {
     cleanActivity.data = pick(activity.data, ['subscription.id']);
     cleanActivity.data.order = getOrderInfo(activity.data.order);
     cleanActivity.data.tier = getTierInfo(activity.data.tier);

@@ -93,6 +93,7 @@ export const templateNames = [
   'report.platform.weekly',
   'subscription.canceled',
   'subscription.paused',
+  'subscription.ready.to.be.resumed',
   'taxform.request',
   'ticket.confirmed',
   'ticket.confirmed.fearlesscitiesbrussels',

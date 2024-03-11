@@ -14,6 +14,7 @@ import { OrderItem } from 'sequelize';
 
 import { filterContributors } from '../../../lib/contributors';
 import models, { Collective } from '../../../models';
+import { checkReceiveFinancialContributions } from '../../common/features';
 import { GraphQLContributorCollection } from '../collection/ContributorCollection';
 import { GraphQLTierCollection } from '../collection/TierCollection';
 import { GraphQLAccountType, GraphQLMemberRole } from '../enum';
@@ -116,6 +117,26 @@ export const AccountWithContributionsFields = {
   },
   contributionPolicy: {
     type: GraphQLString,
+  },
+  canStartResumeContributionsProcess: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Returns true if the remote user can start the process to resume contributions for account',
+    async resolve(account: Collective, _, req): Promise<boolean> {
+      return (
+        !account.ParentCollectiveId && // Can only be triggered on the parent
+        req.remoteUser?.isAdminOfCollective(account) &&
+        !account.data?.resumeContributionsStartedAt &&
+        ['AVAILABLE', 'ACTIVE'].includes(await checkReceiveFinancialContributions(account, req))
+      );
+    },
+  },
+  hasResumeContributionsProcessStarted: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Returns true if the account has started the process to resume contributions',
+    async resolve(account: Collective): Promise<boolean> {
+      const rootAccount = account.ParentCollectiveId ? await account.getParentCollective() : account;
+      return Boolean(rootAccount.data?.resumeContributionsStartedAt);
+    },
   },
 };
 

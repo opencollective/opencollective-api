@@ -38,7 +38,7 @@ const checkIsActiveIfExistsInDB = async (
   return checkIsActive(checkExistsInDB(query, queryOptions), fallback);
 };
 
-const checkReceiveFinancialContributions = async (collective, req) => {
+export const checkReceiveFinancialContributions = async (collective, req) => {
   if (!collective.HostCollectiveId || !collective.approvedAt) {
     return FEATURE_STATUS.DISABLED;
   } else if (!collective.isActive) {

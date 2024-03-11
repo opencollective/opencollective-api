@@ -155,6 +155,7 @@ const makeTimelineQuery = async (
         ActivityTypes.PAYMENT_FAILED,
         ActivityTypes.SUBSCRIPTION_CANCELED,
         ActivityTypes.SUBSCRIPTION_PAUSED,
+        ActivityTypes.SUBSCRIPTION_RESUMED,
       ],
     );
   }

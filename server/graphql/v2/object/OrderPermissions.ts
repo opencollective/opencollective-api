@@ -102,6 +102,22 @@ const GraphQLOrderPermissions = new GraphQLObjectType({
         return isHostAdmin(req, order);
       },
     },
+    canResume: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'If paused, whether the current user can resume this order',
+      async resolve(order, _, req: express.Request): Promise<boolean> {
+        if (!req.remoteUser || order.status !== ORDER_STATUS.PAUSED || order.data?.needsAsyncDeactivation) {
+          return false;
+        }
+
+        const collective = await req.loaders.Collective.byId.load(order.CollectiveId);
+        if (!collective.HostCollectiveId || !collective.approvedAt) {
+          return false;
+        }
+
+        return req.remoteUser.isAdmin(order.FromCollectiveId);
+      },
+    },
   }),
 });
 

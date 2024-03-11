@@ -13,6 +13,7 @@ import {
 import Temporal from 'sequelize-temporal';
 
 import { roles } from '../constants';
+import ActivityTypes from '../constants/activities';
 import { SupportedCurrency } from '../constants/currencies';
 import OrderStatus from '../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
@@ -25,6 +26,7 @@ import { sanitizeTags, validateTags } from '../lib/tags';
 import { capitalize, sleep } from '../lib/utils';
 
 import AccountingCategory from './AccountingCategory';
+import Activity from './Activity';
 import Collective from './Collective';
 import CustomDataTypes from './DataTypes';
 import { MemberModelInterface } from './Member';
@@ -147,6 +149,7 @@ export interface OrderModelInterface
    */
   lock<T>(callback: () => T | Promise<T>, options?: { timeout?: boolean }): Promise<T>;
   isLocked(): boolean;
+  unPause(user: User, params: { UserTokenId: number }): Promise<OrderModelInterface>;
 }
 
 const Order: ModelStatic<OrderModelInterface> & OrderModelStaticInterface = sequelize.define(
@@ -610,6 +613,38 @@ Order.prototype.lock = async function (
 
 Order.prototype.isLocked = function (): boolean {
   return Boolean(this.data?.lockedAt);
+};
+
+/**
+ * This method is used to unpause an order and generate the corresponding activity.
+ *
+ * @param user - The user who is unpausing the order
+ */
+Order.prototype.unPause = async function (user: User, { UserTokenId = undefined } = {}): Promise<OrderModelInterface> {
+  if (this.status !== OrderStatus.PAUSED) {
+    return this;
+  }
+
+  const collective = this.collective || (await this.getCollective());
+  const HostCollectiveId = collective.HostCollectiveId;
+
+  await this.update({ status: OrderStatus.ACTIVE });
+  await Activity.create({
+    type: ActivityTypes.SUBSCRIPTION_RESUMED,
+    UserId: user.id,
+    UserTokenId,
+    FromCollectiveId: this.FromCollectiveId,
+    OrderId: this.id,
+    CollectiveId: this.CollectiveId,
+    HostCollectiveId,
+    data: {
+      order: this.info,
+      collective: collective.info,
+      user: user.info,
+    },
+  });
+
+  return this;
 };
 
 // ---- Static methods ----
