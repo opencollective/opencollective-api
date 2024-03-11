@@ -147,7 +147,7 @@ const getSortSubQuery = (searchTermConditions, orderBy: { field?: string; direct
       ELSE
         ${
           searchTermConditions.tsQueryFunc
-            ? `ts_rank(c."searchTsVector", ${searchTermConditions.tsQueryFunc}('english', ${searchTermConditions.tsQueryArg}))`
+            ? `ts_rank(c."searchTsVector", ${searchTermConditions.tsQueryFunc}('english', ${searchTermConditions.tsQueryArg}), 1)`
             : '0'
         }
       END`,
