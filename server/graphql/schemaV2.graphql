@@ -452,6 +452,11 @@ interface Account {
     """
     group: String
     virtualCard: [VirtualCardReferenceInput]
+
+    """
+    Only return transactions that are refunds (or not refunds if false)
+    """
+    isRefund: Boolean
   ): TransactionCollection!
   orders(
     """
@@ -2007,6 +2012,11 @@ type Host implements Account & AccountWithContributions {
     """
     group: String
     virtualCard: [VirtualCardReferenceInput]
+
+    """
+    Only return transactions that are refunds (or not refunds if false)
+    """
+    isRefund: Boolean
   ): TransactionCollection!
   orders(
     """
@@ -6784,6 +6794,11 @@ type Bot implements Account {
     """
     group: String
     virtualCard: [VirtualCardReferenceInput]
+
+    """
+    Only return transactions that are refunds (or not refunds if false)
+    """
+    isRefund: Boolean
   ): TransactionCollection!
   orders(
     """
@@ -7463,6 +7478,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     """
     group: String
     virtualCard: [VirtualCardReferenceInput]
+
+    """
+    Only return transactions that are refunds (or not refunds if false)
+    """
+    isRefund: Boolean
   ): TransactionCollection!
   orders(
     """
@@ -8573,6 +8593,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     """
     group: String
     virtualCard: [VirtualCardReferenceInput]
+
+    """
+    Only return transactions that are refunds (or not refunds if false)
+    """
+    isRefund: Boolean
   ): TransactionCollection!
   orders(
     """
@@ -9472,6 +9497,11 @@ type Individual implements Account {
     """
     group: String
     virtualCard: [VirtualCardReferenceInput]
+
+    """
+    Only return transactions that are refunds (or not refunds if false)
+    """
+    isRefund: Boolean
   ): TransactionCollection!
   orders(
     """
@@ -10357,6 +10387,11 @@ type Organization implements Account & AccountWithContributions {
     """
     group: String
     virtualCard: [VirtualCardReferenceInput]
+
+    """
+    Only return transactions that are refunds (or not refunds if false)
+    """
+    isRefund: Boolean
   ): TransactionCollection!
   orders(
     """
@@ -11126,6 +11161,11 @@ type Vendor implements Account & AccountWithContributions {
     """
     group: String
     virtualCard: [VirtualCardReferenceInput]
+
+    """
+    Only return transactions that are refunds (or not refunds if false)
+    """
+    isRefund: Boolean
   ): TransactionCollection!
   orders(
     """
@@ -12456,6 +12496,11 @@ type Query {
     """
     group: String
     virtualCard: [VirtualCardReferenceInput]
+
+    """
+    Only return transactions that are refunds (or not refunds if false)
+    """
+    isRefund: Boolean
   ): TransactionCollection!
   update(
     """
@@ -14287,6 +14332,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     """
     group: String
     virtualCard: [VirtualCardReferenceInput]
+
+    """
+    Only return transactions that are refunds (or not refunds if false)
+    """
+    isRefund: Boolean
   ): TransactionCollection!
   orders(
     """
@@ -15064,6 +15114,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     """
     group: String
     virtualCard: [VirtualCardReferenceInput]
+
+    """
+    Only return transactions that are refunds (or not refunds if false)
+    """
+    isRefund: Boolean
   ): TransactionCollection!
   orders(
     """
