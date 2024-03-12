@@ -382,6 +382,7 @@ export function editCollective(_, args, req) {
       })
       .then(async () => {
         // If we try to change the host
+        // @deprecated This is now done through dedicated `removeHost` mutation on GraphQL v2
         if (
           newCollectiveData.HostCollectiveId !== undefined &&
           newCollectiveData.HostCollectiveId !== collective.HostCollectiveId
@@ -585,7 +586,11 @@ export async function archiveCollective(_, args, req) {
   }
 
   // Resets the host, which marks orders as CANCELLED and recursively unhost children
-  await collective.changeHost(null, req.remoteUser, { isChildren });
+  await collective.changeHost(null, req.remoteUser, {
+    isChildren,
+    pauseContributions: false,
+    messageForContributors: 'We are archiving this Collective.',
+  });
 
   // Mark main account as archived
   await collective.update({ isActive: false, deactivatedAt: new Date() });

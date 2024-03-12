@@ -77,18 +77,22 @@ describe('cron/hourly/70-handle-batch-subscriptions-update', () => {
     assert.calledOnce(paypalRequestStub);
     const paypalRequest = paypalRequestStub.getCall(0);
     expect(paypalRequest.args[0]).to.eq(`${subscriptionUrl}/cancel`);
-    expect(paypalRequest.args[1].reason).to.eq(`@test-collective was un-hosted`);
+    expect(paypalRequest.args[1].reason).to.eq(
+      `Your contribution to the Collective was paused. We'll inform you when it will be ready for re-activation.`,
+    );
     expect(paypalRequest.args[2].id).to.eq(host.id);
 
     await paypalOrder.reload();
     await paypalOrder.Subscription.reload();
-    expect(paypalOrder.status).to.eq(OrderStatuses.CANCELLED);
+    expect(paypalOrder.status).to.eq(OrderStatuses.PAUSED);
     expect(paypalOrder.Subscription.isActive).to.be.false;
 
-    const activity = await models.Activity.findOne({ where: { type: activities.SUBSCRIPTION_CANCELED } });
+    const activity = await models.Activity.findOne({ where: { type: activities.SUBSCRIPTION_PAUSED } });
     expect(activity).to.exist;
-    expect(activity.data.reason).to.equal('@test-collective was un-hosted');
-    expect(activity.data.reasonCode).to.equal('UNHOSTED_COLLECTIVE');
+    expect(activity.data.reason).to.equal(
+      "Your contribution to the Collective was paused. We'll inform you when it will be ready for re-activation.",
+    );
+    expect(activity.data.reasonCode).to.equal('PAUSED');
   });
 
   it('cancels subscriptions from canceled orders', async () => {
@@ -163,18 +167,22 @@ describe('cron/hourly/70-handle-batch-subscriptions-update', () => {
     assert.calledOnce(paypalRequestStub);
     const paypalRequest = paypalRequestStub.getCall(0);
     expect(paypalRequest.args[0]).to.eq(`${subscriptionUrl}/cancel`);
-    expect(paypalRequest.args[1].reason).to.eq(`@test-collective changed host`);
+    expect(paypalRequest.args[1].reason).to.eq(
+      "Your contribution to the Collective was paused. We'll inform you when it will be ready for re-activation.",
+    );
     expect(paypalRequest.args[2].id).to.eq(host.id);
 
     await paypalOrder.reload();
     await paypalOrder.Subscription.reload();
-    expect(paypalOrder.status).to.eq(OrderStatuses.CANCELLED);
+    expect(paypalOrder.status).to.eq(OrderStatuses.PAUSED);
     expect(paypalOrder.Subscription.isActive).to.be.false;
 
-    const activity = await models.Activity.findOne({ where: { type: activities.SUBSCRIPTION_CANCELED } });
+    const activity = await models.Activity.findOne({ where: { type: activities.SUBSCRIPTION_PAUSED } });
     expect(activity).to.exist;
-    expect(activity.data.reason).to.equal('@test-collective changed host');
-    expect(activity.data.reasonCode).to.equal('CHANGED_HOST');
+    expect(activity.data.reason).to.equal(
+      "Your contribution to the Collective was paused. We'll inform you when it will be ready for re-activation.",
+    );
+    expect(activity.data.reasonCode).to.equal('PAUSED');
   });
 
   it('does nothing if there is no order to cancel', async () => {

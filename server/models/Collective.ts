@@ -2370,7 +2370,27 @@ class Collective extends Model<
    * @param {*} newHostCollective: { id }
    * @param {*} remoteUser { id }
    */
-  changeHost = async function (newHostCollectiveId, remoteUser = undefined, options = undefined) {
+  changeHost = async function (
+    newHostCollectiveId,
+    remoteUser = undefined,
+    {
+      pauseContributions = true,
+      isChildren = false,
+      messageForContributors = '',
+      messageSource = 'PLATFORM',
+      applicationData = undefined,
+      message = undefined,
+      shouldAutomaticallyApprove = false,
+    }: {
+      pauseContributions?: boolean;
+      isChildren?: boolean;
+      messageForContributors?: string;
+      messageSource?: 'PLATFORM' | 'HOST' | 'COLLECTIVE';
+      applicationData?: object;
+      message?: string;
+      shouldAutomaticallyApprove?: boolean;
+    } = {},
+  ) {
     // Skip
     if (this.HostCollectiveId === newHostCollectiveId) {
       return this;
@@ -2378,7 +2398,7 @@ class Collective extends Model<
 
     const balance = await this.getBalance();
     if (balance > 0) {
-      if (options?.isChildren) {
+      if (isChildren) {
         throw new Error(
           `Unable to change host: your ${this.type.toLowerCase()} "${
             this.name
@@ -2407,13 +2427,16 @@ class Collective extends Model<
       });
     }
 
-    // Pause or cancel all orders that cannot be transferred
-    const newOrderStatus = options?.pauseContributions ? OrderStatuses.PAUSED : OrderStatuses.CANCELLED;
-    await Order.stopActiveSubscriptions(this.id, newOrderStatus, options);
+    // Deactivate/remote everything related to previous host
+    if (this.HostCollectiveId && this.approvedAt) {
+      // Pause or cancel all orders that cannot be transferred
+      const newOrderStatus = pauseContributions ? OrderStatuses.PAUSED : OrderStatuses.CANCELLED;
+      await Order.stopActiveSubscriptions(this.id, newOrderStatus, { messageForContributors, messageSource });
 
-    // Delete all virtual cards
-    const virtualCards = await VirtualCard.findAll({ where: { CollectiveId: this.id } });
-    await Promise.all(virtualCards.map(virtualCard => virtualCard.delete()));
+      // Delete all virtual cards
+      const virtualCards = await VirtualCard.findAll({ where: { CollectiveId: this.id } });
+      await Promise.all(virtualCards.map(virtualCard => virtualCard.delete()));
+    }
 
     // Prepare events and projects to receive a new host
     const children = await this.getChildren();
@@ -2461,10 +2484,11 @@ class Collective extends Model<
           throw new Error(`You need to be an admin of ${newHostCollective.name} to turn it into a host`);
         }
       }
+
       return this.addHost(newHostCollective, remoteUser, {
-        message: options?.message,
-        applicationData: options?.applicationData,
-        shouldAutomaticallyApprove: options?.shouldAutomaticallyApprove,
+        message,
+        applicationData,
+        shouldAutomaticallyApprove,
       });
     }
   };
