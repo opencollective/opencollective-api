@@ -273,6 +273,8 @@ const HostApplicationMutations = {
           collective: account.info,
           host: host.info,
           message: args.message,
+          messageForContributors: args.messageForContributors,
+          pauseContributions: args.pauseContributions,
           isHostAdmin,
           isAccountAdmin,
         },
