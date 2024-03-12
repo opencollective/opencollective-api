@@ -193,12 +193,11 @@ export const GraphQLHost = new GraphQLObjectType({
           new GraphQLObjectType({
             name: 'TransactionSum',
             description:
-              'EXPERIMENTAL: Transaction amounts grouped by type, kind, primary kind, isRefund, isHost, expenseType',
+              'EXPERIMENTAL (this may change or be deleted): Transaction amounts grouped by type, kind, isRefund, isHost, expenseType',
             fields: () => ({
               amount: { type: GraphQLAmount },
               type: { type: GraphQLTransactionType },
               kind: { type: GraphQLTransactionKind },
-              primaryKind: { type: GraphQLTransactionKind },
               isRefund: { type: GraphQLBoolean },
               isHost: { type: GraphQLBoolean },
               expenseType: { type: GraphQLExpenseType },
@@ -222,7 +221,6 @@ export const GraphQLHost = new GraphQLObjectType({
           const query = `
           SELECT 
             SUM(t."amountInHostCurrency") as "amountInHostCurrency",
-            COALESCE(t2."kind", t."kind") as "primaryKind",
             t."kind",
             t."isRefund", 
             t."hostCurrency",
@@ -233,19 +231,12 @@ export const GraphQLHost = new GraphQLObjectType({
           LEFT JOIN LATERAL (
             SELECT e2."type" from "Expenses" e2 where e2.id = t."ExpenseId"
           ) as e ON t."ExpenseId" IS NOT NULL
-          LEFT JOIN LATERAL (
-            select t2."kind" from "Transactions" t2
-            where t."TransactionGroup" = t2."TransactionGroup"
-            AND t2."kind" IN  ('EXPENSE', 'CONTRIBUTION', 'ADDED_FUNDS', 'BALANCE_TRANSFER', 'PREPAID_PAYMENT_METHOD')
-            AND t2."deletedAt" IS NULL
-            limit 1
-          ) as t2 ON t."kind" NOT IN ('EXPENSE', 'CONTRIBUTION', 'ADDED_FUNDS', 'BALANCE_TRANSFER', 'PREPAID_PAYMENT_METHOD')
           WHERE 
             t."HostCollectiveId" = :hostCollectiveId
             AND t."deletedAt" IS NULL
             AND t."createdAt" > :dateFrom AND t."createdAt" < :dateTo
-          GROUP BY t."kind", t."hostCurrency", t."isRefund", t."type", "isHost", "primaryKind", "expenseType"
-          ORDER BY t."kind", "primaryKind"; 
+          GROUP BY t."kind", t."hostCurrency", t."isRefund", t."type", "isHost", "expenseType"
+          ORDER BY t."kind"; 
           `;
 
           const transactionGroups = await sequelize.query(query, {
