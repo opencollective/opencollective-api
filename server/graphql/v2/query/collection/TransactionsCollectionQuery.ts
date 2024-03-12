@@ -160,6 +160,10 @@ export const TransactionsCollectionArgs = {
   virtualCard: {
     type: new GraphQLList(GraphQLVirtualCardReferenceInput),
   },
+  isRefund: {
+    type: GraphQLBoolean,
+    description: 'Only return transactions that are refunds (or not refunds if false)',
+  },
 };
 
 export const TransactionsCollectionResolver = async (
@@ -395,6 +399,10 @@ export const TransactionsCollectionResolver = async (
         VirtualCardId: args.virtualCard.map(vc => vc.id),
       },
     });
+  }
+
+  if (!isNil(args.isRefund)) {
+    where.push({ isRefund: args.isRefund });
   }
 
   /* 
