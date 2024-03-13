@@ -1,6 +1,8 @@
+import config from 'config';
 import { pick } from 'lodash';
 import type { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes } from 'sequelize';
 import { DataTypes, Model, Transaction } from 'sequelize';
+import isURL from 'validator/lib/isURL';
 
 import { SUPPORTED_CURRENCIES, SupportedCurrency } from '../constants/currencies';
 import { diffDBEntries } from '../lib/data';
@@ -142,7 +144,22 @@ ExpenseItem.init(
         this.setDataValue('url', value || null);
       },
       validate: {
-        isUrl: true,
+        isValidURL(url: string): void {
+          if (!url) {
+            return;
+          }
+
+          if (
+            !isURL(url, {
+              // eslint-disable-next-line camelcase
+              require_host: config.env !== 'development',
+              // eslint-disable-next-line camelcase
+              require_tld: config.env !== 'development',
+            })
+          ) {
+            throw new Error('File URL is not a valid URL');
+          }
+        },
         isValidImage(url: string): void {
           if (url && !isValidUploadedImage(url)) {
             throw new Error('The attached file URL is not valid');
