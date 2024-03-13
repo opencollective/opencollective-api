@@ -71,7 +71,7 @@ const accountMutations = {
       },
       newName: {
         type: GraphQLString,
-        description: 'The new slug for the duplicated account. Defaults to the same as the original account',
+        description: 'The new name for the duplicated account. Defaults to the same as the original account',
       },
       include: {
         type: GraphQLDuplicateAccountDataTypeInput,
