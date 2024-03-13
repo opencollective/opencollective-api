@@ -12,7 +12,7 @@ import activities from '../../constants/activities';
 import { SupportedCurrency } from '../../constants/currencies';
 import status from '../../constants/expense-status';
 import { TransferwiseError } from '../../graphql/errors';
-import cache from '../../lib/cache';
+import { cache, sessionCache } from '../../lib/cache';
 import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { centsAmountToFloat } from '../../lib/math';
@@ -470,12 +470,12 @@ async function payExpensesBatchGroup(host, expenses, x2faApproval?: string, remo
       const fundResponse = await transferwise.fundBatchGroup(token, profileId, batchGroup.id);
       if ('status' in fundResponse && 'headers' in fundResponse) {
         const cacheKey = `transferwise_ott_${fundResponse.headers['x-2fa-approval']}`;
-        await cache.set(cacheKey, batchGroup.id, 30 * 60);
+        await sessionCache.set(cacheKey, batchGroup.id, 30 * 60);
       }
       return fundResponse;
     } else if (x2faApproval) {
       const cacheKey = `transferwise_ott_${x2faApproval}`;
-      const batchGroupId = await cache.get(cacheKey);
+      const batchGroupId = await sessionCache.get(cacheKey);
       if (!batchGroupId) {
         throw new Error('Invalid or expired OTT approval code');
       }
@@ -485,6 +485,7 @@ async function payExpensesBatchGroup(host, expenses, x2faApproval?: string, remo
         batchGroupId,
         x2faApproval,
       )) as BatchGroup;
+      await sessionCache.delete(cacheKey);
       return batchGroup;
     } else {
       throw new Error('payExpensesBatchGroup: you need to pass either expenses or x2faApproval');
@@ -622,7 +623,7 @@ const oauth = {
   ): Promise<string> {
     const hash = hashObject({ CollectiveId, userId: user.id });
     const cacheKey = `transferwise_oauth_${hash}`;
-    await cache.set(cacheKey, { CollectiveId, redirect: query.redirect, UserId: user.id }, 60 * 10);
+    await sessionCache.set(cacheKey, { CollectiveId, redirect: query.redirect, UserId: user.id }, 60 * 10);
     return transferwise.getOAuthUrl(hash);
   },
 
@@ -633,7 +634,7 @@ const oauth = {
     }
 
     const cacheKey = `transferwise_oauth_${state}`;
-    const originalRequest = await cache.get(cacheKey);
+    const originalRequest = await sessionCache.get(cacheKey);
     if (!originalRequest) {
       const errorMessage = `TransferWise OAuth request not found or expired for state ${state}.`;
       logger.error(errorMessage);
@@ -689,6 +690,7 @@ const oauth = {
         set(settings, 'transferwise.ott', true);
         await collective.update({ settings });
       }
+      await sessionCache.delete(cacheKey);
 
       res.redirect(redirectUrl.href);
     } catch (e) {
