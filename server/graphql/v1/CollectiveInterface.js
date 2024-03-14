@@ -852,6 +852,10 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
         description:
           'Policies for the account. To see non-public policies you need to be admin and have the scope: "account".',
       },
+      hasDuplicates: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        description: 'Whether this account was duplicated',
+      },
     };
   },
 });
@@ -1921,6 +1925,13 @@ const CollectiveFields = () => {
       type: new GraphQLNonNull(GraphQLPolicies),
       resolve(account) {
         return account;
+      },
+    },
+    hasDuplicates: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether this account was duplicated',
+      async resolve(collective) {
+        return Boolean(collective.data?.duplicatedToCollectiveIds?.length);
       },
     },
   };
