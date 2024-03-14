@@ -852,9 +852,17 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
         description:
           'Policies for the account. To see non-public policies you need to be admin and have the scope: "account".',
       },
-      hasDuplicates: {
-        type: new GraphQLNonNull(GraphQLBoolean),
-        description: 'Whether this account was duplicated',
+      duplicatedFromCollective: {
+        type: CollectiveInterfaceType,
+        description: 'If created by duplication, the account from which this one was duplicated',
+      },
+      duplicatedCollectives: {
+        type: new GraphQLNonNull(CollectiveSearchResultsType),
+        description: 'If this account was duplicated, the accounts that were created from it',
+        args: {
+          limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
+          offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
+        },
       },
     };
   },
@@ -1927,11 +1935,36 @@ const CollectiveFields = () => {
         return account;
       },
     },
-    hasDuplicates: {
-      type: new GraphQLNonNull(GraphQLBoolean),
-      description: 'Whether this account was duplicated',
-      async resolve(collective) {
-        return Boolean(collective.data?.duplicatedToCollectiveIds?.length);
+    duplicatedFromCollective: {
+      type: CollectiveInterfaceType,
+      description: 'If created by duplication, the account from which this one was duplicated',
+      async resolve(collective, _, req) {
+        if (collective.data?.duplicatedFromCollectiveId) {
+          return req.loaders.Collective.byId.load(collective.data.duplicatedFromCollectiveId);
+        }
+      },
+    },
+    duplicatedCollectives: {
+      type: new GraphQLNonNull(CollectiveSearchResultsType),
+      description: 'If this account was duplicated, the accounts that were created from it',
+      args: {
+        limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
+        offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
+      },
+      async resolve(collective, args) {
+        const { limit, offset } = args;
+        if (!collective.data?.duplicatedToCollectiveIds) {
+          return { nodes: [], totalCount: 0, limit, offset };
+        } else {
+          const where = { id: collective.data.duplicatedToCollectiveIds };
+          return {
+            id: `duplicatedCollectives-${collective.id}-${limit}-${offset}`,
+            collectives: () => models.Collective.findAll({ where, limit, offset }),
+            total: () => models.Collective.count({ where }),
+            limit,
+            offset,
+          };
+        }
       },
     },
   };

@@ -760,13 +760,6 @@ const accountFieldsDefinition = () => ({
     },
   },
   // Information about duplication
-  hasDuplicates: {
-    type: new GraphQLNonNull(GraphQLBoolean),
-    description: 'Whether this account was duplicated',
-    async resolve(collective) {
-      return Boolean(collective.data?.duplicatedToCollectiveIds?.length);
-    },
-  },
   duplicatedFromAccount: {
     type: GraphQLAccount,
     description: 'If created by duplication, the account from which this one was duplicated',
@@ -783,16 +776,15 @@ const accountFieldsDefinition = () => ({
       limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
       offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
     },
-    async resolve(collective, args, req) {
+    async resolve(collective, args) {
       const { limit, offset } = args;
       if (!collective.data?.duplicatedToCollectiveIds) {
         return { nodes: [], totalCount: 0, limit, offset };
       } else {
-        const accounts = await req.loaders.Collective.byId.loadMany(collective.data.duplicatedToCollectiveIds);
-        const existingAccounts = accounts.filter(Boolean);
+        const where = { id: collective.data.duplicatedToCollectiveIds };
         return {
-          nodes: existingAccounts.slice(offset, offset + limit),
-          totalCount: existingAccounts.length,
+          nodes: () => models.Collective.findAll({ where, limit, offset }),
+          totalCount: () => models.Collective.count({ where }),
           limit,
           offset,
         };
