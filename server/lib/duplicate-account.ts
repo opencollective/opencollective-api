@@ -1,5 +1,6 @@
 import { omit, pick } from 'lodash';
 import { InferCreationAttributes, Op, Transaction } from 'sequelize';
+import { v4 as uuid } from 'uuid';
 
 import { CollectiveType } from '../constants/collectives';
 import { Collective, Location, Member, sequelize, Tier, User } from '../models';
@@ -9,6 +10,19 @@ export type DuplicateAccountDataType = {
   tiers?: boolean;
   projects?: boolean;
   events?: boolean;
+};
+
+/**
+ * Returns a slug that is not already taken
+ */
+const getNewAccountSlug = async (originalAccount: Collective, userProvidedSlug: string): Promise<string> => {
+  if (originalAccount.type === CollectiveType.EVENT && originalAccount.slug.match(/-[0-9a-zA-Z]+$/)) {
+    // Events normally have a random string at the end. We replace it by another random string
+    const baseSlug = userProvidedSlug || originalAccount.slug.replace(/-[0-9a-zA-Z]+$/, '');
+    return `${baseSlug}-${uuid().substr(0, 8)}`;
+  } else {
+    return Collective.generateSlug([userProvidedSlug || originalAccount.slug]);
+  }
 };
 
 /**
@@ -33,7 +47,7 @@ const duplicateCollectiveProfile = async (
         ...values,
         CreatedByUserId: user.id || account.CreatedByUserId,
         LastEditedByUserId: user.id || account.LastEditedByUserId,
-        slug: values.slug || (await Collective.generateSlug([account.slug])),
+        slug: values.slug || (await getNewAccountSlug(account, values.slug)),
         name: values.name || account.name,
         data: {
           ...account.data,
@@ -136,7 +150,6 @@ export const duplicateAccount = async (
           duplicateAccount(project, user, {
             transaction,
             newParent: newAccount,
-            newSlug: `${newAccount.slug}-${project.slug}`,
             include: { tiers: true },
           }),
         ),
@@ -154,7 +167,6 @@ export const duplicateAccount = async (
           duplicateAccount(project, user, {
             transaction,
             newParent: newAccount,
-            newSlug: `${newAccount.slug}-${project.slug}`,
             include: { tiers: true },
           }),
         ),

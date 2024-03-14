@@ -124,6 +124,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       admin: adminUser,
       HostCollectiveId: host.id,
       name: 'Bushwick',
+      slug: 'bushwick',
       description: 'Doing stuff',
       longDescription: 'Doing more stuff',
       expensePolicy: 'Be reasonable',
@@ -1045,7 +1046,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(result.data.duplicateAccount.slug).to.equal(newSlug);
     });
 
-    it('duplicates the account with an auto-generated slug based on the name', async () => {
+    it('duplicates the account with an auto-generated slug based on the existing one', async () => {
       const result = await graphqlQueryV2(
         duplicateAccountMutation,
         { account: { legacyId: collective.id } },
@@ -1158,6 +1159,14 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(newChildren.map(c => c.type)).to.include(CollectiveType.EVENT);
       expect(newChildren.map(c => c.type)).to.include(CollectiveType.PROJECT);
       expect(newChildren.map(c => c.isActive)).to.deep.eq([false, false]); // We're not marking the projects as active by default to prevent bypassing the host process
+      const duplicatedEvent = newChildren.find(c => c.type === CollectiveType.EVENT);
+      const originalEventId = duplicatedEvent.data.duplicatedFromCollectiveId as number;
+      const originalEvent = await models.Collective.findByPk(originalEventId);
+
+      // The slug for duplicated event should be the same expect for the last part of each (random string)
+      expect(duplicatedEvent.slug).to.not.equal(originalEvent.slug);
+      const getSlugWithoutRandom = (slug: string) => slug.split('-').slice(0, -1).join('-');
+      expect(getSlugWithoutRandom(duplicatedEvent.slug)).to.equal(getSlugWithoutRandom(originalEvent.slug));
     });
   });
 });
