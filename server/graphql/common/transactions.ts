@@ -14,6 +14,8 @@ import models from '../../models';
 import { TransactionInterface } from '../../models/Transaction';
 import { Forbidden, NotFound } from '../errors';
 
+import { isHostAdmin } from './expenses';
+
 const getPayee = async (req, transaction) => {
   if (
     (transaction.type === 'CREDIT' && !transaction.isRefund) ||
@@ -129,6 +131,12 @@ export const canRefund = async (transaction: TransactionInterface, _: void, req:
   if (transaction.type !== TransactionTypes.CREDIT || transaction.OrderId === null || transaction.isRefund === true) {
     return false;
   }
+  if (transaction.OrderId) {
+    const order = await req.loaders.Order.byId.load(transaction.OrderId);
+    if ([orderStatus.REJECTED, orderStatus.DISPUTED, orderStatus.REFUNDED].includes(order.status)) {
+      return false;
+    }
+  }
 
   // 1) We only allow the transaction to be refunded by Collective admins if it's within 30 days.
   // 2) To ensure proper accounting, we only allow added funds to be refunded by Host admins and never by Collective admins.
@@ -169,6 +177,7 @@ export const canDownloadInvoice = async (
   }
   return remoteUserMeetsOneCondition(req, transaction, [
     isPayerCollectiveAdmin,
+    isHostAdmin,
     isPayeeHostAdmin,
     isPayerAccountant,
     isPayeeAccountant,
@@ -176,9 +185,7 @@ export const canDownloadInvoice = async (
 };
 
 /** Checks if the user can reject this transaction */
-export const canReject = async (transaction: TransactionInterface, _: void, req: express.Request): Promise<boolean> => {
-  return canRefund(transaction, _, req);
-};
+export const canReject = canRefund;
 
 export async function refundTransaction(
   passedTransaction: TransactionInterface,
