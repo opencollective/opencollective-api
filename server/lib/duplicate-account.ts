@@ -1,5 +1,5 @@
 import { omit, pick } from 'lodash';
-import { InferCreationAttributes, Transaction } from 'sequelize';
+import { InferCreationAttributes, Op, Transaction } from 'sequelize';
 
 import { CollectiveType } from '../constants/collectives';
 import { Collective, Location, Member, sequelize, Tier, User } from '../models';
@@ -145,7 +145,10 @@ export const duplicateAccount = async (
 
     // Duplicate Events
     if (options.include?.events) {
-      const events = await account.getEvents({ transaction, where: { isActive: true } });
+      const events = await account.getEvents({
+        transaction,
+        where: { isActive: true, endsAt: { [Op.or]: [{ [Op.eq]: null }, { [Op.gt]: new Date() }] } },
+      });
       await Promise.all(
         events.map(project =>
           duplicateAccount(project, user, {
