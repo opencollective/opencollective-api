@@ -1102,6 +1102,38 @@ export const AccountFields = {
     description: 'Logged-in user permissions on an account',
     resolve: collective => collective, // Individual resolvers in `AccountPermissions`
   },
+  duplicatedFromAccount: {
+    type: GraphQLAccount,
+    description: 'If created by duplication, the account from which this one was duplicated',
+    async resolve(collective, _, req) {
+      if (collective.data?.duplicatedFromCollectiveId) {
+        return req.loaders.Collective.byId.load(collective.data.duplicatedFromCollectiveId);
+      }
+    },
+  },
+  duplicatedAccounts: {
+    type: new GraphQLNonNull(GraphQLAccountCollection),
+    description: 'If this account was duplicated, the accounts that were created from it',
+    args: {
+      limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
+      offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
+    },
+    async resolve(collective, args, req) {
+      const { limit, offset } = args;
+      if (!collective.data?.duplicatedToCollectiveIds) {
+        return { nodes: [], totalCount: 0, limit, offset };
+      } else {
+        const accounts = await req.loaders.Collective.byId.loadMany(collective.data.duplicatedToCollectiveIds);
+        const existingAccounts = accounts.filter(Boolean);
+        return {
+          nodes: existingAccounts.slice(offset, offset + limit),
+          totalCount: existingAccounts.length,
+          limit,
+          offset,
+        };
+      }
+    },
+  },
 };
 
 export default GraphQLAccount;

@@ -65,6 +65,13 @@ const duplicateCollectiveProfile = async (
     );
   }
 
+  // Record a link to the new profile in the original profile
+  const duplicatedToCollectiveIds = (account.data?.duplicatedToCollectiveIds as number[]) || [];
+  await account.update(
+    { data: { ...account.data, duplicatedToCollectiveIds: [newAccount.id, ...duplicatedToCollectiveIds] } },
+    { transaction },
+  );
+
   return newAccount;
 };
 
