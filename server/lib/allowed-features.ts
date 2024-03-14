@@ -151,6 +151,16 @@ export const hasOptedInForFeature = (collective: Collective, feature: FEATURE): 
 };
 
 /**
+ * Returns true if the feature is disabled for the account. This function only checks `collective.data`,
+ * use `hasFeature` to properly check a feature activation.
+ */
+export const isFeatureBlockedForAccount = (collective: Collective, feature: FEATURE): boolean => {
+  return (
+    get(collective, `data.features.${FEATURE.ALL}`) === false || get(collective, `data.features.${feature}`) === false
+  );
+};
+
+/**
  * If a given feature is allowed for the collective type, check if it is activated for collective.
  */
 export const hasFeature = (collective: Collective, feature: FEATURE): boolean => {
@@ -181,7 +191,7 @@ export const hasFeature = (collective: Collective, feature: FEATURE): boolean =>
     return hasOptedInForFeature(collective, feature);
   }
 
-  return get(collective, `data.features.${feature}`, true);
+  return !isFeatureBlockedForAccount(collective, feature);
 };
 
 export { FEATURE };
