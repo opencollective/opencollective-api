@@ -1102,6 +1102,14 @@ export const AccountFields = {
     description: 'Logged-in user permissions on an account',
     resolve: collective => collective, // Individual resolvers in `AccountPermissions`
   },
+  // Information about duplication
+  hasDuplicates: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Whether this account was duplicated',
+    async resolve(collective) {
+      return Boolean(collective.data?.duplicatedToCollectiveIds?.length);
+    },
+  },
   duplicatedFromAccount: {
     type: GraphQLAccount,
     description: 'If created by duplication, the account from which this one was duplicated',

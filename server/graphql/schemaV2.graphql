@@ -2396,6 +2396,21 @@ type Host implements Account & AccountWithContributions {
   ): WebhookCollection!
 
   """
+  Whether this account was duplicated
+  """
+  hasDuplicates: Boolean!
+
+  """
+  If created by duplication, the account from which this one was duplicated
+  """
+  duplicatedFromAccount: Account
+
+  """
+  If this account was duplicated, the accounts that were created from it
+  """
+  duplicatedAccounts(limit: Int! = 100, offset: Int! = 0): AccountCollection!
+
+  """
   Number of unique financial contributors.
   """
   totalFinancialContributors(
@@ -7180,6 +7195,21 @@ type Bot implements Account {
     offset: Int! = 0
     account: AccountReferenceInput!
   ): WebhookCollection!
+
+  """
+  Whether this account was duplicated
+  """
+  hasDuplicates: Boolean!
+
+  """
+  If created by duplication, the account from which this one was duplicated
+  """
+  duplicatedFromAccount: Account
+
+  """
+  If this account was duplicated, the accounts that were created from it
+  """
+  duplicatedAccounts(limit: Int! = 100, offset: Int! = 0): AccountCollection!
 }
 
 """
@@ -7869,6 +7899,21 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     offset: Int! = 0
     account: AccountReferenceInput!
   ): WebhookCollection!
+
+  """
+  Whether this account was duplicated
+  """
+  hasDuplicates: Boolean!
+
+  """
+  If created by duplication, the account from which this one was duplicated
+  """
+  duplicatedFromAccount: Account
+
+  """
+  If this account was duplicated, the accounts that were created from it
+  """
+  duplicatedAccounts(limit: Int! = 100, offset: Int! = 0): AccountCollection!
 
   """
   Returns the Fiscal Host
@@ -8991,6 +9036,21 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   ): WebhookCollection!
 
   """
+  Whether this account was duplicated
+  """
+  hasDuplicates: Boolean!
+
+  """
+  If created by duplication, the account from which this one was duplicated
+  """
+  duplicatedFromAccount: Account
+
+  """
+  If this account was duplicated, the accounts that were created from it
+  """
+  duplicatedAccounts(limit: Int! = 100, offset: Int! = 0): AccountCollection!
+
+  """
   Returns the Fiscal Host
   """
   host: Host
@@ -9898,6 +9958,21 @@ type Individual implements Account {
   ): WebhookCollection!
 
   """
+  Whether this account was duplicated
+  """
+  hasDuplicates: Boolean!
+
+  """
+  If created by duplication, the account from which this one was duplicated
+  """
+  duplicatedFromAccount: Account
+
+  """
+  If this account was duplicated, the accounts that were created from it
+  """
+  duplicatedAccounts(limit: Int! = 100, offset: Int! = 0): AccountCollection!
+
+  """
   Email for the account. For authenticated user: scope: "email".
   """
   email: String
@@ -10793,6 +10868,21 @@ type Organization implements Account & AccountWithContributions {
   ): WebhookCollection!
 
   """
+  Whether this account was duplicated
+  """
+  hasDuplicates: Boolean!
+
+  """
+  If created by duplication, the account from which this one was duplicated
+  """
+  duplicatedFromAccount: Account
+
+  """
+  If this account was duplicated, the accounts that were created from it
+  """
+  duplicatedAccounts(limit: Int! = 100, offset: Int! = 0): AccountCollection!
+
+  """
   Number of unique financial contributors.
   """
   totalFinancialContributors(
@@ -11572,6 +11662,21 @@ type Vendor implements Account & AccountWithContributions {
     offset: Int! = 0
     account: AccountReferenceInput!
   ): WebhookCollection!
+
+  """
+  Whether this account was duplicated
+  """
+  hasDuplicates: Boolean!
+
+  """
+  If created by duplication, the account from which this one was duplicated
+  """
+  duplicatedFromAccount: Account
+
+  """
+  If this account was duplicated, the accounts that were created from it
+  """
+  duplicatedAccounts(limit: Int! = 100, offset: Int! = 0): AccountCollection!
 
   """
   Number of unique financial contributors.
@@ -14750,6 +14855,21 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   ): WebhookCollection!
 
   """
+  Whether this account was duplicated
+  """
+  hasDuplicates: Boolean!
+
+  """
+  If created by duplication, the account from which this one was duplicated
+  """
+  duplicatedFromAccount: Account
+
+  """
+  If this account was duplicated, the accounts that were created from it
+  """
+  duplicatedAccounts(limit: Int! = 100, offset: Int! = 0): AccountCollection!
+
+  """
   Returns the Fiscal Host
   """
   host: Host
@@ -15535,6 +15655,21 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     offset: Int! = 0
     account: AccountReferenceInput!
   ): WebhookCollection!
+
+  """
+  Whether this account was duplicated
+  """
+  hasDuplicates: Boolean!
+
+  """
+  If created by duplication, the account from which this one was duplicated
+  """
+  duplicatedFromAccount: Account
+
+  """
+  If this account was duplicated, the accounts that were created from it
+  """
+  duplicatedAccounts(limit: Int! = 100, offset: Int! = 0): AccountCollection!
 
   """
   Returns the Fiscal Host
