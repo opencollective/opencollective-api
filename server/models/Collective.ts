@@ -167,6 +167,7 @@ type Settings = {
   payoutsTwoFactorAuth?: {
     enabled?: boolean;
   };
+  earlyAccess?: Record<string, boolean>;
 } & TaxSettings;
 
 type Data = Partial<{

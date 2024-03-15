@@ -2,11 +2,13 @@ import { URLSearchParams } from 'url';
 
 import config from 'config';
 import debugLib from 'debug';
+import { NextFunction, Request, Response } from 'express';
 import gqlmin from 'gqlmin';
 import { get, isNil, omitBy, pick } from 'lodash';
 import moment from 'moment';
-import passport from 'passport';
+import passport, { AuthenticateOptions } from 'passport';
 
+import { Service } from '../constants/connected-account';
 import * as connectedAccounts from '../controllers/connectedAccounts';
 import { verifyJwt } from '../lib/auth';
 import errors from '../lib/errors';
@@ -43,7 +45,7 @@ const debug = debugLib('auth');
  * expirations errors. This is a cleaned up version of that code that only
  * decodes the token (expected behaviour).
  */
-const parseJwt = req => {
+const parseJwt = (req: Request) => {
   let token = req.params.access_token || req.query.access_token || req.body.access_token;
   if (!token) {
     token = getBearerTokenFromRequestHeaders(req);
@@ -65,7 +67,7 @@ const parseJwt = req => {
   }
 };
 
-const checkJwtScope = req => {
+const checkJwtScope = (req: Request) => {
   const errorMessage = `Cannot use this token on this route (scope: ${req.jwtPayload.scope})`;
 
   const scope = req.jwtPayload.scope || 'session';
@@ -136,7 +138,7 @@ const checkJwtScope = req => {
  *  - req.remoteUser
  *  - req.remoteUser.memberships[CollectiveId] = [roles]
  */
-const _authenticateUserByJwt = async (req, res, next) => {
+const _authenticateUserByJwt = async (req: Request, res: Response, next: NextFunction) => {
   const userId = Number(req.jwtPayload.sub);
   const user = await User.findByPk(userId, {
     include: [{ association: 'collective', required: false }],
@@ -233,13 +235,13 @@ const _authenticateUserByJwt = async (req, res, next) => {
  * @POST: req.remoteUser is set to the logged in user or null if authentication failed
  * @ERROR: Will return an error if a JWT token is provided and invalid
  */
-export function authenticateUser(req, res, next) {
+export function authenticateUser(req: Request, res: Response, next: NextFunction) {
   if (req.remoteUser && req.remoteUser.id) {
     return next();
   }
 
   try {
-    req.jwtPayload = parseJwt(req);
+    req.jwtPayload = parseJwt(req) as Request['jwtPayload'];
   } catch (e) {
     debug('>>> parseJwt invalid error', e);
     return next(e);
@@ -259,12 +261,13 @@ export function authenticateUser(req, res, next) {
   _authenticateUserByJwt(req, res, next);
 }
 
-export const authenticateService = (req, res, next) => {
+export const authenticateService = (req: Request<{ service: Service }>, res: Response, next: NextFunction) => {
   const { service } = req.params;
   const { context } = req.query;
-  const opts = { callbackURL: getOAuthCallbackUrl(req) };
+  const callbackURL = getOAuthCallbackUrl(req);
+  const opts: AuthenticateOptions = { successRedirect: callbackURL, failureRedirect: callbackURL };
 
-  if (service === 'github') {
+  if (service === Service.GITHUB) {
     if (context === 'createCollective') {
       opts.scope = [
         // We need this to call github.getOrgMemberships and check if the user is an admin of a given Organization
@@ -278,7 +281,7 @@ export const authenticateService = (req, res, next) => {
     }
 
     return passport.authenticate(service, opts)(req, res, next);
-  } else if (service === 'twitter') {
+  } else if (service === Service.TWITTER) {
     opts.scope = TWITTER_SCOPES;
   }
 
@@ -298,17 +301,22 @@ export const authenticateService = (req, res, next) => {
   return passport.authenticate(service, opts)(req, res, next);
 };
 
-export const authenticateServiceCallback = async (req, res, next) => {
+export const authenticateServiceCallback = async (
+  req: Request<{ service: Service }, any, any, { CollectiveId?: string; state?: string; code?: string }>,
+  res: Response,
+  next: NextFunction,
+) => {
   const { service } = req.params;
   if (get(paymentProviders, `${service}.oauth.callback`)) {
     return paymentProviders[service].oauth.callback(req, res, next);
   }
 
-  const opts = { callbackURL: getOAuthCallbackUrl(req) };
+  const callbackURL = getOAuthCallbackUrl(req);
+  const opts: AuthenticateOptions = { successRedirect: callbackURL, failureRedirect: callbackURL };
 
   // Twitter redirects us here, but we redirect to the frontend before authenticating to make
   // sure the user is logged in.
-  if (service === 'twitter') {
+  if (service === Service.TWITTER) {
     if (!req.remoteUser && req.query.CollectiveId) {
       const collective = await models.Collective.findByPk(req.query.CollectiveId);
       if (!collective) {
@@ -338,16 +346,16 @@ export const authenticateServiceCallback = async (req, res, next) => {
   })(req, res, next);
 };
 
-export const authenticateServiceDisconnect = (req, res) => {
+export const authenticateServiceDisconnect = (req: Request<{ service: Service }>, res: Response) => {
   connectedAccounts.disconnect(req, res);
 };
 
-function getOAuthCallbackUrl(req) {
+function getOAuthCallbackUrl(req: Request<{ service: Service }>) {
   const { service } = req.params;
 
   // TODO We should not pass `access_token` to 3rd party services. Github likely still relies on this, but we can already remove it for Twitter.
   const params = new URLSearchParams(omitBy(pick(req.query, ['access_token', 'context', 'CollectiveId']), isNil));
-  if (service === 'twitter') {
+  if (service === Service.TWITTER) {
     params.delete('access_token');
   }
 
@@ -362,7 +370,11 @@ function getOAuthCallbackUrl(req) {
 /**
  * Check Personal Token
  */
-export async function checkPersonalToken(req, res, next) {
+export async function checkPersonalToken(
+  req: Request<unknown, unknown, unknown, { apiKey?: string; personalToken?: string }>,
+  res: Response,
+  next: NextFunction,
+) {
   const apiKey = req.get('Api-Key') || req.query.apiKey || req.apiKey;
   const token = req.get('Personal-Token') || req.query.personalToken;
 
@@ -384,7 +396,7 @@ export async function checkPersonalToken(req, res, next) {
       req.personalToken = personalToken;
       const collectiveId = personalToken.CollectiveId;
       if (collectiveId) {
-        req.loggedInAccount = await models.Collective.findByPk(collectiveId);
+        req['loggedInAccount'] = await models.Collective.findByPk(collectiveId);
         req.remoteUser = await models.User.findOne({
           where: { CollectiveId: collectiveId },
         });
@@ -409,7 +421,7 @@ export async function checkPersonalToken(req, res, next) {
 /**
  * Authorize api_key
  */
-export function authorizeClient(req, res, next) {
+export function authorizeClient(req: Request, _: Response, next: NextFunction) {
   // TODO: we should remove those exceptions
   // those routes should only be accessed via the website (which automatically adds the api_key)
   const exceptions = [
@@ -461,7 +473,7 @@ export function authorizeClient(req, res, next) {
  * Makes sure that the user the is logged in and req.remoteUser is populated.
  * if we cannot authenticate the user, we directly return an Unauthorized error.
  */
-export function mustBeLoggedIn(req, res, next) {
+export function mustBeLoggedIn(req: Request, res: Response, next: NextFunction) {
   authenticateUser(req, res, e => {
     if (e) {
       return next(e);

@@ -8,4 +8,4 @@ export default {
   paypal,
   stripe,
   transferwise,
-};
+} as const;

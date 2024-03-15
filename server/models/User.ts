@@ -112,7 +112,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   };
 
   generateLoginLink = function (redirect = '/', websiteUrl) {
-    const lastLoginAt = this.lastLoginAt ? this.lastLoginAt.getTime() : null;
+    const lastLoginAt = this.lastLoginAt ? (this.lastLoginAt as Date).getTime() : null;
     const token = this.jwt({ scope: 'login', lastLoginAt }, auth.TOKEN_EXPIRATION_LOGIN);
     // if a different websiteUrl is passed
     // we don't accept that in production or staging to avoid fishing related issues

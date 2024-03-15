@@ -15,6 +15,9 @@ declare global {
         iat: number;
         exp: number;
         sub?: string;
+        access_token?: string;
+        lastLoginAt?: number;
+        passwordUpdatedAt?: number;
       };
       clientApp?: {
         id: number;
@@ -24,6 +27,7 @@ declare global {
         CollectiveId: number;
       };
       userToken?: UserToken;
+      apiKey?: string;
       personalToken?: PersonalToken;
       loaders: Record<string, DataLoader>;
       rawBody?: string;
