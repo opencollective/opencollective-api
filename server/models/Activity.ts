@@ -107,7 +107,7 @@ Activity.init(
     hooks: {
       async afterCreate(activity) {
         if (activity.data?.notify !== false) {
-          const dispatchPromise = dispatch(activity); // intentionally no return statement, needs to be async by default
+          const dispatchPromise = dispatch(activity, { onlyAwaitEmails: true }); // intentionally no return statement, needs to be async by default
           if (activity.data?.awaitForDispatch) {
             await dispatchPromise;
           }

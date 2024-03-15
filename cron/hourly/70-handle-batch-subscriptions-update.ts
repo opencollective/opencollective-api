@@ -19,6 +19,8 @@ if (parseToBoolean(process.env.SKIP_BATCH_SUBSCRIPTION_UPDATE)) {
   process.exit();
 }
 
+const HostsCache = {};
+
 /**
  * If the collective has been archived, its HostCollectiveId has been set to null.
  * We need some more logic to make sure we're loading the right host.
@@ -37,7 +39,11 @@ const getHostFromOrder = async order => {
     return order.collective.getHostCollective();
   }
 
-  return models.Collective.findByPk(hostIds[0]);
+  const hostId = hostIds[0]; // Take the most recent transaction's host
+  if (!HostsCache[hostId]) {
+    HostsCache[hostId] = await models.Collective.findByPk(hostId);
+  }
+  return HostsCache[hostId];
 };
 
 const getOrderCancelationReason = (
@@ -113,13 +119,14 @@ export async function run() {
     logger.info(`Cancelling ${sortedAccountOrders.length} subscriptions for @${collectiveHandle}`);
     for (const order of sortedAccountOrders) {
       try {
+        logger.debug(`Cancelling subscription ${order.Subscription.id} from order ${order.id} of @${collectiveHandle}`);
         const host = await getHostFromOrder(order);
+        logger.debug(`Host fetched: ${host.slug}`);
+
         const reason = getOrderCancelationReason(collective, order, host);
-        logger.debug(
-          `Cancelling subscription ${order.Subscription.id} from order ${order.id} of @${collectiveHandle} (host: ${host.slug})`,
-        );
         if (!process.env.DRY) {
           await order.Subscription.deactivate(reason.message, host);
+          logger.debug('Creating the activity and sending email');
           await models.Activity.create({
             type: reason.code === 'PAUSED' ? activities.SUBSCRIPTION_PAUSED : activities.SUBSCRIPTION_CANCELED,
             CollectiveId: order.CollectiveId,
@@ -142,6 +149,7 @@ export async function run() {
             },
           });
 
+          logger.debug('Updating order');
           await order.update({ data: { ...order.data, needsAsyncDeactivation: false } });
           if (order.Subscription.isManagedExternally) {
             await sleep(500); // To prevent rate-limiting issues when calling 3rd party payment processor APIs
@@ -157,6 +165,8 @@ export async function run() {
       }
     }
   }
+
+  console.log('Done!');
 }
 
 if (require.main === module) {
