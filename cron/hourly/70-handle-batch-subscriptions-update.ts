@@ -95,6 +95,8 @@ export async function run() {
       { association: 'fromCollective' },
       { association: 'paymentMethod' },
     ],
+    order: [['id', 'ASC']],
+    limit: parseInt(process.env.LIMIT) || 5000,
   });
 
   if (!orphanOrders.length) {
