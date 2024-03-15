@@ -1,4 +1,4 @@
-import { omit, pick } from 'lodash';
+import { isEmpty, omit, omitBy, pick } from 'lodash';
 import { InferCreationAttributes, Op, Transaction } from 'sequelize';
 import { v4 as uuid } from 'uuid';
 
@@ -33,6 +33,7 @@ const duplicateCollectiveProfile = async (
   user: User,
   transaction: Transaction,
   values: Partial<InferCreationAttributes<Collective>> = {},
+  oldProfileValues: Partial<InferCreationAttributes<Collective>> = {},
 ) => {
   const hostAndParentFields = ['ParentCollectiveId', 'HostCollectiveId', 'isActive', 'approvedAt'];
   let newAccount;
@@ -82,7 +83,14 @@ const duplicateCollectiveProfile = async (
   // Record a link to the new profile in the original profile
   const duplicatedToCollectiveIds = (account.data?.duplicatedToCollectiveIds as number[]) || [];
   await account.update(
-    { data: { ...account.data, duplicatedToCollectiveIds: [newAccount.id, ...duplicatedToCollectiveIds] } },
+    {
+      ...oldProfileValues,
+      data: {
+        ...account.data,
+        ...oldProfileValues?.data,
+        duplicatedToCollectiveIds: [newAccount.id, ...duplicatedToCollectiveIds],
+      },
+    },
     { transaction },
   );
 
@@ -99,6 +107,8 @@ export const duplicateAccount = async (
     newName?: string;
     /** If the account has a new parent, set it here */
     newParent?: Collective;
+    /** An optional name to update the old account with */
+    oldName?: string;
     /** What data should be carried over */
     include?: DuplicateAccountDataType;
     /** Whether to connect both accounts */
@@ -108,7 +118,8 @@ export const duplicateAccount = async (
   } = {},
 ): Promise<Collective> => {
   const duplicateAccountInTransaction = async transaction => {
-    const newAccount = await duplicateCollectiveProfile(account, user, transaction, {
+    const oldProfileAttributes = omitBy({ name: options.oldName }, isEmpty);
+    const newProfileAttributes = {
       slug: options.newSlug,
       name: options.newName,
       ...(!options.newParent
@@ -119,7 +130,15 @@ export const duplicateAccount = async (
             isActive: options.newParent.isActive,
             approvedAt: options.newParent.approvedAt,
           }),
-    });
+    };
+
+    const newAccount = await duplicateCollectiveProfile(
+      account,
+      user,
+      transaction,
+      newProfileAttributes,
+      oldProfileAttributes,
+    );
 
     // ---- Associations ----
     // Admins

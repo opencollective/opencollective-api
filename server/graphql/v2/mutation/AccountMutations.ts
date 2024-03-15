@@ -73,6 +73,10 @@ const accountMutations = {
         type: GraphQLString,
         description: 'The new name for the duplicated account. Defaults to the same as the original account',
       },
+      oldName: {
+        type: GraphQLString,
+        description: 'Use this if you want to rename the original account',
+      },
       include: {
         type: GraphQLDuplicateAccountDataTypeInput,
         description: 'Which data should be copied when duplicating the account',
@@ -101,7 +105,11 @@ const accountMutations = {
         throw new ValidationFailed(`${account.type} accounts cannot be duplicated.`);
       }
 
-      return duplicateAccount(account, req.remoteUser, pick(args, ['newSlug', 'include', 'connect']));
+      return duplicateAccount(
+        account,
+        req.remoteUser,
+        pick(args, ['newSlug', 'newName', 'oldName', 'include', 'connect']),
+      );
     },
   },
   editAccountSetting: {
