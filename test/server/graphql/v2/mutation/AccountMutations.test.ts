@@ -4,14 +4,25 @@ import { createSandbox } from 'sinon';
 import speakeasy from 'speakeasy';
 
 import { activities as ACTIVITY, roles } from '../../../../../server/constants';
+import { CollectiveType } from '../../../../../server/constants/collectives';
 import FEATURE from '../../../../../server/constants/feature';
 import POLICIES from '../../../../../server/constants/policies';
+import MemberRoles from '../../../../../server/constants/roles';
 import { idEncode } from '../../../../../server/graphql/v2/identifiers';
 import emailLib from '../../../../../server/lib/email';
 import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
 import * as yubikeyOtp from '../../../../../server/lib/two-factor-authentication/yubikey-otp';
 import models from '../../../../../server/models';
-import { fakeCollective, fakeEvent, fakeHost, fakeProject, fakeUser } from '../../../../test-helpers/fake-data';
+import {
+  fakeCollective,
+  fakeEvent,
+  fakeHost,
+  fakeLocation,
+  fakeProject,
+  fakeTier,
+  fakeUser,
+  randStr,
+} from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB, waitForCondition } from '../../../../utils';
 
 const editSettingsMutation = gql`
@@ -71,31 +82,85 @@ const createWebAuthnRegistrationOptionsMutation = gql`
   }
 `;
 
+const duplicateAccountMutation = gql`
+  mutation DuplicateAccount(
+    $account: AccountReferenceInput!
+    $newSlug: String
+    $include: DuplicateAccountDataTypeInput
+    $connect: Boolean
+  ) {
+    duplicateAccount(account: $account, newSlug: $newSlug, include: $include, connect: $connect) {
+      id
+      legacyId
+      name
+      description
+      longDescription
+      slug
+      members {
+        nodes {
+          role
+          account {
+            id
+            slug
+          }
+        }
+      }
+    }
+  }
+`;
+
 describe('server/graphql/v2/mutation/AccountMutations', () => {
-  let adminUser, randomUser, hostAdminUser, backerUser, collective;
+  let adminUser, secondAdminUser, randomUser, hostAdminUser, backerUser, collective;
 
   before(async () => {
     await resetTestDB();
     adminUser = await fakeUser(null, { name: 'Admin Name' });
+    secondAdminUser = await fakeUser(null, { name: 'Admin Name 2' });
     randomUser = await fakeUser();
     backerUser = await fakeUser();
     hostAdminUser = await fakeUser();
     const host = await fakeHost({ admin: hostAdminUser });
-    collective = await fakeCollective({ admin: adminUser, HostCollectiveId: host.id });
+    collective = await fakeCollective({
+      admin: adminUser,
+      HostCollectiveId: host.id,
+      name: 'Bushwick',
+      slug: 'bushwick',
+      description: 'Doing stuff',
+      longDescription: 'Doing more stuff',
+      expensePolicy: 'Be reasonable',
+      contributionPolicy: 'Be generous',
+      currency: 'EUR',
+      website: 'https://opencollective.com',
+      countryISO: 'FR',
+      tags: ['mutual-aid', 'meetup'],
+    });
     await collective.addUserWithRole(backerUser, roles.BACKER);
 
     // Create some children (event + project)
     await Promise.all([
-      fakeEvent({ ParentCollectiveId: collective.id }),
-      fakeProject({ ParentCollectiveId: collective.id }),
+      fakeEvent({ ParentCollectiveId: collective.id, isActive: true }),
+      fakeProject({ ParentCollectiveId: collective.id, isActive: true }),
+      fakeProject({ ParentCollectiveId: collective.id, isActive: false }),
     ]);
-  });
 
-  beforeEach(async () => {
-    await collective.update({ settings: {} });
+    // Add some members
+    await Promise.all([
+      collective.addUserWithRole(secondAdminUser, roles.ADMIN),
+      collective.addUserWithRole(backerUser, roles.BACKER),
+    ]);
+
+    // Add some tiers
+    await fakeTier({ CollectiveId: collective.id, description: 'Tier 1 to be copied' });
+
+    // Add a location
+    await fakeLocation({ CollectiveId: collective.id });
   });
 
   describe('editAccountSetting', () => {
+    beforeEach(async () => {
+      await collective.update({ settings: {} });
+    });
+
     it('must be authenticated', async () => {
       const result = await graphqlQueryV2(editSettingsMutation, {
         account: { legacyId: collective.id },
@@ -506,7 +571,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       const children = editedAccount.childrenAccounts.nodes;
       expect(editedAccount.hostFeePercent).to.eq(9.99);
       expect(editedAccount.hostFeesStructure).to.eq('CUSTOM_FEE');
-      expect(children.length).to.eq(2);
+      expect(children.length).to.eq(3);
       children.forEach(child => {
         expect(child.hostFeePercent).to.eq(9.99);
         expect(child.hostFeesStructure).to.eq('CUSTOM_FEE');
@@ -942,6 +1007,166 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
           name: adminUser.collective.slug,
         },
       });
+    });
+  });
+
+  describe('duplicateAccount', () => {
+    it('must be authenticated', async () => {
+      const result = await graphqlQueryV2(duplicateAccountMutation, { account: { legacyId: collective.id } });
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('You need to be logged in to manage account.');
+    });
+
+    it('must be an admin of the collective to duplicate', async () => {
+      const result = await graphqlQueryV2(
+        duplicateAccountMutation,
+        { account: { legacyId: collective.id } },
+        randomUser,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('You need to be logged in as an Admin of the account to duplicate it.');
+    });
+
+    it('only works with certain types', async () => {
+      const vendor = await fakeCollective({ type: CollectiveType.VENDOR, admin: adminUser });
+      const result = await graphqlQueryV2(duplicateAccountMutation, { account: { legacyId: vendor.id } }, adminUser);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('VENDOR accounts cannot be duplicated.');
+    });
+
+    it('duplicates the account with the requested slug', async () => {
+      const newSlug = randStr();
+      const result = await graphqlQueryV2(
+        duplicateAccountMutation,
+        { account: { legacyId: collective.id }, newSlug },
+        adminUser,
+      );
+      expect(result.errors).to.not.exist;
+      expect(result.data.duplicateAccount.legacyId).to.not.equal(collective.id);
+      expect(result.data.duplicateAccount.slug).to.equal(newSlug);
+    });
+
+    it('duplicates the account with an auto-generated slug based on the existing one', async () => {
+      const result = await graphqlQueryV2(
+        duplicateAccountMutation,
+        { account: { legacyId: collective.id } },
+        adminUser,
+      );
+      expect(result.errors).to.not.exist;
+      expect(result.data.duplicateAccount.legacyId).to.not.equal(collective.id);
+      expect(result.data.duplicateAccount.slug).to.match(/^bushwick.*/);
+    });
+
+    it('duplicates the account and its basic information', async () => {
+      const result = await graphqlQueryV2(
+        duplicateAccountMutation,
+        { account: { legacyId: collective.id } },
+        adminUser,
+      );
+      expect(result.errors).to.not.exist;
+      const duplicate = await models.Collective.findByPk(result.data.duplicateAccount.legacyId);
+      expect(duplicate.dataValues).to.containSubset({
+        name: collective.name,
+        description: collective.description,
+        longDescription: collective.longDescription,
+        website: collective.website,
+        countryISO: collective.countryISO,
+        tags: collective.tags,
+        type: collective.type,
+        data: { duplicatedFromCollectiveId: collective.id },
+      });
+
+      // Admins should not be copied by default
+      const admins = await duplicate.getAdminUsers();
+      expect(admins).to.have.length(1); // Remote user should be carried over in any case
+      expect(admins[0].id).to.equal(adminUser.id);
+
+      // Tiers should not be copied by default
+      expect(await duplicate.getTiers()).to.be.empty;
+
+      // Location should always be copied
+      const location = await collective.getLocation();
+      const duplicateLocation = await duplicate.getLocation();
+      expect(duplicateLocation).to.exist;
+      expect(duplicateLocation.address).to.equal(location.address);
+      expect(duplicateLocation.country).to.equal(location.country);
+      expect(duplicateLocation.lat).to.equal(location.lat);
+      expect(duplicateLocation.long).to.equal(location.long);
+    });
+
+    it('connects the accounts', async () => {
+      const result = await graphqlQueryV2(
+        duplicateAccountMutation,
+        { account: { legacyId: collective.id }, connect: true },
+        adminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      const duplicate = await models.Collective.findByPk(result.data.duplicateAccount.legacyId);
+      const member = await models.Member.findOne({
+        where: {
+          role: MemberRoles.CONNECTED_COLLECTIVE,
+          MemberCollectiveId: collective.id,
+          CollectiveId: duplicate.id,
+        },
+      });
+
+      expect(member).to.exist;
+    });
+
+    it('duplicates the account and its requested associations', async () => {
+      const result = await graphqlQueryV2(
+        duplicateAccountMutation,
+        {
+          account: { legacyId: collective.id },
+          include: {
+            admins: true,
+            tiers: true,
+          },
+        },
+        adminUser,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      const duplicate = await models.Collective.findByPk(result.data.duplicateAccount.legacyId);
+      const admins = await duplicate.getAdminUsers();
+      expect(admins).to.have.length(2);
+      expect(admins.map(u => u.id)).to.include(adminUser.id);
+      expect(admins.map(u => u.id)).to.include(secondAdminUser.id);
+      const tiers = await duplicate.getTiers();
+      expect(tiers.map(t => t.description)).to.include('Tier 1 to be copied');
+    });
+
+    it('duplicates children events and projects', async () => {
+      const result = await graphqlQueryV2(
+        duplicateAccountMutation,
+        {
+          account: { legacyId: collective.id },
+          include: {
+            events: true,
+            projects: true,
+          },
+        },
+        adminUser,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      const duplicate = await models.Collective.findByPk(result.data.duplicateAccount.legacyId);
+      const newChildren = await duplicate.getChildren();
+      expect(newChildren).to.have.length(2);
+      expect(newChildren.map(c => c.type)).to.include(CollectiveType.EVENT);
+      expect(newChildren.map(c => c.type)).to.include(CollectiveType.PROJECT);
+      expect(newChildren.map(c => c.isActive)).to.deep.eq([false, false]); // We're not marking the projects as active by default to prevent bypassing the host process
+      const duplicatedEvent = newChildren.find(c => c.type === CollectiveType.EVENT);
+      const originalEventId = duplicatedEvent.data.duplicatedFromCollectiveId as number;
+      const originalEvent = await models.Collective.findByPk(originalEventId);
+
+      // The slug for duplicated event should be the same expect for the last part of each (random string)
+      expect(duplicatedEvent.slug).to.not.equal(originalEvent.slug);
+      const getSlugWithoutRandom = (slug: string) => slug.split('-').slice(0, -1).join('-');
+      expect(getSlugWithoutRandom(duplicatedEvent.slug)).to.equal(getSlugWithoutRandom(originalEvent.slug));
     });
   });
 });
