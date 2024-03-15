@@ -704,8 +704,13 @@ Order.stopActiveSubscriptions = async function (
       WHERE id IN (
         SELECT "Orders".id FROM "Orders"
         INNER JOIN "Subscriptions" ON "Subscriptions".id = "Orders"."SubscriptionId"
+        INNER JOIN "Collectives" c ON c.id = "Orders"."CollectiveId"
         WHERE "Orders"."CollectiveId" = :collectiveId
+        AND c."approvedAt" IS NOT NULL
         AND "Subscriptions"."isActive" IS TRUE
+        AND "Orders"."status" != :newStatus
+        AND "Orders"."deletedAt" IS NULL
+        AND "Subscriptions"."deletedAt" IS NULL
       )
     `,
     {

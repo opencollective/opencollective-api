@@ -224,7 +224,7 @@ const HostApplicationMutations = {
       },
       message: {
         type: GraphQLString,
-        description: 'An optional message to explain the reason for unhosting',
+        description: 'An optional HTML message to provide additional context to the action',
       },
       messageForContributors: {
         type: GraphQLString,

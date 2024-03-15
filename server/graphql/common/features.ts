@@ -4,7 +4,7 @@ import { QueryOptions } from 'sequelize';
 import { CollectiveType } from '../../constants/collectives';
 import FEATURE from '../../constants/feature';
 import FEATURE_STATUS from '../../constants/feature-status';
-import { hasFeature, isFeatureAllowedForCollectiveType } from '../../lib/allowed-features';
+import { hasFeature, isFeatureAllowedForCollectiveType, isFeatureBlockedForAccount } from '../../lib/allowed-features';
 import { isPastEvent } from '../../lib/collectivelib';
 import { Collective, sequelize } from '../../models';
 
@@ -38,7 +38,7 @@ const checkIsActiveIfExistsInDB = async (
   return checkIsActive(checkExistsInDB(query, queryOptions), fallback);
 };
 
-const checkReceiveFinancialContributions = async (collective, remoteUser) => {
+const checkReceiveFinancialContributions = async (collective, req) => {
   if (!collective.HostCollectiveId || !collective.approvedAt) {
     return FEATURE_STATUS.DISABLED;
   } else if (!collective.isActive) {
@@ -46,9 +46,15 @@ const checkReceiveFinancialContributions = async (collective, remoteUser) => {
   } else if (
     collective.type === CollectiveType.EVENT &&
     isPastEvent(collective) &&
-    !remoteUser?.isAdminOfCollectiveOrHost(collective)
+    !req.remoteUser?.isAdminOfCollectiveOrHost(collective)
   ) {
     return FEATURE_STATUS.UNSUPPORTED;
+  }
+
+  // Check if contributions are disabled at the host level
+  const host = await req.loaders.Collective.byId.load(collective.HostCollectiveId);
+  if (isFeatureBlockedForAccount(host, FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS)) {
+    return FEATURE_STATUS.DISABLED;
   }
 
   // If `/donate` is disabled, the collective needs to have at least one active tier
@@ -182,7 +188,7 @@ export const getFeatureStatusResolver =
       case FEATURE.ABOUT:
         return collective.longDescription ? FEATURE_STATUS.ACTIVE : FEATURE_STATUS.AVAILABLE;
       case FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS:
-        return checkReceiveFinancialContributions(collective, req.remoteUser);
+        return checkReceiveFinancialContributions(collective, req);
       case FEATURE.RECEIVE_EXPENSES:
         return checkIsActiveIfExistsInDB(
           `SELECT 1 FROM "Expenses" WHERE "CollectiveId" = :CollectiveId AND "deletedAt" IS NULL`,
