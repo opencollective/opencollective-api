@@ -93,15 +93,7 @@ const accountMutations = {
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
       if (!req.remoteUser.isAdminOfCollective(account)) {
         throw new Forbidden('You need to be logged in as an Admin of the account to duplicate it.');
-      } else if (
-        ![
-          CollectiveType.COLLECTIVE,
-          CollectiveType.EVENT,
-          CollectiveType.ORGANIZATION,
-          CollectiveType.PROJECT,
-          CollectiveType.FUND,
-        ].includes(account.type)
-      ) {
+      } else if (![CollectiveType.COLLECTIVE, CollectiveType.FUND].includes(account.type)) {
         throw new ValidationFailed(`${account.type} accounts cannot be duplicated.`);
       }
 
