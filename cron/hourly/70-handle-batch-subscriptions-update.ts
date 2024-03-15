@@ -10,9 +10,14 @@ import FEATURE from '../../server/constants/feature';
 import OrderStatuses from '../../server/constants/order-status';
 import logger from '../../server/lib/logger';
 import { reportErrorToSentry } from '../../server/lib/sentry';
-import { sleep } from '../../server/lib/utils';
+import { parseToBoolean, sleep } from '../../server/lib/utils';
 import models, { Collective, Op } from '../../server/models';
 import { OrderModelInterface } from '../../server/models/Order';
+
+if (parseToBoolean(process.env.SKIP_BATCH_SUBSCRIPTION_UPDATE)) {
+  console.log('Skipping because SKIP_BATCH_SUBSCRIPTION_UPDATE is set.');
+  process.exit();
+}
 
 /**
  * If the collective has been archived, its HostCollectiveId has been set to null.
