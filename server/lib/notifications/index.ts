@@ -39,7 +39,10 @@ const publishToWebhook = async (notification: Notification, activity: Activity) 
   }
 };
 
-const dispatch = async (activity: Activity, { onlyChannels = null, force = false } = {}) => {
+const dispatch = async (
+  activity: Activity,
+  { onlyChannels = null, force = false, onlyAwaitEmails = false } = {},
+): Promise<void> => {
   const shouldNotifyChannel = channel => !onlyChannels || onlyChannels.includes(channel);
 
   if (shouldNotifyChannel(channels.EMAIL)) {
@@ -52,51 +55,59 @@ const dispatch = async (activity: Activity, { onlyChannels = null, force = false
     }
   }
 
-  // process notification entries for slack, twitter, etc...
-  if (!activity.CollectiveId || !activity.type) {
-    return;
-  }
+  const dispatchToOtherChannels = async () => {
+    // process notification entries for slack, twitter, etc...
+    if (!activity.CollectiveId || !activity.type) {
+      return;
+    }
 
-  if (shouldSkipActivity(activity) && !force) {
-    return;
-  }
+    if (shouldSkipActivity(activity) && !force) {
+      return;
+    }
 
-  // Some activities involve multiple collectives (eg. collective applying to a host)
-  const collectiveIdsToNotify = [activity.CollectiveId];
-  if (activity.type === activities.COLLECTIVE_APPLY) {
-    collectiveIdsToNotify.push(activity.data.host.id);
-  }
+    // Some activities involve multiple collectives (eg. collective applying to a host)
+    const collectiveIdsToNotify = [activity.CollectiveId];
+    if (activity.type === activities.COLLECTIVE_APPLY) {
+      collectiveIdsToNotify.push(activity.data.host.id);
+    }
 
-  const where = {
-    CollectiveId: collectiveIdsToNotify,
-    type: [ActivityTypes.ACTIVITY_ALL, activity.type],
-    active: true,
+    const where = {
+      CollectiveId: collectiveIdsToNotify,
+      type: [ActivityTypes.ACTIVITY_ALL, activity.type],
+      active: true,
+    };
+
+    const notificationChannels = await Notification.findAll({ where });
+    return Promise.all(
+      notificationChannels.map(async notifConfig => {
+        if (!shouldNotifyChannel(notifConfig.channel)) {
+          return;
+        }
+
+        try {
+          if (notifConfig.channel === channels.SLACK) {
+            return await slackLib.postActivityOnPublicChannel(activity, notifConfig.webhookUrl);
+          } else if (notifConfig.channel === channels.TWITTER) {
+            return await twitter.tweetActivity(activity);
+          } else if (notifConfig.channel === channels.WEBHOOK) {
+            return await publishToWebhook(notifConfig, activity);
+          }
+        } catch (e) {
+          const stringifiedError =
+            e instanceof AxiosError ? `${e.response?.status} ${e.response?.statusText} ${e.config?.url}` : e;
+          reportErrorToSentry(e, {
+            extra: { activity, notifConfig, onlyChannels, force, stringifiedError },
+          });
+        }
+      }),
+    );
   };
 
-  const notificationChannels = await Notification.findAll({ where });
-  return Promise.all(
-    notificationChannels.map(async notifConfig => {
-      if (!shouldNotifyChannel(notifConfig.channel)) {
-        return;
-      }
-
-      try {
-        if (notifConfig.channel === channels.SLACK) {
-          return await slackLib.postActivityOnPublicChannel(activity, notifConfig.webhookUrl);
-        } else if (notifConfig.channel === channels.TWITTER) {
-          return await twitter.tweetActivity(activity);
-        } else if (notifConfig.channel === channels.WEBHOOK) {
-          return await publishToWebhook(notifConfig, activity);
-        }
-      } catch (e) {
-        const stringifiedError =
-          e instanceof AxiosError ? `${e.response?.status} ${e.response?.statusText} ${e.config?.url}` : e;
-        reportErrorToSentry(e, {
-          extra: { activity, notifConfig, onlyChannels, force, stringifiedError },
-        });
-      }
-    }),
-  );
+  if (onlyAwaitEmails) {
+    dispatchToOtherChannels();
+  } else {
+    await dispatchToOtherChannels();
+  }
 };
 
 export default dispatch;
