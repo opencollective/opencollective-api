@@ -112,7 +112,7 @@ export const GraphQLActivity = new GraphQLObjectType({
       type: GraphQLUpdate,
       description: 'The update related to this activity, if any',
       resolve: async (activity, _, req: express.Request): Promise<Record<string, unknown>> => {
-        const updateId = activity.data.UpdateId || activity.data.update?.id;
+        const updateId = activity.data?.UpdateId || activity.data?.update?.id;
         if (updateId) {
           return req.loaders.Update.byId.load(updateId);
         }
@@ -122,7 +122,7 @@ export const GraphQLActivity = new GraphQLObjectType({
       type: GraphQLConversation,
       description: 'The conversation related to this activity, if any',
       resolve: async (activity, _, req: express.Request): Promise<Record<string, unknown>> => {
-        const conversationId = activity.data.ConversationId || activity.data.conversation?.id;
+        const conversationId = activity.data?.ConversationId || activity.data?.conversation?.id;
         if (conversationId) {
           return req.loaders.Conversation.byId.load(conversationId);
         }
