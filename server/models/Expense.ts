@@ -1,4 +1,5 @@
 import { get, isEmpty, pick, sumBy } from 'lodash';
+import { isMoment } from 'moment';
 import {
   BelongsToGetAssociationMixin,
   BelongsToSetAssociationMixin,
@@ -470,7 +471,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
         sequelize.where(
           sequelize.literal(`COALESCE("Transaction"."clearedAt", "Transaction"."createdAt")`),
           Op.gte,
-          dateFrom,
+          isMoment(dateFrom) ? dateFrom.toDate() : dateFrom,
         ),
       );
     }
@@ -479,7 +480,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
         sequelize.where(
           sequelize.literal(`COALESCE("Transaction"."clearedAt", "Transaction"."createdAt")`),
           Op.lte,
-          dateTo,
+          isMoment(dateTo) ? dateTo.toDate() : dateTo,
         ),
       );
     }
@@ -537,7 +538,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
         sequelize.where(
           sequelize.literal(`COALESCE("Transaction"."clearedAt", "Transaction"."createdAt")`),
           Op.gte,
-          dateFrom,
+          isMoment(dateFrom) ? dateFrom.toDate() : dateFrom,
         ),
       );
     }
@@ -546,7 +547,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
         sequelize.where(
           sequelize.literal(`COALESCE("Transaction"."clearedAt", "Transaction"."createdAt")`),
           Op.lte,
-          dateTo,
+          isMoment(dateTo) ? dateTo.toDate() : dateTo,
         ),
       );
     }
