@@ -53,7 +53,7 @@
     "@superfaceai/passport-twitter-oauth2": "1.2.4",
     "argparse": "2.0.1",
     "async-mutex": "0.5.0",
-    "axios": "1.6.7",
+    "axios": "1.6.8",
     "babel-plugin-add-module-exports": "1.0.4",
     "bayes": "1.0.0",
     "bcrypt": "5.1.1",
