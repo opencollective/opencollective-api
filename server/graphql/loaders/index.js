@@ -162,11 +162,18 @@ export const loaders = req => {
 
   context.loaders.Collective.currentCollectiveBalance = new DataLoader(collectiveIds =>
     sequelize
-      .query(`SELECT * FROM "CurrentCollectiveBalance" WHERE "CollectiveId" IN (:collectiveIds)`, {
-        replacements: { collectiveIds },
-        type: sequelize.QueryTypes.SELECT,
-        raw: true,
-      })
+      .query(
+        `SELECT ccb.*
+         FROM "CurrentCollectiveBalance" ccb
+         INNER JOIN "Collectives" c ON ccb."CollectiveId" = c."id"
+         AND COALESCE(TRIM('"' FROM (c."settings"->'budget'->'version')::text), 'v2') = 'v2'
+         WHERE ccb."CollectiveId" IN (:collectiveIds)`,
+        {
+          replacements: { collectiveIds },
+          type: sequelize.QueryTypes.SELECT,
+          raw: true,
+        },
+      )
       .then(results => sortResults(collectiveIds, Object.values(results), 'CollectiveId')),
   );
 

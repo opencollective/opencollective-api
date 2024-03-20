@@ -13,11 +13,11 @@ const GraphQLTransactionsGroup = new GraphQLObjectType({
   description:
     'EXPERIMENTAL (this may change or be deleted): Transaction amounts grouped by type, kind, isRefund, isHost, expenseType',
   fields: () => ({
-    amount: { type: GraphQLAmount },
     netAmount: { type: GraphQLAmount },
-    platformFees: { type: GraphQLAmount },
-    paymentProcessorFees: { type: GraphQLAmount },
-    hostFees: { type: GraphQLAmount },
+    amount: { type: GraphQLAmount },
+    platformFee: { type: GraphQLAmount },
+    paymentProcessorFee: { type: GraphQLAmount },
+    hostFee: { type: GraphQLAmount },
     taxAmount: { type: GraphQLAmount },
     type: { type: GraphQLTransactionType },
     kind: { type: GraphQLTransactionKind },
@@ -51,9 +51,6 @@ const GraphQLHostTransactionReportNodes = new GraphQLObjectType({
   fields: () => ({
     date: { type: new GraphQLNonNull(GraphQLDateTime) },
     managedFunds: {
-      type: new GraphQLNonNull(GraphQLTransactionsReport),
-    },
-    managedInactiveFunds: {
       type: new GraphQLNonNull(GraphQLTransactionsReport),
     },
     operationalFunds: {

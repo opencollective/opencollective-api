@@ -53,9 +53,10 @@ module.exports = {
       CREATE INDEX CONCURRENTLY IF NOT EXISTS "host_monthly_transactions__host_collective_id" ON "HostMonthlyTransactions"("HostCollectiveId");
     `);
 
-    // Add index on (id, type) for Expenses to speed up the join with Transactions, used in GraphQL resolver `host.transactionsReports`
     await queryInterface.sequelize.query(`
-      CREATE INDEX CONCURRENTLY IF NOT EXISTS "expenses__id_type" ON "Expenses"("id", "type");
+      CREATE INDEX CONCURRENTLY IF NOT EXISTS "transactions__host_collective_id_created_at_regular"
+      ON "Transactions"("HostCollectiveId", "createdAt" DESC)
+      WHERE "deletedAt" IS NULL
     `);
   },
 
@@ -64,7 +65,7 @@ module.exports = {
       DROP INDEX CONCURRENTLY IF EXISTS "host_monthly_transactions__host_collective_id";
     `);
     await queryInterface.sequelize.query(`
-      DROP INDEX CONCURRENTLY IF EXISTS "expenses__id_type";
+      DROP INDEX CONCURRENTLY IF EXISTS "transactions__host_collective_id_created_at_regular";
     `);
     await queryInterface.sequelize.query(`
       DROP MATERIALIZED VIEW "HostMonthlyTransactions";

@@ -25,6 +25,7 @@ import { FEATURE, hasFeature } from '../../../lib/allowed-features';
 import { getPolicy } from '../../../lib/policies';
 import { buildSearchConditions } from '../../../lib/search';
 import sequelize from '../../../lib/sequelize';
+import { getReportNodesFromQueryResult } from '../../../lib/transaction-reports';
 import { ifStr, parseToBoolean } from '../../../lib/utils';
 import models, { Collective, Op } from '../../../models';
 import Agreement from '../../../models/Agreement';
@@ -189,7 +190,7 @@ export const GraphQLHost = new GraphQLObjectType({
           return host.getPlan();
         },
       },
-      transactionsReports: {
+      hostTransactionsReports: {
         type: GraphQLHostTransactionReports,
         args: {
           timeUnit: {
@@ -207,6 +208,20 @@ export const GraphQLHost = new GraphQLObjectType({
           if (args.timeUnit !== 'MONTH' && args.timeUnit !== 'QUARTER' && args.timeUnit !== 'YEAR') {
             throw new Error('Only monthly, quarterly and yearly reports are supported for now');
           }
+
+          const refreshedAtQuery = `
+            SELECT "refreshedAt" FROM "HostMonthlyTransactions" LIMIT 1;
+          `;
+
+          const refreshedAtResult = await sequelize.query(refreshedAtQuery, {
+            replacements: {
+              hostCollectiveId: host.id,
+            },
+            type: sequelize.QueryTypes.SELECT,
+            raw: true,
+          });
+
+          const refreshedAt = refreshedAtResult[0]?.refreshedAt;
 
           const query = `
             WITH
@@ -263,19 +278,9 @@ export const GraphQLHost = new GraphQLObjectType({
                     WHERE
                         t."deletedAt" IS NULL
                         AND t."HostCollectiveId" = :hostCollectiveId
-                        AND ROUND(
-                            EXTRACT(epoch FROM t."createdAt" AT TIME ZONE 'UTC') / 10
-                        ) > ROUND(
-                            EXTRACT(epoch FROM (
-                              SELECT "refreshedAt" FROM "HostMonthlyTransactions" WHERE "HostCollectiveId" = :hostCollectiveId LIMIT 1
-                            ) AT TIME ZONE 'UTC') / 10
-                        ) ${
-                          args.dateFrom
-                            ? `
-                        AND EXISTS (SELECT 1 FROM "HostMonthlyTransactions" WHERE "refreshedAt" < :toDate)`
-                            : ''
-                        }
-                       
+                        AND t."createdAt" > :refreshedAt
+                        ${args.dateTo ? 'AND t."createdAt" <= :dateTo' : ''}
+
                     GROUP BY
                         DATE_TRUNC(:timeUnit, t."createdAt" AT TIME ZONE 'UTC'),
                         t."HostCollectiveId",
@@ -324,6 +329,7 @@ export const GraphQLHost = new GraphQLObjectType({
                         "HostMonthlyTransactions"
                     WHERE
                         "HostCollectiveId" = :hostCollectiveId
+                        ${args.dateTo ? 'AND "date" <= :dateTo' : ''}
                 )
             SELECT
                 "date",
@@ -353,86 +359,30 @@ export const GraphQLHost = new GraphQLObjectType({
                 "date";
           `;
 
-          const result = await sequelize.query(query, {
+          const queryResult = await sequelize.query(query, {
             replacements: {
               hostCollectiveId: host.id,
               timeUnit: args.timeUnit,
-              toDate: args.dateTo,
+              dateTo: moment(args.dateTo).utc().toISOString(),
+              refreshedAt,
             },
             type: sequelize.QueryTypes.SELECT,
             raw: true,
           });
 
-          const nodesGroupedByPeriod = result.reduce((acc, row) => {
-            const date = moment.utc(row.date).toISOString();
-            if (!acc[date]) {
-              acc[date] = [];
-            }
-            acc[date].push(row);
-            return acc;
-          }, {});
-
-          let managedBalance = 0;
-          let operationalBalance = 0;
-
-          const hostCurrency = host.currency;
-
-          const nodes = Object.keys(nodesGroupedByPeriod)
-            .sort()
-            .map(date => {
-              const nodes = nodesGroupedByPeriod[date];
-              const groups = nodes.map(node => {
-                if (node.hostCurrency !== hostCurrency) {
-                  throw new Error('Multiple host currencies currently not supported in report');
-                }
-                // const fxRate = await getFxRate(node.hostCurrency, hostCurrency);
-                const fxRate = 1;
-                return {
-                  ...node,
-                  amount: { value: Math.round(node.amountInHostCurrency * fxRate), currency: hostCurrency },
-                  netAmount: { value: Math.round(node.netAmountInHostCurrency * fxRate), currency: hostCurrency },
-                };
-              });
-
-              const managedGroups = groups.filter(n => !n.isHost);
-
-              const operationalGroups = groups.filter(n => n.isHost);
-
-              const totalChangeManaged = managedGroups.reduce((acc, n) => acc + n.netAmount.value, 0);
-              const totalChangeOperational = operationalGroups.reduce((acc, n) => acc + n.netAmount.value, 0);
-
-              const node = {
-                date,
-                managedFunds: {
-                  startingBalance: { value: managedBalance, currency: hostCurrency },
-                  endingBalance: { value: managedBalance + totalChangeManaged, currency: hostCurrency },
-                  totalChange: { value: totalChangeManaged, currency: hostCurrency },
-                  groups: groups.filter(n => !n.isHost),
-                },
-                operationalFunds: {
-                  startingBalance: { value: operationalBalance, currency: hostCurrency },
-                  endingBalance: { value: operationalBalance + totalChangeOperational, currency: hostCurrency },
-                  totalChange: { value: totalChangeOperational, currency: hostCurrency },
-                  groups: groups.filter(n => n.isHost),
-                },
-              };
-              managedBalance = managedBalance + totalChangeManaged;
-              operationalBalance = operationalBalance + totalChangeOperational;
-              return node;
-            });
-
-          const filteredNodes = nodes.filter(n => {
-            return (
-              (!args.dateFrom || moment(n.date).isSameOrAfter(args.dateFrom)) &&
-              (!args.dateTo || moment(n.date).isSameOrBefore(args.dateTo))
-            );
+          const nodes = await getReportNodesFromQueryResult({
+            queryResult,
+            dateFrom: args.dateFrom,
+            dateTo: args.dateTo,
+            timeUnit: args.timeUnit,
+            currency: host.currency,
           });
 
           return {
             timeUnit: args.timeUnit,
             dateFrom: args.dateFrom,
             dateTo: args.dateTo,
-            nodes: filteredNodes.reverse(), // return most recent node first
+            nodes,
           };
         },
       },

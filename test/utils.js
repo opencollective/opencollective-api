@@ -65,7 +65,6 @@ export const resetTestDB = async ({ groupedTruncate = true } = {}) => {
     await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTagStats"`);
     await sequelize.query(`REFRESH MATERIALIZED VIEW "ExpenseTagStats"`);
     await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
-    await sequelize.query(`REFRESH MATERIALIZED VIEW "HostMonthlyTransactions"`);
   };
 
   try {
