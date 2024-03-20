@@ -2202,6 +2202,10 @@ class Collective extends Model<
       throw new Error(`This collective already is a host`);
     }
 
+    if (options?.message && options?.message.length > 3000) {
+      throw new Error('The message is too long');
+    }
+
     const member = {
       role: roles.HOST,
       CreatedByUserId: creatorUser ? creatorUser.id : hostCollective.CreatedByUserId,
