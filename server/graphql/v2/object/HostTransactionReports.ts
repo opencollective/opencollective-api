@@ -8,16 +8,16 @@ import { getTimeSeriesFields } from '../interface/TimeSeries';
 
 import { GraphQLAmount } from './Amount';
 
-const GraphQLTransactionsGroup = new GraphQLObjectType({
-  name: 'TransactionGroup',
+const GraphQLTransactionsAmountGroup = new GraphQLObjectType({
+  name: 'TransactionsAmountGroup',
   description:
     'EXPERIMENTAL (this may change or be deleted): Transaction amounts grouped by type, kind, isRefund, isHost, expenseType',
   fields: () => ({
-    amount: { type: GraphQLAmount },
     netAmount: { type: GraphQLAmount },
-    platformFees: { type: GraphQLAmount },
-    paymentProcessorFees: { type: GraphQLAmount },
-    hostFees: { type: GraphQLAmount },
+    amount: { type: GraphQLAmount },
+    platformFee: { type: GraphQLAmount },
+    paymentProcessorFee: { type: GraphQLAmount },
+    hostFee: { type: GraphQLAmount },
     taxAmount: { type: GraphQLAmount },
     type: { type: GraphQLTransactionType },
     kind: { type: GraphQLTransactionKind },
@@ -41,7 +41,7 @@ const GraphQLTransactionsReport = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLAmount),
     },
     groups: {
-      type: new GraphQLNonNull(new GraphQLList(GraphQLTransactionsGroup)),
+      type: new GraphQLNonNull(new GraphQLList(GraphQLTransactionsAmountGroup)),
     },
   }),
 });
@@ -51,9 +51,6 @@ const GraphQLHostTransactionReportNodes = new GraphQLObjectType({
   fields: () => ({
     date: { type: new GraphQLNonNull(GraphQLDateTime) },
     managedFunds: {
-      type: new GraphQLNonNull(GraphQLTransactionsReport),
-    },
-    managedInactiveFunds: {
       type: new GraphQLNonNull(GraphQLTransactionsReport),
     },
     operationalFunds: {

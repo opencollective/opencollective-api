@@ -88,7 +88,7 @@ const addFakeDataToAccount = async (account): Promise<void> => {
 /** Generate base data for the test. Remember to update the DB snapshot if you touch this function.  */
 const generateTestData = async () => {
   // Make sure we're on a fresh DB
-  await resetTestDB();
+  await resetTestDB({ groupedTruncate: false });
 
   // Create noise data to make sure merge tools don't affect others data
   await addFakeDataToAccount(await Faker.fakeCollective({ slug: 'noise-collective' }));
