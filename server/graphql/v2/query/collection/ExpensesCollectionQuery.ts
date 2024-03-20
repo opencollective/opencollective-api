@@ -130,6 +130,9 @@ export const ExpensesCollectionQueryArgs = {
     type: GraphQLExpenseType,
     description: 'Use this field to filter expenses on their type (RECEIPT/INVOICE)',
   },
+  types: {
+    type: new GraphQLList(GraphQLExpenseType),
+  },
   tags: {
     type: new GraphQLList(GraphQLString),
     description: 'Only expenses that match these tags',
@@ -294,7 +297,12 @@ export const ExpensesCollectionQueryResolver = async (
   // Add filters
   if (args.type) {
     where['type'] = args.type;
+  } else if (args.types && args.types.length > 0) {
+    where['type'] = {
+      [Op.in]: args.types,
+    };
   }
+
   if (args.tag || args.tags) {
     where['tags'] = { [Op.contains]: args.tag || args.tags };
   } else if (args.tag === null || args.tags === null) {
