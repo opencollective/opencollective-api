@@ -284,7 +284,8 @@ const orderMutations = {
       // Check 2FA
       await twoFactorAuthLib.enforceForAccount(req, order.fromCollective, { onlyAskOnLogin: true });
 
-      await order.update({ status: OrderStatuses.CANCELLED });
+      const previousStatus = order.status;
+      await order.update({ status: OrderStatuses.CANCELLED, data: { ...order.data, previousStatus } });
       if (order.Subscription?.isActive) {
         await order.Subscription.deactivate();
       }
@@ -306,6 +307,7 @@ const orderMutations = {
           reasonCode: args.reasonCode,
           order: order.info,
           tier: order.Tier?.info,
+          previousStatus,
         },
       });
 
