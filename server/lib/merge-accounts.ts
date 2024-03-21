@@ -151,6 +151,7 @@ const collectiveFieldsConfig: CollectiveFieldsConfig = {
   hostApplicationsCreated: { model: models.HostApplication, field: 'CollectiveId' },
   hostedAgreements: { model: models.Agreement, field: 'HostCollectiveId' },
   hostedCollectives: { model: models.Collective, field: 'HostCollectiveId' },
+  hostedPaypalProducts: { model: models.PaypalProduct, field: 'HostCollectiveId' },
   hostedVirtualCardRequests: { model: models.VirtualCardRequest, field: 'HostCollectiveId' },
   legalDocuments: { model: models.LegalDocument, field: 'CollectiveId', getIdsToIgnore: getLegalDocumentsToIgnore },
   location: { model: models.Location, field: 'CollectiveId' },
