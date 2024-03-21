@@ -84,6 +84,8 @@ enum ActivityTypes {
   SUBSCRIPTION_ACTIVATED = 'subscription.activated',
   SUBSCRIPTION_CANCELED = 'subscription.canceled',
   SUBSCRIPTION_PAUSED = 'subscription.paused',
+  SUBSCRIPTION_RESUMED = 'subscription.resumed',
+  SUBSCRIPTION_READY_TO_BE_RESUMED = 'subscription.ready.to.be.resumed',
   TICKET_CONFIRMED = 'ticket.confirmed',
   ORDER_CANCELED_ARCHIVED_COLLECTIVE = 'order.canceled.archived.collective',
   ORDER_PENDING = 'order.pending',
@@ -241,6 +243,7 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
     ActivityTypes.SUBSCRIPTION_ACTIVATED,
     ActivityTypes.SUBSCRIPTION_CANCELED,
     ActivityTypes.SUBSCRIPTION_PAUSED,
+    ActivityTypes.SUBSCRIPTION_RESUMED,
     ActivityTypes.SUBSCRIPTION_CONFIRMED,
   ],
   [ActivityClasses.ACTIVITIES_UPDATES]: [

@@ -81,7 +81,7 @@ export const updatePaymentMethodForSubscription = async (
   }
 
   // Order changes
-  const newStatus = order.status === OrderStatus.ERROR ? OrderStatus.ACTIVE : order.status;
+  const newStatus = [OrderStatus.ERROR, OrderStatus.PAUSED].includes(order.status) ? OrderStatus.ACTIVE : order.status;
   const newOrderData = { PaymentMethodId: newPaymentMethod.id, status: newStatus };
 
   // Subscription changes

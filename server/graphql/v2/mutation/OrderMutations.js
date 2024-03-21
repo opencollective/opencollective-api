@@ -27,6 +27,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/
 import { purgeAllCachesForAccount } from '../../../lib/cache';
 import { checkCaptcha } from '../../../lib/check-captcha';
 import logger from '../../../lib/logger';
+import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../../../lib/sanitize-html';
 import { checkGuestContribution, checkOrdersLimit } from '../../../lib/security/limit';
 import { orderFraudProtection } from '../../../lib/security/order';
 import { reportErrorToSentry } from '../../../lib/sentry';
@@ -77,6 +78,7 @@ import {
   GraphQLPaymentMethodReferenceInput,
 } from '../input/PaymentMethodReferenceInput';
 import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput';
+import { GraphQLAccount } from '../interface/Account';
 import { GraphQLOrder } from '../object/Order';
 import { canEdit, canMarkAsExpired, canMarkAsPaid } from '../object/OrderPermissions';
 import GraphQLPaymentIntent from '../object/PaymentIntent';
@@ -282,8 +284,11 @@ const orderMutations = {
       // Check 2FA
       await twoFactorAuthLib.enforceForAccount(req, order.fromCollective, { onlyAskOnLogin: true });
 
-      await order.update({ status: OrderStatuses.CANCELLED });
-      await order.Subscription.deactivate();
+      const previousStatus = order.status;
+      await order.update({ status: OrderStatuses.CANCELLED, data: { ...order.data, previousStatus } });
+      if (order.Subscription?.isActive) {
+        await order.Subscription.deactivate();
+      }
 
       await models.Activity.create({
         type: activities.SUBSCRIPTION_CANCELED,
@@ -302,6 +307,7 @@ const orderMutations = {
           reasonCode: args.reasonCode,
           order: order.info,
           tier: order.Tier?.info,
+          previousStatus,
         },
       });
 
@@ -338,9 +344,9 @@ const orderMutations = {
 
       const decodedId = idDecode(args.order.id, IDENTIFIER_TYPES.ORDER);
       const haveDetailsChanged = !isUndefined(args.amount) || !isUndefined(args.tier);
-      const hasPaymentMethodChanged = !isUndefined(args.paymentMethod);
+      const hasPaymentMethodChanged = !isUndefined(args.paymentMethod) || Boolean(args.paypalSubscriptionId);
 
-      const order = await models.Order.findOne({
+      let order = await models.Order.findOne({
         where: { id: decodedId },
         include: [
           { model: models.Subscription, required: true },
@@ -355,25 +361,27 @@ const orderMutations = {
         throw new ValidationFailed('This order does not seem to exist');
       } else if (!req.remoteUser.isAdminOfCollective(order.fromCollective) && !req.remoteUser.isRoot()) {
         throw new Unauthorized("You don't have permission to update this order");
-      } else if (!order.Subscription.isActive) {
+      } else if (!order.Subscription.isActive && order.status !== OrderStatuses.PAUSED) {
         throw new Error('Order must be active to be updated');
-      } else if (order.status === OrderStatuses.PAUSED) {
-        throw new Error('Paused orders cannot be updated');
       } else if (args.paypalSubscriptionId && args.paymentMethod) {
         throw new Error('paypalSubscriptionId and paymentMethod are mutually exclusive');
-      } else if (haveDetailsChanged && hasPaymentMethodChanged) {
-        // There's no transaction/rollback strategy if updating the payment method fails
+      } else if (haveDetailsChanged && !isUndefined(args.paymentMethod)) {
+        // For non-paypal contributions, there's no transaction/rollback strategy if updating the payment method fails
         // after updating the order. We could end up with partially migrated subscriptions
         // if we allow changing both at the same time.
         throw new Error(
           'Amount and payment method cannot be updated at the same time, please update one after the other',
         );
+      } else if (order.status === OrderStatuses.PAUSED && order.data?.needsAsyncDeactivation) {
+        throw new Error('This order is currently being synchronized, please try again later');
       }
 
       // Check 2FA
       await twoFactorAuthLib.enforceForAccount(req, order.fromCollective, { onlyAskOnLogin: true });
 
       let previousOrderValues, previousSubscriptionValues;
+
+      // Update details (eg. amount, tier)
       if (haveDetailsChanged) {
         // Update details (eg. amount, tier)
         const tier =
@@ -403,22 +411,29 @@ const orderMutations = {
         ));
       }
 
-      if (args.paypalSubscriptionId) {
-        // Update from PayPal subscription ID
-        try {
-          return updateSubscriptionWithPaypal(req.remoteUser, order, args.paypalSubscriptionId);
-        } catch (error) {
-          // Restore original subscription if it was modified
-          if (haveDetailsChanged) {
-            await updateOrderSubscription(order, previousOrderValues, previousSubscriptionValues);
-          }
+      if (hasPaymentMethodChanged) {
+        if (args.paypalSubscriptionId) {
+          // Update from PayPal subscription ID
+          try {
+            order = await updateSubscriptionWithPaypal(req.remoteUser, order, args.paypalSubscriptionId);
+          } catch (error) {
+            // Restore original subscription if it was modified
+            if (haveDetailsChanged) {
+              await updateOrderSubscription(order, previousOrderValues, previousSubscriptionValues);
+            }
 
-          throw error;
+            throw error;
+          }
+        } else {
+          // Update payment method
+          const newPaymentMethod = await fetchPaymentMethodWithReference(args.paymentMethod);
+          order = await updatePaymentMethodForSubscription(req.remoteUser, order, newPaymentMethod);
         }
-      } else if (hasPaymentMethodChanged) {
-        // Update payment method
-        const newPaymentMethod = await fetchPaymentMethodWithReference(args.paymentMethod);
-        return updatePaymentMethodForSubscription(req.remoteUser, order, newPaymentMethod);
+
+        // Unpause contribution
+        if (order.status === OrderStatuses.PAUSED) {
+          await order.unpause(req.remoteUser, { UserTokenId: req.userToken?.id });
+        }
       }
 
       return order;
@@ -1251,6 +1266,45 @@ const orderMutations = {
       });
 
       return order;
+    },
+  },
+  startResumeOrdersProcess: {
+    type: new GraphQLNonNull(GraphQLAccount),
+    description: 'Starts or resumes the process of notifying contributors for their PAUSED contributions',
+    args: {
+      account: {
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+        description: 'The account to start/resume the process for',
+      },
+      message: {
+        type: GraphQLString,
+        description: 'An optional message to send to contributors',
+      },
+    },
+    async resolve(_, args, req) {
+      checkRemoteUserCanUseOrders(req);
+
+      const collective = await fetchAccountWithReference(args.account, { throwIfMissing: true });
+
+      if (!req.remoteUser.isAdminOfCollective(collective)) {
+        throw new Unauthorized('Only collective admins can start/resume the orders process');
+      } else if (collective.ParentCollectiveId) {
+        throw new ValidationFailed('The Resume Contributions process can only be started from the root Collective');
+      } else if (!collective.HostCollectiveId || !collective.approvedAt) {
+        throw new ValidationFailed('The collective is not active');
+      } else if (collective.data?.resumeContributionsStartedAt) {
+        throw new ValidationFailed('The process has already been started');
+      }
+
+      // We're adding a flag to the collective to indicate that the process has started. The process itself is
+      // handled by a cron job that will send the emails to the contributors.
+      return collective.update({
+        data: {
+          ...collective.data,
+          resumeContributionsMessage: args.message && sanitizeHTML(args.message, optsSanitizeHtmlForSimplified),
+          resumeContributionsStartedAt: new Date(),
+        },
+      });
     },
   },
 };

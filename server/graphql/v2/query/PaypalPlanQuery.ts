@@ -9,6 +9,7 @@ import { GraphQLContributionFrequency } from '../enum';
 import { getIntervalFromContributionFrequency } from '../enum/ContributionFrequency';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/AmountInput';
+import { fetchOrderWithReference, GraphQLOrderReferenceInput } from '../input/OrderReferenceInput';
 import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput';
 
 const GraphQLPaypalPlan = new GraphQLObjectType({
@@ -35,6 +36,10 @@ const PaypalPlanQuery = {
     frequency: {
       type: new GraphQLNonNull(GraphQLContributionFrequency),
     },
+    order: {
+      type: GraphQLOrderReferenceInput,
+      description: 'The order for which the plan is created, if any',
+    },
     tier: {
       type: GraphQLTierReferenceInput,
       description: 'The tier you are contributing to',
@@ -58,9 +63,20 @@ const PaypalPlanQuery = {
 
     const tier =
       args.tier && <Tier>await fetchTierWithReference(args.tier, { loaders: req.loaders, throwIfMissing: true });
-    const expectedCurrency = tier?.currency || collective.currency;
-    const amount = getValueInCentsFromAmountInput(args.amount, { expectedCurrency, allowNilCurrency: false });
+    const order = args.order && (await fetchOrderWithReference(args.order, { throwIfMissing: true }));
+    if (tier && tier.CollectiveId !== collective.id) {
+      throw new Error('The tier does not belong to the account');
+    } else if (order && order.CollectiveId !== collective.id) {
+      throw new Error('The order does not belong to the account');
+    }
+
+    const allowedCurrencies = [collective.currency, tier?.currency, order?.currency].filter(Boolean);
+    const amount = getValueInCentsFromAmountInput(args.amount, { allowNilCurrency: false });
     const currency = args.amount.currency;
+    if (!allowedCurrencies.includes(currency)) {
+      throw new Error(`This currency is not allowed for PayPal, must be one of: ${allowedCurrencies.join(', ')}`);
+    }
+
     const host = await collective.getHostCollective({ loaders: req.loaders });
     return getOrCreatePlan(host, collective, interval, amount, currency, tier);
   },

@@ -1,0 +1,65 @@
+{{#unless nbRemindersLeft}}
+Subject: Final reminder: Your contribution to {{{collective.name}}} is ready to be resumed!
+{{else if reminder}}
+Subject: Reminder: Your contribution to {{{collective.name}}} is ready to be resumed!
+{{else}}
+Subject: Your contribution to {{{collective.name}}} is ready to be resumed!
+{{/unless}}
+
+{{> header}}
+
+<p>{{> greeting}}</p>
+
+<p>
+  We're happy to let you know that your recurring contribution to {{>linkCollective collective=collective}} for
+  {{currency subscription.amount currency=subscription.currency}}/{{subscription.interval}} is ready to be resumed!
+</p>
+
+{{#if messageForContributors}}
+  {{#if (isEqual messageSource "COLLECTIVE")}}
+    <p>Here is the message from {{collective.name}}:</p>
+    <blockquote style="color: #6a737d;font-size: 14px; text-align: left;padding: 0.5em 0.75em;margin: 1em 0;border-left: 3px solid #e4e4e4;">{{{messageForContributors}}}</blockquote>
+  {{else if (isEqual messageSource "HOST")}}
+    <p>Here is the message from {{host.name}}:</p>
+    <blockquote style="color: #6a737d;font-size: 14px; text-align: left;padding: 0.5em 0.75em;margin: 1em 0;border-left: 3px solid #e4e4e4;">{{{messageForContributors}}}</blockquote>
+  {{else if (isEqual messageSource "PLATFORM")}}
+    <p>{{{messageForContributors}}}</p>
+  {{/if}}
+{{/if}}
+
+
+<div style="text-align: center; margin: 2em 0;">
+  <a href="{{config.host.website}}/dashboard/{{fromCollective.slug}}/outgoing-contributions?status=PAUSED&resumeOrderId={{order.id}}" class="btn blue" style="padding: 1em 2em;">
+    <div style="font-size: 17px;">Resume my Contribution</div>
+  </a>
+</div>
+
+{{#if (isEqual nbRemindersLeft 1)}}
+<p>
+  We will send you one final reminder in case you forget to resume your contribution. If you don't want to receive it, you can cancel your recurring contribution  
+  from your <a href="{{config.host.website}}/dashboard/{{fromCollective.slug}}/outgoing-contributions?status=PAUSED">Dashboard</a>. If you don't take any action, your contribution will be automatically marked as cancelled.
+</p>
+{{else if nbRemindersLeft}}
+<p>
+  We will send you {{nbRemindersLeft}} more reminders in case you forget to resume your contribution. If you don't want to receive them, you can cancel your recurring contribution  
+  from your <a href="{{config.host.website}}/dashboard/{{fromCollective.slug}}/outgoing-contributions?status=PAUSED">Dashboard</a>. If you don't take any action, your contribution will be automatically marked as cancelled.
+</p>
+{{else}}
+<p>
+  This is the last reminder we're sending you. If you don't want to resume your contribution, you can cancel it from your <a href="{{config.host.website}}/dashboard/{{fromCollective.slug}}/outgoing-contributions?status=PAUSED">Dashboard</a>.
+</p>
+{{/if}}
+
+<p>
+  Warmly,
+  <br>
+  {{#if (isEqual messageSource "COLLECTIVE")}}
+    – {{collective.name}}
+  {{else if (isEqual messageSource "HOST")}}
+    – {{host.name}}
+  {{else if (isEqual messageSource "PLATFORM")}}
+    - Open Collective
+  {{/if}}
+</p>
+
+{{> footer}}

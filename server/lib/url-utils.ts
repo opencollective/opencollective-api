@@ -1,13 +1,7 @@
 import config from 'config';
 
-import { CollectiveType } from '../constants/collectives';
-
 export const getEditRecurringContributionsUrl = collective => {
-  if (collective.type === CollectiveType.USER) {
-    return `${config.host.website}/manage-contributions`;
-  } else {
-    return `${config.host.website}/${collective.slug}/manage-contributions`;
-  }
+  return `${config.host.website}/dashboard/${collective.slug}/outgoing-contributions?status=ACTIVE&status=ERROR&type=RECURRING`;
 };
 
 export const getHostname = url => {

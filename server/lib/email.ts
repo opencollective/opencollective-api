@@ -386,8 +386,8 @@ const isNotificationActive = async (template, data) => {
  * Given a template, recipient and data, generates email and sends it.
  */
 const generateEmailFromTemplateAndSend = async (
-  template,
-  recipient,
+  template: string,
+  recipient: string,
   data: SendMessageData,
   options: SendMessageOptions = {},
 ) => {

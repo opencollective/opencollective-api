@@ -255,7 +255,7 @@ describe('server/lib/recurring-contributions', () => {
         order.createdByUser.email,
         {
           lastAttempt: false,
-          subscriptionsLink: `${config.host.website}/manage-contributions`,
+          subscriptionsLink: `${config.host.website}/dashboard/${order.fromCollective.slug}/outgoing-contributions?status=ACTIVE&status=ERROR&type=RECURRING`,
         },
         {
           from: `"${order.collective.name}" <no-reply@opencollective.com>`,
@@ -277,7 +277,7 @@ describe('server/lib/recurring-contributions', () => {
         order.createdByUser.email,
         {
           lastAttempt: true,
-          subscriptionsLink: `${config.host.website}/manage-contributions`,
+          subscriptionsLink: `${config.host.website}/dashboard/${order.fromCollective.slug}/outgoing-contributions?status=ACTIVE&status=ERROR&type=RECURRING`,
         },
         {
           from: `"${order.collective.name}" <no-reply@opencollective.com>`,
