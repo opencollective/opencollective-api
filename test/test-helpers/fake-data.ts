@@ -988,10 +988,12 @@ export const fakeVirtualCard = async (virtualCardData: Partial<InferCreationAttr
 
 export const fakePaypalProduct = async (data: Partial<InferCreationAttributes<PaypalProduct>> = {}) => {
   const CollectiveId = data.CollectiveId || (await fakeCollective()).id;
+  const collective = await models.Collective.findByPk(CollectiveId);
   return models.PaypalProduct.create({
     id: randStr('PaypalProduct-'),
     ...data,
     CollectiveId,
+    HostCollectiveId: collective.HostCollectiveId,
   });
 };
 

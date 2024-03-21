@@ -167,7 +167,7 @@ export async function getOrCreatePlan(
   tier: Tier = null,
 ): Promise<PaypalPlan> {
   const product = await models.PaypalProduct.findOne({
-    where: { CollectiveId: collective.id, TierId: tier?.id || null },
+    where: { CollectiveId: collective.id, HostCollectiveId: host.id, TierId: tier?.id || null },
     include: [
       {
         association: 'plans',
@@ -209,6 +209,7 @@ export async function getOrCreatePlan(
         product: {
           id: <string>paypalProduct.id,
           CollectiveId: collective.id,
+          HostCollectiveId: host.id,
           TierId: tier?.id,
         },
       },
