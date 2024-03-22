@@ -720,6 +720,8 @@ export async function sumCollectivesTransactions(
     include,
     group,
     raw: true,
+    // Ordering by latest transaction date makes sure we aggregate amounts in the currency of the latest transaction (to avoid converting back and forth between currencies)
+    order: [[sequelize.literal('MAX("Transaction"."createdAt")'), 'DESC']],
   });
 
   for (const result of results) {
