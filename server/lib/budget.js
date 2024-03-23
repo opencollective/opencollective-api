@@ -481,9 +481,9 @@ export async function getTotalMoneyManagedAmount(
   currency = currency || host.currency;
 
   if (!collectiveIds) {
-    const collectives = await host.getHostedCollectives({ attributes: ['id'], raw: true });
-    collectiveIds = collectives.map(result => result.id);
-    collectiveIds.push(host.id);
+    const hostedCollectiveIds = (await host.getHostedCollectives({ attributes: ['id'], raw: true })).map(c => c.id);
+    const hostChildrenIds = (await host.getChildren({ attributes: ['id'], raw: true })).map(c => c.id);
+    collectiveIds = [...hostedCollectiveIds, ...hostChildrenIds, host.id];
   }
 
   if (collectiveIds.length === 0) {

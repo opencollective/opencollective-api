@@ -273,9 +273,9 @@ export async function getTotalMoneyManagedTimeSeries(
   { startDate = null, endDate = null, collectiveIds = null, timeUnit } = {},
 ) {
   if (!collectiveIds) {
-    const collectives = await host.getHostedCollectives({ attributes: ['id'], raw: true });
-    collectiveIds = collectives.map(result => result.id);
-    collectiveIds.push(host.id);
+    const hostedCollectiveIds = (await host.getHostedCollectives({ attributes: ['id'], raw: true })).map(c => c.id);
+    const hostChildrenIds = (await host.getChildren({ attributes: ['id'], raw: true })).map(c => c.id);
+    collectiveIds = [...hostedCollectiveIds, ...hostChildrenIds, host.id];
   }
 
   const results = await sequelize.query(
