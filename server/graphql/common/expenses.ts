@@ -1039,9 +1039,14 @@ const checkExpenseItems = (expenseType, items: ExpenseItem[] | Record<string, un
 
   // If expense is a receipt (not an invoice) then files must be attached
   if (expenseType === EXPENSE_TYPE.RECEIPT) {
-    const hasMissingFiles = items.some(a => !a.url);
-    if (hasMissingFiles) {
+    if (items.some(a => !a.url)) {
       throw new ValidationFailed('Some items are missing a file');
+    }
+  } else if (expenseType === EXPENSE_TYPE.INVOICE) {
+    if (items.some(a => a.url)) {
+      throw new ValidationFailed(
+        'Invoice items cannot have a file attached. To attach documentation. please use `attachedFiles` on the expense instead.',
+      );
     }
   }
 };
