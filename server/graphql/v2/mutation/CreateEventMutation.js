@@ -51,7 +51,7 @@ async function createEvent(_, args, req) {
   }
 
   const event = await models.Collective.create(eventData);
-  event.generateCollectiveCreatedActivity(req.remoteUser, req.userToken);
+  await event.generateCollectiveCreatedActivity(req.remoteUser, req.userToken);
   return event;
 }
 
