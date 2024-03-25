@@ -106,7 +106,7 @@
     "node-fetch": "2.7.0",
     "node-statsd": "0.1.1",
     "nodemailer": "6.9.13",
-    "p-filter": "2.1.0",
+    "p-filter": "4.1.0",
     "p-map": "4.0.0",
     "p-queue": "6.6.2",
     "p-throttle": "4.1.1",
