@@ -34,6 +34,7 @@ import { GraphQLActivityChannel } from '../enum/ActivityChannel';
 import { GraphQLActivityClassType } from '../enum/ActivityType';
 import { GraphQLExpenseDirection } from '../enum/ExpenseDirection';
 import { GraphQLExpenseType } from '../enum/ExpenseType';
+import { GraphQLLegalDocumentType } from '../enum/LegalDocumentType';
 import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
 import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType';
 import { GraphQLVirtualCardStatusEnum } from '../enum/VirtualCardStatus';
@@ -50,6 +51,7 @@ import { GraphQLAccountStats } from '../object/AccountStats';
 import { GraphQLActivity } from '../object/Activity';
 import { GraphQLActivitySubscription } from '../object/ActivitySubscription';
 import { GraphQLConnectedAccount } from '../object/ConnectedAccount';
+import { GraphQLLegalDocument } from '../object/LegalDocument';
 import { GraphQLLocation } from '../object/Location';
 import { GraphQLMemberInvitation } from '../object/MemberInvitation';
 import { GraphQLPaymentMethod } from '../object/PaymentMethod';
@@ -992,6 +994,33 @@ export const AccountFields = {
     },
     async resolve(collective, { limit }) {
       return models.Expense.getMostPopularExpenseTagsForCollective(collective.id, limit);
+    },
+  },
+  legalDocuments: {
+    type: new GraphQLList(GraphQLLegalDocument),
+    description: 'The legal documents associated with this account',
+    args: {
+      type: {
+        type: new GraphQLList(GraphQLLegalDocumentType),
+        description: 'Filter by type',
+      },
+    },
+    async resolve(collective, args, req) {
+      if (!req.remoteUser?.isAdminOfCollective(collective)) {
+        return null;
+      } else {
+        const where = { CollectiveId: collective.id };
+        if (args.type) {
+          where['type'] = args.type;
+        }
+        return models.LegalDocument.findAll({
+          where,
+          order: [
+            ['createdAt', 'DESC'],
+            ['id', 'DESC'],
+          ],
+        });
+      }
     },
   },
   payoutMethods: {

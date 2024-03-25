@@ -7,7 +7,7 @@ export const GraphQLLegalDocumentType = new GraphQLEnumType({
   description: 'Type for a required legal document',
   values: {
     [LEGAL_DOCUMENT_TYPE.US_TAX_FORM]: {
-      description: 'US tax form (W9)',
+      description: 'US tax form (W9, W8BEN, W8BEN-E)',
     },
   },
 });

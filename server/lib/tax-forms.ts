@@ -11,10 +11,10 @@ import {
   US_TAX_FORM_THRESHOLD_FOR_PAYPAL,
 } from '../constants/tax-form';
 import models, { Collective, Expense, Op, sequelize } from '../models';
-import {
+import LegalDocument, {
   LEGAL_DOCUMENT_REQUEST_STATUS,
+  LEGAL_DOCUMENT_SERVICE,
   LEGAL_DOCUMENT_TYPE,
-  LegalDocumentModelInterface,
 } from '../models/LegalDocument';
 
 import logger from './logger';
@@ -140,6 +140,7 @@ export const setTaxForm = async (account, taxFormLink, year) => {
           documentLink: taxFormLink,
           year,
           CollectiveId: account.id,
+          service: LEGAL_DOCUMENT_SERVICE.DROPBOX_FORMS,
         },
         { transaction: sqlTransaction },
       );
@@ -154,7 +155,7 @@ export async function sendHelloWorksUsTaxForm(
   year: number,
   callbackUrl: string,
   workflowId: string,
-): Promise<LegalDocumentModelInterface> {
+): Promise<LegalDocument> {
   const host = await account.getHostCollective();
   const accountToSubmitRequestTo = host || account; // If the account has a fiscal host, it's its responsibility to fill the request
   const adminUsers = await getAdminsForAccount(accountToSubmitRequestTo);

@@ -27,6 +27,7 @@ declare global {
       personalToken?: PersonalToken;
       loaders: Record<string, DataLoader>;
       rawBody?: string;
+      params: Record<string, string>;
     }
   }
 }
