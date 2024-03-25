@@ -9,7 +9,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { pick, round, takeRightWhile, toString, uniq } from 'lodash';
+import { findLast, pick, round, takeRightWhile, toString, uniq } from 'lodash';
 
 import ActivityTypes from '../../../constants/activities';
 import expenseStatus from '../../../constants/expense-status';
@@ -241,6 +241,21 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Reques
           }
 
           return await req.loaders.Collective.byUserId.loadMany(approvingUserIds);
+        },
+      },
+      paidBy: {
+        type: GraphQLAccount,
+        description: 'The account who paid this expense',
+        async resolve(expense, _, req) {
+          if (expense.status !== expenseStatus.PAID) {
+            return null;
+          }
+          const activities: Activity[] = await req.loaders.Expense.activities.load(expense.id);
+          const paidActivity = findLast(activities, a => a.type === ActivityTypes.COLLECTIVE_EXPENSE_PAID);
+
+          if (paidActivity) {
+            return req.loaders.Collective.byUserId.load(paidActivity.UserId);
+          }
         },
       },
       onHold: {
@@ -493,6 +508,9 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Reques
             : await ExpenseLib.canPayExpense(req, expense);
           if (canSeeQuote) {
             const quote = isScheduledForPayment ? expense.data?.quote : await ExpenseLib.quoteExpense(expense, { req });
+            if (!quote) {
+              return null;
+            }
 
             const sourceAmount = {
               value: quote.paymentOption.sourceAmount * 100,
