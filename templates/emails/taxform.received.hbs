@@ -1,0 +1,21 @@
+Subject: Your copy of Open Collective Tax Form
+
+{{> header}}
+
+<p>{{> greeting}}</p>
+
+<p>
+   Thank you for completing
+   {{#ifCond account.type '===' 'USER'}}your
+   {{else}}{{#if account.name}}{{account.name}}'s{{else}}{{account.legalName}}'s{{/if}}
+   {{/ifCond}}
+   tax form on Open Collective. A copy of the signed PDF is attached to this email.
+</p>
+
+<p>
+  If you have any questions, please take a look at our
+  <a href="https://docs.opencollective.com/help/expenses-and-getting-paid/tax-information">documentation</a>
+  or <a href="https://opencollective.com/contact">reach out</a> to us.
+</p>
+
+{{> footer}}

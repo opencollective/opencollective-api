@@ -4,6 +4,7 @@ import {
   CopyObjectCommand,
   CopyObjectRequest,
   DeleteObjectCommand,
+  GetObjectCommand,
   HeadObjectCommand,
   HeadObjectOutput,
   ListObjectsV2Command,
@@ -69,6 +70,19 @@ export const uploadToS3 = async (
  */
 export const parseS3Url = (s3Url: string): { bucket: string; key: string } => {
   const parsedUrl = new URL(s3Url);
+
+  if (config.aws.s3.endpoint && config.aws.s3.forcePathStyle) {
+    const pathParts = parsedUrl.pathname.split('/');
+    if (pathParts.length < 2) {
+      throw new Error(`Invalid S3 URL: ${s3Url}`);
+    }
+
+    return {
+      bucket: pathParts[1],
+      key: decodeURIComponent(pathParts.slice(2).join('/')), // Remove leading slash
+    };
+  }
+
   if (!parsedUrl.hostname.endsWith('.amazonaws.com')) {
     throw new Error(`Invalid S3 URL: ${s3Url}`);
   }
@@ -103,6 +117,22 @@ export const getFileInfoFromS3 = async (s3Url: string): Promise<HeadObjectOutput
   const { bucket, key } = parseS3Url(s3Url);
   const command = new HeadObjectCommand({ Bucket: bucket, Key: key });
   return s3.send(command) as Promise<HeadObjectOutput>;
+};
+
+export const getFileFromS3 = async (s3Url: string): Promise<Buffer> => {
+  if (!s3) {
+    throw new Error('S3 is not set');
+  }
+
+  const { bucket, key } = parseS3Url(s3Url);
+  const command = new GetObjectCommand({ Bucket: bucket, Key: key });
+  const data = await s3.send(command);
+  const body = await data.Body?.transformToByteArray();
+  if (!body) {
+    throw new Error('Failed to get file from S3');
+  }
+
+  return Buffer.from(body);
 };
 
 /**

@@ -3,11 +3,12 @@ import { get } from 'lodash';
 import moment from 'moment';
 
 import models, { Op } from '../models';
+import { US_TAX_FORM_TYPE } from '../models/LegalDocument';
 
 import { TOKEN_EXPIRATION_PDF } from './auth';
 import { fetchWithTimeout } from './fetch';
 import logger from './logger';
-import { reportErrorToSentry } from './sentry';
+import { reportErrorToSentry, reportMessageToSentry } from './sentry';
 import { parseToBoolean } from './utils';
 
 export const getTransactionPdf = async (transaction, user) => {
@@ -161,4 +162,20 @@ export const getConsolidatedInvoicePdfs = async fromCollective => {
   }
 
   return pdfAttachments;
+};
+
+export const getUSTaxFormPdf = async (formType: US_TAX_FORM_TYPE, formData) => {
+  const pdfURL = new URL(`${config.host.pdf}/api/tax-form/${formType}.pdf`);
+  const base64Values = Buffer.from(JSON.stringify(formData)).toString('base64');
+  pdfURL.searchParams.set('formType', formType);
+  pdfURL.searchParams.set('values', base64Values);
+  pdfURL.searchParams.set('isFinal', 'true');
+  const response = await fetchWithTimeout(pdfURL.toString(), { method: 'get', timeoutInMs: 15000 });
+  const { status } = response;
+  if (status >= 200 && status < 300) {
+    return response.buffer();
+  } else {
+    reportMessageToSentry(`Failed to generate PDF: ${status}`, { extra: { formType, formData } });
+    throw new Error(`Failed to generate PDF`);
+  }
 };

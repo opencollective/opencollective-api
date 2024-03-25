@@ -1,7 +1,7 @@
 import config from 'config';
 import deepMerge from 'deepmerge';
 import HelloWorks from 'helloworks-sdk';
-import { truncate } from 'lodash';
+import { get, truncate } from 'lodash';
 
 import { activities } from '../constants';
 import {
@@ -11,16 +11,19 @@ import {
   US_TAX_FORM_THRESHOLD_FOR_PAYPAL,
 } from '../constants/tax-form';
 import models, { Collective, Expense, Op, sequelize } from '../models';
-import {
+import LegalDocument, {
   LEGAL_DOCUMENT_REQUEST_STATUS,
+  LEGAL_DOCUMENT_SERVICE,
   LEGAL_DOCUMENT_TYPE,
-  LegalDocumentModelInterface,
 } from '../models/LegalDocument';
 
+import { uploadToS3 } from './awsS3';
 import logger from './logger';
 import queries from './queries';
 import { reportErrorToSentry, reportMessageToSentry } from './sentry';
 import { isEmailInternal } from './utils';
+
+const TAX_FORMS_S3_BUCKET = get(config, 'helloworks.aws.s3.bucket');
 
 /**
  * @returns {Collective} all the accounts that need to be sent a tax form (both users and orgs)
@@ -116,7 +119,7 @@ const saveDocumentStatus = (account, year, requestStatus, data) => {
   });
 };
 
-export const setTaxForm = async (account, taxFormLink, year) => {
+export const setTaxFormForDropboxForm = async (account, taxFormLink, year) => {
   await sequelize.transaction(async sqlTransaction => {
     const legalDocument = await models.LegalDocument.findOne({
       where: { CollectiveId: account.id, requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED },
@@ -140,6 +143,7 @@ export const setTaxForm = async (account, taxFormLink, year) => {
           documentLink: taxFormLink,
           year,
           CollectiveId: account.id,
+          service: LEGAL_DOCUMENT_SERVICE.DROPBOX_FORMS,
         },
         { transaction: sqlTransaction },
       );
@@ -154,7 +158,7 @@ export async function sendHelloWorksUsTaxForm(
   year: number,
   callbackUrl: string,
   workflowId: string,
-): Promise<LegalDocumentModelInterface> {
+): Promise<LegalDocument> {
   const host = await account.getHostCollective();
   const accountToSubmitRequestTo = host || account; // If the account has a fiscal host, it's its responsibility to fill the request
   const adminUsers = await getAdminsForAccount(accountToSubmitRequestTo);
@@ -250,3 +254,30 @@ export const expenseMightBeSubjectToTaxForm = (expense: Expense): boolean => {
     !(TAX_FORM_IGNORED_EXPENSE_STATUSES as readonly string[]).includes(expense.status)
   );
 };
+
+export function encryptAndUploadTaxFormToS3(
+  buffer: Buffer,
+  collective: Collective,
+  year: number | string,
+  valuesHash: string = 'none',
+) {
+  const bucket = TAX_FORMS_S3_BUCKET;
+  const key = createTaxFormFilename({ collective, year, documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM, valuesHash });
+  const encryptedBuffer = LegalDocument.encrypt(buffer);
+  return uploadToS3({
+    Body: encryptedBuffer,
+    Bucket: bucket,
+    Key: key,
+    Metadata: { collectiveId: `${collective.id}`, valuesHash },
+  });
+}
+
+function createTaxFormFilename({ collective, year, documentType, valuesHash }) {
+  if (year >= 2023) {
+    return valuesHash && valuesHash !== 'none'
+      ? `${documentType}/${year}/${collective.name}_${valuesHash}.pdf`
+      : `${documentType}/${year}/${collective.name}.pdf`;
+  } else {
+    return `${documentType}_${year}_${collective.name}.pdf`;
+  }
+}

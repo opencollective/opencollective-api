@@ -8,6 +8,11 @@ import { US_TAX_FORM_THRESHOLD } from '../../../server/constants/tax-form';
 import emailLib from '../../../server/lib/email';
 import { findAccountsThatNeedToBeSentTaxForm, sendHelloWorksUsTaxForm } from '../../../server/lib/tax-forms';
 import models from '../../../server/models';
+import {
+  LEGAL_DOCUMENT_REQUEST_STATUS,
+  LEGAL_DOCUMENT_SERVICE,
+  LEGAL_DOCUMENT_TYPE,
+} from '../../../server/models/LegalDocument';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 import { randEmail } from '../../stores';
 import {
@@ -24,12 +29,6 @@ import * as utils from '../../utils';
 const { RECEIPT, INVOICE } = expenseTypes;
 
 const { RequiredLegalDocument, LegalDocument, Collective, User, Expense } = models;
-const {
-  documentType: { US_TAX_FORM },
-} = RequiredLegalDocument;
-const {
-  requestStatus: { REQUESTED, ERROR },
-} = LegalDocument;
 
 const HELLO_WORKS_KEY = '123';
 const HELLO_WORKS_SECRET = 'ABC';
@@ -388,13 +387,14 @@ describe('server/lib/tax-forms', () => {
     // Mix has a document that's in the error state
     const legalDoc = Object.assign({}, documentData, {
       CollectiveId: mixCollective.id,
-      documentStatus: ERROR,
+      documentStatus: LEGAL_DOCUMENT_REQUEST_STATUS.ERROR,
+      service: LEGAL_DOCUMENT_SERVICE.DROPBOX_FORMS,
     });
     await LegalDocument.create(legalDoc);
 
     const requiredDoc = {
       HostCollectiveId: hostCollective.id,
-      documentType: US_TAX_FORM,
+      documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
     };
 
     await RequiredLegalDocument.create(requiredDoc);
@@ -434,7 +434,7 @@ describe('server/lib/tax-forms', () => {
 
       const doc = await models.LegalDocument.findOne({ where: { CollectiveId: newUser.collective.id } });
       expect(doc).to.exist;
-      expect(doc.requestStatus).to.eq(REQUESTED);
+      expect(doc.requestStatus).to.eq(LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED);
     });
 
     it('sends the document request to the host if payee has one', async () => {
@@ -450,7 +450,7 @@ describe('server/lib/tax-forms', () => {
 
       const doc = await models.LegalDocument.findOne({ where: { CollectiveId: payeeCollective.HostCollectiveId } });
       expect(doc).to.exist;
-      expect(doc.requestStatus).to.eq(REQUESTED);
+      expect(doc.requestStatus).to.eq(LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED);
     });
 
     it('updates the documents status to requested when the client request succeeds', async () => {
@@ -471,7 +471,7 @@ describe('server/lib/tax-forms', () => {
       const callArgs = client.workflowInstances.createInstance.firstCall.args;
       expect(callArgs[0].participants['participant_swVuvW'].fullName).to.eq('Mr. Legal Name');
       // when we'll activate authenticated links  expect(client.workflowInstances.getAuthenticatedLinkForStep.called).to.be.true;
-      expect(doc.requestStatus).to.eq(REQUESTED);
+      expect(doc.requestStatus).to.eq(LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED);
 
       assert.callCount(sendMessageSpy, 1);
       const [recipient, title, content] = sendMessageSpy.firstCall.args;
@@ -491,7 +491,7 @@ describe('server/lib/tax-forms', () => {
 
       await doc.reload();
       expect(client.workflowInstances.createInstance.called);
-      expect(doc.requestStatus).to.eq(ERROR);
+      expect(doc.requestStatus).to.eq(LEGAL_DOCUMENT_REQUEST_STATUS.ERROR);
     });
   });
 });

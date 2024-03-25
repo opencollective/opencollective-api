@@ -49,7 +49,7 @@ import Application, { ApplicationType } from '../../server/models/Application';
 import Comment from '../../server/models/Comment';
 import Conversation from '../../server/models/Conversation';
 import { HostApplicationStatus } from '../../server/models/HostApplication';
-import { LegalDocumentModelInterface } from '../../server/models/LegalDocument';
+import LegalDocument, { LEGAL_DOCUMENT_SERVICE } from '../../server/models/LegalDocument';
 import { MemberModelInterface } from '../../server/models/Member';
 import { MemberInvitationModelInterface } from '../../server/models/MemberInvitation';
 import { OrderModelInterface } from '../../server/models/Order';
@@ -71,9 +71,15 @@ export const randStr = (prefix = '') => `${prefix}${uuid().split('-')[0]}`;
 export const randNumber = (min = 0, max = 10000000) => Math.floor(Math.random() * max) + min;
 export const randAmount = (min = 100, max = 10000000) => randNumber(min, max);
 export const multiple = (fn, n, args) => Promise.all([...Array(n).keys()].map(() => fn(args)));
-export const fakeOpenCollectiveS3URL = () => `https://${config.aws.s3.bucket}.s3.us-west-1.amazonaws.com/${randStr()}`;
-export function fakeS3URL(kind, filename = uuid()) {
-  return `https://${config.aws.s3.bucket}.s3.us-west-1.amazonaws.com/${kebabCase(kind)}/${uuid()}/${filename}`;
+export const fakeOpenCollectiveS3URL = ({ key = randStr(), bucket = config.aws.s3.bucket } = {}) => {
+  if (config.aws.s3.endpoint && config.aws.s3.forcePathStyle) {
+    return `${config.aws.s3.endpoint}/${bucket}/${key}`;
+  } else {
+    return `https://${bucket}.s3.us-west-1.amazonaws.com/${key}`;
+  }
+};
+export function fakeUploadedFileURL(kind, filename = uuid()) {
+  return fakeOpenCollectiveS3URL({ key: `${kebabCase(kind)}/${uuid()}/${filename}` });
 }
 
 const randStrOfLength = length =>
@@ -391,7 +397,7 @@ export const fakeUploadedFile = async (fileData: Partial<InferCreationAttributes
   const fileName = `${randStr()}${extension}`;
   const kind = sample(SUPPORTED_FILE_KINDS);
   return models.UploadedFile.create({
-    url: fakeS3URL(kind, fileName),
+    url: fakeUploadedFileURL(kind, fileName),
     kind,
     fileSize: randNumber(100, 100000),
     fileName,
@@ -930,11 +936,12 @@ export const fakePaymentMethod = async (data: Partial<InferCreationAttributes<Pa
   });
 };
 
-export const fakeLegalDocument = async (data: Partial<InferCreationAttributes<LegalDocumentModelInterface>> = {}) => {
+export const fakeLegalDocument = async (data: Partial<InferCreationAttributes<LegalDocument>> = {}) => {
   return models.LegalDocument.create({
     year: new Date().getFullYear(),
     requestStatus: 'REQUESTED',
     ...data,
+    service: sample([LEGAL_DOCUMENT_SERVICE.DROPBOX_FORMS, LEGAL_DOCUMENT_SERVICE.OPENCOLLECTIVE]),
     CollectiveId: data.CollectiveId || (await fakeCollective().then(c => c.id)),
   });
 };

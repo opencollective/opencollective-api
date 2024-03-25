@@ -51,6 +51,7 @@ enum ActivityTypes {
   COLLECTIVE_EXPENSE_RECURRING_DRAFTED = 'collective.expense.recurring.drafted',
   COLLECTIVE_EXPENSE_MISSING_RECEIPT = 'collective.expense.missing.receipt',
   TAXFORM_REQUEST = 'taxform.request',
+  TAXFORM_RECEIVED = 'taxform.received',
   // Virtual cards
   COLLECTIVE_VIRTUAL_CARD_ADDED = 'collective.virtualcard.added',
   COLLECTIVE_VIRTUAL_CARD_MISSING_RECEIPTS = 'collective.virtualcard.missing.receipts',
@@ -164,6 +165,7 @@ export const TransactionalActivities = [
   ActivityTypes.PAYMENT_CREDITCARD_CONFIRMATION,
   ActivityTypes.PAYMENT_FAILED,
   ActivityTypes.TAXFORM_REQUEST,
+  ActivityTypes.TAXFORM_RECEIVED,
   ActivityTypes.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE,
   ActivityTypes.COLLECTIVE_EXPENSE_INVITE_DRAFTED,
   ActivityTypes.COLLECTIVE_EXPENSE_RECURRING_DRAFTED,
@@ -225,6 +227,7 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
     ActivityTypes.COLLECTIVE_EXPENSE_UPDATED,
     ActivityTypes.EXPENSE_COMMENT_CREATED,
     ActivityTypes.TAXFORM_REQUEST,
+    ActivityTypes.TAXFORM_RECEIVED,
   ],
   [ActivityClasses.CONTRIBUTIONS]: [
     ActivityTypes.COLLECTIVE_MEMBER_CREATED,

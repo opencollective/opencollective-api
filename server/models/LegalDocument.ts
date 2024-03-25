@@ -1,6 +1,19 @@
-import { DataTypes, InferAttributes, InferCreationAttributes, Model, ModelStatic } from 'sequelize';
+import config from 'config';
+import { get } from 'lodash';
+import {
+  BelongsToGetAssociationMixin,
+  DataTypes,
+  InferAttributes,
+  InferCreationAttributes,
+  Model,
+  NonAttribute,
+} from 'sequelize';
 
+import { parseS3Url } from '../lib/awsS3';
+import { crypto, secretbox } from '../lib/encryption';
 import sequelize from '../lib/sequelize';
+
+import Collective from './Collective';
 
 export const LEGAL_DOCUMENT_TYPE = {
   US_TAX_FORM: 'US_TAX_FORM',
@@ -13,38 +26,93 @@ export enum LEGAL_DOCUMENT_REQUEST_STATUS {
   ERROR = 'ERROR',
 }
 
-interface LegalDocumentModelStaticInterface {
-  requestStatus: typeof LEGAL_DOCUMENT_REQUEST_STATUS;
+export type US_TAX_FORM_TYPE = 'W9' | 'W8BEN' | 'W8BEN-E';
 
-  findByTypeYearCollective({ documentType, year, collective }): Promise<LegalDocumentModelInterface>;
+export enum LEGAL_DOCUMENT_SERVICE {
+  DROPBOX_FORMS = 'DROPBOX_FORMS',
+  OPENCOLLECTIVE = 'OPENCOLLECTIVE',
 }
 
-export interface LegalDocumentModelInterface
-  extends Model<InferAttributes<LegalDocumentModelInterface>, InferCreationAttributes<LegalDocumentModelInterface>> {
-  id: number;
-  year: number;
-  documentType: string;
-  documentLink: string;
-  requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS | `${LEGAL_DOCUMENT_REQUEST_STATUS}`;
+const ENCRYPTION_KEY = get(config, 'helloworks.documentEncryptionKey');
 
-  CreatedByUserId: number;
-  MemberCollectiveId: number;
-  CollectiveId: number;
-  TierId: number;
-  description: string;
-  publicMessage: string;
+class LegalDocument extends Model<InferAttributes<LegalDocument>, InferCreationAttributes<LegalDocument>> {
+  public declare id: number;
+  public declare year: number;
+  public declare documentType: string;
+  public declare documentLink: string;
+  public declare requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS | `${LEGAL_DOCUMENT_REQUEST_STATUS}`;
+  public declare service: LEGAL_DOCUMENT_SERVICE | `${LEGAL_DOCUMENT_SERVICE}`;
 
-  createdAt: Date;
-  updatedAt: Date;
-  deletedAt?: Date;
+  public declare CollectiveId: number;
+  public declare collective?: Collective;
+  public declare getCollective: BelongsToGetAssociationMixin<Collective>;
 
-  data: any;
+  public declare createdAt: Date;
+  public declare updatedAt: Date;
+  public declare deletedAt?: Date;
 
-  shouldBeRequested(): boolean;
+  public declare data: any;
+
+  static findByTypeYearCollective = ({ documentType, year, collective }) => {
+    return LegalDocument.findOne({
+      where: {
+        year,
+        CollectiveId: collective.id,
+        documentType,
+      },
+    });
+  };
+
+  static encrypt = (content: Buffer): Buffer => {
+    return secretbox.encrypt(content, ENCRYPTION_KEY);
+  };
+
+  static decrypt = (content: Buffer): Buffer => {
+    return secretbox.decryptRaw(content, ENCRYPTION_KEY);
+  };
+
+  static hash = (formValues: Record<string, unknown>): string => {
+    return crypto.hash(JSON.stringify(formValues));
+  };
+
+  shouldBeRequested = function () {
+    return (
+      this.requestStatus === LEGAL_DOCUMENT_REQUEST_STATUS.NOT_REQUESTED ||
+      this.requestStatus === LEGAL_DOCUMENT_REQUEST_STATUS.ERROR
+    );
+  };
+
+  /**
+   * Whether the document can be downloaded.
+   *
+   * Some links have been manually set to arbitrary values (e.g. Google Drive) by the support team in the past. Only "Official" S3 links can be downloaded.
+   */
+  canDownload = function (): boolean {
+    if (!this.documentLink) {
+      return false;
+    }
+
+    try {
+      const { bucket } = parseS3Url(this.documentLink);
+      return bucket === config.helloworks.aws.s3.bucket;
+    } catch (e) {
+      return false;
+    }
+  };
+
+  get info(): NonAttribute<Partial<LegalDocument>> {
+    return {
+      id: this.id,
+      year: this.year,
+      documentType: this.documentType,
+      requestStatus: this.requestStatus,
+      service: this.service,
+      documentLink: this.documentLink,
+    };
+  }
 }
 
-const LegalDocument: ModelStatic<LegalDocumentModelInterface> & LegalDocumentModelStaticInterface = sequelize.define(
-  'LegalDocument',
+LegalDocument.init(
   {
     id: {
       type: DataTypes.INTEGER,
@@ -98,33 +166,20 @@ const LegalDocument: ModelStatic<LegalDocumentModelInterface> & LegalDocumentMod
       allowNull: false,
       unique: 'yearTypeCollective',
     },
+    service: {
+      type: DataTypes.ENUM(...Object.values(LEGAL_DOCUMENT_SERVICE)),
+      allowNull: false,
+      defaultValue: LEGAL_DOCUMENT_SERVICE.DROPBOX_FORMS,
+    },
     data: {
       type: DataTypes.JSONB,
       allowNull: true,
     },
   },
   {
+    sequelize,
     paranoid: true,
   },
 );
-
-LegalDocument.findByTypeYearCollective = ({ documentType, year, collective }) => {
-  return LegalDocument.findOne({
-    where: {
-      year,
-      CollectiveId: collective.id,
-      documentType,
-    },
-  });
-};
-
-LegalDocument.prototype.shouldBeRequested = function () {
-  return (
-    this.requestStatus === LEGAL_DOCUMENT_REQUEST_STATUS.NOT_REQUESTED ||
-    this.requestStatus === LEGAL_DOCUMENT_REQUEST_STATUS.ERROR
-  );
-};
-
-LegalDocument.requestStatus = LEGAL_DOCUMENT_REQUEST_STATUS;
 
 export default LegalDocument;

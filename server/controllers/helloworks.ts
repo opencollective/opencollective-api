@@ -2,16 +2,15 @@ import config from 'config';
 import HelloWorks from 'helloworks-sdk';
 import { get } from 'lodash';
 
-import { uploadToS3 } from '../lib/awsS3';
-import { secretbox } from '../lib/encryption';
+import ActivityTypes from '../constants/activities';
 import logger from '../lib/logger';
 import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
-import models from '../models';
+import { encryptAndUploadTaxFormToS3 } from '../lib/tax-forms';
+import models, { Activity } from '../models';
+import { LEGAL_DOCUMENT_REQUEST_STATUS, LEGAL_DOCUMENT_SERVICE } from '../models/LegalDocument';
 
 const { User, LegalDocument, RequiredLegalDocument } = models;
-const {
-  requestStatus: { ERROR, RECEIVED },
-} = LegalDocument;
+
 const {
   documentType: { US_TAX_FORM },
 } = RequiredLegalDocument;
@@ -19,9 +18,6 @@ const {
 const HELLO_WORKS_KEY = get(config, 'helloworks.key');
 const HELLO_WORKS_SECRET = get(config, 'helloworks.secret');
 const HELLO_WORKS_WORKFLOW_ID = get(config, 'helloworks.workflowId');
-
-const HELLO_WORKS_S3_BUCKET = get(config, 'helloworks.aws.s3.bucket');
-const ENCRYPTION_KEY = get(config, 'helloworks.documentEncryptionKey');
 
 // Put legacy workflows here
 const SUPPORTED_WORKFLOWS = new Set([
@@ -356,16 +352,20 @@ async function callback(req, res) {
 
     return client.workflowInstances
       .getInstanceDocument({ instanceId: id, documentId })
-      .then(buff => Promise.resolve(secretbox.encrypt(buff, ENCRYPTION_KEY)))
-      .then(buffer => uploadTaxFormToS3(buffer, { id: collective.name, year, documentType: US_TAX_FORM }))
+      .then(buffer => encryptAndUploadTaxFormToS3(buffer, collective, year))
       .then(({ url }) => {
-        doc.requestStatus = RECEIVED;
+        doc.requestStatus = LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED;
         doc.documentLink = url;
+        Activity.create({
+          type: ActivityTypes.TAXFORM_RECEIVED,
+          CollectiveId: collective.id,
+          data: { service: LEGAL_DOCUMENT_SERVICE.DROPBOX_FORMS, document: doc.info },
+        });
         return doc.save();
       })
       .then(() => res.sendStatus(200))
       .catch(err => {
-        doc.requestStatus = ERROR;
+        doc.requestStatus = LEGAL_DOCUMENT_REQUEST_STATUS.ERROR;
         doc.save();
         logger.error('error saving tax form: ', err);
         reportErrorToSentry(err);
@@ -373,21 +373,6 @@ async function callback(req, res) {
       });
   } else {
     res.sendStatus(200);
-  }
-}
-
-function uploadTaxFormToS3(buffer, { id, year, documentType }) {
-  const bucket = HELLO_WORKS_S3_BUCKET;
-  const key = createTaxFormFilename({ id, year, documentType });
-
-  return uploadToS3({ Body: buffer, Bucket: bucket, Key: key });
-}
-
-function createTaxFormFilename({ id, year, documentType }) {
-  if (year >= 2023) {
-    return `${documentType}/${year}/${id}.pdf`;
-  } else {
-    return `${documentType}_${year}_${id}.pdf`;
   }
 }
 
