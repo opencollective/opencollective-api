@@ -81,7 +81,7 @@
     "express-ws": "5.0.2",
     "fast-redact": "3.5.0",
     "fs-extra": "11.2.0",
-    "get-urls": "10.0.1",
+    "get-urls": "12.1.0",
     "gqlmin": "0.1.1",
     "graphql": "16.8.1",
     "graphql-scalars": "1.23.0",
