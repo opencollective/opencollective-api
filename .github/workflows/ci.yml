@@ -209,7 +209,7 @@ jobs:
           - 6379:6379
         options: --entrypoint redis-server
       postgres:
-        image: postgres:13.13
+        image: postgres:16.2
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
@@ -261,7 +261,7 @@ jobs:
           - 6379:6379
         options: --entrypoint redis-server
       postgres:
-        image: postgres:13.13
+        image: postgres:16.2
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
@@ -313,7 +313,7 @@ jobs:
           - 6379:6379
         options: --entrypoint redis-server
       postgres:
-        image: postgres:13.13
+        image: postgres:16.2
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
@@ -355,7 +355,7 @@ jobs:
           - 6379:6379
         options: --entrypoint redis-server
       postgres:
-        image: postgres:13.13
+        image: postgres:16.2
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
