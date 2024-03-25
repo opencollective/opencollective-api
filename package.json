@@ -116,7 +116,7 @@
     "pg": "8.11.3",
     "pg-connection-string": "2.6.2",
     "pg-format": "1.0.4",
-    "prepend-http": "3.0.1",
+    "prepend-http": "4.0.0",
     "redis": "4.6.6",
     "sanitize-html": "2.12.1",
     "sequelize": "6.37.1",
