@@ -173,7 +173,9 @@ export const persistTransaction = async (virtualCard, transaction) => {
         where: { type: TransactionTypes.CREDIT, kind: TransactionKind.EXPENSE },
       });
       if (originalCreditTransaction?.amount === amount) {
-        await createRefundTransaction(originalCreditTransaction, 0, { refundTransactionId: transactionId });
+        if (!originalCreditTransaction.RefundTransactionId) {
+          await createRefundTransaction(originalCreditTransaction, 0, { refundTransactionId: transactionId });
+        }
         return;
       }
     }
