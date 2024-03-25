@@ -45,7 +45,7 @@ export const data = path => {
 
 export const resetCaches = () => cache.clear();
 
-export const resetTestDB = async ({ groupedTruncate = true } = {}) => {
+export const resetTestDB = async ({ groupedTruncate = true, retries = 5 } = {}) => {
   const resetFn = async () => {
     // Using a manual query rather than `await sequelize.truncate({ cascade: true,  restartIdentity: true });`
     // for performance reasons: https://github.com/sequelize/sequelize/issues/15865
@@ -67,11 +67,20 @@ export const resetTestDB = async ({ groupedTruncate = true } = {}) => {
     await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
   };
 
-  try {
-    await resetFn();
-  } catch (e) {
-    console.error(e);
-    process.exit(1);
+  let t = 1;
+  while (t <= retries) {
+    try {
+      await resetFn();
+      break;
+    } catch (e) {
+      if (t === retries) {
+        console.error(e);
+        process.exit(1);
+      }
+      console.error('Error while resetting the DB, retrying...');
+      await sleep(1000 * t);
+      t++;
+    }
   }
 };
 
