@@ -8,6 +8,7 @@ import { US_TAX_FORM_THRESHOLD } from '../../../server/constants/tax-form';
 import emailLib from '../../../server/lib/email';
 import { findAccountsThatNeedToBeSentTaxForm, sendHelloWorksUsTaxForm } from '../../../server/lib/tax-forms';
 import models from '../../../server/models';
+import { LEGAL_DOCUMENT_SERVICE } from '../../../server/models/LegalDocument';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 import { randEmail } from '../../stores';
 import {
@@ -389,6 +390,7 @@ describe('server/lib/tax-forms', () => {
     const legalDoc = Object.assign({}, documentData, {
       CollectiveId: mixCollective.id,
       documentStatus: ERROR,
+      service: LEGAL_DOCUMENT_SERVICE.DROPBOX_FORMS,
     });
     await LegalDocument.create(legalDoc);
 

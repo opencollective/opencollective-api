@@ -17,6 +17,7 @@ import expenseMutations from './ExpenseMutations';
 import guestMutations from './GuestMutations';
 import hostApplicationMutations from './HostApplicationMutations';
 import individualMutations from './IndividualMutations';
+import { legalDocumentsMutations } from './LegalDocumentsMutations';
 import memberInvitationMutations from './MemberInvitationMutations';
 import memberMutations from './MemberMutations';
 import oAuthAuthorizationMutations from './OAuthAuthorizationMutations';
@@ -54,6 +55,7 @@ const mutation = {
   ...guestMutations,
   ...hostApplicationMutations,
   ...individualMutations,
+  ...legalDocumentsMutations,
   ...memberInvitationMutations,
   ...memberMutations,
   ...oAuthAuthorizationMutations,

@@ -7,11 +7,10 @@ import { secretbox } from '../lib/encryption';
 import logger from '../lib/logger';
 import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
 import models from '../models';
+import { LEGAL_DOCUMENT_REQUEST_STATUS } from '../models/LegalDocument';
 
 const { User, LegalDocument, RequiredLegalDocument } = models;
-const {
-  requestStatus: { ERROR, RECEIVED },
-} = LegalDocument;
+
 const {
   documentType: { US_TAX_FORM },
 } = RequiredLegalDocument;
@@ -21,7 +20,6 @@ const HELLO_WORKS_SECRET = get(config, 'helloworks.secret');
 const HELLO_WORKS_WORKFLOW_ID = get(config, 'helloworks.workflowId');
 
 const HELLO_WORKS_S3_BUCKET = get(config, 'helloworks.aws.s3.bucket');
-const ENCRYPTION_KEY = get(config, 'helloworks.documentEncryptionKey');
 
 // Put legacy workflows here
 const SUPPORTED_WORKFLOWS = new Set([
@@ -356,16 +354,16 @@ async function callback(req, res) {
 
     return client.workflowInstances
       .getInstanceDocument({ instanceId: id, documentId })
-      .then(buff => Promise.resolve(secretbox.encrypt(buff, ENCRYPTION_KEY)))
+      .then(buff => LegalDocument.encryptFileContent(buff))
       .then(buffer => uploadTaxFormToS3(buffer, { id: collective.name, year, documentType: US_TAX_FORM }))
       .then(({ url }) => {
-        doc.requestStatus = RECEIVED;
+        doc.requestStatus = LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED;
         doc.documentLink = url;
         return doc.save();
       })
       .then(() => res.sendStatus(200))
       .catch(err => {
-        doc.requestStatus = ERROR;
+        doc.requestStatus = LEGAL_DOCUMENT_REQUEST_STATUS.ERROR;
         doc.save();
         logger.error('error saving tax form: ', err);
         reportErrorToSentry(err);

@@ -32,6 +32,7 @@ export const IDENTIFIER_TYPES = {
   CONNECTED_ACCOUNT: 'connected-account',
   EXPENSE_ATTACHED_FILE: 'expense-attached-file',
   EXPENSE_ITEM: 'expense-item',
+  LEGAL_DOCUMENT: 'legal-document',
   RECURRING_EXPENSE: 'recurring-expense',
   TIER: 'tier',
   ORDER: 'order',

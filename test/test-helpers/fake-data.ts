@@ -49,7 +49,7 @@ import Application, { ApplicationType } from '../../server/models/Application';
 import Comment from '../../server/models/Comment';
 import Conversation from '../../server/models/Conversation';
 import { HostApplicationStatus } from '../../server/models/HostApplication';
-import { LegalDocumentModelInterface } from '../../server/models/LegalDocument';
+import { LEGAL_DOCUMENT_SERVICE } from '../../server/models/LegalDocument';
 import { MemberModelInterface } from '../../server/models/Member';
 import { MemberInvitationModelInterface } from '../../server/models/MemberInvitation';
 import { OrderModelInterface } from '../../server/models/Order';
@@ -930,11 +930,12 @@ export const fakePaymentMethod = async (data: Partial<InferCreationAttributes<Pa
   });
 };
 
-export const fakeLegalDocument = async (data: Partial<InferCreationAttributes<LegalDocumentModelInterface>> = {}) => {
+export const fakeLegalDocument = async (data: Partial<InferCreationAttributes<LegalDocument>> = {}) => {
   return models.LegalDocument.create({
     year: new Date().getFullYear(),
     requestStatus: 'REQUESTED',
     ...data,
+    service: sample([LEGAL_DOCUMENT_SERVICE.DROPBOX_FORMS, LEGAL_DOCUMENT_SERVICE.OPENCOLLECTIVE]),
     CollectiveId: data.CollectiveId || (await fakeCollective().then(c => c.id)),
   });
 };

@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import moment from 'moment';
 
 import models from '../../../server/models';
+import { LEGAL_DOCUMENT_REQUEST_STATUS } from '../../../server/models/LegalDocument';
 import * as utils from '../../utils';
 
 const { LegalDocument, User, Collective } = models;
@@ -94,13 +95,13 @@ describe('server/models/LegalDocument', () => {
     });
     const doc = await LegalDocument.create(legalDoc);
 
-    expect(doc.requestStatus).to.eq(LegalDocument.requestStatus.NOT_REQUESTED);
+    expect(doc.requestStatus).to.eq(LEGAL_DOCUMENT_REQUEST_STATUS.NOT_REQUESTED);
 
-    doc.requestStatus = LegalDocument.requestStatus.RECEIVED;
+    doc.requestStatus = LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED;
     await doc.save();
     await doc.reload();
 
-    expect(doc.requestStatus).to.eq(LegalDocument.requestStatus.RECEIVED);
+    expect(doc.requestStatus).to.eq(LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED);
   });
 
   it('it will fail if attempting to set an invalid request status', async () => {
@@ -109,7 +110,7 @@ describe('server/models/LegalDocument', () => {
     });
     const doc = await LegalDocument.create(legalDoc);
 
-    expect(doc.requestStatus).to.eq(LegalDocument.requestStatus.NOT_REQUESTED);
+    expect(doc.requestStatus).to.eq(LEGAL_DOCUMENT_REQUEST_STATUS.NOT_REQUESTED);
 
     doc.requestStatus = 'SCUTTLEBUTT';
     expect(doc.save()).to.be.rejected;
@@ -189,6 +190,6 @@ describe('server/models/LegalDocument', () => {
       CollectiveId: userCollective.id,
     });
     const doc = await LegalDocument.create(legalDoc);
-    expect(doc.requestStatus).to.eq(LegalDocument.requestStatus.NOT_REQUESTED);
+    expect(doc.requestStatus).to.eq(LEGAL_DOCUMENT_REQUEST_STATUS.NOT_REQUESTED);
   });
 });
