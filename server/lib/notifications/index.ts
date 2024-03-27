@@ -31,7 +31,7 @@ const publishToWebhook = async (notification: Notification, activity: Activity) 
   } else {
     const sanitizedActivity = sanitizeActivity(activity);
     const enrichedActivity = enrichActivity(sanitizedActivity);
-    const response = await axios.post(notification.webhookUrl, enrichedActivity, { maxRedirects: 0 });
+    const response = await axios.post(notification.webhookUrl, enrichedActivity, { maxRedirects: 0, timeout: 30000 });
     const isSuccess = response.status >= 200 && response.status < 300;
     if (isSuccess && (!notification.lastSuccessAt || !moment(notification.lastSuccessAt).isSame(moment(), 'day'))) {
       await notification.update({ lastSuccessAt: new Date() });
