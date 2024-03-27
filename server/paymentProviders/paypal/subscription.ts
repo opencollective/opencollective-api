@@ -23,6 +23,10 @@ import { PaymentProviderService } from '../types';
 import { paypalRequest } from './api';
 import { getCaptureIdFromPaypalTransaction, refundPaypalCapture } from './payment';
 
+/**
+ * Careful if changing this: `server/paymentProviders/paypal/webhook.ts` checks this message to know whether it should mark the contribution as CANCELLED
+ */
+export const CONTRIBUTION_PAUSED_MSG = `Your contribution to the Collective was paused. We'll inform you when it will be ready for re-activation.`;
 export const CANCEL_PAYPAL_EDITED_SUBSCRIPTION_REASON = 'Updated subscription';
 
 export const cancelPaypalSubscription = async (
