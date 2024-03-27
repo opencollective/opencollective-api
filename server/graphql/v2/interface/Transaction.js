@@ -464,7 +464,7 @@ export const TransactionFields = () => {
               const collectiveId = transaction.paymentMethodProviderCollectiveId();
               const canSeeDetails =
                 getContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, collectiveId) ||
-                req.remoteUser.isAdmin(transaction.HostCollectiveId);
+                req.remoteUser?.isAdmin(transaction.HostCollectiveId);
 
               return canSeeDetails ? tax.idNumber : null;
             },
