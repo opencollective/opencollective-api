@@ -5,6 +5,7 @@ import CAPTCHA_PROVIDERS from '../constants/captcha-providers';
 
 import logger from './logger';
 import recaptcha from './recaptcha';
+import turnstile from './turnstile';
 import { parseToBoolean } from './utils';
 
 export async function checkCaptcha(captcha: { token: string; provider: CAPTCHA_PROVIDERS }, reqIp: string) {
@@ -24,6 +25,8 @@ export async function checkCaptcha(captcha: { token: string; provider: CAPTCHA_P
     response = await hcaptcha.verify(config.hcaptcha.secret, token, reqIp, config.hcaptcha.sitekey);
   } else if (provider === CAPTCHA_PROVIDERS.RECAPTCHA && config.recaptcha && parseToBoolean(config.recaptcha.enable)) {
     response = await recaptcha.verify(token, reqIp);
+  } else if (provider === CAPTCHA_PROVIDERS.TURNSTILE && config.turnstile?.secretKey) {
+    response = await turnstile.verify(token, reqIp);
   } else {
     throw new Error('Could not find requested Captcha provider');
   }

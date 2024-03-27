@@ -18826,6 +18826,7 @@ Implemented Captcha Providers
 enum CaptchaProvider {
   HCAPTCHA
   RECAPTCHA
+  TURNSTILE
 }
 
 """
