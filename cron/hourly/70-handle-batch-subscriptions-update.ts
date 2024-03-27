@@ -13,6 +13,7 @@ import { reportErrorToSentry } from '../../server/lib/sentry';
 import { parseToBoolean, sleep } from '../../server/lib/utils';
 import models, { Collective, Op } from '../../server/models';
 import { OrderModelInterface } from '../../server/models/Order';
+import { CONTRIBUTION_PAUSED_MSG } from '../../server/paymentProviders/paypal/subscription';
 
 if (parseToBoolean(process.env.SKIP_BATCH_SUBSCRIPTION_UPDATE)) {
   console.log('Skipping because SKIP_BATCH_SUBSCRIPTION_UPDATE is set.');
@@ -55,10 +56,7 @@ const getOrderCancelationReason = (
   message: string;
 } => {
   if (order.status === 'PAUSED') {
-    return {
-      code: 'PAUSED',
-      message: `Your contribution to the Collective was paused. We'll inform you when it will be ready for re-activation.`,
-    };
+    return { code: 'PAUSED', message: CONTRIBUTION_PAUSED_MSG };
   } else if (order.TierId && !order.Tier) {
     return { code: 'DELETED_TIER', message: `Order tier deleted` };
   } else if (collective.deactivatedAt) {
