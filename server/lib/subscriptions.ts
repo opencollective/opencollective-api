@@ -102,7 +102,10 @@ export const updatePaymentMethodForSubscription = async (
   }
 
   // Need to cancel previous subscription
-  await order.Subscription.deactivate();
+  if (order.Subscription.isActive) {
+    await order.Subscription.deactivate();
+  }
+
   const { order: updatedOrder } = await updateOrderSubscription(order, null, newOrderData, newSubscriptionData, {});
   return updatedOrder;
 };

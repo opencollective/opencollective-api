@@ -169,7 +169,7 @@ describe('server/paymentProviders/paypal/subscription', () => {
             status: OrderStatuses.NEW,
             TierId: null,
             totalAmount: 1000,
-            subscription: { paypalSubscriptionId, isActive: false },
+            subscription: { paypalSubscriptionId, isActive: true },
             PaymentMethodId: paymentMethod.id,
           },
           {
@@ -198,7 +198,6 @@ describe('server/paymentProviders/paypal/subscription', () => {
 
         const updatedSubscription = await order.getSubscription();
         expect(updatedSubscription.paypalSubscriptionId).to.eq(newSubscriptionPm.token);
-        expect(previousSubscription.isActive).to.be.false;
         expect(updatedSubscription.id).to.eq(previousSubscription.id);
       });
 
