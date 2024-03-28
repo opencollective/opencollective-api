@@ -248,8 +248,8 @@ export const setupPaypalSubscriptionForOrder = async (
 
     if (existingSubscription) {
       // Cancel existing PayPal subscription
-      if (existingSubscription.paypalSubscriptionId) {
-        await cancelPaypalSubscription(order, CANCEL_PAYPAL_EDITED_SUBSCRIPTION_REASON);
+      if (existingSubscription.paypalSubscriptionId && existingSubscription.isActive) {
+        await existingSubscription.deactivate(CANCEL_PAYPAL_EDITED_SUBSCRIPTION_REASON, hostCollective);
       }
 
       // Update the subscription with the new params
