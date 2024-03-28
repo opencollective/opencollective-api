@@ -132,7 +132,7 @@
     "twitter-api-v2": "1.16.1",
     "uuid": "9.0.1",
     "validator": "13.11.0",
-    "winston": "3.12.0",
+    "winston": "3.13.0",
     "zod": "3.22.4"
   },
   "devDependencies": {
