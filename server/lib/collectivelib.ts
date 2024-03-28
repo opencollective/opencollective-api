@@ -160,7 +160,10 @@ export function validateSettings(settings: any): string | boolean {
   /*
    * Validate customEmailMessage length.
    */
-  if (settings.customEmailMessage && stripHTML(settings.customEmailMessage).length > 500) {
+  if (
+    (settings.customEmailMessage?.thankYou && stripHTML(settings.customEmailMessage.thankYou).length > 500) ||
+    (settings.customEmailMessage && stripHTML(settings.customEmailMessage).length > 500)
+  ) {
     return 'Custom "Thank you" email message should be less than 500 characters';
   }
 
