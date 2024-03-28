@@ -25,6 +25,7 @@ import { FEATURE, hasFeature } from '../../../lib/allowed-features';
 import { getPolicy } from '../../../lib/policies';
 import { buildSearchConditions } from '../../../lib/search';
 import sequelize from '../../../lib/sequelize';
+import { getReportNodesFromQueryResult } from '../../../lib/transaction-reports';
 import { ifStr, parseToBoolean } from '../../../lib/utils';
 import models, { Collective, Op } from '../../../models';
 import Agreement from '../../../models/Agreement';
@@ -75,6 +76,7 @@ import { GraphQLExpenseStats } from './ExpenseStats';
 import { GraphQLHostMetrics } from './HostMetrics';
 import { GraphQLHostMetricsTimeSeries } from './HostMetricsTimeSeries';
 import { GraphQLHostPlan } from './HostPlan';
+import { GraphQLHostTransactionReports } from './HostTransactionReports';
 import { GraphQLPaymentMethod } from './PaymentMethod';
 import GraphQLPayoutMethod from './PayoutMethod';
 import { GraphQLStripeConnectedAccount } from './StripeConnectedAccount';
@@ -186,6 +188,202 @@ export const GraphQLHost = new GraphQLObjectType({
         type: new GraphQLNonNull(GraphQLHostPlan),
         resolve(host) {
           return host.getPlan();
+        },
+      },
+      hostTransactionsReports: {
+        type: GraphQLHostTransactionReports,
+        args: {
+          timeUnit: {
+            type: GraphQLTimeUnit,
+            defaultValue: 'MONTH',
+          },
+          dateFrom: {
+            type: GraphQLDateTime,
+          },
+          dateTo: {
+            type: GraphQLDateTime,
+          },
+        },
+        resolve: async (host, args) => {
+          if (args.timeUnit !== 'MONTH' && args.timeUnit !== 'QUARTER' && args.timeUnit !== 'YEAR') {
+            throw new Error('Only monthly, quarterly and yearly reports are supported for now');
+          }
+
+          const refreshedAtQuery = `
+            SELECT "refreshedAt" FROM "HostMonthlyTransactions" LIMIT 1;
+          `;
+
+          const refreshedAtResult = await sequelize.query(refreshedAtQuery, {
+            replacements: {
+              hostCollectiveId: host.id,
+            },
+            type: sequelize.QueryTypes.SELECT,
+            raw: true,
+          });
+
+          const refreshedAt = refreshedAtResult[0]?.refreshedAt;
+
+          const query = `
+            WITH
+                HostCollectiveIds AS (
+                    SELECT "id"
+                    FROM "Collectives"
+                    WHERE "id" = :hostCollectiveId OR ("ParentCollectiveId" = :hostCollectiveId AND "type" != 'VENDOR')
+                ),
+                AggregatedTransactions AS (
+                    SELECT
+                        DATE_TRUNC(:timeUnit, t."createdAt" AT TIME ZONE 'UTC') AS "date",
+                        t."HostCollectiveId",
+                        SUM(t."amountInHostCurrency") AS "amountInHostCurrency",
+                        SUM(COALESCE(t."platformFeeInHostCurrency", 0)) AS "platformFeeInHostCurrency",
+                        SUM(COALESCE(t."hostFeeInHostCurrency", 0)) AS "hostFeeInHostCurrency",
+                        SUM(
+                            COALESCE(t."paymentProcessorFeeInHostCurrency", 0)
+                        ) AS "paymentProcessorFeeInHostCurrency",
+                        SUM(
+                            COALESCE(
+                                t."taxAmount" * COALESCE(t."hostCurrencyFxRate", 1),
+                                0
+                            )
+                        ) AS "taxAmountInHostCurrency",
+                        COALESCE(
+                            SUM(COALESCE(t."amountInHostCurrency", 0)) + SUM(COALESCE(t."platformFeeInHostCurrency", 0)) + SUM(COALESCE(t."hostFeeInHostCurrency", 0)) + SUM(
+                                COALESCE(t."paymentProcessorFeeInHostCurrency", 0)
+                            ) + SUM(
+                                COALESCE(
+                                    t."taxAmount" * COALESCE(t."hostCurrencyFxRate", 1),
+                                    0
+                                )
+                            ),
+                            0
+                        ) AS "netAmountInHostCurrency",
+                        t."kind",
+                        t."isRefund",
+                        t."hostCurrency",
+                        t."type",
+                        CASE
+                            WHEN t."CollectiveId" IN (SELECT * FROM HostCollectiveIds) THEN TRUE ELSE FALSE
+                        END AS "isHost",
+                        e."type" AS "expenseType"
+                    FROM
+                        "Transactions" t
+                        LEFT JOIN LATERAL (
+                            SELECT
+                                e2."type"
+                            FROM
+                                "Expenses" e2
+                            WHERE
+                                e2.id = t."ExpenseId"
+                        ) AS e ON t."ExpenseId" IS NOT NULL
+                    WHERE
+                        t."deletedAt" IS NULL
+                        AND t."HostCollectiveId" = :hostCollectiveId
+                        AND t."createdAt" > :refreshedAt
+                        ${args.dateTo ? 'AND t."createdAt" <= :dateTo' : ''}
+
+                    GROUP BY
+                        DATE_TRUNC(:timeUnit, t."createdAt" AT TIME ZONE 'UTC'),
+                        t."HostCollectiveId",
+                        t."kind",
+                        t."hostCurrency",
+                        t."isRefund",
+                        t."type",
+                        "isHost",
+                        "expenseType"
+                ),
+                CombinedData AS (
+                    SELECT
+                        "date",
+                        "HostCollectiveId",
+                        "amountInHostCurrency",
+                        "platformFeeInHostCurrency",
+                        "hostFeeInHostCurrency",
+                        "paymentProcessorFeeInHostCurrency",
+                        "taxAmountInHostCurrency",
+                        "netAmountInHostCurrency",
+                        "kind",
+                        "isRefund",
+                        "hostCurrency",
+                        "type",
+                        "isHost",
+                        "expenseType"
+                    FROM
+                        AggregatedTransactions
+                    UNION ALL
+                    SELECT
+                        DATE_TRUNC(:timeUnit, "date" AT TIME ZONE 'UTC') AS "date",
+                        "HostCollectiveId",
+                        "amountInHostCurrency",
+                        "platformFeeInHostCurrency",
+                        "hostFeeInHostCurrency",
+                        "paymentProcessorFeeInHostCurrency",
+                        "taxAmountInHostCurrency",
+                        "netAmountInHostCurrency",
+                        "kind",
+                        "isRefund",
+                        "hostCurrency",
+                        "type",
+                        "isHost",
+                        "expenseType"
+                    FROM
+                        "HostMonthlyTransactions"
+                    WHERE
+                        "HostCollectiveId" = :hostCollectiveId
+                        ${args.dateTo ? 'AND "date" <= :dateTo' : ''}
+                )
+            SELECT
+                "date",
+                "isRefund",
+                "isHost",
+                "kind",
+                "type",
+                "expenseType",
+                "hostCurrency",
+                SUM("platformFeeInHostCurrency") AS "platformFeeInHostCurrency",
+                SUM("hostFeeInHostCurrency") AS "hostFeeInHostCurrency",
+                SUM("paymentProcessorFeeInHostCurrency") AS "paymentProcessorFeeInHostCurrency",
+                SUM("taxAmountInHostCurrency") AS "taxAmountInHostCurrency",
+                SUM("netAmountInHostCurrency") AS "netAmountInHostCurrency",
+                SUM("amountInHostCurrency") AS "amountInHostCurrency"
+            FROM
+                CombinedData
+            GROUP BY
+                "date",
+                "isRefund",
+                "isHost",
+                "kind",
+                "type",
+                "expenseType",
+                "hostCurrency"
+            ORDER BY
+                "date";
+          `;
+
+          const queryResult = await sequelize.query(query, {
+            replacements: {
+              hostCollectiveId: host.id,
+              timeUnit: args.timeUnit,
+              dateTo: moment(args.dateTo).utc().toISOString(),
+              refreshedAt,
+            },
+            type: sequelize.QueryTypes.SELECT,
+            raw: true,
+          });
+
+          const nodes = await getReportNodesFromQueryResult({
+            queryResult,
+            dateFrom: args.dateFrom,
+            dateTo: args.dateTo,
+            timeUnit: args.timeUnit,
+            currency: host.currency,
+          });
+
+          return {
+            timeUnit: args.timeUnit,
+            dateFrom: args.dateFrom,
+            dateTo: args.dateTo,
+            nodes,
+          };
         },
       },
       transactionsReport: {

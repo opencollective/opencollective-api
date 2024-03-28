@@ -13,6 +13,7 @@ export const GraphQLTimeUnit = new GraphQLEnumType({
     DAY: {},
     WEEK: {},
     MONTH: {},
+    QUARTER: {},
     YEAR: {},
   },
 });

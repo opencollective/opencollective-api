@@ -598,7 +598,7 @@ export const redactSensitiveFields = fastRedact({
  * Generates a continuous time series array from an array of nodes,
  * ensuring there are entries for each interval between a specified start and end date.
  */
-export function fillTimeSeriesWithNodes(nodes, startDate, endDate, timeUnit) {
+export function fillTimeSeriesWithNodes({ nodes, initialData, startDate = undefined, endDate = undefined, timeUnit }) {
   const sortedNodes = nodes.sort((a, b) => new Date(a.date) - new Date(b.date));
 
   const dateFrom = startDate ? moment(startDate).utc() : moment(sortedNodes[0].date).utc();
@@ -616,18 +616,21 @@ export function fillTimeSeriesWithNodes(nodes, startDate, endDate, timeUnit) {
   while (currentDate.isBefore(dateTo)) {
     keyedData[currentDate.toISOString()] = {
       date: currentDate.toISOString(),
-      amount: 0,
+      ...initialData,
     };
     currentDate.add(1, timeUnit);
   }
 
   // Add the time series data
   for (let i = 0; i < sortedNodes.length; i++) {
-    const { date, amount } = sortedNodes[i];
+    const { date, ...data } = sortedNodes[i];
     const dateString = moment(date).utc().toISOString();
 
     if (keyedData[dateString]) {
-      keyedData[dateString].amount = amount;
+      keyedData[dateString] = {
+        ...keyedData[dateString],
+        ...data,
+      };
     } else {
       throw new Error('Time series data not aligned');
     }
