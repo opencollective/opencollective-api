@@ -3666,14 +3666,16 @@ Collective.init(
     image: {
       type: DataTypes.STRING,
       validate: {
-        isUrl: true,
+        isUrl: {
+          msg: 'The image URL is not valid',
+        },
         len: {
           args: [0, MAX_UPLOADED_FILE_URL_LENGTH],
           msg: 'The image URL is too long',
         },
         isValidImage(url) {
           // Only validate for new images
-          if (!url || url === this.image) {
+          if (!url || (this.id && this.previous('image') === undefined)) {
             return;
           } else if (!isValidUploadedImage(url, { allowTrustedThirdPartyImages: true })) {
             throw new Error('The image URL is not valid');
@@ -3692,14 +3694,16 @@ Collective.init(
     backgroundImage: {
       type: DataTypes.STRING,
       validate: {
-        isUrl: true,
+        isUrl: {
+          msg: 'The background image URL is not valid',
+        },
         len: {
           args: [0, MAX_UPLOADED_FILE_URL_LENGTH],
           msg: 'The background image URL is too long',
         },
         isValidImage(url) {
           // Only validate for new images
-          if (!url || url === this.backgroundImage) {
+          if (!url || (this.id && this.previous('image') === undefined)) {
             return;
           } else if (!isValidUploadedImage(url, { allowTrustedThirdPartyImages: true })) {
             throw new Error('The background image URL is not valid');
