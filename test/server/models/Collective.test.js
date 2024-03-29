@@ -10,6 +10,7 @@ import POLICIES from '../../../server/constants/policies';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
 import { getFxRate } from '../../../server/lib/currency';
 import emailLib from '../../../server/lib/email';
+import * as ImagesLib from '../../../server/lib/images';
 import models, { Op, sequelize } from '../../../server/models';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 import {
@@ -270,6 +271,99 @@ describe('server/models/Collective', () => {
       // name "Learn More" is created, we expect to have an URL like
       // `https://host/learn-more1`
       expect(collective.slug.startsWith('learn-more')).to.equal(true);
+    });
+  });
+
+  describe('images', () => {
+    const validImage = 'https://example.com/valid.jpg';
+    const invalidImage = 'https://example.com/invalid.jpg';
+
+    before(() => {
+      sandbox.stub(ImagesLib, 'isValidUploadedImage').callsFake(url => url === validImage);
+    });
+
+    after(() => {
+      ImagesLib.isValidUploadedImage.restore();
+    });
+
+    describe('image (avatar)', () => {
+      it('creates with a valid image', async () => {
+        const collective = await fakeCollective({ image: validImage });
+        expect(collective.image).to.equal(validImage);
+      });
+
+      it('updates with a valid image', async () => {
+        const collective = await fakeCollective();
+        await collective.update({ image: validImage });
+        expect(collective.image).to.equal(validImage);
+      });
+
+      it('must be a URL', async () => {
+        await expect(fakeCollective({ image: 'not-a-url' })).to.be.rejectedWith(
+          Error,
+          'Validation error: The image URL is not valid',
+        );
+      });
+
+      it('throws if creating with an invalid URL', async () => {
+        await expect(fakeCollective({ image: invalidImage })).to.be.rejectedWith(
+          Error,
+          'Validation error: The image URL is not valid',
+        );
+      });
+
+      it('throws if updating with an invalid URL', async () => {
+        const collective = await fakeCollective({ image: validImage });
+        await expect(collective.update({ image: invalidImage })).to.be.rejectedWith(
+          Error,
+          'Validation error: The image URL is not valid',
+        );
+      });
+
+      it('does not re-validate the URL if it has not changed', async () => {
+        const collective = await fakeCollective({ image: invalidImage }, { validate: false });
+        await collective.update({ image: invalidImage, name: 'New Name' });
+      });
+    });
+
+    describe('backgroundImage', () => {
+      it('creates with a valid image', async () => {
+        const collective = await fakeCollective({ backgroundImage: validImage });
+        expect(collective.backgroundImage).to.equal(validImage);
+      });
+
+      it('updates with a valid image', async () => {
+        const collective = await fakeCollective();
+        await collective.update({ backgroundImage: validImage });
+        expect(collective.backgroundImage).to.equal(validImage);
+      });
+
+      it('must be a URL', async () => {
+        await expect(fakeCollective({ backgroundImage: 'not-a-url' })).to.be.rejectedWith(
+          Error,
+          'Validation error: The background image URL is not valid',
+        );
+      });
+
+      it('throws if creating with an invalid URL', async () => {
+        await expect(fakeCollective({ backgroundImage: invalidImage })).to.be.rejectedWith(
+          Error,
+          'Validation error: The background image URL is not valid',
+        );
+      });
+
+      it('throws if updating with an invalid URL', async () => {
+        const collective = await fakeCollective({ backgroundImage: validImage });
+        await expect(collective.update({ backgroundImage: invalidImage })).to.be.rejectedWith(
+          Error,
+          'Validation error: The background image URL is not valid',
+        );
+      });
+
+      it('does not re-validate the URL if it has not changed', async () => {
+        const collective = await fakeCollective({ backgroundImage: invalidImage }, { validate: false });
+        await collective.update({ backgroundImage: invalidImage, name: 'New Name' });
+      });
     });
   });
 
