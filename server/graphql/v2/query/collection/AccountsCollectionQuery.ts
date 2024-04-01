@@ -30,6 +30,11 @@ export const CommonAccountsCollectionQueryArgs = {
     type: GraphQLBoolean,
     description: 'Included collectives which are archived',
   },
+  skipGuests: {
+    type: GraphQLBoolean,
+    description: 'Ignore individual accounts used to make contributions as guests',
+    defaultValue: true,
+  },
   isActive: {
     type: GraphQLBoolean,
     description: 'Only return "active" accounts with Financial Contributions enabled if true.',
@@ -53,6 +58,10 @@ const AccountsCollectionQuery = {
     host: {
       type: new GraphQLList(GraphQLAccountReferenceInput),
       description: 'Host hosting the account',
+    },
+    parent: {
+      type: new GraphQLList(GraphQLAccountReferenceInput),
+      description: 'Parent Collective hosting the account',
     },
     type: {
       type: new GraphQLList(GraphQLAccountType),
@@ -81,10 +90,8 @@ const AccountsCollectionQuery = {
     const { offset, limit } = args;
     const cleanTerm = args.searchTerm?.trim();
 
-    let hostCollectiveIds;
-    if (args.host) {
-      hostCollectiveIds = await fetchAccountsIdsWithReference(args.host);
-    }
+    const hostCollectiveIds = args.host && (await fetchAccountsIdsWithReference(args.host));
+    const parentCollectiveIds = args.parent && (await fetchAccountsIdsWithReference(args.parent));
 
     const includeVendorsForHostId = args.includeVendorsForHost
       ? await fetchAccountWithReference(args.includeVendorsForHost).then(({ id }) => id)
@@ -93,11 +100,12 @@ const AccountsCollectionQuery = {
     const extraParameters = {
       orderBy: args.orderBy || { field: 'RANK', direction: 'DESC' },
       types: args.type?.length ? args.type.map(value => AccountTypeToModelMapping[value]) : null,
-      hostCollectiveIds: hostCollectiveIds,
-      parentCollectiveIds: null,
+      hostCollectiveIds,
+      parentCollectiveIds,
       isHost: args.isHost ? true : null,
       onlyActive: args.isActive ? true : null,
       skipRecentAccounts: args.skipRecentAccounts,
+      skipGuests: args.skipGuests,
       hasCustomContributionsEnabled: args.hasCustomContributionsEnabled,
       countries: args.country,
       tags: args.tag,
