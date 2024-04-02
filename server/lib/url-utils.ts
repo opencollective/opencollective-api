@@ -14,3 +14,14 @@ export const getHostname = url => {
 export const getRootDomain = (url: string): string => {
   return getHostname(url).split('.').slice(-2).join('.');
 };
+
+export const isValidRESTServiceURL = (url: string): boolean => {
+  let parsedURL;
+  try {
+    parsedURL = new URL(url);
+  } catch {
+    return false;
+  }
+
+  return parsedURL.origin === config.host.rest;
+};

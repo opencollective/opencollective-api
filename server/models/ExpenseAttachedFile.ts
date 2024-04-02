@@ -1,9 +1,11 @@
 import config from 'config';
 import { DataTypes, ForeignKey, Model, Transaction } from 'sequelize';
+import isURL from 'validator/lib/isURL';
 
 import { diffDBEntries } from '../lib/data';
 import { isValidUploadedImage } from '../lib/images';
 import sequelize from '../lib/sequelize';
+import { isValidRESTServiceURL } from '../lib/url-utils';
 
 import Expense from './Expense';
 import { MAX_UPLOADED_FILE_URL_LENGTH } from './UploadedFile';
@@ -76,8 +78,26 @@ ExpenseAttachedFile.init(
       type: DataTypes.STRING,
       allowNull: false,
       validate: {
+        notNull: true,
+        notEmpty: true,
+        isValidURL(url: string): void {
+          if (!url) {
+            return;
+          }
+
+          if (
+            !isURL(url, {
+              // eslint-disable-next-line camelcase
+              require_host: config.env !== 'development',
+              // eslint-disable-next-line camelcase
+              require_tld: config.env !== 'development',
+            })
+          ) {
+            throw new Error('File URL is not a valid URL');
+          }
+        },
         isValid(url: string): void {
-          if (url && !isValidUploadedImage(url) && !url.startsWith(config.host.rest)) {
+          if (url && !isValidUploadedImage(url) && !isValidRESTServiceURL(config.host.rest)) {
             throw new Error('The attached file URL is not valid');
           }
         },
