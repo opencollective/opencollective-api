@@ -95,13 +95,15 @@ const addCreditCard = {
     try {
       pm = await setupCreditCard(pm, { collective, user: req.remoteUser });
     } catch (error) {
-      if (!error.stripeResponse) {
-        throw error;
-      }
-
       // unsave payment method if saved (and mark this in pm.data), we will resave it in confirmCreditCard
       if (args.isSavedForLater) {
         await pm.update({ saved: false, data: { ...pm.data, saveCardOnConfirm: true } });
+      }
+
+      if (error.type === 'StripeCardError') {
+        throw new Error(error.raw?.message || 'An error occurred while processing the card');
+      } else if (!error.stripeResponse) {
+        throw error;
       }
 
       return {
