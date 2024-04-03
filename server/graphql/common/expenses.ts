@@ -1233,7 +1233,7 @@ export const prepareExpenseItemInputs = async (
   // Get all FX rates for items
   const getDateKeyForItem = item => {
     const date = getDate(item['amountV2'].exchangeRate?.date || item.incurredAt || item.createdAt);
-    if (!date || moment(date).isSameOrAfter(moment(), 'day')) {
+    if (!date || moment(date).isAfter(moment(), 'day')) {
       return 'latest';
     } else {
       return date;
