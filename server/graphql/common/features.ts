@@ -156,7 +156,7 @@ export const checkCanEmitGiftCards = async collective => {
 };
 
 const checkMultiCurrencyExpense = async (collective, req): Promise<FEATURE_STATUS> => {
-  if (!collective.HostCollectiveId) {
+  if (!collective.HostCollectiveId || !collective.isActive) {
     return FEATURE_STATUS.UNSUPPORTED;
   }
 
