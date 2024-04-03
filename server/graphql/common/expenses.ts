@@ -1231,8 +1231,16 @@ export const prepareExpenseItemInputs = async (
   }
 
   // Get all FX rates for items
+  const getDateKeyForItem = item => {
+    const date = getDate(item['amountV2'].exchangeRate?.date || item.incurredAt || item.createdAt);
+    if (!date || moment(date).isSameOrAfter(moment(), 'day')) {
+      return 'latest';
+    } else {
+      return date;
+    }
+  };
+
   let fxRates;
-  const getDateKeyForItem = item => getDate(item['amountV2'].exchangeRate?.date || item.incurredAt || item.createdAt);
   const itemsThatNeedFXRates = itemsInput.filter(item => item['amountV2']);
   if (itemsThatNeedFXRates.length) {
     fxRates = await loadFxRatesMap(
