@@ -15,6 +15,8 @@ const VIEWS = [
   'ExpenseTagStats',
 ];
 
+const VIEWS_WITHOUT_UNIQUE_INDEX = ['HostMonthlyTransactions'];
+
 /**
  * Refresh the materialized views.
  *
@@ -23,10 +25,26 @@ const VIEWS = [
  */
 async function run() {
   for (const view of VIEWS) {
-    logger.info(`Refreshing ${view} materialized view...`);
+    logger.info(`Refreshing ${view} materialized view CONCURRENTLY...`);
     const startTime = process.hrtime();
     try {
       await sequelize.query(`REFRESH MATERIALIZED VIEW CONCURRENTLY "${view}"`);
+      const [runSeconds, runMilliSeconds] = process.hrtime(startTime);
+      logger.info(`${view} materialized view refreshed in ${runSeconds}.${runMilliSeconds} seconds`);
+    } catch (e) {
+      const [runSeconds, runMilliSeconds] = process.hrtime(startTime);
+      logger.error(
+        `Error while refreshing ${view} materialized view after ${runSeconds}.${runMilliSeconds} seconds: ${e.message}`,
+        e,
+      );
+    }
+  }
+
+  for (const view of VIEWS_WITHOUT_UNIQUE_INDEX) {
+    logger.info(`Refreshing ${view} materialized view...`);
+    const startTime = process.hrtime();
+    try {
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "${view}"`);
       const [runSeconds, runMilliSeconds] = process.hrtime(startTime);
       logger.info(`${view} materialized view refreshed in ${runSeconds}.${runMilliSeconds} seconds`);
     } catch (e) {

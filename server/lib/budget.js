@@ -390,7 +390,13 @@ export async function getBalanceTimeSeries(
   const result = balanceTimeSeries[collective.id];
 
   const nodes = result.groupBy?.date ? Object.values(result.groupBy.date) : [];
-  const nodesWithAllDates = fillTimeSeriesWithNodes(nodes, startDate, endDate, timeUnit);
+  const nodesWithAllDates = fillTimeSeriesWithNodes({
+    nodes,
+    startDate,
+    endDate,
+    timeUnit,
+    initialData: { amount: 0 },
+  });
 
   const fxRate = await getFxRate(result.currency, currency);
 
@@ -720,6 +726,8 @@ export async function sumCollectivesTransactions(
     include,
     group,
     raw: true,
+    // Ordering by latest transaction date makes sure we aggregate amounts in the currency of the latest transaction when aggregating below (to avoid converting back and forth between currencies)
+    order: [[sequelize.literal('MAX("Transaction"."createdAt")'), 'DESC']],
   });
 
   for (const result of results) {
@@ -936,11 +944,18 @@ export async function getCurrentCollectiveBalances(collectiveIds, { loaders = nu
     ? await Promise.all(
         collectiveIds.map(collectiveId => loaders.Collective.currentCollectiveBalance.load(collectiveId)),
       ).then(results => results.filter(el => !!el))
-    : await sequelize.query(`SELECT * FROM "CurrentCollectiveBalance" WHERE "CollectiveId" IN (:collectiveIds)`, {
-        replacements: { collectiveIds },
-        type: sequelize.QueryTypes.SELECT,
-        raw: true,
-      });
+    : await sequelize.query(
+        `SELECT ccb.*
+         FROM "CurrentCollectiveBalance" ccb
+         INNER JOIN "Collectives" c ON ccb."CollectiveId" = c."id"
+         AND COALESCE(TRIM('"' FROM (c."settings"->'budget'->'version')::text), 'v2') = 'v2'
+         WHERE ccb."CollectiveId" IN (:collectiveIds)`,
+        {
+          replacements: { collectiveIds },
+          type: sequelize.QueryTypes.SELECT,
+          raw: true,
+        },
+      );
 
   const totals = {};
 
