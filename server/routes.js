@@ -295,7 +295,7 @@ export default async app => {
                 cache.get(`graphqlCacheKeys_${req.cacheSlug}`).then(keys => {
                   keys = keys || [];
                   keys.push(req.cacheKey);
-                  cache.set(`graphqlCacheKeys_${req.cacheSlug}`, keys);
+                  cache.set(`graphqlCacheKeys_${req.cacheSlug}`, keys, Number(config.graphql.cache.ttl));
                 });
               }
             },
