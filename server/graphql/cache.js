@@ -36,7 +36,7 @@ export function getGraphqlCacheProperties(req) {
   const variablesHash = md5(JSON.stringify(req.body.variables));
 
   return {
-    cacheKey: `${slug}_${req.body.operationName}_${queryHash}_${variablesHash}`,
+    cacheKey: `graphqlCache_${slug}_${req.body.operationName}_${queryHash}_${variablesHash}`,
     cacheSlug: slug,
   };
 }

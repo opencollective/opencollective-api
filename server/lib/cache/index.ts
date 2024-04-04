@@ -150,14 +150,10 @@ export function memoize(func, { key, maxAge = 0, serialize = JSON.stringify, uns
 }
 
 export async function purgeGraphqlCacheForCollective(slug) {
-  return cache.get(`graphqlCacheKeys_${slug}`).then(keys => {
-    if (keys) {
-      cache.delete(`graphqlCacheKeys_${slug}`);
-      for (const key of keys) {
-        cache.delete(key);
-      }
-    }
-  });
+  const keys = await cache.keys(`graphqlCache_${slug}_*`);
+  if (keys.length > 0) {
+    cache.delete(keys);
+  }
 }
 
 export function purgeCacheForCollective(slug) {
