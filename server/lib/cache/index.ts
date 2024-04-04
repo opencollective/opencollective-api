@@ -60,7 +60,7 @@ const buildCache = (instanceType = RedisInstanceType.DEFAULT) => ({
       logger.warn(`Error while clearing cache: ${err.message}`);
     }
   },
-  delete: async (key: string) => {
+  delete: async (key: string | string[]) => {
     try {
       debugCache(`delete ${key}`);
       const provider = await getDefaultProvider(instanceType);
@@ -76,6 +76,15 @@ const buildCache = (instanceType = RedisInstanceType.DEFAULT) => ({
       return provider.get(key, options);
     } catch (err) {
       logger.warn(`Error while fetching from cache: ${err.message}`);
+    }
+  },
+  keys: async (pattern: string) => {
+    try {
+      debugCache(`keys ${pattern}`);
+      const provider = await getDefaultProvider(instanceType);
+      return provider.keys(pattern);
+    } catch (err) {
+      logger.warn(`Error while fetching keys from cache: ${err.message}`);
     }
   },
   has: async (key: string) => {

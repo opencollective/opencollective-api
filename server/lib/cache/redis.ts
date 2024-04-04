@@ -9,7 +9,7 @@ const makeRedisProvider = async (instanceType = RedisInstanceType.DEFAULT) => {
 
   return {
     clear: async () => redisClient?.flushAll(),
-    delete: async key => redisClient?.del(key),
+    delete: async (key: string | string[]) => redisClient?.del(key),
     get: async (key, { unserialize = JSON.parse } = {}) => {
       const value = await redisClient?.get(key);
       if (value) {
@@ -34,6 +34,10 @@ const makeRedisProvider = async (instanceType = RedisInstanceType.DEFAULT) => {
           return redisClient?.set(key, serialize(value));
         }
       }
+    },
+    keys: async pattern => {
+      const keys = await redisClient?.keys(pattern);
+      return keys || [];
     },
   };
 };

@@ -92,6 +92,40 @@ describe('server/lib/cache/cacheProvider', () => {
       it('clear is available', async () => {
         await cache.clear();
       });
+
+      it('list keys matching a pattern', async () => {
+        cache.set('key1', 1);
+        cache.set('key2', 2);
+        cache.set('key3', 3);
+        cache.set('nonkey1', 1);
+        let keys = await cache.keys('key*');
+        assert.includeMembers(keys, ['key1', 'key2', 'key3']);
+        assert.notInclude(keys, 'nonkey1');
+
+        keys = await cache.keys('*key*');
+        assert.includeMembers(keys, ['key1', 'key2', 'key3', 'nonkey1']);
+      });
+
+      it('deletes a single key', async () => {
+        cache.set('key1', 1);
+        cache.set('key2', 2);
+        cache.set('key3', 3);
+        await cache.delete('key1');
+
+        const keys = await cache.keys('key*');
+        assert.includeMembers(keys, ['key2', 'key3']);
+        assert.notInclude(keys, 'key1');
+      });
+
+      it('deletes multiple keys', async () => {
+        cache.set('key1', 1);
+        cache.set('key2', 2);
+        cache.set('key3', 3);
+        await cache.delete(['key1', 'key2']);
+
+        const keys = await cache.keys('key*');
+        assert.deepEqual(keys, ['key3']);
+      });
     });
   });
 });
