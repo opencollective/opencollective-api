@@ -434,7 +434,7 @@ export async function createRefundTransaction(
   data,
   user,
   transactionGroupId = null,
-  clearedAt,
+  clearedAt = undefined,
 ) {
   /* If the transaction passed isn't the one from the collective
    * perspective, the opposite transaction is retrieved.
