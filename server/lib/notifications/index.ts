@@ -36,6 +36,7 @@ const publishToWebhook = async (notification: Notification, activity: Activity) 
     if (isSuccess && (!notification.lastSuccessAt || !moment(notification.lastSuccessAt).isSame(moment(), 'day'))) {
       await notification.update({ lastSuccessAt: new Date() });
     }
+    return response;
   }
 };
 
@@ -95,7 +96,11 @@ const dispatch = async (
         } catch (e) {
           const stringifiedError =
             e instanceof AxiosError ? `${e.response?.status} ${e.response?.statusText} ${e.config?.url}` : e;
+          if (e instanceof AxiosError) {
+            e.message = `Error sending Activity notification`;
+          }
           reportErrorToSentry(e, {
+            tags: { notificationChannel: notifConfig.channel },
             extra: { activity, notifConfig, onlyChannels, force, stringifiedError },
           });
         }
