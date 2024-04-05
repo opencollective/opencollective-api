@@ -291,12 +291,6 @@ export default async app => {
               // This will never happen for logged-in users as cacheKey is not set
               if (req.cacheKey && !response?.errors && executionTime > minExecutionTimeToCache) {
                 cache.set(req.cacheKey, result, Number(config.graphql.cache.ttl));
-                // Index key
-                cache.get(`graphqlCacheKeys_${req.cacheSlug}`).then(keys => {
-                  keys = keys || [];
-                  keys.push(req.cacheKey);
-                  cache.set(`graphqlCacheKeys_${req.cacheSlug}`, keys);
-                });
               }
             },
           };
