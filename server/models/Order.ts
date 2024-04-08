@@ -447,6 +447,13 @@ Order.prototype.validatePaymentMethod = function (paymentMethod) {
 Order.prototype.getOrCreateMembers = async function () {
   // Preload data
   this.collective = this.collective || (await this.getCollective());
+  this.fromCollective = this.fromCollective || (await this.getFromCollective());
+
+  // Ignore if the order is from a children collective
+  if (this.fromCollective?.ParentCollectiveId === this.collective.id) {
+    return;
+  }
+
   let tier;
   if (this.TierId) {
     tier = await this.getTier();

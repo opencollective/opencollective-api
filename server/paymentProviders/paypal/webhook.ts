@@ -210,11 +210,12 @@ async function handleCaptureCompleted(req: Request): Promise<void> {
     await order.update({ processedAt: new Date(), status: OrderStatus.PAID });
   });
 
-  // Send thankyou email
-  await sendThankYouEmail(order, transaction);
-
-  // Register user as a member, since the transaction is not created in `processOrder`
-  await order.getOrCreateMembers();
+  await Promise.all([
+    // Register user as a member, since the transaction is not created in `processOrder`
+    order.getOrCreateMembers(),
+    // Send thankyou email
+    sendThankYouEmail(order, transaction),
+  ]);
 }
 
 async function handleCaptureRefunded(req: Request): Promise<void> {
