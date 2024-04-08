@@ -151,7 +151,7 @@
     "sitekey": "HCAPTCHA_SITEKEY"
   },
   "turnstile": {
-    "secret": "TURNSTILE_SECRET"
+    "secretKey": "TURNSTILE_SECRET"
   },
   "helloworks": {
     "key": "HELLO_WORKS_KEY",
