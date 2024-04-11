@@ -252,9 +252,9 @@ export const getFormFieldsFromHelloWorksInstance = (instance: HelloWorksTaxFormI
         data.field_Jj5lq3 === 'Yes'
           ? 'W9'
           : data.field_W7cOxA === 'a business or entity'
-            ? 'W8-BEN-E'
+            ? 'W8BEN-E'
             : data.field_W7cOxA === 'an individual person'
-              ? 'W8-BEN'
+              ? 'W8BEN'
               : null,
       participantName: data.field_nTuM3q || data.field_7G0PTT || data.field_pLPdKR || data.field_TDe8mH,
       address1: data.field_Zdjn7X || data.field_nSSZij || data.field_nhEGv2,

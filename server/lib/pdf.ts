@@ -3,7 +3,7 @@ import { get } from 'lodash';
 import moment from 'moment';
 
 import models, { Op } from '../models';
-import { US_TAX_FORM_TYPE } from '../models/LegalDocument';
+import { USTaxFormType } from '../models/LegalDocument';
 
 import { TOKEN_EXPIRATION_PDF } from './auth';
 import { fetchWithTimeout } from './fetch';
@@ -164,7 +164,7 @@ export const getConsolidatedInvoicePdfs = async fromCollective => {
   return pdfAttachments;
 };
 
-export const getUSTaxFormPdf = async (formType: US_TAX_FORM_TYPE, formData) => {
+export const getUSTaxFormPdf = async (formType: USTaxFormType, formData) => {
   const pdfURL = new URL(`${config.host.pdf}/api/tax-form/${formType}.pdf`);
   const base64Values = Buffer.from(JSON.stringify(formData)).toString('base64');
   pdfURL.searchParams.set('formType', formType);
