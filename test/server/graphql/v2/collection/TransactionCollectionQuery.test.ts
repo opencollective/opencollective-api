@@ -4,8 +4,10 @@ import gql from 'fake-tag';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../server/constants/paymentMethods';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import {
+  fakeAccountingCategory,
   fakeCollective,
   fakeHost,
+  fakeOrder,
   fakeOrganization,
   fakePaymentMethod,
   fakeTransaction,
@@ -22,6 +24,11 @@ const transactionsQuery = gql`
     $dateFrom: DateTime
     $searchTerm: String
     $paymentMethodType: [PaymentMethodType]
+    $paymentMethodService: [PaymentMethodService]
+    $merchantId: [String]
+    $accountingCategory: [String]
+    $group: [String]
+    $excludeAccount: [AccountReferenceInput]
   ) {
     transactions(
       account: { slug: $slug }
@@ -31,6 +38,11 @@ const transactionsQuery = gql`
       dateFrom: $dateFrom
       searchTerm: $searchTerm
       paymentMethodType: $paymentMethodType
+      paymentMethodService: $paymentMethodService
+      merchantId: $merchantId
+      accountingCategory: $accountingCategory
+      group: $group
+      excludeAccount: $excludeAccount
     ) {
       totalCount
       offset
@@ -40,9 +52,19 @@ const transactionsQuery = gql`
       nodes {
         id
         type
+        merchantId
+        group
         paymentMethod {
           id
           type
+          service
+        }
+        order {
+          id
+          accountingCategory {
+            id
+            code
+          }
         }
         account {
           id
@@ -76,6 +98,12 @@ describe('server/graphql/v2/collection/TransactionCollection', () => {
     const fromCollective = await fakeOrganization({ legalName: 'Secret Corp', admin: fromCollectiveAdmin.collective });
     const host = await fakeHost({ admin: hostAdmin.collective });
     collective = await fakeCollective({ admin: collectiveAdmin.collective, HostCollectiveId: host.id });
+    const accountingCategory = await fakeAccountingCategory({ code: 'TEST-001', CollectiveId: host.id });
+    const order = await fakeOrder({
+      FromCollectiveId: fromCollective.id,
+      CollectiveId: collective.id,
+      AccountingCategoryId: accountingCategory.id,
+    });
 
     // Create some payment methods
     const creditCardPm = await fakePaymentMethod({
@@ -106,6 +134,8 @@ describe('server/graphql/v2/collection/TransactionCollection', () => {
         kind: TransactionKind.CONTRIBUTION,
         amount: -15000,
         PaymentMethodId: creditCardPm.id,
+        data: { charge: { id: 'ch_123' } },
+        OrderId: order.id,
       }),
       fakeTransaction({
         ...baseTransaction,
@@ -113,6 +143,7 @@ describe('server/graphql/v2/collection/TransactionCollection', () => {
         amount: 10,
         description: 'this is a test',
         PaymentMethodId: PaypalPm.id,
+        data: { capture: { id: 'paypov' } },
       }),
     ]);
   });
@@ -205,6 +236,72 @@ describe('server/graphql/v2/collection/TransactionCollection', () => {
           { paymentMethod: { type: 'SUBSCRIPTION' } },
         ]);
       });
+    });
+
+    describe('by payment method service', () => {
+      it('returns stripe', async () => {
+        const result = await graphqlQueryV2(transactionsQuery, {
+          slug: collective.slug,
+          paymentMethodService: ['STRIPE'],
+        });
+        expect(result.data.transactions.totalCount).to.eq(1);
+        expect(result.data.transactions.nodes[0].paymentMethod.service).to.eq('STRIPE');
+      });
+
+      it('returns paypal and stripe', async () => {
+        const result = await graphqlQueryV2(transactionsQuery, {
+          slug: collective.slug,
+          paymentMethodService: ['PAYPAL', 'STRIPE'],
+        });
+        expect(result.data.transactions.totalCount).to.eq(2);
+        expect(result.data.transactions.nodes).to.containSubset([
+          { paymentMethod: { service: 'PAYPAL' } },
+          { paymentMethod: { service: 'STRIPE' } },
+        ]);
+      });
+    });
+
+    it('by merchantId', async () => {
+      const result = await graphqlQueryV2(
+        transactionsQuery,
+        {
+          slug: collective.slug,
+          merchantId: ['ch_123', 'paypov'],
+        },
+        hostAdmin,
+      );
+      expect(result.data.transactions.totalCount).to.eq(2);
+      expect(result.data.transactions.nodes).to.containSubset([{ merchantId: 'ch_123' }, { merchantId: 'paypov' }]);
+    });
+
+    it('by Accounting Category', async () => {
+      const result = await graphqlQueryV2(transactionsQuery, {
+        slug: collective.slug,
+        accountingCategory: 'TEST-001',
+      });
+      expect(result.data.transactions.totalCount).to.eq(1);
+      expect(result.data.transactions.nodes).to.containSubset([
+        { order: { accountingCategory: { code: 'TEST-001' } } },
+      ]);
+    });
+
+    it('by excludeAccount', async () => {
+      const result = await graphqlQueryV2(transactionsQuery, {
+        slug: collective.slug,
+        excludeAccount: [{ slug: collective.slug }],
+      });
+      expect(result.data.transactions.totalCount).to.eq(0);
+    });
+  });
+
+  it('by group', async () => {
+    const group = transactions[0].TransactionGroup;
+    const result = await graphqlQueryV2(transactionsQuery, {
+      slug: collective.slug,
+      group: group,
+    });
+    result.data.transactions.nodes.forEach(transaction => {
+      expect(transaction).to.have.property('group', group);
     });
   });
 

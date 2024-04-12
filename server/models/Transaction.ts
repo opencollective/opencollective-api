@@ -2,7 +2,7 @@ import assert from 'assert';
 
 import config from 'config';
 import debugLib from 'debug';
-import { get, isNil, isNull, isUndefined, memoize, omit, pick } from 'lodash';
+import { compact, get, head, isNil, isNull, isUndefined, memoize, omit, pick } from 'lodash';
 import moment from 'moment';
 import {
   CreationOptional,
@@ -44,6 +44,20 @@ import User from './User';
 const { CREDIT, DEBIT } = TransactionTypes;
 
 const { CONTRIBUTION, EXPENSE, ADDED_FUNDS } = TransactionKind;
+export const MERCHANT_ID_PATHS = {
+  [CONTRIBUTION]: [
+    'data.charge.id', // stripeId
+    'data.capture.id', // onetimePaypalPaymentId
+    'data.paypalSale.id', // recurringPaypalPaymentId
+    'data.paypalResponse.id', // paypalResponseId
+  ],
+  [EXPENSE]: [
+    'data.transfer.id', // wiseId
+    'data.transaction_id', // paypalPayoutId
+    'data.token', // privacyId
+    'data.transaction.id', // stripeVirtualCardId
+  ],
+} as const;
 
 const debug = debugLib('models:Transaction');
 
@@ -103,6 +117,7 @@ export interface TransactionInterface
 
   // Getter Methods
   info: Partial<TransactionInterface>;
+  merchantId?: string;
 
   // Class methods
   getHostCollective: (options?: { loaders?: any }) => Promise<Collective>;
@@ -487,6 +502,10 @@ const Transaction: ModelStatic<TransactionInterface> & TransactionModelStaticInt
           isRefund: this.isRefund,
           isDebt: this.isDebt,
         };
+      },
+
+      merchantId() {
+        return head(compact(MERCHANT_ID_PATHS[this.kind]?.map(path => get(this, path))));
       },
     },
 
