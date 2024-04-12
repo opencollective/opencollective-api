@@ -611,15 +611,16 @@ export const createSubscription = async order => {
 
   // Both subscriptions and one time donations are charged
   // immediately and there won't be a better time to update
-  // this field after this. Please notice that it will change
-  // when the issue #729 is tackled.
-  // https://github.com/opencollective/opencollective/issues/729
+  // this field after this.
   order.Subscription.chargeNumber = 1;
   order.Subscription.activate();
   await order.update({
     status: status.ACTIVE,
     SubscriptionId: order.Subscription.id,
   });
+
+  // Mark any paused orders for this fromCollective/collective as cancelled
+  await order.markSimilarPausedOrdersAsCancelled();
 };
 
 /**
