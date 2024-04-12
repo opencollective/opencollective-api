@@ -26,7 +26,7 @@ export enum LEGAL_DOCUMENT_REQUEST_STATUS {
   ERROR = 'ERROR',
 }
 
-export const US_TAX_FORM_TYPES = ['W9', 'W8BEN', 'W8BEN-E'] as const;
+export const US_TAX_FORM_TYPES = ['W9', 'W8_BEN', 'W8_BEN_E'] as const;
 export type USTaxFormType = (typeof US_TAX_FORM_TYPES)[number];
 
 export enum LEGAL_DOCUMENT_SERVICE {

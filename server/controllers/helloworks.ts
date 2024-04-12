@@ -7,7 +7,7 @@ import logger from '../lib/logger';
 import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
 import { encryptAndUploadTaxFormToS3 } from '../lib/tax-forms';
 import models, { Activity } from '../models';
-import { LEGAL_DOCUMENT_REQUEST_STATUS, LEGAL_DOCUMENT_SERVICE } from '../models/LegalDocument';
+import { LEGAL_DOCUMENT_REQUEST_STATUS, LEGAL_DOCUMENT_SERVICE, USTaxFormType } from '../models/LegalDocument';
 
 const { User, LegalDocument, RequiredLegalDocument } = models;
 
@@ -209,7 +209,20 @@ export type HelloWorksTaxFormInstance = {
   };
 };
 
-export const getFormFieldsFromHelloWorksInstance = (instance: HelloWorksTaxFormInstance) => {
+type HelloWorksFormFields = {
+  type?: USTaxFormType;
+  participantName?: string;
+  entityName?: string;
+  address1?: string;
+  address2?: string;
+  taxIdNumberType?: string;
+  taxIdNumber?: string;
+  country?: string;
+  email?: string;
+  status?: string;
+};
+
+export const getFormFieldsFromHelloWorksInstance = (instance: HelloWorksTaxFormInstance): HelloWorksFormFields => {
   if (!instance?.data) {
     return {};
   } else if (instance.data.Form_nRZrdh) {
@@ -222,9 +235,9 @@ export const getFormFieldsFromHelloWorksInstance = (instance: HelloWorksTaxFormI
         data.field_ENxHCd === 'Yes'
           ? 'W9'
           : data.field_xdp45L === 'a business or entity'
-            ? 'W8-BEN-E'
+            ? 'W8_BEN_E'
             : data.field_xdp45L === 'an individual person'
-              ? 'W8-BEN'
+              ? 'W8_BEN'
               : null,
       participantName,
       entityName: participantName !== entityName ? entityName : null,
@@ -252,9 +265,9 @@ export const getFormFieldsFromHelloWorksInstance = (instance: HelloWorksTaxFormI
         data.field_Jj5lq3 === 'Yes'
           ? 'W9'
           : data.field_W7cOxA === 'a business or entity'
-            ? 'W8BEN-E'
+            ? 'W8_BEN_E'
             : data.field_W7cOxA === 'an individual person'
-              ? 'W8BEN'
+              ? 'W8_BEN'
               : null,
       participantName: data.field_nTuM3q || data.field_7G0PTT || data.field_pLPdKR || data.field_TDe8mH,
       address1: data.field_Zdjn7X || data.field_nSSZij || data.field_nhEGv2,
