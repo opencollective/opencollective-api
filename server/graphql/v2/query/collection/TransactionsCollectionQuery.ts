@@ -3,20 +3,22 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { cloneDeep, flatten, intersection, isEmpty, isNil, pick, uniq } from 'lodash';
-import { Order } from 'sequelize';
+import type { Order as SequelizeOrder } from 'sequelize';
 
 import { CollectiveType } from '../../../../constants/collectives';
 import cache, { memoize } from '../../../../lib/cache';
 import { buildSearchConditions } from '../../../../lib/search';
 import { parseToBoolean } from '../../../../lib/utils';
-import { Expense, Op, PaymentMethod, sequelize } from '../../../../models';
-import Transaction from '../../../../models/Transaction';
+import { AccountingCategory, Expense, Op, PaymentMethod, sequelize } from '../../../../models';
+import Order from '../../../../models/Order';
+import Transaction, { MERCHANT_ID_PATHS } from '../../../../models/Transaction';
 import { checkScope } from '../../../common/scope-check';
 import {
   GraphQLTransactionCollection,
   GraphQLTransactionsCollectionReturnType,
 } from '../../collection/TransactionCollection';
 import { GraphQLExpenseType } from '../../enum/ExpenseType';
+import { GraphQLPaymentMethodService } from '../../enum/PaymentMethodService';
 import { GraphQLPaymentMethodType } from '../../enum/PaymentMethodType';
 import { GraphQLTransactionKind } from '../../enum/TransactionKind';
 import { GraphQLTransactionType } from '../../enum/TransactionType';
@@ -46,6 +48,15 @@ export const TransactionsCollectionArgs = {
   paymentMethodType: {
     type: new GraphQLList(GraphQLPaymentMethodType),
     description: 'The payment method types. Can include `null` for transactions without a payment method',
+  },
+  paymentMethodService: {
+    type: new GraphQLList(GraphQLPaymentMethodService),
+    description: 'The payment method services.',
+  },
+  excludeAccount: {
+    type: new GraphQLList(GraphQLAccountReferenceInput),
+    description:
+      'Reference of the account(s) assigned to the main side of the transaction you want to EXCLUDE from the results',
   },
   fromAccount: {
     type: GraphQLAccountReferenceInput,
@@ -154,7 +165,7 @@ export const TransactionsCollectionArgs = {
     description: 'To filter by transaction kind',
   },
   group: {
-    type: GraphQLString,
+    type: new GraphQLList(GraphQLString),
     description: 'The transactions group to filter by',
   },
   virtualCard: {
@@ -163,6 +174,14 @@ export const TransactionsCollectionArgs = {
   isRefund: {
     type: GraphQLBoolean,
     description: 'Only return transactions that are refunds (or not refunds if false)',
+  },
+  merchantId: {
+    type: new GraphQLList(GraphQLString),
+    description: 'Only return transactions that are associated with these external merchant IDs',
+  },
+  accountingCategory: {
+    type: new GraphQLList(GraphQLString),
+    description: 'Only return transactions that are associated with these accounting categories',
   },
 };
 
@@ -292,6 +311,26 @@ export const TransactionsCollectionResolver = async (
       }
     }
   }
+  if (!isEmpty(args.excludeAccount)) {
+    const attributes = ['id', 'HostCollectiveId']; // We only need IDs
+    const fetchAccountsParams = { throwIfMissing: true, attributes };
+    if (args.includeChildrenTransactions) {
+      fetchAccountsParams['include'] = [{ association: 'children', required: false, attributes }];
+    }
+
+    // Fetch accounts (and optionally their children)
+    const excludedAccounts = await fetchAccountsWithReferences(args.excludeAccount, fetchAccountsParams);
+    const exludedAccountsIds = uniq(
+      flatten(
+        excludedAccounts.map(account => {
+          const accountIds = args.includeRegularTransactions ? [account.id] : [];
+          const childrenIds = account.children?.map(child => child.id) || [];
+          return [...accountIds, ...childrenIds];
+        }),
+      ),
+    );
+    where.push({ CollectiveId: { [Op.notIn]: exludedAccountsIds } });
+  }
 
   if (host) {
     if (args.includeHost === false) {
@@ -325,8 +364,9 @@ export const TransactionsCollectionResolver = async (
   if (args.type) {
     where.push({ type: args.type });
   }
-  if (args.group) {
-    where.push({ TransactionGroup: args.group });
+
+  if (!isEmpty(args.group)) {
+    where.push({ TransactionGroup: { [Op.in]: args.group } });
   }
   if (args.minAmount) {
     where.push({ amount: sequelize.where(sequelize.fn('abs', sequelize.col('amount')), Op.gte, args.minAmount) });
@@ -378,10 +418,15 @@ export const TransactionsCollectionResolver = async (
   if (args.kind) {
     where.push({ kind: args.kind });
   }
-  if (args.paymentMethodType) {
-    const uniquePaymentMethods: string[] = uniq(args.paymentMethodType);
-    const paymentMethodConditions = uniquePaymentMethods.map(type => {
-      return type ? { '$PaymentMethod.type$': type } : { PaymentMethodId: null };
+  if (args.paymentMethodService || args.paymentMethodType) {
+    const paymentMethodConditions = [];
+    uniq(args.paymentMethodType).forEach(type => {
+      // If type is not null, we add a condtion to filter by type, otherwise we add a Transaction level PaymentMethodId to convey the absence of a PaymentMethod
+      paymentMethodConditions.push(type ? { '$PaymentMethod.type$': type } : { PaymentMethodId: null });
+    });
+
+    uniq(args.paymentMethodService).forEach(service => {
+      paymentMethodConditions.push({ '$PaymentMethod.service$': service });
     });
 
     if (paymentMethodConditions.length) {
@@ -401,6 +446,28 @@ export const TransactionsCollectionResolver = async (
     });
   }
 
+  if (!isEmpty(args.merchantId)) {
+    const conditionals = [
+      ...MERCHANT_ID_PATHS.CONTRIBUTION.map(path => ({ [path]: { [Op.in]: args.merchantId } })),
+      ...MERCHANT_ID_PATHS.EXPENSE.map(path => ({ [path]: { [Op.in]: args.merchantId } })),
+    ];
+    where.push({ [Op.or]: conditionals });
+  }
+
+  if (!isEmpty(args.accountingCategory)) {
+    const conditionals = flatten(
+      uniq(args.accountingCategory).map(code => [
+        { '$Order.accountingCategory.code$': code },
+        { '$Expense.accountingCategory.code$': code },
+      ]),
+    );
+    where.push({ [Op.or]: conditionals });
+    include.push(
+      { model: Expense, required: false, include: [{ model: AccountingCategory, as: 'accountingCategory' }] },
+      { model: Order, required: false, include: [{ model: AccountingCategory, as: 'accountingCategory' }] },
+    );
+  }
+
   if (!isNil(args.isRefund)) {
     where.push({ isRefund: args.isRefund });
   }
@@ -413,7 +480,7 @@ export const TransactionsCollectionResolver = async (
     - kind: to put transactions in a group in a "logical" order following the main transaction
     - type: to put debits before credits of the same kind (i.e. when viewing multiple accounts at the same time)
   */
-  const order: Order = parseToBoolean(config.ledger.orderedTransactions)
+  const order: SequelizeOrder = parseToBoolean(config.ledger.orderedTransactions)
     ? [
         [
           sequelize.literal('ROUND(EXTRACT(epoch FROM "Transaction"."createdAt" AT TIME ZONE \'UTC\') / 10)'),

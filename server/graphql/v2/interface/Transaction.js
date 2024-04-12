@@ -31,7 +31,7 @@ import { GraphQLTaxInfo } from '../object/TaxInfo';
 
 import { GraphQLAccount } from './Account';
 
-const { CONTRIBUTION, EXPENSE } = TransactionKind;
+const { EXPENSE } = TransactionKind;
 
 const GraphQLTransactionPermissions = new GraphQLObjectType({
   name: 'TransactionPermissions',
@@ -686,38 +686,21 @@ export const TransactionFields = () => {
     },
     merchantId: {
       type: GraphQLString,
-      description: 'Merchant id related to the Transaction (Stripe, PayPal, Wise, Privacy)',
+      description: 'Merchant ID related to the Transaction (Stripe, PayPal, Wise, Privacy)',
       async resolve(transaction, _, req) {
         if (!req.remoteUser || !req.remoteUser.hasRole([roles.ACCOUNTANT, roles.ADMIN], transaction.HostCollectiveId)) {
           return;
         }
 
-        if (transaction.kind === CONTRIBUTION) {
-          const stripeId = transaction.data?.charge?.id;
-          const onetimePaypalPaymentId = transaction.data?.capture?.id;
-          const recurringPaypalPaymentId = transaction.data?.paypalSale?.id;
-          // Refunded PayPal contributions
-          const paypalResponseId = transaction.data?.paypalResponse?.id;
-
-          return stripeId || onetimePaypalPaymentId || recurringPaypalPaymentId || paypalResponseId;
-        }
-
+        // NOTE: We don't have transaction?.data?.transaction stored for transactions < 2022-09-27, but we have it available in expense.data
         if (transaction.kind === EXPENSE) {
           let expense = transaction.expense;
           if (!expense && transaction.ExpenseId) {
             expense = await req.loaders.Expense.byId.load(transaction.ExpenseId);
           }
-
-          const wiseId = transaction.data?.transfer?.id;
-          // TODO: PayPal Adaptive is missing
-          // https://github.com/opencollective/opencollective/issues/4891
-          const paypalPayoutId = transaction.data?.transaction_id;
-          const privacyId = transaction.data?.token;
-
-          // NOTE: We don't have transaction?.data?.transaction stored for transactions < 2022-09-27, but we have it available in expense.data
-          const stripeVirtualCardId = transaction.data?.transaction?.id || expense?.data?.transactionId;
-
-          return wiseId || paypalPayoutId || privacyId || stripeVirtualCardId;
+          return transaction.merchantId || expense?.data?.transactionId;
+        } else {
+          return transaction.merchantId;
         }
       },
     },
