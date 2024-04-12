@@ -111,7 +111,7 @@ import ConnectedAccount from './ConnectedAccount';
 import CustomDataTypes from './DataTypes';
 import Expense from './Expense';
 import HostApplication, { HostApplicationStatus } from './HostApplication';
-import { LegalDocumentModelInterface } from './LegalDocument';
+import LegalDocument from './LegalDocument';
 import Location from './Location';
 import Member, { MemberModelInterface } from './Member';
 import MemberInvitation from './MemberInvitation';
@@ -321,7 +321,7 @@ class Collective extends Model<
   public declare adminMembers?: NonAttribute<Array<MemberModelInterface>>;
   public declare getAdminMembers: HasManyGetAssociationsMixin<MemberModelInterface>;
 
-  public declare legalDocuments?: NonAttribute<LegalDocumentModelInterface[]>;
+  public declare legalDocuments?: NonAttribute<LegalDocument[]>;
 
   public declare accountingCategories?: NonAttribute<Array<AccountingCategory>>;
   public declare getAccountingCategories: HasManyGetAssociationsMixin<AccountingCategory>;

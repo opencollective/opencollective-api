@@ -591,6 +591,7 @@ export const redactSensitiveFields = fastRedact({
     'variables.password',
     'variables.newPassword',
     'variables.currentPassword',
+    'variables.formData.taxIdNumber',
   ],
 });
 

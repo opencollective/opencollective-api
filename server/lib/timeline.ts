@@ -125,6 +125,7 @@ const makeTimelineQuery = async (
         ActivityTypes.COLLECTIVE_EXPENSE_UPDATED,
         ActivityTypes.EXPENSE_COMMENT_CREATED,
         ActivityTypes.TAXFORM_REQUEST,
+        ActivityTypes.TAXFORM_RECEIVED,
       ],
     );
   }

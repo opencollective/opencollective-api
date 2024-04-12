@@ -15,7 +15,7 @@ import {
   stringifyBanResult,
   stringifyBanSummary,
 } from '../../../lib/moderation';
-import { setTaxForm } from '../../../lib/tax-forms';
+import { setTaxFormForDropboxForm } from '../../../lib/tax-forms';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Collective, sequelize } from '../../../models';
 import UserTwoFactorMethod from '../../../models/UserTwoFactorMethod';
@@ -341,7 +341,7 @@ export default {
 
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
 
-      return { success: setTaxForm(account, args.taxFormLink, args.year) };
+      return { success: setTaxFormForDropboxForm(account, args.taxFormLink, args.year) };
     },
   },
 };

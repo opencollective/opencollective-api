@@ -8,7 +8,7 @@ import { v4 as uuid } from 'uuid';
 import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import { getDiffBetweenInstances } from '../../../lib/data';
-import { setTaxForm } from '../../../lib/tax-forms';
+import { setTaxFormForDropboxForm } from '../../../lib/tax-forms';
 import models, { Activity } from '../../../models';
 import { checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { BadRequest, NotFound, Unauthorized, ValidationFailed } from '../../errors';
@@ -69,7 +69,7 @@ const vendorMutations = {
       }
 
       if (args.vendor.vendorInfo?.taxFormUrl) {
-        await setTaxForm(vendor, args.vendor.vendorInfo.taxFormUrl, new Date().getFullYear());
+        await setTaxFormForDropboxForm(vendor, args.vendor.vendorInfo.taxFormUrl, new Date().getFullYear());
       }
 
       if (args.vendor.payoutMethod) {
@@ -159,7 +159,7 @@ const vendorMutations = {
       }
 
       if (args.vendor.vendorInfo?.taxFormUrl) {
-        await setTaxForm(vendor, args.vendor.vendorInfo.taxFormUrl, new Date().getFullYear());
+        await setTaxFormForDropboxForm(vendor, args.vendor.vendorInfo.taxFormUrl, new Date().getFullYear());
       }
 
       if (args.vendor.payoutMethod) {
