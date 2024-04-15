@@ -24,9 +24,9 @@ import Activity from './Activity';
 import Collective from './Collective';
 import User from './User';
 
-export const LEGAL_DOCUMENT_TYPE = {
-  US_TAX_FORM: 'US_TAX_FORM',
-};
+export enum LEGAL_DOCUMENT_TYPE {
+  US_TAX_FORM = 'US_TAX_FORM',
+}
 
 export enum LEGAL_DOCUMENT_REQUEST_STATUS {
   NOT_REQUESTED = 'NOT_REQUESTED',
@@ -225,7 +225,10 @@ class LegalDocument extends Model<InferAttributes<LegalDocument>, InferCreationA
 
     // Filter out all the legal docs where a tax form is not needed anymore (e.g. because the expense amount was updated)
     const allAccountIds = uniq(requestedLegalDocuments.map(d => d.CollectiveId));
-    const accountIdsWithPendingTaxForm = await SQLQueries.getTaxFormsRequiredForAccounts(allAccountIds);
+    const accountIdsWithPendingTaxForm = await SQLQueries.getTaxFormsRequiredForAccounts({
+      CollectiveId: allAccountIds,
+      ignoreReceived: true,
+    });
     const filteredDocuments = requestedLegalDocuments.filter(d => accountIdsWithPendingTaxForm.has(d.CollectiveId));
     for (const legalDocument of filteredDocuments) {
       const correspondingActivity = await Activity.findOne({

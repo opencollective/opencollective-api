@@ -19,7 +19,7 @@ import LegalDocument, {
 
 import { uploadToS3 } from './awsS3';
 import logger from './logger';
-import queries from './queries';
+import SQLQueries from './queries';
 import { reportErrorToSentry, reportMessageToSentry } from './sentry';
 import { isEmailInternal } from './utils';
 
@@ -32,7 +32,7 @@ export const getTaxFormsS3Bucket = (): string => {
  * @param {number} year
  */
 export async function findAccountsThatNeedToBeSentTaxForm(year: number): Promise<Collective[]> {
-  const collectiveIds = await queries.getTaxFormsRequiredForAccounts(null, year);
+  const collectiveIds: Set<number> = await SQLQueries.getTaxFormsRequiredForAccounts({ year, ignoreReceived: true });
   if (!collectiveIds.size) {
     return [];
   } else {

@@ -7,13 +7,14 @@ import logger from '../lib/logger';
 import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
 import { encryptAndUploadTaxFormToS3 } from '../lib/tax-forms';
 import models, { Activity } from '../models';
-import { LEGAL_DOCUMENT_REQUEST_STATUS, LEGAL_DOCUMENT_SERVICE, USTaxFormType } from '../models/LegalDocument';
+import {
+  LEGAL_DOCUMENT_REQUEST_STATUS,
+  LEGAL_DOCUMENT_SERVICE,
+  LEGAL_DOCUMENT_TYPE,
+  USTaxFormType,
+} from '../models/LegalDocument';
 
-const { User, LegalDocument, RequiredLegalDocument } = models;
-
-const {
-  documentType: { US_TAX_FORM },
-} = RequiredLegalDocument;
+const { User, LegalDocument } = models;
 
 const HELLO_WORKS_KEY = get(config, 'helloworks.key');
 const HELLO_WORKS_SECRET = get(config, 'helloworks.secret');
@@ -325,7 +326,7 @@ async function callback(req, res) {
   if (status && status === 'completed' && SUPPORTED_WORKFLOWS.has(workflowId)) {
     const { userId, accountId, email, year } = metadata;
     const documentId = Object.keys(data)[0];
-    const documentType = US_TAX_FORM;
+    const documentType = LEGAL_DOCUMENT_TYPE.US_TAX_FORM;
 
     logger.info('Completed Tax form. Metadata:', metadata);
 

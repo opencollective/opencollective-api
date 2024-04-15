@@ -25,19 +25,23 @@ import { TransactionKind } from '../../../constants/transaction-kind';
 import { TransactionTypes } from '../../../constants/transactions';
 import { FEATURE, hasFeature } from '../../../lib/allowed-features';
 import { getPolicy } from '../../../lib/policies';
+import SQLQueries from '../../../lib/queries';
 import { buildSearchConditions } from '../../../lib/search';
 import sequelize from '../../../lib/sequelize';
 import { getHostReportNodesFromQueryResult } from '../../../lib/transaction-reports';
 import { ifStr, parseToBoolean } from '../../../lib/utils';
 import models, { Collective, Op } from '../../../models';
 import Agreement from '../../../models/Agreement';
+import { LEGAL_DOCUMENT_TYPE } from '../../../models/LegalDocument';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
+import { checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { Unauthorized, ValidationFailed } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { GraphQLAccountingCategoryCollection } from '../collection/AccountingCategoryCollection';
 import { GraphQLAgreementCollection } from '../collection/AgreementCollection';
 import { GraphQLHostApplicationCollection } from '../collection/HostApplicationCollection';
+import { GraphQLLegalDocumentCollection } from '../collection/LegalDocumentCollection';
 import { GraphQLVendorCollection } from '../collection/VendorCollection';
 import { GraphQLVirtualCardCollection } from '../collection/VirtualCardCollection';
 import {
@@ -49,6 +53,7 @@ import {
 import { GraphQLAccountingCategoryKind } from '../enum/AccountingCategoryKind';
 import { GraphQLHostApplicationStatus } from '../enum/HostApplicationStatus';
 import { GraphQLHostFeeStructure } from '../enum/HostFeeStructure';
+import { GraphQLLegalDocumentRequestStatus } from '../enum/LegalDocumentRequestStatus';
 import { GraphQLLegalDocumentType } from '../enum/LegalDocumentType';
 import { PaymentMethodLegacyTypeEnum } from '../enum/PaymentMethodLegacyType';
 import { GraphQLTimeUnit } from '../enum/TimeUnit';
@@ -1556,6 +1561,109 @@ export const GraphQLHost = new GraphQLObjectType({
           });
 
           return documents.map(({ documentType }) => documentType);
+        },
+      },
+      hostedLegalDocuments: {
+        type: new GraphQLNonNull(GraphQLLegalDocumentCollection),
+        description: 'Returns legal documents hosted by this host',
+        args: {
+          ...CollectionArgs,
+          type: {
+            type: GraphQLLegalDocumentType,
+            description: 'Filter by type of legal document',
+          },
+          status: {
+            type: new GraphQLList(GraphQLLegalDocumentRequestStatus),
+            description: 'Filter by status of legal document',
+          },
+          account: {
+            type: new GraphQLList(GraphQLAccountReferenceInput),
+            description: 'Filter by accounts',
+          },
+          searchTerm: {
+            type: GraphQLString,
+            description: 'Search term (name, description, ...)',
+          },
+          orderBy: {
+            type: new GraphQLNonNull(GraphQLChronologicalOrderInput),
+            description: 'The order of results',
+            defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
+          },
+          requestedAtFrom: {
+            type: GraphQLDateTime,
+            description: 'Filter by requested date from',
+          },
+          requestedAtTo: {
+            type: GraphQLDateTime,
+            description: 'Filter by requested date to',
+          },
+        },
+        resolve: async (host, args, req) => {
+          checkRemoteUserCanUseHost(req);
+          if (!req.remoteUser.isAdminOfCollective(host)) {
+            throw new Unauthorized('You need to be logged in as an admin of the host to see its legal documents');
+          }
+
+          if (args.type !== LEGAL_DOCUMENT_TYPE.US_TAX_FORM) {
+            throw new Error('Only US_TAX_FORM is supported for now');
+          }
+
+          const { offset, limit } = args;
+          const accountIds = await SQLQueries.getTaxFormsRequiredForAccounts({ HostCollectiveId: host.id });
+          if (!accountIds.size) {
+            return { nodes: [], totalCount: 0, limit, offset };
+          }
+
+          const where = { CollectiveId: Array.from(accountIds) };
+          if (args.type) {
+            where['documentType'] = args.type;
+          }
+          if (args.status) {
+            where['requestStatus'] = args.status;
+          }
+
+          if (args.accounts && args.accounts.length > 0) {
+            const accountIds = await fetchAccountsIdsWithReference(args.accounts, { throwIfMissing: true });
+            where['CollectiveId'] = uniq([...where['CollectiveId'], ...accountIds]);
+          }
+
+          if (args.requestedAtFrom) {
+            where['createdAt'] = { [Op.gte]: args.requestedAtFrom };
+          }
+          if (args.requestedAtTo) {
+            where['createdAt'] = { ...where['createdAt'], [Op.lte]: args.requestedAtTo };
+          }
+
+          const include = [];
+
+          // Add support for text search
+          const searchTermConditions = buildSearchConditions(args.searchTerm, {
+            idFields: ['id', 'CollectiveId'],
+            slugFields: ['$collective.slug$'],
+            textFields: ['$collective.name$'],
+          });
+
+          if (searchTermConditions.length) {
+            where[Op.or] = searchTermConditions;
+            include.push({ association: 'collective', required: true });
+          }
+
+          return {
+            totalCount: () => models.LegalDocument.count({ where, include }),
+            nodes: () =>
+              models.LegalDocument.findAll({
+                where,
+                offset,
+                include,
+                limit,
+                order: [
+                  [args.orderBy.field, args.orderBy.direction],
+                  ['id', 'DESC'],
+                ],
+              }),
+            limit,
+            offset,
+          };
         },
       },
     };

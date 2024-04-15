@@ -1,9 +1,10 @@
 import { expect } from 'chai';
 
 import models from '../../../server/models';
+import { LEGAL_DOCUMENT_TYPE } from '../../../server/models/LegalDocument';
 import * as utils from '../../utils';
 
-const { RequiredLegalDocument, Collective } = models;
+const { Collective } = models;
 
 describe('server/models/RequiredLegalDocument', () => {
   // globals to be set in the before hooks.
@@ -79,6 +80,6 @@ describe('server/models/RequiredLegalDocument', () => {
       },
     );
     const doc = await models.RequiredLegalDocument.create(requiredDoc);
-    expect(doc.documentType).to.eq(RequiredLegalDocument.documentType.US_TAX_FORM);
+    expect(doc.documentType).to.eq(LEGAL_DOCUMENT_TYPE.US_TAX_FORM);
   });
 });

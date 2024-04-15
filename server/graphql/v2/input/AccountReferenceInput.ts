@@ -190,11 +190,11 @@ export const fetchAccountsWithReferences = async (
  * from AccountReferenceInputs
  * TODO: this should be renamed to `fetchAccountsIdsWithReferences` (plural)
  */
-export const fetchAccountsIdsWithReference = async accounts => {
+export const fetchAccountsIdsWithReference = async (accounts, options = null) => {
   if (!accounts?.length) {
     return [];
   } else {
-    const fetchedAccounts = await fetchAccountsWithReferences(accounts, { attributes: ['id'] });
+    const fetchedAccounts = await fetchAccountsWithReferences(accounts, { ...options, attributes: ['id'] });
     return fetchedAccounts.map(account => account.id);
   }
 };
