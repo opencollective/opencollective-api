@@ -54,11 +54,6 @@ export const refundTransaction = async (
     { stripeAccount: hostStripeAccount.username },
   );
 
-  // if (options?.checkRefundStatus && refund.status !== 'succeeded') {
-  //   await transaction.update({ data: { ...transaction.data, refund } });
-  //   return null;
-  // }
-
   const charge = await stripe.charges.retrieve(chargeId, { stripeAccount: hostStripeAccount.username });
   const refundBalance = await stripe.balanceTransactions.retrieve(refund.balance_transaction as string, {
     stripeAccount: hostStripeAccount.username,
