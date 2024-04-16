@@ -1,4 +1,4 @@
-import Cloudflare from 'cloudflare';
+import cloudflare from 'cloudflare';
 import config from 'config';
 
 import logger from './logger';
@@ -17,7 +17,7 @@ if (isLiveServer && !hasConfig) {
   logger.info('A Cloudflare config was provided on a Live/Test environment. Some methods will be stubbed.');
 }
 
-const CloudflareLib = new Cloudflare({ email: cfConfig.email, key: cfConfig.key });
+const CloudflareLib = cloudflare({ email: cfConfig.email, key: cfConfig.key });
 
 // Export some helpers
 
