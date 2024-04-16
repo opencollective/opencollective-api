@@ -398,10 +398,6 @@ export const GraphQLAccountStats = new GraphQLObjectType({
             type: GraphQLContributionFrequency,
             description: 'Return only the stats for this frequency',
           },
-          hasPortability: {
-            type: GraphQLBoolean,
-            description: 'Filter contributions on whether they can be ported to another fiscal host directly',
-          },
           includeChildren: {
             type: GraphQLBoolean,
             description: 'Include contributions to children accounts (Projects and Events)',
@@ -415,7 +411,6 @@ export const GraphQLAccountStats = new GraphQLObjectType({
           }
           const currency = collective.currency;
           const loader = req.loaders.Collective.stats.activeRecurringContributions.buildLoader({
-            hasPortability: args.hasPortability,
             includeChildren: args.includeChildren,
             currency,
           });

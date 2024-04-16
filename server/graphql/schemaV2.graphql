@@ -4851,11 +4851,6 @@ type AccountStats {
     frequency: ContributionFrequency
 
     """
-    Filter contributions on whether they can be ported to another fiscal host directly
-    """
-    hasPortability: Boolean
-
-    """
     Include contributions to children accounts (Projects and Events)
     """
     includeChildren: Boolean = false

@@ -1,6 +1,6 @@
 import DataLoader from 'dataloader';
 import { createContext } from 'dataloader-sequelize';
-import { get, groupBy, isNil } from 'lodash';
+import { get, groupBy } from 'lodash';
 import moment from 'moment';
 
 import { CollectiveType } from '../../constants/collectives';
@@ -380,8 +380,8 @@ export const loaders = req => {
         .then(results => sortResults(ids, results, 'CollectiveId')),
     ),
     activeRecurringContributions: {
-      buildLoader({ currency, hasPortability = undefined, includeChildren = undefined } = {}) {
-        const key = `${currency}-${hasPortability}-${includeChildren}`;
+      buildLoader({ currency, includeChildren = undefined } = {}) {
+        const key = `${currency}-${includeChildren}`;
         if (!context.loaders.Collective.stats.activeRecurringContributions[key]) {
           const collectiveIdCol = !includeChildren
             ? 'CollectiveId'
@@ -419,7 +419,6 @@ export const loaders = req => {
                   required: true,
                   where: {
                     isActive: true,
-                    ...(!isNil(hasPortability) && { isManagedExternally: !hasPortability }),
                   },
                 },
               ],
