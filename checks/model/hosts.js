@@ -104,10 +104,45 @@ async function checkHostMemberEntry({ fix = false } = {}) {
     }
   }
 }
+
+async function checkHostActive({ fix = false } = {}) {
+  const message = 'Host with isActive=false';
+
+  const results = await sequelize.query(
+    `SELECT COUNT(*) as count
+     FROM "Collectives"
+     WHERE "isHostAccount" IS TRUE
+     AND "deletedAt" IS NULL AND "deactivatedAt" IS NULL
+     AND "approvedAt" IS NOT NULL AND "HostCollectiveId" = "id"
+     AND "isActive" IS FALSE
+     AND COALESCE(("settings"->'forceHostAccountInactive')::boolean), false) IS FALSE`,
+    { type: sequelize.QueryTypes.SELECT, raw: true },
+  );
+
+  if (results[0].count > 0) {
+    if (!fix) {
+      throw new Error(message);
+    } else {
+      logger.warn(`Fixing: ${message}`);
+      await sequelize.query(
+        `UPDATE "Collectives"
+         SET "isActive" = TRUE
+         WHERE "isHostAccount" IS TRUE
+         AND "deletedAt" IS NULL AND "deactivatedAt" IS NULL
+         AND "approvedAt" IS NOT NULL AND "HostCollectiveId" = "id"
+         AND "isActive" IS FALSE
+         AND COALESCE(("settings"->'forceHostAccountInactive')::boolean), false) IS FALSE`,
+      );
+    }
+  }
+}
+
 export async function checkHosts({ fix = false } = {}) {
   await checkHostFeePercent({ fix });
 
   await checkHostMemberEntry({ fix });
+
+  await checkHostActive({ fix });
 }
 
 if (!module.parent) {
