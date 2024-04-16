@@ -109,12 +109,13 @@ async function checkHostActive({ fix = false } = {}) {
   const message = 'Host with isActive=false';
 
   const results = await sequelize.query(
-    `SELECT *
+    `SELECT COUNT(*) as count
      FROM "Collectives"
      WHERE "isHostAccount" IS TRUE
      AND "deletedAt" IS NULL AND "deactivatedAt" IS NULL
      AND "approvedAt" IS NOT NULL AND "HostCollectiveId" = "id"
-     AND "isActive" IS FALSE`,
+     AND "isActive" IS FALSE
+     AND COALESCE(("settings"->'forceHostAccountInactive')::boolean), false) IS FALSE`,
     { type: sequelize.QueryTypes.SELECT, raw: true },
   );
 
@@ -129,7 +130,8 @@ async function checkHostActive({ fix = false } = {}) {
          WHERE "isHostAccount" IS TRUE
          AND "deletedAt" IS NULL AND "deactivatedAt" IS NULL
          AND "approvedAt" IS NOT NULL AND "HostCollectiveId" = "id"
-         AND "isActive" IS FALSE`,
+         AND "isActive" IS FALSE
+         AND COALESCE(("settings"->'forceHostAccountInactive')::boolean), false) IS FALSE`,
       );
     }
   }
