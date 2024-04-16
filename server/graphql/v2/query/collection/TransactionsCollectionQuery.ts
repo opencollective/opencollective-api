@@ -419,19 +419,24 @@ export const TransactionsCollectionResolver = async (
     where.push({ kind: args.kind });
   }
   if (args.paymentMethodService || args.paymentMethodType) {
-    const paymentMethodConditions = [];
+    const paymentMethodTypeConditions = [];
+    const paymentMethodServiceConditions = [];
     uniq(args.paymentMethodType).forEach(type => {
       // If type is not null, we add a condtion to filter by type, otherwise we add a Transaction level PaymentMethodId to convey the absence of a PaymentMethod
-      paymentMethodConditions.push(type ? { '$PaymentMethod.type$': type } : { PaymentMethodId: null });
+      paymentMethodTypeConditions.push(type ? { '$PaymentMethod.type$': type } : { PaymentMethodId: null });
     });
 
     uniq(args.paymentMethodService).forEach(service => {
-      paymentMethodConditions.push({ '$PaymentMethod.service$': service });
+      paymentMethodServiceConditions.push({ '$PaymentMethod.service$': service });
     });
 
-    if (paymentMethodConditions.length) {
-      include.push({ model: PaymentMethod });
-      where.push({ [Op.or]: paymentMethodConditions });
+    include.push({ model: PaymentMethod });
+
+    if (paymentMethodTypeConditions.length) {
+      where.push({ [Op.or]: paymentMethodTypeConditions });
+    }
+    if (paymentMethodServiceConditions.length) {
+      where.push({ [Op.or]: paymentMethodServiceConditions });
     }
   }
 
