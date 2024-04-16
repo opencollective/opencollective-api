@@ -2,7 +2,6 @@ export enum PAYMENT_METHOD_SERVICE {
   PAYPAL = 'paypal',
   STRIPE = 'stripe',
   OPENCOLLECTIVE = 'opencollective',
-  PREPAID = 'prepaid',
   THEGIVINGBLOCK = 'thegivingblock', // @deprecated
   WISE = 'wise',
 }
