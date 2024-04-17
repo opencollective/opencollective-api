@@ -11,14 +11,13 @@ import {
 import { GraphQLDateTime } from 'graphql-scalars';
 import { get, isNil, round } from 'lodash';
 
-import { Service } from '../../../constants/connected-account';
 import orderStatus from '../../../constants/order-status';
 import { PAYMENT_METHOD_SERVICE } from '../../../constants/paymentMethods';
 import roles from '../../../constants/roles';
 import { TransactionKind } from '../../../constants/transaction-kind';
 import { getDashboardObjectIdURL } from '../../../lib/stripe';
 import { generateDescription } from '../../../lib/transactions';
-import PaymentMethod, { PaymentMethodModelInterface } from '../../../models/PaymentMethod';
+import PaymentMethod from '../../../models/PaymentMethod';
 import Transaction from '../../../models/Transaction';
 import { allowContextPermission, getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import * as TransactionLib from '../../common/transactions';
