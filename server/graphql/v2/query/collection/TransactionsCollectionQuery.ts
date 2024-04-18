@@ -38,6 +38,13 @@ import { CollectionArgs } from '../../interface/Collection';
 
 const oneDayInSeconds = 60 * 60 * 24;
 
+const LEDGER_ORDERED_TRANSACTIONS_FIELDS = {
+  createdAt: sequelize.literal('ROUND(EXTRACT(epoch FROM "Transaction"."createdAt" AT TIME ZONE \'UTC\') / 10)'),
+  clearedAt: sequelize.literal(
+    'ROUND(EXTRACT(epoch FROM COALESCE("Transaction"."clearedAt", "Transaction"."createdAt") AT TIME ZONE \'UTC\') / 10)',
+  ),
+};
+
 export const TransactionsCollectionArgs = {
   limit: { ...CollectionArgs.limit, defaultValue: 100 },
   offset: CollectionArgs.offset,
@@ -485,12 +492,10 @@ export const TransactionsCollectionResolver = async (
     - kind: to put transactions in a group in a "logical" order following the main transaction
     - type: to put debits before credits of the same kind (i.e. when viewing multiple accounts at the same time)
   */
+
   const order: SequelizeOrder = parseToBoolean(config.ledger.orderedTransactions)
     ? [
-        [
-          sequelize.literal('ROUND(EXTRACT(epoch FROM "Transaction"."createdAt" AT TIME ZONE \'UTC\') / 10)'),
-          args.orderBy.direction,
-        ],
+        [LEDGER_ORDERED_TRANSACTIONS_FIELDS[args.orderBy.field || 'createdAt'], args.orderBy.direction],
         ['TransactionGroup', args.orderBy.direction],
         [
           sequelize.literal(`
