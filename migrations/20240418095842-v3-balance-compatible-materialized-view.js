@@ -11,13 +11,19 @@ module.exports = {
     await queryInterface.sequelize.query(`
       CREATE MATERIALIZED VIEW "TransactionBalances" AS (
         WITH "ActiveCollectives" AS (
-          SELECT c."id" as "CollectiveId", c."HostCollectiveId", COALESCE(TRIM('"' FROM (c."settings"->'budget'->'version')::text), 'v2') as "budgetVersion"
-          FROM "Transactions" t
-          LEFT JOIN "Collectives" c ON c."id" = t."CollectiveId" AND c."deletedAt" IS NULL
-          WHERE t."deletedAt" IS NULL AND t."hostCurrency" IS NOT NULL
-          AND c."isActive" IS TRUE
+          SELECT
+            COUNT(DISTINCT t."hostCurrency"),
+            c."id" as "CollectiveId", c."HostCollectiveId",
+            COALESCE(TRIM('"' FROM (c."settings"->'budget'->'version')::text), 'v2') as "budgetVersion"
+          FROM "Collectives" c
+          INNER JOIN "Transactions" t ON
+            c."id" = t."CollectiveId"
+            AND t."deletedAt" IS NULL
+            AND t."hostCurrency" IS NOT NULL
+            AND (COALESCE(TRIM('"' FROM (c."settings"->'budget'->'version')::text), 'v2') != 'v3' OR t."HostCollectiveId" = c."HostCollectiveId")
+          WHERE c."deletedAt" IS NULL AND c."type" != 'USER' AND c."isActive" IS TRUE AND c."HostCollectiveId" IS NOT NULL
           GROUP BY c."id"
-          HAVING COUNT(DISTINCT t."hostCurrency") = 1 OR "budgetVersion" = 'v3'
+          HAVING COUNT(DISTINCT t."hostCurrency") = 1
         )
         SELECT
           "id",
