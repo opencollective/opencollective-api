@@ -13,7 +13,7 @@ module.exports = {
         WITH "ActiveCollectives" AS (
           SELECT
             COUNT(DISTINCT t."hostCurrency"),
-            c."id" as "CollectiveId", c."HostCollectiveId",
+            c."id" as "ActiveCollectiveId", c."HostCollectiveId",
             COALESCE(TRIM('"' FROM (c."settings"->'budget'->'version')::text), 'v2') as "budgetVersion"
           FROM "Collectives" c
           INNER JOIN "Transactions" t ON
@@ -83,7 +83,7 @@ module.exports = {
             ASC
           ) as "balance"
           FROM "Transactions", "ActiveCollectives"
-          WHERE "Transactions"."CollectiveId" = "ActiveCollectives"."CollectiveId"
+          WHERE "Transactions"."CollectiveId" = "ActiveCollectives"."ActiveCollectiveId"
           AND ("ActiveCollectives"."budgetVersion" != 'v3' OR "Transactions"."HostCollectiveId" = "ActiveCollectives"."HostCollectiveId")
           AND "deletedAt" IS NULL
        )
