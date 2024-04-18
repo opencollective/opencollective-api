@@ -1,3 +1,5 @@
+import assert from 'assert';
+
 import config from 'config';
 import {
   GraphQLBoolean,
@@ -60,6 +62,7 @@ import {
   GraphQLAccountReferenceInput,
 } from '../input/AccountReferenceInput';
 import { getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/AmountInput';
+import { getAmountRangeValueAndOperator, GraphQLAmountRangeInput } from '../input/AmountRangeInput';
 import {
   CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   GraphQLChronologicalOrderInput,
@@ -1475,6 +1478,14 @@ export const GraphQLHost = new GraphQLObjectType({
             type: GraphQLOrderByInput,
             description: 'Order of the results',
           },
+          balance: {
+            type: GraphQLAmountRangeInput,
+            description: 'Filter by the balance of the account',
+          },
+          consolidatedBalance: {
+            type: GraphQLAmountRangeInput,
+            description: 'Filter by the balance of the account and its children accounts (events and projects)',
+          },
         },
         async resolve(host, args) {
           /** @type {Parameters<typeof models.Collective.findAndCountAll>[0]['where']} */
@@ -1505,6 +1516,58 @@ export const GraphQLHost = new GraphQLObjectType({
             } else if (args.hostFeesStructure === HOST_FEE_STRUCTURE.MONTHLY_RETAINER) {
               throw new ValidationFailed('The MONTHLY_RETAINER fees structure is not supported yet');
             }
+          }
+
+          if (!isEmpty(args.balance)) {
+            args.balance.gte?.currency &&
+              assert(args.balance.gte.currency, host.currency, 'Balance currency must match host currency');
+            args.balance.lte?.currency &&
+              assert(args.balance.lte.currency, host.currency, 'Balance currency must match host currency');
+
+            if (!where[Op.and]) {
+              where[Op.and] = [];
+            }
+
+            const { operator, value } = getAmountRangeValueAndOperator(args.balance);
+            where[Op.and].push(
+              sequelize.where(
+                sequelize.literal(
+                  `(SELECT COALESCE("CurrentCollectiveBalance"."netAmountInHostCurrency", 0) FROM "CurrentCollectiveBalance" WHERE "CurrentCollectiveBalance"."CollectiveId" = "Collective"."id" LIMIT 1)`,
+                ),
+                operator,
+                value,
+              ),
+            );
+          }
+
+          if (!isEmpty(args.consolidatedBalance)) {
+            args.consolidatedBalance.gte?.currency &&
+              assert(
+                args.consolidatedBalance.gte.currency,
+                host.currency,
+                'Consolidated Balance currency must match host currency',
+              );
+            args.consolidatedBalance.lte?.currency &&
+              assert(
+                args.consolidatedBalance.lte.currency,
+                host.currency,
+                'Consolidated Balance currency must match host currency',
+              );
+
+            if (!where[Op.and]) {
+              where[Op.and] = [];
+            }
+
+            const { operator, value } = getAmountRangeValueAndOperator(args.consolidatedBalance);
+            where[Op.and].push(
+              sequelize.where(
+                sequelize.literal(
+                  `(SELECT SUM(COALESCE("CurrentCollectiveBalance"."netAmountInHostCurrency", 0)) FROM "CurrentCollectiveBalance" WHERE "CurrentCollectiveBalance"."CollectiveId" IN (SELECT id FROM "Collectives" WHERE "deletedAt" IS NULL AND ("ParentCollectiveId" = "Collective"."id" OR id = "Collective"."id")))`,
+                ),
+                operator,
+                value,
+              ),
+            );
           }
 
           if (args.isUnhosted) {

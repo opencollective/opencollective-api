@@ -2893,6 +2893,16 @@ type Host implements Account & AccountWithContributions {
     Order of the results
     """
     orderBy: OrderByInput
+
+    """
+    Filter by the balance of the account
+    """
+    balance: AmountRangeInput
+
+    """
+    Filter by the balance of the account and its children accounts (events and projects)
+    """
+    consolidatedBalance: AmountRangeInput
   ): AccountCollection!
 }
 
@@ -6190,6 +6200,21 @@ type VendorCollection implements Collection {
   limit: Int
   totalCount: Int
   nodes: [Vendor!]
+}
+
+"""
+Input type for an amount range with the value and currency
+"""
+input AmountRangeInput {
+  """
+  The minimum amount (inclusive)
+  """
+  gte: AmountInput
+
+  """
+  The maximum amount (inclusive)
+  """
+  lte: AmountInput
 }
 
 type ExpenseValuesByRole {
