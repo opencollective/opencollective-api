@@ -11,7 +11,7 @@ import { AccountTypeToModelMapping, GraphQLAccountType } from '../enum/AccountTy
 import { GraphQLHostFeeStructure } from '../enum/HostFeeStructure';
 import { GraphQLMemberRole } from '../enum/MemberRole';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
-import { GraphQLOrderByInput, ORDER_BY_PSEUDO_FIELDS } from '../input/OrderByInput';
+import { GraphQLMemberOrderByInput, MEMBER_ORDER_BY_PSEUDO_FIELDS } from '../input/MemberOrderByInput';
 
 export const IsMemberOfFields = {
   memberOf: {
@@ -50,9 +50,9 @@ export const IsMemberOfFields = {
         description: 'Filters on the Host fees structure applied to this account',
       },
       orderBy: {
-        type: new GraphQLNonNull(GraphQLOrderByInput),
+        type: new GraphQLNonNull(GraphQLMemberOrderByInput),
         description: 'Order of the results',
-        defaultValue: { field: ORDER_BY_PSEUDO_FIELDS.CREATED_AT, direction: 'DESC' },
+        defaultValue: { field: MEMBER_ORDER_BY_PSEUDO_FIELDS.CREATED_AT, direction: 'DESC' },
       },
       orderByRoles: {
         type: GraphQLBoolean,
@@ -133,7 +133,7 @@ export const IsMemberOfFields = {
       }
       if (args.orderBy) {
         const { field, direction } = args.orderBy;
-        if (field === ORDER_BY_PSEUDO_FIELDS.MEMBER_COUNT) {
+        if (field === MEMBER_ORDER_BY_PSEUDO_FIELDS.MEMBER_COUNT) {
           order.push([sequelize.literal('"collective.memberCount"'), 'DESC']);
           collectiveAttributesInclude.push([
             sequelize.literal(`(
@@ -147,7 +147,7 @@ export const IsMemberOfFields = {
                 )`),
             'memberCount',
           ]);
-        } else if (field === ORDER_BY_PSEUDO_FIELDS.TOTAL_CONTRIBUTED) {
+        } else if (field === MEMBER_ORDER_BY_PSEUDO_FIELDS.TOTAL_CONTRIBUTED) {
           order.push([sequelize.literal('"collective.totalAmountDonated"'), 'DESC']);
           collectiveAttributesInclude.push([
             sequelize.literal(`(
@@ -164,7 +164,7 @@ export const IsMemberOfFields = {
                 )`),
             'totalAmountDonated',
           ]);
-        } else if (field === ORDER_BY_PSEUDO_FIELDS.CREATED_AT) {
+        } else if (field === MEMBER_ORDER_BY_PSEUDO_FIELDS.CREATED_AT) {
           order.push(['createdAt', direction]);
         } else {
           order.push([field, direction]);

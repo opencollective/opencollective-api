@@ -4,12 +4,12 @@ import { searchCollectivesInDB } from '../../../../lib/search';
 import { GraphQLAccountCollection } from '../../collection/AccountCollection';
 import { AccountTypeToModelMapping, GraphQLAccountType, GraphQLCountryISO } from '../../enum';
 import { GraphQLTagSearchOperator } from '../../enum/TagSearchOperator';
+import { GraphQLAccountOrderByInput } from '../../input/AccountOrderByInput';
 import {
   fetchAccountsIdsWithReference,
   fetchAccountWithReference,
   GraphQLAccountReferenceInput,
 } from '../../input/AccountReferenceInput';
-import { GraphQLOrderByInput } from '../../input/OrderByInput';
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
 
 export const CommonAccountsCollectionQueryArgs = {
@@ -77,7 +77,7 @@ const AccountsCollectionQuery = {
       description: 'Only accounts with custom contribution (/donate) enabled',
     },
     orderBy: {
-      type: GraphQLOrderByInput,
+      type: GraphQLAccountOrderByInput,
       description:
         'The order of results. Defaults to [RANK, DESC] (or [CREATED_AT, DESC] if `supportedPaymentMethodService` is provided)',
     },

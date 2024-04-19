@@ -52,6 +52,7 @@ import { GraphQLHostFeeStructure } from '../enum/HostFeeStructure';
 import { PaymentMethodLegacyTypeEnum } from '../enum/PaymentMethodLegacyType';
 import { GraphQLTimeUnit } from '../enum/TimeUnit';
 import { GraphQLVirtualCardStatusEnum } from '../enum/VirtualCardStatus';
+import { ACCOUNT_ORDER_BY_PSEUDO_FIELDS, GraphQLAccountOrderByInput } from '../input/AccountOrderByInput';
 import {
   fetchAccountsIdsWithReference,
   fetchAccountsWithReferences,
@@ -1406,7 +1407,7 @@ export const GraphQLHost = new GraphQLObjectType({
               'A term to search membership. Searches in collective tags, name, slug, members description and role.',
           },
           orderBy: {
-            type: GraphQLOrderByInput,
+            type: GraphQLAccountOrderByInput,
             description: 'Order of the results',
           },
           balance: {
@@ -1510,25 +1511,27 @@ export const GraphQLHost = new GraphQLObjectType({
             where[Op.or] = searchTermConditions;
           }
 
-          const order = [];
+          const orderBy = [];
           if (args.orderBy) {
             const { field, direction } = args.orderBy;
-            if (field === ORDER_BY_PSEUDO_FIELDS.CREATED_AT) {
+            if (field === ACCOUNT_ORDER_BY_PSEUDO_FIELDS.CREATED_AT) {
               // Quick hack here, using ApprovedAt because in this context,
               // it doesn't make sense to order by createdAt and this ends
               // up saving a whole new component that needs to be implemented
-              order.push(['approvedAt', direction]);
+              orderBy.push(['approvedAt', direction]);
+            } else if (field === ACCOUNT_ORDER_BY_PSEUDO_FIELDS.BALANCE) {
+              orderBy.push([ACCOUNT_CONSOLIDATED_BALANCE_QUERY, direction]);
             } else {
-              order.push([field, direction]);
+              orderBy.push([field, direction]);
             }
           } else {
-            order.push(['approvedAt', 'DESC']);
+            orderBy.push(['approvedAt', 'DESC']);
           }
 
           const result = await models.Collective.findAndCountAll({
             limit: args.limit,
             offset: args.offset,
-            order,
+            order: orderBy,
             where,
           });
 
