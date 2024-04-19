@@ -133,7 +133,7 @@ export const canRefund = async (transaction: TransactionInterface, _: void, req:
   }
   if (transaction.OrderId) {
     const order = await req.loaders.Order.byId.load(transaction.OrderId);
-    if ([orderStatus.REJECTED, orderStatus.DISPUTED, orderStatus.REFUNDED].includes(order.status)) {
+    if ([orderStatus.REJECTED, orderStatus.REFUNDED].includes(order.status)) {
       return false;
     }
   }
