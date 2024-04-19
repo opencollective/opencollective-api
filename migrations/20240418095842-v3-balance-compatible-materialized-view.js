@@ -3,11 +3,16 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface) {
-    await dropUnmodifiedViews(queryInterface);
+    await queryInterface.sequelize.query(`DROP VIEW IF EXISTS "CurrentCollectiveBalance"`);
+
+    await queryInterface.sequelize.query(`DROP MATERIALIZED VIEW IF EXISTS "CollectiveBalanceCheckpoint"`);
 
     await queryInterface.sequelize.query(`DROP MATERIALIZED VIEW IF EXISTS "TransactionBalances"`);
 
-    // Same as before, except the added v3/HostCollectiveId condition
+    // Refactoring "ActiveCollectives"
+    // Adding budgetVersion and HostCollectiveId columns in "ActiveCollectives"
+    // Adding the budgetVersion/HostCollectiveId condition in "ActiveCollectives"
+    // Adding the budgetVersion/HostCollectiveId condition in "TransactionBalances"
     await queryInterface.sequelize.query(`
       CREATE MATERIALIZED VIEW "TransactionBalances" AS (
         WITH "ActiveCollectives" AS (
@@ -89,11 +94,75 @@ module.exports = {
        )
     `);
 
-    await recreateUnmodifiedViews(queryInterface);
+    // Adding budgetVersion and HostCollectiveId columns
+    await queryInterface.sequelize.query(`
+      CREATE MATERIALIZED VIEW IF NOT EXISTS "CollectiveBalanceCheckpoint" AS (
+        WITH "LatestTransactionBalances" AS (
+          SELECT "CollectiveId", MAX("rank") AS "rank", MAX("createdAt") as "lastCreatedAt"
+          FROM "TransactionBalances"
+          GROUP BY "CollectiveId"
+        )
+        SELECT tb."id", tb."CollectiveId", tb."balance", tb."hostCurrency",
+        ltb."lastCreatedAt" as "createdAt",
+        COALESCE(TRIM('"' FROM (c."settings"->'budget'->'version')::text), 'v2') as "budgetVersion",
+        c."HostCollectiveId"
+        FROM "TransactionBalances" tb
+        INNER JOIN "LatestTransactionBalances" ltb
+        ON tb."rank" = ltb."rank" AND tb."CollectiveId" = ltb."CollectiveId"
+        INNER JOIN "Collectives" c ON c."id" = ltb."CollectiveId"
+       )
+    `);
+
+    await queryInterface.sequelize.query(`
+      CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "collective_balance_checkpoint__collective_id"
+      ON "CollectiveBalanceCheckpoint"("CollectiveId")
+    `);
+
+    // Adding the budgetVersion/HostCollectiveId condition
+    await queryInterface.sequelize.query(`
+    CREATE OR REPLACE VIEW "CurrentCollectiveBalance" as (
+      SELECT
+        cbc."CollectiveId",
+        cbc."balance" + coalesce(t."netAmountInHostCurrency", 0) "netAmountInHostCurrency",
+        coalesce(disputed."netAmountInHostCurrency", 0) "disputedNetAmountInHostCurrency",
+        cbc."hostCurrency"
+      FROM "CollectiveBalanceCheckpoint" cbc
+      LEFT JOIN LATERAL (
+        SELECT
+          SUM(t."amountInHostCurrency") +
+            SUM(coalesce(t."platformFeeInHostCurrency", 0)) +
+            SUM(coalesce(t."hostFeeInHostCurrency", 0)) +
+            SUM(coalesce(t."paymentProcessorFeeInHostCurrency", 0)) +
+            SUM(coalesce(t."taxAmount" * t."hostCurrencyFxRate", 0)) "netAmountInHostCurrency"
+        FROM "Transactions" t
+        WHERE t."CollectiveId" = cbc."CollectiveId"
+          AND t."createdAt" > cbc."createdAt"
+          AND t."deletedAt" is null
+        GROUP by t."CollectiveId"
+      ) as t ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT
+          SUM(t."amountInHostCurrency") +
+            SUM(coalesce(t."platformFeeInHostCurrency", 0)) +
+            SUM(coalesce(t."hostFeeInHostCurrency", 0)) +
+            SUM(coalesce(t."paymentProcessorFeeInHostCurrency", 0)) +
+            SUM(coalesce(t."taxAmount" * t."hostCurrencyFxRate", 0)) "netAmountInHostCurrency"
+        FROM "Transactions" t
+        where t."CollectiveId" = cbc."CollectiveId"
+          AND t."deletedAt" is null
+          AND t."isDisputed"
+          AND t."RefundTransactionId" is null
+          AND (cbc."budgetVersion" != 'v3' OR t."HostCollectiveId" = cbc."HostCollectiveId")
+        GROUP BY t."CollectiveId"
+      ) as disputed ON TRUE
+    );
+  `);
   },
 
   async down(queryInterface) {
-    await dropUnmodifiedViews(queryInterface);
+    await queryInterface.sequelize.query(`DROP VIEW IF EXISTS "CurrentCollectiveBalance"`);
+
+    await queryInterface.sequelize.query(`DROP MATERIALIZED VIEW IF EXISTS "CollectiveBalanceCheckpoint"`);
 
     await queryInterface.sequelize.query(`DROP MATERIALIZED VIEW IF EXISTS "TransactionBalances"`);
 
@@ -175,18 +244,7 @@ module.exports = {
     // Add a unique index on transaction ID to the materialized view
     await queryInterface.sequelize.query(`CREATE UNIQUE INDEX CONCURRENTLY ON "TransactionBalances"(id)`);
 
-    await recreateUnmodifiedViews(queryInterface);
-  },
-};
-
-async function dropUnmodifiedViews(queryInterface) {
-  await queryInterface.sequelize.query(`DROP VIEW IF EXISTS "CurrentCollectiveBalance"`);
-
-  await queryInterface.sequelize.query(`DROP MATERIALIZED VIEW IF EXISTS "CollectiveBalanceCheckpoint"`);
-}
-
-async function recreateUnmodifiedViews(queryInterface) {
-  await queryInterface.sequelize.query(`
+    await queryInterface.sequelize.query(`
       CREATE MATERIALIZED VIEW IF NOT EXISTS "CollectiveBalanceCheckpoint" AS (
         WITH "LatestTransactionBalances" AS (
           SELECT "CollectiveId", MAX("rank") AS "rank", MAX("createdAt") as "lastCreatedAt"
@@ -201,14 +259,14 @@ async function recreateUnmodifiedViews(queryInterface) {
        )
     `);
 
-  // Copied from migrations/20230213080003-fast-balance-update.js
-  await queryInterface.sequelize.query(`
+    // Copied from migrations/20230213080003-fast-balance-update.js
+    await queryInterface.sequelize.query(`
       CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "collective_balance_checkpoint__collective_id"
       ON "CollectiveBalanceCheckpoint"("CollectiveId")
     `);
 
-  // Copied from migrations/20230213080003-fast-balance-update.js
-  await queryInterface.sequelize.query(`
+    // Copied from migrations/20230213080003-fast-balance-update.js
+    await queryInterface.sequelize.query(`
     CREATE OR REPLACE VIEW "CurrentCollectiveBalance" as (
       SELECT
         cbc."CollectiveId",
@@ -245,4 +303,5 @@ async function recreateUnmodifiedViews(queryInterface) {
       ) as disputed ON TRUE
     );
   `);
-}
+  },
+};
