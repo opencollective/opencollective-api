@@ -1,5 +1,6 @@
 import { GraphQLInputObjectType } from 'graphql';
-import { Op } from 'sequelize';
+
+import { Op, sequelize } from '../../../models';
 
 import { AmountInputType, getValueInCentsFromAmountInput, GraphQLAmountInput } from './AmountInput';
 
@@ -32,3 +33,11 @@ export const getAmountRangeValueAndOperator = (args: AmountRangeInputType) => {
         (args.lte && getValueInCentsFromAmountInput(args.lte));
   return { operator, value };
 };
+
+export const ACCOUNT_BALANCE_QUERY = sequelize.literal(
+  '(SELECT COALESCE("CurrentCollectiveBalance"."netAmountInHostCurrency", 0) FROM "CurrentCollectiveBalance" WHERE "CurrentCollectiveBalance"."CollectiveId" = "Collective"."id")',
+);
+
+export const ACCOUNT_CONSOLIDATED_BALANCE_QUERY = sequelize.literal(
+  '(SELECT COALESCE(SUM(COALESCE("CurrentCollectiveBalance"."netAmountInHostCurrency", 0)), 0) FROM "CurrentCollectiveBalance" WHERE "CurrentCollectiveBalance"."CollectiveId" IN (SELECT id FROM "Collectives" WHERE "deletedAt" IS NULL AND "isActive" IS TRUE AND ("ParentCollectiveId" = "Collective"."id" OR id = "Collective"."id")))',
+);

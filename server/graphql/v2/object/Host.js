@@ -59,12 +59,16 @@ import {
   GraphQLAccountReferenceInput,
 } from '../input/AccountReferenceInput';
 import { getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/AmountInput';
-import { getAmountRangeValueAndOperator, GraphQLAmountRangeInput } from '../input/AmountRangeInput';
+import {
+  ACCOUNT_BALANCE_QUERY,
+  ACCOUNT_CONSOLIDATED_BALANCE_QUERY,
+  getAmountRangeValueAndOperator,
+  GraphQLAmountRangeInput,
+} from '../input/AmountRangeInput';
 import {
   CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   GraphQLChronologicalOrderInput,
 } from '../input/ChronologicalOrderInput';
-import { GraphQLOrderByInput, ORDER_BY_PSEUDO_FIELDS } from '../input/OrderByInput';
 import { AccountFields, GraphQLAccount } from '../interface/Account';
 import { AccountWithContributionsFields, GraphQLAccountWithContributions } from '../interface/AccountWithContributions';
 import { CollectionArgs, getCollectionArgs } from '../interface/Collection';
@@ -1456,15 +1460,7 @@ export const GraphQLHost = new GraphQLObjectType({
             }
 
             const { operator, value } = getAmountRangeValueAndOperator(args.balance);
-            where[Op.and].push(
-              sequelize.where(
-                sequelize.literal(
-                  `(SELECT COALESCE("CurrentCollectiveBalance"."netAmountInHostCurrency", 0) FROM "CurrentCollectiveBalance" WHERE "CurrentCollectiveBalance"."CollectiveId" = "Collective"."id" LIMIT 1)`,
-                ),
-                operator,
-                value,
-              ),
-            );
+            where[Op.and].push(sequelize.where(ACCOUNT_BALANCE_QUERY, operator, value));
           }
 
           if (!isEmpty(args.consolidatedBalance)) {
@@ -1486,15 +1482,7 @@ export const GraphQLHost = new GraphQLObjectType({
             }
 
             const { operator, value } = getAmountRangeValueAndOperator(args.consolidatedBalance);
-            where[Op.and].push(
-              sequelize.where(
-                sequelize.literal(
-                  `(SELECT SUM(COALESCE("CurrentCollectiveBalance"."netAmountInHostCurrency", 0)) FROM "CurrentCollectiveBalance" WHERE "CurrentCollectiveBalance"."CollectiveId" IN (SELECT id FROM "Collectives" WHERE "deletedAt" IS NULL AND ("ParentCollectiveId" = "Collective"."id" OR id = "Collective"."id")))`,
-                ),
-                operator,
-                value,
-              ),
-            );
+            where[Op.and].push(sequelize.where(ACCOUNT_CONSOLIDATED_BALANCE_QUERY, operator, value));
           }
 
           if (args.isUnhosted) {
