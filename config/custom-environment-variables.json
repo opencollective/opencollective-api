@@ -163,6 +163,9 @@
       }
     }
   },
+  "taxForms": {
+    "useInternal": "TAX_FORMS_USE_INTERNAL"
+  },
   "githubFlow": {
     "minNbStars": "GITHUB_FLOW_MIN_NB_STARS"
   },

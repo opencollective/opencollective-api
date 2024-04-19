@@ -35,6 +35,7 @@ import {
   Attributes,
   CreationOptional,
   FindOptions,
+  HasManyCreateAssociationMixin,
   HasManyGetAssociationsMixin,
   HasOneGetAssociationMixin,
   InferAttributes,
@@ -118,6 +119,7 @@ import MemberInvitation from './MemberInvitation';
 import Order from './Order';
 import PaymentMethod from './PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
+import RequiredLegalDocument from './RequiredLegalDocument';
 import SocialLink, { SocialLinkType } from './SocialLink';
 import Subscription from './Subscription';
 import Tier from './Tier';
@@ -322,6 +324,10 @@ class Collective extends Model<
   public declare getAdminMembers: HasManyGetAssociationsMixin<MemberModelInterface>;
 
   public declare legalDocuments?: NonAttribute<LegalDocument[]>;
+  public declare RequiredLegalDocuments?: NonAttribute<RequiredLegalDocument[]>;
+  public declare getLegalDocuments: HasManyGetAssociationsMixin<LegalDocument>;
+  public declare getRequiredLegalDocuments: HasManyGetAssociationsMixin<RequiredLegalDocument>;
+  public declare createRequiredLegalDocument: HasManyCreateAssociationMixin<RequiredLegalDocument>;
 
   public declare accountingCategories?: NonAttribute<Array<AccountingCategory>>;
   public declare getAccountingCategories: HasManyGetAssociationsMixin<AccountingCategory>;
@@ -527,6 +533,7 @@ class Collective extends Model<
       type: this.type,
       slug: this.slug,
       name: this.name,
+      legalName: this.legalName,
       company: this.company,
       website: this.website,
       isIncognito: this.isIncognito,

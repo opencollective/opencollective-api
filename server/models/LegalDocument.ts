@@ -9,11 +9,14 @@ import {
   NonAttribute,
 } from 'sequelize';
 
+import { activities } from '../constants';
 import { parseS3Url } from '../lib/awsS3';
 import { crypto, secretbox } from '../lib/encryption';
 import sequelize from '../lib/sequelize';
 
+import Activity from './Activity';
 import Collective from './Collective';
+import User from './User';
 
 export const LEGAL_DOCUMENT_TYPE = {
   US_TAX_FORM: 'US_TAX_FORM',
@@ -74,6 +77,66 @@ class LegalDocument extends Model<InferAttributes<LegalDocument>, InferCreationA
 
   static hash = (formValues: Record<string, unknown>): string => {
     return crypto.hash(JSON.stringify(formValues));
+  };
+
+  /**
+   * Send a tax form request to the collective using the new internal system.
+   */
+  static sendTaxFormRequestToCollectiveIfNone = async (
+    payee: Collective,
+    user: User,
+    {
+      UserTokenId,
+      ExpenseId,
+      HostCollectiveId,
+    }: {
+      UserTokenId?: number;
+      ExpenseId?: number;
+      HostCollectiveId?: number;
+    } = {},
+  ): Promise<LegalDocument> => {
+    return sequelize.transaction(async transaction => {
+      const [legalDocument, isNew] = await LegalDocument.findOrCreate({
+        transaction,
+        where: {
+          documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
+          CollectiveId: payee.id,
+        },
+        defaults: {
+          CollectiveId: payee.id,
+          documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
+          year: new Date().getFullYear(),
+          requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED,
+          service: LEGAL_DOCUMENT_SERVICE.OPENCOLLECTIVE,
+        },
+      });
+
+      if (isNew) {
+        // This will not trigger any email directly, we'll only send it in `cron/hourly/40-send-tax-form-requests.js`
+        await Activity.create(
+          {
+            type: activities.TAXFORM_REQUEST,
+            UserId: user.id,
+            CollectiveId: payee.id,
+            HostCollectiveId: HostCollectiveId,
+            UserTokenId,
+            ExpenseId,
+            data: {
+              service: LEGAL_DOCUMENT_SERVICE.OPENCOLLECTIVE,
+              isSystem: true,
+              legalDocument: legalDocument.info,
+              collective: payee.activity,
+              accountName: payee.name || payee.legalName || payee.slug,
+            },
+          },
+          {
+            transaction,
+          },
+        );
+      }
+
+      return legalDocument;
+    });
   };
 
   shouldBeRequested = function () {
