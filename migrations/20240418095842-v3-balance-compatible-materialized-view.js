@@ -27,6 +27,7 @@ module.exports = {
             AND t."hostCurrency" IS NOT NULL
             AND (COALESCE(TRIM('"' FROM (c."settings"->'budget'->'version')::text), 'v2') != 'v3' OR t."HostCollectiveId" = c."HostCollectiveId")
           WHERE c."deletedAt" IS NULL AND c."type" != 'USER' AND c."isActive" IS TRUE AND c."HostCollectiveId" IS NOT NULL
+          AND COALESCE(TRIM('"' FROM (c."settings"->'budget'->'version')::text), 'v2') != 'v1'
           GROUP BY c."id"
           HAVING COUNT(DISTINCT t."hostCurrency") = 1
         )
@@ -93,6 +94,9 @@ module.exports = {
           AND "deletedAt" IS NULL
        )
     `);
+
+    // Add a unique index on transaction ID to the materialized view
+    await queryInterface.sequelize.query(`CREATE UNIQUE INDEX CONCURRENTLY ON "TransactionBalances"(id)`);
 
     // Adding budgetVersion and HostCollectiveId columns
     await queryInterface.sequelize.query(`
