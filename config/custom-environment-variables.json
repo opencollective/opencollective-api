@@ -164,6 +164,7 @@
     }
   },
   "taxForms": {
+    "useInternal": "TAX_FORMS_USE_INTERNAL",
     "aws": {
       "s3": {
         "bucket": "TAX_FORMS_AWS_S3_BUCKET"

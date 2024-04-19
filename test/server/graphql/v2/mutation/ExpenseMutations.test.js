@@ -6,7 +6,7 @@ import { defaultsDeep, omit, pick, sumBy } from 'lodash';
 import { createSandbox } from 'sinon';
 import speakeasy from 'speakeasy';
 
-import { expenseStatus, expenseTypes } from '../../../../../server/constants';
+import { activities, expenseStatus, expenseTypes } from '../../../../../server/constants';
 import ExpenseTypes from '../../../../../server/constants/expense-type';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import { payExpense } from '../../../../../server/graphql/common/expenses';
@@ -19,6 +19,7 @@ import {
   TwoFactorMethod,
 } from '../../../../../server/lib/two-factor-authentication/lib';
 import models from '../../../../../server/models';
+import { LEGAL_DOCUMENT_TYPE } from '../../../../../server/models/LegalDocument';
 import { PayoutMethodTypes } from '../../../../../server/models/PayoutMethod';
 import UserTwoFactorMethod from '../../../../../server/models/UserTwoFactorMethod';
 import paymentProviders from '../../../../../server/paymentProviders';
@@ -32,6 +33,7 @@ import {
   fakeExpense,
   fakeExpenseItem,
   fakeHost,
+  fakeLegalDocument,
   fakeOrganization,
   fakePaymentMethod,
   fakePayoutMethod,
@@ -177,6 +179,7 @@ const mutationExpenseFields = gql`
       incurredAt
       description
     }
+    requiredLegalDocuments
     tags
   }
 `;
@@ -249,7 +252,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
   describe('createExpense', () => {
     let sandbox, emailSendMessageSpy;
-    const getValidExpenseData = ({ useAmountV2 = false } = {}) => ({
+    const getValidExpenseData = ({ amountInCents = 4200, useAmountV2 = false } = {}) => ({
       description: 'A valid expense',
       type: 'INVOICE',
       invoiceInfo: 'This will be printed on your invoice',
@@ -259,8 +262,8 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       items: [
         {
           description: 'A first item',
-          amount: useAmountV2 ? undefined : 4200,
-          amountV2: useAmountV2 ? { valueInCents: 4200, currencyCode: 'USD' } : undefined,
+          amount: useAmountV2 ? undefined : amountInCents,
+          amountV2: useAmountV2 ? { valueInCents: amountInCents, currencyCode: 'USD' } : undefined,
         },
       ],
     });
@@ -789,6 +792,153 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
             },
           });
         });
+      });
+    });
+
+    describe('tax form', () => {
+      const getValidExpenseDataSubjectToTaxForm = ({ amountInCents = 600e2, ...params } = {}) => ({
+        ...getValidExpenseData({ ...params, amountInCents }),
+        type: 'INVOICE',
+        payoutMethod: { type: 'OTHER', data: { content: 'Send cash!' } },
+      });
+
+      it('is requested if the expense qualifies', async () => {
+        const host = await fakeActiveHost();
+        await host.createRequiredLegalDocument({ type: LEGAL_DOCUMENT_TYPE.US_TAX_FORM });
+        const user = await fakeUser();
+        const expenseCreateInput = { ...getValidExpenseDataSubjectToTaxForm(), payee: { legacyId: user.CollectiveId } };
+        const result = await graphqlQueryV2(
+          createExpenseMutation,
+          { expense: expenseCreateInput, account: { legacyId: host.id } },
+          user,
+        );
+
+        // Check GraphQL response
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.createExpense.requiredLegalDocuments).to.deep.equal(['US_TAX_FORM']);
+
+        // Check legal document
+        const userLegalDocs = await user.collective.getLegalDocuments();
+        expect(userLegalDocs).to.have.length(1);
+        expect(userLegalDocs[0].documentType).to.equal(LEGAL_DOCUMENT_TYPE.US_TAX_FORM);
+        expect(userLegalDocs[0].service).to.equal('OPENCOLLECTIVE');
+        expect(userLegalDocs[0].requestStatus).to.equal('REQUESTED');
+        expect(userLegalDocs[0].year).to.equal(new Date().getFullYear());
+        expect(userLegalDocs[0].documentLink).to.be.null;
+
+        // Check activity
+        const requestActivities = await models.Activity.findAll({
+          where: { type: activities.TAXFORM_REQUEST, CollectiveId: user.CollectiveId },
+        });
+
+        expect(requestActivities).to.have.length(1);
+        expect(requestActivities[0].UserId).to.equal(user.id);
+        expect(requestActivities[0].ExpenseId).to.equal(result.data.createExpense.legacyId);
+        expect(requestActivities[0].HostCollectiveId).to.equal(host.id);
+        expect(requestActivities[0].data).to.containSubset({
+          service: 'OPENCOLLECTIVE',
+          isSystem: true,
+          collective: {
+            id: user.CollectiveId,
+            type: 'USER',
+          },
+          legalDocument: {
+            year: 2024,
+            service: 'OPENCOLLECTIVE',
+            documentLink: null,
+            documentType: 'US_TAX_FORM',
+            requestStatus: 'REQUESTED',
+          },
+        });
+
+        // There should be no email sent to the user, we only notify after a few days from the
+        // `cron/hourly/40-send-tax-form-requests.ts` job in case the user hasn't filled the form yet.
+        expect(emailSendMessageSpy.callCount).to.equal(0);
+      });
+
+      it('is not requested if the expense does not exceed the threshold', async () => {
+        const host = await fakeActiveHost();
+        await host.createRequiredLegalDocument({ type: LEGAL_DOCUMENT_TYPE.US_TAX_FORM });
+        const user = await fakeUser();
+        const expenseCreateInput = {
+          ...getValidExpenseDataSubjectToTaxForm({ amountInCents: 500e2 }),
+          payee: { legacyId: user.CollectiveId },
+        };
+        const result = await graphqlQueryV2(
+          createExpenseMutation,
+          { expense: expenseCreateInput, account: { legacyId: host.id } },
+          user,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.createExpense.requiredLegalDocuments).to.be.empty;
+        const userLegalDocs = await user.collective.getLegalDocuments();
+        expect(userLegalDocs).to.be.empty;
+      });
+
+      it('is not requested if the expense type does not require it', async () => {
+        const host = await fakeActiveHost();
+        await host.createRequiredLegalDocument({ type: LEGAL_DOCUMENT_TYPE.US_TAX_FORM });
+        const user = await fakeUser();
+        const expenseCreateInput = {
+          ...getValidExpenseData({ type: 'RECEIPT' }),
+          payee: { legacyId: user.CollectiveId },
+        };
+        const result = await graphqlQueryV2(
+          createExpenseMutation,
+          { expense: expenseCreateInput, account: { legacyId: host.id } },
+          user,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.createExpense.requiredLegalDocuments).to.be.empty;
+        const userLegalDocs = await user.collective.getLegalDocuments();
+        expect(userLegalDocs).to.be.empty;
+      });
+
+      it('is not requested if a legal document already exists', async () => {
+        const host = await fakeActiveHost();
+        await host.createRequiredLegalDocument({ type: LEGAL_DOCUMENT_TYPE.US_TAX_FORM });
+        const user = await fakeUser();
+        await fakeLegalDocument({
+          year: new Date().getFullYear(),
+          documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
+          requestStatus: 'RECEIVED',
+          CollectiveId: user.CollectiveId,
+        });
+
+        const expenseCreateInput = { ...getValidExpenseDataSubjectToTaxForm(), payee: { legacyId: user.CollectiveId } };
+        const result = await graphqlQueryV2(
+          createExpenseMutation,
+          { expense: expenseCreateInput, account: { legacyId: host.id } },
+          user,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.createExpense.requiredLegalDocuments).to.be.empty;
+        const userLegalDocs = await user.collective.getLegalDocuments();
+        expect(userLegalDocs).to.have.length(1);
+      });
+
+      it('is not requested if host is not connected to the tax form system', async () => {
+        const host = await fakeActiveHost();
+        const user = await fakeUser();
+        const expenseCreateInput = { ...getValidExpenseDataSubjectToTaxForm(), payee: { legacyId: user.CollectiveId } };
+        const result = await graphqlQueryV2(
+          createExpenseMutation,
+          { expense: expenseCreateInput, account: { legacyId: host.id } },
+          user,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.createExpense.requiredLegalDocuments).to.be.empty;
+        const userLegalDocs = await user.collective.getLegalDocuments();
+        expect(userLegalDocs).to.be.empty;
       });
     });
   });
@@ -1531,6 +1681,76 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, expense.User);
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.eq('Expense custom data cannot exceed 10kB. Current size: 10.008kB');
+    });
+
+    describe('tax form', () => {
+      it('is requested if the expense gets updated with an amount over the threshold', async () => {
+        const host = await fakeActiveHost();
+        await host.createRequiredLegalDocument({ type: LEGAL_DOCUMENT_TYPE.US_TAX_FORM });
+        const payoutMethod = await fakePayoutMethod({ type: 'OTHER', data: { content: 'Send cash' } });
+        const expense = await fakeExpense({
+          type: 'INVOICE',
+          PayoutMethodId: payoutMethod.id,
+          CollectiveId: host.id,
+          amount: 500e2,
+          currency: 'USD',
+          items: [],
+        });
+
+        const updatedExpenseData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          items: [{ amount: 550e2, description: 'A big expense', incurredAt: new Date() }],
+        };
+
+        // The first call is not subject to tax form
+        const result550 = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, expense.User);
+        expect(result550.errors).to.not.exist;
+        expect(result550.data.editExpense.requiredLegalDocuments).to.be.empty;
+        expect(await expense.fromCollective.getLegalDocuments()).to.have.length(0);
+
+        // Update to 600 USD
+        updatedExpenseData.items[0].amount = 600e2;
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, expense.User);
+
+        // Check GraphQL response
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.requiredLegalDocuments).to.deep.equal(['US_TAX_FORM']);
+
+        // Check legal document
+        const userLegalDocs = await expense.fromCollective.getLegalDocuments();
+        expect(userLegalDocs).to.have.length(1);
+        expect(userLegalDocs[0].documentType).to.equal(LEGAL_DOCUMENT_TYPE.US_TAX_FORM);
+        expect(userLegalDocs[0].service).to.equal('OPENCOLLECTIVE');
+        expect(userLegalDocs[0].requestStatus).to.equal('REQUESTED');
+        expect(userLegalDocs[0].year).to.equal(new Date().getFullYear());
+        expect(userLegalDocs[0].documentLink).to.be.null;
+
+        // Check activity
+        const requestActivities = await models.Activity.findAll({
+          where: { type: activities.TAXFORM_REQUEST, CollectiveId: expense.FromCollectiveId },
+        });
+
+        expect(requestActivities).to.have.length(1);
+        expect(requestActivities[0].UserId).to.equal(expense.User.id);
+        expect(requestActivities[0].ExpenseId).to.equal(result.data.editExpense.legacyId);
+        expect(requestActivities[0].HostCollectiveId).to.equal(host.id);
+        expect(requestActivities[0].data).to.containSubset({
+          service: 'OPENCOLLECTIVE',
+          isSystem: true,
+          collective: {
+            id: expense.FromCollectiveId,
+            type: 'USER',
+          },
+          legalDocument: {
+            year: 2024,
+            service: 'OPENCOLLECTIVE',
+            documentLink: null,
+            documentType: 'US_TAX_FORM',
+            requestStatus: 'REQUESTED',
+          },
+        });
+      });
     });
   });
 

@@ -160,6 +160,9 @@
       }
     }
   },
+  "taxForms": {
+    "useInternal": true
+  },
   "githubFlow": {
     "minNbStars": 100
   },
