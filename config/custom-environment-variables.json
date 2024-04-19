@@ -163,6 +163,13 @@
       }
     }
   },
+  "taxForms": {
+    "aws": {
+      "s3": {
+        "bucket": "TAX_FORMS_AWS_S3_BUCKET"
+      }
+    }
+  },
   "githubFlow": {
     "minNbStars": "GITHUB_FLOW_MIN_NB_STARS"
   },

@@ -12,6 +12,7 @@ import {
 import { parseS3Url } from '../lib/awsS3';
 import { crypto, secretbox } from '../lib/encryption';
 import sequelize from '../lib/sequelize';
+import { getTaxFormsS3Bucket } from '../lib/tax-forms';
 
 import Collective from './Collective';
 
@@ -95,7 +96,7 @@ class LegalDocument extends Model<InferAttributes<LegalDocument>, InferCreationA
 
     try {
       const { bucket } = parseS3Url(this.documentLink);
-      return bucket === config.helloworks.aws.s3.bucket;
+      return bucket === getTaxFormsS3Bucket();
     } catch (e) {
       return false;
     }

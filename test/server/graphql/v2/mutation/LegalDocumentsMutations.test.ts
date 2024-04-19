@@ -1,5 +1,4 @@
 import { expect } from 'chai';
-import config from 'config';
 import gql from 'fake-tag';
 import { describe, it } from 'mocha';
 import { createSandbox } from 'sinon';
@@ -45,7 +44,7 @@ describe('MemberInvitationMutations', () => {
     before(() => {
       sandbox.stub(PDFLib, 'getUSTaxFormPdf').resolves('PDF_CONTENT');
       sandbox.stub(TaxFormLib, 'encryptAndUploadTaxFormToS3').resolves({
-        url: fakeOpenCollectiveS3URL({ bucket: config.helloworks.aws.s3.bucket, key: 'path/to/filename.pdf' }),
+        url: fakeOpenCollectiveS3URL({ bucket: TaxFormLib.getTaxFormsS3Bucket(), key: 'path/to/filename.pdf' }),
       });
 
       validParams = {

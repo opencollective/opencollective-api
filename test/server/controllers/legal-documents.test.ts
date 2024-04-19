@@ -1,10 +1,10 @@
 import { expect } from 'chai';
-import config from 'config';
 import type { Request, Response } from 'express';
 import sinon from 'sinon';
 
 import LegalDocumentsController from '../../../server/controllers/legal-documents';
 import { idEncode } from '../../../server/graphql/v2/identifiers';
+import { getTaxFormsS3Bucket } from '../../../server/lib/tax-forms';
 import { fakeCollective, fakeLegalDocument, fakeOpenCollectiveS3URL, fakeUser } from '../../test-helpers/fake-data';
 import { makeRequest } from '../../utils';
 
@@ -80,7 +80,7 @@ describe('server/controllers/legal-documents', () => {
       await user.populateRoles();
       const legalDocument = await fakeLegalDocument({
         CollectiveId: collective.id,
-        documentLink: fakeOpenCollectiveS3URL({ bucket: config.helloworks.aws.s3.bucket, key: 'file.pdf' }),
+        documentLink: fakeOpenCollectiveS3URL({ bucket: getTaxFormsS3Bucket(), key: 'file.pdf' }),
       });
       const req = makeRequest(user) as unknown as Request;
       const res = getResStub();
@@ -119,7 +119,7 @@ describe('server/controllers/legal-documents', () => {
     //   await user.populateRoles();
     //   const legalDocument = await fakeLegalDocument({
     //     CollectiveId: collective.id,
-    //     documentLink: fakeOpenCollectiveS3URL({ bucket: config.helloworks.aws.s3.bucket, key: 'file.pdf' }),
+    //     documentLink: fakeOpenCollectiveS3URL({ bucket: getTaxFormsS3Bucket(), key: 'file.pdf' }),
     //   });
     //   const req = makeRequest(user) as unknown as Request;
     //   const res = getResStub();
@@ -143,7 +143,7 @@ describe('server/controllers/legal-documents', () => {
     //   await user.populateRoles();
     //   const legalDocument = await fakeLegalDocument({
     //     CollectiveId: collective.id,
-    //     documentLink: fakeOpenCollectiveS3URL({ bucket: config.helloworks.aws.s3.bucket, key: 'file.pdf' }),
+    //     documentLink: fakeOpenCollectiveS3URL({ bucket: getTaxFormsS3Bucket(), key: 'file.pdf' }),
     //   });
     //   const req = makeRequest(user) as unknown as Request;
     //   const res = getResStub();
