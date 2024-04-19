@@ -58,6 +58,7 @@ async function calculateReportNode({ groups, startingBalanceByCurrency, currency
 
   return {
     node: {
+      date: date,
       startingBalance: { value: startingBalance, currency: currency },
       endingBalance: { value: startingBalance + totalChange, currency: currency },
       totalChange: { value: totalChange, currency: currency },
@@ -67,7 +68,7 @@ async function calculateReportNode({ groups, startingBalanceByCurrency, currency
   };
 }
 
-export async function getReportNodesFromQueryResult({ queryResult, dateFrom, dateTo, timeUnit, currency }) {
+export async function getHostReportNodesFromQueryResult({ queryResult, dateFrom, dateTo, timeUnit, currency }) {
   const resultsGroupedByPeriod = queryResult.reduce((acc, row) => {
     const date = moment.utc(row.date).toISOString();
     if (!acc[date]) {
@@ -117,6 +118,52 @@ export async function getReportNodesFromQueryResult({ queryResult, dateFrom, dat
       managedFunds: managedFunds.node,
       operationalFunds: operationalFunds.node,
     });
+  }
+
+  // Filter nodes to only return the ones that are within the date range (we need them before this to calculate the correct balance)
+  const filteredNodes = processedNodes.filter(n => {
+    return (!dateFrom || moment(n.date).isSameOrAfter(dateFrom)) && (!dateTo || moment(n.date).isSameOrBefore(dateTo));
+  });
+
+  return filteredNodes.reverse(); // Return most recent node first
+}
+
+export async function getAccountReportNodesFromQueryResult({ queryResult, dateFrom, dateTo, timeUnit, currency }) {
+  const resultsGroupedByPeriod = queryResult.reduce((acc, row) => {
+    const date = moment.utc(row.date).toISOString();
+    if (!acc[date]) {
+      acc[date] = [];
+    }
+    acc[date].push(row);
+    return acc;
+  }, {});
+
+  const nodes = Object.keys(resultsGroupedByPeriod).map(date => ({
+    date,
+    groups: resultsGroupedByPeriod[date],
+  }));
+
+  const continuousNodes = fillTimeSeriesWithNodes({
+    nodes,
+    initialData: { groups: [] },
+    endDate: dateTo,
+    timeUnit,
+  });
+
+  let balanceByCurrency = {};
+
+  const processedNodes = [];
+  for (const node of continuousNodes) {
+    const result = await calculateReportNode({
+      groups: node.groups,
+      startingBalanceByCurrency: balanceByCurrency,
+      currency,
+      date: node.date,
+    });
+
+    balanceByCurrency = result.endingBalanceByCurrency;
+
+    processedNodes.push(result.node);
   }
 
   // Filter nodes to only return the ones that are within the date range (we need them before this to calculate the correct balance)
