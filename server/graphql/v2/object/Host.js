@@ -27,7 +27,7 @@ import { FEATURE, hasFeature } from '../../../lib/allowed-features';
 import { getPolicy } from '../../../lib/policies';
 import { buildSearchConditions } from '../../../lib/search';
 import sequelize from '../../../lib/sequelize';
-import { getReportNodesFromQueryResult } from '../../../lib/transaction-reports';
+import { getHostReportNodesFromQueryResult } from '../../../lib/transaction-reports';
 import { ifStr, parseToBoolean } from '../../../lib/utils';
 import models, { Collective, Op } from '../../../models';
 import Agreement from '../../../models/Agreement';
@@ -45,15 +45,12 @@ import {
   GraphQLAccountType,
   GraphQLPaymentMethodLegacyType,
   GraphQLPayoutMethodType,
-  GraphQLTransactionType,
 } from '../enum';
 import { GraphQLAccountingCategoryKind } from '../enum/AccountingCategoryKind';
-import { GraphQLExpenseType } from '../enum/ExpenseType';
 import { GraphQLHostApplicationStatus } from '../enum/HostApplicationStatus';
 import { GraphQLHostFeeStructure } from '../enum/HostFeeStructure';
 import { PaymentMethodLegacyTypeEnum } from '../enum/PaymentMethodLegacyType';
 import { GraphQLTimeUnit } from '../enum/TimeUnit';
-import { GraphQLTransactionKind } from '../enum/TransactionKind';
 import { GraphQLVirtualCardStatusEnum } from '../enum/VirtualCardStatus';
 import {
   fetchAccountsIdsWithReference,
@@ -73,7 +70,6 @@ import { AccountWithContributionsFields, GraphQLAccountWithContributions } from 
 import { CollectionArgs, getCollectionArgs } from '../interface/Collection';
 import URL from '../scalar/URL';
 
-import { GraphQLAmount } from './Amount';
 import { GraphQLContributionStats } from './ContributionStats';
 import { GraphQLExpenseStats } from './ExpenseStats';
 import { GraphQLHostMetrics } from './HostMetrics';
@@ -195,6 +191,7 @@ export const GraphQLHost = new GraphQLObjectType({
       },
       hostTransactionsReports: {
         type: GraphQLHostTransactionReports,
+        description: 'EXPERIMENTAL (this may change or be removed)',
         args: {
           timeUnit: {
             type: GraphQLTimeUnit,
@@ -209,7 +206,7 @@ export const GraphQLHost = new GraphQLObjectType({
         },
         resolve: async (host, args) => {
           if (args.timeUnit !== 'MONTH' && args.timeUnit !== 'QUARTER' && args.timeUnit !== 'YEAR') {
-            throw new Error('Only monthly, quarterly and yearly reports are supported for now');
+            throw new Error('Only monthly, quarterly and yearly reports are supported.');
           }
 
           const refreshedAtQuery = `
@@ -373,7 +370,7 @@ export const GraphQLHost = new GraphQLObjectType({
             raw: true,
           });
 
-          const nodes = await getReportNodesFromQueryResult({
+          const nodes = await getHostReportNodesFromQueryResult({
             queryResult,
             dateFrom: args.dateFrom,
             dateTo: args.dateTo,
@@ -387,76 +384,6 @@ export const GraphQLHost = new GraphQLObjectType({
             dateTo: args.dateTo,
             nodes,
           };
-        },
-      },
-      transactionsReport: {
-        type: new GraphQLList(
-          new GraphQLObjectType({
-            name: 'TransactionSum',
-            description:
-              'EXPERIMENTAL (this may change or be deleted): Transaction amounts grouped by type, kind, isRefund, isHost, expenseType',
-            fields: () => ({
-              amount: { type: GraphQLAmount },
-              type: { type: GraphQLTransactionType },
-              kind: { type: GraphQLTransactionKind },
-              isRefund: { type: GraphQLBoolean },
-              isHost: { type: GraphQLBoolean },
-              expenseType: { type: GraphQLExpenseType },
-            }),
-          }),
-        ),
-        args: {
-          dateFrom: {
-            type: GraphQLDateTime,
-          },
-          dateTo: {
-            type: GraphQLDateTime,
-          },
-        },
-        resolve: async (host, args) => {
-          const hostChildrenIds = await host
-            .getChildren({ attributes: ['id'] })
-            .then(children => children.map(child => child.id));
-          const hostCollectiveIds = [host.id, ...hostChildrenIds];
-
-          const query = `
-          SELECT 
-            SUM(t."amountInHostCurrency") as "amountInHostCurrency",
-            t."kind",
-            t."isRefund", 
-            t."hostCurrency",
-            t."type",
-            CASE WHEN t."CollectiveId" IN (:hostCollectiveIds) THEN TRUE ELSE FALSE END AS "isHost",
-            e."type" as "expenseType"
-          FROM "Transactions" t
-          LEFT JOIN LATERAL (
-            SELECT e2."type" from "Expenses" e2 where e2.id = t."ExpenseId"
-          ) as e ON t."ExpenseId" IS NOT NULL
-          WHERE 
-            t."HostCollectiveId" = :hostCollectiveId
-            AND t."deletedAt" IS NULL
-            AND t."createdAt" > :dateFrom AND t."createdAt" < :dateTo
-          GROUP BY t."kind", t."hostCurrency", t."isRefund", t."type", "isHost", "expenseType"
-          ORDER BY t."kind"; 
-          `;
-
-          const transactionGroups = await sequelize.query(query, {
-            replacements: {
-              hostCollectiveId: host.id,
-              hostCollectiveIds,
-              dateFrom: args.dateFrom,
-              dateTo: args.dateTo,
-            },
-            type: sequelize.QueryTypes.SELECT,
-            raw: true,
-          });
-
-          return transactionGroups.map(t => {
-            return {
-              ...t,
-              amount: { value: t.amountInHostCurrency, currency: t.hostCurrency },
-            };
-          });
         },
       },
       hostMetrics: {
