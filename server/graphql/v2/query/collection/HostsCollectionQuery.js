@@ -2,7 +2,7 @@ import { GraphQLList, GraphQLString } from 'graphql';
 
 import { searchCollectivesInDB } from '../../../../lib/search';
 import { GraphQLHostCollection } from '../../collection/HostCollection';
-import { ACCOUNT_ORDER_BY_PSEUDO_FIELDS } from '../../enum/AccountOrderByFieldType';
+import { ORDER_BY_PSEUDO_FIELDS } from '../../enum/OrderByFieldType';
 import { CollectionArgs } from '../../interface/Collection';
 
 import { CommonAccountsCollectionQueryArgs } from './AccountsCollectionQuery';
@@ -23,7 +23,7 @@ const HostsCollectionQuery = {
   },
   async resolve(_, args) {
     const searchParams = {
-      orderBy: { field: ACCOUNT_ORDER_BY_PSEUDO_FIELDS.HOST_RANK, direction: 'DESC' },
+      orderBy: { field: ORDER_BY_PSEUDO_FIELDS.HOST_RANK, direction: 'DESC' },
       isHost: true,
       onlyOpenHosts: true,
       onlyActive: args.isActive ? true : null,

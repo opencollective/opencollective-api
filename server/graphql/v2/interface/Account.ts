@@ -44,7 +44,7 @@ import { GraphQLVirtualCardStatusEnum } from '../enum/VirtualCardStatus';
 import { idEncode } from '../identifiers';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLChronologicalOrderInput } from '../input/ChronologicalOrderInput';
-import { GraphQLMemberOrderByInput, MEMBER_ORDER_BY_PSEUDO_FIELDS } from '../input/MemberOrderByInput';
+import { GraphQLOrderByInput, ORDER_BY_PSEUDO_FIELDS } from '../input/OrderByInput';
 import {
   GraphQLUpdateChronologicalOrderInput,
   UPDATE_CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
@@ -310,8 +310,8 @@ const accountFieldsDefinition = () => ({
         description: 'Specific account to query the membership of.',
       },
       orderBy: {
-        type: new GraphQLNonNull(GraphQLMemberOrderByInput),
-        defaultValue: { field: MEMBER_ORDER_BY_PSEUDO_FIELDS.CREATED_AT, direction: 'DESC' },
+        type: new GraphQLNonNull(GraphQLOrderByInput),
+        defaultValue: { field: ORDER_BY_PSEUDO_FIELDS.CREATED_AT, direction: 'DESC' },
       },
       orderByRoles: {
         type: GraphQLBoolean,

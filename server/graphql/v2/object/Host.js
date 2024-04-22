@@ -52,7 +52,6 @@ import { GraphQLHostFeeStructure } from '../enum/HostFeeStructure';
 import { PaymentMethodLegacyTypeEnum } from '../enum/PaymentMethodLegacyType';
 import { GraphQLTimeUnit } from '../enum/TimeUnit';
 import { GraphQLVirtualCardStatusEnum } from '../enum/VirtualCardStatus';
-import { ACCOUNT_ORDER_BY_PSEUDO_FIELDS, GraphQLAccountOrderByInput } from '../input/AccountOrderByInput';
 import {
   fetchAccountsIdsWithReference,
   fetchAccountsWithReferences,
@@ -70,6 +69,7 @@ import {
   CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   GraphQLChronologicalOrderInput,
 } from '../input/ChronologicalOrderInput';
+import { GraphQLOrderByInput, ORDER_BY_PSEUDO_FIELDS } from '../input/OrderByInput';
 import { AccountFields, GraphQLAccount } from '../interface/Account';
 import { AccountWithContributionsFields, GraphQLAccountWithContributions } from '../interface/AccountWithContributions';
 import { CollectionArgs, getCollectionArgs } from '../interface/Collection';
@@ -1407,7 +1407,7 @@ export const GraphQLHost = new GraphQLObjectType({
               'A term to search membership. Searches in collective tags, name, slug, members description and role.',
           },
           orderBy: {
-            type: GraphQLAccountOrderByInput,
+            type: GraphQLOrderByInput,
             description: 'Order of the results',
           },
           balance: {
@@ -1514,12 +1514,12 @@ export const GraphQLHost = new GraphQLObjectType({
           const orderBy = [];
           if (args.orderBy) {
             const { field, direction } = args.orderBy;
-            if (field === ACCOUNT_ORDER_BY_PSEUDO_FIELDS.CREATED_AT) {
+            if (field === ORDER_BY_PSEUDO_FIELDS.CREATED_AT) {
               // Quick hack here, using ApprovedAt because in this context,
               // it doesn't make sense to order by createdAt and this ends
               // up saving a whole new component that needs to be implemented
               orderBy.push(['approvedAt', direction]);
-            } else if (field === ACCOUNT_ORDER_BY_PSEUDO_FIELDS.BALANCE) {
+            } else if (field === ORDER_BY_PSEUDO_FIELDS.BALANCE) {
               orderBy.push([ACCOUNT_CONSOLIDATED_BALANCE_QUERY, direction]);
             } else {
               orderBy.push([field, direction]);
