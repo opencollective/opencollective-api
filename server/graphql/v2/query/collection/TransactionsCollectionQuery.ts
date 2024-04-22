@@ -522,7 +522,12 @@ export const TransactionsCollectionResolver = async (
         ],
       ]
     : [
-        [args.orderBy.field, args.orderBy.direction],
+        [
+          args.orderBy.field === 'clearedAt'
+            ? sequelize.literal('COALESCE("Transaction"."clearedAt", "Transaction"."createdAt")')
+            : args.orderBy.field,
+          args.orderBy.direction,
+        ],
         // Add additional sort for consistent sorting
         // (transactions in the same TransactionGroup usually have the exact same datetime)
         ['id', args.orderBy.direction],
