@@ -115,7 +115,7 @@ async function checkHostActive({ fix = false } = {}) {
      AND "deletedAt" IS NULL AND "deactivatedAt" IS NULL
      AND "approvedAt" IS NOT NULL AND "HostCollectiveId" = "id"
      AND "isActive" IS FALSE
-     AND COALESCE(("settings"->'forceHostAccountInactive')::boolean), false) IS FALSE`,
+     AND COALESCE(("settings"->'forceHostAccountInactive')::boolean, false) IS FALSE`,
     { type: sequelize.QueryTypes.SELECT, raw: true },
   );
 
@@ -131,7 +131,7 @@ async function checkHostActive({ fix = false } = {}) {
          AND "deletedAt" IS NULL AND "deactivatedAt" IS NULL
          AND "approvedAt" IS NOT NULL AND "HostCollectiveId" = "id"
          AND "isActive" IS FALSE
-         AND COALESCE(("settings"->'forceHostAccountInactive')::boolean), false) IS FALSE`,
+         AND COALESCE(("settings"->'forceHostAccountInactive')::boolean, false) IS FALSE`,
       );
     }
   }
