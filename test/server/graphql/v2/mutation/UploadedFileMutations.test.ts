@@ -95,7 +95,7 @@ describe('server/graphql/v2/mutation/UploadedFileMutations', () => {
       expect(result.data.uploadFile[0].parsingResult).to.be.null;
       expect(result.data.uploadFile[0].file.name).to.eq('camera.png');
       expect(result.data.uploadFile[0].file.type).to.eq('image/png');
-      expect(result.data.uploadFile[0].file.size).to.eq(3628);
+      expect(result.data.uploadFile[0].file.size).to.eq(2923); // Initial was 3628, but we've stripped the metadata
     });
 
     describe('with parseDocument', () => {

@@ -169,6 +169,15 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
       throw new Error('There was a problem while uploading the file');
     }
 
+    // Strip EXIF data from images
+    if (UploadedFile.isSupportedImageMimeType(file.mimetype)) {
+      const image = sharp(file.buffer);
+      file.buffer = await image
+        .rotate() // Auto-rotate based on EXIF Orientation tag
+        .toBuffer(); // The default behaviour, when withMetadata is not used, is to strip all metadata and convert to the device-independent sRGB colour space
+      file.size = file.buffer.length;
+    }
+
     /**
      * We will replace the name to avoid collisions
      */
