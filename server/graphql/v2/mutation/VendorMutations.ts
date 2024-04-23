@@ -8,8 +8,7 @@ import { v4 as uuid } from 'uuid';
 import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import { getDiffBetweenInstances } from '../../../lib/data';
-import { setTaxFormForDropboxForm } from '../../../lib/tax-forms';
-import models, { Activity } from '../../../models';
+import models, { Activity, LegalDocument } from '../../../models';
 import { checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { BadRequest, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
@@ -69,7 +68,14 @@ const vendorMutations = {
       }
 
       if (args.vendor.vendorInfo?.taxFormUrl) {
-        await setTaxFormForDropboxForm(vendor, args.vendor.vendorInfo.taxFormUrl, new Date().getFullYear());
+        const requiredTaxForms = await host.getRequiredLegalDocuments({ where: { documentType: 'US_TAX_FORM' } });
+        if (!requiredTaxForms.length) {
+          throw new BadRequest('Host does not require tax forms');
+        }
+
+        await LegalDocument.manuallyMarkTaxFormAsReceived(vendor, req.remoteUser, args.vendor.vendorInfo.taxFormUrl, {
+          UserTokenId: req.userToken?.id,
+        });
       }
 
       if (args.vendor.payoutMethod) {
@@ -159,7 +165,14 @@ const vendorMutations = {
       }
 
       if (args.vendor.vendorInfo?.taxFormUrl) {
-        await setTaxFormForDropboxForm(vendor, args.vendor.vendorInfo.taxFormUrl, new Date().getFullYear());
+        const requiredTaxForms = await host.getRequiredLegalDocuments({ where: { documentType: 'US_TAX_FORM' } });
+        if (!requiredTaxForms.length) {
+          throw new BadRequest('Host does not require tax forms');
+        }
+
+        await LegalDocument.manuallyMarkTaxFormAsReceived(vendor, req.remoteUser, args.vendor.vendorInfo.taxFormUrl, {
+          UserTokenId: req.userToken?.id,
+        });
       }
 
       if (args.vendor.payoutMethod) {

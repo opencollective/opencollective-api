@@ -12,6 +12,7 @@ import {
 } from 'sequelize';
 
 import { activities } from '../constants';
+import { CollectiveType } from '../constants/collectives';
 import { parseS3Url } from '../lib/awsS3';
 import { crypto, secretbox } from '../lib/encryption';
 import { notify } from '../lib/notifications/email';
@@ -144,6 +145,61 @@ class LegalDocument extends Model<InferAttributes<LegalDocument>, InferCreationA
     });
   };
 
+  /**
+   * To use when a host admin manually provides an external link to a tax form.
+   */
+  static manuallyMarkTaxFormAsReceived = (
+    payee: Collective,
+    user: User,
+    documentLink: string,
+    {
+      UserTokenId,
+      year,
+    }: {
+      UserTokenId?: number;
+      year?: number;
+    } = {},
+  ) => {
+    return sequelize.transaction(async sqlTransaction => {
+      let legalDocument = await LegalDocument.findOne({
+        where: { CollectiveId: payee.id, requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED },
+        lock: true,
+        transaction: sqlTransaction,
+      });
+
+      const attributes = {
+        service: LEGAL_DOCUMENT_SERVICE.OPENCOLLECTIVE,
+        requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED,
+        documentLink,
+        year: year || new Date().getFullYear(),
+      };
+
+      if (legalDocument) {
+        await legalDocument.update(attributes, { transaction: sqlTransaction });
+      } else {
+        legalDocument = await LegalDocument.create(
+          { ...attributes, CollectiveId: payee.id },
+          { transaction: sqlTransaction },
+        );
+      }
+
+      // This won't trigger any email
+      await Activity.create({
+        type: activities.TAXFORM_RECEIVED,
+        UserId: user.id,
+        CollectiveId: payee.id,
+        FromCollectiveId: user.CollectiveId,
+        UserTokenId: UserTokenId,
+        data: {
+          service: legalDocument.service,
+          document: legalDocument.info,
+          account: payee.info,
+          isManual: true,
+        },
+      });
+    });
+  };
+
   static sendRemindersForTaxForms = async () => {
     // With the internal tax form system, we only send the email as a reminder in case they don't fill
     // their tax forms right away.
@@ -158,6 +214,13 @@ class LegalDocument extends Model<InferAttributes<LegalDocument>, InferCreationA
           [Op.gt]: moment().subtract(7, 'days').toDate(),
         },
       },
+      include: [
+        {
+          association: 'collective',
+          required: true,
+          where: { type: { [Op.not]: CollectiveType.VENDOR } },
+        },
+      ],
     });
 
     // Filter out all the legal docs where a tax form is not needed anymore (e.g. because the expense amount was updated)
