@@ -23,7 +23,9 @@ import queries from './queries';
 import { reportErrorToSentry, reportMessageToSentry } from './sentry';
 import { isEmailInternal } from './utils';
 
-const TAX_FORMS_S3_BUCKET = get(config, 'helloworks.aws.s3.bucket');
+export const getTaxFormsS3Bucket = (): string => {
+  return get(config, 'taxForms.aws.s3.bucket') || get(config, 'helloworks.aws.s3.bucket');
+};
 
 /**
  * @returns {Collective} all the accounts that need to be sent a tax form (both users and orgs)
@@ -261,7 +263,7 @@ export function encryptAndUploadTaxFormToS3(
   year: number | string,
   valuesHash: string = 'none',
 ) {
-  const bucket = TAX_FORMS_S3_BUCKET;
+  const bucket = getTaxFormsS3Bucket();
   const key = createTaxFormFilename({ collective, year, documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM, valuesHash });
   const encryptedBuffer = LegalDocument.encrypt(buffer);
   return uploadToS3({
