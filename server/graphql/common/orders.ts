@@ -12,6 +12,7 @@ import { TaxInput } from '../v2/input/TaxInput';
 
 type AddFundsInput = {
   totalAmount: number;
+  paymentProcessorFee?: number;
   collective: Collective;
   fromCollective: Collective;
   host: Collective;
@@ -85,6 +86,7 @@ export async function addFunds(order: AddFundsInput, remoteUser: User) {
     AccountingCategoryId: order.accountingCategory?.id || null,
     data: {
       hostFeePercent: order.hostFeePercent,
+      paymentProcessorFee: order.paymentProcessorFee,
     },
   };
 

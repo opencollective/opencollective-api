@@ -63,6 +63,10 @@ paymentMethodProvider.processOrder = async (order, options) => {
   const hostFee = await getHostFee(order, { host });
   const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
 
+  const paymentProcessorFee = order.data?.paymentProcessorFee || 0;
+  const paymentProcessorFeeInHostCurrency =
+    order.data?.paymentProcessorFeeInHostCurrency || Math.round(paymentProcessorFee * hostCurrencyFxRate) || 0;
+
   const transactionPayload = {
     CreatedByUserId: order.CreatedByUserId,
     FromCollectiveId: order.FromCollectiveId,
@@ -73,6 +77,7 @@ paymentMethodProvider.processOrder = async (order, options) => {
     OrderId: order.id,
     amount,
     taxAmount: order.taxAmount,
+    paymentProcessorFeeInHostCurrency,
     currency,
     hostCurrency,
     hostCurrencyFxRate,
