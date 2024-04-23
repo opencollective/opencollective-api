@@ -9,17 +9,35 @@ Subject: Action required: Submit tax form for {{{accountName}}}
 {{/if}}
 
 <p>
-  The IRS requires US entities to collect certain information about payees for tax reporting purposes. The button below will take you to Dropbox Forms, the service we use to collect your tax information securely. You must fill out this form to get your expense paid.
+  You recently submitted an expense on Open Collective that requires more information before it can be paid. United States
+  regulations require US entities to collect certain information from payees for tax reporting purposes,
+  even if the payee is outside the US.
+</p>
+<p>
+  {{#ifCond service "===" "OPENCOLLECTIVE"}}
+  The button below will take you to your dashboard, where you can fill out your tax information.
+  {{else}}
+  The button below will take you to Dropbox Forms, the service we use to collect your tax information securely.
+  {{/ifCond}}
+</p>
+
+<p>
+  If you have any questions, please read 
+  <a href="https://docs.opencollective.com/help/expenses-and-getting-paid/tax-information">our documentation</a>
+  or <a href="{{config.host.website}}/contact">contact us</a>.
 </p>
 
 <div style="text-align: center; margin: 32px 0;">
+  {{#ifCond service "===" "OPENCOLLECTIVE"}}
+  <a class="btn blue" href="{{config.host.website}}/dashboard/{{collective.slug}}/tax-information">
+    Submit tax form
+  </a>
+  {{else}}
   <a class="btn blue" href="{{documentLink}}">
     Submit tax form
-  </a></div>
-<p>
-  <a href="https://docs.opencollective.com/help/expenses-and-getting-paid/tax-information">
-    Questions? Learn more.
   </a>
-</p>
+  {{/ifCond}}
+</div>
+
 
 {{> footer}}

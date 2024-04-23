@@ -1,5 +1,6 @@
 import config from 'config';
-import { get } from 'lodash';
+import { get, uniq } from 'lodash';
+import moment from 'moment';
 import {
   BelongsToGetAssociationMixin,
   DataTypes,
@@ -7,14 +8,20 @@ import {
   InferCreationAttributes,
   Model,
   NonAttribute,
+  Op,
 } from 'sequelize';
 
+import { activities } from '../constants';
 import { parseS3Url } from '../lib/awsS3';
 import { crypto, secretbox } from '../lib/encryption';
+import { notify } from '../lib/notifications/email';
+import SQLQueries from '../lib/queries';
 import sequelize from '../lib/sequelize';
 import { getTaxFormsS3Bucket } from '../lib/tax-forms';
 
+import Activity from './Activity';
 import Collective from './Collective';
+import User from './User';
 
 export const LEGAL_DOCUMENT_TYPE = {
   US_TAX_FORM: 'US_TAX_FORM',
@@ -75,6 +82,102 @@ class LegalDocument extends Model<InferAttributes<LegalDocument>, InferCreationA
 
   static hash = (formValues: Record<string, unknown>): string => {
     return crypto.hash(JSON.stringify(formValues));
+  };
+
+  /**
+   * Send a tax form request to the collective using the new internal system.
+   */
+  static createTaxFormRequestToCollectiveIfNone = async (
+    payee: Collective,
+    user: User,
+    {
+      UserTokenId,
+      ExpenseId,
+      HostCollectiveId,
+    }: {
+      UserTokenId?: number;
+      ExpenseId?: number;
+      HostCollectiveId?: number;
+    } = {},
+  ): Promise<LegalDocument> => {
+    return sequelize.transaction(async transaction => {
+      const [legalDocument, isNew] = await LegalDocument.findOrCreate({
+        transaction,
+        where: {
+          documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
+          CollectiveId: payee.id,
+        },
+        defaults: {
+          CollectiveId: payee.id,
+          documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
+          year: new Date().getFullYear(),
+          requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED,
+          service: LEGAL_DOCUMENT_SERVICE.OPENCOLLECTIVE,
+        },
+      });
+
+      if (isNew) {
+        // This will not trigger any email directly, we'll only send it in `cron/hourly/40-send-tax-form-requests.js`
+        await Activity.create(
+          {
+            type: activities.TAXFORM_REQUEST,
+            UserId: user.id,
+            CollectiveId: payee.id,
+            HostCollectiveId: HostCollectiveId,
+            UserTokenId,
+            ExpenseId,
+            data: {
+              service: LEGAL_DOCUMENT_SERVICE.OPENCOLLECTIVE,
+              isSystem: true,
+              legalDocument: legalDocument.info,
+              collective: payee.activity,
+              accountName: payee.name || payee.legalName || payee.slug,
+            },
+          },
+          {
+            transaction,
+          },
+        );
+      }
+
+      return legalDocument;
+    });
+  };
+
+  static sendRemindersForTaxForms = async () => {
+    // With the internal tax form system, we only send the email as a reminder in case they don't fill
+    // their tax forms right away.
+    const requestedLegalDocuments = await LegalDocument.findAll({
+      where: {
+        documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
+        requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED,
+        service: LEGAL_DOCUMENT_SERVICE.OPENCOLLECTIVE,
+        data: { reminderSentAt: null },
+        createdAt: {
+          [Op.lt]: moment().subtract(48, 'hours').toDate(),
+          [Op.gt]: moment().subtract(7, 'days').toDate(),
+        },
+      },
+    });
+
+    // Filter out all the legal docs where a tax form is not needed anymore (e.g. because the expense amount was updated)
+    const allAccountIds = uniq(requestedLegalDocuments.map(d => d.CollectiveId));
+    const accountIdsWithPendingTaxForm = await SQLQueries.getTaxFormsRequiredForAccounts(allAccountIds);
+    const filteredDocuments = requestedLegalDocuments.filter(d => accountIdsWithPendingTaxForm.has(d.CollectiveId));
+    for (const legalDocument of filteredDocuments) {
+      const correspondingActivity = await Activity.findOne({
+        where: {
+          type: activities.TAXFORM_REQUEST,
+          CollectiveId: legalDocument.CollectiveId,
+          data: { service: LEGAL_DOCUMENT_SERVICE.OPENCOLLECTIVE, legalDocument: { id: legalDocument.id } },
+        },
+      });
+
+      if (correspondingActivity) {
+        await notify.user(correspondingActivity);
+        await legalDocument.update({ data: { ...legalDocument.data, reminderSentAt: new Date() } });
+      }
+    }
   };
 
   shouldBeRequested = function () {

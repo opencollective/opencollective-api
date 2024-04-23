@@ -52,6 +52,7 @@ import { floatAmountToCents } from '../../lib/math';
 import * as libPayments from '../../lib/payments';
 import { listPayPalTransactions } from '../../lib/paypal';
 import { getPolicy } from '../../lib/policies';
+import SQLQueries from '../../lib/queries';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
 import { notifyTeamAboutSpamExpense } from '../../lib/spam';
 import { deepJSONBSet } from '../../lib/sql';
@@ -65,6 +66,7 @@ import AccountingCategory from '../../models/AccountingCategory';
 import Expense, { ExpenseDataValuesByRole, ExpenseStatus } from '../../models/Expense';
 import ExpenseAttachedFile from '../../models/ExpenseAttachedFile';
 import ExpenseItem from '../../models/ExpenseItem';
+import LegalDocument, { LEGAL_DOCUMENT_TYPE } from '../../models/LegalDocument';
 import { MigrationLogType } from '../../models/MigrationLog';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import User from '../../models/User';
@@ -1224,6 +1226,42 @@ const checkCanUseAccountingCategory = (
   }
 };
 
+/**
+ * A function that checks an updates the expense status. Must run whenever creating a new expense,
+ * when the amount/payout method change, or when an invited expense goes to pending.
+ *
+ * @returns the LegalDocument, or null if none required
+ */
+const updateTaxFormStatus = async (
+  req: express.Request,
+  host: Collective,
+  expense: Expense,
+  payee: Collective,
+): Promise<LegalDocument | null> => {
+  if (!parseToBoolean(config.taxForms.useInternal)) {
+    return null;
+  }
+
+  // Check if host is connected to the tax form system
+  const requiredLegalDocument = await host.getRequiredLegalDocuments({ type: LEGAL_DOCUMENT_TYPE.US_TAX_FORM });
+  if (!requiredLegalDocument) {
+    return null;
+  }
+
+  // Check if tax form is required for expense
+  const taxFormRequiredForExpenseIds = await SQLQueries.getTaxFormsRequiredForExpenses([expense.id]);
+  if (!taxFormRequiredForExpenseIds.has(expense.id)) {
+    return null;
+  }
+
+  // Check if tax form request already exists or create a new one
+  return LegalDocument.createTaxFormRequestToCollectiveIfNone(payee, req.remoteUser, {
+    UserTokenId: req.userToken?.id,
+    ExpenseId: expense.id,
+    HostCollectiveId: host.id,
+  });
+};
+
 export const prepareExpenseItemInputs = async (
   expenseCurrency: SupportedCurrency,
   itemsInput: Array<ExpenseItem | Record<string, unknown>>,
@@ -1339,7 +1377,9 @@ const getUserRole = (user: User, collective: Collective): keyof ExpenseDataValue
       : ExpenseRoles.submitter;
 };
 
-export async function createExpense(remoteUser: User | null, expenseData: ExpenseData): Promise<Expense> {
+export async function createExpense(req: express.Request, expenseData: ExpenseData): Promise<Expense> {
+  const { remoteUser } = req;
+
   // Check permissions
   if (!remoteUser) {
     throw new Unauthorized('You need to be logged in to create an expense');
@@ -1517,6 +1557,14 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
   expense.user = remoteUser;
   expense.collective = collective;
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_CREATED, remoteUser);
+
+  try {
+    await updateTaxFormStatus(req, collective.host, expense, fromCollective);
+  } catch (e) {
+    // We don't want to block the expense creation if the tax form fails
+    reportErrorToSentry(e, { req, user: remoteUser, feature: FEATURE.USE_EXPENSES, extra: { expense } });
+  }
+
   return expense;
 }
 
@@ -2101,6 +2149,14 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
 
   const notifyCollective = previousStatus === 'INCOMPLETE' && updatedExpense.status === 'PENDING';
   await updatedExpense.createActivity(activities.COLLECTIVE_EXPENSE_UPDATED, remoteUser, { notifyCollective });
+
+  try {
+    await updateTaxFormStatus(req, host, expense, fromCollective);
+  } catch (e) {
+    // We don't want to block the expense creation if the tax form fails
+    reportErrorToSentry(e, { req, user: remoteUser, feature: FEATURE.USE_EXPENSES, extra: { expense } });
+  }
+
   return updatedExpense;
 }
 

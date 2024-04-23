@@ -882,7 +882,7 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
 /**
  * @returns number[] - collective IDs where a tax form is required
  */
-const getTaxFormsRequiredForAccounts = async (accountIds = [], year) => {
+const getTaxFormsRequiredForAccounts = async (accountIds = [], year = new Date().getFullYear()) => {
   const results = await sequelize.query(
     `
     SELECT
@@ -940,7 +940,7 @@ const getTaxFormsRequiredForAccounts = async (accountIds = [], year) => {
       type: sequelize.QueryTypes.SELECT,
       replacements: {
         accountIds,
-        year: year,
+        year,
         validityInYears: US_TAX_FORM_VALIDITY_IN_YEARS,
         ignoredExpenseTypes: TAX_FORM_IGNORED_EXPENSE_TYPES,
         ignoredExpenseStatuses: TAX_FORM_IGNORED_EXPENSE_STATUSES,
