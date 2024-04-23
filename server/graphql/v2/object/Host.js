@@ -59,7 +59,12 @@ import {
   GraphQLAccountReferenceInput,
 } from '../input/AccountReferenceInput';
 import { getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/AmountInput';
-import { getAmountRangeValueAndOperator, GraphQLAmountRangeInput } from '../input/AmountRangeInput';
+import {
+  ACCOUNT_BALANCE_QUERY,
+  ACCOUNT_CONSOLIDATED_BALANCE_QUERY,
+  getAmountRangeValueAndOperator,
+  GraphQLAmountRangeInput,
+} from '../input/AmountRangeInput';
 import {
   CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   GraphQLChronologicalOrderInput,
@@ -1456,15 +1461,7 @@ export const GraphQLHost = new GraphQLObjectType({
             }
 
             const { operator, value } = getAmountRangeValueAndOperator(args.balance);
-            where[Op.and].push(
-              sequelize.where(
-                sequelize.literal(
-                  `(SELECT COALESCE("CurrentCollectiveBalance"."netAmountInHostCurrency", 0) FROM "CurrentCollectiveBalance" WHERE "CurrentCollectiveBalance"."CollectiveId" = "Collective"."id" LIMIT 1)`,
-                ),
-                operator,
-                value,
-              ),
-            );
+            where[Op.and].push(sequelize.where(ACCOUNT_BALANCE_QUERY, operator, value));
           }
 
           if (!isEmpty(args.consolidatedBalance)) {
@@ -1486,15 +1483,7 @@ export const GraphQLHost = new GraphQLObjectType({
             }
 
             const { operator, value } = getAmountRangeValueAndOperator(args.consolidatedBalance);
-            where[Op.and].push(
-              sequelize.where(
-                sequelize.literal(
-                  `(SELECT SUM(COALESCE("CurrentCollectiveBalance"."netAmountInHostCurrency", 0)) FROM "CurrentCollectiveBalance" WHERE "CurrentCollectiveBalance"."CollectiveId" IN (SELECT id FROM "Collectives" WHERE "deletedAt" IS NULL AND ("ParentCollectiveId" = "Collective"."id" OR id = "Collective"."id")))`,
-                ),
-                operator,
-                value,
-              ),
-            );
+            where[Op.and].push(sequelize.where(ACCOUNT_CONSOLIDATED_BALANCE_QUERY, operator, value));
           }
 
           if (args.isUnhosted) {
@@ -1522,25 +1511,27 @@ export const GraphQLHost = new GraphQLObjectType({
             where[Op.or] = searchTermConditions;
           }
 
-          const order = [];
+          const orderBy = [];
           if (args.orderBy) {
             const { field, direction } = args.orderBy;
             if (field === ORDER_BY_PSEUDO_FIELDS.CREATED_AT) {
               // Quick hack here, using ApprovedAt because in this context,
               // it doesn't make sense to order by createdAt and this ends
               // up saving a whole new component that needs to be implemented
-              order.push(['approvedAt', direction]);
+              orderBy.push(['approvedAt', direction]);
+            } else if (field === ORDER_BY_PSEUDO_FIELDS.BALANCE) {
+              orderBy.push([ACCOUNT_CONSOLIDATED_BALANCE_QUERY, direction]);
             } else {
-              order.push([field, direction]);
+              orderBy.push([field, direction]);
             }
           } else {
-            order.push(['approvedAt', 'DESC']);
+            orderBy.push(['approvedAt', 'DESC']);
           }
 
           const result = await models.Collective.findAndCountAll({
             limit: args.limit,
             offset: args.offset,
-            order,
+            order: orderBy,
             where,
           });
 
