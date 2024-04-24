@@ -43,6 +43,9 @@
     }
   },
   "limits": {
+    "taxForms": {
+      "downloadPerHour": 15
+    },
     "ordersPerHour": {
       "perAccount": 10,
       "perAccountForCollective": 2,

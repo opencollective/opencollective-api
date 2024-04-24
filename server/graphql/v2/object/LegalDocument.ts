@@ -48,6 +48,7 @@ export const GraphQLLegalDocument = new GraphQLObjectType({
     account: {
       type: new GraphQLNonNull(GraphQLAccount),
       description: 'The account this legal document is for',
+      resolve: (document, _, req) => req.loaders.Collective.byId.load(document.CollectiveId),
     },
     documentLink: {
       type: GraphQLURL,

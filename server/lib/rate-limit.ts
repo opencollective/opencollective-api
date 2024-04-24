@@ -44,7 +44,7 @@ export default class RateLimit {
     if (count >= this.limit) {
       return false;
     } else {
-      sessionCache.set(this.cacheKey, count + nbCalls, this.expiryTimeInSeconds);
+      await sessionCache.set(this.cacheKey, count + nbCalls, this.expiryTimeInSeconds);
       return true;
     }
   }
