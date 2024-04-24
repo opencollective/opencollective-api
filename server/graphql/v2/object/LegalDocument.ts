@@ -53,13 +53,10 @@ export const GraphQLLegalDocument = new GraphQLObjectType({
     documentLink: {
       type: GraphQLURL,
       description:
-        'URL to download the file. Must be logged in as an account admin. The returned URL will be protected by authentication + 2FA.',
-      resolve: async (document, _, req) => {
-        if (document.documentLink && req.remoteUser) {
-          const account = await req.loaders.Collective.byId.load(document.CollectiveId);
-          if (req.remoteUser.isAdminOfCollective(account)) {
-            return `${config.host.api}/legal-documents/${idEncode(document.id, 'legal-document')}/download`;
-          }
+        'URL to download the file. Must be logged in as a host with access to the document. The returned URL will be protected by authentication + 2FA.',
+      resolve: async document => {
+        if (document.canDownload()) {
+          return `${config.host.api}/legal-documents/${idEncode(document.id, 'legal-document')}/download`;
         }
       },
     },
