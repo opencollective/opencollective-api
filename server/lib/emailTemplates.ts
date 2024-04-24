@@ -95,6 +95,7 @@ export const templateNames = [
   'subscription.paused',
   'subscription.ready.to.be.resumed',
   'taxform.request',
+  'taxform.invalidated',
   'taxform.received',
   'ticket.confirmed',
   'ticket.confirmed.fearlesscitiesbrussels',

@@ -52,6 +52,7 @@ enum ActivityTypes {
   COLLECTIVE_EXPENSE_MISSING_RECEIPT = 'collective.expense.missing.receipt',
   TAXFORM_REQUEST = 'taxform.request',
   TAXFORM_RECEIVED = 'taxform.received',
+  TAXFORM_INVALIDATED = 'taxform.invalidated',
   // Virtual cards
   COLLECTIVE_VIRTUAL_CARD_ADDED = 'collective.virtualcard.added',
   COLLECTIVE_VIRTUAL_CARD_MISSING_RECEIPTS = 'collective.virtualcard.missing.receipts',
