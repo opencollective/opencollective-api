@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
+import type Stripe from 'stripe';
 
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../server/constants/paymentMethods';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
@@ -134,7 +135,7 @@ describe('server/graphql/v2/collection/TransactionCollection', () => {
         kind: TransactionKind.CONTRIBUTION,
         amount: -15000,
         PaymentMethodId: creditCardPm.id,
-        data: { charge: { id: 'ch_123' } },
+        data: { charge: { id: 'ch_123' } as Stripe.Charge },
         OrderId: order.id,
       }),
       fakeTransaction({

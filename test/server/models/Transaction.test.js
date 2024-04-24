@@ -232,12 +232,12 @@ describe('server/models/Transaction', () => {
         currency: 'USD',
         hostCurrency: 'USD',
         hostCurrencyFxRate: 1,
-        platformTipAmount: 1000,
         hostFeeInHostCurrency: 500,
         paymentProcessorFeeInHostCurrency: 300,
         type: 'CREDIT',
         createdAt: '2015-05-29T07:00:00.000Z',
         PaymentMethodId: 1,
+        data: { platformTip: 1000 },
       };
 
       const t = await Transaction.createFromContributionPayload(transactionPayload);
@@ -278,7 +278,7 @@ describe('server/models/Transaction', () => {
         createdAt: '2015-05-29T07:00:00.000Z',
         PaymentMethodId: 1,
         OrderId: order.id,
-        platformTipAmount: 1000,
+        data: { platformTip: 1000 },
       };
 
       const createdTransaction = await Transaction.createFromContributionPayload(transactionPayload);
@@ -339,13 +339,13 @@ describe('server/models/Transaction', () => {
         currency: 'EUR',
         hostCurrency: 'EUR',
         hostCurrencyFxRate: 1,
-        platformTipAmount: 1000,
         hostFeeInHostCurrency: 500,
         paymentProcessorFeeInHostCurrency: 200,
         type: 'CREDIT',
         createdAt: '2015-05-29T07:00:00.000Z',
         PaymentMethodId: 1,
         OrderId: order.id,
+        data: { platformTip: 1000 },
       };
 
       await Transaction.createFromContributionPayload(transactionPayload);
@@ -396,13 +396,13 @@ describe('server/models/Transaction', () => {
         currency: 'EUR',
         hostCurrency: 'EUR',
         hostCurrencyFxRate: 1,
-        platformTipAmount: 0,
         hostFeeInHostCurrency: 500,
         paymentProcessorFeeInHostCurrency: 200,
         type: 'CREDIT',
         createdAt: '2015-05-29T07:00:00.000Z',
         PaymentMethodId: 1,
         OrderId: order.id,
+        data: { platformTip: 0 },
       };
 
       await Transaction.createFromContributionPayload(transactionPayload);

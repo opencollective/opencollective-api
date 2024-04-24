@@ -63,7 +63,7 @@ import { canUseFeature } from '../../lib/user-permissions';
 import { formatCurrency, parseToBoolean } from '../../lib/utils';
 import models, { Collective, sequelize } from '../../models';
 import AccountingCategory from '../../models/AccountingCategory';
-import Expense, { ExpenseDataValuesByRole, ExpenseStatus } from '../../models/Expense';
+import Expense, { ExpenseDataValuesByRole, ExpenseStatus, ExpenseTaxDefinition } from '../../models/Expense';
 import ExpenseAttachedFile from '../../models/ExpenseAttachedFile';
 import ExpenseItem from '../../models/ExpenseItem';
 import LegalDocument, { LEGAL_DOCUMENT_TYPE } from '../../models/LegalDocument';
@@ -1141,12 +1141,6 @@ export const hasMultiCurrency = (collective, host): boolean => {
   return collective.currency === host?.currency; // Only support multi-currency when collective/host have the same currency
 };
 
-type TaxDefinition = {
-  type: string;
-  rate: number;
-  idNumber: string;
-};
-
 type ExpenseData = {
   id?: number;
   payoutMethod?: Record<string, unknown>;
@@ -1164,7 +1158,7 @@ type ExpenseData = {
   longDescription?: string;
   amount?: number;
   currency?: SupportedCurrency;
-  tax?: TaxDefinition[];
+  tax?: ExpenseTaxDefinition[];
   customData: Record<string, unknown>;
   accountingCategory?: AccountingCategory;
 };
@@ -1934,7 +1928,7 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
   const updatedItemsData: Partial<ExpenseItem>[] =
     (await prepareExpenseItemInputs(expenseCurrency, expenseData.items, { isEditing: true })) || expense.items;
   const [hasItemChanges, itemsDiff] = await getItemsChanges(expense.items, updatedItemsData);
-  const taxes = expenseData.tax || (expense.data?.taxes as TaxDefinition[]) || [];
+  const taxes = expenseData.tax || (expense.data?.taxes as ExpenseTaxDefinition[]) || [];
   checkTaxes(expense.collective, expense.collective.host, expenseType, taxes);
 
   if (!options?.['skipPermissionCheck'] && !(await canEditExpense(req, expense))) {

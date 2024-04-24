@@ -6,6 +6,7 @@ import { Command } from 'commander';
 import { sum } from 'lodash';
 
 import models, { sequelize } from '../../server/models';
+import { ExpenseTaxDefinition } from '../../server/models/Expense';
 
 const program = new Command()
   .description('Helper to add a tax on an existing expense')
@@ -44,7 +45,7 @@ const main = async () => {
     }
   }
 
-  const tax = { type: 'GST', id: 'GST', rate: 0.15, percentage: 15 };
+  const tax = { type: 'GST', id: 'GST', rate: 0.15, percentage: 15 } as ExpenseTaxDefinition;
   const taxAmountFromExpense = getTaxAmount(expense.amount, tax.rate);
   const taxAmountFromItems = sum(expense.items.map(i => getTaxAmount(i.amount, tax.rate)));
   if (taxAmountFromExpense !== taxAmountFromItems) {

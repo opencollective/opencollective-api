@@ -25,7 +25,7 @@ paymentMethodProvider.processOrder = async order => {
 
   const host = await order.collective.getHostCollective();
 
-  const hostFeeSharePercent = await getHostFeeSharePercent(order, { host });
+  const hostFeeSharePercent = await getHostFeeSharePercent(order);
   const isSharedRevenue = !!hostFeeSharePercent;
 
   const amount = order.totalAmount;
@@ -34,11 +34,11 @@ paymentMethodProvider.processOrder = async order => {
   const hostCurrencyFxRate = await getFxRate(currency, hostCurrency);
   const amountInHostCurrency = Math.round(amount * hostCurrencyFxRate);
 
-  const platformTipEligible = await isPlatformTipEligible(order, host);
+  const platformTipEligible = await isPlatformTipEligible(order);
   const platformTip = getPlatformTip(order);
   const platformTipInHostCurrency = Math.round(platformTip * hostCurrencyFxRate);
 
-  const hostFee = await getHostFee(order, { host });
+  const hostFee = await getHostFee(order);
   const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
 
   const transactionPayload = {

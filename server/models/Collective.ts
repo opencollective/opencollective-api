@@ -169,6 +169,7 @@ type Settings = {
   payoutsTwoFactorAuth?: {
     enabled?: boolean;
   };
+  customEmailMessage?: string;
 } & TaxSettings;
 
 type Data = Partial<{

@@ -19,6 +19,7 @@ import { OrderModelInterface } from '../../models/Order';
 import { TransactionInterface } from '../../models/Transaction';
 import User from '../../models/User';
 import { PaypalCapture, PaypalSale, PaypalTransaction } from '../../types/paypal';
+import { PaymentProviderService } from '../types';
 
 import { paypalRequestV2 } from './api';
 
@@ -40,17 +41,17 @@ const recordTransaction = async (
     throw new Error(`Cannot create transaction: collective id ${order.collective.id} doesn't have a host`);
   }
   const hostCurrency = host.currency;
-  const hostFeeSharePercent = await getHostFeeSharePercent(order, { host });
+  const hostFeeSharePercent = await getHostFeeSharePercent(order);
   const isSharedRevenue = !!hostFeeSharePercent;
 
   const hostCurrencyFxRate = await getFxRate(currency, hostCurrency);
   const amountInHostCurrency = Math.round(amount * hostCurrencyFxRate);
   const paymentProcessorFeeInHostCurrency = Math.round(hostCurrencyFxRate * paypalFee);
 
-  const hostFee = await getHostFee(order, { host });
+  const hostFee = await getHostFee(order);
   const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
 
-  const platformTipEligible = await isPlatformTipEligible(order, host);
+  const platformTipEligible = await isPlatformTipEligible(order);
   const platformTip = getPlatformTip(order);
   const platformTipInHostCurrency = Math.round(platformTip * hostCurrencyFxRate);
 
@@ -303,4 +304,4 @@ export default {
   processOrder,
   refundTransaction: refundPaypalPaymentTransaction,
   refundTransactionOnlyInDatabase,
-};
+} as PaymentProviderService;
