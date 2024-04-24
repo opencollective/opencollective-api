@@ -49,6 +49,7 @@ import {
 import { GraphQLAccountingCategoryKind } from '../enum/AccountingCategoryKind';
 import { GraphQLHostApplicationStatus } from '../enum/HostApplicationStatus';
 import { GraphQLHostFeeStructure } from '../enum/HostFeeStructure';
+import { GraphQLLegalDocumentType } from '../enum/LegalDocumentType';
 import { PaymentMethodLegacyTypeEnum } from '../enum/PaymentMethodLegacyType';
 import { GraphQLTimeUnit } from '../enum/TimeUnit';
 import { GraphQLVirtualCardStatusEnum } from '../enum/VirtualCardStatus';
@@ -1541,6 +1542,20 @@ export const GraphQLHost = new GraphQLObjectType({
             limit: args.limit,
             offset: args.offset,
           };
+        },
+      },
+      requiredLegalDocuments: {
+        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLLegalDocumentType))),
+        description: 'Returns the legal documents required by this host',
+        async resolve(host) {
+          const documents = await models.RequiredLegalDocument.findAll({
+            attributes: ['documentType'],
+            where: { HostCollectiveId: host.id },
+            distinct: true,
+            raw: true,
+          });
+
+          return documents.map(({ documentType }) => documentType);
         },
       },
     };

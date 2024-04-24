@@ -3,6 +3,7 @@ import gql from 'fake-tag';
 
 import { CollectiveType } from '../../../../../server/constants/collectives';
 import models from '../../../../../server/models';
+import { LEGAL_DOCUMENT_TYPE } from '../../../../../server/models/LegalDocument';
 import { fakeCollective, fakeHost, fakeTransaction, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
 
@@ -27,6 +28,7 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
   beforeEach(async () => {
     hostAdminUser = await fakeUser();
     host = await fakeHost({ admin: hostAdminUser });
+    await host.createRequiredLegalDocument({ type: LEGAL_DOCUMENT_TYPE.US_TAX_FORM }); // For allowing tax form upload
   });
 
   afterEach(async () => {
@@ -68,6 +70,21 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
       );
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.match(/You're not authorized to create a vendor for this host/);
+    });
+
+    it('must be connected to tax forms to upload a legal document', async () => {
+      const hostWithoutTaxForm = await fakeHost({ admin: hostAdminUser });
+      const result = await graphqlQueryV2(
+        createVendorMutation,
+        {
+          host: { legacyId: hostWithoutTaxForm.id },
+          vendor: vendorData,
+        },
+        hostAdminUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/Host does not require tax forms/);
     });
 
     it('creates a vendor account', async () => {

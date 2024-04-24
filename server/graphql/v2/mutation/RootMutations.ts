@@ -15,9 +15,8 @@ import {
   stringifyBanResult,
   stringifyBanSummary,
 } from '../../../lib/moderation';
-import { setTaxFormForDropboxForm } from '../../../lib/tax-forms';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models, { Collective, sequelize } from '../../../models';
+import models, { Collective, LegalDocument, sequelize } from '../../../models';
 import UserTwoFactorMethod from '../../../models/UserTwoFactorMethod';
 import { moveExpenses } from '../../common/expenses';
 import { checkRemoteUserCanRoot } from '../../common/scope-check';
@@ -340,8 +339,12 @@ export default {
       await twoFactorAuthLib.validateRequest(req, { requireTwoFactorAuthEnabled: true });
 
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
+      await LegalDocument.manuallyMarkTaxFormAsReceived(account, req.remoteUser, args.taxFormLink, {
+        UserTokenId: req.userToken?.id,
+        year: args.year,
+      });
 
-      return { success: setTaxFormForDropboxForm(account, args.taxFormLink, args.year) };
+      return { success: true };
     },
   },
 };

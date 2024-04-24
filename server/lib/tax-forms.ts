@@ -10,7 +10,7 @@ import {
   US_TAX_FORM_THRESHOLD,
   US_TAX_FORM_THRESHOLD_FOR_PAYPAL,
 } from '../constants/tax-form';
-import models, { Collective, Expense, Op, sequelize } from '../models';
+import models, { Collective, Expense, Op } from '../models';
 import LegalDocument, {
   LEGAL_DOCUMENT_REQUEST_STATUS,
   LEGAL_DOCUMENT_SERVICE,
@@ -119,39 +119,6 @@ const saveDocumentStatus = (account, year, requestStatus, data) => {
   }).then(([doc]) => {
     return doc.update({ requestStatus, data });
   });
-};
-
-export const setTaxFormForDropboxForm = async (account, taxFormLink, year) => {
-  await sequelize.transaction(async sqlTransaction => {
-    const legalDocument = await models.LegalDocument.findOne({
-      where: { CollectiveId: account.id, requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED },
-      lock: true,
-      transaction: sqlTransaction,
-    });
-
-    if (legalDocument) {
-      await legalDocument.update(
-        {
-          documentLink: taxFormLink,
-          year,
-          requestStatus: 'RECEIVED',
-        },
-        { transaction: sqlTransaction },
-      );
-    } else {
-      await models.LegalDocument.create(
-        {
-          requestStatus: 'RECEIVED',
-          documentLink: taxFormLink,
-          year,
-          CollectiveId: account.id,
-          service: LEGAL_DOCUMENT_SERVICE.DROPBOX_FORMS,
-        },
-        { transaction: sqlTransaction },
-      );
-    }
-  });
-  return true;
 };
 
 export async function sendHelloWorksUsTaxForm(
