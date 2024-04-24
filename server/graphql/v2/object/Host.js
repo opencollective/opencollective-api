@@ -1569,7 +1569,7 @@ export const GraphQLHost = new GraphQLObjectType({
         args: {
           ...CollectionArgs,
           type: {
-            type: GraphQLLegalDocumentType,
+            type: new GraphQLList(GraphQLLegalDocumentType),
             description: 'Filter by type of legal document',
           },
           status: {
@@ -1604,7 +1604,7 @@ export const GraphQLHost = new GraphQLObjectType({
             throw new Unauthorized('You need to be logged in as an admin of the host to see its legal documents');
           }
 
-          if (args.type !== LEGAL_DOCUMENT_TYPE.US_TAX_FORM) {
+          if (args.type.length > 1 || args.type[0] !== LEGAL_DOCUMENT_TYPE.US_TAX_FORM) {
             throw new Error('Only US_TAX_FORM is supported for now');
           }
 

@@ -2945,7 +2945,7 @@ type Host implements Account & AccountWithContributions {
     """
     Filter by type of legal document
     """
-    type: LegalDocumentType
+    type: [LegalDocumentType]
 
     """
     Filter by status of legal document
