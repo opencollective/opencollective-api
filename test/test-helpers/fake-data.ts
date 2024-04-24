@@ -825,7 +825,6 @@ export const fakeTransaction = async (
   const amount = (transactionData.amount as number) || randAmount(10, 100) * 100;
   const CreatedByUserId = transactionData.CreatedByUserId || (await fakeUser()).id;
   const FromCollectiveId = transactionData.FromCollectiveId || (await fakeCollective()).id;
-  // const HostCollectiveId = transactionData.HostCollectiveId || (await fakeCollective()).id;
   const collective = transactionData.CollectiveId
     ? await models.Collective.findByPk(transactionData.CollectiveId)
     : await fakeCollective();

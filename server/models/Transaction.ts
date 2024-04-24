@@ -817,7 +817,6 @@ Transaction.createDoubleEntry = async (transaction: TransactionCreationAttribute
   // TODO: should we check for refunds also?
 
   transaction.netAmountInCollectiveCurrency = transaction.netAmountInCollectiveCurrency || transaction.amount;
-  // transaction.netAmountInCollectiveCurrency = Transaction.calculateNetAmountInCollectiveCurrency(transaction);
   transaction.TransactionGroup = transaction.TransactionGroup || uuid();
   transaction.hostCurrencyFxRate = transaction.hostCurrencyFxRate || 1;
 
