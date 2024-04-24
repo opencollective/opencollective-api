@@ -35,6 +35,7 @@ import {
   Attributes,
   CreationOptional,
   FindOptions,
+  HasManyCreateAssociationMixin,
   HasManyGetAssociationsMixin,
   HasOneGetAssociationMixin,
   InferAttributes,
@@ -111,13 +112,14 @@ import ConnectedAccount from './ConnectedAccount';
 import CustomDataTypes from './DataTypes';
 import Expense from './Expense';
 import HostApplication, { HostApplicationStatus } from './HostApplication';
-import { LegalDocumentModelInterface } from './LegalDocument';
+import LegalDocument from './LegalDocument';
 import Location from './Location';
 import Member, { MemberModelInterface } from './Member';
 import MemberInvitation from './MemberInvitation';
 import Order from './Order';
 import PaymentMethod from './PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
+import RequiredLegalDocument from './RequiredLegalDocument';
 import SocialLink, { SocialLinkType } from './SocialLink';
 import Subscription from './Subscription';
 import Tier from './Tier';
@@ -167,6 +169,7 @@ type Settings = {
   payoutsTwoFactorAuth?: {
     enabled?: boolean;
   };
+  customEmailMessage?: string;
 } & TaxSettings;
 
 type Data = Partial<{
@@ -321,7 +324,11 @@ class Collective extends Model<
   public declare adminMembers?: NonAttribute<Array<MemberModelInterface>>;
   public declare getAdminMembers: HasManyGetAssociationsMixin<MemberModelInterface>;
 
-  public declare legalDocuments?: NonAttribute<LegalDocumentModelInterface[]>;
+  public declare legalDocuments?: NonAttribute<LegalDocument[]>;
+  public declare RequiredLegalDocuments?: NonAttribute<RequiredLegalDocument[]>;
+  public declare getLegalDocuments: HasManyGetAssociationsMixin<LegalDocument>;
+  public declare getRequiredLegalDocuments: HasManyGetAssociationsMixin<RequiredLegalDocument>;
+  public declare createRequiredLegalDocument: HasManyCreateAssociationMixin<RequiredLegalDocument>;
 
   public declare accountingCategories?: NonAttribute<Array<AccountingCategory>>;
   public declare getAccountingCategories: HasManyGetAssociationsMixin<AccountingCategory>;
@@ -527,6 +534,7 @@ class Collective extends Model<
       type: this.type,
       slug: this.slug,
       name: this.name,
+      legalName: this.legalName,
       company: this.company,
       website: this.website,
       isIncognito: this.isIncognito,

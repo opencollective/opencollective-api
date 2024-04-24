@@ -8,5 +8,9 @@ export const GraphQLDateTimeField = new GraphQLEnumType({
       value: 'createdAt',
       description: 'The creation time of a resource',
     },
+    EFFECTIVE_DATE: {
+      value: 'clearedAt',
+      description: 'Transactions only: The date when a transaction was cleared by the payment processor',
+    },
   },
 });

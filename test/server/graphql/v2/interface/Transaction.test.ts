@@ -1,11 +1,15 @@
 import { expect } from 'chai';
 import config from 'config';
+import { get, set } from 'lodash';
 
 import { roles } from '../../../../../server/constants';
+import { TransactionKind } from '../../../../../server/constants/transaction-kind';
+import { TransactionTypes } from '../../../../../server/constants/transactions';
 import { createRefundTransaction } from '../../../../../server/lib/payments';
 import { createTransactionsFromPaidExpense } from '../../../../../server/lib/transactions';
 import models from '../../../../../server/models';
-import { fakeExpense, fakeTransaction, fakeUser } from '../../../../test-helpers/fake-data';
+import { MERCHANT_ID_PATHS } from '../../../../../server/models/Transaction';
+import { fakeExpense, fakeTransaction, fakeUser, randStr } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB, seedDefaultVendors } from '../../../../utils';
 
 describe('Transaction', () => {
@@ -152,6 +156,60 @@ describe('Transaction', () => {
         isRefund: true,
       },
     ]);
+  });
+
+  describe('merchantId', () => {
+    MERCHANT_ID_PATHS.CONTRIBUTION.forEach(path =>
+      it(`returns the merchantId of CONTRIBUTION path ${path}`, async () => {
+        const data = {
+          kind: TransactionKind.CONTRIBUTION,
+          CollectiveId: expense.CollectiveId,
+          HostCollectiveId: expense.collective.HostCollectiveId,
+        };
+        set(data, path, randStr('merchantId'));
+        const transaction = await fakeTransaction(data, { createDoubleEntry: true });
+        const query = `
+            query Transaction($id: String!) {
+              transaction(id: $id) {
+                id
+                legacyId
+                merchantId
+              }
+            }
+          `;
+        const result = await graphqlQueryV2(query, { id: transaction.uuid }, hostAdmin);
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.transaction.merchantId).to.equal(get(data, path));
+      }),
+    );
+
+    MERCHANT_ID_PATHS.EXPENSE.forEach(path =>
+      it(`returns the merchantId of EXPENSE path ${path}`, async () => {
+        const data = {
+          amount: -100,
+          kind: TransactionKind.EXPENSE,
+          type: TransactionTypes.DEBIT,
+          CollectiveId: expense.CollectiveId,
+          HostCollectiveId: expense.collective.HostCollectiveId,
+        };
+        set(data, path, randStr('merchantId'));
+        const transaction = await fakeTransaction(data, { createDoubleEntry: true });
+        const query = `
+            query Transaction($id: String!) {
+              transaction(id: $id) {
+                id
+                legacyId
+                merchantId
+              }
+            }
+          `;
+        const result = await graphqlQueryV2(query, { id: transaction.uuid }, hostAdmin);
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.transaction.merchantId).to.equal(get(data, path));
+      }),
+    );
   });
 
   describe('clearedAt', () => {

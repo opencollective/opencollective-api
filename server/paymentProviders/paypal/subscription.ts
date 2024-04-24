@@ -260,6 +260,7 @@ export const setupPaypalSubscriptionForOrder = async (
       });
     } else {
       await createSubscription(order, paypalSubscriptionId);
+      await order.markSimilarPausedOrdersAsCancelled();
     }
   } catch (e) {
     logger.error(`[PayPal] Error while creating subscription: ${e}`);
@@ -303,7 +304,7 @@ export const updateSubscriptionWithPaypal = async (
 };
 
 const createSubscription = async (order: OrderModelInterface, paypalSubscriptionId) => {
-  return (order as any).createSubscription({
+  return order.createSubscription({
     paypalSubscriptionId,
     amount: order.totalAmount,
     currency: order.currency,

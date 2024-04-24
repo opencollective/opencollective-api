@@ -68,7 +68,10 @@ const expensesQuery = gql`
 /** Create a fake host */
 const fakeHostWithRequiredLegalDocument = async (hostData = {}) => {
   const host = await fakeHost(hostData);
-  await models.RequiredLegalDocument.create({ HostCollectiveId: host.id, documentType: 'US_TAX_FORM' });
+  await models.RequiredLegalDocument.create({
+    HostCollectiveId: host.id,
+    documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
+  });
   return host;
 };
 

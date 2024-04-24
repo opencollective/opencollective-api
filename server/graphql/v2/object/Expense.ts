@@ -253,7 +253,7 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Reques
           const activities: Activity[] = await req.loaders.Expense.activities.load(expense.id);
           const paidActivity = findLast(activities, a => a.type === ActivityTypes.COLLECTIVE_EXPENSE_PAID);
 
-          if (paidActivity) {
+          if (paidActivity?.UserId) {
             return req.loaders.Collective.byUserId.load(paidActivity.UserId);
           }
         },

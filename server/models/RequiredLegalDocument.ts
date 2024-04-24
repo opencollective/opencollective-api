@@ -2,23 +2,19 @@ import { CreationOptional, InferAttributes, Model } from 'sequelize';
 
 import sequelize, { DataTypes } from '../lib/sequelize';
 
-type US_TAX_FORM = 'US_TAX_FORM';
+import { LEGAL_DOCUMENT_TYPE } from './LegalDocument';
 
 class RequiredLegalDocument extends Model<
   InferAttributes<RequiredLegalDocument>,
   InferAttributes<RequiredLegalDocument>
 > {
   public declare readonly id: CreationOptional<number>;
-  public declare documentType: US_TAX_FORM;
+  public declare documentType: LEGAL_DOCUMENT_TYPE;
   public declare HostCollectiveId: number;
 
   public declare createdAt: CreationOptional<Date>;
   public declare updatedAt: CreationOptional<Date>;
   public declare deletedAt: CreationOptional<Date>;
-
-  public static documentType = {
-    US_TAX_FORM: 'US_TAX_FORM',
-  };
 }
 
 RequiredLegalDocument.init(

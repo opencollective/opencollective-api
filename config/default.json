@@ -43,6 +43,9 @@
     }
   },
   "limits": {
+    "taxForms": {
+      "downloadPerHour": 15
+    },
     "ordersPerHour": {
       "perAccount": 10,
       "perAccountForCollective": 2,
@@ -159,6 +162,10 @@
         "apiVersion": "2006-03-01"
       }
     }
+  },
+  "taxForms": {
+    "useInternal": true,
+    "encryptionKey": "Pz/LnMPzhxQqsbXZ0SCb3sP0uhw8dCxspoAXLXO4CV8="
   },
   "githubFlow": {
     "minNbStars": 100

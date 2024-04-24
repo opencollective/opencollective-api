@@ -116,6 +116,11 @@ export const OrdersCollectionArgs = {
     type: GraphQLBoolean,
     description: `Same as onlySubscriptions, but returns only orders with active subscriptions`,
   },
+  oppositeAccount: {
+    type: GraphQLAccountReferenceInput,
+    description:
+      'Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)',
+  },
 };
 
 export const OrdersCollectionResolver = async (args, req: express.Request) => {
@@ -136,18 +141,27 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     throw new Error('Cannot fetch more than 1,000 orders at the same time, please adjust the limit');
   }
 
-  let account;
+  let account, oppositeAccount;
 
   // Load accounts
   if (args.account) {
     const fetchAccountParams = { loaders: req.loaders, throwIfMissing: true };
     account = await fetchAccountWithReference(args.account, fetchAccountParams);
 
+    // Load opposite account
+    if (args.oppositeAccount) {
+      oppositeAccount = await fetchAccountWithReference(args.oppositeAccount, fetchAccountParams);
+    }
+
     const accountConditions = [];
+    const oppositeAccountConditions = [];
 
     // Filter on fromCollective
     if (!args.filter || args.filter === 'OUTGOING') {
       accountConditions.push(getJoinCondition(account, 'fromCollective', args.includeHostedAccounts));
+      if (oppositeAccount) {
+        oppositeAccountConditions.push(getJoinCondition(oppositeAccount, 'collective'));
+      }
       if (args.includeIncognito) {
         // Needs to be root or admin of the profile to see incognito orders
         if (
@@ -168,10 +182,18 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     // Filter on collective
     if (!args.filter || args.filter === 'INCOMING') {
       accountConditions.push(getJoinCondition(account, 'collective', args.includeHostedAccounts));
+      if (oppositeAccount) {
+        oppositeAccountConditions.push(getJoinCondition(oppositeAccount, 'fromCollective'));
+      }
     }
 
     // Bind account conditions to the query
     where[Op.and].push(accountConditions.length === 1 ? accountConditions : { [Op.or]: accountConditions });
+    if (oppositeAccountConditions.length > 0) {
+      where[Op.and].push(
+        oppositeAccountConditions.length === 1 ? oppositeAccountConditions : { [Op.or]: oppositeAccountConditions },
+      );
+    }
   }
 
   // Load payment method

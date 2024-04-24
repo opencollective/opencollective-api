@@ -44,16 +44,18 @@ const createCollectiveWithData = async () => {
       PaymentMethodId: null,
       FromCollectiveId: user.collective.id,
       CollectiveId: collective.id,
+      HostCollectiveId: collective.host.id,
       CreatedByUserId: user.id,
       data: { platformTip: 100 },
     },
     { createDoubleEntry: true },
   );
 
-  const { platformTipTransaction } = await models.Transaction.createPlatformTipTransactions(
-    contributionTransaction,
-    collective.host,
-  );
+  const platformTipTransaction = contributionTransaction.getRelatedTransaction({
+    type: 'CREDIT',
+    kind: 'PLATFORM_TIP',
+  });
+
   const hostedTransaction = await fakeTransaction(
     {
       type: 'CREDIT',

@@ -481,7 +481,7 @@ export async function getSumCollectivesAmountReceived(
 
 export async function getTotalMoneyManagedAmount(
   host,
-  { endDate, collectiveIds, currency, version, loaders = null } = {},
+  { endDate, collectiveIds, currency, version = null, loaders = null } = {},
 ) {
   version = version || host.settings?.budget?.version || DEFAULT_BUDGET_VERSION;
   currency = currency || host.currency;

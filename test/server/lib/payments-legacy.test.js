@@ -41,7 +41,7 @@ const SNAPSHOT_COLUMNS = [
   'description',
 ];
 
-describe('server/lib/payments', () => {
+describe('server/lib/payments-legacy', () => {
   let host, user, user2, collective, order, collective2, sandbox, emailSendSpy;
 
   before(() => {
@@ -421,8 +421,7 @@ describe('server/lib/payments', () => {
         hostFeeInHostCurrency: 250,
         paymentProcessorFeeInHostCurrency: 175,
         description: 'Monthly subscription to Webpack',
-        platformTipAmount: 500,
-        data: { charge: { id: 'ch_refunded_charge' } },
+        data: { charge: { id: 'ch_refunded_charge' }, platformTip: 500 },
       });
 
       // Should have 6 transactions:

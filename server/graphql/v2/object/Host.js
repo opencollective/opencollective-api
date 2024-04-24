@@ -1,3 +1,5 @@
+import assert from 'assert';
+
 import config from 'config';
 import {
   GraphQLBoolean,
@@ -23,19 +25,23 @@ import { TransactionKind } from '../../../constants/transaction-kind';
 import { TransactionTypes } from '../../../constants/transactions';
 import { FEATURE, hasFeature } from '../../../lib/allowed-features';
 import { getPolicy } from '../../../lib/policies';
+import SQLQueries from '../../../lib/queries';
 import { buildSearchConditions } from '../../../lib/search';
 import sequelize from '../../../lib/sequelize';
-import { getReportNodesFromQueryResult } from '../../../lib/transaction-reports';
+import { getHostReportNodesFromQueryResult } from '../../../lib/transaction-reports';
 import { ifStr, parseToBoolean } from '../../../lib/utils';
 import models, { Collective, Op } from '../../../models';
 import Agreement from '../../../models/Agreement';
+import { LEGAL_DOCUMENT_TYPE } from '../../../models/LegalDocument';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
+import { checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { Unauthorized, ValidationFailed } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { GraphQLAccountingCategoryCollection } from '../collection/AccountingCategoryCollection';
 import { GraphQLAgreementCollection } from '../collection/AgreementCollection';
 import { GraphQLHostApplicationCollection } from '../collection/HostApplicationCollection';
+import { GraphQLLegalDocumentCollection } from '../collection/LegalDocumentCollection';
 import { GraphQLVendorCollection } from '../collection/VendorCollection';
 import { GraphQLVirtualCardCollection } from '../collection/VirtualCardCollection';
 import {
@@ -43,15 +49,14 @@ import {
   GraphQLAccountType,
   GraphQLPaymentMethodLegacyType,
   GraphQLPayoutMethodType,
-  GraphQLTransactionType,
 } from '../enum';
 import { GraphQLAccountingCategoryKind } from '../enum/AccountingCategoryKind';
-import { GraphQLExpenseType } from '../enum/ExpenseType';
 import { GraphQLHostApplicationStatus } from '../enum/HostApplicationStatus';
 import { GraphQLHostFeeStructure } from '../enum/HostFeeStructure';
+import { GraphQLLegalDocumentRequestStatus } from '../enum/LegalDocumentRequestStatus';
+import { GraphQLLegalDocumentType } from '../enum/LegalDocumentType';
 import { PaymentMethodLegacyTypeEnum } from '../enum/PaymentMethodLegacyType';
 import { GraphQLTimeUnit } from '../enum/TimeUnit';
-import { GraphQLTransactionKind } from '../enum/TransactionKind';
 import { GraphQLVirtualCardStatusEnum } from '../enum/VirtualCardStatus';
 import {
   fetchAccountsIdsWithReference,
@@ -60,6 +65,12 @@ import {
   GraphQLAccountReferenceInput,
 } from '../input/AccountReferenceInput';
 import { getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/AmountInput';
+import {
+  ACCOUNT_BALANCE_QUERY,
+  ACCOUNT_CONSOLIDATED_BALANCE_QUERY,
+  getAmountRangeValueAndOperator,
+  GraphQLAmountRangeInput,
+} from '../input/AmountRangeInput';
 import {
   CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   GraphQLChronologicalOrderInput,
@@ -70,7 +81,6 @@ import { AccountWithContributionsFields, GraphQLAccountWithContributions } from 
 import { CollectionArgs, getCollectionArgs } from '../interface/Collection';
 import URL from '../scalar/URL';
 
-import { GraphQLAmount } from './Amount';
 import { GraphQLContributionStats } from './ContributionStats';
 import { GraphQLExpenseStats } from './ExpenseStats';
 import { GraphQLHostMetrics } from './HostMetrics';
@@ -192,6 +202,7 @@ export const GraphQLHost = new GraphQLObjectType({
       },
       hostTransactionsReports: {
         type: GraphQLHostTransactionReports,
+        description: 'EXPERIMENTAL (this may change or be removed)',
         args: {
           timeUnit: {
             type: GraphQLTimeUnit,
@@ -206,7 +217,7 @@ export const GraphQLHost = new GraphQLObjectType({
         },
         resolve: async (host, args) => {
           if (args.timeUnit !== 'MONTH' && args.timeUnit !== 'QUARTER' && args.timeUnit !== 'YEAR') {
-            throw new Error('Only monthly, quarterly and yearly reports are supported for now');
+            throw new Error('Only monthly, quarterly and yearly reports are supported.');
           }
 
           const refreshedAtQuery = `
@@ -370,7 +381,7 @@ export const GraphQLHost = new GraphQLObjectType({
             raw: true,
           });
 
-          const nodes = await getReportNodesFromQueryResult({
+          const nodes = await getHostReportNodesFromQueryResult({
             queryResult,
             dateFrom: args.dateFrom,
             dateTo: args.dateTo,
@@ -384,76 +395,6 @@ export const GraphQLHost = new GraphQLObjectType({
             dateTo: args.dateTo,
             nodes,
           };
-        },
-      },
-      transactionsReport: {
-        type: new GraphQLList(
-          new GraphQLObjectType({
-            name: 'TransactionSum',
-            description:
-              'EXPERIMENTAL (this may change or be deleted): Transaction amounts grouped by type, kind, isRefund, isHost, expenseType',
-            fields: () => ({
-              amount: { type: GraphQLAmount },
-              type: { type: GraphQLTransactionType },
-              kind: { type: GraphQLTransactionKind },
-              isRefund: { type: GraphQLBoolean },
-              isHost: { type: GraphQLBoolean },
-              expenseType: { type: GraphQLExpenseType },
-            }),
-          }),
-        ),
-        args: {
-          dateFrom: {
-            type: GraphQLDateTime,
-          },
-          dateTo: {
-            type: GraphQLDateTime,
-          },
-        },
-        resolve: async (host, args) => {
-          const hostChildrenIds = await host
-            .getChildren({ attributes: ['id'] })
-            .then(children => children.map(child => child.id));
-          const hostCollectiveIds = [host.id, ...hostChildrenIds];
-
-          const query = `
-          SELECT 
-            SUM(t."amountInHostCurrency") as "amountInHostCurrency",
-            t."kind",
-            t."isRefund", 
-            t."hostCurrency",
-            t."type",
-            CASE WHEN t."CollectiveId" IN (:hostCollectiveIds) THEN TRUE ELSE FALSE END AS "isHost",
-            e."type" as "expenseType"
-          FROM "Transactions" t
-          LEFT JOIN LATERAL (
-            SELECT e2."type" from "Expenses" e2 where e2.id = t."ExpenseId"
-          ) as e ON t."ExpenseId" IS NOT NULL
-          WHERE 
-            t."HostCollectiveId" = :hostCollectiveId
-            AND t."deletedAt" IS NULL
-            AND t."createdAt" > :dateFrom AND t."createdAt" < :dateTo
-          GROUP BY t."kind", t."hostCurrency", t."isRefund", t."type", "isHost", "expenseType"
-          ORDER BY t."kind"; 
-          `;
-
-          const transactionGroups = await sequelize.query(query, {
-            replacements: {
-              hostCollectiveId: host.id,
-              hostCollectiveIds,
-              dateFrom: args.dateFrom,
-              dateTo: args.dateTo,
-            },
-            type: sequelize.QueryTypes.SELECT,
-            raw: true,
-          });
-
-          return transactionGroups.map(t => {
-            return {
-              ...t,
-              amount: { value: t.amountInHostCurrency, currency: t.hostCurrency },
-            };
-          });
         },
       },
       hostMetrics: {
@@ -1475,6 +1416,14 @@ export const GraphQLHost = new GraphQLObjectType({
             type: GraphQLOrderByInput,
             description: 'Order of the results',
           },
+          balance: {
+            type: GraphQLAmountRangeInput,
+            description: 'Filter by the balance of the account',
+          },
+          consolidatedBalance: {
+            type: GraphQLAmountRangeInput,
+            description: 'Filter by the balance of the account and its children accounts (events and projects)',
+          },
         },
         async resolve(host, args) {
           /** @type {Parameters<typeof models.Collective.findAndCountAll>[0]['where']} */
@@ -1507,6 +1456,42 @@ export const GraphQLHost = new GraphQLObjectType({
             }
           }
 
+          if (!isEmpty(args.balance)) {
+            args.balance.gte?.currency &&
+              assert(args.balance.gte.currency, host.currency, 'Balance currency must match host currency');
+            args.balance.lte?.currency &&
+              assert(args.balance.lte.currency, host.currency, 'Balance currency must match host currency');
+
+            if (!where[Op.and]) {
+              where[Op.and] = [];
+            }
+
+            const { operator, value } = getAmountRangeValueAndOperator(args.balance);
+            where[Op.and].push(sequelize.where(ACCOUNT_BALANCE_QUERY, operator, value));
+          }
+
+          if (!isEmpty(args.consolidatedBalance)) {
+            args.consolidatedBalance.gte?.currency &&
+              assert(
+                args.consolidatedBalance.gte.currency,
+                host.currency,
+                'Consolidated Balance currency must match host currency',
+              );
+            args.consolidatedBalance.lte?.currency &&
+              assert(
+                args.consolidatedBalance.lte.currency,
+                host.currency,
+                'Consolidated Balance currency must match host currency',
+              );
+
+            if (!where[Op.and]) {
+              where[Op.and] = [];
+            }
+
+            const { operator, value } = getAmountRangeValueAndOperator(args.consolidatedBalance);
+            where[Op.and].push(sequelize.where(ACCOUNT_CONSOLIDATED_BALANCE_QUERY, operator, value));
+          }
+
           if (args.isUnhosted) {
             const collectiveIds = await models.HostApplication.findAll({
               attributes: ['CollectiveId'],
@@ -1532,25 +1517,27 @@ export const GraphQLHost = new GraphQLObjectType({
             where[Op.or] = searchTermConditions;
           }
 
-          const order = [];
+          const orderBy = [];
           if (args.orderBy) {
             const { field, direction } = args.orderBy;
             if (field === ORDER_BY_PSEUDO_FIELDS.CREATED_AT) {
               // Quick hack here, using ApprovedAt because in this context,
               // it doesn't make sense to order by createdAt and this ends
               // up saving a whole new component that needs to be implemented
-              order.push(['approvedAt', direction]);
+              orderBy.push(['approvedAt', direction]);
+            } else if (field === ORDER_BY_PSEUDO_FIELDS.BALANCE) {
+              orderBy.push([ACCOUNT_CONSOLIDATED_BALANCE_QUERY, direction]);
             } else {
-              order.push([field, direction]);
+              orderBy.push([field, direction]);
             }
           } else {
-            order.push(['approvedAt', 'DESC']);
+            orderBy.push(['approvedAt', 'DESC']);
           }
 
           const result = await models.Collective.findAndCountAll({
             limit: args.limit,
             offset: args.offset,
-            order,
+            order: orderBy,
             where,
           });
 
@@ -1559,6 +1546,123 @@ export const GraphQLHost = new GraphQLObjectType({
             totalCount: result.count,
             limit: args.limit,
             offset: args.offset,
+          };
+        },
+      },
+      requiredLegalDocuments: {
+        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLLegalDocumentType))),
+        description: 'Returns the legal documents required by this host',
+        async resolve(host) {
+          const documents = await models.RequiredLegalDocument.findAll({
+            attributes: ['documentType'],
+            where: { HostCollectiveId: host.id },
+            distinct: true,
+            raw: true,
+          });
+
+          return documents.map(({ documentType }) => documentType);
+        },
+      },
+      hostedLegalDocuments: {
+        type: new GraphQLNonNull(GraphQLLegalDocumentCollection),
+        description: 'Returns legal documents hosted by this host',
+        args: {
+          ...CollectionArgs,
+          type: {
+            type: new GraphQLList(GraphQLLegalDocumentType),
+            description: 'Filter by type of legal document',
+          },
+          status: {
+            type: new GraphQLList(GraphQLLegalDocumentRequestStatus),
+            description: 'Filter by status of legal document',
+          },
+          account: {
+            type: new GraphQLList(GraphQLAccountReferenceInput),
+            description: 'Filter by accounts',
+          },
+          searchTerm: {
+            type: GraphQLString,
+            description: 'Search term (name, description, ...)',
+          },
+          orderBy: {
+            type: new GraphQLNonNull(GraphQLChronologicalOrderInput),
+            description: 'The order of results',
+            defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
+          },
+          requestedAtFrom: {
+            type: GraphQLDateTime,
+            description: 'Filter by requested date from',
+          },
+          requestedAtTo: {
+            type: GraphQLDateTime,
+            description: 'Filter by requested date to',
+          },
+        },
+        resolve: async (host, args, req) => {
+          checkRemoteUserCanUseHost(req);
+          if (!req.remoteUser.isAdminOfCollective(host)) {
+            throw new Unauthorized('You need to be logged in as an admin of the host to see its legal documents');
+          }
+
+          if (args.type.length > 1 || args.type[0] !== LEGAL_DOCUMENT_TYPE.US_TAX_FORM) {
+            throw new Error('Only US_TAX_FORM is supported for now');
+          }
+
+          const { offset, limit } = args;
+          const accountIds = await SQLQueries.getTaxFormsRequiredForAccounts({ HostCollectiveId: host.id });
+          if (!accountIds.size) {
+            return { nodes: [], totalCount: 0, limit, offset };
+          }
+
+          const where = { CollectiveId: Array.from(accountIds) };
+          if (args.type) {
+            where['documentType'] = args.type;
+          }
+          if (args.status) {
+            where['requestStatus'] = args.status;
+          }
+
+          if (args.accounts && args.accounts.length > 0) {
+            const accountIds = await fetchAccountsIdsWithReference(args.accounts, { throwIfMissing: true });
+            where['CollectiveId'] = uniq([...where['CollectiveId'], ...accountIds]);
+          }
+
+          if (args.requestedAtFrom) {
+            where['createdAt'] = { [Op.gte]: args.requestedAtFrom };
+          }
+          if (args.requestedAtTo) {
+            where['createdAt'] = { ...where['createdAt'], [Op.lte]: args.requestedAtTo };
+          }
+
+          const include = [];
+
+          // Add support for text search
+          const searchTermConditions = buildSearchConditions(args.searchTerm, {
+            idFields: ['id', 'CollectiveId'],
+            slugFields: ['$collective.slug$'],
+            textFields: ['$collective.name$'],
+          });
+
+          if (searchTermConditions.length) {
+            where[Op.or] = searchTermConditions;
+            include.push({ association: 'collective', required: true });
+          }
+
+          return {
+            totalCount: () => models.LegalDocument.count({ where, include }),
+            nodes: () =>
+              models.LegalDocument.findAll({
+                where,
+                offset,
+                include,
+                limit,
+                order: [
+                  [args.orderBy.field, args.orderBy.direction],
+                  ['id', 'DESC'],
+                ],
+              }),
+            limit,
+            offset,
           };
         },
       },

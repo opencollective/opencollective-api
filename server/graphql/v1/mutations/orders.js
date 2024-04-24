@@ -436,7 +436,7 @@ export async function createOrder(order, req) {
       orderPublicData = pick(order.data, []);
     }
 
-    const platformTipEligible = await isPlatformTipEligible({ ...order, collective }, host);
+    const platformTipEligible = await isPlatformTipEligible({ ...order, collective });
 
     const orderData = {
       CreatedByUserId: remoteUser.id,

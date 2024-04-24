@@ -4,6 +4,7 @@ import { get } from 'lodash';
 import {
   ForeignKey,
   HasManyGetAssociationsMixin,
+  HasOneCreateAssociationMixin,
   HasOneGetAssociationMixin,
   InferAttributes,
   InferCreationAttributes,
@@ -53,10 +54,12 @@ interface OrderModelStaticInterface {
 }
 
 export type OrderTax = {
-  id: TaxType;
+  id: TaxType | `${TaxType}`;
   percentage: number;
   taxedCountry: string;
   taxerCountry: string;
+  taxIDNumber?: string;
+  taxIDNumberFrom?: string;
 };
 
 export interface OrderModelInterface
@@ -82,7 +85,7 @@ export interface OrderModelInterface
   tier?: Tier;
   /** @deprecated: We're using both `tier` and `Tier` depending on the places. The association is defined as `Tier` (uppercase). We should consolidate to one or the other. */
   Tier?: Tier;
-  getTier: Promise<Tier>;
+  getTier(): Promise<Tier | null>;
 
   quantity: number;
   currency: SupportedCurrency;
@@ -98,6 +101,7 @@ export interface OrderModelInterface
   SubscriptionId?: number;
   Subscription?: SubscriptionInterface;
   getSubscription: HasOneGetAssociationMixin<SubscriptionInterface>;
+  createSubscription: HasOneCreateAssociationMixin<SubscriptionInterface>;
 
   AccountingCategoryId?: ForeignKey<AccountingCategory['id']>;
   accountingCategory?: AccountingCategory;
@@ -112,7 +116,7 @@ export interface OrderModelInterface
 
   processedAt: Date;
   status: OrderStatus;
-  interval?: string;
+  interval: 'month' | 'year' | null;
   data:
     | {
         hostFeePercent?: number;
@@ -132,6 +136,8 @@ export interface OrderModelInterface
   getOrCreateMembers(): Promise<[MemberModelInterface, MemberModelInterface]>;
   getUser(): Promise<User>;
   setPaymentMethod(paymentMethodData);
+  populate(): Promise<void>;
+  getUserForActivity(): Promise<User>;
 
   /**
    * Similar to what we do in `lockExpense`, this locks an order by setting a special flag in `data`
@@ -150,6 +156,7 @@ export interface OrderModelInterface
   lock<T>(callback: () => T | Promise<T>, options?: { timeout?: boolean }): Promise<T>;
   isLocked(): boolean;
   unPause(user: User, params: { UserTokenId: number }): Promise<OrderModelInterface>;
+  markSimilarPausedOrdersAsCancelled(): Promise<void>;
 }
 
 const Order: ModelStatic<OrderModelInterface> & OrderModelStaticInterface = sequelize.define(
@@ -447,6 +454,13 @@ Order.prototype.validatePaymentMethod = function (paymentMethod) {
 Order.prototype.getOrCreateMembers = async function () {
   // Preload data
   this.collective = this.collective || (await this.getCollective());
+  this.fromCollective = this.fromCollective || (await this.getFromCollective());
+
+  // Ignore if the order is from a children collective
+  if (this.fromCollective?.ParentCollectiveId === this.collective.id) {
+    return;
+  }
+
   let tier;
   if (this.TierId) {
     tier = await this.getTier();
@@ -645,6 +659,23 @@ Order.prototype.unPause = async function (user: User, { UserTokenId = undefined 
   });
 
   return this;
+};
+
+/**
+ * Marks all other paused orders from the same fromCollective/collective as cancelled.
+ */
+Order.prototype.markSimilarPausedOrdersAsCancelled = async function (): Promise<void> {
+  await models.Order.update(
+    { status: OrderStatus.CANCELLED },
+    {
+      where: {
+        id: { [Op.not]: this.id },
+        FromCollectiveId: this.FromCollectiveId,
+        CollectiveId: this.CollectiveId,
+        status: OrderStatus.PAUSED,
+      },
+    },
+  );
 };
 
 // ---- Static methods ----

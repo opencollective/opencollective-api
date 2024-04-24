@@ -13,6 +13,7 @@ import { Service } from '../constants/connected-account';
 import FEATURE from '../constants/feature';
 import OrderStatuses from '../constants/order-status';
 import roles from '../constants/roles';
+import MemberRoles from '../constants/roles';
 import * as auth from '../lib/auth';
 import emailLib from '../lib/email';
 import logger from '../lib/logger';
@@ -68,7 +69,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   public declare collective?: Collective;
 
   // Non-model attributes
-  public rolesByCollectiveId?: NonAttribute<Record<string, string[]>>;
+  public rolesByCollectiveId?: NonAttribute<Record<string, MemberRoles[]>>;
 
   /** Instance Methods */
 

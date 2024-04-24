@@ -1,14 +1,43 @@
 import { expect } from 'chai';
 import moment from 'moment';
+import sinon from 'sinon';
 
+import emailLib from '../../../server/lib/email';
 import models from '../../../server/models';
+import { LEGAL_DOCUMENT_REQUEST_STATUS, LEGAL_DOCUMENT_TYPE } from '../../../server/models/LegalDocument';
+import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
+import { fakeActiveHost, fakeExpense, fakePayoutMethod, fakeUser } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
 const { LegalDocument, User, Collective } = models;
 
+const createExpenseSubjectToTaxForm = async (payee, host) => {
+  const payoutMethod = await fakePayoutMethod({
+    CollectiveId: payee.id,
+    type: PayoutMethodTypes.OTHER,
+    data: { content: 'Send cash' },
+  });
+
+  return fakeExpense({
+    type: 'INVOICE',
+    FromCollectiveId: payee.id,
+    CollectiveId: host.id,
+    amount: 600e2,
+    currency: 'USD',
+    PayoutMethodId: payoutMethod.id,
+  });
+};
+
+// Need a helper cause Sequelize doesn't allow to set createdAt directly
+const updateLegalDocCreatedAt = async (legalDocument, date) => {
+  legalDocument.set('createdAt', date, { raw: true });
+  legalDocument.changed('createdAt', true);
+  return legalDocument.save({ fields: ['createdAt'] });
+};
+
 describe('server/models/LegalDocument', () => {
   // globals to be set in the before hooks.
-  let hostCollective, user, userCollective;
+  let sandbox, emailSendMessageSpy, hostCollective, user, userCollective;
 
   const documentData = {
     year: moment().year(),
@@ -38,11 +67,20 @@ describe('server/models/LegalDocument', () => {
     ],
   };
 
-  beforeEach(async () => await utils.resetTestDB());
+  before(() => {
+    sandbox = sinon.createSandbox();
+  });
+
   beforeEach(async () => {
+    await utils.resetTestDB();
     hostCollective = await Collective.create(hostCollectiveData);
     user = await User.createUserWithCollective(userData);
     userCollective = await Collective.findByPk(user.CollectiveId);
+    emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage');
+  });
+
+  afterEach(() => {
+    sandbox.restore();
   });
 
   it('it can set and save a new document_link', async () => {
@@ -94,13 +132,13 @@ describe('server/models/LegalDocument', () => {
     });
     const doc = await LegalDocument.create(legalDoc);
 
-    expect(doc.requestStatus).to.eq(LegalDocument.requestStatus.NOT_REQUESTED);
+    expect(doc.requestStatus).to.eq(LEGAL_DOCUMENT_REQUEST_STATUS.NOT_REQUESTED);
 
-    doc.requestStatus = LegalDocument.requestStatus.RECEIVED;
+    doc.requestStatus = LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED;
     await doc.save();
     await doc.reload();
 
-    expect(doc.requestStatus).to.eq(LegalDocument.requestStatus.RECEIVED);
+    expect(doc.requestStatus).to.eq(LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED);
   });
 
   it('it will fail if attempting to set an invalid request status', async () => {
@@ -109,7 +147,7 @@ describe('server/models/LegalDocument', () => {
     });
     const doc = await LegalDocument.create(legalDoc);
 
-    expect(doc.requestStatus).to.eq(LegalDocument.requestStatus.NOT_REQUESTED);
+    expect(doc.requestStatus).to.eq(LEGAL_DOCUMENT_REQUEST_STATUS.NOT_REQUESTED);
 
     doc.requestStatus = 'SCUTTLEBUTT';
     expect(doc.save()).to.be.rejected;
@@ -189,6 +227,102 @@ describe('server/models/LegalDocument', () => {
       CollectiveId: userCollective.id,
     });
     const doc = await LegalDocument.create(legalDoc);
-    expect(doc.requestStatus).to.eq(LegalDocument.requestStatus.NOT_REQUESTED);
+    expect(doc.requestStatus).to.eq(LEGAL_DOCUMENT_REQUEST_STATUS.NOT_REQUESTED);
+  });
+
+  describe('sendRemindersForTaxForms', () => {
+    let hostWithTaxForms;
+
+    beforeEach(async () => {
+      hostWithTaxForms = await fakeActiveHost();
+      await hostWithTaxForms.createRequiredLegalDocument({ type: LEGAL_DOCUMENT_TYPE.US_TAX_FORM });
+    });
+
+    it('sends a reminder after 48h if not completed yet', async () => {
+      const payeeUser = await fakeUser();
+      await createExpenseSubjectToTaxForm(payeeUser.collective, hostWithTaxForms);
+
+      const legalDocument = await LegalDocument.createTaxFormRequestToCollectiveIfNone(payeeUser.collective, payeeUser);
+      await updateLegalDocCreatedAt(legalDocument, moment().subtract(3, 'days').toDate());
+
+      await LegalDocument.sendRemindersForTaxForms();
+      await legalDocument.reload();
+
+      expect(legalDocument.data?.reminderSentAt).to.exist;
+
+      // Check sent email
+      await utils.waitForCondition(() => emailSendMessageSpy.callCount > 0);
+      expect(emailSendMessageSpy.callCount).to.equal(1);
+      const expectedSubject = `Action required: Submit tax form for ${payeeUser.collective.name}`;
+      const email = await utils.waitForCondition(() =>
+        emailSendMessageSpy.args.find(args => args[1] === expectedSubject),
+      );
+      expect(email).to.exist;
+      expect(email[0]).to.equal(payeeUser.email);
+      expect(email[1]).to.equal(expectedSubject);
+      expect(email[2]).to.contain(`The button below will take you to your dashboard`);
+      expect(email[2]).to.match(new RegExp(`href=".+/dashboard/${payeeUser.collective.slug}/tax-information"`));
+      expect(email[3].isTransactional).to.be.true;
+      expect(email[3].listId).to.equal(`${payeeUser.collective.slug}::taxform.request`);
+      expect(email[3].accountSlug).to.equal(payeeUser.collective.slug);
+    });
+
+    it('skips reminder if the legal document has just been created', async () => {
+      const payeeUser = await fakeUser();
+      await createExpenseSubjectToTaxForm(payeeUser.collective, hostWithTaxForms);
+      const legalDocument = await LegalDocument.createTaxFormRequestToCollectiveIfNone(payeeUser.collective, payeeUser);
+      await LegalDocument.sendRemindersForTaxForms();
+      await legalDocument.reload();
+      expect(legalDocument.data?.reminderSentAt).to.not.exist;
+      expect(emailSendMessageSpy.callCount).to.equal(0);
+    });
+
+    it('skips reminder if the legal document is too old', async () => {
+      const payeeUser = await fakeUser();
+      await createExpenseSubjectToTaxForm(payeeUser.collective, hostWithTaxForms);
+      const legalDocument = await LegalDocument.createTaxFormRequestToCollectiveIfNone(payeeUser.collective, payeeUser);
+      await updateLegalDocCreatedAt(legalDocument, moment().subtract(10, 'days').toDate());
+      await LegalDocument.sendRemindersForTaxForms();
+      await legalDocument.reload();
+      expect(legalDocument.data?.reminderSentAt).to.not.exist;
+      expect(emailSendMessageSpy.callCount).to.equal(0);
+    });
+
+    it('skips reminder if the legal document is not required anymore', async () => {
+      const payeeUser = await fakeUser();
+      const expense = await createExpenseSubjectToTaxForm(payeeUser.collective, hostWithTaxForms);
+      const legalDocument = await LegalDocument.createTaxFormRequestToCollectiveIfNone(payeeUser.collective, payeeUser);
+      await updateLegalDocCreatedAt(legalDocument, moment().subtract(3, 'days').toDate());
+      await expense.destroy();
+      await LegalDocument.sendRemindersForTaxForms();
+      await legalDocument.reload();
+      expect(legalDocument.data?.reminderSentAt).to.not.exist;
+      expect(emailSendMessageSpy.callCount).to.equal(0);
+    });
+
+    it('skips reminder if the legal document has been completed since', async () => {
+      const payeeUser = await fakeUser();
+      await createExpenseSubjectToTaxForm(payeeUser.collective, hostWithTaxForms);
+      const legalDocument = await LegalDocument.createTaxFormRequestToCollectiveIfNone(payeeUser.collective, payeeUser);
+      await legalDocument.update({ requestStatus: 'RECEIVED' });
+      await updateLegalDocCreatedAt(legalDocument, moment().subtract(3, 'days').toDate());
+      await LegalDocument.sendRemindersForTaxForms();
+      await legalDocument.reload();
+      expect(legalDocument.data?.reminderSentAt).to.not.exist;
+      expect(emailSendMessageSpy.callCount).to.equal(0);
+    });
+
+    it('skips reminder if already sent', async () => {
+      const payeeUser = await fakeUser();
+      await createExpenseSubjectToTaxForm(payeeUser.collective, hostWithTaxForms);
+      const legalDocument = await LegalDocument.createTaxFormRequestToCollectiveIfNone(payeeUser.collective, payeeUser);
+      const reminderSentAt = new Date();
+      await legalDocument.update({ data: { reminderSentAt } });
+      await updateLegalDocCreatedAt(legalDocument, moment().subtract(3, 'days').toDate());
+      await LegalDocument.sendRemindersForTaxForms();
+      await legalDocument.reload();
+      expect(emailSendMessageSpy.callCount).to.equal(0);
+      expect(legalDocument.data.reminderSentAt).to.equal(reminderSentAt.toISOString());
+    });
   });
 });

@@ -1,5 +1,6 @@
 import config from 'config';
 import { get, pick } from 'lodash';
+import moment from 'moment';
 
 import {
   TAX_FORM_IGNORED_EXPENSE_STATUSES,
@@ -779,12 +780,10 @@ const getTaxFormsOverTheLimit = (results, idKey) => {
   // Group results in a map like Map<idKey, { paypalTotal, otherTotal }>
   const groupedResults = new Map();
   for (const result of results) {
-    if (result.requiredDocument === 'US_TAX_FORM' && result.legalDocRequestStatus !== 'RECEIVED') {
-      const groupResult = groupedResults.get(result[idKey]) || { paypalTotal: 0, otherTotal: 0 };
-      const totalKey = result.payoutMethodType === PayoutMethodTypes.PAYPAL ? 'paypalTotal' : 'otherTotal';
-      groupResult[totalKey] += result.total;
-      groupedResults.set(result[idKey], groupResult);
-    }
+    const groupResult = groupedResults.get(result[idKey]) || { paypalTotal: 0, otherTotal: 0 };
+    const totalKey = result.payoutMethodType === PayoutMethodTypes.PAYPAL ? 'paypalTotal' : 'otherTotal';
+    groupResult[totalKey] += result.total;
+    groupedResults.set(result[idKey], groupResult);
   }
 
   // Filter entries in the map to return a set with only the IDs that require a tax form (over the limits)
@@ -807,8 +806,6 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
     SELECT
       analyzed_expenses."FromCollectiveId",
       analyzed_expenses.id as "expenseId",
-      MAX(ld."requestStatus") as "legalDocRequestStatus",
-      d."documentType" as "requiredDocument",
       COALESCE(pm."type", 'OTHER') AS "payoutMethodType",
       SUM(all_expenses."amount" * (
         CASE
@@ -880,15 +877,30 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
 };
 
 /**
- * @returns number[] - collective IDs where a tax form is required
+ * Returns the collective IDs where a tax form is required.
+ *
+ * @param {Object} options
+ * @param {number|number[]} [options.HostCollectiveId] - The host collective IDs.
+ * @param {number|number[]} [options.CollectiveId] - The collective IDs.
+ * @param {number} [options.year] - The year to check for. Defaults to the current year.
+ * @param {boolean} [options.ignoreReceived] - If true, ignore tax forms that have already been received.
+ *
+ * @returns Set<number> - collective IDs where a tax form is required
  */
-const getTaxFormsRequiredForAccounts = async (accountIds = [], year) => {
+const getTaxFormsRequiredForAccounts = async ({
+  HostCollectiveId = null,
+  CollectiveId = null,
+  year = moment().year(),
+  ignoreReceived = false,
+} = {}) => {
+  if (CollectiveId && Array.isArray(CollectiveId) && CollectiveId.length === 0) {
+    return new Set();
+  }
+
   const results = await sequelize.query(
     `
     SELECT
       account.id as "collectiveId",
-      MAX(ld."requestStatus") as "legalDocRequestStatus",
-      d."documentType" as "requiredDocument",
       COALESCE(pm."type", 'OTHER') AS "payoutMethodType",
       SUM(all_expenses."amount" * (
         CASE
@@ -914,6 +926,9 @@ const getTaxFormsRequiredForAccounts = async (accountIds = [], year) => {
     INNER JOIN "RequiredLegalDocuments" d
       ON d."HostCollectiveId" = c."HostCollectiveId"
       AND d."documentType" = 'US_TAX_FORM'
+    ${ifStr(
+      ignoreReceived,
+      `
     LEFT JOIN "LegalDocuments" ld
       ON ld.year + :validityInYears >= :year
       AND ld."documentType" = 'US_TAX_FORM'
@@ -922,25 +937,29 @@ const getTaxFormsRequiredForAccounts = async (accountIds = [], year) => {
         ld."CollectiveId" = account.id -- Either use the account's legal document
         OR (account."HostCollectiveId" IS NOT NULL AND ld."CollectiveId" = account."HostCollectiveId") -- Or the host's legal document
       )
+    `,
+    )}
     LEFT JOIN "PayoutMethods" pm
       ON all_expenses."PayoutMethodId" = pm.id
     WHERE all_expenses.type NOT IN (:ignoredExpenseTypes)
-    ${ifStr(accountIds?.length, 'AND account.id IN (:accountIds)')}
+    ${!CollectiveId ? '' : Array.isArray(CollectiveId) ? `AND account.id IN (:CollectiveId)` : `AND account.id = :CollectiveId`}
+    ${!HostCollectiveId ? '' : Array.isArray(HostCollectiveId) ? `AND c."HostCollectiveId" IN (:HostCollectiveId)` : `AND c."HostCollectiveId" = :HostCollectiveId`}
     AND account.id != d."HostCollectiveId"
     AND (account."HostCollectiveId" IS NULL OR account."HostCollectiveId" != d."HostCollectiveId") -- Ignore tax forms when the submitter is hosted by a host that has tax form enabled (OCF, OSC, OC)
     AND (account."type" != 'VENDOR' OR account."data"#>>'{vendorInfo, taxFormRequired}' = 'true') -- Ignore tax from tax exempt vendors
     AND all_expenses.status NOT IN (:ignoredExpenseStatuses)
     AND all_expenses."deletedAt" IS NULL
     AND EXTRACT('year' FROM all_expenses."incurredAt") = :year
-    AND ld.id IS NULL -- Ignore documents that have already been received
+    ${ifStr(ignoreReceived, `AND ld.id IS NULL`)}
     GROUP BY account.id, d."documentType", COALESCE(pm."type", 'OTHER')
   `,
     {
       raw: true,
       type: sequelize.QueryTypes.SELECT,
       replacements: {
-        accountIds,
-        year: year,
+        CollectiveId,
+        HostCollectiveId,
+        year,
         validityInYears: US_TAX_FORM_VALIDITY_IN_YEARS,
         ignoredExpenseTypes: TAX_FORM_IGNORED_EXPENSE_TYPES,
         ignoredExpenseStatuses: TAX_FORM_IGNORED_EXPENSE_STATUSES,

@@ -11,6 +11,7 @@ import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
 import models, { Activity, Collective } from '../../models';
 import { CommentType } from '../../models/Comment';
+import { LEGAL_DOCUMENT_SERVICE } from '../../models/LegalDocument';
 import { UpdateChannel } from '../../models/Update';
 import User from '../../models/User';
 import emailLib from '../email';
@@ -204,9 +205,13 @@ export const notifyByEmail = async (activity: Activity) => {
 
     case ActivityTypes.OAUTH_APPLICATION_AUTHORIZED:
     case ActivityTypes.ORGANIZATION_COLLECTIVE_CREATED:
-    case ActivityTypes.TAXFORM_REQUEST:
     case ActivityTypes.USER_CARD_CLAIMED:
       await notify.user(activity);
+      break;
+
+    // Send tax form requests emails only for Dropbox form, others are sent as reminders in cron/hourly/40-send-tax-form-requests.js
+    case ActivityTypes.TAXFORM_REQUEST:
+      activity.data?.service === LEGAL_DOCUMENT_SERVICE.DROPBOX_FORMS && (await notify.user(activity));
       break;
 
     case ActivityTypes.COLLECTIVE_EXPENSE_MISSING_RECEIPT:

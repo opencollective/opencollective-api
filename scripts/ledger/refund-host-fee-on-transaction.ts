@@ -50,7 +50,7 @@ const main = async () => {
     `Refunding host fee for transaction ${transactionGroup} (${transaction.description}) on behalf of ${userCollectiveSlug}`,
   );
   if (!DRY_RUN) {
-    await refundHostFee(transaction, user, 0, uuid(), null);
+    await refundHostFee(transaction, user, 0, uuid());
   }
 };
 

@@ -1,7 +1,7 @@
 import config from 'config';
 import deepMerge from 'deepmerge';
 import HelloWorks from 'helloworks-sdk';
-import { truncate } from 'lodash';
+import { get, truncate } from 'lodash';
 
 import { activities } from '../constants';
 import {
@@ -10,24 +10,29 @@ import {
   US_TAX_FORM_THRESHOLD,
   US_TAX_FORM_THRESHOLD_FOR_PAYPAL,
 } from '../constants/tax-form';
-import models, { Collective, Expense, Op, sequelize } from '../models';
-import {
+import models, { Collective, Expense, Op } from '../models';
+import LegalDocument, {
   LEGAL_DOCUMENT_REQUEST_STATUS,
+  LEGAL_DOCUMENT_SERVICE,
   LEGAL_DOCUMENT_TYPE,
-  LegalDocumentModelInterface,
 } from '../models/LegalDocument';
 
+import { uploadToS3 } from './awsS3';
 import logger from './logger';
-import queries from './queries';
+import SQLQueries from './queries';
 import { reportErrorToSentry, reportMessageToSentry } from './sentry';
 import { isEmailInternal } from './utils';
+
+export const getTaxFormsS3Bucket = (): string => {
+  return get(config, 'taxForms.aws.s3.bucket') || get(config, 'helloworks.aws.s3.bucket');
+};
 
 /**
  * @returns {Collective} all the accounts that need to be sent a tax form (both users and orgs)
  * @param {number} year
  */
 export async function findAccountsThatNeedToBeSentTaxForm(year: number): Promise<Collective[]> {
-  const collectiveIds = await queries.getTaxFormsRequiredForAccounts(null, year);
+  const collectiveIds: Set<number> = await SQLQueries.getTaxFormsRequiredForAccounts({ year, ignoreReceived: true });
   if (!collectiveIds.size) {
     return [];
   } else {
@@ -116,45 +121,13 @@ const saveDocumentStatus = (account, year, requestStatus, data) => {
   });
 };
 
-export const setTaxForm = async (account, taxFormLink, year) => {
-  await sequelize.transaction(async sqlTransaction => {
-    const legalDocument = await models.LegalDocument.findOne({
-      where: { CollectiveId: account.id, requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED },
-      lock: true,
-      transaction: sqlTransaction,
-    });
-
-    if (legalDocument) {
-      await legalDocument.update(
-        {
-          documentLink: taxFormLink,
-          year,
-          requestStatus: 'RECEIVED',
-        },
-        { transaction: sqlTransaction },
-      );
-    } else {
-      await models.LegalDocument.create(
-        {
-          requestStatus: 'RECEIVED',
-          documentLink: taxFormLink,
-          year,
-          CollectiveId: account.id,
-        },
-        { transaction: sqlTransaction },
-      );
-    }
-  });
-  return true;
-};
-
 export async function sendHelloWorksUsTaxForm(
   client: HelloWorks,
   account: Collective,
   year: number,
   callbackUrl: string,
   workflowId: string,
-): Promise<LegalDocumentModelInterface> {
+): Promise<LegalDocument> {
   const host = await account.getHostCollective();
   const accountToSubmitRequestTo = host || account; // If the account has a fiscal host, it's its responsibility to fill the request
   const adminUsers = await getAdminsForAccount(accountToSubmitRequestTo);
@@ -222,7 +195,13 @@ export async function sendHelloWorksUsTaxForm(
       type: activities.TAXFORM_REQUEST,
       UserId: mainUser.id,
       CollectiveId: accountToSubmitRequestTo.id,
-      data: { documentLink, recipientName, accountName, isSystem: true },
+      data: {
+        service: LEGAL_DOCUMENT_SERVICE.DROPBOX_FORMS,
+        documentLink,
+        recipientName,
+        accountName,
+        isSystem: true,
+      },
     });
     return document;
   } catch (error) {
@@ -250,3 +229,30 @@ export const expenseMightBeSubjectToTaxForm = (expense: Expense): boolean => {
     !(TAX_FORM_IGNORED_EXPENSE_STATUSES as readonly string[]).includes(expense.status)
   );
 };
+
+export function encryptAndUploadTaxFormToS3(
+  buffer: Buffer,
+  collective: Collective,
+  year: number | string,
+  valuesHash: string = 'none',
+) {
+  const bucket = getTaxFormsS3Bucket();
+  const key = createTaxFormFilename({ collective, year, documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM, valuesHash });
+  const encryptedBuffer = LegalDocument.encrypt(buffer);
+  return uploadToS3({
+    Body: encryptedBuffer,
+    Bucket: bucket,
+    Key: key,
+    Metadata: { collectiveId: `${collective.id}`, valuesHash },
+  });
+}
+
+function createTaxFormFilename({ collective, year, documentType, valuesHash }) {
+  if (year >= 2023) {
+    return valuesHash && valuesHash !== 'none'
+      ? `${documentType}/${year}/${collective.name}_${valuesHash}.pdf`
+      : `${documentType}/${year}/${collective.name}.pdf`;
+  } else {
+    return `${documentType}_${year}_${collective.name}.pdf`;
+  }
+}

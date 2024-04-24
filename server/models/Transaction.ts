@@ -2,7 +2,7 @@ import assert from 'assert';
 
 import config from 'config';
 import debugLib from 'debug';
-import { get, isNil, isNull, isUndefined, memoize, omit, pick } from 'lodash';
+import { compact, get, head, isNil, isNull, isUndefined, memoize, omit, pick } from 'lodash';
 import moment from 'moment';
 import {
   CreationOptional,
@@ -12,6 +12,7 @@ import {
   ModelStatic,
   Transaction as SequelizeTransaction,
 } from 'sequelize';
+import Stripe from 'stripe';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../constants/activities';
@@ -26,16 +27,20 @@ import {
 import { shouldGenerateTransactionActivities } from '../lib/activities';
 import { getFxRate } from '../lib/currency';
 import { toNegative } from '../lib/math';
-import { calcFee, getHostFeeSharePercent, getPlatformTip } from '../lib/payments';
+import { calcFee, getHostFeeSharePercent } from '../lib/payments';
 import { stripHTML } from '../lib/sanitize-html';
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op } from '../lib/sequelize';
 import { exportToCSV, parseToBoolean } from '../lib/utils';
+import type { PaypalCapture, PaypalSale, PaypalTransaction } from '../types/paypal';
+import type { Transfer } from '../types/transferwise';
 
 import Activity from './Activity';
 import Collective from './Collective';
 import CustomDataTypes from './DataTypes';
-import Order, { OrderModelInterface } from './Order';
+import type Expense from './Expense';
+import type { ExpenseTaxDefinition } from './Expense';
+import Order, { OrderModelInterface, OrderTax } from './Order';
 import PaymentMethod, { PaymentMethodModelInterface } from './PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
 import TransactionSettlement, { TransactionSettlementStatus } from './TransactionSettlement';
@@ -44,8 +49,59 @@ import User from './User';
 const { CREDIT, DEBIT } = TransactionTypes;
 
 const { CONTRIBUTION, EXPENSE, ADDED_FUNDS } = TransactionKind;
+export const MERCHANT_ID_PATHS = {
+  [CONTRIBUTION]: [
+    'data.charge.id', // stripeId
+    'data.capture.id', // onetimePaypalPaymentId
+    'data.paypalSale.id', // recurringPaypalPaymentId
+    'data.paypalResponse.id', // paypalResponseId
+  ],
+  [EXPENSE]: [
+    'data.transfer.id', // wiseId
+    'data.transaction_id', // paypalPayoutId
+    'data.token', // privacyId
+    'data.transaction.id', // stripeVirtualCardId
+  ],
+} as const;
 
 const debug = debugLib('models:Transaction');
+
+type Tax = OrderTax | ExpenseTaxDefinition;
+
+export type TransactionData = {
+  balanceTransaction?: Stripe.BalanceTransaction;
+  capture?: Partial<PaypalCapture>;
+  charge?: Stripe.Charge;
+  dispute?: Stripe.Dispute;
+  expenseToHostFxRate?: number;
+  feesPayer?: Expense['feesPayer'];
+  hasPlatformTip?: boolean;
+  hostFeeMigration?: string;
+  hostFeeSharePercent?: number;
+  hostToPlatformFxRate?: number;
+  isManual?: boolean;
+  isPlatformRevenueDirectlyCollected?: boolean;
+  isRefundedFromOurSystem?: boolean;
+  oppositeTransactionFeesCurrencyFxRate?: number;
+  oppositeTransactionHostCurrencyFxRate?: number;
+  paymentProcessorFeeMigration?: string;
+  paypalResponse?: Record<string, unknown>;
+  paypalSale?: Partial<PaypalSale>;
+  paypalTransaction?: Partial<PaypalTransaction>;
+  platformTip?: number;
+  platformTipInHostCurrency?: number;
+  preMigrationData?: TransactionData;
+  refund?: Stripe.Refund;
+  refundedFromDoubleTransactionsScript?: boolean;
+  refundReason?: string;
+  refundTransactionId?: TransactionInterface['id'];
+  review?: Stripe.Event; // Why not Stripe.Review? Who knows
+  tax?: Tax;
+  taxAmountRemovedFromMigration?: number;
+  taxMigration?: string;
+  taxRemovedFromMigration?: Tax;
+  transfer?: Transfer;
+};
 
 export interface TransactionInterface
   extends Model<InferAttributes<TransactionInterface>, InferCreationAttributes<TransactionInterface>> {
@@ -64,7 +120,7 @@ export interface TransactionInterface
   paymentProcessorFeeInHostCurrency: number | null;
   platformFeeInHostCurrency: number | null;
   taxAmount: number | null;
-  data: Record<string, unknown> | null;
+  data: TransactionData | null;
   TransactionGroup: string;
   isRefund: boolean;
   isDebt: boolean;
@@ -103,6 +159,7 @@ export interface TransactionInterface
 
   // Getter Methods
   info: Partial<TransactionInterface>;
+  merchantId?: string;
 
   // Class methods
   getHostCollective: (options?: { loaders?: any }) => Promise<Collective>;
@@ -153,29 +210,25 @@ interface TransactionModelStaticInterface {
   assertAmountsLooselyEqual(a: number, b: number, message?: string): void;
   assertAmountsStrictlyEqual(a: number, b: number, message?: string): void;
   calculateNetAmountInHostCurrency(transaction: TransactionInterface): number;
-  validateContributionPayload(payload: Record<string, unknown>): void;
+  validateContributionPayload(payload: TransactionCreationAttributes): void;
   getPaymentProcessorFeeVendor(service: string): Promise<Collective>;
   getTaxVendor(taxId: string): Promise<Collective>;
   createActivity(
     transaction: TransactionInterface,
     options?: { sequelizeTransaction?: SequelizeTransaction },
   ): Promise<Activity | void>;
-  createPlatformTipTransactions(
-    transaction: TransactionCreationAttributes,
-    host: Collective,
-    isDirectlyCollected?: boolean,
-  ): Promise<void | {
+  createPlatformTipTransactions(transaction: TransactionCreationAttributes): Promise<void | {
     transaction: TransactionCreationAttributes;
     platformTipTransaction: TransactionInterface;
     platformTipDebtTransaction: TransactionInterface;
   }>;
-  createPlatformTipDebtTransactions(
-    args: { platformTipTransaction: TransactionInterface },
-    host: Collective,
-  ): Promise<TransactionInterface>;
+  createPlatformTipDebtTransactions(args: {
+    platformTipTransaction: TransactionInterface;
+    transaction: TransactionCreationAttributes;
+  }): Promise<TransactionInterface>;
   createPaymentProcessorFeeTransactions(
     transaction: TransactionCreationAttributes,
-    data: Record<string, unknown> | null,
+    data?: TransactionData,
   ): Promise<{
     /** The original transaction, potentially modified if a payment processor fees was set */
     transaction: TransactionInterface | TransactionCreationAttributes;
@@ -184,7 +237,7 @@ interface TransactionModelStaticInterface {
   } | void>;
   createTaxTransactions(
     transaction: TransactionCreationAttributes,
-    data: Record<string, unknown> | null,
+    data?: TransactionData,
   ): Promise<{
     /** The original transaction, potentially modified if a tax was set */
     transaction: TransactionInterface | TransactionCreationAttributes;
@@ -193,34 +246,27 @@ interface TransactionModelStaticInterface {
   } | void>;
   createHostFeeTransactions(
     transaction: TransactionCreationAttributes,
-    host: Collective,
-    data?: Record<string, unknown>,
+    data?: TransactionData,
   ): Promise<{
     transaction: TransactionInterface | TransactionCreationAttributes;
     hostFeeTransaction: TransactionInterface;
   } | void>;
-  createHostFeeShareTransactions(
-    params: {
-      transaction: TransactionCreationAttributes;
-      hostFeeTransaction: TransactionInterface;
-    },
-    host: Collective,
-    isDirectlyCollected: boolean,
-  ): Promise<{
+  createHostFeeShareTransactions(params: {
+    transaction: TransactionCreationAttributes;
+    hostFeeTransaction: TransactionInterface;
+  }): Promise<{
     hostFeeShareTransaction: TransactionInterface;
     hostFeeShareDebtTransaction: TransactionInterface;
   } | void>;
   createHostFeeShareDebtTransactions(params: {
     hostFeeShareTransaction: TransactionInterface;
   }): Promise<TransactionInterface>;
-  createFromContributionPayload(
-    transaction: TransactionCreationAttributes,
-    opts?: { isPlatformRevenueDirectlyCollected?: boolean },
-  ): Promise<TransactionInterface>;
+  createFromContributionPayload(transaction: TransactionCreationAttributes): Promise<TransactionInterface>;
   validate(
     transaction: TransactionInterface | TransactionCreationAttributes,
     opts?: { validateOppositeTransaction?: boolean; oppositeTransaction?: TransactionInterface },
   ): void;
+  fetchHost(transaction: TransactionInterface | TransactionCreationAttributes): Promise<Collective | null>;
 }
 
 const Transaction: ModelStatic<TransactionInterface> & TransactionModelStaticInterface = sequelize.define(
@@ -488,6 +534,10 @@ const Transaction: ModelStatic<TransactionInterface> & TransactionModelStaticInt
           isDebt: this.isDebt,
         };
       },
+
+      merchantId() {
+        return head(compact(MERCHANT_ID_PATHS[this.kind]?.map(path => get(this, path))));
+      },
     },
 
     hooks: {
@@ -549,22 +599,24 @@ Transaction.prototype.paymentMethodProviderCollectiveId = function () {
   return this.type === 'DEBIT' ? this.CollectiveId : this.FromCollectiveId;
 };
 
-Transaction.prototype.getRefundTransaction = function () {
+Transaction.prototype.getRefundTransaction = function (): Promise<TransactionInterface | null> {
   if (!this.RefundTransactionId) {
     return null;
   }
   return Transaction.findByPk(this.RefundTransactionId);
 };
 
-Transaction.prototype.hasPlatformTip = function () {
+Transaction.prototype.hasPlatformTip = function (): boolean {
   return Boolean(
-    (this.data?.hasPlatformTip || this.data?.isFeesOnTop) &&
+    this.data?.hasPlatformTip &&
       this.kind !== TransactionKind.PLATFORM_TIP &&
       this.kind !== TransactionKind.PLATFORM_TIP_DEBT,
   );
 };
 
-Transaction.prototype.getRelatedTransaction = function (options) {
+Transaction.prototype.getRelatedTransaction = function (
+  options: Pick<TransactionInterface, 'type' | 'kind' | 'isDebt'>,
+): Promise<TransactionInterface | null> {
   return Transaction.findOne({
     where: {
       TransactionGroup: this.TransactionGroup,
@@ -747,10 +799,7 @@ Transaction.exportCSV = (transactions, collectivesById) => {
  * and we should move paymentProcessorFee, platformFee, hostFee to the Order model
  *
  */
-Transaction.createDoubleEntry = async (
-  transaction: TransactionCreationAttributes,
-  opts,
-): Promise<TransactionInterface> => {
+Transaction.createDoubleEntry = async (transaction: TransactionCreationAttributes): Promise<TransactionInterface> => {
   // Force transaction type based on amount sign
   if (transaction.amount > 0) {
     transaction.type = CREDIT;
@@ -771,9 +820,36 @@ Transaction.createDoubleEntry = async (
   transaction.TransactionGroup = transaction.TransactionGroup || uuid();
   transaction.hostCurrencyFxRate = transaction.hostCurrencyFxRate || 1;
 
+  // Create Platform Tip transaction
+  if (transaction.data?.platformTip) {
+    // Separate donation transaction and remove platformTip from the main transaction
+    const result = await Transaction.createPlatformTipTransactions(transaction);
+    // Transaction was modified by createPlatformTipTransactions, we get it from the result
+    if (result && result.transaction) {
+      transaction = result.transaction;
+    }
+  }
+
+  // Create Host Fee Transaction
+  if (transaction.hostFeeInHostCurrency) {
+    const result = await Transaction.createHostFeeTransactions(transaction);
+    if (result) {
+      if (result.hostFeeTransaction) {
+        await Transaction.createHostFeeShareTransactions({
+          transaction: result.transaction,
+          hostFeeTransaction: result.hostFeeTransaction,
+        });
+      }
+      // Transaction was modified by createHostFeeTransaction, we get it from the result
+      if (result.transaction) {
+        transaction = result.transaction;
+      }
+    }
+  }
+
   // Create Tax transaction
   if (transaction.taxAmount && parseToBoolean(config.ledger.separateTaxes) === true) {
-    const result = await Transaction.createTaxTransactions(transaction, null);
+    const result = await Transaction.createTaxTransactions(transaction);
     if (result) {
       // Transaction was modified by createTaxTransactions, we get it from the result
       transaction = result.transaction;
@@ -785,7 +861,7 @@ Transaction.createDoubleEntry = async (
     transaction.paymentProcessorFeeInHostCurrency &&
     parseToBoolean(config.ledger.separatePaymentProcessorFees) === true
   ) {
-    const result = await Transaction.createPaymentProcessorFeeTransactions(transaction, null);
+    const result = await Transaction.createPaymentProcessorFeeTransactions(transaction);
     if (result) {
       // Transaction was modified by paymentProcessorFeeTransactions, we get it from the result
       transaction = result.transaction;
@@ -794,7 +870,7 @@ Transaction.createDoubleEntry = async (
 
   // If FromCollectiveId = CollectiveId, we only create one transaction (DEBIT or CREDIT)
   if (transaction.FromCollectiveId === transaction.CollectiveId) {
-    return Transaction.create(transaction, opts) as Promise<TransactionInterface>;
+    return Transaction.create(transaction) as Promise<TransactionInterface>;
   }
 
   if (!isUndefined(transaction.amountInHostCurrency)) {
@@ -875,7 +951,7 @@ Transaction.createDoubleEntry = async (
           hostFeePercent,
         );
         if (oppositeTransaction.hostFeeInHostCurrency) {
-          await Transaction.createHostFeeTransactions(oppositeTransaction, fromCollectiveHost);
+          await Transaction.createHostFeeTransactions(oppositeTransaction);
         }
       }
     }
@@ -886,25 +962,31 @@ Transaction.createDoubleEntry = async (
   // We first record the negative transaction
   // and only then we can create the transaction to add money somewhere else
   if (transaction.type === DEBIT) {
-    const t = await Transaction.create(transaction, opts);
-    await Transaction.create(oppositeTransaction, opts);
-    return t as TransactionInterface;
+    const t = await Transaction.create(transaction);
+    await Transaction.create(oppositeTransaction);
+    return t;
   } else {
-    await Transaction.create(oppositeTransaction, opts);
-    return (await Transaction.create(transaction, opts)) as TransactionInterface;
+    await Transaction.create(oppositeTransaction);
+    return Transaction.create(transaction);
   }
 };
 
 /**
  * Record a debt transaction and its associated settlement
  */
-Transaction.createPlatformTipDebtTransactions = async (
-  { platformTipTransaction }: { platformTipTransaction: TransactionInterface },
-  host: Collective,
-): Promise<TransactionInterface> => {
+Transaction.createPlatformTipDebtTransactions = async ({
+  platformTipTransaction,
+  transaction,
+}: {
+  platformTipTransaction: TransactionInterface;
+  transaction: TransactionCreationAttributes;
+}): Promise<TransactionInterface> => {
   if (platformTipTransaction.type === DEBIT) {
     throw new Error('createPlatformTipDebtTransactions must be given a CREDIT transaction');
   }
+
+  // This should be the host of the original transaction
+  const host = await Transaction.fetchHost(transaction);
 
   // Create debt transaction
   const platformTipDebtTransactionData = {
@@ -951,38 +1033,36 @@ Transaction.createPlatformTipDebtTransactions = async (
  * @param {boolean} Whether tip has been collected already (no debt needed)
  */
 Transaction.createPlatformTipTransactions = async (
-  transactionData: TransactionCreationAttributes,
-  host: Collective,
-  isDirectlyCollected: boolean = false,
+  transaction: TransactionCreationAttributes,
 ): Promise<void | {
   transaction: TransactionCreationAttributes;
   platformTipTransaction: TransactionInterface;
   platformTipDebtTransaction: TransactionInterface | null;
 }> => {
-  const platformTip = getPlatformTip(transactionData);
+  const platformTip = transaction.data?.platformTip;
   if (!platformTip) {
     return;
   }
 
   // amount of the CREDIT should be in the same currency as the original transaction
   const amount = platformTip;
-  const currency = transactionData.currency;
+  const currency = transaction.currency;
 
   // amountInHostCurrency of the CREDIT should be in platform currency
   const hostCurrency = PLATFORM_TIP_TRANSACTION_PROPERTIES.currency;
-  const hostCurrencyFxRate = await Transaction.getFxRate(currency, hostCurrency, transactionData);
+  const hostCurrencyFxRate = await Transaction.getFxRate(currency, hostCurrency, transaction);
   const amountInHostCurrency = Math.round(amount * hostCurrencyFxRate);
 
   // we compute the Fx Rate between the original hostCurrency and the platform currency
   // it might be used later
   const hostToPlatformFxRate = await Transaction.getFxRate(
-    transactionData.hostCurrency,
+    transaction.hostCurrency,
     PLATFORM_TIP_TRANSACTION_PROPERTIES.currency,
-    transactionData,
+    transaction,
   );
 
   const platformTipTransactionData = {
-    ...pick(transactionData, [
+    ...pick(transaction, [
       'TransactionGroup',
       'FromCollectiveId',
       'OrderId',
@@ -1011,33 +1091,33 @@ Transaction.createPlatformTipTransactions = async (
     isDebt: false,
     data: {
       hostToPlatformFxRate,
-      settled: transactionData.data?.settled,
     },
   };
 
-  const platformTipTransaction = (await Transaction.createDoubleEntry(
-    platformTipTransactionData,
-  )) as TransactionInterface;
+  const platformTipTransaction = await Transaction.createDoubleEntry(platformTipTransactionData);
 
   let platformTipDebtTransaction;
-  if (!isDirectlyCollected) {
-    platformTipDebtTransaction = await Transaction.createPlatformTipDebtTransactions({ platformTipTransaction }, host);
+  if (!transaction.data.isPlatformRevenueDirectlyCollected) {
+    platformTipDebtTransaction = await Transaction.createPlatformTipDebtTransactions({
+      platformTipTransaction,
+      transaction,
+    });
   }
 
   // If we have platformTipInHostCurrency available, we trust it, otherwise we compute it
   const platformTipInHostCurrency =
-    <number>transactionData.data?.platformTipInHostCurrency ||
-    Math.round(platformTip * transactionData.hostCurrencyFxRate);
+    <number>transaction.data?.platformTipInHostCurrency || Math.round(platformTip * transaction.hostCurrencyFxRate);
 
   // Recalculate amount
-  transactionData.amountInHostCurrency = Math.round(transactionData.amountInHostCurrency - platformTipInHostCurrency);
-  transactionData.amount = Math.round(transactionData.amount - platformTip);
+  transaction.amountInHostCurrency = Math.round(transaction.amountInHostCurrency - platformTipInHostCurrency);
+  transaction.amount = Math.round(transaction.amount - platformTip);
 
   // Reset the platformFee because we're accounting for this value in a separate set of transactions
   // This way of passing tips is deprecated but still used in some older tests
-  transactionData.platformFeeInHostCurrency = 0;
+  transaction.platformFeeInHostCurrency = 0;
+  transaction.netAmountInCollectiveCurrency = Transaction.calculateNetAmountInCollectiveCurrency(transaction);
 
-  return { transaction: transactionData, platformTipTransaction, platformTipDebtTransaction };
+  return { transaction, platformTipTransaction, platformTipDebtTransaction };
 };
 
 Transaction.validateContributionPayload = (payload: TransactionCreationAttributes): void => {
@@ -1068,12 +1148,13 @@ Transaction.validateContributionPayload = (payload: TransactionCreationAttribute
 
 Transaction.createHostFeeTransactions = async (
   transaction: TransactionCreationAttributes,
-  host: Collective,
-  data,
+  data?: TransactionData,
 ): Promise<{ transaction: TransactionCreationAttributes; hostFeeTransaction: TransactionInterface } | void> => {
   if (!transaction.hostFeeInHostCurrency) {
     return;
   }
+
+  const host = await Transaction.fetchHost(transaction);
 
   // The reference value is currently passed as "hostFeeInHostCurrency"
   const amountInHostCurrency = Math.abs(transaction.hostFeeInHostCurrency);
@@ -1113,6 +1194,7 @@ Transaction.createHostFeeTransactions = async (
 
   // Reset the original host fee because we're now accounting for this value in a separate set of transactions
   transaction.hostFeeInHostCurrency = 0;
+  transaction.netAmountInCollectiveCurrency = Transaction.calculateNetAmountInCollectiveCurrency(transaction);
 
   return { transaction, hostFeeTransaction };
 };
@@ -1221,10 +1303,6 @@ Transaction.getTaxVendor = memoize(async (taxId): Promise<Collective> => {
   return Collective.findBySlug(vendorByTaxId[taxId] || vendorByTaxId['OTHER']);
 });
 
-interface Tax {
-  id?: string;
-}
-
 /**
  * For contributions, the contributor pays the full amount then the tax is debited from the collective balance (to the TAX vendor)
  * For expenses, the collective pays the full amount to the payee, then the payee is debited from the tax amount (to the TAX vendor)
@@ -1317,25 +1395,24 @@ Transaction.createTaxTransactions = async (
   return { transaction, taxTransaction };
 };
 
-Transaction.createHostFeeShareTransactions = async (
-  {
-    transaction,
-    hostFeeTransaction,
-  }: {
-    transaction: TransactionInterface | TransactionCreationAttributes;
-    hostFeeTransaction: TransactionInterface;
-  },
-  host: Collective,
-  isDirectlyCollected: boolean = false,
-): Promise<{
+Transaction.createHostFeeShareTransactions = async ({
+  transaction,
+  hostFeeTransaction,
+}: {
+  transaction: TransactionInterface | TransactionCreationAttributes;
+  hostFeeTransaction: TransactionInterface;
+}): Promise<{
   hostFeeShareTransaction: TransactionInterface;
   hostFeeShareDebtTransaction: TransactionInterface;
 } | void> => {
-  let order;
-  if (transaction.OrderId) {
-    order = await Order.findByPk(transaction.OrderId);
+  const host = await Transaction.fetchHost(transaction);
+
+  let hostFeeSharePercent = transaction.data?.hostFeeSharePercent;
+  if (isNil(hostFeeSharePercent) && transaction.OrderId) {
+    const order = await Order.findByPk(transaction.OrderId);
+    hostFeeSharePercent = await getHostFeeSharePercent(order);
   }
-  const hostFeeSharePercent = await getHostFeeSharePercent(order, { host });
+
   if (!hostFeeSharePercent) {
     return;
   }
@@ -1388,7 +1465,7 @@ Transaction.createHostFeeShareTransactions = async (
   const hostFeeShareTransaction = await Transaction.createDoubleEntry(hostFeeShareTransactionData);
 
   let hostFeeShareDebtTransaction;
-  if (!isDirectlyCollected) {
+  if (!transaction.data.isPlatformRevenueDirectlyCollected) {
     hostFeeShareDebtTransaction = await Transaction.createHostFeeShareDebtTransactions({ hostFeeShareTransaction });
   }
 
@@ -1448,7 +1525,6 @@ Transaction.createHostFeeShareDebtTransactions = async ({
  */
 Transaction.createFromContributionPayload = async (
   transaction: TransactionCreationAttributes,
-  opts = { isPlatformRevenueDirectlyCollected: false },
 ): Promise<TransactionInterface> => {
   try {
     Transaction.validateContributionPayload(transaction);
@@ -1480,43 +1556,25 @@ Transaction.createFromContributionPayload = async (
   transaction.paymentProcessorFeeInHostCurrency = toNegative(transaction.paymentProcessorFeeInHostCurrency) || 0;
   transaction.taxAmount = toNegative(transaction.taxAmount);
 
-  // Separate donation transaction and remove platformTip from the main transaction
-  const result = await Transaction.createPlatformTipTransactions(
-    transaction,
-    host,
-    Boolean(opts?.isPlatformRevenueDirectlyCollected),
-  );
-  // Transaction was modified by createPlatformTipTransactions, we get it from the result
-  if (result && result.transaction) {
-    transaction = result.transaction;
-  }
-
-  // Create Host Fee transaction
-  // TODO: move in createDoubleEntry?
-  if (transaction.hostFeeInHostCurrency) {
-    const result = await Transaction.createHostFeeTransactions(transaction, host);
-    if (result) {
-      if (result.hostFeeTransaction) {
-        const isAlreadyCollected = Boolean(opts?.isPlatformRevenueDirectlyCollected);
-        await Transaction.createHostFeeShareTransactions(
-          {
-            transaction: result.transaction,
-            hostFeeTransaction: result.hostFeeTransaction,
-          },
-          host,
-          isAlreadyCollected,
-        );
-      }
-      // Transaction was modified by createHostFeeTransaction, we get it from the result
-      if (result.transaction) {
-        transaction = result.transaction;
-      }
-    }
-  }
-
   transaction.netAmountInCollectiveCurrency = Transaction.calculateNetAmountInCollectiveCurrency(transaction);
 
   return Transaction.createDoubleEntry(transaction);
+};
+
+Transaction.fetchHost = async (
+  transaction: TransactionInterface | TransactionCreationAttributes,
+): Promise<Collective | null> => {
+  let host;
+  if (transaction.HostCollectiveId) {
+    host = await Collective.findByPk(transaction.HostCollectiveId);
+  }
+  if (!host) {
+    // throw new Error(`transaction.HostCollectiveId should always bet set`);
+    console.warn(`transaction.HostCollectiveId should always bet set`);
+    const collective = await Collective.findByPk(transaction.CollectiveId);
+    host = await collective.getHostCollective();
+  }
+  return host;
 };
 
 Transaction.createActivity = async (
@@ -1571,7 +1629,7 @@ Transaction.createActivity = async (
   );
 };
 
-Transaction.canHaveFees = function ({ kind }: { kind: TransactionKind }) {
+Transaction.canHaveFees = function ({ kind }: { kind: TransactionKind }): boolean {
   return [CONTRIBUTION, EXPENSE, ADDED_FUNDS].includes(kind);
 };
 
@@ -1664,7 +1722,10 @@ Transaction.getFxRate = async function (fromCurrency, toCurrency, transaction) {
   return getFxRate(fromCurrency, toCurrency, transaction.createdAt || 'latest');
 };
 
-Transaction.updateCurrency = async function (currency: SupportedCurrency, transaction: TransactionInterface) {
+Transaction.updateCurrency = async function (
+  currency: SupportedCurrency,
+  transaction: TransactionInterface,
+): Promise<TransactionInterface> {
   // Nothing to do
   if (currency === transaction.currency) {
     return transaction;

@@ -52,6 +52,7 @@ import { floatAmountToCents } from '../../lib/math';
 import { createRefundTransaction } from '../../lib/payments';
 import { listPayPalTransactions } from '../../lib/paypal';
 import { getPolicy } from '../../lib/policies';
+import SQLQueries from '../../lib/queries';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
 import { notifyTeamAboutSpamExpense } from '../../lib/spam';
 import { deepJSONBSet } from '../../lib/sql';
@@ -62,9 +63,10 @@ import { canUseFeature } from '../../lib/user-permissions';
 import { formatCurrency, parseToBoolean } from '../../lib/utils';
 import models, { Collective, sequelize } from '../../models';
 import AccountingCategory from '../../models/AccountingCategory';
-import Expense, { ExpenseDataValuesByRole, ExpenseStatus } from '../../models/Expense';
+import Expense, { ExpenseDataValuesByRole, ExpenseStatus, ExpenseTaxDefinition } from '../../models/Expense';
 import ExpenseAttachedFile from '../../models/ExpenseAttachedFile';
 import ExpenseItem from '../../models/ExpenseItem';
+import LegalDocument, { LEGAL_DOCUMENT_TYPE } from '../../models/LegalDocument';
 import { MigrationLogType } from '../../models/MigrationLog';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import User from '../../models/User';
@@ -1039,9 +1041,14 @@ const checkExpenseItems = (expenseType, items: ExpenseItem[] | Record<string, un
 
   // If expense is a receipt (not an invoice) then files must be attached
   if (expenseType === EXPENSE_TYPE.RECEIPT) {
-    const hasMissingFiles = items.some(a => !a.url);
-    if (hasMissingFiles) {
+    if (items.some(a => !a.url)) {
       throw new ValidationFailed('Some items are missing a file');
+    }
+  } else if (expenseType === EXPENSE_TYPE.INVOICE) {
+    if (items.some(a => a.url)) {
+      throw new ValidationFailed(
+        'Invoice items cannot have a file attached. To attach documentation. please use `attachedFiles` on the expense instead.',
+      );
     }
   }
 };
@@ -1134,12 +1141,6 @@ export const hasMultiCurrency = (collective, host): boolean => {
   return collective.currency === host?.currency; // Only support multi-currency when collective/host have the same currency
 };
 
-type TaxDefinition = {
-  type: string;
-  rate: number;
-  idNumber: string;
-};
-
 type ExpenseData = {
   id?: number;
   payoutMethod?: Record<string, unknown>;
@@ -1157,7 +1158,7 @@ type ExpenseData = {
   longDescription?: string;
   amount?: number;
   currency?: SupportedCurrency;
-  tax?: TaxDefinition[];
+  tax?: ExpenseTaxDefinition[];
   customData: Record<string, unknown>;
   accountingCategory?: AccountingCategory;
 };
@@ -1217,6 +1218,42 @@ const checkCanUseAccountingCategory = (
   } else if (accountingCategory.hostOnly && !remoteUser?.isAdmin(host.id)) {
     throw new ValidationFailed('This accounting category can only be used by the host admin');
   }
+};
+
+/**
+ * A function that checks an updates the expense status. Must run whenever creating a new expense,
+ * when the amount/payout method change, or when an invited expense goes to pending.
+ *
+ * @returns the LegalDocument, or null if none required
+ */
+const updateTaxFormStatus = async (
+  req: express.Request,
+  host: Collective,
+  expense: Expense,
+  payee: Collective,
+): Promise<LegalDocument | null> => {
+  if (!parseToBoolean(config.taxForms.useInternal)) {
+    return null;
+  }
+
+  // Check if host is connected to the tax form system
+  const requiredLegalDocument = await host.getRequiredLegalDocuments({ type: LEGAL_DOCUMENT_TYPE.US_TAX_FORM });
+  if (!requiredLegalDocument) {
+    return null;
+  }
+
+  // Check if tax form is required for expense
+  const taxFormRequiredForExpenseIds = await SQLQueries.getTaxFormsRequiredForExpenses([expense.id]);
+  if (!taxFormRequiredForExpenseIds.has(expense.id)) {
+    return null;
+  }
+
+  // Check if tax form request already exists or create a new one
+  return LegalDocument.createTaxFormRequestToCollectiveIfNone(payee, req.remoteUser, {
+    UserTokenId: req.userToken?.id,
+    ExpenseId: expense.id,
+    HostCollectiveId: host.id,
+  });
 };
 
 export const prepareExpenseItemInputs = async (
@@ -1334,7 +1371,9 @@ const getUserRole = (user: User, collective: Collective): keyof ExpenseDataValue
       : ExpenseRoles.submitter;
 };
 
-export async function createExpense(remoteUser: User | null, expenseData: ExpenseData): Promise<Expense> {
+export async function createExpense(req: express.Request, expenseData: ExpenseData): Promise<Expense> {
+  const { remoteUser } = req;
+
   // Check permissions
   if (!remoteUser) {
     throw new Unauthorized('You need to be logged in to create an expense');
@@ -1512,6 +1551,14 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
   expense.user = remoteUser;
   expense.collective = collective;
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_CREATED, remoteUser);
+
+  try {
+    await updateTaxFormStatus(req, collective.host, expense, fromCollective);
+  } catch (e) {
+    // We don't want to block the expense creation if the tax form fails
+    reportErrorToSentry(e, { req, user: remoteUser, feature: FEATURE.USE_EXPENSES, extra: { expense } });
+  }
+
   return expense;
 }
 
@@ -1881,7 +1928,7 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
   const updatedItemsData: Partial<ExpenseItem>[] =
     (await prepareExpenseItemInputs(expenseCurrency, expenseData.items, { isEditing: true })) || expense.items;
   const [hasItemChanges, itemsDiff] = await getItemsChanges(expense.items, updatedItemsData);
-  const taxes = expenseData.tax || (expense.data?.taxes as TaxDefinition[]) || [];
+  const taxes = expenseData.tax || (expense.data?.taxes as ExpenseTaxDefinition[]) || [];
   checkTaxes(expense.collective, expense.collective.host, expenseType, taxes);
 
   if (!options?.['skipPermissionCheck'] && !(await canEditExpense(req, expense))) {
@@ -2096,6 +2143,14 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
 
   const notifyCollective = previousStatus === 'INCOMPLETE' && updatedExpense.status === 'PENDING';
   await updatedExpense.createActivity(activities.COLLECTIVE_EXPENSE_UPDATED, remoteUser, { notifyCollective });
+
+  try {
+    await updateTaxFormStatus(req, host, expense, fromCollective);
+  } catch (e) {
+    // We don't want to block the expense creation if the tax form fails
+    reportErrorToSentry(e, { req, user: remoteUser, feature: FEATURE.USE_EXPENSES, extra: { expense } });
+  }
+
   return updatedExpense;
 }
 

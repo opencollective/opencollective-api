@@ -7,6 +7,7 @@ import slugify from 'limax';
 import { get, toString, words } from 'lodash';
 
 import { RateLimitExceeded } from '../graphql/errors';
+import { ORDER_BY_PSEUDO_FIELDS } from '../graphql/v2/enum/OrderByFieldType';
 import models, { Op, sequelize } from '../models';
 
 import { floatAmountToCents } from './math';
@@ -137,11 +138,13 @@ const getSearchTermSQLConditions = (term: string, collectiveTable?: string) => {
   return { sqlConditions, tsQueryArg, tsQueryFunc, sanitizedTerm, sanitizedTermNoWhitespaces };
 };
 
-const getSortSubQuery = (searchTermConditions, orderBy: { field?: string; direction?: string } = null) => {
+const getSortSubQuery = (
+  searchTermConditions,
+  orderBy: { field?: string | ORDER_BY_PSEUDO_FIELDS; direction?: string } = null,
+) => {
   const sortSubQueries = {
-    ACTIVITY: `COALESCE(transaction_stats."count", 0)`,
-
-    RANK: `
+    [ORDER_BY_PSEUDO_FIELDS.ACTIVITY]: `COALESCE(transaction_stats."count", 0)`,
+    [ORDER_BY_PSEUDO_FIELDS.RANK]: `
       CASE WHEN (c."slug" = :slugifiedTerm OR c."name" ILIKE :sanitizedTerm) THEN
         1
       ELSE
@@ -151,16 +154,15 @@ const getSortSubQuery = (searchTermConditions, orderBy: { field?: string; direct
             : '0'
         }
       END`,
-
-    CREATED_AT: `c."createdAt"`,
-    HOSTED_COLLECTIVES_COUNT: `
+    [ORDER_BY_PSEUDO_FIELDS.CREATED_AT]: `c."createdAt"`,
+    [ORDER_BY_PSEUDO_FIELDS.HOSTED_COLLECTIVES_COUNT]: `
       SELECT COUNT(1) FROM "Collectives" hosted
       WHERE hosted."HostCollectiveId" = c.id
       AND hosted."deletedAt" IS NULL
       AND hosted."isActive" = TRUE
       AND hosted."type" IN ('COLLECTIVE', 'FUND')
     `,
-    HOST_RANK: `
+    [ORDER_BY_PSEUDO_FIELDS.HOST_RANK]: `
         SELECT
           ARRAY [
             -- is host trusted or first party
@@ -227,7 +229,7 @@ export const searchCollectivesInDB = async (
     isHost?: boolean;
     onlyActive?: boolean;
     onlyOpenHosts?: boolean;
-    orderBy?: { field?: string; direction?: string };
+    orderBy?: { field?: string | ORDER_BY_PSEUDO_FIELDS; direction?: string };
     parentCollectiveIds?: number[];
     skipGuests?: boolean;
     skipRecentAccounts?: boolean;

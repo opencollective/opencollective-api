@@ -99,7 +99,7 @@ const expenseMutations = {
       // Right now this endpoint uses the old mutation by adapting the data for it. Once we get rid
       // of the `createExpense` endpoint in V1, the actual code to create the expense should be moved
       // here and cleaned.
-      const expense = await createExpense(req.remoteUser, {
+      const expense = await createExpense(req, {
         ...pick(args.expense, [
           'description',
           'longDescription',

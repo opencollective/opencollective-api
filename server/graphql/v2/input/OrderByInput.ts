@@ -5,10 +5,9 @@ import { GraphQLOrderDirectionType } from '../enum/OrderDirectionType';
 
 export { ORDER_BY_PSEUDO_FIELDS };
 
-// TODO: This should be called "AccountOrderInput", as the fields are only available for accounts
 export const GraphQLOrderByInput = new GraphQLInputObjectType({
   name: 'OrderByInput',
-  description: 'Input to order results',
+  description: 'Input to order collection',
   fields: () => ({
     field: {
       description: 'Field to order by.',

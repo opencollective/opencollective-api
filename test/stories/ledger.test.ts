@@ -729,7 +729,7 @@ describe('test/stories/ledger', () => {
       });
 
       const paymentMethod = findPaymentMethodProvider(order.paymentMethod);
-      await paymentMethod.refundTransaction(contributionTransaction, 0, null, null);
+      await paymentMethod.refundTransaction(contributionTransaction);
       await snapshotLedger(SNAPSHOT_COLUMNS);
 
       await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
@@ -885,7 +885,9 @@ describe('test/stories/ledger', () => {
 
       await models.Transaction.update(
         {
-          data: { charge: { id: (stripeMocks.webhook_dispute_created.data.object as Stripe.Dispute).charge } },
+          data: {
+            charge: { id: (stripeMocks.webhook_dispute_created.data.object as Stripe.Dispute).charge } as Stripe.Charge,
+          },
           HostCollectiveId: host.id,
         },
         { where: { OrderId: order.id } },

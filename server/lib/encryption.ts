@@ -29,7 +29,6 @@ export const secretbox = {
     const keyUint8Array = decodeBase64(key);
     const nonce = buffWithNonce.slice(0, nonceLength);
     const message = buffWithNonce.slice(nonceLength, buffWithNonce.length);
-
     const decrypted = _secretbox.open(message, nonce, keyUint8Array);
 
     if (!decrypted) {
@@ -37,6 +36,20 @@ export const secretbox = {
     }
 
     return encodeUTF8(decrypted);
+  },
+  /**
+   * Same as decrypt, but returns a Buffer (built from the Int8Array) instead of a UTF8 string.
+   */
+  decryptRaw(buffWithNonce: Buffer, key: string): Buffer {
+    const keyUint8Array = decodeBase64(key);
+    const nonce = buffWithNonce.slice(0, nonceLength);
+    const message = buffWithNonce.slice(nonceLength, buffWithNonce.length);
+    const decrypted = _secretbox.open(message, nonce, keyUint8Array);
+    if (!decrypted) {
+      throw new Error('Could not decrypt message');
+    }
+
+    return Buffer.from(decrypted);
   },
 };
 

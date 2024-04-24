@@ -1,16 +1,15 @@
 import { get } from 'lodash';
-import fetch from 'node-fetch';
+import fetch, { RequestInit, Response } from 'node-fetch';
 
 import logger from './logger';
 
+type FetchOptions = RequestInit & { timeoutInMs?: number };
+
 /**
  * Make a fetch call with a timeout. Returns a thenable Promise.
- * @param {String} url The url to fetch.
- * @param {Object} [fetchOptions] The method, headers, and other options for node-fetch. Default method is GET.
- * @param {Number} [fetchOptions.timeoutInMs] The timeout in ms. Default is 5000.
  */
 
-export const fetchWithTimeout = (url, fetchOptions) => {
+export const fetchWithTimeout = (url: string, fetchOptions: FetchOptions): Promise<Response> => {
   const timeoutInMs = get(fetchOptions, 'timeoutInMs', 5000);
 
   return new Promise((resolve, reject) => {

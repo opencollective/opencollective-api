@@ -1,14 +1,16 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { assign, get, invert, isEmpty, isNil, isNull, merge, omit, omitBy } from 'lodash';
+import moment from 'moment';
 import { Order } from 'sequelize';
 
 import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import { buildSearchConditions } from '../../../lib/search';
 import { getCollectiveFeed } from '../../../lib/timeline';
+import { getAccountReportNodesFromQueryResult } from '../../../lib/transaction-reports';
 import { canSeeLegalName } from '../../../lib/user-permissions';
-import models, { Op } from '../../../models';
+import models, { Op, sequelize } from '../../../models';
 import Application from '../../../models/Application';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { GraphQLCollectiveFeatures } from '../../common/CollectiveFeatures';
@@ -34,8 +36,10 @@ import { GraphQLActivityChannel } from '../enum/ActivityChannel';
 import { GraphQLActivityClassType } from '../enum/ActivityType';
 import { GraphQLExpenseDirection } from '../enum/ExpenseDirection';
 import { GraphQLExpenseType } from '../enum/ExpenseType';
+import { GraphQLLegalDocumentType } from '../enum/LegalDocumentType';
 import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
 import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType';
+import { GraphQLTimeUnit } from '../enum/TimeUnit';
 import { GraphQLVirtualCardStatusEnum } from '../enum/VirtualCardStatus';
 import { idEncode } from '../identifiers';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
@@ -50,6 +54,7 @@ import { GraphQLAccountStats } from '../object/AccountStats';
 import { GraphQLActivity } from '../object/Activity';
 import { GraphQLActivitySubscription } from '../object/ActivitySubscription';
 import { GraphQLConnectedAccount } from '../object/ConnectedAccount';
+import { GraphQLLegalDocument } from '../object/LegalDocument';
 import { GraphQLLocation } from '../object/Location';
 import { GraphQLMemberInvitation } from '../object/MemberInvitation';
 import { GraphQLPaymentMethod } from '../object/PaymentMethod';
@@ -57,6 +62,7 @@ import GraphQLPayoutMethod from '../object/PayoutMethod';
 import { GraphQLPolicies } from '../object/Policies';
 import { GraphQLSocialLink } from '../object/SocialLink';
 import { GraphQLTagStats } from '../object/TagStats';
+import { GraphQLTransactionReports } from '../object/TransactionReports';
 import { GraphQLTransferWise } from '../object/TransferWise';
 import {
   ExpensesCollectionQueryArgs,
@@ -252,6 +258,33 @@ const accountFieldsDefinition = () => ({
     type: new GraphQLList(GraphQLMemberInvitation),
     args: {
       role: { type: new GraphQLList(GraphQLMemberRole) },
+    },
+  },
+  legalDocuments: {
+    type: new GraphQLList(GraphQLLegalDocument),
+    description: 'The legal documents associated with this account',
+    args: {
+      type: {
+        type: new GraphQLList(GraphQLLegalDocumentType),
+        description: 'Filter by type',
+      },
+    },
+    async resolve(collective, args, req) {
+      if (!req.remoteUser?.isAdminOfCollective(collective)) {
+        return null;
+      } else {
+        const where = { CollectiveId: collective.id };
+        if (args.type) {
+          where['documentType'] = args.type;
+        }
+        return models.LegalDocument.findAll({
+          where,
+          order: [
+            ['createdAt', 'DESC'],
+            ['id', 'DESC'],
+          ],
+        });
+      }
     },
   },
   memberOf: {
@@ -789,6 +822,115 @@ const accountFieldsDefinition = () => ({
           offset,
         };
       }
+    },
+  },
+  transactionReports: {
+    type: GraphQLTransactionReports,
+    description: 'EXPERIMENTAL (this may change or be removed)',
+    args: {
+      timeUnit: {
+        type: GraphQLTimeUnit,
+        defaultValue: 'MONTH',
+      },
+      dateFrom: {
+        type: GraphQLDateTime,
+      },
+      dateTo: {
+        type: GraphQLDateTime,
+      },
+    },
+    resolve: async (collective, args) => {
+      if (args.timeUnit !== 'MONTH' && args.timeUnit !== 'QUARTER' && args.timeUnit !== 'YEAR') {
+        throw new Error('Only monthly, quarterly and yearly reports are supported.');
+      }
+
+      const query = `
+        WITH
+            CollectiveIds AS (
+                SELECT "id"
+                FROM "Collectives"
+                WHERE "id" = :collectiveId OR ("ParentCollectiveId" = :collectiveId AND "type" != 'VENDOR')
+            )
+                SELECT
+                    DATE_TRUNC(:timeUnit, t."createdAt") AS "date",
+                    t."HostCollectiveId",
+                    SUM(t."amountInHostCurrency") AS "amountInHostCurrency",
+                    SUM(COALESCE(t."platformFeeInHostCurrency", 0)) AS "platformFeeInHostCurrency",
+                    SUM(COALESCE(t."hostFeeInHostCurrency", 0)) AS "hostFeeInHostCurrency",
+                    SUM(
+                        COALESCE(t."paymentProcessorFeeInHostCurrency", 0)
+                    ) AS "paymentProcessorFeeInHostCurrency",
+                    SUM(
+                        COALESCE(
+                            t."taxAmount" * COALESCE(t."hostCurrencyFxRate", 1),
+                            0
+                        )
+                    ) AS "taxAmountInHostCurrency",
+                    COALESCE(
+                        SUM(COALESCE(t."amountInHostCurrency", 0)) + SUM(COALESCE(t."platformFeeInHostCurrency", 0)) + SUM(COALESCE(t."hostFeeInHostCurrency", 0)) + SUM(
+                            COALESCE(t."paymentProcessorFeeInHostCurrency", 0)
+                        ) + SUM(
+                            COALESCE(
+                                t."taxAmount" * COALESCE(t."hostCurrencyFxRate", 1),
+                                0
+                            )
+                        ),
+                        0
+                    ) AS "netAmountInHostCurrency",
+                    t."kind",
+                    t."isRefund",
+                    t."hostCurrency",
+                    t."type",
+                    e."type" AS "expenseType"
+                FROM
+                    "Transactions" t
+                    LEFT JOIN LATERAL (
+                        SELECT
+                            e2."type"
+                        FROM
+                            "Expenses" e2
+                        WHERE
+                            e2.id = t."ExpenseId"
+                    ) AS e ON t."ExpenseId" IS NOT NULL
+                WHERE
+                    t."deletedAt" IS NULL
+                    AND t."CollectiveId" IN (SELECT * FROM CollectiveIds)
+                    ${args.dateTo ? 'AND t."createdAt" <= :dateTo' : ''}
+
+                GROUP BY
+                    DATE_TRUNC(:timeUnit, t."createdAt"),
+                    t."HostCollectiveId",
+                    t."kind",
+                    t."hostCurrency",
+                    t."isRefund",
+                    t."type",
+                    "expenseType";
+      `;
+
+      const queryResult = await sequelize.query(query, {
+        replacements: {
+          collectiveId: collective.id,
+          timeUnit: args.timeUnit,
+          dateTo: moment(args.dateTo).utc().toISOString(),
+        },
+        type: sequelize.QueryTypes.SELECT,
+        raw: true,
+      });
+
+      const nodes = await getAccountReportNodesFromQueryResult({
+        queryResult,
+        dateFrom: args.dateFrom,
+        dateTo: args.dateTo,
+        timeUnit: args.timeUnit,
+        currency: collective.currency,
+      });
+
+      return {
+        timeUnit: args.timeUnit,
+        dateFrom: args.dateFrom,
+        dateTo: args.dateTo,
+        nodes,
+      };
     },
   },
 });
