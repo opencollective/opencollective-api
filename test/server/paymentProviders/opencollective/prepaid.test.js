@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { v4 as uuid } from 'uuid';
 
-import * as libpayments from '../../../../server/lib/payments';
+import { executeOrder } from '../../../../server/lib/payments';
 import models from '../../../../server/models';
 import prepaid from '../../../../server/paymentProviders/opencollective/prepaid';
 import * as store from '../../../stores';
@@ -181,7 +181,7 @@ describe('server/paymentProviders/opencollective/prepaid (2)', () => {
         });
 
         // When the above order is executed
-        await libpayments.executeOrder(user, order);
+        await executeOrder(user, order);
 
         // Then the payment method should have the initial balance
         // minus what was already spent.
@@ -221,7 +221,7 @@ describe('server/paymentProviders/opencollective/prepaid (2)', () => {
 
         // When the above order is executed; Then the transaction
         // should be unsuccessful.
-        await expect(libpayments.executeOrder(user, order)).to.be.eventually.rejectedWith(
+        await expect(executeOrder(user, order)).to.be.eventually.rejectedWith(
           Error,
           'Prepaid payment method must have a value for `data.HostCollectiveId`',
         );
@@ -276,7 +276,7 @@ describe('server/paymentProviders/opencollective/prepaid (2)', () => {
 
         // When the above order is executed; Then the transaction
         // should be unsuccessful.
-        await expect(libpayments.executeOrder(user, order)).to.be.eventually.rejectedWith(
+        await expect(executeOrder(user, order)).to.be.eventually.rejectedWith(
           Error,
           'Prepaid method can only be used in collectives from the same host',
         );

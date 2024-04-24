@@ -8,7 +8,7 @@ import { Service } from '../../constants/connected-account';
 import expenseStatus from '../../constants/expense-status';
 import { TransactionKind } from '../../constants/transaction-kind';
 import logger from '../../lib/logger';
-import * as libPayments from '../../lib/payments';
+import { createRefundTransaction } from '../../lib/payments';
 import { createTransactionsFromPaidExpense } from '../../lib/transactions';
 import { getTransfer, verifyEvent } from '../../lib/transferwise';
 import models from '../../models';
@@ -112,12 +112,7 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
       include: [{ model: models.Expense }],
     });
     if (transaction) {
-      await libPayments.createRefundTransaction(
-        transaction,
-        transaction.paymentProcessorFeeInHostCurrency,
-        null,
-        expense.User,
-      );
+      await createRefundTransaction(transaction, transaction.paymentProcessorFeeInHostCurrency, null, expense.User);
       logger.info(`Wise: Refunded transactions for Wise transfer #${event.data.resource.id}.`);
     } else {
       logger.info(`Wise: Wise transfer #${event.data.resource.id} has no transactions, skipping refund.`);

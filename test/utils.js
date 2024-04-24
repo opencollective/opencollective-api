@@ -23,7 +23,7 @@ import schemaV2 from '../server/graphql/v2/schema';
 import cache from '../server/lib/cache';
 import { crypto } from '../server/lib/encryption';
 import logger from '../server/lib/logger';
-import * as libpayments from '../server/lib/payments';
+import { calcFee } from '../server/lib/payments';
 /* Server code being used */
 import stripe, { convertToStripeAmount } from '../server/lib/stripe';
 import { formatCurrency } from '../server/lib/utils';
@@ -269,7 +269,7 @@ export const readFee = (amount, feeStr) => {
     return 0;
   } else if (feeStr.endsWith('%')) {
     const asFloat = parseFloat(feeStr.replace('%', ''));
-    return asFloat > 0 ? libpayments.calcFee(amount, asFloat) : asFloat;
+    return asFloat > 0 ? calcFee(amount, asFloat) : asFloat;
   } else {
     /* The `* 100` is for converting from cents */
     return parseFloat(feeStr) * 100;

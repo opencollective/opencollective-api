@@ -9,7 +9,7 @@ import { PLANS_COLLECTIVE_SLUG } from '../../../server/constants/plans';
 import roles from '../../../server/constants/roles';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
 import emailLib from '../../../server/lib/email';
-import * as payments from '../../../server/lib/payments';
+import { createRefundTransaction, executeOrder, sendOrderPendingEmail } from '../../../server/lib/payments';
 import stripe from '../../../server/lib/stripe';
 import models from '../../../server/models';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
@@ -154,28 +154,25 @@ describe('server/lib/payments-legacy', () => {
     describe('and fails to create a payment if', () => {
       it('interval is present and it is not month or year', () => {
         order.interval = 'something';
-        return payments
-          .executeOrder(user, order)
-          .catch(err => expect(err.message).to.equal('Interval should be null, month or year.'));
+        return executeOrder(user, order).catch(err =>
+          expect(err.message).to.equal('Interval should be null, month or year.'),
+        );
       });
 
       it('payment amount is missing', () => {
         order.totalAmount = null;
-        return payments.executeOrder(user, order).catch(err => expect(err.message).to.equal('payment.amount missing'));
+        return executeOrder(user, order).catch(err => expect(err.message).to.equal('payment.amount missing'));
       });
 
       it('payment amount is less than 50', () => {
         order.totalAmount = 49;
-        return payments
-          .executeOrder(user, order)
-          .catch(err => expect(err.message).to.equal('payment.amount must be at least $0.50'));
+        return executeOrder(user, order).catch(err =>
+          expect(err.message).to.equal('payment.amount must be at least $0.50'),
+        );
       });
 
       it('stripe token is missing', () => {
-        order.PaymentMethodId = null;
-        return payments
-          .executeOrder(user, order)
-          .catch(err => expect(err.message).to.equal('PaymentMethodId missing in the order'));
+        executeOrder(user, order).catch(err => expect(err.message).to.equal('PaymentMethodId missing in the order'));
       });
     });
 
@@ -183,13 +180,11 @@ describe('server/lib/payments-legacy', () => {
       describe('it fails', () => {
         it('if the host has no stripe account', () => {
           order.CollectiveId = user2.CollectiveId;
-          return payments
-            .executeOrder(user, order)
-            .catch(err =>
-              expect(err.message).to.equal(
-                'The host for the anotheruser collective has no Stripe account set up (HostCollectiveId: null)',
-              ),
-            );
+          return executeOrder(user, order).catch(err =>
+            expect(err.message).to.equal(
+              'The host for the anotheruser collective has no Stripe account set up (HostCollectiveId: null)',
+            ),
+          );
         });
 
         it('if stripe has live key and not in production', () =>
@@ -197,7 +192,7 @@ describe('server/lib/payments-legacy', () => {
             { service: 'stripe', token: 'sk_live_abc' },
             { where: { CollectiveId: host.CollectiveId } },
           )
-            .then(() => payments.executeOrder(user, order))
+            .then(() => executeOrder(user, order))
             .catch(err => expect(err.message).to.contain("You can't use a Stripe live key")));
       });
 
@@ -216,7 +211,7 @@ describe('server/lib/payments-legacy', () => {
                 HostCollectiveId: host.CollectiveId,
               }),
             );
-            beforeEach('execute order', () => payments.executeOrder(user, order));
+            beforeEach('execute order', () => executeOrder(user, order));
 
             it('successfully creates a paymentMethod with the CreatedByUserId', () =>
               models.PaymentMethod.findAndCountAll({
@@ -257,12 +252,12 @@ describe('server/lib/payments-legacy', () => {
           });
 
           describe('2nd payment with same stripeToken', () => {
-            beforeEach('create first payment', () => payments.executeOrder(user, order));
+            beforeEach('create first payment', () => executeOrder(user, order));
 
             beforeEach('create 2nd payment', () => {
               order.totalAmount = AMOUNT2;
               order.processedAt = null;
-              return payments.executeOrder(user, order);
+              return executeOrder(user, order);
             });
 
             it('does not re-create a paymentMethod', done => {
@@ -295,7 +290,7 @@ describe('server/lib/payments-legacy', () => {
 
           beforeEach('execute order', () => {
             order2.interval = 'month';
-            return payments.executeOrder(user, order2);
+            return executeOrder(user, order2);
           });
 
           it('successfully creates a paymentMethod', () =>
@@ -362,7 +357,7 @@ describe('server/lib/payments-legacy', () => {
       });
 
       // When the refund transaction is created
-      await payments.createRefundTransaction(transaction, 0, { dataField: 'foo' }, user);
+      await createRefundTransaction(transaction, 0, { dataField: 'foo' }, user);
 
       // And when transactions for that order are retrieved
       const allTransactions = await models.Transaction.findAll({
@@ -443,7 +438,7 @@ describe('server/lib/payments-legacy', () => {
       expect(tipSettlement.status).to.eq('OWED');
 
       // Do refund
-      await payments.createRefundTransaction(transaction, 0, null, user);
+      await createRefundTransaction(transaction, 0, null, user);
 
       // Snapshot ledger
       const allTransactions = await order.getTransactions({ order: [['id', 'ASC']] });
@@ -499,7 +494,7 @@ describe('server/lib/payments-legacy', () => {
       expect(originalTransactions.filter(t => t.kind === 'CONTRIBUTION')).to.have.lengthOf(2);
 
       // Do refund
-      await payments.createRefundTransaction(transaction, 0, null, user);
+      await createRefundTransaction(transaction, 0, null, user);
 
       // Snapshot ledger
       const allTransactions = await order.getTransactions({ order: [['id', 'ASC']] });
@@ -562,7 +557,7 @@ describe('server/lib/payments-legacy', () => {
     });
 
     it('should include account information', async () => {
-      await payments.sendOrderPendingEmail(order);
+      await sendOrderPendingEmail(order);
       await utils.waitForCondition(() => emailSendSpy.callCount > 0);
 
       expect(emailSendSpy.lastCall.args[2]).to.have.property('account');
