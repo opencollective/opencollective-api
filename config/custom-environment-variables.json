@@ -165,6 +165,7 @@
   },
   "taxForms": {
     "useInternal": "TAX_FORMS_USE_INTERNAL",
+    "encryptionKey": "TAX_FORMS_ENCRYPTION_KEY",
     "aws": {
       "s3": {
         "bucket": "TAX_FORMS_AWS_S3_BUCKET"

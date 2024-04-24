@@ -43,7 +43,8 @@
 |                                             | .stripe.redirectUri                                |                                                                                      |
 | HELLO_WORKS_KEY                             | .helloworks.key                                    | HelloWorks key                                                                       |
 | HELLO_WORKS_SECRET                          | .helloworks.secret                                 | HelloWorks secret                                                                    |
-| HELLO_WORKS_DOCUMENT_ENCRYPTION_KEY         | .helloworks.documentEncryptionKey                  | base64 encoded secret key for encrypting document before storage.                    |
+| HELLO_WORKS_DOCUMENT_ENCRYPTION_KEY         | .helloworks.documentEncryptionKey                  | base64 encoded secret key for encrypting document before storage (legacy alias).     |
+| TAX_FORMS_ENCRYPTION_KEY                    | .taxForms.encryptionKey                            | base64 encoded secret key for encrypting document before storage.                    |
 | HELLO_WORKS_AWS_S3_BUCKET                   | .helloworks.aws.s3.bucket                          | the bucket where tax forms will be uploaded (legacy alias)                           |
 | TAX_FORMS_AWS_S3_BUCKET                     | .taxforms.aws.s3.bucket                            | the bucket where tax forms will be uploaded                                          |
 | TAX_FORMS_USE_INTERNAL                      | .taxForms.useInternal                              | whether to use the internal tax forms system                                         |
