@@ -15,7 +15,7 @@ import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
 import { Op } from '../models';
 import Activity from '../models/Activity';
-import Order, { OrderModelInterface } from '../models/Order';
+import Order from '../models/Order';
 import PaymentMethod, { PaymentMethodModelInterface } from '../models/PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from '../models/PayoutMethod';
 import Subscription from '../models/Subscription';
@@ -110,7 +110,7 @@ export function findPaymentMethodProvider(
  *  the `PaymentMethods` table.
  */
 export async function processOrder(
-  order: OrderModelInterface,
+  order: Order,
   options: { isAddedFund?: boolean; invoiceTemplate?: string } = {},
 ): Promise<TransactionInterface | void> {
   const paymentMethodProvider = findPaymentMethodProvider(order.paymentMethod);
@@ -614,7 +614,8 @@ export async function associateTransactionRefundId(
  * In all cases, transaction.type is CREDIT.
  *
  */
-export const sendEmailNotifications = (order: OrderModelInterface, transaction?: TransactionInterface | void): void => {
+
+export const sendEmailNotifications = (order: Order, transaction?: TransactionInterface | void): void => {
   debug('sendEmailNotifications');
   if (
     transaction &&
@@ -643,7 +644,7 @@ export const sendEmailNotifications = (order: OrderModelInterface, transaction?:
   }
 };
 
-export const createSubscription = async (order: OrderModelInterface): Promise<void> => {
+export const createSubscription = async (order: Order): Promise<void> => {
   const subscription = await Subscription.create({
     amount: order.totalAmount,
     interval: order.interval,
@@ -680,7 +681,7 @@ export const createSubscription = async (order: OrderModelInterface): Promise<vo
  */
 export const executeOrder = async (
   user: User,
-  order: OrderModelInterface,
+  order: Order,
   options: { isAddedFund?: boolean; invoiceTemplate?: string } = {},
 ): Promise<void> => {
   if (!(user instanceof User)) {
@@ -772,10 +773,7 @@ const validatePayment = (payment): void => {
   }
 };
 
-const sendOrderConfirmedEmail = async (
-  order: OrderModelInterface,
-  transaction: TransactionInterface,
-): Promise<void> => {
+const sendOrderConfirmedEmail = async (order: Order, transaction: TransactionInterface): Promise<void> => {
   const attachments = [];
   const { collective, interval, fromCollective, paymentMethod } = order;
   const user = await order.getUserForActivity();
@@ -864,7 +862,7 @@ const sendOrderConfirmedEmail = async (
 };
 
 // Assumes one-time payments,
-export const sendOrderPendingEmail = async (order: OrderModelInterface): Promise<void> => {
+export const sendOrderPendingEmail = async (order: Order): Promise<void> => {
   const { collective, fromCollective } = order;
   const user = order.createdByUser;
   const host = await collective.getHostCollective();
@@ -916,7 +914,7 @@ export const sendOrderPendingEmail = async (order: OrderModelInterface): Promise
   });
 };
 
-const sendOrderProcessingEmail = async (order: OrderModelInterface): Promise<void> => {
+const sendOrderProcessingEmail = async (order: Order): Promise<void> => {
   const { collective, fromCollective } = order;
   const user = order.createdByUser;
   const host = await collective.getHostCollective();
@@ -940,7 +938,7 @@ const sendOrderProcessingEmail = async (order: OrderModelInterface): Promise<voi
   });
 };
 
-export const sendOrderFailedEmail = async (order: OrderModelInterface, reason: string): Promise<void> => {
+export const sendOrderFailedEmail = async (order: Order, reason: string): Promise<void> => {
   const user = order.createdByUser;
   const { collective, fromCollective } = order;
   const host = await collective.getHostCollective();
@@ -965,7 +963,7 @@ export const sendOrderFailedEmail = async (order: OrderModelInterface, reason: s
   });
 };
 
-const sendManualPendingOrderEmail = async (order: OrderModelInterface): Promise<void> => {
+const sendManualPendingOrderEmail = async (order: Order): Promise<void> => {
   const { collective, fromCollective } = order;
   const host = await collective.getHostCollective();
 
@@ -1001,7 +999,7 @@ const sendManualPendingOrderEmail = async (order: OrderModelInterface): Promise<
   });
 };
 
-export const sendReminderPendingOrderEmail = async (order: OrderModelInterface): Promise<void> => {
+export const sendReminderPendingOrderEmail = async (order: Order): Promise<void> => {
   const { collective, fromCollective } = order;
   const host = await collective.getHostCollective();
 
@@ -1043,7 +1041,7 @@ export const sendExpiringCreditCardUpdateEmail = async (data): Promise<void> => 
   });
 };
 
-export const getApplicationFee = async (order: OrderModelInterface): Promise<number> => {
+export const getApplicationFee = async (order: Order): Promise<number> => {
   let applicationFee = 0;
 
   if (order.platformTipAmount) {
@@ -1060,7 +1058,7 @@ export const getApplicationFee = async (order: OrderModelInterface): Promise<num
   return applicationFee;
 };
 
-export const getPlatformTip = (order: OrderModelInterface): number => {
+export const getPlatformTip = (order: Order): number => {
   if (!isNil(order.platformTipAmount)) {
     return order.platformTipAmount;
   }
@@ -1071,7 +1069,7 @@ export const getPlatformTip = (order: OrderModelInterface): number => {
   return 0;
 };
 
-export const getHostFee = async (order: OrderModelInterface): Promise<number> => {
+export const getHostFee = async (order: Order): Promise<number> => {
   const totalAmount = order.totalAmount || 0;
   const taxAmount = order.taxAmount || 0;
   const platformTipAmount = order.platformTipAmount || 0;
@@ -1081,7 +1079,7 @@ export const getHostFee = async (order: OrderModelInterface): Promise<number> =>
   return calcFee(totalAmount - taxAmount - platformTipAmount, hostFeePercent);
 };
 
-export const isPlatformTipEligible = async (order: OrderModelInterface): Promise<boolean> => {
+export const isPlatformTipEligible = async (order: Order): Promise<boolean> => {
   if (!isNil(order.platformTipEligible)) {
     return order.platformTipEligible;
   }
@@ -1110,7 +1108,7 @@ export const isPlatformTipEligible = async (order: OrderModelInterface): Promise
 };
 
 export const getHostFeePercent = async (
-  order: OrderModelInterface,
+  order: Order,
   { loaders = null }: { loaders?: loaders } = {},
 ): Promise<number> => {
   const collective =
@@ -1251,7 +1249,7 @@ export const getHostFeePercent = async (
 };
 
 export const getHostFeeSharePercent = async (
-  order: OrderModelInterface,
+  order: Order,
   { loaders = null }: { loaders?: loaders } = {},
 ): Promise<number> => {
   if (!order.collective) {

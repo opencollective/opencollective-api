@@ -2,14 +2,24 @@ import { TaxType } from '@opencollective/taxes';
 import debugLib from 'debug';
 import { get } from 'lodash';
 import {
+  BelongsToCreateAssociationMixin,
+  BelongsToGetAssociationMixin,
+  BelongsToSetAssociationMixin,
+  CreationOptional,
   ForeignKey,
+  HasManyAddAssociationMixin,
+  HasManyAddAssociationsMixin,
+  HasManyCountAssociationsMixin,
+  HasManyCreateAssociationMixin,
   HasManyGetAssociationsMixin,
-  HasOneCreateAssociationMixin,
-  HasOneGetAssociationMixin,
+  HasManyHasAssociationMixin,
+  HasManyHasAssociationsMixin,
+  HasManyRemoveAssociationMixin,
+  HasManyRemoveAssociationsMixin,
+  HasManySetAssociationsMixin,
   InferAttributes,
   InferCreationAttributes,
   Model,
-  ModelStatic,
 } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
@@ -29,6 +39,7 @@ import { capitalize, sleep } from '../lib/utils';
 import AccountingCategory from './AccountingCategory';
 import Activity from './Activity';
 import Collective from './Collective';
+import Comment from './Comment';
 import CustomDataTypes from './DataTypes';
 import { MemberModelInterface } from './Member';
 import PaymentMethod, { PaymentMethodModelInterface } from './PaymentMethod';
@@ -41,104 +52,164 @@ const { models } = sequelize;
 
 const debug = debugLib('models:Order');
 
-interface OrderModelStaticInterface {
-  generateDescription(collective, amount, interval, tier): string;
-  cancelActiveOrdersByCollective(collectiveId: number): Promise<[affectedCount: number]>;
-  cancelActiveOrdersByTierId(tierId: number): Promise<[affectedCount: number]>;
-  stopActiveSubscriptions(
-    collectiveId: number,
-    newStatus: OrderStatus,
-    options: { messageForContributors: string; messageSource: 'PLATFORM' | 'COLLECTIVE' | 'HOST' },
-  ): Promise<void>;
-  clearExpiredLocks(): Promise<[null, number]>;
-}
-
 export type OrderTax = {
   id: TaxType | `${TaxType}`;
   percentage: number;
-  taxedCountry: string;
-  taxerCountry: string;
+  taxedCountry?: string;
+  taxerCountry?: string;
   taxIDNumber?: string;
   taxIDNumberFrom?: string;
 };
 
-export interface OrderModelInterface
-  extends Model<
-    InferAttributes<OrderModelInterface, { omit: 'info' }>,
-    InferCreationAttributes<OrderModelInterface, { omit: 'info' }>
-  > {
-  id: number;
+class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>> {
+  declare id: CreationOptional<number>;
+  declare CreatedByUserId: ForeignKey<User['id']>;
+  declare CollectiveId: ForeignKey<Collective['id']>;
+  declare currency: SupportedCurrency;
+  declare totalAmount: number;
+  declare description?: string;
+  declare SubscriptionId?: number;
+  declare createdAt: CreationOptional<Date>;
+  declare updatedAt: CreationOptional<Date>;
+  declare deletedAt?: Date;
+  declare PaymentMethodId?: ForeignKey<PaymentMethodModelInterface['id']>;
+  declare processedAt?: Date;
+  declare privateMessage?: string;
+  declare TierId?: ForeignKey<Tier['id']>;
+  declare FromCollectiveId: ForeignKey<Collective['id']>;
+  declare publicMessage?: string;
+  declare quantity?: number;
+  declare status: OrderStatus;
+  declare data: {
+    hostFeePercent?: number;
+    paymentProcessorFee?: number;
+    memo?: string;
+    tax?: OrderTax;
+    paymentIntent?: any;
+    previousPaymentIntents?: any[];
+    customData?: any;
+    needsConfirmation?: boolean;
+    paypalStatusChangeNote?: string;
+    savePaymentMethod?: boolean;
+    isGuest?: boolean;
+    isPendingContribution?: boolean;
+    closedReason?: string;
+    taxRemovedFromMigration?: OrderTax;
+    taxAmountRemovedFromMigration?: number;
+    messageForContributors?: string;
+    messageSource?: 'PLATFORM' | 'HOST' | 'COLLECTIVE';
+    needsAsyncDeactivation?: boolean;
+    isOCFShutdown?: boolean;
+    resumeContribution?: {
+      reminder: number;
+      nextReminderDate: Date;
+    };
+    platformTip?: number;
+    fromAccountInfo?: {
+      // TODO: type me
+    };
+  };
 
-  CreatedByUserId: number;
-  createdByUser?: User;
+  declare taxAmount?: number;
+  declare interval?: 'month' | 'year' | null;
+  declare tags?: string[];
+  declare platformTipAmount: number;
+  declare platformTipEligible: boolean;
+  declare AccountingCategoryId?: number;
 
-  FromCollectiveId: number;
-  fromCollective?: Collective;
-  getFromCollective: HasOneGetAssociationMixin<Collective>;
+  // Order belongsTo AccountingCategory via AccountingCategory['id']
+  declare accountingCategory?: AccountingCategory;
+  declare getAccountingCategory: BelongsToGetAssociationMixin<AccountingCategory>;
+  declare setAccountingCategory: BelongsToSetAssociationMixin<AccountingCategory, AccountingCategory['id']>;
+  declare createAccountingCategory: BelongsToCreateAssociationMixin<AccountingCategory>;
 
-  CollectiveId: number;
-  collective?: Collective;
-  getCollective: HasOneGetAssociationMixin<Collective>;
+  // Order belongsTo Collective via Collective['id']
+  declare collective?: Collective;
+  declare getCollective: BelongsToGetAssociationMixin<Collective>;
+  declare setCollective: BelongsToSetAssociationMixin<Collective, Collective['id']>;
+  declare createCollective: BelongsToCreateAssociationMixin<Collective>;
 
-  TierId: number;
-  /** @deprecated: We're using both `tier` and `Tier` depending on the places. The association is defined as `Tier` (uppercase). We should consolidate to one or the other. */
-  tier?: Tier;
-  /** @deprecated: We're using both `tier` and `Tier` depending on the places. The association is defined as `Tier` (uppercase). We should consolidate to one or the other. */
-  Tier?: Tier;
-  getTier(): Promise<Tier | null>;
+  // Order belongsTo Collective via Collective['id']
+  declare fromCollective?: Collective;
+  declare getFromCollective: BelongsToGetAssociationMixin<Collective>;
+  declare setFromCollective: BelongsToSetAssociationMixin<Collective, Collective['id']>;
+  declare createFromCollective: BelongsToCreateAssociationMixin<Collective>;
 
-  quantity: number;
-  currency: SupportedCurrency;
-  tags: string[];
-  totalAmount: number;
-  platformTipAmount: number;
-  platformTipEligible?: boolean;
-  taxAmount: number;
-  description: string;
-  publicMessage: string;
-  privateMessage: string;
+  // Order hasMany Activity via OrderId
+  declare activities?: Activity[];
+  declare getActivities: HasManyGetAssociationsMixin<Activity>;
+  declare setActivities: HasManySetAssociationsMixin<Activity, Activity['id']>;
+  declare addActivity: HasManyAddAssociationMixin<Activity, Activity['id']>;
+  declare addActivities: HasManyAddAssociationsMixin<Activity, Activity['id']>;
+  declare createActivity: HasManyCreateAssociationMixin<Activity>;
+  declare removeActivity: HasManyRemoveAssociationMixin<Activity, Activity['id']>;
+  declare removeActivities: HasManyRemoveAssociationsMixin<Activity, Activity['id']>;
+  declare hasActivity: HasManyHasAssociationMixin<Activity, Activity['id']>;
+  declare hasActivities: HasManyHasAssociationsMixin<Activity, Activity['id']>;
+  declare countActivities: HasManyCountAssociationsMixin;
 
-  SubscriptionId?: number;
-  Subscription?: SubscriptionInterface;
-  getSubscription: HasOneGetAssociationMixin<SubscriptionInterface>;
-  createSubscription: HasOneCreateAssociationMixin<SubscriptionInterface>;
+  // Order hasMany Comment via OrderId
+  declare comments?: Comment[];
+  declare getComments: HasManyGetAssociationsMixin<Comment>;
+  declare setComments: HasManySetAssociationsMixin<Comment, Comment['id']>;
+  declare addComment: HasManyAddAssociationMixin<Comment, Comment['id']>;
+  declare addComments: HasManyAddAssociationsMixin<Comment, Comment['id']>;
+  declare createComment: HasManyCreateAssociationMixin<Comment>;
+  declare removeComment: HasManyRemoveAssociationMixin<Comment, Comment['id']>;
+  declare removeComments: HasManyRemoveAssociationsMixin<Comment, Comment['id']>;
+  declare hasComment: HasManyHasAssociationMixin<Comment, Comment['id']>;
+  declare hasComments: HasManyHasAssociationsMixin<Comment, Comment['id']>;
+  declare countComments: HasManyCountAssociationsMixin;
 
-  AccountingCategoryId?: ForeignKey<AccountingCategory['id']>;
-  accountingCategory?: AccountingCategory;
-  getAccountingCategory: HasOneGetAssociationMixin<AccountingCategory>;
+  // Order hasMany Transaction via OrderId
+  declare Transactions?: TransactionInterface[];
+  declare getTransactions: HasManyGetAssociationsMixin<TransactionInterface>;
+  declare setTransactions: HasManySetAssociationsMixin<TransactionInterface, TransactionInterface['id']>;
+  declare addTransaction: HasManyAddAssociationMixin<TransactionInterface, TransactionInterface['id']>;
+  declare addTransactions: HasManyAddAssociationsMixin<TransactionInterface, TransactionInterface['id']>;
+  declare createTransaction: HasManyCreateAssociationMixin<TransactionInterface>;
+  declare removeTransaction: HasManyRemoveAssociationMixin<TransactionInterface, TransactionInterface['id']>;
+  declare removeTransactions: HasManyRemoveAssociationsMixin<TransactionInterface, TransactionInterface['id']>;
+  declare hasTransaction: HasManyHasAssociationMixin<TransactionInterface, TransactionInterface['id']>;
+  declare hasTransactions: HasManyHasAssociationsMixin<TransactionInterface, TransactionInterface['id']>;
+  declare countTransactions: HasManyCountAssociationsMixin;
 
-  PaymentMethodId: number;
-  paymentMethod?: PaymentMethodModelInterface;
-  getPaymentMethod: HasOneGetAssociationMixin<PaymentMethodModelInterface>;
+  // Order belongsTo PaymentMethod via PaymentMethodId
+  declare paymentMethod?: PaymentMethodModelInterface;
+  declare getPaymentMethod: BelongsToGetAssociationMixin<PaymentMethodModelInterface>;
+  // declare setPaymentMethod: BelongsToSetAssociationMixin<PaymentMethodModelInterface, PaymentMethodId>;
+  declare createPaymentMethod: BelongsToCreateAssociationMixin<PaymentMethodModelInterface>;
 
-  Transactions?: TransactionInterface[];
-  getTransactions: HasManyGetAssociationsMixin<TransactionInterface>;
+  // Order belongsTo SubscriptionInterface via SubscriptionInterface['id']
+  declare Subscription?: SubscriptionInterface;
+  declare getSubscription: BelongsToGetAssociationMixin<SubscriptionInterface>;
+  declare setSubscription: BelongsToSetAssociationMixin<SubscriptionInterface, SubscriptionInterface['id']>;
+  declare createSubscription: BelongsToCreateAssociationMixin<SubscriptionInterface>;
 
-  processedAt: Date;
-  status: OrderStatus;
-  interval: 'month' | 'year' | null;
-  data:
-    | {
-        hostFeePercent?: number;
-        memo?: string;
-        tax?: OrderTax;
-        lockedAt?: string;
-        deadlocks?: string[];
-      }
-    | any; // TODO: Remove `any` once we have a proper type for this
+  // Order belongsTo Tier via TierId
+  declare tier?: Tier;
+  declare Tier?: Tier; // alternative but doesn't come from Sequelize
+  declare getTier: BelongsToGetAssociationMixin<Tier>;
+  declare setTier: BelongsToSetAssociationMixin<Tier, Tier['id']>;
+  declare createTier: BelongsToCreateAssociationMixin<Tier>;
 
-  createdAt: Date;
-  updatedAt: Date;
-  deletedAt: Date;
+  // Order belongsTo User via CreatedByUserId
+  declare createdByUser?: User;
+  declare getCreatedByUser: BelongsToGetAssociationMixin<User>;
+  declare setCreatedByUser: BelongsToSetAssociationMixin<User, User['id']>;
+  declare createCreatedByUser: BelongsToCreateAssociationMixin<User>;
 
-  info: any;
-
-  getOrCreateMembers(): Promise<[MemberModelInterface, MemberModelInterface]>;
-  getUser(): Promise<User>;
-  setPaymentMethod(paymentMethodData);
-  populate(): Promise<void>;
-  getUserForActivity(): Promise<User>;
-
+  // Class methods
+  declare getOrCreateMembers: () => Promise<[MemberModelInterface, MemberModelInterface]>;
+  declare getUser: () => Promise<User | undefined>;
+  declare getSubscriptionForUser: (user: User) => Promise<SubscriptionInterface | null>;
+  declare markAsExpired: () => Promise<Order>;
+  declare markAsPaid: (user: User) => Promise<Order>;
+  declare getTotalTransactions: () => Promise<number> | number;
+  declare getUserForActivity: () => Promise<User | undefined>;
+  declare validatePaymentMethod: (paymentMethod: PaymentMethodModelInterface) => Promise<PaymentMethodModelInterface>;
+  declare populate: () => Promise<Order>;
+  declare setPaymentMethod: (paymentMethodData: object) => Promise<Order>;
   /**
    * Similar to what we do in `lockExpense`, this locks an order by setting a special flag in `data`
    * to prevent concurrent processing of the same order. This is important because PayPal webhooks
@@ -153,14 +224,169 @@ export interface OrderModelInterface
    * @param options.retries - Number of retries before giving up (default: 0)
    * @param options.retryInterval - Interval between retries in milliseconds (default: 500)
    */
-  lock<T>(callback: () => T | Promise<T>, options?: { timeout?: boolean }): Promise<T>;
-  isLocked(): boolean;
-  unPause(user: User, params: { UserTokenId: number }): Promise<OrderModelInterface>;
-  markSimilarPausedOrdersAsCancelled(): Promise<void>;
+  // TODO: lock
+  declare isLocked: () => boolean;
+  declare unPause: (user: User, params: { UserTokenId?: number }) => Promise<Order>;
+  declare markSimilarPausedOrdersAsCancelled: () => Promise<void>;
+
+  // Getter Methods
+  declare info?: Partial<Order>;
+
+  // Static Methods
+
+  static generateDescription(collective: Collective, amount: number | undefined, interval: string, tier: Tier): string {
+    const tierNameInfo = tier?.name ? ` (${tier.name})` : '';
+    if (interval) {
+      return `${capitalize(interval)}ly financial contribution to ${collective.name}${tierNameInfo}`;
+    } else {
+      const isRegistration = tier?.type === TierType.TICKET;
+      return `${isRegistration ? 'Registration' : 'Financial contribution'} to ${collective.name}${tierNameInfo}`;
+    }
+  }
+
+  /**
+   * Cancels all subscription orders in the given tier
+   */
+  static async cancelActiveOrdersByTierId(tierId: number): Promise<void> {
+    await Order.update(
+      { status: OrderStatus.CANCELLED },
+      {
+        where: {
+          TierId: tierId,
+          SubscriptionId: { [Op.not]: null },
+          status: {
+            [Op.not]: [OrderStatus.PAID, OrderStatus.CANCELLED, OrderStatus.REJECTED, OrderStatus.EXPIRED],
+          },
+        },
+      },
+    );
+  }
+
+  /**
+   * Cancels all subscription orders for the given collective
+   */
+  static async cancelActiveOrdersByCollective(collectiveIds: number | number[]): Promise<void> {
+    await Order.update(
+      { status: OrderStatus.CANCELLED },
+      {
+        where: {
+          FromCollectiveId: collectiveIds,
+          SubscriptionId: { [Op.not]: null },
+          status: {
+            [Op.not]: [OrderStatus.PAID, OrderStatus.CANCELLED, OrderStatus.REJECTED, OrderStatus.EXPIRED],
+          },
+        },
+      },
+    );
+  }
+
+  /**
+   * Cancels all orders with subscriptions that cannot be transferred when changing hosts (i.e. PayPal)
+   */
+  static cancelNonTransferableActiveOrdersByCollectiveId(collectiveId: number): Promise<[affectedCount: number]> {
+    return sequelize.query(
+      `
+        UPDATE public."Orders"
+        SET
+          status = 'CANCELLED',
+          "updatedAt" = NOW()
+        WHERE id IN (
+          SELECT "Orders".id FROM public."Orders"
+          INNER JOIN public."Subscriptions" ON "Subscriptions".id = "Orders"."SubscriptionId"
+          WHERE
+            "Orders".status NOT IN ('PAID', 'CANCELLED', 'REJECTED', 'EXPIRED') AND
+            "Subscriptions"."isManagedExternally" AND
+            "Subscriptions"."isActive" AND
+            "Orders"."CollectiveId" = ?
+        )
+      `,
+      {
+        type: QueryTypes.UPDATE,
+        replacements: [collectiveId],
+      },
+    );
+  }
+
+  /**
+   * Clear all lock that timed out (for example, if the server crashed while processing an order).
+   * Also record the deadlocks in the order's data.
+   */
+  static clearExpiredLocks() {
+    return sequelize.query(
+      `
+      UPDATE "Orders"
+      SET data = data
+        - 'lockedAt'
+        || JSONB_BUILD_OBJECT('deadlocks', COALESCE(data -> 'deadlocks', '[]'::JSONB) || TO_JSONB(ARRAY[data ->> 'lockedAt']))
+      WHERE data -> 'lockedAt' IS NOT NULL
+      AND (data ->> 'lockedAt')::TIMESTAMP < NOW() - INTERVAL '30 minutes'
+      AND "deletedAt" IS NULL
+    `,
+      {
+        type: QueryTypes.UPDATE,
+      },
+    );
+  }
+
+  /**
+   * Update the status of all non-transferable active orders for the given collective.
+   *
+   * The only type of contributions that can be transferred are non-Stripe Connect credit card subscriptions.
+   * In the future, we could add support for recurring contributions between children and parent collectives.
+   *
+   * Note: the linked subscriptions will be cancelled in `cron/hourly/70-handle-batch-subscriptions-update.ts`.
+   */
+  static async stopActiveSubscriptions(
+    collectiveId: number,
+    newStatus: OrderStatus.CANCELLED | OrderStatus.PAUSED,
+    {
+      messageForContributors = '',
+      messageSource = 'PLATFORM',
+    }: { messageForContributors: string; messageSource: 'PLATFORM' | 'COLLECTIVE' | 'HOST' } = {
+      messageForContributors: '',
+      messageSource: 'PLATFORM',
+    },
+  ): Promise<void> {
+    await sequelize.query(
+      `
+      UPDATE "Orders"
+      SET
+        status = :newStatus,
+        "updatedAt" = NOW(),
+        "data" = COALESCE("data", '{}'::JSONB) || JSONB_BUILD_OBJECT(
+          'messageForContributors', :messageForContributors,
+          'messageSource', :messageSource,
+          'needsAsyncDeactivation', TRUE
+        )
+      WHERE id IN (
+        SELECT "Orders".id FROM "Orders"
+        INNER JOIN "Subscriptions" ON "Subscriptions".id = "Orders"."SubscriptionId"
+        INNER JOIN "Collectives" c ON c.id = "Orders"."CollectiveId"
+        WHERE "Orders"."CollectiveId" = :collectiveId
+        AND c."approvedAt" IS NOT NULL
+        AND "Subscriptions"."isActive" IS TRUE
+        AND "Orders"."status" != :newStatus
+        AND "Orders"."deletedAt" IS NULL
+        AND "Subscriptions"."deletedAt" IS NULL
+      )
+    `,
+      {
+        type: QueryTypes.UPDATE,
+        raw: true,
+        replacements: {
+          collectiveId,
+          newStatus,
+          messageSource: messageSource || '',
+          messageForContributors: messageForContributors
+            ? sanitizeHTML(messageForContributors, optsSanitizeHtmlForSimplified)
+            : '',
+        },
+      },
+    );
+  }
 }
 
-const Order: ModelStatic<OrderModelInterface> & OrderModelStaticInterface = sequelize.define(
-  'Order',
+Order.init(
   {
     id: {
       type: DataTypes.INTEGER,
@@ -226,7 +452,7 @@ const Order: ModelStatic<OrderModelInterface> & OrderModelStaticInterface = sequ
       validate: {
         validateTags,
       },
-      set(tags) {
+      set(tags: string[] | undefined) {
         this.setDataValue('tags', sanitizeTags(tags));
       },
     },
@@ -335,14 +561,10 @@ const Order: ModelStatic<OrderModelInterface> & OrderModelStaticInterface = sequ
     },
   },
   {
+    sequelize,
     paranoid: true,
 
     getterMethods: {
-      // does this payment method support recurring payments?
-      recurring() {
-        return this.service === 'stripe';
-      },
-
       info() {
         return {
           id: this.id,
@@ -383,19 +605,6 @@ const Order: ModelStatic<OrderModelInterface> & OrderModelStaticInterface = sequ
     },
   },
 );
-
-/**
- * Static Methods
- */
-Order.generateDescription = (collective, amount, interval, tier) => {
-  const tierNameInfo = tier?.name ? ` (${tier.name})` : '';
-  if (interval) {
-    return `${capitalize(interval)}ly financial contribution to ${collective.name}${tierNameInfo}`;
-  } else {
-    const isRegistration = tier?.type === TierType.TICKET;
-    return `${isRegistration ? 'Registration' : 'Financial contribution'} to ${collective.name}${tierNameInfo}`;
-  }
-};
 
 /**
  * Instance Methods
@@ -634,7 +843,7 @@ Order.prototype.isLocked = function (): boolean {
  *
  * @param user - The user who is unpausing the order
  */
-Order.prototype.unPause = async function (user: User, { UserTokenId = undefined } = {}): Promise<OrderModelInterface> {
+Order.prototype.unPause = async function (user: User, { UserTokenId = undefined } = {}): Promise<Order> {
   if (this.status !== OrderStatus.PAUSED) {
     return this;
   }
@@ -673,122 +882,6 @@ Order.prototype.markSimilarPausedOrdersAsCancelled = async function (): Promise<
         FromCollectiveId: this.FromCollectiveId,
         CollectiveId: this.CollectiveId,
         status: OrderStatus.PAUSED,
-      },
-    },
-  );
-};
-
-// ---- Static methods ----
-
-/**
- * Clear all lock that timed out (for example, if the server crashed while processing an order).
- * Also record the deadlocks in the order's data.
- */
-Order.clearExpiredLocks = function () {
-  return sequelize.query(
-    `
-      UPDATE "Orders"
-      SET data = data
-        - 'lockedAt'
-        || JSONB_BUILD_OBJECT('deadlocks', COALESCE(data -> 'deadlocks', '[]'::JSONB) || TO_JSONB(ARRAY[data ->> 'lockedAt']))
-      WHERE data -> 'lockedAt' IS NOT NULL
-      AND (data ->> 'lockedAt')::TIMESTAMP < NOW() - INTERVAL '30 minutes'
-      AND "deletedAt" IS NULL
-    `,
-    {
-      type: QueryTypes.UPDATE,
-    },
-  );
-};
-
-/**
- * Cancels all subscription orders for the given collective
- */
-Order.cancelActiveOrdersByCollective = function (collectiveIds: number | number[]) {
-  return Order.update(
-    { status: OrderStatus.CANCELLED },
-    {
-      where: {
-        FromCollectiveId: collectiveIds,
-        SubscriptionId: { [Op.not]: null },
-        status: {
-          [Op.not]: [OrderStatus.PAID, OrderStatus.CANCELLED, OrderStatus.REJECTED, OrderStatus.EXPIRED],
-        },
-      },
-    },
-  );
-};
-
-/**
- * Cancels all subscription orders in the given tier
- */
-Order.cancelActiveOrdersByTierId = function (tierId: number) {
-  return Order.update(
-    { status: OrderStatus.CANCELLED },
-    {
-      where: {
-        TierId: tierId,
-        SubscriptionId: { [Op.not]: null },
-        status: {
-          [Op.not]: [OrderStatus.PAID, OrderStatus.CANCELLED, OrderStatus.REJECTED, OrderStatus.EXPIRED],
-        },
-      },
-    },
-  );
-};
-
-/**
- * Update the status of all non-transferable active orders for the given collective.
- *
- * The only type of contributions that can be transferred are non-Stripe Connect credit card subscriptions.
- * In the future, we could add support for recurring contributions between children and parent collectives.
- *
- * Note: the linked subscriptions will be cancelled in `cron/hourly/70-handle-batch-subscriptions-update.ts`.
- */
-Order.stopActiveSubscriptions = async function (
-  collectiveId: number,
-  newStatus: OrderStatus.CANCELLED | OrderStatus.PAUSED,
-  {
-    messageForContributors = '',
-    messageSource = 'PLATFORM',
-  }: { messageForContributors: string; messageSource: 'PLATFORM' | 'COLLECTIVE' | 'HOST' } = {
-    messageForContributors: '',
-    messageSource: 'PLATFORM',
-  },
-): Promise<void> {
-  await sequelize.query(
-    `
-      UPDATE "Orders"
-      SET
-        status = :newStatus,
-        "updatedAt" = NOW(),
-        "data" = COALESCE("data", '{}'::JSONB) || JSONB_BUILD_OBJECT(
-          'messageForContributors', :messageForContributors,
-          'messageSource', :messageSource,
-          'needsAsyncDeactivation', TRUE
-        )
-      WHERE id IN (
-        SELECT "Orders".id FROM "Orders"
-        INNER JOIN "Subscriptions" ON "Subscriptions".id = "Orders"."SubscriptionId"
-        INNER JOIN "Collectives" c ON c.id = "Orders"."CollectiveId"
-        WHERE "Orders"."CollectiveId" = :collectiveId
-        AND c."approvedAt" IS NOT NULL
-        AND "Subscriptions"."isActive" IS TRUE
-        AND "Orders"."status" != :newStatus
-        AND "Orders"."deletedAt" IS NULL
-        AND "Subscriptions"."deletedAt" IS NULL
-      )
-    `,
-    {
-      type: QueryTypes.UPDATE,
-      raw: true,
-      replacements: {
-        collectiveId,
-        newStatus,
-        messageSource: messageSource || '',
-        messageForContributors: messageForContributors
-          ? sanitizeHTML(messageForContributors, optsSanitizeHtmlForSimplified)
-          : '',
       },
     },
   );

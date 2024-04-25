@@ -5,7 +5,7 @@ import status from '../../constants/order-status';
 import { purgeCacheForCollective } from '../../lib/cache';
 import { executeOrder } from '../../lib/payments';
 import models, { AccountingCategory, Collective, Tier, User } from '../../models';
-import { OrderModelInterface } from '../../models/Order';
+import Order from '../../models/Order';
 import { ValidationFailed } from '../errors';
 import { getOrderTaxInfoFromTaxInput } from '../v1/mutations/orders';
 import { TaxInput } from '../v2/input/TaxInput';
@@ -74,7 +74,7 @@ export async function addFunds(order: AddFundsInput, remoteUser: User) {
     checkCanUseAccountingCategoryForOrder(order.accountingCategory, host.id);
   }
 
-  const orderData: Partial<InferCreationAttributes<OrderModelInterface>> = {
+  const orderData: Partial<InferCreationAttributes<Order>> = {
     CreatedByUserId: remoteUser.id,
     FromCollectiveId: fromCollective.id,
     CollectiveId: collective.id,

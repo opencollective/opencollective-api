@@ -8,7 +8,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymen
 import { BadRequest, Unauthorized, UnexpectedError } from '../graphql/errors';
 import { sequelize } from '../models';
 import { MemberModelInterface } from '../models/Member';
-import { OrderModelInterface } from '../models/Order';
+import Order from '../models/Order';
 import { PaymentMethodModelInterface } from '../models/PaymentMethod';
 import Tier from '../models/Tier';
 import User from '../models/User';
@@ -42,9 +42,9 @@ const getNextChargeDateForUpdateContribution = (baseNextChargeDate, newInterval)
 
 export const updatePaymentMethodForSubscription = async (
   user: User,
-  order: OrderModelInterface,
+  order: Order,
   newPaymentMethod: PaymentMethodModelInterface,
-): Promise<OrderModelInterface> => {
+): Promise<Order> => {
   const prevPaymentMethod = order.paymentMethod;
   const newPaymentMethodCollective = await newPaymentMethod.getCollective();
   if (!user.isAdminOfCollective(newPaymentMethodCollective)) {
@@ -133,7 +133,7 @@ const checkSubscriptionDetails = (order, tier: Tier, amountInCents) => {
 };
 
 type OrderSubscriptionUpdate = {
-  order: OrderModelInterface;
+  order: Order;
   previousOrderValues: Record<string, unknown>;
   previousSubscriptionValues: Record<string, unknown>;
 };
@@ -143,7 +143,7 @@ type OrderSubscriptionUpdate = {
  * for each, to easily rollback if necessary.
  */
 export const updateOrderSubscription = async (
-  order: OrderModelInterface,
+  order: Order,
   member: MemberModelInterface,
   newOrderData: Record<string, unknown>,
   newSubscriptionData: Record<string, unknown>,
@@ -174,7 +174,7 @@ export const updateOrderSubscription = async (
 };
 
 export const updateSubscriptionDetails = async (
-  order: OrderModelInterface,
+  order: Order,
   tier: Tier,
   member: MemberModelInterface,
   amountInCents: number,

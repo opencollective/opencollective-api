@@ -40,7 +40,7 @@ import Collective from './Collective';
 import CustomDataTypes from './DataTypes';
 import type Expense from './Expense';
 import type { ExpenseTaxDefinition } from './Expense';
-import Order, { OrderModelInterface, OrderTax } from './Order';
+import Order, { OrderTax } from './Order';
 import PaymentMethod, { PaymentMethodModelInterface } from './PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
 import TransactionSettlement, { TransactionSettlementStatus } from './TransactionSettlement';
@@ -155,7 +155,7 @@ export interface TransactionInterface
   collective?: Collective;
   PaymentMethod?: PaymentMethodModelInterface;
   PayoutMethod?: PayoutMethod;
-  Order?: OrderModelInterface;
+  Order?: Order;
 
   // Getter Methods
   info: Partial<TransactionInterface>;
@@ -164,7 +164,7 @@ export interface TransactionInterface
   // Class methods
   getHostCollective: (options?: { loaders?: any }) => Promise<Collective>;
   getCollective: () => Promise<Collective | null>;
-  getOrder: (options?: { paranoid?: boolean }) => Promise<OrderModelInterface | null>;
+  getOrder: (options?: { paranoid?: boolean }) => Promise<Order | null>;
   hasPlatformTip: () => boolean;
   getRelatedTransaction: (options: { type?: string; kind?: string; isDebt?: boolean }) => Promise<TransactionInterface>;
   getOppositeTransaction: () => Promise<TransactionInterface | null>;

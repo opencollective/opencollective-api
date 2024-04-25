@@ -12,7 +12,7 @@ import logger from '../../server/lib/logger';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import { parseToBoolean, sleep } from '../../server/lib/utils';
 import models, { Collective, Op } from '../../server/models';
-import { OrderModelInterface } from '../../server/models/Order';
+import Order from '../../server/models/Order';
 import { CONTRIBUTION_PAUSED_MSG } from '../../server/paymentProviders/paypal/subscription';
 
 if (parseToBoolean(process.env.SKIP_BATCH_SUBSCRIPTION_UPDATE)) {
@@ -49,7 +49,7 @@ const getHostFromOrder = async order => {
 
 const getOrderCancelationReason = (
   collective: Collective,
-  order: OrderModelInterface,
+  order: Order,
   orderHost: Collective,
 ): {
   code: 'PAUSED' | 'DELETED_TIER' | 'ARCHIVED_ACCOUNT' | 'UNHOSTED_COLLECTIVE' | 'CHANGED_HOST' | 'CANCELLED_ORDER';
@@ -76,7 +76,7 @@ const getOrderCancelationReason = (
  * performance constraints.
  */
 export async function run() {
-  const orphanOrders = await models.Order.findAll<OrderModelInterface>({
+  const orphanOrders = await models.Order.findAll<Order>({
     where: {
       status: [OrderStatuses.CANCELLED, OrderStatuses.PAUSED],
       data: { needsAsyncDeactivation: true },

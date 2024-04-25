@@ -20,7 +20,7 @@ import {
 import { reportMessageToSentry } from '../../lib/sentry';
 import stripe, { convertFromStripeAmount, extractFees, retrieveChargeWithRefund } from '../../lib/stripe';
 import models, { Collective, ConnectedAccount } from '../../models';
-import { OrderModelInterface } from '../../models/Order';
+import Order from '../../models/Order';
 import PaymentMethod, { PaymentMethodModelInterface } from '../../models/PaymentMethod';
 import { TransactionCreationAttributes, TransactionData, TransactionInterface } from '../../models/Transaction';
 import User from '../../models/User';
@@ -118,7 +118,7 @@ export const createChargeTransactions = async (
   {
     order,
   }: {
-    order: OrderModelInterface;
+    order: Order;
   },
 ) => {
   const host = await order.collective.getHostCollective();
@@ -210,7 +210,7 @@ export const createChargeTransactions = async (
  */
 export async function resolvePaymentMethodForOrder(
   hostStripeAccount: string,
-  order: OrderModelInterface,
+  order: Order,
 ): Promise<{ id: string; customer: string }> {
   const isPlatformHost = hostStripeAccount === config.stripe.accountId;
 

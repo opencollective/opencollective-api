@@ -1,5 +1,5 @@
 import { SupportedCurrency } from '../constants/currencies';
-import { OrderModelInterface } from '../models/Order';
+import Order from '../models/Order';
 import { PaymentMethodModelInterface } from '../models/PaymentMethod';
 import { TransactionInterface } from '../models/Transaction';
 import User from '../models/User';
@@ -9,7 +9,7 @@ export interface PaymentProvider {
   /**
    * Triggers the payment for this order and updates it accordingly
    */
-  processOrder(order: OrderModelInterface): Promise<TransactionInterface>;
+  processOrder(order: Order): Promise<TransactionInterface>;
 
   /**
    * The different types of payment methods supported by this provider
@@ -30,7 +30,7 @@ export interface PaymentProviderService {
    * Triggers the payment for this order and updates it accordingly
    */
   processOrder(
-    order: OrderModelInterface,
+    order: Order,
     options?: { isAddedFund?: boolean; invoiceTemplate?: string },
   ): Promise<TransactionInterface | void>;
 

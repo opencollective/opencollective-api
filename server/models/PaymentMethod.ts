@@ -62,6 +62,7 @@ export interface PaymentMethodModelInterface
   getCollective(): Promise<Collective>;
   getBalanceForUser(user): Promise<{ amount: number; currency: SupportedCurrency }>;
   Collective?: Collective;
+  canBeUsedForOrder(order, user): Promise<boolean>;
 
   // Getter Methods
   info: Partial<PaymentMethodModelInterface>;
