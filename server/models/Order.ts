@@ -222,9 +222,9 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
    * @param callback - The function to be executed while the order is locked
    * @param options - Additional options
    * @param options.retries - Number of retries before giving up (default: 0)
-   * @param options.retryInterval - Interval between retries in milliseconds (default: 500)
+   * @param options.retryDelay - Interval between retries in milliseconds (default: 500)
    */
-  // TODO: lock
+  declare lock: <T>(callback: () => T, options?: { retries?: number; retryDelay?: number }) => Promise<T>;
   declare isLocked: () => boolean;
   declare unPause: (user: User, params: { UserTokenId?: number }) => Promise<Order>;
   declare markSimilarPausedOrdersAsCancelled: () => Promise<void>;
