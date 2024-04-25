@@ -149,6 +149,8 @@ export async function canSeeUpdate(update, req): Promise<boolean> {
         canSeeUpdateForFinancialContributors(req, update.collective) ||
         canSeeUpdateForCollectiveAdmins(req, update.collective)
       );
+    case UPDATE_NOTIFICATION_AUDIENCE.NO_ONE:
+      return req.remoteUser.isAdminOfCollective(update.collective);
     default:
       return false; // Audience type is NO_ONE or unknown
   }
