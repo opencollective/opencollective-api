@@ -1,7 +1,7 @@
 import assert from 'assert';
 
 import debugLib from 'debug';
-import { GraphQLNonNull } from 'graphql';
+import { GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
 import { encodeBase64 } from 'tweetnacl-util';
 
@@ -17,9 +17,11 @@ import {
   LEGAL_DOCUMENT_TYPE,
   US_TAX_FORM_TYPES,
 } from '../../../models/LegalDocument';
-import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
+import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { Forbidden, ValidationFailed } from '../../errors';
+import { GraphQLLegalDocumentRequestStatus } from '../enum/LegalDocumentRequestStatus';
 import { GraphQLLegalDocumentType } from '../enum/LegalDocumentType';
+import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLLegalDocument } from '../object/LegalDocument';
 
@@ -122,6 +124,55 @@ export const legalDocumentsMutations = {
       }
 
       return legalDocument;
+    },
+  },
+  editLegalDocumentStatus: {
+    type: new GraphQLNonNull(GraphQLLegalDocument),
+    description: 'Edit the status of a legal document',
+    args: {
+      id: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: 'The ID of the legal document',
+      },
+      status: {
+        type: new GraphQLNonNull(GraphQLLegalDocumentRequestStatus),
+        description: 'The new status of the legal document',
+      },
+      host: {
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+        description: 'The host of the legal document',
+      },
+      message: {
+        type: GraphQLString,
+        description: 'A message to explain the change in status. Will be sent to the legal document submitter',
+      },
+    },
+    resolve: async (_, args, req) => {
+      checkRemoteUserCanUseHost(req);
+      const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
+      const decodedDocumentId = idDecode(args.id, IDENTIFIER_TYPES.LEGAL_DOCUMENT);
+      const legalDocument = await LegalDocument.findByPk(decodedDocumentId);
+      if (!legalDocument) {
+        throw new ValidationFailed('Legal document not found');
+      } else if (!req.remoteUser.isAdminOfCollective(host)) {
+        throw new Forbidden('You do not have permission to edit legal documents for this host');
+      } else if (!(await legalDocument.isAccessibleByHost(host))) {
+        throw new Forbidden('You do not have permission to edit this legal document');
+      } else if (args.status === LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED) {
+        throw new ValidationFailed('You cannot set the status of a legal document to received, please use setTaxForm');
+      } else if (args.status === LEGAL_DOCUMENT_REQUEST_STATUS.INVALID) {
+        assert(args.message, new ValidationFailed('A message is required when setting the status to error'));
+        assert(
+          legalDocument.requestStatus === LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED,
+          new ValidationFailed('Legal document must be received to be marked as invalid'),
+        );
+
+        return legalDocument.markAsInvalid(req.remoteUser, host, args.message, { UserTokenId: req.useToken?.id });
+      } else {
+        throw new ValidationFailed(
+          `Updating a ${legalDocument.requestStatus} legal document to ${args.status} is not allowed`,
+        );
+      }
     },
   },
 };

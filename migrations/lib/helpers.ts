@@ -126,13 +126,13 @@ export const updateEnum = async (queryInterface, table, column, enumName, values
     if (isArray) {
       await executeQuery(
         queryInterface,
-        `ALTER TABLE "${table}" ALTER COLUMN ${column} TYPE "${enumName}" ARRAY USING ${column}::text::"${enumName}"[]`,
+        `ALTER TABLE "${table}" ALTER COLUMN "${column}" TYPE "${enumName}" ARRAY USING "${column}"::text::"${enumName}"[]`,
         { transaction },
       );
     } else {
       await executeQuery(
         queryInterface,
-        `ALTER TABLE "${table}" ALTER COLUMN ${column} TYPE "${enumName}" USING ${column}::text::"${enumName}"`,
+        `ALTER TABLE "${table}" ALTER COLUMN "${column}" TYPE "${enumName}" USING "${column}"::text::"${enumName}"`,
         { transaction },
       );
     }

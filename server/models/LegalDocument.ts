@@ -33,6 +33,7 @@ export enum LEGAL_DOCUMENT_REQUEST_STATUS {
   REQUESTED = 'REQUESTED',
   RECEIVED = 'RECEIVED',
   ERROR = 'ERROR',
+  INVALID = 'INVALID',
 }
 
 export const US_TAX_FORM_TYPES = ['W9', 'W8_BEN', 'W8_BEN_E'] as const;
@@ -254,6 +255,31 @@ class LegalDocument extends Model<InferAttributes<LegalDocument>, InferCreationA
   };
 
   /**
+   * Returns true if the tax form is accessible by the host.
+   */
+  isAccessibleByHost = async function (host: Collective): Promise<boolean> {
+    if (this.documentType !== LEGAL_DOCUMENT_TYPE.US_TAX_FORM) {
+      return false;
+    }
+
+    const hostLegalDocumentsCount = await host.countRequiredLegalDocuments({
+      where: { HostCollectiveId: host.id, documentType: this.documentType },
+    });
+
+    if (hostLegalDocumentsCount === 0) {
+      return false;
+    }
+
+    const taxFormAccounts = await SQLQueries.getTaxFormsRequiredForAccounts({
+      HostCollectiveId: host.id,
+      CollectiveId: this.CollectiveId,
+      year: this.year,
+    });
+
+    return taxFormAccounts.has(this.CollectiveId);
+  };
+
+  /**
    * Whether the document can be downloaded.
    *
    * Some links have been manually set to arbitrary values (e.g. Google Drive) by the support team in the past. Only "Official" S3 links can be downloaded.
@@ -269,6 +295,60 @@ class LegalDocument extends Model<InferAttributes<LegalDocument>, InferCreationA
     } catch (e) {
       return false;
     }
+  };
+
+  markAsInvalid = async (
+    user: User,
+    host: Collective,
+    message: string,
+    {
+      UserTokenId,
+    }: {
+      UserTokenId?: number;
+    } = {},
+  ): Promise<void> => {
+    // Preload associations
+    this.collective = this.collective || (await this.getCollective());
+
+    return sequelize.transaction(async transaction => {
+      // Mark current tax form as invalid
+      await this.update({ requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.INVALID }, { transaction });
+
+      // Create a new tax form request
+      await LegalDocument.create(
+        {
+          CollectiveId: this.CollectiveId,
+          documentType: this.documentType,
+          year: this.year,
+          requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED,
+          service: LEGAL_DOCUMENT_SERVICE.OPENCOLLECTIVE,
+        },
+        {
+          transaction,
+        },
+      );
+
+      // Create activity (sends the email)
+      await Activity.create(
+        {
+          type: activities.TAXFORM_INVALIDATED,
+          UserId: user.id,
+          CollectiveId: this.CollectiveId,
+          FromCollectiveId: user.CollectiveId,
+          HostCollectiveId: host.id,
+          UserTokenId,
+          data: {
+            document: this.info,
+            collective: this.collective.info,
+            host: host.info,
+            message,
+          },
+        },
+        { transaction },
+      );
+
+      return this;
+    });
   };
 
   get info(): NonAttribute<Partial<LegalDocument>> {

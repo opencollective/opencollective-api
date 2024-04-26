@@ -214,6 +214,10 @@ export const notifyByEmail = async (activity: Activity) => {
       activity.data?.service === LEGAL_DOCUMENT_SERVICE.DROPBOX_FORMS && (await notify.user(activity));
       break;
 
+    case ActivityTypes.TAXFORM_INVALIDATED:
+      await notify.collective(activity);
+      break;
+
     case ActivityTypes.COLLECTIVE_EXPENSE_MISSING_RECEIPT:
     case ActivityTypes.COLLECTIVE_VIRTUAL_CARD_ADDED:
     case ActivityTypes.COLLECTIVE_VIRTUAL_CARD_MISSING_RECEIPTS:

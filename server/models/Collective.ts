@@ -35,6 +35,7 @@ import {
   Attributes,
   CreationOptional,
   FindOptions,
+  HasManyCountAssociationsMixin,
   HasManyCreateAssociationMixin,
   HasManyGetAssociationsMixin,
   HasOneGetAssociationMixin,
@@ -329,6 +330,7 @@ class Collective extends Model<
   public declare getLegalDocuments: HasManyGetAssociationsMixin<LegalDocument>;
   public declare getRequiredLegalDocuments: HasManyGetAssociationsMixin<RequiredLegalDocument>;
   public declare createRequiredLegalDocument: HasManyCreateAssociationMixin<RequiredLegalDocument>;
+  public declare countRequiredLegalDocuments: HasManyCountAssociationsMixin;
 
   public declare accountingCategories?: NonAttribute<Array<AccountingCategory>>;
   public declare getAccountingCategories: HasManyGetAssociationsMixin<AccountingCategory>;

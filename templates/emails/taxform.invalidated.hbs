@@ -1,0 +1,30 @@
+Subject: Action required: Your tax form has been marked as invalid
+
+{{> header}}
+
+<p>{{> greeting}}</p>
+
+<p>
+  {{host.name}}, the Fiscal Host that collected your tax form on Open Collective, has marked it as invalid. In
+  order to receive payments from them, you will need to submit a new tax form. You can do so
+  by clicking the button below.
+</p>
+
+{{#if message}}
+  <p>Note from {{host.name}}:</p>
+  <blockquote style="color:#6a737d;font-size: 14px;text-align: left;padding: 0.5em 0.75em;margin: 1em 0;border-left: 3px solid #e4e4e4;white-space: pre-line;">{{message}}</blockquote>
+{{/if}}
+
+<div style="text-align: center; margin: 32px 0;">
+  <a class="btn blue" href="{{config.host.website}}/dashboard/{{collective.slug}}/tax-information">
+    Submit tax form
+  </a>
+</div>
+
+<p>
+  If you have any questions, please take a look at our
+  <a href="https://docs.opencollective.com/help/expenses-and-getting-paid/tax-information">documentation</a>
+  or <a href="https://opencollective.com/contact">reach out</a> to us.
+</p>
+
+{{> footer}}
