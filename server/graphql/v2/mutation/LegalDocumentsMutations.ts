@@ -17,7 +17,7 @@ import {
   LEGAL_DOCUMENT_TYPE,
   US_TAX_FORM_TYPES,
 } from '../../../models/LegalDocument';
-import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
+import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { Forbidden, ValidationFailed } from '../../errors';
 import { GraphQLLegalDocumentRequestStatus } from '../enum/LegalDocumentRequestStatus';
 import { GraphQLLegalDocumentType } from '../enum/LegalDocumentType';
@@ -148,10 +148,7 @@ export const legalDocumentsMutations = {
       },
     },
     resolve: async (_, args, req) => {
-      if (!req.remoteUser) {
-        throw new Forbidden('You need to be logged in to edit a legal document');
-      }
-
+      checkRemoteUserCanUseHost(req);
       const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
       const decodedDocumentId = idDecode(args.id, IDENTIFIER_TYPES.LEGAL_DOCUMENT);
       const legalDocument = await LegalDocument.findByPk(decodedDocumentId);
