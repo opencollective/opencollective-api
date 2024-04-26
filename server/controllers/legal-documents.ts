@@ -46,6 +46,10 @@ export default {
     // Must be logged in
     if (!req.remoteUser) {
       return res.status(401).send({ message: 'Unauthorized' });
+    } else if (req.userToken || req.personalToken) {
+      return res
+        .status(403)
+        .send({ message: 'Unauthorized - OAuth and Personal Tokens are not allowed for this route' });
     }
 
     // Rate limit by user
