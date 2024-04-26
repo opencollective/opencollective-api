@@ -159,6 +159,7 @@ const expenseMutations = {
         getId(expense.payee) && (await fetchAccountWithReference(expense.payee, { throwIfMissing: false }));
       const originalPayee =
         getId(existingExpense.data?.payee) &&
+        // @ts-expect-error existingExpense.data.payee is wrong here, will fix in a follow-up PR
         (await fetchAccountWithReference(existingExpense.data.payee, { throwIfMissing: false }));
 
       const payoutMethod = expense.payoutMethod;

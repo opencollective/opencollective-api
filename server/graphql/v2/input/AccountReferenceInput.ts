@@ -60,6 +60,12 @@ export const GraphQLNewAccountOrReferenceInput = new GraphQLInputObjectType({
   }),
 });
 
+export type AccountReferenceInput = {
+  id?: string;
+  legacyId?: number;
+  slug?: string;
+};
+
 /**
  * Retrieves an account
  *
@@ -70,7 +76,7 @@ export const GraphQLNewAccountOrReferenceInput = new GraphQLInputObjectType({
  *    - throwIfMissing: throws an exception if collective is missing for the given id or slug
  */
 export const fetchAccountWithReference = async (
-  input,
+  input: AccountReferenceInput,
   { loaders = null, throwIfMissing = false, dbTransaction = undefined, lock = false, paranoid = true } = {},
 ): Promise<Collective> => {
   const loadCollectiveById = id => {
@@ -115,7 +121,7 @@ export const fetchAccountWithReference = async (
  *    - include: to include associated models
  */
 export const fetchAccountsWithReferences = async (
-  inputs,
+  inputs: AccountReferenceInput | AccountReferenceInput[],
   {
     throwIfMissing = false,
     attributes,
