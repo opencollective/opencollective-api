@@ -614,7 +614,7 @@ export async function associateTransactionRefundId(
  * In all cases, transaction.type is CREDIT.
  *
  */
-export const sendEmailNotifications = (order: OrderModelInterface, transaction?: TransactionInterface): void => {
+export const sendEmailNotifications = (order: OrderModelInterface, transaction?: TransactionInterface | void): void => {
   debug('sendEmailNotifications');
   if (
     transaction &&
@@ -749,9 +749,7 @@ export const executeOrder = async (
     order.paymentMethod.save();
   }
 
-  if (transaction) {
-    sendEmailNotifications(order, transaction);
-  }
+  sendEmailNotifications(order, transaction);
 
   // Register gift card emitter as collective backer too
   if (transaction && transaction.UsingGiftCardFromCollectiveId) {
