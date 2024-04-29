@@ -184,12 +184,22 @@ export async function removePaymentMethod(paymentMethodId, req) {
 
   // Block the removal if the payment method has subscriptions linked
   const subscriptions = await paymentMethod.getOrders({
-    where: { status: { [Op.or]: [ORDER_STATUS.ACTIVE, ORDER_STATUS.ERROR] } },
+    where: {
+      [Op.or]: [
+        {
+          status: {
+            [Op.or]: [ORDER_STATUS.ACTIVE, ORDER_STATUS.ERROR],
+          },
+          ['$Subscription.id$']: { [Op.ne]: null },
+        },
+        { status: ORDER_STATUS.PROCESSING },
+      ],
+    },
     include: [
       {
         model: models.Subscription,
         where: { isActive: true },
-        required: true,
+        required: false,
       },
     ],
   });
