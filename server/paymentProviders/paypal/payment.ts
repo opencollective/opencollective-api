@@ -15,7 +15,7 @@ import { paypalAmountToCents } from '../../lib/paypal';
 import { reportErrorToSentry } from '../../lib/sentry';
 import { formatCurrency } from '../../lib/utils';
 import models from '../../models';
-import { OrderModelInterface } from '../../models/Order';
+import Order from '../../models/Order';
 import { TransactionInterface } from '../../models/Transaction';
 import User from '../../models/User';
 import { PaypalCapture, PaypalSale, PaypalTransaction } from '../../types/paypal';
@@ -92,7 +92,7 @@ const recordTransaction = async (
 // represent the same thing (IDs point toward the same thing), the data structure is different. We thus need
 // these 3 functions to handle them all.
 
-export function recordPaypalSale(order: OrderModelInterface, paypalSale: PaypalSale): Promise<TransactionInterface> {
+export function recordPaypalSale(order: Order, paypalSale: PaypalSale): Promise<TransactionInterface> {
   const currency = paypalSale.amount.currency;
   const amount = paypalAmountToCents(paypalSale.amount.total);
   const fee = paypalAmountToCents(get(paypalSale, 'transaction_fee.value', '0.0'));
@@ -103,7 +103,7 @@ export function recordPaypalSale(order: OrderModelInterface, paypalSale: PaypalS
 }
 
 export function recordPaypalTransaction(
-  order: OrderModelInterface,
+  order: Order,
   paypalTransaction: PaypalTransaction,
   { data = undefined, createdAt = undefined } = {},
 ): Promise<TransactionInterface> {
@@ -118,7 +118,7 @@ export function recordPaypalTransaction(
 }
 
 export const recordPaypalCapture = async (
-  order: OrderModelInterface,
+  order: Order,
   capture: PaypalCapture,
   { data = undefined, createdAt = undefined } = {},
 ): Promise<TransactionInterface> => {
@@ -266,7 +266,7 @@ const refundTransactionOnlyInDatabase = async (
 };
 
 /** Process order in paypal and create transactions in our db */
-export async function processOrder(order: OrderModelInterface): Promise<TransactionInterface | undefined> {
+export async function processOrder(order: Order): Promise<TransactionInterface | undefined> {
   if (order.paymentMethod.data.orderId) {
     return processPaypalOrder(order, order.paymentMethod.data.orderId);
   } else {

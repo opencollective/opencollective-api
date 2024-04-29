@@ -7,12 +7,12 @@ import logger from '../../lib/logger';
 import { getApplicationFee } from '../../lib/payments';
 import { reportMessageToSentry } from '../../lib/sentry';
 import stripe, { convertToStripeAmount } from '../../lib/stripe';
-import { OrderModelInterface } from '../../models/Order';
+import Order from '../../models/Order';
 import { PaymentProviderService } from '../types';
 
 import { APPLICATION_FEE_INCOMPATIBLE_CURRENCIES, refundTransaction, refundTransactionOnlyInDatabase } from './common';
 
-const processOrder = async (order: OrderModelInterface): Promise<void> => {
+const processOrder = async (order: Order): Promise<void> => {
   const generatedSepaDebit = order.paymentMethod?.data?.generated_sepa_debit;
   if (!generatedSepaDebit) {
     throw new Error(

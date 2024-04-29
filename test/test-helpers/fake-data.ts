@@ -52,7 +52,7 @@ import { HostApplicationStatus } from '../../server/models/HostApplication';
 import LegalDocument, { LEGAL_DOCUMENT_SERVICE } from '../../server/models/LegalDocument';
 import { MemberModelInterface } from '../../server/models/Member';
 import { MemberInvitationModelInterface } from '../../server/models/MemberInvitation';
-import { OrderModelInterface } from '../../server/models/Order';
+import Order from '../../server/models/Order';
 import { PaymentMethodModelInterface } from '../../server/models/PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import RecurringExpense, { RecurringExpenseIntervals } from '../../server/models/RecurringExpense';
@@ -648,7 +648,7 @@ export const fakeTier = async (tierData: Partial<InferCreationAttributes<Tier>> 
  * Creates a fake order. All params are optionals.
  */
 export const fakeOrder = async (
-  orderData: Partial<InferCreationAttributes<OrderModelInterface>> & { subscription?: any } = {},
+  orderData: Partial<InferCreationAttributes<Order>> & { subscription?: any } = {},
   { withSubscription = false, withTransactions = false, withBackerMember = false, withTier = false } = {},
 ) => {
   const CreatedByUserId = orderData.CreatedByUserId || (await fakeUser()).id;
@@ -663,7 +663,7 @@ export const fakeOrder = async (
       ? await fakeTier()
       : null;
 
-  const order: OrderModelInterface & {
+  const order: Order & {
     subscription?: typeof Subscription;
     transactions?: TransactionInterface[];
   } = await models.Order.create({
