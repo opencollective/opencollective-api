@@ -46,9 +46,10 @@ class HostApplication extends Model<InferAttributes<HostApplication>, InferCreat
     host: Collective,
     collective: Collective,
     user: User,
+    status: HostApplicationStatus,
     data: Record<string, unknown>,
   ): Promise<HostApplication> {
-    const existingApplication = await this.getByStatus(host, collective, HostApplicationStatus.PENDING);
+    const existingApplication = await this.getByStatus(host, collective, status);
     if (existingApplication) {
       return existingApplication.update({ updatedAt: new Date() });
     } else {
@@ -56,7 +57,7 @@ class HostApplication extends Model<InferAttributes<HostApplication>, InferCreat
         HostCollectiveId: host.id,
         CollectiveId: collective.id,
         CreatedByUserId: user.id,
-        status: HostApplicationStatus.PENDING,
+        status,
         ...(<Record<string, unknown>>pick(data, ['message', 'customData'])),
       });
     }

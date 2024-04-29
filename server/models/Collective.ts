@@ -2315,6 +2315,7 @@ class Collective extends Model<
           }
         });
       }
+      // Same as !shouldAutomaticallyApprove
       if (!updatedValues.isActive) {
         if (!creatorUser.collective && creatorUser.getCollective) {
           creatorUser.collective = await creatorUser.getCollective();
@@ -2353,15 +2354,7 @@ class Collective extends Model<
           },
         };
 
-        // Record application
-        promises.push(
-          HostApplication.recordApplication(hostCollective, this, creatorUser, {
-            message: options?.message,
-            customData: options?.applicationData,
-          }),
-        );
-
-        if (!options?.skipCollectiveApplyActivity && !shouldAutomaticallyApprove) {
+        if (!options?.skipCollectiveApplyActivity) {
           promises.push(
             Activity.create({
               UserId: creatorUser.id,
@@ -2373,6 +2366,21 @@ class Collective extends Model<
           );
         }
       }
+
+      // Record application
+      promises.push(
+        HostApplication.recordApplication(
+          hostCollective,
+          this,
+          creatorUser,
+          shouldAutomaticallyApprove ? HostApplicationStatus.APPROVED : HostApplicationStatus.PENDING,
+          {
+            message: options?.message,
+            customData: options?.applicationData,
+            automaticallyApproved: shouldAutomaticallyApprove,
+          },
+        ),
+      );
     }
 
     await Promise.all(promises);
