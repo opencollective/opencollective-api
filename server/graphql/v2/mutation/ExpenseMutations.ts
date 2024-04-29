@@ -157,10 +157,14 @@ const expenseMutations = {
       const existingExpense = await fetchExpenseWithReference(expense, { loaders: req.loaders, throwIfMissing: true });
       const requestedPayee =
         getId(expense.payee) && (await fetchAccountWithReference(expense.payee, { throwIfMissing: false }));
+
       const originalPayee =
-        getId(existingExpense.data?.payee) &&
-        // @ts-expect-error existingExpense.data.payee is wrong here, will fix in a follow-up PR
-        (await fetchAccountWithReference(existingExpense.data.payee, { throwIfMissing: false }));
+        existingExpense.data.payee &&
+        (existingExpense.data.payee.id
+          ? await models.Collective.findByPk(existingExpense.data.payee.id)
+          : existingExpense.data.payee.slug
+            ? await models.Collective.findBySlug(existingExpense.data.payee.slug, false)
+            : null);
 
       const payoutMethod = expense.payoutMethod;
       populatePayoutMethodId(payoutMethod);

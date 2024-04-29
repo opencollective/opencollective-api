@@ -87,6 +87,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
       id?: number;
       name?: string;
       email?: string;
+      slug?: string;
     };
     draftKey?: string;
     taxes?: ExpenseTaxDefinition[];
