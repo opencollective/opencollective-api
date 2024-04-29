@@ -710,6 +710,15 @@ export const loaders = req => {
     }).then(results => sortResults(CollectiveIds, results, 'CollectiveId', [])),
   );
 
+  context.loaders.PaymentMethod.byIdIncludeDeleted = new DataLoader(keys => {
+    return models.PaymentMethod.findAll({
+      where: {
+        id: keys,
+      },
+      paranoid: false,
+    }).then(results => sortResultsSimple(keys, results, pm => pm.id, []));
+  });
+
   /** *** Order *****/
   // Order - findByMembership
   context.loaders.Order.findByMembership = new DataLoader(combinedKeys =>

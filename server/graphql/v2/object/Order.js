@@ -202,7 +202,7 @@ export const GraphQLOrder = new GraphQLObjectType({
         type: GraphQLPaymentMethod,
         resolve(order, _, req) {
           if (order.PaymentMethodId) {
-            return req.loaders.PaymentMethod.byId.load(order.PaymentMethodId);
+            return req.loaders.PaymentMethod.byIdIncludeDeleted.load(order.PaymentMethodId);
           }
         },
       },
