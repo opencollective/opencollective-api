@@ -24,7 +24,7 @@ import { reportErrorToSentry, reportMessageToSentry } from './sentry';
 import { isEmailInternal } from './utils';
 
 export const getTaxFormsS3Bucket = (): string => {
-  return get(config, 'taxForms.aws.s3.bucket') || get(config, 'helloworks.aws.s3.bucket');
+  return get(config, 'taxForms.aws.s3.bucket');
 };
 
 /**
