@@ -727,6 +727,10 @@ export const canViewRequiredLegalDocuments: ExpensePermissionEvaluator = async (
   ]);
 };
 
+export const canDownloadTaxForm: ExpensePermissionEvaluator = async (req, expense) => {
+  return remoteUserMeetsOneCondition(req, expense, [isHostAdmin, isHostAccountant]);
+};
+
 export const canUnschedulePayment: ExpensePermissionEvaluator = async (
   req: express.Request,
   expense: Expense,

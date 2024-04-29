@@ -15,7 +15,7 @@ import { LegalDocument, RequiredLegalDocument, User } from '../models';
  */
 const hasPermissionToDownload = async (legalDocument: LegalDocument, remoteUser: User): Promise<boolean> => {
   const administratedCollectiveIds = Object.entries(remoteUser.rolesByCollectiveId)
-    .filter(([, roles]) => roles.includes(MemberRoles.ADMIN))
+    .filter(([, roles]) => roles.some(role => role === MemberRoles.ADMIN || role === MemberRoles.ACCOUNTANT))
     .map(([collectiveId]) => Number(collectiveId));
 
   if (!administratedCollectiveIds.length) {

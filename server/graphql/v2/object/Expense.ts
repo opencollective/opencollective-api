@@ -10,26 +10,34 @@ import {
 } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { findLast, pick, round, takeRightWhile, toString, uniq } from 'lodash';
+import { WhereOptions } from 'sequelize';
 
 import ActivityTypes from '../../../constants/activities';
 import expenseStatus from '../../../constants/expense-status';
 import ExpenseTypes from '../../../constants/expense-type';
-import models, { Activity } from '../../../models';
+import SQLQueries from '../../../lib/queries';
+import models, { Activity, Op } from '../../../models';
 import { CommentType } from '../../../models/Comment';
 import ExpenseModel from '../../../models/Expense';
-import { LEGAL_DOCUMENT_TYPE } from '../../../models/LegalDocument';
+import LegalDocument, { LEGAL_DOCUMENT_TYPE, LegalDocumentAttributes } from '../../../models/LegalDocument';
 import transferwise from '../../../paymentProviders/transferwise';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import * as ExpenseLib from '../../common/expenses';
+import { checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { CommentCollection } from '../collection/CommentCollection';
+import { GraphQLLegalDocumentCollection } from '../collection/LegalDocumentCollection';
 import { GraphQLCurrency } from '../enum';
 import { GraphQLExpenseCurrencySource } from '../enum/ExpenseCurrencySource';
 import GraphQLExpenseStatus from '../enum/ExpenseStatus';
 import { GraphQLExpenseType } from '../enum/ExpenseType';
 import { GraphQLFeesPayer } from '../enum/FeesPayer';
+import { GraphQLLegalDocumentRequestStatus } from '../enum/LegalDocumentRequestStatus';
 import { GraphQLLegalDocumentType } from '../enum/LegalDocumentType';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
-import { GraphQLChronologicalOrderInput } from '../input/ChronologicalOrderInput';
+import {
+  CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
+  GraphQLChronologicalOrderInput,
+} from '../input/ChronologicalOrderInput';
 import { GraphQLAccount } from '../interface/Account';
 import { CollectionArgs } from '../interface/Collection';
 
@@ -345,11 +353,7 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Reques
         type: GraphQLHost,
         description: 'The account from where the expense was paid',
         async resolve(expense, _, req) {
-          if (expense.HostCollectiveId) {
-            return req.loaders.Collective.byId.load(expense.HostCollectiveId);
-          } else {
-            return req.loaders.Collective.hostByCollectiveId.load(expense.CollectiveId);
-          }
+          return loadHostForExpense(expense, req);
         },
       },
       payoutMethod: {
@@ -467,6 +471,63 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Reques
           } else {
             return [];
           }
+        },
+      },
+      legalDocuments: {
+        type: GraphQLLegalDocumentCollection,
+        description: 'Returns the list of legal documents attached to this expense. Must be logged in as a host admin.',
+        args: {
+          ...CollectionArgs,
+          type: {
+            type: new GraphQLList(GraphQLLegalDocumentType),
+            description: 'Filter by type of legal document',
+          },
+          status: {
+            type: new GraphQLList(GraphQLLegalDocumentRequestStatus),
+            description: 'Filter by status of legal document',
+          },
+          orderBy: {
+            type: new GraphQLNonNull(GraphQLChronologicalOrderInput),
+            description: 'The order of results',
+            defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
+          },
+        },
+        async resolve(expense, args, req) {
+          checkRemoteUserCanUseHost(req);
+
+          const { limit, offset } = args;
+          const host = await loadHostForExpense(expense, req);
+          if (!host || !req.remoteUser.isAdminOfCollective(host)) {
+            return null;
+          }
+
+          const year = expense.createdAt.getFullYear();
+          const accountIds = await SQLQueries.getTaxFormsRequiredForAccounts({
+            ignoreReceived: false,
+            HostCollectiveId: host.id,
+            CollectiveId: expense.FromCollectiveId,
+            year,
+          });
+          if (!accountIds.size || !accountIds.has(expense.FromCollectiveId)) {
+            return { nodes: [], totalCount: 0, limit, offset };
+          }
+
+          const where: WhereOptions<LegalDocumentAttributes> = {
+            CollectiveId: expense.FromCollectiveId,
+            year: { [Op.gte]: year },
+          };
+          if (args.type) {
+            where.documentType = args.type;
+          }
+          if (args.status) {
+            where.requestStatus = args.status;
+          }
+          return {
+            offset,
+            limit,
+            totalCount: () => LegalDocument.count({ where }),
+            nodes: () => LegalDocument.findAll({ where, order: [[args.orderBy.field, args.orderBy.direction]] }),
+          };
         },
       },
       draft: {
