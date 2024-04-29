@@ -27,21 +27,6 @@ class HostApplication extends Model<InferAttributes<HostApplication>, InferCreat
 
   // ---- Static ----
 
-  static async getByStatus(
-    host: Collective,
-    collective: Collective,
-    status: HostApplicationStatus,
-  ): Promise<HostApplication | null> {
-    return this.findOne({
-      order: [['createdAt', 'DESC']],
-      where: {
-        HostCollectiveId: <number>host.id,
-        CollectiveId: collective.id,
-        status,
-      },
-    });
-  }
-
   static async recordApplication(
     host: Collective,
     collective: Collective,
@@ -49,7 +34,14 @@ class HostApplication extends Model<InferAttributes<HostApplication>, InferCreat
     status: HostApplicationStatus,
     data: Record<string, unknown>,
   ): Promise<HostApplication> {
-    const existingApplication = await this.getByStatus(host, collective, status);
+    const existingApplication = await this.findOne({
+      order: [['createdAt', 'DESC']],
+      where: {
+        HostCollectiveId: <number>host.id,
+        CollectiveId: collective.id,
+        status,
+      },
+    });
     if (existingApplication) {
       return existingApplication.update({ updatedAt: new Date() });
     } else {
