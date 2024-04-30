@@ -1,12 +1,13 @@
 import DataLoader from 'dataloader';
-import { groupBy } from 'lodash';
+import { Collection, groupBy, partition, zip } from 'lodash';
 
+import { roles } from '../../constants';
 import ACTIVITY from '../../constants/activities';
 import { SupportedCurrency } from '../../constants/currencies';
 import { TransactionKind } from '../../constants/transaction-kind';
 import queries from '../../lib/queries';
 import { checkExpensesBatch } from '../../lib/security/expense';
-import models, { Op, sequelize } from '../../models';
+import models, { Collective, LegalDocument, Op, sequelize } from '../../models';
 import Activity from '../../models/Activity';
 import Expense from '../../models/Expense';
 import ExpenseAttachedFile from '../../models/ExpenseAttachedFile';
@@ -88,6 +89,43 @@ export const taxFormRequiredBeforePayment = (): DataLoader<number, boolean> => {
   return new DataLoader<number, boolean>(async (expenseIds: number[]): Promise<boolean[]> => {
     const expenseIdsPendingTaxForm = await queries.getTaxFormsRequiredForExpenses(expenseIds);
     return expenseIds.map(id => expenseIdsPendingTaxForm.has(id));
+  });
+};
+
+export const generateExpenseTaxFormsLoader = (req): DataLoader<Expense, LegalDocument[]> => {
+  return new DataLoader(async (expenses: Expense[]) => {
+    if (!req.remoteUser) {
+      return expenses.map(() => null);
+    }
+
+    // Separate expenses that have a HostCollectiveId from those that don't to conditionally load the host
+    const [expensesWithHostId, expensesWithoutHostId] = partition(expenses, e => e.HostCollectiveId);
+
+    // Load all hosts
+    const [expensesWithHostIdHosts, expensesWithoutHostIdHosts] = await Promise.all([
+      req.loaders.Collective.byId.loadMany(expensesWithHostId.map(e => e.HostCollectiveId)),
+      req.loaders.Collective.hostByCollectiveId.loadMany(expensesWithoutHostId.map(e => e.CollectiveId)),
+    ]);
+
+    // Zip the expenses with their hosts
+    const expensesWithHosts: Array<{ host: Collective; expense: Expense }> = [
+      ...zip(expensesWithHostId, expensesWithHostIdHosts),
+      ...zip(expensesWithoutHostId, expensesWithoutHostIdHosts),
+    ].map(([expense, host]) => ({ expense, host }));
+
+    const expensesWhereIsHostAdmin = expensesWithHosts
+      .filter(({ host }) => req.remoteUser.hasRole([roles.ADMIN, roles.ACCOUNTANT], host.id))
+      .map(({ expense }) => expense);
+
+    if (expensesWhereIsHostAdmin.length === 0) {
+      return expenses.map(() => []);
+    }
+
+    const expenseIdsWithTaxForm = await queries.getTaxFormsRequiredForExpenses(
+      expensesWhereIsHostAdmin.map(e => e.id),
+      { ignoreReceived: false },
+    );
+    // TODO
   });
 };
 

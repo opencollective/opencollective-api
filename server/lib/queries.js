@@ -800,7 +800,7 @@ const getTaxFormsOverTheLimit = (results, idKey) => {
 /**
  * @returns Set<number> - expenses IDs where a tax form is required
  */
-const getTaxFormsRequiredForExpenses = async expenseIds => {
+const getTaxFormsRequiredForExpenses = async (expenseIds, { ignoreReceived = true } = {}) => {
   const results = await sequelize.query(
     `
     SELECT
@@ -837,7 +837,9 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
     INNER JOIN "Collectives" all_expenses_collectives
       ON all_expenses_collectives.id = all_expenses."CollectiveId"
       AND all_expenses_collectives."HostCollectiveId" = d."HostCollectiveId"
-    LEFT JOIN "LegalDocuments" ld
+    ${ifStr(
+      ignoreReceived,
+      `LEFT JOIN "LegalDocuments" ld
       ON ld.year + :validityInYears >= date_part('year', analyzed_expenses."incurredAt")
       AND ld."documentType" = 'US_TAX_FORM'
       AND ld."requestStatus" = 'RECEIVED'
@@ -845,6 +847,8 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
         ld."CollectiveId" = from_collective.id -- Either use the payee's legal document
         OR (from_collective."HostCollectiveId" IS NOT NULL AND ld."CollectiveId" = from_collective."HostCollectiveId") -- Or the host's legal document
       )
+    `,
+    )}
     LEFT JOIN "PayoutMethods" pm
       ON all_expenses."PayoutMethodId" = pm.id
     WHERE analyzed_expenses.id IN (:expenseIds)
@@ -858,7 +862,7 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
     AND all_expenses.status NOT IN (:ignoredExpenseStatuses)
     AND all_expenses."deletedAt" IS NULL
     AND date_trunc('year', all_expenses."incurredAt") = date_trunc('year', analyzed_expenses."incurredAt")
-    AND ld.id IS NULL -- Ignore documents that have already been received
+    ${ifStr(ignoreReceived, `AND ld.id IS NULL`)}
     GROUP BY analyzed_expenses.id, analyzed_expenses."FromCollectiveId", d."documentType", COALESCE(pm."type", 'OTHER')
   `,
     {
