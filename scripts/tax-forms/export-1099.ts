@@ -3,6 +3,10 @@
  * It outputs a `{year}-{host}-tax-forms.zip` file structured as follows:
  * - `recipients.csv`: list of all recipients with their details
  * - `files/`: directory containing all the tax forms
+ *
+ * /!\ The tax form system was internalized in 2024. We'll need to update this script (or move
+ * it [as an action to the host dashboard](https://github.com/opencollective/opencollective/issues/7374))
+ * to account for these changes. See https://github.com/opencollective/opencollective/issues/7216.
  */
 
 import '../../server/env';
