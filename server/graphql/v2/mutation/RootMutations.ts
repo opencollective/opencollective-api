@@ -1,5 +1,5 @@
 import express from 'express';
-import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { cloneDeep, isNil, omit, uniqBy } from 'lodash';
 
 import { CollectiveType } from '../../../constants/collectives';
@@ -16,7 +16,7 @@ import {
   stringifyBanSummary,
 } from '../../../lib/moderation';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models, { Collective, LegalDocument, sequelize } from '../../../models';
+import models, { Collective, sequelize } from '../../../models';
 import UserTwoFactorMethod from '../../../models/UserTwoFactorMethod';
 import { moveExpenses } from '../../common/expenses';
 import { checkRemoteUserCanRoot } from '../../common/scope-check';
@@ -32,7 +32,6 @@ import { fetchExpensesWithReferences, GraphQLExpenseReferenceInput } from '../in
 import { GraphQLAccount } from '../interface/Account';
 import { GraphQLExpense } from '../object/Expense';
 import { GraphQLMergeAccountsResponse } from '../object/MergeAccountsResponse';
-import URL from '../scalar/URL';
 
 const GraphQLBanAccountResponse = new GraphQLObjectType({
   name: 'BanAccountResponse',
@@ -309,42 +308,6 @@ export default {
       });
 
       return moveExpenses(req, expenses, destinationAccount);
-    },
-  },
-  setTaxForm: {
-    type: new GraphQLObjectType({
-      name: 'SetTaxFormResult',
-      fields: {
-        success: { type: new GraphQLNonNull(GraphQLBoolean) },
-      },
-    }),
-    description: '[Root only] A mutation to set the tax from for an account.',
-    args: {
-      account: {
-        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
-        description: 'Reference to the Account the tax form should be set.',
-      },
-      taxFormLink: {
-        type: new GraphQLNonNull(URL),
-        description: 'The tax from link.',
-      },
-      year: {
-        type: new GraphQLNonNull(GraphQLInt),
-        description: 'The tax form year.',
-      },
-    },
-    async resolve(_, args, req) {
-      checkRemoteUserCanRoot(req);
-      // Always enforce 2FA for root actions
-      await twoFactorAuthLib.validateRequest(req, { requireTwoFactorAuthEnabled: true });
-
-      const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
-      await LegalDocument.manuallyMarkTaxFormAsReceived(account, req.remoteUser, args.taxFormLink, {
-        UserTokenId: req.userToken?.id,
-        year: args.year,
-      });
-
-      return { success: true };
     },
   },
 };
