@@ -90,6 +90,7 @@ export const legalDocumentsMutations = {
         service: LEGAL_DOCUMENT_SERVICE.OPENCOLLECTIVE,
         requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED,
         documentLink: url,
+        year: new Date().getFullYear(), // Legal documents are always provided for the current year
         data: {
           ...legalDocument.data,
           valuesHash,
