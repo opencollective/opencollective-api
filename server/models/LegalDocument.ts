@@ -47,7 +47,9 @@ export enum LEGAL_DOCUMENT_SERVICE {
 
 const ENCRYPTION_KEY = get(config, 'taxForms.encryptionKey');
 
-class LegalDocument extends Model<InferAttributes<LegalDocument>, InferCreationAttributes<LegalDocument>> {
+export type LegalDocumentAttributes = InferAttributes<LegalDocument>;
+
+class LegalDocument extends Model<LegalDocumentAttributes, InferCreationAttributes<LegalDocument>> {
   public declare id: number;
   public declare year: number;
   public declare documentType: string;
