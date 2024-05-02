@@ -45,7 +45,7 @@ export enum LEGAL_DOCUMENT_SERVICE {
   OPENCOLLECTIVE = 'OPENCOLLECTIVE',
 }
 
-const ENCRYPTION_KEY = get(config, 'taxForms.encryptionKey') || get(config, 'helloworks.documentEncryptionKey');
+const ENCRYPTION_KEY = get(config, 'taxForms.encryptionKey');
 
 class LegalDocument extends Model<InferAttributes<LegalDocument>, InferCreationAttributes<LegalDocument>> {
   public declare id: number;
