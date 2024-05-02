@@ -1169,7 +1169,7 @@ export const getHostFeePercent = async (
 
   if (
     order.paymentMethod?.service === PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE &&
-    order.paymentMethod?.type === PAYMENT_METHOD_TYPE.COLLECTIVE
+    order.paymentMethod?.type === PAYMENT_METHOD_TYPE.HOST
   ) {
     // Fixed for Added Funds at collective level
     possibleValues.push(collective.data?.addedFundsHostFeePercent);
