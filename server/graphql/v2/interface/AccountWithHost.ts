@@ -4,14 +4,16 @@ import { clamp, isNumber } from 'lodash';
 
 import { roles } from '../../../constants';
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
-import { Collective } from '../../../models';
 import Agreement from '../../../models/Agreement';
+import Collective from '../../../models/Collective';
+import HostApplication from '../../../models/HostApplication';
 import { hostResolver } from '../../common/collective';
 import { GraphQLAgreementCollection } from '../collection/AgreementCollection';
 import { GraphQLHostFeeStructure } from '../enum/HostFeeStructure';
 import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
 import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType';
 import { GraphQLHost } from '../object/Host';
+import { GraphQLHostApplication } from '../object/HostApplication';
 
 import { getCollectionArgs } from './Collection';
 
@@ -95,6 +97,22 @@ export const AccountWithHostFields = {
 
       // Pick the first that is set as a Number
       return possibleValues.find(isNumber);
+    },
+  },
+  hostApplication: {
+    description: 'Returns the Fiscal Host application',
+    type: GraphQLHostApplication,
+    resolve: (account: Collective): Promise<HostApplication> | null => {
+      if (account.ParentCollectiveId) {
+        return null;
+      }
+      return HostApplication.findOne({
+        order: [['createdAt', 'DESC']],
+        where: {
+          HostCollectiveId: account.HostCollectiveId,
+          CollectiveId: account.id,
+        },
+      });
     },
   },
   platformFeePercent: {
