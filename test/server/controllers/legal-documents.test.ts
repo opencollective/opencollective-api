@@ -120,7 +120,7 @@ describe('server/controllers/legal-documents', () => {
 
       // Add a legal document somewhere else
       const legalDocument = await fakeLegalDocument({
-        documentLink: fakeOpenCollectiveS3URL({ bucket: config.helloworks.aws.s3.bucket, key: 'file.pdf' }),
+        documentLink: fakeOpenCollectiveS3URL({ bucket: config.taxForms.aws.s3.bucket, key: 'file.pdf' }),
       });
       const req = makeRequest(user) as unknown as Request;
       const res = getResStub();
@@ -165,7 +165,7 @@ describe('server/controllers/legal-documents', () => {
         // Add a legal document
         legalDocument = await fakeLegalDocument({
           CollectiveId: payee.CollectiveId,
-          documentLink: fakeOpenCollectiveS3URL({ bucket: config.helloworks.aws.s3.bucket, key: 'file.pdf' }),
+          documentLink: fakeOpenCollectiveS3URL({ bucket: config.taxForms.aws.s3.bucket, key: 'file.pdf' }),
         });
       });
 

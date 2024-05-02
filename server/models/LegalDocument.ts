@@ -13,6 +13,7 @@ import {
 
 import { activities } from '../constants';
 import { CollectiveType } from '../constants/collectives';
+import { US_TAX_FORM_VALIDITY_IN_YEARS } from '../constants/tax-form';
 import { parseS3Url } from '../lib/awsS3';
 import { crypto, secretbox } from '../lib/encryption';
 import { notify } from '../lib/notifications/email';
@@ -44,9 +45,11 @@ export enum LEGAL_DOCUMENT_SERVICE {
   OPENCOLLECTIVE = 'OPENCOLLECTIVE',
 }
 
-const ENCRYPTION_KEY = get(config, 'taxForms.encryptionKey') || get(config, 'helloworks.documentEncryptionKey');
+const ENCRYPTION_KEY = get(config, 'taxForms.encryptionKey');
 
-class LegalDocument extends Model<InferAttributes<LegalDocument>, InferCreationAttributes<LegalDocument>> {
+export type LegalDocumentAttributes = InferAttributes<LegalDocument>;
+
+class LegalDocument extends Model<LegalDocumentAttributes, InferCreationAttributes<LegalDocument>> {
   public declare id: number;
   public declare year: number;
   public declare documentType: string;
@@ -108,6 +111,8 @@ class LegalDocument extends Model<InferAttributes<LegalDocument>, InferCreationA
         where: {
           documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
           CollectiveId: payee.id,
+          year: { [Op.gte]: new Date().getFullYear() - US_TAX_FORM_VALIDITY_IN_YEARS },
+          requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED,
         },
         defaults: {
           CollectiveId: payee.id,

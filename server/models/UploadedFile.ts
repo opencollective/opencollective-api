@@ -65,6 +65,7 @@ export const MAX_UPLOADED_FILE_URL_LENGTH = 1200; // From S3
 export const MAX_FILE_SIZE = 1024 * 1024 * 10; // 10MB
 export const SUPPORTED_FILE_TYPES_IMAGES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'] as const;
 export const SUPPORTED_FILE_TYPES = [...SUPPORTED_FILE_TYPES_IMAGES, 'application/pdf'] as const;
+type SupportedFileType = (typeof SUPPORTED_FILE_TYPES)[number];
 export const SUPPORTED_FILE_EXTENSIONS: Record<SUPPORTED_FILE_TYPES_UNION, string> = {
   'image/png': '.png',
   'image/jpeg': '.jpg',
@@ -127,25 +128,38 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
     return new RateLimit(`uploadFile-${user.id}`, 100, 60 * 60);
   }
 
+  public static async getFileUploadFromGraphQLUpload(file: GraphQLFileUpload): Promise<FileUpload> {
+    const buffer = await streamToBuffer(file.createReadStream());
+    return {
+      buffer,
+      size: buffer.length,
+      mimetype: file.mimetype,
+      originalname: file.filename,
+    };
+  }
+
   public static async uploadGraphQl(
     file: GraphQLFileUpload,
     kind: FileKind,
     user: User | null,
     args: { fileName?: string } = {},
   ): Promise<UploadedFile> {
-    const buffer = await streamToBuffer(file.createReadStream());
+    const fileUpload = await UploadedFile.getFileUploadFromGraphQLUpload(file);
+    return UploadedFile.upload(fileUpload, kind, user, args);
+  }
 
-    return UploadedFile.upload(
-      {
-        buffer,
-        size: buffer.length,
-        mimetype: file.mimetype,
-        originalname: file.filename,
-      },
-      kind,
-      user,
-      args,
-    );
+  public static validateFile(
+    file: FileUpload,
+    supported: readonly SupportedFileType[] = SUPPORTED_FILE_TYPES,
+    ErrorClass: new (msg: string, ...additionalParams: unknown[]) => Error = Error,
+  ): void {
+    if (!file) {
+      throw new ErrorClass('File is required');
+    } else if (!(supported as readonly string[]).includes(file.mimetype)) {
+      throw new ErrorClass(`Mimetype of the file should be one of: ${supported.join(', ')}`);
+    } else if (file.size > MAX_FILE_SIZE) {
+      throw new ErrorClass(`File size cannot exceed ${MAX_FILE_SIZE / 1024 / 1024}MB`);
+    }
   }
 
   public static async upload(
@@ -155,13 +169,7 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
     args: { fileName?: string } = {},
   ): Promise<UploadedFile> {
     // Validate file
-    if (!file) {
-      throw new Error('File is required');
-    } else if (!(SUPPORTED_FILE_TYPES as readonly string[]).includes(file.mimetype)) {
-      throw new Error(`Mimetype of the file should be one of: ${SUPPORTED_FILE_TYPES.join(', ')}`);
-    } else if (file.size > MAX_FILE_SIZE) {
-      throw new Error(`File size cannot exceed ${MAX_FILE_SIZE / 1024 / 1024}MB`);
-    }
+    UploadedFile.validateFile(file);
 
     // Should only happen in dev/test envs
     if (!checkS3Configured()) {

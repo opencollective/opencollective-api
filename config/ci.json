@@ -31,6 +31,13 @@
       "bucket": "opencollective-test"
     }
   },
+  "taxForms": {
+    "aws": {
+      "s3": {
+        "bucket": "opencollective-tax-forms-test"
+      }
+    }
+  },
   "stripe": {
     "webhookSigningSecret": "webhookSigningSecret"
   },

@@ -132,6 +132,10 @@ const GraphQLExpensePermissions = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLBoolean),
       resolve: (expense, _, req) => ExpenseLib.canReleaseHold(req, expense),
     },
+    canDownloadTaxForm: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      resolve: (expense, _, req) => ExpenseLib.canDownloadTaxForm(req, expense),
+    },
     // Extended permissions
     edit: {
       type: new GraphQLNonNull(GraphQLPermission),
@@ -201,6 +205,10 @@ const GraphQLExpensePermissions = new GraphQLObjectType({
     release: {
       type: new GraphQLNonNull(GraphQLPermission),
       resolve: parsePermissionFromEvaluator(ExpenseLib.canReleaseHold),
+    },
+    downloadTaxForm: {
+      type: new GraphQLNonNull(GraphQLPermission),
+      resolve: parsePermissionFromEvaluator(ExpenseLib.canDownloadTaxForm),
     },
   }),
 });
