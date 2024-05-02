@@ -15,6 +15,7 @@ import { WhereOptions } from 'sequelize';
 import ActivityTypes from '../../../constants/activities';
 import expenseStatus from '../../../constants/expense-status';
 import ExpenseTypes from '../../../constants/expense-type';
+import OAuthScopes from '../../../constants/oauth-scopes';
 import SQLQueries from '../../../lib/queries';
 import models, { Activity, Op } from '../../../models';
 import { CommentType } from '../../../models/Comment';
@@ -23,7 +24,7 @@ import LegalDocument, { LEGAL_DOCUMENT_TYPE, LegalDocumentAttributes } from '../
 import transferwise from '../../../paymentProviders/transferwise';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import * as ExpenseLib from '../../common/expenses';
-import { checkRemoteUserCanUseHost } from '../../common/scope-check';
+import { checkScope } from '../../common/scope-check';
 import { CommentCollection } from '../collection/CommentCollection';
 import { GraphQLLegalDocumentCollection } from '../collection/LegalDocumentCollection';
 import { GraphQLCurrency } from '../enum';
@@ -493,7 +494,9 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Reques
           },
         },
         async resolve(expense, args, req) {
-          checkRemoteUserCanUseHost(req);
+          if (!req.remoteUser || !checkScope(req, OAuthScopes.host)) {
+            return null;
+          }
 
           const { limit, offset } = args;
           const host = await loadHostForExpense(expense, req);
