@@ -60,6 +60,19 @@ export const GraphQLNewAccountOrReferenceInput = new GraphQLInputObjectType({
   }),
 });
 
+export type AccountReferenceInput = {
+  id?: string;
+  legacyId?: number;
+  slug?: string;
+};
+
+// This type is required because, in https://github.com/opencollective/opencollective-api/blame/883ce648b63f8f90fa0a3635d95c0801496579e2/server/graphql/v2/mutation/ExpenseMutations.ts#L160,
+// some collective models stored in JSON are being passed as inputs.
+type FailoverAccountReferenceInput = {
+  id?: number;
+  slug?: string;
+};
+
 /**
  * Retrieves an account
  *
@@ -70,7 +83,7 @@ export const GraphQLNewAccountOrReferenceInput = new GraphQLInputObjectType({
  *    - throwIfMissing: throws an exception if collective is missing for the given id or slug
  */
 export const fetchAccountWithReference = async (
-  input,
+  input: AccountReferenceInput | FailoverAccountReferenceInput,
   { loaders = null, throwIfMissing = false, dbTransaction = undefined, lock = false, paranoid = true } = {},
 ): Promise<Collective> => {
   const loadCollectiveById = id => {
@@ -85,9 +98,9 @@ export const fetchAccountWithReference = async (
   if (input.id && typeof input.id === 'string') {
     const id = idDecode(input.id, 'account');
     collective = await loadCollectiveById(id);
-  } else if (input.legacyId || typeof input.id === 'number') {
+  } else if (input['legacyId'] || typeof input.id === 'number') {
     // TODO: It makes no sense to check for `input.id` being a number here, we're suppose to only use this function with account references
-    collective = await loadCollectiveById(input.legacyId || input.id);
+    collective = await loadCollectiveById(input['legacyId'] || input.id);
   } else if (input.slug) {
     collective = await models.Collective.findOne({
       where: { slug: input.slug.toLowerCase() },
@@ -115,7 +128,7 @@ export const fetchAccountWithReference = async (
  *    - include: to include associated models
  */
 export const fetchAccountsWithReferences = async (
-  inputs,
+  inputs: AccountReferenceInput | AccountReferenceInput[],
   {
     throwIfMissing = false,
     attributes,

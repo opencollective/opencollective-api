@@ -3,6 +3,8 @@ import assert from 'assert';
 import debugLib from 'debug';
 import { GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
+import GraphQLUpload from 'graphql-upload/GraphQLUpload.js';
+import { FileUpload } from 'graphql-upload/Upload';
 import { encodeBase64 } from 'tweetnacl-util';
 
 import ActivityTypes from '../../../constants/activities';
@@ -10,7 +12,7 @@ import { notify } from '../../../lib/notifications/email';
 import { getUSTaxFormPdf } from '../../../lib/pdf';
 import { reportErrorToSentry } from '../../../lib/sentry';
 import { encryptAndUploadTaxFormToS3 } from '../../../lib/tax-forms';
-import { Activity, LegalDocument } from '../../../models';
+import { Activity, LegalDocument, UploadedFile } from '../../../models';
 import {
   LEGAL_DOCUMENT_REQUEST_STATUS,
   LEGAL_DOCUMENT_SERVICE,
@@ -22,7 +24,11 @@ import { Forbidden, ValidationFailed } from '../../errors';
 import { GraphQLLegalDocumentRequestStatus } from '../enum/LegalDocumentRequestStatus';
 import { GraphQLLegalDocumentType } from '../enum/LegalDocumentType';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import {
+  AccountReferenceInput,
+  fetchAccountWithReference,
+  GraphQLAccountReferenceInput,
+} from '../input/AccountReferenceInput';
 import { GraphQLLegalDocument } from '../object/LegalDocument';
 
 const debug = debugLib('legalDocuments');
@@ -147,12 +153,29 @@ export const legalDocumentsMutations = {
         type: GraphQLString,
         description: 'A message to explain the change in status. Will be sent to the legal document submitter',
       },
+      file: {
+        type: GraphQLUpload,
+        description: 'The new document link for the legal document. Must pass status=RECEIVED.',
+      },
     },
-    resolve: async (_, args, req) => {
+    resolve: async (
+      _,
+      args: {
+        id: string;
+        status: LEGAL_DOCUMENT_REQUEST_STATUS;
+        host: AccountReferenceInput;
+        message?: string;
+        file?: Promise<FileUpload>;
+      },
+      req: Express.Request,
+    ) => {
       checkRemoteUserCanUseHost(req);
       const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
       const decodedDocumentId = idDecode(args.id, IDENTIFIER_TYPES.LEGAL_DOCUMENT);
-      const legalDocument = await LegalDocument.findByPk(decodedDocumentId);
+      const legalDocument = await LegalDocument.findByPk(decodedDocumentId, {
+        include: [{ association: 'collective', required: true }],
+      });
+
       if (!legalDocument) {
         throw new ValidationFailed('Legal document not found');
       } else if (!req.remoteUser.isAdminOfCollective(host)) {
@@ -160,7 +183,32 @@ export const legalDocumentsMutations = {
       } else if (!(await legalDocument.isAccessibleByHost(host))) {
         throw new Forbidden('You do not have permission to edit this legal document');
       } else if (args.status === LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED) {
-        throw new ValidationFailed('You cannot set the status of a legal document to received, please use setTaxForm');
+        const supportedDocumentTypes = [LEGAL_DOCUMENT_REQUEST_STATUS.ERROR, LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED];
+        if (!(supportedDocumentTypes as string[]).includes(legalDocument.requestStatus)) {
+          throw new ValidationFailed('Legal document must be in error or requested status to be marked as received');
+        }
+
+        const file = args.file && (await args.file);
+        assert(file, new ValidationFailed('A file is required when setting the status to received'));
+        const fileUpload = await UploadedFile.getFileUploadFromGraphQLUpload(file);
+
+        UploadedFile.validateFile(fileUpload, ['application/pdf'], ValidationFailed);
+
+        const { url } = await encryptAndUploadTaxFormToS3(
+          fileUpload.buffer,
+          legalDocument.collective,
+          legalDocument.year,
+        );
+
+        return legalDocument.update({
+          service: LEGAL_DOCUMENT_SERVICE.OPENCOLLECTIVE,
+          requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED,
+          documentLink: url,
+          data: {
+            ...legalDocument.data,
+            isManual: true,
+          },
+        });
       } else if (args.status === LEGAL_DOCUMENT_REQUEST_STATUS.INVALID) {
         assert(args.message, new ValidationFailed('A message is required when setting the status to error'));
         assert(
@@ -168,7 +216,7 @@ export const legalDocumentsMutations = {
           new ValidationFailed('Legal document must be received to be marked as invalid'),
         );
 
-        return legalDocument.markAsInvalid(req.remoteUser, host, args.message, { UserTokenId: req.useToken?.id });
+        return legalDocument.markAsInvalid(req.remoteUser, host, args.message, { UserTokenId: req.userToken?.id });
       } else {
         throw new ValidationFailed(
           `Updating a ${legalDocument.requestStatus} legal document to ${args.status} is not allowed`,
