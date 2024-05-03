@@ -17,23 +17,26 @@ Subject: {{{collective.name}}}: New comment on expense {{{escapeForSubject expen
         <blockquote style="color: #798088;font-size: 13px;text-align: left;padding: 0px 1em;margin: 0em 0;white-space: pre-line;">{{{comment.html}}}</blockquote>
       </td>
     </tr>
-    {{#if hostCollective}}
-    <tr>
-        <td>
-            <br/>
-            <p>Host Collective: {{> linkCollective collective=hostCollective}}</p>
-        </td>
-    </tr>
-    {{/if}}
   </tbody>
 </table>
 
 <p>
   <center>
     <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}#new-comment-on-expense" class="btn blue">
-      <div>Reply</div>
+      <div style="font-size: 14px;">Reply</div>
     </a>
   </center>
 </p>
+
+<div style="padding: 16px;">
+  <div style="height: 100%; background: #f8f8f8; padding: 16px; border-radius: 8px;">
+    <p style="margin-top: 0; margin-bottom: 8px; font-weight: 600;">Expense Info</p>
+    {{#if hostCollective}}<p style="margin: 0; font-size: 13px;">Fiscal Host: {{> linkCollective collective=hostCollective}}</p>{{/if}}
+    <p style="margin: 0; font-size: 13px;">Collective: {{> linkCollective collective=collective}}</p>
+    <p style="margin: 0; font-size: 13px;">Payee: {{> linkCollective collective=fromCollective}}</p>
+    <p style="margin: 0; font-size: 13px;">Status: {{startCase expense.status}}</p>
+  </div>
+</div>
+
 
 {{> footer}}
