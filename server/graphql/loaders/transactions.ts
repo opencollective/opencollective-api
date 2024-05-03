@@ -3,11 +3,11 @@ import { groupBy } from 'lodash';
 
 import { TransactionKind } from '../../constants/transaction-kind';
 import models, { Op } from '../../models';
-import Transaction, { TransactionInterface } from '../../models/Transaction';
+import Transaction from '../../models/Transaction';
 
-export const generateHostFeeAmountForTransactionLoader = (): DataLoader<TransactionInterface, number> =>
+export const generateHostFeeAmountForTransactionLoader = (): DataLoader<Transaction, number> =>
   new DataLoader(
-    async (transactions: TransactionInterface[]) => {
+    async (transactions: Transaction[]) => {
       const transactionsWithoutHostFee = transactions.filter(transaction => {
         // Legacy transactions have their host fee set on `hostFeeInHostCurrency`. No need to fetch for them
         // Also only contributions and added funds can have host fees
@@ -27,9 +27,8 @@ export const generateHostFeeAmountForTransactionLoader = (): DataLoader<Transact
         },
       });
 
-      const keyBuilder = (transaction: TransactionInterface) =>
-        `${transaction.TransactionGroup}-${transaction.CollectiveId}`;
-      const groupedTransactions: Record<string, TransactionInterface[]> = groupBy(hostFeeTransactions, keyBuilder);
+      const keyBuilder = (transaction: Transaction) => `${transaction.TransactionGroup}-${transaction.CollectiveId}`;
+      const groupedTransactions: Record<string, Transaction[]> = groupBy(hostFeeTransactions, keyBuilder);
       return transactions.map(transaction => {
         if (transaction.hostFeeInHostCurrency) {
           return transaction.hostFeeInHostCurrency;
@@ -49,9 +48,9 @@ export const generateHostFeeAmountForTransactionLoader = (): DataLoader<Transact
     },
   );
 
-export const generatePaymentProcessorFeeAmountForTransactionLoader = (): DataLoader<TransactionInterface, number> =>
+export const generatePaymentProcessorFeeAmountForTransactionLoader = (): DataLoader<Transaction, number> =>
   new DataLoader(
-    async (transactions: TransactionInterface[]) => {
+    async (transactions: Transaction[]) => {
       const transactionsWithoutProcessorFee = transactions.filter(transaction => {
         // Legacy transactions have their payment processor fee set on `paymentProcessorFeeInHostCurrency`. No need to fetch for them.
         // Platform tips also had processor fees as we used to split them with the collective, but we stopped doing that on 2021-04-01.
@@ -71,12 +70,8 @@ export const generatePaymentProcessorFeeAmountForTransactionLoader = (): DataLoa
         },
       });
 
-      const keyBuilder = (transaction: TransactionInterface) =>
-        `${transaction.TransactionGroup}-${transaction.CollectiveId}`;
-      const groupedTransactions: Record<string, TransactionInterface[]> = groupBy(
-        processorFeesTransactions,
-        keyBuilder,
-      );
+      const keyBuilder = (transaction: Transaction) => `${transaction.TransactionGroup}-${transaction.CollectiveId}`;
+      const groupedTransactions: Record<string, Transaction[]> = groupBy(processorFeesTransactions, keyBuilder);
       return transactions.map(transaction => {
         if (transaction.paymentProcessorFeeInHostCurrency) {
           return transaction.paymentProcessorFeeInHostCurrency;
@@ -96,9 +91,9 @@ export const generatePaymentProcessorFeeAmountForTransactionLoader = (): DataLoa
     },
   );
 
-export const generateTaxAmountForTransactionLoader = (): DataLoader<TransactionInterface, number> =>
+export const generateTaxAmountForTransactionLoader = (): DataLoader<Transaction, number> =>
   new DataLoader(
-    async (transactions: TransactionInterface[]) => {
+    async (transactions: Transaction[]) => {
       const transactionsThatMayHaveSeparateTaxes = transactions.filter(transaction => {
         return !transaction.taxAmount && Transaction.canHaveFees(transaction);
       });
@@ -116,9 +111,8 @@ export const generateTaxAmountForTransactionLoader = (): DataLoader<TransactionI
         },
       });
 
-      const keyBuilder = (transaction: TransactionInterface) =>
-        `${transaction.TransactionGroup}-${transaction.CollectiveId}`;
-      const groupedTransactions: Record<string, TransactionInterface[]> = groupBy(taxTransactions, keyBuilder);
+      const keyBuilder = (transaction: Transaction) => `${transaction.TransactionGroup}-${transaction.CollectiveId}`;
+      const groupedTransactions: Record<string, Transaction[]> = groupBy(taxTransactions, keyBuilder);
       return transactions.map(transaction => {
         if (transaction.taxAmount) {
           return transaction.taxAmount;
@@ -138,9 +132,9 @@ export const generateTaxAmountForTransactionLoader = (): DataLoader<TransactionI
     },
   );
 
-export const generateRelatedTransactionsLoader = (): DataLoader<TransactionInterface, TransactionInterface[]> =>
+export const generateRelatedTransactionsLoader = (): DataLoader<Transaction, Transaction[]> =>
   new DataLoader(
-    async (transactions: TransactionInterface[]) => {
+    async (transactions: Transaction[]) => {
       const transactionGroups = transactions.map(transaction => transaction.TransactionGroup);
       const relatedTransactions = await models.Transaction.findAll({ where: { TransactionGroup: transactionGroups } });
       const groupedTransactions = groupBy(relatedTransactions, 'TransactionGroup');

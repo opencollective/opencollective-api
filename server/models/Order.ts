@@ -45,7 +45,7 @@ import { MemberModelInterface } from './Member';
 import PaymentMethod, { PaymentMethodModelInterface } from './PaymentMethod';
 import { SubscriptionInterface } from './Subscription';
 import Tier from './Tier';
-import Transaction, { TransactionInterface } from './Transaction';
+import Transaction from './Transaction';
 import User from './User';
 
 const { models } = sequelize;
@@ -162,16 +162,16 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
   declare countComments: HasManyCountAssociationsMixin;
 
   // Order hasMany Transaction via OrderId
-  declare Transactions?: TransactionInterface[];
-  declare getTransactions: HasManyGetAssociationsMixin<TransactionInterface>;
-  declare setTransactions: HasManySetAssociationsMixin<TransactionInterface, TransactionInterface['id']>;
-  declare addTransaction: HasManyAddAssociationMixin<TransactionInterface, TransactionInterface['id']>;
-  declare addTransactions: HasManyAddAssociationsMixin<TransactionInterface, TransactionInterface['id']>;
-  declare createTransaction: HasManyCreateAssociationMixin<TransactionInterface>;
-  declare removeTransaction: HasManyRemoveAssociationMixin<TransactionInterface, TransactionInterface['id']>;
-  declare removeTransactions: HasManyRemoveAssociationsMixin<TransactionInterface, TransactionInterface['id']>;
-  declare hasTransaction: HasManyHasAssociationMixin<TransactionInterface, TransactionInterface['id']>;
-  declare hasTransactions: HasManyHasAssociationsMixin<TransactionInterface, TransactionInterface['id']>;
+  declare Transactions?: Transaction[];
+  declare getTransactions: HasManyGetAssociationsMixin<Transaction>;
+  declare setTransactions: HasManySetAssociationsMixin<Transaction, Transaction['id']>;
+  declare addTransaction: HasManyAddAssociationMixin<Transaction, Transaction['id']>;
+  declare addTransactions: HasManyAddAssociationsMixin<Transaction, Transaction['id']>;
+  declare createTransaction: HasManyCreateAssociationMixin<Transaction>;
+  declare removeTransaction: HasManyRemoveAssociationMixin<Transaction, Transaction['id']>;
+  declare removeTransactions: HasManyRemoveAssociationsMixin<Transaction, Transaction['id']>;
+  declare hasTransaction: HasManyHasAssociationMixin<Transaction, Transaction['id']>;
+  declare hasTransactions: HasManyHasAssociationsMixin<Transaction, Transaction['id']>;
   declare countTransactions: HasManyCountAssociationsMixin;
 
   // Order belongsTo PaymentMethod via PaymentMethodId

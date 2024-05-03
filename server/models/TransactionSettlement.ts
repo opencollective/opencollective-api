@@ -14,7 +14,7 @@ import sequelize, { DataTypes, Model, Op, Transaction as SQLTransaction } from '
 
 import Collective from './Collective';
 import Expense from './Expense';
-import Transaction, { TransactionInterface } from './Transaction';
+import Transaction from './Transaction';
 
 export enum TransactionSettlementStatus {
   OWED = 'OWED',
@@ -64,7 +64,7 @@ class TransactionSettlement extends Model<
   static async getHostDebts(
     hostId: number,
     settlementStatus: TransactionSettlementStatus = undefined,
-  ): Promise<TransactionInterface[]> {
+  ): Promise<Transaction[]> {
     return sequelize.query(
       `
         SELECT t.*, ts.status as "settlementStatus"
@@ -102,7 +102,7 @@ class TransactionSettlement extends Model<
    * Update
    */
   static async updateTransactionsSettlementStatus(
-    transactions: TransactionInterface[],
+    transactions: Transaction[],
     status: TransactionSettlementStatus,
     expenseId: number = undefined,
   ): Promise<void> {
@@ -121,7 +121,7 @@ class TransactionSettlement extends Model<
     });
   }
 
-  static async markTransactionsAsInvoiced(transactions: TransactionInterface[], expenseId: number): Promise<void> {
+  static async markTransactionsAsInvoiced(transactions: Transaction[], expenseId: number): Promise<void> {
     return TransactionSettlement.updateTransactionsSettlementStatus(
       transactions,
       TransactionSettlementStatus.INVOICED,
@@ -130,7 +130,7 @@ class TransactionSettlement extends Model<
   }
 
   static async createForTransaction(
-    transaction: TransactionInterface,
+    transaction: Transaction,
     status = TransactionSettlementStatus.OWED,
     sqlTransaction: SQLTransaction = null,
   ): Promise<void> {
@@ -155,13 +155,13 @@ class TransactionSettlement extends Model<
     );
   }
 
-  static async getByTransaction(transaction: TransactionInterface): Promise<TransactionSettlement> {
+  static async getByTransaction(transaction: Transaction): Promise<TransactionSettlement> {
     return TransactionSettlement.findOne({
       where: { TransactionGroup: transaction.TransactionGroup, kind: transaction.kind },
     });
   }
 
-  static async attachStatusesToTransactions(transactions: TransactionInterface[]): Promise<void> {
+  static async attachStatusesToTransactions(transactions: Transaction[]): Promise<void> {
     const debts = transactions.filter(t => t.isDebt);
     const where = { [Op.or]: debts.map(t => ({ TransactionGroup: t.TransactionGroup, kind: t.kind })) };
     const settlements = await TransactionSettlement.findAll({ where });

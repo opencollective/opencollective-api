@@ -22,17 +22,17 @@ import stripe, { convertFromStripeAmount, extractFees, retrieveChargeWithRefund 
 import models, { Collective, ConnectedAccount } from '../../models';
 import Order from '../../models/Order';
 import PaymentMethod, { PaymentMethodModelInterface } from '../../models/PaymentMethod';
-import { TransactionCreationAttributes, TransactionData, TransactionInterface } from '../../models/Transaction';
+import Transaction, { TransactionCreationAttributes, TransactionData } from '../../models/Transaction';
 import User from '../../models/User';
 
 export const APPLICATION_FEE_INCOMPATIBLE_CURRENCIES = ['BRL'];
 
 /** Refund a given transaction */
 export const refundTransaction = async (
-  transaction: TransactionInterface,
+  transaction: Transaction,
   user?: User,
   reason?: string,
-): Promise<TransactionInterface> => {
+): Promise<Transaction> => {
   /* What's going to be refunded */
   const chargeId: string = result(transaction.data, 'charge.id');
   if (transaction.data?.refund?.['status'] === 'pending') {
@@ -78,10 +78,10 @@ export const refundTransaction = async (
  * in stripe but not in our database
  */
 export const refundTransactionOnlyInDatabase = async (
-  transaction: TransactionInterface,
+  transaction: Transaction,
   user?: User,
   reason?: string,
-): Promise<TransactionInterface> => {
+): Promise<Transaction> => {
   /* What's going to be refunded */
   const chargeId = result(transaction.data, 'charge.id');
 

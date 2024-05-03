@@ -1,4 +1,5 @@
 import { main as splitTaxes } from '../../../scripts/ledger/split-taxes';
+import { TransactionKind } from '../../../server/constants/transaction-kind';
 import { refundTransaction } from '../../../server/lib/payments';
 import Transaction from '../../../server/models/Transaction';
 import { fakeCollective, fakeHost, fakeTransaction, fakeUser } from '../../test-helpers/fake-data';
@@ -36,7 +37,7 @@ describe('scripts/ledger/split-taxes', () => {
         amountInHostCurrency: 500,
         taxAmount: -25,
         type: 'CREDIT',
-        kind: 'CONTRIBUTION',
+        kind: TransactionKind.CONTRIBUTION,
         currency: 'NZD',
         hostCurrency: 'NZD',
         FromCollectiveId: user.CollectiveId,
@@ -73,7 +74,7 @@ describe('scripts/ledger/split-taxes', () => {
         netAmountInCollectiveCurrency: 475,
         amountInHostCurrency: 500,
         taxAmount: -25,
-        kind: 'CONTRIBUTION',
+        kind: TransactionKind.CONTRIBUTION,
         FromCollectiveId: user.CollectiveId,
         CollectiveId: collective.id,
         HostCollectiveId: host.id,
@@ -113,7 +114,7 @@ describe('scripts/ledger/split-taxes', () => {
         taxAmount: -25,
         amountInHostCurrency: -500,
         type: 'DEBIT',
-        kind: 'EXPENSE',
+        kind: TransactionKind.EXPENSE,
         currency: 'USD',
         hostCurrency: 'USD',
         FromCollectiveId: user.CollectiveId,
@@ -152,7 +153,7 @@ describe('scripts/ledger/split-taxes', () => {
         taxAmount: -25,
         amountInHostCurrency: -500,
         type: 'DEBIT',
-        kind: 'EXPENSE',
+        kind: TransactionKind.EXPENSE,
         currency: 'USD',
         hostCurrency: 'USD',
         FromCollectiveId: user.CollectiveId,

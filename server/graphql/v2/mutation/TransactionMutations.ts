@@ -6,7 +6,7 @@ import orderStatus from '../../../constants/order-status';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
-import { TransactionInterface } from '../../../models/Transaction';
+import Transaction from '../../../models/Transaction';
 import { checkRemoteUserCanUseTransactions } from '../../common/scope-check';
 import { canReject, refundTransaction } from '../../common/transactions';
 import { Forbidden, NotFound } from '../../errors';
@@ -43,7 +43,7 @@ const transactionMutations = {
         description: 'Message to send to the contributor whose contribution has been rejected',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<TransactionInterface> {
+    async resolve(_: void, args, req: express.Request): Promise<Transaction> {
       checkRemoteUserCanUseTransactions(req);
 
       // get transaction info
