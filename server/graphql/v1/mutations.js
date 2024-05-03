@@ -180,6 +180,7 @@ const mutations = {
   confirmUserEmail: {
     type: UserType,
     description: 'Confirm the new user email from confirmation token',
+    deprecationReason: '2024-07-15: Please use the mutation `confirmEmail` from GQLV2',
     args: {
       token: {
         type: new GraphQLNonNull(GraphQLString),
