@@ -123,10 +123,10 @@ export async function processOrder(
 
 /** Refund a transaction
  *
- * @param {Object} transaction must contain a valid `PaymentMethod`
+ * @param {TransactionInterface} transaction ideally preloaded with a valid `PaymentMethod`
  *  field. Which means that the query to select it from the DB must
  *  include the `PaymentMethods` table.
- * @param {Object} user is an instance of the User model that will be
+ * @param {User} user an optional instance of the User model that will be
  *  associated to the refund transaction as who performed the refund.
  * @param {string} message a optional message to explain why the transaction is rejected
  */
