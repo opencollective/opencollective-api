@@ -115,9 +115,9 @@ const individualMutations = {
             type: new GraphQLNonNull(GraphQLIndividual),
             description: 'The account that was confirmed',
           },
-          token: {
+          sessionToken: {
             type: GraphQLString,
-            description: 'A new session token to use for the account. Only returned if not using OAuth.',
+            description: 'A new session token to use for the account. Only returned if user is signed in already.',
           },
         },
       }),
@@ -129,25 +129,28 @@ const individualMutations = {
       },
     },
     resolve: async (_, { token: confirmEmailToken }, req) => {
-      enforceScope(req, 'account');
+      // Forbid this route for OAuth and Personal Tokens. Remember to check the scope if you want to allow it.
+      // Also make sure to prevent exchanging OAuth/Personal tokens for session tokens.
+      if (req.userToken || req.personalToken) {
+        throw new Unauthorized('OAuth and Personal Tokens are not allowed for this route');
+      }
 
       const user = await confirmUserEmail(confirmEmailToken);
       const individual = await user.getCollective({ loaders: req.loaders });
 
       // The sign-in token
-      let token;
+      let sessionToken;
 
-      // We don't want OAuth tokens to be exchanged against a session token
-      if (req.remoteUser && !req.userToken && !req.personalToken) {
-        // Context: this is token generation when updating password
-        token = await user.generateSessionToken({
+      // Re-generate the session token if the user is already signed in
+      if (req.remoteUser) {
+        sessionToken = await req.remoteUser.generateSessionToken({
           sessionId: req.jwtPayload?.sessionId,
           createActivity: false,
           updateLastLoginAt: false,
         });
       }
 
-      return { individual, token };
+      return { individual, sessionToken };
     },
   },
 };

@@ -6133,9 +6133,19 @@ type HostApplication {
   account: Account!
 
   """
+  The host the collective applied to
+  """
+  host: Host!
+
+  """
   The date on which the item was created
   """
   createdAt: DateTime!
+
+  """
+  The date on which the item was updated
+  """
+  updatedAt: DateTime!
   status: HostApplicationStatus
   message: String
   customData: JSON
@@ -8394,6 +8404,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   hostFeePercent(paymentMethodService: PaymentMethodService, paymentMethodType: PaymentMethodType): Float
 
   """
+  Returns the Fiscal Host application
+  """
+  hostApplication: HostApplication
+
+  """
   How much platform fees are charged for this account
   """
   platformFeePercent: Float!
@@ -8495,6 +8510,11 @@ interface AccountWithHost {
   Fees percentage that the host takes for this collective
   """
   hostFeePercent(paymentMethodService: PaymentMethodService, paymentMethodType: PaymentMethodType): Float
+
+  """
+  Returns the Fiscal Host application
+  """
+  hostApplication: HostApplication
 
   """
   Fees percentage that the platform takes for this collective
@@ -9573,6 +9593,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   Fees percentage that the host takes for this collective
   """
   hostFeePercent(paymentMethodService: PaymentMethodService, paymentMethodType: PaymentMethodType): Float
+
+  """
+  Returns the Fiscal Host application
+  """
+  hostApplication: HostApplication
 
   """
   How much platform fees are charged for this account
@@ -15618,6 +15643,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   hostFeePercent(paymentMethodService: PaymentMethodService, paymentMethodType: PaymentMethodType): Float
 
   """
+  Returns the Fiscal Host application
+  """
+  hostApplication: HostApplication
+
+  """
   How much platform fees are charged for this account
   """
   platformFeePercent: Float!
@@ -16464,6 +16494,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   Fees percentage that the host takes for this collective
   """
   hostFeePercent(paymentMethodService: PaymentMethodService, paymentMethodType: PaymentMethodType): Float
+
+  """
+  Returns the Fiscal Host application
+  """
+  hostApplication: HostApplication
 
   """
   How much platform fees are charged for this account
@@ -17362,6 +17397,16 @@ type Mutation {
     """
     currentPassword: String
   ): SetPasswordResponse!
+
+  """
+  Confirm email for Individual. Scope: "account".
+  """
+  confirmEmail(
+    """
+    The token to confirm the email.
+    """
+    token: String!
+  ): IndividualConfirmEmailResponse!
 
   """
   Submit a legal document
@@ -19379,6 +19424,18 @@ enum ProcessHostApplicationAction {
 type SetPasswordResponse {
   individual: Individual!
   token: String
+}
+
+type IndividualConfirmEmailResponse {
+  """
+  The account that was confirmed
+  """
+  individual: Individual!
+
+  """
+  A new session token to use for the account. Only returned if user is signed in already.
+  """
+  sessionToken: String
 }
 
 """
