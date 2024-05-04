@@ -27,24 +27,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+
       - name: Setup node
         uses: actions/setup-node@v4
         with:
           node-version-file: 'package.json'
-          cache: 'npm'
-
-      - name: Restore node_modules
-        uses: actions/cache@v4
-        id: api-node-modules
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
+          cache: 'pnpm'
 
       - name: Install dependencies
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --prefer-offline --no-audit
+        run: pnpm install
 
-      - run: npm run lint:check
+      - run: pnpm lint:check
 
   prettier:
     runs-on: ubuntu-latest
@@ -54,24 +49,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+
       - name: Setup node
         uses: actions/setup-node@v4
         with:
           node-version-file: 'package.json'
-          cache: 'npm'
-
-      - name: Restore node_modules
-        uses: actions/cache@v4
-        id: api-node-modules
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
+          cache: 'pnpm'
 
       - name: Install dependencies
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --prefer-offline --no-audit
+        run: pnpm install
 
-      - run: npm run prettier:check
+      - run: pnpm prettier:check
 
   typescript:
     runs-on: ubuntu-latest
@@ -81,24 +71,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+
       - name: Setup node
         uses: actions/setup-node@v4
         with:
           node-version-file: 'package.json'
-          cache: 'npm'
-
-      - name: Restore node_modules
-        uses: actions/cache@v4
-        id: api-node-modules
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
+          cache: 'pnpm'
 
       - name: Install dependencies
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --prefer-offline --no-audit
+        run: pnpm install
 
-      - run: npm run type:check
+      - run: pnpm type:check
 
   depcheck:
     runs-on: ubuntu-latest
@@ -109,24 +94,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+
       - name: Setup node
         uses: actions/setup-node@v4
         with:
           node-version-file: 'package.json'
-          cache: 'npm'
-
-      - name: Restore node_modules
-        uses: actions/cache@v4
-        id: api-node-modules
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
+          cache: 'pnpm'
 
       - name: Install dependencies
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --prefer-offline --no-audit
+        run: pnpm install
 
-      - run: npm run depcheck
+      - run: pnpm depcheck
 
   unused-exports:
     runs-on: ubuntu-latest
@@ -137,31 +117,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+
       - name: Setup node
         uses: actions/setup-node@v4
         with:
           node-version-file: 'package.json'
-          cache: 'npm'
-
-      - name: Restore node_modules
-        uses: actions/cache@v4
-        id: api-node-modules
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
+          cache: 'pnpm'
 
       - name: Install dependencies
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --prefer-offline --no-audit
-
-      - name: Cache build
-        uses: actions/cache@v4
-        with:
-          path: dist
-          key: ${{ runner.os }}-api-build-${{ github.sha }}
+        run: pnpm install
 
       - name: Check unused exports
-        run: npm run find-unused-exports
+        run: pnpm find-unused-exports
 
   build:
     runs-on: ubuntu-latest
@@ -171,22 +140,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+
       - name: Setup node
         uses: actions/setup-node@v4
         with:
           node-version-file: 'package.json'
-          cache: 'npm'
-
-      - name: Restore node_modules
-        uses: actions/cache@v4
-        id: api-node-modules
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
+          cache: 'pnpm'
 
       - name: Install dependencies
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --prefer-offline --no-audit
+        run: pnpm install
 
       - name: Cache build
         uses: actions/cache@v4
@@ -195,7 +159,7 @@ jobs:
           key: ${{ runner.os }}-api-build-${{ github.sha }}
 
       - name: Build
-        run: npm run build
+        run: pnpm build
 
   test:
     runs-on: ubuntu-latest
@@ -222,27 +186,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+
       - name: Setup node
         uses: actions/setup-node@v4
         with:
           node-version-file: 'package.json'
-          cache: 'npm'
-
-      - name: Restore node_modules
-        uses: actions/cache@v4
-        id: api-node-modules
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
+          cache: 'pnpm'
 
       - name: Install dependencies
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --prefer-offline --no-audit
+        run: pnpm install
 
-      - run: npm run db:restore
-      - run: npm run db:migrate
+      - run: pnpm db:restore
+      - run: pnpm db:migrate
 
-      - run: npm run test -- --ignore "test/server/graphql/**"
+      - run: pnpm test -- --ignore "test/server/graphql/**"
 
       - name: Report coverage
         uses: codecov/codecov-action@v4
@@ -274,27 +233,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+
       - name: Setup node
         uses: actions/setup-node@v4
         with:
           node-version-file: 'package.json'
-          cache: 'npm'
-
-      - name: Restore node_modules
-        uses: actions/cache@v4
-        id: api-node-modules
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
+          cache: 'pnpm'
 
       - name: Install dependencies
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --prefer-offline --no-audit
+        run: pnpm install
 
-      - run: npm run db:restore
-      - run: npm run db:migrate
+      - run: pnpm db:restore
+      - run: pnpm db:migrate
 
-      - run: npm run test:graphql
+      - run: pnpm test:graphql
 
       - name: Report coverage
         uses: codecov/codecov-action@v4
@@ -326,22 +280,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+
       - name: Setup node
         uses: actions/setup-node@v4
         with:
           node-version-file: 'package.json'
-          cache: 'npm'
-
-      - name: Restore node_modules
-        uses: actions/cache@v4
-        id: api-node-modules
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
+          cache: 'pnpm'
 
       - name: Install dependencies
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --prefer-offline --no-audit
+        run: pnpm install
+
       - name: Generate & check schemas
         run: ./scripts/check-schemas.sh
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 # This shell scripts copies the production database to the local database
-# Usage: npm run db:copyprod (from the root of the opencollective-api repo)
+# Usage: pnpm db:copyprod (from the root of the opencollective-api repo)
 #
 # To run the API with the local version of the production database, run:
 # PG_DATABASE=opencollective_prod_snapshot npm start

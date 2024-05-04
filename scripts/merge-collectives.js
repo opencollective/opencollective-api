@@ -56,7 +56,7 @@ async function main() {
 
 if (process.argv.length < 3) {
   console.log(process.argv);
-  console.error(`Usage: npm run script ${process.argv[0]} FROM_ACCOUNT_SLUG INTO_ACCOUNT_SLUG`);
+  console.error(`Usage: pnpm script ${process.argv[0]} FROM_ACCOUNT_SLUG INTO_ACCOUNT_SLUG`);
   process.exit(1);
 }
 

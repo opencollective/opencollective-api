@@ -12,7 +12,7 @@ async function main(args) {
   if (!args.oldKey || !args.newKey) {
     console.error('You need to provide both old and new key.');
     console.error(
-      `Usage: npm run script scripts/change_db_encryption_key.js -- [-f] [--fromCipher DES] [--toCipher DES] oldKey newKey`,
+      `Usage: pnpm script scripts/change_db_encryption_key.js -- [-f] [--fromCipher DES] [--toCipher DES] oldKey newKey`,
     );
     process.exit(1);
   }
