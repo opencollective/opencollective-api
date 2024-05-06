@@ -1609,7 +1609,10 @@ export const GraphQLHost = new GraphQLObjectType({
           }
 
           const { offset, limit } = args;
-          const accountIds = await SQLQueries.getTaxFormsRequiredForAccounts({ HostCollectiveId: host.id });
+          const accountIds = await SQLQueries.getTaxFormsRequiredForAccounts({
+            HostCollectiveId: host.id,
+            allTime: true,
+          });
           if (!accountIds.size) {
             return { nodes: [], totalCount: 0, limit, offset };
           }

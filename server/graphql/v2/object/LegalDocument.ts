@@ -1,5 +1,5 @@
 import config from 'config';
-import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
 import { GraphQLLegalDocumentRequestStatus } from '../enum/LegalDocumentRequestStatus';
@@ -35,6 +35,11 @@ export const GraphQLLegalDocument = new GraphQLObjectType({
     service: {
       type: new GraphQLNonNull(GraphQLLegalDocumentService),
       description: 'The service that provided this legal document',
+    },
+    isExpired: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether this legal document is expired',
+      resolve: document => document.isExpired(),
     },
     requestedAt: {
       type: new GraphQLNonNull(GraphQLDateTime),
