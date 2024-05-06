@@ -30,6 +30,7 @@ type SendMessageOptions = Pick<
   unsubscribeUrl?: string;
   accountSlug?: string;
   listId?: string;
+  customEmailHeaders?: Record<string, string>;
 };
 
 type SendMessageData = {
@@ -195,6 +196,9 @@ const sendMessage = (
       }
       if (options.accountSlug) {
         headers['X-OpenCollective-Account'] = options.accountSlug;
+      }
+      if (options.customEmailHeaders) {
+        Object.assign(headers, options.customEmailHeaders);
       }
       if (options.listId) {
         headers['List-ID'] = options.listId;

@@ -821,28 +821,30 @@ Transaction.createDoubleEntry = async (transaction: TransactionCreationAttribute
   transaction.hostCurrencyFxRate = transaction.hostCurrencyFxRate || 1;
 
   // Create Platform Tip transaction
-  if (transaction.data?.platformTip) {
-    // Separate donation transaction and remove platformTip from the main transaction
-    const result = await Transaction.createPlatformTipTransactions(transaction);
-    // Transaction was modified by createPlatformTipTransactions, we get it from the result
-    if (result && result.transaction) {
-      transaction = result.transaction;
-    }
-  }
-
-  // Create Host Fee Transaction
-  if (transaction.hostFeeInHostCurrency) {
-    const result = await Transaction.createHostFeeTransactions(transaction);
-    if (result) {
-      if (result.hostFeeTransaction) {
-        await Transaction.createHostFeeShareTransactions({
-          transaction: result.transaction,
-          hostFeeTransaction: result.hostFeeTransaction,
-        });
-      }
-      // Transaction was modified by createHostFeeTransaction, we get it from the result
-      if (result.transaction) {
+  if (!transaction.isRefund) {
+    if (transaction.data?.platformTip) {
+      // Separate donation transaction and remove platformTip from the main transaction
+      const result = await Transaction.createPlatformTipTransactions(transaction);
+      // Transaction was modified by createPlatformTipTransactions, we get it from the result
+      if (result && result.transaction) {
         transaction = result.transaction;
+      }
+    }
+
+    // Create Host Fee Transaction
+    if (transaction.hostFeeInHostCurrency) {
+      const result = await Transaction.createHostFeeTransactions(transaction);
+      if (result) {
+        if (result.hostFeeTransaction) {
+          await Transaction.createHostFeeShareTransactions({
+            transaction: result.transaction,
+            hostFeeTransaction: result.hostFeeTransaction,
+          });
+        }
+        // Transaction was modified by createHostFeeTransaction, we get it from the result
+        if (result.transaction) {
+          transaction = result.transaction;
+        }
       }
     }
   }

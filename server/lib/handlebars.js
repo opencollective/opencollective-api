@@ -1,5 +1,5 @@
 import handlebars from 'handlebars';
-import { add, divide, isEqual, isNil, lowerCase, multiply, subtract, sum } from 'lodash';
+import { add, divide, isEqual, isNil, lowerCase, multiply, startCase, subtract, sum } from 'lodash';
 import moment from 'moment-timezone';
 
 import {
@@ -63,6 +63,13 @@ handlebars.registerHelper('toUpperCase', str => {
     return '';
   }
   return str.toUpperCase();
+});
+
+handlebars.registerHelper('startCase', str => {
+  if (!str) {
+    return '';
+  }
+  return startCase(str.toLowerCase());
 });
 
 handlebars.registerHelper('increment', str => {

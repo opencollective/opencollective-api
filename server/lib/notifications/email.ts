@@ -39,6 +39,7 @@ type NotifySubscribersOptions = {
   template?: string;
   to?: string;
   unsubscribed?: Array<User>;
+  customEmailHeaders?: Record<string, any>;
 };
 
 export const notify = {
@@ -403,12 +404,17 @@ export const notifyByEmail = async (activity: Activity) => {
       activity.data.UserId = activity.data.expense.UserId;
       activity.data.path = `/${activity.data.collective.slug}/expenses/${activity.data.expense.id}`;
 
+      const customEmailHeaders = {
+        'x-opencollective-expense-status': activity.data.expense.status,
+      };
+
       // Notify the admins of the host (if any)
       if (HostCollectiveId) {
         await notify.collective(activity, {
           from: config.email.noReply,
           collectiveId: HostCollectiveId,
           exclude: [activity.UserId, activity.data.UserId], // Don't notify the person who commented nor the expense author
+          customEmailHeaders,
         });
       }
 
@@ -417,6 +423,7 @@ export const notifyByEmail = async (activity: Activity) => {
         await notify.collective(activity, {
           from: config.email.noReply,
           exclude: [activity.UserId, activity.data.UserId], // Don't notify the person who commented nor the expense author
+          customEmailHeaders,
         });
 
         // Notify the author of the expense
@@ -424,6 +431,7 @@ export const notifyByEmail = async (activity: Activity) => {
           await notify.user(activity, {
             userId: activity.data.UserId,
             from: config.email.noReply,
+            customEmailHeaders,
           });
         }
       }
