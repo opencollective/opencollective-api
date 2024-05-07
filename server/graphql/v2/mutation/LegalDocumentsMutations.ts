@@ -76,14 +76,33 @@ export const legalDocumentsMutations = {
         where: { CollectiveId: account.id, documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM },
       });
 
-      if (existingLegalDocuments.some(ld => ld.requestStatus === LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED)) {
-        throw new ValidationFailed('A tax form has already been submitted for this account');
-      } else if (!existingLegalDocuments.length) {
+      // There must be a request for this document
+      if (!existingLegalDocuments.length) {
         throw new ValidationFailed('No tax form request found for this account');
       }
 
+      // If a previous document exists, it must be expired
+      let legalDocument = existingLegalDocuments[0];
+      const receivedLegalDocuments = existingLegalDocuments.filter(
+        ld => ld.requestStatus === LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED,
+      );
+
+      if (receivedLegalDocuments.length) {
+        if (receivedLegalDocuments.every(ld => ld.isExpired())) {
+          legalDocument = await LegalDocument.create({
+            CollectiveId: account.id,
+            documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
+            year: new Date().getFullYear(),
+            requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED,
+            service: LEGAL_DOCUMENT_SERVICE.OPENCOLLECTIVE,
+            data: {},
+          });
+        } else {
+          throw new ValidationFailed('A tax form has already been submitted for this account');
+        }
+      }
+
       // Generate PDF and store it on S3
-      const legalDocument = existingLegalDocuments[0];
       const valuesHash = LegalDocument.hash(args.formData);
       debug('Generate tax form PDF');
       const pdfFile = await getUSTaxFormPdf(formType, args.formData);
@@ -182,6 +201,8 @@ export const legalDocumentsMutations = {
         throw new Forbidden('You do not have permission to edit legal documents for this host');
       } else if (!(await legalDocument.isAccessibleByHost(host))) {
         throw new Forbidden('You do not have permission to edit this legal document');
+      } else if (legalDocument.isExpired()) {
+        throw new ValidationFailed('Legal document is expired');
       } else if (args.status === LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED) {
         const supportedDocumentTypes = [LEGAL_DOCUMENT_REQUEST_STATUS.ERROR, LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED];
         if (!(supportedDocumentTypes as string[]).includes(legalDocument.requestStatus)) {

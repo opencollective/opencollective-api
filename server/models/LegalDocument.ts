@@ -259,6 +259,14 @@ class LegalDocument extends Model<LegalDocumentAttributes, InferCreationAttribut
     );
   };
 
+  isExpired = function () {
+    if (this.documentType !== LEGAL_DOCUMENT_TYPE.US_TAX_FORM) {
+      return false;
+    } else {
+      return new Date().getFullYear() > this.year + US_TAX_FORM_VALIDITY_IN_YEARS;
+    }
+  };
+
   /**
    * Returns true if the tax form is accessible by the host.
    */

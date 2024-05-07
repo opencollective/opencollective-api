@@ -884,6 +884,7 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
  * @param {number|number[]} [options.CollectiveId] - The collective IDs.
  * @param {number} [options.year] - The year to check for. Defaults to the current year.
  * @param {boolean} [options.ignoreReceived] - If true, ignore tax forms that have already been received.
+ * @param {boolean} [options.allTime] - If true, ignore the year filter.
  *
  * @returns Set<number> - collective IDs where a tax form is required
  */
@@ -892,6 +893,7 @@ const getTaxFormsRequiredForAccounts = async ({
   CollectiveId = null,
   year = moment().year(),
   ignoreReceived = false,
+  allTime = false,
 } = {}) => {
   if (CollectiveId && Array.isArray(CollectiveId) && CollectiveId.length === 0) {
     return new Set();
@@ -949,7 +951,7 @@ const getTaxFormsRequiredForAccounts = async ({
     AND (account."type" != 'VENDOR' OR account."data"#>>'{vendorInfo, taxFormRequired}' = 'true') -- Ignore tax from tax exempt vendors
     AND all_expenses.status NOT IN (:ignoredExpenseStatuses)
     AND all_expenses."deletedAt" IS NULL
-    AND EXTRACT('year' FROM all_expenses."incurredAt") = :year
+    ${ifStr(!allTime, `AND EXTRACT('year' FROM all_expenses."incurredAt") = :year`)}
     ${ifStr(ignoreReceived, `AND ld.id IS NULL`)}
     GROUP BY account.id, d."documentType", COALESCE(pm."type", 'OTHER')
   `,
