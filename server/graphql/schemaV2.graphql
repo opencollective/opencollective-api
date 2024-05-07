@@ -3212,6 +3212,11 @@ type LegalDocument {
   service: LegalDocumentService!
 
   """
+  Whether this legal document is expired
+  """
+  isExpired: Boolean!
+
+  """
   The date and time the request for this legal document was created
   """
   requestedAt: DateTime!
@@ -6133,9 +6138,19 @@ type HostApplication {
   account: Account!
 
   """
+  The host the collective applied to
+  """
+  host: Host!
+
+  """
   The date on which the item was created
   """
   createdAt: DateTime!
+
+  """
+  The date on which the item was updated
+  """
+  updatedAt: DateTime!
   status: HostApplicationStatus
   message: String
   customData: JSON
@@ -8394,6 +8409,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   hostFeePercent(paymentMethodService: PaymentMethodService, paymentMethodType: PaymentMethodType): Float
 
   """
+  Returns the Fiscal Host application
+  """
+  hostApplication: HostApplication
+
+  """
   How much platform fees are charged for this account
   """
   platformFeePercent: Float!
@@ -8495,6 +8515,11 @@ interface AccountWithHost {
   Fees percentage that the host takes for this collective
   """
   hostFeePercent(paymentMethodService: PaymentMethodService, paymentMethodType: PaymentMethodType): Float
+
+  """
+  Returns the Fiscal Host application
+  """
+  hostApplication: HostApplication
 
   """
   Fees percentage that the platform takes for this collective
@@ -9573,6 +9598,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   Fees percentage that the host takes for this collective
   """
   hostFeePercent(paymentMethodService: PaymentMethodService, paymentMethodType: PaymentMethodType): Float
+
+  """
+  Returns the Fiscal Host application
+  """
+  hostApplication: HostApplication
 
   """
   How much platform fees are charged for this account
@@ -13160,7 +13190,12 @@ type Query {
     """
     The public id identifying the transaction (ie: rvelja97-pkzqbgq7-bbzyx6wd-50o8n4rm)
     """
-    id: String
+    id: String @deprecated(reason: "2024-05-07: Please use the `transaction` field.")
+
+    """
+    Identifiers to retrieve the transaction.
+    """
+    transaction: TransactionReferenceInput
   ): Transaction
   transactions(
     """
@@ -15618,6 +15653,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   hostFeePercent(paymentMethodService: PaymentMethodService, paymentMethodType: PaymentMethodType): Float
 
   """
+  Returns the Fiscal Host application
+  """
+  hostApplication: HostApplication
+
+  """
   How much platform fees are charged for this account
   """
   platformFeePercent: Float!
@@ -16466,6 +16506,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   hostFeePercent(paymentMethodService: PaymentMethodService, paymentMethodType: PaymentMethodType): Float
 
   """
+  Returns the Fiscal Host application
+  """
+  hostApplication: HostApplication
+
+  """
   How much platform fees are charged for this account
   """
   platformFeePercent: Float!
@@ -16569,6 +16614,18 @@ input TierReferenceInput {
   Pass this flag to reference the custom tier (/donate)
   """
   isCustom: Boolean
+}
+
+input TransactionReferenceInput {
+  """
+  The public id identifying the transaction (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
+  """
+  id: String
+
+  """
+  The internal id of the transaction (ie: 580)
+  """
+  legacyId: Int
 }
 
 """
@@ -19979,18 +20036,6 @@ type BanAccountResponse {
   The accounts impacted by the mutation
   """
   accounts: [Account!]!
-}
-
-input TransactionReferenceInput {
-  """
-  The public id identifying the transaction (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
-  """
-  id: String
-
-  """
-  The internal id of the transaction (ie: 580)
-  """
-  legacyId: Int
 }
 
 """
