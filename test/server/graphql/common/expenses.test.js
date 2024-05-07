@@ -67,9 +67,10 @@ describe('server/graphql/common/expenses', () => {
     normal: cloneDeep(contextShape),
     selfHosted: cloneDeep(contextShape),
     virtualCard: cloneDeep(contextShape),
+    hostWithSpecialExpensePermissions: cloneDeep(contextShape),
   };
 
-  const prepareContext = async ({ host = undefined, collective = undefined } = {}) => {
+  const prepareContext = async ({ host = undefined, collective = undefined, name } = {}) => {
     const randomUser = await fakeUser();
     const collectiveAdmin = await fakeUser();
     const collectiveAccountant = await fakeUser();
@@ -104,6 +105,7 @@ describe('server/graphql/common/expenses', () => {
     await limitedHostAdmin.update({ data: { features: { ALL: false } } });
 
     return {
+      name,
       expense,
       collective,
       host: collective.host,
@@ -124,17 +126,28 @@ describe('server/graphql/common/expenses', () => {
 
   before(async () => {
     // The most common pattern: a collective + fiscal host
-    contexts.normal = await prepareContext();
+    contexts.normal = await prepareContext({ name: 'normal' });
 
     // Virtual card
-    contexts.virtualCard = await prepareContext();
+    contexts.virtualCard = await prepareContext({ name: 'virtualCard' });
     await contexts.virtualCard.expense.update({ type: 'CHARGE' });
 
     // A self-hosted collective
     const selfHostedCollective = await fakeCollective({ isHostAccount: true, isActive: true, HostCollectiveId: null });
     await selfHostedCollective.update({ HostCollectiveId: selfHostedCollective.id });
     selfHostedCollective.host = selfHostedCollective;
-    contexts.selfHosted = await prepareContext({ host: selfHostedCollective, collective: selfHostedCollective });
+    contexts.selfHosted = await prepareContext({
+      name: 'selfHosted',
+      host: selfHostedCollective,
+      collective: selfHostedCollective,
+    });
+
+    // A host with loose expense permissions
+    contexts.hostWithSpecialExpensePermissions = await prepareContext({ name: 'hostWithSpecialExpensePermissions' });
+    const updatedHostSettings = { allowCollectiveAdminsToEditPrivateExpenseData: true };
+    const updatedHost = await contexts.hostWithSpecialExpensePermissions.host.update({ settings: updatedHostSettings });
+    contexts.hostWithSpecialExpensePermissions.collective.host = updatedHost;
+    contexts.hostWithSpecialExpensePermissions.expense.collective.host = updatedHost;
   });
 
   /** A helper to run the same test on all contexts, to make sure they behave the same way */
@@ -184,8 +197,8 @@ describe('server/graphql/common/expenses', () => {
         expect(await checkAllPermissions(canSeeExpensePayoutMethod, context)).to.deep.equal({
           public: false,
           randomUser: false,
-          collectiveAdmin: true,
-          collectiveAccountant: context.isSelfHosted ? true : false,
+          collectiveAdmin: ['hostWithSpecialExpensePermissions', 'selfHosted', 'virtualCard'].includes(context.name),
+          collectiveAccountant: context.name === 'selfHosted',
           hostAdmin: true,
           hostAccountant: true,
           expenseOwner: true,
@@ -317,7 +330,7 @@ describe('server/graphql/common/expenses', () => {
         expect(await checkAllPermissions(canEditExpense, contexts.normal)).to.deep.equal({
           public: false,
           randomUser: false,
-          collectiveAdmin: true,
+          collectiveAdmin: false,
           collectiveAccountant: false,
           hostAdmin: true,
           hostAccountant: false,

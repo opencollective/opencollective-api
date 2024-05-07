@@ -1005,7 +1005,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
     describe('Accounting category', () => {
       it('fails if the accounting category is invalid', async () => {
-        const expense = await fakeExpense();
+        const expense = await fakeExpense({ status: 'APPROVED' });
         const callMutation = accountingCategory =>
           graphqlQueryV2(
             editExpenseMutation,
@@ -1033,7 +1033,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       });
 
       it('fails if the accounting category has invalid kind', async () => {
-        const expense = await fakeExpense();
+        const expense = await fakeExpense({ status: 'APPROVED' });
         const accountingCategory = await fakeAccountingCategory({
           CollectiveId: expense.collective.HostCollectiveId,
           kind: 'CONTRIBUTION',
@@ -1089,7 +1089,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       });
 
       it('can reset the accounting category by passing null', async () => {
-        const expense = await fakeExpense();
+        const expense = await fakeExpense({ status: 'APPROVED' });
         const accountingCategory = await fakeAccountingCategory({ CollectiveId: expense.collective.HostCollectiveId });
         await expense.update({ AccountingCategoryId: accountingCategory.id });
         const result = await graphqlQueryV2(
@@ -1107,7 +1107,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       it('record a breakdown of the values by role (when editing only the category)', async () => {
         const collectiveAdmin = await fakeUser();
         const hostAdmin = await fakeUser();
-        const expense = await fakeExpense();
+        const expense = await fakeExpense({ status: 'APPROVED' });
         await expense.collective.addUserWithRole(collectiveAdmin, 'ADMIN');
         await expense.collective.host.addUserWithRole(hostAdmin, 'ADMIN');
 
@@ -1161,17 +1161,11 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       });
 
       it('record a breakdown of the values by role (when editing multiple fields)', async () => {
-        const collectiveAdmin = await fakeUser();
         const hostAdmin = await fakeUser();
-        const expense = await fakeExpense();
-        await expense.collective.addUserWithRole(collectiveAdmin, 'ADMIN');
+        const expense = await fakeExpense({ status: 'APPROVED' });
         await expense.collective.host.addUserWithRole(hostAdmin, 'ADMIN');
 
         const initialCategory = await fakeAccountingCategory({
-          CollectiveId: expense.collective.HostCollectiveId,
-          kind: 'EXPENSE',
-        });
-        const category2 = await fakeAccountingCategory({
           CollectiveId: expense.collective.HostCollectiveId,
           kind: 'EXPENSE',
         });
@@ -1183,7 +1177,6 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
         for (const [user, accountingCategory] of [
           [expense.User, null],
-          [collectiveAdmin, category2],
           [hostAdmin, category3],
         ]) {
           const result = await graphqlQueryV2(
@@ -1200,13 +1193,13 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
             user,
           );
 
+          result.errors && console.error(result.errors);
           expect(result.errors).to.not.exist;
         }
 
         await expense.reload();
         expect(expense.data.valuesByRole).to.containSubset({
           submitter: { accountingCategory: null },
-          collectiveAdmin: { accountingCategory: { id: category2.id } },
           hostAdmin: { accountingCategory: { id: category3.id } },
         });
       });
@@ -1264,7 +1257,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
     });
 
     it('replaces expense items', async () => {
-      const expense = await fakeExpense({ amount: 3000 });
+      const expense = await fakeExpense({ status: 'APPROVED', amount: 3000 });
       const expenseUpdateData = {
         id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
         items: [
@@ -1294,7 +1287,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
     });
 
     it('updates the items', async () => {
-      const expense = await fakeExpense({ amount: 10000, items: [] });
+      const expense = await fakeExpense({ status: 'APPROVED', amount: 10000, items: [] });
       const initialItems = (
         await Promise.all([
           fakeExpenseItem({ ExpenseId: expense.id, amount: 2000 }),
