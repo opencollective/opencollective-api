@@ -488,6 +488,9 @@ const accountFieldsDefinition = () => ({
         defaultValue: false,
         description: 'Only return published updates.',
       },
+      isDraft: {
+        type: GraphQLBoolean,
+      },
       onlyChangelogUpdates: { type: GraphQLBoolean },
       orderBy: {
         type: new GraphQLNonNull(GraphQLUpdateChronologicalOrderInput),
@@ -495,13 +498,19 @@ const accountFieldsDefinition = () => ({
       },
       searchTerm: { type: GraphQLString },
     },
-    async resolve(collective, { limit, offset, onlyPublishedUpdates, onlyChangelogUpdates, orderBy, searchTerm }, req) {
+    async resolve(
+      collective,
+      { limit, offset, onlyPublishedUpdates, isDraft, onlyChangelogUpdates, orderBy, searchTerm },
+      req,
+    ) {
       let where = {
         CollectiveId: collective.id,
         [Op.and]: [],
       };
       if (onlyPublishedUpdates || !req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'updates')) {
         where = assign(where, { publishedAt: { [Op.ne]: null } });
+      } else if (isDraft) {
+        where = assign(where, { publishedAt: null });
       }
       if (onlyChangelogUpdates) {
         where = assign(where, { isChangelog: true });
