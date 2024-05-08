@@ -843,6 +843,7 @@ const accountFieldsDefinition = () => ({
       if (args.timeUnit !== 'MONTH' && args.timeUnit !== 'QUARTER' && args.timeUnit !== 'YEAR') {
         throw new Error('Only monthly, quarterly and yearly reports are supported.');
       }
+      const budgetVersion = get(collective, 'settings.budget.version', 'v2');
 
       const query = `
         WITH
@@ -894,8 +895,9 @@ const accountFieldsDefinition = () => ({
                     ) AS e ON t."ExpenseId" IS NOT NULL
                 WHERE
                     t."deletedAt" IS NULL
-                    AND t."CollectiveId" IN (SELECT * FROM CollectiveIds)
+                    AND t."CollectiveId" IN (SELECT "id" FROM CollectiveIds)
                     ${args.dateTo ? 'AND t."createdAt" <= :dateTo' : ''}
+                    ${budgetVersion === 'v3' ? 'AND t."HostCollectiveId" = :hostCollectiveId' : ''}
 
                 GROUP BY
                     DATE_TRUNC(:timeUnit, t."createdAt"),
@@ -910,6 +912,7 @@ const accountFieldsDefinition = () => ({
       const queryResult = await sequelize.query(query, {
         replacements: {
           collectiveId: collective.id,
+          hostCollectiveId: collective.HostCollectiveId,
           timeUnit: args.timeUnit,
           dateTo: moment(args.dateTo).utc().toISOString(),
         },
