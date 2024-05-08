@@ -236,7 +236,7 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
   async markAsExpired(user: User) {
     const fromAccount = this.fromCollective || (await this.getFromCollective());
     const toAccount = this.collective || (await this.getCollective());
-    const host = toAccount.HostCollectiveId ? toAccount?.host || (await toAccount.getHostCollective()) : null;
+    const host = toAccount?.HostCollectiveId ? toAccount?.host || (await toAccount.getHostCollective()) : null;
     const tier = this.tier || (await this.getTier());
 
     await models.Activity.create({

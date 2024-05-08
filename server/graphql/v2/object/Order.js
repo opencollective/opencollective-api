@@ -229,7 +229,7 @@ export const GraphQLOrder = new GraphQLObjectType({
             pm = await req.loaders.PaymentMethod.byId.load(order.PaymentMethodId);
           }
 
-          if (pm.service === PAYMENT_METHOD_SERVICE.STRIPE) {
+          if (pm?.service === PAYMENT_METHOD_SERVICE.STRIPE) {
             const paymentIntentId = get(order, 'data.paymentIntent.id');
             if (!paymentIntentId) {
               return null;
