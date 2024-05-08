@@ -116,6 +116,10 @@ export const OrdersCollectionArgs = {
     type: GraphQLBoolean,
     description: `Same as onlySubscriptions, but returns only orders with active subscriptions`,
   },
+  onlyExpectedFunds: {
+    type: GraphQLBoolean,
+    description: `Only return orders that are or were expected funds.`,
+  },
   oppositeAccount: {
     type: GraphQLAccountReferenceInput,
     description:
@@ -288,6 +292,10 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
       throw new NotFound('tierSlug Not Found');
     }
     where['TierId'] = tier.id;
+  }
+
+  if (args.onlyExpectedFunds) {
+    where['data.isPendingContribution'] = true;
   }
 
   const order: Order = [[args.orderBy.field, args.orderBy.direction]];
