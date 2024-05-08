@@ -571,6 +571,11 @@ interface Account {
     onlyActiveSubscriptions: Boolean
 
     """
+    Only return orders that are or were expected funds.
+    """
+    onlyExpectedFunds: Boolean
+
+    """
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
     """
     oppositeAccount: AccountReferenceInput
@@ -1157,6 +1162,7 @@ type Order {
   """
   totalDonations: Amount!
   paymentMethod: PaymentMethod
+  paymentProcessorUrl: String
 
   """
   Host fee percent attached to the Order.
@@ -1354,6 +1360,7 @@ interface Transaction {
     """
     fetchPaymentProcessorFee: Boolean = false
   ): Amount
+  paymentProcessorUrl: String
   host: Account
   account: Account
   oppositeAccount: Account
@@ -2225,6 +2232,11 @@ type Host implements Account & AccountWithContributions {
     Same as onlySubscriptions, but returns only orders with active subscriptions
     """
     onlyActiveSubscriptions: Boolean
+
+    """
+    Only return orders that are or were expected funds.
+    """
+    onlyExpectedFunds: Boolean
 
     """
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
@@ -4516,6 +4528,11 @@ type PaymentMethod {
     onlyActiveSubscriptions: Boolean
 
     """
+    Only return orders that are or were expected funds.
+    """
+    onlyExpectedFunds: Boolean
+
+    """
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
     """
     oppositeAccount: AccountReferenceInput
@@ -5694,6 +5711,7 @@ enum ActivityType {
   ORDER_PENDING_CREATED
   ORDER_PENDING_FOLLOWUP
   ORDER_PENDING_RECEIVED
+  ORDER_PENDING_EXPIRED
   ORDERS_SUSPICIOUS
   PAYMENT_FAILED
   PAYMENT_CREDITCARD_CONFIRMATION
@@ -7343,6 +7361,11 @@ type Bot implements Account {
     onlyActiveSubscriptions: Boolean
 
     """
+    Only return orders that are or were expected funds.
+    """
+    onlyExpectedFunds: Boolean
+
+    """
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
     """
     oppositeAccount: AccountReferenceInput
@@ -8083,6 +8106,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     onlyActiveSubscriptions: Boolean
 
     """
+    Only return orders that are or were expected funds.
+    """
+    onlyExpectedFunds: Boolean
+
+    """
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
     """
     oppositeAccount: AccountReferenceInput
@@ -8645,6 +8673,7 @@ type Credit implements Transaction {
     """
     fetchPaymentProcessorFee: Boolean = false
   ): Amount!
+  paymentProcessorUrl: String
   host: Account
 
   """
@@ -8789,6 +8818,7 @@ type Debit implements Transaction {
     """
     fetchPaymentProcessorFee: Boolean = false
   ): Amount!
+  paymentProcessorUrl: String
   host: Account
 
   """
@@ -9272,6 +9302,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     Same as onlySubscriptions, but returns only orders with active subscriptions
     """
     onlyActiveSubscriptions: Boolean
+
+    """
+    Only return orders that are or were expected funds.
+    """
+    onlyExpectedFunds: Boolean
 
     """
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
@@ -10249,6 +10284,11 @@ type Individual implements Account {
     onlyActiveSubscriptions: Boolean
 
     """
+    Only return orders that are or were expected funds.
+    """
+    onlyExpectedFunds: Boolean
+
+    """
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
     """
     oppositeAccount: AccountReferenceInput
@@ -11195,6 +11235,11 @@ type Organization implements Account & AccountWithContributions {
     onlyActiveSubscriptions: Boolean
 
     """
+    Only return orders that are or were expected funds.
+    """
+    onlyExpectedFunds: Boolean
+
+    """
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
     """
     oppositeAccount: AccountReferenceInput
@@ -12033,6 +12078,11 @@ type Vendor implements Account & AccountWithContributions {
     Same as onlySubscriptions, but returns only orders with active subscriptions
     """
     onlyActiveSubscriptions: Boolean
+
+    """
+    Only return orders that are or were expected funds.
+    """
+    onlyExpectedFunds: Boolean
 
     """
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
@@ -13105,6 +13155,11 @@ type Query {
     Same as onlySubscriptions, but returns only orders with active subscriptions
     """
     onlyActiveSubscriptions: Boolean
+
+    """
+    Only return orders that are or were expected funds.
+    """
+    onlyExpectedFunds: Boolean
 
     """
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
@@ -14824,6 +14879,7 @@ enum ActivityAndClassesType {
   ORDER_PENDING_CREATED
   ORDER_PENDING_FOLLOWUP
   ORDER_PENDING_RECEIVED
+  ORDER_PENDING_EXPIRED
   ORDERS_SUSPICIOUS
   PAYMENT_FAILED
   PAYMENT_CREDITCARD_CONFIRMATION
@@ -15325,6 +15381,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     Same as onlySubscriptions, but returns only orders with active subscriptions
     """
     onlyActiveSubscriptions: Boolean
+
+    """
+    Only return orders that are or were expected funds.
+    """
+    onlyExpectedFunds: Boolean
 
     """
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
@@ -16178,6 +16239,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     Same as onlySubscriptions, but returns only orders with active subscriptions
     """
     onlyActiveSubscriptions: Boolean
+
+    """
+    Only return orders that are or were expected funds.
+    """
+    onlyExpectedFunds: Boolean
 
     """
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
