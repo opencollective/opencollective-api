@@ -530,9 +530,15 @@ export const TransactionFields = () => {
        * @param {import("../../../models/Transaction").TransactionInterface} transaction
        */
       async resolve(transaction, _, req) {
-        console.log(transaction.data);
+        if (!req.remoteUser?.isAdmin(transaction.HostCollectiveId)) {
+          return null;
+        }
+
         const pm = await getPaymentMethodForTransaction(transaction, req);
-        console.log(pm);
+        if (!pm) {
+          return null;
+        }
+
         if (pm.service === PAYMENT_METHOD_SERVICE.STRIPE) {
           const paymentIntentId = get(transaction, 'data.charge.payment_intent');
           if (!paymentIntentId) {
