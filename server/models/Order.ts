@@ -203,7 +203,6 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
   declare getOrCreateMembers: () => Promise<[MemberModelInterface, MemberModelInterface]>;
   declare getUser: () => Promise<User | undefined>;
   declare getSubscriptionForUser: (user: User) => Promise<SubscriptionInterface | null>;
-  declare markAsExpired: () => Promise<Order>;
   declare markAsPaid: (user: User) => Promise<Order>;
   declare getTotalTransactions: () => Promise<number> | number;
   declare getUserForActivity: () => Promise<User | undefined>;
@@ -231,6 +230,34 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
 
   // Getter Methods
   declare info?: Partial<Order>;
+
+  // Instance Methods
+
+  async markAsExpired(user: User) {
+    const fromAccount = this.fromCollective || (await this.getFromCollective());
+    const toAccount = this.collective || (await this.getCollective());
+    const host = toAccount.HostCollectiveId ? toAccount?.host || (await toAccount.getHostCollective()) : null;
+    const tier = this.tier || (await this.getTier());
+
+    await models.Activity.create({
+      type: ActivityTypes.ORDER_PENDING_EXPIRED,
+      UserId: user?.id,
+      CollectiveId: toAccount.id,
+      FromCollectiveId: this.FromCollectiveId,
+      OrderId: this.id,
+      HostCollectiveId: host?.id,
+      data: {
+        order: this.info,
+        fromAccountInfo: this.data.fromAccountInfo,
+        fromCollective: fromAccount.info,
+        host: host ? host.info : null,
+        toCollective: toAccount.info,
+        tierName: tier?.name,
+      },
+    });
+
+    return this.update({ status: OrderStatus.EXPIRED });
+  }
 
   // Static Methods
 
@@ -695,11 +722,6 @@ Order.prototype.getOrCreateMembers = async function () {
   }
 
   return [member, platformTipMember];
-};
-
-Order.prototype.markAsExpired = async function () {
-  // TODO: We should create an activity to record who rejected the order
-  return this.update({ status: OrderStatus.EXPIRED });
 };
 
 Order.prototype.markAsPaid = async function (user) {

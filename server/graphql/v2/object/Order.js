@@ -8,10 +8,12 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { pick, round } from 'lodash';
+import { get, pick, round } from 'lodash';
 
+import { PAYMENT_METHOD_SERVICE } from '../../../constants/paymentMethods';
 import roles from '../../../constants/roles';
 import { getHostFeePercent } from '../../../lib/payments';
+import { getDashboardObjectIdURL } from '../../../lib/stripe';
 import models from '../../../models';
 import { CommentType } from '../../../models/Comment';
 import { PRIVATE_ORDER_ACTIVITIES } from '../../loaders/order';
@@ -204,6 +206,41 @@ export const GraphQLOrder = new GraphQLObjectType({
           if (order.PaymentMethodId) {
             return req.loaders.PaymentMethod.byId.load(order.PaymentMethodId);
           }
+        },
+      },
+      paymentProcessorUrl: {
+        type: GraphQLString,
+        /**
+         * @param {import("../../../models/Order").default} order
+         */
+        async resolve(order, _, req) {
+          const collective = order.collective || (await req.loaders.Collective.byId.load(order.CollectiveId));
+
+          const hostCollectiveId = collective?.HostCollectiveId;
+          if (!req.remoteUser || !req.remoteUser.hasRole([roles.ACCOUNTANT, roles.ADMIN], hostCollectiveId)) {
+            return null;
+          }
+
+          /**
+           * @type {import("../../../models/PaymentMethod").PaymentMethodModelInterface}
+           */
+          let pm;
+          if (order.PaymentMethodId) {
+            pm = await req.loaders.PaymentMethod.byId.load(order.PaymentMethodId);
+          }
+
+          if (pm.service === PAYMENT_METHOD_SERVICE.STRIPE) {
+            const paymentIntentId = get(order, 'data.paymentIntent.id');
+            if (!paymentIntentId) {
+              return null;
+            }
+
+            const stripeAccountId = pm.data?.stripeAccount;
+
+            return getDashboardObjectIdURL(paymentIntentId, stripeAccountId);
+          }
+
+          return null;
         },
       },
       hostFeePercent: {

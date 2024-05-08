@@ -658,7 +658,7 @@ const orderMutations = {
           );
         }
 
-        return order.markAsExpired();
+        return order.markAsExpired(req.remoteUser);
       } else {
         throw new BadRequest(`Unknown action ${args.action}`);
       }

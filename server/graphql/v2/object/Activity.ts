@@ -204,6 +204,26 @@ export const GraphQLActivity = new GraphQLObjectType({
             toPick.push('previousData');
             toPick.push('newData');
           }
+        } else if (
+          [
+            ACTIVITY.ORDER_PAYMENT_FAILED,
+            ACTIVITY.PAYMENT_FAILED,
+            ACTIVITY.ORDER_PROCESSING,
+            ACTIVITY.PAYMENT_CREDITCARD_CONFIRMATION,
+          ].includes(activity.type)
+        ) {
+          const [collective, fromCollective] = await req.loaders.Collective.byId.loadMany([
+            activity.CollectiveId,
+            activity.FromCollectiveId,
+          ]);
+          if (
+            req.remoteUser?.isAdminOfCollectiveOrHost(collective) ||
+            req.remoteUser?.isAdminOfCollectiveOrHost(fromCollective)
+          ) {
+            toPick.push('reason');
+            toPick.push('errorMessage');
+            toPick.push('paymentProcessorUrl');
+          }
         }
         return pick(activity.data, toPick);
       },

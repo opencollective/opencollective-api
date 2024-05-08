@@ -229,6 +229,11 @@ export const paymentIntentProcessing = async (event: Stripe.Event) => {
       },
       transaction,
       lock: transaction.LOCK.UPDATE,
+      include: [
+        { association: 'collective', required: true },
+        { association: 'fromCollective', required: true },
+        { association: 'createdByUser', required: true },
+      ],
     });
 
     if (!order) {
@@ -280,6 +285,8 @@ export const paymentIntentProcessing = async (event: Stripe.Event) => {
       },
       { transaction },
     );
+
+    sendEmailNotifications(order);
   });
 };
 
