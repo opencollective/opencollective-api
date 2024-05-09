@@ -1,6 +1,8 @@
 import { GraphQLBoolean, GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
+import { GraphQLUpdateAudienceType } from '../enum';
+
 import { GraphQLAccountReferenceInput } from './AccountReferenceInput';
 
 export const GraphQLUpdateCreateInput = new GraphQLInputObjectType({
@@ -14,5 +16,6 @@ export const GraphQLUpdateCreateInput = new GraphQLInputObjectType({
     html: { type: new GraphQLNonNull(GraphQLString) },
     fromAccount: { type: GraphQLAccountReferenceInput },
     account: { type: new GraphQLNonNull(GraphQLAccountReferenceInput) },
+    notificationAudience: { type: GraphQLUpdateAudienceType },
   }),
 });

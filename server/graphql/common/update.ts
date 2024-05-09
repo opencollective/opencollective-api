@@ -35,6 +35,7 @@ export async function createUpdate(_, args, req) {
     CreatedByUserId: req.remoteUser.id,
     FromCollectiveId: req.remoteUser.CollectiveId,
     makePublicOn: args.update.makePublicOn,
+    notificationAudience: args.update.notificationAudience,
   });
 
   purgeCacheForCollective(collective.slug);
@@ -76,7 +77,7 @@ export async function publishUpdate(_, args, req) {
   checkRemoteUserCanUseUpdates(req);
 
   let update = await fetchUpdateForEdit(args.id, req);
-  update = await update.publish(req.remoteUser, args.notificationAudience);
+  update = await update.publish(req.remoteUser, args.notificationAudience || update.notificationAudience);
   if (update.isChangelog) {
     cache.delete('latest_changelog_publish_date');
   }
