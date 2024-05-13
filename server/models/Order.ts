@@ -242,7 +242,7 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
     await models.Activity.create({
       type: ActivityTypes.ORDER_PENDING_EXPIRED,
       UserId: user?.id,
-      CollectiveId: toAccount.id,
+      CollectiveId: toAccount?.id,
       FromCollectiveId: this.FromCollectiveId,
       OrderId: this.id,
       HostCollectiveId: host?.id,

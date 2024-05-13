@@ -334,7 +334,7 @@ export const chargeDisputeCreated = async (event: Stripe.Event) => {
           {
             model: models.Collective,
             as: 'collective',
-            include: [{ model: models.Collective, as: 'host', required: false }],
+            include: [{ model: models.Collective, as: 'host', foreignKey: 'HostCollectiveId', required: true }],
           },
           { model: models.Collective, as: 'fromCollective' },
           models.Tier,
@@ -364,7 +364,7 @@ export const chargeDisputeCreated = async (event: Stripe.Event) => {
       HostCollectiveId: order.collective.HostCollectiveId,
       data: {
         order: order.info,
-        fromAccountInfo: order.data.fromAccountInfo,
+        fromAccountInfo: order.data?.fromAccountInfo,
         fromCollective: order.fromCollective.info,
         host: order.collective.host?.info,
         toCollective: order.collective.info,
@@ -420,7 +420,7 @@ export const chargeDisputeClosed = async (event: Stripe.Event) => {
           {
             model: models.Collective,
             as: 'collective',
-            include: [{ model: models.Collective, as: 'host', required: false }],
+            include: [{ model: models.Collective, as: 'host', foreignKey: 'HostCollectiveId', required: true }],
           },
           { model: models.Collective, as: 'fromCollective' },
           models.Tier,
@@ -448,7 +448,7 @@ export const chargeDisputeClosed = async (event: Stripe.Event) => {
       HostCollectiveId: order.collective.HostCollectiveId,
       data: {
         order: order.info,
-        fromAccountInfo: order.data.fromAccountInfo,
+        fromAccountInfo: order.data?.fromAccountInfo,
         fromCollective: order.fromCollective.info,
         host: order.collective.host?.info,
         toCollective: order.collective.info,
@@ -596,9 +596,10 @@ export const reviewOpened = async (event: Stripe.Event) => {
           {
             model: models.Collective,
             as: 'collective',
-            include: [{ model: models.Collective, as: 'collective', required: true }],
+            foreignKey: 'CollectiveId',
+            include: [{ model: models.Collective, as: 'host', foreignKey: 'HostCollectiveId', required: true }],
           },
-          { model: models.Collective, as: 'fromCollective' },
+          { model: models.Collective, as: 'fromCollective', foreignKey: 'FromCollectiveId' },
           models.Tier,
         ],
       },
@@ -620,7 +621,7 @@ export const reviewOpened = async (event: Stripe.Event) => {
       HostCollectiveId: order.collective.HostCollectiveId,
       data: {
         order: order.info,
-        fromAccountInfo: order.data.fromAccountInfo,
+        fromAccountInfo: order.data?.fromAccountInfo,
         fromCollective: order.fromCollective.info,
         host: order.collective.host.info,
         toCollective: order.collective.info,
@@ -678,10 +679,11 @@ export const reviewClosed = async (event: Stripe.Event) => {
           { model: models.Subscription, required: false },
           {
             model: models.Collective,
+            as: 'collective',
             foreignKey: 'CollectiveId',
-            include: [{ model: models.Collective, foreignKey: 'HostCollectiveId', required: false }],
+            include: [{ model: models.Collective, as: 'host', foreignKey: 'HostCollectiveId', required: true }],
           },
-          { model: models.Collective, as: 'fromCollective' },
+          { model: models.Collective, as: 'fromCollective', foreignKey: 'FromCollectiveId' },
           models.Tier,
         ],
       },
@@ -721,7 +723,7 @@ export const reviewClosed = async (event: Stripe.Event) => {
       HostCollectiveId: order.collective.HostCollectiveId,
       data: {
         order: order.info,
-        fromAccountInfo: order.data.fromAccountInfo,
+        fromAccountInfo: order.data?.fromAccountInfo,
         fromCollective: order.fromCollective.info,
         host: order.collective.host?.info,
         toCollective: order.collective.info,
