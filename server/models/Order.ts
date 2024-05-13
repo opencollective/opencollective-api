@@ -248,10 +248,10 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
       HostCollectiveId: host?.id,
       data: {
         order: this.info,
-        fromAccountInfo: this.data.fromAccountInfo,
+        fromAccountInfo: this.data?.fromAccountInfo,
         fromCollective: fromAccount.info,
         host: host ? host.info : null,
-        toCollective: toAccount.info,
+        toCollective: toAccount?.info,
         tierName: tier?.name,
       },
     });
