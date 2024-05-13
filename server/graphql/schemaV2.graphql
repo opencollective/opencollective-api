@@ -555,6 +555,16 @@ interface Account {
     dateTo: DateTime
 
     """
+    Only return pending orders that were expected after this date
+    """
+    expectedDateFrom: DateTime
+
+    """
+    Only return pending orders that were expected before this date
+    """
+    expectedDateTo: DateTime
+
+    """
     The term to search
     """
     searchTerm: String
@@ -574,6 +584,7 @@ interface Account {
     Only return orders that are or were expected funds.
     """
     onlyExpectedFunds: Boolean
+    expectedFundsFilter: ExpectedFundsFilter
 
     """
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
@@ -2218,6 +2229,16 @@ type Host implements Account & AccountWithContributions {
     dateTo: DateTime
 
     """
+    Only return pending orders that were expected after this date
+    """
+    expectedDateFrom: DateTime
+
+    """
+    Only return pending orders that were expected before this date
+    """
+    expectedDateTo: DateTime
+
+    """
     The term to search
     """
     searchTerm: String
@@ -2237,6 +2258,7 @@ type Host implements Account & AccountWithContributions {
     Only return orders that are or were expected funds.
     """
     onlyExpectedFunds: Boolean
+    expectedFundsFilter: ExpectedFundsFilter
 
     """
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
@@ -3504,6 +3526,14 @@ enum AccountOrdersFilter {
 }
 
 """
+Expected funds filter (MANUAL or PENDING)
+"""
+enum ExpectedFundsFilter {
+  PENDING
+  MANUAL
+}
+
+"""
 A collection of "Expenses"
 """
 type ExpenseCollection implements Collection {
@@ -4512,6 +4542,16 @@ type PaymentMethod {
     dateTo: DateTime
 
     """
+    Only return pending orders that were expected after this date
+    """
+    expectedDateFrom: DateTime
+
+    """
+    Only return pending orders that were expected before this date
+    """
+    expectedDateTo: DateTime
+
+    """
     The term to search
     """
     searchTerm: String
@@ -4531,6 +4571,7 @@ type PaymentMethod {
     Only return orders that are or were expected funds.
     """
     onlyExpectedFunds: Boolean
+    expectedFundsFilter: ExpectedFundsFilter
 
     """
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
@@ -5703,6 +5744,10 @@ enum ActivityType {
   ORDER_PENDING_CONTRIBUTION_REMINDER
   ORDER_PROCESSING
   ORDER_PAYMENT_FAILED
+  ORDER_REVIEW_OPENED
+  ORDER_REVIEW_CLOSED
+  ORDER_DISPUTE_CREATED
+  ORDER_DISPUTE_CLOSED
   ORDER_THANKYOU
   ORDER_UPDATED
   VENDOR_CREATED
@@ -7345,6 +7390,16 @@ type Bot implements Account {
     dateTo: DateTime
 
     """
+    Only return pending orders that were expected after this date
+    """
+    expectedDateFrom: DateTime
+
+    """
+    Only return pending orders that were expected before this date
+    """
+    expectedDateTo: DateTime
+
+    """
     The term to search
     """
     searchTerm: String
@@ -7364,6 +7419,7 @@ type Bot implements Account {
     Only return orders that are or were expected funds.
     """
     onlyExpectedFunds: Boolean
+    expectedFundsFilter: ExpectedFundsFilter
 
     """
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
@@ -8090,6 +8146,16 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     dateTo: DateTime
 
     """
+    Only return pending orders that were expected after this date
+    """
+    expectedDateFrom: DateTime
+
+    """
+    Only return pending orders that were expected before this date
+    """
+    expectedDateTo: DateTime
+
+    """
     The term to search
     """
     searchTerm: String
@@ -8109,6 +8175,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     Only return orders that are or were expected funds.
     """
     onlyExpectedFunds: Boolean
+    expectedFundsFilter: ExpectedFundsFilter
 
     """
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
@@ -9288,6 +9355,16 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     dateTo: DateTime
 
     """
+    Only return pending orders that were expected after this date
+    """
+    expectedDateFrom: DateTime
+
+    """
+    Only return pending orders that were expected before this date
+    """
+    expectedDateTo: DateTime
+
+    """
     The term to search
     """
     searchTerm: String
@@ -9307,6 +9384,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     Only return orders that are or were expected funds.
     """
     onlyExpectedFunds: Boolean
+    expectedFundsFilter: ExpectedFundsFilter
 
     """
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
@@ -10268,6 +10346,16 @@ type Individual implements Account {
     dateTo: DateTime
 
     """
+    Only return pending orders that were expected after this date
+    """
+    expectedDateFrom: DateTime
+
+    """
+    Only return pending orders that were expected before this date
+    """
+    expectedDateTo: DateTime
+
+    """
     The term to search
     """
     searchTerm: String
@@ -10287,6 +10375,7 @@ type Individual implements Account {
     Only return orders that are or were expected funds.
     """
     onlyExpectedFunds: Boolean
+    expectedFundsFilter: ExpectedFundsFilter
 
     """
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
@@ -11219,6 +11308,16 @@ type Organization implements Account & AccountWithContributions {
     dateTo: DateTime
 
     """
+    Only return pending orders that were expected after this date
+    """
+    expectedDateFrom: DateTime
+
+    """
+    Only return pending orders that were expected before this date
+    """
+    expectedDateTo: DateTime
+
+    """
     The term to search
     """
     searchTerm: String
@@ -11238,6 +11337,7 @@ type Organization implements Account & AccountWithContributions {
     Only return orders that are or were expected funds.
     """
     onlyExpectedFunds: Boolean
+    expectedFundsFilter: ExpectedFundsFilter
 
     """
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
@@ -12064,6 +12164,16 @@ type Vendor implements Account & AccountWithContributions {
     dateTo: DateTime
 
     """
+    Only return pending orders that were expected after this date
+    """
+    expectedDateFrom: DateTime
+
+    """
+    Only return pending orders that were expected before this date
+    """
+    expectedDateTo: DateTime
+
+    """
     The term to search
     """
     searchTerm: String
@@ -12083,6 +12193,7 @@ type Vendor implements Account & AccountWithContributions {
     Only return orders that are or were expected funds.
     """
     onlyExpectedFunds: Boolean
+    expectedFundsFilter: ExpectedFundsFilter
 
     """
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
@@ -13141,6 +13252,16 @@ type Query {
     dateTo: DateTime
 
     """
+    Only return pending orders that were expected after this date
+    """
+    expectedDateFrom: DateTime
+
+    """
+    Only return pending orders that were expected before this date
+    """
+    expectedDateTo: DateTime
+
+    """
     The term to search
     """
     searchTerm: String
@@ -13160,6 +13281,7 @@ type Query {
     Only return orders that are or were expected funds.
     """
     onlyExpectedFunds: Boolean
+    expectedFundsFilter: ExpectedFundsFilter
 
     """
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
@@ -14871,6 +14993,10 @@ enum ActivityAndClassesType {
   ORDER_PENDING_CONTRIBUTION_REMINDER
   ORDER_PROCESSING
   ORDER_PAYMENT_FAILED
+  ORDER_REVIEW_OPENED
+  ORDER_REVIEW_CLOSED
+  ORDER_DISPUTE_CREATED
+  ORDER_DISPUTE_CLOSED
   ORDER_THANKYOU
   ORDER_UPDATED
   VENDOR_CREATED
@@ -15367,6 +15493,16 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     dateTo: DateTime
 
     """
+    Only return pending orders that were expected after this date
+    """
+    expectedDateFrom: DateTime
+
+    """
+    Only return pending orders that were expected before this date
+    """
+    expectedDateTo: DateTime
+
+    """
     The term to search
     """
     searchTerm: String
@@ -15386,6 +15522,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     Only return orders that are or were expected funds.
     """
     onlyExpectedFunds: Boolean
+    expectedFundsFilter: ExpectedFundsFilter
 
     """
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
@@ -16225,6 +16362,16 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     dateTo: DateTime
 
     """
+    Only return pending orders that were expected after this date
+    """
+    expectedDateFrom: DateTime
+
+    """
+    Only return pending orders that were expected before this date
+    """
+    expectedDateTo: DateTime
+
+    """
     The term to search
     """
     searchTerm: String
@@ -16244,6 +16391,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     Only return orders that are or were expected funds.
     """
     onlyExpectedFunds: Boolean
+    expectedFundsFilter: ExpectedFundsFilter
 
     """
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
