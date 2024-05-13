@@ -632,9 +632,10 @@ export const TransactionFields = () => {
     },
     order: {
       type: GraphQLOrder,
+      /** @param {import('../../../models/Transaction').TransactionInterface} transaction */
       resolve(transaction, _, req) {
         if (transaction.OrderId) {
-          return req.loaders.Order.byId.load(transaction.OrderId);
+          return transaction.Order || req.loaders.Order.byId.load(transaction.OrderId);
         } else {
           return null;
         }

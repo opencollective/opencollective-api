@@ -1,5 +1,5 @@
 import express from 'express';
-import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLEnumType, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { Includeable, Order } from 'sequelize';
 
@@ -100,6 +100,14 @@ export const OrdersCollectionArgs = {
     type: GraphQLDateTime,
     description: 'Only return orders that were created before this date',
   },
+  expectedDateFrom: {
+    type: GraphQLDateTime,
+    description: 'Only return pending orders that were expected after this date',
+  },
+  expectedDateTo: {
+    type: GraphQLDateTime,
+    description: 'Only return pending orders that were expected before this date',
+  },
   searchTerm: {
     type: GraphQLString,
     description: 'The term to search',
@@ -119,6 +127,16 @@ export const OrdersCollectionArgs = {
   onlyExpectedFunds: {
     type: GraphQLBoolean,
     description: `Only return orders that are or were expected funds.`,
+  },
+  expectedFundsFilter: {
+    type: new GraphQLEnumType({
+      name: 'ExpectedFundsFilter',
+      description: 'Expected funds filter (MANUAL or PENDING)',
+      values: {
+        PENDING: {},
+        MANUAL: {},
+      },
+    }),
   },
   oppositeAccount: {
     type: GraphQLAccountReferenceInput,
@@ -258,6 +276,15 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     where['createdAt'] = where['createdAt'] || {};
     where['createdAt'][Op.lte] = args.dateTo;
   }
+  if (args.expectedDateFrom) {
+    where['data.expectedAt'] = { [Op.gte]: args.expectedDateFrom };
+  }
+
+  if (args.expectedDateTo) {
+    where['data.expectedAt'] = where['data.expectedAt'] || {};
+    where['data.expectedAt'][Op.lte] = args.expectedDateTo;
+  }
+
   if (args.status && args.status.length > 0) {
     where['status'] = { [Op.in]: args.status };
   }
@@ -295,7 +322,17 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
   }
 
   if (args.onlyExpectedFunds) {
-    where['data.isPendingContribution'] = true;
+    where[Op.or] = where[Op.or] || {};
+    where[Op.or]['data.isPendingContribution'] = true;
+    where[Op.or]['data.isManualContribution'] = true;
+  }
+
+  if (args.expectedFundsFilter) {
+    if (args.expectedFundsFilter === 'MANUAL') {
+      where['data.isManualContribution'] = true;
+    } else if (args.expectedFundsFilter === 'PENDING') {
+      where['data.isPendingContribution'] = true;
+    }
   }
 
   const order: Order = [[args.orderBy.field, args.orderBy.direction]];
