@@ -210,6 +210,10 @@ export const GraphQLActivity = new GraphQLObjectType({
             ACTIVITY.PAYMENT_FAILED,
             ACTIVITY.ORDER_PROCESSING,
             ACTIVITY.PAYMENT_CREDITCARD_CONFIRMATION,
+            ACTIVITY.ORDER_REVIEW_OPENED,
+            ACTIVITY.ORDER_REVIEW_CLOSED,
+            ACTIVITY.ORDER_DISPUTE_CREATED,
+            ACTIVITY.ORDER_DISPUTE_CLOSED,
           ].includes(activity.type)
         ) {
           const [collective, fromCollective] = await req.loaders.Collective.byId.loadMany([

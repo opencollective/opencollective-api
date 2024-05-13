@@ -123,6 +123,7 @@ const transactionMutations = {
         UserId: req.remoteUser.id,
         data: {
           rejectionReason,
+          reason: rejectionReason,
           collective: toAccount.info,
           fromCollective: fromAccount.info,
         },

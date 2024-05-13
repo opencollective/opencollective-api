@@ -95,6 +95,10 @@ enum ActivityTypes {
   ORDER_PENDING_CONTRIBUTION_REMINDER = 'order.reminder.pendingFinancialContribution',
   ORDER_PROCESSING = 'order.processing',
   ORDER_PAYMENT_FAILED = 'order.payment.failed',
+  ORDER_REVIEW_OPENED = 'order.review.opened',
+  ORDER_REVIEW_CLOSED = 'order.review.closed',
+  ORDER_DISPUTE_CREATED = 'order.dispute.created',
+  ORDER_DISPUTE_CLOSED = 'order.dispute.closed',
   ORDER_THANKYOU = 'order.thankyou',
   ORDER_UPDATED = 'order.updated',
   // Vendors

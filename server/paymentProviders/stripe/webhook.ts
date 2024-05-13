@@ -7,6 +7,7 @@ import moment from 'moment';
 import type Stripe from 'stripe';
 import { v4 as uuid } from 'uuid';
 
+import ActivityTypes from '../../constants/activities';
 import { Service } from '../../constants/connected-account';
 import { SupportedCurrency } from '../../constants/currencies';
 import FEATURE from '../../constants/feature';
@@ -24,7 +25,7 @@ import {
   sendOrderFailedEmail,
 } from '../../lib/payments';
 import { reportMessageToSentry } from '../../lib/sentry';
-import stripe from '../../lib/stripe';
+import stripe, { getDashboardObjectIdURL } from '../../lib/stripe';
 import models, { sequelize } from '../../models';
 import Order from '../../models/Order';
 import { PaymentMethodModelInterface } from '../../models/PaymentMethod';
@@ -326,6 +327,20 @@ export const chargeDisputeCreated = async (event: Stripe.Event) => {
     where: { data: { charge: { id: dispute.charge } } },
     include: [
       {
+        model: models.Order,
+        required: true,
+        include: [
+          { model: models.Subscription, required: false },
+          {
+            model: models.Collective,
+            as: 'collective',
+            include: [{ model: models.Collective, as: 'host', required: false }],
+          },
+          { model: models.Collective, as: 'fromCollective' },
+          models.Tier,
+        ],
+      },
+      {
         model: models.User,
         required: true,
         as: 'createdByUser',
@@ -335,6 +350,29 @@ export const chargeDisputeCreated = async (event: Stripe.Event) => {
 
   if (!chargeTransaction) {
     return;
+  }
+
+  console.log(chargeTransaction.OrderId, chargeTransaction?.Order?.id);
+  if (chargeTransaction.Order) {
+    const order = chargeTransaction.Order;
+
+    await models.Activity.create({
+      type: ActivityTypes.ORDER_DISPUTE_CREATED,
+      CollectiveId: order.collective.id,
+      FromCollectiveId: order.FromCollectiveId,
+      OrderId: order.id,
+      HostCollectiveId: order.collective.HostCollectiveId,
+      data: {
+        order: order.info,
+        fromAccountInfo: order.data.fromAccountInfo,
+        fromCollective: order.fromCollective.info,
+        host: order.collective.host?.info,
+        toCollective: order.collective.info,
+        tierName: order.Tier?.name,
+        reason: dispute.reason,
+        paymentProcessorUrl: getDashboardObjectIdURL(dispute.id, event.account),
+      },
+    });
   }
 
   const user = chargeTransaction.createdByUser;
@@ -377,7 +415,16 @@ export const chargeDisputeClosed = async (event: Stripe.Event) => {
       {
         model: models.Order,
         required: true,
-        include: [models.Subscription],
+        include: [
+          { model: models.Subscription, required: false },
+          {
+            model: models.Collective,
+            as: 'collective',
+            include: [{ model: models.Collective, as: 'host', required: false }],
+          },
+          { model: models.Collective, as: 'fromCollective' },
+          models.Tier,
+        ],
       },
       {
         model: models.User,
@@ -388,6 +435,28 @@ export const chargeDisputeClosed = async (event: Stripe.Event) => {
   });
   if (!chargeTransaction) {
     return;
+  }
+
+  if (chargeTransaction.Order) {
+    const order = chargeTransaction.Order;
+
+    await models.Activity.create({
+      type: ActivityTypes.ORDER_DISPUTE_CLOSED,
+      CollectiveId: order.collective.id,
+      FromCollectiveId: order.FromCollectiveId,
+      OrderId: order.id,
+      HostCollectiveId: order.collective.HostCollectiveId,
+      data: {
+        order: order.info,
+        fromAccountInfo: order.data.fromAccountInfo,
+        fromCollective: order.fromCollective.info,
+        host: order.collective.host?.info,
+        toCollective: order.collective.info,
+        tierName: order.Tier?.name,
+        reason: dispute.status,
+        paymentProcessorUrl: getDashboardObjectIdURL(dispute.id, event.account),
+      },
+    });
   }
 
   const disputeTransaction = await models.Transaction.findOne({
@@ -522,13 +591,47 @@ export const reviewOpened = async (event: Stripe.Event) => {
       {
         model: models.Order,
         required: true,
-        include: [models.Subscription],
+        include: [
+          { model: models.Subscription, required: false },
+          {
+            model: models.Collective,
+            as: 'collective',
+            include: [{ model: models.Collective, as: 'collective', required: true }],
+          },
+          { model: models.Collective, as: 'fromCollective' },
+          models.Tier,
+        ],
       },
     ],
   });
 
   if (!paymentIntentTransaction) {
     return;
+  }
+
+  if (paymentIntentTransaction.Order) {
+    const order = paymentIntentTransaction.Order;
+
+    await models.Activity.create({
+      type: ActivityTypes.ORDER_REVIEW_OPENED,
+      CollectiveId: order.collective.id,
+      FromCollectiveId: order.FromCollectiveId,
+      OrderId: order.id,
+      HostCollectiveId: order.collective.HostCollectiveId,
+      data: {
+        order: order.info,
+        fromAccountInfo: order.data.fromAccountInfo,
+        fromCollective: order.fromCollective.info,
+        host: order.collective.host.info,
+        toCollective: order.collective.info,
+        tierName: order.Tier?.name,
+        reason: review.opened_reason,
+        paymentProcessorUrl: getDashboardObjectIdURL(
+          typeof review.payment_intent === 'string' ? review.payment_intent : review.payment_intent.id,
+          event.account,
+        ),
+      },
+    });
   }
 
   const transactions = await models.Transaction.findAll({
@@ -571,7 +674,16 @@ export const reviewClosed = async (event: Stripe.Event) => {
       {
         model: models.Order,
         required: true,
-        include: [models.Subscription],
+        include: [
+          { model: models.Subscription, required: false },
+          {
+            model: models.Collective,
+            foreignKey: 'CollectiveId',
+            include: [{ model: models.Collective, foreignKey: 'HostCollectiveId', required: false }],
+          },
+          { model: models.Collective, as: 'fromCollective' },
+          models.Tier,
+        ],
       },
       {
         model: models.User,
@@ -597,6 +709,31 @@ export const reviewClosed = async (event: Stripe.Event) => {
       include: [models.Subscription],
     },
   });
+
+  if (paymentIntentTransaction.Order) {
+    const order = paymentIntentTransaction.Order;
+
+    await models.Activity.create({
+      type: ActivityTypes.ORDER_REVIEW_CLOSED,
+      CollectiveId: order.collective.id,
+      FromCollectiveId: order.FromCollectiveId,
+      OrderId: order.id,
+      HostCollectiveId: order.collective.HostCollectiveId,
+      data: {
+        order: order.info,
+        fromAccountInfo: order.data.fromAccountInfo,
+        fromCollective: order.fromCollective.info,
+        host: order.collective.host?.info,
+        toCollective: order.collective.info,
+        tierName: order.Tier?.name,
+        reason: review.closed_reason,
+        paymentProcessorUrl: getDashboardObjectIdURL(
+          typeof review.payment_intent === 'string' ? review.payment_intent : review.payment_intent.id,
+          event.account,
+        ),
+      },
+    });
+  }
 
   if (transactions.length > 0) {
     const order = paymentIntentTransaction.Order;

@@ -909,7 +909,7 @@ export const sendOrderPendingEmail = async (order: Order): Promise<void> => {
 
 export async function getOrderPaymentProcessingUrl(order: Order): Promise<string | null> {
   const pm = order.paymentMethod || (await order.getPaymentMethod());
-  if (pm.service === PAYMENT_METHOD_SERVICE.STRIPE) {
+  if (pm?.service === PAYMENT_METHOD_SERVICE.STRIPE) {
     const paymentIntentId = get(order, 'data.paymentIntent.id');
     if (!paymentIntentId) {
       return null;
