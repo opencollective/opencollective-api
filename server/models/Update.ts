@@ -108,7 +108,24 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
       }
     }
 
-    const editableAttributes = ['TierId', 'title', 'html', 'tags', 'isPrivate', 'isChangelog', 'makePublicOn'];
+    if (
+      this.publishedAt &&
+      newUpdateData.notificationAudience &&
+      newUpdateData.notificationAudience !== this.notificationAudience
+    ) {
+      throw new errors.ValidationFailed('Cannot change the notification audience of a published update');
+    }
+
+    const editableAttributes = [
+      'TierId',
+      'title',
+      'html',
+      'tags',
+      'isPrivate',
+      'isChangelog',
+      'makePublicOn',
+      'notificationAudience',
+    ];
 
     return await this.update({
       ...pick(newUpdateData, editableAttributes),
