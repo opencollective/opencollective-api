@@ -19,11 +19,7 @@ import Order from '../models/Order';
 import PaymentMethod, { PaymentMethodModelInterface } from '../models/PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from '../models/PayoutMethod';
 import Subscription from '../models/Subscription';
-import Transaction, {
-  TransactionCreationAttributes,
-  TransactionData,
-  TransactionInterface,
-} from '../models/Transaction';
+import Transaction, { TransactionCreationAttributes, TransactionData } from '../models/Transaction';
 import TransactionSettlement, { TransactionSettlementStatus } from '../models/TransactionSettlement';
 import User from '../models/User';
 import paymentProviders from '../paymentProviders';
@@ -112,7 +108,7 @@ export function findPaymentMethodProvider(
 export async function processOrder(
   order: Order,
   options: { isAddedFund?: boolean; invoiceTemplate?: string } = {},
-): Promise<TransactionInterface | void> {
+): Promise<Transaction | void> {
   const paymentMethodProvider = findPaymentMethodProvider(order.paymentMethod);
   if (get(paymentMethodProvider, 'features.waitToCharge') && !get(order, 'paymentMethod.paid')) {
     return;
@@ -130,11 +126,7 @@ export async function processOrder(
  *  associated to the refund transaction as who performed the refund.
  * @param {string} message a optional message to explain why the transaction is rejected
  */
-export async function refundTransaction(
-  transaction: TransactionInterface,
-  user?: User,
-  message?: string,
-): Promise<TransactionInterface> {
+export async function refundTransaction(transaction: Transaction, user?: User, message?: string): Promise<Transaction> {
   // Make sure to fetch PaymentMethod
   // Fetch PaymentMethod even if it's deleted
   if (!transaction.PaymentMethod && transaction.PaymentMethodId) {
@@ -185,7 +177,7 @@ export function calcFee(amount: number, fee: number): number {
 }
 
 export const buildRefundForTransaction = (
-  t: TransactionInterface,
+  t: Transaction,
   user?: User,
   data?: TransactionData,
   refundedPaymentProcessorFee?: number,
@@ -265,7 +257,7 @@ export const buildRefundForTransaction = (
 };
 
 export const refundPaymentProcessorFeeToCollective = async (
-  transaction: TransactionInterface,
+  transaction: Transaction,
   refundTransactionGroup: string,
   data: { hostFeeMigration?: string } = {},
   createdAt: Date = null,
@@ -315,7 +307,7 @@ export const refundPaymentProcessorFeeToCollective = async (
 };
 
 async function refundPaymentProcessorFee(
-  transaction: TransactionInterface,
+  transaction: Transaction,
   user: User,
   refundedPaymentProcessorFee: number,
   transactionGroup: string,
@@ -375,7 +367,7 @@ async function refundPaymentProcessorFee(
 }
 
 export async function refundHostFee(
-  transaction: TransactionInterface,
+  transaction: Transaction,
   user: User,
   refundedPaymentProcessorFee: number,
   transactionGroup: string,
@@ -432,7 +424,7 @@ export async function refundHostFee(
 }
 
 async function refundTax(
-  transaction: TransactionInterface,
+  transaction: Transaction,
   user: User,
   transactionGroup: string,
   clearedAt?: Date,
@@ -474,13 +466,13 @@ async function refundTax(
  *  transactions being created.
  */
 export async function createRefundTransaction(
-  transaction: TransactionInterface,
+  transaction: Transaction,
   refundedPaymentProcessorFee: number,
   data: TransactionData,
   user: User,
   transactionGroupId?: string,
   clearedAt?: Date,
-): Promise<TransactionInterface> {
+): Promise<Transaction> {
   /* If the transaction passed isn't the one from the collective
    * perspective, the opposite transaction is retrieved.
    *
@@ -557,10 +549,10 @@ export async function createRefundTransaction(
 }
 
 export async function associateTransactionRefundId(
-  transaction: TransactionInterface,
-  refund: TransactionInterface,
+  transaction: Transaction,
+  refund: Transaction,
   data?: TransactionData,
-): Promise<TransactionInterface> {
+): Promise<Transaction> {
   const transactions = await Transaction.findAll({
     order: ['id'],
     where: {
@@ -615,7 +607,7 @@ export async function associateTransactionRefundId(
  *
  */
 
-export const sendEmailNotifications = (order: Order, transaction?: TransactionInterface | void): void => {
+export const sendEmailNotifications = (order: Order, transaction?: Transaction | void): void => {
   debug('sendEmailNotifications');
   if (
     transaction &&
@@ -773,7 +765,7 @@ const validatePayment = (payment): void => {
   }
 };
 
-const sendOrderConfirmedEmail = async (order: Order, transaction: TransactionInterface): Promise<void> => {
+const sendOrderConfirmedEmail = async (order: Order, transaction: Transaction): Promise<void> => {
   const attachments = [];
   const { collective, interval, fromCollective, paymentMethod } = order;
   const user = await order.getUserForActivity();

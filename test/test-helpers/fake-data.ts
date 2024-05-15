@@ -58,7 +58,7 @@ import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMetho
 import RecurringExpense, { RecurringExpenseIntervals } from '../../server/models/RecurringExpense';
 import SocialLink, { SocialLinkType } from '../../server/models/SocialLink';
 import { AssetType } from '../../server/models/SuspendedAsset';
-import { TransactionCreationAttributes, TransactionInterface } from '../../server/models/Transaction';
+import Transaction, { TransactionCreationAttributes } from '../../server/models/Transaction';
 import { SUPPORTED_FILE_EXTENSIONS, SUPPORTED_FILE_TYPES } from '../../server/models/UploadedFile';
 import User from '../../server/models/User';
 import UserToken, { TokenType } from '../../server/models/UserToken';
@@ -665,7 +665,7 @@ export const fakeOrder = async (
 
   const order: Order & {
     subscription?: typeof Subscription;
-    transactions?: TransactionInterface[];
+    transactions?: Transaction[];
   } = await models.Order.create({
     quantity: 1,
     currency: collective.currency,
@@ -706,7 +706,7 @@ export const fakeOrder = async (
       fakeTransaction({
         OrderId: order.id,
         type: 'CREDIT',
-        kind: 'CONTRIBUTION',
+        kind: TransactionKind.CONTRIBUTION,
         FromCollectiveId: order.FromCollectiveId,
         CollectiveId: order.CollectiveId,
         HostCollectiveId: collective.HostCollectiveId,
@@ -716,7 +716,7 @@ export const fakeOrder = async (
       fakeTransaction({
         OrderId: order.id,
         type: 'DEBIT',
-        kind: 'CONTRIBUTION',
+        kind: TransactionKind.CONTRIBUTION,
         CollectiveId: order.FromCollectiveId,
         FromCollectiveId: order.CollectiveId,
         amount: -order.totalAmount,

@@ -38,7 +38,7 @@ import ExpenseItem from './ExpenseItem';
 import { PaymentMethodModelInterface } from './PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
 import RecurringExpense from './RecurringExpense';
-import Transaction, { TransactionInterface } from './Transaction';
+import Transaction from './Transaction';
 import TransactionSettlement from './TransactionSettlement';
 import User from './User';
 import VirtualCard from './VirtualCard';
@@ -112,7 +112,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   public declare deletedAt: CreationOptional<Date>;
 
   public declare activities?: Activity[];
-  public declare Transactions?: TransactionInterface[];
+  public declare Transactions?: Transaction[];
   public declare collective?: Collective;
   public declare fromCollective?: Collective;
   public declare host?: Collective;
@@ -131,7 +131,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   declare getPayoutMethod: BelongsToGetAssociationMixin<PayoutMethod>;
   declare getPaymentMethod: BelongsToGetAssociationMixin<PaymentMethodModelInterface>;
   declare getRecurringExpense: BelongsToGetAssociationMixin<RecurringExpense>;
-  declare getTransactions: HasManyGetAssociationsMixin<TransactionInterface>;
+  declare getTransactions: HasManyGetAssociationsMixin<Transaction>;
   declare getVirtualCard: BelongsToGetAssociationMixin<VirtualCard>;
   declare getAccountingCategory: BelongsToGetAssociationMixin<AccountingCategory>;
 
@@ -150,9 +150,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   createActivity = async function (
     type: ActivityTypes,
     user: User | { id: number } | null = null,
-    data:
-      | ({ notifyCollective?: boolean; ledgerTransaction?: TransactionInterface } & Record<string, unknown>)
-      | null = {},
+    data: ({ notifyCollective?: boolean; ledgerTransaction?: Transaction } & Record<string, unknown>) | null = {},
   ) {
     const submittedByUser = await this.getSubmitterUser();
     const submittedByUserCollective = await Collective.findByPk(submittedByUser.CollectiveId);

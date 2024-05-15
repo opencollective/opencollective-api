@@ -11,7 +11,7 @@ import { refundTransaction as refundTransactionPayment } from '../../lib/payment
 import { getPolicy } from '../../lib/policies';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import models from '../../models';
-import { TransactionInterface } from '../../models/Transaction';
+import Transaction from '../../models/Transaction';
 import { Forbidden, NotFound } from '../errors';
 
 import { isHostAdmin } from './expenses';
@@ -127,7 +127,7 @@ const remoteUserMeetsOneCondition = async (req, transaction, conditions): Promis
 };
 
 /** Checks if the user can refund this transaction */
-export const canRefund = async (transaction: TransactionInterface, _: void, req: express.Request): Promise<boolean> => {
+export const canRefund = async (transaction: Transaction, _: void, req: express.Request): Promise<boolean> => {
   if (transaction.type !== TransactionTypes.CREDIT || transaction.OrderId === null || transaction.isRefund === true) {
     return false;
   }
@@ -164,11 +164,7 @@ export const canRefund = async (transaction: TransactionInterface, _: void, req:
   }
 };
 
-export const canDownloadInvoice = async (
-  transaction: TransactionInterface,
-  _: void,
-  req: express.Request,
-): Promise<boolean> => {
+export const canDownloadInvoice = async (transaction: Transaction, _: void, req: express.Request): Promise<boolean> => {
   if (transaction.OrderId) {
     const order = await req.loaders.Order.byId.load(transaction.OrderId);
     if (order.status === orderStatus.REJECTED) {
@@ -188,7 +184,7 @@ export const canDownloadInvoice = async (
 export const canReject = canRefund;
 
 export async function refundTransaction(
-  passedTransaction: TransactionInterface,
+  passedTransaction: Transaction,
   req: express.Request,
   args: { message?: string } = {},
 ) {

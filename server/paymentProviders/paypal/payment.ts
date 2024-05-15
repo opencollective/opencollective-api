@@ -16,7 +16,7 @@ import { reportErrorToSentry } from '../../lib/sentry';
 import { formatCurrency } from '../../lib/utils';
 import models from '../../models';
 import Order from '../../models/Order';
-import { TransactionInterface } from '../../models/Transaction';
+import Transaction from '../../models/Transaction';
 import User from '../../models/User';
 import { PaypalCapture, PaypalSale, PaypalTransaction } from '../../types/paypal';
 import { PaymentProviderService } from '../types';
@@ -34,7 +34,7 @@ const recordTransaction = async (
     createdAt = undefined,
     clearedAt = undefined,
   }: { data?: object; createdAt?: Date; clearedAt?: Date } = {},
-): Promise<TransactionInterface> => {
+): Promise<Transaction> => {
   order.collective = order.collective || (await order.getCollective());
   const host = await order.collective.getHostCollective();
   if (!host) {
@@ -92,7 +92,7 @@ const recordTransaction = async (
 // represent the same thing (IDs point toward the same thing), the data structure is different. We thus need
 // these 3 functions to handle them all.
 
-export function recordPaypalSale(order: Order, paypalSale: PaypalSale): Promise<TransactionInterface> {
+export function recordPaypalSale(order: Order, paypalSale: PaypalSale): Promise<Transaction> {
   const currency = paypalSale.amount.currency;
   const amount = paypalAmountToCents(paypalSale.amount.total);
   const fee = paypalAmountToCents(get(paypalSale, 'transaction_fee.value', '0.0'));
@@ -106,7 +106,7 @@ export function recordPaypalTransaction(
   order: Order,
   paypalTransaction: PaypalTransaction,
   { data = undefined, createdAt = undefined } = {},
-): Promise<TransactionInterface> {
+): Promise<Transaction> {
   const currency = paypalTransaction.amount_with_breakdown.gross_amount.currency_code;
   const amount = floatAmountToCents(parseFloat(paypalTransaction.amount_with_breakdown.gross_amount.value));
   const fee = parseFloat(get(paypalTransaction.amount_with_breakdown, 'fee_amount.value', '0.0'));
@@ -121,7 +121,7 @@ export const recordPaypalCapture = async (
   order: Order,
   capture: PaypalCapture,
   { data = undefined, createdAt = undefined } = {},
-): Promise<TransactionInterface> => {
+): Promise<Transaction> => {
   const currency = capture.amount.currency_code;
   const amount = paypalAmountToCents(capture.amount.value);
   const fee = paypalAmountToCents(get(capture, 'seller_receivable_breakdown.paypal_fee.value', '0.0'));
@@ -149,7 +149,7 @@ export async function findTransactionByPaypalId(
   });
 }
 
-const processPaypalOrder = async (order, paypalOrderId): Promise<TransactionInterface | undefined> => {
+const processPaypalOrder = async (order, paypalOrderId): Promise<Transaction | undefined> => {
   const hostCollective = await order.collective.getHostCollective();
   const paypalOrderUrl = `checkout/orders/${paypalOrderId}`;
 
@@ -218,11 +218,11 @@ const processPaypalOrder = async (order, paypalOrderId): Promise<TransactionInte
 };
 
 export const refundPaypalCapture = async (
-  transaction: TransactionInterface,
+  transaction: Transaction,
   captureId: string,
   user: User,
   reason: string,
-): Promise<TransactionInterface> => {
+): Promise<Transaction> => {
   const host = await transaction.getHostCollective();
   if (!host) {
     throw new Error(`PayPal: Can't find host for transaction #${transaction.id}`);
@@ -258,15 +258,15 @@ export const refundPaypalCapture = async (
 };
 
 const refundTransactionOnlyInDatabase = async (
-  transaction: TransactionInterface,
+  transaction: Transaction,
   user: User,
   reason: string,
-): Promise<TransactionInterface> => {
+): Promise<Transaction> => {
   return createRefundTransaction(transaction, 0, { ...transaction.data, refundReason: reason }, user);
 };
 
 /** Process order in paypal and create transactions in our db */
-export async function processOrder(order: Order): Promise<TransactionInterface | undefined> {
+export async function processOrder(order: Order): Promise<Transaction | undefined> {
   if (order.paymentMethod.data.orderId) {
     return processPaypalOrder(order, order.paymentMethod.data.orderId);
   } else {
@@ -286,10 +286,10 @@ export const getCaptureIdFromPaypalTransaction = transaction => {
 };
 
 const refundPaypalPaymentTransaction = async (
-  transaction: TransactionInterface,
+  transaction: Transaction,
   user: User,
   reason: string,
-): Promise<TransactionInterface> => {
+): Promise<Transaction> => {
   const captureId = getCaptureIdFromPaypalTransaction(transaction);
   if (!captureId) {
     throw new Error(`PayPal Payment capture not found for transaction #${transaction.id}`);

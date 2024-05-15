@@ -8,13 +8,13 @@ import { parseToBoolean } from '../../server/lib/utils';
 import { Op, sequelize } from '../../server/models';
 import Expense from '../../server/models/Expense';
 import PayoutMethod from '../../server/models/PayoutMethod';
-import { TransactionInterface } from '../../server/models/Transaction';
+import Transaction from '../../server/models/Transaction';
 
 const IS_DRY = !process.env.DRY ? true : parseToBoolean(process.env.DRY);
 const DATE_FROM = new Date(process.env.DATE_FROM || '2024-01-01');
 
 const populatePaymentMethod = async expense => {
-  const isManual = last(expense.Transactions as Array<TransactionInterface>)?.data?.isManual;
+  const isManual = last(expense.Transactions as Array<Transaction>)?.data?.isManual;
   // Automatically settlements that can be associated based on payout method and data
   if (
     !isManual &&
