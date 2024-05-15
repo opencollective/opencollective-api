@@ -323,15 +323,17 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
 
   if (args.onlyExpectedFunds) {
     where[Op.or] = where[Op.or] || {};
-    where[Op.or]['data.isPendingContribution'] = true;
-    where[Op.or]['data.isManualContribution'] = true;
+    // use 'true' literal to avoid casting and allow index use when sequelize generates these query
+    where[Op.or]['data.isPendingContribution'] = 'true';
+    where[Op.or]['data.isManualContribution'] = 'true';
   }
 
   if (args.expectedFundsFilter) {
+    // use 'true' literal to avoid casting and allow index use when sequelize generates these query
     if (args.expectedFundsFilter === 'MANUAL') {
-      where['data.isManualContribution'] = true;
+      where['data.isManualContribution'] = 'true';
     } else if (args.expectedFundsFilter === 'PENDING') {
-      where['data.isPendingContribution'] = true;
+      where['data.isPendingContribution'] = 'true';
     }
   }
 
