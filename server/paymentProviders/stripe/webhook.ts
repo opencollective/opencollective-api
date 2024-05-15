@@ -352,29 +352,6 @@ export const chargeDisputeCreated = async (event: Stripe.Event) => {
     return;
   }
 
-  console.log(chargeTransaction.OrderId, chargeTransaction?.Order?.id);
-  if (chargeTransaction.Order) {
-    const order = chargeTransaction.Order;
-
-    await models.Activity.create({
-      type: ActivityTypes.ORDER_DISPUTE_CREATED,
-      CollectiveId: order.collective.id,
-      FromCollectiveId: order.FromCollectiveId,
-      OrderId: order.id,
-      HostCollectiveId: order.collective.HostCollectiveId,
-      data: {
-        order: order.info,
-        fromAccountInfo: order.data?.fromAccountInfo,
-        fromCollective: order.fromCollective.info,
-        host: order.collective.host?.info,
-        toCollective: order.collective.info,
-        tierName: order.Tier?.name,
-        reason: dispute.reason,
-        paymentProcessorUrl: getDashboardObjectIdURL(dispute.id, event.account),
-      },
-    });
-  }
-
   const user = chargeTransaction.createdByUser;
 
   const transactions = await models.Transaction.findAll({
@@ -404,6 +381,26 @@ export const chargeDisputeCreated = async (event: Stripe.Event) => {
       }
     }),
   );
+
+  const order = chargeTransaction.Order;
+
+  await models.Activity.create({
+    type: ActivityTypes.ORDER_DISPUTE_CREATED,
+    CollectiveId: order.collective.id,
+    FromCollectiveId: order.FromCollectiveId,
+    OrderId: order.id,
+    HostCollectiveId: order.collective.HostCollectiveId,
+    data: {
+      order: order.info,
+      fromAccountInfo: order.data?.fromAccountInfo,
+      fromCollective: order.fromCollective.info,
+      host: order.collective.host?.info,
+      toCollective: order.collective.info,
+      tierName: order.Tier?.name,
+      reason: dispute.reason,
+      paymentProcessorUrl: getDashboardObjectIdURL(dispute.id, event.account),
+    },
+  });
 };
 
 // Charge dispute has been closed on Stripe (with status of: won/lost/closed)
@@ -435,28 +432,6 @@ export const chargeDisputeClosed = async (event: Stripe.Event) => {
   });
   if (!chargeTransaction) {
     return;
-  }
-
-  if (chargeTransaction.Order) {
-    const order = chargeTransaction.Order;
-
-    await models.Activity.create({
-      type: ActivityTypes.ORDER_DISPUTE_CLOSED,
-      CollectiveId: order.collective.id,
-      FromCollectiveId: order.FromCollectiveId,
-      OrderId: order.id,
-      HostCollectiveId: order.collective.HostCollectiveId,
-      data: {
-        order: order.info,
-        fromAccountInfo: order.data?.fromAccountInfo,
-        fromCollective: order.fromCollective.info,
-        host: order.collective.host?.info,
-        toCollective: order.collective.info,
-        tierName: order.Tier?.name,
-        reason: dispute.status,
-        paymentProcessorUrl: getDashboardObjectIdURL(dispute.id, event.account),
-      },
-    });
   }
 
   const disputeTransaction = await models.Transaction.findOne({
@@ -578,6 +553,24 @@ export const chargeDisputeClosed = async (event: Stripe.Event) => {
         }),
       );
     }
+
+    await models.Activity.create({
+      type: ActivityTypes.ORDER_DISPUTE_CLOSED,
+      CollectiveId: order.collective.id,
+      FromCollectiveId: order.FromCollectiveId,
+      OrderId: order.id,
+      HostCollectiveId: order.collective.HostCollectiveId,
+      data: {
+        order: order.info,
+        fromAccountInfo: order.data?.fromAccountInfo,
+        fromCollective: order.fromCollective.info,
+        host: order.collective.host?.info,
+        toCollective: order.collective.info,
+        tierName: order.Tier?.name,
+        reason: dispute.status,
+        paymentProcessorUrl: getDashboardObjectIdURL(dispute.id, event.account),
+      },
+    });
   }
 };
 
@@ -610,31 +603,6 @@ export const reviewOpened = async (event: Stripe.Event) => {
     return;
   }
 
-  if (paymentIntentTransaction.Order) {
-    const order = paymentIntentTransaction.Order;
-
-    await models.Activity.create({
-      type: ActivityTypes.ORDER_REVIEW_OPENED,
-      CollectiveId: order.collective.id,
-      FromCollectiveId: order.FromCollectiveId,
-      OrderId: order.id,
-      HostCollectiveId: order.collective.HostCollectiveId,
-      data: {
-        order: order.info,
-        fromAccountInfo: order.data?.fromAccountInfo,
-        fromCollective: order.fromCollective.info,
-        host: order.collective.host?.info,
-        toCollective: order.collective.info,
-        tierName: order.Tier?.name,
-        reason: review.opened_reason,
-        paymentProcessorUrl: getDashboardObjectIdURL(
-          typeof review.payment_intent === 'string' ? review.payment_intent : review.payment_intent.id,
-          event.account,
-        ),
-      },
-    });
-  }
-
   const transactions = await models.Transaction.findAll({
     where: {
       TransactionGroup: paymentIntentTransaction.TransactionGroup,
@@ -659,6 +627,29 @@ export const reviewOpened = async (event: Stripe.Event) => {
       }
     }),
   );
+
+  const order = paymentIntentTransaction.Order;
+
+  await models.Activity.create({
+    type: ActivityTypes.ORDER_REVIEW_OPENED,
+    CollectiveId: order.collective.id,
+    FromCollectiveId: order.FromCollectiveId,
+    OrderId: order.id,
+    HostCollectiveId: order.collective.HostCollectiveId,
+    data: {
+      order: order.info,
+      fromAccountInfo: order.data?.fromAccountInfo,
+      fromCollective: order.fromCollective.info,
+      host: order.collective.host?.info,
+      toCollective: order.collective.info,
+      tierName: order.Tier?.name,
+      reason: review.opened_reason,
+      paymentProcessorUrl: getDashboardObjectIdURL(
+        typeof review.payment_intent === 'string' ? review.payment_intent : review.payment_intent.id,
+        event.account,
+      ),
+    },
+  });
 };
 
 // Charge on Stripe had a fraud review closed (either approved/refunded)
@@ -711,31 +702,6 @@ export const reviewClosed = async (event: Stripe.Event) => {
       include: [models.Subscription],
     },
   });
-
-  if (paymentIntentTransaction.Order) {
-    const order = paymentIntentTransaction.Order;
-
-    await models.Activity.create({
-      type: ActivityTypes.ORDER_REVIEW_CLOSED,
-      CollectiveId: order.collective.id,
-      FromCollectiveId: order.FromCollectiveId,
-      OrderId: order.id,
-      HostCollectiveId: order.collective.HostCollectiveId,
-      data: {
-        order: order.info,
-        fromAccountInfo: order.data?.fromAccountInfo,
-        fromCollective: order.fromCollective.info,
-        host: order.collective.host?.info,
-        toCollective: order.collective.info,
-        tierName: order.Tier?.name,
-        reason: review.closed_reason,
-        paymentProcessorUrl: getDashboardObjectIdURL(
-          typeof review.payment_intent === 'string' ? review.payment_intent : review.payment_intent.id,
-          event.account,
-        ),
-      },
-    });
-  }
 
   if (transactions.length > 0) {
     const order = paymentIntentTransaction.Order;
@@ -794,6 +760,27 @@ export const reviewClosed = async (event: Stripe.Event) => {
         }),
       );
     }
+
+    await models.Activity.create({
+      type: ActivityTypes.ORDER_REVIEW_CLOSED,
+      CollectiveId: order.collective.id,
+      FromCollectiveId: order.FromCollectiveId,
+      OrderId: order.id,
+      HostCollectiveId: order.collective.HostCollectiveId,
+      data: {
+        order: order.info,
+        fromAccountInfo: order.data?.fromAccountInfo,
+        fromCollective: order.fromCollective.info,
+        host: order.collective.host?.info,
+        toCollective: order.collective.info,
+        tierName: order.Tier?.name,
+        reason: review.closed_reason,
+        paymentProcessorUrl: getDashboardObjectIdURL(
+          typeof review.payment_intent === 'string' ? review.payment_intent : review.payment_intent.id,
+          event.account,
+        ),
+      },
+    });
   }
 };
 
