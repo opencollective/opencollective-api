@@ -1290,7 +1290,7 @@ export const GraphQLHost = new GraphQLObjectType({
             where[Op.or] = searchTermConditions;
           }
 
-          const findArgs = { where, limit: args.limit, offset: args.offset };
+          const findArgs = { where, limit: args.limit, offset: args.offset, order: [['createdAt', 'DESC']] };
           if (args.forAccount) {
             const account = await fetchAccountWithReference(args.forAccount);
             findArgs['attributes'] = {
@@ -1303,7 +1303,7 @@ export const GraphQLHost = new GraphQLObjectType({
                 ],
               ],
             };
-            findArgs['order'] = [
+            findArgs.order = [
               [sequelize.literal('"expenseCount"'), 'DESC'],
               ['createdAt', 'DESC'],
             ];
