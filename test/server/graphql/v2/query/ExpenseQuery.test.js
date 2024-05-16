@@ -101,7 +101,7 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
       });
     });
 
-    it('can only see Payout method data if owner, collective admin, or host admin/accountant', async () => {
+    it('can only see Payout method data if owner or host admin/accountant', async () => {
       // Query
       const queryParams = { id: expense.id };
       const resultUnauthenticated = await graphqlQueryV2(expenseQuery, queryParams);
@@ -114,7 +114,7 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
       // Check results
       expect(resultUnauthenticated.data.expense.payoutMethod.data).to.be.null;
       expect(resultAsRandomUser.data.expense.payoutMethod.data).to.be.null;
-      expect(resultAsCollectiveAdmin.data.expense.payoutMethod.data).to.deep.equal(payoutMethod.data);
+      expect(resultAsCollectiveAdmin.data.expense.payoutMethod.data).to.be.null;
       expect(resultAsOwner.data.expense.payoutMethod.data).to.deep.equal(payoutMethod.data);
       expect(resultAsHostAdmin.data.expense.payoutMethod.data).to.deep.equal(payoutMethod.data);
       expect(resultAsHostAccountant.data.expense.payoutMethod.data).to.deep.equal(payoutMethod.data);
