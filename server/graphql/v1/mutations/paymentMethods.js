@@ -184,28 +184,26 @@ export async function removePaymentMethod(paymentMethodId, req) {
 
   // Block the removal if the payment method has subscriptions linked
   const subscriptions = await paymentMethod.getOrders({
-    where: {
-      [Op.or]: [
-        {
-          status: {
-            [Op.or]: [ORDER_STATUS.ACTIVE, ORDER_STATUS.ERROR],
-          },
-          ['$Subscription.id$']: { [Op.ne]: null },
-        },
-        { status: ORDER_STATUS.PROCESSING },
-      ],
-    },
+    where: { status: { [Op.or]: [ORDER_STATUS.ACTIVE, ORDER_STATUS.ERROR] } },
     include: [
       {
         model: models.Subscription,
         where: { isActive: true },
-        required: false,
+        required: true,
       },
     ],
   });
 
   if (subscriptions.length > 0) {
     throw new ValidationFailed('The payment method has active subscriptions', 'PM.Remove.HasActiveSubscriptions');
+  }
+
+  const processingOrders = await paymentMethod.getOrders({
+    where: { status: ORDER_STATUS.PROCESSING },
+  });
+
+  if (processingOrders.length > 0) {
+    throw new ValidationFailed('The payment method has processing orders');
   }
 
   return paymentMethod.destroy();
