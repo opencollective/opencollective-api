@@ -382,6 +382,7 @@ async function createPaymentFailedActivity(order, lastAttempt) {
       subscriptionsLink: getEditRecurringContributionsUrl(order.fromCollective),
       errorMessage: errorMessage,
       isSystem: true,
+      reason: errorMessage,
       paymentProcessorUrl: await getOrderPaymentProcessingUrl(order),
     },
   });
