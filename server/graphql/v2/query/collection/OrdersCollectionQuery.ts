@@ -3,6 +3,7 @@ import { GraphQLBoolean, GraphQLEnumType, GraphQLInt, GraphQLList, GraphQLNonNul
 import { GraphQLDateTime } from 'graphql-scalars';
 import { Includeable, Order } from 'sequelize';
 
+import OrderStatuses from '../../../../constants/order-status';
 import { buildSearchConditions } from '../../../../lib/search';
 import models, { Op } from '../../../../models';
 import { checkScope } from '../../../common/scope-check';
@@ -124,17 +125,14 @@ export const OrdersCollectionArgs = {
     type: GraphQLBoolean,
     description: `Same as onlySubscriptions, but returns only orders with active subscriptions`,
   },
-  onlyExpectedFunds: {
-    type: GraphQLBoolean,
-    description: `Only return orders that are or were expected funds.`,
-  },
   expectedFundsFilter: {
     type: new GraphQLEnumType({
       name: 'ExpectedFundsFilter',
-      description: 'Expected funds filter (MANUAL or PENDING)',
+      description: 'Expected funds filter (ALL_EXPECTED_FUNDS, ONLY_PENDING, ONLY_MANUAL)',
       values: {
-        PENDING: {},
-        MANUAL: {},
+        ALL_EXPECTED_FUNDS: {},
+        ONLY_PENDING: {},
+        ONLY_MANUAL: {},
       },
     }),
   },
@@ -321,20 +319,19 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     where['TierId'] = tier.id;
   }
 
-  if (args.onlyExpectedFunds) {
-    where[Op.or] = where[Op.or] || {};
-    // use 'true' literal to avoid casting and allow index use when sequelize generates these query
-    where[Op.or]['data.isPendingContribution'] = 'true';
-    where[Op.or]['data.isManualContribution'] = 'true';
-  }
-
+  // use 'true' literal to avoid casting and allow index use when sequelize generates these nested json queries
   if (args.expectedFundsFilter) {
-    // use 'true' literal to avoid casting and allow index use when sequelize generates these query
-    if (args.expectedFundsFilter === 'MANUAL') {
+    if (args.expectedFundsFilter === 'ONLY_MANUAL') {
       where['data.isManualContribution'] = 'true';
-    } else if (args.expectedFundsFilter === 'PENDING') {
+    } else if (args.expectedFundsFilter === 'ONLY_PENDING') {
       where['data.isPendingContribution'] = 'true';
+    } else {
+      where[Op.or] = where[Op.or] || {};
+      where[Op.or]['data.isPendingContribution'] = 'true';
+      where[Op.or]['data.isManualContribution'] = 'true';
     }
+  } else {
+    where['status'] = { ...where['status'], [Op.ne]: OrderStatuses.PENDING };
   }
 
   const order: Order = [[args.orderBy.field, args.orderBy.direction]];
