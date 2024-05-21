@@ -1,4 +1,5 @@
 import { main as splitPaymentProcessorFees } from '../../../scripts/ledger/split-payment-processor-fees';
+import { TransactionKind } from '../../../server/constants/transaction-kind';
 import { refundTransaction } from '../../../server/lib/payments';
 import { fakeCollective, fakeHost, fakeTransaction, fakeUser } from '../../test-helpers/fake-data';
 import { resetTestDB, seedDefaultVendors, snapshotLedger } from '../../utils';
@@ -28,7 +29,7 @@ describe('scripts/ledger/split-payment-processor-fees', () => {
     await fakeTransaction(
       {
         amount: 500,
-        kind: 'CONTRIBUTION',
+        kind: TransactionKind.CONTRIBUTION,
         paymentProcessorFeeInHostCurrency: -25,
         FromCollectiveId: user.CollectiveId,
         CollectiveId: collective.id,
@@ -50,7 +51,7 @@ describe('scripts/ledger/split-payment-processor-fees', () => {
     const transaction = await fakeTransaction(
       {
         amount: 500,
-        kind: 'CONTRIBUTION',
+        kind: TransactionKind.CONTRIBUTION,
         paymentProcessorFeeInHostCurrency: -25,
         FromCollectiveId: user.CollectiveId,
         CollectiveId: collective.id,
@@ -76,7 +77,7 @@ describe('scripts/ledger/split-payment-processor-fees', () => {
     await fakeTransaction(
       {
         amount: -500,
-        kind: 'EXPENSE',
+        kind: TransactionKind.EXPENSE,
         paymentProcessorFeeInHostCurrency: -25,
         netAmountInCollectiveCurrency: -525,
         currency: 'USD',
@@ -102,7 +103,7 @@ describe('scripts/ledger/split-payment-processor-fees', () => {
     await fakeTransaction(
       {
         amount: -500,
-        kind: 'EXPENSE',
+        kind: TransactionKind.EXPENSE,
         paymentProcessorFeeInHostCurrency: -25,
         netAmountInCollectiveCurrency: -675,
         currency: 'USD',
@@ -127,7 +128,7 @@ describe('scripts/ledger/split-payment-processor-fees', () => {
     await fakeTransaction(
       {
         amount: -475,
-        kind: 'EXPENSE',
+        kind: TransactionKind.EXPENSE,
         paymentProcessorFeeInHostCurrency: -25,
         netAmountInCollectiveCurrency: -500,
         currency: 'USD',

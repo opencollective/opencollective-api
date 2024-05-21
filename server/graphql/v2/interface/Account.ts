@@ -176,10 +176,6 @@ const accountFieldsDefinition = () => ({
       },
     },
   },
-  hasImage: {
-    type: new GraphQLNonNull(GraphQLBoolean),
-    description: 'Returns whether this account has a custom image',
-  },
   backgroundImageUrl: {
     type: GraphQLString,
     args: {
@@ -488,6 +484,9 @@ const accountFieldsDefinition = () => ({
         defaultValue: false,
         description: 'Only return published updates.',
       },
+      isDraft: {
+        type: GraphQLBoolean,
+      },
       onlyChangelogUpdates: { type: GraphQLBoolean },
       orderBy: {
         type: new GraphQLNonNull(GraphQLUpdateChronologicalOrderInput),
@@ -495,13 +494,19 @@ const accountFieldsDefinition = () => ({
       },
       searchTerm: { type: GraphQLString },
     },
-    async resolve(collective, { limit, offset, onlyPublishedUpdates, onlyChangelogUpdates, orderBy, searchTerm }, req) {
+    async resolve(
+      collective,
+      { limit, offset, onlyPublishedUpdates, isDraft, onlyChangelogUpdates, orderBy, searchTerm },
+      req,
+    ) {
       let where = {
         CollectiveId: collective.id,
         [Op.and]: [],
       };
       if (onlyPublishedUpdates || !req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'updates')) {
         where = assign(where, { publishedAt: { [Op.ne]: null } });
+      } else if (isDraft) {
+        where = assign(where, { publishedAt: null });
       }
       if (onlyChangelogUpdates) {
         where = assign(where, { isChangelog: true });
@@ -843,6 +848,7 @@ const accountFieldsDefinition = () => ({
       if (args.timeUnit !== 'MONTH' && args.timeUnit !== 'QUARTER' && args.timeUnit !== 'YEAR') {
         throw new Error('Only monthly, quarterly and yearly reports are supported.');
       }
+      const budgetVersion = get(collective, 'settings.budget.version', 'v2');
 
       const query = `
         WITH
@@ -894,8 +900,9 @@ const accountFieldsDefinition = () => ({
                     ) AS e ON t."ExpenseId" IS NOT NULL
                 WHERE
                     t."deletedAt" IS NULL
-                    AND t."CollectiveId" IN (SELECT * FROM CollectiveIds)
+                    AND t."CollectiveId" IN (SELECT "id" FROM CollectiveIds)
                     ${args.dateTo ? 'AND t."createdAt" <= :dateTo' : ''}
+                    ${budgetVersion === 'v3' ? 'AND t."HostCollectiveId" = :hostCollectiveId' : ''}
 
                 GROUP BY
                     DATE_TRUNC(:timeUnit, t."createdAt"),
@@ -910,6 +917,7 @@ const accountFieldsDefinition = () => ({
       const queryResult = await sequelize.query(query, {
         replacements: {
           collectiveId: collective.id,
+          hostCollectiveId: collective.HostCollectiveId,
           timeUnit: args.timeUnit,
           dateTo: moment(args.dateTo).utc().toISOString(),
         },
@@ -1001,13 +1009,6 @@ export const AccountFields = {
     },
     resolve(collective, args) {
       return collective.getImageUrl(args);
-    },
-  },
-  hasImage: {
-    type: new GraphQLNonNull(GraphQLBoolean),
-    description: 'Returns whether this account has a custom image',
-    resolve(collective) {
-      return Boolean(collective.image);
     },
   },
   backgroundImageUrl: {

@@ -329,6 +329,27 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
       expect(result.data.editUpdate.slug).to.equal('new-title');
     });
 
+    it('fails if user tries to update notificationAudience of a published update', async () => {
+      await models.Update.update(
+        { slug: 'first-update-and-love', publishedAt: new Date(), notificationAudience: 'FINANCIAL_CONTRIBUTORS' },
+        { where: { id: update1.id } },
+      );
+      const result = await utils.graphqlQueryV2(
+        editUpdateMutation,
+        {
+          update: {
+            id: idEncode(update1.id, IDENTIFIER_TYPES.UPDATE),
+            title: 'new title',
+            notificationAudience: 'NO_ONE',
+          },
+        },
+        user1,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Cannot change the notification audience of a published update');
+    });
+
     it("edits an update successfully and doesn't change the slug if published", async () => {
       await models.Update.update(
         { slug: 'first-update-and-love', publishedAt: new Date() },
@@ -339,6 +360,7 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
         { update: { id: idEncode(update1.id, IDENTIFIER_TYPES.UPDATE), title: 'new title' } },
         user1,
       );
+      result.errors && console.error(result.errors[0]);
       expect(result.errors).to.not.exist;
       expect(result.data.editUpdate.slug).to.equal('first-update-and-love');
       await models.Update.update({ publishedAt: null }, { where: { id: update1.id } });

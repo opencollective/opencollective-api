@@ -1,4 +1,5 @@
 import { main } from '../../../scripts/ledger/update-transactions';
+import { TransactionKind } from '../../../server/constants/transaction-kind';
 import { fakeTransaction } from '../../test-helpers/fake-data';
 import { resetTestDB, snapshotLedger } from '../../utils';
 
@@ -8,7 +9,10 @@ describe('scripts/ledger/update-transactions', () => {
   before('reset test database', () => resetTestDB());
 
   it('update hostFeePercent when it does not exists yet', async () => {
-    const transaction = await fakeTransaction({ amount: 500, kind: 'CONTRIBUTION' }, { createDoubleEntry: true });
+    const transaction = await fakeTransaction(
+      { amount: 500, kind: TransactionKind.CONTRIBUTION },
+      { createDoubleEntry: true },
+    );
     const collective = await transaction.getCollective();
     await main([
       'npm run script',

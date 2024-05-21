@@ -4,6 +4,7 @@ import { createSandbox } from 'sinon';
 
 import ExpenseStatuses from '../../../server/constants/expense-status';
 import OrderStatuses from '../../../server/constants/order-status';
+import { TransactionKind } from '../../../server/constants/transaction-kind';
 import { TransactionTypes } from '../../../server/constants/transactions';
 import {
   getBalances,
@@ -76,7 +77,7 @@ describe('server/lib/budget', () => {
       await cancelledOrder.Subscription.deactivate();
       const cancelledOrderTransactionValues = {
         type: TransactionTypes.CREDIT,
-        kind: 'CONTRIBUTION',
+        kind: TransactionKind.CONTRIBUTION,
         CollectiveId: collective.id,
         OrderId: cancelledOrder.id,
         amount: cancelledOrder.totalAmount,

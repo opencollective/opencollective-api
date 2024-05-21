@@ -689,17 +689,11 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       });
 
       it('record a breakdown of the values by role (when editing multiple fields)', async () => {
-        const collectiveAdmin = await fakeUser();
         const hostAdmin = await fakeUser();
         const expense = await fakeExpense();
-        await expense.collective.addUserWithRole(collectiveAdmin, 'ADMIN');
         await expense.collective.host.addUserWithRole(hostAdmin, 'ADMIN');
 
         const initialCategory = await fakeAccountingCategory({
-          CollectiveId: expense.collective.HostCollectiveId,
-          kind: 'EXPENSE',
-        });
-        const category2 = await fakeAccountingCategory({
           CollectiveId: expense.collective.HostCollectiveId,
           kind: 'EXPENSE',
         });
@@ -711,7 +705,6 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
         for (const [user, accountingCategory] of [
           [expense.User, null],
-          [collectiveAdmin, category2],
           [hostAdmin, category3],
         ]) {
           const result = await graphqlQueryV2(
@@ -734,7 +727,6 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         await expense.reload();
         expect(expense.data.valuesByRole).to.containSubset({
           submitter: { accountingCategory: null },
-          collectiveAdmin: { accountingCategory: { id: category2.id } },
           hostAdmin: { accountingCategory: { id: category3.id } },
         });
       });

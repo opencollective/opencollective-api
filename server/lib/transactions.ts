@@ -1,9 +1,10 @@
 import assert from 'assert';
 
-import { get, groupBy, round, set, sumBy, truncate, uniq } from 'lodash';
+import { get, groupBy, memoize, round, set, sumBy, truncate, uniq } from 'lodash';
 import { Order } from 'sequelize';
 
 import ExpenseType from '../constants/expense-type';
+import { PAYMENT_METHOD_SERVICE } from '../constants/paymentMethods';
 import TierType from '../constants/tiers';
 import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
@@ -12,8 +13,9 @@ import { exportToCSV, sumByWhen } from '../lib/utils';
 import models, { Op, sequelize } from '../models';
 import Collective from '../models/Collective';
 import Expense from '../models/Expense';
+import { PayoutMethodTypes } from '../models/PayoutMethod';
 import Tier from '../models/Tier';
-import { TransactionData, TransactionInterface } from '../models/Transaction';
+import Transaction, { TransactionData } from '../models/Transaction';
 
 import { getFxRate } from './currency';
 
@@ -57,7 +59,7 @@ export function getTransactions(
   startDate = new Date('2015-01-01'),
   endDate = new Date(),
   options,
-): Promise<TransactionInterface[]> {
+): Promise<Transaction[]> {
   const where = options.where || {};
   const query = {
     where: {
@@ -92,7 +94,7 @@ export const getPaidTaxTransactions = async (
   hostId: number,
   startDate = new Date('2015-01-01'),
   endDate = new Date(),
-): Promise<TransactionInterface[]> => {
+): Promise<Transaction[]> => {
   return sequelize.query(
     `
     SELECT t.*
@@ -497,9 +499,9 @@ export async function generateDescription(transaction, { req = null, full = fals
  * }
  */
 export const getTaxesSummary = (
-  allTransactions: TransactionInterface[],
-  taxesCollectedTransactions: TransactionInterface[] = [],
-  paidTaxTransactions: TransactionInterface[] = [],
+  allTransactions: Transaction[],
+  taxesCollectedTransactions: Transaction[] = [],
+  paidTaxTransactions: Transaction[] = [],
 ) => {
   const legacyTransactionsWithTaxes = allTransactions.filter(t => t.taxAmount);
   if (!legacyTransactionsWithTaxes.length && !taxesCollectedTransactions.length && !paidTaxTransactions.length) {
@@ -538,3 +540,39 @@ export const getTaxesSummary = (
     }),
   );
 };
+
+/**
+ * Returns the Vendor account associated with a given tax. This function is memoized as
+ * the tax vendor will not change during the lifetime of the server.
+ */
+export const getTaxVendor = memoize(async (taxId): Promise<Collective> => {
+  const vendorByTaxId = {
+    VAT: 'eu-vat-tax-vendor',
+    GST: 'nz-gst-tax-vendor',
+    OTHER: 'other-tax-vendor',
+  };
+
+  return Collective.findBySlug(vendorByTaxId[taxId] || vendorByTaxId['OTHER']);
+});
+
+/**
+ * Returns the Vendor account associated with a payment processor service. This function is memoized as
+ * the processor fee vendor will not change during the lifetime of the server.
+ */
+export const getPaymentProcessorFeeVendor = memoize(
+  async (service: PAYMENT_METHOD_SERVICE | PayoutMethodTypes | 'OTHER'): Promise<Collective> => {
+    const vendorSlugs = {
+      // Stripe
+      [PAYMENT_METHOD_SERVICE.STRIPE]: 'stripe-payment-processor-vendor',
+      // Paypal
+      [PAYMENT_METHOD_SERVICE.PAYPAL]: 'paypal-payment-processor-vendor',
+      [PayoutMethodTypes.PAYPAL]: 'paypal-payment-processor-vendor',
+      // Wise
+      [PayoutMethodTypes.BANK_ACCOUNT]: 'wise-payment-processor-vendor',
+      // Manual
+      OTHER: 'other-payment-processor-vendor',
+    };
+
+    return Collective.findBySlug(vendorSlugs[service] || vendorSlugs['OTHER']);
+  },
+);

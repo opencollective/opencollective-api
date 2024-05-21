@@ -1,7 +1,7 @@
 import { SupportedCurrency } from '../constants/currencies';
 import Order from '../models/Order';
 import { PaymentMethodModelInterface } from '../models/PaymentMethod';
-import { TransactionInterface } from '../models/Transaction';
+import Transaction from '../models/Transaction';
 import User from '../models/User';
 import VirtualCardModel from '../models/VirtualCard';
 
@@ -9,7 +9,7 @@ export interface PaymentProvider {
   /**
    * Triggers the payment for this order and updates it accordingly
    */
-  processOrder(order: Order): Promise<TransactionInterface>;
+  processOrder(order: Order): Promise<Transaction>;
 
   /**
    * The different types of payment methods supported by this provider
@@ -32,21 +32,17 @@ export interface PaymentProviderService {
   processOrder(
     order: Order,
     options?: { isAddedFund?: boolean; invoiceTemplate?: string },
-  ): Promise<TransactionInterface | void>;
+  ): Promise<Transaction | void>;
 
   /**
    * Refunds a transaction processed with this payment provider service
    */
-  refundTransaction(transaction: TransactionInterface, user?: User, reason?: string): Promise<TransactionInterface>;
+  refundTransaction(transaction: Transaction, user?: User, reason?: string): Promise<Transaction>;
 
   /**
    * Refunds a transaction processed with this payment provider service without calling the payment provider
    */
-  refundTransactionOnlyInDatabase?(
-    transaction: TransactionInterface,
-    user?: User,
-    reason?: string,
-  ): Promise<TransactionInterface>;
+  refundTransactionOnlyInDatabase?(transaction: Transaction, user?: User, reason?: string): Promise<Transaction>;
 
   getBalance?: (
     paymentMethod: PaymentMethodModelInterface,
