@@ -1,5 +1,3 @@
-#!/usr/bin/env ./node_modules/.bin/babel-node
-
 /**
  * Updates the total paid amount for an expense, adapting the FX rate accordingly.
  */

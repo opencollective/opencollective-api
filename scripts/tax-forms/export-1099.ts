@@ -17,7 +17,7 @@ import path from 'path';
 import { Parser } from '@json2csv/plainjs';
 import { Command } from 'commander';
 import { get, truncate } from 'lodash';
-import markdownTable from 'markdown-table'; // eslint-disable-line node/no-unpublished-import
+import markdownTable from 'markdown-table'; // eslint-disable-line n/no-unpublished-import
 
 import {
   fetchHelloWorksInstance,

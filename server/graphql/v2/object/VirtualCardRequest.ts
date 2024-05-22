@@ -6,11 +6,11 @@ import { GraphQLCurrency } from '../enum';
 import { GraphQLVirtualCardLimitInterval } from '../enum/VirtualCardLimitInterval';
 import { GraphQLVirtualCardRequestStatus } from '../enum/VirtualCardRequestStatus';
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
-import GraphQLAccount from '../interface/Account';
+import { GraphQLAccount } from '../interface/Account';
 
 import { GraphQLAmount } from './Amount';
 import { GraphQLHost } from './Host';
-import GraphQLIndividual from './Individual';
+import { GraphQLIndividual } from './Individual';
 
 export const GraphQLVirtualCardRequest = new GraphQLObjectType({
   name: 'VirtualCardRequest',

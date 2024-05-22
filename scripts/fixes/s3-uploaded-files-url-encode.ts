@@ -1,4 +1,3 @@
-#!/usr/bin/env ./node_modules/.bin/babel-node
 import '../../server/env';
 
 import { moveFileInS3 } from '../../server/lib/awsS3';

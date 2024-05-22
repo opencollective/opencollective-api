@@ -1,5 +1,5 @@
-/* eslint-disable node/no-extraneous-require */
-/* eslint-disable node/no-unpublished-require */
+/* eslint-disable n/no-extraneous-require */
+/* eslint-disable n/no-unpublished-require */
 /* eslint-disable @typescript-eslint/no-var-requires */
 
 import config from 'config';

@@ -1,5 +1,3 @@
-#!/usr/bin/env ./node_modules/.bin/babel-node
-
 /**
  * This script will mark all files from fields like "ExpenseItem.url", "Update.html", etc. as deleted
  * when their corresponding record is marked as deleted.

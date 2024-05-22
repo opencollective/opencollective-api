@@ -12,7 +12,6 @@ import { CollectiveType } from '../constants/collectives';
 import { Service } from '../constants/connected-account';
 import FEATURE from '../constants/feature';
 import OrderStatuses from '../constants/order-status';
-import roles from '../constants/roles';
 import MemberRoles from '../constants/roles';
 import * as auth from '../lib/auth';
 import emailLib from '../lib/email';
@@ -203,7 +202,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     memberships.map(m => {
       rolesByCollectiveId[m.CollectiveId] = rolesByCollectiveId[m.CollectiveId] || [];
       rolesByCollectiveId[m.CollectiveId].push(m.role);
-      if (m.role === roles.ADMIN) {
+      if (m.role === MemberRoles.ADMIN) {
         adminOf.push(m.CollectiveId);
       }
     });
@@ -250,7 +249,8 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
 
   // Adding some sugars
   isAdmin = function (CollectiveId) {
-    const result = this.CollectiveId === Number(CollectiveId) || this.hasRole([roles.HOST, roles.ADMIN], CollectiveId);
+    const result =
+      this.CollectiveId === Number(CollectiveId) || this.hasRole([MemberRoles.HOST, MemberRoles.ADMIN], CollectiveId);
     debug('isAdmin of CollectiveId', CollectiveId, '?', result);
     return result;
   };
@@ -282,7 +282,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   };
 
   isAdminOfOpenCollectiveInc = function (): boolean {
-    return this.hasRole([roles.ADMIN], 1) || this.hasRole([roles.ADMIN], 8686);
+    return this.hasRole([MemberRoles.ADMIN], 1) || this.hasRole([MemberRoles.ADMIN], 8686);
   };
 
   isRoot = function (): boolean {
@@ -291,7 +291,8 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
 
   isMember = function (CollectiveId) {
     const result =
-      this.CollectiveId === CollectiveId || this.hasRole([roles.HOST, roles.ADMIN, roles.MEMBER], CollectiveId);
+      this.CollectiveId === CollectiveId ||
+      this.hasRole([MemberRoles.HOST, MemberRoles.ADMIN, MemberRoles.MEMBER], CollectiveId);
     debug('isMember of CollectiveId', CollectiveId, '?', result);
     return result;
   };

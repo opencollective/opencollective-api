@@ -76,5 +76,3 @@ export const GraphQLHostApplication = new GraphQLObjectType({
     },
   }),
 });
-
-export default GraphQLHostApplication;

@@ -1,7 +1,6 @@
-#!/usr/bin/env node
 import '../server/env';
 
-import getUrls from 'get-urls'; // eslint-disable-line node/no-unpublished-import
+import getUrls from 'get-urls'; // eslint-disable-line n/no-unpublished-import
 import { union } from 'lodash';
 import moment from 'moment';
 

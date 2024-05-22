@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 import '../../server/env';
 
 import models, { sequelize } from '../../server/models';

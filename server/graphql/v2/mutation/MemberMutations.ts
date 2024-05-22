@@ -15,7 +15,7 @@ import { checkRemoteUserCanRoot, checkRemoteUserCanUseAccount } from '../../comm
 import { BadRequest, Forbidden, Unauthorized, ValidationFailed } from '../../errors';
 import { GraphQLMemberRole } from '../enum';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
-import GraphQLIndividual from '../object/Individual';
+import { GraphQLIndividual } from '../object/Individual';
 import { GraphQLMember } from '../object/Member';
 
 const isLastAdmin = async (account, memberAccount) => {

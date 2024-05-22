@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 import { ArgumentParser } from 'argparse';
 import config from 'config';
 import cryptojs from 'crypto-js';

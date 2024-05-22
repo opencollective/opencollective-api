@@ -1278,5 +1278,3 @@ export const AccountFields = {
     resolve: collective => collective, // Individual resolvers in `AccountPermissions`
   },
 };
-
-export default GraphQLAccount;

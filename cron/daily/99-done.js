@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 import '../../server/env';
 
 import email from '../../server/lib/email';

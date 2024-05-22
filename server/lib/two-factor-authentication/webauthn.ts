@@ -3,14 +3,14 @@ import crypto from 'crypto';
 import { AsnParser, OctetString } from '@peculiar/asn1-schema';
 import { Certificate } from '@peculiar/asn1-x509';
 import * as simplewebauthn from '@simplewebauthn/server';
-// eslint-disable-next-line import/no-unresolved, node/no-missing-import
+// eslint-disable-next-line import/no-unresolved, n/no-missing-import
 import { decodeAttestationObject } from '@simplewebauthn/server/helpers';
 import type {
   AuthenticationResponseJSON,
   PublicKeyCredentialCreationOptionsJSON,
   PublicKeyCredentialDescriptorFuture,
   RegistrationResponseJSON,
-  // eslint-disable-next-line import/no-unresolved, node/no-missing-import
+  // eslint-disable-next-line import/no-unresolved, n/no-missing-import
 } from '@simplewebauthn/types';
 import config from 'config';
 

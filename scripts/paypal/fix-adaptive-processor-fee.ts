@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 import '../../server/env';
 
 import { floatAmountToCents } from '../../server/lib/math';
