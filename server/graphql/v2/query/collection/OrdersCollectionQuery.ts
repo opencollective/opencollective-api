@@ -1,8 +1,9 @@
 import express from 'express';
-import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLEnumType, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { Includeable, Order } from 'sequelize';
 
+import OrderStatuses from '../../../../constants/order-status';
 import { buildSearchConditions } from '../../../../lib/search';
 import models, { Op } from '../../../../models';
 import { checkScope } from '../../../common/scope-check';
@@ -100,6 +101,14 @@ export const OrdersCollectionArgs = {
     type: GraphQLDateTime,
     description: 'Only return orders that were created before this date',
   },
+  expectedDateFrom: {
+    type: GraphQLDateTime,
+    description: 'Only return pending orders that were expected after this date',
+  },
+  expectedDateTo: {
+    type: GraphQLDateTime,
+    description: 'Only return pending orders that were expected before this date',
+  },
   searchTerm: {
     type: GraphQLString,
     description: 'The term to search',
@@ -115,6 +124,17 @@ export const OrdersCollectionArgs = {
   onlyActiveSubscriptions: {
     type: GraphQLBoolean,
     description: `Same as onlySubscriptions, but returns only orders with active subscriptions`,
+  },
+  expectedFundsFilter: {
+    type: new GraphQLEnumType({
+      name: 'ExpectedFundsFilter',
+      description: 'Expected funds filter (ALL_EXPECTED_FUNDS, ONLY_PENDING, ONLY_MANUAL)',
+      values: {
+        ALL_EXPECTED_FUNDS: {},
+        ONLY_PENDING: {},
+        ONLY_MANUAL: {},
+      },
+    }),
   },
   oppositeAccount: {
     type: GraphQLAccountReferenceInput,
@@ -254,6 +274,15 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     where['createdAt'] = where['createdAt'] || {};
     where['createdAt'][Op.lte] = args.dateTo;
   }
+  if (args.expectedDateFrom) {
+    where['data.expectedAt'] = { [Op.gte]: args.expectedDateFrom };
+  }
+
+  if (args.expectedDateTo) {
+    where['data.expectedAt'] = where['data.expectedAt'] || {};
+    where['data.expectedAt'][Op.lte] = args.expectedDateTo;
+  }
+
   if (args.status && args.status.length > 0) {
     where['status'] = { [Op.in]: args.status };
   }
@@ -288,6 +317,21 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
       throw new NotFound('tierSlug Not Found');
     }
     where['TierId'] = tier.id;
+  }
+
+  // use 'true' literal to avoid casting and allow index use when sequelize generates these nested json queries
+  if (args.expectedFundsFilter) {
+    if (args.expectedFundsFilter === 'ONLY_MANUAL') {
+      where['data.isManualContribution'] = 'true';
+    } else if (args.expectedFundsFilter === 'ONLY_PENDING') {
+      where['data.isPendingContribution'] = 'true';
+    } else {
+      where[Op.or] = where[Op.or] || {};
+      where[Op.or]['data.isPendingContribution'] = 'true';
+      where[Op.or]['data.isManualContribution'] = 'true';
+    }
+  } else {
+    where['status'] = { ...where['status'], [Op.ne]: OrderStatuses.PENDING };
   }
 
   const order: Order = [[args.orderBy.field, args.orderBy.direction]];

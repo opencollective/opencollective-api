@@ -35,6 +35,7 @@ import { createPrepaidPaymentMethod, isPrepaidBudgetOrder } from './prepaid-budg
 import { getNextChargeAndPeriodStartDates } from './recurring-contributions';
 import { stripHTML } from './sanitize-html';
 import { reportMessageToSentry } from './sentry';
+import { getDashboardObjectIdURL } from './stripe';
 import { formatAccountDetails } from './transferwise';
 import { getEditRecurringContributionsUrl } from './url-utils';
 import { formatCurrency, toIsoDateStr } from './utils';
@@ -906,6 +907,21 @@ export const sendOrderPendingEmail = async (order: Order): Promise<void> => {
   });
 };
 
+export async function getOrderPaymentProcessingUrl(order: Order): Promise<string | null> {
+  const pm = order.paymentMethod || (await order.getPaymentMethod());
+  if (pm?.service === PAYMENT_METHOD_SERVICE.STRIPE) {
+    const paymentIntentId = get(order, 'data.paymentIntent.id');
+    if (!paymentIntentId) {
+      return null;
+    }
+
+    const stripeAccountId = pm.data?.stripeAccount;
+
+    return getDashboardObjectIdURL(paymentIntentId, stripeAccountId);
+  }
+  return null;
+}
+
 const sendOrderProcessingEmail = async (order: Order): Promise<void> => {
   const { collective, fromCollective } = order;
   const user = order.createdByUser;
@@ -917,6 +933,7 @@ const sendOrderProcessingEmail = async (order: Order): Promise<void> => {
     collective: collective.info,
     host: host.info,
     fromCollective: fromCollective.activity,
+    paymentProcessorUrl: await getOrderPaymentProcessingUrl(order),
   };
 
   await Activity.create({
@@ -942,6 +959,7 @@ export const sendOrderFailedEmail = async (order: Order, reason: string): Promis
     host: host.info,
     fromCollective: fromCollective.activity,
     reason,
+    paymentProcessorUrl: await getOrderPaymentProcessingUrl(order),
   };
 
   await Activity.create({

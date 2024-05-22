@@ -139,3 +139,19 @@ export const getSpendingLimitIntervalDates = (spendingLimitInterval: VirtualCard
       return {};
   }
 };
+
+export function getDashboardObjectIdURL(objectId: string, accountId?: string) {
+  return getDashboardUrl(`id/${objectId}`, accountId);
+}
+
+function getDashboardUrl(path: string, accountId?: string) {
+  const url = new URL(
+    config.env === 'production' ? `https://dashboard.stripe.com/${path}` : `https://dashboard.stripe.com/test/${path}`,
+  );
+
+  if (accountId) {
+    url.searchParams.set('account', accountId);
+  }
+
+  return url.toString();
+}

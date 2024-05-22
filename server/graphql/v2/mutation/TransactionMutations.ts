@@ -83,6 +83,7 @@ const transactionMutations = {
       if (!orderToUpdate) {
         throw new NotFound('Order not found');
       }
+      transaction.Order = orderToUpdate;
 
       if (req.remoteUser.isAdminOfCollective(toAccount)) {
         await twoFactorAuthLib.enforceForAccount(req, toAccount, { onlyAskOnLogin: true });
@@ -123,6 +124,7 @@ const transactionMutations = {
         UserId: req.remoteUser.id,
         data: {
           rejectionReason,
+          reason: rejectionReason,
           collective: toAccount.info,
           fromCollective: fromAccount.info,
         },

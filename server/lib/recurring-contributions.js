@@ -14,7 +14,7 @@ import { notify } from './notifications/email';
 import { FEATURE } from './allowed-features';
 import emailLib from './email';
 import logger from './logger';
-import { processOrder } from './payments';
+import { getOrderPaymentProcessingUrl, processOrder } from './payments';
 import { getTransactionPdf } from './pdf';
 import { reportErrorToSentry } from './sentry';
 import { getEditRecurringContributionsUrl } from './url-utils';
@@ -382,6 +382,8 @@ async function createPaymentFailedActivity(order, lastAttempt) {
       subscriptionsLink: getEditRecurringContributionsUrl(order.fromCollective),
       errorMessage: errorMessage,
       isSystem: true,
+      reason: errorMessage,
+      paymentProcessorUrl: await getOrderPaymentProcessingUrl(order),
     },
   });
 }
@@ -459,6 +461,7 @@ async function createPaymentCreditCardConfirmationActivity(order) {
       fromCollective: order.fromCollective.minimal,
       confirmOrderLink: `${config.host.website}/${order.fromCollective.slug}/contributions/${order.id}/confirm`,
       paymentMethod: order.paymentMethod?.info,
+      paymentProcessorUrl: await getOrderPaymentProcessingUrl(order),
     },
   });
 }

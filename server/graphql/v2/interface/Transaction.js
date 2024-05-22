@@ -9,11 +9,13 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { isNil, round } from 'lodash';
+import { get, isNil, round } from 'lodash';
 
 import orderStatus from '../../../constants/order-status';
+import { PAYMENT_METHOD_SERVICE } from '../../../constants/paymentMethods';
 import roles from '../../../constants/roles';
 import { TransactionKind } from '../../../constants/transaction-kind';
+import { getDashboardObjectIdURL } from '../../../lib/stripe';
 import { generateDescription } from '../../../lib/transactions';
 import PaymentMethod from '../../../models/PaymentMethod';
 import Transaction from '../../../models/Transaction';
@@ -32,6 +34,24 @@ import { GraphQLTaxInfo } from '../object/TaxInfo';
 import { GraphQLAccount } from './Account';
 
 const { EXPENSE } = TransactionKind;
+
+/**
+ * @typedef {import("../../../models/PaymentMethod").PaymentMethodModelInterface} PaymentMethodModelInterface
+ * @returns {Promise<PaymentMethodModelInterface>}
+ */
+async function getPaymentMethodForTransaction(transaction, req) {
+  if (transaction.PaymentMethodId) {
+    let result = await req.loaders.PaymentMethod.byId.load(transaction.PaymentMethodId);
+    // NOTE: we're curently sometime soft-deleting paymentMethods instead of archiving them
+    // For the time being, we'll need to fetch them with paranoid=false
+    if (!result) {
+      result = await PaymentMethod.findByPk(transaction.PaymentMethodId, { paranoid: false });
+    }
+    return result;
+  } else {
+    return null;
+  }
+}
 
 const GraphQLTransactionPermissions = new GraphQLObjectType({
   name: 'TransactionPermissions',
@@ -181,6 +201,9 @@ const transactionFieldsDefinition = () => ({
         description: 'Fetch PAYMENT_PROCESSOR_FEE transaction for retro-compatiblity.',
       },
     },
+  },
+  paymentProcessorUrl: {
+    type: GraphQLString,
   },
   host: {
     type: GraphQLAccount,
@@ -501,6 +524,35 @@ export const TransactionFields = () => {
         };
       },
     },
+    paymentProcessorUrl: {
+      type: GraphQLString,
+      /**
+       * @param {import("../../../models/Transaction").TransactionInterface} transaction
+       */
+      async resolve(transaction, _, req) {
+        if (!req.remoteUser?.isAdmin(transaction.HostCollectiveId)) {
+          return null;
+        }
+
+        const pm = await getPaymentMethodForTransaction(transaction, req);
+        if (!pm) {
+          return null;
+        }
+
+        if (pm.service === PAYMENT_METHOD_SERVICE.STRIPE) {
+          const paymentIntentId = get(transaction, 'data.charge.payment_intent');
+          if (!paymentIntentId) {
+            return null;
+          }
+
+          const stripeAccountId = pm.data?.stripeAccount;
+
+          return getDashboardObjectIdURL(paymentIntentId, stripeAccountId);
+        }
+
+        return null;
+      },
+    },
     paymentProcessorFee: {
       type: new GraphQLNonNull(GraphQLAmount),
       args: {
@@ -580,9 +632,10 @@ export const TransactionFields = () => {
     },
     order: {
       type: GraphQLOrder,
+      /** @param {import('../../../models/Transaction').TransactionInterface} transaction */
       resolve(transaction, _, req) {
         if (transaction.OrderId) {
-          return req.loaders.Order.byId.load(transaction.OrderId);
+          return transaction.Order || req.loaders.Order.byId.load(transaction.OrderId);
         } else {
           return null;
         }
@@ -596,18 +649,8 @@ export const TransactionFields = () => {
     },
     paymentMethod: {
       type: GraphQLPaymentMethod,
-      async resolve(transaction, _, req) {
-        if (transaction.PaymentMethodId) {
-          let result = await req.loaders.PaymentMethod.byId.load(transaction.PaymentMethodId);
-          // NOTE: we're curently sometime soft-deleting paymentMethods instead of archiving them
-          // For the time being, we'll need to fetch them with paranoid=false
-          if (!result) {
-            result = await PaymentMethod.findByPk(transaction.PaymentMethodId, { paranoid: false });
-          }
-          return result;
-        } else {
-          return null;
-        }
+      resolve(transaction, _, req) {
+        return getPaymentMethodForTransaction(transaction, req);
       },
     },
     payoutMethod: {
