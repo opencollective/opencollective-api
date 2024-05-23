@@ -68,7 +68,7 @@
     "cors": "2.8.5",
     "crypto-js": "4.2.0",
     "crypto-random-string": "3.3.1",
-    "csv-parse": "5.5.5",
+    "csv-parse": "5.5.6",
     "dataloader": "2.2.2",
     "dataloader-sequelize": "2.3.3",
     "debug": "4.3.4",
