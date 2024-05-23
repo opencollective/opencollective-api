@@ -1,5 +1,3 @@
-#!/usr/bin/env ./node_modules/.bin/babel-node
-
 /**
  * This script aims to provide a command-line interface to update transactions in a safe way.
  */

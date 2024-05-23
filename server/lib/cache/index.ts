@@ -169,7 +169,7 @@ export async function purgeAllCachesForAccount(account) {
   await invalidateContributorsCache(account.id);
 }
 
-export const cache = buildCache(RedisInstanceType.DEFAULT);
+const cache = buildCache(RedisInstanceType.DEFAULT);
 
 export const sessionCache = buildCache(RedisInstanceType.SESSION);
 

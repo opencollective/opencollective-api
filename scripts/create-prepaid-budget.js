@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 import '../server/env';
 
 import { createPrepaidPaymentMethod } from '../server/lib/prepaid-budget';

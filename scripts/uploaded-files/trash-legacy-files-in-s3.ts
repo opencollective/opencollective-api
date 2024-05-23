@@ -1,5 +1,3 @@
-#!/usr/bin/env ./node_modules/.bin/babel-node
-
 /**
  * This script assumes that all files still being used have been recorded to the `UploadedFile` table (using `scripts/uploaded-files/record-existing-files.ts`).
  * It will move all files that are in S3 but not in the database to a trash folder by prepending `trash/` to the key.

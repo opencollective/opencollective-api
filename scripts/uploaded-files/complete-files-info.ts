@@ -1,5 +1,3 @@
-#!/usr/bin/env ./node_modules/.bin/babel-node
-
 /**
  * This script can be use to complete missing information from S3 on the "UploadedFile" table.
  */

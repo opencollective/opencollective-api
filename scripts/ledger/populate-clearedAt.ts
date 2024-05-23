@@ -1,4 +1,3 @@
-#!/usr/bin/env ./node_modules/.bin/babel-node
 import '../../server/env';
 
 import { ifStr } from '../../server/lib/utils';

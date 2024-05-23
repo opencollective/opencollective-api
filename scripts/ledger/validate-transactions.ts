@@ -1,5 +1,3 @@
-#!/usr/bin/env ./node_modules/.bin/babel-node
-
 /**
  * A simple wrapper script around `Transaction.validate` to validate a list of transactions.
  */

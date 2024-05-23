@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 import '../../server/env';
 
 import { groupBy, size, sortBy, uniq } from 'lodash';

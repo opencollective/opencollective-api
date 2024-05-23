@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 import '../../server/env';
 
 import { Parser } from '@json2csv/plainjs';

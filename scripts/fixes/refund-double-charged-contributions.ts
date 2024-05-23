@@ -1,5 +1,3 @@
-#!/usr/bin/env ./node_modules/.bin/babel-node
-
 /**
  * On the 1st of May: around 5AM UTC, the recurring contributions job got started two times
  * with a few seconds interval. As a result, we double-charged almost 500 contributions.

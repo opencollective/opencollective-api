@@ -1,5 +1,3 @@
-#!/usr/bin/env ./node_modules/.bin/babel-node
-
 /**
  * This script will record all existing files from fields like "Expense.item.url", "Update.html", etc.
  * to the "UploadedFile" table.

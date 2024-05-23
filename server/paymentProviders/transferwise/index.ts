@@ -12,7 +12,7 @@ import activities from '../../constants/activities';
 import { SupportedCurrency } from '../../constants/currencies';
 import status from '../../constants/expense-status';
 import { TransferwiseError } from '../../graphql/errors';
-import { cache, sessionCache } from '../../lib/cache';
+import cache, { sessionCache } from '../../lib/cache';
 import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { centsAmountToFloat } from '../../lib/math';

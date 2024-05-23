@@ -1,7 +1,6 @@
-#!/usr/bin/env node
 import '../server/env';
 
-import geoip from 'geoip-lite'; // eslint-disable-line node/no-unpublished-import
+import geoip from 'geoip-lite'; // eslint-disable-line n/no-unpublished-import
 import { get, padEnd } from 'lodash';
 import moment from 'moment';
 

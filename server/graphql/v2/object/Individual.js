@@ -230,5 +230,3 @@ export const GraphQLIndividual = new GraphQLObjectType({
     };
   },
 });
-
-export default GraphQLIndividual;
