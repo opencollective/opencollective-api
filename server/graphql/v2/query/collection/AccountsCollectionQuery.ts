@@ -9,6 +9,7 @@ import {
   fetchAccountWithReference,
   GraphQLAccountReferenceInput,
 } from '../../input/AccountReferenceInput';
+import { GraphQLAmountRangeInput } from '../../input/AmountRangeInput';
 import { GraphQLOrderByInput } from '../../input/OrderByInput';
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
 
@@ -85,6 +86,10 @@ const AccountsCollectionQuery = {
       type: GraphQLAccountReferenceInput,
       description: 'Include vendors for this host',
     },
+    consolidatedBalance: {
+      type: GraphQLAmountRangeInput,
+      description: 'Filter by the balance of the account and its children accounts (events and projects)',
+    },
   },
   async resolve(_: void, args): Promise<CollectionReturnType> {
     const { offset, limit } = args;
@@ -112,6 +117,7 @@ const AccountsCollectionQuery = {
       tagSearchOperator: args.tagSearchOperator,
       includeArchived: args.includeArchived,
       includeVendorsForHostId,
+      consolidatedBalance: args.consolidatedBalance,
     };
 
     const [accounts, totalCount] = await searchCollectivesInDB(cleanTerm, offset, limit, extraParameters);

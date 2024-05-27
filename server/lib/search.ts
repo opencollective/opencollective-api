@@ -4,10 +4,15 @@
 
 import config from 'config';
 import slugify from 'limax';
-import { get, toString, words } from 'lodash';
+import { get, isEmpty, toString, words } from 'lodash';
 
 import { RateLimitExceeded } from '../graphql/errors';
 import { ORDER_BY_PSEUDO_FIELDS } from '../graphql/v2/enum/OrderByFieldType';
+import {
+  AmountRangeInputType,
+  getAmountRangeQuery,
+  makeConsolidatedBalanceSubquery,
+} from '../graphql/v2/input/AmountRangeInput';
 import models, { Op, sequelize } from '../models';
 
 import { floatAmountToCents } from './math';
@@ -15,6 +20,8 @@ import RateLimit, { ONE_HOUR_IN_SECONDS } from './rate-limit';
 
 // Returned when there's no result for a search
 const EMPTY_SEARCH_RESULT = [[], 0];
+
+const CONSOLIDATED_BALANCE_SUBQUERY = makeConsolidatedBalanceSubquery('c');
 
 /**
  * Search users by email address. `user` must be set because this endpoint is rate
@@ -182,6 +189,7 @@ const getSortSubQuery = (
             AND hosted."type" IN ('COLLECTIVE', 'FUND'))
           ]
     `,
+    [ORDER_BY_PSEUDO_FIELDS.BALANCE]: CONSOLIDATED_BALANCE_SUBQUERY,
   };
 
   let sortQueryType = orderBy?.field || 'RANK';
@@ -236,6 +244,7 @@ export const searchCollectivesInDB = async (
     tags?: string[];
     tagSearchOperator?: 'AND' | 'OR';
     types?: string[];
+    consolidatedBalance?: AmountRangeInputType;
   } = {},
 ) => {
   // Build dynamic conditions based on arguments
@@ -334,6 +343,7 @@ export const searchCollectivesInDB = async (
     AND c.name != 'incognito'
     AND c.name != 'anonymous'
     AND c."isIncognito" = FALSE ${dynamicConditions}
+    ${!isEmpty(args.consolidatedBalance) ? `AND ${CONSOLIDATED_BALANCE_SUBQUERY} ${getAmountRangeQuery(args.consolidatedBalance)}` : ''}
     ORDER BY __sort__ ${orderBy?.direction || 'DESC'}
     OFFSET :offset
     LIMIT :limit
