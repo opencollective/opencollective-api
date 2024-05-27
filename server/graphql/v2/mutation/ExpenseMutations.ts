@@ -340,12 +340,12 @@ const expenseMutations = {
       checkRemoteUserCanUseExpenses(req);
 
       let expense = await fetchExpenseWithReference(args.expense, { loaders: req.loaders, throwIfMissing: true });
-      const collective = await expense.getCollective();
-      const host = await collective.getHostCollective({ loaders: req.loaders });
+      expense.collective = await expense.getCollective();
+      expense.collective.host = await expense.collective.getHostCollective({ loaders: req.loaders });
 
       // Enforce 2FA for processing expenses, except for `PAY` action which handles it internally (with rolling limit)
       if (!['PAY', 'SCHEDULE_FOR_PAYMENT'].includes(args.action)) {
-        const accountsFor2FA = [host, collective].filter(Boolean);
+        const accountsFor2FA = [expense.collective.host, expense.collective].filter(Boolean);
         await twoFactorAuthLib.enforceForAccountsUserIsAdminOf(req, accountsFor2FA);
       }
 

@@ -1017,7 +1017,7 @@ export const scheduleExpenseForPayment = async (
     throw new Forbidden("You're authenticated but you can't schedule this expense for payment");
   }
 
-  const host = await expense.collective.getHostCollective({ loaders: req.loaders });
+  const host = expense.collective.host || (await expense.collective.getHostCollective({ loaders: req.loaders }));
   if (expense.currency !== expense.collective.currency && !hasMultiCurrency(expense.collective, host)) {
     throw new Unauthorized('Multi-currency expenses are not enabled for this collective');
   }
