@@ -56,7 +56,7 @@ async function run(options) {
     process.exit();
   }
 
-  sessionCache.set(JOB_RUNNING_KEY, 1, 60 * 60 * 24); // release the lock after one day max
+  await sessionCache.set(JOB_RUNNING_KEY, 1, 60 * 60 * 24); // release the lock after one day max
 
   options.startDate = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date();
 
