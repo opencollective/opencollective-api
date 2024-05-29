@@ -181,13 +181,14 @@ const isCollectiveAdmin = async (req: express.Request, expense: Expense): Promis
 export const isHostAdmin = async (req: express.Request, expense: Expense): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
-  } else if (expense.HostCollectiveId) {
-    return req.remoteUser.isAdmin(expense.HostCollectiveId);
-  } else if (!expense.collective) {
+  }
+
+  if (!expense.collective) {
     expense.collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
-    if (!expense.collective) {
-      return false;
-    }
+  }
+
+  if (!expense.collective) {
+    return false;
   }
 
   return req.remoteUser.isAdmin(expense.collective.HostCollectiveId) && expense.collective.isActive;
@@ -198,36 +199,6 @@ const isAdminOrAccountantOfHostWhoPaidExpense = async (req: express.Request, exp
     return false;
   }
   return expense.HostCollectiveId && req.remoteUser.isAdmin(expense.HostCollectiveId);
-};
-
-const isAdminOfCollectiveWithLooseEditPermissions = async (
-  req: express.Request,
-  expense: Expense,
-): Promise<boolean> => {
-  if (!req.remoteUser || !(await isCollectiveAdmin(req, expense))) {
-    return false;
-  }
-
-  // Collective already loaded by `isCollectiveAdmin`, we need to load the host
-  if (expense.collective && !expense.collective.host) {
-    expense.collective.host = await req.loaders.Collective.byId.load(expense.collective.HostCollectiveId);
-  }
-
-  // Host must have a special `settings.allowCollectiveAdminsToEditPrivateExpenseData` flag
-  return Boolean(expense.collective?.host?.settings?.allowCollectiveAdminsToEditPrivateExpenseData);
-};
-
-const isAdminOfCollectiveAndExpenseIsAVirtualCard = async (
-  req: express.Request,
-  expense: Expense,
-): Promise<boolean> => {
-  if (!req.remoteUser) {
-    return false;
-  } else if (expense.type !== EXPENSE_TYPE.CHARGE) {
-    return false;
-  } else {
-    return isCollectiveAdmin(req, expense);
-  }
 };
 
 export type ExpensePermissionEvaluator = (
@@ -291,8 +262,7 @@ export const canSeeExpensePayoutMethod: ExpensePermissionEvaluator = async (req,
     isHostAdmin,
     isHostAccountant,
     isAdminOrAccountantOfHostWhoPaidExpense,
-    isAdminOfCollectiveWithLooseEditPermissions, // Some fiscal hosts rely on the collective admins to do some verifications on the payout method
-    isAdminOfCollectiveAndExpenseIsAVirtualCard, // Virtual cards are created by the collective admins
+    isCollectiveAdmin, // Some fiscal hosts rely on the collective admins to do some verifications on the payout method
   ]);
 };
 
@@ -412,12 +382,7 @@ export const canEditExpense: ExpensePermissionEvaluator = async (
     }
     return false;
   } else {
-    return remoteUserMeetsOneCondition(
-      req,
-      expense,
-      [isOwner, isHostAdmin, isAdminOfCollectiveAndExpenseIsAVirtualCard, isAdminOfCollectiveWithLooseEditPermissions],
-      options,
-    );
+    return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isCollectiveAdmin], options);
   }
 };
 
@@ -678,40 +643,18 @@ export const canEditExpenseAccountingCategory = async (
   expense: Expense,
   options = { throw: false },
 ): Promise<boolean> => {
-  if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'User cannot edit accounting categories for expenses',
-        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE,
-      );
-    }
-    return false;
-  }
-
-  // Host admins and accountants can always change the accounting category.
-  if (await remoteUserMeetsOneCondition(req, expense, [isHostAdmin, isHostAccountant])) {
-    return true;
-  }
-
-  // Other roles can only change the accounting category if the expense is not paid yet
-  const nonEditableStatuses = ['PAID', 'PROCESSING', 'SCHEDULED_FOR_PAYMENT', 'CANCELED'];
-  if (nonEditableStatuses.includes(expense.status)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'Can not change accounting category in current status',
-        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
-      );
-    }
-    return false;
-  }
-
-  // Always allow for collective admins
-  if (await isCollectiveAdmin(req, expense)) {
-    return true;
-  }
-
-  // Otherwise, fallback to the default edit expense permissions
-  return canEditExpense(req, expense, options);
+  return remoteUserMeetsOneCondition(
+    req,
+    expense,
+    [
+      // Host admins and accountants can always change the accounting category.
+      isHostAdmin,
+      isHostAccountant,
+      // Otherwise, we fallback on the default edit permissions (must be a collective/fromCollective admin)
+      canEditExpense,
+    ],
+    options,
+  );
 };
 
 /**
