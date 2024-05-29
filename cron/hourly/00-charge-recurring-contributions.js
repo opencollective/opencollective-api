@@ -7,6 +7,7 @@ import { ArgumentParser } from 'argparse';
 import PQueue from 'p-queue';
 
 import FEATURE from '../../server/constants/feature';
+import { sessionCache } from '../../server/lib/cache';
 import emailLib from '../../server/lib/email';
 import {
   groupProcessedOrders,
@@ -16,8 +17,6 @@ import {
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import { parseToBoolean } from '../../server/lib/utils';
 import { sequelize } from '../../server/models';
-
-import { sessionCache } from '../../server/lib/cache';
 
 const json2csv = (data, opts = undefined) => new Parser(opts).parse(data);
 
@@ -43,20 +42,20 @@ const csvFields = [
 
 const startTime = new Date();
 
-const JOB_RUNNING_KEY = 'cron-hourly-charger-ecurring-contributions-running';
+const JOB_RUNNING_KEY = 'cron-hourly-charger-recurring-contributions-running';
 
 if (parseToBoolean(process.env.SKIP_CHARGE_RECURRING_CONTRIBUTIONS) && !process.env.OFFCYCLE) {
   console.log('Skipping because SKIP_CHARGE_RECURRING_CONTRIBUTIONS is set.');
   process.exit();
 }
 
-if (sessionCache.get(JOB_RUNNING_KEY)) {
-  console.log('Skipping because job is already running.');
-  process.exit();
-}
-
 /** Run the script with parameters read from the command line */
 async function run(options) {
+  if (await sessionCache.get(JOB_RUNNING_KEY)) {
+    console.log('Skipping because job is already running.');
+    process.exit();
+  }
+
   sessionCache.set(JOB_RUNNING_KEY, 1, 60 * 60 * 24); // release the lock after one day max
 
   options.startDate = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date();
