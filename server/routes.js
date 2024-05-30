@@ -254,18 +254,24 @@ export default async app => {
     // https://www.apollographql.com/docs/apollo-server/api/apollo-server#csrfprevention
     csrfPrevention: { requestHeaders: ['Authorization'] },
     // https://www.apollographql.com/docs/apollo-server/api/apollo-server#formaterror
-    formatError: err => {
-      logger.error(`GraphQL error: ${err.message}`);
-      const extra = pick(err, ['locations', 'path']);
+    formatError: (formattedError, error) => {
+      logger.error(`GraphQL error: ${formattedError.message}`);
+      const extra = pick(formattedError, ['locations', 'path']);
       if (Object.keys(extra).length) {
         logger.error(JSON.stringify(extra));
       }
 
-      const stacktrace = get(err, 'extensions.exception.stacktrace');
+      const stacktrace = get(formattedError, 'extensions.exception.stacktrace');
       if (stacktrace) {
         logger.error(stacktrace);
       }
-      return err;
+
+      if (parseToBoolean(config.graphql.error.detailed)) {
+        console.log(formattedError);
+        console.log(error);
+      }
+
+      return formattedError;
     },
     ...graphqlProtection,
     plugins: [
