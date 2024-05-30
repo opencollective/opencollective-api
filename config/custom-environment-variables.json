@@ -27,6 +27,9 @@
       "enabled": "GRAPHQL_CACHE_ENABLED",
       "ttl": "GRAPHQL_CACHE_TTL",
       "minExecutionTimeToCache": "GRAPHQL_CACHE_MIN_EXECUTION_TIME_TO_CACHE"
+    },
+    "error": {
+      "detailed": "GRAPHQL_ERROR_DETAILED"
     }
   },
   "memcache": {

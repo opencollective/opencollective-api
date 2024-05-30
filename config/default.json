@@ -191,6 +191,9 @@
       "enabled": false,
       "ttl": 300,
       "minExecutionTimeToCache": 200
+    },
+    "error": {
+      "detailed": false
     }
   },
   "pdfService": {
