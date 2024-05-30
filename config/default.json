@@ -264,5 +264,8 @@
   "performance": {
     "hostsWithManyTransactions": [],
     "collectivesWithManyTransactions": []
+  },
+  "settlement": {
+    "minimumAmountInUSD": 1000
   }
 }
