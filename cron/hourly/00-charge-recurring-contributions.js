@@ -14,6 +14,7 @@ import {
   ordersWithPendingCharges,
   processOrderWithSubscription,
 } from '../../server/lib/recurring-contributions';
+import { closeRedisClient } from '../../server/lib/redis';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import { parseToBoolean } from '../../server/lib/utils';
 import { sequelize } from '../../server/models';
@@ -44,6 +45,11 @@ const startTime = new Date();
 
 const JOB_RUNNING_KEY = 'cron-hourly-charger-recurring-contributions-running';
 
+const completeJob = async () => {
+  await closeRedisClient();
+  await sequelize.close();
+};
+
 if (parseToBoolean(process.env.SKIP_CHARGE_RECURRING_CONTRIBUTIONS) && !process.env.OFFCYCLE) {
   console.log('Skipping because SKIP_CHARGE_RECURRING_CONTRIBUTIONS is set.');
   process.exit();
@@ -53,7 +59,8 @@ if (parseToBoolean(process.env.SKIP_CHARGE_RECURRING_CONTRIBUTIONS) && !process.
 async function run(options) {
   if (await sessionCache.get(JOB_RUNNING_KEY)) {
     console.log('Skipping because job is already running.');
-    process.exit();
+    await completeJob();
+    return;
   }
 
   await sessionCache.set(JOB_RUNNING_KEY, 1, 60 * 60 * 24); // release the lock after one day max
@@ -88,10 +95,10 @@ async function run(options) {
 
   queue.onIdle().then(async () => {
     if (data.length === 0) {
-      await sessionCache.delete(JOB_RUNNING_KEY);
-      await sequelize.close();
-      console.log('Not generating CSV file');
       // We used to send a "ReportNoCharges" here but we're stopping this while moving to an Hourly schedule
+      console.log('Not generating CSV file');
+      await sessionCache.delete(JOB_RUNNING_KEY);
+      await completeJob();
       return;
     }
     console.log('Writing the output to a CSV file');
@@ -115,9 +122,9 @@ async function run(options) {
       reportErrorToSentry(err, { severity: 'fatal', tags: { feature: FEATURE.RECURRING_CONTRIBUTIONS } });
     }
 
-    await sessionCache.delete(JOB_RUNNING_KEY);
-    await sequelize.close();
     console.log('Finished running charge recurring contributions');
+    await sessionCache.delete(JOB_RUNNING_KEY);
+    await completeJob();
   });
 }
 
