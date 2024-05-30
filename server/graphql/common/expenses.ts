@@ -209,7 +209,7 @@ const isAdminOfCollectiveWithLooseEditPermissions = async (
   }
 
   // Collective already loaded by `isCollectiveAdmin`, we need to load the host
-  if (expense.collective && !expense.collective.host) {
+  if (expense.collective && !expense.collective.host && expense.collective.HostCollectiveId) {
     expense.collective.host = await req.loaders.Collective.byId.load(expense.collective.HostCollectiveId);
   }
 
