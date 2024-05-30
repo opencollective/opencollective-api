@@ -249,5 +249,8 @@
     "dashboard": {
       "redirect": "FEATURES_DASHBOARD_REDIRECT"
     }
+  },
+  "settlement": {
+    "minimumAmountInUSD": "SETTLEMENT_MINIMUM_AMOUNT_IN_USD"
   }
 }

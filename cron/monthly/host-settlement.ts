@@ -11,6 +11,7 @@ import expenseTypes from '../../server/constants/expense-type';
 import { TransactionKind } from '../../server/constants/transaction-kind';
 import { SETTLEMENT_EXPENSE_PROPERTIES } from '../../server/constants/transactions';
 import { getTransactionsCsvUrl } from '../../server/lib/csv';
+import { getFxRate } from '../../server/lib/currency';
 import { getPendingHostFeeShare, getPendingPlatformTips } from '../../server/lib/host-metrics';
 import { reportErrorToSentry, reportMessageToSentry } from '../../server/lib/sentry';
 import { parseToBoolean } from '../../server/lib/utils';
@@ -23,6 +24,7 @@ const today = moment.utc();
 
 const defaultDate = process.env.START_DATE ? moment.utc(process.env.START_DATE) : moment.utc();
 
+const MIN_AMOUNT_USD = Number(config.settlement.minimumAmountInUSD);
 const DRY = process.env.DRY;
 const HOST_ID = process.env.HOST_ID;
 const isProduction = config.env === 'production';
@@ -141,19 +143,19 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
     }
 
     const totalAmountCharged = sumBy(items, 'amount');
+    const hostToPlatformFxRate = await getFxRate(host.currency, 'USD');
+    const totalAmountChargedInUsd = totalAmountCharged * hostToPlatformFxRate;
 
-    if (totalAmountCharged < 1000) {
+    if (totalAmountChargedInUsd < MIN_AMOUNT_USD) {
       console.warn(
-        `${host.name} (#${host.id}) skipped, total amount pending ${totalAmountCharged / 100} < 10.00 ${
-          host.currency
-        }.\n`,
+        `${host.name} (#${host.id}) skipped, total amount pending ${totalAmountChargedInUsd / 100} < $${MIN_AMOUNT_USD / 100}.\n`,
       );
       continue;
     }
     console.info(
       `${host.name} (#${host.id}) has ${transactions.length} pending transactions and owes ${
         totalAmountCharged / 100
-      } (${host.currency})`,
+      }${host.currency} (${totalAmountChargedInUsd / 100} USD)`,
     );
 
     const connectedAccounts = await host.getConnectedAccounts({
