@@ -123,7 +123,7 @@ export const ExpensesCollectionQueryArgs = {
     description: 'Return expenses only created by this INDIVIDUAL account',
   },
   status: {
-    type: GraphQLExpenseStatusFilter,
+    type: new GraphQLList(GraphQLExpenseStatusFilter),
     description: 'Use this field to filter expenses on their statuses',
   },
   type: {
@@ -338,12 +338,16 @@ export const ExpensesCollectionQueryResolver = async (
   }
 
   if (args.status) {
-    if (args.status === 'ON_HOLD') {
+    if (args.status.includes('ON_HOLD') && args.status.length === 1) {
       where['onHold'] = true;
-    } else if (args.status !== 'READY_TO_PAY') {
-      where['status'] = args.status;
-    } else {
+    } else if (args.status.includes('READY_TO_PAY')) {
+      assert(args.status.length === 1, 'READY_TO_PAY cannot be combined with other statuses');
       await updateFilterConditionsForReadyToPay(where, include, host, req.loaders);
+    } else {
+      where['status'] = args.status;
+      if (!args.status.includes('ON_HOLD')) {
+        where['onHold'] = false;
+      }
     }
   } else {
     if (req.remoteUser) {
