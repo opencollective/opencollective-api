@@ -170,7 +170,15 @@ export const getUSTaxFormPdf = async (formType: USTaxFormType, formData) => {
   pdfURL.searchParams.set('formType', formType);
   pdfURL.searchParams.set('values', base64Values);
   pdfURL.searchParams.set('isFinal', 'true');
-  const response = await fetchWithTimeout(pdfURL.toString(), { method: 'get', timeoutInMs: 15000 });
+
+  let response;
+  try {
+    response = await fetchWithTimeout(pdfURL.toString(), { method: 'get', timeoutInMs: 15000 });
+  } catch (e) {
+    reportErrorToSentry(e, { severity: 'error', extra: { formType, formData } });
+    throw new Error(`Failed to generate PDF. The service is either offline or unresponsive.`);
+  }
+
   const { status } = response;
   if (status >= 200 && status < 300) {
     return response.buffer();
