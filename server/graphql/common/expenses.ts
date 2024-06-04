@@ -1293,7 +1293,7 @@ const updateTaxFormStatus = async (
   expense: Expense,
   payee: Collective,
 ): Promise<LegalDocument | null> => {
-  if (!parseToBoolean(config.taxForms.useInternal)) {
+  if (!parseToBoolean(config.taxForms.useInternal) || !host) {
     return null;
   }
 

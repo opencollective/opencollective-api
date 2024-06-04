@@ -94,7 +94,7 @@ class LegalDocument extends Model<LegalDocumentAttributes, InferCreationAttribut
    */
   static createTaxFormRequestToCollectiveIfNone = async (
     payee: Collective,
-    user: User,
+    user: User | null,
     {
       UserTokenId,
       ExpenseId,
@@ -128,7 +128,7 @@ class LegalDocument extends Model<LegalDocumentAttributes, InferCreationAttribut
         await Activity.create(
           {
             type: activities.TAXFORM_REQUEST,
-            UserId: user.id,
+            UserId: user?.id,
             CollectiveId: payee.id,
             HostCollectiveId: HostCollectiveId,
             UserTokenId,
