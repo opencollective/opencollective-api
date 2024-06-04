@@ -994,7 +994,7 @@ const sendManualPendingOrderEmail = async (order: Order): Promise<void> => {
     collective: collective.info,
     host: host.info,
     fromCollective: fromCollective.activity,
-    pendingOrderLink: `${config.host.website}/${host.slug}/admin/orders?searchTerm=%23${order.id}`,
+    pendingOrderLink: `${config.host.website}/dashboard/${host.slug}/expected-funds?orderId=${order.id}`,
     replyTo,
     isSystem: true,
   };
@@ -1025,7 +1025,7 @@ export const sendReminderPendingOrderEmail = async (order: Order): Promise<void>
     collective: collective.info,
     host: host.info,
     fromCollective: fromCollective.activity,
-    viewDetailsLink: `${config.host.website}/${host.slug}/dashboard/orders/contributions/${order.id}`,
+    viewDetailsLink: `${config.host.website}/dashboard/${host.slug}/expected-funds?orderId=${order.id}`,
     isSystem: true,
   };
   await Activity.create({
