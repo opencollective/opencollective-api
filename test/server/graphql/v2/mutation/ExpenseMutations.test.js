@@ -662,7 +662,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           const mutationParams = { expense: expenseData, account: { legacyId: usdCollective.id } };
           const result = await graphqlQueryV2(createExpenseMutation, mutationParams, user);
           expect(result.errors).to.exist;
-          expect(result.errors[0].message).to.eq(`Invalid exchange rate: Expected 0.37 but got 1.5.`);
+          expect(result.errors[0].message).to.eq(`Invalid exchange rate: Expected ~0.37 but got 1.5.`);
         });
 
         it('submits with type=OPENCOLLECTIVE, providing a valid value', async () => {
