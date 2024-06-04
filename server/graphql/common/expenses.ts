@@ -1392,9 +1392,9 @@ export const prepareExpenseItemInputs = async (
                 values.currency
               } to ${expenseCurrency}) for ${getDateKeyForItem(itemInput)}.`,
             );
-          } else if (internalFxRate && values.expenseCurrencyFxRate !== internalFxRate) {
+          } else if (Math.abs(values.expenseCurrencyFxRate - internalFxRate) / internalFxRate > 0.01) {
             throw new ValidationFailed(
-              `Invalid exchange rate: Expected ${internalFxRate} but got ${values.expenseCurrencyFxRate}.`,
+              `Invalid exchange rate: Expected ~${internalFxRate} but got ${values.expenseCurrencyFxRate}.`,
             );
           }
         } else if (values.expenseCurrencyFxRateSource === 'USER' && internalFxRate) {
