@@ -42,6 +42,7 @@ import { canUseFeature } from '../../../lib/user-permissions';
 import models, { Op, sequelize } from '../../../models';
 import { MigrationLogType } from '../../../models/MigrationLog';
 import { updateSubscriptionWithPaypal } from '../../../paymentProviders/paypal/subscription';
+import { checkReceiveFinancialContributions } from '../../common/features';
 import { checkCanUseAccountingCategoryForOrder } from '../../common/orders';
 import { checkRemoteUserCanRoot, checkRemoteUserCanUseOrders, checkScope } from '../../common/scope-check';
 import { BadRequest, FeatureNotAllowedForUser, NotFound, Unauthorized, ValidationFailed } from '../../errors';
@@ -372,8 +373,14 @@ const orderMutations = {
         throw new Error(
           'Amount and payment method cannot be updated at the same time, please update one after the other',
         );
-      } else if (order.status === OrderStatuses.PAUSED && order.data?.needsAsyncDeactivation) {
-        throw new Error('This order is currently being synchronized, please try again later');
+      } else if (order.status === OrderStatuses.PAUSED) {
+        if (order.data?.needsAsyncDeactivation) {
+          throw new Error('This order is currently being synchronized, please try again later');
+        } else if (!['AVAILABLE', 'ACTIVE'].includes(await checkReceiveFinancialContributions(order.collective, req))) {
+          throw new Error(
+            'This order cannot be updated because the collective is not able to receive financial contributions',
+          );
+        }
       }
 
       // Check 2FA

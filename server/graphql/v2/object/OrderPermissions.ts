@@ -2,6 +2,7 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import ORDER_STATUS from '../../../constants/order-status';
+import { checkReceiveFinancialContributions } from '../../common/features';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
 const isHostAdmin = async (req: express.Request, order): Promise<boolean> => {
@@ -111,7 +112,7 @@ const GraphQLOrderPermissions = new GraphQLObjectType({
         }
 
         const collective = await req.loaders.Collective.byId.load(order.CollectiveId);
-        if (!collective.HostCollectiveId || !collective.approvedAt) {
+        if (!['AVAILABLE', 'ACTIVE'].includes(await checkReceiveFinancialContributions(collective, req))) {
           return false;
         }
 
