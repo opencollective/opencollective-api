@@ -1,4 +1,5 @@
 import { TaxType } from '@opencollective/taxes';
+import config from 'config';
 import { get, isEmpty, pick, sumBy } from 'lodash';
 import { isMoment } from 'moment';
 import {
@@ -22,10 +23,12 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymen
 import roles from '../constants/roles';
 import { reduceArrayToCurrency } from '../lib/currency';
 import logger from '../lib/logger';
+import SQLQueries from '../lib/queries';
 import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../lib/sanitize-html';
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Model, Op, QueryTypes } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
+import { parseToBoolean } from '../lib/utils';
 import CustomDataTypes from '../models/DataTypes';
 import { Location } from '../types/Location';
 import { BatchGroup, ExpenseDataQuoteV2, ExpenseDataQuoteV3, Transfer } from '../types/transferwise';
@@ -35,6 +38,7 @@ import Activity from './Activity';
 import Collective from './Collective';
 import ExpenseAttachedFile from './ExpenseAttachedFile';
 import ExpenseItem from './ExpenseItem';
+import LegalDocument, { LEGAL_DOCUMENT_TYPE } from './LegalDocument';
 import { PaymentMethodModelInterface } from './PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
 import RecurringExpense from './RecurringExpense';
@@ -331,6 +335,48 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
     await this.createActivity(ActivityTypes.COLLECTIVE_EXPENSE_CREATED, remoteUser).catch(e => {
       logger.error('An error happened when creating the COLLECTIVE_EXPENSE_CREATED activity', e);
       reportErrorToSentry(e);
+    });
+
+    // In case the expense is subject to tax forms
+    try {
+      const collective = this.collective || (await this.getCollective());
+      const host = (await this.getHost()) || (await collective.getHostCollective());
+      const fromCollective = this.fromCollective || (await Collective.findByPk(this.FromCollectiveId));
+      await this.updateTaxFormStatus(host, fromCollective, remoteUser);
+    } catch (e) {
+      reportErrorToSentry(e);
+      logger.error('An error happened when updating the tax form status', e);
+    }
+  };
+
+  /**
+   * A function that checks an updates the expense status. Must run whenever creating a new expense,
+   * when the amount/payout method change, or when an invited expense goes to pending.
+   *
+   * @returns the LegalDocument, or null if none required
+   */
+  updateTaxFormStatus = async function (host: Collective, payee: Collective, user: User, { UserTokenId = null } = {}) {
+    if (!parseToBoolean(config.taxForms.useInternal) || !host) {
+      return null;
+    }
+
+    // Check if host is connected to the tax form system
+    const requiredLegalDocument = await host.getRequiredLegalDocuments({ type: LEGAL_DOCUMENT_TYPE.US_TAX_FORM });
+    if (!requiredLegalDocument) {
+      return null;
+    }
+
+    // Check if tax form is required for expense
+    const taxFormRequiredForExpenseIds = await SQLQueries.getTaxFormsRequiredForExpenses([this.id]);
+    if (!taxFormRequiredForExpenseIds.has(this.id)) {
+      return null;
+    }
+
+    // Check if tax form request already exists or create a new one
+    return LegalDocument.createTaxFormRequestToCollectiveIfNone(payee, user, {
+      UserTokenId,
+      ExpenseId: this.id,
+      HostCollectiveId: host.id,
     });
   };
 
