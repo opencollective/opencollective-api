@@ -11,7 +11,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { find, get, groupBy, isEmpty, isNil, keyBy, mapValues, set, sortBy, uniq } from 'lodash';
+import { find, get, isEmpty, isNil, keyBy, mapValues, set, uniq } from 'lodash';
 import moment from 'moment';
 
 import { roles } from '../../../constants';
