@@ -25,7 +25,7 @@ const expensesQuery = gql`
     $fromAccount: AccountReferenceInput
     $account: AccountReferenceInput
     $host: AccountReferenceInput
-    $status: ExpenseStatusFilter
+    $status: [ExpenseStatusFilter]
     $searchTerm: String
     $customData: JSON
   ) {

@@ -1,7 +1,9 @@
+import assert from 'assert';
+
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { isEmpty, isNil, sum, uniq } from 'lodash';
+import { compact, isEmpty, isNil, sum, uniq } from 'lodash';
 import { OrderItem, Sequelize } from 'sequelize';
 
 import { expenseStatus } from '../../../../constants';
@@ -18,6 +20,7 @@ import { Unauthorized } from '../../../errors';
 import { GraphQLExpenseCollection } from '../../collection/ExpenseCollection';
 import GraphQLExpenseStatusFilter from '../../enum/ExpenseStatusFilter';
 import { GraphQLExpenseType } from '../../enum/ExpenseType';
+import { GraphQLLastCommentBy } from '../../enum/LastCommentByType';
 import { GraphQLPayoutMethodType } from '../../enum/PayoutMethodType';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
 import {
@@ -123,7 +126,7 @@ export const ExpensesCollectionQueryArgs = {
     description: 'Return expenses only created by this INDIVIDUAL account',
   },
   status: {
-    type: GraphQLExpenseStatusFilter,
+    type: new GraphQLList(GraphQLExpenseStatusFilter),
     description: 'Use this field to filter expenses on their statuses',
   },
   type: {
@@ -188,6 +191,10 @@ export const ExpensesCollectionQueryArgs = {
   virtualCards: {
     type: new GraphQLList(GraphQLVirtualCardReferenceInput),
     description: 'Filter expenses of type charges using these virtual cards',
+  },
+  lastCommentBy: {
+    type: new GraphQLList(GraphQLLastCommentBy),
+    description: 'Filter expenses by the last user-role who replied to them',
   },
 };
 
@@ -338,12 +345,16 @@ export const ExpensesCollectionQueryResolver = async (
   }
 
   if (args.status) {
-    if (args.status === 'ON_HOLD') {
+    if (args.status.includes('ON_HOLD') && args.status.length === 1) {
       where['onHold'] = true;
-    } else if (args.status !== 'READY_TO_PAY') {
-      where['status'] = args.status;
-    } else {
+    } else if (args.status.includes('READY_TO_PAY')) {
+      assert(args.status.length === 1, 'READY_TO_PAY cannot be combined with other statuses');
       await updateFilterConditionsForReadyToPay(where, include, host, req.loaders);
+    } else {
+      where['status'] = args.status;
+      if (!args.status.includes('ON_HOLD')) {
+        where['onHold'] = false;
+      }
     }
   } else {
     if (req.remoteUser) {
@@ -359,6 +370,39 @@ export const ExpensesCollectionQueryResolver = async (
     } else {
       where['status'] = { [Op.notIn]: [expenseStatus.DRAFT, expenseStatus.SPAM] };
     }
+  }
+
+  if (args.lastCommentBy?.length) {
+    assert(host && req.remoteUser.isAdmin(host.id), 'You need to be an admin of the host to filter by lastCommentBy');
+    const conditions = [];
+    const CollectiveIds = compact([
+      args.lastCommentBy.includes('COLLECTIVE_ADMIN') && '"Expense"."CollectiveId"',
+      args.lastCommentBy.includes('HOST_ADMIN') && `"collective"."HostCollectiveId"`,
+    ]);
+
+    // Collective Conditions
+    if (CollectiveIds.length) {
+      conditions.push(
+        sequelize.literal(
+          `(SELECT "FromCollectiveId" FROM "Comments" WHERE "Comments"."ExpenseId" = "Expense"."id" ORDER BY "id" DESC LIMIT 1)
+            IN (
+              SELECT "MemberCollectiveId" FROM "Members" WHERE
+              "role" = 'ADMIN' AND "deletedAt" IS NULL AND
+              "CollectiveId" IN (${CollectiveIds.join(',')})
+          )`,
+        ),
+      );
+    }
+    // User Condition
+    if (args.lastCommentBy.includes('USER')) {
+      conditions.push(
+        sequelize.literal(
+          `(SELECT "CreatedByUserId" FROM "Comments" WHERE "Comments"."ExpenseId" = "Expense"."id" ORDER BY "id" DESC LIMIT 1) = "Expense"."UserId"`,
+        ),
+      );
+    }
+
+    where[Op.and].push(conditions.length > 1 ? { [Op.or]: conditions } : conditions[0]);
   }
 
   if (args.customData) {
