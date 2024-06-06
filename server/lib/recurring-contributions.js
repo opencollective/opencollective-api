@@ -231,7 +231,7 @@ export async function handleRetryStatus(order, transaction) {
   }
 }
 
-/** Get the date an order should be charged again and it's next period start date
+/** Get the date an order should be charged again and its next period start date
  *
  * The status defines how much time it will take until the same
  * subscription can be charged again. Currently supported status

@@ -13,7 +13,7 @@ enum OrderStatuses {
   REQUIRE_CLIENT_CONFIRMATION = 'REQUIRE_CLIENT_CONFIRMATION', // For Strong Customer Authentication ("3D Secure")
   PAID = 'PAID', // For One Time Contributions
   ERROR = 'ERROR', // For One Time and Recurring Contribution
-  PROCESSING = 'PROCESSING', // For Stripe Payment Intent based Orders
+  PROCESSING = 'PROCESSING', // For Stripe Payment Intents or PayPal subscriptions, where the payment is being processed asynchronously and recorded through webhooks
   REJECTED = 'REJECTED', // When a collective/host admin rejects a contribution
   // This is only for "Recurring Contributions"
   ACTIVE = 'ACTIVE', // Active Recurring contribution with up to date payments
