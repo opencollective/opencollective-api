@@ -220,7 +220,7 @@ export default async app => {
       onReject: [logGraphQLComplexityRejection],
       ignoreIntrospection: true,
       propagateOnRejection: false,
-      maxCost: 20000, // Currently identified max: around 20000 on the "Create Expense" mutation
+      maxCost: 25000, // Currently identified max: around 25000 on the "ExpenseFormSchema" mutation
     },
     // Tokens are the number of fields in a query
     maxTokens: {
