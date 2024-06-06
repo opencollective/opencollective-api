@@ -128,7 +128,12 @@ const remoteUserMeetsOneCondition = async (req, transaction, conditions): Promis
 
 /** Checks if the user can refund this transaction */
 export const canRefund = async (transaction: Transaction, _: void, req: express.Request): Promise<boolean> => {
-  if (transaction.type !== TransactionTypes.CREDIT || transaction.OrderId === null || transaction.isRefund === true) {
+  if (
+    transaction.type !== TransactionTypes.CREDIT ||
+    transaction.OrderId === null ||
+    transaction.isRefund === true ||
+    transaction.isDisputed === true
+  ) {
     return false;
   }
   if (transaction.OrderId) {
