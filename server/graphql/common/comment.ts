@@ -5,7 +5,7 @@ import { mustBeLoggedInTo } from '../../lib/auth';
 import models from '../../models';
 import Comment, { CommentType } from '../../models/Comment';
 import Conversation from '../../models/Conversation';
-import Expense, { ExpenseStatus } from '../../models/Expense';
+import Expense from '../../models/Expense';
 import Order from '../../models/Order';
 import Update from '../../models/Update';
 import { NotFound, Unauthorized, ValidationFailed } from '../errors';
@@ -87,7 +87,7 @@ async function deleteComment(id: number, req): Promise<void> {
   return comment.destroy();
 }
 
-async function createComment(commentData, req, options?: { triggerStatusChange?: boolean }): Promise<Comment> {
+async function createComment(commentData, req): Promise<Comment> {
   const { remoteUser } = req;
   mustBeLoggedInTo(remoteUser, 'create a comment');
 
@@ -163,17 +163,7 @@ async function createComment(commentData, req, options?: { triggerStatusChange?:
     },
   });
 
-  if (ExpenseId) {
-    const expense = commentedEntity as Expense;
-    if (
-      options?.triggerStatusChange !== false &&
-      remoteUser.isAdmin(expense.FromCollectiveId) &&
-      expense?.status === ExpenseStatus.INCOMPLETE
-    ) {
-      await expense.update({ status: ExpenseStatus.APPROVED });
-      await expense.createActivity(ActivityTypes.COLLECTIVE_EXPENSE_APPROVED);
-    }
-  } else if (ConversationId) {
+  if (ConversationId) {
     models.ConversationFollower.follow(remoteUser.id, ConversationId);
   }
 

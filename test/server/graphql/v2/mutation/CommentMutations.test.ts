@@ -5,7 +5,6 @@ import { assert, createSandbox } from 'sinon';
 
 import { roles } from '../../../../../server/constants';
 import ActivityTypes from '../../../../../server/constants/activities';
-import ExpenseStatuses from '../../../../../server/constants/expense-status';
 import { idDecode, idEncode } from '../../../../../server/graphql/v2/identifiers';
 import emailLib from '../../../../../server/lib/email';
 import models from '../../../../../server/models';
@@ -116,23 +115,6 @@ describe('test/server/graphql/v2/mutation/CommentMutations', () => {
       assert.neverCalledWithMatch(sendEmailSpy, admin.email);
       assert.neverCalledWithMatch(sendEmailSpy, expenseSubmitter.email);
       assert.calledWithMatch(sendEmailSpy, anotherHostAdmin.email, expectedTitle);
-    });
-
-    it('moves the expense back to APPROVED if its current status is INCOMPLETE', async () => {
-      await expense.update({ status: ExpenseStatuses.INCOMPLETE });
-
-      let result = await utils.graphqlQueryV2(createCommentMutation, { comment: validCommentData }, hostAdmin);
-      utils.expectNoErrorsFromResult(result);
-      await expense.reload();
-      expect(expense.status).to.equal(ExpenseStatuses.INCOMPLETE);
-
-      result = await utils.graphqlQueryV2(createCommentMutation, { comment: validCommentData }, expenseSubmitter);
-      utils.expectNoErrorsFromResult(result);
-      const createdComment = result.data.createComment;
-      expect(createdComment.html).to.equal('<p>This is the <strong>comment</strong></p>');
-
-      await expense.reload();
-      expect(expense.status).to.equal(ExpenseStatuses.APPROVED);
     });
   });
 
