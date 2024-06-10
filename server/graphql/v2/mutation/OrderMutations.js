@@ -419,6 +419,7 @@ const orderMutations = {
       }
 
       if (hasPaymentMethodChanged) {
+        const previousOrderStatus = order.status;
         if (args.paypalSubscriptionId) {
           // Update from PayPal subscription ID
           try {
@@ -437,9 +438,13 @@ const orderMutations = {
           order = await updatePaymentMethodForSubscription(req.remoteUser, order, newPaymentMethod);
         }
 
-        // Unpause contribution
-        if (order.status === OrderStatuses.PAUSED) {
-          await order.unpause(req.remoteUser, { UserTokenId: req.userToken?.id });
+        // Create resume activity if the order was previously paused
+        if (previousOrderStatus === OrderStatuses.PAUSED) {
+          try {
+            await order.createResumeActivity(req.remoteUser, { UserTokenId: req.userToken?.id });
+          } catch (error) {
+            reportErrorToSentry(error, { req });
+          }
         }
       }
 

@@ -225,7 +225,7 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
    */
   declare lock: <T>(callback: () => T, options?: { retries?: number; retryDelay?: number }) => Promise<T>;
   declare isLocked: () => boolean;
-  declare unPause: (user: User, params: { UserTokenId?: number }) => Promise<Order>;
+  declare createResumeActivity: (user: User, params: { UserTokenId?: number }) => Promise<void>;
   declare markSimilarPausedOrdersAsCancelled: () => Promise<void>;
 
   // Getter Methods
@@ -865,15 +865,9 @@ Order.prototype.isLocked = function (): boolean {
  *
  * @param user - The user who is unpausing the order
  */
-Order.prototype.unPause = async function (user: User, { UserTokenId = undefined } = {}): Promise<Order> {
-  if (this.status !== OrderStatus.PAUSED) {
-    return this;
-  }
-
+Order.prototype.createResumeActivity = async function (user: User, { UserTokenId = undefined } = {}): Promise<void> {
   const collective = this.collective || (await this.getCollective());
   const HostCollectiveId = collective.HostCollectiveId;
-
-  await this.update({ status: OrderStatus.ACTIVE });
   await Activity.create({
     type: ActivityTypes.SUBSCRIPTION_RESUMED,
     UserId: user.id,
@@ -888,8 +882,6 @@ Order.prototype.unPause = async function (user: User, { UserTokenId = undefined 
       user: user.info,
     },
   });
-
-  return this;
 };
 
 /**

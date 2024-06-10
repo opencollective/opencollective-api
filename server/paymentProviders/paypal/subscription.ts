@@ -280,7 +280,7 @@ export const setupPaypalSubscriptionForOrder = async (
   try {
     await paypalRequest(`billing/subscriptions/${paypalSubscriptionId}/activate`, null, hostCollective, 'POST');
     if (order.PaymentMethodId !== paymentMethod.id) {
-      order = await order.update({ PaymentMethodId: paymentMethod.id });
+      order = await order.update({ PaymentMethodId: paymentMethod.id, status: ORDER_STATUS.PROCESSING }); // Will be marked as active by the webhook
     }
   } catch (e) {
     logger.error(`[PayPal] Error while activating subscription: ${e}`);
