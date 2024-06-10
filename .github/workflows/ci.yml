@@ -128,7 +128,7 @@ jobs:
 
       - run: npm run depcheck
 
-  unused-exports:
+  ts-unused-exports:
     runs-on: ubuntu-latest
 
     timeout-minutes: 15
@@ -161,7 +161,7 @@ jobs:
           key: ${{ runner.os }}-api-build-${{ github.sha }}
 
       - name: Check unused exports
-        run: npm run find-unused-exports
+        run: npm run ts-unused-exports
 
   build:
     runs-on: ubuntu-latest

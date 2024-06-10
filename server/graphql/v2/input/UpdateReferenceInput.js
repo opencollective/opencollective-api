@@ -1,5 +1,3 @@
-// ignore unused exports fetchUpdateWithReference
-
 import { GraphQLInputObjectType, GraphQLString } from 'graphql';
 
 import models from '../../../models';
@@ -9,7 +7,7 @@ import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 /**
  * An input for referencing Updates.
  */
-const GraphQLUpdateReferenceInput = new GraphQLInputObjectType({
+export const GraphQLUpdateReferenceInput = new GraphQLInputObjectType({
   name: 'UpdateReferenceInput',
   fields: () => ({
     id: {
@@ -19,7 +17,7 @@ const GraphQLUpdateReferenceInput = new GraphQLInputObjectType({
   }),
 });
 
-const getDatabaseIdFromUpdateReference = input => {
+export const getDatabaseIdFromUpdateReference = input => {
   if (input['id']) {
     return idDecode(input['id'], IDENTIFIER_TYPES.UPDATE);
   } else if (input['legacyId']) {
@@ -32,7 +30,8 @@ const getDatabaseIdFromUpdateReference = input => {
 /**
  * Retrieve an expense from an `UpdateReferenceInput`
  */
-const fetchUpdateWithReference = async (input, { loaders = null, throwIfMissing = false } = {}) => {
+// ts-unused-exports:disable-next-line
+export const fetchUpdateWithReference = async (input, { loaders = null, throwIfMissing = false } = {}) => {
   const dbId = getDatabaseIdFromUpdateReference(input);
   let update = null;
   if (dbId) {
@@ -45,5 +44,3 @@ const fetchUpdateWithReference = async (input, { loaders = null, throwIfMissing 
 
   return update;
 };
-
-export { GraphQLUpdateReferenceInput, fetchUpdateWithReference, getDatabaseIdFromUpdateReference };

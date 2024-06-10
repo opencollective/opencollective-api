@@ -59,11 +59,10 @@ type FileUpload = {
 
 // Constants
 
-// ignore unused exports MAX_FILENAME_LENGTH, MAX_FILE_SIZE, SUPPORTED_FILE_TYPES_IMAGES
-export const MAX_FILENAME_LENGTH = 1024; // From S3
+const MAX_FILENAME_LENGTH = 1024; // From S3
 export const MAX_UPLOADED_FILE_URL_LENGTH = 1200; // From S3
-export const MAX_FILE_SIZE = 1024 * 1024 * 10; // 10MB
-export const SUPPORTED_FILE_TYPES_IMAGES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'] as const;
+const MAX_FILE_SIZE = 1024 * 1024 * 10; // 10MB
+const SUPPORTED_FILE_TYPES_IMAGES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'] as const;
 export const SUPPORTED_FILE_TYPES = [...SUPPORTED_FILE_TYPES_IMAGES, 'application/pdf', 'text/csv'] as const;
 type SupportedFileType = (typeof SUPPORTED_FILE_TYPES)[number];
 export const SUPPORTED_FILE_EXTENSIONS: Record<SUPPORTED_FILE_TYPES_UNION, string> = {

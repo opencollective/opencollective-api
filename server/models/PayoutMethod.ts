@@ -56,17 +56,17 @@ export const IDENTIFIABLE_DATA_FIELDS = [
 ];
 
 /** An interface for the values stored in `data` field for PayPal payout methods */
-export interface PaypalPayoutMethodData {
+interface PaypalPayoutMethodData {
   email: string;
 }
 
 /** An interface for the values stored in `data` field for Custom payout methods */
-export interface OtherPayoutMethodData {
+interface OtherPayoutMethodData {
   content: string;
 }
 
 /** Group all the possible types for payout method's data */
-export type PayoutMethodDataType =
+type PayoutMethodDataType =
   | PaypalPayoutMethodData
   | OtherPayoutMethodData
   | BankAccountPayoutMethodData

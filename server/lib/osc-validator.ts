@@ -9,7 +9,7 @@ const osiApprovedLicenses = Object.keys(spdxLicenses)
   }))
   .filter(license => license.osiApproved);
 
-export interface RepositoryInfo {
+interface RepositoryInfo {
   lastCommitDate: string;
   collaboratorsCount: number;
   starsCount: number;
@@ -18,6 +18,7 @@ export interface RepositoryInfo {
   isAdmin: boolean;
   licenseSpdxId: string;
 }
+
 export interface ValidatedRepositoryInfo {
   allValidationsPassed: boolean;
   fields: {

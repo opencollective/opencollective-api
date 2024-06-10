@@ -11,7 +11,7 @@ interface ConversationFollowerModelStaticInterface {
   unfollow(UserId: number, ConversationId: number): Promise<ConversationFollowerModelInterface>;
 }
 
-export interface ConversationFollowerModelInterface
+interface ConversationFollowerModelInterface
   extends Model<
     InferAttributes<ConversationFollowerModelInterface>,
     InferCreationAttributes<ConversationFollowerModelInterface>

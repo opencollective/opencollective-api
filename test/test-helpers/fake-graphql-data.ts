@@ -1,8 +1,6 @@
 import { randAmount, randNumber } from './fake-data';
 
-// ignore unused exports fakeGraphQLExchangeRateInput
-
-export const fakeGraphQLExchangeRateInput = (values = {}) => {
+const fakeGraphQLExchangeRateInput = (values = {}) => {
   return {
     source: 'WISE',
     fromCurrency: 'EUR',

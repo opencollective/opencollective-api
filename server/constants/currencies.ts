@@ -314,6 +314,7 @@ export type SupportedCurrency = (typeof SUPPORTED_CURRENCIES)[number];
 
 export const SupportedCurrencies = pick(IBANCurrencies, SUPPORTED_CURRENCIES);
 
+// ts-unused-exports:disable-next-line
 export const TransferWiseCurrencies = pick(IBANCurrencies, [
   'EUR',
   'GBP',

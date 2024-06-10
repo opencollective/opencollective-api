@@ -1,5 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
+// ts-unused-exports:disable-next-line
 export type TimeUnit = 'SECOND' | 'MINUTE' | 'HOUR' | 'DAY' | 'WEEK' | 'MONTH' | 'QUARTER' | 'YEAR';
 
 /**

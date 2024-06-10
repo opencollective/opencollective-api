@@ -44,7 +44,7 @@ export const TWO_FACTOR_SESSIONS_PARAMS = {
 
 export const TwoFactorAuthenticationHeader = 'x-two-factor-authentication';
 
-export const SupportedTwoFactorMethods = [
+const SupportedTwoFactorMethods = [
   TwoFactorMethod.TOTP,
   TwoFactorMethod.YUBIKEY_OTP,
   TwoFactorMethod.RECOVERY_CODE,
@@ -56,7 +56,7 @@ export type Token = {
   code: string;
 };
 
-export interface TwoFactorAuthProvider {
+interface TwoFactorAuthProvider {
   validateToken(user: User, token: Token, req?): Promise<void>;
   authenticationOptions?(user: User, req): Promise<unknown>;
 }
