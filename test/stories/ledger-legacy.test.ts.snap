@@ -246,7 +246,8 @@ exports[`test/stories/ledger Level 6: Disputed Transactions 2. Dispute is create
 "
 | kind                          | type   | amount | paymentFee | To     | From   | Host   | Settlement | isRefund | isDisputed |
 | ----------------------------- | ------ | ------ | ---------- | ------ | ------ | ------ | ---------- | -------- | ---------- |
-| PAYMENT_PROCESSOR_DISPUTE_FEE | DEBIT  | -1500  | 0          | OSC    | OSC    | OSC    |            | false    | false      |
+| PAYMENT_PROCESSOR_DISPUTE_FEE | CREDIT | 1500   | 0          | Stripe | OSC    | NULL   |            | false    | false      |
+| PAYMENT_PROCESSOR_DISPUTE_FEE | DEBIT  | -1500  | 0          | OSC    | Stripe | OSC    |            | false    | false      |
 | CONTRIBUTION                  | CREDIT | 10000  | 0          | Ben    | ESLint | NULL   |            | true     | false      |
 | CONTRIBUTION                  | DEBIT  | -10000 | 0          | ESLint | Ben    | OSC    |            | true     | false      |
 | HOST_FEE_SHARE_DEBT           | CREDIT | 75     | 0          | OC Inc | OSC    | OC Inc | SETTLED    | true     | false      |
@@ -255,26 +256,28 @@ exports[`test/stories/ledger Level 6: Disputed Transactions 2. Dispute is create
 | HOST_FEE_SHARE                | DEBIT  | -75    | 0          | OC Inc | OSC    | OSC    |            | true     | false      |
 | HOST_FEE                      | CREDIT | 500    | 0          | ESLint | OSC    | OSC    |            | true     | false      |
 | HOST_FEE                      | DEBIT  | -500   | 0          | OSC    | ESLint | OSC    |            | true     | false      |
-| CONTRIBUTION                  | CREDIT | 10000  | 0          | ESLint | Ben    | OSC    |            | false    | true       |
-| CONTRIBUTION                  | DEBIT  | -10000 | 0          | Ben    | ESLint | OSC    |            | false    | true       |
-| HOST_FEE_SHARE_DEBT           | CREDIT | 75     | 0          | OSC    | OC Inc | OSC    | SETTLED    | false    | true       |
-| HOST_FEE_SHARE_DEBT           | DEBIT  | -75    | 0          | OC Inc | OSC    | OSC    | SETTLED    | false    | true       |
-| HOST_FEE_SHARE                | CREDIT | 75     | 0          | OC Inc | OSC    | OSC    |            | false    | true       |
-| HOST_FEE_SHARE                | DEBIT  | -75    | 0          | OSC    | OC Inc | OSC    |            | false    | true       |
-| HOST_FEE                      | CREDIT | 500    | 0          | OSC    | ESLint | OSC    |            | false    | true       |
-| HOST_FEE                      | DEBIT  | -500   | 0          | ESLint | OSC    | OSC    |            | false    | true       |"
+| CONTRIBUTION                  | CREDIT | 10000  | 0          | ESLint | Ben    | OSC    |            | false    | false      |
+| CONTRIBUTION                  | DEBIT  | -10000 | 0          | Ben    | ESLint | OSC    |            | false    | false      |
+| HOST_FEE_SHARE_DEBT           | CREDIT | 75     | 0          | OSC    | OC Inc | OSC    | SETTLED    | false    | false      |
+| HOST_FEE_SHARE_DEBT           | DEBIT  | -75    | 0          | OC Inc | OSC    | OSC    | SETTLED    | false    | false      |
+| HOST_FEE_SHARE                | CREDIT | 75     | 0          | OC Inc | OSC    | OSC    |            | false    | false      |
+| HOST_FEE_SHARE                | DEBIT  | -75    | 0          | OSC    | OC Inc | OSC    |            | false    | false      |
+| HOST_FEE                      | CREDIT | 500    | 0          | OSC    | ESLint | OSC    |            | false    | false      |
+| HOST_FEE                      | DEBIT  | -500   | 0          | ESLint | OSC    | OSC    |            | false    | false      |"
 `;
 
 exports[`test/stories/ledger Level 6: Disputed Transactions 3. Dispute is created and then closed as won 1`] = `
 "
-| kind                | type   | amount | paymentFee | To     | From   | Host | Settlement | isRefund | isDisputed |
-| ------------------- | ------ | ------ | ---------- | ------ | ------ | ---- | ---------- | -------- | ---------- |
-| CONTRIBUTION        | CREDIT | 10000  | 0          | ESLint | Ben    | OSC  |            | false    | false      |
-| CONTRIBUTION        | DEBIT  | -10000 | 0          | Ben    | ESLint | OSC  |            | false    | false      |
-| HOST_FEE_SHARE_DEBT | CREDIT | 75     | 0          | OSC    | OC Inc | OSC  | OWED       | false    | false      |
-| HOST_FEE_SHARE_DEBT | DEBIT  | -75    | 0          | OC Inc | OSC    | OSC  | OWED       | false    | false      |
-| HOST_FEE_SHARE      | CREDIT | 75     | 0          | OC Inc | OSC    | OSC  |            | false    | false      |
-| HOST_FEE_SHARE      | DEBIT  | -75    | 0          | OSC    | OC Inc | OSC  |            | false    | false      |
-| HOST_FEE            | CREDIT | 500    | 0          | OSC    | ESLint | OSC  |            | false    | false      |
-| HOST_FEE            | DEBIT  | -500   | 0          | ESLint | OSC    | OSC  |            | false    | false      |"
+| kind                          | type   | amount | paymentFee | To     | From   | Host | Settlement | isRefund | isDisputed |
+| ----------------------------- | ------ | ------ | ---------- | ------ | ------ | ---- | ---------- | -------- | ---------- |
+| PAYMENT_PROCESSOR_DISPUTE_FEE | CREDIT | 1500   | 0          | Stripe | OSC    | NULL |            | false    | false      |
+| PAYMENT_PROCESSOR_DISPUTE_FEE | DEBIT  | -1500  | 0          | OSC    | Stripe | OSC  |            | false    | false      |
+| CONTRIBUTION                  | CREDIT | 10000  | 0          | ESLint | Ben    | OSC  |            | false    | false      |
+| CONTRIBUTION                  | DEBIT  | -10000 | 0          | Ben    | ESLint | OSC  |            | false    | false      |
+| HOST_FEE_SHARE_DEBT           | CREDIT | 75     | 0          | OSC    | OC Inc | OSC  | OWED       | false    | false      |
+| HOST_FEE_SHARE_DEBT           | DEBIT  | -75    | 0          | OC Inc | OSC    | OSC  | OWED       | false    | false      |
+| HOST_FEE_SHARE                | CREDIT | 75     | 0          | OC Inc | OSC    | OSC  |            | false    | false      |
+| HOST_FEE_SHARE                | DEBIT  | -75    | 0          | OSC    | OC Inc | OSC  |            | false    | false      |
+| HOST_FEE                      | CREDIT | 500    | 0          | OSC    | ESLint | OSC  |            | false    | false      |
+| HOST_FEE                      | DEBIT  | -500   | 0          | ESLint | OSC    | OSC  |            | false    | false      |"
 `;

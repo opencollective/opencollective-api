@@ -9,6 +9,7 @@ import { Service } from '../../../../server/constants/connected-account';
 import FEATURE from '../../../../server/constants/feature';
 import OrderStatuses from '../../../../server/constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
+import { TransactionKind } from '../../../../server/constants/transaction-kind';
 import * as libPayments from '../../../../server/lib/payments';
 import stripe from '../../../../server/lib/stripe';
 import models from '../../../../server/models';
@@ -31,6 +32,7 @@ describe('webhook', () => {
 
   beforeEach(async () => {
     await utils.resetTestDB();
+    await utils.seedDefaultVendors();
     sandbox = createSandbox();
   });
 
@@ -124,6 +126,7 @@ describe('webhook', () => {
           OrderId: order.id,
           HostCollectiveId: collective.id,
           amount: 10,
+          kind: TransactionKind.CONTRIBUTION,
           data: {
             charge: { id: (stripeMocks.webhook_dispute_created.data.object as Stripe.Dispute).charge } as Stripe.Charge,
           },
@@ -147,24 +150,24 @@ describe('webhook', () => {
         await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_won);
 
         const transactions = await order.getTransactions();
-        expect(transactions.map(tx => tx.isDisputed)).to.eql([false, false, false, false]);
+        expect(transactions.map(tx => tx.isDisputed)).to.not.include(true);
       });
 
       describe('when the Order has a Subscription', () => {
-        it('resets the Order connected to the charge to ACTIVE', async () => {
+        it('leave Order as CANCELLED', async () => {
           await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created);
           await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_won);
 
           await order.reload();
-          expect(order.status).to.eql(OrderStatuses.ACTIVE);
+          expect(order.status).to.eql(OrderStatuses.CANCELLED);
         });
 
-        it('reactivates the Subscription', async () => {
+        it('does not reactivates the Subscription', async () => {
           await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created);
           await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_won);
 
           const subscription = await order.getSubscription();
-          expect(subscription.isActive).to.eql(true);
+          expect(subscription.isActive).to.eql(false);
         });
       });
 
@@ -219,15 +222,6 @@ describe('webhook', () => {
         expect(refundTransactions.length).to.eql(2);
       });
 
-      it('creates a dispute fee DEBIT transaction for the host collective', async () => {
-        await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created);
-        await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_lost);
-
-        const transactions = await order.getTransactions();
-        const disputeFeeTransaction = transactions.find(tx => tx.description === 'Stripe Transaction Dispute Fee');
-        expect(disputeFeeTransaction.amount).to.eql(-1500);
-      });
-
       describe('when the Order has a Subscription', () => {
         it('resets the Order connected to the charge to CANCELLED', async () => {
           await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created);
@@ -248,6 +242,17 @@ describe('webhook', () => {
           expect(order.status).to.eql(OrderStatuses.REFUNDED);
         });
       });
+    });
+
+    it('creates a dispute fee DEBIT transaction for the host collective whenever a fee is charged', async () => {
+      await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created);
+      await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_lost);
+
+      const transactions = await order.getTransactions();
+      const disputeFeeTransaction = transactions.find(
+        tx => tx.kind === 'PAYMENT_PROCESSOR_DISPUTE_FEE' && tx.type === 'DEBIT',
+      );
+      expect(disputeFeeTransaction.amount).to.eql(-1500);
     });
   });
 

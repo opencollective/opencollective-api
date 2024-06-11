@@ -34,7 +34,7 @@ import {
   fakePayoutMethod,
   fakeUser,
 } from '../test-helpers/fake-data';
-import { nockFixerRates, resetTestDB, snapshotLedger } from '../utils';
+import { nockFixerRates, resetTestDB, seedDefaultVendors, snapshotLedger } from '../utils';
 
 const SNAPSHOT_COLUMNS = [
   'kind',
@@ -74,6 +74,7 @@ const setupTestData = async (
 ) => {
   // TODO: The setup should ideally insert other hosts and transactions to make sure the balance queries are filtering correctly
   await resetTestDB();
+  await seedDefaultVendors();
   const hostAdmin = await fakeUser();
   const host = await fakeHost({
     name: 'OSC',

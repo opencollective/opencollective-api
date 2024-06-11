@@ -12,12 +12,11 @@ import { Service } from '../../constants/connected-account';
 import { SupportedCurrency } from '../../constants/currencies';
 import FEATURE from '../../constants/feature';
 import OrderStatuses from '../../constants/order-status';
-import { PAYMENT_METHOD_TYPE, PAYMENT_METHOD_TYPES } from '../../constants/paymentMethods';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE, PAYMENT_METHOD_TYPES } from '../../constants/paymentMethods';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
 import { getFxRate, isSupportedCurrency } from '../../lib/currency';
 import logger from '../../lib/logger';
-import { toNegative } from '../../lib/math';
 import {
   createRefundTransaction,
   createSubscription,
@@ -26,6 +25,7 @@ import {
 } from '../../lib/payments';
 import { reportMessageToSentry } from '../../lib/sentry';
 import stripe, { getDashboardObjectIdURL } from '../../lib/stripe';
+import { getPaymentProcessorFeeVendor } from '../../lib/transactions';
 import models, { sequelize } from '../../models';
 import Order from '../../models/Order';
 import { PaymentMethodModelInterface } from '../../models/PaymentMethod';
@@ -383,7 +383,6 @@ export const chargeDisputeCreated = async (event: Stripe.Event) => {
   );
 
   const order = chargeTransaction.Order;
-
   await models.Activity.create({
     type: ActivityTypes.ORDER_DISPUTE_CREATED,
     CollectiveId: order.collective.id,
@@ -399,6 +398,7 @@ export const chargeDisputeCreated = async (event: Stripe.Event) => {
       tierName: order.Tier?.name,
       reason: dispute.reason,
       paymentProcessorUrl: getDashboardObjectIdURL(dispute.id, event.account),
+      dispute,
     },
   });
 };
@@ -458,14 +458,13 @@ export const chargeDisputeClosed = async (event: Stripe.Event) => {
   if (transactions.length > 0) {
     const order = chargeTransaction.Order;
 
-    const disputeStatus = dispute.status;
     const disputeTransaction = dispute.balance_transactions.find(
       tx => tx.type === 'adjustment' && tx.reporting_category === 'dispute',
     );
     const clearedAt = disputeTransaction?.created && moment.unix(disputeTransaction.created).toDate();
-
+    const refundTransactionGroup = uuid();
     // A lost dispute means it was decided as fraudulent
-    if (disputeStatus === 'lost') {
+    if (dispute.status === 'lost') {
       if (order.status === OrderStatuses.DISPUTED) {
         if (order.SubscriptionId) {
           await order.update({ status: OrderStatuses.CANCELLED });
@@ -480,22 +479,35 @@ export const chargeDisputeClosed = async (event: Stripe.Event) => {
       }
 
       // Create refund transaction for the fraudulent charge
-      const transactionGroup = uuid();
-      await createRefundTransaction(
-        chargeTransaction,
-        0,
-        {
-          ...chargeTransaction.data,
-          dispute,
-          refundTransactionId: chargeTransaction.id,
-        },
-        null,
-        transactionGroup,
-        clearedAt,
-      );
+      if (!chargeTransaction.RefundTransactionId) {
+        await createRefundTransaction(
+          chargeTransaction,
+          0,
+          {
+            ...chargeTransaction.data,
+            dispute,
+            refundTransactionId: chargeTransaction.id,
+          },
+          null,
+          refundTransactionGroup,
+          clearedAt,
+        );
+      }
+      // A won dispute means it was decided as not fraudulent
+    } else if (dispute.status === 'won') {
+      if (order.status === OrderStatuses.DISPUTED) {
+        if (order.SubscriptionId) {
+          // We should not resume the subscription because a dispute is a strong signal the user does not want to pay anymore
+          await order.update({ status: OrderStatuses.CANCELLED });
+        } else {
+          await order.update({ status: OrderStatuses.PAID });
+        }
+      }
+    }
 
-      // Create transaction for dispute fee debiting the fiscal host
-      const feeDetails = disputeTransaction.fee_details.find(feeDetails => feeDetails.description === 'Dispute fee');
+    // Create transaction for dispute fee debiting the fiscal host
+    const feeDetails = disputeTransaction?.fee_details?.find(feeDetails => feeDetails.description === 'Dispute fee');
+    if (feeDetails) {
       const currency = feeDetails.currency.toUpperCase() as SupportedCurrency;
       if (!isSupportedCurrency(currency)) {
         reportMessageToSentry(`Unsupported currency ${currency} for dispute fee`, {
@@ -503,23 +515,22 @@ export const chargeDisputeClosed = async (event: Stripe.Event) => {
         });
       }
 
-      const amount = feeDetails.amount;
+      const amount = Math.abs(feeDetails.amount);
       const fiscalHost = await models.Collective.findByPk(chargeTransaction.HostCollectiveId);
       const hostCurrencyFxRate = await getFxRate(currency, fiscalHost.currency);
-      const hostCurrencyAmount = Math.round(toNegative(amount) * hostCurrencyFxRate);
-
-      await models.Transaction.create({
-        type: 'DEBIT',
-        HostCollectiveId: fiscalHost.id,
-        CollectiveId: fiscalHost.id,
+      const vendor = await getPaymentProcessorFeeVendor(PAYMENT_METHOD_SERVICE.STRIPE);
+      await models.Transaction.createDoubleEntry({
+        type: 'CREDIT',
+        HostCollectiveId: null,
+        CollectiveId: vendor.id,
         FromCollectiveId: fiscalHost.id,
         OrderId: chargeTransaction.OrderId,
-        TransactionGroup: transactionGroup,
-        amount: toNegative(amount),
-        netAmountInCollectiveCurrency: toNegative(amount),
-        amountInHostCurrency: hostCurrencyAmount,
+        TransactionGroup: refundTransactionGroup,
+        amount: amount,
+        netAmountInCollectiveCurrency: amount,
+        amountInHostCurrency: amount,
+        hostCurrency: currency,
         currency: currency,
-        hostCurrency: fiscalHost.currency,
         description: 'Stripe Transaction Dispute Fee',
         paymentProcessorFeeInHostCurrency: 0,
         hostFeeInHostCurrency: 0,
@@ -529,17 +540,6 @@ export const chargeDisputeClosed = async (event: Stripe.Event) => {
         clearedAt,
         data: { dispute },
       });
-
-      // A won dispute means it was decided as not fraudulent
-    } else if (disputeStatus === 'won') {
-      if (order.status === OrderStatuses.DISPUTED) {
-        if (order.SubscriptionId) {
-          await order.update({ status: OrderStatuses.ACTIVE });
-          await order.Subscription.activate();
-        } else {
-          await order.update({ status: OrderStatuses.PAID });
-        }
-      }
 
       const user = chargeTransaction.createdByUser;
       const userHasDisputedOrders = await user.hasDisputedOrders();
@@ -569,6 +569,7 @@ export const chargeDisputeClosed = async (event: Stripe.Event) => {
         tierName: order.Tier?.name,
         reason: dispute.status,
         paymentProcessorUrl: getDashboardObjectIdURL(dispute.id, event.account),
+        dispute,
       },
     });
   }

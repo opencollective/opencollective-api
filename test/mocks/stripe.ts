@@ -506,7 +506,21 @@ export default {
         object: 'dispute',
         amount: 1000,
         balance_transaction: 'txn_1LpcvGJKGTeo5jKpPYuPf6tC',
-        balance_transactions: [],
+        balance_transactions: [
+          {
+            type: 'adjustment',
+            reporting_category: 'dispute',
+            fee_details: [
+              {
+                amount: 1500,
+                application: null,
+                currency: 'usd',
+                description: 'Dispute fee',
+                type: 'stripe_fee',
+              },
+            ],
+          } as Stripe.BalanceTransaction,
+        ],
         charge: 'ch_3LpDOFJKGTeo5jKp0PfknYNd',
         created: 1664996786,
         currency: 'eur',
