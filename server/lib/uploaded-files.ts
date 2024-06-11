@@ -6,7 +6,7 @@ import models from '../models';
  * replace this by real DB associations.
  */
 export const FileFieldsDefinition: Record<
-  Exclude<FileKind, 'AGREEMENT_ATTACHMENT'>,
+  Exclude<FileKind, 'AGREEMENT_ATTACHMENT' | 'TRANSACTIONS_IMPORT'>,
   {
     model;
     field: string;

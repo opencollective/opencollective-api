@@ -136,6 +136,7 @@ describe('sql/ban-collectives', () => {
       nb_deleted_users: 0,
       nb_deleted_transaction_settlements: 1, // For the platform tip debt
       nb_deleted_transactions: 8, // First contrib = 6 transactions (2 x contribution + 2 x tip + 2 x tip debt), second contrib "hostedTransaction" = 2 transactions
+      nb_deleted_transactions_imports: 0,
     });
 
     // User/user-data should not be deleted (we banned the collective)
@@ -193,6 +194,7 @@ describe('sql/ban-collectives', () => {
       deleted_profiles_ids: [user.collective.id],
       nb_deleted_transaction_settlements: 1, // For the platform tip debt
       nb_deleted_transactions: 6, // this one does not includes the hosted transactions
+      nb_deleted_transactions_imports: 0,
     });
 
     await expect(user).to.be.softDeleted;
@@ -238,6 +240,7 @@ describe('sql/ban-collectives', () => {
       nb_deleted_users: 2,
       nb_deleted_transaction_settlements: 0,
       nb_deleted_transactions: 0,
+      nb_deleted_transactions_imports: 0,
       deleted_profiles_ids: [user1.collective.id, user2.collective.id, collective.id],
     });
 
