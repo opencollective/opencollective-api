@@ -4,7 +4,22 @@ import crypto from 'crypto';
 import { isMemberOfTheEuropeanUnion } from '@opencollective/taxes';
 import config from 'config';
 import express from 'express';
-import { cloneDeep, compact, difference, find, get, has, omit, pick, round, set, split, toNumber } from 'lodash';
+import {
+  cloneDeep,
+  compact,
+  difference,
+  find,
+  get,
+  has,
+  isUndefined,
+  omit,
+  omitBy,
+  pick,
+  round,
+  set,
+  split,
+  toNumber,
+} from 'lodash';
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
@@ -92,11 +107,13 @@ async function quoteExpense(
   payoutMethod: PayoutMethod,
   expense: Expense,
   targetAccount?: number,
+  transferNature?: string,
 ): Promise<ExpenseDataQuoteV3 | ExpenseDataQuoteV2> {
   await populateProfileId(connectedAccount);
 
   const isExistingQuoteValid =
     expense.feesPayer !== 'PAYEE' &&
+    transferNature === undefined &&
     expense.data?.quote &&
     // We want a paymentOption to be there
     expense.data.quote['paymentOption'] &&
@@ -118,7 +135,13 @@ async function quoteExpense(
     profileId: connectedAccount.data.id,
     sourceCurrency: expense.host.currency,
     targetCurrency,
-    targetAccount,
+    ...omitBy<Partial<Parameters<typeof transferwise.createQuote>[1]>>(
+      {
+        targetAccount,
+        paymentMetadata: transferNature ? { transferNature } : undefined,
+      },
+      isUndefined,
+    ),
   };
 
   if (hasMultiCurrency) {
@@ -200,7 +223,8 @@ async function createTransfer(
       ? (expense.data.recipient as RecipientAccount)
       : await createRecipient(connectedAccount, payoutMethod);
 
-  const quote = await quoteExpense(connectedAccount, payoutMethod, expense, recipient.id);
+  const transferNature = options?.details?.transferNature;
+  const quote = await quoteExpense(connectedAccount, payoutMethod, expense, recipient.id, transferNature);
   const paymentOption = quote['paymentOption'];
   if (!paymentOption || paymentOption.disabled) {
     const message =
@@ -344,11 +368,12 @@ async function scheduleExpenseForPayment(
     expense.PayoutMethod = await expense.getPayoutMethod();
   }
 
+  const transferNature = transferDetails?.transferNature;
   const connectedAccount = await host.getAccountForPaymentProvider(PROVIDER_NAME);
   const token = await transferwise.getToken(connectedAccount);
   const [wiseBalances, quote] = await Promise.all([
     getAccountBalances(host, { connectedAccount }),
-    quoteExpense(connectedAccount, expense.PayoutMethod, expense),
+    quoteExpense(connectedAccount, expense.PayoutMethod, expense, undefined, transferNature),
   ]);
   const balanceInSourceCurrency = wiseBalances.find(b => b.currency === quote.sourceCurrency);
 
