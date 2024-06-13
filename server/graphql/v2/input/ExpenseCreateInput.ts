@@ -41,7 +41,8 @@ export const getExpenseCreateInputFields = (): GraphQLInputFieldConfigMap => ({
   },
   privateMessage: {
     type: GraphQLString,
-    description: 'A private note that will be attached to your invoice, as HTML',
+    description:
+      'A private note that will be attached to your invoice, as HTML. Only visible to the payee and the collective/host admins.',
   },
   invoiceInfo: {
     type: GraphQLString,
