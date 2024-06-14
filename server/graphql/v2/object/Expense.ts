@@ -412,7 +412,7 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Reques
         type: GraphQLString,
         description: 'Additional information about the payment as HTML. Only visible to user and admins.',
         async resolve(expense, _, req) {
-          if (await ExpenseLib.canSeeExpensePayoutMethod(req, expense)) {
+          if (await ExpenseLib.canSeeExpenseAttachments(req, expense)) {
             return expense.privateMessage;
           }
         },
