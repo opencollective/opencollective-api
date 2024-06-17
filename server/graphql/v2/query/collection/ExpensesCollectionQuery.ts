@@ -12,7 +12,7 @@ import { getBalances } from '../../../../lib/budget';
 import { loadFxRatesMap } from '../../../../lib/currency';
 import { buildSearchConditions } from '../../../../lib/search';
 import { expenseMightBeSubjectToTaxForm } from '../../../../lib/tax-forms';
-import { Op, sequelize } from '../../../../models';
+import { AccountingCategory, Op, sequelize } from '../../../../models';
 import Expense, { ExpenseType } from '../../../../models/Expense';
 import { PayoutMethodTypes } from '../../../../models/PayoutMethod';
 import { validateExpenseCustomData } from '../../../common/expenses';
@@ -29,6 +29,7 @@ import {
 } from '../../input/ChronologicalOrderInput';
 import { GraphQLVirtualCardReferenceInput } from '../../input/VirtualCardReferenceInput';
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
+import { UncategorizedValue } from '../../object/AccountingCategory';
 
 const updateFilterConditionsForReadyToPay = async (where, include, host, loaders): Promise<void> => {
   where['status'] = expenseStatus.APPROVED;
@@ -195,6 +196,10 @@ export const ExpensesCollectionQueryArgs = {
   lastCommentBy: {
     type: new GraphQLList(GraphQLLastCommentBy),
     description: 'Filter expenses by the last user-role who replied to them',
+  },
+  accountingCategory: {
+    type: new GraphQLList(GraphQLString),
+    description: 'Only return expenses that match these accounting categories',
   },
 };
 
@@ -423,6 +428,14 @@ export const ExpensesCollectionQueryResolver = async (
 
     validateExpenseCustomData(args.customData); // To ensure we don't get an invalid type or too long string
     where['data'] = { [Op.contains]: { customData: args.customData } };
+  }
+
+  if (!isEmpty(args.accountingCategory)) {
+    const conditionals = uniq(args.accountingCategory).map(code => [
+      { '$accountingCategory.code$': code === UncategorizedValue ? null : code },
+    ]);
+    where[Op.and].push({ [Op.or]: conditionals });
+    include.push({ model: AccountingCategory, as: 'accountingCategory' });
   }
 
   const order = [[args.orderBy.field, args.orderBy.direction]] as OrderItem[];

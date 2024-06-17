@@ -694,6 +694,11 @@ interface Account {
     Filter expenses by the last user-role who replied to them
     """
     lastCommentBy: [LastCommentBy]
+
+    """
+    Only return expenses that match these accounting categories
+    """
+    accountingCategory: [String]
   ): ExpenseCollection!
   settings: JSON!
   conversations(
@@ -2364,6 +2369,11 @@ type Host implements Account & AccountWithContributions {
     Filter expenses by the last user-role who replied to them
     """
     lastCommentBy: [LastCommentBy]
+
+    """
+    Only return expenses that match these accounting categories
+    """
+    accountingCategory: [String]
   ): ExpenseCollection!
   settings: JSON!
   conversations(
@@ -2678,6 +2688,11 @@ type Host implements Account & AccountWithContributions {
     """
     timeUnit: TimeUnit
   ): HostMetricsTimeSeries!
+
+  """
+  EXPERIMENTAL (this may change or be removed)
+  """
+  hostExpensesReport(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): HostExpensesReports
 
   """
   The list of payment methods (Stripe, Paypal, manual bank transfer, etc ...) the Host can accept for its Collectives
@@ -6183,6 +6198,35 @@ type TimeSeriesAmountWithKindNode {
 }
 
 """
+EXPERIMENTAL (this may change or be deleted): Host expenses report
+"""
+type HostExpensesReports {
+  """
+  The start date of the time series
+  """
+  dateFrom: DateTime
+
+  """
+  The end date of the time series
+  """
+  dateTo: DateTime
+
+  """
+  The interval between two data points
+  """
+  timeUnit: TimeUnit!
+  nodes: [HostExpensesReportNode!]
+}
+
+type HostExpensesReportNode {
+  date: DateTime!
+  isHost: Boolean!
+  accountingCategory: AccountingCategory
+  amount: Amount!
+  count: Int!
+}
+
+"""
 Stripe connected account properties
 """
 type StripeConnectedAccount {
@@ -7537,6 +7581,11 @@ type Bot implements Account {
     Filter expenses by the last user-role who replied to them
     """
     lastCommentBy: [LastCommentBy]
+
+    """
+    Only return expenses that match these accounting categories
+    """
+    accountingCategory: [String]
   ): ExpenseCollection!
   settings: JSON!
   conversations(
@@ -8289,6 +8338,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     Filter expenses by the last user-role who replied to them
     """
     lastCommentBy: [LastCommentBy]
+
+    """
+    Only return expenses that match these accounting categories
+    """
+    accountingCategory: [String]
   ): ExpenseCollection!
   settings: JSON!
   conversations(
@@ -9494,6 +9548,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     Filter expenses by the last user-role who replied to them
     """
     lastCommentBy: [LastCommentBy]
+
+    """
+    Only return expenses that match these accounting categories
+    """
+    accountingCategory: [String]
   ): ExpenseCollection!
   settings: JSON!
   conversations(
@@ -10481,6 +10540,11 @@ type Individual implements Account {
     Filter expenses by the last user-role who replied to them
     """
     lastCommentBy: [LastCommentBy]
+
+    """
+    Only return expenses that match these accounting categories
+    """
+    accountingCategory: [String]
   ): ExpenseCollection!
   settings: JSON!
   conversations(
@@ -11439,6 +11503,11 @@ type Organization implements Account & AccountWithContributions {
     Filter expenses by the last user-role who replied to them
     """
     lastCommentBy: [LastCommentBy]
+
+    """
+    Only return expenses that match these accounting categories
+    """
+    accountingCategory: [String]
   ): ExpenseCollection!
   settings: JSON!
   conversations(
@@ -12291,6 +12360,11 @@ type Vendor implements Account & AccountWithContributions {
     Filter expenses by the last user-role who replied to them
     """
     lastCommentBy: [LastCommentBy]
+
+    """
+    Only return expenses that match these accounting categories
+    """
+    accountingCategory: [String]
   ): ExpenseCollection!
   settings: JSON!
   conversations(
@@ -13009,6 +13083,11 @@ type Query {
     Filter expenses by the last user-role who replied to them
     """
     lastCommentBy: [LastCommentBy]
+
+    """
+    Only return expenses that match these accounting categories
+    """
+    accountingCategory: [String]
   ): ExpenseCollection!
   expenseTagStats(
     """
@@ -15621,6 +15700,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     Filter expenses by the last user-role who replied to them
     """
     lastCommentBy: [LastCommentBy]
+
+    """
+    Only return expenses that match these accounting categories
+    """
+    accountingCategory: [String]
   ): ExpenseCollection!
   settings: JSON!
   conversations(
@@ -16486,6 +16570,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     Filter expenses by the last user-role who replied to them
     """
     lastCommentBy: [LastCommentBy]
+
+    """
+    Only return expenses that match these accounting categories
+    """
+    accountingCategory: [String]
   ): ExpenseCollection!
   settings: JSON!
   conversations(
