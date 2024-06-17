@@ -56,7 +56,7 @@ async function checkOrphanTransactions() {
      WHERE secondaryTransactions."kind" NOT IN ('EXPENSE', 'CONTRIBUTION', 'ADDED_FUNDS', 'BALANCE_TRANSFER', 'PREPAID_PAYMENT_METHOD')
      -- there are sometime issues WHERE PAYMENT_PROCESSOR_COVER end up with a different TransactionGroup
      -- this should be adressed separetely
-     AND secondaryTransactions."kind" != 'PAYMENT_PROCESSOR_COVER'
+     AND secondaryTransactions."kind" NOT IN ('PAYMENT_PROCESSOR_COVER', 'PAYMENT_PROCESSOR_DISPUTE_FEE')
      -- we have older entries with this issue
      -- for now, we just want to get alerts if this happen again in the future
      AND secondaryTransactions."createdAt" > '2024-01-01'
