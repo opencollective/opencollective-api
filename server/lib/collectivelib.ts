@@ -91,6 +91,7 @@ export const COLLECTIVE_SETTINGS_KEYS_LIST = [
   'moderation',
   'paymentMethods',
   'payoutsTwoFactorAuth',
+  'preview',
   'recommendedCollectives',
   'style',
   'superCollectiveTag',
