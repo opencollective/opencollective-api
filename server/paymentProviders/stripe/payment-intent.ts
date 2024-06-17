@@ -49,7 +49,7 @@ async function processNewOrder(order: Order) {
   }
 
   let stripeCustomerAccount = await order.fromCollective.getCustomerStripeAccount(hostStripeAccount.username);
-  if (!stripeCustomerAccount) {
+  if (isSavePaymentMethod && !stripeCustomerAccount) {
     const customer = await stripe.customers.create(
       {
         email: order.createdByUser.email,
