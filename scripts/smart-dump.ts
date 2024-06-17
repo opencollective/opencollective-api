@@ -6,6 +6,7 @@ import { Command } from 'commander';
 import { readJsonSync, writeJsonSync } from 'fs-extra';
 import { cloneDeepWith, compact, concat, flatten, repeat, set, uniqBy } from 'lodash';
 
+import { PG_DUMP_CMD } from '../server/lib/db';
 import { md5 } from '../server/lib/utils';
 import models, { Op, sequelize } from '../server/models';
 import { IDENTIFIABLE_DATA_FIELDS } from '../server/models/PayoutMethod';
@@ -305,7 +306,7 @@ program.command('dump [recipe] [env]').action(async (recipe, env) => {
   writeJsonSync(`dbdumps/${filename}.json`, docs, { spaces: 2 });
 
   console.log('\n>>> Dumping Schema...');
-  exec(`pg_dump -csOx $PG_URL > dbdumps/${filename}.schema.sql`);
+  exec(`${PG_DUMP_CMD} -csOx $PG_URL > dbdumps/${filename}.schema.sql`);
 
   console.log(`\n>>> Done! Dumped to dbdumps/${filename}.json`);
   sequelize.close();

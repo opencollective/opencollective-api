@@ -160,3 +160,5 @@ export async function recreateDatabase(destroy = true) {
   const clientApp = await getConnectedClient(getDBUrl('database'));
   return [client, clientApp];
 }
+
+export const PG_DUMP_CMD = process.env.OC_PG_DUMP_CMD || 'pg_dump';

@@ -11,7 +11,7 @@ import config from 'config';
 import slugify from 'limax';
 import { Context } from 'mocha';
 
-import { getDBConf } from '../../server/lib/db';
+import { getDBConf, PG_DUMP_CMD } from '../../server/lib/db';
 import logger from '../../server/lib/logger';
 import { parseToBoolean } from '../../server/lib/utils';
 import { sequelize } from '../../server/models';
@@ -25,7 +25,7 @@ const snapshotCurrentDB = (filePath: string) => {
 
   // Run pg_dump
   const { database, username, password, host, port } = getDBConf('database');
-  const cmd = `pg_dump -Fc -Z9 "postgres://${username}:${password}@${host}:${port}/${database}" > "${filePath}"`;
+  const cmd = `${PG_DUMP_CMD} -Fc -Z9 "postgres://${username}:${password}@${host}:${port}/${database}" > "${filePath}"`;
   execSync(cmd, { stdio: 'inherit' });
 };
 
