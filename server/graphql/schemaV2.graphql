@@ -6625,10 +6625,20 @@ type TransactionsImportRow {
   expense: Expense
 
   """
+  The raw data of the row
+  """
+  rawValue: JSONObject
+
+  """
   The order associated with the row
   """
   order: Order
 }
+
+"""
+The `JSONObject` scalar type represents JSON objects as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
+"""
+scalar JSONObject
 
 type TransactionsImportStats {
   """
@@ -11981,11 +11991,6 @@ type TransferWise {
   balances: [Amount]
   amountBatched: Amount
 }
-
-"""
-The `JSONObject` scalar type represents JSON objects as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
-"""
-scalar JSONObject
 
 """
 This represents a Vendor account

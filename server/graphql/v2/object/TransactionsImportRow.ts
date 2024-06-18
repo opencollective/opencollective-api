@@ -1,5 +1,5 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { GraphQLDateTime, GraphQLNonEmptyString } from 'graphql-scalars';
+import { GraphQLDateTime, GraphQLJSONObject, GraphQLNonEmptyString } from 'graphql-scalars';
 
 import { TransactionsImportRow } from '../../../models';
 import { getIdEncodeResolver } from '../identifiers';
@@ -46,6 +46,10 @@ export const GraphQLTransactionsImportRow = new GraphQLObjectType({
           return req.loaders.Expense.byId.load(row.ExpenseId);
         }
       },
+    },
+    rawValue: {
+      type: GraphQLJSONObject,
+      description: 'The raw data of the row',
     },
     order: {
       type: GraphQLOrder,
