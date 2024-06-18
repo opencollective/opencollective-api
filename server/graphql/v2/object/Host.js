@@ -35,7 +35,7 @@ import Agreement from '../../../models/Agreement';
 import { LEGAL_DOCUMENT_TYPE } from '../../../models/LegalDocument';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
-import { checkRemoteUserCanUseHost } from '../../common/scope-check';
+import { checkRemoteUserCanUseHost, checkRemoteUserCanUseTransactions } from '../../common/scope-check';
 import { Unauthorized, ValidationFailed } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { GraphQLAccountingCategoryCollection } from '../collection/AccountingCategoryCollection';
@@ -1755,7 +1755,7 @@ export const GraphQLHost = new GraphQLObjectType({
           },
         },
         async resolve(host, args, req) {
-          checkRemoteUserCanUseHost(req);
+          checkRemoteUserCanUseTransactions(req);
           if (!req.remoteUser.isAdminOfCollective(host)) {
             throw new Unauthorized('You need to be logged in as an admin of the host to see its transactions imports');
           }
