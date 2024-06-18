@@ -38,7 +38,7 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
     },
     name: {
       type: new GraphQLNonNull(GraphQLNonEmptyString),
-      description: 'Name of the import (e.g. "Contributions May 2021", "Tickets for Mautic COnference 2024")',
+      description: 'Name of the import (e.g. "Contributions May 2021", "Tickets for Mautic Conference 2024")',
     },
     type: {
       type: new GraphQLNonNull(GraphQLTransactionsImportType),

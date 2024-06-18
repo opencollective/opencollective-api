@@ -18,6 +18,7 @@ import { GraphQLTransactionsImport } from '../object/TransactionsImport';
 const transactionImportsMutations = {
   createTransactionsImport: {
     type: new GraphQLNonNull(GraphQLTransactionsImport),
+    description: 'Create a new import. To manually add transactions to it, use `importTransactions`.',
     args: {
       account: {
         type: new GraphQLNonNull(GraphQLAccountReferenceInput),
@@ -29,7 +30,7 @@ const transactionImportsMutations = {
       },
       name: {
         type: new GraphQLNonNull(GraphQLNonEmptyString),
-        description: 'Name of the import (e.g. "Contributions May 2021", "Tickets for Mautic COnference 2024")',
+        description: 'Name of the import (e.g. "Contributions May 2021", "Tickets for Mautic Conference 2024")',
       },
       type: {
         type: new GraphQLNonNull(GraphQLTransactionsImportType),
@@ -62,6 +63,7 @@ const transactionImportsMutations = {
   },
   importTransactions: {
     type: new GraphQLNonNull(GraphQLTransactionsImport),
+    description: 'Import transactions, manually or from a CSV file',
     args: {
       id: {
         type: new GraphQLNonNull(GraphQLNonEmptyString),
@@ -118,6 +120,7 @@ const transactionImportsMutations = {
   },
   updateTransactionsImportRows: {
     type: new GraphQLNonNull(GraphQLTransactionsImport),
+    description: 'Update transactions import rows to set new values or mark them as dismissed',
     args: {
       id: {
         type: new GraphQLNonNull(GraphQLNonEmptyString),
