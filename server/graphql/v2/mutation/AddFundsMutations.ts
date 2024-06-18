@@ -17,6 +17,11 @@ import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../inpu
 import { AmountInputType, getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/AmountInput';
 import { GraphQLTaxInput, TaxInput } from '../input/TaxInput';
 import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput';
+import {
+  fetchTransactionsImportRowWithReference,
+  GraphQLTransactionsImportRowReferenceInput,
+  GraphQLTransactionsImportRowReferenceInputFields,
+} from '../input/TransactionsImportRowReferenceInput';
 import { GraphQLOrder } from '../object/Order';
 
 type AddFundsMutationArgs = {
@@ -32,6 +37,7 @@ type AddFundsMutationArgs = {
   invoiceTemplate: string;
   tax: TaxInput;
   accountingCategory: GraphQLAccountingCategoryReferenceInputFields;
+  transactionsImportRow: GraphQLTransactionsImportRowReferenceInputFields;
 };
 
 export const addFundsMutation = {
@@ -85,6 +91,10 @@ export const addFundsMutation = {
     accountingCategory: {
       type: GraphQLAccountingCategoryReferenceInput,
       description: 'The accounting category of this order',
+    },
+    transactionsImportRow: {
+      type: GraphQLTransactionsImportRowReferenceInput,
+      description: 'The transaction import row to associate with this order',
     },
   },
   resolve: async (_, args: AddFundsMutationArgs, req: express.Request) => {
@@ -165,6 +175,11 @@ export const addFundsMutation = {
         tier,
         invoiceTemplate: args.invoiceTemplate,
         tax: args.tax,
+        transactionsImportRow:
+          args.transactionsImportRow &&
+          (await fetchTransactionsImportRowWithReference(args.transactionsImportRow, {
+            throwIfMissing: true,
+          })),
         accountingCategory:
           args.accountingCategory &&
           (await fetchAccountingCategoryWithReference(args.accountingCategory, {

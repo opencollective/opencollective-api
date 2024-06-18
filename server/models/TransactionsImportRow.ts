@@ -37,6 +37,10 @@ class TransactionsImportRow extends Model<
 
   public declare import?: TransactionsImport;
   public declare getImport: BelongsToGetAssociationMixin<TransactionsImport>;
+
+  public isProcessed(): boolean {
+    return Boolean(this.OrderId || this.ExpenseId || this.isDismissed);
+  }
 }
 
 TransactionsImportRow.init(

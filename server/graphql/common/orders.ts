@@ -4,9 +4,9 @@ import { InferCreationAttributes } from 'sequelize';
 import status from '../../constants/order-status';
 import { purgeCacheForCollective } from '../../lib/cache';
 import { executeOrder } from '../../lib/payments';
-import models, { AccountingCategory, Collective, Tier, User } from '../../models';
+import models, { AccountingCategory, Collective, sequelize, Tier, TransactionsImportRow, User } from '../../models';
 import Order from '../../models/Order';
-import { ValidationFailed } from '../errors';
+import { NotFound, ValidationFailed } from '../errors';
 import { getOrderTaxInfoFromTaxInput } from '../v1/mutations/orders';
 import { TaxInput } from '../v2/input/TaxInput';
 
@@ -24,6 +24,7 @@ type AddFundsInput = {
   invoiceTemplate: string;
   tax: TaxInput;
   accountingCategory?: AccountingCategory;
+  transactionsImportRow?: TransactionsImportRow;
 };
 
 /*
@@ -106,7 +107,26 @@ export async function addFunds(order: AddFundsInput, remoteUser: User) {
   // Added Funds are not eligible to Platform Tips
   orderData.platformTipEligible = false;
 
-  const orderCreated = await models.Order.create(orderData);
+  // Check transactions import row
+  if (order.transactionsImportRow) {
+    const transactionsImport = await order.transactionsImportRow.getImport();
+    if (!transactionsImport) {
+      throw new NotFound('TransactionsImport not found');
+    } else if (transactionsImport.CollectiveId !== host.id) {
+      throw new ValidationFailed('This import does not belong to the host');
+    } else if (order.transactionsImportRow.isProcessed()) {
+      throw new ValidationFailed('This import row has already been processed');
+    }
+  }
+
+  // Create the order and associate it with the transaction import row if any
+  const orderCreated = await sequelize.transaction(async transaction => {
+    const orderCreated = await models.Order.create(orderData, { transaction });
+    if (order.transactionsImportRow) {
+      await order.transactionsImportRow.update({ OrderId: orderCreated.id }, { transaction });
+    }
+    return orderCreated;
+  });
 
   const hostPaymentMethod = await host.getOrCreateHostPaymentMethod();
   await orderCreated.setPaymentMethod({ uuid: hostPaymentMethod.uuid });
