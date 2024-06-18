@@ -6,7 +6,6 @@ import { getMovableItemsCounts, mergeAccounts, simulateMergeAccounts } from '../
 import models from '../../../server/models';
 import { LEGAL_DOCUMENT_TYPE } from '../../../server/models/LegalDocument';
 import { MigrationLogDataForMergeAccounts, MigrationLogType } from '../../../server/models/MigrationLog';
-import { getOrCreateDBSnapshot } from '../../test-helpers/data-snapshot';
 import * as Faker from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
 
@@ -133,8 +132,9 @@ const sumCounts = (count1, count2) => {
 describe('server/lib/merge-accounts', () => {
   let fromUser, toUser, fromOrganization, toOrganization, fromCollective, toCollective;
 
-  before(async function () {
-    await getOrCreateDBSnapshot(this, 'merge-accounts', generateTestData);
+  before(async () => {
+    await resetTestDB();
+    await generateTestData();
 
     // Load accounts
     fromCollective = await models.Collective.findBySlug('from-collective');
