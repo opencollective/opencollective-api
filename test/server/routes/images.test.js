@@ -211,10 +211,11 @@ describe('server/routes/images', () => {
     expect(res.status).to.eq(400);
     expect(res.body.error).to.deep.eq({
       code: 400,
-      message: 'Mimetype of the file should be one of: image/png, image/jpeg, image/gif, image/webp, application/pdf',
+      message:
+        'Mimetype of the file should be one of: image/png, image/jpeg, image/gif, image/webp, application/pdf, text/csv',
       type: 'INVALID_FILE_MIME_TYPE',
       fields: {
-        file: 'Mimetype of the file should be one of: image/png, image/jpeg, image/gif, image/webp, application/pdf',
+        file: 'Mimetype of the file should be one of: image/png, image/jpeg, image/gif, image/webp, application/pdf, text/csv',
       },
     });
   });
@@ -248,9 +249,9 @@ describe('server/routes/images', () => {
       code: 400,
       type: 'INVALID_FILE_KIND',
       message:
-        'Kind should be one of: ACCOUNT_AVATAR, ACCOUNT_BANNER, EXPENSE_ATTACHED_FILE, EXPENSE_ITEM, ACCOUNT_LONG_DESCRIPTION, UPDATE, COMMENT, TIER_LONG_DESCRIPTION, ACCOUNT_CUSTOM_EMAIL, AGREEMENT_ATTACHMENT',
+        'Kind should be one of: ACCOUNT_AVATAR, ACCOUNT_BANNER, EXPENSE_ATTACHED_FILE, EXPENSE_ITEM, TRANSACTIONS_IMPORT, ACCOUNT_LONG_DESCRIPTION, UPDATE, COMMENT, TIER_LONG_DESCRIPTION, ACCOUNT_CUSTOM_EMAIL, AGREEMENT_ATTACHMENT',
       fields: {
-        kind: 'Kind should be one of: ACCOUNT_AVATAR, ACCOUNT_BANNER, EXPENSE_ATTACHED_FILE, EXPENSE_ITEM, ACCOUNT_LONG_DESCRIPTION, UPDATE, COMMENT, TIER_LONG_DESCRIPTION, ACCOUNT_CUSTOM_EMAIL, AGREEMENT_ATTACHMENT',
+        kind: 'Kind should be one of: ACCOUNT_AVATAR, ACCOUNT_BANNER, EXPENSE_ATTACHED_FILE, EXPENSE_ITEM, TRANSACTIONS_IMPORT, ACCOUNT_LONG_DESCRIPTION, UPDATE, COMMENT, TIER_LONG_DESCRIPTION, ACCOUNT_CUSTOM_EMAIL, AGREEMENT_ATTACHMENT',
       },
     });
   });

@@ -170,6 +170,12 @@ WITH requested_collectives AS (
   FROM        deleted_profiles
   WHERE       (re."FromCollectiveId" = deleted_profiles.id OR re."CollectiveId" = deleted_profiles.id)
   RETURNING   re.id
+), deleted_transactions_imports AS (
+  -- Delete transactions imports
+  UPDATE ONLY "TransactionsImports" ti SET "deletedAt" = NOW()
+  FROM       deleted_profiles
+  WHERE       ti."CollectiveId" = deleted_profiles.id
+  RETURNING   ti.id
 ) SELECT 
   (SELECT COUNT(*) FROM deleted_profiles) AS nb_deleted_profiles,
   (SELECT COUNT(*) FROM deleted_users) AS deleted_users,
@@ -191,6 +197,7 @@ WITH requested_collectives AS (
   (SELECT COUNT(*) FROM deleted_notifications) AS nb_deleted_notifications,
   (SELECT COUNT(*) FROM deleted_users) AS nb_deleted_users,
   (SELECT COUNT(*) FROM deleted_recurring_expenses) AS nb_deleted_recurring_expenses,
+  (SELECT COUNT(*) FROM deleted_transactions_imports) AS nb_deleted_transactions_imports,
   (SELECT ARRAY_AGG(deleted_profiles.id) FROM deleted_profiles) AS deleted_profiles_ids
   
 -- TODO:

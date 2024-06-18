@@ -34,6 +34,7 @@ import {
 import * as orderLoaders from './order';
 import { generateCollectivePayoutMethodsLoader, generateCollectivePaypalPayoutMethodsLoader } from './payout-method';
 import * as transactionLoaders from './transactions';
+import { generateTransactionsImportStatsLoader } from './transactions-import';
 import updatesLoader from './updates';
 import { generateUserByCollectiveIdLoader, generateUserHasTwoFactorAuthEnabled } from './user';
 import { generateCollectiveVirtualCardLoader, generateHostCollectiveVirtualCardLoader } from './virtual-card';
@@ -867,6 +868,9 @@ export const loaders = req => {
       return sortResultsSimple(transactionIds, transactionBalances);
     }),
   };
+
+  /** *** TransactionsImports *****/
+  context.loaders.TransactionsImport.stats = generateTransactionsImportStatsLoader();
 
   return context.loaders;
 };

@@ -10,7 +10,7 @@ import {
   GraphQLObjectType,
   GraphQLString,
 } from 'graphql';
-import { GraphQLDateTime } from 'graphql-scalars';
+import { GraphQLDateTime, GraphQLNonEmptyString } from 'graphql-scalars';
 import { find, get, isEmpty, isNil, keyBy, mapValues, set, uniq } from 'lodash';
 import moment from 'moment';
 
@@ -35,13 +35,14 @@ import Agreement from '../../../models/Agreement';
 import { LEGAL_DOCUMENT_TYPE } from '../../../models/LegalDocument';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
-import { checkRemoteUserCanUseHost } from '../../common/scope-check';
+import { checkRemoteUserCanUseHost, checkRemoteUserCanUseTransactions } from '../../common/scope-check';
 import { Unauthorized, ValidationFailed } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { GraphQLAccountingCategoryCollection } from '../collection/AccountingCategoryCollection';
 import { GraphQLAgreementCollection } from '../collection/AgreementCollection';
 import { GraphQLHostApplicationCollection } from '../collection/HostApplicationCollection';
 import { GraphQLLegalDocumentCollection } from '../collection/LegalDocumentCollection';
+import { GraphQLTransactionsImportsCollection } from '../collection/TransactionsImportsCollection';
 import { GraphQLVendorCollection } from '../collection/VendorCollection';
 import { GraphQLVirtualCardCollection } from '../collection/VirtualCardCollection';
 import {
@@ -1740,6 +1741,55 @@ export const GraphQLHost = new GraphQLObjectType({
             limit,
             offset,
           };
+        },
+      },
+      transactionsImports: {
+        type: new GraphQLNonNull(GraphQLTransactionsImportsCollection),
+        description: 'Returns a list of transactions imports for this host',
+        args: {
+          ...CollectionArgs,
+          orderBy: {
+            type: new GraphQLNonNull(GraphQLChronologicalOrderInput),
+            description: 'The order of results',
+            defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
+          },
+        },
+        async resolve(host, args, req) {
+          checkRemoteUserCanUseTransactions(req);
+          if (!req.remoteUser.isAdminOfCollective(host)) {
+            throw new Unauthorized('You need to be logged in as an admin of the host to see its transactions imports');
+          }
+
+          const where = { CollectiveId: host.id };
+          return {
+            limit: args.limit,
+            offset: args.offset,
+            totalCount: () => models.TransactionsImport.count({ where }),
+            nodes: () =>
+              models.TransactionsImport.findAll({
+                where,
+                limit: args.limit,
+                offset: args.offset,
+                order: [[args.orderBy.field, args.orderBy.direction]],
+              }),
+          };
+        },
+      },
+      transactionsImportsSources: {
+        type: new GraphQLNonNull(new GraphQLList(GraphQLNonEmptyString)),
+        description: 'Returns a list of transactions imports sources for this host',
+        async resolve(host, args, req) {
+          checkRemoteUserCanUseHost(req);
+          if (!req.remoteUser.isAdminOfCollective(host)) {
+            throw new Unauthorized(
+              'You need to be logged in as an admin of the host to see its transactions imports sources',
+            );
+          }
+
+          return models.TransactionsImport.aggregate('source', 'DISTINCT', {
+            plain: false,
+            where: { CollectiveId: host.id },
+          }).then(results => results.map(({ DISTINCT }) => DISTINCT));
         },
       },
     };

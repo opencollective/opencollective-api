@@ -45,6 +45,8 @@ export const IDENTIFIER_TYPES = {
   USER: 'user',
   USER_TWO_FACTOR_METHOD: 'user-two-factor-method',
   VIRTUAL_CARD_REQUEST: 'virtual-card-request',
+  TRANSACTIONS_IMPORT: 'transactions-import',
+  TRANSACTIONS_IMPORT_ROW: 'transactions-import-row',
 } as const;
 
 type IdentifierType = (typeof IDENTIFIER_TYPES)[keyof typeof IDENTIFIER_TYPES];

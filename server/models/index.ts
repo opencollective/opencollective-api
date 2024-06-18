@@ -36,6 +36,8 @@ import SuspendedAsset from './SuspendedAsset';
 import Tier from './Tier';
 import Transaction from './Transaction';
 import TransactionSettlement from './TransactionSettlement';
+import TransactionsImport from './TransactionsImport';
+import TransactionsImportRow from './TransactionsImportRow';
 import Update from './Update';
 import UploadedFile from './UploadedFile';
 import User from './User';
@@ -84,6 +86,7 @@ const models = {
   Tier,
   Transaction,
   TransactionSettlement,
+  TransactionsImport,
   Update,
   UploadedFile,
   User,
@@ -289,6 +292,13 @@ Transaction.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'createdByUser'
 // TransactionSettlement
 TransactionSettlement.belongsTo(Expense);
 
+// TransactionsImport
+TransactionsImport.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+TransactionsImport.hasMany(TransactionsImportRow, { foreignKey: 'TransactionsImportId', as: 'importRows' });
+
+// TransactionImportRow
+TransactionsImportRow.belongsTo(TransactionsImport, { foreignKey: 'TransactionsImportId', as: 'import' });
+
 // Update
 Update.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
 Update.belongsTo(Collective, { foreignKey: 'FromCollectiveId', as: 'fromCollective' });
@@ -372,6 +382,8 @@ export {
   SuspendedAsset,
   Tier,
   Transaction,
+  TransactionsImport,
+  TransactionsImportRow,
   TransactionSettlement,
   Update,
   UploadedFile,

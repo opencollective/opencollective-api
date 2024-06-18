@@ -28,6 +28,7 @@ import PersonalTokenQuery from './PersonalTokenQuery';
 import ProjectQuery from './ProjectQuery';
 import TierQuery from './TierQuery';
 import TransactionQuery from './TransactionQuery';
+import TransactionsImportQuery from './TransactionsImport';
 import UpdateQuery from './UpdateQuery';
 import VirtualCardQuery from './VirtualCardQuery';
 import VirtualCardRequestQuery from './VirtualCardRequestQuery';
@@ -57,6 +58,7 @@ const query = {
   tier: TierQuery,
   transaction: TransactionQuery,
   transactions: TransactionsCollectionQuery,
+  transactionsImport: TransactionsImportQuery,
   update: UpdateQuery,
   updates: UpdatesCollectionQuery,
   paypalPlan: PaypalPlanQuery,

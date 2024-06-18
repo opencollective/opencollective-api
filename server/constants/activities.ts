@@ -75,6 +75,8 @@ enum ActivityTypes {
   COLLECTIVE_CORE_MEMBER_EDITED = 'collective.core.member.edited',
   // Transactions
   COLLECTIVE_TRANSACTION_CREATED = 'collective.transaction.created',
+  // Transactions imports
+  TRANSACTIONS_IMPORT_CREATED = 'transactions.import.created',
   // Updates
   COLLECTIVE_UPDATE_CREATED = 'collective.update.created',
   COLLECTIVE_UPDATE_PUBLISHED = 'collective.update.published',

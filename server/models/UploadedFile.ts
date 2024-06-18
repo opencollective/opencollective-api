@@ -64,7 +64,7 @@ export const MAX_FILENAME_LENGTH = 1024; // From S3
 export const MAX_UPLOADED_FILE_URL_LENGTH = 1200; // From S3
 export const MAX_FILE_SIZE = 1024 * 1024 * 10; // 10MB
 export const SUPPORTED_FILE_TYPES_IMAGES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'] as const;
-export const SUPPORTED_FILE_TYPES = [...SUPPORTED_FILE_TYPES_IMAGES, 'application/pdf'] as const;
+export const SUPPORTED_FILE_TYPES = [...SUPPORTED_FILE_TYPES_IMAGES, 'application/pdf', 'text/csv'] as const;
 type SupportedFileType = (typeof SUPPORTED_FILE_TYPES)[number];
 export const SUPPORTED_FILE_EXTENSIONS: Record<SUPPORTED_FILE_TYPES_UNION, string> = {
   'image/png': '.png',
@@ -72,6 +72,7 @@ export const SUPPORTED_FILE_EXTENSIONS: Record<SUPPORTED_FILE_TYPES_UNION, strin
   'image/gif': '.gif',
   'image/webp': '.webp',
   'application/pdf': '.pdf',
+  'text/csv': '.csv',
 } as const;
 
 /**
@@ -142,7 +143,12 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
     file: GraphQLFileUpload,
     kind: FileKind,
     user: User | null,
-    args: { fileName?: string } = {},
+    args: {
+      fileName?: string;
+      supportedMimeTypes: readonly SupportedFileType[];
+    } = {
+      supportedMimeTypes: SUPPORTED_FILE_TYPES,
+    },
   ): Promise<UploadedFile> {
     const fileUpload = await UploadedFile.getFileUploadFromGraphQLUpload(file);
     return UploadedFile.upload(fileUpload, kind, user, args);
@@ -166,10 +172,15 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
     file: FileUpload,
     kind: FileKind,
     user: User | null,
-    args: { fileName?: string } = {},
+    args: {
+      fileName?: string;
+      supportedMimeTypes?: readonly SupportedFileType[];
+    } = {
+      supportedMimeTypes: SUPPORTED_FILE_TYPES,
+    },
   ): Promise<UploadedFile> {
     // Validate file
-    UploadedFile.validateFile(file);
+    UploadedFile.validateFile(file, args.supportedMimeTypes);
 
     // Should only happen in dev/test envs
     if (!checkS3Configured()) {

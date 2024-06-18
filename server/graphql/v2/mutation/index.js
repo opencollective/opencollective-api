@@ -30,6 +30,7 @@ import { sendSurveyResponseMutation } from './SendSurveyResponseMutation';
 import socialLinkMutations from './SocialLinkMutations';
 import tagMutations from './TagMutations';
 import tierMutations from './TierMutations';
+import transactionImportsMutations from './TransactionImportsMutations';
 import transactionMutations from './TransactionMutations';
 import updateMutations from './UpdateMutations';
 import uploadedFileMutations from './UploadedFileMutations';
@@ -64,6 +65,7 @@ const mutation = {
   ...payoutMethodMutations,
   ...rootMutations,
   ...transactionMutations,
+  ...transactionImportsMutations,
   ...updateMutations,
   ...uploadedFileMutations,
   ...virtualCardMutations,
