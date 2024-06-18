@@ -70,7 +70,7 @@ export const convertToStripeAmount = (currency, amount) => {
 
 export const convertFromStripeAmount = (currency, amount) => {
   if (ZERO_DECIMAL_CURRENCIES.includes(currency?.toUpperCase())) {
-    return amount * 100;
+    return Math.round(amount * 100);
   } else {
     return amount;
   }
