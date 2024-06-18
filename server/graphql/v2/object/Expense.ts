@@ -16,6 +16,7 @@ import ActivityTypes from '../../../constants/activities';
 import expenseStatus from '../../../constants/expense-status';
 import ExpenseTypes from '../../../constants/expense-type';
 import OAuthScopes from '../../../constants/oauth-scopes';
+import { floatAmountToCents } from '../../../lib/math';
 import SQLQueries from '../../../lib/queries';
 import models, { Activity, Op } from '../../../models';
 import { CommentType } from '../../../models/Comment';
@@ -577,12 +578,12 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Reques
             }
 
             const sourceAmount = {
-              value: quote.paymentOption.sourceAmount * 100,
+              value: floatAmountToCents(quote.paymentOption.sourceAmount),
               currency: quote.paymentOption.sourceCurrency,
             };
             const estimatedDeliveryAt = quote.paymentOption.estimatedDelivery;
             const paymentProcessorFeeAmount = {
-              value: quote.paymentOption.fee.total * 100,
+              value: floatAmountToCents(quote.paymentOption.fee.total),
               currency: quote.sourceCurrency,
             };
             return { sourceAmount, estimatedDeliveryAt, paymentProcessorFeeAmount };

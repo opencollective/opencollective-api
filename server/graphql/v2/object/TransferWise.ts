@@ -1,6 +1,7 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLJSON, GraphQLJSONObject } from 'graphql-scalars';
 
+import { floatAmountToCents } from '../../../lib/math';
 import models, { Op } from '../../../models';
 import transferwise from '../../../paymentProviders/transferwise';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
@@ -147,7 +148,7 @@ export const GraphQLTransferWise = new GraphQLObjectType({
 
         if (sourceAmount) {
           return {
-            value: sourceAmount * 100,
+            value: floatAmountToCents(sourceAmount),
             currency: scheduledExpenses[0].data.quote.sourceCurrency,
           };
         }
