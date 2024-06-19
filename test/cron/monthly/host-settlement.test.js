@@ -267,7 +267,7 @@ describe('cron/monthly/host-settlement', () => {
   });
 
   it('should invoice pending shared host revenue', async () => {
-    const sharedRevenueItem = gphHostSettlementExpense.items.find(p => p.description === 'Shared Revenue');
+    const sharedRevenueItem = gphHostSettlementExpense.items.find(p => p.description === 'Platform Share');
     const expectedRevenue = Math.round(1600 * 0.15);
     const expectedRefund = Math.round(420 * 0.15);
     expect(sharedRevenueItem).to.have.property('amount', expectedRevenue - expectedRefund);
@@ -335,7 +335,7 @@ describe('cron/monthly/host-settlement', () => {
     expect(eurHostSettlementExpense.items).to.have.length(2);
     expect(eurHostSettlementExpense.items[0].description).to.eq('Platform Tips');
     expect(eurHostSettlementExpense.items[0].amount).to.eq(300e2);
-    expect(eurHostSettlementExpense.items[1].description).to.eq('Shared Revenue');
+    expect(eurHostSettlementExpense.items[1].description).to.eq('Platform Share');
     expect(eurHostSettlementExpense.items[1].amount).to.eq(50e2); // 50€ (100€ host fee * 50% host fee share)
     expect(eurHostSettlementExpense.amount).to.eq(350e2); // Tips + shared revenue
   });

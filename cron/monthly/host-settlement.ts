@@ -28,6 +28,7 @@ const MIN_AMOUNT_USD = Number(config.settlement.minimumAmountInUSD);
 const DRY = process.env.DRY;
 const HOST_ID = process.env.HOST_ID;
 const isProduction = config.env === 'production';
+const KIND = process.env.KIND;
 const { PLATFORM_TIP_DEBT, HOST_FEE_SHARE_DEBT } = TransactionKind;
 
 // Only run on the 1th of the month
@@ -80,17 +81,38 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
     },
   );
 
+  let slugs, skipSlugs;
+  if (process.env.SLUGS) {
+    slugs = process.env.SLUGS.split(',').map(str => str.trim());
+  }
+  if (process.env.SKIP_SLUGS) {
+    skipSlugs = process.env.SKIP_SLUGS.split(',').map(str => str.trim());
+  }
+
   for (const host of hosts) {
     if (HOST_ID && host.id !== parseInt(HOST_ID)) {
       continue;
     }
+    if (slugs && !slugs.includes(host.slug)) {
+      continue;
+    }
+    if (skipSlugs && skipSlugs.includes(host.slug)) {
+      continue;
+    }
 
-    const pendingPlatformTips = await getPendingPlatformTips(host, { status: ['OWED'], endDate });
-    const pendingHostFeeShare = await getPendingHostFeeShare(host, { status: ['OWED'], endDate });
+    let pendingPlatformTips, pendingHostFeeShare;
+    if (!KIND || KIND === PLATFORM_TIP_DEBT) {
+      pendingPlatformTips = await getPendingPlatformTips(host, { status: ['OWED'], endDate });
+    }
+    if (!KIND || KIND === HOST_FEE_SHARE_DEBT) {
+      pendingHostFeeShare = await getPendingHostFeeShare(host, { status: ['OWED'], endDate });
+    }
 
     const plan = await host.getPlan();
 
     let items = [];
+
+    const transactionsKinds = KIND ? [KIND] : [PLATFORM_TIP_DEBT, HOST_FEE_SHARE_DEBT];
 
     const transactions = await sequelize.query(
       `
@@ -98,14 +120,14 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       FROM "Transactions" as t
       INNER JOIN "TransactionSettlements" ts ON ts."TransactionGroup" = t."TransactionGroup" AND t.kind = ts.kind
       WHERE t."CollectiveId" = :CollectiveId
-        AND t."kind" IN ('PLATFORM_TIP_DEBT', 'HOST_FEE_SHARE_DEBT')
+        AND t."kind" IN (:transactionsKinds)
         AND t."isDebt" IS TRUE
         AND t."deletedAt" IS NULL
         AND ts."status" = 'OWED'
         AND t."createdAt" < :endDate
       `,
       {
-        replacements: { CollectiveId: host.id, endDate: endDate },
+        replacements: { CollectiveId: host.id, endDate, transactionsKinds },
         model: models.Transaction,
         mapToModel: true, // pass true here if you have any mapped fields
       },
@@ -125,7 +147,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
         incurredAt: new Date(),
         amount: pendingHostFeeShare,
         currency: host.currency,
-        description: 'Shared Revenue',
+        description: 'Platform Share',
       });
     }
 
@@ -179,6 +201,13 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       process.exit();
     }
 
+    let extraDescription = '';
+    if (KIND === PLATFORM_TIP_DEBT) {
+      extraDescription = ' (Platform Tips)';
+    } else if (KIND === HOST_FEE_SHARE_DEBT) {
+      extraDescription = ' (Platform Share)';
+    }
+
     const transactionIds = transactions.map(t => t.id);
     const expenseData = {
       ...SETTLEMENT_EXPENSE_PROPERTIES,
@@ -186,7 +215,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       amount: totalAmountCharged,
       CollectiveId: host.id,
       currency: host.currency,
-      description: `Platform settlement for ${momentDate.utc().format('MMMM')}`,
+      description: `Platform settlement${extraDescription} for ${momentDate.utc().format('MMMM')}`,
       incurredAt: today.toDate(),
       // isPlatformTipSettlement is deprecated but we keep it for now, we should rely on type=SETTLEMENT
       data: { isPlatformTipSettlement: true, transactionIds },
@@ -212,7 +241,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       const csvUrl = getTransactionsCsvUrl('transactions', host, {
         startDate,
         endDate,
-        kind: [PLATFORM_TIP_DEBT, HOST_FEE_SHARE_DEBT],
+        kind: transactionsKinds,
         add: ['orderLegacyId'],
       });
       if (csvUrl) {
