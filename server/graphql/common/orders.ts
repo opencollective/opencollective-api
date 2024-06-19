@@ -1,10 +1,12 @@
 import { isNil } from 'lodash';
 import { InferCreationAttributes } from 'sequelize';
 
+import { CollectiveType } from '../../constants/collectives';
 import status from '../../constants/order-status';
 import { purgeCacheForCollective } from '../../lib/cache';
 import { executeOrder } from '../../lib/payments';
 import models, { AccountingCategory, Collective, sequelize, Tier, TransactionsImportRow, User } from '../../models';
+import { AccountingCategoryAppliesTo } from '../../models/AccountingCategory';
 import Order from '../../models/Order';
 import { NotFound, ValidationFailed } from '../errors';
 import { getOrderTaxInfoFromTaxInput } from '../v1/mutations/orders';
@@ -32,14 +34,28 @@ type AddFundsInput = {
  */
 export const checkCanUseAccountingCategoryForOrder = (
   accountingCategory: AccountingCategory | undefined | null,
-  hostId: number,
+  host: Collective,
+  account: Collective,
 ): void => {
+  const isIndependentCollective = host.type === CollectiveType.COLLECTIVE;
   if (!accountingCategory) {
     return;
-  } else if (accountingCategory.CollectiveId !== hostId) {
+  } else if (accountingCategory.CollectiveId !== host.id) {
     throw new ValidationFailed('This accounting category is not allowed for this host');
   } else if (accountingCategory.kind && !['ADDED_FUNDS', 'CONTRIBUTION'].includes(accountingCategory.kind)) {
     throw new ValidationFailed(`This accounting category is not allowed for contributions and added funds`);
+  } else if (
+    isIndependentCollective &&
+    accountingCategory.appliesTo === AccountingCategoryAppliesTo.HOSTED_COLLECTIVES
+  ) {
+    throw new ValidationFailed(`This accounting category is not applicable to this account`);
+  } else if (
+    (accountingCategory.appliesTo === AccountingCategoryAppliesTo.HOST &&
+      ![account.id, account.ParentCollectiveId].includes(host.id)) ||
+    (accountingCategory.appliesTo === AccountingCategoryAppliesTo.HOSTED_COLLECTIVES &&
+      [account.id, account.ParentCollectiveId].includes(host.id))
+  ) {
+    throw new ValidationFailed(`This accounting category is not applicable to this account`);
   }
 };
 
@@ -72,7 +88,7 @@ export async function addFunds(order: AddFundsInput, remoteUser: User) {
   if (order.tier && order.tier.CollectiveId !== order.collective.id) {
     throw new Error(`Tier #${order.tier.id} is not part of collective #${order.collective.id}`);
   } else if (order.accountingCategory) {
-    checkCanUseAccountingCategoryForOrder(order.accountingCategory, host.id);
+    checkCanUseAccountingCategoryForOrder(order.accountingCategory, host, collective);
   }
 
   const orderData: Partial<InferCreationAttributes<Order>> = {
