@@ -11,7 +11,8 @@ import { GraphQLNonEmptyString } from 'graphql-scalars';
 import ExpenseTypes from '../../../constants/expense-type';
 import { TransactionKind } from '../../../constants/transaction-kind';
 import models from '../../../models';
-import { AccountingCategoryKind } from '../../../models/AccountingCategory';
+import { AccountingCategoryAppliesTo, AccountingCategoryKind } from '../../../models/AccountingCategory';
+import { GraphQLAccountingCategoryAppliesTo } from '../enum/AccountingCategoryAppliesTo';
 import { GraphQLAccountingCategoryKind } from '../enum/AccountingCategoryKind';
 import { GraphQLExpenseType } from '../enum/ExpenseType';
 import { idDecode } from '../identifiers';
@@ -25,6 +26,7 @@ export type AccountingCategoryInputFields = {
   kind?: AccountingCategoryKind;
   hostOnly?: boolean;
   instructions?: string;
+  appliesTo?: AccountingCategoryAppliesTo;
 };
 
 export const AccountingCategoryInput = new GraphQLInputObjectType({
@@ -62,6 +64,11 @@ export const AccountingCategoryInput = new GraphQLInputObjectType({
     expensesTypes: {
       type: new GraphQLList(GraphQLExpenseType),
       description: 'If meant for expenses, the types of expenses this category applies to',
+    },
+    appliesTo: {
+      type: GraphQLAccountingCategoryAppliesTo,
+      defaultValue: AccountingCategoryAppliesTo.HOSTED_COLLECTIVES,
+      description: 'If the category is applicable to the Host or Hosted Collectives',
     },
   }),
 });
