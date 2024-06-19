@@ -1,5 +1,3 @@
-// ignore unused exports hasCompletedMigration, removeMigration
-
 import { cloneDeep, remove } from 'lodash';
 import { QueryInterface } from 'sequelize';
 
@@ -69,6 +67,7 @@ export const removeSection = (
  * Checks whether a migration is complete. This is particularly useful for
  * renaming migration scripts.
  */
+// ts-unused-exports:disable-next-line
 export const hasCompletedMigration = async (
   queryInterface: QueryInterface,
   migrationName: string,
@@ -86,6 +85,7 @@ export const hasCompletedMigration = async (
 /*
  * Removes the migration script from SequelizeMeta table
  */
+// ts-unused-exports:disable-next-line
 export const removeMigration = async (queryInterface: QueryInterface, migrationName: string): Promise<void> => {
   await queryInterface.sequelize.query(
     `

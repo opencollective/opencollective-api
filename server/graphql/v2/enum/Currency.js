@@ -11,6 +11,7 @@ export const GraphQLCurrency = new GraphQLEnumType({
   values: convertToEnumType(SupportedCurrencies),
 });
 
+// ts-unused-exports:disable-next-line
 export const GraphQLTransferWiseCurrency = new GraphQLEnumType({
   name: 'TransferWiseCurrency',
   description: 'All currencies supported by TransferWise',

@@ -344,8 +344,7 @@ export default models;
 
 export { sequelize, Op };
 
-// ignore unused exports
-
+// ts-unused-exports:disable-next-line
 export {
   AccountingCategory,
   Activity,

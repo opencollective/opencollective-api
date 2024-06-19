@@ -174,7 +174,6 @@
     "eslint-plugin-simple-import-sort": "^12.1.0",
     "exif-reader": "^2.0.1",
     "fake-tag": "^3.0.0",
-    "find-unused-exports": "^5.0.0",
     "geoip-lite": "^1.4.9",
     "husky": "^9.0.10",
     "lint-staged": "^15.2.2",
@@ -190,6 +189,7 @@
     "sinon": "^17.0.1",
     "sinon-chai": "^3.7.0",
     "supertest": "^6.3.4",
+    "ts-unused-exports": "^10.1.0",
     "typescript": "5.3.3"
   },
   "scripts": {
@@ -229,7 +229,6 @@
     "deploy:staging": "./scripts/pre-deploy.sh staging && git push -f staging main",
     "dev": "nodemon server/index.js -x \"babel-node --extensions .js,.ts\" . -e js,hbs,ts",
     "docs:generate:oauth": "babel-node --extensions .js,.ts ./scripts/docs/oauth.ts",
-    "find-unused-exports": "npx find-unused-exports --module-glob \"**/*.{js,ts}\" --resolve-file-extensions js,ts --resolve-index-files",
     "graphql:update": "npm-run-all graphql:updateV1 graphql:updateV2",
     "graphql:updateV1": "npm run script scripts/update-gql-schemas.ts http://localhost:3060/graphql/v1 server/graphql/schemaV1.graphql && prettier server/graphql/schemaV1.graphql --write",
     "graphql:updateV2": "npm run script scripts/update-gql-schemas.ts http://localhost:3060/graphql/v2 server/graphql/schemaV2.graphql && prettier server/graphql/schemaV2.graphql --write",
@@ -259,6 +258,7 @@
     "test:routes": "npm run test test/server/routes",
     "test:scripts": "npm run test test/scripts",
     "test:sql": "npm run test test/sql",
+    "ts-unused-exports": "ts-unused-exports tsconfig.json --ignoreFiles=server/types --ignoreFiles=server/paymentProviders/types",
     "type:check": "tsc",
     "prepare": "husky",
     "lint-staged": "lint-staged"

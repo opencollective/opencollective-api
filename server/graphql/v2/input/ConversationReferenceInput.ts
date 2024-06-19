@@ -1,5 +1,3 @@
-// ignore unused exports fetchConversationWithReference
-
 import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
 import models from '../../../models';
@@ -35,6 +33,7 @@ export const getConversationDatabaseIdFromReference = input => {
 /**
  * Retrieve a conversation from a `ConversationReferenceInput`
  */
+// ts-unused-exports:disable-next-line
 export const fetchConversationWithReference = async (input, { loaders = null, throwIfMissing = false } = {}) => {
   let conversation = null;
   const dbId = getConversationDatabaseIdFromReference(input);

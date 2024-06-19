@@ -28,7 +28,7 @@ export type SpamAnalysisReport = {
   bayes: string;
 };
 
-export type BayesClassifier = {
+type BayesClassifier = {
   /** Categorize a content string */
   categorize(content: string): string;
 };

@@ -1,9 +1,8 @@
-// ignore unused exports GraphQLSecurityCheckScope, GraphQLSecurityCheckLevel
-
 import { GraphQLEnumType, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import { Level, Scope } from '../../../lib/security/expense';
 
+// ts-unused-exports:disable-next-line
 export const GraphQLSecurityCheckScope = new GraphQLEnumType({
   name: 'SecurityCheckScope',
   description: 'All supported SecurityCheck scopes',
@@ -16,6 +15,7 @@ export const GraphQLSecurityCheckScope = new GraphQLEnumType({
   ),
 });
 
+// ts-unused-exports:disable-next-line
 export const GraphQLSecurityCheckLevel = new GraphQLEnumType({
   name: 'SecurityCheckLevel',
   description: 'All supported SecurityCheck levels',

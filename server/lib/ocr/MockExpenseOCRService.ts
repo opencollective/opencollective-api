@@ -7,7 +7,7 @@ import { klippaSuccessInvoice, klippaSuccessRandomImage, klippaSuccessReceiptWit
 import { KlippaParseAccountingDocumentResponse } from './klippa/types';
 import { ExpenseOCRParseResult, ExpenseOCRService } from './ExpenseOCRService';
 
-export enum MockExpenseOCRTypeFilename {
+enum MockExpenseOCRTypeFilename {
   SUCCESS_INVOICE = '__KLIPPA_SUCCESS_INVOICE.pdf',
   SUCCESS_RECEIPT = '__KLIPPA_SUCCESS_RECEIPT.pdf',
   RANDOM_FILE = '__KLIPPA_RANDOM_FILE.pdf',

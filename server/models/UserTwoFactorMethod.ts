@@ -19,13 +19,13 @@ const TOTPDataSchema = z.object({
   secret: z.string(),
 });
 
-export type UserTwoFactorMethodTOTPData = z.infer<typeof TOTPDataSchema>;
+type UserTwoFactorMethodTOTPData = z.infer<typeof TOTPDataSchema>;
 
 const YubikeyOTPSchema = z.object({
   yubikeyDeviceId: z.string(),
 });
 
-export type UserTwoFactorMethodYubikeyOTPData = z.infer<typeof YubikeyOTPSchema>;
+type UserTwoFactorMethodYubikeyOTPData = z.infer<typeof YubikeyOTPSchema>;
 
 const WebAuthnSchema = z.object({
   aaguid: z.string(),
@@ -42,7 +42,7 @@ const WebAuthnSchema = z.object({
 
 export type UserTwoFactorMethodWebAuthnData = z.infer<typeof WebAuthnSchema>;
 
-export type UserTwoFactorMethodData = {
+type UserTwoFactorMethodData = {
   [TwoFactorMethod.TOTP]: UserTwoFactorMethodTOTPData;
   [TwoFactorMethod.YUBIKEY_OTP]: UserTwoFactorMethodYubikeyOTPData;
   [TwoFactorMethod.WEBAUTHN]: UserTwoFactorMethodWebAuthnData;

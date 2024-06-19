@@ -10,7 +10,7 @@ import { reportErrorToSentry } from '../sentry';
 
 import sourceCachedMetadata from './cached-metadata.json';
 
-export type Metadata = {
+type Metadata = {
   nextUpdate: string;
   entries: MetadataEntry[];
 };
