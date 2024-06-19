@@ -40,6 +40,11 @@ export const AccountingCategoryKindList: readonly (TransactionKind | `${Transact
 
 export type AccountingCategoryKind = (typeof AccountingCategoryKindList)[number];
 
+export enum AccountingCategoryAppliesTo {
+  HOST = 'HOST',
+  HOSTED_COLLECTIVES = 'HOSTED_COLLECTIVES',
+}
+
 class ExpenseTypesEnum extends DataTypes.ABSTRACT {
   key = `"enum_Expenses_type"`;
 }
@@ -54,6 +59,7 @@ class AccountingCategory extends Model<InferAttributes<AccountingCategory>, Acco
   declare hostOnly: boolean;
   declare instructions?: string;
   declare expensesTypes?: Array<ExpenseTypes | `${ExpenseTypes}`>;
+  declare appliesTo?: AccountingCategoryAppliesTo;
   declare createdAt: Date;
   declare updatedAt: Date;
 
@@ -102,6 +108,7 @@ class AccountingCategory extends Model<InferAttributes<AccountingCategory>, Acco
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
       expensesTypes: this.expensesTypes,
+      appliesTo: this.appliesTo,
     };
   }
 }
@@ -172,6 +179,11 @@ AccountingCategory.init(
         // Sequelize doesn't work with empty arrays ("cannot determine type of empty array"). We force `null` if it's empty
         this.setDataValue('expensesTypes', values?.length ? uniq(values).sort() : null);
       },
+    },
+    appliesTo: {
+      type: DataTypes.ENUM(...Object.values(AccountingCategoryAppliesTo)),
+      allowNull: false,
+      defaultValue: AccountingCategoryAppliesTo.HOSTED_COLLECTIVES,
     },
     CollectiveId: {
       type: DataTypes.INTEGER,
