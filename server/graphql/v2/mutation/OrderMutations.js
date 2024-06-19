@@ -472,7 +472,7 @@ const orderMutations = {
       const order = await fetchOrderWithReference(args.order, {
         throwIfMissing: true,
         include: [
-          { association: 'collective', required: true },
+          { association: 'collective', required: true, include: [{ association: 'host', required: true }] },
           { association: 'accountingCategory', required: false },
         ],
       });
@@ -493,7 +493,7 @@ const orderMutations = {
       }
 
       // Check validity
-      checkCanUseAccountingCategoryForOrder(newAccountingCategory, order.collective.HostCollectiveId);
+      checkCanUseAccountingCategoryForOrder(newAccountingCategory, order.collective.host, order.collective);
 
       // Trigger update
       const previousAccountingCategory = order.accountingCategory;
@@ -1101,7 +1101,7 @@ const orderMutations = {
           loaders: req.loaders,
         });
 
-        checkCanUseAccountingCategoryForOrder(accountingCategory, host.id);
+        checkCanUseAccountingCategoryForOrder(accountingCategory, host, toAccount);
         AccountingCategoryId = accountingCategory.id;
       }
 
@@ -1247,7 +1247,7 @@ const orderMutations = {
           loaders: req.loaders,
         });
 
-        checkCanUseAccountingCategoryForOrder(accountingCategory, host?.id);
+        checkCanUseAccountingCategoryForOrder(accountingCategory, host, order.collective);
         AccountingCategoryId = accountingCategory.id;
       }
 
