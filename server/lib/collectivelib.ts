@@ -65,6 +65,7 @@ export const COLLECTIVE_SETTINGS_KEYS_LIST = [
   'bitcoin',
   'categories',
   'collectivePage',
+  'crowdfundingRedesign',
   'disableCustomContributions',
   'dismissedHelpMessages',
   'disableCryptoContributions',
