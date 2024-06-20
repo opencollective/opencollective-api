@@ -861,7 +861,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     We can do great things together<br><br>
 
     You can also follow us on <a href="https://twitter.com/OpenCollect" style="text-decoration: none; color: #297EFF;">Twitter</a> or come chat with us on our public
-    <a href="https://slack.opencollective.com" style="text-decoration: none; color: #297EFF;">Slack channel</a>.
+    <a href="https://discord.opencollective.com" style="text-decoration: none; color: #297EFF;">Discord</a>.
     <br><br>
     Made with ❤️ from <a href="https://docs.opencollective.com/help/about/team" style="text-decoration: none; color: #297EFF;">all over the world</a>
   </td>
