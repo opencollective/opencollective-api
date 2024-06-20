@@ -57,7 +57,8 @@ export const purgeCacheForPage = pagePaths => {
 
   logger.info(`Asking cloudflare to purge the cache for ${urlsToPurge}`);
 
-  return CloudflareLib.zones.purgeCache(cfConfig.zone, { files: urlsToPurge }).catch(error => {
+  // eslint-disable-next-line camelcase
+  return CloudflareLib.cache.purge({ zone_id: cfConfig.zone, files: urlsToPurge }).catch(error => {
     logger.error(error);
     reportErrorToSentry(error);
   });
