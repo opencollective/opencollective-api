@@ -109,13 +109,15 @@ export async function addFunds(order: AddFundsInput, remoteUser: User) {
 
   // Check transactions import row
   if (order.transactionsImportRow) {
+    if (order.transactionsImportRow.isProcessed()) {
+      throw new ValidationFailed('This import row has already been processed');
+    }
+
     const transactionsImport = await order.transactionsImportRow.getImport();
     if (!transactionsImport) {
       throw new NotFound('TransactionsImport not found');
     } else if (transactionsImport.CollectiveId !== host.id) {
       throw new ValidationFailed('This import does not belong to the host');
-    } else if (order.transactionsImportRow.isProcessed()) {
-      throw new ValidationFailed('This import row has already been processed');
     }
   }
 
