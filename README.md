@@ -2,6 +2,7 @@
 
 ![CI](https://github.com/opencollective/opencollective-api/workflows/CI/badge.svg)
 ![E2E](https://github.com/opencollective/opencollective-api/workflows/E2E/badge.svg)
+[![Discord](https://discordapp.com/api/guilds/1241017531318276158/widget.png)](https://discord.opencollective.com)
 
 ## Foreword
 
@@ -65,8 +66,7 @@ See: [docs/deployment.md](docs/deployment.md)
 
 ## Discussion
 
-If you have any questions, ping us on Slack
-(https://slack.opencollective.com) or on Twitter
+If you have any questions, ping us on [Discord](https://discord.opencollective.com) or Twitter
 ([@opencollect](https://twitter.com/opencollect)).
 
 ## License
