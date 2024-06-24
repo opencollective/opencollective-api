@@ -1,4 +1,4 @@
-import { InferAttributes, InferCreationAttributes, Model, ModelStatic } from 'sequelize';
+import { InferAttributes, InferCreationAttributes, Model } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
 import { SupportedCurrency } from '../constants/currencies';
@@ -8,35 +8,40 @@ import { cancelPaypalSubscription } from '../paymentProviders/paypal/subscriptio
 import Collective from './Collective';
 import CustomDataTypes from './DataTypes';
 
-export interface SubscriptionInterface
-  extends Model<InferAttributes<SubscriptionInterface>, InferCreationAttributes<SubscriptionInterface>> {
-  id: number;
-  amount: number;
-  currency: SupportedCurrency;
-  interval: 'month' | 'year' | null;
-  isActive: boolean;
-  nextChargeDate: Date;
-  nextPeriodStart: Date;
-  chargeRetryCount: number;
-  quantity: number;
-  chargeNumber: number;
-  data: Record<string, unknown>;
-  stripeSubscriptionId: string;
-  paypalSubscriptionId: string;
-  isManagedExternally: boolean;
-  activatedAt: Date;
-  deactivatedAt: Date;
-  createdAt: Date;
-  updatedAt: Date;
-  deletedAt: Date;
+class Subscription extends Model<InferAttributes<Subscription>, InferCreationAttributes<Subscription>> {
+  declare id: number;
+  declare amount: number;
+  declare currency: SupportedCurrency;
+  declare interval: 'month' | 'year' | null;
+  declare isActive: boolean;
+  declare nextChargeDate: Date;
+  declare nextPeriodStart: Date;
+  declare chargeRetryCount: number;
+  declare quantity: number;
+  declare chargeNumber: number;
+  declare data: Record<string, unknown>;
+  declare stripeSubscriptionId: string;
+  declare paypalSubscriptionId: string;
+  declare isManagedExternally: boolean;
+  declare activatedAt: Date;
+  declare deactivatedAt: Date;
+  declare createdAt: Date;
+  declare updatedAt: Date;
+  declare deletedAt: Date;
 
-  activate(): Promise<SubscriptionInterface>;
-  deactivate(reason?: string, host?: Collective): Promise<SubscriptionInterface>;
+  // Class methods
+  declare activate: () => Promise<Subscription>;
+  declare deactivate: (reason?: string, host?: Collective) => Promise<Subscription>;
 }
 
-const Subscription: ModelStatic<SubscriptionInterface> = sequelize.define(
-  'Subscription',
+Subscription.init(
   {
+    id: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+
     amount: {
       type: DataTypes.INTEGER,
       validate: { min: 0 },
@@ -81,9 +86,14 @@ const Subscription: ModelStatic<SubscriptionInterface> = sequelize.define(
 
     deactivatedAt: DataTypes.DATE,
 
+    createdAt: DataTypes.DATE,
+
+    updatedAt: DataTypes.DATE,
+
     deletedAt: DataTypes.DATE,
   },
   {
+    sequelize,
     paranoid: true,
   },
 );
