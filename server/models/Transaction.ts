@@ -40,7 +40,7 @@ import CustomDataTypes from './DataTypes';
 import type Expense from './Expense';
 import type { ExpenseTaxDefinition } from './Expense';
 import Order, { OrderTax } from './Order';
-import PaymentMethod, { PaymentMethodModelInterface } from './PaymentMethod';
+import PaymentMethod from './PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
 import TransactionSettlement, { TransactionSettlementStatus } from './TransactionSettlement';
 import User from './User';
@@ -152,7 +152,7 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
   declare host?: Collective;
   declare usingGiftCardFromCollective?: Collective;
   declare collective?: Collective;
-  declare PaymentMethod?: PaymentMethodModelInterface;
+  declare PaymentMethod?: PaymentMethod;
   declare PayoutMethod?: PayoutMethod;
   declare Order?: Order;
 

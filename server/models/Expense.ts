@@ -39,7 +39,7 @@ import Collective from './Collective';
 import ExpenseAttachedFile from './ExpenseAttachedFile';
 import ExpenseItem from './ExpenseItem';
 import LegalDocument, { LEGAL_DOCUMENT_TYPE } from './LegalDocument';
-import { PaymentMethodModelInterface } from './PaymentMethod';
+import PaymentMethod from './PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
 import RecurringExpense from './RecurringExpense';
 import Transaction from './Transaction';
@@ -122,7 +122,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   public declare host?: Collective;
   public declare User?: User;
   public declare PayoutMethod?: PayoutMethod;
-  public declare PaymentMethod?: PaymentMethodModelInterface;
+  public declare PaymentMethod?: PaymentMethod;
   public declare virtualCard?: VirtualCard;
   public declare items?: ExpenseItem[];
   public declare attachedFiles?: ExpenseAttachedFile[];
@@ -133,14 +133,14 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   declare getCollective: BelongsToGetAssociationMixin<Collective>;
   declare getItems: HasManyGetAssociationsMixin<ExpenseItem>;
   declare getPayoutMethod: BelongsToGetAssociationMixin<PayoutMethod>;
-  declare getPaymentMethod: BelongsToGetAssociationMixin<PaymentMethodModelInterface>;
+  declare getPaymentMethod: BelongsToGetAssociationMixin<PaymentMethod>;
   declare getRecurringExpense: BelongsToGetAssociationMixin<RecurringExpense>;
   declare getTransactions: HasManyGetAssociationsMixin<Transaction>;
   declare getVirtualCard: BelongsToGetAssociationMixin<VirtualCard>;
   declare getAccountingCategory: BelongsToGetAssociationMixin<AccountingCategory>;
 
   // Association setters
-  declare setPaymentMethod: BelongsToSetAssociationMixin<PaymentMethodModelInterface, number>;
+  declare setPaymentMethod: BelongsToSetAssociationMixin<PaymentMethod, number>;
 
   /**
    * Instance Methods

@@ -53,7 +53,7 @@ import LegalDocument, { LEGAL_DOCUMENT_SERVICE } from '../../server/models/Legal
 import { MemberModelInterface } from '../../server/models/Member';
 import MemberInvitation from '../../server/models/MemberInvitation';
 import Order from '../../server/models/Order';
-import { PaymentMethodModelInterface } from '../../server/models/PaymentMethod';
+import PaymentMethod from '../../server/models/PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import RecurringExpense, { RecurringExpenseIntervals } from '../../server/models/RecurringExpense';
 import SocialLink, { SocialLinkType } from '../../server/models/SocialLink';
@@ -920,7 +920,7 @@ const fakePaymentMethodToken = (service, type) => {
 /**
  * Creates a fake Payment Method. All params are optionals.
  */
-export const fakePaymentMethod = async (data: Partial<InferCreationAttributes<PaymentMethodModelInterface>> = {}) => {
+export const fakePaymentMethod = async (data: Partial<InferCreationAttributes<PaymentMethod>> = {}) => {
   const service = data.service || sample(PAYMENT_METHOD_SERVICES);
   const type = data.type || sample(PAYMENT_METHOD_TYPES);
   const token = data.token || fakePaymentMethodToken(service, type);

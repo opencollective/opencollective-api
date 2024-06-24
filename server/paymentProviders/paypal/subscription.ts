@@ -12,7 +12,7 @@ import { createRefundTransaction } from '../../lib/payments';
 import { reportErrorToSentry } from '../../lib/sentry';
 import models, { Collective } from '../../models';
 import Order from '../../models/Order';
-import { PaymentMethodModelInterface } from '../../models/PaymentMethod';
+import PaymentMethod from '../../models/PaymentMethod';
 import PaypalPlan from '../../models/PaypalPlan';
 import Tier from '../../models/Tier';
 import Transaction from '../../models/Transaction';
@@ -62,7 +62,7 @@ export const createPaypalPaymentMethodForSubscription = (
   order: Order,
   user: User,
   paypalSubscriptionId: string,
-): Promise<PaymentMethodModelInterface> => {
+): Promise<PaymentMethod> => {
   return models.PaymentMethod.create({
     service: PAYMENT_METHOD_SERVICE.PAYPAL,
     type: PAYMENT_METHOD_TYPE.SUBSCRIPTION,
@@ -225,10 +225,7 @@ export async function getOrCreatePlan(
   }
 }
 
-export const setupPaypalSubscriptionForOrder = async (
-  order: Order,
-  paymentMethod: PaymentMethodModelInterface,
-): Promise<Order> => {
+export const setupPaypalSubscriptionForOrder = async (order: Order, paymentMethod: PaymentMethod): Promise<Order> => {
   const hostCollective = await order.collective.getHostCollective();
   const existingSubscription = order.SubscriptionId && (await order.getSubscription());
   const paypalSubscriptionId = paymentMethod.token;
@@ -369,7 +366,7 @@ const verifySubscription = async (order: Order, paypalSubscription) => {
   }
 };
 
-export const isPaypalSubscriptionPaymentMethod = (paymentMethod: PaymentMethodModelInterface): boolean => {
+export const isPaypalSubscriptionPaymentMethod = (paymentMethod: PaymentMethod): boolean => {
   return (
     paymentMethod?.service === PAYMENT_METHOD_SERVICE.PAYPAL && paymentMethod.type === PAYMENT_METHOD_TYPE.SUBSCRIPTION
   );

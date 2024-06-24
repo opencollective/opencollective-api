@@ -13,7 +13,7 @@ import Expense from '../models/Expense';
 import { MemberModelInterface } from '../models/Member';
 import MemberInvitation from '../models/MemberInvitation';
 import Order from '../models/Order';
-import { PaymentMethodModelInterface } from '../models/PaymentMethod';
+import PaymentMethod from '../models/PaymentMethod';
 
 import logger from './logger';
 import { stripHTML } from './sanitize-html';
@@ -419,7 +419,7 @@ export async function deleteCollective(collective) {
   const paymentMethods = await models.PaymentMethod.findAll({
     where: { CollectiveId: collective.id },
   });
-  await map(paymentMethods, (paymentMethod: PaymentMethodModelInterface) => paymentMethod.destroy(), {
+  await map(paymentMethods, (paymentMethod: PaymentMethod) => paymentMethod.destroy(), {
     concurrency: 3,
   });
 

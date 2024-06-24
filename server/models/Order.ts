@@ -42,7 +42,7 @@ import Collective from './Collective';
 import Comment from './Comment';
 import CustomDataTypes from './DataTypes';
 import { MemberModelInterface } from './Member';
-import PaymentMethod, { PaymentMethodModelInterface } from './PaymentMethod';
+import PaymentMethod from './PaymentMethod';
 import Subscription from './Subscription';
 import Tier from './Tier';
 import Transaction from './Transaction';
@@ -72,7 +72,7 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
   declare createdAt: CreationOptional<Date>;
   declare updatedAt: CreationOptional<Date>;
   declare deletedAt?: Date;
-  declare PaymentMethodId?: ForeignKey<PaymentMethodModelInterface['id']>;
+  declare PaymentMethodId?: ForeignKey<PaymentMethod['id']>;
   declare processedAt?: Date;
   declare privateMessage?: string;
   declare TierId?: ForeignKey<Tier['id']>;
@@ -175,10 +175,10 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
   declare countTransactions: HasManyCountAssociationsMixin;
 
   // Order belongsTo PaymentMethod via PaymentMethodId
-  declare paymentMethod?: PaymentMethodModelInterface;
-  declare getPaymentMethod: BelongsToGetAssociationMixin<PaymentMethodModelInterface>;
-  // declare setPaymentMethod: BelongsToSetAssociationMixin<PaymentMethodModelInterface, PaymentMethodId>;
-  declare createPaymentMethod: BelongsToCreateAssociationMixin<PaymentMethodModelInterface>;
+  declare paymentMethod?: PaymentMethod;
+  declare getPaymentMethod: BelongsToGetAssociationMixin<PaymentMethod>;
+  // declare setPaymentMethod: BelongsToSetAssociationMixin<PaymentMethod, PaymentMethodId>;
+  declare createPaymentMethod: BelongsToCreateAssociationMixin<PaymentMethod>;
 
   // Order belongsTo SubscriptionInterface via SubscriptionInterface['id']
   declare Subscription?: Subscription;
@@ -206,7 +206,7 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
   declare markAsPaid: (user: User) => Promise<Order>;
   declare getTotalTransactions: () => Promise<number> | number;
   declare getUserForActivity: () => Promise<User | undefined>;
-  declare validatePaymentMethod: (paymentMethod: PaymentMethodModelInterface) => Promise<PaymentMethodModelInterface>;
+  declare validatePaymentMethod: (paymentMethod: PaymentMethod) => Promise<PaymentMethod>;
   declare populate: () => Promise<Order>;
   declare setPaymentMethod: (paymentMethodData: object) => Promise<Order>;
   /**

@@ -1,7 +1,7 @@
 import config from 'config';
 import debugLib from 'debug';
 import { get, intersection } from 'lodash';
-import { InferAttributes, InferCreationAttributes, Model, ModelStatic } from 'sequelize';
+import { InferAttributes, InferCreationAttributes, Model } from 'sequelize';
 
 import { SupportedCurrency } from '../constants/currencies';
 import { maxInteger } from '../constants/math';
@@ -23,53 +23,96 @@ import { formatArrayToString, formatCurrency } from '../lib/utils';
 
 import Collective from './Collective';
 import CustomDataTypes from './DataTypes';
+import Order from './Order';
 import User from './User';
 
 const debug = debugLib('models:PaymentMethod');
 
-interface PaymentMethodStaticInterface {
-  getOrCreate(user, paymentMethod): Promise<PaymentMethodModelInterface>;
-}
+class PaymentMethod extends Model<InferAttributes<PaymentMethod>, InferCreationAttributes<PaymentMethod>> {
+  declare id: number;
+  declare uuid: string;
+  declare CreatedByUserId: number;
+  declare CollectiveId: number;
+  declare name: string;
+  declare description: string;
+  declare customerId: string;
+  declare token: string;
+  declare primary: boolean;
+  declare monthlyLimitPerMember: number;
+  declare currency: SupportedCurrency;
+  declare service: PAYMENT_METHOD_SERVICE;
+  declare type: PAYMENT_METHOD_TYPE;
+  declare data: any;
+  declare createdAt: Date;
+  declare updatedAt: Date;
+  declare confirmedAt: Date;
+  declare archivedAt: Date;
+  declare expiryDate: Date;
+  declare initialBalance: number;
+  declare limitedToTags: string[];
+  declare batch: string;
+  declare limitedToHostCollectiveIds: number[];
+  declare SourcePaymentMethodId: number;
+  declare saved: boolean;
 
-export interface PaymentMethodModelInterface
-  extends Model<InferAttributes<PaymentMethodModelInterface>, InferCreationAttributes<PaymentMethodModelInterface>> {
-  id: number;
-  uuid: string;
-  CreatedByUserId: number;
-  CollectiveId: number;
-  name: string;
-  description: string;
-  customerId: string;
-  token: string;
-  primary: boolean;
-  monthlyLimitPerMember: number;
-  currency: SupportedCurrency;
-  service: PAYMENT_METHOD_SERVICE;
-  type: PAYMENT_METHOD_TYPE;
-  data: any;
-  createdAt: Date;
-  updatedAt: Date;
-  confirmedAt: Date;
-  archivedAt: Date;
-  expiryDate: Date;
-  initialBalance: number;
-  limitedToTags: string[];
-  batch: string;
-  limitedToHostCollectiveIds: number[];
-  SourcePaymentMethodId: number;
-  saved: boolean;
+  // Properties
+  declare Collective?: Collective;
 
-  getCollective(): Promise<Collective>;
-  getBalanceForUser(user): Promise<{ amount: number; currency: SupportedCurrency }>;
-  Collective?: Collective;
-  canBeUsedForOrder(order, user): Promise<boolean>;
+  // Instance methods
+  declare getCollective: () => Promise<Collective>;
+  declare getBalanceForUser: (user: User) => Promise<{ amount: number; currency: SupportedCurrency }>;
+  declare canBeUsedForOrder: (order: Order, user: User) => Promise<boolean>;
+  declare isConfirmed: () => boolean;
+  declare isPaypalPayment: () => Promise<boolean>;
+  declare updateBalance: () => Promise<number>;
 
   // Getter Methods
-  info: Partial<PaymentMethodModelInterface>;
+  declare info?: Partial<PaymentMethod>;
+
+  /**
+   * Create or get an existing payment method by uuid
+   * This makes sure that the user can use this PaymentMethod
+   * @param {*} user req.remoteUser
+   * @param {*} paymentMethod { uuid } or { token, CollectiveId, ... } to create a new one and optionally attach it to CollectiveId
+   * @post PaymentMethod { id, uuid, service, token, balance, CollectiveId }
+   */
+  static async getOrCreate(user, paymentMethod) {
+    if (!paymentMethod.uuid) {
+      // If no UUID provided, we check if this token already exists
+      // NOTE: we have to disable this better behavior because it's breaking too many tests
+      /*
+      if (paymentMethod.token) {
+        const paymentMethodWithToken = await PaymentMethod.findOne({
+          where: { token: paymentMethod.token },
+        });
+        if (paymentMethodWithToken) {
+          return paymentMethodWithToken;
+        }
+      }
+      */
+      // If no UUID provided, we create a new paymentMethod
+      const paymentMethodData = {
+        ...paymentMethod,
+        service: paymentMethod.service || 'stripe',
+        CreatedByUserId: user.id,
+        CollectiveId: paymentMethod.CollectiveId, // might be null if the user decided not to save the credit card on file
+      };
+      debug('PaymentMethod.create', paymentMethodData);
+      return PaymentMethod.create(paymentMethodData);
+    } else {
+      return PaymentMethod.findOne({
+        where: { uuid: paymentMethod.uuid },
+      }).then(pm => {
+        if (!pm) {
+          throw new Error("You don't have a payment method with that uuid");
+        }
+        return pm;
+      });
+    }
+  }
 }
 
-const PaymentMethod: ModelStatic<PaymentMethodModelInterface> & PaymentMethodStaticInterface = sequelize.define(
-  'PaymentMethod',
+PaymentMethod.init(
   {
     id: {
       type: DataTypes.INTEGER,
@@ -169,28 +212,27 @@ const PaymentMethod: ModelStatic<PaymentMethodModelInterface> & PaymentMethodSta
       type: DataTypes.DATE,
     },
 
+    //  Initial balance on this payment method. Current balance should be a computed value based on transactions.
     initialBalance: {
       type: DataTypes.INTEGER,
-      description:
-        'Initial balance on this payment method. Current balance should be a computed value based on transactions.',
       validate: {
         min: 0,
       },
     },
 
+    // if not null, this payment method can only be used for collectives that have one the tags
     limitedToTags: {
       type: DataTypes.ARRAY(DataTypes.STRING),
-      description: 'if not null, this payment method can only be used for collectives that have one the tags',
-      set(tags) {
+      set(tags: string[] | null) {
         this.setDataValue('limitedToTags', sanitizeTags(tags));
       },
     },
 
+    // To group multiple payment methods. Used for Gift Card
     batch: {
       type: DataTypes.STRING,
       allowNull: true,
-      description: 'To group multiple payment methods. Used for Gift Cards',
-      set(batchName) {
+      set(batchName: string) {
         if (batchName) {
           batchName = batchName.trim();
         }
@@ -199,9 +241,9 @@ const PaymentMethod: ModelStatic<PaymentMethodModelInterface> & PaymentMethodSta
       },
     },
 
+    // if not null, this payment method can only be used for collectives hosted by these collective ids
     limitedToHostCollectiveIds: {
       type: DataTypes.ARRAY(DataTypes.INTEGER),
-      description: 'if not null, this payment method can only be used for collectives hosted by these collective ids',
     },
 
     SourcePaymentMethodId: {
@@ -220,6 +262,7 @@ const PaymentMethod: ModelStatic<PaymentMethodModelInterface> & PaymentMethodSta
     },
   },
   {
+    sequelize,
     paranoid: true,
 
     hooks: {
@@ -425,7 +468,8 @@ PaymentMethod.prototype.getBalanceForUser = async function (user) {
     return { amount: 0, currency: this.currency };
   }
 
-  const getBalance = paymentProvider.getBalance || (() => Promise.resolve(maxInteger)); // GraphQL doesn't like Infinity
+  const getBalance =
+    paymentProvider.getBalance || (() => Promise.resolve({ amount: maxInteger, currency: this.currency })); // GraphQL doesn't like Infinity
 
   // Paypal Preapproved Key
   if (this.service === 'paypal' && !this.type) {
@@ -498,48 +542,6 @@ PaymentMethod.prototype.getBalanceForUser = async function (user) {
  */
 PaymentMethod.prototype.isConfirmed = function () {
   return this.type !== 'giftcard' || this.confirmedAt !== null;
-};
-
-/**
- * Create or get an existing payment method by uuid
- * This makes sure that the user can use this PaymentMethod
- * @param {*} user req.remoteUser
- * @param {*} paymentMethod { uuid } or { token, CollectiveId, ... } to create a new one and optionally attach it to CollectiveId
- * @post PaymentMethod { id, uuid, service, token, balance, CollectiveId }
- */
-PaymentMethod.getOrCreate = async (user, paymentMethod) => {
-  if (!paymentMethod.uuid) {
-    // If no UUID provided, we check if this token already exists
-    // NOTE: we have to disable this better behavior because it's breaking too many tests
-    /*
-      if (paymentMethod.token) {
-        const paymentMethodWithToken = await PaymentMethod.findOne({
-          where: { token: paymentMethod.token },
-        });
-        if (paymentMethodWithToken) {
-          return paymentMethodWithToken;
-        }
-      }
-      */
-    // If no UUID provided, we create a new paymentMethod
-    const paymentMethodData = {
-      ...paymentMethod,
-      service: paymentMethod.service || 'stripe',
-      CreatedByUserId: user.id,
-      CollectiveId: paymentMethod.CollectiveId, // might be null if the user decided not to save the credit card on file
-    };
-    debug('PaymentMethod.create', paymentMethodData);
-    return PaymentMethod.create(paymentMethodData);
-  } else {
-    return PaymentMethod.findOne({
-      where: { uuid: paymentMethod.uuid },
-    }).then(pm => {
-      if (!pm) {
-        throw new Error("You don't have a payment method with that uuid");
-      }
-      return pm;
-    });
-  }
 };
 
 export default PaymentMethod;

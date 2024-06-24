@@ -2,7 +2,7 @@ import { GraphQLEnumType } from 'graphql';
 
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import logger from '../../../lib/logger';
-import { PaymentMethodModelInterface } from '../../../models/PaymentMethod';
+import PaymentMethod from '../../../models/PaymentMethod';
 
 export enum PaymentMethodLegacyTypeEnum {
   ALIPAY = 'ALIPAY',
@@ -31,10 +31,7 @@ export const GraphQLPaymentMethodLegacyType = new GraphQLEnumType({
   }, {}),
 });
 
-export const getLegacyPaymentMethodType = ({
-  service,
-  type,
-}: PaymentMethodModelInterface): PaymentMethodLegacyTypeEnum => {
+export const getLegacyPaymentMethodType = ({ service, type }: PaymentMethod): PaymentMethodLegacyTypeEnum => {
   if (service === PAYMENT_METHOD_SERVICE.STRIPE) {
     if (type === PAYMENT_METHOD_TYPE.CREDITCARD) {
       return PaymentMethodLegacyTypeEnum.CREDIT_CARD;

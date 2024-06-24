@@ -16,7 +16,7 @@ import { TransactionTypes } from '../constants/transactions';
 import { Op } from '../models';
 import Activity from '../models/Activity';
 import Order from '../models/Order';
-import PaymentMethod, { PaymentMethodModelInterface } from '../models/PaymentMethod';
+import PaymentMethod from '../models/PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from '../models/PayoutMethod';
 import Subscription from '../models/Subscription';
 import Transaction, { TransactionCreationAttributes, TransactionData } from '../models/Transaction';
@@ -65,7 +65,7 @@ type loaders = Record<string, Record<string, DataLoader<number | string, any>>>;
  * > isProvider('stripe.creditcard', { service: 'stripe', type: 'creditcard' })
  * true
  */
-export function isProvider(fqn, paymentMethod: PaymentMethodModelInterface): boolean {
+export function isProvider(fqn, paymentMethod: PaymentMethod): boolean {
   const pmFqn = `${paymentMethod.service}.${paymentMethod.type || PAYMENT_METHOD_TYPE.DEFAULT}`;
   return fqn === pmFqn;
 }
@@ -79,7 +79,7 @@ export function isProvider(fqn, paymentMethod: PaymentMethodModelInterface): boo
  * @return the payment method's JS module.
  */
 export function findPaymentMethodProvider(
-  paymentMethod: PaymentMethodModelInterface,
+  paymentMethod: PaymentMethod,
   { throwIfMissing = true }: { throwIfMissing?: boolean } = {},
 ): PaymentProviderService {
   const provider = get(paymentMethod, 'service') || PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE;
