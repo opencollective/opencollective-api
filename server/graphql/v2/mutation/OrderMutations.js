@@ -79,6 +79,7 @@ import {
   GraphQLPaymentMethodReferenceInput,
 } from '../input/PaymentMethodReferenceInput';
 import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput';
+import { fetchTransactionsImportRowWithReference } from '../input/TransactionsImportRowReferenceInput';
 import { GraphQLAccount } from '../interface/Account';
 import { GraphQLOrder } from '../object/Order';
 import { canEdit, canMarkAsExpired, canMarkAsPaid } from '../object/OrderPermissions';
@@ -548,9 +549,11 @@ const orderMutations = {
     args: {
       order: {
         type: new GraphQLNonNull(GraphQLOrderUpdateInput),
+        description: 'The order to process',
       },
       action: {
         type: new GraphQLNonNull(GraphQLProcessOrderAction),
+        description: 'The action to take on the order',
       },
     },
     async resolve(_, args, req) {
@@ -638,7 +641,30 @@ const orderMutations = {
             getTotalAmountForOrderInput(baseAmount, order.platformTipAmount, args.order.tax || order.data?.tax),
           );
 
-          await order.save();
+          // Link transactions import row
+          let transactionsImportRow;
+          if (args.order.transactionsImportRow) {
+            transactionsImportRow = await fetchTransactionsImportRowWithReference(args.order.transactionsImportRow, {
+              throwIfMissing: true,
+            });
+            if (transactionsImportRow.isProcessed()) {
+              throw new ValidationFailed('This import row has already been processed');
+            }
+
+            const transactionsImport = await transactionsImportRow.getImport();
+            if (!transactionsImport) {
+              throw new NotFound('TransactionsImport not found');
+            } else if (transactionsImport.CollectiveId !== host.id) {
+              throw new ValidationFailed('This import does not belong to the host');
+            }
+          }
+
+          await sequelize.transaction(async transaction => {
+            await order.save({ transaction });
+            if (transactionsImportRow) {
+              await transactionsImportRow.update({ OrderId: order.id }, { transaction });
+            }
+          });
         }
 
         order = await order.markAsPaid(req.remoteUser);
