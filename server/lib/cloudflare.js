@@ -1,4 +1,4 @@
-import cloudflare from 'cloudflare';
+import Cloudflare from 'cloudflare';
 import config from 'config';
 
 import logger from './logger';
@@ -17,7 +17,7 @@ if (isLiveServer && !hasConfig) {
   logger.info('A Cloudflare config was provided on a Live/Test environment. Some methods will be stubbed.');
 }
 
-const CloudflareLib = cloudflare({ email: cfConfig.email, key: cfConfig.key });
+const CloudflareLib = new Cloudflare({ email: cfConfig.email, key: cfConfig.key });
 
 // Export some helpers
 
@@ -57,7 +57,8 @@ export const purgeCacheForPage = pagePaths => {
 
   logger.info(`Asking cloudflare to purge the cache for ${urlsToPurge}`);
 
-  return CloudflareLib.zones.purgeCache(cfConfig.zone, { files: urlsToPurge }).catch(error => {
+  // eslint-disable-next-line camelcase
+  return CloudflareLib.cache.purge({ zone_id: cfConfig.zone, files: urlsToPurge }).catch(error => {
     logger.error(error);
     reportErrorToSentry(error);
   });
