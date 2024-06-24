@@ -468,12 +468,22 @@ PaymentMethod.prototype.getBalanceForUser = async function (user) {
     return { amount: 0, currency: this.currency };
   }
 
-  const getBalance =
-    paymentProvider.getBalance || (() => Promise.resolve({ amount: maxInteger, currency: this.currency })); // GraphQL doesn't like Infinity
+  const getBalance = async () => {
+    if (!paymentProvider.getBalance) {
+      return { amount: maxInteger, currency: this.currency }; // GraphQL doesn't like Infinity
+    }
+
+    const balance = await paymentProvider.getBalance(this);
+    if (typeof balance === 'number') {
+      return { amount: balance, currency: this.currency };
+    }
+
+    return balance; // as { amount: number; currency: SupportedCurrency };
+  };
 
   // Paypal Preapproved Key
   if (this.service === 'paypal' && !this.type) {
-    return getBalance(this);
+    return getBalance();
   }
 
   if (this.monthlyLimitPerMember && !user) {
@@ -492,12 +502,12 @@ PaymentMethod.prototype.getBalanceForUser = async function (user) {
   }
   // giftcard monthlyLimitPerMember are calculated differently so the getBalance already returns the right result
   if (this.type === 'giftcard') {
-    return getBalance(this);
+    return getBalance();
   }
 
   // Most paymentMethods getBalance functions return a {amount, currency} object while
   // collective payment method returns a raw number.
-  const balance = await getBalance(this);
+  const balance = await getBalance();
   const balanceAmount = typeof balance === 'number' ? balance : balance.amount;
 
   // Independently of the balance of the external source, the owner of the payment method
