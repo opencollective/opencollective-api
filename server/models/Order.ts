@@ -43,7 +43,7 @@ import Comment from './Comment';
 import CustomDataTypes from './DataTypes';
 import { MemberModelInterface } from './Member';
 import PaymentMethod, { PaymentMethodModelInterface } from './PaymentMethod';
-import { SubscriptionInterface } from './Subscription';
+import Subscription from './Subscription';
 import Tier from './Tier';
 import Transaction from './Transaction';
 import User from './User';
@@ -181,10 +181,10 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
   declare createPaymentMethod: BelongsToCreateAssociationMixin<PaymentMethodModelInterface>;
 
   // Order belongsTo SubscriptionInterface via SubscriptionInterface['id']
-  declare Subscription?: SubscriptionInterface;
-  declare getSubscription: BelongsToGetAssociationMixin<SubscriptionInterface>;
-  declare setSubscription: BelongsToSetAssociationMixin<SubscriptionInterface, SubscriptionInterface['id']>;
-  declare createSubscription: BelongsToCreateAssociationMixin<SubscriptionInterface>;
+  declare Subscription?: Subscription;
+  declare getSubscription: BelongsToGetAssociationMixin<Subscription>;
+  declare setSubscription: BelongsToSetAssociationMixin<Subscription, Subscription['id']>;
+  declare createSubscription: BelongsToCreateAssociationMixin<Subscription>;
 
   // Order belongsTo Tier via TierId
   declare tier?: Tier;
@@ -202,7 +202,7 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
   // Class methods
   declare getOrCreateMembers: () => Promise<[MemberModelInterface, MemberModelInterface]>;
   declare getUser: () => Promise<User | undefined>;
-  declare getSubscriptionForUser: (user: User) => Promise<SubscriptionInterface | null>;
+  declare getSubscriptionForUser: (user: User) => Promise<Subscription | null>;
   declare markAsPaid: (user: User) => Promise<Order>;
   declare getTotalTransactions: () => Promise<number> | number;
   declare getUserForActivity: () => Promise<User | undefined>;
