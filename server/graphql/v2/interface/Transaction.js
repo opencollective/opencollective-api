@@ -36,8 +36,8 @@ import { GraphQLAccount } from './Account';
 const { EXPENSE } = TransactionKind;
 
 /**
- * @typedef {import("../../../models/PaymentMethod").PaymentMethodModelInterface} PaymentMethodModelInterface
- * @returns {Promise<PaymentMethodModelInterface>}
+ * @typedef {import("../../../models/PaymentMethod")} PaymentMethod
+ * @returns {Promise<PaymentMethod>}
  */
 async function getPaymentMethodForTransaction(transaction, req) {
   if (transaction.PaymentMethodId) {

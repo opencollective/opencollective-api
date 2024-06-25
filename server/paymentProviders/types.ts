@@ -1,6 +1,6 @@
 import { SupportedCurrency } from '../constants/currencies';
 import Order from '../models/Order';
-import { PaymentMethodModelInterface } from '../models/PaymentMethod';
+import PaymentMethod from '../models/PaymentMethod';
 import Transaction from '../models/Transaction';
 import User from '../models/User';
 import VirtualCardModel from '../models/VirtualCard';
@@ -44,11 +44,9 @@ export interface PaymentProviderService {
    */
   refundTransactionOnlyInDatabase?(transaction: Transaction, user?: User, reason?: string): Promise<Transaction>;
 
-  getBalance?: (
-    paymentMethod: PaymentMethodModelInterface,
-  ) => Promise<number | { amount: number; currency: SupportedCurrency }>;
+  getBalance?: (paymentMethod: PaymentMethod) => Promise<number | { amount: number; currency: SupportedCurrency }>;
 
-  updateBalance?: (paymentMethod: PaymentMethodModelInterface) => Promise<number>;
+  updateBalance?: (paymentMethod: PaymentMethod) => Promise<number>;
 }
 
 export interface CardProviderService {

@@ -21,7 +21,7 @@ import { reportMessageToSentry } from '../../lib/sentry';
 import stripe, { convertFromStripeAmount, extractFees, retrieveChargeWithRefund } from '../../lib/stripe';
 import models, { Collective, ConnectedAccount } from '../../models';
 import Order from '../../models/Order';
-import PaymentMethod, { PaymentMethodModelInterface } from '../../models/PaymentMethod';
+import PaymentMethod from '../../models/PaymentMethod';
 import Transaction, { TransactionCreationAttributes, TransactionData } from '../../models/Transaction';
 import User from '../../models/User';
 
@@ -292,10 +292,10 @@ export async function getOrCreateStripeCustomer(
 }
 
 export async function attachCardToPlatformCustomer(
-  paymentMethod: PaymentMethodModelInterface,
+  paymentMethod: PaymentMethod,
   collective: Collective,
   user: User,
-): Promise<PaymentMethodModelInterface> {
+): Promise<PaymentMethod> {
   const platformCustomer = await getOrCreateStripeCustomer(config.stripe.accountId, collective, user);
 
   let stripePaymentMethod = await stripe.paymentMethods.create({
@@ -320,7 +320,7 @@ export async function attachCardToPlatformCustomer(
 }
 
 export async function getOrCloneCardPaymentMethod(
-  platformPaymentMethod: PaymentMethodModelInterface,
+  platformPaymentMethod: PaymentMethod,
   collective: Collective,
   hostStripeAccount: string,
   hostCustomer: string,
@@ -487,7 +487,7 @@ export async function createPaymentMethod(
     CreatedByUserId?: number;
   },
   createOptions?: CreateOptions,
-): Promise<PaymentMethodModelInterface> {
+): Promise<PaymentMethod> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const paymentIntentCharge: Stripe.Charge = (originPaymentIntent as any)?.charges?.data?.[0];
   const paymentMethodChargeDetails = paymentIntentCharge?.payment_method_details;
@@ -522,7 +522,7 @@ export async function createPaymentMethod(
 
 export async function createOrRetrievePaymentMethodFromSetupIntent(
   setupIntent: Stripe.SetupIntent,
-): Promise<PaymentMethodModelInterface> {
+): Promise<PaymentMethod> {
   const stripePaymentMethodId =
     typeof setupIntent.payment_method === 'string' ? setupIntent.payment_method : setupIntent.payment_method.id;
 

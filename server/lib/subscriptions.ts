@@ -9,7 +9,7 @@ import { BadRequest, Unauthorized, UnexpectedError } from '../graphql/errors';
 import { sequelize } from '../models';
 import { MemberModelInterface } from '../models/Member';
 import Order from '../models/Order';
-import { PaymentMethodModelInterface } from '../models/PaymentMethod';
+import PaymentMethod from '../models/PaymentMethod';
 import Tier from '../models/Tier';
 import User from '../models/User';
 
@@ -50,7 +50,7 @@ const getNextChargeDateForUpdateContribution = (baseNextChargeDate: Date, newInt
 export const updatePaymentMethodForSubscription = async (
   user: User,
   order: Order,
-  newPaymentMethod: PaymentMethodModelInterface,
+  newPaymentMethod: PaymentMethod,
 ): Promise<Order> => {
   const newPaymentMethodCollective = await newPaymentMethod.getCollective();
   if (!user.isAdminOfCollective(newPaymentMethodCollective)) {

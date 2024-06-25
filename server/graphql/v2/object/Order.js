@@ -222,7 +222,7 @@ export const GraphQLOrder = new GraphQLObjectType({
           }
 
           /**
-           * @type {import("../../../models/PaymentMethod").PaymentMethodModelInterface}
+           * @type {import("../../../models/PaymentMethod")}
            */
           let pm;
           if (order.PaymentMethodId) {

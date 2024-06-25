@@ -28,7 +28,7 @@ import stripe, { getDashboardObjectIdURL } from '../../lib/stripe';
 import { getPaymentProcessorFeeVendor } from '../../lib/transactions';
 import models, { sequelize } from '../../models';
 import Order from '../../models/Order';
-import { PaymentMethodModelInterface } from '../../models/PaymentMethod';
+import PaymentMethod from '../../models/PaymentMethod';
 
 import { getVirtualCardForTransaction } from './../utils';
 import { createChargeTransactions, createPaymentMethod } from './common';
@@ -40,7 +40,7 @@ export async function createOrUpdateOrderStripePaymentMethod(
   order: Order,
   stripeAccount: string,
   paymentIntent: Stripe.PaymentIntent,
-): Promise<PaymentMethodModelInterface> {
+): Promise<PaymentMethod> {
   const stripePaymentMethodId =
     typeof paymentIntent.payment_method === 'string' ? paymentIntent.payment_method : paymentIntent.payment_method?.id;
 
