@@ -1,6 +1,6 @@
 import config from 'config';
 import { pick } from 'lodash';
-import { CreateOptions, InferAttributes, InferCreationAttributes, Model, ModelStatic, Transaction } from 'sequelize';
+import { CreateOptions, InferAttributes, InferCreationAttributes, Model, Transaction } from 'sequelize';
 
 import ActivityTypes from '../constants/activities';
 import { CollectiveType } from '../constants/collectives';
@@ -15,126 +15,212 @@ import User from './User';
 
 export const MEMBER_INVITATION_SUPPORTED_ROLES = [roles.ACCOUNTANT, roles.ADMIN, roles.MEMBER];
 
-interface MemberInvitationModelStaticInterface {
-  invite(
+class MemberInvitation extends Model<InferAttributes<MemberInvitation>, InferCreationAttributes<MemberInvitation>> {
+  declare id: number;
+  declare CreatedByUserId: number;
+  declare MemberCollectiveId: number;
+  declare CollectiveId: number;
+  declare TierId: number;
+  declare role: roles.ACCOUNTANT | roles.ADMIN | roles.MEMBER;
+  declare description: string;
+
+  declare createdAt: Date;
+  declare updatedAt: Date;
+  declare deletedAt?: Date;
+  declare since: Date | string;
+
+  declare collective?: Collective;
+  declare memberCollective?: Collective;
+
+  declare sendEmail: (remoteUser: User, skipDefaultAdmin, sequelizeParams?: CreateOptions) => Promise<void>;
+
+  declare invite: (
     collective,
     memberParams,
     { transaction, skipDefaultAdmin }?: { transaction?: Transaction; skipDefaultAdmin?: boolean },
-  ): Promise<MemberInvitationModelInterface>;
-}
+  ) => Promise<MemberInvitation>;
 
-export interface MemberInvitationModelInterface
-  extends Model<
-    InferAttributes<MemberInvitationModelInterface>,
-    InferCreationAttributes<MemberInvitationModelInterface>
-  > {
-  id: number;
-  CreatedByUserId: number;
-  MemberCollectiveId: number;
-  CollectiveId: number;
-  TierId: number;
-  role: roles.ACCOUNTANT | roles.ADMIN | roles.MEMBER;
-  description: string;
+  declare accept: () => Promise<MemberInvitation>;
 
-  createdAt: Date;
-  updatedAt: Date;
-  deletedAt?: Date;
-  since: Date | string;
+  declare decline: () => Promise<void>;
 
-  collective?: Collective;
-  memberCollective?: Collective;
+  /**
+   * Class Methods
+   */
+  static async invite(
+    collective,
+    memberParams,
+    { transaction, skipDefaultAdmin }: { transaction?: Transaction; skipDefaultAdmin?: boolean } = {},
+  ) {
+    const sequelizeParams = transaction ? { transaction } : undefined;
 
-  sendEmail: (remoteUser: User, skipDefaultAdmin, sequelizeParams?: CreateOptions) => Promise<void>;
-}
+    // Check params
+    if (!MEMBER_INVITATION_SUPPORTED_ROLES.includes(memberParams.role)) {
+      throw new Error(`Member invitation roles can only be one of: ${MEMBER_INVITATION_SUPPORTED_ROLES.join(', ')}`);
+    } else if (collective.type === CollectiveType.USER) {
+      throw new Error('Individual accounts do not support members');
+    }
 
-const MemberInvitation: ModelStatic<MemberInvitationModelInterface> & MemberInvitationModelStaticInterface =
-  sequelize.define(
-    'MemberInvitation',
-    {
-      id: {
-        type: DataTypes.INTEGER,
-        primaryKey: true,
-        autoIncrement: true,
+    // Ensure the user is not already a member
+    const existingMember = await Member.findOne({
+      where: {
+        CollectiveId: collective.id,
+        MemberCollectiveId: memberParams.MemberCollectiveId,
+        role: memberParams.role,
       },
+      ...sequelizeParams,
+    });
 
-      CreatedByUserId: {
-        type: DataTypes.INTEGER,
-        references: {
-          model: 'Users',
-          key: 'id',
-        },
-        onDelete: 'SET NULL',
-        onUpdate: 'CASCADE',
+    if (existingMember) {
+      throw new Error(`This user already have the ${memberParams.role} role on this Collective`);
+    }
+
+    // Update the existing invitation if it exists
+    let invitation = await MemberInvitation.findOne({
+      include: [{ association: 'collective' }],
+      where: {
+        CollectiveId: collective.id,
+        MemberCollectiveId: memberParams.MemberCollectiveId,
       },
+      ...sequelizeParams,
+    });
 
-      MemberCollectiveId: {
-        type: DataTypes.INTEGER,
-        references: {
-          model: 'Collectives',
-          key: 'id',
-        },
-        onDelete: 'CASCADE',
-        onUpdate: 'CASCADE',
-        allowNull: false,
-      },
+    if (invitation) {
+      const updateData = pick(memberParams, ['role', 'description', 'since']);
+      await invitation.update(updateData, sequelizeParams);
+    } else {
+      // Ensure collective has not invited too many people
+      const memberCountWhere = { CollectiveId: collective.id, role: MEMBER_INVITATION_SUPPORTED_ROLES };
+      const nbMembers = await Member.count({ where: memberCountWhere, ...sequelizeParams });
+      const nbInvitations = await MemberInvitation.count({ where: memberCountWhere, ...sequelizeParams });
+      if (nbMembers + nbInvitations > config.limits.maxCoreContributorsPerAccount) {
+        throw new Error('You exceeded the maximum number of members for this account');
+      }
 
-      CollectiveId: {
-        type: DataTypes.INTEGER,
-        references: {
-          model: 'Collectives',
-          key: 'id',
-        },
-        onDelete: 'SET NULL',
-        onUpdate: 'CASCADE',
-        allowNull: false,
-      },
+      // Create new member invitation
+      invitation = await MemberInvitation.create({ ...memberParams, CollectiveId: collective.id }, sequelizeParams);
+      invitation.collective = collective;
 
-      TierId: {
-        type: DataTypes.INTEGER,
-        references: {
-          model: 'Tiers',
-          key: 'id',
-        },
-        onDelete: 'SET NULL',
-        onUpdate: 'CASCADE',
-      },
-
-      role: {
-        type: DataTypes.STRING,
-        allowNull: false,
-        defaultValue: 'member',
-        validate: {
-          isIn: {
-            args: [MEMBER_INVITATION_SUPPORTED_ROLES],
+      if (MEMBER_INVITATION_SUPPORTED_ROLES.includes(memberParams.role)) {
+        const memberCollective = await Collective.findByPk(memberParams.MemberCollectiveId, sequelizeParams);
+        await Activity.create(
+          {
+            type: ActivityTypes.COLLECTIVE_CORE_MEMBER_INVITED,
+            CollectiveId: collective.id,
+            FromCollectiveId: memberParams.MemberCollectiveId,
+            HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
+            data: {
+              notify: false,
+              memberCollective: memberCollective.activity,
+              collective: collective.activity,
+              invitation: pick(invitation, ['id', 'role', 'description', 'since']),
+            },
           },
+          sequelizeParams,
+        );
+      }
+    }
+
+    // Load remote user
+    // TODO: We should make `createdByUser` a required param
+    const createdByUser = await User.findByPk(memberParams.CreatedByUserId, {
+      include: [{ association: 'collective' }],
+      ...sequelizeParams,
+    });
+
+    await invitation.sendEmail(createdByUser, skipDefaultAdmin, sequelizeParams);
+    return invitation;
+  }
+}
+
+MemberInvitation.init(
+  {
+    id: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+
+    CreatedByUserId: {
+      type: DataTypes.INTEGER,
+      references: {
+        model: 'Users',
+        key: 'id',
+      },
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE',
+    },
+
+    MemberCollectiveId: {
+      type: DataTypes.INTEGER,
+      references: {
+        model: 'Collectives',
+        key: 'id',
+      },
+      onDelete: 'CASCADE',
+      onUpdate: 'CASCADE',
+      allowNull: false,
+    },
+
+    CollectiveId: {
+      type: DataTypes.INTEGER,
+      references: {
+        model: 'Collectives',
+        key: 'id',
+      },
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE',
+      allowNull: false,
+    },
+
+    TierId: {
+      type: DataTypes.INTEGER,
+      references: {
+        model: 'Tiers',
+        key: 'id',
+      },
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE',
+    },
+
+    role: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      defaultValue: 'member',
+      validate: {
+        isIn: {
+          args: [MEMBER_INVITATION_SUPPORTED_ROLES],
+          msg: 'Must be ACCOUNTANT, ADMIN or MEMBER',
         },
       },
-
-      description: {
-        type: DataTypes.STRING,
-      },
-
-      // Dates.
-      createdAt: {
-        type: DataTypes.DATE,
-        defaultValue: DataTypes.NOW,
-      },
-      updatedAt: {
-        type: DataTypes.DATE,
-        defaultValue: DataTypes.NOW,
-      },
-      deletedAt: {
-        type: DataTypes.DATE,
-      },
-      since: {
-        type: DataTypes.DATE,
-        defaultValue: DataTypes.NOW,
-      },
     },
-    {
-      paranoid: true,
+
+    description: {
+      type: DataTypes.STRING,
     },
-  );
+
+    // Dates.
+    createdAt: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+    },
+    updatedAt: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+    },
+    deletedAt: {
+      type: DataTypes.DATE,
+    },
+    since: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+    },
+  },
+  {
+    sequelize,
+    paranoid: true,
+  },
+);
 
 // ---- Instance methods ----
 
@@ -250,93 +336,6 @@ MemberInvitation.prototype.sendEmail = async function (remoteUser, skipDefaultAd
     },
     sequelizeParams,
   );
-};
-
-// ---- Static methods ----
-
-MemberInvitation.invite = async function (
-  collective,
-  memberParams,
-  { transaction, skipDefaultAdmin }: { transaction?: Transaction; skipDefaultAdmin?: boolean } = {},
-) {
-  const sequelizeParams = transaction ? { transaction } : undefined;
-
-  // Check params
-  if (!MEMBER_INVITATION_SUPPORTED_ROLES.includes(memberParams.role)) {
-    throw new Error(`Member invitation roles can only be one of: ${MEMBER_INVITATION_SUPPORTED_ROLES.join(', ')}`);
-  } else if (collective.type === CollectiveType.USER) {
-    throw new Error('Individual accounts do not support members');
-  }
-
-  // Ensure the user is not already a member
-  const existingMember = await Member.findOne({
-    where: {
-      CollectiveId: collective.id,
-      MemberCollectiveId: memberParams.MemberCollectiveId,
-      role: memberParams.role,
-    },
-    ...sequelizeParams,
-  });
-
-  if (existingMember) {
-    throw new Error(`This user already have the ${memberParams.role} role on this Collective`);
-  }
-
-  // Update the existing invitation if it exists
-  let invitation = await MemberInvitation.findOne({
-    include: [{ association: 'collective' }],
-    where: {
-      CollectiveId: collective.id,
-      MemberCollectiveId: memberParams.MemberCollectiveId,
-    },
-    ...sequelizeParams,
-  });
-
-  if (invitation) {
-    const updateData = pick(memberParams, ['role', 'description', 'since']);
-    await invitation.update(updateData, sequelizeParams);
-  } else {
-    // Ensure collective has not invited too many people
-    const memberCountWhere = { CollectiveId: collective.id, role: MEMBER_INVITATION_SUPPORTED_ROLES };
-    const nbMembers = await Member.count({ where: memberCountWhere, ...sequelizeParams });
-    const nbInvitations = await MemberInvitation.count({ where: memberCountWhere, ...sequelizeParams });
-    if (nbMembers + nbInvitations > config.limits.maxCoreContributorsPerAccount) {
-      throw new Error('You exceeded the maximum number of members for this account');
-    }
-
-    // Create new member invitation
-    invitation = await MemberInvitation.create({ ...memberParams, CollectiveId: collective.id }, sequelizeParams);
-    invitation.collective = collective;
-
-    if (MEMBER_INVITATION_SUPPORTED_ROLES.includes(memberParams.role)) {
-      const memberCollective = await Collective.findByPk(memberParams.MemberCollectiveId, sequelizeParams);
-      await Activity.create(
-        {
-          type: ActivityTypes.COLLECTIVE_CORE_MEMBER_INVITED,
-          CollectiveId: collective.id,
-          FromCollectiveId: this.MemberCollectiveId,
-          HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
-          data: {
-            notify: false,
-            memberCollective: memberCollective.activity,
-            collective: collective.activity,
-            invitation: pick(invitation, ['id', 'role', 'description', 'since']),
-          },
-        },
-        sequelizeParams,
-      );
-    }
-  }
-
-  // Load remote user
-  // TODO: We should make `createdByUser` a required param
-  const createdByUser = await User.findByPk(memberParams.CreatedByUserId, {
-    include: [{ association: 'collective' }],
-    ...sequelizeParams,
-  });
-
-  await invitation.sendEmail(createdByUser, skipDefaultAdmin, sequelizeParams);
-  return invitation;
 };
 
 export default MemberInvitation;

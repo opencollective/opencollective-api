@@ -51,7 +51,7 @@ import Conversation from '../../server/models/Conversation';
 import { HostApplicationStatus } from '../../server/models/HostApplication';
 import LegalDocument, { LEGAL_DOCUMENT_SERVICE } from '../../server/models/LegalDocument';
 import { MemberModelInterface } from '../../server/models/Member';
-import { MemberInvitationModelInterface } from '../../server/models/MemberInvitation';
+import MemberInvitation from '../../server/models/MemberInvitation';
 import Order from '../../server/models/Order';
 import { PaymentMethodModelInterface } from '../../server/models/PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
@@ -890,9 +890,7 @@ export const fakeMember = async (data: Partial<InferCreationAttributes<MemberMod
 /**
  * Creates a fake member invitation
  */
-export const fakeMemberInvitation = async (
-  data: Partial<InferCreationAttributes<MemberInvitationModelInterface>> = {},
-) => {
+export const fakeMemberInvitation = async (data: Partial<InferCreationAttributes<MemberInvitation>> = {}) => {
   const collective = data.CollectiveId ? await models.Collective.findByPk(data.CollectiveId) : await fakeCollective();
   const memberCollective = data.MemberCollectiveId
     ? await models.Collective.findByPk(data.MemberCollectiveId)
