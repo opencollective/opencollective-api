@@ -17196,6 +17196,11 @@ type Mutation {
     The accounting category of this order
     """
     accountingCategory: AccountingCategoryReferenceInput
+
+    """
+    The transaction import row to associate with this order
+    """
+    transactionsImportRow: TransactionsImportRowReferenceInput
   ): Order!
 
   """
@@ -18208,7 +18213,17 @@ type Mutation {
   """
   A mutation for the host to approve or reject an order. Scope: "orders".
   """
-  processPendingOrder(order: OrderUpdateInput!, action: ProcessOrderAction!): Order!
+  processPendingOrder(
+    """
+    The order to process
+    """
+    order: OrderUpdateInput!
+
+    """
+    The action to take on the order
+    """
+    action: ProcessOrderAction!
+  ): Order!
 
   """
   [Root only] A mutation to move orders from one account to another
@@ -18974,6 +18989,13 @@ Reference to an accounting category
 input AccountingCategoryReferenceInput {
   """
   The ID of the accounting category
+  """
+  id: NonEmptyString!
+}
+
+input TransactionsImportRowReferenceInput {
+  """
+  The id of the row
   """
   id: NonEmptyString!
 }
@@ -20331,6 +20353,11 @@ input OrderUpdateInput {
   Date the funds were received
   """
   processedAt: DateTime
+
+  """
+  Reference to the transaction import row to link the order to
+  """
+  transactionsImportRow: TransactionsImportRowReferenceInput
 }
 
 """
@@ -20644,6 +20671,11 @@ input TransactionsImportRowUpdateInput {
   Whether the row is dismissed
   """
   isDismissed: Boolean = false
+
+  """
+  The order associated with the row
+  """
+  order: OrderReferenceInput
 }
 
 """

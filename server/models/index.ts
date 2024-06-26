@@ -296,7 +296,7 @@ TransactionSettlement.belongsTo(Expense);
 TransactionsImport.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
 TransactionsImport.hasMany(TransactionsImportRow, { foreignKey: 'TransactionsImportId', as: 'importRows' });
 
-// TransactionImportRow
+// TransactionsImportRow
 TransactionsImportRow.belongsTo(TransactionsImport, { foreignKey: 'TransactionsImportId', as: 'import' });
 
 // Update

@@ -11,6 +11,7 @@ import { GraphQLTransactionsImportType } from '../enum/TransactionsImportType';
 import { idDecode } from '../identifiers';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { getValueInCentsFromAmountInput } from '../input/AmountInput';
+import { getDatabaseIdFromOrderReference } from '../input/OrderReferenceInput';
 import { GraphQLTransactionsImportRowCreateInput } from '../input/TransactionsImportRowCreateInput';
 import { GraphQLTransactionsImportRowUpdateInput } from '../input/TransactionsImportRowUpdateInput';
 import { GraphQLTransactionsImport } from '../object/TransactionsImport';
@@ -143,15 +144,26 @@ const transactionImportsMutations = {
         throw new Unauthorized('You need to be an admin of the account to update a row');
       }
 
+      // Preload orders
       return sequelize.transaction(async transaction => {
         // Update rows
         await Promise.all(
           args.rows.map(async row => {
             const rowId = idDecode(row.id, 'transactions-import-row');
-            const values = omitBy(omit(row, 'id'), isUndefined);
+            const values = omitBy(omit(row, ['id', 'order']), isUndefined);
             if (row.amount) {
               values.amount = getValueInCentsFromAmountInput(row.amount);
               values.currency = row.amount.currency;
+            }
+            if (row.order) {
+              const orderId = getDatabaseIdFromOrderReference(row.order);
+              const order = await req.loaders.Order.byId.load(orderId);
+              const collective = order && (await req.loaders.Collective.byId.load(order.CollectiveId));
+              if (!order || !collective || collective.HostCollectiveId !== transactionsImport.CollectiveId) {
+                throw new Unauthorized(`Order not found or not associated with the import: ${orderId}`);
+              }
+
+              values['OrderId'] = order.id;
             }
 
             const [updatedCount] = await TransactionsImportRow.update(values, {

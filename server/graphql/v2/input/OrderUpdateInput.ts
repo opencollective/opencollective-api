@@ -3,6 +3,7 @@ import { GraphQLDateTime } from 'graphql-scalars';
 
 import { GraphQLAmountInput } from './AmountInput';
 import { GraphQLTaxInput } from './TaxInput';
+import { GraphQLTransactionsImportRowReferenceInput } from './TransactionsImportRowReferenceInput';
 
 export const GraphQLOrderUpdateInput = new GraphQLInputObjectType({
   name: 'OrderUpdateInput',
@@ -38,6 +39,10 @@ export const GraphQLOrderUpdateInput = new GraphQLInputObjectType({
     processedAt: {
       type: GraphQLDateTime,
       description: 'Date the funds were received',
+    },
+    transactionsImportRow: {
+      type: GraphQLTransactionsImportRowReferenceInput,
+      description: 'Reference to the transaction import row to link the order to',
     },
   }),
 });

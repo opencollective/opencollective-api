@@ -2,6 +2,7 @@ import { GraphQLBoolean, GraphQLInputObjectType, GraphQLNonNull, GraphQLString }
 import { GraphQLDateTime, GraphQLNonEmptyString } from 'graphql-scalars';
 
 import { GraphQLAmountInput } from './AmountInput';
+import { GraphQLOrderReferenceInput } from './OrderReferenceInput';
 
 export const GraphQLTransactionsImportRowUpdateInput = new GraphQLInputObjectType({
   name: 'TransactionsImportRowUpdateInput',
@@ -30,6 +31,10 @@ export const GraphQLTransactionsImportRowUpdateInput = new GraphQLInputObjectTyp
       type: GraphQLBoolean,
       description: 'Whether the row is dismissed',
       defaultValue: false,
+    },
+    order: {
+      type: GraphQLOrderReferenceInput,
+      description: 'The order associated with the row',
     },
   }),
 });
