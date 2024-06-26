@@ -121,6 +121,7 @@ export const signin = async (req, res, next) => {
       } else {
         // Context: this is token generation when using a password and no 2FA
         const token = await user.generateSessionToken({ createActivity: true, updateLastLoginAt: true, req });
+        auth.setAuthCookie(res, token);
         return res.send({ token });
       }
     }
@@ -227,6 +228,7 @@ export const exchangeLoginToken = async (req, res, next) => {
       updateLastLoginAt: true,
       req,
     });
+    auth.setAuthCookie(res, token);
     res.send({ token });
   }
 };
@@ -269,6 +271,7 @@ export const refreshToken = async (req, res, next) => {
     createActivity: false,
     updateLastLoginAt: false,
   });
+  auth.setAuthCookie(res, token);
 
   res.send({ token });
 };
@@ -334,6 +337,7 @@ export const twoFactorAuthAndUpdateToken = async (req, res, next) => {
     updateLastLoginAt: true,
     req,
   });
+  auth.setAuthCookie(res, token);
 
   res.send({ token: token });
 };

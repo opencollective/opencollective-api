@@ -6,6 +6,7 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLNonEmptyString } from 'graphql-scalars';
 
+import * as auth from '../../../lib/auth';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import TwoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
@@ -100,6 +101,7 @@ const individualMutations = {
           createActivity: false,
           updateLastLoginAt: false,
         });
+        auth.setAuthCookie(req.res, token);
       }
 
       return { individual, token };
@@ -157,6 +159,7 @@ const individualMutations = {
           createActivity: false,
           updateLastLoginAt: false,
         });
+        auth.setAuthCookie(req.res, sessionToken);
       }
 
       return { individual, sessionToken };
