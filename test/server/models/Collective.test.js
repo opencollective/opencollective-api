@@ -564,7 +564,7 @@ describe('server/models/Collective', () => {
     });
 
     it('returns active plan', async () => {
-      const plan = await hostUser.collective.getPlan();
+      const plan = hostUser.collective.getPlan();
 
       expect(plan).to.deep.equal({
         id: 3,

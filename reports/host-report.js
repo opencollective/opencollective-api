@@ -355,7 +355,7 @@ async function HostReport(year, month, hostId) {
       const paymentProcessorFeesTransactions = groupedTransactions.paymentProcessorFees || [];
       const taxesCollectedTransactions = groupedTransactions.taxesCollected || [];
 
-      const plan = await host.getPlan();
+      const plan = host.getPlan();
 
       const totalAmountDonations = sumBy(donations, 'amountInHostCurrency');
       const paymentProcessorFees =

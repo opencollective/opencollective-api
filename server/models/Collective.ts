@@ -3051,7 +3051,7 @@ class Collective extends Model<
     });
   };
 
-  isHost = function () {
+  isHost = function ({ transaction = null } = {}) {
     if (this.isHostAccount) {
       return Promise.resolve(true);
     }
@@ -3060,7 +3060,7 @@ class Collective extends Model<
       return Promise.resolve(false);
     }
 
-    return Member.findOne({ where: { MemberCollectiveId: this.id, role: 'HOST' } }).then(r => Boolean(r));
+    return Member.findOne({ where: { MemberCollectiveId: this.id, role: 'HOST' }, transaction }).then(r => Boolean(r));
   };
 
   isHostOf = function (CollectiveId) {
@@ -3073,24 +3073,28 @@ class Collective extends Model<
   getHostCollective = async function ({
     loaders = null,
     returnEvenIfNotApproved = false,
+    transaction = null,
   } = {}): Promise<null | Collective> {
     if (!this.isActive && !returnEvenIfNotApproved) {
       return null;
     }
 
     if (this.HostCollectiveId) {
-      return loaders ? loaders.Collective.byId.load(this.HostCollectiveId) : Collective.findByPk(this.HostCollectiveId);
+      return loaders
+        ? loaders.Collective.byId.load(this.HostCollectiveId)
+        : Collective.findByPk(this.HostCollectiveId, { transaction });
     }
 
     return Member.findOne({
       attributes: ['MemberCollectiveId'],
       where: { role: roles.HOST, CollectiveId: this.ParentCollectiveId },
       include: [{ model: Collective, as: 'memberCollective' }],
+      transaction,
     }).then(m => {
       if (m && m.memberCollective) {
         return m.memberCollective;
       }
-      return this.isHost().then(isHost => (isHost ? this : null));
+      return this.isHost({ transaction }).then(isHost => (isHost ? this : null));
     });
   };
 
@@ -3349,7 +3353,7 @@ class Collective extends Model<
     return total;
   };
 
-  getPlan = async function () {
+  getPlan = function () {
     if (this.plan) {
       const planData = plans[this.plan];
       if (planData) {
@@ -3394,7 +3398,7 @@ class Collective extends Model<
     from = from ? moment(from) : null;
     to = to ? moment(to) : null;
 
-    const plan = await this.getPlan();
+    const plan = this.getPlan();
     const hostFeeSharePercent = plan.hostFeeSharePercent || 0;
 
     const hostFees = await getHostFees(this, { startDate: from, endDate: to, fromCollectiveIds: collectiveIds });

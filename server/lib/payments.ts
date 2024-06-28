@@ -3,6 +3,7 @@ import config from 'config';
 import DataLoader from 'dataloader';
 import debugLib from 'debug';
 import { find, get, includes, isNil, isNumber, omit, pick } from 'lodash';
+import { Transaction as SequelizeTransaction } from 'sequelize';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../constants/activities';
@@ -1109,7 +1110,7 @@ export const isPlatformTipEligible = async (order: Order): Promise<boolean> => {
 
   const host = await order.collective.getHostCollective();
   if (host) {
-    const plan = await host.getPlan();
+    const plan = host.getPlan();
     // At this stage, only OSC /opensourcce and Open Collective /opencollective will return false
     return plan.platformTips;
   }
@@ -1260,15 +1261,17 @@ export const getHostFeePercent = async (
 
 export const getHostFeeSharePercent = async (
   order: Order,
-  { loaders = null }: { loaders?: loaders } = {},
+  { loaders = null, dbTransaction = null }: { loaders?: loaders; dbTransaction?: SequelizeTransaction } = {},
 ): Promise<number> => {
   if (!order.collective) {
-    order.collective = (await loaders?.Collective.byId.load(order.CollectiveId)) || (await order.getCollective());
+    order.collective =
+      (await loaders?.Collective.byId.load(order.CollectiveId)) ||
+      (await order.getCollective({ transaction: dbTransaction }));
   }
 
-  const host = await order.collective.getHostCollective({ loaders });
+  const host = await order.collective.getHostCollective({ loaders, transaction: dbTransaction });
 
-  const plan = await host.getPlan();
+  const plan = host.getPlan();
 
   const possibleValues = [];
 
@@ -1279,7 +1282,7 @@ export const getHostFeeSharePercent = async (
 
   // Make sure payment method is available
   if (!order.paymentMethod && order.PaymentMethodId) {
-    order.paymentMethod = await order.getPaymentMethod();
+    order.paymentMethod = await order.getPaymentMethod({ transaction: dbTransaction });
   }
 
   // Used by 1st party hosts to set Stripe and PayPal (aka "Crowfunding") share percent to zero
