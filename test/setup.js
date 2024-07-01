@@ -1,5 +1,4 @@
 import chai from 'chai';
-import chaiAsPromised from 'chai-as-promised';
 import chaiJestSnapshot from 'chai-jest-snapshot';
 import chaiSorted from 'chai-sorted';
 import chaiSubset from 'chai-subset';
@@ -13,7 +12,6 @@ if (!process.env.NODE_ENV) {
   process.env.NODE_ENV = 'test';
 }
 
-chai.use(chaiAsPromised);
 chai.use(chaiJestSnapshot);
 chai.use(chaiSubset);
 chai.use(chaiSorted);
