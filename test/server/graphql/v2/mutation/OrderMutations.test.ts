@@ -2486,12 +2486,14 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         amount: 7700,
         amountType: 'FIXED',
         interval: 'month',
+        name: 'Monthly Contribution',
       });
       fixedYearlyTier = await fakeTier({
         CollectiveId: collective.id,
         amount: 8800,
         amountType: 'FIXED',
         interval: 'year',
+        name: 'Yearly Contribution',
       });
       flexibleTier = await fakeTier({
         CollectiveId: collective.id,
@@ -2499,6 +2501,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         amount: 500,
         presets: [500, 750, 1000],
         amountType: 'FLEXIBLE',
+        name: 'Flexible Contribution',
       });
       await collective.addUserWithRole(adminUser, roles.ADMIN);
       await host.addUserWithRole(hostAdminUser, roles.ADMIN);
@@ -2761,133 +2764,134 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       describe('update interval', async () => {
         let clock;
 
+        const updateFakeOrder = async (nextChargeDate, initialInterval, newInterval) => {
+          const order = await fakeOrder(
+            {
+              interval: initialInterval,
+              subscription: { nextChargeDate },
+              CreatedByUserId: user.id,
+              FromCollectiveId: user.CollectiveId,
+              CollectiveId: collective.id,
+              status: OrderStatuses.ACTIVE,
+            },
+            { withSubscription: true },
+          );
+
+          const newTier = newInterval === 'month' ? fixedMonthlyTier : fixedYearlyTier;
+          const result = await graphqlQueryV2(
+            updateOrderMutation,
+            {
+              order: { id: idEncode(order.id, 'order') },
+              amount: { value: 8800 / 100 },
+              tier: { legacyId: newTier.id },
+            },
+            user,
+          );
+
+          await order.reload();
+          return { result, order };
+        };
+
         afterEach(() => {
           if (clock) {
             clock.restore();
             clock = null;
           }
         });
-        it('from monthly to yearly', async () => {
-          const today = moment(new Date(2022, 0, 1)); // 1st of January 2022
-          clock = useFakeTimers(today.toDate()); // Manually setting today's date
-          const subscription = { nextChargeDate: moment(today) };
-          const monthlyOrder = await fakeOrder(
-            {
-              interval: 'month',
-              subscription,
-              CreatedByUserId: user.id,
-              FromCollectiveId: user.CollectiveId,
-              CollectiveId: collective.id,
-              status: OrderStatuses.ACTIVE,
-            },
-            { withSubscription: true },
-          );
 
-          const result = await graphqlQueryV2(
-            updateOrderMutation,
-            {
-              order: { id: idEncode(monthlyOrder.id, 'order') },
-              amount: {
-                value: 8800 / 100,
-              },
-              tier: { legacyId: fixedYearlyTier.id },
-            },
-            user,
-          );
+        describe('when charge is due today', () => {
+          it('from monthly to yearly', async () => {
+            const today = moment(new Date(2022, 0, 1)); // 1st of January 2022
+            clock = useFakeTimers(today.toDate()); // Manually setting today's date
+            const { result, order } = await updateFakeOrder(today, 'month', 'year');
+            expect(result.errors).to.not.exist;
+            expect(result.data.updateOrder.tier.name).to.eq(fixedYearlyTier.name);
 
-          expect(result.errors).to.not.exist;
-          expect(result.data.updateOrder.amount.value).to.eq(88);
-          expect(result.data.updateOrder.tier.name).to.eq(fixedYearlyTier.name);
-
-          const updatedOrder = await models.Order.findOne({
-            where: { id: monthlyOrder.id },
-            include: [{ model: models.Subscription, required: true }],
+            const subscription = await order.getSubscription();
+            expect(subscription.nextChargeDate.toISOString()).to.equal('2022-01-01T00:00:00.000Z');
+            expect(subscription.nextPeriodStart.toISOString()).to.equal('2022-01-01T00:00:00.000Z');
           });
 
-          expect(updatedOrder.Subscription.nextChargeDate.toISOString()).to.equal('2023-01-01T00:00:00.000Z');
-          expect(updatedOrder.Subscription.nextPeriodStart.toISOString()).to.equal('2023-01-01T00:00:00.000Z');
+          it('from yearly to monthly', async () => {
+            const today = moment(new Date(2022, 0, 1)); // 1st of January 2022
+            clock = useFakeTimers(today.toDate()); // Manually setting today's date
+            const { result, order } = await updateFakeOrder(today, 'year', 'month');
+            expect(result.errors).to.not.exist;
+            expect(result.data.updateOrder.tier.name).to.eq(fixedMonthlyTier.name);
+
+            const subscription = await order.getSubscription();
+            expect(subscription.nextChargeDate.toISOString()).to.equal('2022-01-01T00:00:00.000Z');
+            expect(subscription.nextPeriodStart.toISOString()).to.equal('2022-01-01T00:00:00.000Z');
+          });
         });
 
-        it('from yearly to monthly (before the 15th of the month)', async () => {
-          const today = moment(new Date(2022, 0, 1)); // 1st of January 2022
-          clock = useFakeTimers(today.toDate()); // Manually setting today's date
-          const subscription = { nextChargeDate: moment(today) };
-          const yearlyOrder = await fakeOrder(
-            {
-              interval: 'year',
-              subscription,
-              CreatedByUserId: user.id,
-              FromCollectiveId: user.CollectiveId,
-              CollectiveId: collective.id,
-              status: OrderStatuses.ACTIVE,
-            },
-            { withSubscription: true },
-          );
+        describe('with a recent past charge (keep the existing date)', () => {
+          it('from monthly to yearly', async () => {
+            const today = moment(new Date(2022, 0, 12)); // 12th of January 2022
+            clock = useFakeTimers(today.toDate()); // Manually setting today's date
+            const firstOfJanuary = moment(new Date(2022, 0, 1)); // 1st of January 2022
+            const { result, order } = await updateFakeOrder(firstOfJanuary, 'month', 'year');
+            expect(result.errors).to.not.exist;
+            expect(result.data.updateOrder.tier.name).to.eq(fixedYearlyTier.name);
 
-          const result = await graphqlQueryV2(
-            updateOrderMutation,
-            {
-              order: { id: idEncode(yearlyOrder.id, 'order') },
-              amount: {
-                value: 7700 / 100,
-              },
-              tier: { legacyId: fixedMonthlyTier.id },
-            },
-            user,
-          );
-
-          expect(result.errors).to.not.exist;
-          expect(result.data.updateOrder.amount.value).to.eq(77);
-          expect(result.data.updateOrder.tier.name).to.eq(fixedMonthlyTier.name);
-
-          const updatedOrder = await models.Order.findOne({
-            where: { id: yearlyOrder.id },
-            include: [{ model: models.Subscription, required: true }],
+            const subscription = await order.getSubscription();
+            expect(subscription.nextChargeDate.toISOString()).to.equal('2022-01-01T00:00:00.000Z');
+            expect(subscription.nextPeriodStart.toISOString()).to.equal('2022-01-01T00:00:00.000Z');
           });
 
-          expect(updatedOrder.Subscription.nextChargeDate.toISOString()).to.equal('2022-02-01T00:00:00.000Z');
-          expect(updatedOrder.Subscription.nextPeriodStart.toISOString()).to.equal('2022-02-01T00:00:00.000Z');
+          it('from yearly to monthly', async () => {
+            const today = moment(new Date(2022, 0, 12)); // 12th of January 2022
+            clock = useFakeTimers(today.toDate()); // Manually setting today's date
+            const firstOfJanuary = moment(new Date(2022, 0, 1)); // 1st of January 2022
+            const { result, order } = await updateFakeOrder(firstOfJanuary, 'year', 'month');
+            expect(result.errors).to.not.exist;
+            expect(result.data.updateOrder.tier.name).to.eq(fixedMonthlyTier.name);
+
+            const subscription = await order.getSubscription();
+            expect(subscription.nextChargeDate.toISOString()).to.equal('2022-01-01T00:00:00.000Z');
+            expect(subscription.nextPeriodStart.toISOString()).to.equal('2022-01-01T00:00:00.000Z');
+          });
         });
 
-        it('from yearly to monthly (after the 15th of the month)', async () => {
-          const today = moment(new Date(2022, 0, 18)); // 18th of January 2022
-          clock = useFakeTimers(today.toDate()); // Manually setting today's date
-          const subscription = { nextChargeDate: moment(today) };
-          const yearlyOrder = await fakeOrder(
-            {
-              interval: 'year',
-              subscription,
-              CreatedByUserId: user.id,
-              FromCollectiveId: user.CollectiveId,
-              CollectiveId: collective.id,
-              status: OrderStatuses.ACTIVE,
-            },
-            { withSubscription: true },
-          );
+        describe('with an old dur charge', () => {
+          it('from monthly to yearly', async () => {
+            const today = moment(new Date(2022, 6, 1)); // 1st of July 2022
+            clock = useFakeTimers(today.toDate()); // Manually setting today's date
+            const firstOfJanuary = moment(new Date(2022, 0, 1)); // 1st of January 2022
+            const { result, order } = await updateFakeOrder(firstOfJanuary, 'month', 'year');
+            expect(result.errors).to.not.exist;
+            expect(result.data.updateOrder.tier.name).to.eq(fixedYearlyTier.name);
 
-          const result = await graphqlQueryV2(
-            updateOrderMutation,
-            {
-              order: { id: idEncode(yearlyOrder.id, 'order') },
-              amount: {
-                value: 7700 / 100,
-              },
-              tier: { legacyId: fixedMonthlyTier.id },
-            },
-            user,
-          );
-
-          expect(result.errors).to.not.exist;
-          expect(result.data.updateOrder.amount.value).to.eq(77);
-          expect(result.data.updateOrder.tier.name).to.eq(fixedMonthlyTier.name);
-
-          const updatedOrder = await models.Order.findOne({
-            where: { id: yearlyOrder.id },
-            include: [{ model: models.Subscription, required: true }],
+            const subscription = await order.getSubscription();
+            expect(subscription.nextChargeDate.toISOString()).to.equal('2022-01-01T00:00:00.000Z');
+            expect(subscription.nextPeriodStart.toISOString()).to.equal('2022-01-01T00:00:00.000Z');
           });
 
-          expect(updatedOrder.Subscription.nextChargeDate.toISOString()).to.equal('2022-03-01T00:00:00.000Z');
-          expect(updatedOrder.Subscription.nextPeriodStart.toISOString()).to.equal('2022-03-01T00:00:00.000Z');
+          it('from yearly to monthly', async () => {
+            const today = moment(new Date(2022, 6, 12)); // 12th of July 2022
+            clock = useFakeTimers(today.toDate()); // Manually setting today's date
+            const firstOfJanuary = moment(new Date(2022, 0, 1)); // 1st of January 2022
+            const { result, order } = await updateFakeOrder(firstOfJanuary, 'year', 'month');
+            expect(result.errors).to.not.exist;
+            expect(result.data.updateOrder.tier.name).to.eq(fixedMonthlyTier.name);
+
+            const subscription = await order.getSubscription();
+            expect(subscription.nextChargeDate.toISOString()).to.equal('2022-08-01T00:00:00.000Z');
+            expect(subscription.nextPeriodStart.toISOString()).to.equal('2022-08-01T00:00:00.000Z');
+          });
+
+          it('from yearly to monthly (on the 1st of the month)', async () => {
+            const today = moment(new Date(2022, 6, 1)); // 1st of July 2022
+            clock = useFakeTimers(today.toDate()); // Manually setting today's date
+            const firstOfJanuary = moment(new Date(2022, 0, 1)); // 1st of January 2022
+            const { result, order } = await updateFakeOrder(firstOfJanuary, 'year', 'month');
+            expect(result.errors).to.not.exist;
+            expect(result.data.updateOrder.tier.name).to.eq(fixedMonthlyTier.name);
+
+            const subscription = await order.getSubscription();
+            expect(subscription.nextChargeDate.toISOString()).to.equal('2022-07-01T00:00:00.000Z');
+            expect(subscription.nextPeriodStart.toISOString()).to.equal('2022-07-01T00:00:00.000Z');
+          });
         });
       });
     });
