@@ -66,7 +66,7 @@ export const AccountingCategoryInput = new GraphQLInputObjectType({
       description: 'If meant for expenses, the types of expenses this category applies to',
     },
     appliesTo: {
-      type: GraphQLAccountingCategoryAppliesTo,
+      type: new GraphQLNonNull(GraphQLAccountingCategoryAppliesTo),
       defaultValue: AccountingCategoryAppliesTo.HOSTED_COLLECTIVES,
       description: 'If the category is applicable to the Host or Hosted Collectives',
     },

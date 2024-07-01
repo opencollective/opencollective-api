@@ -60,11 +60,7 @@ export default {
           ...input,
           id: input.id ? idDecode(input.id, 'accounting-category') : null,
           expensesTypes: isNil(input.expensesTypes) ? input.expensesTypes : uniq(input.expensesTypes).sort(), // Uniq & sort to avoid false positives in diff
-          appliesTo: isNil(input.appliesTo)
-            ? isIndependentCollective
-              ? AccountingCategoryAppliesTo.HOST
-              : AccountingCategoryAppliesTo.HOSTED_COLLECTIVES
-            : input.appliesTo,
+          appliesTo: input.appliesTo,
         };
       });
 
