@@ -1039,8 +1039,16 @@ const orderMutations = {
       const currency = paymentIntentInput.currency;
 
       try {
+        let paymentMethodConfiguration = config.stripe.oneTimePaymentMethodConfiguration;
+
+        if (paymentIntentInput.frequency && paymentIntentInput.frequency !== 'ONETIME') {
+          paymentMethodConfiguration = config.stripe.recurringPaymentMethodConfiguration;
+        }
+
         const paymentIntent = await stripe.paymentIntents.create(
           {
+            // eslint-disable-next-line camelcase
+            payment_method_configuration: paymentMethodConfiguration,
             customer: stripeCustomerId,
             description: `Contribution to ${toAccount.name}`,
             amount: convertToStripeAmount(currency, totalOrderAmount),

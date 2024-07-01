@@ -27,7 +27,9 @@
     "slowRequest": true
   },
   "stripe": {
-    "redirectUri": "https://api.opencollective.com/connected-accounts/stripe/callback"
+    "redirectUri": "https://api.opencollective.com/connected-accounts/stripe/callback",
+    "oneTimePaymentMethodConfiguration": "pmc_1PP2hRDjPFcHOcTmxglZrPCg",
+    "recurringPaymentMethodConfiguration": "pmc_1PP2kwDjPFcHOcTmsXkafnkI"
   },
   "paypal": {
     "payment": {

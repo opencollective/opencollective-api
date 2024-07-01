@@ -1,5 +1,7 @@
 import { GraphQLInputObjectType, GraphQLNonNull } from 'graphql';
 
+import { GraphQLContributionFrequency } from '../enum';
+
 import { GraphQLAccountReferenceInput } from './AccountReferenceInput';
 import { GraphQLAmountInput } from './AmountInput';
 
@@ -16,6 +18,9 @@ const GraphQLPaymentIntentInput = new GraphQLInputObjectType({
       },
       toAccount: {
         type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+      },
+      frequency: {
+        type: GraphQLContributionFrequency,
       },
     };
   },
