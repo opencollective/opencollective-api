@@ -269,13 +269,12 @@ export async function createTransactionsForManuallyPaidExpense(
   totalAmountPaidInHostCurrency: number,
   /** Will be stored in transaction.data */
   transactionData: TransactionData & { clearedAt?: Date } = {},
-  dbTransaction = null,
 ) {
   assert(paymentProcessorFeeInHostCurrency >= 0, 'Payment processor fee must be positive');
   assert(totalAmountPaidInHostCurrency > 0, 'Total amount paid must be positive');
 
   if (!expense.collective) {
-    expense.collective = await models.Collective.findByPk(expense.CollectiveId, { transaction: dbTransaction });
+    expense.collective = await models.Collective.findByPk(expense.CollectiveId);
   }
 
   // Values are already adjusted to negative DEBIT values
@@ -347,7 +346,7 @@ export async function createTransactionsForManuallyPaidExpense(
     },
   };
 
-  return models.Transaction.createDoubleEntry(transaction, { dbTransaction });
+  return models.Transaction.createDoubleEntry(transaction);
 }
 
 const computeExpenseTaxes = (expense: Expense): number | null => {

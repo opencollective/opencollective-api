@@ -108,7 +108,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       pendingHostFeeShare = await getPendingHostFeeShare(host, { status: ['OWED'], endDate });
     }
 
-    const plan = host.getPlan();
+    const plan = await host.getPlan();
 
     let items = [];
 

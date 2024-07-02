@@ -1562,7 +1562,7 @@ export async function createExpense(req: express.Request, expenseData: ExpenseDa
         ...(<Pick<ExpenseData, ExpenseEditableFieldsUnion>>pick(expenseData, EXPENSE_EDITABLE_FIELDS)),
         currency: expenseCurrency,
         tags: expenseData.tags,
-        status: expenseData.transactionsImportRow ? statuses.PAID : statuses.PENDING,
+        status: statuses.PENDING,
         CollectiveId: collective.id,
         FromCollectiveId: fromCollective.id,
         lastEditedById: remoteUser.id,
@@ -1593,15 +1593,6 @@ export async function createExpense(req: express.Request, expenseData: ExpenseDa
         { ExpenseId: createdExpense.id, isDismissed: false },
         { transaction: t },
       );
-
-      await createTransactionsForManuallyPaidExpense(
-        collective.host,
-        createdExpense,
-        0,
-        createdExpense.amount,
-        null,
-        t,
-      );
     }
 
     return createdExpense;
@@ -1610,6 +1601,11 @@ export async function createExpense(req: express.Request, expenseData: ExpenseDa
   expense.user = remoteUser;
   expense.collective = collective;
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_CREATED, remoteUser);
+
+  if (expenseData.transactionsImportRow) {
+    await createTransactionsForManuallyPaidExpense(collective.host, expense, 0, expense.amount, null);
+    await expense.markAsPaid({ user: remoteUser, isManualPayout: true });
+  }
 
   try {
     await expense.updateTaxFormStatus(collective.host, fromCollective, remoteUser, { UserTokenId: req.userToken?.id });

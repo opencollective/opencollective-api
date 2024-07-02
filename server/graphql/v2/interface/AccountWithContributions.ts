@@ -109,7 +109,7 @@ export const AccountWithContributionsFields = {
       }
       const host = await req.loaders.Collective.host.load(account);
       if (host) {
-        const plan = host.getPlan();
+        const plan = await host.getPlan();
         return plan.platformTips;
       }
       return false;
