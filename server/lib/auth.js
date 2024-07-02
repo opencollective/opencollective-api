@@ -59,3 +59,17 @@ export function mustHaveRole(remoteUser, roles, CollectiveId, action = 'perform 
     throw new errors.Unauthorized(`You don't have sufficient permissions to ${action}`);
   }
 }
+
+/**
+ * @param {Express.Response} res
+ * @param {string} token
+ * */
+export function setAuthCookie(res, token) {
+  const decodedToken = verifyJwt(token);
+
+  const maxAge = decodedToken.exp - Math.trunc(new Date().getTime() / 1000);
+
+  const [header, payload, signature] = token.split('.');
+  res.cookie('accessTokenPayload', [header, payload].join('.'), { maxAge, httpOnly: false, secure: true });
+  res.cookie('accessTokenSignature', signature, { maxAge, httpOnly: true, secure: true });
+}
