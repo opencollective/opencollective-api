@@ -38,6 +38,8 @@ import {
   fakePaymentMethod,
   fakePayoutMethod,
   fakeTransaction,
+  fakeTransactionsImport,
+  fakeTransactionsImportRow,
   fakeUser,
   fakeVirtualCard,
   multiple,
@@ -185,8 +187,12 @@ const mutationExpenseFields = gql`
 `;
 
 const createExpenseMutation = gql`
-  mutation CreateExpense($expense: ExpenseCreateInput!, $account: AccountReferenceInput!) {
-    createExpense(expense: $expense, account: $account) {
+  mutation CreateExpense(
+    $expense: ExpenseCreateInput!
+    $account: AccountReferenceInput!
+    $transactionsImportRow: TransactionsImportRowReferenceInput
+  ) {
+    createExpense(expense: $expense, account: $account, transactionsImportRow: $transactionsImportRow) {
       ...ExpenseFields
     }
   }
@@ -939,6 +945,86 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.data.createExpense.requiredLegalDocuments).to.be.empty;
         const userLegalDocs = await user.collective.getLegalDocuments();
         expect(userLegalDocs).to.be.empty;
+      });
+    });
+
+    describe('with a transactionsImportRow', () => {
+      it('must belong to the same host', async () => {
+        const user = await fakeUser();
+        const host = await fakeActiveHost({ admin: user });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const otherHost = await fakeHost();
+        const expenseData = { ...getValidExpenseData(), payee: { legacyId: user.CollectiveId } };
+        const transactionsImport = await fakeTransactionsImport({ CollectiveId: otherHost.id });
+        const transactionsImportRow = await fakeTransactionsImportRow({ TransactionsImportId: transactionsImport.id });
+
+        const result = await graphqlQueryV2(
+          createExpenseMutation,
+          {
+            expense: expenseData,
+            account: { legacyId: collective.id },
+            transactionsImportRow: { id: idEncode(transactionsImportRow.id, 'transactions-import-row') },
+          },
+          user,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('This import does not belong to the host');
+      });
+
+      it('must be an admin of the host', async () => {
+        const user = await fakeUser();
+        const host = await fakeActiveHost();
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const expenseData = { ...getValidExpenseData(), payee: { legacyId: user.CollectiveId } };
+        const transactionsImport = await fakeTransactionsImport({ CollectiveId: host.id });
+        const transactionsImportRow = await fakeTransactionsImportRow({ TransactionsImportId: transactionsImport.id });
+
+        const result = await graphqlQueryV2(
+          createExpenseMutation,
+          {
+            expense: expenseData,
+            account: { legacyId: collective.id },
+            transactionsImportRow: { id: idEncode(transactionsImportRow.id, 'transactions-import-row') },
+          },
+          user,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('You need to be an admin of the collective to import expenses');
+      });
+
+      it('marks the expense as paid and create the transactions', async () => {
+        const user = await fakeUser();
+        const host = await fakeActiveHost({ admin: user });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const expenseData = { ...getValidExpenseData(), payee: { legacyId: user.CollectiveId } };
+        const transactionsImport = await fakeTransactionsImport({ CollectiveId: host.id });
+        const transactionsImportRow = await fakeTransactionsImportRow({ TransactionsImportId: transactionsImport.id });
+
+        const result = await graphqlQueryV2(
+          createExpenseMutation,
+          {
+            expense: expenseData,
+            account: { legacyId: collective.id },
+            transactionsImportRow: { id: idEncode(transactionsImportRow.id, 'transactions-import-row') },
+          },
+          user,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.createExpense.status).to.eq('PAID');
+
+        const transactions = await models.Transaction.findAll({
+          order: [['id', 'ASC']],
+          where: { ExpenseId: result.data.createExpense.legacyId },
+        });
+        expect(transactions).to.have.length(2);
+        expect(transactions[0].type).to.eq('DEBIT');
+        expect(transactions[0].description).to.eq(expenseData.description);
+        expect(transactions[0].amount).to.eq(-4200);
+        expect(transactions[0].amountInHostCurrency).to.eq(-4200);
       });
     });
   });

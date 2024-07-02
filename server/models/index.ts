@@ -87,6 +87,7 @@ const models = {
   Transaction,
   TransactionSettlement,
   TransactionsImport,
+  TransactionsImportRow,
   Update,
   UploadedFile,
   User,

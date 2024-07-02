@@ -125,7 +125,7 @@ export async function addFunds(order: AddFundsInput, remoteUser: User) {
   const orderCreated = await sequelize.transaction(async transaction => {
     const orderCreated = await models.Order.create(orderData, { transaction });
     if (order.transactionsImportRow) {
-      await order.transactionsImportRow.update({ OrderId: orderCreated.id }, { transaction });
+      await order.transactionsImportRow.update({ OrderId: orderCreated.id, isDismissed: false }, { transaction });
     }
     return orderCreated;
   });

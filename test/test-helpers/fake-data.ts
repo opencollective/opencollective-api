@@ -40,6 +40,8 @@ import models, {
   sequelize,
   Subscription,
   Tier,
+  TransactionsImport,
+  TransactionsImportRow,
   Update,
   UploadedFile,
   VirtualCard,
@@ -863,6 +865,27 @@ export const fakeTransaction = async (
   }
 
   return transaction;
+};
+
+export const fakeTransactionsImport = async (data: Partial<InferCreationAttributes<TransactionsImport>> = {}) => {
+  return models.TransactionsImport.create({
+    type: 'MANUAL',
+    source: randStr('source'),
+    name: randStr('name'),
+    CollectiveId: data.CollectiveId || (await fakeCollective()).id,
+    ...data,
+  });
+};
+
+export const fakeTransactionsImportRow = async (data: Partial<InferCreationAttributes<TransactionsImportRow>> = {}) => {
+  return models.TransactionsImportRow.create({
+    amount: randAmount(),
+    currency: 'USD',
+    sourceId: randStr('sourceId'),
+    date: new Date(),
+    ...data,
+    TransactionsImportId: data.TransactionsImportId || (await fakeTransactionsImport()).id,
+  });
 };
 
 /**

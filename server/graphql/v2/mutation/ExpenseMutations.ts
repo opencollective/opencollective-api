@@ -59,6 +59,10 @@ import {
 } from '../input/ExpenseReferenceInput';
 import { GraphQLExpenseUpdateInput } from '../input/ExpenseUpdateInput';
 import { GraphQLRecurringExpenseInput } from '../input/RecurringExpenseInput';
+import {
+  fetchTransactionsImportRowWithReference,
+  GraphQLTransactionsImportRowReferenceInput,
+} from '../input/TransactionsImportRowReferenceInput';
 import { GraphQLExpense } from '../object/Expense';
 
 const populatePayoutMethodId = (payoutMethod: { id?: string | number; legacyId?: number }) => {
@@ -85,6 +89,10 @@ const expenseMutations = {
       recurring: {
         type: GraphQLRecurringExpenseInput,
         description: 'Recurring Expense information',
+      },
+      transactionsImportRow: {
+        type: GraphQLTransactionsImportRowReferenceInput,
+        description: 'If the expense was imported, this is the reference to the row',
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<ExpenseModel> {
@@ -122,6 +130,11 @@ const expenseMutations = {
           (await fetchAccountingCategoryWithReference(args.expense.accountingCategory, {
             throwIfMissing: true,
             loaders: req.loaders,
+          })),
+        transactionsImportRow:
+          args.transactionsImportRow &&
+          (await fetchTransactionsImportRowWithReference(args.transactionsImportRow, {
+            throwIfMissing: true,
           })),
       });
 
