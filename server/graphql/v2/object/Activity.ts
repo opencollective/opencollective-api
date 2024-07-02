@@ -158,7 +158,7 @@ export const GraphQLActivity = new GraphQLObjectType({
         ) {
           if (activity.ExpenseId) {
             const expense = await req.loaders.Expense.byId.load(activity.ExpenseId);
-            if (await ExpenseLib.canSeeExpenseInvoiceInfo(req, expense)) {
+            if (expense && (await ExpenseLib.canSeeExpenseInvoiceInfo(req, expense))) {
               toPick.push('message', 'reference', 'estimatedDelivery');
             }
           }
