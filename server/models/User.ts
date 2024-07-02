@@ -80,6 +80,8 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
    */
   jwt = function (payload = undefined, expiration = undefined) {
     expiration = expiration || auth.TOKEN_EXPIRATION_LOGIN;
+    payload = payload || {};
+    payload.email = this.email; // Include email to easily invalidate all token types when email change
     return auth.createJwt(this.id, payload, expiration);
   };
 
