@@ -2472,14 +2472,28 @@ class Collective extends Model<
     }
 
     // Deactivate/remote everything related to previous host
-    if (this.HostCollectiveId && this.approvedAt) {
-      // Pause or cancel all orders that cannot be transferred
-      const newOrderStatus = pauseContributions ? OrderStatuses.PAUSED : OrderStatuses.CANCELLED;
-      await Order.stopActiveSubscriptions(this.id, newOrderStatus, { messageForContributors, messageSource });
+    if (this.HostCollectiveId) {
+      if (this.approvedAt) {
+        // Pause or cancel all orders that cannot be transferred
+        const newOrderStatus = pauseContributions ? OrderStatuses.PAUSED : OrderStatuses.CANCELLED;
+        await Order.stopActiveSubscriptions(this.id, newOrderStatus, { messageForContributors, messageSource });
 
-      // Delete all virtual cards
-      const virtualCards = await VirtualCard.findAll({ where: { CollectiveId: this.id } });
-      await Promise.all(virtualCards.map(virtualCard => virtualCard.delete()));
+        // Delete all virtual cards
+        const virtualCards = await VirtualCard.findAll({ where: { CollectiveId: this.id } });
+        await Promise.all(virtualCards.map(virtualCard => virtualCard.delete()));
+      } else {
+        // Expire all pending host applications
+        await HostApplication.update(
+          { status: HostApplicationStatus.EXPIRED },
+          {
+            where: {
+              HostCollectiveId: this.HostCollectiveId,
+              CollectiveId: this.id,
+              status: HostApplicationStatus.PENDING,
+            },
+          },
+        );
+      }
     }
 
     // Prepare events and projects to receive a new host

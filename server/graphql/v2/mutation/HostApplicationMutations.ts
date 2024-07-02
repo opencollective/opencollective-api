@@ -373,6 +373,7 @@ const rejectApplication = async (host, collective, req, reason: string) => {
   const { remoteUser } = req;
 
   // Reset host for collective & its children
+  await models.HostApplication.updatePendingApplications(host, collective, HostApplicationStatus.REJECTED);
   await collective.changeHost(null, remoteUser);
 
   // Notify collective admins
@@ -395,7 +396,6 @@ const rejectApplication = async (host, collective, req, reason: string) => {
 
   // Purge cache and change the status of the application
   purgeCacheForCollective(collective.slug);
-  await models.HostApplication.updatePendingApplications(host, collective, HostApplicationStatus.REJECTED);
   return collective;
 };
 
