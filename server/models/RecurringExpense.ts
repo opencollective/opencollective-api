@@ -62,6 +62,7 @@ class RecurringExpense extends Model<RecurringExpenseAttributes, RecurringExpens
     const expense = await this.getLastExpense({
       include: [
         { model: Collective, as: 'collective' },
+        { model: Collective, as: 'fromCollective' },
         { model: ExpenseItem, as: 'items' },
         { model: User, as: 'User' },
       ],
@@ -107,7 +108,7 @@ class RecurringExpense extends Model<RecurringExpenseAttributes, RecurringExpens
           ]),
           incurredAt,
         })),
-        payee: { id: expense.FromCollectiveId },
+        payee: expense.fromCollective.minimal,
         invitedByCollectiveId: this.FromCollectiveId,
         draftKey,
         payeeLocation: expense.payeeLocation,
