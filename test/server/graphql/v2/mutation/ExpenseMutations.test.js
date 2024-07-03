@@ -1529,6 +1529,48 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         result.errors && console.error(result.errors);
         expect(result.data.editExpense.accountingCategory.id).to.deep.equal(updatedExpenseData.accountingCategory.id);
       });
+
+      it('cannot change the accounting category of a paid expense', async () => {
+        const expense = await fakeExpense({ type: 'INVOICE', status: 'PAID' });
+        const accountingCategory = await fakeAccountingCategory({
+          kind: 'EXPENSE',
+          CollectiveId: expense.collective.HostCollectiveId,
+        });
+        const updatedExpenseData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          accountingCategory: { id: idEncode(accountingCategory.id, 'accounting-category') },
+        };
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, expense.User);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq(
+          "You don't have permission to edit the accounting category for this expense",
+        );
+      });
+
+      it('does not trigger any message if not changing the accounting category', async () => {
+        const collective = await fakeCollective();
+        const accountingCategory = await fakeAccountingCategory({
+          kind: 'EXPENSE',
+          CollectiveId: collective.HostCollectiveId,
+        });
+        const expense = await fakeExpense({
+          type: 'INVOICE',
+          status: 'APPROVED',
+          AccountingCategoryId: accountingCategory.id,
+          CollectiveId: collective.id,
+        });
+        const updatedExpenseData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          tags: ['new', 'tags'],
+          accountingCategory: { id: idEncode(accountingCategory.id, 'accounting-category') },
+        };
+
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, expense.User);
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.tags).to.deep.equal(updatedExpenseData.tags);
+        expect(result.data.editExpense.accountingCategory.id).to.equal(updatedExpenseData.accountingCategory.id);
+      });
     });
 
     it('updates the location', async () => {

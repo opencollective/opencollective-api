@@ -1765,11 +1765,10 @@ export const DRAFT_EXPENSE_FIELDS = [
  * /!\ We have no 1-to-1 field mapping between `Expense` and `ExpenseData`, but since we used to only
  * check `isNil` this won't introduce any regression. Ideally, this helper should do a mapping between the two.
  */
-const isValueChanging = (expense: Expense, expenseData: ExpenseData, key: string): boolean => {
-  const nullableFields = ['accountingCategory'];
+const isValueChanging = (expense: Expense, expenseData: Partial<ExpenseData>, key: string): boolean => {
   const value = expenseData[key];
-  if (nullableFields.includes(key)) {
-    return !isUndefined(value) && !isEqual(value, expense[key]);
+  if (key === 'accountingCategory') {
+    return !isUndefined(value) && (value?.id ?? null) !== expense.AccountingCategoryId;
   } else {
     return !isNil(value) && !isEqual(value, expense[key]);
   }
@@ -1873,7 +1872,7 @@ const editOnlyTagsAndAccountingCategory = async (
   }
 
   // Accounting category
-  if (!isUndefined(expenseData.accountingCategory)) {
+  if (isValueChanging(expense, expenseData, 'accountingCategory')) {
     if (!(await canEditExpenseAccountingCategory(req, expense))) {
       throw new Unauthorized("You don't have permission to edit the accounting category for this expense");
     }
