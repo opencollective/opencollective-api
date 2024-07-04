@@ -41,6 +41,7 @@ import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { GraphQLAccountingCategoryCollection } from '../collection/AccountingCategoryCollection';
 import { GraphQLAgreementCollection } from '../collection/AgreementCollection';
 import { GraphQLHostApplicationCollection } from '../collection/HostApplicationCollection';
+import { GraphQLHostedAccountCollection } from '../collection/HostedAccountCollection';
 import { GraphQLLegalDocumentCollection } from '../collection/LegalDocumentCollection';
 import { GraphQLTransactionsImportsCollection } from '../collection/TransactionsImportsCollection';
 import { GraphQLVendorCollection } from '../collection/VendorCollection';
@@ -1458,7 +1459,7 @@ export const GraphQLHost = new GraphQLObjectType({
         },
       },
       hostedAccounts: {
-        type: new GraphQLNonNull(GraphQLAccountCollection),
+        type: new GraphQLNonNull(GraphQLHostedAccountCollection),
         description: 'Returns a list of accounts hosted by this host',
         args: {
           ...getCollectionArgs({ limit: 100, offset: 0 }),
@@ -1498,6 +1499,10 @@ export const GraphQLHost = new GraphQLObjectType({
             type: GraphQLAmountRangeInput,
             description: 'Filter by the balance of the account and its children accounts (events and projects)',
           },
+          currencies: {
+            type: new GraphQLList(GraphQLString),
+            description: 'Filter by specific Account currencies',
+          },
         },
         async resolve(host, args) {
           /** @type {Parameters<typeof models.Collective.findAndCountAll>[0]['where']} */
@@ -1509,6 +1514,12 @@ export const GraphQLHost = new GraphQLObjectType({
           if (args.accountType && args.accountType.length > 0) {
             where.type = {
               [Op.in]: args.accountType.map(value => AccountTypeToModelMapping[value]),
+            };
+          }
+
+          if (args.currencies && args.currencies.length > 0) {
+            where.currency = {
+              [Op.in]: args.currencies,
             };
           }
 
@@ -1620,6 +1631,11 @@ export const GraphQLHost = new GraphQLObjectType({
             totalCount: result.count,
             limit: args.limit,
             offset: args.offset,
+            currencies: () =>
+              models.Collective.findAll({
+                where,
+                attributes: [[sequelize.fn('DISTINCT', sequelize.col('currency')), 'currency']],
+              }).then(collectives => collectives.map(c => c.currency)),
           };
         },
       },
