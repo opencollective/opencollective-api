@@ -5,6 +5,7 @@
 import config from 'config';
 import slugify from 'limax';
 import { get, isEmpty, toString, words } from 'lodash';
+import isEmail from 'validator/lib/isEmail';
 
 import { RateLimitExceeded } from '../graphql/errors';
 import { ORDER_BY_PSEUDO_FIELDS } from '../graphql/v2/enum/OrderByFieldType';
@@ -100,7 +101,7 @@ const sanitizeSearchTermForILike = term => {
   return term.replace(/(_|%|\\)/g, '\\$1');
 };
 
-const getSearchTermSQLConditions = (term: string, collectiveTable?: string) => {
+const getSearchTermSQLConditions = (term: string, collectiveTable?: string, isRoot = false) => {
   let tsQueryFunc, tsQueryArg;
   let sqlConditions = '';
   let sanitizedTerm = '';
@@ -114,6 +115,9 @@ const getSearchTermSQLConditions = (term: string, collectiveTable?: string) => {
       // When the search starts with a `@`, we search by slug only
       sanitizedTerm = sanitizeSearchTermForILike(removeDiacritics(trimmedTerm).replace(/^@+/, ''));
       sqlConditions = `AND ${getField('slug')} ILIKE :sanitizedTerm || '%' `;
+    } else if (isRoot && splitTerm.length === 1 && isEmail(trimmedTerm)) {
+      sanitizedTerm = trimmedTerm.toLowerCase();
+      sqlConditions = `AND EXISTS (SELECT id FROM "Users" WHERE "deletedAt" IS NULL AND email = :sanitizedTerm AND "CollectiveId" = ${getField('id')})`;
     } else {
       sanitizedTerm = splitTerm.length === 1 ? sanitizeSearchTermForTSQuery(trimmedTerm) : trimmedTerm;
       sanitizedTermNoWhitespaces = sanitizedTerm.replace(/\s/g, '');
@@ -245,6 +249,7 @@ export const searchCollectivesInDB = async (
     tagSearchOperator?: 'AND' | 'OR';
     types?: string[];
     consolidatedBalance?: AmountRangeInputType;
+    isRoot?: boolean;
   } = {},
 ) => {
   // Build dynamic conditions based on arguments
@@ -323,7 +328,7 @@ export const searchCollectivesInDB = async (
     }
   }
 
-  const searchTermConditions = getSearchTermSQLConditions(term, 'c');
+  const searchTermConditions = getSearchTermSQLConditions(term, 'c', args.isRoot);
   if (searchTermConditions.sqlConditions) {
     dynamicConditions += searchTermConditions.sqlConditions;
   }
