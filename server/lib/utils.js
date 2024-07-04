@@ -6,7 +6,7 @@ import { URL } from 'url';
 import config from 'config';
 import fastRedact from 'fast-redact';
 import pdf from 'html-pdf';
-import { filter, get, isEqual, padStart, sumBy } from 'lodash';
+import { filter, get, isEqual, isObject, omit, padStart, sumBy } from 'lodash';
 import moment from 'moment';
 import pFilter from 'p-filter';
 
@@ -639,3 +639,9 @@ export function fillTimeSeriesWithNodes({ nodes, initialData, startDate = undefi
 
   return Object.values(keyedData);
 }
+
+export const omitDeep = (obj, keys) =>
+  Object.keys(omit(obj, keys)).reduce(
+    (acc, next) => ({ ...acc, [next]: isObject(obj[next]) ? omitDeep(obj[next], keys) : obj[next] }),
+    {},
+  );
