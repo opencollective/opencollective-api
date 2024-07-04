@@ -183,7 +183,7 @@
     "nock": "^13.5.0",
     "nodemon": "^3.0.2",
     "npm-run-all2": "^6.0.0",
-    "nyc": "^15.1.0",
+    "nyc": "^17.0.0",
     "opentelemetry-instrumentation-sequelize": "^0.41.0",
     "prettier": "3.3.2",
     "sinon": "^17.0.1",
