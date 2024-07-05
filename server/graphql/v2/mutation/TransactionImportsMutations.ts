@@ -1,12 +1,14 @@
+import config from 'config';
 import type { Request } from 'express';
 import { GraphQLList, GraphQLNonNull } from 'graphql';
 import { GraphQLJSONObject, GraphQLNonEmptyString } from 'graphql-scalars';
 import GraphQLUpload from 'graphql-upload/GraphQLUpload.js';
 import { isUndefined, omit, omitBy } from 'lodash';
 
+import RateLimit from '../../../lib/rate-limit';
 import { sequelize, TransactionsImport, TransactionsImportRow, UploadedFile } from '../../../models';
 import { checkRemoteUserCanUseTransactions } from '../../common/scope-check';
-import { NotFound, Unauthorized } from '../../errors';
+import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 import { GraphQLTransactionsImportType } from '../enum/TransactionsImportType';
 import { idDecode } from '../identifiers';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
@@ -87,10 +89,30 @@ const transactionImportsMutations = {
       checkRemoteUserCanUseTransactions(req);
       const importId = idDecode(args.id, 'transactions-import');
       const importInstance = await TransactionsImport.findByPk(importId, { include: [{ association: 'collective' }] });
+      const maxRows = config.limits.transactionsImports.rowsPerHourPerUser;
       if (!importInstance) {
         throw new NotFound(`Import not found: ${args.id}`);
       } else if (!req.remoteUser.isAdminOfCollective(importInstance.collective)) {
         throw new Unauthorized('You need to be an admin of the account to import transactions');
+      } else if (args.file && !args.csvConfig) {
+        throw new ValidationFailed('You must provide a CSV configuration when importing from a file');
+      } else if (args.data.length === 0) {
+        throw new ValidationFailed('You must provide at least one row to import');
+      } else if (args.data.length > maxRows) {
+        throw new ValidationFailed(`You can import up to ${maxRows} at once`);
+      }
+
+      // Rate rate limit on the number of rows imported per hour
+      const rateLimitRows = new RateLimit(`transactions-imports-rows-${req.remoteUser.id}`, maxRows);
+      if (await rateLimitRows.hasReachedLimit()) {
+        throw new RateLimitExceeded('You have reached the limit of transactions imports rows per hour');
+      }
+
+      // Rate limit on the number of imports per hour
+      const maxImportsPerHour = config.limits.transactionsImports.perHourPerUser;
+      const rateLimit = new RateLimit(`transactions-imports-${req.remoteUser.id}`, maxImportsPerHour);
+      if (await rateLimit.hasReachedLimit()) {
+        throw new RateLimitExceeded('You have reached the limit of transactions imports per hour');
       }
 
       // Handle CSV
@@ -100,6 +122,9 @@ const transactionImportsMutations = {
           supportedMimeTypes: ['text/csv'],
         });
       }
+
+      // Register rate limit call as soon as the file is uploaded
+      rateLimit.registerCall();
 
       return sequelize.transaction(async transaction => {
         if (file || args.csvConfig) {
