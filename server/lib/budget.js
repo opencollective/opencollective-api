@@ -645,7 +645,11 @@ export async function sumCollectivesTransactions(
     } else if (transactionType === 'CREDIT_WITH_HOST_FEE_AND_PAYMENT_PROCESSOR_FEE') {
       where = {
         ...where,
-        [Op.or]: [{ type: CREDIT }, { type: DEBIT, kind: 'HOST_FEE' }, { type: DEBIT, kind: 'PAYMENT_PROCESSOR_FEE' }],
+        [Op.or]: [
+          { type: CREDIT },
+          { type: DEBIT, kind: 'HOST_FEE' },
+          { type: DEBIT, kind: 'PAYMENT_PROCESSOR_FEE', OrderId: { [Op.not]: null } },
+        ],
       };
     } else {
       where.type = transactionType;
@@ -668,7 +672,17 @@ export async function sumCollectivesTransactions(
       ['CREDIT_WITH_HOST_FEE_AND_PAYMENT_PROCESSOR_FEE', 'DEBIT_WITHOUT_HOST_FEE'].includes(transactionType) &&
       parseToBoolean(config.ledger.separatePaymentProcessorFees) === true
     ) {
-      where[Op.and].push({ [Op.or]: [{ isRefund: { [Op.not]: true } }, { kind: 'PAYMENT_PROCESSOR_COVER' }] });
+      where[Op.and].push({
+        [Op.or]: [
+          { isRefund: { [Op.not]: true } },
+          {
+            kind: 'PAYMENT_PROCESSOR_COVER',
+            ...(transactionType === 'CREDIT_WITH_HOST_FEE_AND_PAYMENT_PROCESSOR_FEE' && {
+              OrderId: { [Op.not]: null },
+            }),
+          },
+        ],
+      });
     } else {
       where[Op.and].push({ isRefund: { [Op.not]: true } });
     }
