@@ -53,6 +53,7 @@ import {
 } from '../../v1/mutations/orders';
 import { getIntervalFromContributionFrequency } from '../enum/ContributionFrequency';
 import { GraphQLProcessOrderAction } from '../enum/ProcessOrderAction';
+import { TierFrequencyKey } from '../enum/TierFrequency';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import {
   fetchAccountingCategoryWithReference,
@@ -1041,7 +1042,7 @@ const orderMutations = {
       try {
         let paymentMethodConfiguration = config.stripe.oneTimePaymentMethodConfiguration;
 
-        if (paymentIntentInput.frequency && paymentIntentInput.frequency !== 'ONETIME') {
+        if (paymentIntentInput.frequency && paymentIntentInput.frequency !== TierFrequencyKey.ONETIME) {
           paymentMethodConfiguration = config.stripe.recurringPaymentMethodConfiguration;
         }
 
