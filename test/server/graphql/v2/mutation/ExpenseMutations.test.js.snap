@@ -26,6 +26,8 @@ exports[`server/graphql/v2/mutation/ExpenseMutations processExpense PAY Multi-cu
 | ------ | --------------------- | ------ | ----------------------------- | ---------- | -------- | ------------ | ------------------ | ----------------------- | ----------------------- | --------- | -------- |
 | CREDIT | EXPENSE               | 1600   | 1600                          | 0          | USD      | NZD          | 1.1                | Payee                   | Babel                   | PayeeHost | false    |
 | DEBIT  | EXPENSE               | -1600  | -1600                         | 0          | USD      | USD          | 1                  | Babel                   | Payee                   | OSC       | false    |
+| CREDIT | HOST_FEE              | 160    | 160                           | 0          | USD      | NZD          | 1.1                | PayeeHost               | Payee                   | PayeeHost | false    |
+| DEBIT  | HOST_FEE              | -160   | -160                          | 0          | USD      | NZD          | 1.1                | Payee                   | PayeeHost               | PayeeHost | false    |
 | CREDIT | PAYMENT_PROCESSOR_FEE | 100    | 100                           | 0          | USD      | USD          | 1                  | Other Payment Processor | Babel                   | NULL      | false    |
 | DEBIT  | PAYMENT_PROCESSOR_FEE | -100   | -100                          | 0          | USD      | USD          | 1                  | Babel                   | Other Payment Processor | OSC       | false    |"
 `;
