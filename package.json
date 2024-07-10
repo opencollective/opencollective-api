@@ -30,7 +30,7 @@
   },
   "dependencies": {
     "@apollo/server": "4.10.4",
-    "@aws-sdk/client-s3": "3.609.0",
+    "@aws-sdk/client-s3": "3.613.0",
     "@babel/core": "7.24.7",
     "@babel/node": "7.24.7",
     "@babel/plugin-transform-typescript": "7.24.7",
