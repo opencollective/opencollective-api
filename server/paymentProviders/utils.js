@@ -174,7 +174,10 @@ export const persistTransaction = async (virtualCard, transaction) => {
       });
       if (originalCreditTransaction?.amount === amount) {
         if (!originalCreditTransaction.RefundTransactionId) {
-          await createRefundTransaction(originalCreditTransaction, 0, { refundTransactionId: transactionId });
+          await createRefundTransaction(originalCreditTransaction, 0, {
+            refundTransactionId: transactionId,
+            transaction,
+          });
         }
         return;
       }
@@ -199,7 +202,7 @@ export const persistTransaction = async (virtualCard, transaction) => {
       kind: TransactionKind.EXPENSE,
       ExpenseId: expense?.id,
       PaymentMethodId: paymentMethod.id,
-      data: { refundTransactionId: transactionId },
+      data: { refundTransactionId: transactionId, transaction },
     });
 
     return;
