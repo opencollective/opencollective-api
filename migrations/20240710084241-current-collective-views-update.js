@@ -1,6 +1,10 @@
 'use strict';
 
-/** @type {import('sequelize-cli').Migration} */
+/**
+ * /!\ THIS MIGRATION WAS INCOMPLETE, DO NOT USE IT AS A REFERENCE. See `migrations/20240712081151-current-collective-views-update.js` instead.
+ *
+ * @type {import('sequelize-cli').Migration}
+ */
 module.exports = {
   async up(queryInterface) {
     await queryInterface.sequelize.query(`

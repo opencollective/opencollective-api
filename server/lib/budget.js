@@ -646,7 +646,7 @@ export async function sumCollectivesTransactions(
       where = {
         ...where,
         [Op.or]: [
-          { type: CREDIT },
+          { type: CREDIT, OrderId: { [Op.not]: null } },
           { type: DEBIT, kind: ['HOST_FEE', 'PAYMENT_PROCESSOR_FEE'], OrderId: { [Op.not]: null } },
         ],
       };
