@@ -646,7 +646,9 @@ export async function sumCollectivesTransactions(
       where = {
         ...where,
         [Op.or]: [
-          { type: CREDIT },
+          // Get all credits except PAYMENT_PROCESSOR_COVER from expenses
+          { type: CREDIT, [Op.not]: { kind: 'PAYMENT_PROCESSOR_COVER', OrderId: null } },
+          // Deduct host fees and payment processor fees that are related to orders
           { type: DEBIT, kind: ['HOST_FEE', 'PAYMENT_PROCESSOR_FEE'], OrderId: { [Op.not]: null } },
         ],
       };
