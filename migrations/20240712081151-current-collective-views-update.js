@@ -42,8 +42,8 @@ module.exports = {
             COALESCE(t."taxAmount" * t."hostCurrencyFxRate", 0)
           )
             FILTER (
-              -- Get all credits related to orders
-              WHERE (t.type = 'CREDIT' AND t."OrderId" IS NOT NULL)
+              -- Get all credits except PAYMENT_PROCESSOR_COVER from expenses
+              WHERE (t.type = 'CREDIT' AND NOT (t.kind = 'PAYMENT_PROCESSOR_COVER' AND t."OrderId" IS NULL))
               -- Deduct host fees and payment processor fees that are related to orders
               OR (t.type = 'DEBIT' AND t.kind IN ('HOST_FEE', 'PAYMENT_PROCESSOR_FEE') AND t."OrderId" IS NOT NULL)
             )
@@ -109,8 +109,8 @@ module.exports = {
             COALESCE(t."taxAmount" * t."hostCurrencyFxRate", 0)
           )
             FILTER (
-              -- Get all credits related to orders
-              WHERE (t.type = 'CREDIT' AND t."OrderId" IS NOT NULL)
+              -- Get all credits except PAYMENT_PROCESSOR_COVER from expenses
+              WHERE (t.type = 'CREDIT' AND NOT (t.kind = 'PAYMENT_PROCESSOR_COVER' AND t."OrderId" IS NULL))
               -- Deduct host fees and payment processor fees that are related to orders
               OR (t.type = 'DEBIT' AND t.kind IN ('HOST_FEE', 'PAYMENT_PROCESSOR_FEE') AND t."OrderId" IS NOT NULL)
             )
