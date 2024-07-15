@@ -91,7 +91,7 @@ const AccountsCollectionQuery = {
       description: 'Filter by the balance of the account and its children accounts (events and projects)',
     },
   },
-  async resolve(_: void, args): Promise<CollectionReturnType> {
+  async resolve(_: void, args, req): Promise<CollectionReturnType> {
     const { offset, limit } = args;
     const cleanTerm = args.searchTerm?.trim();
 
@@ -118,6 +118,7 @@ const AccountsCollectionQuery = {
       includeArchived: args.includeArchived,
       includeVendorsForHostId,
       consolidatedBalance: args.consolidatedBalance,
+      isRoot: req.remoteUser?.isRoot() || false,
     };
 
     const [accounts, totalCount] = await searchCollectivesInDB(cleanTerm, offset, limit, extraParameters);

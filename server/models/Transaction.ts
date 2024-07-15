@@ -701,6 +701,7 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
       hostFeeInHostCurrency: 0,
       paymentProcessorFeeInHostCurrency: 0,
       OrderId: transaction.OrderId,
+      ExpenseId: transaction.ExpenseId,
       createdAt: transaction.createdAt,
       clearedAt: transaction.clearedAt || transaction.createdAt,
       data,

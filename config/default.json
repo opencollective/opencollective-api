@@ -84,7 +84,11 @@
     "userExchangeLoginTokenPerHourPerIp": 50,
     "userRefreshTokenPerHourPerIp": 50,
     "collectiveEmailMessagePerHour": 5,
-    "maxCoreContributorsPerAccount": 60
+    "maxCoreContributorsPerAccount": 60,
+    "transactionsImports": {
+      "perHourPerUser": 30,
+      "rowsPerHourPerUser": 10000
+    }
   },
   "email": {
     "from": "Open Collective <info@opencollective.com>",

@@ -60,7 +60,7 @@ import { CreateTransfer } from '../../lib/transferwise';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import { canUseFeature } from '../../lib/user-permissions';
 import { formatCurrency, parseToBoolean } from '../../lib/utils';
-import models, { Collective, sequelize } from '../../models';
+import models, { Collective, sequelize, TransactionsImportRow } from '../../models';
 import AccountingCategory from '../../models/AccountingCategory';
 import Expense, { ExpenseDataValuesByRole, ExpenseStatus, ExpenseTaxDefinition } from '../../models/Expense';
 import ExpenseAttachedFile from '../../models/ExpenseAttachedFile';
@@ -1220,6 +1220,7 @@ type ExpenseData = {
   tax?: ExpenseTaxDefinition[];
   customData: Record<string, unknown>;
   accountingCategory?: AccountingCategory;
+  transactionsImportRow?: TransactionsImportRow;
 };
 
 const EXPENSE_EDITABLE_FIELDS = [
@@ -1524,6 +1525,24 @@ export async function createExpense(req: express.Request, expenseData: ExpenseDa
     }
   }
 
+  // Check Transactions import
+  if (expenseData.transactionsImportRow) {
+    if (!collective.host) {
+      throw new ValidationFailed('The collective must have a host to import expenses');
+    } else if (!remoteUser.isAdminOfCollective(collective.host)) {
+      throw new Forbidden('You need to be an admin of the collective to import expenses');
+    } else if (expenseData.transactionsImportRow.isProcessed()) {
+      throw new ValidationFailed('This transaction has already been processed');
+    }
+
+    const transactionsImport = await expenseData.transactionsImportRow.getImport();
+    if (!transactionsImport) {
+      throw new NotFound('TransactionsImport not found');
+    } else if (transactionsImport.CollectiveId !== collective.host.id) {
+      throw new ValidationFailed('This import does not belong to the host');
+    }
+  }
+
   // Expense data
   const data = { recipient, taxes };
   if (expenseData.customData) {
@@ -1568,12 +1587,25 @@ export async function createExpense(req: express.Request, expenseData: ExpenseDa
     // Create attached files
     createdExpense.attachedFiles = await createAttachedFiles(createdExpense, expenseData.attachedFiles, remoteUser, t);
 
+    // Link to transactions import
+    if (expenseData.transactionsImportRow) {
+      await expenseData.transactionsImportRow.update(
+        { ExpenseId: createdExpense.id, isDismissed: false },
+        { transaction: t },
+      );
+    }
+
     return createdExpense;
   });
 
   expense.user = remoteUser;
   expense.collective = collective;
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_CREATED, remoteUser);
+
+  if (expenseData.transactionsImportRow) {
+    await createTransactionsForManuallyPaidExpense(collective.host, expense, 0, expense.amount, null);
+    await expense.markAsPaid({ user: remoteUser, isManualPayout: true });
+  }
 
   try {
     await expense.updateTaxFormStatus(collective.host, fromCollective, remoteUser, { UserTokenId: req.userToken?.id });
@@ -1715,6 +1747,8 @@ export async function submitExpenseDraft(
     UserId: options.overrideRemoteUser?.id || req.remoteUser?.id,
   });
 
+  await existingExpense.createActivity(activities.COLLECTIVE_EXPENSE_CREATED, req.remoteUser);
+
   return existingExpense;
 }
 
@@ -1733,11 +1767,10 @@ export const DRAFT_EXPENSE_FIELDS = [
  * /!\ We have no 1-to-1 field mapping between `Expense` and `ExpenseData`, but since we used to only
  * check `isNil` this won't introduce any regression. Ideally, this helper should do a mapping between the two.
  */
-const isValueChanging = (expense: Expense, expenseData: ExpenseData, key: string): boolean => {
-  const nullableFields = ['accountingCategory'];
+const isValueChanging = (expense: Expense, expenseData: Partial<ExpenseData>, key: string): boolean => {
   const value = expenseData[key];
-  if (nullableFields.includes(key)) {
-    return !isUndefined(value) && !isEqual(value, expense[key]);
+  if (key === 'accountingCategory') {
+    return !isUndefined(value) && (value?.id ?? null) !== expense.AccountingCategoryId;
   } else {
     return !isNil(value) && !isEqual(value, expense[key]);
   }
@@ -1841,7 +1874,7 @@ const editOnlyTagsAndAccountingCategory = async (
   }
 
   // Accounting category
-  if (!isUndefined(expenseData.accountingCategory)) {
+  if (isValueChanging(expense, expenseData, 'accountingCategory')) {
     if (!(await canEditExpenseAccountingCategory(req, expense))) {
       throw new Unauthorized("You don't have permission to edit the accounting category for this expense");
     }

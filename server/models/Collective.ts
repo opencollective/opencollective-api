@@ -2479,7 +2479,21 @@ class Collective extends Model<
 
       // Delete all virtual cards
       const virtualCards = await VirtualCard.findAll({ where: { CollectiveId: this.id } });
-      await Promise.all(virtualCards.map(virtualCard => virtualCard.delete()));
+      await Promise.all(
+        virtualCards.map(async virtualCard => {
+          try {
+            await virtualCard.delete();
+          } catch (e) {
+            if (!virtualCard.isActive()) {
+              // If the virtual card is already inactive, we can ignore the error
+              reportErrorToSentry(e, { extra: { virtualCard: virtualCard.info }, user: remoteUser });
+              return;
+            } else {
+              throw e;
+            }
+          }
+        }),
+      );
     }
 
     // Prepare events and projects to receive a new host

@@ -38,6 +38,8 @@ import {
   fakePaymentMethod,
   fakePayoutMethod,
   fakeTransaction,
+  fakeTransactionsImport,
+  fakeTransactionsImportRow,
   fakeUser,
   fakeVirtualCard,
   multiple,
@@ -185,8 +187,12 @@ const mutationExpenseFields = gql`
 `;
 
 const createExpenseMutation = gql`
-  mutation CreateExpense($expense: ExpenseCreateInput!, $account: AccountReferenceInput!) {
-    createExpense(expense: $expense, account: $account) {
+  mutation CreateExpense(
+    $expense: ExpenseCreateInput!
+    $account: AccountReferenceInput!
+    $transactionsImportRow: TransactionsImportRowReferenceInput
+  ) {
+    createExpense(expense: $expense, account: $account, transactionsImportRow: $transactionsImportRow) {
       ...ExpenseFields
     }
   }
@@ -941,6 +947,86 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(userLegalDocs).to.be.empty;
       });
     });
+
+    describe('with a transactionsImportRow', () => {
+      it('must belong to the same host', async () => {
+        const user = await fakeUser();
+        const host = await fakeActiveHost({ admin: user });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const otherHost = await fakeHost();
+        const expenseData = { ...getValidExpenseData(), payee: { legacyId: user.CollectiveId } };
+        const transactionsImport = await fakeTransactionsImport({ CollectiveId: otherHost.id });
+        const transactionsImportRow = await fakeTransactionsImportRow({ TransactionsImportId: transactionsImport.id });
+
+        const result = await graphqlQueryV2(
+          createExpenseMutation,
+          {
+            expense: expenseData,
+            account: { legacyId: collective.id },
+            transactionsImportRow: { id: idEncode(transactionsImportRow.id, 'transactions-import-row') },
+          },
+          user,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('This import does not belong to the host');
+      });
+
+      it('must be an admin of the host', async () => {
+        const user = await fakeUser();
+        const host = await fakeActiveHost();
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const expenseData = { ...getValidExpenseData(), payee: { legacyId: user.CollectiveId } };
+        const transactionsImport = await fakeTransactionsImport({ CollectiveId: host.id });
+        const transactionsImportRow = await fakeTransactionsImportRow({ TransactionsImportId: transactionsImport.id });
+
+        const result = await graphqlQueryV2(
+          createExpenseMutation,
+          {
+            expense: expenseData,
+            account: { legacyId: collective.id },
+            transactionsImportRow: { id: idEncode(transactionsImportRow.id, 'transactions-import-row') },
+          },
+          user,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('You need to be an admin of the collective to import expenses');
+      });
+
+      it('marks the expense as paid and create the transactions', async () => {
+        const user = await fakeUser();
+        const host = await fakeActiveHost({ admin: user });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const expenseData = { ...getValidExpenseData(), payee: { legacyId: user.CollectiveId } };
+        const transactionsImport = await fakeTransactionsImport({ CollectiveId: host.id });
+        const transactionsImportRow = await fakeTransactionsImportRow({ TransactionsImportId: transactionsImport.id });
+
+        const result = await graphqlQueryV2(
+          createExpenseMutation,
+          {
+            expense: expenseData,
+            account: { legacyId: collective.id },
+            transactionsImportRow: { id: idEncode(transactionsImportRow.id, 'transactions-import-row') },
+          },
+          user,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.createExpense.status).to.eq('PAID');
+
+        const transactions = await models.Transaction.findAll({
+          order: [['id', 'ASC']],
+          where: { ExpenseId: result.data.createExpense.legacyId },
+        });
+        expect(transactions).to.have.length(2);
+        expect(transactions[0].type).to.eq('DEBIT');
+        expect(transactions[0].description).to.eq(expenseData.description);
+        expect(transactions[0].amount).to.eq(-4200);
+        expect(transactions[0].amountInHostCurrency).to.eq(-4200);
+      });
+    });
   });
 
   describe('editExpense', () => {
@@ -1442,6 +1528,48 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, adminUser);
         result.errors && console.error(result.errors);
         expect(result.data.editExpense.accountingCategory.id).to.deep.equal(updatedExpenseData.accountingCategory.id);
+      });
+
+      it('cannot change the accounting category of a paid expense', async () => {
+        const expense = await fakeExpense({ type: 'INVOICE', status: 'PAID' });
+        const accountingCategory = await fakeAccountingCategory({
+          kind: 'EXPENSE',
+          CollectiveId: expense.collective.HostCollectiveId,
+        });
+        const updatedExpenseData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          accountingCategory: { id: idEncode(accountingCategory.id, 'accounting-category') },
+        };
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, expense.User);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq(
+          "You don't have permission to edit the accounting category for this expense",
+        );
+      });
+
+      it('does not trigger any message if not changing the accounting category', async () => {
+        const collective = await fakeCollective();
+        const accountingCategory = await fakeAccountingCategory({
+          kind: 'EXPENSE',
+          CollectiveId: collective.HostCollectiveId,
+        });
+        const expense = await fakeExpense({
+          type: 'INVOICE',
+          status: 'APPROVED',
+          AccountingCategoryId: accountingCategory.id,
+          CollectiveId: collective.id,
+        });
+        const updatedExpenseData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          tags: ['new', 'tags'],
+          accountingCategory: { id: idEncode(accountingCategory.id, 'accounting-category') },
+        };
+
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, expense.User);
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.tags).to.deep.equal(updatedExpenseData.tags);
+        expect(result.data.editExpense.accountingCategory.id).to.equal(updatedExpenseData.accountingCategory.id);
       });
     });
 

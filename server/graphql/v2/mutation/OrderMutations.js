@@ -663,7 +663,7 @@ const orderMutations = {
           await sequelize.transaction(async transaction => {
             await order.save({ transaction });
             if (transactionsImportRow) {
-              await transactionsImportRow.update({ OrderId: order.id }, { transaction });
+              await transactionsImportRow.update({ OrderId: order.id, isDismissed: false }, { transaction });
             }
           });
         }

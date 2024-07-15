@@ -20,10 +20,12 @@ exports[`server/graphql/v2/mutation/ExpenseMutations processExpense PAY Multi-cu
 
 exports[`server/graphql/v2/mutation/ExpenseMutations processExpense PAY Multi-currency expense Records a manual payment with an active account 1`] = `
 "
-| type   | amount | netAmountInCollectiveCurrency | paymentFee | currency | hostCurrency | hostCurrencyFxRate | To    | From  | Host      | isRefund |
-| ------ | ------ | ----------------------------- | ---------- | -------- | ------------ | ------------------ | ----- | ----- | --------- | -------- |
-| CREDIT | 1700   | 1600                          | -110       | USD      | NZD          | 1.1                | Payee | Babel | PayeeHost | false    |
-| DEBIT  | -1600  | -1700                         | -100       | USD      | USD          | 1                  | Babel | Payee | OSC       | false    |"
+| type   | amount | netAmountInCollectiveCurrency | paymentFee | currency | hostCurrency | hostCurrencyFxRate | To        | From      | Host      | isRefund |
+| ------ | ------ | ----------------------------- | ---------- | -------- | ------------ | ------------------ | --------- | --------- | --------- | -------- |
+| CREDIT | 1700   | 1600                          | -110       | USD      | NZD          | 1.1                | Payee     | Babel     | PayeeHost | false    |
+| DEBIT  | -1600  | -1700                         | -100       | USD      | USD          | 1                  | Babel     | Payee     | OSC       | false    |
+| CREDIT | 160    | 160                           | 0          | USD      | NZD          | 1.1                | PayeeHost | Payee     | PayeeHost | false    |
+| DEBIT  | -160   | -160                          | 0          | USD      | NZD          | 1.1                | Payee     | PayeeHost | PayeeHost | false    |"
 `;
 
 exports[`server/graphql/v2/mutation/ExpenseMutations processExpense PAY Taxes with VAT (manual payment) 1`] = `

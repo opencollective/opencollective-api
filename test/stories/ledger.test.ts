@@ -387,9 +387,11 @@ describe('test/stories/ledger', () => {
 
       await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
       for (const useMaterializedView of [false, true]) {
-        expect(await collective.getBalance({ useMaterializedView })).to.eq(150000 - 100000 - 500);
-        expect(await collective.getTotalAmountSpent({ useMaterializedView })).to.eq(100000);
-        expect(await collective.getTotalAmountSpent({ useMaterializedView, net: true })).to.eq(100000 + 500);
+        expect(await collective.getBalance({ useMaterializedView })).to.eq(150000 - 100000 - 500); // $1500 (contribution) - $1000 (expense) - $5 (expense processor fee) = $495
+        expect(await collective.getTotalAmountReceived({ useMaterializedView })).to.eq(150000); // $1500 (contribution)
+        expect(await collective.getTotalAmountReceived({ useMaterializedView, net: true })).to.eq(150000); // $1500 (contribution)
+        expect(await collective.getTotalAmountSpent({ useMaterializedView })).to.eq(100000); // $1000 (expense)
+        expect(await collective.getTotalAmountSpent({ useMaterializedView, net: true })).to.eq(100000 + 500); // $1000 (expense) + $5 (expense processor fee)
       }
 
       await markExpenseAsUnpaid({ remoteUser: hostAdmin } as any, expense.id, false);
@@ -397,11 +399,11 @@ describe('test/stories/ledger', () => {
 
       await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
       for (const useMaterializedView of [false, true]) {
-        expect(await collective.getBalance({ useMaterializedView })).to.eq(150000);
-        expect(await collective.getTotalAmountReceived({ useMaterializedView })).to.eq(150000);
-        expect(await collective.getTotalAmountReceived({ useMaterializedView, net: true })).to.eq(150000);
-        expect(await collective.getTotalAmountSpent({ useMaterializedView })).to.eq(0);
-        expect(await collective.getTotalAmountSpent({ useMaterializedView, net: true })).to.eq(0);
+        expect(await collective.getBalance({ useMaterializedView })).to.eq(150000); // $1500 (contribution)
+        expect(await collective.getTotalAmountReceived({ useMaterializedView })).to.eq(150000); // $1500 (contribution)
+        expect(await collective.getTotalAmountReceived({ useMaterializedView, net: true })).to.eq(150000); // $1500 (contribution)
+        expect(await collective.getTotalAmountSpent({ useMaterializedView })).to.eq(0); // Expense refunded => no amount spent
+        expect(await collective.getTotalAmountSpent({ useMaterializedView, net: true })).to.eq(0); // Expense refunded => no amount spent
 
         expect(await host.getTotalMoneyManaged({ useMaterializedView })).to.eq(150000 - 500);
         expect(await host.getBalance({ useMaterializedView })).to.eq(-500);
