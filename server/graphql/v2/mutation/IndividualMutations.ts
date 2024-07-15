@@ -135,6 +135,15 @@ const individualMutations = {
         throw new Unauthorized('OAuth and Personal Tokens are not allowed for this route');
       }
 
+      // Rate limit (by IP, since we support anonymous requests)
+      const rateLimitKey = `individual_confirm_email_ip_${req.ip}`;
+      const rateLimitMax = config.limits.confirmEmailPerIpPerHour;
+      const rateLimit = new RateLimit(rateLimitKey, rateLimitMax, ONE_HOUR_IN_SECONDS);
+      if (!(await rateLimit.registerCall())) {
+        throw new RateLimitExceeded();
+      }
+
+      // Confirm email
       const user = await confirmUserEmail(confirmEmailToken);
       const individual = await user.getCollective({ loaders: req.loaders });
 
