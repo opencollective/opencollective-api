@@ -460,7 +460,7 @@ export async function getSumCollectivesAmountReceived(
     : net
       ? 'netAmountInHostCurrency'
       : 'amountInHostCurrency';
-  const transactionType = net ? 'CREDIT_WITH_HOST_FEE_AND_PAYMENT_PROCESSOR_FEE' : CREDIT;
+  const transactionType = net ? 'CREDIT_WITH_CONTRIBUTIONS_HOST_FEE_AND_PAYMENT_PROCESSOR_FEE' : CREDIT;
 
   const results = await sumCollectivesTransactions(missingCollectiveIds, {
     column,
@@ -642,10 +642,15 @@ export async function sumCollectivesTransactions(
         where[Op.and].push({ type: DEBIT, kind: { [Op.notIn]: ['HOST_FEE', 'PAYMENT_PROCESSOR_FEE'] } });
       }
       // This is usually to calculate for NET amount money received
-    } else if (transactionType === 'CREDIT_WITH_HOST_FEE_AND_PAYMENT_PROCESSOR_FEE') {
+    } else if (transactionType === 'CREDIT_WITH_CONTRIBUTIONS_HOST_FEE_AND_PAYMENT_PROCESSOR_FEE') {
       where = {
         ...where,
-        [Op.or]: [{ type: CREDIT }, { type: DEBIT, kind: 'HOST_FEE' }, { type: DEBIT, kind: 'PAYMENT_PROCESSOR_FEE' }],
+        [Op.or]: [
+          // Get all credits except PAYMENT_PROCESSOR_COVER from expenses
+          { type: CREDIT, [Op.not]: { kind: 'PAYMENT_PROCESSOR_COVER', OrderId: null } },
+          // Deduct host fees and payment processor fees that are related to orders
+          { type: DEBIT, kind: ['HOST_FEE', 'PAYMENT_PROCESSOR_FEE'], OrderId: { [Op.not]: null } },
+        ],
       };
     } else {
       where.type = transactionType;
@@ -664,10 +669,13 @@ export async function sumCollectivesTransactions(
     // Exclude refunded transactions
     where[Op.and].push({ RefundTransactionId: { [Op.is]: null } });
     // Also exclude anything with isRefund=true (PAYMENT_PROCESSOR_COVER doesn't have RefundTransactionId set)
-    if (
-      ['CREDIT_WITH_HOST_FEE_AND_PAYMENT_PROCESSOR_FEE', 'DEBIT_WITHOUT_HOST_FEE'].includes(transactionType) &&
-      parseToBoolean(config.ledger.separatePaymentProcessorFees) === true
-    ) {
+    const separateFees = parseToBoolean(config.ledger.separatePaymentProcessorFees) === true;
+    if (separateFees && transactionType === 'CREDIT_WITH_CONTRIBUTIONS_HOST_FEE_AND_PAYMENT_PROCESSOR_FEE') {
+      where[Op.and].push({
+        [Op.or]: [{ isRefund: { [Op.not]: true } }, { kind: 'PAYMENT_PROCESSOR_COVER' }],
+        OrderId: { [Op.not]: null },
+      });
+    } else if (separateFees && transactionType === 'DEBIT_WITHOUT_HOST_FEE') {
       where[Op.and].push({ [Op.or]: [{ isRefund: { [Op.not]: true } }, { kind: 'PAYMENT_PROCESSOR_COVER' }] });
     } else {
       where[Op.and].push({ isRefund: { [Op.not]: true } });

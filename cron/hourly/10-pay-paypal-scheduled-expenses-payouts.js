@@ -43,6 +43,5 @@ if (require.main === module && process.env.SKIP_PAYPAL_PAYOUTS_WORKER !== 'true'
       console.error(e);
       reportErrorToSentry(e);
       setTimeout(() => process.exit(0), 10000);
-      process.exit(1);
     });
 }

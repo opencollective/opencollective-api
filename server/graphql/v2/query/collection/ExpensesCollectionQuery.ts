@@ -240,11 +240,17 @@ export const ExpensesCollectionQueryResolver = async (
     where['CollectiveId'] = accounts;
   }
   if (host) {
-    include.push({
-      association: 'collective',
-      attributes: [],
-      required: true,
-      where: { HostCollectiveId: host.id, approvedAt: { [Op.not]: null } },
+    // Either the expense has its `HostCollectiveId` set to the host (when its paid) or the collective is hosted by the host
+    include.push({ association: 'collective', attributes: [], required: true });
+    where[Op.and].push({
+      [Op.or]: [
+        { HostCollectiveId: host.id },
+        {
+          HostCollectiveId: { [Op.is]: null },
+          '$collective.HostCollectiveId$': host.id,
+          '$collective.approvedAt$': { [Op.not]: null },
+        },
+      ],
     });
   }
   if (createdByAccount) {
