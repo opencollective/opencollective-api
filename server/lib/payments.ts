@@ -29,7 +29,6 @@ import { RecipientAccount as BankAccountPayoutMethodData } from '../types/transf
 import { notify } from './notifications/email';
 import { getFxRate } from './currency';
 import emailLib from './email';
-import logger from './logger';
 import { getTransactionPdf } from './pdf';
 import { createPrepaidPaymentMethod, isPrepaidBudgetOrder } from './prepaid-budget';
 import { getNextChargeAndPeriodStartDates } from './recurring-contributions';
@@ -181,7 +180,15 @@ export const buildRefundForTransaction = (
   t: Transaction,
   user?: User,
   data?: TransactionData,
-  refundedPaymentProcessorFee?: number,
+  {
+    refundedPaymentProcessorFee = null,
+    refundedAmount = null,
+  }: {
+    /** If the payment processor fee is not recorded as a separate transaction, use this field to refund it as part of the main transaction */
+    refundedPaymentProcessorFee?: number;
+    /** If the refunded amount is different from the original transaction amount */
+    refundedAmount?: number;
+  } = {},
 ): TransactionCreationAttributes => {
   const refund = pick(t, [
     'currency',
@@ -207,24 +214,27 @@ export const buildRefundForTransaction = (
   refund.CreatedByUserId = user?.id || null;
   refund.description = `Refund of "${t.description}"`;
   refund.data = { ...refund.data, ...data };
+  refund.isRefund = true;
+  refund.hostFeeInHostCurrency = 0; // We're handling host fees in separate transactions
 
   /* The refund operation moves back fees to the user's ledger so the
    * fees there should be positive. Since they're usually in negative,
    * we're just setting them to positive by adding a - sign in front
    * of it. */
-  refund.hostFeeInHostCurrency = -refund.hostFeeInHostCurrency;
   refund.platformFeeInHostCurrency = -refund.platformFeeInHostCurrency;
   refund.paymentProcessorFeeInHostCurrency = -refund.paymentProcessorFeeInHostCurrency;
   refund.taxAmount = -refund.taxAmount;
 
   /* Amount fields. Must be calculated after tweaking all the fees */
-  refund.amount = -t.amount;
-  refund.amountInHostCurrency = -t.amountInHostCurrency;
-  refund.netAmountInCollectiveCurrency = -Transaction.calculateNetAmountInCollectiveCurrency(t);
-  refund.isRefund = true;
-
-  // We're handling host fees in separate transactions
-  refund.hostFeeInHostCurrency = 0;
+  if (isNil(refundedAmount)) {
+    refund.amount = -t.amount;
+    refund.amountInHostCurrency = -t.amountInHostCurrency;
+    refund.netAmountInCollectiveCurrency = -Transaction.calculateNetAmountInCollectiveCurrency(t);
+  } else {
+    refund.amount = -refundedAmount;
+    refund.amountInHostCurrency = -Math.round(refundedAmount * refund.hostCurrencyFxRate);
+    refund.netAmountInCollectiveCurrency = -Transaction.calculateNetAmountInCollectiveCurrency(refund);
+  }
 
   // Adjust refunded payment processor fee based on the fees payer
   if (refund.kind === TransactionKind.EXPENSE) {
@@ -323,27 +333,30 @@ async function refundPaymentProcessorFee(
     if (!transaction.paymentProcessorFeeInHostCurrency) {
       processorFeeTransaction = await transaction.getPaymentProcessorFeeTransaction();
       if (!processorFeeTransaction) {
+        // If there is no processor fee on the original transaction and no separate processor fee transaction, there is nothing to refund
+        reportMessageToSentry('No processor fee found for refund with refundedPaymentProcessorFee set', {
+          severity: 'warning',
+          extra: { refundedPaymentProcessorFee, transaction: transaction.info },
+        });
         return;
       }
     }
 
-    // Prevent partial refunds
-    // TODO: We're now able to support this more easily, we should implement
+    // Check amount for partial refunds
     const processorFeeInHostCurrency =
       processorFeeTransaction?.amountInHostCurrency || transaction.paymentProcessorFeeInHostCurrency;
-    if (refundedPaymentProcessorFee !== processorFeeInHostCurrency) {
-      logger.error(
-        `Partial processor fees refunds are not supported, got ${refundedPaymentProcessorFee} for #${transaction.id}`,
-      );
-      reportMessageToSentry('Partial processor fees refunds are not supported', {
+    if (refundedPaymentProcessorFee > processorFeeInHostCurrency) {
+      reportMessageToSentry('Refunded more payment processor fees than initially charged', {
+        severity: 'warning',
         extra: { refundedPaymentProcessorFee, transaction: transaction.info },
       });
-      return;
     }
 
     if (processorFeeTransaction) {
       const processorFeeRefund = {
-        ...buildRefundForTransaction(processorFeeTransaction, user),
+        ...buildRefundForTransaction(processorFeeTransaction, user, null, {
+          refundedAmount: refundedPaymentProcessorFee,
+        }),
         TransactionGroup: transactionGroup,
         clearedAt,
       };
@@ -377,7 +390,7 @@ export async function refundHostFee(
   const hostFeeTransaction = await transaction.getHostFeeTransaction({ type: CREDIT });
   const buildRefund = transaction => {
     return {
-      ...buildRefundForTransaction(transaction, user, null, refundedPaymentProcessorFee),
+      ...buildRefundForTransaction(transaction, user, null, { refundedPaymentProcessorFee }),
       TransactionGroup: transactionGroup,
       clearedAt,
     };
@@ -495,7 +508,7 @@ export async function createRefundTransaction(
   const transactionGroup = transactionGroupId || uuid();
   const buildRefund = transaction => {
     return {
-      ...buildRefundForTransaction(transaction, user, data, refundedPaymentProcessorFee),
+      ...buildRefundForTransaction(transaction, user, data, { refundedPaymentProcessorFee }),
       clearedAt: clearedAt,
       TransactionGroup: transactionGroup,
     };
