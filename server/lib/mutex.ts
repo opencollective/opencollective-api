@@ -64,20 +64,20 @@ export async function lockUntilOrThrow<T>(
 
   const _key = `lock:${key}`;
   const lockAcquired = await redis.set(_key, 1, { NX: true, PX: unlockTimeoutMs });
-  if (!lockAcquired) {
+  if (lockAcquired) {
+    debug(`Acquired lock ${_key}`);
+    try {
+      const response = await until();
+      await redis.del(_key);
+      debug(`Released lock ${_key}`);
+      return response;
+    } catch (e) {
+      await redis.del(_key);
+      debug(`Released lock ${_key}`);
+      throw e;
+    }
+  } else {
     debug(`Failed to acquire lock ${_key}`);
     throw new Error(`Failed to acquire lock for key ${_key}`);
-  }
-
-  debug(`Acquired lock ${_key}`);
-  try {
-    const response = await until();
-    await redis.del(_key);
-    debug(`Released lock ${_key}`);
-    return response;
-  } catch (e) {
-    await redis.del(_key);
-    debug(`Released lock ${_key}`);
-    throw e;
   }
 }
