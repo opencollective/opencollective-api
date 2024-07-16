@@ -10,13 +10,15 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLJSON, GraphQLNonEmptyString } from 'graphql-scalars';
-import { cloneDeep, isNull, omitBy, pick, set } from 'lodash';
+import { cloneDeep, isEqual, isNull, omitBy, pick, set } from 'lodash';
 
 import activities from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
+import POLICIES from '../../../constants/policies';
 import * as collectivelib from '../../../lib/collectivelib';
 import { duplicateAccount } from '../../../lib/duplicate-account';
 import { crypto } from '../../../lib/encryption';
+import { canEditPolicy } from '../../../lib/policies';
 import TwoFactorAuthLib, { TwoFactorMethod } from '../../../lib/two-factor-authentication';
 import * as webauthn from '../../../lib/two-factor-authentication/webauthn';
 import { validateYubikeyOTP } from '../../../lib/two-factor-authentication/yubikey-otp';
@@ -658,16 +660,20 @@ const accountMutations = {
         throw new NotFound('Account Not Found');
       }
 
-      if (!req.remoteUser.isAdminOfCollective(account)) {
-        throw new Unauthorized();
+      // Check host only policies
+      const previousPolicies = account.data?.policies || {};
+      const shouldIgnorePolicy = (value, key) => isNull(value) || isEqual(value, previousPolicies[key]);
+      const newPoliciesKeys = Object.keys(omitBy(args.policies, shouldIgnorePolicy)) as POLICIES[];
+      const forbiddenPolicies = newPoliciesKeys.filter(policy => !canEditPolicy(req.remoteUser, account, policy));
+      if (forbiddenPolicies.length > 0) {
+        throw new Forbidden(`You are not allowed to edit the following policies: ${forbiddenPolicies.join(', ')}`);
       }
 
       // Merge submitted policies with existing ones
-      const previousPolicies = account.data?.policies;
-      const newPolicies = omitBy({ ...previousPolicies, ...args.policies }, isNull);
+      const updatedPolicies = omitBy({ ...previousPolicies, ...args.policies }, isNull);
 
       // Enforce 2FA when trying to disable `REQUIRE_2FA_FOR_ADMINS`
-      if (previousPolicies?.REQUIRE_2FA_FOR_ADMINS && !newPolicies.REQUIRE_2FA_FOR_ADMINS) {
+      if (previousPolicies?.REQUIRE_2FA_FOR_ADMINS && !updatedPolicies.REQUIRE_2FA_FOR_ADMINS) {
         await TwoFactorAuthLib.validateRequest(req, {
           alwaysAskForToken: true,
           requireTwoFactorAuthEnabled: true,
@@ -675,7 +681,7 @@ const accountMutations = {
         });
       }
 
-      await account.setPolicies(newPolicies);
+      await account.setPolicies(updatedPolicies);
       await models.Activity.create({
         type: activities.COLLECTIVE_EDITED,
         UserId: req.remoteUser.id,
@@ -683,7 +689,7 @@ const accountMutations = {
         CollectiveId: account.id,
         FromCollectiveId: account.id,
         HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
-        data: { previousData: { policies: previousPolicies }, newData: { policies: newPolicies } },
+        data: { previousData: { policies: previousPolicies }, newData: { policies: updatedPolicies } },
       });
 
       return account;
