@@ -234,4 +234,4 @@ const sendTweet = async (tweet, twitterAccount, template) => {
   }
 };
 
-runCronJob('milestones', init, 1000 * 60 * 10);
+runCronJob('milestones', init, 60 * 10);

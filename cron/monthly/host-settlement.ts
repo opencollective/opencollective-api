@@ -260,4 +260,4 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
   }
 }
 
-runCronJob('host-settlement', () => run(defaultDate), 23 * 60 * 60 * 1000);
+runCronJob('host-settlement', () => run(defaultDate), 23 * 60 * 60);

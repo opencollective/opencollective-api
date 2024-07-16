@@ -23,4 +23,4 @@ const hostId = process.env.HOST_ID;
 const d = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date();
 const rd = new Date(d.getFullYear(), d.getMonth() - 1);
 
-runCronJob('host-report', () => HostReport(rd.getFullYear(), rd.getMonth(), hostId), 23 * 60 * 60 * 1000);
+runCronJob('host-report', () => HostReport(rd.getFullYear(), rd.getMonth(), hostId), 23 * 60 * 60);

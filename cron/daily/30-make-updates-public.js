@@ -3,4 +3,4 @@ import '../../server/env';
 import models from '../../server/models';
 import { runCronJob } from '../utils';
 
-runCronJob('make-updates-public', () => models.Update.makeUpdatesPublic(), 24 * 60 * 60 * 1000);
+runCronJob('make-updates-public', () => models.Update.makeUpdatesPublic(), 24 * 60 * 60);

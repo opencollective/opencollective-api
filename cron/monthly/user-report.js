@@ -431,4 +431,4 @@ const sendEmail = (recipient, data, options = {}) => {
   return emailLib.send('user.monthlyreport', recipient.email, data, options);
 };
 
-runCronJob('user-report', init, 23 * 60 * 60 * 1000);
+runCronJob('user-report', init, 23 * 60 * 60);

@@ -43,4 +43,4 @@ const run = async () => {
   }
 };
 
-runCronJob('send-tax-form-requests', run, 60 * 60 * 1000);
+runCronJob('send-tax-form-requests', run, 60 * 60);

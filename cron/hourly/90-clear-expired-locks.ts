@@ -17,4 +17,4 @@ const run = async () => {
   }
 };
 
-runCronJob('clear-expired-locks', run, 60 * 60 * 1000);
+runCronJob('clear-expired-locks', run, 60 * 60);

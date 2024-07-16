@@ -28,4 +28,4 @@ async function run() {
   process.exit();
 }
 
-runCronJob('checks', run, 24 * 60 * 60 * 1000);
+runCronJob('checks', run, 24 * 60 * 60);

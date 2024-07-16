@@ -104,4 +104,4 @@ async function processEvent(event, template) {
   );
 }
 
-runCronJob('event-reminder', run, 24 * 60 * 60 * 1000);
+runCronJob('event-reminder', run, 24 * 60 * 60);

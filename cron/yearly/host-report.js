@@ -17,4 +17,4 @@ process.env.PORT = 3066;
 const d = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date();
 const year = new Date(d.getFullYear() - 1, 1, 1).getFullYear();
 
-runCronJob('yearly-host-report', () => HostReport(year), 23 * 60 * 60 * 1000);
+runCronJob('yearly-host-report', () => HostReport(year), 23 * 60 * 60);

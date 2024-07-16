@@ -78,4 +78,4 @@ export async function run() {
   }
 }
 
-runCronJob('check-pending-transferwise-transactions', run, 24 * 60 * 60 * 1000);
+runCronJob('check-pending-transferwise-transactions', run, 24 * 60 * 60);

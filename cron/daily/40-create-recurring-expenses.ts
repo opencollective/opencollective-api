@@ -19,4 +19,4 @@ const run = async () => {
   }
 };
 
-runCronJob('make-updates-public', run, 24 * 60 * 60 * 1000);
+runCronJob('make-updates-public', run, 24 * 60 * 60);

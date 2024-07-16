@@ -35,4 +35,4 @@ const run = async () => {
   logger.info('Done.');
 };
 
-runCronJob('register-currency-exchange-rates', run, 24 * 60 * 60 * 1000);
+runCronJob('register-currency-exchange-rates', run, 24 * 60 * 60);

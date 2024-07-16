@@ -98,4 +98,4 @@ const run = async () => {
   process.exit();
 };
 
-runCronJob('expiring-cards', run, 23 * 60 * 60 * 1000);
+runCronJob('expiring-cards', run, 23 * 60 * 60);

@@ -114,4 +114,4 @@ export async function run() {
   return orders;
 }
 
-runCronJob('send-resume-subscription-emails', run, 60 * 60 * 1000);
+runCronJob('send-resume-subscription-emails', run, 60 * 60);

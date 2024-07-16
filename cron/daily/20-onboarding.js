@@ -61,7 +61,6 @@ runCronJob(
       processOnBoardingTemplate('onboarding.day2', XDaysAgo(2)),
     ]).then(() => {
       console.log('>>> all done');
-      process.exit(0);
     }),
-  1000 * 60 * 60 * 24,
+  60 * 60 * 24,
 );

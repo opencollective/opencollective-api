@@ -55,4 +55,4 @@ async function run() {
   }
 }
 
-runCronJob('refresh-materialized-views', run, 60 * 60 * 1000);
+runCronJob('refresh-materialized-views', run, 60 * 60);

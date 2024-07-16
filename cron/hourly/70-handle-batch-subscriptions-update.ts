@@ -166,4 +166,4 @@ export async function run() {
   console.log('Done!');
 }
 
-runCronJob('handle-batch-subscriptions-update', run, 60 * 60 * 1000);
+runCronJob('handle-batch-subscriptions-update', run, 60 * 60);

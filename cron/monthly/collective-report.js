@@ -222,4 +222,4 @@ const processCollective = async collective => {
     });
 };
 
-runCronJob('collective-report', init, 23 * 60 * 60 * 1000);
+runCronJob('collective-report', init, 23 * 60 * 60);

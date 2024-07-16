@@ -44,4 +44,4 @@ const run = async () => {
   }
 };
 
-runCronJob('suspend-accounts-without-minimum-amount-of-admins', run, 24 * 60 * 60 * 1000);
+runCronJob('suspend-accounts-without-minimum-amount-of-admins', run, 24 * 60 * 60);

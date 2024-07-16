@@ -331,4 +331,4 @@ const init = () => {
     });
 };
 
-runCronJob('yearly-user-report', init, 23 * 60 * 60 * 1000);
+runCronJob('yearly-user-report', init, 23 * 60 * 60);

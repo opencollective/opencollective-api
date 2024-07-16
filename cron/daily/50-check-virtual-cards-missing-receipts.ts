@@ -94,4 +94,4 @@ const run = async () => {
   }
 };
 
-runCronJob('check-virtual-cards-missing-receipts', run, 24 * 60 * 60 * 1000);
+runCronJob('check-virtual-cards-missing-receipts', run, 24 * 60 * 60);

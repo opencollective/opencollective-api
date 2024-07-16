@@ -239,4 +239,4 @@ function parseCommandLineArguments() {
 
 /* eslint-enable camelcase */
 
-runCronJob('reject-contributions', () => run(parseCommandLineArguments()), 24 * 60 * 60 * 1000);
+runCronJob('reject-contributions', () => run(parseCommandLineArguments()), 24 * 60 * 60);

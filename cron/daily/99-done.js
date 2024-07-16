@@ -15,4 +15,4 @@ function run() {
   return email.sendMessage(recipients, subject, html, { text });
 }
 
-runCronJob('done', run, 24 * 60 * 60 * 1000);
+runCronJob('done', run, 24 * 60 * 60);

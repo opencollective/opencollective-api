@@ -46,4 +46,4 @@ async function run() {
   logger.info('Done!');
 }
 
-runCronJob('check-pending-paypal-expenses', run, 60 * 60 * 1000);
+runCronJob('check-pending-paypal-expenses', run, 60 * 60);

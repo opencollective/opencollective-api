@@ -106,4 +106,4 @@ async function run() {
   }
 }
 
-runCronJob('reconcile-virtualcard-transactions', run, 60 * 60 * 1000);
+runCronJob('reconcile-virtualcard-transactions', run, 60 * 60);
