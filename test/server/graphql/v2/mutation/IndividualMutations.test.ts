@@ -3,12 +3,20 @@ import { expect } from 'chai';
 import config from 'config';
 import crypto from 'crypto-js';
 import gql from 'fake-tag';
+import jwt from 'jsonwebtoken';
 import { createSandbox } from 'sinon';
 import speakeasy from 'speakeasy';
 import request from 'supertest';
 
 import { idEncode } from '../../../../../server/graphql/v2/identifiers';
-import { fakeApplication, fakeUser, fakeUserToken, randEmail } from '../../../../test-helpers/fake-data';
+import {
+  fakeApplication,
+  fakePersonalToken,
+  fakeUser,
+  fakeUserToken,
+  randEmail,
+  randStr,
+} from '../../../../test-helpers/fake-data';
 import { startTestServer, stopTestServer } from '../../../../test-helpers/server';
 import { graphqlQueryV2 } from '../../../../utils';
 
@@ -192,10 +200,10 @@ describe('server/graphql/v2/mutation/IndividualMutations', () => {
           .post('/graphql')
           .send({ query: resetPasswordMutation, variables: { password: 'newpassword' } })
           .set('Authorization', `Bearer ${token}`)
-          .expect(200);
+          .expect(401);
 
-        expect(res.body.errors).to.exist;
-        expect(res.body.errors[0].message).to.equal('This token has expired');
+        expect(res.body.error.code).to.equal(401);
+        expect(res.body.error.message).to.equal('This token has expired');
       });
     });
 
@@ -249,6 +257,95 @@ describe('server/graphql/v2/mutation/IndividualMutations', () => {
         expect(user.passwordHash).to.not.be.empty;
         expect(user.passwordUpdatedAt).to.exist;
         expect(await bcrypt.compare('newpassword', user.passwordHash)).to.be.true;
+      });
+    });
+  });
+
+  describe('confirmEmail', () => {
+    const confirmEmailMutation = gql`
+      mutation ConfirmEmail($token: NonEmptyString!) {
+        confirmEmail(token: $token) {
+          sessionToken
+          individual {
+            id
+            slug
+          }
+        }
+      }
+    `;
+
+    it('should error if the token is invalid', async () => {
+      const result = await graphqlQueryV2(confirmEmailMutation, { token: 'invalidtoken' });
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Invalid email confirmation token');
+    });
+
+    it('cannot be used with a OAuth or personal token', async () => {
+      const user = await fakeUser({ emailWaitingForValidation: randEmail(), emailConfirmationToken: randStr() });
+
+      const userToken = await fakeUserToken({ type: 'OAUTH', UserId: user.id });
+      const resultOauth = await graphqlQueryV2(
+        confirmEmailMutation,
+        { token: user.emailConfirmationToken },
+        user,
+        null,
+        null,
+        userToken,
+      );
+      expect(resultOauth.errors).to.exist;
+      expect(resultOauth.errors[0].message).to.equal('OAuth and Personal Tokens are not allowed for this route');
+
+      const personalToken = await fakePersonalToken({ UserId: user.id });
+      const resultPersonalToken = await graphqlQueryV2(
+        confirmEmailMutation,
+        { token: user.emailConfirmationToken },
+        user,
+        null,
+        null,
+        null,
+        personalToken,
+      );
+      expect(resultPersonalToken.errors).to.exist;
+      expect(resultPersonalToken.errors[0].message).to.equal(
+        'OAuth and Personal Tokens are not allowed for this route',
+      );
+    });
+
+    it('should confirm the new email', async () => {
+      const newEmail = randEmail();
+      const user = await fakeUser({ emailWaitingForValidation: newEmail, emailConfirmationToken: randStr() });
+      const result = await graphqlQueryV2(confirmEmailMutation, { token: user.emailConfirmationToken }); // Unauthenticated
+      expect(result.errors).to.not.exist;
+      expect(result.data.confirmEmail.sessionToken).to.not.exist; // Do not log in if not authenticated already
+      expect(result.data.confirmEmail.individual.slug).to.equal(user.collective.slug);
+
+      await user.reload();
+      expect(user.email).to.equal(newEmail);
+      expect(user.emailWaitingForValidation).to.be.null;
+      expect(user.emailConfirmationToken).to.be.null;
+    });
+
+    it('should confirm the new email and return a session token if logged in', async () => {
+      const newEmail = randEmail();
+      const user = await fakeUser({ emailWaitingForValidation: newEmail, emailConfirmationToken: randStr() });
+      const result = await graphqlQueryV2(confirmEmailMutation, { token: user.emailConfirmationToken }, user); // Authenticated
+      expect(result.errors).to.not.exist;
+      expect(result.data.confirmEmail.sessionToken).to.exist;
+      expect(result.data.confirmEmail.individual.slug).to.equal(user.collective.slug);
+
+      await user.reload();
+      expect(user.email).to.equal(newEmail);
+      expect(user.emailWaitingForValidation).to.be.null;
+      expect(user.emailConfirmationToken).to.be.null;
+
+      const decodedToken = jwt.decode(result.data.confirmEmail.sessionToken, { complete: true });
+      expect(decodedToken).to.containSubset({
+        header: { alg: 'HS256', typ: 'JWT', kid: 'HS256-2019-09-02' },
+        payload: {
+          scope: 'session',
+          email: newEmail,
+          sub: user.id.toString(),
+        },
       });
     });
   });
