@@ -59,14 +59,14 @@ describe('lockUntilResolved', () => {
 
       assert.approximately(endFirst - start, 25, 5);
       assert.approximately(endSecond - start, 25 + 25, 10);
-      assert.isRejected(pFirst, /first/);
+      await assert.isRejected(pFirst, /first/);
       assert.equal(second, 'second');
     });
 
     it('throws if it fails to acquire a lock', async () => {
       lockUntilResolved('test3', async () => sleep(100));
       const pSecond = lockUntilResolved('test3', async () => sleep(1), { lockAcquireTimeoutMs: 50 });
-      assert.isRejected(pSecond, /Timeout to acquire lock for key lock:test3/);
+      await assert.isRejected(pSecond, /Timeout to acquire lock for key lock:test3/);
     });
 
     it('automatically releases the lock after expiring', async () => {
