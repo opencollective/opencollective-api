@@ -6,7 +6,7 @@ import { activities } from '../../../constants';
 import cache from '../../../lib/cache';
 import emailLib from '../../../lib/email';
 import models from '../../../models';
-import { InvalidToken, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
+import { RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 
 const oneHourInSeconds = 60 * 60;
 
@@ -78,28 +78,4 @@ export const updateUserEmail = async (user, newEmail) => {
   cache.set(countCacheKey, existingCount + 1, oneHourInSeconds);
 
   return user;
-};
-
-/**
- * From a given token (generated in `updateUserEmail`) confirm the new email
- * and updates the user record.
- */
-export const confirmUserEmail = async emailConfirmationToken => {
-  if (!emailConfirmationToken) {
-    throw new ValidationFailed('Email confirmation token must be set');
-  }
-
-  const user = await models.User.findOne({ where: { emailConfirmationToken } });
-
-  if (!user) {
-    throw new InvalidToken('Invalid email confirmation token', 'INVALID_TOKEN', {
-      internalData: { emailConfirmationToken },
-    });
-  }
-
-  return user.update({
-    email: user.emailWaitingForValidation,
-    emailWaitingForValidation: null,
-    emailConfirmationToken: null,
-  });
 };
