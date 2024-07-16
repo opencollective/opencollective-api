@@ -4,6 +4,7 @@ import { has } from 'lodash';
 
 import { runCronJob } from '../../cron/utils';
 import { createRedisClient } from '../../server/lib/redis';
+import { sleep } from '../../server/lib/utils';
 
 describe('runCronJob', () => {
   if (has(config, 'redis.serverUrl')) {
@@ -15,16 +16,27 @@ describe('runCronJob', () => {
     afterEach(clearRedis);
   }
 
+  before(() => {
+    process.env.DISABLE_CRON_MODULE_START_CHECK = 'true';
+  });
+
+  after(() => {
+    process.env.DISABLE_CRON_MODULE_START_CHECK = undefined;
+  });
+
   it('should prevent two jobs from running at the same time', async () => {
     let firstCompletes = false;
     const first = runCronJob(
       'test',
       async () => {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await sleep(100);
         firstCompletes = true;
+        return;
       },
       10000,
     );
+
+    await sleep(1);
 
     let secondCompletes = false;
     const second = runCronJob(
