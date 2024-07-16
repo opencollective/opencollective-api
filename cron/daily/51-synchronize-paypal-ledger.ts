@@ -12,13 +12,13 @@ import FEATURE from '../../server/constants/feature';
 import OrderStatuses from '../../server/constants/order-status';
 import logger from '../../server/lib/logger';
 import { getHostsWithPayPalConnected, listPayPalTransactions } from '../../server/lib/paypal';
-import { closeRedisClient } from '../../server/lib/redis';
 import { reportErrorToSentry, reportMessageToSentry } from '../../server/lib/sentry';
 import { parseToBoolean } from '../../server/lib/utils';
 import models, { Collective, sequelize } from '../../server/models';
 import { paypalRequestV2 } from '../../server/paymentProviders/paypal/api';
 import { recordPaypalCapture } from '../../server/paymentProviders/paypal/payment';
 import { PaypalCapture, PaypalTransactionSearchResult } from '../../server/types/paypal';
+import { runCronJob } from '../utils';
 
 const LIMITED_TO_HOST_SLUGS = process.env.HOST ? process.env.HOST.split(',') : null;
 const EXCLUDED_HOST_SLUGS = process.env.EXCLUDED_HOST ? process.env.EXCLUDED_HOST.split(',') : null;
@@ -340,18 +340,4 @@ const run = async () => {
   }
 };
 
-if (require.main === module) {
-  run()
-    .catch(e => {
-      console.error(e);
-      reportErrorToSentry(e, { feature: FEATURE.PAYPAL_DONATIONS, severity: 'error' });
-      process.exit(1);
-    })
-    .then(() => {
-      setTimeout(async () => {
-        await closeRedisClient();
-        await sequelize.close();
-        process.exit(0);
-      }, 2000);
-    });
-}
+runCronJob('synchronize-paypal-ledger', run, 24 * 60 * 60 * 1000);

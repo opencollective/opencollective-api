@@ -1,8 +1,9 @@
 import '../../server/env';
 
 import logger from '../../server/lib/logger';
-import { reportErrorToSentry, reportMessageToSentry } from '../../server/lib/sentry';
+import { reportMessageToSentry } from '../../server/lib/sentry';
 import models from '../../server/models';
+import { runCronJob } from '../utils';
 
 const run = async () => {
   const [, nbUpdated] = await models.Order.clearExpiredLocks();
@@ -16,12 +17,4 @@ const run = async () => {
   }
 };
 
-if (require.main === module) {
-  run()
-    .then(() => process.exit(0))
-    .catch(e => {
-      console.error(e);
-      reportErrorToSentry(e, { handler: 'CRON' });
-      process.exit(1);
-    });
-}
+runCronJob('clear-expired-locks', run, 60 * 60 * 1000);

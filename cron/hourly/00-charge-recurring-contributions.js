@@ -18,6 +18,7 @@ import { closeRedisClient } from '../../server/lib/redis';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import { parseToBoolean } from '../../server/lib/utils';
 import { sequelize } from '../../server/models';
+import { runCronJob } from '../utils';
 
 const json2csv = (data, opts = undefined) => new Parser(opts).parse(data);
 
@@ -59,7 +60,6 @@ if (parseToBoolean(process.env.SKIP_CHARGE_RECURRING_CONTRIBUTIONS) && !process.
 async function run(options) {
   if (await sessionCache.get(JOB_RUNNING_KEY)) {
     console.log('Skipping because job is already running.');
-    await completeJob();
     return;
   }
 
@@ -211,9 +211,4 @@ function parseCommandLineArguments() {
 /* eslint-enable camelcase */
 
 /** Kick off the script with all the user selected options */
-async function entryPoint(options) {
-  await run(options);
-}
-
-/* Entry point */
-entryPoint(parseCommandLineArguments());
+runCronJob('charge-recurring-contributions', () => run(parseCommandLineArguments()), 60 * 60 * 1000);

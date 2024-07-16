@@ -4,6 +4,7 @@ import { get } from 'lodash';
 
 import emailLib from '../../server/lib/email';
 import models, { Op } from '../../server/models';
+import { runCronJob } from '../utils';
 
 let totalEvents = 0;
 
@@ -103,4 +104,4 @@ async function processEvent(event, template) {
   );
 }
 
-run();
+runCronJob('event-reminder', run, 24 * 60 * 60 * 1000);

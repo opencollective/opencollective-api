@@ -8,6 +8,7 @@ import queries from '../../server/lib/queries';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import { formatArrayToString, formatCurrency, formatCurrencyObject } from '../../server/lib/utils';
 import models, { Op, sequelize } from '../../server/models';
+import { runCronJob } from '../utils';
 
 // Only run on the first of the year
 const today = new Date();
@@ -330,4 +331,4 @@ const init = () => {
     });
 };
 
-init();
+runCronJob('yearly-user-report', init, 23 * 60 * 60 * 1000);

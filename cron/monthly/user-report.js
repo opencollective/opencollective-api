@@ -15,6 +15,7 @@ import { getConsolidatedInvoicePdfs } from '../../server/lib/pdf';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import { formatCurrencyObject, parseToBoolean } from '../../server/lib/utils';
 import models, { Op } from '../../server/models';
+import { runCronJob } from '../utils';
 
 if (parseToBoolean(process.env.SKIP_USER_REPORT) && !process.env.OFFCYCLE) {
   console.log('Skipping because SKIP_USER_REPORT is set.');
@@ -430,4 +431,4 @@ const sendEmail = (recipient, data, options = {}) => {
   return emailLib.send('user.monthlyreport', recipient.email, data, options);
 };
 
-init();
+runCronJob('user-report', init, 23 * 60 * 60 * 1000);

@@ -9,6 +9,7 @@ import logger from '../../server/lib/logger';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import models from '../../server/models';
 import { processTransaction } from '../../server/paymentProviders/stripe/virtual-cards';
+import { runCronJob } from '../utils';
 
 const DRY = process.env.DRY;
 
@@ -105,14 +106,4 @@ async function run() {
   }
 }
 
-if (require.main === module) {
-  run()
-    .then(() => {
-      process.exit(0);
-    })
-    .catch(e => {
-      console.error(e);
-      reportErrorToSentry(e);
-      process.exit(1);
-    });
-}
+runCronJob('reconcile-virtualcard-transactions', run, 60 * 60 * 1000);

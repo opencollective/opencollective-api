@@ -6,10 +6,10 @@ import moment from 'moment';
 import pThrottle from 'p-throttle';
 
 import logger from '../../server/lib/logger';
-import { reportErrorToSentry } from '../../server/lib/sentry';
 import { findAccountsThatNeedToBeSentTaxForm, sendHelloWorksUsTaxForm } from '../../server/lib/tax-forms';
 import { parseToBoolean } from '../../server/lib/utils';
 import { Collective, LegalDocument } from '../../server/models';
+import { runCronJob } from '../utils';
 
 const MAX_REQUESTS_PER_SECOND = 1;
 const ONE_SECOND_IN_MILLISECONDS = 1000;
@@ -43,13 +43,4 @@ const run = async () => {
   }
 };
 
-if (require.main === module) {
-  run()
-    .then(() => process.exit(0))
-    .catch(e => {
-      logger.error('Error while sending tax forms reminders');
-      console.error(e);
-      reportErrorToSentry(e);
-      process.exit(1);
-    });
-}
+runCronJob('send-tax-form-requests', run, 60 * 60 * 1000);

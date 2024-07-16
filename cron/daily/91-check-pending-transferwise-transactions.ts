@@ -11,6 +11,7 @@ import models from '../../server/models';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import { handleTransferStateChange } from '../../server/paymentProviders/transferwise/webhook';
 import { TransferStateChangeEvent } from '../../server/types/transferwise';
+import { runCronJob } from '../utils';
 
 async function processExpense(expense) {
   logger.info(`Processing expense #${expense.id}...`);
@@ -77,14 +78,4 @@ export async function run() {
   }
 }
 
-if (require.main === module) {
-  run()
-    .then(() => {
-      process.exit(0);
-    })
-    .catch(e => {
-      console.error(e);
-      reportErrorToSentry(e);
-      process.exit(1);
-    });
-}
+runCronJob('check-pending-transferwise-transactions', run, 24 * 60 * 60 * 1000);

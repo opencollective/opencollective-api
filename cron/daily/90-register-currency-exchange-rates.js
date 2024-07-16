@@ -7,6 +7,7 @@ import { fetchFxRates } from '../../server/lib/currency';
 import logger from '../../server/lib/logger';
 import { reportMessageToSentry } from '../../server/lib/sentry';
 import models from '../../server/models';
+import { runCronJob } from '../utils';
 
 const PLATFORM_BASE_CURRENCY = 'USD';
 const CURRENCIES_TO_FETCH = without(SUPPORTED_CURRENCIES, PLATFORM_BASE_CURRENCY);
@@ -32,7 +33,6 @@ const run = async () => {
   }
 
   logger.info('Done.');
-  process.exit();
 };
 
-run();
+runCronJob('register-currency-exchange-rates', run, 24 * 60 * 60 * 1000);

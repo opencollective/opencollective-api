@@ -14,12 +14,12 @@ import { ExpenseRoles } from '../../server/constants/expense-roles';
 import POLICIES from '../../server/constants/policies';
 import emailLib from '../../server/lib/email';
 import logger from '../../server/lib/logger';
-import { reportErrorToSentry, reportMessageToSentry } from '../../server/lib/sentry';
+import { reportMessageToSentry } from '../../server/lib/sentry';
 import { deepJSONBSet } from '../../server/lib/sql';
 import { parseToBoolean } from '../../server/lib/utils';
 import { AccountingCategory, Expense, Op, sequelize, User } from '../../server/models';
 import Collective from '../../server/models/Collective';
-import { onlyExecuteInProdOnMondays } from '../utils';
+import { onlyExecuteInProdOnMondays, runCronJob } from '../utils';
 
 if (!process.env.MANUAL) {
   onlyExecuteInProdOnMondays();
@@ -341,19 +341,4 @@ export const run = async () => {
   logger.info('Done.');
 };
 
-if (require.main === module) {
-  run()
-    .then(() => {
-      process.exit(0);
-    })
-    .catch(e => {
-      console.error(e);
-      reportErrorToSentry(e, {
-        handler: 'CRON',
-        severity: 'error',
-        transactionName: '92-send-accounting-category-educational-emails',
-      });
-
-      process.exit(1);
-    });
-}
+runCronJob('send-accounting-category-educational-emails', run, 23 * 60 * 60 * 1000);

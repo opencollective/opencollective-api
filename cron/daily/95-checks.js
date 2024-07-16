@@ -2,6 +2,7 @@ import '../../server/env';
 
 import { checkAllModels } from '../../checks/model';
 import email from '../../server/lib/email';
+import { runCronJob } from '../utils';
 
 const recipients = 'ops@opencollective.com';
 
@@ -27,4 +28,4 @@ async function run() {
   process.exit();
 }
 
-run();
+runCronJob('checks', run, 24 * 60 * 60 * 1000);

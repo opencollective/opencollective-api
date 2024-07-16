@@ -14,6 +14,7 @@ import { notify } from '../../server/lib/notifications/email';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import { getTiersStats, parseToBoolean } from '../../server/lib/utils';
 import models, { Op } from '../../server/models';
+import { runCronJob } from '../utils';
 
 // Only run on the first of the month
 const today = new Date();
@@ -221,4 +222,4 @@ const processCollective = async collective => {
     });
 };
 
-init();
+runCronJob('collective-report', init, 23 * 60 * 60 * 1000);

@@ -13,10 +13,11 @@ import { SETTLEMENT_EXPENSE_PROPERTIES } from '../../server/constants/transactio
 import { getTransactionsCsvUrl } from '../../server/lib/csv';
 import { getFxRate } from '../../server/lib/currency';
 import { getPendingHostFeeShare, getPendingPlatformTips } from '../../server/lib/host-metrics';
-import { reportErrorToSentry, reportMessageToSentry } from '../../server/lib/sentry';
+import { reportMessageToSentry } from '../../server/lib/sentry';
 import { parseToBoolean } from '../../server/lib/utils';
 import models, { sequelize } from '../../server/models';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
+import { runCronJob } from '../utils';
 
 const json2csv = (data, opts = undefined) => new Parser(opts).parse(data);
 
@@ -259,14 +260,4 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
   }
 }
 
-if (require.main === module) {
-  run(defaultDate)
-    .catch(e => {
-      console.error(e);
-      reportErrorToSentry(e);
-      process.exit(1);
-    })
-    .then(() => {
-      process.exit();
-    });
-}
+runCronJob('host-settlement', () => run(defaultDate), 23 * 60 * 60 * 1000);

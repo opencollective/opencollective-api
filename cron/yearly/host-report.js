@@ -3,6 +3,7 @@ import '../../server/env';
 import config from 'config';
 
 import HostReport from '../../reports/host-report';
+import { runCronJob } from '../utils';
 
 // Only run on the first of the month
 const today = new Date();
@@ -16,4 +17,4 @@ process.env.PORT = 3066;
 const d = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date();
 const year = new Date(d.getFullYear() - 1, 1, 1).getFullYear();
 
-HostReport(year);
+runCronJob('yearly-host-report', () => HostReport(year), 23 * 60 * 60 * 1000);

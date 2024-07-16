@@ -1,5 +1,6 @@
 import '../../server/env';
 
 import models from '../../server/models';
+import { runCronJob } from '../utils';
 
-models.Update.makeUpdatesPublic().then(process.exit);
+runCronJob('make-updates-public', () => models.Update.makeUpdatesPublic(), 24 * 60 * 60 * 1000);
