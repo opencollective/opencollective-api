@@ -44,3 +44,40 @@ export async function lockUntilResolved<T>(
     debug(`Released lock ${_key}`);
   });
 }
+
+/**
+ * Try to atomically acquire a lock for a key, execute the `until` function and release the lock.
+ * Throws if the lock can't be acquired.
+ *
+ * Requires a Redis instance to be available, otherwise it will just run the `until` function.
+ */
+export async function lockUntilOrThrow<T>(
+  key: string,
+  until: () => Promise<T>,
+  { unlockTimeoutMs = 10 * 60 * 1000 } = {},
+): Promise<T> {
+  const redis = await createRedisClient(RedisInstanceType.SESSION);
+  if (!redis) {
+    logger.warn(`Redis is not available, ${key} running without a mutex lock!`);
+    return until();
+  }
+
+  const _key = `lock:${key}`;
+  const lockAcquired = await redis.set(_key, 1, { NX: true, PX: unlockTimeoutMs });
+  if (!lockAcquired) {
+    debug(`Failed to acquire lock ${_key}`);
+    throw new Error(`Failed to acquire lock for key ${_key}`);
+  }
+
+  debug(`Acquired lock ${_key}`);
+  try {
+    const response = await until();
+    await redis.del(_key);
+    debug(`Released lock ${_key}`);
+    return response;
+  } catch (e) {
+    await redis.del(_key);
+    debug(`Released lock ${_key}`);
+    throw e;
+  }
+}

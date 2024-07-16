@@ -2,7 +2,7 @@ import { assert } from 'chai';
 import config from 'config';
 import { has } from 'lodash';
 
-import { lockUntilResolved } from '../../../server/lib/mutex';
+import { lockUntilOrThrow, lockUntilResolved } from '../../../server/lib/mutex';
 import { createRedisClient } from '../../../server/lib/redis';
 import { sleep } from '../../utils';
 
@@ -75,6 +75,42 @@ describe('lockUntilResolved', () => {
       const second = await lockUntilResolved('test4', async () => 'second', {
         retryDelayMs: 1,
         lockAcquireTimeoutMs: 10,
+      });
+      assert.equal(second, 'second');
+    });
+  }
+});
+
+describe('lockUntilOrThrow', () => {
+  if (has(config, 'redis.serverUrl')) {
+    const clearRedis = async () => {
+      const redis = await createRedisClient();
+      await redis.del('lock:test');
+    };
+    beforeEach(clearRedis);
+    afterEach(clearRedis);
+
+    it("should throw if lock can't be acquired", async () => {
+      const pFirst = lockUntilOrThrow('test', async () => {
+        await sleep(25);
+        return 'first';
+      });
+      const pSecond = lockUntilOrThrow('test', async () => {
+        return 'second';
+      });
+
+      assert.equal(await pFirst, 'first');
+      await assert.isRejected(pSecond, /acquire lock/);
+    });
+
+    it('releases the lock if the callback function fails', async () => {
+      const pFirst = lockUntilOrThrow('test', async () => {
+        throw new Error('first');
+      });
+      await assert.isRejected(pFirst, /first/);
+
+      const second = await lockUntilOrThrow('test', async () => {
+        return 'second';
       });
       assert.equal(second, 'second');
     });
