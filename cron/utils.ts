@@ -5,6 +5,7 @@ import logger from '../server/lib/logger';
 import { lockUntilOrThrow } from '../server/lib/mutex';
 import { closeRedisClient } from '../server/lib/redis';
 import { CaptureErrorParams, reportErrorToSentry } from '../server/lib/sentry';
+import { sleep } from '../server/lib/utils';
 import { sequelize } from '../server/models';
 
 /**
@@ -48,10 +49,12 @@ export const runCronJob = async (
     );
   } catch (error) {
     logger.error(`Error running ${name} job`, error);
-    await reportErrorToSentry(
+    reportErrorToSentry(
       error,
       deepmerge({ handler: 'CRON', extra: { name, timeout: timeoutMs } }, errorParameters || {}),
     );
+    // Await for Sentry to finish sending the error
+    await sleep(1000);
     exitCode = 1;
   }
 
