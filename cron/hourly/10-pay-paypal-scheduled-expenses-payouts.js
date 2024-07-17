@@ -34,4 +34,6 @@ export async function run() {
   logger.info('Done!');
 }
 
-runCronJob('pay-paypal-scheduled-expenses-payout', run, 60 * 60);
+if (require.main === module) {
+  runCronJob('pay-paypal-scheduled-expenses-payout', run, 60 * 60);
+}

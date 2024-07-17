@@ -106,4 +106,6 @@ async function run() {
   }
 }
 
-runCronJob('reconcile-virtualcard-transactions', run, 60 * 60);
+if (require.main === module) {
+  runCronJob('reconcile-virtualcard-transactions', run, 60 * 60);
+}

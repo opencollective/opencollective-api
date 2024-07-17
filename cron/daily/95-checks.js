@@ -28,4 +28,6 @@ async function run() {
   process.exit();
 }
 
-runCronJob('checks', run, 24 * 60 * 60);
+if (require.main === module) {
+  runCronJob('checks', run, 24 * 60 * 60);
+}

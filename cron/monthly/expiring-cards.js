@@ -98,4 +98,6 @@ const run = async () => {
   process.exit();
 };
 
-runCronJob('expiring-cards', run, 23 * 60 * 60);
+if (require.main === module) {
+  runCronJob('expiring-cards', run, 23 * 60 * 60);
+}

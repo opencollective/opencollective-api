@@ -22,4 +22,6 @@ const cancelPendingChargeExpenseAuthorizations = async () => {
   process.exit(0);
 };
 
-runCronJob('cancel-stale-virtual-card-authorizations', cancelPendingChargeExpenseAuthorizations, 24 * 60 * 60);
+if (require.main === module) {
+  runCronJob('cancel-stale-virtual-card-authorizations', cancelPendingChargeExpenseAuthorizations, 24 * 60 * 60);
+}

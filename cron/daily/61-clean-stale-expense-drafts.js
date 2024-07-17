@@ -20,4 +20,6 @@ const cleanStaleExpenseDrafts = async () => {
   process.exit(0);
 };
 
-runCronJob('clean-stale-expense-drafts', cleanStaleExpenseDrafts, 24 * 60 * 60);
+if (require.main === module) {
+  runCronJob('clean-stale-expense-drafts', cleanStaleExpenseDrafts, 24 * 60 * 60);
+}

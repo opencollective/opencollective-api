@@ -97,4 +97,6 @@ export async function run({ concurrency = 20 } = {}) {
   await queue.addAll(unusedVirtualCards.map(vc => () => pauseVirtualCardDueToInactivity(vc)));
 }
 
-runCronJob('pause-virtual-cards-after-period-of-inactivity', run, 24 * 60 * 60);
+if (require.main === module) {
+  runCronJob('pause-virtual-cards-after-period-of-inactivity', run, 24 * 60 * 60);
+}

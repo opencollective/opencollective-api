@@ -43,4 +43,6 @@ const run = async () => {
   logger.info('Done.');
 };
 
-runCronJob('pending-orders-reminder', run, 24 * 60 * 60);
+if (require.main === module) {
+  runCronJob('pending-orders-reminder', run, 24 * 60 * 60);
+}

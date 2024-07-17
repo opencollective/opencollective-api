@@ -239,4 +239,6 @@ function parseCommandLineArguments() {
 
 /* eslint-enable camelcase */
 
-runCronJob('reject-contributions', () => run(parseCommandLineArguments()), 24 * 60 * 60);
+if (require.main === module) {
+  runCronJob('reject-contributions', () => run(parseCommandLineArguments()), 24 * 60 * 60);
+}

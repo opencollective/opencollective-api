@@ -260,4 +260,6 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
   }
 }
 
-runCronJob('host-settlement', () => run(defaultDate), 23 * 60 * 60);
+if (require.main === module) {
+  runCronJob('host-settlement', () => run(defaultDate), 23 * 60 * 60);
+}

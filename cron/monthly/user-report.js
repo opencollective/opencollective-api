@@ -431,4 +431,6 @@ const sendEmail = (recipient, data, options = {}) => {
   return emailLib.send('user.monthlyreport', recipient.email, data, options);
 };
 
-runCronJob('user-report', init, 23 * 60 * 60);
+if (require.main === module) {
+  runCronJob('user-report', init, 23 * 60 * 60);
+}

@@ -331,4 +331,6 @@ const init = () => {
     });
 };
 
-runCronJob('yearly-user-report', init, 23 * 60 * 60);
+if (require.main === module) {
+  runCronJob('yearly-user-report', init, 23 * 60 * 60);
+}

@@ -19,4 +19,6 @@ const run = async () => {
   }
 };
 
-runCronJob('make-updates-public', run, 24 * 60 * 60);
+if (require.main === module) {
+  runCronJob('make-updates-public', run, 24 * 60 * 60);
+}

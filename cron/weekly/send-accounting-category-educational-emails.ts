@@ -341,6 +341,8 @@ export const run = async () => {
   logger.info('Done.');
 };
 
-runCronJob('send-accounting-category-educational-emails', run, 23 * 60 * 60, {
-  transactionName: '92-send-accounting-category-educational-emails',
-});
+if (require.main === module) {
+  runCronJob('send-accounting-category-educational-emails', run, 23 * 60 * 60, {
+    transactionName: '92-send-accounting-category-educational-emails',
+  });
+}

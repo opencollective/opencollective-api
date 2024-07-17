@@ -43,4 +43,6 @@ const run = async () => {
   }
 };
 
-runCronJob('send-tax-form-requests', run, 60 * 60);
+if (require.main === module) {
+  runCronJob('send-tax-form-requests', run, 60 * 60);
+}

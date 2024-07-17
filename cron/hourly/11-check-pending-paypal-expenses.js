@@ -46,4 +46,6 @@ async function run() {
   logger.info('Done!');
 }
 
-runCronJob('check-pending-paypal-expenses', run, 60 * 60);
+if (require.main === module) {
+  runCronJob('check-pending-paypal-expenses', run, 60 * 60);
+}

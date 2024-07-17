@@ -340,4 +340,6 @@ const run = async () => {
   }
 };
 
-runCronJob('synchronize-paypal-ledger', run, 24 * 60 * 60, { feature: FEATURE.PAYPAL_DONATIONS });
+if (require.main === module) {
+  runCronJob('synchronize-paypal-ledger', run, 24 * 60 * 60, { feature: FEATURE.PAYPAL_DONATIONS });
+}

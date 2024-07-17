@@ -48,19 +48,21 @@ const onlyCollectivesWithoutTwitterActivated = collective => {
   });
 };
 
-runCronJob(
-  'onboarding',
-  () =>
-    Promise.all([
-      processOnBoardingTemplate('onboarding.day35.inactive', XDaysAgo(35), onlyInactiveCollectives),
-      processOnBoardingTemplate('onboarding.day7', XDaysAgo(7)),
-      processOnBoardingTemplate('onboarding.day21.noTwitter', XDaysAgo(21), onlyCollectivesWithoutTwitterActivated),
-      processOnBoardingTemplate('onboarding.noExpenses', XDaysAgo(14), onlyCollectivesWithoutExpenses),
-      processOnBoardingTemplate('onboarding.noUpdates', XDaysAgo(21), onlyCollectivesWithoutUpdates),
-      processOnBoardingTemplate('onboarding.day3', XDaysAgo(3)),
-      processOnBoardingTemplate('onboarding.day2', XDaysAgo(2)),
-    ]).then(() => {
-      console.log('>>> all done');
-    }),
-  60 * 60 * 24,
-);
+if (require.main === module) {
+  runCronJob(
+    'onboarding',
+    () =>
+      Promise.all([
+        processOnBoardingTemplate('onboarding.day35.inactive', XDaysAgo(35), onlyInactiveCollectives),
+        processOnBoardingTemplate('onboarding.day7', XDaysAgo(7)),
+        processOnBoardingTemplate('onboarding.day21.noTwitter', XDaysAgo(21), onlyCollectivesWithoutTwitterActivated),
+        processOnBoardingTemplate('onboarding.noExpenses', XDaysAgo(14), onlyCollectivesWithoutExpenses),
+        processOnBoardingTemplate('onboarding.noUpdates', XDaysAgo(21), onlyCollectivesWithoutUpdates),
+        processOnBoardingTemplate('onboarding.day3', XDaysAgo(3)),
+        processOnBoardingTemplate('onboarding.day2', XDaysAgo(2)),
+      ]).then(() => {
+        console.log('>>> all done');
+      }),
+    60 * 60 * 24,
+  );
+}

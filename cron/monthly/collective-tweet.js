@@ -194,4 +194,6 @@ const sendTweet = async (twitterAccount, data) => {
   }
 };
 
-runCronJob('collective-tweet', init, 23 * 60 * 60);
+if (require.main === module) {
+  runCronJob('collective-tweet', init, 23 * 60 * 60);
+}

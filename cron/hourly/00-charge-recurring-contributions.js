@@ -199,4 +199,6 @@ function parseCommandLineArguments() {
 /* eslint-enable camelcase */
 
 /** Kick off the script with all the user selected options */
-runCronJob('charge-recurring-contributions', () => run(parseCommandLineArguments()), 60 * 60);
+if (require.main === module) {
+  runCronJob('charge-recurring-contributions', () => run(parseCommandLineArguments()), 60 * 60);
+}

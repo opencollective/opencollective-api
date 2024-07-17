@@ -55,4 +55,6 @@ async function run() {
   }
 }
 
-runCronJob('refresh-materialized-views', run, 60 * 60);
+if (require.main === module) {
+  runCronJob('refresh-materialized-views', run, 60 * 60);
+}

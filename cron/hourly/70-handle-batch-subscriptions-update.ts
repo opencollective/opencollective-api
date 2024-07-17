@@ -166,4 +166,6 @@ export async function run() {
   console.log('Done!');
 }
 
-runCronJob('handle-batch-subscriptions-update', run, 60 * 60);
+if (require.main === module) {
+  runCronJob('handle-batch-subscriptions-update', run, 60 * 60);
+}

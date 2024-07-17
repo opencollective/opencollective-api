@@ -222,4 +222,6 @@ const processCollective = async collective => {
     });
 };
 
-runCronJob('collective-report', init, 23 * 60 * 60);
+if (require.main === module) {
+  runCronJob('collective-report', init, 23 * 60 * 60);
+}

@@ -28,11 +28,6 @@ export const runCronJob = async (
   errorParameters?: CaptureErrorParams,
 ) => {
   let exitCode = 0;
-  if (require.main !== module && process.env.DISABLE_CRON_MODULE_START_CHECK === undefined) {
-    logger.warn('This script is not meant to be required, please run it directly');
-    return;
-  }
-
   try {
     await lockUntilOrThrow(
       `cron:${name}`,

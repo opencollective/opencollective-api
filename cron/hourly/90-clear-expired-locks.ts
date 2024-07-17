@@ -17,4 +17,6 @@ const run = async () => {
   }
 };
 
-runCronJob('clear-expired-locks', run, 60 * 60);
+if (require.main === module) {
+  runCronJob('clear-expired-locks', run, 60 * 60);
+}
