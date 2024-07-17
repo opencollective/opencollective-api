@@ -4,9 +4,10 @@ import { pick } from 'lodash';
 import { activities } from '../../constants';
 import { CollectiveType } from '../../constants/collectives';
 import roles from '../../constants/roles';
-import cache, { fetchCollectiveId } from '../../lib/cache';
+import cache from '../../lib/cache';
 import emailLib from '../../lib/email';
 import logger from '../../lib/logger';
+import { defaultHostCollective } from '../../lib/utils';
 import models, { Collective, Op, sequelize } from '../../models';
 import User from '../../models/User';
 import { InvalidToken, ValidationFailed } from '../errors';
@@ -97,6 +98,10 @@ export const createUser = (
 };
 
 export const hasSeenLatestChangelogEntry = async (user: User): Promise<boolean> => {
+  const platform = await defaultHostCollective('opencollective');
+  if (!platform) {
+    return true;
+  }
   const cacheKey = 'latest_changelog_publish_date';
   let latestChangelogUpdatePublishDate = await cache.get(cacheKey);
   // Make sure we don't show the changelog notifications for newly confirmed users
@@ -104,10 +109,9 @@ export const hasSeenLatestChangelogEntry = async (user: User): Promise<boolean> 
   if (latestChangelogUpdatePublishDate) {
     return userChangelogViewDate >= new Date(latestChangelogUpdatePublishDate);
   } else {
-    const collectiveId = await fetchCollectiveId('opencollective');
     const latestChangelogUpdate = await models.Update.findOne({
       where: {
-        CollectiveId: collectiveId,
+        CollectiveId: platform.id,
         publishedAt: { [Op.ne]: null },
         isChangelog: true,
       },

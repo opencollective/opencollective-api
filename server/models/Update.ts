@@ -195,13 +195,14 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
     }
   };
 
-  isPlatformUpdate = function () {
-    return defaultHostCollective('opencollective').CollectiveId === this.CollectiveId;
+  isPlatformUpdate = async function () {
+    const platform = await defaultHostCollective('opencollective');
+    return platform && platform.id === this.CollectiveId;
   };
 
-  shouldNotify = function (notificationAudience = this.notificationAudience) {
+  shouldNotify = async function (notificationAudience = this.notificationAudience) {
     const audience = notificationAudience || this.notificationAudience || 'ALL';
-    return !(audience === 'NO_ONE' || this.isChangelog || this.isPlatformUpdate());
+    return !(audience === 'NO_ONE' || this.isChangelog || (await this.isPlatformUpdate()));
   };
 
   /**
@@ -210,7 +211,8 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
   getUsersIdsToNotify = async function (channel?: UpdateChannel): Promise<Array<number>> {
     const audience = this.notificationAudience || 'ALL';
 
-    if (!this.shouldNotify(audience)) {
+    const shouldNotify = await this.shouldNotify(audience);
+    if (!shouldNotify) {
       return [];
     }
 
@@ -236,7 +238,8 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
     this.collective = this.collective || (await this.getCollective());
     const audience = notificationAudience || this.notificationAudience || 'ALL';
 
-    if (!this.shouldNotify(audience)) {
+    const shouldNotify = await this.shouldNotify(audience);
+    if (!shouldNotify) {
       return 0;
     }
 
@@ -257,7 +260,8 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
    * Gets a summary of who will be notified about this update
    */
   getAudienceMembersStats = async function (audience, channel?: UpdateChannel) {
-    if (!this.shouldNotify(audience)) {
+    const shouldNotify = await this.shouldNotify(audience);
+    if (!shouldNotify) {
       return {};
     }
 

@@ -214,7 +214,7 @@ export async function createCollectiveFromGithub(_, args, req) {
     collectiveData.CreatedByUserId = user.id;
     collectiveData.LastEditedByUserId = user.id;
     collective = await models.Collective.create(collectiveData);
-    const host = await req.loaders.Collective.byId.load(defaultHostCollective('opensource').CollectiveId);
+    const host = await defaultHostCollective('opensource');
     const promises = [
       collective.addUserWithRole(user, roles.ADMIN),
       collective.addHost(host, user, { shouldAutomaticallyApprove: true }),
@@ -271,7 +271,7 @@ export async function createCollectiveFromGithub(_, args, req) {
     throw new Error(err.message);
   }
 
-  const host = await req.loaders.Collective.byId.load(defaultHostCollective('opensource').CollectiveId);
+  const host = await defaultHostCollective('opensource');
   const promises = [
     collective.addUserWithRole(user, roles.ADMIN),
     collective.addHost(host, user, { skipCollectiveApplyActivity: true }),
