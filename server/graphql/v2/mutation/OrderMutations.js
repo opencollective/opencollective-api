@@ -53,6 +53,7 @@ import {
 } from '../../v1/mutations/orders';
 import { getIntervalFromContributionFrequency } from '../enum/ContributionFrequency';
 import { GraphQLProcessOrderAction } from '../enum/ProcessOrderAction';
+import { TierFrequencyKey } from '../enum/TierFrequency';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import {
   fetchAccountingCategoryWithReference,
@@ -1039,8 +1040,16 @@ const orderMutations = {
       const currency = paymentIntentInput.currency;
 
       try {
+        let paymentMethodConfiguration = config.stripe.oneTimePaymentMethodConfiguration;
+
+        if (paymentIntentInput.frequency && paymentIntentInput.frequency !== TierFrequencyKey.ONETIME) {
+          paymentMethodConfiguration = config.stripe.recurringPaymentMethodConfiguration;
+        }
+
         const paymentIntent = await stripe.paymentIntents.create(
           {
+            // eslint-disable-next-line camelcase
+            payment_method_configuration: paymentMethodConfiguration,
             customer: stripeCustomerId,
             description: `Contribution to ${toAccount.name}`,
             amount: convertToStripeAmount(currency, totalOrderAmount),

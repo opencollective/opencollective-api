@@ -30,6 +30,7 @@ export enum PAYMENT_METHOD_TYPE {
   BANK_TRANSFER = 'bank_transfer',
   PAYOUT = 'payout',
   VIRTUAL_CARD = 'virtual_card',
+  SWISH = 'swish',
 }
 
 export const PAYMENT_METHOD_TYPES = Object.values(PAYMENT_METHOD_TYPE);
