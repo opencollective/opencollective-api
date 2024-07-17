@@ -33,7 +33,7 @@ export class KlippaOCRService implements ExpenseOCRService {
     // Check permissions
     if (!this.user) {
       throw new Error('You must be logged in to use the OCR feature');
-    } else if (!userCanUseOCR(this.user)) {
+    } else if (!(await userCanUseOCR(this.user))) {
       throw new Error('You do not have permission to use the OCR feature');
     }
 
