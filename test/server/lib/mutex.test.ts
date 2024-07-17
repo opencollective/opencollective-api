@@ -114,5 +114,13 @@ describe('lockUntilOrThrow', () => {
       });
       assert.equal(second, 'second');
     });
+
+    it('should not swallow internal errors', async () => {
+      const pFirst = lockUntilOrThrow('test', async () => {
+        throw new Error('first');
+      });
+
+      await assert.isRejected(pFirst, /first/);
+    });
   }
 });
