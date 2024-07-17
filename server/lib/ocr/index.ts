@@ -5,8 +5,8 @@ import { SupportedCurrency } from '../../constants/currencies';
 import { GraphQLAmountFields } from '../../graphql/v2/object/Amount';
 import { ParseUploadedFileResult } from '../../graphql/v2/object/ParseUploadedFileResult';
 import { UploadedFile, User } from '../../models';
+import { getInternalHostsIds } from '../collectivelib';
 import { getDateKeyForFxRateMap, loadFxRatesMap } from '../currency';
-import { getInternalHostsIds } from '../utils';
 
 import { KlippaOCRService } from './klippa/KlippaOCRService';
 import type { ExpenseOCRParseResult, ExpenseOCRService } from './ExpenseOCRService';

@@ -8,7 +8,7 @@ import { QueryTypes } from 'sequelize';
 
 import FEATURE from '../server/constants/feature';
 import OrderStatuses from '../server/constants/order-status';
-import { defaultHostCollective } from '../server/lib/utils';
+import { defaultHostCollective } from '../server/lib/collectivelib';
 import { sequelize } from '../server/models';
 
 export const main = async ({ overrideDryRun = false } = {}) => {

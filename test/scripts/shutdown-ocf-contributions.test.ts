@@ -7,8 +7,8 @@ import FEATURE from '../../server/constants/feature';
 import OrderStatuses from '../../server/constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../server/constants/paymentMethods';
 import { getFeatureStatusResolver } from '../../server/graphql/common/features';
+import * as CollectiveLib from '../../server/lib/collectivelib';
 import emailLib from '../../server/lib/email';
-import * as Utils from '../../server/lib/utils';
 import * as PayPalSubscriptionAPI from '../../server/paymentProviders/paypal/subscription';
 import { fakeActiveHost, fakeCollective, fakeOrder, fakePaymentMethod } from '../test-helpers/fake-data';
 import { makeRequest, resetTestDB } from '../utils';
@@ -23,7 +23,7 @@ describe('scripts/shutdown-ocf-contributions', () => {
     ocfCollective = await fakeCollective({ HostCollectiveId: ocf.id, isActive: true, approvedAt: new Date() });
 
     // Stub defaultHostCollective
-    sandbox.stub(Utils, 'defaultHostCollective').withArgs('foundation').returns({ CollectiveId: ocf.id });
+    sandbox.stub(CollectiveLib, 'defaultHostCollective').withArgs('foundation').returns(ocf);
     sandbox.stub(PayPalSubscriptionAPI, 'cancelPaypalSubscription').resolves();
 
     // Stub libs
