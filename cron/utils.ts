@@ -24,7 +24,7 @@ export function onlyExecuteInProdOnMondays() {
 export const runCronJob = async (
   name: string,
   run: () => Promise<any>,
-  timeoutMs: number,
+  timeoutSeconds: number,
   errorParameters?: CaptureErrorParams,
 ) => {
   let exitCode = 0;
@@ -44,14 +44,14 @@ export const runCronJob = async (
         logger.info(`CRON job finished in ${Math.round(duration / 1000)}s: ${name} `);
       },
       {
-        unlockTimeoutMs: timeoutMs * 1000,
+        unlockTimeoutMs: timeoutSeconds * 1000,
       },
     );
   } catch (error) {
     logger.error(`Error running ${name} job`, error);
     reportErrorToSentry(
       error,
-      deepmerge({ handler: 'CRON', extra: { name, timeout: timeoutMs } }, errorParameters || {}),
+      deepmerge({ handler: 'CRON', extra: { name, timeout: timeoutSeconds } }, errorParameters || {}),
     );
     // Await for Sentry to finish sending the error
     await sleep(1000);
