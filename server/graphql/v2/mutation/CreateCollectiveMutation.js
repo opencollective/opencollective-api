@@ -159,7 +159,7 @@ async function createCollective(_, args, req) {
           skipDefaultAdmin: args.skipDefaultAdmin,
           transaction,
           supportedRoles: MEMBER_INVITATION_SUPPORTED_ROLES,
-          remoteUser,
+          user: remoteUser,
         });
       }
 
