@@ -9,7 +9,7 @@ import { QueryTypes } from 'sequelize';
 import FEATURE from '../server/constants/feature';
 import OrderStatuses from '../server/constants/order-status';
 import { defaultHostCollective } from '../server/lib/utils';
-import { Collective, sequelize } from '../server/models';
+import { sequelize } from '../server/models';
 
 export const main = async ({ overrideDryRun = false } = {}) => {
   if (process.env.DRY_RUN !== 'false' && !overrideDryRun) {
@@ -18,7 +18,7 @@ export const main = async ({ overrideDryRun = false } = {}) => {
   }
 
   // Disable contributions
-  const ocf = await Collective.findByPk(defaultHostCollective('foundation').CollectiveId);
+  const ocf = await defaultHostCollective('foundation');
   await ocf.update({
     data: {
       ...ocf.data,

@@ -37,9 +37,7 @@ async function createCollective(_, args, req) {
   const isProd = config.env === 'production';
   const { remoteUser, loaders } = req;
 
-  let user = remoteUser,
-    host,
-    validatedRepositoryInfo;
+  let host, validatedRepositoryInfo;
 
   if (args.host) {
     host = await fetchAccountWithReference(args.host, { loaders });
@@ -53,14 +51,7 @@ async function createCollective(_, args, req) {
 
   return sequelize
     .transaction(async transaction => {
-      if (!user && args.user && host?.id === defaultHostCollective('foundation').CollectiveId) {
-        user = await models.User.findByEmail(args.user.email, transaction);
-        if (!user) {
-          user = await models.User.createUserWithCollective(args.user, transaction);
-        } else {
-          throw new Unauthorized('Email already exist, you have to be logged in to apply with this email');
-        }
-      } else if (!user) {
+      if (!remoteUser) {
         throw new Unauthorized('You need to be logged in to create a collective');
       }
 
@@ -68,7 +59,7 @@ async function createCollective(_, args, req) {
         slug: args.collective.slug.toLowerCase(),
         ...pick(args.collective, ['name', 'description', 'tags', 'githubHandle', 'repositoryUrl']),
         isActive: false,
-        CreatedByUserId: user.id,
+        CreatedByUserId: remoteUser.id,
         settings: { ...DEFAULT_COLLECTIVE_SETTINGS, ...args.collective.settings },
       };
 
@@ -99,16 +90,15 @@ async function createCollective(_, args, req) {
       const repositoryUrl = args.applicationData?.repositoryUrl || args.collective.repositoryUrl;
       if (args.applicationData?.useGithubValidation) {
         const githubHandle = github.getGithubHandleFromUrl(repositoryUrl) || args.collective.githubHandle;
-        const opensourceHost = defaultHostCollective('opensource');
-        host = await loaders.Collective.byId.load(opensourceHost.CollectiveId);
+        host = await defaultHostCollective('opensource');
 
         try {
           // For e2e testing, we enable testuser+(admin|member|host)@opencollective.com to create collective without github validation
-          const bypassGithubValidation = !isProd && user.email.match(/.*test.*@opencollective.com$/);
+          const bypassGithubValidation = !isProd && remoteUser.email.match(/.*test.*@opencollective.com$/);
 
           if (!bypassGithubValidation) {
             const githubAccount = await models.ConnectedAccount.findOne(
-              { where: { CollectiveId: user.CollectiveId, service: 'github' } },
+              { where: { CollectiveId: remoteUser.CollectiveId, service: 'github' } },
               { transaction },
             );
             if (githubAccount) {
@@ -162,7 +152,7 @@ async function createCollective(_, args, req) {
 
       // Add authenticated user as an admin
       if (!args.skipDefaultAdmin) {
-        await collective.addUserWithRole(user, roles.ADMIN, { CreatedByUserId: user.id }, {}, transaction);
+        await collective.addUserWithRole(remoteUser, roles.ADMIN, { CreatedByUserId: remoteUser.id }, {}, transaction);
       }
 
       if (args.inviteMembers && args.inviteMembers.length) {
@@ -170,7 +160,7 @@ async function createCollective(_, args, req) {
           skipDefaultAdmin: args.skipDefaultAdmin,
           transaction,
           supportedRoles: MEMBER_INVITATION_SUPPORTED_ROLES,
-          user,
+          remoteUser,
         });
       }
 
@@ -193,7 +183,7 @@ async function createCollective(_, args, req) {
       }
       // Add the host if any
       if (host) {
-        await collective.addHost(host, user, {
+        await collective.addHost(host, remoteUser, {
           shouldAutomaticallyApprove,
           message: args.message,
           applicationData: { ...args.applicationData, validatedRepositoryInfo },
@@ -206,14 +196,14 @@ async function createCollective(_, args, req) {
       // - tell them which fiscal host they picked, if any
       // - tell them the status of their host application
       if (!args.skipDefaultAdmin) {
-        const remoteUserCollective = await loaders.Collective.byId.load(user.CollectiveId);
-        collective.generateCollectiveCreatedActivity(user, req.userToken, {
+        const remoteUserCollective = await loaders.Collective.byId.load(remoteUser.CollectiveId);
+        collective.generateCollectiveCreatedActivity(remoteUser, req.userToken, {
           collective: collective.info,
           host: get(host, 'info'),
           hostPending: collective.approvedAt ? false : true,
           accountType: collective.type === 'FUND' ? 'fund' : 'collective',
           user: {
-            email: user.email,
+            email: remoteUser.email,
             collective: remoteUserCollective.info,
           },
         });

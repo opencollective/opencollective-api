@@ -11,6 +11,7 @@ import moment from 'moment';
 import pFilter from 'p-filter';
 
 import { ZERO_DECIMAL_CURRENCIES } from '../constants/currencies';
+import Collective from '../models/Collective';
 
 import handlebars from './handlebars';
 
@@ -266,36 +267,36 @@ export function exportToPDF(template, data, options) {
 }
 
 /**
- * Default host id, set this for new collectives created through our flow
+ * Default host, set this for new collectives created through our flow
  *
  * @param {"opensource" | "foundation" | "europe" | "opencollective" | null} category of the collective
  */
 export const defaultHostCollective = category => {
   if (config.env === 'production' || config.env === 'staging') {
     if (category === 'opensource') {
-      return { id: 772, CollectiveId: 11004, ParentCollectiveId: 83 }; // Open Source Host Collective
+      return Collective.findBySlug('opensource');
     } else if (category === 'foundation') {
-      return { CollectiveId: 11049 };
+      return Collective.findBySlug('foundation');
     } else if (category === 'europe') {
-      return { CollectiveId: 9807 };
+      return Collective.findBySlug('europe');
     } else if (category === 'opencollective') {
-      return { CollectiveId: 8686 };
+      return Collective.findBySlug('opencollective');
     } else {
-      return {}; // Don't automatically assign a host anymore
+      return null; // Don't automatically assign a host anymore
     }
   }
   if (config.env === 'development' || process.env.E2E_TEST) {
     if (category === 'opensource') {
-      return { CollectiveId: 9805, ParentCollectiveId: 83 }; // Open Source Host Collective
+      return Collective.findByPk(9805);
     } else if (category === 'foundation') {
-      return { CollectiveId: 9805 };
+      return Collective.findByPk(9805);
     } else if (category === 'opencollective') {
-      return { CollectiveId: 8686 };
+      return Collective.findByPk(8686);
     } else {
-      return {}; // Don't automatically assign a host anymore
+      return null; // Don't automatically assign a host anymore
     }
   }
-  return { id: 1, CollectiveId: 1 };
+  return null;
 };
 
 /**
