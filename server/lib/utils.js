@@ -11,7 +11,6 @@ import moment from 'moment';
 import pFilter from 'p-filter';
 
 import { ZERO_DECIMAL_CURRENCIES } from '../constants/currencies';
-import Collective from '../models/Collective';
 
 import handlebars from './handlebars';
 
@@ -265,49 +264,6 @@ export function exportToPDF(template, data, options) {
     });
   });
 }
-
-/**
- * Default host, set this for new collectives created through our flow
- *
- * @param {"opensource" | "foundation" | "europe" | "opencollective" | null} category of the collective
- */
-export const defaultHostCollective = category => {
-  if (config.env === 'production' || config.env === 'staging') {
-    if (category === 'opensource') {
-      return Collective.findBySlug('opensource');
-    } else if (category === 'foundation') {
-      return Collective.findBySlug('foundation');
-    } else if (category === 'europe') {
-      return Collective.findBySlug('europe');
-    } else if (category === 'opencollective') {
-      return Collective.findBySlug('opencollective');
-    } else {
-      return null; // Don't automatically assign a host anymore
-    }
-  }
-  if (config.env === 'development' || process.env.E2E_TEST) {
-    if (category === 'opensource') {
-      return Collective.findByPk(9805);
-    } else if (category === 'foundation') {
-      return Collective.findByPk(9805);
-    } else if (category === 'opencollective') {
-      return Collective.findByPk(8686);
-    } else {
-      return null; // Don't automatically assign a host anymore
-    }
-  }
-  return null;
-};
-
-/**
- * @returns {Array<Number>} the ids of the internal hosts
- */
-export const getInternalHostsIds = () => {
-  return ['opencollective', 'opensource', 'foundation', 'europe']
-    .map(defaultHostCollective)
-    .map(result => result.CollectiveId)
-    .filter(Boolean);
-};
 
 export const isValidEmail = email => {
   if (typeof email !== 'string') {

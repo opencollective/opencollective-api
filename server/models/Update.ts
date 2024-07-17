@@ -13,12 +13,12 @@ import Temporal from 'sequelize-temporal';
 import activities from '../constants/activities';
 import MemberRoles from '../constants/roles';
 import * as errors from '../graphql/errors';
+import { defaultHostCollective } from '../lib/collectivelib';
 import logger from '../lib/logger';
 import * as SQLQueries from '../lib/queries';
 import { buildSanitizerOptions, generateSummaryForHTML, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize, { DataTypes, Model, Op, QueryTypes } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
-import { defaultHostCollective } from '../lib/utils';
 
 import Activity from './Activity';
 import Collective from './Collective';
