@@ -7,7 +7,6 @@ import { ArgumentParser } from 'argparse';
 import PQueue from 'p-queue';
 
 import FEATURE from '../../server/constants/feature';
-import { sessionCache } from '../../server/lib/cache';
 import emailLib from '../../server/lib/email';
 import {
   groupProcessedOrders,
@@ -44,8 +43,6 @@ const csvFields = [
 
 const startTime = new Date();
 
-const JOB_RUNNING_KEY = 'cron-hourly-charger-recurring-contributions-running';
-
 const completeJob = async () => {
   await closeRedisClient();
   await sequelize.close();
@@ -58,13 +55,6 @@ if (parseToBoolean(process.env.SKIP_CHARGE_RECURRING_CONTRIBUTIONS) && !process.
 
 /** Run the script with parameters read from the command line */
 async function run(options) {
-  if (await sessionCache.get(JOB_RUNNING_KEY)) {
-    console.log('Skipping because job is already running.');
-    return;
-  }
-
-  await sessionCache.set(JOB_RUNNING_KEY, 1, 60 * 60 * 24); // release the lock after one day max
-
   options.startDate = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date();
 
   const queue = new PQueue({ concurrency: Number(options.concurrency) });
@@ -97,7 +87,6 @@ async function run(options) {
     if (data.length === 0) {
       // We used to send a "ReportNoCharges" here but we're stopping this while moving to an Hourly schedule
       console.log('Not generating CSV file');
-      await sessionCache.delete(JOB_RUNNING_KEY);
       await completeJob();
       return;
     }
@@ -123,7 +112,6 @@ async function run(options) {
     }
 
     console.log('Finished running charge recurring contributions');
-    await sessionCache.delete(JOB_RUNNING_KEY);
     await completeJob();
   });
 }
