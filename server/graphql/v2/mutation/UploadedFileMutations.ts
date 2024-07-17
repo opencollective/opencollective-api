@@ -83,7 +83,7 @@ const uploadedFileMutations = {
       }
 
       // Upload & parse files
-      const canUseOCR = userCanUseOCR(req.remoteUser);
+      const canUseOCR = await userCanUseOCR(req.remoteUser);
       const useOCR = canUseOCR && args.files.some(r => r.parseDocument);
       const parser = useOCR ? getExpenseOCRParser(req.remoteUser) : null;
       return Promise.all(

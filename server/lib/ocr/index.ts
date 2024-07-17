@@ -156,11 +156,19 @@ export const runOCRForExpenseFile = async (
   }
 };
 
-export const userCanUseOCR = (user: User | undefined | null): boolean => {
-  return (
-    config.env.OC_ENV !== 'production' ||
-    Boolean(user && (user.isRoot() || getInternalHostsIds().some(id => user.isAdminOfCollective(id))))
-  );
+export const userCanUseOCR = async (user: User | undefined | null): Promise<boolean> => {
+  if (config.env.OC_ENV !== 'production') {
+    return true;
+  }
+
+  if (!user) {
+    return false;
+  } else if (user.isRoot()) {
+    return true;
+  }
+
+  const internalHostIds = await getInternalHostsIds();
+  return Boolean(internalHostIds.some(id => user.isAdminOfCollective(id)));
 };
 
 export const lookForParserDataInCache = async (

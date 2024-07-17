@@ -463,7 +463,7 @@ export async function deleteCollective(collective) {
  *
  * @param {"opensource" | "foundation" | "europe" | "opencollective" | null} category of the collective
  */
-export const defaultHostCollective = category => {
+export const defaultHostCollective = async (category): Promise<Collective | null> => {
   if (config.env === 'production' || config.env === 'staging') {
     if (category === 'opensource') {
       return Collective.findBySlug('opensource');
@@ -494,9 +494,8 @@ export const defaultHostCollective = category => {
 /**
  * @returns {Array<Number>} the ids of the internal hosts
  */
-export const getInternalHostsIds = () => {
-  return ['opencollective', 'opensource', 'foundation', 'europe']
-    .map(defaultHostCollective)
-    .map(result => result?.id)
-    .filter(Boolean);
+export const getInternalHostsIds = async (): Promise<number[]> => {
+  const hostNames = ['opencollective', 'opensource', 'foundation', 'europe'];
+  const hostCollectives = await Promise.all(hostNames.map(defaultHostCollective));
+  return hostCollectives.map(result => result?.id).filter(Boolean) as number[];
 };
