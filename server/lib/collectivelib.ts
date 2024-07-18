@@ -466,13 +466,13 @@ export async function deleteCollective(collective) {
 export const defaultHostCollective = async (category): Promise<Collective | null> => {
   if (config.env === 'production' || config.env === 'staging') {
     if (category === 'opensource') {
-      return Collective.findBySlug('opensource');
+      return Collective.findBySlug('opensource', {}, false);
     } else if (category === 'foundation') {
-      return Collective.findBySlug('foundation');
+      return Collective.findBySlug('foundation', {}, false);
     } else if (category === 'europe') {
-      return Collective.findBySlug('europe');
+      return Collective.findBySlug('europe', {}, false);
     } else if (category === 'opencollective') {
-      return Collective.findBySlug('opencollective');
+      return Collective.findBySlug('opencollective', {}, false);
     } else {
       return null; // Don't automatically assign a host anymore
     }
