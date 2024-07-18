@@ -4,8 +4,7 @@ import deepmerge from 'deepmerge';
 import logger from '../server/lib/logger';
 import { lockUntilOrThrow } from '../server/lib/mutex';
 import { closeRedisClient } from '../server/lib/redis';
-import { CaptureErrorParams, reportErrorToSentry } from '../server/lib/sentry';
-import { sleep } from '../server/lib/utils';
+import { CaptureErrorParams, reportErrorToSentry, Sentry } from '../server/lib/sentry';
 import { sequelize } from '../server/models';
 
 /**
@@ -49,7 +48,6 @@ export const runCronJob = async (
       deepmerge({ handler: 'CRON', extra: { name, timeout: timeoutSeconds } }, errorParameters || {}),
     );
     // Await for Sentry to finish sending the error
-    await sleep(1000);
     exitCode = 1;
   }
 
@@ -57,6 +55,7 @@ export const runCronJob = async (
   if (isNotTest) {
     await closeRedisClient();
     await sequelize.close();
+    await Sentry.close(10e3);
     process.exit(exitCode);
   } else {
     logger.info(`CRON would exit with code ${exitCode}`);
