@@ -29,7 +29,7 @@ const processOrder = async (order: Order): Promise<void> => {
   const isPlatformRevenueDirectlyCollected =
     host && APPLICATION_FEE_INCOMPATIBLE_CURRENCIES.includes(toUpper(host.currency))
       ? false
-      : host?.settings?.isPlatformRevenueDirectlyCollected ?? true;
+      : (host?.settings?.isPlatformRevenueDirectlyCollected ?? true);
   const applicationFee = await getApplicationFee(order);
 
   const paymentIntentParams: Stripe.PaymentIntentCreateParams = {

@@ -126,7 +126,7 @@ export const createChargeTransactions = async (
   const isPlatformRevenueDirectlyCollected =
     host && APPLICATION_FEE_INCOMPATIBLE_CURRENCIES.includes(toUpper(host.currency))
       ? false
-      : host?.settings?.isPlatformRevenueDirectlyCollected ?? true;
+      : (host?.settings?.isPlatformRevenueDirectlyCollected ?? true);
 
   const hostFeeSharePercent = await getHostFeeSharePercent(order);
   const isSharedRevenue = !!hostFeeSharePercent;
