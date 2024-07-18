@@ -6,9 +6,9 @@ import moment from 'moment';
 import ActivityTypes from '../../server/constants/activities';
 import OrderStatuses from '../../server/constants/order-status';
 import logger from '../../server/lib/logger';
-import { reportErrorToSentry } from '../../server/lib/sentry';
 import { parseToBoolean } from '../../server/lib/utils';
 import models, { Op } from '../../server/models';
+import { runCronJob } from '../utils';
 
 if (parseToBoolean(process.env.SKIP_RESUME_SUBSCRIPTION_EMAILS)) {
   console.log('Skipping because SKIP_RESUME_SUBSCRIPTION_EMAILS is set.');
@@ -115,12 +115,5 @@ export async function run() {
 }
 
 if (require.main === module) {
-  run()
-    .then(() => process.exit(0))
-    .catch(e => {
-      logger.error('Error while sending resume subscription emails');
-      console.error(e);
-      reportErrorToSentry(e);
-      process.exit(1);
-    });
+  runCronJob('send-resume-subscription-emails', run, 60 * 60);
 }

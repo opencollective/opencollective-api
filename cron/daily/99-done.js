@@ -1,7 +1,7 @@
 import '../../server/env';
 
 import email from '../../server/lib/email';
-import { reportErrorToSentry } from '../../server/lib/sentry';
+import { runCronJob } from '../utils';
 
 const recipients = 'ops@opencollective.com';
 
@@ -15,13 +15,6 @@ function run() {
   return email.sendMessage(recipients, subject, html, { text });
 }
 
-run()
-  .then(() => {
-    console.log(text);
-    process.exit(0);
-  })
-  .catch(error => {
-    console.error(error);
-    reportErrorToSentry(error);
-    process.exit(1);
-  });
+if (require.main === module) {
+  runCronJob('done', run, 24 * 60 * 60);
+}

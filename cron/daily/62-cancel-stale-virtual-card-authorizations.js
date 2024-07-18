@@ -1,6 +1,7 @@
 import '../../server/env';
 
 import { sequelize } from '../../server/models';
+import { runCronJob } from '../utils';
 
 const cancelPendingChargeExpenseAuthorizations = async () => {
   console.log('Canceling pending Charge Expense authorizations older than 1 week...');
@@ -21,4 +22,6 @@ const cancelPendingChargeExpenseAuthorizations = async () => {
   process.exit(0);
 };
 
-cancelPendingChargeExpenseAuthorizations();
+if (require.main === module) {
+  runCronJob('cancel-stale-virtual-card-authorizations', cancelPendingChargeExpenseAuthorizations, 24 * 60 * 60);
+}

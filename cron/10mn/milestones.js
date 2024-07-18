@@ -12,6 +12,7 @@ import slackLib from '../../server/lib/slack';
 import twitter from '../../server/lib/twitter';
 import { pluralize } from '../../server/lib/utils';
 import models, { Op, sequelize } from '../../server/models';
+import { runCronJob } from '../utils';
 
 const TenMinutesAgo = new Date();
 TenMinutesAgo.setMinutes(TenMinutesAgo.getMinutes() - 10);
@@ -233,4 +234,6 @@ const sendTweet = async (tweet, twitterAccount, template) => {
   }
 };
 
-init();
+if (require.main === module) {
+  runCronJob('milestones', init, 60 * 10);
+}

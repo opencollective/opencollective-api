@@ -7,7 +7,6 @@ import { ArgumentParser } from 'argparse';
 import PQueue from 'p-queue';
 
 import FEATURE from '../../server/constants/feature';
-import { sessionCache } from '../../server/lib/cache';
 import emailLib from '../../server/lib/email';
 import {
   groupProcessedOrders,
@@ -18,6 +17,7 @@ import { closeRedisClient } from '../../server/lib/redis';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import { parseToBoolean } from '../../server/lib/utils';
 import { sequelize } from '../../server/models';
+import { runCronJob } from '../utils';
 
 const json2csv = (data, opts = undefined) => new Parser(opts).parse(data);
 
@@ -43,8 +43,6 @@ const csvFields = [
 
 const startTime = new Date();
 
-const JOB_RUNNING_KEY = 'cron-hourly-charger-recurring-contributions-running';
-
 const completeJob = async () => {
   await closeRedisClient();
   await sequelize.close();
@@ -57,14 +55,6 @@ if (parseToBoolean(process.env.SKIP_CHARGE_RECURRING_CONTRIBUTIONS) && !process.
 
 /** Run the script with parameters read from the command line */
 async function run(options) {
-  if (await sessionCache.get(JOB_RUNNING_KEY)) {
-    console.log('Skipping because job is already running.');
-    await completeJob();
-    return;
-  }
-
-  await sessionCache.set(JOB_RUNNING_KEY, 1, 60 * 60 * 24); // release the lock after one day max
-
   options.startDate = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date();
 
   const queue = new PQueue({ concurrency: Number(options.concurrency) });
@@ -97,7 +87,6 @@ async function run(options) {
     if (data.length === 0) {
       // We used to send a "ReportNoCharges" here but we're stopping this while moving to an Hourly schedule
       console.log('Not generating CSV file');
-      await sessionCache.delete(JOB_RUNNING_KEY);
       await completeJob();
       return;
     }
@@ -123,7 +112,6 @@ async function run(options) {
     }
 
     console.log('Finished running charge recurring contributions');
-    await sessionCache.delete(JOB_RUNNING_KEY);
     await completeJob();
   });
 }
@@ -211,9 +199,6 @@ function parseCommandLineArguments() {
 /* eslint-enable camelcase */
 
 /** Kick off the script with all the user selected options */
-async function entryPoint(options) {
-  await run(options);
+if (require.main === module) {
+  runCronJob('charge-recurring-contributions', () => run(parseCommandLineArguments()), 60 * 60);
 }
-
-/* Entry point */
-entryPoint(parseCommandLineArguments());

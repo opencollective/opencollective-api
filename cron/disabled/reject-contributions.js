@@ -9,8 +9,8 @@ import orderStatus from '../../server/constants/order-status';
 import { purgeCacheForCollective } from '../../server/lib/cache';
 import logger from '../../server/lib/logger';
 import { createRefundTransaction, findPaymentMethodProvider, refundTransaction } from '../../server/lib/payments';
-import { reportErrorToSentry } from '../../server/lib/sentry';
 import models, { Op, sequelize } from '../../server/models';
+import { runCronJob } from '../utils';
 
 // Fetch all orders potentially affected: contributor flagged AND recipient setup rejection
 
@@ -240,13 +240,5 @@ function parseCommandLineArguments() {
 /* eslint-enable camelcase */
 
 if (require.main === module) {
-  run(parseCommandLineArguments())
-    .then(() => {
-      process.exit(0);
-    })
-    .catch(e => {
-      console.error(e);
-      reportErrorToSentry(e);
-      process.exit(1);
-    });
+  runCronJob('reject-contributions', () => run(parseCommandLineArguments()), 24 * 60 * 60);
 }

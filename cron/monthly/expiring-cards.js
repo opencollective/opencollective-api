@@ -6,6 +6,7 @@ import moment from 'moment';
 import logger from '../../server/lib/logger';
 import { sendExpiringCreditCardUpdateEmail } from '../../server/lib/payments';
 import models, { Op } from '../../server/models';
+import { runCronJob } from '../utils';
 
 // Run on the 7th and 21st of the month
 const today = new Date();
@@ -98,5 +99,5 @@ const run = async () => {
 };
 
 if (require.main === module) {
-  run();
+  runCronJob('expiring-cards', run, 23 * 60 * 60);
 }

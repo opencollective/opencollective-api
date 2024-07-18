@@ -1,6 +1,7 @@
 import '../../server/env';
 
 import { sequelize } from '../../server/models';
+import { runCronJob } from '../utils';
 
 const cleanStaleExpenseDrafts = async () => {
   console.log('Cleaning Expense drafts older than 1 month...');
@@ -19,4 +20,6 @@ const cleanStaleExpenseDrafts = async () => {
   process.exit(0);
 };
 
-cleanStaleExpenseDrafts();
+if (require.main === module) {
+  runCronJob('clean-stale-expense-drafts', cleanStaleExpenseDrafts, 24 * 60 * 60);
+}

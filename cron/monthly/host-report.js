@@ -16,9 +16,13 @@ process.env.PORT = 3066;
 
 import HostReport from '../../reports/host-report';
 import { parseToBoolean } from '../../server/lib/utils';
+import { runCronJob } from '../utils';
 
 const hostId = process.env.HOST_ID;
 
 const d = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date();
 const rd = new Date(d.getFullYear(), d.getMonth() - 1);
-HostReport(rd.getFullYear(), rd.getMonth(), hostId);
+
+if (require.main === module) {
+  runCronJob('host-report', () => HostReport(rd.getFullYear(), rd.getMonth(), hostId), 23 * 60 * 60);
+}

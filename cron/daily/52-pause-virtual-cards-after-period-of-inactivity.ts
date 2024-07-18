@@ -3,11 +3,11 @@ import '../../server/env';
 import PQueue from 'p-queue';
 
 import { activities } from '../../server/constants';
-import { closeRedisClient } from '../../server/lib/redis';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import { parseToBoolean } from '../../server/lib/utils';
 import models, { Op, sequelize } from '../../server/models';
 import VirtualCard, { VirtualCardStatus } from '../../server/models/VirtualCard';
+import { runCronJob } from '../utils';
 
 const DRY_RUN = process.env.DRY_RUN ? parseToBoolean(process.env.DRY_RUN) : false;
 
@@ -98,17 +98,5 @@ export async function run({ concurrency = 20 } = {}) {
 }
 
 if (require.main === module) {
-  run()
-    .catch(e => {
-      console.error(e);
-      reportErrorToSentry(e);
-      process.exit(1);
-    })
-    .then(() => {
-      setTimeout(async () => {
-        await closeRedisClient();
-        await sequelize.close();
-        process.exit(0);
-      }, 2000);
-    });
+  runCronJob('pause-virtual-cards-after-period-of-inactivity', run, 24 * 60 * 60);
 }
