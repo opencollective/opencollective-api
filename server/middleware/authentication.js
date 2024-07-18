@@ -150,6 +150,8 @@ const _authenticateUserByJwt = async (req, res, next) => {
     reportMessageToSentry(`User has no collective linked`, { user });
     next();
     return;
+  } else if (req.jwtPayload.email && user.email !== req.jwtPayload.email) {
+    return next(new errors.Unauthorized('This token has expired'));
   }
 
   const { earlyAccess = {} } = user.collective.settings || {};
