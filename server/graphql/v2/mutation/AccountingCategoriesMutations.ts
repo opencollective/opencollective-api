@@ -1,9 +1,10 @@
 import { GraphQLList, GraphQLNonNull } from 'graphql';
 import { cloneDeep, isNil, pick, uniq } from 'lodash';
 
+import { CollectiveType } from '../../../constants/collectives';
 import { isUniqueConstraintError, richDiffDBEntries } from '../../../lib/data';
 import models, { sequelize } from '../../../models';
-import AccountingCategory from '../../../models/AccountingCategory';
+import AccountingCategory, { AccountingCategoryAppliesTo } from '../../../models/AccountingCategory';
 import { enforceScope } from '../../common/scope-check';
 import { Forbidden, ValidationFailed } from '../../errors';
 import { idDecode } from '../identifiers';
@@ -21,6 +22,7 @@ const EDITABLE_FIELDS: readonly (keyof AccountingCategoryInputFields)[] = [
   'expensesTypes',
   'hostOnly',
   'instructions',
+  'appliesTo',
 ];
 
 export default {
@@ -51,13 +53,25 @@ export default {
         throw new ValidationFailed('You can only create up to 100 accounting categories at once');
       }
 
+      const isIndependentCollective = account.type === CollectiveType.COLLECTIVE;
+
       const normalizedInputs: AccountingCategoryInputWithNormalizedId[] = args.categories.map(input => {
         return {
           ...input,
           id: input.id ? idDecode(input.id, 'accounting-category') : null,
           expensesTypes: isNil(input.expensesTypes) ? input.expensesTypes : uniq(input.expensesTypes).sort(), // Uniq & sort to avoid false positives in diff
+          appliesTo: input.appliesTo,
         };
       });
+
+      if (
+        isIndependentCollective &&
+        normalizedInputs.some(c => c.appliesTo === AccountingCategoryAppliesTo.HOSTED_COLLECTIVES)
+      ) {
+        throw new ValidationFailed(
+          'Independent collectives cannot create accounting categories applicable to hosted collectives',
+        );
+      }
 
       try {
         await sequelize.transaction(async transaction => {

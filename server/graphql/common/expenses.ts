@@ -61,7 +61,7 @@ import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import { canUseFeature } from '../../lib/user-permissions';
 import { formatCurrency, parseToBoolean } from '../../lib/utils';
 import models, { Collective, sequelize, TransactionsImportRow } from '../../models';
-import AccountingCategory from '../../models/AccountingCategory';
+import AccountingCategory, { AccountingCategoryAppliesTo } from '../../models/AccountingCategory';
 import Expense, { ExpenseDataValuesByRole, ExpenseStatus, ExpenseTaxDefinition } from '../../models/Expense';
 import ExpenseAttachedFile from '../../models/ExpenseAttachedFile';
 import ExpenseItem from '../../models/ExpenseItem';
@@ -1266,10 +1266,12 @@ const checkCanUseAccountingCategory = (
   expenseType: EXPENSE_TYPE,
   accountingCategory: AccountingCategory | undefined | null,
   host: Collective | undefined,
+  account: Collective,
 ): void => {
+  const isIndependentCollective = host.type === CollectiveType.COLLECTIVE;
   if (!accountingCategory) {
     return;
-  } else if (accountingCategory.CollectiveId !== host?.id) {
+  } else if (accountingCategory.CollectiveId !== host.id) {
     throw new ValidationFailed('This accounting category is not allowed for this host');
   } else if (accountingCategory.kind && accountingCategory.kind !== 'EXPENSE') {
     throw new ValidationFailed('This accounting category is not allowed for expenses');
@@ -1277,6 +1279,18 @@ const checkCanUseAccountingCategory = (
     throw new ValidationFailed(`This accounting category is not allowed for expense type: ${expenseType}`);
   } else if (accountingCategory.hostOnly && !remoteUser?.isAdmin(host.id)) {
     throw new ValidationFailed('This accounting category can only be used by the host admin');
+  } else if (
+    isIndependentCollective &&
+    accountingCategory.appliesTo === AccountingCategoryAppliesTo.HOSTED_COLLECTIVES
+  ) {
+    throw new ValidationFailed(`This accounting category is not applicable to this account`);
+  } else if (
+    (accountingCategory.appliesTo === AccountingCategoryAppliesTo.HOST &&
+      ![account.id, account.ParentCollectiveId].includes(host.id)) ||
+    (accountingCategory.appliesTo === AccountingCategoryAppliesTo.HOSTED_COLLECTIVES &&
+      [account.id, account.ParentCollectiveId].includes(host.id))
+  ) {
+    throw new ValidationFailed(`This accounting category is not applicable to this account`);
   }
 };
 
@@ -1442,7 +1456,13 @@ export async function createExpense(req: express.Request, expenseData: ExpenseDa
   checkTaxes(collective, collective.host, expenseData.type, taxes);
   checkExpenseItems(expenseData.type, itemsData, taxes);
   checkExpenseType(expenseData.type, collective, collective.parent, collective.host);
-  checkCanUseAccountingCategory(remoteUser, expenseData.type, expenseData.accountingCategory, collective.host);
+  checkCanUseAccountingCategory(
+    remoteUser,
+    expenseData.type,
+    expenseData.accountingCategory,
+    collective.host,
+    collective,
+  );
 
   if (size(expenseData.attachedFiles) > 15) {
     throw new ValidationFailed('The number of files that you can attach to an expense is limited to 15');
@@ -1951,7 +1971,13 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
 
   // Check category only if it's changing
   if (expenseData.accountingCategory) {
-    checkCanUseAccountingCategory(remoteUser, expenseType, expenseData.accountingCategory, expense.collective.host);
+    checkCanUseAccountingCategory(
+      remoteUser,
+      expenseType,
+      expenseData.accountingCategory,
+      expense.collective.host,
+      expense.collective,
+    );
   }
 
   // Edit directly the expense when touching only tags and/or accounting category. It's ok to do that here,
@@ -2044,6 +2070,7 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
         expenseData.type,
         expenseData.accountingCategory,
         expense.collective.host,
+        expense.collective,
       );
       cleanExpenseData['AccountingCategoryId'] = expenseData.accountingCategory?.id || null;
       const dataValuePath = `data.valuesByRole.${getUserRole(remoteUser, collective)}.accountingCategory`;
