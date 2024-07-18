@@ -13,7 +13,6 @@ import { SETTLEMENT_EXPENSE_PROPERTIES } from '../../server/constants/transactio
 import { getTransactionsCsvUrl } from '../../server/lib/csv';
 import { getFxRate } from '../../server/lib/currency';
 import { getPendingHostFeeShare, getPendingPlatformTips } from '../../server/lib/host-metrics';
-import { reportMessageToSentry } from '../../server/lib/sentry';
 import { parseToBoolean } from '../../server/lib/utils';
 import models, { sequelize } from '../../server/models';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
@@ -197,9 +196,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
     }
 
     if (!payoutMethod) {
-      console.error('No Payout Method found, Open Collective Inc. needs to have at least one payout method.');
-      reportMessageToSentry('No Payout Method found, Open Collective Inc. needs to have at least one payout method.');
-      process.exit();
+      throw new Error('No Payout Method found, Open Collective Inc. needs to have at least one payout method.');
     }
 
     let extraDescription = '';

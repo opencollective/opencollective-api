@@ -19,7 +19,6 @@ const cancelPendingChargeExpenseAuthorizations = async () => {
   );
 
   console.log(`>>> Done: ${meta?.rowCount} charge expenses canceled.`);
-  process.exit(0);
 };
 
 if (require.main === module) {

@@ -105,10 +105,9 @@ const init = async () => {
 
   console.log(`Preparing the ${month} report for ${collectives.length} collectives`);
 
-  processCollectives(collectives).then(() => {
+  return processCollectives(collectives).then(() => {
     const timeLapsed = Math.round((new Date() - startTime) / 1000);
     console.log(`Total run time: ${timeLapsed}s`);
-    process.exit(0);
   });
 };
 

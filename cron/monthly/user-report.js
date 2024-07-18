@@ -108,7 +108,6 @@ const init = async () => {
 
   const timeLapsed = Math.round((new Date() - startTime) / 1000);
   console.log(`Total run time: ${timeLapsed}s`);
-  process.exit(0);
 };
 
 const processBacker = async FromCollectiveId => {

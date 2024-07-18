@@ -17,7 +17,6 @@ const cleanStaleExpenseDrafts = async () => {
   );
 
   console.log(`>>> Done: ${meta?.rowCount} draft(s) deleted.`);
-  process.exit(0);
 };
 
 if (require.main === module) {

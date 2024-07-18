@@ -65,7 +65,6 @@ async function run() {
   });
   return Promise.all(nextWeekEvents.map(event => processEvent(event, 'event.reminder.7d'))).then(() => {
     console.log(`${totalEvents} events processed. All done.`);
-    process.exit(0);
   });
 }
 
