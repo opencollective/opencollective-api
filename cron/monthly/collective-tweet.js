@@ -53,7 +53,7 @@ const init = async () => {
 
   console.log(`Preparing the ${month} report for ${connectedAccounts.length} collectives`);
 
-  Promise.all(
+  return Promise.all(
     connectedAccounts.map(connectedAccount => {
       const collective = connectedAccount.collective;
       collective.twitterAccount = connectedAccount;
@@ -62,7 +62,6 @@ const init = async () => {
   ).then(() => {
     const timeLapsed = Math.round((new Date() - startTime) / 1000);
     console.log(`Total run time: ${timeLapsed}s`);
-    process.exit(0);
   });
 };
 

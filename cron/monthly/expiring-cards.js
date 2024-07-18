@@ -95,7 +95,6 @@ const run = async () => {
   }
 
   logger.info('Done sending credit card update emails.');
-  process.exit();
 };
 
 if (require.main === module) {

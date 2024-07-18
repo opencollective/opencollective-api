@@ -22,10 +22,8 @@ async function run() {
 
     const text = `${failureMessage}\n\n${errors.map(msg => `- ${msg}`).join('\n')}\n\n${fixMessage} ${fixCommand}`;
 
-    return email.sendMessage(recipients, subject, html, { text });
+    return await email.sendMessage(recipients, subject, html, { text });
   }
-
-  process.exit();
 }
 
 if (require.main === module) {

@@ -43,7 +43,6 @@ const init = async () => {
   return Promise.all(transactionsGroups.map(processNewMembersCount)).then(() => {
     const timeLapsed = new Date() - startTime;
     console.log(`Total run time: ${timeLapsed}ms`);
-    process.exit(0);
   });
 };
 

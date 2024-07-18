@@ -310,7 +310,7 @@ const getUsers = collective => {
 const init = () => {
   const startTime = new Date();
   let hosts;
-  getPlatformStats()
+  return getPlatformStats()
     .then(stats => (platformStats = stats))
     .then(() => getHosts())
     .then(h => (hosts = h))
@@ -327,7 +327,6 @@ const init = () => {
       console.log('Total user/organizations processed: ', totalUsersProcessed);
       console.log('Total user/organizations skipped: ', totalUsersSkipped);
       console.log(`Total run time: ${timeLapsed}s`);
-      process.exit(0);
     });
 };
 
