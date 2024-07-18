@@ -35,7 +35,7 @@ const createChargeAndTransactions = async (
   const isPlatformRevenueDirectlyCollected =
     host && APPLICATION_FEE_INCOMPATIBLE_CURRENCIES.includes(toUpper(host.currency))
       ? false
-      : host?.settings?.isPlatformRevenueDirectlyCollected ?? true;
+      : (host?.settings?.isPlatformRevenueDirectlyCollected ?? true);
 
   // Compute Application Fee (Shared Revenue + Platform Tip)
   const applicationFee = await getApplicationFee(order);
