@@ -13,10 +13,8 @@ import {
   ordersWithPendingCharges,
   processOrderWithSubscription,
 } from '../../server/lib/recurring-contributions';
-import { closeRedisClient } from '../../server/lib/redis';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import { parseToBoolean } from '../../server/lib/utils';
-import { sequelize } from '../../server/models';
 import { runCronJob } from '../utils';
 
 const json2csv = (data, opts = undefined) => new Parser(opts).parse(data);
@@ -42,11 +40,6 @@ const csvFields = [
 ];
 
 const startTime = new Date();
-
-const completeJob = async () => {
-  await closeRedisClient();
-  await sequelize.close();
-};
 
 if (parseToBoolean(process.env.SKIP_CHARGE_RECURRING_CONTRIBUTIONS) && !process.env.OFFCYCLE) {
   console.log('Skipping because SKIP_CHARGE_RECURRING_CONTRIBUTIONS is set.');
@@ -83,11 +76,10 @@ async function run(options) {
     );
   }
 
-  queue.onIdle().then(async () => {
+  return await queue.onIdle().then(async () => {
     if (data.length === 0) {
       // We used to send a "ReportNoCharges" here but we're stopping this while moving to an Hourly schedule
       console.log('Not generating CSV file');
-      await completeJob();
       return;
     }
     console.log('Writing the output to a CSV file');
@@ -112,7 +104,6 @@ async function run(options) {
     }
 
     console.log('Finished running charge recurring contributions');
-    await completeJob();
   });
 }
 
