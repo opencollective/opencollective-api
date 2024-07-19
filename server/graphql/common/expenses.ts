@@ -1955,6 +1955,7 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
       { model: models.PayoutMethod },
       { association: 'items' },
       { association: 'accountingCategory' },
+      { association: 'host', required: false },
     ],
   });
 

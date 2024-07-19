@@ -1138,6 +1138,27 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.errors[0].message).to.eq('This accounting category is not allowed for expenses');
       });
 
+      it('fails if the collective has no host', async () => {
+        const collective = await fakeCollective({ HostCollectiveId: null });
+        const expense = await fakeExpense({ status: 'APPROVED', CollectiveId: collective.id });
+        const accountingCategory = await fakeAccountingCategory({
+          CollectiveId: expense.collective.id,
+          kind: 'EXPENSE',
+        });
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          {
+            expense: {
+              id: idEncode(expense.id, 'expense'),
+              accountingCategory: { id: idEncode(accountingCategory.id, 'accounting-category') },
+            },
+          },
+          expense.User,
+        );
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('Cannot use accounting categories without a host');
+      });
+
       it('reserves the accounting category changes of paid expenses to host admins', async () => {
         const expense = await fakeExpense({ status: 'PAID' });
         const hostAdmin = await fakeUser();
@@ -1288,6 +1309,32 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           submitter: { accountingCategory: null },
           hostAdmin: { accountingCategory: { id: category3.id } },
         });
+      });
+
+      it('can set the accounting category on a previously hosted collective', async () => {
+        const host = await fakeActiveHost();
+        const collective = await fakeCollective({ isActive: false, HostCollectiveId: null });
+        const expense = await fakeExpense({
+          status: 'APPROVED',
+          CollectiveId: collective.id,
+          HostCollectiveId: host.id,
+        });
+        const accountingCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'EXPENSE' });
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          {
+            expense: {
+              id: idEncode(expense.id, 'expense'),
+              accountingCategory: { id: idEncode(accountingCategory.id, 'accounting-category') },
+            },
+          },
+          expense.User,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        await expense.reload();
+        expect(expense.AccountingCategoryId).to.eq(accountingCategory.id);
       });
     });
 
