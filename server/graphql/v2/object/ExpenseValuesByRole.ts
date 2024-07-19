@@ -15,8 +15,7 @@ const GraphQLExpenseValuesRoleDetails = new GraphQLObjectType({
       resolve: async (data: ExpenseDataValuesRoleDetails, _, req) => {
         // Try to load the accounting category from the DB, fallback to the value stored in data (in case it was deleted)
         if (data?.accountingCategory?.id) {
-          const category = await req.loaders.AccountingCategory.byId.load(data.accountingCategory.id);
-          return category || data.accountingCategory;
+          return req.loaders.AccountingCategory.byId.load(data.accountingCategory.id);
         }
       },
     },
