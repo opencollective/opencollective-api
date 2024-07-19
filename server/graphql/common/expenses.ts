@@ -1268,8 +1268,9 @@ const checkCanUseAccountingCategory = (
   host: Collective | undefined,
   account: Collective,
 ): void => {
-  const isIndependentCollective = host.type === CollectiveType.COLLECTIVE;
-  if (!accountingCategory) {
+  if (!host) {
+    throw new ValidationFailed('Cannot use accounting categories without a host');
+  } else if (!accountingCategory) {
     return;
   } else if (accountingCategory.CollectiveId !== host.id) {
     throw new ValidationFailed('This accounting category is not allowed for this host');
@@ -1280,7 +1281,7 @@ const checkCanUseAccountingCategory = (
   } else if (accountingCategory.hostOnly && !remoteUser?.isAdmin(host.id)) {
     throw new ValidationFailed('This accounting category can only be used by the host admin');
   } else if (
-    isIndependentCollective &&
+    host.type === CollectiveType.COLLECTIVE && // Independent Collective
     accountingCategory.appliesTo === AccountingCategoryAppliesTo.HOSTED_COLLECTIVES
   ) {
     throw new ValidationFailed(`This accounting category is not applicable to this account`);
@@ -1975,7 +1976,7 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
       remoteUser,
       expenseType,
       expenseData.accountingCategory,
-      expense.collective.host,
+      expense.host ?? expense.collective.host,
       expense.collective,
     );
   }
@@ -2069,7 +2070,7 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
         remoteUser,
         expenseData.type,
         expenseData.accountingCategory,
-        expense.collective.host,
+        expense.host ?? expense.collective.host,
         expense.collective,
       );
       cleanExpenseData['AccountingCategoryId'] = expenseData.accountingCategory?.id || null;
