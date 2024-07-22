@@ -4,10 +4,10 @@ import { groupBy, values } from 'lodash';
 
 import status from '../../server/constants/expense-status';
 import logger from '../../server/lib/logger';
-import { reportErrorToSentry } from '../../server/lib/sentry';
 import models from '../../server/models';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import * as paypal from '../../server/paymentProviders/paypal/payouts';
+import { runCronJob } from '../utils';
 
 export async function run() {
   const expenses = await models.Expense.findAll({
@@ -34,14 +34,6 @@ export async function run() {
   logger.info('Done!');
 }
 
-if (require.main === module && process.env.SKIP_PAYPAL_PAYOUTS_WORKER !== 'true') {
-  run()
-    .then(() => {
-      setTimeout(() => process.exit(0), 10000);
-    })
-    .catch(e => {
-      console.error(e);
-      reportErrorToSentry(e);
-      setTimeout(() => process.exit(0), 10000);
-    });
+if (require.main === module) {
+  runCronJob('pay-paypal-scheduled-expenses-payout', run, 60 * 60);
 }

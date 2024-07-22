@@ -7,11 +7,11 @@ import moment from 'moment';
 import { activities as activityTypes } from '../../server/constants';
 import VirtualCardProviders from '../../server/constants/virtual-card-providers';
 import logger from '../../server/lib/logger';
-import { closeRedisClient } from '../../server/lib/redis';
 import { reportErrorToSentry } from '../../server/lib/sentry';
-import models, { Op, sequelize } from '../../server/models';
+import models, { Op } from '../../server/models';
 import Expense from '../../server/models/Expense';
 import VirtualCard from '../../server/models/VirtualCard';
+import { runCronJob } from '../utils';
 
 const processVirtualCard = async (expenses: Array<Expense>) => {
   const virtualCard = expenses[0].virtualCard as VirtualCard;
@@ -95,17 +95,5 @@ const run = async () => {
 };
 
 if (require.main === module) {
-  run()
-    .catch(e => {
-      console.error(e);
-      reportErrorToSentry(e);
-      process.exit(1);
-    })
-    .then(() => {
-      setTimeout(async () => {
-        await closeRedisClient();
-        await sequelize.close();
-        process.exit(0);
-      }, 2000);
-    });
+  runCronJob('check-virtual-cards-missing-receipts', run, 24 * 60 * 60);
 }

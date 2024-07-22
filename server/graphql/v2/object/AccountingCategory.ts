@@ -1,6 +1,7 @@
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
+import { GraphQLAccountingCategoryAppliesTo } from '../enum/AccountingCategoryAppliesTo';
 import { GraphQLAccountingCategoryKind } from '../enum/AccountingCategoryKind';
 import { GraphQLExpenseType } from '../enum/ExpenseType';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
@@ -53,6 +54,10 @@ export const GraphQLAccountingCategory = new GraphQLObjectType({
     createdAt: {
       type: new GraphQLNonNull(GraphQLDateTime),
       description: 'The time of creation of this accounting category',
+    },
+    appliesTo: {
+      type: new GraphQLNonNull(GraphQLAccountingCategoryAppliesTo),
+      description: 'If the category is applicable to the Host or Hosted Collectives',
     },
   }),
 });

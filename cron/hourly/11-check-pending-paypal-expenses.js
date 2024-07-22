@@ -10,6 +10,7 @@ import { reportErrorToSentry } from '../../server/lib/sentry';
 import models from '../../server/models';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import { checkBatchStatus } from '../../server/paymentProviders/paypal/payouts';
+import { runCronJob } from '../utils';
 
 async function run() {
   const expenses = await models.Expense.findAll({
@@ -46,13 +47,5 @@ async function run() {
 }
 
 if (require.main === module) {
-  run()
-    .then(() => {
-      process.exit(0);
-    })
-    .catch(e => {
-      console.error(e);
-      reportErrorToSentry(e);
-      process.exit(1);
-    });
+  runCronJob('check-pending-paypal-expenses', run, 60 * 60);
 }

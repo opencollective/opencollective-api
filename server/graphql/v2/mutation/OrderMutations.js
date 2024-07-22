@@ -53,6 +53,7 @@ import {
 } from '../../v1/mutations/orders';
 import { getIntervalFromContributionFrequency } from '../enum/ContributionFrequency';
 import { GraphQLProcessOrderAction } from '../enum/ProcessOrderAction';
+import { TierFrequencyKey } from '../enum/TierFrequency';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import {
   fetchAccountingCategoryWithReference,
@@ -472,7 +473,7 @@ const orderMutations = {
       const order = await fetchOrderWithReference(args.order, {
         throwIfMissing: true,
         include: [
-          { association: 'collective', required: true },
+          { association: 'collective', required: true, include: [{ association: 'host', required: true }] },
           { association: 'accountingCategory', required: false },
         ],
       });
@@ -493,7 +494,7 @@ const orderMutations = {
       }
 
       // Check validity
-      checkCanUseAccountingCategoryForOrder(newAccountingCategory, order.collective.HostCollectiveId);
+      checkCanUseAccountingCategoryForOrder(newAccountingCategory, order.collective.host, order.collective);
 
       // Trigger update
       const previousAccountingCategory = order.accountingCategory;
@@ -1039,8 +1040,16 @@ const orderMutations = {
       const currency = paymentIntentInput.currency;
 
       try {
+        let paymentMethodConfiguration = config.stripe.oneTimePaymentMethodConfiguration;
+
+        if (paymentIntentInput.frequency && paymentIntentInput.frequency !== TierFrequencyKey.ONETIME) {
+          paymentMethodConfiguration = config.stripe.recurringPaymentMethodConfiguration;
+        }
+
         const paymentIntent = await stripe.paymentIntents.create(
           {
+            // eslint-disable-next-line camelcase
+            payment_method_configuration: paymentMethodConfiguration,
             customer: stripeCustomerId,
             description: `Contribution to ${toAccount.name}`,
             amount: convertToStripeAmount(currency, totalOrderAmount),
@@ -1101,7 +1110,7 @@ const orderMutations = {
           loaders: req.loaders,
         });
 
-        checkCanUseAccountingCategoryForOrder(accountingCategory, host.id);
+        checkCanUseAccountingCategoryForOrder(accountingCategory, host, toAccount);
         AccountingCategoryId = accountingCategory.id;
       }
 
@@ -1247,7 +1256,7 @@ const orderMutations = {
           loaders: req.loaders,
         });
 
-        checkCanUseAccountingCategoryForOrder(accountingCategory, host?.id);
+        checkCanUseAccountingCategoryForOrder(accountingCategory, host, order.collective);
         AccountingCategoryId = accountingCategory.id;
       }
 

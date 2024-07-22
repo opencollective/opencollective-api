@@ -31,6 +31,7 @@ import sequelize from '../../../lib/sequelize';
 import { getHostReportNodesFromQueryResult } from '../../../lib/transaction-reports';
 import { ifStr, parseToBoolean } from '../../../lib/utils';
 import models, { Collective, Op } from '../../../models';
+import { AccountingCategoryAppliesTo } from '../../../models/AccountingCategory';
 import Agreement from '../../../models/Agreement';
 import { LEGAL_DOCUMENT_TYPE } from '../../../models/LegalDocument';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
@@ -144,6 +145,10 @@ export const GraphQLHost = new GraphQLObjectType({
             type: new GraphQLList(new GraphQLNonNull(GraphQLAccountingCategoryKind)),
             description: 'Filter accounting categories by kind',
           },
+          account: {
+            type: GraphQLAccountReferenceInput,
+            description: 'Filter by accounting category applicable to this account',
+          },
         },
         // Not paginated yet as we don't expect to have too many categories for now
         async resolve(host, args, req) {
@@ -155,6 +160,16 @@ export const GraphQLHost = new GraphQLObjectType({
 
           if (!req.remoteUser?.isAdmin(host.id)) {
             where.hostOnly = false;
+          }
+
+          const account = args.account
+            ? await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true })
+            : null;
+
+          if (account) {
+            where.appliesTo = [account.id, account.ParentCollectiveId].includes(host.id)
+              ? AccountingCategoryAppliesTo.HOST
+              : AccountingCategoryAppliesTo.HOSTED_COLLECTIVES;
           }
 
           const categories = await models.AccountingCategory.findAll({ where, order });

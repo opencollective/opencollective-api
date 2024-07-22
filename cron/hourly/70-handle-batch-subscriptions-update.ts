@@ -12,6 +12,7 @@ import { parseToBoolean, sleep } from '../../server/lib/utils';
 import models, { Collective, Op } from '../../server/models';
 import Order from '../../server/models/Order';
 import { CONTRIBUTION_PAUSED_MSG } from '../../server/paymentProviders/paypal/subscription';
+import { runCronJob } from '../utils';
 
 if (parseToBoolean(process.env.SKIP_BATCH_SUBSCRIPTION_UPDATE)) {
   console.log('Skipping because SKIP_BATCH_SUBSCRIPTION_UPDATE is set.');
@@ -166,12 +167,5 @@ export async function run() {
 }
 
 if (require.main === module) {
-  run()
-    .then(() => process.exit(0))
-    .catch(e => {
-      logger.error('Error while cancelling archived accounts subscriptions');
-      console.error(e);
-      reportErrorToSentry(e);
-      process.exit(1);
-    });
+  runCronJob('handle-batch-subscriptions-update', run, 60 * 60);
 }

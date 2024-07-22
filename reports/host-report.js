@@ -529,7 +529,6 @@ async function HostReport(year, month, hostId) {
     await processHost(host);
   }
   console.log('>>> All done. Exiting.');
-  process.exit(0);
 }
 
 export default HostReport;

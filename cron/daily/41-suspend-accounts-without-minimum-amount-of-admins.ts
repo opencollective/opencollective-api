@@ -5,9 +5,8 @@ import FEATURE from '../../server/constants/feature';
 import POLICIES from '../../server/constants/policies';
 import logger from '../../server/lib/logger';
 import { getPolicy } from '../../server/lib/policies';
-import { closeRedisClient } from '../../server/lib/redis';
-import { reportErrorToSentry } from '../../server/lib/sentry';
-import models, { sequelize } from '../../server/models';
+import models from '../../server/models';
+import { runCronJob } from '../utils';
 
 const run = async () => {
   const collectives = await models.Collective.findAll({
@@ -46,17 +45,5 @@ const run = async () => {
 };
 
 if (require.main === module) {
-  run()
-    .catch(e => {
-      logger.error(e);
-      reportErrorToSentry(e);
-      process.exit(1);
-    })
-    .then(() => {
-      setTimeout(async () => {
-        await closeRedisClient();
-        await sequelize.close();
-        process.exit(0);
-      }, 2000);
-    });
+  runCronJob('suspend-accounts-without-minimum-amount-of-admins', run, 24 * 60 * 60);
 }

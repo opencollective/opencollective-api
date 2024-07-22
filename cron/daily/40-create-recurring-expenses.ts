@@ -1,9 +1,9 @@
 import '../../server/env';
 
 import logger from '../../server/lib/logger';
-import { closeRedisClient } from '../../server/lib/redis';
 import { reportErrorToSentry } from '../../server/lib/sentry';
-import models, { sequelize } from '../../server/models';
+import models from '../../server/models';
+import { runCronJob } from '../utils';
 
 const run = async () => {
   const recurringExpensesDue = await models.RecurringExpense.getRecurringExpensesDue();
@@ -20,17 +20,5 @@ const run = async () => {
 };
 
 if (require.main === module) {
-  run()
-    .catch(e => {
-      logger.error(e);
-      reportErrorToSentry(e);
-      process.exit(1);
-    })
-    .then(() => {
-      setTimeout(async () => {
-        await closeRedisClient();
-        await sequelize.close();
-        process.exit(0);
-      }, 2000);
-    });
+  runCronJob('make-updates-public', run, 24 * 60 * 60);
 }

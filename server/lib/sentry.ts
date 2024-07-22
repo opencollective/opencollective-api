@@ -94,7 +94,7 @@ export enum HandlerType {
   FALLBACK = 'FALLBACK',
 }
 
-type CaptureErrorParams = {
+export type CaptureErrorParams = {
   severity?: SeverityLevel;
   tags?: Record<string, string>;
   extra?: Record<string, unknown>;

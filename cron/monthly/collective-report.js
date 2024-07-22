@@ -14,6 +14,7 @@ import { notify } from '../../server/lib/notifications/email';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import { getTiersStats, parseToBoolean } from '../../server/lib/utils';
 import models, { Op } from '../../server/models';
+import { runCronJob } from '../utils';
 
 // Only run on the first of the month
 const today = new Date();
@@ -104,10 +105,9 @@ const init = async () => {
 
   console.log(`Preparing the ${month} report for ${collectives.length} collectives`);
 
-  processCollectives(collectives).then(() => {
+  return processCollectives(collectives).then(() => {
     const timeLapsed = Math.round((new Date() - startTime) / 1000);
     console.log(`Total run time: ${timeLapsed}s`);
-    process.exit(0);
   });
 };
 
@@ -221,4 +221,6 @@ const processCollective = async collective => {
     });
 };
 
-init();
+if (require.main === module) {
+  runCronJob('collective-report', init, 23 * 60 * 60);
+}

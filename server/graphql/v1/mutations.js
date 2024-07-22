@@ -7,7 +7,7 @@ import models from '../../models';
 import { bulkCreateGiftCards, createGiftCardsForEmails } from '../../paymentProviders/opencollective/giftcard';
 import { checkCanEmitGiftCards } from '../common/features';
 import { editPublicMessage } from '../common/members';
-import { confirmUserEmail, createUser } from '../common/user';
+import { createUser } from '../common/user';
 import { NotFound, RateLimitExceeded, Unauthorized } from '../errors';
 
 import {
@@ -177,20 +177,6 @@ const mutations = {
       return updateUserEmail(req.remoteUser, email);
     },
   },
-  confirmUserEmail: {
-    type: UserType,
-    description: 'Confirm the new user email from confirmation token',
-    deprecationReason: '2024-07-15: Please use the mutation `confirmEmail` from GQLV2',
-    args: {
-      token: {
-        type: new GraphQLNonNull(GraphQLString),
-        description: "User's emailConfirmationToken",
-      },
-    },
-    resolve: (_, { token }) => {
-      return confirmUserEmail(token);
-    },
-  },
   editConnectedAccount: {
     type: ConnectedAccountType,
     args: {
@@ -203,6 +189,7 @@ const mutations = {
   editTier: {
     type: TierType,
     description: 'Update a single tier',
+    deprecationReason: '2024-07-16: Please use editTiers mutation from GraphQLV2',
     args: {
       tier: {
         type: new GraphQLNonNull(TierInputType),
@@ -215,6 +202,7 @@ const mutations = {
   },
   editTiers: {
     type: new GraphQLList(TierType),
+    deprecationReason: '2024-07-16: Please use editTiers mutation from GraphQLV2',
     args: {
       id: { type: new GraphQLNonNull(GraphQLInt) },
       tiers: { type: new GraphQLList(TierInputType) },
@@ -226,7 +214,7 @@ const mutations = {
   editCoreContributors: {
     type: CollectiveInterfaceType,
     description: 'Updates all the core contributors (role = ADMIN or MEMBER) for this collective.',
-    deprecationReason: '2021-07-02: Please use inviteMember, editMember or removeMember mutations from GQLV2',
+    deprecationReason: '2021-07-02: Please use inviteMember, editMember or removeMember mutations from GraphQLV2',
     args: {
       collectiveId: { type: new GraphQLNonNull(GraphQLInt) },
       members: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(MemberInputType))) },
@@ -251,7 +239,7 @@ const mutations = {
   editPublicMessage: {
     type: new GraphQLList(MemberType),
     description: 'A mutation to edit the public message of all matching members.',
-    deprecationReason: '2021-01-27: Please use editPublicMessage from GQLV2',
+    deprecationReason: '2021-01-27: Please use editPublicMessage from GraphQLV2',
     args: {
       FromCollectiveId: { type: new GraphQLNonNull(GraphQLInt) },
       CollectiveId: { type: new GraphQLNonNull(GraphQLInt) },
@@ -262,6 +250,7 @@ const mutations = {
   updatePaymentMethod: {
     type: PaymentMethodType,
     description: 'Update a payment method',
+    deprecationReason: '2024-07-16: Please use updateOrder from GraphQLV2',
     args: {
       id: { type: new GraphQLNonNull(GraphQLInt) },
       name: { type: GraphQLString },

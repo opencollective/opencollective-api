@@ -8,6 +8,7 @@ import queries from '../../server/lib/queries';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import { formatArrayToString, formatCurrency, formatCurrencyObject } from '../../server/lib/utils';
 import models, { Op, sequelize } from '../../server/models';
+import { runCronJob } from '../utils';
 
 // Only run on the first of the year
 const today = new Date();
@@ -309,7 +310,7 @@ const getUsers = collective => {
 const init = () => {
   const startTime = new Date();
   let hosts;
-  getPlatformStats()
+  return getPlatformStats()
     .then(stats => (platformStats = stats))
     .then(() => getHosts())
     .then(h => (hosts = h))
@@ -326,8 +327,9 @@ const init = () => {
       console.log('Total user/organizations processed: ', totalUsersProcessed);
       console.log('Total user/organizations skipped: ', totalUsersSkipped);
       console.log(`Total run time: ${timeLapsed}s`);
-      process.exit(0);
     });
 };
 
-init();
+if (require.main === module) {
+  runCronJob('yearly-user-report', init, 23 * 60 * 60);
+}

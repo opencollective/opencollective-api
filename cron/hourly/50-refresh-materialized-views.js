@@ -1,8 +1,8 @@
 import '../../server/env';
 
 import logger from '../../server/lib/logger';
-import { reportErrorToSentry } from '../../server/lib/sentry';
 import { sequelize } from '../../server/models';
+import { runCronJob } from '../utils';
 
 const VIEWS = [
   'CollectiveTransactionStats',
@@ -56,11 +56,5 @@ async function run() {
 }
 
 if (require.main === module) {
-  run()
-    .then(() => process.exit(0))
-    .catch(e => {
-      console.error(e);
-      reportErrorToSentry(e);
-      process.exit(1);
-    });
+  runCronJob('refresh-materialized-views', run, 60 * 60);
 }

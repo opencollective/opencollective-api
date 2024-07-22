@@ -2,7 +2,7 @@ import { assert } from 'chai';
 import config from 'config';
 import { has } from 'lodash';
 
-import { lockUntilResolved } from '../../../server/lib/mutex';
+import { lockUntilOrThrow, lockUntilResolved } from '../../../server/lib/mutex';
 import { createRedisClient } from '../../../server/lib/redis';
 import { sleep } from '../../utils';
 
@@ -59,14 +59,14 @@ describe('lockUntilResolved', () => {
 
       assert.approximately(endFirst - start, 25, 5);
       assert.approximately(endSecond - start, 25 + 25, 10);
-      assert.isRejected(pFirst, /first/);
+      await assert.isRejected(pFirst, /first/);
       assert.equal(second, 'second');
     });
 
     it('throws if it fails to acquire a lock', async () => {
       lockUntilResolved('test3', async () => sleep(100));
       const pSecond = lockUntilResolved('test3', async () => sleep(1), { lockAcquireTimeoutMs: 50 });
-      assert.isRejected(pSecond, /Timeout to acquire lock for key lock:test3/);
+      await assert.isRejected(pSecond, /Timeout to acquire lock for key lock:test3/);
     });
 
     it('automatically releases the lock after expiring', async () => {
@@ -77,6 +77,50 @@ describe('lockUntilResolved', () => {
         lockAcquireTimeoutMs: 10,
       });
       assert.equal(second, 'second');
+    });
+  }
+});
+
+describe('lockUntilOrThrow', () => {
+  if (has(config, 'redis.serverUrl')) {
+    const clearRedis = async () => {
+      const redis = await createRedisClient();
+      await redis.del('lock:test');
+    };
+    beforeEach(clearRedis);
+    afterEach(clearRedis);
+
+    it("should throw if lock can't be acquired", async () => {
+      const pFirst = lockUntilOrThrow('test', async () => {
+        await sleep(25);
+        return 'first';
+      });
+      const pSecond = lockUntilOrThrow('test', async () => {
+        return 'second';
+      });
+
+      assert.equal(await pFirst, 'first');
+      await assert.isRejected(pSecond, /acquire lock/);
+    });
+
+    it('releases the lock if the callback function fails', async () => {
+      const pFirst = lockUntilOrThrow('test', async () => {
+        throw new Error('first');
+      });
+      await assert.isRejected(pFirst, /first/);
+
+      const second = await lockUntilOrThrow('test', async () => {
+        return 'second';
+      });
+      assert.equal(second, 'second');
+    });
+
+    it('should not swallow internal errors', async () => {
+      const pFirst = lockUntilOrThrow('test', async () => {
+        throw new Error('first');
+      });
+
+      await assert.isRejected(pFirst, /first/);
     });
   }
 });

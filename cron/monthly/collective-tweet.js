@@ -8,6 +8,7 @@ import moment from 'moment';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import twitter from '../../server/lib/twitter';
 import models from '../../server/models';
+import { runCronJob } from '../utils';
 
 // Only run on the first of the month
 const today = new Date();
@@ -52,7 +53,7 @@ const init = async () => {
 
   console.log(`Preparing the ${month} report for ${connectedAccounts.length} collectives`);
 
-  Promise.all(
+  return Promise.all(
     connectedAccounts.map(connectedAccount => {
       const collective = connectedAccount.collective;
       collective.twitterAccount = connectedAccount;
@@ -61,7 +62,6 @@ const init = async () => {
   ).then(() => {
     const timeLapsed = Math.round((new Date() - startTime) / 1000);
     console.log(`Total run time: ${timeLapsed}s`);
-    process.exit(0);
   });
 };
 
@@ -193,4 +193,6 @@ const sendTweet = async (twitterAccount, data) => {
   }
 };
 
-init();
+if (require.main === module) {
+  runCronJob('collective-tweet', init, 23 * 60 * 60);
+}

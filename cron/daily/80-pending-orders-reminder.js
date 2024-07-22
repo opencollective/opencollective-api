@@ -4,6 +4,7 @@ import status from '../../server/constants/order-status';
 import logger from '../../server/lib/logger';
 import { sendReminderPendingOrderEmail } from '../../server/lib/payments';
 import models, { Op } from '../../server/models';
+import { runCronJob } from '../utils';
 
 const REMINDER_DAYS = 4;
 
@@ -40,7 +41,8 @@ const run = async () => {
   }
 
   logger.info('Done.');
-  process.exit();
 };
 
-run();
+if (require.main === module) {
+  runCronJob('pending-orders-reminder', run, 24 * 60 * 60);
+}

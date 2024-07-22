@@ -62,7 +62,9 @@
     "key": "STRIPE_KEY",
     "clientId": "STRIPE_CLIENT_ID",
     "webhookSigningSecret": "STRIPE_WEBHOOK_SIGNING_SECRET",
-    "paymentIntentEnabled": "STRIPE_PAYMENT_INTENT_ENABLED"
+    "paymentIntentEnabled": "STRIPE_PAYMENT_INTENT_ENABLED",
+    "oneTimePaymentMethodConfiguration": "STRIPE_ONETIME_PAYMENT_METHOD_CONFIGURATION",
+    "recurringPaymentMethodConfiguration": "STRIPE_RECURRING_PAYMENT_METHOD_CONFIGURATION"
   },
   "aws": {
     "s3": {
