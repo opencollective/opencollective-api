@@ -259,7 +259,7 @@ const traverse = async ({ model, where, order, dependencies, limit, defaultDepen
           dWhere[on] = record.id;
         } else if (from && record[from]) {
           dWhere.id = record[from];
-        } else if (model && dep.model && tree[model][dep.model]) {
+        } else if (model && dep.model && tree[model]?.[dep.model]) {
           dWhere = { ...dWhere, [Op.or]: tree[model][dep.model].map(on => ({ [on]: record.id })) };
         } else {
           continue;
