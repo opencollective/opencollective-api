@@ -22,7 +22,7 @@ async function run() {
 
     const text = `${failureMessage}\n\n${errors.map(msg => `- ${msg}`).join('\n')}\n\n${fixMessage} ${fixCommand}`;
 
-    return await email.sendMessage(recipients, subject, html, { text });
+    return email.sendMessage(recipients, subject, html, { text });
   }
 }
 
