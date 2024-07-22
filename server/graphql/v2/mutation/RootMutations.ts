@@ -223,6 +223,9 @@ export default {
       const fromAccount = await fetchAccountWithReference(args.fromAccount, { throwIfMissing: true });
       const toAccount = await fetchAccountWithReference(args.toAccount, { throwIfMissing: true });
 
+      // Change the default timeout. We can be more permissive as this is a root action
+      req.setTimeout(5 * 60 * 1000);
+
       if (args.dryRun) {
         const message = await simulateMergeAccounts(fromAccount, toAccount);
         return { account: toAccount, message };

@@ -1,5 +1,5 @@
 import { flatten, isEmpty, keyBy, mapValues, some } from 'lodash';
-import { Model, ModelStatic } from 'sequelize';
+import { Model, ModelStatic, Transaction as SQLTransaction } from 'sequelize';
 
 import { CollectiveType } from '../constants/collectives';
 import models, { Collective, Op, sequelize } from '../models';
@@ -95,13 +95,57 @@ export const simulateMergeAccounts = async (from: Collective, into: Collective):
 
 /** Legal documents have a unique key on CollectiveId/type/year. We need to ignore the ones that already exist */
 const getLegalDocumentsToIgnore = async (from, into, transaction): Promise<number[]> => {
-  const results = await models.LegalDocument.findAll({
-    attributes: [[sequelize.fn('ARRAY_AGG', sequelize.col('id')), 'ids']],
+  const results = (await models.LegalDocument.findAll({
+    attributes: [[sequelize.fn('ARRAY_AGG', sequelize.fn('DISTINCT', sequelize.col('id'))), 'ids']],
     where: { CollectiveId: [from.id, into.id] },
     group: ['documentType', 'year'],
     transaction,
     raw: true,
-    having: sequelize.where(sequelize.fn('COUNT', sequelize.col('id')), { [Op.gt]: 1 }),
+    having: sequelize.where(sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('id'))), { [Op.gt]: 1 }),
+  })) as unknown as Array<{ ids: number[] }>;
+
+  return results.flatMap(({ ids }) => ids);
+};
+
+/**
+ * When moving members, if an entry already exists for this CollectiveId/MemberCollectiveId/role/TierId, do not carry it over
+ */
+const getMemberIdsToIgnore = async (
+  from: Collective,
+  into: Collective,
+  transaction: SQLTransaction,
+): Promise<number[]> => {
+  const results = await models.Member.findAll({
+    attributes: [[sequelize.fn('ARRAY_AGG', sequelize.fn('DISTINCT', sequelize.col('id'))), 'ids']],
+    where: { MemberCollectiveId: [from.id, into.id] },
+    group: ['CollectiveId', 'MemberCollectiveId', 'role', 'TierId'],
+    transaction,
+    raw: true,
+    having: sequelize.where(sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('MemberCollectiveId'))), {
+      [Op.gt]: 1,
+    }),
+  });
+
+  return flatten((results as unknown as { ids: number[] }[]).map(({ ids }) => ids));
+};
+
+/**
+ * When moving memberships, if an entry already exists for this CollectiveId/MemberCollectiveId/role/TierId, do not carry it over
+ */
+const getMembershipIdsToIgnore = async (
+  from: Collective,
+  into: Collective,
+  transaction: SQLTransaction,
+): Promise<number[]> => {
+  const results = await models.Member.findAll({
+    attributes: [[sequelize.fn('ARRAY_AGG', sequelize.fn('DISTINCT', sequelize.col('id'))), 'ids']],
+    where: { CollectiveId: [from.id, into.id] },
+    group: ['CollectiveId', 'MemberCollectiveId', 'role', 'TierId'],
+    transaction,
+    raw: true,
+    having: sequelize.where(sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('CollectiveId'))), {
+      [Op.gt]: 1,
+    }),
   });
 
   return flatten((results as unknown as { ids: number[] }[]).map(({ ids }) => ids));
@@ -156,9 +200,9 @@ const collectiveFieldsConfig: CollectiveFieldsConfig = {
   legalDocuments: { model: models.LegalDocument, field: 'CollectiveId', getIdsToIgnore: getLegalDocumentsToIgnore },
   location: { model: models.Location, field: 'CollectiveId' },
   memberInvitations: { model: models.MemberInvitation, field: 'MemberCollectiveId' },
-  members: { model: models.Member, field: 'MemberCollectiveId' },
+  members: { model: models.Member, field: 'MemberCollectiveId', getIdsToIgnore: getMemberIdsToIgnore },
   membershipInvitations: { model: models.MemberInvitation, field: 'CollectiveId' },
-  memberships: { model: models.Member, field: 'CollectiveId' },
+  memberships: { model: models.Member, field: 'CollectiveId', getIdsToIgnore: getMembershipIdsToIgnore },
   notifications: { model: models.Notification, field: 'CollectiveId' },
   ordersCreated: { model: models.Order, field: 'FromCollectiveId' },
   ordersReceived: { model: models.Order, field: 'CollectiveId' },
