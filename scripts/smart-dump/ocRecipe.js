@@ -96,6 +96,17 @@ const defaultDependencies = {
     },
     { model: 'Activity', on: 'OrderId' },
   ],
+  Transaction: [
+    { model: 'Transaction', where: record => ({ TransactionGroup: record.TransactionGroup }) },
+    {
+      model: 'Collective',
+      from: 'CollectiveId',
+    },
+    {
+      model: 'Collective',
+      from: 'FromCollectiveId',
+    },
+  ],
 };
 
 // eslint-disable-next-line import/no-commonjs

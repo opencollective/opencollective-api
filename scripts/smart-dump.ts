@@ -23,7 +23,7 @@ const exec = cmd => {
   }
 };
 
-const buildDependencyTree = models => {
+const buildForeignKeyTree = () => {
   const tree = {};
   const modelsArray: any[] = Object.values(models);
 
@@ -147,7 +147,7 @@ const buildDependencyTree = models => {
 //   },
 //   PaypalProduct: { PaypalPlan: [ 'ProductId' ] }
 // }
-const tree = buildDependencyTree(models);
+const foreignKeys = buildForeignKeyTree();
 
 const TEST_STRIPE_ACCOUNTS = Object.values(testStripeAccounts).reduce(
   (obj, account) => ({ ...obj, [account.CollectiveId]: account }),
@@ -209,6 +209,7 @@ const serialize = model => document => ({ ...document.dataValues, ...Sanitizers[
 type RecipeItem = {
   model?: string;
   where?: Record<string, any>;
+  with?: (record: any) => Record<string, any>;
   order?: Record<string, any>;
   dependencies?: Array<RecipeItem | string>;
   defaultDependencies?: Array<RecipeItem | string>;
@@ -255,12 +256,21 @@ const traverse = async ({ model, where, order, dependencies, limit, defaultDepen
         const dependency = typeof d === 'string' ? { model: d } : d;
         const { on, from, ...dep } = dependency;
         let dWhere = dep.where || {};
-        if (on) {
+        // If the dependency has a custom function
+        if (typeof dWhere === 'function') {
+          dWhere = dWhere(record);
+        }
+        // Reference direct from the record dependency ID
+        else if (on) {
           dWhere[on] = record.id;
-        } else if (from && record[from]) {
+        }
+        // Reference foreign key from the recipe
+        else if (from && record[from]) {
           dWhere.id = record[from];
-        } else if (model && dep.model && tree[model]?.[dep.model]) {
-          dWhere = { ...dWhere, [Op.or]: tree[model][dep.model].map(on => ({ [on]: record.id })) };
+        }
+        // Reference default foreign key from the tree
+        else if (model && dep.model && foreignKeys[model]?.[dep.model]) {
+          dWhere = { ...dWhere, [Op.or]: foreignKeys[model][dep.model].map(on => ({ [on]: record.id })) };
         } else {
           continue;
         }
