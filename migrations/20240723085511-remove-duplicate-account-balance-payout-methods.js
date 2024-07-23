@@ -18,7 +18,7 @@ module.exports = {
         "data" = JSONB_SET("data", '{unsavedFromMigration20240723085511}', 'true')
       FROM accounts_with_duplicates
       WHERE pm."CollectiveId" = accounts_with_duplicates."CollectiveId"
-      AND pm.id = accounts_with_duplicates."PayoutMethodIdToKeep"
+      AND pm.id != accounts_with_duplicates."PayoutMethodIdToKeep"
       AND pm.type = 'ACCOUNT_BALANCE'
       AND pm."deletedAt" IS NULL
       AND pm."isSaved" IS TRUE
