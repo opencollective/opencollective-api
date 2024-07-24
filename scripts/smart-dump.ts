@@ -4,14 +4,11 @@ import { execSync } from 'child_process';
 
 import { Command } from 'commander';
 import { readJsonSync, writeJsonSync } from 'fs-extra';
-import { cloneDeepWith, compact, concat, flatten, repeat, set, uniqBy } from 'lodash';
+import { uniqBy } from 'lodash';
 
+import { traverse } from '../server/lib/export';
 import { md5 } from '../server/lib/utils';
-import models, { Op, sequelize } from '../server/models';
-import { IDENTIFIABLE_DATA_FIELDS } from '../server/models/PayoutMethod';
-import { randEmail, randStr } from '../test/test-helpers/fake-data';
-
-import { testStripeAccounts } from './sanitize-db';
+import models, { sequelize } from '../server/models';
 
 const program = new Command();
 const nop = () => undefined;
@@ -21,266 +18,6 @@ const exec = cmd => {
   } catch (e) {
     console.error(e);
   }
-};
-
-const buildForeignKeyTree = () => {
-  const tree = {};
-  const modelsArray: any[] = Object.values(models);
-
-  modelsArray.forEach(model => {
-    const { tableAttributes: columns, name } = model;
-    Object.values(columns).forEach((column: any) => {
-      if (column.references) {
-        const model = modelsArray.find(model => model.tableName === column.references.model);
-        if (tree[model.name]?.[name]) {
-          tree[model.name][name].push(column.fieldName);
-        } else {
-          set(tree, `${model.name}.${name}`, [column.fieldName]);
-        }
-      }
-    });
-  });
-  return tree;
-};
-
-// {
-//   Collective: {
-//     Activity: [ 'CollectiveId', 'FromCollectiveId', 'HostCollectiveId' ],
-//     Application: [ 'CollectiveId' ],
-//     Collective: [ 'ParentCollectiveId', 'HostCollectiveId' ],
-//     Comment: [ 'CollectiveId', 'FromCollectiveId' ],
-//     EmojiReaction: [ 'FromCollectiveId' ],
-//     ConnectedAccount: [ 'CollectiveId' ],
-//     Conversation: [ 'CollectiveId', 'FromCollectiveId' ],
-//     Expense: [ 'HostCollectiveId', 'FromCollectiveId', 'CollectiveId' ],
-//     HostApplication: [ 'CollectiveId', 'HostCollectiveId' ],
-//     LegalDocument: [ 'CollectiveId' ],
-//     Member: [ 'MemberCollectiveId', 'CollectiveId' ],
-//     MemberInvitation: [ 'MemberCollectiveId', 'CollectiveId' ],
-//     Notification: [ 'CollectiveId' ],
-//     Order: [ 'FromCollectiveId', 'CollectiveId' ],
-//     PaymentMethod: [ 'CollectiveId' ],
-//     PayoutMethod: [ 'CollectiveId' ],
-//     PaypalProduct: [ 'CollectiveId' ],
-//     RecurringExpense: [ 'CollectiveId', 'FromCollectiveId' ],
-//     RequiredLegalDocument: [ 'HostCollectiveId' ],
-//     Tier: [ 'CollectiveId' ],
-//     Transaction: [
-//       'FromCollectiveId',
-//       'CollectiveId',
-//       'HostCollectiveId',
-//       'UsingGiftCardFromCollectiveId'
-//     ],
-//     Update: [ 'CollectiveId', 'FromCollectiveId' ],
-//     User: [ 'CollectiveId' ],
-//     VirtualCard: [ 'CollectiveId', 'HostCollectiveId' ],
-//     PersonalToken: [ 'CollectiveId' ],
-//     SocialLink: [ 'CollectiveId' ]
-//   },
-//   User: {
-//     Activity: [ 'UserId' ],
-//     Application: [ 'CreatedByUserId' ],
-//     Collective: [ 'CreatedByUserId', 'LastEditedByUserId' ],
-//     Comment: [ 'CreatedByUserId' ],
-//     EmojiReaction: [ 'UserId' ],
-//     ConnectedAccount: [ 'CreatedByUserId' ],
-//     Conversation: [ 'CreatedByUserId' ],
-//     ConversationFollower: [ 'UserId' ],
-//     Expense: [ 'UserId', 'lastEditedById' ],
-//     ExpenseAttachedFile: [ 'CreatedByUserId' ],
-//     ExpenseItem: [ 'CreatedByUserId' ],
-//     HostApplication: [ 'CreatedByUserId' ],
-//     Member: [ 'CreatedByUserId' ],
-//     MemberInvitation: [ 'CreatedByUserId' ],
-//     MigrationLog: [ 'CreatedByUserId' ],
-//     Notification: [ 'UserId' ],
-//     OAuthAuthorizationCode: [ 'UserId' ],
-//     Order: [ 'CreatedByUserId' ],
-//     PaymentMethod: [ 'CreatedByUserId' ],
-//     PayoutMethod: [ 'CreatedByUserId' ],
-//     Transaction: [ 'CreatedByUserId' ],
-//     Update: [ 'CreatedByUserId', 'LastEditedByUserId' ],
-//     UploadedFile: [ 'CreatedByUserId' ],
-//     UserToken: [ 'UserId' ],
-//     VirtualCard: [ 'UserId' ],
-//     PersonalToken: [ 'UserId' ]
-//   },
-//   UserToken: { Activity: [ 'UserTokenId' ] },
-//   Transaction: {
-//     Activity: [ 'TransactionId' ],
-//     Transaction: [ 'RefundTransactionId' ]
-//   },
-//   Expense: {
-//     Activity: [ 'ExpenseId' ],
-//     Comment: [ 'ExpenseId' ],
-//     ExpenseAttachedFile: [ 'ExpenseId' ],
-//     ExpenseItem: [ 'ExpenseId' ],
-//     Transaction: [ 'ExpenseId' ],
-//     TransactionSettlement: [ 'ExpenseId' ]
-//   },
-//   Order: { Activity: [ 'OrderId' ], Transaction: [ 'OrderId' ] },
-//   Update: { Comment: [ 'UpdateId' ], EmojiReaction: [ 'UpdateId' ] },
-//   Conversation: {
-//     Comment: [ 'ConversationId' ],
-//     ConversationFollower: [ 'ConversationId' ]
-//   },
-//   Comment: { EmojiReaction: [ 'CommentId' ] },
-//   PayoutMethod: { Expense: [ 'PayoutMethodId' ], Transaction: [ 'PayoutMethodId' ] },
-//   VirtualCard: { Expense: [ 'VirtualCardId' ] },
-//   RecurringExpense: { Expense: [ 'RecurringExpenseId' ] },
-//   Tier: {
-//     Member: [ 'TierId' ],
-//     MemberInvitation: [ 'TierId' ],
-//     Order: [ 'TierId' ],
-//     PaypalProduct: [ 'TierId' ],
-//     Update: [ 'TierId' ]
-//   },
-//   Application: {
-//     OAuthAuthorizationCode: [ 'ApplicationId' ],
-//     UserToken: [ 'ApplicationId' ]
-//   },
-//   Subscription: { Order: [ 'SubscriptionId' ] },
-//   PaymentMethod: {
-//     Order: [ 'PaymentMethodId' ],
-//     PaymentMethod: [ 'SourcePaymentMethodId' ],
-//     Transaction: [ 'PaymentMethodId' ]
-//   },
-//   PaypalProduct: { PaypalPlan: [ 'ProductId' ] }
-// }
-const foreignKeys = buildForeignKeyTree();
-
-const TEST_STRIPE_ACCOUNTS = Object.values(testStripeAccounts).reduce(
-  (obj, account) => ({ ...obj, [account.CollectiveId]: account }),
-  {},
-);
-
-const Sanitizers = {
-  ConnectedAccount: values =>
-    TEST_STRIPE_ACCOUNTS[values.CollectiveId] || {
-      token: randStr('tok_'),
-    },
-  PaymentMethod: values => ({
-    token: randStr('tok_'),
-    customerId: randStr('cus_'),
-    data: cloneDeepWith(values.data, (value, key) => {
-      if (key === 'customerIdForHost') {
-        return {};
-      } else if (key === 'fullName') {
-        return randStr('name_');
-      } else if (
-        ['orderID', 'payerID', 'paymentID', 'returnUrl', 'paymentToken', 'subscriptionId', 'fingerprint'].includes(
-          key as string,
-        )
-      ) {
-        return randStr();
-      } else if (key === 'email') {
-        return randEmail();
-      }
-    }),
-    name: values.service === 'paypal' ? randEmail() : values.name,
-  }),
-  PayoutMethod: values => ({
-    data: cloneDeepWith(values.data, (value, key) => {
-      if (['postCode', 'firstLine', ...IDENTIFIABLE_DATA_FIELDS].includes(key as string)) {
-        return randStr();
-      } else if (key === 'accountHolderName') {
-        return randStr('name_');
-      } else if (key === 'email') {
-        return randEmail();
-      }
-    }),
-  }),
-  User: values => ({
-    email: randEmail(),
-    twoFactorAuthToken: null,
-    twoFactorAuthRecoveryCodes: null,
-    passwordHash: null,
-    passwordUpdatedAt: null,
-    data: cloneDeepWith(values.data, (value, key) => {
-      if (key === 'lastSignInRequest') {
-        return {};
-      }
-    }),
-  }),
-};
-
-const serialize = model => document => ({ ...document.dataValues, ...Sanitizers[model]?.(document.dataValues), model });
-
-type RecipeItem = {
-  model?: string;
-  where?: Record<string, any>;
-  with?: (record: any) => Record<string, any>;
-  order?: Record<string, any>;
-  dependencies?: Array<RecipeItem | string>;
-  defaultDependencies?: Array<RecipeItem | string>;
-  on?: string;
-  from?: string;
-  limit?: number;
-  depth?: number;
-};
-
-const parsed = {};
-
-const traverse = async ({ model, where, order, dependencies, limit, defaultDependencies, depth = 1 }: RecipeItem) => {
-  const acc: any[] = [];
-  let records;
-  if (model && where) {
-    if (!where.id && parsed[model]) {
-      where.id = { [Op.notIn]: Array.from(parsed[model]) };
-    }
-
-    records = await models[model]
-      .findAll({
-        where,
-        limit,
-        order,
-      })
-      .then(r => r.map(serialize(model)));
-
-    if (!parsed[model]) {
-      parsed[model] = new Set(records.map(r => r.id));
-    } else {
-      records.forEach(r => parsed[model].add(r.id));
-    }
-    acc.push(...records);
-  }
-  // Inject default dependencies for the model
-  dependencies = compact(concat(dependencies, defaultDependencies[model]));
-  if (dependencies && records) {
-    for (const record of records) {
-      const isLast = records.indexOf(record) === records.length - 1;
-      console.info(`${repeat('  │', depth - 1)}  ${isLast ? '└' : '├'} ${record.model} #${record.id}`);
-
-      const pResults = [];
-      for (const d of dependencies) {
-        const dependency = typeof d === 'string' ? { model: d } : d;
-        const { on, from, ...dep } = dependency;
-        let dWhere = dep.where || {};
-        // If the dependency has a custom function
-        if (typeof dWhere === 'function') {
-          dWhere = dWhere(record);
-        }
-        // Reference direct from the record dependency ID
-        else if (on) {
-          dWhere[on] = record.id;
-        }
-        // Reference foreign key from the recipe
-        else if (from && record[from]) {
-          dWhere.id = record[from];
-        }
-        // Reference default foreign key from the tree
-        else if (model && dep.model && foreignKeys[model]?.[dep.model]) {
-          dWhere = { ...dWhere, [Op.or]: foreignKeys[model][dep.model].map(on => ({ [on]: record.id })) };
-        } else {
-          continue;
-        }
-        pResults.push(traverse({ ...dep, where: dWhere, defaultDependencies, depth: depth + 1 }));
-      }
-      const results = await Promise.all(pResults);
-      acc.push(...flatten(results));
-    }
-  }
-  return uniqBy(acc, r => `${r.model}.${r.id}`);
 };
 
 program.command('dump [recipe] [env]').action(async (recipe, env) => {
@@ -296,6 +33,7 @@ program.command('dump [recipe] [env]').action(async (recipe, env) => {
 
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { entries, defaultDependencies } = require(recipe);
+  const parsed = {};
   const date = new Date().toISOString().substring(0, 10);
   const hash = md5(JSON.stringify({ entries, defaultDependencies, date })).slice(0, 5);
   const filename = `${date}.${hash}`;
@@ -303,7 +41,7 @@ program.command('dump [recipe] [env]').action(async (recipe, env) => {
   console.time('>>> Dump');
   for (const entry of entries) {
     console.log(`\n>>> Traversing DB for entry ${entries.indexOf(entry) + 1}/${entries.length}...`);
-    const newdocs = await traverse({ ...entry, defaultDependencies });
+    const newdocs = await traverse({ ...entry, defaultDependencies, parsed });
     docs.push(...newdocs);
   }
   console.timeEnd('>>> Dump');
