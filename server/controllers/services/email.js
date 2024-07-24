@@ -70,7 +70,7 @@ export const messageSupport = async (req, res) => {
     logger.info(`Contact Link: ${additionalLink}`);
   }
   const recipient = 'support@opencollective.com';
-  const options = { from: `${body.name} <${body.email}>` };
+  const options = { replyTo: `${body.name} <${body.email}>` };
   const topic = `${body.topic}`;
   const rawHtml = `${body.message}
   <br/>
