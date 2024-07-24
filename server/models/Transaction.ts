@@ -174,9 +174,9 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
   declare getOppositeTransaction: () => Promise<Transaction | null>;
   declare getPaymentProcessorFeeTransaction: () => Promise<Transaction | null>;
   declare getTaxTransaction: () => Promise<Transaction | null>;
-  declare getPlatformTipTransaction: () => Promise<Transaction | null>;
+  declare getPlatformTipTransaction: (options?: Pick<Transaction, 'type'>) => Promise<Transaction | null>;
   declare getPlatformTipDebtTransaction: () => Promise<Transaction | null>;
-  declare getHostFeeTransaction: () => Promise<Transaction | null>;
+  declare getHostFeeTransaction: (options?: Pick<Transaction, 'type'>) => Promise<Transaction | null>;
   declare getHostFeeShareTransaction: () => Promise<Transaction | null>;
   declare getHostFeeShareDebtTransaction: () => Promise<Transaction | null>;
   declare getRefundTransaction: () => Promise<Transaction | null>;
@@ -1753,16 +1753,16 @@ Transaction.prototype.getTaxTransaction = function () {
   return this.getRelatedTransaction({ kind: TransactionKind.TAX });
 };
 
-Transaction.prototype.getPlatformTipTransaction = function () {
-  return this.getRelatedTransaction({ kind: TransactionKind.PLATFORM_TIP });
+Transaction.prototype.getPlatformTipTransaction = function (options?: Pick<Transaction, 'type'>) {
+  return this.getRelatedTransaction({ ...options, kind: TransactionKind.PLATFORM_TIP });
 };
 
 Transaction.prototype.getPlatformTipDebtTransaction = function () {
   return this.getRelatedTransaction({ kind: TransactionKind.PLATFORM_TIP_DEBT, isDebt: true });
 };
 
-Transaction.prototype.getHostFeeTransaction = function () {
-  return this.getRelatedTransaction({ kind: TransactionKind.HOST_FEE });
+Transaction.prototype.getHostFeeTransaction = function (options?: Pick<Transaction, 'type'>) {
+  return this.getRelatedTransaction({ ...options, kind: TransactionKind.HOST_FEE });
 };
 
 Transaction.prototype.getHostFeeShareTransaction = function () {
