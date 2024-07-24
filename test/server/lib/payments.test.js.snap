@@ -22,6 +22,30 @@ exports[`server/lib/payments createRefundTransaction should allow collective to 
 | CONTRIBUTION            | CREDIT | true     | false  | Scouts d'Arlon | Xavier Damman  | NULL | 4750   | USD      | 250         | 0          |            | Refund of \\"Monthly subscription to Webpack\\" |"
 `;
 
+exports[`server/lib/payments createRefundTransaction should be able to refund only the host fee 1`] = `
+"
+| kind         | type   | isRefund | isDebt | From       | To         | Host | amount | currency | platformFee | paymentFee | Settlement | description                |
+| ------------ | ------ | -------- | ------ | ---------- | ---------- | ---- | ------ | -------- | ----------- | ---------- | ---------- | -------------------------- |
+| HOST_FEE     | DEBIT  | false    | false  | Host       | Collective | Host | -500   | USD      | 0           | 0          |            | Host Fee                   |
+| HOST_FEE     | CREDIT | false    | false  | Collective | Host       | Host | 500    | USD      | 0           | 0          |            | Host Fee                   |
+| CONTRIBUTION | DEBIT  | false    | false  | Collective | User       | NULL | -5000  | USD      | 0           | 0          |            | Contribution to Collective |
+| CONTRIBUTION | CREDIT | false    | false  | User       | Collective | Host | 5000   | USD      | 0           | 0          |            | Contribution to Collective |
+| HOST_FEE     | DEBIT  | true     | false  | Collective | Host       | Host | -500   | USD      | 0           | 0          |            | Refund of \\"Host Fee\\"       |
+| HOST_FEE     | CREDIT | true     | false  | Host       | Collective | Host | 500    | USD      | 0           | 0          |            | Refund of \\"Host Fee\\"       |"
+`;
+
+exports[`server/lib/payments createRefundTransaction should be able to refund only the platform tip 1`] = `
+"
+| kind         | type   | isRefund | isDebt | From            | To              | Host            | amount | currency | platformFee | paymentFee | Settlement | description                                           |
+| ------------ | ------ | -------- | ------ | --------------- | --------------- | --------------- | ------ | -------- | ----------- | ---------- | ---------- | ----------------------------------------------------- |
+| PLATFORM_TIP | DEBIT  | false    | false  | Open Collective | User            | NULL            | -500   | USD      | 0           | 0          |            | Financial contribution to Open Collective             |
+| PLATFORM_TIP | CREDIT | false    | false  | User            | Open Collective | Open Collective | 500    | USD      | 0           | 0          |            | Financial contribution to Open Collective             |
+| CONTRIBUTION | DEBIT  | false    | false  | Collective      | User            | NULL            | -5000  | USD      | 0           | 0          |            | Contribution to Collective                            |
+| CONTRIBUTION | CREDIT | false    | false  | User            | Collective      | Host            | 5000   | USD      | 0           | 0          |            | Contribution to Collective                            |
+| PLATFORM_TIP | DEBIT  | true     | false  | User            | Open Collective | Open Collective | -500   | USD      | 0           | 0          |            | Refund of \\"Financial contribution to Open Collective\\" |
+| PLATFORM_TIP | CREDIT | true     | false  | Open Collective | User            | NULL            | 500    | USD      | 0           | 0          |            | Refund of \\"Financial contribution to Open Collective\\" |"
+`;
+
 exports[`server/lib/payments createRefundTransaction should not create payment processor fee cover for contribution to the host itself 1`] = `
 "
 | kind                  | type   | isRefund | isDebt | From                    | To                      | Host | amount | currency | platformFee | paymentFee | Settlement | description                                   |
