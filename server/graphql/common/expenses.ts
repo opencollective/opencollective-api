@@ -93,7 +93,7 @@ import { getValueInCentsFromAmountInput } from '../v2/input/AmountInput';
 import { GraphQLCurrencyExchangeRateInputType } from '../v2/input/CurrencyExchangeRateInput';
 
 import { getContextPermission, PERMISSION_TYPE } from './context-permissions';
-import { checkRemoteUserCanRoot } from './scope-check';
+import { checkRemoteUserCanRoot, checkScope } from './scope-check';
 
 const debug = debugLib('expenses');
 
@@ -266,11 +266,30 @@ const remoteUserMeetsOneCondition = async (
   return false;
 };
 
+const validateExpenseScope = (req: express.Request, options: { throw?: boolean } = { throw: false }) => {
+  if (!checkScope(req, 'expenses')) {
+    if (options.throw) {
+      throw new Forbidden(
+        'You do not have the necessary scope to perform this action',
+        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
+      );
+    } else {
+      return false;
+    }
+  }
+
+  return true;
+};
+
 // ---- Permissions ----
 // Read permissions
 
 /** Checks if the user can see expense's attachments (items URLs, attached files) */
 export const canSeeExpenseAttachments: ExpensePermissionEvaluator = async (req, expense) => {
+  if (!validateExpenseScope(req)) {
+    return false;
+  }
+
   return remoteUserMeetsOneCondition(req, expense, [
     isOwner,
     isOwnerAccountant,
@@ -283,6 +302,10 @@ export const canSeeExpenseAttachments: ExpensePermissionEvaluator = async (req, 
 
 /** Checks if the user can see expense's payout method */
 export const canSeeExpensePayoutMethod: ExpensePermissionEvaluator = async (req, expense) => {
+  if (!validateExpenseScope(req)) {
+    return false;
+  }
+
   return remoteUserMeetsOneCondition(req, expense, [
     isOwner,
     isOwnerAccountant,
@@ -300,6 +323,10 @@ export const canSeeExpenseInvoiceInfo: ExpensePermissionEvaluator = async (
   expense,
   options = { throw: false },
 ) => {
+  if (!validateExpenseScope(req)) {
+    return false;
+  }
+
   return remoteUserMeetsOneCondition(
     req,
     expense,
@@ -317,6 +344,10 @@ export const canSeeExpenseInvoiceInfo: ExpensePermissionEvaluator = async (
 
 /** Checks if the user can see expense's payout method */
 export const canSeeExpensePayeeLocation: ExpensePermissionEvaluator = async (req, expense) => {
+  if (!validateExpenseScope(req)) {
+    return false;
+  }
+
   return remoteUserMeetsOneCondition(req, expense, [
     isOwner,
     isOwnerAccountant,
@@ -328,6 +359,10 @@ export const canSeeExpensePayeeLocation: ExpensePermissionEvaluator = async (req
 };
 
 export const canSeeExpenseSecurityChecks: ExpensePermissionEvaluator = async (req, expense) => {
+  if (!validateExpenseScope(req)) {
+    return false;
+  }
+
   // Preload host and collective, we'll need them for permissions checks
   expense.collective = expense.collective || (await req.loaders.Collective.byId.load(expense.CollectiveId));
   if (expense.collective?.HostCollectiveId && !expense.collective.host) {
@@ -343,6 +378,10 @@ export const canSeeExpenseSecurityChecks: ExpensePermissionEvaluator = async (re
 };
 
 export const canSeeExpenseCustomData: ExpensePermissionEvaluator = async (req, expense) => {
+  if (!validateExpenseScope(req)) {
+    return false;
+  }
+
   return remoteUserMeetsOneCondition(req, expense, [
     isOwner,
     isCollectiveOrHostAccountant,
@@ -353,12 +392,18 @@ export const canSeeExpenseCustomData: ExpensePermissionEvaluator = async (req, e
 };
 
 export const canUsePrivateNotes = async (req: express.Request, expense: Expense): Promise<boolean> => {
+  if (!validateExpenseScope(req)) {
+    return false;
+  }
+
   return isHostAdmin(req, expense);
 };
 
 export const canSeeExpenseDraftPrivateDetails: ExpensePermissionEvaluator = async (req, expense) => {
-  // We allow a context permission for unauthenticated users who provide the correct draft key
-  if (getContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_DRAFT_PRIVATE_DETAILS, expense.id)) {
+  if (!validateExpenseScope(req)) {
+    return false;
+  } else if (getContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_DRAFT_PRIVATE_DETAILS, expense.id)) {
+    // We allow a context permission for unauthenticated users who provide the correct draft key
     return true;
   } else {
     return remoteUserMeetsOneCondition(req, expense, [
@@ -375,7 +420,9 @@ export const canSeeExpenseDraftPrivateDetails: ExpensePermissionEvaluator = asyn
 
 /** Checks if the user can verify or resend a draft */
 export const canVerifyDraftExpense: ExpensePermissionEvaluator = async (req, expense): Promise<boolean> => {
-  if (!['DRAFT', 'UNVERIFIED'].includes(expense.status)) {
+  if (!validateExpenseScope(req)) {
+    return false;
+  } else if (!['DRAFT', 'UNVERIFIED'].includes(expense.status)) {
     return false;
   } else {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin]);
@@ -392,6 +439,10 @@ export const canEditExpense: ExpensePermissionEvaluator = async (
   expense: Expense,
   options = { throw: false },
 ) => {
+  if (!validateExpenseScope(req, options)) {
+    return false;
+  }
+
   const nonEditableStatuses = ['PAID', 'PROCESSING', 'SCHEDULED_FOR_PAYMENT', 'CANCELED'];
 
   // Host and expense owner can attach receipts to paid charge expenses
@@ -424,7 +475,9 @@ export const canEditExpenseTags: ExpensePermissionEvaluator = async (
   expense: Expense,
   options = { throw: false },
 ) => {
-  if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+  if (!validateExpenseScope(req, options)) {
+    return false;
+  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     if (options?.throw) {
       throw new Forbidden('User cannot edit expense tags', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
     }
@@ -451,7 +504,9 @@ export const canDeleteExpense: ExpensePermissionEvaluator = async (
   expense: Expense,
   options = { throw: false },
 ) => {
-  if (
+  if (!validateExpenseScope(req, options)) {
+    return false;
+  } else if (
     ['DRAFT', 'PENDING'].includes(expense.status) &&
     (await remoteUserMeetsOneCondition(req, expense, [isOwner, isDraftPayee], options))
   ) {
@@ -482,7 +537,9 @@ export const canPayExpense: ExpensePermissionEvaluator = async (
   expense: Expense,
   options = { throw: false },
 ) => {
-  if (!['APPROVED', 'ERROR'].includes(expense.status)) {
+  if (!validateExpenseScope(req, options)) {
+    return false;
+  } else if (!['APPROVED', 'ERROR'].includes(expense.status)) {
     if (options?.throw) {
       throw new Forbidden('Can not pay expense in current status', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS);
     }
@@ -505,7 +562,9 @@ export const canApprove: ExpensePermissionEvaluator = async (
   expense: Expense,
   options = { throw: false },
 ) => {
-  if (!['PENDING', 'REJECTED', 'INCOMPLETE'].includes(expense.status)) {
+  if (!validateExpenseScope(req, options)) {
+    return false;
+  } else if (!['PENDING', 'REJECTED', 'INCOMPLETE'].includes(expense.status)) {
     if (options?.throw) {
       throw new Forbidden(
         'Can not approve expense in current status',
@@ -572,7 +631,9 @@ export const canReject: ExpensePermissionEvaluator = async (
   expense: Expense,
   options = { throw: false },
 ) => {
-  if (!['PENDING', 'UNVERIFIED', 'INCOMPLETE'].includes(expense.status)) {
+  if (!validateExpenseScope(req, options)) {
+    return false;
+  } else if (!['PENDING', 'UNVERIFIED', 'INCOMPLETE'].includes(expense.status)) {
     if (options?.throw) {
       throw new Forbidden(
         'Can not reject expense in current status',
@@ -598,7 +659,9 @@ export const canMarkAsSpam: ExpensePermissionEvaluator = async (
   expense: Expense,
   options = { throw: false },
 ) => {
-  if (!['REJECTED'].includes(expense.status)) {
+  if (!validateExpenseScope(req, options)) {
+    return false;
+  } else if (!['REJECTED'].includes(expense.status)) {
     if (options?.throw) {
       throw new Forbidden(
         'Can not mark expense as spam in current status',
@@ -624,7 +687,9 @@ export const canUnapprove: ExpensePermissionEvaluator = async (
   expense: Expense,
   options = { throw: false },
 ) => {
-  if (!['APPROVED', 'ERROR'].includes(expense.status)) {
+  if (!validateExpenseScope(req, options)) {
+    return false;
+  } else if (!['APPROVED', 'ERROR'].includes(expense.status)) {
     if (options?.throw) {
       throw new Forbidden(
         'Can not unapprove expense in current status',
@@ -647,7 +712,9 @@ export const canMarkAsIncomplete: ExpensePermissionEvaluator = async (
   expense: Expense,
   options = { throw: false },
 ) => {
-  if (!['APPROVED', 'ERROR'].includes(expense.status)) {
+  if (!validateExpenseScope(req, options)) {
+    return false;
+  } else if (!['APPROVED', 'ERROR'].includes(expense.status)) {
     if (options?.throw) {
       throw new Forbidden(
         'Can not mark expense as incomplete in current status',
@@ -676,7 +743,9 @@ export const canEditExpenseAccountingCategory = async (
   expense: Expense,
   options = { throw: false },
 ): Promise<boolean> => {
-  if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+  if (!validateExpenseScope(req, options)) {
+    return false;
+  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     if (options?.throw) {
       throw new Forbidden(
         'User cannot edit accounting categories for expenses',
@@ -720,7 +789,9 @@ export const canMarkAsUnpaid: ExpensePermissionEvaluator = async (
   expense: Expense,
   options = { throw: false },
 ) => {
-  if (expense.status !== 'PAID') {
+  if (!validateExpenseScope(req, options)) {
+    return false;
+  } else if (expense.status !== 'PAID') {
     if (options?.throw) {
       throw new Forbidden(
         'Can not mark expense as unpaid in current status',
@@ -757,7 +828,9 @@ export const canComment: ExpensePermissionEvaluator = async (
   expense: Expense,
   options = { throw: false },
 ) => {
-  if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+  if (!validateExpenseScope(req, options)) {
+    return false;
+  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     if (options?.throw) {
       throw new Forbidden('User cannot pay expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
     }
@@ -773,6 +846,9 @@ export const canComment: ExpensePermissionEvaluator = async (
 };
 
 export const canViewRequiredLegalDocuments: ExpensePermissionEvaluator = async (req, expense) => {
+  if (!validateExpenseScope(req)) {
+    return false;
+  }
   return remoteUserMeetsOneCondition(req, expense, [
     isHostAdmin,
     isHostAccountant,
@@ -783,6 +859,9 @@ export const canViewRequiredLegalDocuments: ExpensePermissionEvaluator = async (
 };
 
 export const canDownloadTaxForm: ExpensePermissionEvaluator = async (req, expense) => {
+  if (!validateExpenseScope(req)) {
+    return false;
+  }
   return remoteUserMeetsOneCondition(req, expense, [isHostAdmin, isHostAccountant]);
 };
 
@@ -791,7 +870,9 @@ export const canUnschedulePayment: ExpensePermissionEvaluator = async (
   expense: Expense,
   options = { throw: false },
 ) => {
-  if (expense.status !== 'SCHEDULED_FOR_PAYMENT') {
+  if (!validateExpenseScope(req, options)) {
+    return false;
+  } else if (expense.status !== 'SCHEDULED_FOR_PAYMENT') {
     if (options?.throw) {
       throw new Forbidden(
         'Can not unschedule expense for payment in current status',
@@ -808,7 +889,9 @@ export const canPutOnHold: ExpensePermissionEvaluator = async (
   expense: Expense,
   options = { throw: false },
 ) => {
-  if (expense.status !== 'APPROVED' || expense.onHold === true) {
+  if (!validateExpenseScope(req, options)) {
+    return false;
+  } else if (expense.status !== 'APPROVED' || expense.onHold === true) {
     if (options?.throw) {
       throw new Forbidden(
         'Only approved expenses that are not on hold can be put on hold',
@@ -825,7 +908,9 @@ export const canReleaseHold: ExpensePermissionEvaluator = async (
   expense: Expense,
   options = { throw: false },
 ) => {
-  if (!expense.onHold) {
+  if (!validateExpenseScope(req, options)) {
+    return false;
+  } else if (!expense.onHold) {
     if (options?.throw) {
       throw new Forbidden('Only expenses on hold can be released', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS);
     }
@@ -835,6 +920,9 @@ export const canReleaseHold: ExpensePermissionEvaluator = async (
 };
 
 export const canSeeExpenseOnHoldFlag = async (req: express.Request, expense: Expense): Promise<boolean> => {
+  if (!validateExpenseScope(req)) {
+    return false;
+  }
   return isHostAdmin(req, expense);
 };
 

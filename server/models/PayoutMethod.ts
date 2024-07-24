@@ -161,6 +161,7 @@ class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCreationAtt
         payoutMethodData.data = {};
       }
       existingPm = await PayoutMethod.findOne({
+        order: [['isSaved', 'DESC']], // Prefer saved payout methods
         where: {
           CollectiveId: collective.id,
           type: PayoutMethodTypes.ACCOUNT_BALANCE,
