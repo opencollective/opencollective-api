@@ -72,7 +72,7 @@ export { randEmail, sequelize };
 export const randStr = (prefix = '') => `${prefix}${uuid().split('-')[0]}`;
 export const randNumber = (min = 0, max = 10000000) => Math.floor(Math.random() * max) + min;
 export const randAmount = (min = 100, max = 10000000) => randNumber(min, max);
-export const multiple = (fn, n, args) => Promise.all([...Array(n).keys()].map(() => fn(args)));
+export const multiple = (fn, n, args?) => Promise.all([...Array(n).keys()].map(() => fn(args)));
 export const fakeOpenCollectiveS3URL = ({ key = randStr(), bucket = config.aws.s3.bucket } = {}) => {
   if (config.aws.s3.endpoint && config.aws.s3.forcePathStyle) {
     return `${config.aws.s3.endpoint}/${bucket}/${key}`;
