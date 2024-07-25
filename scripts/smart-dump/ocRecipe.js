@@ -31,6 +31,7 @@ const entries = [
       {
         model: 'Member',
         on: 'CollectiveId',
+        limit: 50,
         where: {
           role: ['ADMIN', 'MEMBER', 'HOST'],
         },

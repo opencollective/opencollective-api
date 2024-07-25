@@ -345,8 +345,8 @@ export default models;
 
 export { sequelize, Op };
 
-export type ModelNames = keyof typeof models;
 export type Models = typeof models;
+export type ModelNames = keyof Models;
 
 // ts-unused-exports:disable-next-line
 export {

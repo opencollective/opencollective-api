@@ -1,9 +1,9 @@
 import { expect } from 'chai';
 
-import { buildForeignKeyTree, traverse } from '../../../server/lib/export';
-import models from '../../../server/models';
-import { fakeCollective, fakeUser, multiple } from '../../test-helpers/fake-data';
-import { resetTestDB } from '../../utils';
+import { buildForeignKeyTree, traverse } from '../../../../server/lib/import-export/export';
+import models from '../../../../server/models';
+import { fakeCollective, fakeUser, multiple } from '../../../test-helpers/fake-data';
+import { resetTestDB } from '../../../utils';
 
 describe('export', () => {
   describe('buildForeignKeyTree', () => {

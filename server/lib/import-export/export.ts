@@ -1,12 +1,12 @@
 import debugLib from 'debug';
-import { cloneDeepWith, compact, concat, flatten, repeat, set, uniqBy } from 'lodash';
+import { compact, concat, flatten, repeat, set, uniqBy } from 'lodash';
 import { DataType } from 'sequelize';
 
-import { testStripeAccounts } from '../../scripts/sanitize-db';
-import { randEmail, randStr } from '../../test/test-helpers/fake-data';
-import type { ModelNames, Models } from '../models';
-import models, { Op } from '../models';
-import { IDENTIFIABLE_DATA_FIELDS } from '../models/PayoutMethod';
+import type { ModelNames, Models } from '../../models';
+import models, { Op } from '../../models';
+import logger from '../logger';
+
+import { Sanitizers } from './sanitize';
 
 const debug = debugLib('export');
 
@@ -52,68 +52,13 @@ export const buildForeignKeyTree = (models: Models) => {
   return tree;
 };
 
-const TEST_STRIPE_ACCOUNTS = Object.values(testStripeAccounts).reduce(
-  (obj, account) => ({ ...obj, [account.CollectiveId]: account }),
-  {},
-);
-
-const Sanitizers: Partial<Record<ModelNames, (JSON) => object>> = {
-  ConnectedAccount: values =>
-    TEST_STRIPE_ACCOUNTS[values.CollectiveId] || {
-      token: randStr('tok_'),
-    },
-  PaymentMethod: values => ({
-    token: randStr('tok_'),
-    customerId: randStr('cus_'),
-    data: cloneDeepWith(values.data, (value, key) => {
-      if (key === 'customerIdForHost') {
-        return {};
-      } else if (key === 'fullName') {
-        return randStr('name_');
-      } else if (
-        ['orderID', 'payerID', 'paymentID', 'returnUrl', 'paymentToken', 'subscriptionId', 'fingerprint'].includes(
-          key as string,
-        )
-      ) {
-        return randStr();
-      } else if (key === 'email') {
-        return randEmail();
-      }
-    }),
-    name: values.service === 'paypal' ? randEmail() : values.name,
-  }),
-  PayoutMethod: values => ({
-    data: cloneDeepWith(values.data, (value, key) => {
-      if (['postCode', 'firstLine', ...IDENTIFIABLE_DATA_FIELDS].includes(key as string)) {
-        return randStr();
-      } else if (key === 'accountHolderName') {
-        return randStr('name_');
-      } else if (key === 'email') {
-        return randEmail();
-      }
-    }),
-  }),
-  User: values => ({
-    email: randEmail(),
-    twoFactorAuthToken: null,
-    twoFactorAuthRecoveryCodes: null,
-    passwordHash: null,
-    passwordUpdatedAt: null,
-    data: cloneDeepWith(values.data, (value, key) => {
-      if (key === 'lastSignInRequest') {
-        return {};
-      }
-    }),
-  }),
-};
+const foreignKeys = buildForeignKeyTree(models);
 
 const serialize = (model: ModelNames) => document => ({
   ...document.dataValues,
   ...Sanitizers[model]?.(document.dataValues),
   model,
 });
-
-const foreignKeys = buildForeignKeyTree(models);
 
 type RecipeItem = {
   model?: ModelNames;
@@ -178,7 +123,7 @@ export const traverse = async ({
             where = { ...where, [Op.or]: foreignKeys[model][dep].map(on => ({ [on]: record.id })) };
             pResults.push(traverse({ model: dep as ModelNames, where, defaultDependencies, parsed, depth: depth + 1 }));
           } else {
-            console.error(`Foreign key not found for ${model}.${dep}`);
+            logger.error(`Foreign key not found for ${model}.${dep}`);
           }
         } else {
           // If the dependency has a custom function
