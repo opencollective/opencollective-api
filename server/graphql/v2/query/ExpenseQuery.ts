@@ -32,15 +32,16 @@ const ExpenseQuery = {
       throw new Error('You must either provide an id or an expense');
     }
 
-    if (
-      !expense ||
-      (expense.status === expenseStatus.DRAFT && args.draftKey && expense.data?.draftKey !== args.draftKey)
-    ) {
+    if (!expense) {
       return null;
-    } else if (expense.status === expenseStatus.DRAFT && args.draftKey && expense.data?.draftKey === args.draftKey) {
-      allowContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_DRAFT_PRIVATE_DETAILS, expense.id);
-      if (expense.PayoutMethodId) {
-        allowContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, expense.PayoutMethodId);
+    } else if (args.draftKey && expense.status === expenseStatus.DRAFT) {
+      if (expense.data?.draftKey !== args.draftKey) {
+        return null;
+      } else {
+        allowContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_DRAFT_PRIVATE_DETAILS, expense.id);
+        if (expense.PayoutMethodId) {
+          allowContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, expense.PayoutMethodId);
+        }
       }
     }
 
