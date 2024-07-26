@@ -18,6 +18,7 @@ import CurrencyExchangeRateQuery from './CurrencyExchangeRateQuery';
 import EventQuery from './EventQuery';
 import ExpenseQuery from './ExpenseQuery';
 import FundQuery from './FundQuery';
+import HostApplicationQuery from './HostApplicationQuery';
 import HostQuery from './HostQuery';
 import IndividualQuery from './IndividualQuery';
 import MemberInvitationsQuery from './MemberInvitationsQuery';
@@ -66,6 +67,7 @@ const query = {
   virtualCard: VirtualCardQuery,
   virtualCardRequest: VirtualCardRequestQuery,
   virtualCardRequests: VirtualCardRequestsCollectionQuery,
+  hostApplication: HostApplicationQuery,
   loggedInAccount: {
     type: GraphQLIndividual,
     resolve(_, args, req) {

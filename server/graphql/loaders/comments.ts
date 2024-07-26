@@ -30,6 +30,20 @@ export default {
       },
     ),
 
+  countByHostApplication: () => {
+    return new DataLoader<number, number>(async hostApplicationIds => {
+      const counters = await models.Comment.count({
+        attributes: ['HostApplicationId'],
+        where: { HostApplicationId: hostApplicationIds },
+        group: ['HostApplicationId'],
+      });
+
+      return hostApplicationIds.map(
+        HostApplicationId => counters.find(c => c.HostApplicationId === HostApplicationId)?.count || 0,
+      );
+    });
+  },
+
   reactionsByCommentId: (): DataLoader<number, EmojiReaction> => {
     return new DataLoader(async commentIds => {
       type ReactionsListQueryResult = [{ CommentId: number; emoji: ReactionEmoji; count: number }];
