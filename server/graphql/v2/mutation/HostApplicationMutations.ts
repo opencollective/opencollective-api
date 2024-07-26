@@ -17,15 +17,20 @@ import { stripHTML } from '../../../lib/sanitize-html';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Collective, Op, sequelize } from '../../../models';
 import ConversationModel from '../../../models/Conversation';
-import { HostApplicationStatus } from '../../../models/HostApplication';
+import HostApplication, { HostApplicationStatus } from '../../../models/HostApplication';
 import { processInviteMembersInput } from '../../common/members';
 import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseHost, checkScope } from '../../common/scope-check';
 import { Forbidden, NotFound, ValidationFailed } from '../../errors';
 import { GraphQLProcessHostApplicationAction } from '../enum/ProcessHostApplicationAction';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import {
+  fetchHostApplicationWithReference,
+  GraphQLHostApplicationReferenceInput,
+} from '../input/HostApplicationReferenceInput';
 import { GraphQLInviteMemberInput } from '../input/InviteMemberInput';
 import { GraphQLAccount } from '../interface/Account';
 import GraphQLConversation from '../object/Conversation';
+import { GraphQLHostApplication } from '../object/HostApplication';
 
 const GraphQLProcessHostApplicationResponse = new GraphQLObjectType({
   name: 'ProcessHostApplicationResponse',
@@ -37,6 +42,9 @@ const GraphQLProcessHostApplicationResponse = new GraphQLObjectType({
     conversation: {
       type: GraphQLConversation,
       description: 'When sending a public message, this field will have the info about the conversation created',
+    },
+    hostApplication: {
+      type: GraphQLHostApplication,
     },
   }),
 });
@@ -163,11 +171,17 @@ const HostApplicationMutations = {
     description: 'Reply to a host application. Scope: "host".',
     args: {
       account: {
-        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+        deprecationReason: '2024-07-24: Please use hostApplication',
+        type: GraphQLAccountReferenceInput,
         description: 'The account that applied to the host',
       },
+      hostApplication: {
+        type: GraphQLHostApplicationReferenceInput,
+        description: 'The host application',
+      },
       host: {
-        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+        deprecationReason: '2024-07-24: Please use hostApplication',
+        type: GraphQLAccountReferenceInput,
         description: 'The host concerned by the application',
       },
       action: {
@@ -182,8 +196,16 @@ const HostApplicationMutations = {
     resolve: async (_, args, req: express.Request): Promise<Record<string, unknown>> => {
       checkRemoteUserCanUseHost(req);
 
-      const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
-      const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
+      let hostApplication: HostApplication;
+      let account, host: Collective;
+      if (args.hostApplication) {
+        hostApplication = await fetchHostApplicationWithReference(args.hostApplication);
+        account = await hostApplication.getCollective();
+        host = await hostApplication.getHost();
+      } else {
+        account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
+        host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
+      }
 
       if (!req.remoteUser.isAdmin(host.id)) {
         throw new Forbidden('You need to be authenticated as a host admin to perform this action');
@@ -197,17 +219,28 @@ const HostApplicationMutations = {
       await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });
 
       switch (args.action) {
-        case 'APPROVE':
-          return { account: await approveApplication(host, account, req) };
-        case 'REJECT':
-          return { account: rejectApplication(host, account, req, args.message) };
+        case 'APPROVE': {
+          const accountUpdated = await approveApplication(host, account, req);
+          return {
+            account: accountUpdated,
+            hostApplication: hostApplication ? await hostApplication.reload() : null,
+          };
+        }
+        case 'REJECT': {
+          const accountUpdated = await rejectApplication(host, account, req, args.message);
+          return {
+            account: accountUpdated,
+            hostApplication: hostApplication ? await hostApplication.reload() : null,
+          };
+        }
         case 'SEND_PRIVATE_MESSAGE':
           await sendPrivateMessage(host, account, args.message);
-          return { account };
+          return { account, hostApplication: hostApplication ? await hostApplication.reload() : null };
         case 'SEND_PUBLIC_MESSAGE':
           return {
             account,
             conversation: await sendPublicMessage(host, account, req.remoteUser, args.message),
+            hostApplication: hostApplication ? await hostApplication.reload() : null,
           };
         default:
           throw new ValidationFailed(`Action ${args.action} is not supported yet`);

@@ -163,6 +163,7 @@ Collective.hasOne(User, { as: 'user', foreignKey: 'CollectiveId', constraints: f
 Comment.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
 Comment.belongsTo(Collective, { foreignKey: 'FromCollectiveId', as: 'fromCollective' });
 Comment.belongsTo(Expense, { foreignKey: 'ExpenseId', as: 'expense' });
+Comment.belongsTo(HostApplication, { foreignKey: 'HostApplicationId', as: 'hostApplication' });
 Comment.belongsTo(Update, { foreignKey: 'UpdateId', as: 'update' });
 Comment.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'user' });
 
@@ -205,6 +206,7 @@ ExpenseItem.belongsTo(Expense);
 
 // HostApplication
 HostApplication.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+HostApplication.belongsTo(Collective, { foreignKey: 'HostCollectiveId', as: 'host' });
 
 // LegalDocument
 LegalDocument.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });

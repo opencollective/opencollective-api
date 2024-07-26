@@ -59,6 +59,7 @@ export const templateNames = [
   'fund.created.foundation',
   'fund.approved.foundation',
   'host.application.contact',
+  'host.application.comment.created',
   'host.report',
   'member.invitation',
   'oauth.application.authorized',

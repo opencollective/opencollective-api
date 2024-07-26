@@ -7,6 +7,7 @@ import { GraphQLCommentCreateInput } from '../input/CommentCreateInput';
 import { GraphQLCommentUpdateInput } from '../input/CommentUpdateInput';
 import { getConversationDatabaseIdFromReference } from '../input/ConversationReferenceInput';
 import { getDatabaseIdFromExpenseReference } from '../input/ExpenseReferenceInput';
+import { getDatabaseIdFromHostApplicationReference } from '../input/HostApplicationReferenceInput';
 import { getDatabaseIdFromOrderReference } from '../input/OrderReferenceInput';
 import { getDatabaseIdFromUpdateReference } from '../input/UpdateReferenceInput';
 import { GraphQLComment } from '../object/Comment';
@@ -59,8 +60,10 @@ const commentMutations = {
         comment.ExpenseId = getDatabaseIdFromExpenseReference(comment.expense);
       } else if (comment.order) {
         comment.OrderId = getDatabaseIdFromOrderReference(comment.order);
+      } else if (comment.hostApplication) {
+        comment.HostApplicationId = getDatabaseIdFromHostApplicationReference(comment.hostApplication);
       } else {
-        throw new Error('Please provide a conversation, update, expense or order');
+        throw new Error('Please provide a conversation, update, expense, order or host application');
       }
 
       return createComment(comment, req);

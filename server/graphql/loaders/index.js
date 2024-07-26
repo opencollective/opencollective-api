@@ -48,6 +48,7 @@ export const loaders = req => {
 
   // Comment
   context.loaders.Comment.countByExpenseAndType = commentsLoader.countByExpenseAndType();
+  context.loaders.Comment.countByHostApplication = commentsLoader.countByHostApplication();
 
   // Comment Reactions
   context.loaders.Comment.reactionsByCommentId = commentsLoader.reactionsByCommentId();

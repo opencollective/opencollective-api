@@ -7,6 +7,7 @@ import { roles } from '../../constants';
 import ActivityTypes, { TransactionalActivities } from '../../constants/activities';
 import Channels from '../../constants/channels';
 import { CollectiveType } from '../../constants/collectives';
+import MemberRoles from '../../constants/roles';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
 import models, { Activity, Collective } from '../../models';
@@ -533,6 +534,22 @@ export const notifyByEmail = async (activity: Activity) => {
       });
       break;
 
+    case ActivityTypes.HOST_APPLICATION_COMMENT_CREATED: {
+      const isCommentFromHostAdmin = await models.Member.findOne({
+        attributes: ['id'],
+        where: {
+          role: MemberRoles.ADMIN,
+          CollectiveId: activity.HostCollectiveId,
+          MemberCollectiveId: activity.FromCollectiveId,
+        },
+      });
+
+      if (isCommentFromHostAdmin) {
+        await notify.collective(activity);
+      }
+
+      break;
+    }
     case ActivityTypes.COLLECTIVE_APPLY:
       await notify.collective(activity, {
         collectiveId: activity.data.host.id,
