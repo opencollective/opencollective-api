@@ -1856,7 +1856,10 @@ export async function submitExpenseDraft(
     UserId: options.overrideRemoteUser?.id || req.remoteUser?.id,
   });
 
-  await existingExpense.createActivity(activities.COLLECTIVE_EXPENSE_CREATED, req.remoteUser);
+  await existingExpense.createActivity(
+    activities.COLLECTIVE_EXPENSE_CREATED,
+    options.overrideRemoteUser ?? req.remoteUser,
+  );
 
   return existingExpense;
 }
