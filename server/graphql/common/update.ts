@@ -136,6 +136,8 @@ export async function canSeeUpdate(update, req): Promise<boolean> {
   // Only admins can see drafts
   if (!update.publishedAt) {
     return req.remoteUser.isAdminOfCollective(update.collective);
+  } else if (req.remoteUser.isAdminOfCollectiveOrHost(update.collective)) {
+    return true; // Host and collective admins can always see published updates
   }
 
   // If it's a private published update, we need to look at the audience
