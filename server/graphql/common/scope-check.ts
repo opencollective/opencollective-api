@@ -92,7 +92,7 @@ export const checkRemoteUserCanUseWebhooks = (req: Express.Request): void => {
   enforceScope(req, 'webhooks');
 };
 
-export const checkRemoteUserCanUseHostApplications = (req: Express.Request): void => {
+const checkRemoteUserCanUseHostApplications = (req: Express.Request): void => {
   if (!req.remoteUser) {
     throw new Unauthorized('You need to be logged in to manage host applications');
   }
