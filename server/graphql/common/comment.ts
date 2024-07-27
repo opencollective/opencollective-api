@@ -18,14 +18,18 @@ import { canSeeUpdate } from './update';
 
 type CommentableEntity = Update | Expense | Conversation | Order | HostApplication;
 
-type CommentAssociationData = Pick<Comment, 'UpdateId' | 'ExpenseId' | 'OrderId' | 'ConversationId' | 'HostApplicationId'>;
+type CommentAssociationData = Pick<
+  Comment,
+  'UpdateId' | 'ExpenseId' | 'OrderId' | 'ConversationId' | 'HostApplicationId'
+>;
 
 const loadCommentedEntity = async (
   commentValues: CommentAssociationData,
   loaders: any,
-): Promise<[CommentableEntity, ActivityTypes]> => {
+): Promise<[CommentableEntity, ActivityTypes, Record<string, any>]> => {
   let activityType = ActivityTypes.COLLECTIVE_COMMENT_CREATED;
   let entity: CommentableEntity;
+  const activityData: Record<string, any> = {};
 
   if (commentValues.ExpenseId) {
     activityType = ActivityTypes.EXPENSE_COMMENT_CREATED;
@@ -33,7 +37,7 @@ const loadCommentedEntity = async (
     if (entity) {
       entity.collective = await loaders.Collective.byId.load(entity.CollectiveId);
       if (!entity.collective) {
-        return [null, activityType];
+        return [null, activityType, activityData];
       }
     }
   } else if (commentValues.ConversationId) {
@@ -42,7 +46,7 @@ const loadCommentedEntity = async (
     if (entity) {
       entity.collective = await loaders.Collective.byId.load(entity.CollectiveId);
       if (!entity.collective) {
-        return [null, activityType];
+        return [null, activityType, activityData];
       }
     }
   } else if (commentValues.UpdateId) {
@@ -51,7 +55,7 @@ const loadCommentedEntity = async (
     if (entity) {
       entity.collective = await loaders.Collective.byId.load(entity.CollectiveId);
       if (!entity.collective) {
-        return [null, activityType];
+        return [null, activityType, activityData];
       }
     }
   } else if (commentValues.OrderId) {
@@ -60,7 +64,7 @@ const loadCommentedEntity = async (
     if (entity) {
       entity.collective = await loaders.Collective.byId.load(entity.CollectiveId);
       if (!entity.collective) {
-        return [null, activityType];
+        return [null, activityType, activityData];
       }
     }
   } else if (commentValues.HostApplicationId) {
@@ -70,7 +74,7 @@ const loadCommentedEntity = async (
     entity.collective = await entity.getCollective();
   }
 
-  return [entity, activityType];
+  return [entity, activityType, activityData];
 };
 
 const getCommentPermissionsError = async (req, commentedEntity, commentType) => {
@@ -169,7 +173,7 @@ async function createComment(commentData, req): Promise<Comment> {
   }
 
   // Load entity and its collective id
-  const [commentedEntity, activityType] = await loadCommentedEntity(commentData, req.loaders);
+  const [commentedEntity, activityType, activityData] = await loadCommentedEntity(commentData, req.loaders);
   if (!commentedEntity) {
     throw new ValidationFailed("The item you're trying to comment doesn't exist or has been deleted.");
   }
@@ -193,18 +197,13 @@ async function createComment(commentData, req): Promise<Comment> {
     type,
   });
 
-  let HostCollectiveId = commentedEntity.collective.approvedAt ? commentedEntity.collective.HostCollectiveId : null;
-  if (!HostCollectiveId && activityType === ActivityTypes.HOST_APPLICATION_COMMENT_CREATED) {
-    HostCollectiveId = (commentedEntity as HostApplication).HostCollectiveId;
-  }
-
   // Create activity
   await models.Activity.create({
     type: activityType,
     UserId: comment.CreatedByUserId,
     CollectiveId: comment.CollectiveId,
     FromCollectiveId: comment.FromCollectiveId,
-    HostCollectiveId,
+    HostCollectiveId: 'HostCollectiveId' in commentedEntity ? commentedEntity.HostCollectiveId : null,
     ExpenseId: comment.ExpenseId,
     OrderId: comment.OrderId,
     data: {
@@ -216,6 +215,7 @@ async function createComment(commentData, req): Promise<Comment> {
       OrderId: comment.OrderId,
       ConversationId: comment.ConversationId,
       HostApplicationId: comment.HostApplicationId,
+      ...activityData,
     },
   });
 
