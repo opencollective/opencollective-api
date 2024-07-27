@@ -2,7 +2,7 @@ import { pick } from 'lodash';
 
 import ActivityTypes from '../../constants/activities';
 import { mustBeLoggedInTo } from '../../lib/auth';
-import models, { HostApplication } from '../../models';
+import models, { Collective, HostApplication } from '../../models';
 import Comment, { CommentType } from '../../models/Comment';
 import Conversation from '../../models/Conversation';
 import Expense from '../../models/Expense';
@@ -114,6 +114,8 @@ async function createComment(commentData, req): Promise<Comment> {
     throw new ValidationFailed("The item you're trying to comment doesn't exist or has been deleted.");
   }
 
+  let host, collective: Collective;
+
   if (ExpenseId) {
     const expense = commentedEntity as Expense;
     if (!(await canCommentExpense(req, expense))) {
@@ -137,6 +139,9 @@ async function createComment(commentData, req): Promise<Comment> {
     if (!(await canCommentHostApplication(req, commentedEntity as HostApplication))) {
       throw new Unauthorized('You do not have the permission to post comments on this host application');
     }
+
+    host = await (commentedEntity as HostApplication).getHost();
+    collective = await (commentedEntity as HostApplication).getCollective();
   }
 
   // Create comment
@@ -152,18 +157,13 @@ async function createComment(commentData, req): Promise<Comment> {
     type,
   });
 
-  let HostCollectiveId = commentedEntity.collective.approvedAt ? commentedEntity.collective.HostCollectiveId : null;
-  if (!HostCollectiveId && activityType === ActivityTypes.HOST_APPLICATION_COMMENT_CREATED) {
-    HostCollectiveId = (commentedEntity as HostApplication).HostCollectiveId;
-  }
-
   // Create activity
   await models.Activity.create({
     type: activityType,
     UserId: comment.CreatedByUserId,
     CollectiveId: comment.CollectiveId,
     FromCollectiveId: comment.FromCollectiveId,
-    HostCollectiveId,
+    HostCollectiveId: host?.id,
     ExpenseId: comment.ExpenseId,
     OrderId: comment.OrderId,
     data: {
@@ -175,6 +175,8 @@ async function createComment(commentData, req): Promise<Comment> {
       OrderId: comment.OrderId,
       ConversationId: comment.ConversationId,
       HostApplicationId: comment.HostApplicationId,
+      host: host?.info,
+      collective: collective?.info,
     },
   });
 
