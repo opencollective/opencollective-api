@@ -27,12 +27,16 @@ describe('export', () => {
 
     it('should traverse the tree based on model references', async () => {
       const parsed = {};
-      const results = await traverse({
-        model: 'Collective',
-        where: { slug: user.collective.slug },
-        dependencies: ['User'],
-        parsed,
-      });
+      const results = [];
+      await traverse(
+        {
+          model: 'Collective',
+          where: { slug: user.collective.slug },
+          dependencies: ['User'],
+          parsed,
+        },
+        ei => results.push(ei),
+      );
 
       expect(results).to.containSubset([{ model: 'User', id: user.id }]);
       expect(results).to.containSubset([{ model: 'Collective', id: user.collective.id }]);
@@ -40,12 +44,16 @@ describe('export', () => {
 
     it('should traverse using "on" statement', async () => {
       const parsed = {};
-      const results = await traverse({
-        model: 'Collective',
-        where: { slug: user.collective.slug },
-        dependencies: [{ model: 'User', on: 'CollectiveId' }],
-        parsed,
-      });
+      const results = [];
+      await traverse(
+        {
+          model: 'Collective',
+          where: { slug: user.collective.slug },
+          dependencies: [{ model: 'User', on: 'CollectiveId' }],
+          parsed,
+        },
+        ei => results.push(ei),
+      );
 
       expect(results).to.containSubset([{ model: 'User', id: user.id }]);
       expect(results).to.containSubset([{ model: 'Collective', id: user.collective.id }]);
@@ -53,12 +61,16 @@ describe('export', () => {
 
     it('should traverse using "from" statement', async () => {
       const parsed = {};
-      const results = await traverse({
-        model: 'User',
-        where: { id: user.id },
-        dependencies: [{ model: 'Collective', from: 'CollectiveId' }],
-        parsed,
-      });
+      const results = [];
+      await traverse(
+        {
+          model: 'User',
+          where: { id: user.id },
+          dependencies: [{ model: 'Collective', from: 'CollectiveId' }],
+          parsed,
+        },
+        ei => results.push(ei),
+      );
 
       expect(results).to.containSubset([{ model: 'User', id: user.id }]);
       expect(results).to.containSubset([{ model: 'Collective', id: user.collective.id }]);
@@ -66,12 +78,16 @@ describe('export', () => {
 
     it('should traverse using where function paremetetr', async () => {
       const parsed = {};
-      const results = await traverse({
-        model: 'User',
-        where: { id: user.id },
-        dependencies: [{ model: 'Collective', where: userRow => ({ id: userRow.CollectiveId }) }],
-        parsed,
-      });
+      const results = [];
+      await traverse(
+        {
+          model: 'User',
+          where: { id: user.id },
+          dependencies: [{ model: 'Collective', where: userRow => ({ id: userRow.CollectiveId }) }],
+          parsed,
+        },
+        ei => results.push(ei),
+      );
 
       expect(results).to.containSubset([{ model: 'User', id: user.id }]);
       expect(results).to.containSubset([{ model: 'Collective', id: user.collective.id }]);
