@@ -17,6 +17,8 @@ enum POLICIES {
   EXPENSE_CATEGORIZATION = 'EXPENSE_CATEGORIZATION',
   // When enabled, users can also use Vendors when submitting expenses.
   EXPENSE_PUBLIC_VENDORS = 'EXPENSE_PUBLIC_VENDORS',
+  // When enabled, admins of the collective are allowed to see the payout methods of expenses
+  COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS = 'COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS',
 }
 
 export type Policies = Partial<{
@@ -42,6 +44,7 @@ export type Policies = Partial<{
     requiredForCollectiveAdmins: boolean;
   };
   [POLICIES.EXPENSE_PUBLIC_VENDORS]: boolean;
+  [POLICIES.COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS]: boolean;
 }>;
 
 export const DEFAULT_POLICIES: { [T in POLICIES]: Policies[T] } = {
@@ -73,6 +76,7 @@ export const DEFAULT_POLICIES: { [T in POLICIES]: Policies[T] } = {
     requiredForCollectiveAdmins: false,
   },
   [POLICIES.EXPENSE_PUBLIC_VENDORS]: false,
+  [POLICIES.COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS]: false,
 };
 
 export default POLICIES;

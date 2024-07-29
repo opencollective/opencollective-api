@@ -363,7 +363,7 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Reques
         description: 'The payout method to use for this expense',
         async resolve(expense, _, req) {
           if (expense.PayoutMethodId) {
-            if (await ExpenseLib.canSeeExpensePayoutMethod(req, expense)) {
+            if (await ExpenseLib.canSeeExpensePayoutMethodPrivateDetails(req, expense)) {
               allowContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, expense.PayoutMethodId);
             }
 

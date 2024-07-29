@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
 
+import POLICIES from '../../../../../server/constants/policies';
 import {
   fakeCollective,
   fakeComment,
@@ -101,7 +102,7 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
       });
     });
 
-    it('can only see Payout method data if owner or host admin/accountant', async () => {
+    it('can only see Payout method data if allowed (general case)', async () => {
       // Query
       const queryParams = { id: expense.id };
       const resultUnauthenticated = await graphqlQueryV2(expenseQuery, queryParams);
@@ -118,6 +119,36 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
       expect(resultAsOwner.data.expense.payoutMethod.data).to.deep.equal(payoutMethod.data);
       expect(resultAsHostAdmin.data.expense.payoutMethod.data).to.deep.equal(payoutMethod.data);
       expect(resultAsHostAccountant.data.expense.payoutMethod.data).to.deep.equal(payoutMethod.data);
+    });
+
+    it('can only see Payout method data if allowed (with special policy)', async () => {
+      await expense.collective.update({
+        data: {
+          ...expense.collective.data,
+          policies: {
+            [POLICIES.COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS]: true,
+          },
+        },
+      });
+
+      // Query
+      const queryParams = { id: expense.id };
+      const resultUnauthenticated = await graphqlQueryV2(expenseQuery, queryParams);
+      const resultAsOwner = await graphqlQueryV2(expenseQuery, queryParams, ownerUser);
+      const resultAsCollectiveAdmin = await graphqlQueryV2(expenseQuery, queryParams, collectiveAdminUser);
+      const resultAsHostAdmin = await graphqlQueryV2(expenseQuery, queryParams, hostAdminUser);
+      const resultAsHostAccountant = await graphqlQueryV2(expenseQuery, queryParams, hostAccountantUser);
+      const resultAsRandomUser = await graphqlQueryV2(expenseQuery, queryParams, randomUser);
+
+      // Check results
+      expect(resultUnauthenticated.data.expense.payoutMethod.data).to.be.null;
+      expect(resultAsRandomUser.data.expense.payoutMethod.data).to.be.null;
+      expect(resultAsCollectiveAdmin.data.expense.payoutMethod.data).to.deep.equal(payoutMethod.data);
+      expect(resultAsOwner.data.expense.payoutMethod.data).to.deep.equal(payoutMethod.data);
+      expect(resultAsHostAdmin.data.expense.payoutMethod.data).to.deep.equal(payoutMethod.data);
+      expect(resultAsHostAccountant.data.expense.payoutMethod.data).to.deep.equal(payoutMethod.data);
+
+      await expense.collective.update({ data: { ...expense.collective.data, policies: {} } });
     });
 
     it('can only see uploaded files URLs if owner, or collective/host admin/accountant', async () => {

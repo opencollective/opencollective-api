@@ -27,7 +27,7 @@ import { reportMessageToSentry } from '../../lib/sentry';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import models, { Op, sequelize } from '../../models';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
-import { canSeeExpenseAttachments, canSeeExpensePayoutMethod } from '../common/expenses';
+import { canSeeExpenseAttachments, canSeeExpensePayoutMethodPrivateDetails } from '../common/expenses';
 import { hasSeenLatestChangelogEntry } from '../common/user';
 import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
 
@@ -782,7 +782,7 @@ export const ExpenseType = new GraphQLObjectType({
       PayoutMethod: {
         type: PayoutMethodType,
         async resolve(expense, _, req) {
-          if (!expense.PayoutMethodId || !(await canSeeExpensePayoutMethod(req, expense))) {
+          if (!expense.PayoutMethodId || !(await canSeeExpensePayoutMethodPrivateDetails(req, expense))) {
             return null;
           } else {
             return expense.payoutMethod || req.loaders.PayoutMethod.byId.load(expense.PayoutMethodId);
