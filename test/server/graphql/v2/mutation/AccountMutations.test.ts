@@ -626,7 +626,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(activity).to.exist;
       expect(activity.CollectiveId).to.equal(collective.id);
       expect(activity.data).to.deep.equal({
-        previousData: {},
+        previousData: { policies: {} },
         newData: { policies: { [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true } } },
       });
     });

@@ -19,7 +19,7 @@ import {
   canSeeExpenseDraftPrivateDetails,
   canSeeExpenseInvoiceInfo,
   canSeeExpensePayeeLocation,
-  canSeeExpensePayoutMethod,
+  canSeeExpensePayoutMethodPrivateDetails,
   canUnapprove,
   canUnschedulePayment,
   canVerifyDraftExpense,
@@ -191,10 +191,10 @@ describe('server/graphql/common/expenses', () => {
     });
   });
 
-  describe('canSeeExpensePayoutMethod', () => {
+  describe('canSeeExpensePayoutMethodPrivateDetails', () => {
     it('can see only with the allowed roles', async () => {
       await runForAllContexts(async context => {
-        expect(await checkAllPermissions(canSeeExpensePayoutMethod, context)).to.deep.equal({
+        expect(await checkAllPermissions(canSeeExpensePayoutMethodPrivateDetails, context)).to.deep.equal({
           public: false,
           randomUser: false,
           collectiveAdmin: ['hostWithSpecialExpensePermissions', 'selfHosted', 'virtualCard'].includes(context.name),
@@ -330,7 +330,7 @@ describe('server/graphql/common/expenses', () => {
         expect(await checkAllPermissions(canEditExpense, contexts.normal)).to.deep.equal({
           public: false,
           randomUser: false,
-          collectiveAdmin: false,
+          collectiveAdmin: true,
           collectiveAccountant: false,
           hostAdmin: true,
           hostAccountant: false,

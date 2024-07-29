@@ -112,5 +112,13 @@ export const GraphQLPolicies = new GraphQLObjectType({
         }
       },
     },
+    [POLICIES.COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS]: {
+      type: GraphQLBoolean,
+      async resolve(account, _, req) {
+        if (req.remoteUser?.isAdminOfCollectiveOrHost(account) && checkScope(req, 'account')) {
+          return getPolicy(account, POLICIES.COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS);
+        }
+      },
+    },
   }),
 });

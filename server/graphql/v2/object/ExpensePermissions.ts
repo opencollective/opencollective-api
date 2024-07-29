@@ -136,6 +136,11 @@ const GraphQLExpensePermissions = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLBoolean),
       resolve: (expense, _, req) => ExpenseLib.canDownloadTaxForm(req, expense),
     },
+    canSeePayoutMethodPrivateDetails: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can see the private details of the payout method of this expense',
+      resolve: (expense, _, req: express.Request) => ExpenseLib.canSeeExpensePayoutMethodPrivateDetails(req, expense),
+    },
     // Extended permissions
     edit: {
       type: new GraphQLNonNull(GraphQLPermission),
