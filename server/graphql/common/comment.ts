@@ -8,8 +8,8 @@ import Conversation from '../../models/Conversation';
 import Expense from '../../models/Expense';
 import Order from '../../models/Order';
 import Update from '../../models/Update';
+import { canComment as canCommentOrder } from '../common/orders';
 import { NotFound, Unauthorized, ValidationFailed } from '../errors';
-import { canComment as canCommentOrder } from '../v2/object/OrderPermissions';
 
 import { canComment as canCommentExpense, canUsePrivateNotes as canUseExpensePrivateNotes } from './expenses';
 import { checkRemoteUserCanUseComment } from './scope-check';
@@ -17,27 +17,81 @@ import { canSeeUpdate } from './update';
 
 type CommentableEntity = Update | Expense | Conversation | Order;
 
-const loadCommentedEntity = async (commentValues): Promise<[CommentableEntity, ActivityTypes]> => {
-  const include = { association: 'collective', required: true };
+type CommentAssociationData = Pick<Comment, 'UpdateId' | 'ExpenseId' | 'OrderId' | 'ConversationId'>;
+
+const loadCommentedEntity = async (
+  commentValues: CommentAssociationData,
+  loaders: any,
+): Promise<[CommentableEntity, ActivityTypes]> => {
   let activityType = ActivityTypes.COLLECTIVE_COMMENT_CREATED;
   let entity: CommentableEntity;
 
   if (commentValues.ExpenseId) {
-    entity = (await Expense.findByPk(commentValues.ExpenseId, { include })) as Expense;
     activityType = ActivityTypes.EXPENSE_COMMENT_CREATED;
+    entity = (await loaders.Expense.byId.load(commentValues.ExpenseId)) as Expense;
+    if (entity) {
+      entity.collective = await loaders.Collective.byId.load(entity.CollectiveId);
+      if (!entity.collective) {
+        return [null, activityType];
+      }
+    }
   } else if (commentValues.ConversationId) {
-    entity = (await Conversation.findByPk(commentValues.ConversationId, { include })) as Conversation;
     activityType = ActivityTypes.CONVERSATION_COMMENT_CREATED;
+    entity = (await loaders.Conversation.byId.load(commentValues.ConversationId)) as Conversation;
+    if (entity) {
+      entity.collective = await loaders.Collective.byId.load(entity.CollectiveId);
+      if (!entity.collective) {
+        return [null, activityType];
+      }
+    }
   } else if (commentValues.UpdateId) {
-    entity = (await Update.findByPk(commentValues.UpdateId, { include })) as Update;
     activityType = ActivityTypes.UPDATE_COMMENT_CREATED;
+    entity = (await loaders.Update.byId.load(commentValues.UpdateId)) as Update;
+    if (entity) {
+      entity.collective = await loaders.Collective.byId.load(entity.CollectiveId);
+      if (!entity.collective) {
+        return [null, activityType];
+      }
+    }
   } else if (commentValues.OrderId) {
-    entity = (await models.Order.findByPk(commentValues.OrderId, { include })) as Order;
     activityType = ActivityTypes.ORDER_COMMENT_CREATED;
+    entity = (await loaders.Order.byId.load(commentValues.OrderId)) as Order;
+    if (entity) {
+      entity.collective = await loaders.Collective.byId.load(entity.CollectiveId);
+      if (!entity.collective) {
+        return [null, activityType];
+      }
+    }
   }
 
   return [entity, activityType];
 };
+
+const getCommentPermissionsError = async (req, commentedEntity, commentType) => {
+  if (commentedEntity instanceof Expense) {
+    if (!(await canCommentExpense(req, commentedEntity))) {
+      return new Unauthorized('You are not allowed to comment on this expense');
+    } else if (commentType === CommentType.PRIVATE_NOTE && !(await canUseExpensePrivateNotes(req, commentedEntity))) {
+      return new Unauthorized('You need to be a host admin to post comments in this context');
+    }
+  } else if (commentedEntity instanceof Update) {
+    if (!(await canSeeUpdate(req, commentedEntity))) {
+      return new Unauthorized('You do not have the permission to post comments on this update');
+    }
+  } else if (commentedEntity instanceof Order) {
+    if (!(await canCommentOrder(req, commentedEntity))) {
+      return new Unauthorized('You do not have the permission to post comments on this order');
+    } else if (commentType !== CommentType.PRIVATE_NOTE) {
+      return new Unauthorized('Only private notes are allowed on orders');
+    }
+  }
+};
+
+export async function canSeeComment(req, comment: Comment): Promise<boolean> {
+  const [entity] = await loadCommentedEntity(comment, req.loaders);
+  const error = await getCommentPermissionsError(req, entity, comment.type);
+  return !error;
+}
 
 /**
  *  Edits a comment
@@ -105,30 +159,15 @@ async function createComment(commentData, req): Promise<Comment> {
   }
 
   // Load entity and its collective id
-  const [commentedEntity, activityType] = await loadCommentedEntity(commentData);
+  const [commentedEntity, activityType] = await loadCommentedEntity(commentData, req.loaders);
   if (!commentedEntity) {
     throw new ValidationFailed("The item you're trying to comment doesn't exist or has been deleted.");
   }
 
-  if (ExpenseId) {
-    const expense = commentedEntity as Expense;
-    if (!(await canCommentExpense(req, expense))) {
-      throw new ValidationFailed('You are not allowed to comment on this expense');
-    }
-    if (type === CommentType.PRIVATE_NOTE && !(await canUseExpensePrivateNotes(req, expense))) {
-      throw new Unauthorized('You need to be a host admin to post comments in this context');
-    }
-  } else if (UpdateId) {
-    if (!(await canSeeUpdate(commentedEntity, req))) {
-      throw new Unauthorized('You do not have the permission to post comments on this update');
-    }
-  } else if (OrderId) {
-    if (!(await canCommentOrder(req, commentedEntity as Order))) {
-      throw new Unauthorized('You do not have the permission to post comments on this order');
-    }
-    if (type !== CommentType.PRIVATE_NOTE) {
-      throw new Unauthorized('Only private notes are allowed on orders');
-    }
+  // Check for permissions
+  const error = await getCommentPermissionsError(req, commentedEntity, type);
+  if (error) {
+    throw error;
   }
 
   // Create comment

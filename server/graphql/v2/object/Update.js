@@ -32,7 +32,7 @@ const GraphQLUpdate = new GraphQLObjectType({
         description: 'Indicates whether or not the user is allowed to see the content of this update',
         type: new GraphQLNonNull(GraphQLBoolean),
         resolve(update, _, req) {
-          return canSeeUpdate(update, req);
+          return canSeeUpdate(req, update);
         },
       },
       userCanPublishUpdate: {
@@ -113,7 +113,7 @@ const GraphQLUpdate = new GraphQLObjectType({
       summary: {
         type: GraphQLString,
         async resolve(update, _, req) {
-          if (!(await canSeeUpdate(update, req))) {
+          if (!(await canSeeUpdate(req, update))) {
             return null;
           } else {
             return update.summary || '';
@@ -123,7 +123,7 @@ const GraphQLUpdate = new GraphQLObjectType({
       html: {
         type: GraphQLString,
         async resolve(update, _, req) {
-          if (!(await canSeeUpdate(update, req))) {
+          if (!(await canSeeUpdate(req, update))) {
             return null;
           } else {
             return update.html;
@@ -167,7 +167,7 @@ const GraphQLUpdate = new GraphQLObjectType({
           offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
         },
         async resolve(update, args, req) {
-          if (!(await canSeeUpdate(update, req))) {
+          if (!(await canSeeUpdate(req, update))) {
             return null;
           }
 

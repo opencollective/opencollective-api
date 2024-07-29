@@ -123,7 +123,7 @@ const canSeeUpdateForCollectiveAdmins = async (req, collective): Promise<boolean
   );
 };
 
-export async function canSeeUpdate(update, req): Promise<boolean> {
+export async function canSeeUpdate(req, update): Promise<boolean> {
   if (update.publishedAt && !update.isPrivate) {
     return true; // If the update is published and not private, it's visible to everyone
   } else if (!req.remoteUser) {

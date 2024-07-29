@@ -1,3 +1,4 @@
+import express from 'express';
 import { isNil } from 'lodash';
 import { InferCreationAttributes } from 'sequelize';
 
@@ -160,3 +161,60 @@ export async function addFunds(order: AddFundsInput, remoteUser: User) {
 
   return models.Order.findByPk(orderCreated.id);
 }
+
+export const isOrderHostAdmin = async (req: express.Request, order: Order): Promise<boolean> => {
+  if (!req.remoteUser) {
+    return false;
+  }
+
+  const toAccount = await req.loaders.Collective.byId.load(order.CollectiveId);
+  return req.remoteUser.isAdmin(toAccount.HostCollectiveId);
+};
+
+export const canMarkAsPaid = async (req: express.Request, order: Order): Promise<boolean> => {
+  const allowedStatuses = [status.PENDING, status.EXPIRED];
+  return allowedStatuses.includes(order.status) && isOrderHostAdmin(req, order);
+};
+
+export const canMarkAsExpired = async (req: express.Request, order: Order): Promise<boolean> => {
+  return order.status === status.PENDING && isOrderHostAdmin(req, order);
+};
+
+export const canEdit = async (req: express.Request, order: Order): Promise<boolean> => {
+  return Boolean(
+    order.status === status.PENDING && order.data?.isPendingContribution && (await isOrderHostAdmin(req, order)),
+  );
+};
+
+export const canComment = async (req: express.Request, order: Order): Promise<boolean> => {
+  return isOrderHostAdmin(req, order);
+};
+
+export const canSeeOrderPrivateActivities = async (req: express.Request, order: Order): Promise<boolean> => {
+  return isOrderHostAdmin(req, order);
+};
+
+export const canSetOrderTags = async (req: express.Request, order: Order): Promise<boolean> => {
+  if (!req.remoteUser) {
+    return false;
+  }
+
+  const account = order.collective || (await req.loaders.Collective.byId.load(order.CollectiveId));
+  return req.remoteUser.isAdminOfCollectiveOrHost(account);
+};
+
+export const canSeeOrderCreator = async (req: express.Request, order: Order): Promise<boolean> => {
+  // Host admins can always see the creator
+  if (await isOrderHostAdmin(req, order)) {
+    return true;
+  }
+
+  // If incognito, only admins of the host/collective can see the creator
+  const fromCollective: Collective = await req.loaders.Collective.byId.load(order.FromCollectiveId);
+  if (!fromCollective.isIncognito) {
+    return req.remoteUser?.isAdmin(fromCollective.HostCollectiveId);
+  }
+
+  // Otherwise the creator is public
+  return true;
+};

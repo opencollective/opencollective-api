@@ -16,6 +16,7 @@ import { getHostFeePercent } from '../../../lib/payments';
 import { getDashboardObjectIdURL } from '../../../lib/stripe';
 import models from '../../../models';
 import { CommentType } from '../../../models/Comment';
+import * as OrdersLib from '../../common/orders';
 import { PRIVATE_ORDER_ACTIVITIES } from '../../loaders/order';
 import { GraphQLActivityCollection } from '../collection/ActivityCollection';
 import { CommentCollection } from '../collection/CommentCollection';
@@ -31,7 +32,7 @@ import { GraphQLTier } from '../object/Tier';
 
 import { GraphQLAccountingCategory } from './AccountingCategory';
 import { GraphQLMemberOf } from './Member';
-import GraphQLOrderPermissions, { canComment, canSeeOrderPrivateActivities } from './OrderPermissions';
+import GraphQLOrderPermissions from './OrderPermissions';
 import { GraphQLOrderTax } from './OrderTax';
 import { GraphQLTaxInfo } from './TaxInfo';
 
@@ -333,7 +334,7 @@ export const GraphQLOrder = new GraphQLObjectType({
         description: 'The list of activities (ie. approved, edited, etc) for this Order ordered by date ascending',
         async resolve(order, _, req) {
           let activities = await req.loaders.Order.activities.load(order.id);
-          if (!(await canSeeOrderPrivateActivities(req, order))) {
+          if (!(await OrdersLib.canSeeOrderPrivateActivities(req, order))) {
             activities = activities.filter(activity => !PRIVATE_ORDER_ACTIVITIES.includes(activity.type));
           }
 
@@ -452,7 +453,7 @@ export const GraphQLOrder = new GraphQLObjectType({
           },
         },
         async resolve(order, { limit, offset, orderBy }, req) {
-          if (!(await canComment(req, order))) {
+          if (!(await OrdersLib.canComment(req, order))) {
             return null;
           }
 

@@ -7,8 +7,10 @@ import { readJsonSync, writeJsonSync } from 'fs-extra';
 import { uniqBy } from 'lodash';
 import moment from 'moment';
 
+import { loaders } from '../server/graphql/loaders';
 import { traverse } from '../server/lib/import-export/export';
 import { restoreRows } from '../server/lib/import-export/import';
+import { PartialRequest } from '../server/lib/import-export/types';
 import logger from '../server/lib/logger';
 import { md5 } from '../server/lib/utils';
 import models, { sequelize } from '../server/models';
@@ -23,9 +25,12 @@ const exec = cmd => {
   }
 };
 
-program.command('dump [recipe] [env]').action(async (recipe, env) => {
+program.command('dump [recipe] [env] [as_user]').action(async (recipe, env, asUser) => {
   if (!sequelize.config.username.includes('readonly')) {
     logger.error('Remote must be connected with read-only user!');
+    process.exit(1);
+  } else if (!asUser) {
+    logger.error('as_user is required');
     process.exit(1);
   }
 
@@ -33,6 +38,10 @@ program.command('dump [recipe] [env]').action(async (recipe, env) => {
     logger.info('Using default recipe...');
     recipe = './smart-dump/defaultRecipe.js';
   }
+
+  // Prepare req object
+  const remoteUser = await models.User.findOne({ include: [{ association: 'collective', where: { slug: asUser } }] });
+  const req: PartialRequest = { remoteUser, loaders: loaders({ remoteUser }) };
 
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { entries, defaultDependencies } = require(recipe);
@@ -46,7 +55,7 @@ program.command('dump [recipe] [env]').action(async (recipe, env) => {
   logger.info('>>> Dumping...');
   for (const entry of entries) {
     logger.info(`>>> Traversing DB for entry ${entries.indexOf(entry) + 1}/${entries.length}...`);
-    const newdocs = await traverse({ ...entry, defaultDependencies, parsed });
+    const newdocs = await traverse({ ...entry, defaultDependencies, parsed, req });
     docs.push(...newdocs);
   }
   logger.info(`>>> Dumped! ${docs.length} records in ${moment(start).fromNow(true)}`);
@@ -122,7 +131,7 @@ program.addHelpText(
   `
 
 Example call:
-  $ npm run script scripts/smart-dump.ts dump prod
+  $ npm run script scripts/smart-dump.ts dump prod superuser
   $ PG_DATABASE=opencollective_prod_snapshot npm run script scripts/smart-dump.ts restore dbdumps/2023-03-21.c5292.json
 `,
 );

@@ -1,10 +1,8 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { pick } from 'lodash';
 
-import ACTIVITY from '../../../constants/activities';
-import * as ExpenseLib from '../../common/expenses';
+import { sanitizeActivityData } from '../../common/activities';
 import { GraphQLActivityType } from '../enum';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
@@ -141,95 +139,7 @@ export const GraphQLActivity = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLJSON),
       description: 'Data attached to this activity (if any)',
       async resolve(activity, _, req: express.Request): Promise<Record<string, unknown>> {
-        const toPick = [];
-        if (activity.type === ACTIVITY.COLLECTIVE_EXPENSE_PAID) {
-          toPick.push('isManualPayout');
-        } else if (activity.type === ACTIVITY.COLLECTIVE_EXPENSE_ERROR) {
-          if (activity.CollectiveId) {
-            const collective = await req.loaders.Collective.byId.load(activity.CollectiveId);
-            if (req.remoteUser?.isAdmin(collective.HostCollectiveId)) {
-              toPick.push('error');
-            }
-          }
-        } else if (
-          [ACTIVITY.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE, ACTIVITY.COLLECTIVE_EXPENSE_PROCESSING].includes(
-            activity.type,
-          )
-        ) {
-          if (activity.ExpenseId) {
-            const expense = await req.loaders.Expense.byId.load(activity.ExpenseId);
-            if (expense && (await ExpenseLib.canSeeExpenseInvoiceInfo(req, expense))) {
-              toPick.push('message', 'reference', 'estimatedDelivery');
-            }
-          }
-        } else if (activity.type === ACTIVITY.COLLECTIVE_EXPENSE_MOVED) {
-          toPick.push('movedFromCollective');
-        } else if (
-          [
-            ACTIVITY.COLLECTIVE_MEMBER_INVITED,
-            ACTIVITY.COLLECTIVE_CORE_MEMBER_INVITED,
-            ACTIVITY.COLLECTIVE_CORE_MEMBER_INVITATION_DECLINED,
-          ].includes(activity.type)
-        ) {
-          toPick.push('invitation.role');
-        } else if (
-          [
-            ACTIVITY.COLLECTIVE_MEMBER_CREATED,
-            ACTIVITY.COLLECTIVE_CORE_MEMBER_ADDED,
-            ACTIVITY.COLLECTIVE_CORE_MEMBER_REMOVED,
-            ACTIVITY.COLLECTIVE_CORE_MEMBER_EDITED,
-          ].includes(activity.type)
-        ) {
-          toPick.push('member.role');
-          toPick.push('invitation.role');
-        } else if (activity.type === ACTIVITY.COLLECTIVE_EDITED) {
-          const collective = await req.loaders.Collective.byId.load(activity.CollectiveId);
-          if (req.remoteUser?.isAdminOfCollectiveOrHost(collective)) {
-            toPick.push('previousData');
-            toPick.push('newData');
-          }
-        } else if (activity.type === ACTIVITY.EXPENSE_COMMENT_CREATED && activity.ExpenseId) {
-          const expense = await req.loaders.Expense.byId.load(activity.ExpenseId);
-          if (expense && (await ExpenseLib.canComment(req, expense))) {
-            toPick.push('comment');
-          }
-        } else if (activity.type === ACTIVITY.COLLECTIVE_UPDATE_PUBLISHED && !activity.data.update.isPrivate) {
-          toPick.push('update.title', 'update.html');
-        } else if (activity.type === ACTIVITY.ACCOUNTING_CATEGORIES_EDITED) {
-          toPick.push('added', 'removed', 'edited');
-        } else if ([ACTIVITY.VENDOR_EDITED, ACTIVITY.VENDOR_CREATED].includes(activity.type)) {
-          const collective = await req.loaders.Collective.byId.load(activity.CollectiveId);
-          if (req.remoteUser?.isAdminOfCollectiveOrHost(collective)) {
-            toPick.push('vendor');
-            toPick.push('previousData');
-            toPick.push('newData');
-          }
-        } else if (
-          [
-            ACTIVITY.ORDER_PAYMENT_FAILED,
-            ACTIVITY.PAYMENT_FAILED,
-            ACTIVITY.ORDER_PROCESSING,
-            ACTIVITY.PAYMENT_CREDITCARD_CONFIRMATION,
-            ACTIVITY.ORDER_REVIEW_OPENED,
-            ACTIVITY.ORDER_REVIEW_CLOSED,
-            ACTIVITY.ORDER_DISPUTE_CREATED,
-            ACTIVITY.ORDER_DISPUTE_CLOSED,
-          ].includes(activity.type)
-        ) {
-          const [collective, fromCollective] = await req.loaders.Collective.byId.loadMany([
-            activity.CollectiveId,
-            activity.FromCollectiveId,
-          ]);
-          if (
-            req.remoteUser?.isAdminOfCollectiveOrHost(collective) ||
-            req.remoteUser?.isAdminOfCollectiveOrHost(fromCollective)
-          ) {
-            toPick.push('reason');
-            toPick.push('errorMessage');
-            toPick.push('paymentProcessorUrl');
-          }
-        }
-        return pick(activity.data, toPick);
+        return sanitizeActivityData(req, activity);
       },
     },
     isSystem: {
