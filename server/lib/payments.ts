@@ -374,7 +374,7 @@ export async function refundHostFee(
   transactionGroup: string,
   clearedAt?: Date,
 ): Promise<void> {
-  const hostFeeTransaction = await transaction.getHostFeeTransaction();
+  const hostFeeTransaction = await transaction.getHostFeeTransaction({ type: CREDIT });
   const buildRefund = transaction => {
     return {
       ...buildRefundForTransaction(transaction, user, null, refundedPaymentProcessorFee),
@@ -383,7 +383,7 @@ export async function refundHostFee(
     };
   };
 
-  if (hostFeeTransaction) {
+  if (hostFeeTransaction && hostFeeTransaction.id !== transaction.id) {
     const hostFeeRefund = buildRefund(hostFeeTransaction);
     const hostFeeRefundTransaction = await Transaction.createDoubleEntry(hostFeeRefund);
     await associateTransactionRefundId(hostFeeTransaction, hostFeeRefundTransaction);
@@ -502,8 +502,8 @@ export async function createRefundTransaction(
   };
 
   // Refund Platform Tip
-  const platformTipTransaction = await transaction.getPlatformTipTransaction();
-  if (platformTipTransaction) {
+  const platformTipTransaction = await transaction.getPlatformTipTransaction({ type: CREDIT });
+  if (platformTipTransaction && platformTipTransaction.id !== transaction.id) {
     const platformTipRefund = buildRefund(platformTipTransaction);
     const platformTipRefundTransaction = await Transaction.createDoubleEntry(platformTipRefund);
     await associateTransactionRefundId(platformTipTransaction, platformTipRefundTransaction, data);
