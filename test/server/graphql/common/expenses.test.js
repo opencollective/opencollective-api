@@ -19,7 +19,7 @@ import {
   canSeeExpenseDraftPrivateDetails,
   canSeeExpenseInvoiceInfo,
   canSeeExpensePayeeLocation,
-  canSeeExpensePayoutMethod,
+  canSeeExpensePayoutMethodPrivateDetails,
   canUnapprove,
   canUnschedulePayment,
   canVerifyDraftExpense,
@@ -67,7 +67,7 @@ describe('server/graphql/common/expenses', () => {
     normal: cloneDeep(contextShape),
     selfHosted: cloneDeep(contextShape),
     virtualCard: cloneDeep(contextShape),
-    hostWithSpecialExpensePermissions: cloneDeep(contextShape),
+    collectiveWithSpecialPayoutPolicy: cloneDeep(contextShape),
   };
 
   const prepareContext = async ({ host = undefined, collective = undefined, name } = {}) => {
@@ -143,11 +143,11 @@ describe('server/graphql/common/expenses', () => {
     });
 
     // A host with loose expense permissions
-    contexts.hostWithSpecialExpensePermissions = await prepareContext({ name: 'hostWithSpecialExpensePermissions' });
-    const updatedHostSettings = { allowCollectiveAdminsToEditPrivateExpenseData: true };
-    const updatedHost = await contexts.hostWithSpecialExpensePermissions.host.update({ settings: updatedHostSettings });
-    contexts.hostWithSpecialExpensePermissions.collective.host = updatedHost;
-    contexts.hostWithSpecialExpensePermissions.expense.collective.host = updatedHost;
+    contexts.collectiveWithSpecialPayoutPolicy = await prepareContext({ name: 'collectiveWithSpecialPayoutPolicy' });
+    const updatedCollective = await contexts.collectiveWithSpecialPayoutPolicy.collective.update({
+      data: { policies: { [POLICIES.COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS]: true } },
+    });
+    contexts.collectiveWithSpecialPayoutPolicy.expense.collective = updatedCollective;
   });
 
   /** A helper to run the same test on all contexts, to make sure they behave the same way */
@@ -191,13 +191,13 @@ describe('server/graphql/common/expenses', () => {
     });
   });
 
-  describe('canSeeExpensePayoutMethod', () => {
+  describe('canSeeExpensePayoutMethodPrivateDetails', () => {
     it('can see only with the allowed roles', async () => {
       await runForAllContexts(async context => {
-        expect(await checkAllPermissions(canSeeExpensePayoutMethod, context)).to.deep.equal({
+        expect(await checkAllPermissions(canSeeExpensePayoutMethodPrivateDetails, context)).to.deep.equal({
           public: false,
           randomUser: false,
-          collectiveAdmin: ['hostWithSpecialExpensePermissions', 'selfHosted', 'virtualCard'].includes(context.name),
+          collectiveAdmin: ['collectiveWithSpecialPayoutPolicy', 'selfHosted', 'virtualCard'].includes(context.name),
           collectiveAccountant: context.name === 'selfHosted',
           hostAdmin: true,
           hostAccountant: true,
@@ -330,7 +330,7 @@ describe('server/graphql/common/expenses', () => {
         expect(await checkAllPermissions(canEditExpense, contexts.normal)).to.deep.equal({
           public: false,
           randomUser: false,
-          collectiveAdmin: false,
+          collectiveAdmin: true,
           collectiveAccountant: false,
           hostAdmin: true,
           hostAccountant: false,

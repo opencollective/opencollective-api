@@ -95,7 +95,7 @@ import {
 import { isValidUploadedImage } from '../lib/images';
 import { mustUpdateLocation } from '../lib/location';
 import logger from '../lib/logger';
-import { getPolicy } from '../lib/policies';
+import { getPolicy, POLICIES_EDITABLE_BY_HOST_ONLY } from '../lib/policies';
 import queries from '../lib/queries';
 import { buildSanitizerOptions, optsSanitizeHtmlForSimplified, sanitizeHTML, stripHTML } from '../lib/sanitize-html';
 import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
@@ -146,7 +146,6 @@ type TaxSettings = {
 
 type Settings = {
   goals?: Array<Goal>;
-  allowCollectiveAdminsToEditPrivateExpenseData?: boolean;
   disablePublicExpenseSubmission?: boolean;
   isPlatformRevenueDirectlyCollected?: boolean;
   features?: {
@@ -2471,7 +2470,7 @@ class Collective extends Model<
       });
     }
 
-    // Deactivate/remote everything related to previous host
+    // Deactivate/remove everything related to previous host
     if (this.HostCollectiveId && this.approvedAt) {
       // Pause or cancel all orders that cannot be transferred
       const newOrderStatus = pauseContributions ? OrderStatuses.PAUSED : OrderStatuses.CANCELLED;
@@ -2528,6 +2527,10 @@ class Collective extends Model<
       platformFeePercent: null,
       isHostAccount: false,
       plan: null,
+      data: omit(
+        this.data,
+        POLICIES_EDITABLE_BY_HOST_ONLY.map(policy => `policies.${policy}`),
+      ),
     });
 
     // Add new host

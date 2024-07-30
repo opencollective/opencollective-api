@@ -45,5 +45,8 @@ export const GraphQLPoliciesInput = new GraphQLInputObjectType({
     [POLICIES.EXPENSE_PUBLIC_VENDORS]: {
       type: GraphQLBoolean,
     },
+    [POLICIES.COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS]: {
+      type: GraphQLBoolean,
+    },
   }),
 });

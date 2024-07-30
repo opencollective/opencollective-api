@@ -530,6 +530,108 @@ describe('server/lib/payments', () => {
       expect(refundedTransactions.filter(t => t.kind === TransactionKind.PAYMENT_PROCESSOR_COVER)).to.have.lengthOf(0);
     });
 
+    it('should be able to refund only the host fee', async () => {
+      // Create Open Collective Inc
+      await fakeHost({ id: 8686, name: 'Open Collective' });
+      const host = await fakeHost({ name: 'Host' });
+      const contributorUser = await fakeUser(undefined, { name: 'User' });
+      const collective = await fakeCollective({ name: 'Collective', HostCollectiveId: host.id });
+      const order = await fakeOrder({
+        status: 'PAID',
+        CollectiveId: collective.id,
+        FromCollectiveId: contributorUser.CollectiveId,
+      });
+      await models.Transaction.createFromContributionPayload({
+        CreatedByUserId: contributorUser.id,
+        FromCollectiveId: order.FromCollectiveId,
+        CollectiveId: order.CollectiveId,
+        PaymentMethodId: order.PaymentMethodId,
+        type: 'CREDIT',
+        OrderId: order.id,
+        amount: 5000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        amountInHostCurrency: 5000,
+        hostFeeInHostCurrency: 500,
+        description: 'Contribution to Collective',
+      });
+
+      // Should have 4 transactions:
+      // - 2 for contributions
+      // - 2 for payment processor fees
+      const originalTransactions = await order.getTransactions();
+      expect(originalTransactions).to.have.lengthOf(4);
+      expect(originalTransactions.filter(t => t.kind === TransactionKind.CONTRIBUTION)).to.have.lengthOf(2);
+      expect(originalTransactions.filter(t => t.kind === TransactionKind.HOST_FEE)).to.have.lengthOf(2);
+
+      // Do refund
+      const hostFeeTransaction = originalTransactions.find(
+        t => t.kind === TransactionKind.HOST_FEE && t.type === 'CREDIT',
+      );
+      await createRefundTransaction(hostFeeTransaction, 0, null, user);
+
+      const refundedTransactions = await order.getTransactions({ where: { isRefund: true } });
+      expect(refundedTransactions).to.have.lengthOf(2);
+      expect(refundedTransactions.filter(t => t.kind === TransactionKind.CONTRIBUTION)).to.have.lengthOf(0);
+      expect(refundedTransactions.filter(t => t.kind === TransactionKind.HOST_FEE)).to.have.lengthOf(2);
+
+      // Snapshot ledger
+      const allTransactions = await order.getTransactions({ order: [['id', 'ASC']] });
+      await utils.preloadAssociationsForTransactions(allTransactions, SNAPSHOT_COLUMNS);
+      utils.snapshotTransactions(allTransactions, { columns: SNAPSHOT_COLUMNS });
+    });
+
+    it('should be able to refund only the platform tip', async () => {
+      // Create Open Collective Inc
+      await fakeHost({ id: 8686, name: 'Open Collective' });
+      const host = await fakeHost({ name: 'Host' });
+      const contributorUser = await fakeUser(undefined, { name: 'User' });
+      const collective = await fakeCollective({ name: 'Collective', HostCollectiveId: host.id });
+      const order = await fakeOrder({
+        status: 'PAID',
+        CollectiveId: collective.id,
+        FromCollectiveId: contributorUser.CollectiveId,
+      });
+      await models.Transaction.createFromContributionPayload({
+        CreatedByUserId: contributorUser.id,
+        FromCollectiveId: order.FromCollectiveId,
+        CollectiveId: order.CollectiveId,
+        PaymentMethodId: order.PaymentMethodId,
+        type: 'CREDIT',
+        OrderId: order.id,
+        amount: 5500,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        amountInHostCurrency: 5500,
+        description: 'Contribution to Collective',
+        data: { platformTip: 500, isPlatformRevenueDirectlyCollected: true },
+      });
+
+      // Should have 4 transactions:
+      // - 2 for contributions
+      // - 2 for payment processor fees
+      const originalTransactions = await order.getTransactions();
+      expect(originalTransactions).to.have.lengthOf(4);
+      expect(originalTransactions.filter(t => t.kind === TransactionKind.CONTRIBUTION)).to.have.lengthOf(2);
+      expect(originalTransactions.filter(t => t.kind === TransactionKind.PLATFORM_TIP)).to.have.lengthOf(2);
+
+      // Do refund
+      const platformTipTransaction = originalTransactions.find(
+        t => t.kind === TransactionKind.PLATFORM_TIP && t.type === 'CREDIT',
+      );
+      await createRefundTransaction(platformTipTransaction, 0, null, user);
+
+      const refundedTransactions = await order.getTransactions({ where: { isRefund: true } });
+      expect(refundedTransactions).to.have.lengthOf(2);
+      expect(refundedTransactions.filter(t => t.kind === TransactionKind.CONTRIBUTION)).to.have.lengthOf(0);
+      expect(refundedTransactions.filter(t => t.kind === TransactionKind.PLATFORM_TIP)).to.have.lengthOf(2);
+
+      // Snapshot ledger
+      const allTransactions = await order.getTransactions({ order: [['id', 'ASC']] });
+      await utils.preloadAssociationsForTransactions(allTransactions, SNAPSHOT_COLUMNS);
+      utils.snapshotTransactions(allTransactions, { columns: SNAPSHOT_COLUMNS });
+    });
+
     it('should remove the settlement if the tip was already invoiced', async () => {
       // TODO(LedgerRefactor)
     });

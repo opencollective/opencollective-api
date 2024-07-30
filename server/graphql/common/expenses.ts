@@ -198,7 +198,7 @@ const isAdminOrAccountantOfHostWhoPaidExpense = async (req: express.Request, exp
   return expense.HostCollectiveId && req.remoteUser.isAdmin(expense.HostCollectiveId);
 };
 
-const isAdminOfCollectiveWithLooseEditPermissions = async (
+const isAdminOfCollectiveWithPermissivePayoutMethodPermissions = async (
   req: express.Request,
   expense: Expense,
 ): Promise<boolean> => {
@@ -206,13 +206,21 @@ const isAdminOfCollectiveWithLooseEditPermissions = async (
     return false;
   }
 
-  // Collective already loaded by `isCollectiveAdmin`, we need to load the host
-  if (expense.collective && !expense.collective.host && expense.collective.HostCollectiveId) {
-    expense.collective.host = await req.loaders.Collective.byId.load(expense.collective.HostCollectiveId);
+  // Make sure collective is loaded
+  if (!expense.collective) {
+    expense.collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
+    if (!expense.collective) {
+      return false;
+    }
   }
 
-  // Host must have a special `settings.allowCollectiveAdminsToEditPrivateExpenseData` flag
-  return Boolean(expense.collective?.host?.settings?.allowCollectiveAdminsToEditPrivateExpenseData);
+  const loosePermissionsPolicy = await getPolicy(
+    expense.collective,
+    POLICIES.COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS,
+    { loaders: req.loaders },
+  );
+
+  return Boolean(loosePermissionsPolicy);
 };
 
 const isAdminOfCollectiveAndExpenseIsAVirtualCard = async (
@@ -300,10 +308,12 @@ export const canSeeExpenseAttachments: ExpensePermissionEvaluator = async (req, 
   ]);
 };
 
-/** Checks if the user can see expense's payout method */
-export const canSeeExpensePayoutMethod: ExpensePermissionEvaluator = async (req, expense) => {
+/** Checks if the user can see expense's payout method private details (account number, PayPal email, ...etc) */
+export const canSeeExpensePayoutMethodPrivateDetails: ExpensePermissionEvaluator = async (req, expense) => {
   if (!validateExpenseScope(req)) {
     return false;
+  } else if (getContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, expense.PayoutMethodId)) {
+    return true;
   }
 
   return remoteUserMeetsOneCondition(req, expense, [
@@ -312,7 +322,7 @@ export const canSeeExpensePayoutMethod: ExpensePermissionEvaluator = async (req,
     isHostAdmin,
     isHostAccountant,
     isAdminOrAccountantOfHostWhoPaidExpense,
-    isAdminOfCollectiveWithLooseEditPermissions, // Some fiscal hosts rely on the collective admins to do some verifications on the payout method
+    isAdminOfCollectiveWithPermissivePayoutMethodPermissions, // Some fiscal hosts rely on the collective admins to do some verifications on the payout method
     isAdminOfCollectiveAndExpenseIsAVirtualCard, // Virtual cards are created by the collective admins
   ]);
 };
@@ -461,12 +471,7 @@ export const canEditExpense: ExpensePermissionEvaluator = async (
     }
     return false;
   } else {
-    return remoteUserMeetsOneCondition(
-      req,
-      expense,
-      [isOwner, isHostAdmin, isAdminOfCollectiveAndExpenseIsAVirtualCard, isAdminOfCollectiveWithLooseEditPermissions],
-      options,
-    );
+    return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isCollectiveAdmin], options);
   }
 };
 
