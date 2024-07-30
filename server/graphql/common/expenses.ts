@@ -198,7 +198,7 @@ const isAdminOrAccountantOfHostWhoPaidExpense = async (req: express.Request, exp
   return expense.HostCollectiveId && req.remoteUser.isAdmin(expense.HostCollectiveId);
 };
 
-const isAdminOfCollectiveWithLooseEditPermissions = async (
+const isAdminOfCollectiveWithPermissivePayoutMethodPermissions = async (
   req: express.Request,
   expense: Expense,
 ): Promise<boolean> => {
@@ -214,21 +214,13 @@ const isAdminOfCollectiveWithLooseEditPermissions = async (
     }
   }
 
-  // New per-collective setting
-  if (
-    await getPolicy(expense.collective, POLICIES.COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS, { loaders: req.loaders })
-  ) {
-    return true;
-  }
+  const loosePermissionsPolicy = await getPolicy(
+    expense.collective,
+    POLICIES.COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS,
+    { loaders: req.loaders },
+  );
 
-  // @deprecated Legacy setting - will be removed as part of https://github.com/opencollective/opencollective/issues/7478
-  // We need to load the host
-  if (!expense.collective.host && expense.collective.HostCollectiveId) {
-    expense.collective.host = await req.loaders.Collective.byId.load(expense.collective.HostCollectiveId);
-  }
-
-  // Host must have a special `settings.allowCollectiveAdminsToEditPrivateExpenseData` flag
-  return Boolean(expense.collective.host?.settings?.allowCollectiveAdminsToEditPrivateExpenseData);
+  return Boolean(loosePermissionsPolicy);
 };
 
 const isAdminOfCollectiveAndExpenseIsAVirtualCard = async (
@@ -330,7 +322,7 @@ export const canSeeExpensePayoutMethodPrivateDetails: ExpensePermissionEvaluator
     isHostAdmin,
     isHostAccountant,
     isAdminOrAccountantOfHostWhoPaidExpense,
-    isAdminOfCollectiveWithLooseEditPermissions, // Some fiscal hosts rely on the collective admins to do some verifications on the payout method
+    isAdminOfCollectiveWithPermissivePayoutMethodPermissions, // Some fiscal hosts rely on the collective admins to do some verifications on the payout method
     isAdminOfCollectiveAndExpenseIsAVirtualCard, // Virtual cards are created by the collective admins
   ]);
 };
