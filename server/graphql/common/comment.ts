@@ -123,7 +123,7 @@ async function createComment(commentData, req): Promise<Comment> {
       throw new Unauthorized('You do not have the permission to post comments on this update');
     }
   } else if (OrderId) {
-    if (!(await canCommentOrder(req, OrderId))) {
+    if (!(await canCommentOrder(req, commentedEntity as Order))) {
       throw new Unauthorized('You do not have the permission to post comments on this order');
     }
     if (type !== CommentType.PRIVATE_NOTE) {
