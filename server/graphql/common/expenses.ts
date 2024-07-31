@@ -1819,13 +1819,13 @@ export async function submitExpenseDraft(
     throw new Unauthorized('Expense can not be edited.');
   }
 
-  const userIsOriginalPayee = originalPayee && req.remoteUser?.isAdminOfCollective(originalPayee);
-  const userIsAuthor = req.remoteUser?.id === existingExpense.UserId;
+  const userIsOriginalPayee: boolean = Boolean(originalPayee) && req.remoteUser?.isAdminOfCollective(originalPayee);
+  const userIsAuthor = Boolean(req.remoteUser) && req.remoteUser?.id === existingExpense.UserId;
   if (existingExpense.data?.draftKey !== args.draftKey && !userIsOriginalPayee && !userIsAuthor) {
     throw new Unauthorized('You need to submit the right draft key to edit this expense');
   }
 
-  const options = { overrideRemoteUser: undefined, skipPermissionCheck: true };
+  const options = { overrideRemoteUser: undefined, skipPermissionCheck: true, skipActivity: true };
   if (requestedPayee) {
     if (!req.remoteUser?.isAdminOfCollective(requestedPayee)) {
       throw new Unauthorized('User needs to be the admin of the payee to submit an expense on their behalf');
@@ -1853,10 +1853,21 @@ export async function submitExpenseDraft(
     options.skipPermissionCheck = true;
   }
 
+  let status = undefined;
+  if (
+    options.overrideRemoteUser &&
+    existingExpense.data?.draftKey === args.draftKey &&
+    existingExpense.data?.payee?.email === options.overrideRemoteUser.email
+  ) {
+    status = statuses.PENDING;
+  } else if (options.overrideRemoteUser?.id) {
+    status = statuses.UNVERIFIED;
+  }
+
   existingExpense = await editExpense(req, expenseData, options);
 
   await existingExpense.update({
-    status: options.overrideRemoteUser?.id ? statuses.UNVERIFIED : undefined,
+    status,
     lastEditedById: options.overrideRemoteUser?.id || req.remoteUser?.id,
     UserId: options.overrideRemoteUser?.id || req.remoteUser?.id,
   });
@@ -2027,8 +2038,12 @@ const editOnlyTagsAndAccountingCategory = async (
   return updatedExpense;
 };
 
-export async function editExpense(req: express.Request, expenseData: ExpenseData, options = {}): Promise<Expense> {
-  const remoteUser = options?.['overrideRemoteUser'] || req.remoteUser;
+export async function editExpense(
+  req: express.Request,
+  expenseData: ExpenseData,
+  options: { skipActivity?: boolean; overrideRemoteUser?: User; skipPermissionCheck?: boolean } = {},
+): Promise<Expense> {
+  const remoteUser = options?.overrideRemoteUser || req.remoteUser;
   if (!remoteUser) {
     throw new Unauthorized('You need to be logged in to edit an expense');
   } else if (!canUseFeature(remoteUser, FEATURE.USE_EXPENSES)) {
@@ -2111,7 +2126,7 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
   const taxes = expenseData.tax || (expense.data?.taxes as ExpenseTaxDefinition[]) || [];
   checkTaxes(expense.collective, expense.collective.host, expenseType, taxes);
 
-  if (!options?.['skipPermissionCheck'] && !(await canEditExpense(req, expense))) {
+  if (!options?.skipPermissionCheck && !(await canEditExpense(req, expense))) {
     throw new Unauthorized("You don't have permission to edit this expense");
   }
 
@@ -2128,7 +2143,7 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
   // Load the payee profile
   const fromCollective = expenseData.fromCollective || expense.fromCollective;
   if (expenseData.fromCollective && expenseData.fromCollective.id !== expense.fromCollective.id) {
-    if (!options?.['skipPermissionCheck'] && !remoteUser.isAdminOfCollective(fromCollective)) {
+    if (!options?.skipPermissionCheck && !remoteUser.isAdminOfCollective(fromCollective)) {
       throw new ValidationFailed('You must be an admin of the account to submit an expense in its name');
     } else if (!fromCollective.canBeUsedAsPayoutProfile()) {
       throw new ValidationFailed('This account cannot be used for payouts');
@@ -2322,8 +2337,10 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
     }
   }
 
-  const notifyCollective = previousStatus === 'INCOMPLETE' && updatedExpense.status === 'PENDING';
-  await updatedExpense.createActivity(activities.COLLECTIVE_EXPENSE_UPDATED, remoteUser, { notifyCollective });
+  if (!options?.skipActivity) {
+    const notifyCollective = previousStatus === 'INCOMPLETE' && updatedExpense.status === 'PENDING';
+    await updatedExpense.createActivity(activities.COLLECTIVE_EXPENSE_UPDATED, remoteUser, { notifyCollective });
+  }
 
   try {
     await expense.updateTaxFormStatus(host, fromCollective, remoteUser, { UserTokenId: req.userToken?.id });
