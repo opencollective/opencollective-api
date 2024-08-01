@@ -1820,7 +1820,7 @@ export async function submitExpenseDraft(
   }
 
   const userIsOriginalPayee: boolean = Boolean(originalPayee) && req.remoteUser?.isAdminOfCollective(originalPayee);
-  const userIsAuthor = Boolean(req.remoteUser) && req.remoteUser?.id === existingExpense.UserId;
+  const userIsAuthor = Boolean(req.remoteUser) && req.remoteUser.id === existingExpense.UserId;
   if (existingExpense.data?.draftKey !== args.draftKey && !userIsOriginalPayee && !userIsAuthor) {
     throw new Unauthorized('You need to submit the right draft key to edit this expense');
   }
