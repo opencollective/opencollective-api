@@ -2,6 +2,7 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import ORDER_STATUS from '../../../constants/order-status';
+import { Order } from '../../../models';
 import { checkReceiveFinancialContributions } from '../../common/features';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
@@ -29,7 +30,7 @@ export const canEdit = async (req: express.Request, order): Promise<boolean> => 
   );
 };
 
-export const canComment = async (req: express.Request, order): Promise<boolean> => {
+export const canComment = async (req: express.Request, order: Order): Promise<boolean> => {
   return isHostAdmin(req, order);
 };
 
