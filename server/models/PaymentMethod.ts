@@ -12,6 +12,7 @@ import {
   PAYMENT_METHOD_TYPES,
 } from '../constants/paymentMethods';
 import { TransactionTypes } from '../constants/transactions';
+import { getBlockedContributionsCount, getBlockedExpenseFunds } from '../lib/budget';
 import { getFxRate } from '../lib/currency';
 import { sumTransactions } from '../lib/hostlib';
 import { findPaymentMethodProvider } from '../lib/payments';
@@ -425,6 +426,26 @@ PaymentMethod.prototype.canBeUsedForOrder = async function (order, user) {
 
   const balance = await this.getBalanceForUser(user);
   if (balance && totalAmountInPaymentMethodCurrency > balance.amount) {
+    // Balance transfers can sometimes fail because of disputed transactions leading to a difference between
+    // the "balance" and the "balanceWithBlockedFunds". We add an additional check to return a better error message.
+    if (this.service === 'opencollective' && this.type === 'collective' && order.data?.isBalanceTransfer) {
+      const [nbBlockedFunds, allBlockedExpenses] = await Promise.all([
+        getBlockedContributionsCount(this.CollectiveId),
+        getBlockedExpenseFunds([this.CollectiveId]),
+      ]);
+      if (nbBlockedFunds > 0) {
+        throw new Error(
+          `Your Collective has ${nbBlockedFunds} disputed contributions that are blocking the transfer of funds. Please reach out to your Fiscal Host to resolve this issue.`,
+        );
+      } else if (allBlockedExpenses[this.CollectiveId]?.value > 0) {
+        const summary = allBlockedExpenses[this.CollectiveId];
+        throw new Error(
+          `Your Collective has ${formatCurrency(summary.value, summary.currency)} in disputed expenses that are blocking the transfer of funds. Please reach out to your Fiscal Host to resolve this issue.`,
+        );
+      }
+    }
+
+    // General case: we're just trying to send more money than we have
     throw new Error(
       `You don't have enough funds available (${formatCurrency(
         balance.amount,
