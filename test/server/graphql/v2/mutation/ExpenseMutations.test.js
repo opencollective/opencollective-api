@@ -1703,6 +1703,46 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
         expect(result.data.editExpense.description).to.equal(updatedExpenseData.description);
         expect(result.data.editExpense.payee.slug).to.equal(updatedExpenseData.payee.organization.slug);
+        expect(result.data.editExpense.status).to.equal(expenseStatus.UNVERIFIED);
+
+        const user = await models.User.findOne({ where: { email: updatedExpenseData.payee.email } });
+        expect(user).to.exist;
+      });
+
+      it('it automatically verifies the expense if the draft is submitted with key and the same email used to be invited', async () => {
+        const email = randEmail();
+        const expense = await fakeExpense({
+          data: { draftKey: 'fake-key', payee: { email } },
+          status: expenseStatus.DRAFT,
+        });
+        const anotherUser = await fakeUser();
+
+        const updatedExpenseData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          description: 'This is another test.',
+          payee: {
+            name: 'Willem',
+            email,
+          },
+        };
+
+        const { errors } = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData });
+        expect(errors).to.exist;
+        expect(errors[0]).to.have.nested.property('extensions.code', 'Unauthorized');
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          {
+            expense: updatedExpenseData,
+            draftKey: 'fake-key',
+          },
+          anotherUser,
+        );
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+
+        expect(result.data.editExpense.description).to.equal(updatedExpenseData.description);
+        expect(result.data.editExpense.status).to.equal(expenseStatus.PENDING);
 
         const user = await models.User.findOne({ where: { email: updatedExpenseData.payee.email } });
         expect(user).to.exist;
