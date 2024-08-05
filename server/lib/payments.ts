@@ -511,7 +511,7 @@ export async function createRefundTransaction(
     // Refund Platform Tip Debt
     // Tips directly collected (and legacy ones) do not have a "debt" transaction associated
     const platformTipDebtTransaction = await transaction.getPlatformTipDebtTransaction();
-    if (platformTipDebtTransaction) {
+    if (platformTipDebtTransaction && platformTipDebtTransaction.id !== transaction.id) {
       // Update tip settlement status
       const tipSettlement = await TransactionSettlement.findOne({
         where: {
