@@ -788,7 +788,7 @@ export async function sumCollectivesTransactions(
   }
 
   if (withBlockedFunds) {
-    const blockedFundsResults = await getBlockedFunds(ids);
+    const blockedFundsResults = await getBlockedExpenseFunds(ids);
     for (const collectiveId of ids) {
       if (blockedFundsResults[collectiveId]) {
         const { CollectiveId, currency, value } = blockedFundsResults[collectiveId];
@@ -911,9 +911,14 @@ export async function getYearlyBudgets(collectiveIds) {
   return totals;
 }
 
-// Calculate the total "blocked funds" for each collective
-// Expenses that are PROCESSING or SCHEDULED_FOR_PAYMENT are considered "blocked funds"
-export async function getBlockedFunds(collectiveIds) {
+/**
+ * Calculate the total "blocked funds" for each collective
+ * Expenses that are PROCESSING or SCHEDULED_FOR_PAYMENT are considered "blocked funds"
+ *
+ * @param {Array<Number>} collectiveIds
+ * @returns {Promise<Record<Number, { CollectiveId: Number, currency: String, value: Number }>>}
+ */
+export async function getBlockedExpenseFunds(collectiveIds) {
   const blockedFundResults = await models.Expense.findAll({
     attributes: [
       'CollectiveId',
@@ -944,6 +949,22 @@ export async function getBlockedFunds(collectiveIds) {
   }
 
   return totals;
+}
+
+/**
+ * @param {Number} collectiveId
+ * @returns {Promise<Number>} The number of contributions that are blocked due to a dispute
+ */
+export async function getBlockedContributionsCount(collectiveId) {
+  return models.Transaction.count({
+    where: {
+      type: 'CREDIT',
+      CollectiveId: collectiveId,
+      kind: 'CONTRIBUTION',
+      isDisputed: true,
+      RefundTransactionId: null,
+    },
+  });
 }
 
 // Get current balance for collective using a combination of speed and accuracy.
@@ -977,7 +998,7 @@ export async function getCurrentCollectiveBalances(collectiveIds, { loaders = nu
   }
 
   if (withBlockedFunds) {
-    const blockedFundsResults = await getBlockedFunds(Object.keys(totals));
+    const blockedFundsResults = await getBlockedExpenseFunds(Object.keys(totals));
     for (const collectiveId of Object.keys(totals)) {
       if (blockedFundsResults[collectiveId]) {
         const { CollectiveId, currency, value } = blockedFundsResults[collectiveId];
