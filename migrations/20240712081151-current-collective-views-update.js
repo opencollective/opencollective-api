@@ -1,5 +1,11 @@
 'use strict';
 
+/*
+ *
+ * /!\ ATENTION: This migration is missing the required Indexes for CollectiveTransactionStats, if you copy this migration to a new one, make sure to add the indexes as well.
+ *
+ */
+
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface) {

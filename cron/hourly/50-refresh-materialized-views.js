@@ -9,11 +9,10 @@ const VIEWS = [
   'TransactionBalances',
   'CollectiveBalanceCheckpoint',
   'CollectiveOrderStats',
-  'CollectiveTagStats',
   'ExpenseTagStats',
 ];
 
-const VIEWS_WITHOUT_UNIQUE_INDEX = ['HostMonthlyTransactions'];
+const VIEWS_WITHOUT_UNIQUE_INDEX = ['HostMonthlyTransactions', 'CollectiveTagStats'];
 
 /**
  * Refresh the materialized views.
