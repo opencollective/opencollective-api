@@ -35,7 +35,9 @@ describe('export', () => {
           dependencies: ['User'],
           parsed,
         },
-        ei => results.push(ei),
+        async ei => {
+          results.push(ei);
+        },
       );
 
       expect(results).to.containSubset([{ model: 'User', id: user.id }]);
@@ -52,7 +54,9 @@ describe('export', () => {
           dependencies: [{ model: 'User', on: 'CollectiveId' }],
           parsed,
         },
-        ei => results.push(ei),
+        async ei => {
+          results.push(ei);
+        },
       );
 
       expect(results).to.containSubset([{ model: 'User', id: user.id }]);
@@ -69,7 +73,9 @@ describe('export', () => {
           dependencies: [{ model: 'Collective', from: 'CollectiveId' }],
           parsed,
         },
-        ei => results.push(ei),
+        async ei => {
+          results.push(ei);
+        },
       );
 
       expect(results).to.containSubset([{ model: 'User', id: user.id }]);
@@ -86,7 +92,9 @@ describe('export', () => {
           dependencies: [{ model: 'Collective', where: userRow => ({ id: userRow.CollectiveId }) }],
           parsed,
         },
-        ei => results.push(ei),
+        async ei => {
+          results.push(ei);
+        },
       );
 
       expect(results).to.containSubset([{ model: 'User', id: user.id }]);
