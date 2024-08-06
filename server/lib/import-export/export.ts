@@ -77,7 +77,7 @@ type ExportedItem = Record<string, any> & { model: ModelNames; id: number | stri
 
 export const traverse = async (
   { model, where, order, dependencies, limit, defaultDependencies = {}, parsed, depth = 1 }: RecipeItem,
-  callback: (ei: ExportedItem) => void,
+  callback: (ei: ExportedItem) => Promise<void>,
 ) => {
   let records;
   if (model && where) {
@@ -99,8 +99,8 @@ export const traverse = async (
       records.forEach(r => parsed[model].add(r.id));
     }
 
-    records.forEach(element => {
-      callback(element);
+    records.forEach(async element => {
+      await callback(element);
     });
   }
   // Inject default dependencies for the model
