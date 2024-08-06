@@ -62,7 +62,7 @@ program.command('dump [recipe] [env]').action(async (recipe, env) => {
   const dumpFile = fs.createWriteStream(`${tempDumpDir}/data.jsonl`);
   for (const entry of entries) {
     logger.info(`>>> Traversing DB for entry ${entries.indexOf(entry) + 1}/${entries.length}...`);
-    await traverse({ ...entry, defaultDependencies, parsed }, ei => {
+    await traverse({ ...entry, defaultDependencies, parsed }, async ei => {
       const modelRecordKey = `${ei.model}.${ei.id}`;
       if (!seenModelRecords.has(modelRecordKey)) {
         dumpFile.write(JSON.stringify(ei) + os.EOL);
