@@ -3,6 +3,8 @@ import '../server/env';
 import { execSync } from 'child_process';
 import fs from 'fs';
 import os from 'os';
+import path from 'path';
+import { cwd } from 'process';
 import readline from 'readline';
 
 import { Command } from 'commander';
@@ -12,7 +14,6 @@ import { Model as SequelizeModel, ModelStatic } from 'sequelize';
 
 import { loaders } from '../server/graphql/loaders';
 import { traverse } from '../server/lib/import-export/export';
-import { restoreRows } from '../server/lib/import-export/import';
 import { PartialRequest } from '../server/lib/import-export/types';
 import logger from '../server/lib/logger';
 import { md5 } from '../server/lib/utils';
@@ -46,17 +47,29 @@ program.command('dump [recipe] [env] [as_user]').action(async (recipe, env, asUs
   const remoteUser = await models.User.findOne({ include: [{ association: 'collective', where: { slug: asUser } }] });
   const req: PartialRequest = { remoteUser, loaders: loaders({ remoteUser }) };
 
+  const tempDumpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'oc-export-'));
+  logger.info(`>>> Temp directory: ${tempDumpDir}`);
+
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { entries, defaultDependencies } = require(recipe);
   const parsed = {};
   const date = new Date().toISOString().substring(0, 10);
   const hash = md5(JSON.stringify({ entries, defaultDependencies, date })).slice(0, 5);
-  const filename = `${date}.${hash}`;
   const seenModelRecords: Set<string> = new Set();
 
+  fs.writeFileSync(
+    `${tempDumpDir}/metadata.json`,
+    JSON.stringify({
+      date,
+      asUser,
+      hash,
+      recipe: require(recipe),
+    }),
+  );
+
   let start = new Date();
-  logger.info(`>>> Dumping... to dbdumps/${filename}.jsonl`);
-  const dumpFile = fs.createWriteStream(`dbdumps/${filename}.jsonl`);
+  logger.info(`>>> Dumping... to ${tempDumpDir}/data.jsonl`);
+  const dumpFile = fs.createWriteStream(`${tempDumpDir}/data.jsonl`);
   for (const entry of entries) {
     logger.info(`>>> Traversing DB for entry ${entries.indexOf(entry) + 1}/${entries.length}...`);
     await traverse({ ...entry, defaultDependencies, parsed },  req, ei => {
@@ -72,10 +85,12 @@ program.command('dump [recipe] [env] [as_user]').action(async (recipe, env, asUs
 
   start = new Date();
   logger.info('>>> Dumping Schema...');
-  exec(`pg_dump -csOx $PG_URL > dbdumps/${filename}.schema.sql`);
+  exec(`pg_dump -csOx $PG_URL > ${tempDumpDir}/schema.sql`);
   logger.info(`>>> Schema Dumped! ${seenModelRecords.size} records in ${moment(start).fromNow(true)}`);
 
-  logger.info(`>>> Done! See dbdumps/${filename}.jsonl and dbdumps/${filename}.schema.sql`);
+  logger.info(`>>> Ziping export to... dbdumps/${date}.${hash}.zip`);
+  exec(`CUR_DIR=$PWD; cd ${tempDumpDir}; zip -r $CUR_DIR/dbdumps/${date}.${hash}.zip .; cd $CUR_DIR`);
+  logger.info(`>>> Done! See dbdumps/${date}.${hash}.zip`);
   sequelize.close();
 });
 
@@ -89,11 +104,19 @@ program.command('restore <file>').action(async file => {
     process.exit(1);
   }
 
+  const importBundleAbsolutePath = path.resolve(cwd(), file);
+  const tempImportDir = fs.mkdtempSync(path.join(os.tmpdir(), 'oc-import-'));
+  logger.info(`>>> Temp directory: ${tempImportDir}`);
+  exec(`CUR_DIR=$PWD; cd ${tempImportDir}; unzip ${importBundleAbsolutePath}; cd $CUR_DIR`);
+
+  const importMetadata = JSON.parse(fs.readFileSync(path.join(tempImportDir, 'metadata.json')).toString());
+  logger.info(`>>> Import metadata... date: ${importMetadata.date}, hash: ${importMetadata.hash}`);
+
   let start = new Date();
   logger.info('>>> Recreating DB...');
   exec(`dropdb ${database}`);
   exec(`createdb ${database}`);
-  exec(`psql -h localhost -U postgres ${database} < ${file.replace('.jsonl', '.schema.sql')}`);
+  exec(`psql -h localhost -U postgres ${database} < ${tempImportDir}/schema.sql`);
   logger.info(`>>> DB Created! in ${moment(start).fromNow(true)}`);
 
   await sequelize.sync().catch(nop);
@@ -109,8 +132,9 @@ program.command('restore <file>').action(async file => {
       await sequelize.query(`ALTER TABLE "${model.getTableName()}" DISABLE TRIGGER ALL;`, { transaction });
     }
 
-    logger.info(`>>> Opening file ${file}`);
-    const fileStream = fs.createReadStream(file);
+    logger.info(`>>> Opening file ${tempImportDir}/schema.sql`);
+    const dataFile = path.join(tempImportDir, 'data.jsonl');
+    const fileStream = fs.createReadStream(dataFile);
     const rl = readline.createInterface({
       input: fileStream,
       crlfDelay: Infinity,
@@ -170,7 +194,7 @@ program.addHelpText(
 
 Example call:
   $ npm run script scripts/smart-dump.ts dump prod superuser
-  $ PG_DATABASE=opencollective_prod_snapshot npm run script scripts/smart-dump.ts restore dbdumps/2023-03-21.c5292.json
+  $ PG_DATABASE=opencollective_prod_snapshot npm run script scripts/smart-dump.ts restore dbdumps/2023-03-21.c5292.zip
 `,
 );
 
