@@ -1,4 +1,4 @@
-import { differenceBy, flatten, get, isEqual, isNil, isPlainObject, isUndefined, merge, pick } from 'lodash';
+import { differenceBy, flatten, get, isEqual, isNil, isPlainObject, isUndefined, merge, omit, pick } from 'lodash';
 import { Model } from 'sequelize';
 
 /** A diff as [newEntries, removedEntries, updatedEntries] */
@@ -154,12 +154,17 @@ const keysDeep = (obj: object, prefix?: string) =>
     }),
   );
 
-export const getDiffBetweenInstances = <T extends Model>(newData: object | T, previousData: object | T) => {
-  newData = newData instanceof Model ? newData.toJSON() : newData;
-  previousData = previousData instanceof Model ? previousData.toJSON() : previousData;
+export const getDiffBetweenInstances = <T extends Model>(
+  newData: object | T,
+  previousData: object | T,
+  omitKeys: string[] = [],
+) => {
+  newData = omit(newData instanceof Model ? newData.toJSON() : newData, omitKeys);
+  previousData = omit(previousData instanceof Model ? previousData.toJSON() : previousData, omitKeys);
 
   const newKeys = keysDeep(newData);
-  const updatedKeys = newKeys.filter(k => get(newData, k) !== get(previousData, k));
+  const updatedKeys = newKeys.filter(k => !isEqual(get(newData, k), get(previousData, k)));
+
   return {
     newData: pick(newData, updatedKeys),
     previousData: pick(previousData, updatedKeys),
