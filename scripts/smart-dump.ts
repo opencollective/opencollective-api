@@ -57,9 +57,11 @@ program.command('dump [recipe] [env] [as_user]').action(async (recipe, env, asUs
   const hash = md5(JSON.stringify({ entries, defaultDependencies, date })).slice(0, 5);
   const seenModelRecords: Set<string> = new Set();
 
+  const gitRevision = execSync('git describe --always --abbrev=0 --match "NOT A TAG" --dirty="*"').toString().trim();
   fs.writeFileSync(
     `${tempDumpDir}/metadata.json`,
     JSON.stringify({
+      gitRevision,
       date,
       asUser,
       hash,
@@ -110,7 +112,9 @@ program.command('restore <file>').action(async file => {
   exec(`CUR_DIR=$PWD; cd ${tempImportDir}; unzip ${importBundleAbsolutePath}; cd $CUR_DIR`);
 
   const importMetadata = JSON.parse(fs.readFileSync(path.join(tempImportDir, 'metadata.json')).toString());
-  logger.info(`>>> Import metadata... date: ${importMetadata.date}, hash: ${importMetadata.hash}`);
+  logger.info(
+    `>>> Import metadata... date: ${importMetadata.date}, hash: ${importMetadata.hash}, gitRevision: ${importMetadata.gitRevision}`,
+  );
 
   let start = new Date();
   logger.info('>>> Recreating DB...');

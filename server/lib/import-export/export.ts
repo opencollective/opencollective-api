@@ -128,7 +128,11 @@ export const traverse = async (
           if (foreignKeys[model]?.[dep]) {
             where = { ...where, [Op.or]: foreignKeys[model][dep].map(on => ({ [on]: record.id })) };
             pResults.push(
-              traverse({ model: dep as ModelNames, where, defaultDependencies, parsed, depth: depth + 1 }, req, callback),
+              traverse(
+                { model: dep as ModelNames, where, defaultDependencies, parsed, depth: depth + 1 },
+                req,
+                callback,
+              ),
             );
           } else {
             logger.error(`Foreign key not found for ${model}.${dep}`);

@@ -45,7 +45,9 @@ describe('export', () => {
           parsed,
         },
         makeRequest(user),
-        ei => results.push(ei),
+        async ei => {
+          results.push(ei);
+        },
       );
 
       expect(results).to.containSubset([{ model: 'User', id: user.id }]);
@@ -63,7 +65,9 @@ describe('export', () => {
           parsed,
         },
         makeRequest(user),
-        ei => results.push(ei),
+        async ei => {
+          results.push(ei);
+        },
       );
 
       expect(results).to.containSubset([{ model: 'User', id: user.id }]);
@@ -81,7 +85,9 @@ describe('export', () => {
           parsed,
         },
         makeRequest(user),
-        ei => results.push(ei),
+        async ei => {
+          results.push(ei);
+        },
       );
 
       expect(results).to.containSubset([{ model: 'User', id: user.id }]);
@@ -99,7 +105,9 @@ describe('export', () => {
           parsed,
         },
         makeRequest(user),
-        ei => results.push(ei),
+        async ei => {
+          results.push(ei);
+        },
       );
 
       expect(results).to.containSubset([{ model: 'User', id: user.id }]);
@@ -125,7 +133,7 @@ describe('export', () => {
               where: { id: expense.PayoutMethodId },
             },
             makeRequest(hostAdmin),
-            ei => results.push(ei),
+            async ei => results.push(ei),
           );
 
           expect(results).to.have.length(1);
@@ -153,7 +161,7 @@ describe('export', () => {
               dependencies: [{ model: 'PayoutMethod', where: expenseRow => ({ id: expenseRow.PayoutMethodId }) }],
             },
             makeRequest(hostAdmin),
-            ei => results.push(ei),
+            async ei => results.push(ei),
           );
 
           expect(results).to.have.length(2);
