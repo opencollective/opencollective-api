@@ -2,7 +2,7 @@ import { pick } from 'lodash';
 
 import ActivityTypes from '../../constants/activities';
 import { mustBeLoggedInTo } from '../../lib/auth';
-import models from '../../models';
+import models, { Collective, HostApplication } from '../../models';
 import Comment, { CommentType } from '../../models/Comment';
 import Conversation from '../../models/Conversation';
 import Expense from '../../models/Expense';
@@ -12,10 +12,11 @@ import { NotFound, Unauthorized, ValidationFailed } from '../errors';
 import { canComment as canCommentOrder } from '../v2/object/OrderPermissions';
 
 import { canComment as canCommentExpense, canUsePrivateNotes as canUseExpensePrivateNotes } from './expenses';
+import { canCommentHostApplication } from './host-applications';
 import { checkRemoteUserCanUseComment } from './scope-check';
 import { canSeeUpdate } from './update';
 
-type CommentableEntity = Update | Expense | Conversation | Order;
+type CommentableEntity = Update | Expense | Conversation | Order | HostApplication;
 
 const loadCommentedEntity = async (commentValues): Promise<[CommentableEntity, ActivityTypes]> => {
   const include = { association: 'collective', required: true };
@@ -34,6 +35,9 @@ const loadCommentedEntity = async (commentValues): Promise<[CommentableEntity, A
   } else if (commentValues.OrderId) {
     entity = (await models.Order.findByPk(commentValues.OrderId, { include })) as Order;
     activityType = ActivityTypes.ORDER_COMMENT_CREATED;
+  } else if (commentValues.HostApplicationId) {
+    entity = (await models.HostApplication.findByPk(commentValues.HostApplicationId, { include })) as HostApplication;
+    activityType = ActivityTypes.HOST_APPLICATION_COMMENT_CREATED;
   }
 
   return [entity, activityType];
@@ -97,10 +101,10 @@ async function createComment(commentData, req): Promise<Comment> {
     throw new ValidationFailed('Comment is empty');
   }
 
-  const { ConversationId, ExpenseId, UpdateId, OrderId, html, type } = commentData;
+  const { ConversationId, ExpenseId, UpdateId, OrderId, HostApplicationId, html, type } = commentData;
 
   // Ensure at least (and only) one entity to comment is specified
-  if ([ConversationId, ExpenseId, UpdateId, OrderId].filter(Boolean).length !== 1) {
+  if ([ConversationId, ExpenseId, UpdateId, OrderId, HostApplicationId].filter(Boolean).length !== 1) {
     throw new ValidationFailed('You must specify one entity to comment');
   }
 
@@ -109,6 +113,8 @@ async function createComment(commentData, req): Promise<Comment> {
   if (!commentedEntity) {
     throw new ValidationFailed("The item you're trying to comment doesn't exist or has been deleted.");
   }
+
+  let host, collective: Collective;
 
   if (ExpenseId) {
     const expense = commentedEntity as Expense;
@@ -129,6 +135,13 @@ async function createComment(commentData, req): Promise<Comment> {
     if (type !== CommentType.PRIVATE_NOTE) {
       throw new Unauthorized('Only private notes are allowed on orders');
     }
+  } else if (HostApplicationId) {
+    if (!(await canCommentHostApplication(req, commentedEntity as HostApplication))) {
+      throw new Unauthorized('You do not have the permission to post comments on this host application');
+    }
+
+    host = await (commentedEntity as HostApplication).getHost();
+    collective = await (commentedEntity as HostApplication).getCollective();
   }
 
   // Create comment
@@ -139,6 +152,7 @@ async function createComment(commentData, req): Promise<Comment> {
     ExpenseId,
     UpdateId,
     ConversationId,
+    HostApplicationId,
     html, // HTML is sanitized at the model level, no need to do it here
     type,
   });
@@ -149,7 +163,7 @@ async function createComment(commentData, req): Promise<Comment> {
     UserId: comment.CreatedByUserId,
     CollectiveId: comment.CollectiveId,
     FromCollectiveId: comment.FromCollectiveId,
-    HostCollectiveId: commentedEntity.collective.approvedAt ? commentedEntity.collective.HostCollectiveId : null,
+    HostCollectiveId: host?.id,
     ExpenseId: comment.ExpenseId,
     OrderId: comment.OrderId,
     data: {
@@ -160,6 +174,9 @@ async function createComment(commentData, req): Promise<Comment> {
       UpdateId: comment.UpdateId,
       OrderId: comment.OrderId,
       ConversationId: comment.ConversationId,
+      HostApplicationId: comment.HostApplicationId,
+      host: host?.info,
+      collective: collective?.info,
     },
   });
 

@@ -92,6 +92,13 @@ export const checkRemoteUserCanUseWebhooks = (req: Express.Request): void => {
   enforceScope(req, 'webhooks');
 };
 
+const checkRemoteUserCanUseHostApplications = (req: Express.Request): void => {
+  if (!req.remoteUser) {
+    throw new Unauthorized('You need to be logged in to manage host applications');
+  }
+  enforceScope(req, 'account');
+};
+
 export const checkRemoteUserCanUseComment = (comment: Comment, req: Express.Request): void => {
   if (comment.ConversationId) {
     checkRemoteUserCanUseConversations(req);
@@ -99,6 +106,8 @@ export const checkRemoteUserCanUseComment = (comment: Comment, req: Express.Requ
     checkRemoteUserCanUseUpdates(req);
   } else if (comment.ExpenseId) {
     checkRemoteUserCanUseExpenses(req);
+  } else if (comment.HostApplicationId) {
+    checkRemoteUserCanUseHostApplications(req);
   }
 };
 
