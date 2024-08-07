@@ -2,24 +2,50 @@
 
 exports[`server/lib/payments createRefundTransaction partial refunds can be done with a valid amount 1`] = `
 "
-| kind                  | type   | isRefund | isDebt | From           | To             | Host | amount | currency | platformFee | paymentFee | Settlement | description                                 |
-| --------------------- | ------ | -------- | ------ | -------------- | -------------- | ---- | ------ | -------- | ----------- | ---------- | ---------- | ------------------------------------------- |
-| HOST_FEE              | DEBIT  | false    | false  | Wise           | Scouts d'Arlon | Wise | -250   | USD      | 0           | 0          |            | Host Fee                                    |
-| HOST_FEE              | CREDIT | false    | false  | Scouts d'Arlon | Wise           | Wise | 250    | USD      | 0           | 0          |            | Host Fee                                    |
-| TAX                   | DEBIT  | false    | false  | Other Tax      | Scouts d'Arlon | Wise | -100   | USD      | 0           | 0          |            | Other Tax tax                               |
-| TAX                   | CREDIT | false    | false  | Scouts d'Arlon | Other Tax      | NULL | 100    | USD      | 0           | 0          |            | Other Tax tax                               |
-| PAYMENT_PROCESSOR_FEE | DEBIT  | false    | false  | Stripe         | Scouts d'Arlon | Wise | -175   | USD      | 0           | 0          |            | Stripe payment processor fee                |
-| PAYMENT_PROCESSOR_FEE | CREDIT | false    | false  | Scouts d'Arlon | Stripe         | NULL | 175    | USD      | 0           | 0          |            | Stripe payment processor fee                |
-| CONTRIBUTION          | DEBIT  | false    | false  | Scouts d'Arlon | Xavier Damman  | NULL | -4750  | USD      | -250        | 0          |            | Monthly subscription to Webpack             |
-| CONTRIBUTION          | CREDIT | false    | false  | Xavier Damman  | Scouts d'Arlon | Wise | 5000   | USD      | -250        | 0          |            | Monthly subscription to Webpack             |
-| PAYMENT_PROCESSOR_FEE | DEBIT  | true     | false  | Scouts d'Arlon | Stripe         | NULL | -100   | USD      | 0           | 0          |            | Refund of \\"Stripe payment processor fee\\"    |
-| PAYMENT_PROCESSOR_FEE | CREDIT | true     | false  | Stripe         | Scouts d'Arlon | Wise | 100    | USD      | 0           | 0          |            | Refund of \\"Stripe payment processor fee\\"    |
-| HOST_FEE              | DEBIT  | true     | false  | Scouts d'Arlon | Wise           | Wise | -250   | USD      | 0           | 0          |            | Refund of \\"Host Fee\\"                        |
-| HOST_FEE              | CREDIT | true     | false  | Wise           | Scouts d'Arlon | Wise | 250    | USD      | 0           | 0          |            | Refund of \\"Host Fee\\"                        |
-| TAX                   | DEBIT  | true     | false  | Scouts d'Arlon | Other Tax      | NULL | -100   | USD      | 0           | 0          |            | Refund of \\"Other Tax tax\\"                   |
-| TAX                   | CREDIT | true     | false  | Other Tax      | Scouts d'Arlon | Wise | 100    | USD      | 0           | 0          |            | Refund of \\"Other Tax tax\\"                   |
-| CONTRIBUTION          | DEBIT  | true     | false  | Xavier Damman  | Scouts d'Arlon | Wise | -5000  | USD      | 250         | 0          |            | Refund of \\"Monthly subscription to Webpack\\" |
-| CONTRIBUTION          | CREDIT | true     | false  | Scouts d'Arlon | Xavier Damman  | NULL | 4750   | USD      | 250         | 0          |            | Refund of \\"Monthly subscription to Webpack\\" |"
+| kind                    | type   | isRefund | isDebt | From           | To             | Host | amount | currency | platformFee | paymentFee | Settlement | description                                 |
+| ----------------------- | ------ | -------- | ------ | -------------- | -------------- | ---- | ------ | -------- | ----------- | ---------- | ---------- | ------------------------------------------- |
+| HOST_FEE                | DEBIT  | false    | false  | Wise           | Scouts d'Arlon | Wise | -250   | USD      | 0           | 0          |            | Host Fee                                    |
+| HOST_FEE                | CREDIT | false    | false  | Scouts d'Arlon | Wise           | Wise | 250    | USD      | 0           | 0          |            | Host Fee                                    |
+| TAX                     | DEBIT  | false    | false  | Other Tax      | Scouts d'Arlon | Wise | -100   | USD      | 0           | 0          |            | Other Tax tax                               |
+| TAX                     | CREDIT | false    | false  | Scouts d'Arlon | Other Tax      | NULL | 100    | USD      | 0           | 0          |            | Other Tax tax                               |
+| PAYMENT_PROCESSOR_FEE   | DEBIT  | false    | false  | Stripe         | Scouts d'Arlon | Wise | -175   | USD      | 0           | 0          |            | Stripe payment processor fee                |
+| PAYMENT_PROCESSOR_FEE   | CREDIT | false    | false  | Scouts d'Arlon | Stripe         | NULL | 175    | USD      | 0           | 0          |            | Stripe payment processor fee                |
+| CONTRIBUTION            | DEBIT  | false    | false  | Scouts d'Arlon | Xavier Damman  | NULL | -4750  | USD      | -250        | 0          |            | Monthly subscription to Webpack             |
+| CONTRIBUTION            | CREDIT | false    | false  | Xavier Damman  | Scouts d'Arlon | Wise | 5000   | USD      | -250        | 0          |            | Monthly subscription to Webpack             |
+| PAYMENT_PROCESSOR_FEE   | DEBIT  | true     | false  | Scouts d'Arlon | Stripe         | NULL | -100   | USD      | 0           | 0          |            | Refund of \\"Stripe payment processor fee\\"    |
+| PAYMENT_PROCESSOR_FEE   | CREDIT | true     | false  | Stripe         | Scouts d'Arlon | Wise | 100    | USD      | 0           | 0          |            | Refund of \\"Stripe payment processor fee\\"    |
+| PAYMENT_PROCESSOR_COVER | DEBIT  | true     | false  | Scouts d'Arlon | Wise           | NULL | -75    | USD      | 0           | 0          |            | Cover of payment processor fee for refund   |
+| PAYMENT_PROCESSOR_COVER | CREDIT | true     | false  | Wise           | Scouts d'Arlon | Wise | 75     | USD      | 0           | 0          |            | Cover of payment processor fee for refund   |
+| HOST_FEE                | DEBIT  | true     | false  | Scouts d'Arlon | Wise           | Wise | -250   | USD      | 0           | 0          |            | Refund of \\"Host Fee\\"                        |
+| HOST_FEE                | CREDIT | true     | false  | Wise           | Scouts d'Arlon | Wise | 250    | USD      | 0           | 0          |            | Refund of \\"Host Fee\\"                        |
+| TAX                     | DEBIT  | true     | false  | Scouts d'Arlon | Other Tax      | NULL | -100   | USD      | 0           | 0          |            | Refund of \\"Other Tax tax\\"                   |
+| TAX                     | CREDIT | true     | false  | Other Tax      | Scouts d'Arlon | Wise | 100    | USD      | 0           | 0          |            | Refund of \\"Other Tax tax\\"                   |
+| CONTRIBUTION            | DEBIT  | true     | false  | Xavier Damman  | Scouts d'Arlon | Wise | -5000  | USD      | 250         | 0          |            | Refund of \\"Monthly subscription to Webpack\\" |
+| CONTRIBUTION            | CREDIT | true     | false  | Scouts d'Arlon | Xavier Damman  | NULL | 4750   | USD      | 250         | 0          |            | Refund of \\"Monthly subscription to Webpack\\" |"
+`;
+
+exports[`server/lib/payments createRefundTransaction partial refunds works with multi-currency 1`] = `
+"
+| kind                    | type   | isRefund | isDebt | From           | To             | Host | amount | currency | platformFee | paymentFee | Settlement | description                                 |
+| ----------------------- | ------ | -------- | ------ | -------------- | -------------- | ---- | ------ | -------- | ----------- | ---------- | ---------- | ------------------------------------------- |
+| HOST_FEE                | DEBIT  | false    | false  | Wise           | Scouts d'Arlon | Wise | -227   | EUR      | 0           | 0          |            | Host Fee                                    |
+| HOST_FEE                | CREDIT | false    | false  | Scouts d'Arlon | Wise           | Wise | 227    | EUR      | 0           | 0          |            | Host Fee                                    |
+| TAX                     | DEBIT  | false    | false  | Other Tax      | Scouts d'Arlon | Wise | -100   | EUR      | 0           | 0          |            | Other Tax tax                               |
+| TAX                     | CREDIT | false    | false  | Scouts d'Arlon | Other Tax      | NULL | 100    | EUR      | 0           | 0          |            | Other Tax tax                               |
+| PAYMENT_PROCESSOR_FEE   | DEBIT  | false    | false  | Stripe         | Scouts d'Arlon | Wise | -159   | EUR      | 0           | 0          |            | Stripe payment processor fee                |
+| PAYMENT_PROCESSOR_FEE   | CREDIT | false    | false  | Scouts d'Arlon | Stripe         | NULL | 159    | EUR      | 0           | 0          |            | Stripe payment processor fee                |
+| CONTRIBUTION            | DEBIT  | false    | false  | Scouts d'Arlon | Xavier Damman  | NULL | -4773  | EUR      | -250        | 0          |            | Monthly subscription to Webpack             |
+| CONTRIBUTION            | CREDIT | false    | false  | Xavier Damman  | Scouts d'Arlon | Wise | 5000   | EUR      | -250        | 0          |            | Monthly subscription to Webpack             |
+| PAYMENT_PROCESSOR_FEE   | DEBIT  | true     | false  | Scouts d'Arlon | Stripe         | NULL | -91    | EUR      | 0           | 0          |            | Refund of \\"Stripe payment processor fee\\"    |
+| PAYMENT_PROCESSOR_FEE   | CREDIT | true     | false  | Stripe         | Scouts d'Arlon | Wise | 91     | EUR      | 0           | 0          |            | Refund of \\"Stripe payment processor fee\\"    |
+| PAYMENT_PROCESSOR_COVER | DEBIT  | true     | false  | Scouts d'Arlon | Wise           | NULL | -64    | EUR      | 0           | 0          |            | Cover of payment processor fee for refund   |
+| PAYMENT_PROCESSOR_COVER | CREDIT | true     | false  | Wise           | Scouts d'Arlon | Wise | 64     | EUR      | 0           | 0          |            | Cover of payment processor fee for refund   |
+| HOST_FEE                | DEBIT  | true     | false  | Scouts d'Arlon | Wise           | Wise | -227   | EUR      | 0           | 0          |            | Refund of \\"Host Fee\\"                        |
+| HOST_FEE                | CREDIT | true     | false  | Wise           | Scouts d'Arlon | Wise | 227    | EUR      | 0           | 0          |            | Refund of \\"Host Fee\\"                        |
+| TAX                     | DEBIT  | true     | false  | Scouts d'Arlon | Other Tax      | NULL | -100   | EUR      | 0           | 0          |            | Refund of \\"Other Tax tax\\"                   |
+| TAX                     | CREDIT | true     | false  | Other Tax      | Scouts d'Arlon | Wise | 100    | EUR      | 0           | 0          |            | Refund of \\"Other Tax tax\\"                   |
+| CONTRIBUTION            | DEBIT  | true     | false  | Xavier Damman  | Scouts d'Arlon | Wise | -5000  | EUR      | 250         | 0          |            | Refund of \\"Monthly subscription to Webpack\\" |
+| CONTRIBUTION            | CREDIT | true     | false  | Scouts d'Arlon | Xavier Damman  | NULL | 4773   | EUR      | 250         | 0          |            | Refund of \\"Monthly subscription to Webpack\\" |"
 `;
 
 exports[`server/lib/payments createRefundTransaction should allow collective to start a refund 1`] = `
