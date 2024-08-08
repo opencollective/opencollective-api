@@ -639,6 +639,135 @@ describe('server/lib/payments', () => {
     it('should revert the settlement if the tip was already paid', async () => {
       // TODO(LedgerRefactor)
     });
+
+    describe('partial refunds', () => {
+      it('can be done with a valid amount', async () => {
+        // Given the following pair of transactions created
+        const transaction = await models.Transaction.createFromContributionPayload({
+          CreatedByUserId: user.id,
+          FromCollectiveId: order.FromCollectiveId,
+          CollectiveId: collective.id,
+          PaymentMethodId: order.PaymentMethodId,
+          type: 'CREDIT',
+          OrderId: order.id,
+          amount: 5000,
+          currency: 'USD',
+          hostCurrency: 'USD',
+          amountInHostCurrency: 5000,
+          hostCurrencyFxRate: 1,
+          hostFeeInHostCurrency: 250,
+          platformFeeInHostCurrency: 250,
+          taxAmount: 100,
+          paymentProcessorFeeInHostCurrency: 175,
+          description: 'Monthly subscription to Webpack',
+          data: { charge: { id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' } },
+        });
+
+        // When the refund transaction is created
+        await createRefundTransaction(transaction, 100, { dataField: 'foo' }, user);
+
+        // And when transactions for that order are retrieved
+        const allTransactions = await models.Transaction.findAll({
+          where: { OrderId: order.id },
+          order: [['id', 'ASC']],
+        });
+
+        // Snapshot ledger
+        await utils.preloadAssociationsForTransactions(allTransactions, SNAPSHOT_COLUMNS);
+        utils.snapshotTransactions(allTransactions, { columns: SNAPSHOT_COLUMNS });
+
+        // Then there should be 12 transactions in total under that order id
+        expect(allTransactions.length).to.equal(18);
+
+        // And Then two contribution transactions should be refund
+        const paymentProcessorFeeRefundTransactions = allTransactions.filter(
+          t => t.kind === TransactionKind.PAYMENT_PROCESSOR_FEE && t.isRefund === true,
+        );
+        expect(paymentProcessorFeeRefundTransactions).to.have.lengthOf(2);
+        expect(paymentProcessorFeeRefundTransactions[0].amount).to.equal(-100);
+        expect(paymentProcessorFeeRefundTransactions[1].amount).to.equal(100);
+
+        // And the host should cover for the difference
+        const paymentProcessorCoverTransactions = allTransactions.filter(
+          t => t.kind === TransactionKind.PAYMENT_PROCESSOR_COVER && t.isRefund === true,
+        );
+        expect(paymentProcessorCoverTransactions).to.have.lengthOf(2);
+        expect(paymentProcessorCoverTransactions[0].type).to.equal('DEBIT');
+        expect(paymentProcessorCoverTransactions[0].amount).to.equal(-75);
+        expect(paymentProcessorCoverTransactions[0].CollectiveId).to.equal(host.id);
+        expect(paymentProcessorCoverTransactions[1].type).to.equal('CREDIT');
+        expect(paymentProcessorCoverTransactions[1].amount).to.equal(75);
+        expect(paymentProcessorCoverTransactions[1].CollectiveId).to.equal(collective.id);
+      });
+
+      it('works with multi-currency', async () => {
+        // Given the following pair of transactions created
+        const transaction = await models.Transaction.createFromContributionPayload({
+          CreatedByUserId: user.id,
+          FromCollectiveId: order.FromCollectiveId,
+          CollectiveId: collective.id,
+          PaymentMethodId: order.PaymentMethodId,
+          type: 'CREDIT',
+          OrderId: order.id,
+          amount: 5000,
+          currency: 'EUR',
+          hostCurrency: 'USD',
+          hostCurrencyFxRate: 1.1,
+          amountInHostCurrency: 5500,
+          hostFeeInHostCurrency: 250,
+          platformFeeInHostCurrency: 250,
+          taxAmount: 100,
+          paymentProcessorFeeInHostCurrency: 175,
+          description: 'Monthly subscription to Webpack',
+          data: { charge: { id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' } },
+        });
+
+        // When the refund transaction is created
+        await createRefundTransaction(transaction, 100, { dataField: 'foo' }, user);
+
+        // And when transactions for that order are retrieved
+        const allTransactions = await models.Transaction.findAll({
+          where: { OrderId: order.id },
+          order: [['id', 'ASC']],
+        });
+
+        // Snapshot ledger
+        await utils.preloadAssociationsForTransactions(allTransactions, SNAPSHOT_COLUMNS);
+        utils.snapshotTransactions(allTransactions, { columns: SNAPSHOT_COLUMNS });
+
+        // Then there should be 12 transactions in total under that order id
+        expect(allTransactions.length).to.equal(18);
+
+        // And Then two contribution transactions should be refund
+        const paymentProcessorFeeRefundTransactions = allTransactions.filter(
+          t => t.kind === TransactionKind.PAYMENT_PROCESSOR_FEE && t.isRefund === true,
+        );
+        expect(paymentProcessorFeeRefundTransactions).to.have.lengthOf(2);
+        expect(paymentProcessorFeeRefundTransactions[0].amount).to.equal(-91); // 100 / 1.1
+        expect(paymentProcessorFeeRefundTransactions[0].currency).to.equal('EUR');
+        expect(paymentProcessorFeeRefundTransactions[0].amountInHostCurrency).to.equal(-100);
+        expect(paymentProcessorFeeRefundTransactions[0].hostCurrency).to.equal('USD');
+        expect(paymentProcessorFeeRefundTransactions[0].hostCurrencyFxRate).to.equal(1.1);
+
+        expect(paymentProcessorFeeRefundTransactions[1].amount).to.equal(91); // 100 / 1.1
+        expect(paymentProcessorFeeRefundTransactions[1].currency).to.equal('EUR');
+        expect(paymentProcessorFeeRefundTransactions[1].amountInHostCurrency).to.equal(100);
+        expect(paymentProcessorFeeRefundTransactions[1].hostCurrency).to.equal('USD');
+        expect(paymentProcessorFeeRefundTransactions[1].hostCurrencyFxRate).to.equal(1.1);
+
+        // And the host should cover for the difference
+        const paymentProcessorCoverTransactions = allTransactions.filter(
+          t => t.kind === TransactionKind.PAYMENT_PROCESSOR_COVER && t.isRefund === true,
+        );
+        expect(paymentProcessorCoverTransactions).to.have.lengthOf(2);
+        expect(paymentProcessorCoverTransactions[0].type).to.equal('DEBIT');
+        expect(paymentProcessorCoverTransactions[0].amount).to.equal(-64); // (175 - 100) / 1.1
+        expect(paymentProcessorCoverTransactions[0].CollectiveId).to.equal(host.id);
+        expect(paymentProcessorCoverTransactions[1].type).to.equal('CREDIT');
+        expect(paymentProcessorCoverTransactions[1].amount).to.equal(64); // (175 - 100) / 1.1
+        expect(paymentProcessorCoverTransactions[1].CollectiveId).to.equal(collective.id);
+      });
+    });
   }); /* createRefundTransaction */
 
   describe('sendOrderPendingEmail', () => {
