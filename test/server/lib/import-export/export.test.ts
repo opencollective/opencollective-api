@@ -36,13 +36,15 @@ describe('export', () => {
 
     it('should traverse the tree based on model references', async () => {
       const parsed = {};
-      const results = await traverse({
-        req: makeRequest(user),
-        model: 'Collective',
-        where: { slug: user.collective.slug },
-        dependencies: ['User'],
-        parsed,
-      });
+      const results = await traverse(
+        {
+          model: 'Collective',
+          where: { slug: user.collective.slug },
+          dependencies: ['User'],
+          parsed,
+        },
+        makeRequest(user),
+      );
 
       expect(results).to.containSubset([{ model: 'User', id: user.id }]);
       expect(results).to.containSubset([{ model: 'Collective', id: user.collective.id }]);
@@ -50,13 +52,15 @@ describe('export', () => {
 
     it('should traverse using "on" statement', async () => {
       const parsed = {};
-      const results = await traverse({
-        req: makeRequest(user),
-        model: 'Collective',
-        where: { slug: user.collective.slug },
-        dependencies: [{ model: 'User', on: 'CollectiveId' }],
-        parsed,
-      });
+      const results = await traverse(
+        {
+          model: 'Collective',
+          where: { slug: user.collective.slug },
+          dependencies: [{ model: 'User', on: 'CollectiveId' }],
+          parsed,
+        },
+        makeRequest(user),
+      );
 
       expect(results).to.containSubset([{ model: 'User', id: user.id }]);
       expect(results).to.containSubset([{ model: 'Collective', id: user.collective.id }]);
@@ -64,13 +68,15 @@ describe('export', () => {
 
     it('should traverse using "from" statement', async () => {
       const parsed = {};
-      const results = await traverse({
-        req: makeRequest(user),
-        model: 'User',
-        where: { id: user.id },
-        dependencies: [{ model: 'Collective', from: 'CollectiveId' }],
-        parsed,
-      });
+      const results = await traverse(
+        {
+          model: 'User',
+          where: { id: user.id },
+          dependencies: [{ model: 'Collective', from: 'CollectiveId' }],
+          parsed,
+        },
+        makeRequest(user),
+      );
 
       expect(results).to.containSubset([{ model: 'User', id: user.id }]);
       expect(results).to.containSubset([{ model: 'Collective', id: user.collective.id }]);
@@ -78,13 +84,15 @@ describe('export', () => {
 
     it('should traverse using where function parameter', async () => {
       const parsed = {};
-      const results = await traverse({
-        req: makeRequest(user),
-        model: 'User',
-        where: { id: user.id },
-        dependencies: [{ model: 'Collective', where: userRow => ({ id: userRow.CollectiveId }) }],
-        parsed,
-      });
+      const results = await traverse(
+        {
+          model: 'User',
+          where: { id: user.id },
+          dependencies: [{ model: 'Collective', where: userRow => ({ id: userRow.CollectiveId }) }],
+          parsed,
+        },
+        makeRequest(user),
+      );
 
       expect(results).to.containSubset([{ model: 'User', id: user.id }]);
       expect(results).to.containSubset([{ model: 'Collective', id: user.collective.id }]);
@@ -102,11 +110,13 @@ describe('export', () => {
           const hostAdmin = await fakeUser();
           await hostAdmin.populateRoles();
           await expense.collective.host.addUserWithRole(hostAdmin, 'ADMIN');
-          const results = await traverse({
-            req: makeRequest(hostAdmin),
-            model: 'PayoutMethod',
-            where: { id: expense.PayoutMethodId },
-          });
+          const results = await traverse(
+            {
+              model: 'PayoutMethod',
+              where: { id: expense.PayoutMethodId },
+            },
+            makeRequest(hostAdmin),
+          );
 
           expect(results).to.have.length(1);
           expect(results[0].id).to.eq(payoutMethod.id);
@@ -125,12 +135,14 @@ describe('export', () => {
           const hostAdmin = await fakeUser();
           await expense.collective.host.addUserWithRole(hostAdmin, 'ADMIN');
           await hostAdmin.populateRoles();
-          const results = await traverse({
-            req: makeRequest(hostAdmin),
-            model: 'Expense',
-            where: { id: expense.id },
-            dependencies: [{ model: 'PayoutMethod', where: expenseRow => ({ id: expenseRow.PayoutMethodId }) }],
-          });
+          const results = await traverse(
+            {
+              model: 'Expense',
+              where: { id: expense.id },
+              dependencies: [{ model: 'PayoutMethod', where: expenseRow => ({ id: expenseRow.PayoutMethodId }) }],
+            },
+            makeRequest(hostAdmin),
+          );
 
           expect(results).to.have.length(2);
           const [resultExpense, resultPayoutMethod] = results;

@@ -55,7 +55,7 @@ program.command('dump [recipe] [env] [as_user]').action(async (recipe, env, asUs
   logger.info('>>> Dumping...');
   for (const entry of entries) {
     logger.info(`>>> Traversing DB for entry ${entries.indexOf(entry) + 1}/${entries.length}...`);
-    const newdocs = await traverse({ ...entry, defaultDependencies, parsed, req });
+    const newdocs = await traverse({ ...entry, defaultDependencies, parsed }, req);
     docs.push(...newdocs);
   }
   logger.info(`>>> Dumped! ${docs.length} records in ${moment(start).fromNow(true)}`);
