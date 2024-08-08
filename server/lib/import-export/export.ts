@@ -1,5 +1,5 @@
 import debugLib from 'debug';
-import { compact, concat, flatten, repeat, set, uniqBy } from 'lodash';
+import { compact, concat, repeat, set } from 'lodash';
 import { DataType } from 'sequelize';
 
 import type { ModelNames, Models } from '../../models';
@@ -75,17 +75,10 @@ type RecipeItem = {
 
 type ExportedItem = Record<string, any> & { model: ModelNames; id: number | string };
 
-export const traverse = async ({
-  model,
-  where,
-  order,
-  dependencies,
-  limit,
-  defaultDependencies = {},
-  parsed,
-  depth = 1,
-}: RecipeItem) => {
-  const acc: ExportedItem[] = [];
+export const traverse = async (
+  { model, where, order, dependencies, limit, defaultDependencies = {}, parsed, depth = 1 }: RecipeItem,
+  callback: (ei: ExportedItem) => Promise<void>,
+) => {
   let records;
   if (model && where) {
     if (!where.id && parsed[model]) {
@@ -105,7 +98,10 @@ export const traverse = async ({
     } else {
       records.forEach(r => parsed[model].add(r.id));
     }
-    acc.push(...records);
+
+    records.forEach(async element => {
+      await callback(element);
+    });
   }
   // Inject default dependencies for the model
   dependencies = compact(concat(dependencies, defaultDependencies[model]));
@@ -121,7 +117,9 @@ export const traverse = async ({
         if (typeof dep === 'string') {
           if (foreignKeys[model]?.[dep]) {
             where = { ...where, [Op.or]: foreignKeys[model][dep].map(on => ({ [on]: record.id })) };
-            pResults.push(traverse({ model: dep as ModelNames, where, defaultDependencies, parsed, depth: depth + 1 }));
+            pResults.push(
+              traverse({ model: dep as ModelNames, where, defaultDependencies, parsed, depth: depth + 1 }, callback),
+            );
           } else {
             logger.error(`Foreign key not found for ${model}.${dep}`);
           }
@@ -140,13 +138,10 @@ export const traverse = async ({
           } else {
             continue;
           }
-          pResults.push(traverse({ ...dep, where, defaultDependencies, parsed, depth: depth + 1 }));
+          pResults.push(traverse({ ...dep, where, defaultDependencies, parsed, depth: depth + 1 }, callback));
         }
       }
-      const results = await Promise.all(pResults);
-      acc.push(...flatten(results));
+      await Promise.all(pResults);
     }
   }
-
-  return uniqBy(acc, r => `${r.model}.${r.id}`);
 };
