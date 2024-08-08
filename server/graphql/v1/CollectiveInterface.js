@@ -973,12 +973,7 @@ const CollectiveFields = () => {
       type: LocationType,
       description: 'Name, address, lat, long of the location.',
       async resolve(collective, _, req) {
-        const publicAddressesCollectiveTypes = [
-          CollectiveTypeEnum.COLLECTIVE,
-          CollectiveTypeEnum.EVENT,
-          CollectiveTypeEnum.ORGANIZATION,
-        ];
-        if (publicAddressesCollectiveTypes.includes(collective.type)) {
+        if (collective.hasPublicLocation()) {
           return req.loaders.Location.byCollectiveId.load(collective.id);
         } else if (!req.remoteUser) {
           return null;

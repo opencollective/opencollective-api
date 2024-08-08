@@ -1297,7 +1297,7 @@ export const GraphQLHost = new GraphQLObjectType({
           },
         },
         async resolve(host, args, req) {
-          if (!req.remoteUser?.isAdmin(host.id) && !req.remoteUser?.hasRole(roles.ACCOUNTANT, host.id)) {
+          if (!Agreement.canSeeAgreementsForHostCollectiveId(req.remoteUser, host.id)) {
             throw new Unauthorized(
               'You need to be logged in as an admin or accountant of the host to see its agreements',
             );

@@ -3,13 +3,13 @@ import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'g
 
 import models from '../../../models';
 import { canEditExpenseTags } from '../../common/expenses';
+import { canSetOrderTags } from '../../common/orders';
 import { checkRemoteUserCanUseExpenses, checkRemoteUserCanUseOrders } from '../../common/scope-check';
 import { Unauthorized } from '../../errors';
 import { fetchExpenseWithReference, GraphQLExpenseReferenceInput } from '../input/ExpenseReferenceInput';
 import { fetchOrderWithReference, GraphQLOrderReferenceInput } from '../input/OrderReferenceInput';
 import { GraphQLExpense } from '../object/Expense';
 import { GraphQLOrder } from '../object/Order';
-import { canSetOrderTags } from '../object/OrderPermissions';
 
 const GraphQLTagResponse = new GraphQLObjectType({
   name: 'TagResponse',

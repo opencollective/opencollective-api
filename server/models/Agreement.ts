@@ -9,6 +9,7 @@ import {
   NonAttribute,
 } from 'sequelize';
 
+import { roles } from '../constants';
 import sequelize from '../lib/sequelize';
 
 import Collective from './Collective';
@@ -69,6 +70,14 @@ class Agreement extends Model<InferAttributes<Agreement>, InferCreationAttribute
       expiresAt: this.expiresAt,
     };
   }
+
+  public static canSeeAgreementsForHostCollectiveId = (remoteUser: User, hostCollectiveId: number): boolean => {
+    if (!remoteUser) {
+      return false;
+    } else {
+      return remoteUser.isAdmin(hostCollectiveId) || remoteUser.hasRole(roles.ACCOUNTANT, hostCollectiveId);
+    }
+  };
 }
 
 Agreement.init(

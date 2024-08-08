@@ -347,6 +347,7 @@ export { sequelize, Op };
 
 export type Models = typeof models;
 export type ModelNames = keyof Models;
+export type ModelInstance<T extends ModelNames> = InstanceType<Models[T]>;
 
 // ts-unused-exports:disable-next-line
 export {

@@ -6,7 +6,8 @@ import type { ModelNames, Models } from '../../models';
 import models, { Op } from '../../models';
 import logger from '../logger';
 
-import { Sanitizers } from './sanitize';
+import { getSanitizers } from './sanitize';
+import { PartialRequest } from './types';
 
 const debug = debugLib('export');
 
@@ -54,23 +55,35 @@ export const buildForeignKeyTree = (models: Models) => {
 
 const foreignKeys = buildForeignKeyTree(models);
 
-const serialize = (model: ModelNames) => document => ({
-  ...document.dataValues,
-  ...Sanitizers[model]?.(document.dataValues),
-  model,
-});
+const sanitizers = getSanitizers();
+
+const serialize = async (model: ModelNames, req: PartialRequest, document: InstanceType<Models[ModelNames]>) => {
+  const baseValues = { ...document.dataValues, model };
+  if (!sanitizers[model]) {
+    logger.warn(`No sanitizer found for model ${model}`);
+    return baseValues;
+  }
+
+  const sanitizedValues = await sanitizers[model](document, req);
+  if (sanitizedValues === null) {
+    return null; // A null return means the record should be skipped
+  }
+
+  return { ...baseValues, ...sanitizedValues };
+};
 
 type RecipeItem = {
   model?: ModelNames;
   where?: Record<string, any>;
   order?: Record<string, any>;
-  dependencies?: Array<RecipeItem | string>;
+  dependencies?: Array<Omit<RecipeItem, 'req'> | string>;
   defaultDependencies?: Record<string, RecipeItem | string>;
   on?: string;
   from?: string;
   limit?: number;
   parsed?: Record<string, Set<number>>;
   depth?: number;
+  req: PartialRequest;
 };
 
 type ExportedItem = Record<string, any> & { model: ModelNames; id: number | string };
@@ -82,8 +95,9 @@ export const traverse = async ({
   dependencies,
   limit,
   defaultDependencies = {},
-  parsed,
+  parsed = {},
   depth = 1,
+  req,
 }: RecipeItem) => {
   const acc: ExportedItem[] = [];
   let records;
@@ -92,13 +106,9 @@ export const traverse = async ({
       where.id = { [Op.notIn]: Array.from(parsed[model]) };
     }
 
-    records = await (models[model] as any)
-      .findAll({
-        where,
-        limit,
-        order,
-      })
-      .then(r => r.map(serialize(model)));
+    const allRecords = await (models[model] as any).findAll({ where, limit, order });
+    const serializedRecords = await Promise.all(allRecords.map(record => serialize(model, req, record)));
+    records = serializedRecords.filter(Boolean);
 
     if (!parsed[model]) {
       parsed[model] = new Set(records.map(r => r.id));
@@ -107,6 +117,7 @@ export const traverse = async ({
     }
     acc.push(...records);
   }
+
   // Inject default dependencies for the model
   dependencies = compact(concat(dependencies, defaultDependencies[model]));
   if (records) {
@@ -121,7 +132,9 @@ export const traverse = async ({
         if (typeof dep === 'string') {
           if (foreignKeys[model]?.[dep]) {
             where = { ...where, [Op.or]: foreignKeys[model][dep].map(on => ({ [on]: record.id })) };
-            pResults.push(traverse({ model: dep as ModelNames, where, defaultDependencies, parsed, depth: depth + 1 }));
+            pResults.push(
+              traverse({ model: dep as ModelNames, where, defaultDependencies, parsed, depth: depth + 1, req }),
+            );
           } else {
             logger.error(`Foreign key not found for ${model}.${dep}`);
           }
@@ -140,7 +153,7 @@ export const traverse = async ({
           } else {
             continue;
           }
-          pResults.push(traverse({ ...dep, where, defaultDependencies, parsed, depth: depth + 1 }));
+          pResults.push(traverse({ ...dep, where, defaultDependencies, parsed, depth: depth + 1, req }));
         }
       }
       const results = await Promise.all(pResults);

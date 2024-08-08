@@ -181,6 +181,8 @@ type Data = Partial<{
   isFirstPartyHost: boolean;
   addedFundsHostFeePercent: number;
   bankTransfersHostFeePercent: number;
+  stripeNotPlatformTipEligibleHostFeePercent: number;
+  paypalNotPlatformTipEligibleHostFeePercent: number;
   reimbursePaymentProcessorFeeOnTips: boolean;
   platformTips: boolean;
   isGuest: boolean;
@@ -1165,6 +1167,10 @@ class Collective extends Model<
     } else {
       return false;
     }
+  };
+
+  hasPublicLocation = function (): boolean {
+    return [CollectiveType.COLLECTIVE, CollectiveType.EVENT, CollectiveType.ORGANIZATION].includes(this.type);
   };
 
   /**

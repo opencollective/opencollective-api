@@ -2,7 +2,6 @@ import { GraphQLBoolean, GraphQLFloat, GraphQLInterfaceType, GraphQLNonNull } fr
 import { GraphQLDateTime } from 'graphql-scalars';
 import { clamp, isNumber } from 'lodash';
 
-import { roles } from '../../../constants';
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
 import Agreement from '../../../models/Agreement';
 import Collective from '../../../models/Collective';
@@ -149,12 +148,7 @@ export const AccountWithHostFields = {
     async resolve(account, args, req) {
       if (!account.HostCollectiveId) {
         return { totalCount: 0, limit: args.limit, offset: args.offset, nodes: [] };
-      }
-
-      if (
-        !req.remoteUser?.isAdmin(account.HostCollectiveId) &&
-        !req.remoteUser?.hasRole(roles.ACCOUNTANT, account.HostCollectiveId)
-      ) {
+      } else if (!Agreement.canSeeAgreementsForHostCollectiveId(req.remoteUser, account.HostCollectiveId)) {
         return null;
       }
 

@@ -43,7 +43,7 @@ import models, { Op, sequelize } from '../../../models';
 import { MigrationLogType } from '../../../models/MigrationLog';
 import { updateSubscriptionWithPaypal } from '../../../paymentProviders/paypal/subscription';
 import { checkReceiveFinancialContributions } from '../../common/features';
-import { checkCanUseAccountingCategoryForOrder } from '../../common/orders';
+import * as OrdersLib from '../../common/orders';
 import { checkRemoteUserCanRoot, checkRemoteUserCanUseOrders, checkScope } from '../../common/scope-check';
 import { BadRequest, FeatureNotAllowedForUser, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import {
@@ -83,7 +83,6 @@ import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/Tier
 import { fetchTransactionsImportRowWithReference } from '../input/TransactionsImportRowReferenceInput';
 import { GraphQLAccount } from '../interface/Account';
 import { GraphQLOrder } from '../object/Order';
-import { canEdit, canMarkAsExpired, canMarkAsPaid } from '../object/OrderPermissions';
 import GraphQLPaymentIntent from '../object/PaymentIntent';
 import { GraphQLStripeError } from '../object/StripeError';
 
@@ -494,7 +493,7 @@ const orderMutations = {
       }
 
       // Check validity
-      checkCanUseAccountingCategoryForOrder(newAccountingCategory, order.collective.host, order.collective);
+      OrdersLib.checkCanUseAccountingCategoryForOrder(newAccountingCategory, order.collective.host, order.collective);
 
       // Trigger update
       const previousAccountingCategory = order.accountingCategory;
@@ -577,7 +576,7 @@ const orderMutations = {
       await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });
 
       if (args.action === 'MARK_AS_PAID') {
-        if (!(await canMarkAsPaid(req, order))) {
+        if (!(await OrdersLib.canMarkAsPaid(req, order))) {
           throw new ValidationFailed(
             `Only pending/expired contributions can be marked as paid, this one is ${order.status}`,
           );
@@ -691,7 +690,7 @@ const orderMutations = {
 
         return order;
       } else if (args.action === 'MARK_AS_EXPIRED') {
-        if (!(await canMarkAsExpired(req, order))) {
+        if (!(await OrdersLib.canMarkAsExpired(req, order))) {
           throw new ValidationFailed(
             `Only pending contributions can be marked as expired, this one is ${order.status}`,
           );
@@ -1110,7 +1109,7 @@ const orderMutations = {
           loaders: req.loaders,
         });
 
-        checkCanUseAccountingCategoryForOrder(accountingCategory, host, toAccount);
+        OrdersLib.checkCanUseAccountingCategoryForOrder(accountingCategory, host, toAccount);
         AccountingCategoryId = accountingCategory.id;
       }
 
@@ -1238,7 +1237,7 @@ const orderMutations = {
       if (order.data?.isPendingContribution !== true) {
         throw new ValidationFailed(`Only pending contributions created by fiscal-host admins can be editted`);
       }
-      if (!(await canEdit(req, order))) {
+      if (!(await OrdersLib.canEdit(req, order))) {
         throw new ValidationFailed(`Only pending orders can be edited, this one is ${order.status}`);
       }
 
@@ -1256,7 +1255,7 @@ const orderMutations = {
           loaders: req.loaders,
         });
 
-        checkCanUseAccountingCategoryForOrder(accountingCategory, host, order.collective);
+        OrdersLib.checkCanUseAccountingCategoryForOrder(accountingCategory, host, order.collective);
         AccountingCategoryId = accountingCategory.id;
       }
 
