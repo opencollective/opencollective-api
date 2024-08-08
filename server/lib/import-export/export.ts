@@ -83,22 +83,14 @@ type RecipeItem = {
   limit?: number;
   parsed?: Record<string, Set<number>>;
   depth?: number;
-  req: PartialRequest;
 };
 
 type ExportedItem = Record<string, any> & { model: ModelNames; id: number | string };
 
-export const traverse = async ({
-  model,
-  where,
-  order,
-  dependencies,
-  limit,
-  defaultDependencies = {},
-  parsed = {},
-  depth = 1,
-  req,
-}: RecipeItem) => {
+export const traverse = async (
+  { model, where, order, dependencies, limit, defaultDependencies = {}, parsed = {}, depth = 1 }: RecipeItem,
+  req: PartialRequest,
+) => {
   const acc: ExportedItem[] = [];
   let records;
   if (model && where) {
@@ -133,7 +125,7 @@ export const traverse = async ({
           if (foreignKeys[model]?.[dep]) {
             where = { ...where, [Op.or]: foreignKeys[model][dep].map(on => ({ [on]: record.id })) };
             pResults.push(
-              traverse({ model: dep as ModelNames, where, defaultDependencies, parsed, depth: depth + 1, req }),
+              traverse({ model: dep as ModelNames, where, defaultDependencies, parsed, depth: depth + 1 }, req),
             );
           } else {
             logger.error(`Foreign key not found for ${model}.${dep}`);
@@ -153,7 +145,7 @@ export const traverse = async ({
           } else {
             continue;
           }
-          pResults.push(traverse({ ...dep, where, defaultDependencies, parsed, depth: depth + 1, req }));
+          pResults.push(traverse({ ...dep, where, defaultDependencies, parsed, depth: depth + 1 }, req));
         }
       }
       const results = await Promise.all(pResults);
