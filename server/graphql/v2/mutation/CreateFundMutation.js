@@ -84,7 +84,7 @@ async function createFund(_, args, req) {
   // - tell them which fiscal host they picked, if any
   // - tell them the status of their host application
   const remoteUserCollective = await req.loaders.Collective.byId.load(req.remoteUser.CollectiveId);
-  fund.generateCollectiveCreatedActivity(req.remoteUser, req.userToken, {
+  await fund.generateCollectiveCreatedActivity(req.remoteUser, req.userToken, {
     collective: fund.info,
     host: get(host, 'info'),
     hostPending: fund.approvedAt ? false : true,
