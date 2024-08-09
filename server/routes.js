@@ -12,7 +12,6 @@ import multer from 'multer';
 
 import * as connectedAccounts from './controllers/connectedAccounts';
 import * as gitbook from './controllers/gitbook';
-import helloworks from './controllers/helloworks';
 import uploadImage from './controllers/images';
 import LegalDocumentsController from './controllers/legal-documents';
 import * as email from './controllers/services/email';
@@ -399,11 +398,6 @@ export default async app => {
    * Github API - fetch all repositories using the user's access_token
    */
   app.get('/github-repositories', connectedAccounts.fetchAllRepositories); // used in Frontend by createCollective "GitHub flow"
-
-  /**
-   * Hello Works API - Helloworks hits this endpoint when a document has been completed.
-   */
-  app.post('/helloworks/callback', helloworks.callback);
 
   /**
    * File downloads

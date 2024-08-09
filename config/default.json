@@ -156,14 +156,7 @@
   "hcaptcha": {
     "secret": "0x0000000000000000000000000000000000000000"
   },
-  "helloworks": {
-    "key": "RO7aWNLJx6CzhRix",
-    "secret": "FanG4FjeV3aGHjpS2A1YckyWuhvxfKHoZN5Q5bHO",
-    "workflowId": "MfmOZErmhz1qPgMp",
-    "callbackPath": "/helloworks/callback"
-  },
   "taxForms": {
-    "useInternal": true,
     "encryptionKey": "Pz/LnMPzhxQqsbXZ0SCb3sP0uhw8dCxspoAXLXO4CV8="
   },
   "githubFlow": {
