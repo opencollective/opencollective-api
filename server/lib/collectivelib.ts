@@ -457,3 +457,45 @@ export async function deleteCollective(collective) {
 
   return collective;
 }
+
+/**
+ * Default host, set this for new collectives created through our flow
+ *
+ * @param {"opensource" | "foundation" | "europe" | "opencollective" | null} category of the collective
+ */
+export const defaultHostCollective = async (category): Promise<Collective | null> => {
+  if (config.env === 'production' || config.env === 'staging') {
+    if (category === 'opensource') {
+      return Collective.findBySlug('opensource', {}, false);
+    } else if (category === 'foundation') {
+      return Collective.findBySlug('foundation', {}, false);
+    } else if (category === 'europe') {
+      return Collective.findBySlug('europe', {}, false);
+    } else if (category === 'opencollective') {
+      return Collective.findBySlug('opencollective', {}, false);
+    } else {
+      return null; // Don't automatically assign a host anymore
+    }
+  }
+  if (config.env === 'development' || process.env.E2E_TEST) {
+    if (category === 'opensource') {
+      return Collective.findByPk(9805);
+    } else if (category === 'foundation') {
+      return Collective.findByPk(9805);
+    } else if (category === 'opencollective') {
+      return Collective.findByPk(8686);
+    } else {
+      return null; // Don't automatically assign a host anymore
+    }
+  }
+  return null;
+};
+
+/**
+ * @returns {Array<Number>} the ids of the internal hosts
+ */
+export const getInternalHostsIds = async (): Promise<number[]> => {
+  const hostNames = ['opencollective', 'opensource', 'foundation', 'europe'];
+  const hostCollectives = await Promise.all(hostNames.map(defaultHostCollective));
+  return hostCollectives.map(result => result?.id).filter(Boolean) as number[];
+};
