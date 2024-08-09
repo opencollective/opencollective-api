@@ -14,11 +14,7 @@ Subject: Action required: Submit tax form for {{{accountName}}}
   even if the payee is outside the US.
 </p>
 <p>
-  {{#ifCond service "===" "OPENCOLLECTIVE"}}
   The button below will take you to your dashboard, where you can fill out your tax information.
-  {{else}}
-  The button below will take you to Dropbox Forms, the service we use to collect your tax information securely.
-  {{/ifCond}}
 </p>
 
 <p>
@@ -28,15 +24,9 @@ Subject: Action required: Submit tax form for {{{accountName}}}
 </p>
 
 <div style="text-align: center; margin: 32px 0;">
-  {{#ifCond service "===" "OPENCOLLECTIVE"}}
   <a class="btn blue" href="{{config.host.website}}/dashboard/{{collective.slug}}/tax-information">
     Submit tax form
   </a>
-  {{else}}
-  <a class="btn blue" href="{{documentLink}}">
-    Submit tax form
-  </a>
-  {{/ifCond}}
 </div>
 
 

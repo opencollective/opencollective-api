@@ -1,5 +1,4 @@
 import { TaxType } from '@opencollective/taxes';
-import config from 'config';
 import { get, isEmpty, pick, sumBy } from 'lodash';
 import { isMoment } from 'moment';
 import {
@@ -28,7 +27,6 @@ import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../lib/sanitize-htm
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Model, Op, QueryTypes } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
-import { parseToBoolean } from '../lib/utils';
 import CustomDataTypes from '../models/DataTypes';
 import { Location } from '../types/Location';
 import { BatchGroup, ExpenseDataQuoteV2, ExpenseDataQuoteV3, Transfer } from '../types/transferwise';
@@ -356,7 +354,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
    * @returns the LegalDocument, or null if none required
    */
   updateTaxFormStatus = async function (host: Collective, payee: Collective, user: User, { UserTokenId = null } = {}) {
-    if (!parseToBoolean(config.taxForms.useInternal) || !host) {
+    if (!host) {
       return null;
     }
 

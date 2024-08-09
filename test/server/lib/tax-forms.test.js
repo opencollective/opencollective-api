@@ -1,12 +1,9 @@
 import { expect } from 'chai';
-import HelloWorks from 'helloworks-sdk';
 import moment from 'moment';
-import { assert, fake, replace, restore, spy } from 'sinon';
 
 import expenseTypes from '../../../server/constants/expense-type';
 import { US_TAX_FORM_THRESHOLD } from '../../../server/constants/tax-form';
-import emailLib from '../../../server/lib/email';
-import { findAccountsThatNeedToBeSentTaxForm, sendHelloWorksUsTaxForm } from '../../../server/lib/tax-forms';
+import SQLQueries from '../../../server/lib/queries';
 import models from '../../../server/models';
 import {
   LEGAL_DOCUMENT_REQUEST_STATUS,
@@ -14,7 +11,6 @@ import {
   LEGAL_DOCUMENT_TYPE,
 } from '../../../server/models/LegalDocument';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
-import { randEmail } from '../../stores';
 import {
   fakeCollective,
   fakeCurrencyExchangeRate,
@@ -23,24 +19,13 @@ import {
   fakeLegalDocument,
   fakePayoutMethod,
   fakeUser,
-  randStr,
 } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 const { RECEIPT, INVOICE } = expenseTypes;
 
 const { RequiredLegalDocument, LegalDocument, Collective, User, Expense } = models;
 
-const HELLO_WORKS_KEY = '123';
-const HELLO_WORKS_SECRET = 'ABC';
-
-const client = new HelloWorks({
-  apiKeyId: HELLO_WORKS_KEY,
-  apiKeySecret: HELLO_WORKS_SECRET,
-});
-
-const callbackUrl = 'https://opencollective/api/taxForm/callback';
-const workflowId = 'scuttlebutt';
-const year = moment().year();
+const YEAR = moment().year();
 
 describe('server/lib/tax-forms', () => {
   // globals to be set in the before hooks.
@@ -51,9 +36,7 @@ describe('server/lib/tax-forms', () => {
   // - one host collective that needs legal docs
   // - two hosted collectives that have invoices to them.
   // - a user that has a document with Error status
-  let user,
-    users,
-    userCollective,
+  let users,
     hostCollective,
     collectives,
     organizationWithTaxForm,
@@ -67,9 +50,7 @@ describe('server/lib/tax-forms', () => {
     accountWithINRBelowThreshold,
     accountWithINROverThreshold;
 
-  const documentData = {
-    year: moment().year(),
-  };
+  const documentData = { year: YEAR };
 
   function ExpenseOverThreshold({
     incurredAt,
@@ -127,8 +108,6 @@ describe('server/lib/tax-forms', () => {
   beforeEach(async () => {
     await utils.resetTestDB();
     users = await Promise.all(usersData.map(userData => User.createUserWithCollective(userData)));
-    user = users[0];
-    userCollective = await Collective.findByPk(user.CollectiveId);
     hostCollective = await fakeHost();
     organizationWithTaxForm = await fakeCollective({ type: 'ORGANIZATION' });
     accountAlreadyNotified = await fakeCollective({ type: 'ORGANIZATION' });
@@ -163,21 +142,21 @@ describe('server/lib/tax-forms', () => {
     await fakeLegalDocument({
       CollectiveId: accountWithTaxFormFromLastYear.id,
       requestStatus: 'RECEIVED',
-      year: year - 1,
+      year: YEAR - 1,
     });
 
     // Create legal document for accountWithTaxFormSubmittedByHost (no tax form should be required in this case)
     await fakeLegalDocument({
       CollectiveId: accountWithTaxFormSubmittedByHost.HostCollectiveId,
       requestStatus: 'RECEIVED',
-      year: year,
+      year: YEAR,
     });
 
     // Create legal document for accountWithTaxFormFrom4YearsAgo
     await fakeLegalDocument({
       CollectiveId: accountWithTaxFormFrom4YearsAgo.id,
       requestStatus: 'RECEIVED',
-      year: year - 4,
+      year: YEAR - 4,
     });
 
     // An expense from this year over the threshold
@@ -400,98 +379,23 @@ describe('server/lib/tax-forms', () => {
     await RequiredLegalDocument.create(requiredDoc);
   });
 
-  describe('findAccountsThatNeedToBeSentTaxForm', () => {
-    it('returns the right profiles', async () => {
-      const accounts = await findAccountsThatNeedToBeSentTaxForm(moment().year());
-      expect(accounts.length).to.be.eq(7);
-      expect(accounts.some(account => account.id === organizationWithTaxForm.id)).to.be.true;
-      expect(accounts.some(account => account.id === accountWithTaxFormFromLastYear.id)).to.be.false;
-      expect(accounts.some(account => account.id === accountWithTaxFormFrom4YearsAgo.id)).to.be.true;
-      expect(accounts.some(account => account.id === accountAlreadyNotified.id)).to.be.false;
-      expect(accounts.some(account => account.id === hostCollective.id)).to.be.false;
-      expect(accounts.some(account => account.id === users[4].CollectiveId)).to.be.false;
-      expect(accounts.some(account => account.id === accountWithPaypalOverThreshold.id)).to.be.true;
-      expect(accounts.some(account => account.id === accountWithPaypalBelowThreshold.id)).to.be.false;
-      expect(accounts.some(account => account.id === accountWithOnlyADraft.id)).to.be.false;
-      expect(accounts.some(account => account.id === accountWithINROverThreshold.id)).to.be.true;
-      expect(accounts.some(account => account.id === accountWithINRBelowThreshold.id)).to.be.false;
-    });
-  });
-
-  describe('sendHelloWorksUsTaxForm', () => {
-    afterEach(() => {
-      restore();
-    });
-
-    it('creates the documents if it does no exists', async () => {
-      const documentLink = 'https://hello-works.com/fake-tax-form';
-      const createInstanceResponse = { id: 'fake-instance-id', steps: [{ step: 'fake-step-id', url: documentLink }] };
-      replace(client.workflowInstances, 'createInstance', fake.resolves(createInstanceResponse));
-      replace(client.workflowInstances, 'getAuthenticatedLinkForStep', fake.resolves(documentLink));
-
-      const newUser = await fakeUser({ email: `${randStr()}@opencollective.com` });
-      await sendHelloWorksUsTaxForm(client, newUser.collective, year, callbackUrl, workflowId);
-
-      const doc = await models.LegalDocument.findOne({ where: { CollectiveId: newUser.collective.id } });
-      expect(doc).to.exist;
-      expect(doc.requestStatus).to.eq(LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED);
-    });
-
-    it('sends the document request to the host if payee has one', async () => {
-      const documentLink = 'https://hello-works.com/fake-tax-form';
-      const createInstanceResponse = { id: 'fake-instance-id', steps: [{ step: 'fake-step-id', url: documentLink }] };
-      replace(client.workflowInstances, 'createInstance', fake.resolves(createInstanceResponse));
-      replace(client.workflowInstances, 'getAuthenticatedLinkForStep', fake.resolves(documentLink));
-
-      const adminUser = await fakeUser({ email: randEmail('test@opencollective.com') }); // Need to use an internal email
-      const host = await fakeHost({ admin: adminUser });
-      const payeeCollective = await fakeCollective({ HostCollectiveId: host.id, admin: adminUser });
-      await sendHelloWorksUsTaxForm(client, payeeCollective, year, callbackUrl, workflowId);
-
-      const doc = await models.LegalDocument.findOne({ where: { CollectiveId: payeeCollective.HostCollectiveId } });
-      expect(doc).to.exist;
-      expect(doc.requestStatus).to.eq(LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED);
-    });
-
-    it('updates the documents status to requested when the client request succeeds', async () => {
-      const sendMessageSpy = spy(emailLib, 'sendMessage');
-      const legalDoc = Object.assign({}, documentData, { CollectiveId: userCollective.id });
-      const doc = await LegalDocument.create(legalDoc);
-
-      const documentLink = 'https://hello-works.com/fake-tax-form';
-      const createInstanceResponse = { id: 'fake-instance-id', steps: [{ step: 'fake-step-id', url: documentLink }] };
-      replace(client.workflowInstances, 'createInstance', fake.resolves(createInstanceResponse));
-      replace(client.workflowInstances, 'getAuthenticatedLinkForStep', fake.resolves(documentLink));
-
-      await sendHelloWorksUsTaxForm(client, user.collective, year, callbackUrl, workflowId);
-      await utils.waitForCondition(() => sendMessageSpy.callCount > 0);
-
-      await doc.reload();
-      expect(client.workflowInstances.createInstance.called).to.be.true;
-      const callArgs = client.workflowInstances.createInstance.firstCall.args;
-      expect(callArgs[0].participants['participant_swVuvW'].fullName).to.eq('Mr. Legal Name');
-      // when we'll activate authenticated links  expect(client.workflowInstances.getAuthenticatedLinkForStep.called).to.be.true;
-      expect(doc.requestStatus).to.eq(LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED);
-
-      assert.callCount(sendMessageSpy, 1);
-      const [recipient, title, content] = sendMessageSpy.firstCall.args;
-      expect(recipient).to.eq(user.email);
-      expect(title).to.eq(`Action required: Submit tax form for ${user.collective.legalName}`);
-      expect(content).to.include(documentLink);
-    });
-
-    it('sets updates the documents status to error when the client request fails', async () => {
-      const legalDoc = Object.assign({}, documentData, { CollectiveId: userCollective.id });
-      const doc = await LegalDocument.create(legalDoc);
-
-      const rejects = fake.rejects(null);
-      replace(client.workflowInstances, 'createInstance', rejects);
-
-      await sendHelloWorksUsTaxForm(client, user.collective, year, callbackUrl, workflowId);
-
-      await doc.reload();
-      expect(client.workflowInstances.createInstance.called);
-      expect(doc.requestStatus).to.eq(LEGAL_DOCUMENT_REQUEST_STATUS.ERROR);
+  describe('SQLQueries', () => {
+    describe('getTaxFormsRequiredForAccounts', () => {
+      it('returns the right profiles for pending tax forms', async () => {
+        const accounts = await SQLQueries.getTaxFormsRequiredForAccounts({ year: YEAR, ignoreReceived: true });
+        expect(accounts.size).to.be.eq(8); // 7 legit + 1 "error" document
+        expect(accounts.has(organizationWithTaxForm.id)).to.be.true;
+        expect(accounts.has(accountWithTaxFormFromLastYear.id)).to.be.false;
+        expect(accounts.has(accountWithTaxFormFrom4YearsAgo.id)).to.be.true;
+        expect(accounts.has(accountAlreadyNotified.id)).to.be.true;
+        expect(accounts.has(hostCollective.id)).to.be.false;
+        expect(accounts.has(users[4].CollectiveId)).to.be.false;
+        expect(accounts.has(accountWithPaypalOverThreshold.id)).to.be.true;
+        expect(accounts.has(accountWithPaypalBelowThreshold.id)).to.be.false;
+        expect(accounts.has(accountWithOnlyADraft.id)).to.be.false;
+        expect(accounts.has(accountWithINROverThreshold.id)).to.be.true;
+        expect(accounts.has(accountWithINRBelowThreshold.id)).to.be.false;
+      });
     });
   });
 });
