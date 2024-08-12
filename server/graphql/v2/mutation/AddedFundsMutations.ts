@@ -3,6 +3,7 @@ import assert from 'assert';
 import express from 'express';
 import { GraphQLFloat, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
+import { InferAttributes } from 'sequelize';
 
 import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
@@ -11,10 +12,11 @@ import { purgeCacheForCollective } from '../../../lib/cache';
 import { getDiffBetweenInstances } from '../../../lib/data';
 import { executeOrder } from '../../../lib/payments';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models, { Collective } from '../../../models';
-import { addFunds } from '../../common/orders';
+import models, { Collective, Order } from '../../../models';
+import { addFunds, checkCanUseAccountingCategoryForOrder } from '../../common/orders';
 import { checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { ValidationFailed } from '../../errors';
+import { getOrderTaxInfoFromTaxInput } from '../../v1/mutations/orders';
 import {
   fetchAccountingCategoryWithReference,
   GraphQLAccountingCategoryReferenceInput,
@@ -48,7 +50,17 @@ type AddFundsMutationArgs = {
   transactionsImportRow: GraphQLTransactionsImportRowReferenceInputFields;
 };
 
-const validateAddFundsArgs = ({ account, fromAccount, args, paymentProcessorFee, totalAmount, host, req }) => {
+const validateAddFundsArgs = ({
+  account,
+  fromAccount,
+  args,
+  paymentProcessorFee,
+  totalAmount,
+  host,
+  tier,
+  accountingCategory,
+  req,
+}) => {
   const accountAllowedTypes = ['ORGANIZATION', 'COLLECTIVE', 'EVENT', 'FUND', 'PROJECT'];
   if (!accountAllowedTypes.includes(account.type)) {
     throw new ValidationFailed(
@@ -83,7 +95,7 @@ const validateAddFundsArgs = ({ account, fromAccount, args, paymentProcessorFee,
     throw new ValidationFailed('Payment processor fee cannot be higher than the total amount');
   } else if (args.hostFeePercent === 100 && paymentProcessorFee > 0) {
     throw new ValidationFailed('Payment processor fee cannot be applied when host fee is 100%');
-  } else if (!totalAmount) {
+  } else if (!totalAmount || totalAmount < 0) {
     throw new ValidationFailed('Amount should be greater than 0');
   }
 
@@ -95,6 +107,14 @@ const validateAddFundsArgs = ({ account, fromAccount, args, paymentProcessorFee,
   }
   if (fromAccount.type === CollectiveType.VENDOR && fromAccount.ParentCollectiveId !== host.id) {
     throw new Error('You can only add funds from a vendor account that belongs to the same host');
+  }
+  if (tier) {
+    if (tier.CollectiveId !== account.id) {
+      throw new Error(`Tier #${tier.id} is not part of collective #${account.id}`);
+    }
+  }
+  if (accountingCategory) {
+    checkCanUseAccountingCategoryForOrder(accountingCategory, host, account);
   }
 };
 
@@ -163,6 +183,12 @@ export default {
       const fromAccount: Collective = await fetchAccountWithReference(args.fromAccount, { throwIfMissing: true });
       const tier = args.tier && (await fetchTierWithReference(args.tier, { throwIfMissing: true }));
       const host = await account.getHostCollective({ loaders: req.loaders });
+      const accountingCategory =
+        args.accountingCategory &&
+        (await fetchAccountingCategoryWithReference(args.accountingCategory, {
+          throwIfMissing: true,
+          loaders: req.loaders,
+        }));
 
       // Check amounts
       const totalAmount = getValueInCentsFromAmountInput(args.amount, { expectedCurrency: account.currency });
@@ -170,7 +196,17 @@ export default {
         ? getValueInCentsFromAmountInput(args.paymentProcessorFee, { expectedCurrency: account.currency })
         : 0;
 
-      validateAddFundsArgs({ account, fromAccount, args, paymentProcessorFee, totalAmount, host, req });
+      validateAddFundsArgs({
+        account,
+        fromAccount,
+        args,
+        paymentProcessorFee,
+        totalAmount,
+        host,
+        tier,
+        accountingCategory,
+        req,
+      });
 
       // Enforce 2FA
       await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });
@@ -179,12 +215,6 @@ export default {
         args.transactionsImportRow &&
         (await fetchTransactionsImportRowWithReference(args.transactionsImportRow, {
           throwIfMissing: true,
-        }));
-      const accountingCategory =
-        args.accountingCategory &&
-        (await fetchAccountingCategoryWithReference(args.accountingCategory, {
-          throwIfMissing: true,
-          loaders: req.loaders,
         }));
 
       return addFunds(
@@ -277,17 +307,6 @@ export default {
       const fromAccount: Collective = await fetchAccountWithReference(args.fromAccount, { throwIfMissing: true });
       const tier = args.tier && (await fetchTierWithReference(args.tier, { throwIfMissing: true }));
       const host = await account.getHostCollective({ loaders: req.loaders });
-
-      // Check amounts
-      const totalAmount = getValueInCentsFromAmountInput(args.amount, { expectedCurrency: account.currency });
-      const paymentProcessorFee = args.paymentProcessorFee
-        ? getValueInCentsFromAmountInput(args.paymentProcessorFee, { expectedCurrency: account.currency })
-        : 0;
-
-      validateAddFundsArgs({ account, fromAccount, args, paymentProcessorFee, totalAmount, host, req });
-
-      await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });
-
       const accountingCategory =
         args.accountingCategory &&
         (await fetchAccountingCategoryWithReference(args.accountingCategory, {
@@ -295,15 +314,50 @@ export default {
           loaders: req.loaders,
         }));
 
+      // Check amounts
+      const totalAmount = getValueInCentsFromAmountInput(args.amount, { expectedCurrency: account.currency });
+      const paymentProcessorFee = args.paymentProcessorFee
+        ? getValueInCentsFromAmountInput(args.paymentProcessorFee, { expectedCurrency: account.currency })
+        : 0;
+
+      validateAddFundsArgs({
+        account,
+        fromAccount,
+        args,
+        paymentProcessorFee,
+        totalAmount,
+        host,
+        tier,
+        accountingCategory,
+        req,
+      });
+
+      if (fromAccount.hasBudget()) {
+        // Make sure logged in user is admin of the source profile, unless it doesn't have a budget (user
+        // or host organization without budget activated). It's not an ideal solution though, as spammy
+        // hosts could still use this to pollute user's ledgers.
+        const isAdminOfFromCollective = req.remoteUser.isRoot() || req.remoteUser.isAdmin(fromAccount.id);
+        if (!isAdminOfFromCollective && fromAccount.HostCollectiveId !== host.id) {
+          const fromCollectiveHostId = await fromAccount.getHostCollectiveId();
+          if (!req.remoteUser.isAdmin(fromCollectiveHostId) && !host.data?.allowAddFundsFromAllAccounts) {
+            throw new Error(
+              "You don't have the permission to add funds from accounts you don't own or host. Please contact support@opencollective.com if you want to enable this.",
+            );
+          }
+        }
+      }
+
       // Refund Existing Order
       const transactions = await order.getTransactions({ order: [['id', 'desc']] });
       assert(transactions.length > 0, 'No ADDED FUNDS transaction found for this order');
+
+      await twoFactorAuthLib.enforceForAccount(req, host);
       const editedTransactions = transactions.map(t => t.id);
       await Promise.all(transactions.map(transaction => transaction.destroy()));
 
       const previousData = order.toJSON();
       // Update existing Order
-      await order.update({
+      const orderData: Partial<InferAttributes<Order>> = {
         CreatedByUserId: req.remoteUser.id,
         FromCollectiveId: fromAccount.id,
         CollectiveId: account.id,
@@ -313,13 +367,19 @@ export default {
         status: OrderStatuses.NEW,
         TierId: tier?.id || order.TierId,
         AccountingCategoryId: accountingCategory?.id || order.AccountingCategoryId,
+        processedAt: args.processedAt || order.processedAt,
         data: {
           ...order.data,
           hostFeePercent: args.hostFeePercent ?? order.data.hostFeePercent,
           paymentProcessorFee: paymentProcessorFee ?? order.data.paymentProcessorFee,
           memo: args.memo ?? order.data.memo,
         },
-      });
+      };
+      if (args.tax?.rate) {
+        orderData.taxAmount = Math.round(orderData.totalAmount - orderData.totalAmount / (1 + args.tax.rate));
+        orderData.data.tax = getOrderTaxInfoFromTaxInput(args.tax, fromAccount, account, host);
+      }
+      await order.update(orderData);
       const diff = getDiffBetweenInstances(order.toJSON(), previousData, ['status', 'updatedAt']);
 
       // Execute Order

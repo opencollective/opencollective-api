@@ -124,6 +124,24 @@ const editAddedFundsMutation = gql`
       memo
       amount {
         valueInCents
+        currency
+      }
+      taxAmount {
+        valueInCents
+        currency
+      }
+      transactions {
+        id
+        kind
+        type
+        amount {
+          valueInCents
+          currency
+        }
+        taxAmount {
+          valueInCents
+          currency
+        }
       }
     }
   }
@@ -684,6 +702,64 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
           },
         },
       ]);
+    });
+
+    it('can edit added funds with taxes', async () => {
+      const userToken = await fakeUserToken({ scope: ['host'], UserId: hostAdmin.id });
+      let result = await oAuthGraphqlQueryV2(
+        addFundsMutation,
+        {
+          account: { legacyId: collective.id },
+          fromAccount: { legacyId: randomUser.CollectiveId },
+          amount: { currency: 'USD', valueInCents: 2000 },
+          description: 'add funds as admin',
+          hostFeePercent: 10,
+          tax: { type: 'GST', rate: 0.15 },
+        },
+        userToken,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.addFunds.amount.valueInCents).to.equal(2000);
+      expect(result.data.addFunds.taxAmount.valueInCents).to.equal(261); // (2000 - 261) x 1.15 = 2000
+      expect(result.data.addFunds.amount.currency).to.equal('USD');
+
+      result = await oAuthGraphqlQueryV2(
+        editAddedFundsMutation,
+        {
+          account: { legacyId: collective.id },
+          fromAccount: { legacyId: randomUser.CollectiveId },
+          order: { id: result.data.addFunds.id },
+          hostFeePercent: 10,
+          description: 'edit added funds as admin',
+          amount: { currency: 'USD', valueInCents: 3000 },
+          tax: { type: 'GST', rate: 0.21 },
+          memo: 'new memo',
+        },
+        userToken,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      expect(result.data.editAddedFunds.amount.valueInCents).to.equal(3000);
+      expect(result.data.editAddedFunds.taxAmount.valueInCents).to.equal(521); // (2000 - 521) x 1.21 ~= 2000
+      expect(result.data.editAddedFunds.amount.currency).to.equal('USD');
+
+      const transactions = result.data.editAddedFunds.transactions;
+      const groupedTransactions = groupBy(transactions, 'kind');
+
+      // Taxes should be added on CONTRIBUTION transactions
+      const addFundsCredit = groupedTransactions['ADDED_FUNDS'].find(t => t.type === 'CREDIT');
+      const addFundsDebit = groupedTransactions['ADDED_FUNDS'].find(t => t.type === 'DEBIT');
+      expect(addFundsCredit.taxAmount.valueInCents).to.equal(-521);
+      expect(addFundsCredit.taxAmount.valueInCents).to.equal(-521);
+      expect(addFundsDebit.taxAmount.valueInCents).to.equal(-521);
+
+      // Taxes should not be added on HOST_FEE transactions
+      const hostFeeCredit = groupedTransactions['HOST_FEE'].find(t => t.type === 'CREDIT');
+      const hostFeeDebit = groupedTransactions['HOST_FEE'].find(t => t.type === 'DEBIT');
+      expect(hostFeeCredit.taxAmount.valueInCents).to.be.null;
+      expect(hostFeeDebit.taxAmount.valueInCents).to.be.null;
     });
   });
 });
