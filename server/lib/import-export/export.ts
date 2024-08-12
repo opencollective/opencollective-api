@@ -88,7 +88,7 @@ type RecipeItem = {
 type ExportedItem = Record<string, any> & { model: ModelNames; id: number | string };
 
 export const traverse = async (
-  { model, where, order, dependencies, limit, defaultDependencies = {}, parsed, depth = 1 }: RecipeItem,
+  { model, where, order, dependencies, limit, defaultDependencies = {}, parsed = {}, depth = 1 }: RecipeItem,
   req: PartialRequest,
   callback: (ei: ExportedItem) => Promise<any>,
 ) => {
