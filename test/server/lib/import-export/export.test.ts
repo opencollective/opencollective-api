@@ -36,7 +36,8 @@ describe('export', () => {
 
     it('should traverse the tree based on model references', async () => {
       const parsed = {};
-      const results = await traverse(
+      const results = [];
+      await traverse(
         {
           model: 'Collective',
           where: { slug: user.collective.slug },
@@ -44,6 +45,9 @@ describe('export', () => {
           parsed,
         },
         makeRequest(user),
+        async ei => {
+          results.push(ei);
+        },
       );
 
       expect(results).to.containSubset([{ model: 'User', id: user.id }]);
@@ -52,7 +56,8 @@ describe('export', () => {
 
     it('should traverse using "on" statement', async () => {
       const parsed = {};
-      const results = await traverse(
+      const results = [];
+      await traverse(
         {
           model: 'Collective',
           where: { slug: user.collective.slug },
@@ -60,6 +65,9 @@ describe('export', () => {
           parsed,
         },
         makeRequest(user),
+        async ei => {
+          results.push(ei);
+        },
       );
 
       expect(results).to.containSubset([{ model: 'User', id: user.id }]);
@@ -68,7 +76,8 @@ describe('export', () => {
 
     it('should traverse using "from" statement', async () => {
       const parsed = {};
-      const results = await traverse(
+      const results = [];
+      await traverse(
         {
           model: 'User',
           where: { id: user.id },
@@ -76,6 +85,9 @@ describe('export', () => {
           parsed,
         },
         makeRequest(user),
+        async ei => {
+          results.push(ei);
+        },
       );
 
       expect(results).to.containSubset([{ model: 'User', id: user.id }]);
@@ -84,7 +96,8 @@ describe('export', () => {
 
     it('should traverse using where function parameter', async () => {
       const parsed = {};
-      const results = await traverse(
+      const results = [];
+      await traverse(
         {
           model: 'User',
           where: { id: user.id },
@@ -92,6 +105,9 @@ describe('export', () => {
           parsed,
         },
         makeRequest(user),
+        async ei => {
+          results.push(ei);
+        },
       );
 
       expect(results).to.containSubset([{ model: 'User', id: user.id }]);
@@ -110,12 +126,14 @@ describe('export', () => {
           const hostAdmin = await fakeUser();
           await hostAdmin.populateRoles();
           await expense.collective.host.addUserWithRole(hostAdmin, 'ADMIN');
-          const results = await traverse(
+          const results = [];
+          await traverse(
             {
               model: 'PayoutMethod',
               where: { id: expense.PayoutMethodId },
             },
             makeRequest(hostAdmin),
+            async ei => results.push(ei),
           );
 
           expect(results).to.have.length(1);
@@ -135,13 +153,15 @@ describe('export', () => {
           const hostAdmin = await fakeUser();
           await expense.collective.host.addUserWithRole(hostAdmin, 'ADMIN');
           await hostAdmin.populateRoles();
-          const results = await traverse(
+          const results = [];
+          await traverse(
             {
               model: 'Expense',
               where: { id: expense.id },
               dependencies: [{ model: 'PayoutMethod', where: expenseRow => ({ id: expenseRow.PayoutMethodId }) }],
             },
             makeRequest(hostAdmin),
+            async ei => results.push(ei),
           );
 
           expect(results).to.have.length(2);
