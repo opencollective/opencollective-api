@@ -128,6 +128,9 @@ export const makeRequest = (
     },
     userToken,
     personalToken,
+    res: {
+      cookie: () => {},
+    },
   };
 };
 
