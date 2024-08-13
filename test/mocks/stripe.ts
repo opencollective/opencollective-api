@@ -62,7 +62,7 @@ export default {
       currency: 'usd',
       customer: 'cus_ByqlQqWYQok45w',
       description: 'Donation to MochaJS',
-      destination: 'acct_18KWlTLzdXg9xKNS',
+      destination: 'acct_17GUlBGSh14qHxZK',
       dispute: null,
       failure_code: null,
       failure_message: null,
@@ -70,7 +70,7 @@ export default {
       invoice: null,
       livemode: false,
       metadata: {},
-      on_behalf_of: 'acct_18KWlTLzdXg9xKNS',
+      on_behalf_of: 'acct_17GUlBGSh14qHxZK',
       order: null,
       outcome: {
         network_status: 'approved_by_network',
