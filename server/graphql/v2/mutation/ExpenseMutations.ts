@@ -482,11 +482,16 @@ const expenseMutations = {
 
       const fromCollective = await remoteUser.getCollective({ loaders: req.loaders });
       const payeeLegacyId = expenseData.payee?.legacyId || expenseData.payee?.id;
+      const currency = expenseData.currency || collective.currency;
+      const items = await prepareExpenseItemInputs(currency, expenseData.items);
       const payee = payeeLegacyId
         ? (await fetchAccountWithReference({ legacyId: payeeLegacyId }, { throwIfMissing: true }))?.minimal
         : expenseData.payee;
-      const currency = expenseData.currency || collective.currency;
-      const items = await prepareExpenseItemInputs(currency, expenseData.items);
+      // We need to lowercase the email to be consistent with the User table
+      if (payee?.email) {
+        payee.email = payee.email.toLowerCase();
+      }
+
       const expense = await models.Expense.create({
         ...pick(expenseData, DRAFT_EXPENSE_FIELDS),
         CollectiveId: collective.id,
