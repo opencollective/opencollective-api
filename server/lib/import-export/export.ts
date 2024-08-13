@@ -87,75 +87,86 @@ type RecipeItem = {
 
 type ExportedItem = Record<string, any> & { model: ModelNames; id: number | string };
 
+async function* paginate(model: ModelNames, where: Record<string, any>, order: Record<string, any>, limit: number) {
+  let offset = 0;
+  let totalCount = 0;
+  do {
+    const result = await (models[model] as any).findAndCountAll({ where, order, limit, offset });
+    totalCount = result.count;
+    yield result.rows;
+    offset += limit;
+  } while (offset < totalCount);
+}
+
 export const traverse = async (
-  { model, where, order, dependencies, limit, defaultDependencies = {}, parsed = {}, depth = 1 }: RecipeItem,
+  { model, where, order, dependencies, limit = 1000, defaultDependencies = {}, parsed = {}, depth = 1 }: RecipeItem,
   req: PartialRequest,
   callback: (ei: ExportedItem) => Promise<any>,
-) => {
+): Promise<void> => {
   let records;
+
   if (model && where) {
     if (!where.id && parsed[model]) {
       where.id = { [Op.notIn]: Array.from(parsed[model]) };
     }
 
-    const allRecords = await (models[model] as any).findAll({ where, limit, order });
-    const serializedRecords = await Promise.all(allRecords.map(record => serialize(model, req, record)));
-    records = serializedRecords.filter(Boolean);
+    for await (const pageRecords of paginate(model, where, order, limit)) {
+      const serializedRecords = await Promise.all(pageRecords.map(record => serialize(model, req, record)));
+      records = serializedRecords.filter(Boolean);
 
-    if (!parsed[model]) {
-      parsed[model] = new Set(records.map(r => r.id));
-    } else {
-      records.forEach(r => parsed[model].add(r.id));
-    }
-
-    records.forEach(async element => {
-      await callback(element);
-    });
-  }
-
-  // Inject default dependencies for the model
-  dependencies = compact(concat(dependencies, defaultDependencies[model]));
-  if (records) {
-    for (const record of records) {
-      const isLast = records.indexOf(record) === records.length - 1;
-      debug(`${repeat('  │', depth - 1)}  ${isLast ? '└' : '├'} ${record.model} #${record.id}`);
-
-      const pResults = [];
-      for (const dep of dependencies) {
-        let where = {};
-        // Find dependency using default foreign key tree
-        if (typeof dep === 'string') {
-          if (foreignKeys[model]?.[dep]) {
-            where = { ...where, [Op.or]: foreignKeys[model][dep].map(on => ({ [on]: record.id })) };
-            pResults.push(
-              traverse(
-                { model: dep as ModelNames, where, defaultDependencies, parsed, depth: depth + 1 },
-                req,
-                callback,
-              ),
-            );
-          } else {
-            logger.error(`Foreign key not found for ${model}.${dep}`);
-          }
-        } else {
-          // If the dependency has a custom function
-          if (typeof dep.where === 'function') {
-            where = dep.where(record);
-          }
-          // Find dependency which ID from record foreign key
-          else if (dep.from && record[dep.from]) {
-            where['id'] = record[dep.from];
-          }
-          // Find dependency which foreign key is equal to the record ID
-          else if (dep.on) {
-            where[dep.on] = record.id;
-          } else {
-            continue;
-          }
-          pResults.push(traverse({ ...dep, where, defaultDependencies, parsed, depth: depth + 1 }, req, callback));
-        }
+      if (!parsed[model]) {
+        parsed[model] = new Set(records.map(r => r.id));
+      } else {
+        records.forEach(r => parsed[model].add(r.id));
       }
-      await Promise.all(pResults);
+
+      for (const element of records) {
+        await callback(element);
+      }
+
+      // Inject default dependencies for the model
+      dependencies = compact(concat(dependencies, defaultDependencies[model]));
+      for (const record of records) {
+        const isLast = records.indexOf(record) === records.length - 1;
+        debug(`${repeat('  │', depth - 1)}  ${isLast ? '└' : '├'} ${record.model} #${record.id}`);
+
+        const pResults = [];
+        for (const dep of dependencies) {
+          let where = {};
+          // Find dependency using default foreign key tree
+          if (typeof dep === 'string') {
+            if (foreignKeys[model]?.[dep]) {
+              where = { ...where, [Op.or]: foreignKeys[model][dep].map(on => ({ [on]: record.id })) };
+              pResults.push(
+                traverse(
+                  { model: dep as ModelNames, where, defaultDependencies, parsed, depth: depth + 1 },
+                  req,
+                  callback,
+                ),
+              );
+            } else {
+              logger.error(`Foreign key not found for ${model}.${dep}`);
+            }
+          } else {
+            // If the dependency has a custom function
+            if (typeof dep.where === 'function') {
+              where = dep.where(record);
+            }
+            // Find dependency which ID from record foreign key
+            else if (dep.from && record[dep.from]) {
+              where['id'] = record[dep.from];
+            }
+            // Find dependency which foreign key is equal to the record ID
+            else if (dep.on) {
+              where[dep.on] = record.id;
+            } else {
+              continue;
+            }
+            pResults.push(traverse({ ...dep, where, defaultDependencies, parsed, depth: depth + 1 }, req, callback));
+          }
+        }
+        await Promise.all(pResults);
+      }
     }
   }
 };
