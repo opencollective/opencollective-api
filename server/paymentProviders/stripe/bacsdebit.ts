@@ -8,7 +8,7 @@ import { getApplicationFee } from '../../lib/payments';
 import { reportMessageToSentry } from '../../lib/sentry';
 import stripe, { convertToStripeAmount } from '../../lib/stripe';
 import Order from '../../models/Order';
-import { PaymentProviderService } from '../types';
+import { PaymentProviderServiceWithInternalRecurringManagement } from '../types';
 
 import { APPLICATION_FEE_INCOMPATIBLE_CURRENCIES, refundTransaction, refundTransactionOnlyInDatabase } from './common';
 
@@ -94,4 +94,4 @@ export default {
   processOrder,
   refundTransaction,
   refundTransactionOnlyInDatabase,
-} as PaymentProviderService;
+} as PaymentProviderServiceWithInternalRecurringManagement;

@@ -5,19 +5,7 @@ import Transaction from '../models/Transaction';
 import User from '../models/User';
 import VirtualCardModel from '../models/VirtualCard';
 
-export interface PaymentProvider {
-  /**
-   * Triggers the payment for this order and updates it accordingly
-   */
-  processOrder(order: Order): Promise<Transaction>;
-
-  /**
-   * The different types of payment methods supported by this provider
-   */
-  types: Record<string, PaymentProviderService>;
-}
-
-export interface PaymentProviderService {
+interface BasePaymentProviderService {
   /**
    * Describes the features implemented by this payment method
    */
@@ -49,6 +37,54 @@ export interface PaymentProviderService {
   updateBalance?: (paymentMethod: PaymentMethod) => Promise<number>;
 }
 
+export interface PaymentProviderServiceWithoutRecurring extends BasePaymentProviderService {
+  features: BasePaymentProviderService['features'] & {
+    recurring: false;
+    isRecurringManagedExternally: never;
+  };
+}
+
+export interface PaymentProviderServiceWithInternalRecurringManagement extends BasePaymentProviderService {
+  features: BasePaymentProviderService['features'] & {
+    recurring: true;
+    isRecurringManagedExternally: false;
+  };
+}
+
+export interface PaymentMethodServiceWithExternalRecurringManagement extends BasePaymentProviderService {
+  features: BasePaymentProviderService['features'] & {
+    recurring: true;
+    isRecurringManagedExternally: true;
+  };
+
+  /**
+   * For external recurring management, use this method to define how pausing a subscription should be handled.
+   */
+  pauseSubscription?: (order: Order, reason: string) => Promise<void>;
+
+  /**
+   * For external recurring management, use this method to define how resuming a subscription should be handled.
+   */
+  resumeSubscription?: (order: Order, reason: string) => Promise<void>;
+}
+
+export type PaymentProviderService =
+  | PaymentProviderServiceWithoutRecurring
+  | PaymentProviderServiceWithInternalRecurringManagement
+  | PaymentMethodServiceWithExternalRecurringManagement;
+
+export interface PaymentProvider {
+  /**
+   * Triggers the payment for this order and updates it accordingly
+   */
+  processOrder(order: Order): Promise<Transaction>;
+
+  /**
+   * The different types of payment methods supported by this provider
+   */
+  types: Record<string, PaymentProviderService>;
+}
+
 export interface CardProviderService {
   // Standardized
   deleteCard(virtualCard: VirtualCardModel): Promise<void>;
@@ -60,3 +96,9 @@ export interface CardProviderService {
   assignCardToCollective: any;
   autoPauseResumeCard(virtualCard: VirtualCardModel): Promise<void>;
 }
+
+export const isPaymentProviderWithExternalRecurring = (
+  paymentProvider: PaymentProviderService,
+): paymentProvider is PaymentMethodServiceWithExternalRecurringManagement => {
+  return paymentProvider.features.isRecurringManagedExternally;
+};

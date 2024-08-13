@@ -3,11 +3,13 @@ import config from 'config';
 import DataLoader from 'dataloader';
 import debugLib from 'debug';
 import { find, get, includes, isNil, isNumber, omit, pick, truncate } from 'lodash';
+import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../constants/activities';
 import { ExpenseFeesPayer } from '../constants/expense-fees-payer';
 import status from '../constants/order-status';
+import OrderStatuses from '../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import roles from '../constants/roles';
 import tiers from '../constants/tiers';
@@ -23,7 +25,11 @@ import Transaction, { TransactionCreationAttributes, TransactionData } from '../
 import TransactionSettlement, { TransactionSettlementStatus } from '../models/TransactionSettlement';
 import User from '../models/User';
 import paymentProviders from '../paymentProviders';
-import type { PaymentProviderService } from '../paymentProviders/types';
+import {
+  isPaymentProviderWithExternalRecurring,
+  type PaymentProviderService,
+  type PaymentProviderServiceWithInternalRecurringManagement,
+} from '../paymentProviders/types';
 import { RecipientAccount as BankAccountPayoutMethodData } from '../types/transferwise';
 
 import { notify } from './notifications/email';
@@ -118,6 +124,90 @@ export async function processOrder(
   }
 }
 
+/**
+ * Pauses an order, taking care of both the payment provider and the database.
+ * Resume it with `resumeOrder`.
+ *
+ * @param order The order to pause
+ * @param reason The reason why the order is being paused (shared with the user in PayPal's email)
+ */
+export async function pauseOrder(order: Order, reason: string, pausedBy: Order['data']['pausedBy']): Promise<void> {
+  if (order.status === OrderStatuses.PAUSED) {
+    return;
+  } else if (order.status !== OrderStatuses.ACTIVE) {
+    throw new Error(`Order #${order.id} is not active`);
+  }
+
+  // If externally manage subscription, cancel on the payment provider first
+  const paymentMethodProvider = findPaymentMethodProvider(order.paymentMethod);
+  if (isPaymentProviderWithExternalRecurring(paymentMethodProvider)) {
+    await paymentMethodProvider.pauseSubscription(order, reason);
+  }
+
+  // Then pause the order in the database
+  await pauseOrderInDb(order, reason, pausedBy);
+}
+
+export async function pauseOrderInDb(
+  order: Order,
+  reason: string,
+  pausedBy: Order['data']['pausedBy'] = undefined,
+): Promise<void> {
+  if (order.status === OrderStatuses.PAUSED) {
+    return;
+  }
+
+  await order.update({
+    status: OrderStatuses.PAUSED,
+    data: { ...order.data, messageForContributors: reason, pausedBy },
+  });
+
+  const subscription = order.Subscription || (await order.getSubscription());
+  if (subscription?.isActive) {
+    await order.Subscription.update({
+      isActive: false,
+      deactivatedAt: new Date(),
+    });
+  }
+}
+
+/**
+ * Resumes a previously paused order, taking care of both the payment provider and the database.
+ *
+ * @param order The order to resume
+ * @param reason The reason why the order is being resumed (shared with the user in PayPal's email)
+ */
+export async function resumeOrder(order: Order, reason: string): Promise<void> {
+  if (order.status !== OrderStatuses.PAUSED) {
+    throw new Error(`Order #${order.id} is not paused`);
+  }
+
+  // If externally manage subscription, resume on the payment provider first
+  const paymentMethodProvider = findPaymentMethodProvider(order.paymentMethod);
+  if (isPaymentProviderWithExternalRecurring(paymentMethodProvider)) {
+    await paymentMethodProvider.resumeSubscription(order, reason);
+  }
+
+  // Then resume the order in the database
+  await resumeOrderInDb(order, reason);
+}
+
+export async function resumeOrderInDb(order: Order, reason: string): Promise<void> {
+  await order.update({
+    status: OrderStatuses.ACTIVE,
+    data: { ...order.data, resumeReason: reason },
+  });
+
+  const subscription = order.Subscription || (await order.getSubscription());
+  if (subscription) {
+    await order.Subscription.update({
+      isActive: true,
+      deactivatedAt: null,
+      nextChargeDate: moment().isAfter(subscription.nextChargeDate) ? new Date() : subscription.nextChargeDate,
+    });
+  }
+}
+
 /** Refund a transaction
  *
  * @param {TransactionInterface} transaction ideally preloaded with a valid `PaymentMethod`
@@ -139,8 +229,8 @@ export async function refundTransaction(transaction: Transaction, user?: User, m
     ? findPaymentMethodProvider(transaction.PaymentMethod)
     : // TODO: Drop this in favor of findPaymentMethodProvider when persisting PaymentIntents as Payment Methods
       ['us_bank_account', 'sepa_debit'].includes(transaction.data?.charge?.payment_method_details?.type)
-      ? (paymentProviders.stripe.types.paymentintent as PaymentProviderService)
-      : (paymentProviders.opencollective.types.manual as PaymentProviderService);
+      ? (paymentProviders.stripe.types.paymentintent as PaymentProviderServiceWithInternalRecurringManagement)
+      : (paymentProviders.opencollective.types.manual as PaymentProviderServiceWithInternalRecurringManagement);
 
   if (!paymentMethodProvider.refundTransaction) {
     throw new Error('This payment method provider does not support refunds');

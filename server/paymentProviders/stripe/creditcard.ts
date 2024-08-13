@@ -10,7 +10,7 @@ import { Collective } from '../../models';
 import Order from '../../models/Order';
 import PaymentMethod from '../../models/PaymentMethod';
 import User from '../../models/User';
-import { PaymentProviderService } from '../types';
+import { PaymentProviderServiceWithInternalRecurringManagement } from '../types';
 
 import {
   APPLICATION_FEE_INCOMPATIBLE_CURRENCIES,
@@ -245,4 +245,4 @@ export default {
 
   refundTransaction,
   refundTransactionOnlyInDatabase,
-} as PaymentProviderService;
+} as PaymentProviderServiceWithInternalRecurringManagement;
