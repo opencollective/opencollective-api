@@ -82,7 +82,7 @@ export const persistTransaction = async (virtualCard, transaction) => {
       await models.ExpenseItem.update({ amount }, { where: { ExpenseId: processingExpense.id } });
       await processingExpense.update({
         amount,
-        paymentMethodId: paymentMethod.id,
+        PaymentMethodId: paymentMethod.id,
         data: { ...expenseData, missingDetails: true, ...transaction.data },
       });
       // Mark Expense as Paid, create activity and don't send notifications
