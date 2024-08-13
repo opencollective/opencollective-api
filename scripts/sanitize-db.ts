@@ -9,30 +9,30 @@ export const testStripeAccounts = {
   // Open Source Collective 501c6
   opensource: {
     service: 'stripe',
-    username: 'acct_18KWlTLzdXg9xKNS',
-    token: 'sk_test_iDWQubtz4ixk0FQg1csgCi6p',
+    username: 'acct_17GUlBGSh14qHxZK',
+    token: 'sk_test_DVhbUwvSoAvDfjlTRE0IrSPs',
     data: {
-      publishableKey: 'pk_test_l7H1cDlh2AekeETfq742VJbC',
+      publishableKey: 'pk_test_gwOTnKFLVpiYhsbXXfZcLPtR',
     },
     CollectiveId: 11004,
   },
   opensourceDvl: {
     // legacy for opencollective_dvl.pgsql
     service: 'stripe',
-    username: 'acct_18KWlTLzdXg9xKNS',
-    token: 'sk_test_iDWQubtz4ixk0FQg1csgCi6p',
+    username: 'acct_17GUlBGSh14qHxZK',
+    token: 'sk_test_DVhbUwvSoAvDfjlTRE0IrSPs',
     data: {
-      publishableKey: 'pk_test_l7H1cDlh2AekeETfq742VJbC',
+      publishableKey: 'pk_test_gwOTnKFLVpiYhsbXXfZcLPtR',
     },
     CollectiveId: 9805,
   },
   // Open Collective Inc. host for meetups
   other: {
     service: 'stripe',
-    username: 'acct_18KWlTLzdXg9xKNS',
-    token: 'sk_test_iDWQubtz4ixk0FQg1csgCi6p',
+    username: 'acct_17GUlBGSh14qHxZK',
+    token: 'sk_test_DVhbUwvSoAvDfjlTRE0IrSPs',
     data: {
-      publishableKey: 'pk_test_l7H1cDlh2AekeETfq742VJbC',
+      publishableKey: 'pk_test_gwOTnKFLVpiYhsbXXfZcLPtR',
     },
     CollectiveId: 8674,
   },
