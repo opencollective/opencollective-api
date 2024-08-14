@@ -1,13 +1,14 @@
 import debugLib from 'debug';
-import { compact, concat, repeat, set } from 'lodash';
+import { compact, concat, pick, set, uniqBy } from 'lodash';
 import { DataType } from 'sequelize';
 
 import type { ModelNames, Models } from '../../models';
 import models, { Op } from '../../models';
+import { crypto } from '../encryption';
 import logger from '../logger';
 
 import { getSanitizers } from './sanitize';
-import { PartialRequest } from './types';
+import { PartialRequest, RecipeItem } from './types';
 
 const debug = debugLib('export');
 
@@ -53,8 +54,6 @@ export const buildForeignKeyTree = (models: Models) => {
   return tree;
 };
 
-const foreignKeys = buildForeignKeyTree(models);
-
 const sanitizers = getSanitizers();
 
 const serialize = async (model: ModelNames, req: PartialRequest, document: InstanceType<Models[ModelNames]>) => {
@@ -72,24 +71,12 @@ const serialize = async (model: ModelNames, req: PartialRequest, document: Insta
   return { ...baseValues, ...sanitizedValues };
 };
 
-type RecipeItem = {
-  model?: ModelNames;
-  where?: Record<string, any>;
-  order?: Record<string, any>;
-  dependencies?: Array<Omit<RecipeItem, 'req'> | string>;
-  defaultDependencies?: Record<string, RecipeItem | string>;
-  on?: string;
-  from?: string;
-  limit?: number;
-  parsed?: Record<string, Set<number>>;
-  depth?: number;
-};
-
 type ExportedItem = Record<string, any> & { model: ModelNames; id: number | string };
 
 async function* paginate(model: ModelNames, where: Record<string, any>, order: Record<string, any>, limit: number) {
   let offset = 0;
   let totalCount = 0;
+  debug({ model, where });
   do {
     const result = await (models[model] as any).findAndCountAll({ where, order, limit, offset });
     totalCount = result.count;
@@ -98,26 +85,30 @@ async function* paginate(model: ModelNames, where: Record<string, any>, order: R
   } while (offset < totalCount);
 }
 
+const hashObject = (obj: Record<string, any>) => crypto.hash(JSON.stringify(obj));
+
 export const traverse = async (
   { model, where, order, dependencies, limit = 1000, defaultDependencies = {}, parsed = {}, depth = 1 }: RecipeItem,
   req: PartialRequest,
   callback: (ei: ExportedItem) => Promise<any>,
 ): Promise<void> => {
-  let records;
-
   if (model && where) {
-    if (!where.id && parsed[model]) {
+    const hasIdField = models[model]['tableAttributes'].id;
+    if (!where.id && parsed[model] && hasIdField) {
       where.id = { [Op.notIn]: Array.from(parsed[model]) };
     }
 
+    let records;
     for await (const pageRecords of paginate(model, where, order, limit)) {
-      const serializedRecords = await Promise.all(pageRecords.map(record => serialize(model, req, record)));
-      records = serializedRecords.filter(Boolean);
+      records = await Promise.all(pageRecords.map(record => serialize(model, req, record)));
+      records = records.filter(Boolean);
 
-      if (!parsed[model]) {
-        parsed[model] = new Set(records.map(r => r.id));
-      } else {
-        records.forEach(r => parsed[model].add(r.id));
+      if (hasIdField) {
+        if (!parsed[model]) {
+          parsed[model] = new Set(records.map(r => r.id));
+        } else {
+          records.forEach(r => parsed[model].add(r.id));
+        }
       }
 
       for (const element of records) {
@@ -126,47 +117,31 @@ export const traverse = async (
 
       // Inject default dependencies for the model
       dependencies = compact(concat(dependencies, defaultDependencies[model]));
+      let queries = [];
       for (const record of records) {
-        const isLast = records.indexOf(record) === records.length - 1;
-        debug(`${repeat('  │', depth - 1)}  ${isLast ? '└' : '├'} ${record.model} #${record.id}`);
-
-        const pResults = [];
         for (const dep of dependencies) {
           let where = {};
-          // Find dependency using default foreign key tree
-          if (typeof dep === 'string') {
-            if (foreignKeys[model]?.[dep]) {
-              where = { ...where, [Op.or]: foreignKeys[model][dep].map(on => ({ [on]: record.id })) };
-              pResults.push(
-                traverse(
-                  { model: dep as ModelNames, where, defaultDependencies, parsed, depth: depth + 1 },
-                  req,
-                  callback,
-                ),
-              );
-            } else {
-              logger.error(`Foreign key not found for ${model}.${dep}`);
-            }
-          } else {
-            // If the dependency has a custom function
-            if (typeof dep.where === 'function') {
-              where = dep.where(record);
-            }
-            // Find dependency which ID from record foreign key
-            else if (dep.from && record[dep.from]) {
-              where['id'] = record[dep.from];
-            }
-            // Find dependency which foreign key is equal to the record ID
-            else if (dep.on) {
-              where[dep.on] = record.id;
-            } else {
-              continue;
-            }
-            pResults.push(traverse({ ...dep, where, defaultDependencies, parsed, depth: depth + 1 }, req, callback));
+          // If the dependency has a custom function
+          if (typeof dep.where === 'function') {
+            where = dep.where(record);
           }
+          // Find dependency which ID from record foreign key
+          else if (dep.from && record[dep.from] && !parsed[dep.model]?.has(record[dep.from])) {
+            where['id'] = record[dep.from];
+          }
+          // Find dependency which foreign key is equal to the record ID
+          else if (dep.on) {
+            where[dep.on] = record.id;
+          } else {
+            continue;
+          }
+          queries.push({ ...dep, where, defaultDependencies, parsed, depth: depth + 1 });
         }
-        await Promise.all(pResults);
       }
+      // Remove duplicates
+      queries = uniqBy(queries, query => hashObject(pick(query, ['model', 'where'])));
+      // TODO: COMBINE QUERIES FOR THE SAME MODEL
+      await Promise.all(queries.map(query => traverse(query, req, callback)));
     }
   }
 };

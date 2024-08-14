@@ -53,7 +53,7 @@ program.command('dump [recipe] [as_user]').action(async (recipe, asUser, env) =>
   const date = new Date().toISOString().substring(0, 10);
   const hash = md5(JSON.stringify({ entries, defaultDependencies, date })).slice(0, 5);
   const seenModelRecords: Set<string> = new Set();
-  const tempDumpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'oc-export-', hash));
+  const tempDumpDir = fs.mkdtempSync(path.join(os.tmpdir(), `oc-export-${hash}`));
   logger.info(`>>> Temp directory: ${tempDumpDir}`);
 
   const gitRevision = execSync('git describe --always --abbrev=0 --match "NOT A TAG" --dirty="*"').toString().trim();
