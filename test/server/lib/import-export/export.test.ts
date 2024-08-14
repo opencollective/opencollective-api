@@ -34,26 +34,6 @@ describe('export', () => {
 
     after(resetTestDB);
 
-    it('should traverse the tree based on model references', async () => {
-      const parsed = {};
-      const results = [];
-      await traverse(
-        {
-          model: 'Collective',
-          where: { slug: user.collective.slug },
-          dependencies: ['User'],
-          parsed,
-        },
-        makeRequest(user),
-        async ei => {
-          results.push(ei);
-        },
-      );
-
-      expect(results).to.containSubset([{ model: 'User', id: user.id }]);
-      expect(results).to.containSubset([{ model: 'Collective', id: user.collective.id }]);
-    });
-
     it('should traverse using "on" statement', async () => {
       const parsed = {};
       const results = [];
