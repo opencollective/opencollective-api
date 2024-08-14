@@ -365,8 +365,8 @@ export default {
         currency: account.currency,
         description: args.description || order.description,
         status: OrderStatuses.NEW,
-        TierId: tier?.id || order.TierId,
-        AccountingCategoryId: accountingCategory?.id || order.AccountingCategoryId,
+        TierId: tier === null ? null : tier?.id || order.TierId,
+        AccountingCategoryId: accountingCategory === null ? null : accountingCategory?.id || order.AccountingCategoryId,
         processedAt: args.processedAt || order.processedAt,
         data: {
           ...order.data,
