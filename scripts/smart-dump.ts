@@ -14,6 +14,7 @@ import { Model as SequelizeModel, ModelStatic } from 'sequelize';
 
 import { loaders } from '../server/graphql/loaders';
 import { traverse } from '../server/lib/import-export/export';
+import { resetModelsSequences } from '../server/lib/import-export/import';
 import { PartialRequest } from '../server/lib/import-export/types';
 import logger from '../server/lib/logger';
 import { md5 } from '../server/lib/utils';
@@ -193,6 +194,8 @@ program.command('restore <file>').action(async file => {
   await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTagStats"`);
   await sequelize.query(`REFRESH MATERIALIZED VIEW "ExpenseTagStats"`);
   await sequelize.query(`REFRESH MATERIALIZED VIEW "HostMonthlyTransactions"`);
+
+  await resetModelsSequences(modelsArray);
 
   logger.info('>>> Done!');
   sequelize.close();
