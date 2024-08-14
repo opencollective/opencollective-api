@@ -29,7 +29,7 @@ const exec = cmd => {
   }
 };
 
-program.command('dump [recipe] [env] [as_user]').action(async (recipe, env, asUser) => {
+program.command('dump [recipe] [as_user]').action(async (recipe, asUser, env) => {
   if (!sequelize.config.username.includes('readonly')) {
     logger.error('Remote must be connected with read-only user!');
     process.exit(1);
@@ -47,15 +47,14 @@ program.command('dump [recipe] [env] [as_user]').action(async (recipe, env, asUs
   const remoteUser = await models.User.findOne({ include: [{ association: 'collective', where: { slug: asUser } }] });
   const req: PartialRequest = { remoteUser, loaders: loaders({ remoteUser }) };
 
-  const tempDumpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'oc-export-'));
-  logger.info(`>>> Temp directory: ${tempDumpDir}`);
-
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { entries, defaultDependencies } = require(recipe);
   const parsed = {};
   const date = new Date().toISOString().substring(0, 10);
   const hash = md5(JSON.stringify({ entries, defaultDependencies, date })).slice(0, 5);
   const seenModelRecords: Set<string> = new Set();
+  const tempDumpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'oc-export-', hash));
+  logger.info(`>>> Temp directory: ${tempDumpDir}`);
 
   const gitRevision = execSync('git describe --always --abbrev=0 --match "NOT A TAG" --dirty="*"').toString().trim();
   fs.writeFileSync(
@@ -70,6 +69,12 @@ program.command('dump [recipe] [env] [as_user]').action(async (recipe, env, asUs
   );
 
   let start = new Date();
+
+  logger.info('>>> Dumping Schema...');
+  exec(`pg_dump -csOx --if-exists $PG_URL > ${tempDumpDir}/schema.sql`);
+  logger.info(`>>> Schema Dumped in ${moment(start).fromNow(true)}`);
+
+  start = new Date();
   logger.info(`>>> Dumping... to ${tempDumpDir}/data.jsonl`);
   const dumpFile = fs.createWriteStream(`${tempDumpDir}/data.jsonl`);
   for (const entry of entries) {
@@ -84,11 +89,6 @@ program.command('dump [recipe] [env] [as_user]').action(async (recipe, env, asUs
   }
   dumpFile.close();
   logger.info(`>>> Dumped! ${seenModelRecords.size} records in ${moment(start).fromNow(true)}`);
-
-  start = new Date();
-  logger.info('>>> Dumping Schema...');
-  exec(`pg_dump -csOx $PG_URL > ${tempDumpDir}/schema.sql`);
-  logger.info(`>>> Schema Dumped! ${seenModelRecords.size} records in ${moment(start).fromNow(true)}`);
 
   logger.info(`>>> Ziping export to... dbdumps/${date}.${hash}.zip`);
   exec(`CUR_DIR=$PWD; cd ${tempDumpDir}; zip -r $CUR_DIR/dbdumps/${date}.${hash}.zip .; cd $CUR_DIR`);
@@ -120,7 +120,8 @@ program.command('restore <file>').action(async file => {
   logger.info('>>> Recreating DB...');
   exec(`dropdb ${database}`);
   exec(`createdb ${database}`);
-  exec(`psql -h localhost -U postgres ${database} < ${tempImportDir}/schema.sql`);
+  exec(`psql -d ${database} -c 'GRANT ALL PRIVILEGES ON DATABASE ${database} TO opencollective'`);
+  exec(`psql -h localhost -U opencollective ${database} < ${tempImportDir}/schema.sql`);
   logger.info(`>>> DB Created! in ${moment(start).fromNow(true)}`);
 
   await sequelize.sync().catch(nop);
@@ -197,8 +198,8 @@ program.addHelpText(
   `
 
 Example call:
-  $ npm run script scripts/smart-dump.ts dump prod superuser
-  $ PG_DATABASE=opencollective_prod_snapshot npm run script scripts/smart-dump.ts restore dbdumps/2023-03-21.c5292.zip
+  $ npm run script scripts/smart-dump.ts dump ./smart-dump/defaultRecipe.js superuser prod
+  $ PG_USERNAME=postgres PG_DATABASE=opencollective_prod_snapshot npm run script scripts/smart-dump.ts restore dbdumps/2023-03-21.c5292.zip
 `,
 );
 
