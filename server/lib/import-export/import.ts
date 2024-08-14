@@ -3,7 +3,7 @@ import assert from 'assert';
 import { sequelize } from '../../models';
 import logger from '../logger';
 
-export const updateSequence = async (tableName, field) => {
+const updateSequence = async (tableName, field) => {
   const [sequences] = await sequelize.query(`SELECT pg_get_serial_sequence('"${tableName}"', '${field}')`);
   const sequence = sequences[0].pg_get_serial_sequence;
   assert(sequence, `No sequence found for table "${tableName}" and field "${field}"`);
