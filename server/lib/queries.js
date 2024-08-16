@@ -830,9 +830,10 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
     INNER JOIN "Collectives" c
       ON c.id = analyzed_expenses."CollectiveId"
     INNER JOIN "Collectives" host
-      ON host.id = c."HostCollectiveId"
+      ON host.id = all_expenses."HostCollectiveId" -- Prefer joining on Expense's host, as the collective may have changed host since
+      OR host.id = c."HostCollectiveId"
     INNER JOIN "RequiredLegalDocuments" d
-      ON d."HostCollectiveId" = c."HostCollectiveId"
+      ON d."HostCollectiveId" = host."id"
       AND d."documentType" = 'US_TAX_FORM'
     INNER JOIN "Collectives" all_expenses_collectives
       ON all_expenses_collectives.id = all_expenses."CollectiveId"
@@ -924,9 +925,10 @@ const getTaxFormsRequiredForAccounts = async ({
     INNER JOIN "Collectives" c
       ON all_expenses."CollectiveId" = c.id
     INNER JOIN "Collectives" host
-      ON host.id = c."HostCollectiveId"
+      ON host.id = all_expenses."HostCollectiveId" -- Prefer joining on Expense's host, as the collective may have changed host since
+      OR host.id = c."HostCollectiveId"
     INNER JOIN "RequiredLegalDocuments" d
-      ON d."HostCollectiveId" = c."HostCollectiveId"
+      ON d."HostCollectiveId" = host."id"
       AND d."documentType" = 'US_TAX_FORM'
     ${ifStr(
       ignoreReceived,
@@ -945,7 +947,7 @@ const getTaxFormsRequiredForAccounts = async ({
       ON all_expenses."PayoutMethodId" = pm.id
     WHERE all_expenses.type NOT IN (:ignoredExpenseTypes)
     ${!CollectiveId ? '' : Array.isArray(CollectiveId) ? `AND account.id IN (:CollectiveId)` : `AND account.id = :CollectiveId`}
-    ${!HostCollectiveId ? '' : Array.isArray(HostCollectiveId) ? `AND c."HostCollectiveId" IN (:HostCollectiveId)` : `AND c."HostCollectiveId" = :HostCollectiveId`}
+    ${!HostCollectiveId ? '' : Array.isArray(HostCollectiveId) ? `AND host.id IN (:HostCollectiveId)` : `AND host.id = :HostCollectiveId`}
     AND account.id != d."HostCollectiveId"
     AND (account."HostCollectiveId" IS NULL OR account."HostCollectiveId" != d."HostCollectiveId") -- Ignore tax forms when the submitter is hosted by a host that has tax form enabled (OCF, OSC, OC)
     AND (account."type" != 'VENDOR' OR account."data"#>>'{vendorInfo, taxFormRequired}' = 'true') -- Ignore tax from tax exempt vendors
