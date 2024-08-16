@@ -35,7 +35,7 @@ const hasPermissionToDownload = async (legalDocument: LegalDocument, remoteUser:
   const taxFormAccounts = await SQLQueries.getTaxFormsRequiredForAccounts({
     HostCollectiveId: administratedHostRequiredLegalDocs.map(doc => doc.HostCollectiveId),
     CollectiveId: legalDocument.CollectiveId,
-    year: legalDocument.year,
+    allTime: true,
   });
 
   return taxFormAccounts.has(legalDocument.CollectiveId);
