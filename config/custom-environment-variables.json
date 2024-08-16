@@ -158,12 +158,7 @@
   "turnstile": {
     "secretKey": "TURNSTILE_SECRET"
   },
-  "helloworks": {
-    "key": "HELLO_WORKS_KEY",
-    "secret": "HELLO_WORKS_SECRET"
-  },
   "taxForms": {
-    "useInternal": "TAX_FORMS_USE_INTERNAL",
     "encryptionKey": "TAX_FORMS_ENCRYPTION_KEY",
     "aws": {
       "s3": {
