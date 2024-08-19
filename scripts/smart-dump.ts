@@ -73,6 +73,9 @@ program.command('dump [recipe] [as_user]').action(async (recipe, asUser, env) =>
 
   logger.info('>>> Dumping Schema...');
   exec(`pg_dump -csOx --if-exists $PG_URL > ${tempDumpDir}/schema.sql`);
+  exec(
+    `pg_dump --schema=public --table=public.\\"SequelizeMeta\\" --data-only $PG_URL >> ${tempDumpDir}/migrations.sql`,
+  );
   logger.info(`>>> Schema Dumped in ${moment(start).fromNow(true)}`);
 
   start = new Date();
@@ -128,6 +131,7 @@ program.command('restore <file>').action(async file => {
   exec(`createdb ${database}`);
   exec(`psql -d ${database} -c 'GRANT ALL PRIVILEGES ON DATABASE ${database} TO opencollective'`);
   exec(`psql -h localhost -U opencollective ${database} < ${tempImportDir}/schema.sql`);
+  exec(`psql -h localhost -U opencollective ${database} < ${tempImportDir}/migrations.sql`);
   logger.info(`>>> DB Created! in ${moment(start).fromNow(true)}`);
 
   await sequelize.sync().catch(nop);
