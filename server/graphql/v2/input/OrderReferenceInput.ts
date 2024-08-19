@@ -19,7 +19,7 @@ export const GraphQLOrderReferenceInput = new GraphQLInputObjectType({
   }),
 });
 
-type ObjectReference = { id?: string; legacyId?: number };
+export type ObjectReference = { id?: string; legacyId?: number };
 
 export const getDatabaseIdFromOrderReference = (input: ObjectReference): number => {
   if (input.id) {

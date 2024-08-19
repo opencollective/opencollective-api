@@ -1,7 +1,7 @@
 import accountingCategoriesMutations from './AccountingCategoriesMutations';
 import accountMutations from './AccountMutations';
 import activitySubscriptionsMutations from './ActivitySubscriptionsMutations';
-import { addFundsMutation } from './AddFundsMutations';
+import addedFundsMutations from './AddedFundsMutations';
 import agreementMutations from './AgreementMutations';
 import applicationMutations from './ApplicationMutations';
 import commentMutations from './CommentMutations';
@@ -39,7 +39,6 @@ import virtualCardMutations from './VirtualCardMutations';
 import webhookMutations from './WebhookMutations';
 
 const mutation = {
-  addFunds: addFundsMutation,
   createCollective: createCollectiveMutation,
   createEvent: createEventMutation,
   createFund: createFundMutation,
@@ -47,6 +46,7 @@ const mutation = {
   createProject: createProjectMutation,
   ...accountMutations,
   ...accountingCategoriesMutations,
+  ...addedFundsMutations,
   ...applicationMutations,
   ...commentMutations,
   ...connectedAccountMutations,

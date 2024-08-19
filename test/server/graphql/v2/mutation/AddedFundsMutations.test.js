@@ -7,7 +7,7 @@ import { roles } from '../../../../../server/constants';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import { idEncode } from '../../../../../server/graphql/v2/identifiers';
 import * as libcurrency from '../../../../../server/lib/currency';
-import models from '../../../../../server/models';
+import models, { Op } from '../../../../../server/models';
 import {
   fakeAccountingCategory,
   fakeActiveHost,
@@ -76,9 +76,72 @@ const addFundsMutation = gql`
           currency
         }
       }
+      description
+      memo
       tier {
         id
         legacyId
+      }
+    }
+  }
+`;
+
+const editAddedFundsMutation = gql`
+  mutation EditAddedFunds(
+    $order: OrderReferenceInput!
+    $fromAccount: AccountReferenceInput!
+    $account: AccountReferenceInput!
+    $tier: TierReferenceInput
+    $amount: AmountInput!
+    $paymentProcessorFee: AmountInput
+    $description: String!
+    $memo: String
+    $processedAt: DateTime
+    $hostFeePercent: Float!
+    $invoiceTemplate: String
+    $tax: TaxInput
+    $accountingCategory: AccountingCategoryReferenceInput
+  ) {
+    editAddedFunds(
+      order: $order
+      account: $account
+      fromAccount: $fromAccount
+      amount: $amount
+      paymentProcessorFee: $paymentProcessorFee
+      description: $description
+      memo: $memo
+      processedAt: $processedAt
+      hostFeePercent: $hostFeePercent
+      tier: $tier
+      invoiceTemplate: $invoiceTemplate
+      tax: $tax
+      accountingCategory: $accountingCategory
+    ) {
+      id
+      legacyId
+      description
+      hostFeePercent
+      memo
+      amount {
+        valueInCents
+        currency
+      }
+      taxAmount {
+        valueInCents
+        currency
+      }
+      transactions {
+        id
+        kind
+        type
+        amount {
+          valueInCents
+          currency
+        }
+        taxAmount {
+          valueInCents
+          currency
+        }
       }
     }
   }
@@ -92,7 +155,7 @@ const validMutationVariables = {
 
 const FX_RATE = 1.1654; // 1 EUR = 1.1654 USD
 
-describe('server/graphql/v2/mutation/AddFundsMutations', () => {
+describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
   let hostAdmin, collectiveAdmin, randomUser, collective, sandbox;
 
   before(async () => {
@@ -548,6 +611,155 @@ describe('server/graphql/v2/mutation/AddFundsMutations', () => {
           'This accounting category is not allowed for contributions and added funds',
         );
       });
+    });
+  });
+
+  describe('editAddedFunds', () => {
+    let OrderId;
+
+    it('can edit added funds properties', async () => {
+      const userToken = await fakeUserToken({ scope: ['host'], UserId: hostAdmin.id });
+      let result = await oAuthGraphqlQueryV2(
+        addFundsMutation,
+        {
+          account: { legacyId: collective.id },
+          fromAccount: { legacyId: randomUser.CollectiveId },
+          amount: { currency: 'USD', valueInCents: 2000 },
+          description: 'add funds as admin',
+          hostFeePercent: 10,
+        },
+        userToken,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      result = await oAuthGraphqlQueryV2(
+        editAddedFundsMutation,
+        {
+          account: { legacyId: collective.id },
+          fromAccount: { legacyId: randomUser.CollectiveId },
+          order: { id: result.data.addFunds.id },
+          hostFeePercent: 0,
+          description: 'edit added funds as admin',
+          amount: { currency: 'USD', valueInCents: 3000 },
+          memo: 'new memo',
+        },
+        userToken,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      const order = result.data.editAddedFunds;
+      OrderId = order.legacyId;
+      expect(order).to.containSubset({
+        amount: { valueInCents: 3000 },
+        hostFeePercent: 0,
+        description: 'edit added funds as admin',
+        memo: 'new memo',
+      });
+    });
+
+    it('soft deletes the original set of transactions', async () => {
+      const transactions = await models.Transaction.findAll({
+        where: { OrderId, deletedAt: { [Op.ne]: null } },
+        paranoid: false,
+      });
+
+      expect(transactions).to.have.length(4);
+      expect(transactions).to.containSubset([
+        {
+          dataValues: {
+            CollectiveId: collective.id,
+            type: 'CREDIT',
+            kind: 'ADDED_FUNDS',
+            amount: 2000,
+          },
+        },
+        {
+          dataValues: {
+            CollectiveId: collective.id,
+            type: 'DEBIT',
+            kind: 'HOST_FEE',
+            amount: -200,
+          },
+        },
+      ]);
+    });
+
+    it('create the necessary transactions to reflect the updated values', async () => {
+      const transactions = await models.Transaction.findAll({
+        where: { OrderId },
+      });
+
+      expect(transactions).to.have.length(2);
+      expect(transactions).to.containSubset([
+        {
+          dataValues: {
+            CollectiveId: collective.id,
+            type: 'CREDIT',
+            kind: 'ADDED_FUNDS',
+            amount: 3000,
+          },
+        },
+      ]);
+    });
+
+    it('can edit added funds with taxes', async () => {
+      const userToken = await fakeUserToken({ scope: ['host'], UserId: hostAdmin.id });
+      let result = await oAuthGraphqlQueryV2(
+        addFundsMutation,
+        {
+          account: { legacyId: collective.id },
+          fromAccount: { legacyId: randomUser.CollectiveId },
+          amount: { currency: 'USD', valueInCents: 2000 },
+          description: 'add funds as admin',
+          hostFeePercent: 10,
+          tax: { type: 'GST', rate: 0.15 },
+        },
+        userToken,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.addFunds.amount.valueInCents).to.equal(2000);
+      expect(result.data.addFunds.taxAmount.valueInCents).to.equal(261); // (2000 - 261) x 1.15 = 2000
+      expect(result.data.addFunds.amount.currency).to.equal('USD');
+
+      result = await oAuthGraphqlQueryV2(
+        editAddedFundsMutation,
+        {
+          account: { legacyId: collective.id },
+          fromAccount: { legacyId: randomUser.CollectiveId },
+          order: { id: result.data.addFunds.id },
+          hostFeePercent: 10,
+          description: 'edit added funds as admin',
+          amount: { currency: 'USD', valueInCents: 3000 },
+          tax: { type: 'GST', rate: 0.21 },
+          memo: 'new memo',
+        },
+        userToken,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      expect(result.data.editAddedFunds.amount.valueInCents).to.equal(3000);
+      expect(result.data.editAddedFunds.taxAmount.valueInCents).to.equal(521); // (2000 - 521) x 1.21 ~= 2000
+      expect(result.data.editAddedFunds.amount.currency).to.equal('USD');
+
+      const transactions = result.data.editAddedFunds.transactions;
+      const groupedTransactions = groupBy(transactions, 'kind');
+
+      // Taxes should be added on CONTRIBUTION transactions
+      const addFundsCredit = groupedTransactions['ADDED_FUNDS'].find(t => t.type === 'CREDIT');
+      const addFundsDebit = groupedTransactions['ADDED_FUNDS'].find(t => t.type === 'DEBIT');
+      expect(addFundsCredit.taxAmount.valueInCents).to.equal(-521);
+      expect(addFundsCredit.taxAmount.valueInCents).to.equal(-521);
+      expect(addFundsDebit.taxAmount.valueInCents).to.equal(-521);
+
+      // Taxes should not be added on HOST_FEE transactions
+      const hostFeeCredit = groupedTransactions['HOST_FEE'].find(t => t.type === 'CREDIT');
+      const hostFeeDebit = groupedTransactions['HOST_FEE'].find(t => t.type === 'DEBIT');
+      expect(hostFeeCredit.taxAmount.valueInCents).to.be.null;
+      expect(hostFeeDebit.taxAmount.valueInCents).to.be.null;
     });
   });
 });

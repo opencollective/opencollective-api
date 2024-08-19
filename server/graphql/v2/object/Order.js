@@ -251,6 +251,15 @@ export const GraphQLOrder = new GraphQLObjectType({
           return await getHostFeePercent(order, { loaders: req.loaders });
         },
       },
+      paymentProcessorFee: {
+        type: GraphQLAmount,
+        description: 'Payment processor fee attached to manually Added Funds.',
+        async resolve(order) {
+          if (order.data?.paymentProcessorFee) {
+            return { value: order.data.paymentProcessorFee, currency: order.currency };
+          }
+        },
+      },
       platformTipAmount: {
         type: GraphQLAmount,
         description: 'Platform Tip attached to the Order.',
