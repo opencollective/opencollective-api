@@ -2,12 +2,12 @@ const entries = [
   {
     model: 'Collective',
     where: {
-      slug: ['opencollective', 'foundation', 'opensource', 'ocnz', 'europe'],
+      slug: ['opencollective', 'opensource', 'europe'],
     },
     dependencies: [
-      'PaymentMethod',
-      'PayoutMethod',
-      'ConnectedAccount',
+      { model: 'PayoutMethod', on: 'CollectiveId' },
+      { model: 'PaymentMethod', on: 'CollectiveId' },
+      { model: 'ConnectedAccount', on: 'CollectiveId' },
       {
         model: 'Collective',
         on: 'HostCollectiveId',
@@ -26,14 +26,15 @@ const entries = [
             limit: 50,
             order: [['id', 'DESC']],
           },
-          'Tier',
+          { model: 'Tier', on: 'CollectiveId' },
+          { model: 'Update', on: 'CollectiveId' },
         ],
       },
       {
         model: 'Member',
         on: 'CollectiveId',
         where: {
-          role: ['ADMIN', 'MEMBER', 'HOST'],
+          role: ['ADMIN', 'HOST'],
         },
         dependencies: [
           {
@@ -47,25 +48,35 @@ const entries = [
         on: 'CollectiveId',
         limit: 50,
         order: [['id', 'DESC']],
-        dependencies: [{ model: 'Collective', from: 'FromCollectiveId' }],
       },
       {
         model: 'Activity',
         on: 'FromCollectiveId',
         limit: 50,
         order: [['id', 'DESC']],
-        dependencies: [{ model: 'Collective', from: 'CollectiveId' }],
       },
     ],
   },
 ];
 
 const defaultDependencies = {
-  Collective: ['ConnectedAccount', { model: 'User', from: 'CreatedByUserId' }],
+  Collective: [
+    { model: 'ConnectedAccount', on: 'CollectiveId' },
+    { model: 'User', from: 'CreatedByUserId' },
+    { model: 'Member', on: 'CollectiveId' },
+  ],
+  Activity: [[{ model: 'Collective', from: 'FromCollectiveId' }], [{ model: 'Collective', from: 'CollectiveId' }]],
+  Member: [
+    {
+      model: 'Collective',
+      from: 'MemberCollectiveId',
+    },
+  ],
   Expense: [
-    'Transaction',
-    'ExpenseItem',
-    'PayoutMethod',
+    { model: 'Transaction', on: 'ExpenseId' },
+    { model: 'ExpenseItem', on: 'ExpenseId' },
+    { model: 'PayoutMethod', from: 'PayoutMethodId' },
+    { model: 'PaymentMethod', from: 'PaymentMethodId' },
     {
       model: 'Collective',
       from: 'CollectiveId',
@@ -81,8 +92,8 @@ const defaultDependencies = {
     { model: 'Activity', on: 'ExpenseId' },
   ],
   Order: [
-    'Transaction',
-    'PaymentMethod',
+    { model: 'Transaction', on: 'OrderId' },
+    { model: 'PaymentMethod', from: 'PaymentMethodId' },
     {
       model: 'Collective',
       from: 'CollectiveId',
