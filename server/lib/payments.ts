@@ -2,7 +2,7 @@
 import config from 'config';
 import DataLoader from 'dataloader';
 import debugLib from 'debug';
-import { find, get, includes, isNil, isNumber, omit, pick } from 'lodash';
+import { find, get, includes, isNil, isNumber, omit, pick, truncate } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../constants/activities';
@@ -213,7 +213,7 @@ export const buildRefundForTransaction = (
   ]) as TransactionCreationAttributes;
 
   refund.CreatedByUserId = user?.id || null;
-  refund.description = `Refund of "${t.description}"`;
+  refund.description = `Refund of "${truncate(t.description, { length: 255 - 12 })}"`; // 12 is the length of 'Refund of ""'
   refund.data = { ...refund.data, ...data };
   refund.isRefund = true;
   refund.hostFeeInHostCurrency = 0; // We're handling host fees in separate transactions
