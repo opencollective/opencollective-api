@@ -20,7 +20,7 @@ env:
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
@@ -47,7 +47,7 @@ jobs:
       - run: npm run lint:check
 
   prettier:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
@@ -74,7 +74,7 @@ jobs:
       - run: npm run prettier:check
 
   typescript:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
@@ -101,7 +101,7 @@ jobs:
       - run: npm run type:check
 
   depcheck:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     timeout-minutes: 15
 
@@ -129,7 +129,7 @@ jobs:
       - run: npm run depcheck
 
   ts-unused-exports:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     timeout-minutes: 15
 
@@ -164,7 +164,7 @@ jobs:
         run: npm run ts-unused-exports
 
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
@@ -198,7 +198,7 @@ jobs:
         run: npm run build
 
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     timeout-minutes: 30
 
@@ -251,7 +251,7 @@ jobs:
           flags: Unit
 
   test-graphql:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     services:
@@ -303,7 +303,7 @@ jobs:
           flags: GraphQL
 
   schema-update:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     services:
@@ -347,7 +347,7 @@ jobs:
 
   graphql-inspector:
     name: GraphQL Inspector
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     services:
       redis:
         image: redis
