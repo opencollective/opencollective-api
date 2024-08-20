@@ -1,8 +1,8 @@
 # PostgreSQL Database
 
-You need to have PostgreSQL > 13.x.
+You need to have PostgreSQL > 16.x.
 
-In production, we're currently running 13.7.
+In production, we're currently running 16.3.
 
 ## Installation
 
