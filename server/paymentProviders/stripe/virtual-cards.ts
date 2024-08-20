@@ -14,7 +14,7 @@ import { reportMessageToSentry } from '../../lib/sentry';
 import stripe, { convertToStripeAmount, StripeCustomToken } from '../../lib/stripe';
 import models from '../../models';
 import VirtualCard from '../../models/VirtualCard';
-import { getOrCreateVendor, getVirtualCardForTransaction, persistTransaction } from '../utils';
+import { getOrCreateVendor, getVirtualCardForTransaction, persistVirtualCardTransaction } from '../utils';
 
 export const assignCardToCollective = async (cardNumber, expiryDate, cvv, name, collectiveId, host, userId) => {
   const stripe = await getStripeClient(host);
@@ -285,7 +285,7 @@ export const processTransaction = async (stripeTransaction: Stripe.Issuing.Trans
   const isRefund = stripeTransaction.type === 'refund';
   const clearedAt = moment.unix(stripeTransaction.created).toDate();
 
-  return persistTransaction(virtualCard, {
+  return persistVirtualCardTransaction(virtualCard, {
     id: stripeTransaction.id,
     amount,
     currency,

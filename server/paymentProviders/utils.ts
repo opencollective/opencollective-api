@@ -43,7 +43,7 @@ export const notifyCollectiveMissingReceipt = async (expense, virtualCard) => {
   );
 };
 
-export const persistTransaction = async (virtualCard, transaction) => {
+export const persistVirtualCardTransaction = async (virtualCard, transaction) => {
   // Make sure amount is an absolute value
   const amount = Math.abs(transaction.amount);
 
@@ -174,10 +174,12 @@ export const persistTransaction = async (virtualCard, transaction) => {
       });
       if (originalCreditTransaction?.amount === amount) {
         if (!originalCreditTransaction.RefundTransactionId) {
-          await createRefundTransaction(originalCreditTransaction, 0, {
-            refundTransactionId: transactionId,
-            transaction,
-          });
+          await createRefundTransaction(
+            originalCreditTransaction,
+            0,
+            { refundTransactionId: transactionId, transaction },
+            null,
+          );
         }
         return;
       }

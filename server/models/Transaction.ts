@@ -101,6 +101,9 @@ export type TransactionData = {
   taxMigration?: string;
   taxRemovedFromMigration?: Tax;
   transfer?: Transfer;
+  transaction?: Record<string, unknown>; // This field is used by `persistVirtualCardTransaction` to store the provider's transaction data
+  id?: string; // Up to 2021-06-08, this field was used to store the external IDs of virtual card transactions
+  token?: string; // Up to 2021-11-19, this field was used to store the external IDs of privacy.com transactions
 };
 
 class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttributes<Transaction>> {
