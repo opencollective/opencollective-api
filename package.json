@@ -35,7 +35,7 @@
     "@babel/node": "7.24.8",
     "@babel/plugin-transform-typescript": "7.24.8",
     "@babel/preset-env": "7.24.8",
-    "@escape.tech/graphql-armor": "2.4.0",
+    "@escape.tech/graphql-armor": "3.0.1",
     "@hyperwatch/hyperwatch": "4.0.0",
     "@json2csv/plainjs": "^7.0.6",
     "@node-oauth/oauth2-server": "4.3.3",
