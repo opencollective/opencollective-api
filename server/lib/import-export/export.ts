@@ -3,7 +3,7 @@ import { compact, concat, pick, set, uniqBy } from 'lodash';
 import { DataType } from 'sequelize';
 
 import type { ModelNames, Models } from '../../models';
-import models, { Op } from '../../models';
+import models, { Op, sequelize } from '../../models';
 import { crypto } from '../encryption';
 import logger from '../logger';
 
@@ -144,4 +144,10 @@ export const traverse = async (
       await Promise.all(queries.map(query => traverse(query, req, callback)));
     }
   }
+};
+
+export const getMigrationsHash = async () => {
+  const [data] = await sequelize.query('SELECT name FROM "SequelizeMeta" ORDER BY name');
+  const migrationNames = data.map(d => d.name);
+  return hashObject(migrationNames);
 };

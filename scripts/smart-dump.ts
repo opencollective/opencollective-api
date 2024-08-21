@@ -13,7 +13,7 @@ import type { Sequelize } from 'sequelize';
 import { Model as SequelizeModel, ModelStatic } from 'sequelize';
 
 import { loaders } from '../server/graphql/loaders';
-import { traverse } from '../server/lib/import-export/export';
+import { getMigrationsHash, traverse } from '../server/lib/import-export/export';
 import { resetModelsSequences } from '../server/lib/import-export/import';
 import { PartialRequest } from '../server/lib/import-export/types';
 import logger from '../server/lib/logger';
@@ -30,7 +30,7 @@ const exec = cmd => {
   }
 };
 
-program.command('dump [recipe] [as_user]').action(async (recipe, asUser, env) => {
+program.command('dump [recipe] [as_user] [env_file]').action(async (recipe, asUser, env) => {
   if (!sequelize.config.username.includes('readonly')) {
     logger.error('Remote must be connected with read-only user!');
     process.exit(1);
@@ -53,6 +53,7 @@ program.command('dump [recipe] [as_user]').action(async (recipe, asUser, env) =>
   const parsed = {};
   const date = new Date().toISOString().substring(0, 10);
   const hash = md5(JSON.stringify({ entries, defaultDependencies, date })).slice(0, 5);
+  const migrationsHash = await getMigrationsHash();
   const seenModelRecords: Set<string> = new Set();
   const tempDumpDir = fs.mkdtempSync(path.join(os.tmpdir(), `oc-export-${hash}`));
   logger.info(`>>> Temp directory: ${tempDumpDir}`);
@@ -65,6 +66,7 @@ program.command('dump [recipe] [as_user]').action(async (recipe, asUser, env) =>
       date,
       asUser,
       hash,
+      migrationsHash,
       recipe: require(recipe),
     }),
   );
