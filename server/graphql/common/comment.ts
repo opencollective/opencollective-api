@@ -29,7 +29,7 @@ const loadCommentedEntity = async (
 ): Promise<[CommentableEntity, ActivityTypes, Record<string, any>]> => {
   let activityType = ActivityTypes.COLLECTIVE_COMMENT_CREATED;
   let entity: CommentableEntity;
-  const activityData: Record<string, any> = {};
+  let activityData: Record<string, any> = {};
 
   if (commentValues.ExpenseId) {
     activityType = ActivityTypes.EXPENSE_COMMENT_CREATED;
@@ -72,6 +72,10 @@ const loadCommentedEntity = async (
     activityType = ActivityTypes.HOST_APPLICATION_COMMENT_CREATED;
     entity.host = await entity.getHost();
     entity.collective = await entity.getCollective();
+    activityData = {
+      host: entity.host?.info,
+      collective: entity.collective?.info,
+    };
   }
 
   return [entity, activityType, activityData];
