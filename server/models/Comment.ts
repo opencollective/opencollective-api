@@ -129,7 +129,7 @@ Comment.init(
     HostApplicationId: {
       type: DataTypes.INTEGER,
       references: {
-        model: 'HostApplication',
+        model: 'HostApplications',
         key: 'id',
       },
       onDelete: 'SET NULL',
