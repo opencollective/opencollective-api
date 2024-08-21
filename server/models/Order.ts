@@ -32,7 +32,7 @@ import TierType from '../constants/tiers';
 import { PLATFORM_TIP_TRANSACTION_PROPERTIES, TransactionTypes } from '../constants/transactions';
 import { executeOrder } from '../lib/payments';
 import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../lib/sanitize-html';
-import sequelize, { DataTypes, Op, QueryTypes } from '../lib/sequelize';
+import sequelize, { DataTypes, Op, QueryTypes, Transaction as SequelizeTransaction } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
 import { capitalize, sleep } from '../lib/utils';
 
@@ -102,6 +102,9 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
     messageForContributors?: string;
     messageSource?: 'PLATFORM' | 'HOST' | 'COLLECTIVE';
     needsAsyncDeactivation?: boolean;
+    needsAsyncPause?: boolean;
+    needsAsyncReactivation?: boolean;
+    createStatusChangeActivity?: boolean;
     isOCFShutdown?: boolean;
     resumeContribution?: {
       reminder: number;
@@ -376,10 +379,18 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
     {
       messageForContributors = '',
       messageSource = 'PLATFORM',
-    }: { messageForContributors: string; messageSource: 'PLATFORM' | 'COLLECTIVE' | 'HOST' } = {
-      messageForContributors: '',
-      messageSource: 'PLATFORM',
-    },
+      paymentProviderAction = 'CANCEL',
+      transaction = undefined,
+      createActivity = true,
+      includeChildren = true,
+    }: {
+      messageForContributors?: string;
+      messageSource?: 'PLATFORM' | 'COLLECTIVE' | 'HOST';
+      paymentProviderAction?: 'CANCEL' | 'PAUSE';
+      transaction?: SequelizeTransaction;
+      createActivity?: boolean;
+      includeChildren?: boolean;
+    } = {},
   ): Promise<void> {
     await sequelize.query(
       `
@@ -390,13 +401,15 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
         "data" = COALESCE("data", '{}'::JSONB) || JSONB_BUILD_OBJECT(
           'messageForContributors', :messageForContributors,
           'messageSource', :messageSource,
-          'needsAsyncDeactivation', TRUE
+          'needsAsyncDeactivation', :needsAsyncDeactivation,
+          'needsAsyncPause', :needsAsyncPause,
+          'createStatusChangeActivity', :createActivity
         )
       WHERE id IN (
         SELECT "Orders".id FROM "Orders"
         INNER JOIN "Subscriptions" ON "Subscriptions".id = "Orders"."SubscriptionId"
         INNER JOIN "Collectives" c ON c.id = "Orders"."CollectiveId"
-        WHERE "Orders"."CollectiveId" = :collectiveId
+        WHERE (c.id = :collectiveId OR (:includeChildren AND c."ParentCollectiveId" = :collectiveId))
         AND c."approvedAt" IS NOT NULL
         AND "Subscriptions"."isActive" IS TRUE
         AND "Orders"."status" != :newStatus
@@ -407,10 +420,71 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
       {
         type: QueryTypes.UPDATE,
         raw: true,
+        transaction,
         replacements: {
           collectiveId,
           newStatus,
           messageSource: messageSource || '',
+          needsAsyncDeactivation: paymentProviderAction === 'CANCEL',
+          needsAsyncPause: paymentProviderAction === 'PAUSE',
+          createActivity,
+          includeChildren,
+          messageForContributors: messageForContributors
+            ? sanitizeHTML(messageForContributors, optsSanitizeHtmlForSimplified)
+            : '',
+        },
+      },
+    );
+  }
+
+  static async resumePausedSubscriptions(
+    collectiveId: number,
+    {
+      messageForContributors = '',
+      messageSource = 'PLATFORM',
+      transaction = undefined,
+      createActivity = true,
+      includeChildren = true,
+    }: {
+      messageForContributors?: string;
+      messageSource?: 'PLATFORM' | 'COLLECTIVE' | 'HOST';
+      transaction?: SequelizeTransaction;
+      createActivity?: boolean;
+      includeChildren?: boolean;
+    } = {},
+  ): Promise<void> {
+    await sequelize.query(
+      `
+      UPDATE "Orders"
+      SET
+        "updatedAt" = NOW(),
+        "data" = COALESCE("data", '{}'::JSONB) - 'needsAsyncDeactivation' || JSONB_BUILD_OBJECT(
+          'messageForContributors', :messageForContributors,
+          'messageSource', :messageSource,
+          'createStatusChangeActivity', :createActivity,
+          'needsAsyncReactivation', TRUE
+        )
+      WHERE id IN (
+        SELECT "Orders".id FROM "Orders"
+        INNER JOIN "Subscriptions" ON "Subscriptions".id = "Orders"."SubscriptionId"
+        INNER JOIN "Collectives" c ON c.id = "Orders"."CollectiveId"
+        WHERE (c.id = :collectiveId OR (:includeChildren AND c."ParentCollectiveId" = :collectiveId))
+        AND c."approvedAt" IS NOT NULL
+        AND "Orders"."status" = 'PAUSED'
+        AND "Orders"."deletedAt" IS NULL
+        AND ("Orders"."data" ->> 'needsAsyncReactivation')::boolean IS NOT TRUE
+        AND "Subscriptions"."deletedAt" IS NULL
+      )
+    `,
+      {
+        type: QueryTypes.UPDATE,
+        raw: true,
+        transaction,
+        replacements: {
+          collectiveId,
+          createActivity,
+          messageSource: messageSource || '',
+          includeChildren,
           messageForContributors: messageForContributors
             ? sanitizeHTML(messageForContributors, optsSanitizeHtmlForSimplified)
             : '',

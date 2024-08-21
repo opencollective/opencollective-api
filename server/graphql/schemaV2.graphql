@@ -17543,7 +17543,22 @@ type Mutation {
     """
     Message to send by email to the admins of the account
     """
-    message: String
+    message: String @deprecated(reason: "2024-08-23: Use messageForAccountAdmins instead")
+
+    """
+    Message to send by email to the admins of the account
+    """
+    messageForAccountAdmins: String
+
+    """
+    Message to send by email to the contributors when pausing their contributions (with PayPal) or unpausing
+    """
+    messageForContributors: String
+
+    """
+    Whether to pause recurring contributions
+    """
+    pauseExistingRecurringContributions: Boolean! = false
   ): Account!
 
   """

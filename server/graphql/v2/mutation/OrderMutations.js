@@ -375,7 +375,7 @@ const orderMutations = {
           'Amount and payment method cannot be updated at the same time, please update one after the other',
         );
       } else if (order.status === OrderStatuses.PAUSED) {
-        if (order.data?.needsAsyncDeactivation) {
+        if (order.data?.needsAsyncDeactivation || order.data?.needsAsyncPause || order.data?.needsAsyncReactivation) {
           throw new Error('This order is currently being synchronized, please try again later');
         } else if (!['AVAILABLE', 'ACTIVE'].includes(await checkReceiveFinancialContributions(order.collective, req))) {
           throw new Error(
