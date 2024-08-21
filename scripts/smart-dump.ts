@@ -14,7 +14,7 @@ import { Model as SequelizeModel, ModelStatic } from 'sequelize';
 
 import { loaders } from '../server/graphql/loaders';
 import { getMigrationsHash, traverse } from '../server/lib/import-export/export';
-import { resetModelsSequences } from '../server/lib/import-export/import';
+import { mergeRecords, MODELS_ARRAY, remapPKs, resetModelsSequences } from '../server/lib/import-export/import';
 import { PartialRequest } from '../server/lib/import-export/types';
 import logger from '../server/lib/logger';
 import { md5 } from '../server/lib/utils';
@@ -207,13 +207,109 @@ program.command('restore <file>').action(async file => {
   sequelize.close();
 });
 
+program.command('merge <file>').action(async file => {
+  const database = process.env.PG_DATABASE;
+  if (!database) {
+    logger.error('PG_DATABASE is not set!');
+    process.exit(1);
+  } else if (sequelize.config.database !== database) {
+    logger.error(`Sequelize is not connected to target ${database}!`);
+    process.exit(1);
+  }
+
+  const importBundleAbsolutePath = path.resolve(cwd(), file);
+  const tempImportDir = fs.mkdtempSync(path.join(os.tmpdir(), 'oc-import-'));
+  logger.info(`>>> Temp directory: ${tempImportDir}`);
+  exec(`CUR_DIR=$PWD; cd ${tempImportDir}; unzip ${importBundleAbsolutePath}; cd $CUR_DIR`);
+
+  const importMetadata = JSON.parse(fs.readFileSync(path.join(tempImportDir, 'metadata.json')).toString());
+  logger.info(
+    `>>> Import metadata... date: ${importMetadata.date}, hash: ${importMetadata.hash}, gitRevision: ${importMetadata.gitRevision}`,
+  );
+
+  const migrationsHash = await getMigrationsHash();
+  if (importMetadata.migrationsHash !== migrationsHash) {
+    logger.error(
+      `Migrations hash mismatch! Expected existing SequelizeMeta table hash ${migrationsHash} to match exported metadata ${importMetadata.migrationsHash}. Make sure to run migrations before importing.`,
+    );
+    process.exit(1);
+  }
+
+  await sequelize.sync().catch(nop);
+
+  const transaction = await (sequelize as Sequelize).transaction();
+  let err,
+    count = 0,
+    start;
+  try {
+    for (const model of MODELS_ARRAY) {
+      logger.info(`>>> Disabling triggers on table ${model.getTableName()}`);
+      await sequelize.query(`ALTER TABLE "${model.getTableName()}" DISABLE TRIGGER ALL;`, { transaction });
+    }
+
+    const dataFile = path.join(tempImportDir, 'data.jsonl');
+
+    // Create a map of indexes to use in the import
+    logger.info('>>> Remapping existing IDs...');
+    start = new Date();
+    const pkMap = await remapPKs(dataFile);
+    logger.info(`>>> Remapped IDs in ${moment(start).fromNow(true)}`);
+
+    start = new Date();
+    logger.info('>>> Inserting Data...');
+    count = await mergeRecords(dataFile, pkMap, transaction);
+  } catch (e) {
+    err = e;
+  } finally {
+    if (!err) {
+      logger.info(`>>> Data inserted! ${count} records in ${moment(start).fromNow(true)}`);
+      for (const model of MODELS_ARRAY) {
+        logger.info(`>>> Reenabling triggers on table ${model.getTableName()}`);
+        await sequelize.query(`ALTER TABLE "${model.getTableName()}" ENABLE TRIGGER ALL;`, { transaction });
+      }
+
+      logger.info(`>>> Commiting transaction`);
+      await transaction.commit();
+    } else {
+      console.error(err);
+      logger.info(`>>> Rollback transaction`);
+      transaction.rollback();
+    }
+  }
+
+  logger.info('>>> Refreshing Materialized Views...');
+  await sequelize.query(`REFRESH MATERIALIZED VIEW "TransactionBalances"`);
+  await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"`);
+  await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
+  await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTagStats"`);
+  await sequelize.query(`REFRESH MATERIALIZED VIEW "ExpenseTagStats"`);
+  await sequelize.query(`REFRESH MATERIALIZED VIEW "HostMonthlyTransactions"`);
+
+  logger.info('>>> Done!');
+  sequelize.close();
+});
+
 program.addHelpText(
   'after',
   `
 
-Example call:
-  $ npm run script scripts/smart-dump.ts dump ./smart-dump/defaultRecipe.js superuser prod
+Use this script to do partial dumps of a DB based on a recipe, to restore a DB from a dump, or to merge data into an existing DB.
+
+Both restore and merge operations require a connection with a superuser role.
+
+Make sure you have a zip and a compatible version of psql (pg_dump, pg_restore, createdb and dropdb) installed.
+
+
+Examples:
+
+  To export data and DB schema:
+  $ npm run script scripts/smart-dump.ts dump ./smart-dump/engineering.ts superuser prod
+
+  To restore the whole DB:
   $ PG_USERNAME=postgres PG_DATABASE=opencollective_prod_snapshot npm run script scripts/smart-dump.ts restore dbdumps/2023-03-21.c5292.zip
+
+  To merge data into an existing DB:
+  $ PG_USERNAME=postgres PG_DATABASE=opencollective_prod_snapshot npm run script scripts/smart-dump.ts import dbdumps/2023-03-21.c5292.zip
 `,
 );
 
