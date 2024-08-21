@@ -106,7 +106,7 @@ const modelsDeduplicationSchema: Record<ModelNames, { unique?: string[] }> = {
 /**
  * Iterate over each record in a JSONL file.
  */
-export const forEachRecord = async (file: string, cb: (record: any) => Promise<void>) => {
+const forEachRecord = async (file: string, cb: (record: any) => Promise<void>) => {
   const fileStream = fs.createReadStream(file);
   const rl = readline.createInterface({
     input: fileStream,
