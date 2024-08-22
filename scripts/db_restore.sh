@@ -64,18 +64,24 @@ if [ "$USE_POSTGIS" = "1" ]; then
   psql "${LOCALDBNAME}" -c "GRANT SELECT, INSERT ON TABLE public.spatial_ref_sys TO public;"
 fi
 
+psql --version
+
 # cool trick: all stdout ignored in this block
-{
-  set +e
+# {
+  # set +e
   # We make sure the user $LOCALDBUSER has access; could fail
-  psql -U postgres -h localhost "${LOCALDBNAME}" -c "CREATE ROLE ${LOCALDBUSER} WITH login;" 2>/dev/null
-  set -e
-} | tee >/dev/null
+  psql -U postgres -h localhost "${LOCALDBNAME}" -c "CREATE ROLE ${LOCALDBUSER} WITH login;"
+  # set -e
+# } | tee >/dev/null
+
+pg_restore --version
 
 # The first time we run it, we will trigger FK constraints errors
-set +e
-pg_restore -U postgres -h localhost --no-acl --no-owner --role=${LOCALDBUSER} -n public -O -c -d "${LOCALDBNAME}" "${DBDUMP_FILE}" 2>/dev/null
-set -e
+# set +e
+pg_restore -U postgres -h localhost --no-acl --no-owner --role=${LOCALDBUSER} -n public -O -c -d "${LOCALDBNAME}" "${DBDUMP_FILE}"
+# set -e
+
+pg_restore --version
 
 # So we run it twice :-)
 pg_restore -U postgres -h localhost --no-acl --no-owner --role=${LOCALDBUSER} -n public -O -c -d "${LOCALDBNAME}" "${DBDUMP_FILE}"
