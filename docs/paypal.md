@@ -13,7 +13,7 @@ This is the account you'll use to make the (fake) payment. Go to [https://develo
 
 ```
 PAYPAL_ENVIRONMENT=sandbox
-PAYPAL_APP_ID=APP-________
+PAYPAL_APP_ID=
 ```
 
 3\. Encrypt your client secret, from the API repository:
@@ -25,8 +25,8 @@ npm run script scripts/encrypt.js PAYPAL_CLIENT_SECRET
 4\. Manually create a ConnectedAccount with your `clientId` and your encrypted `clientSecret`:
 
 ```sql
-INSERT INTO "ConnectedAccounts" ("service", "clientId", "token", "CollectiveId")
-VALUES (E'paypal', clientId, clientSecret, hostCollectiveId);
+INSERT INTO "ConnectedAccounts" ("service", "clientId", "token", "CollectiveId", "createdAt", "updatedAt")
+VALUES (E'paypal', clientId, clientSecret, hostCollectiveId, NOW(), NOW());
 ```
 
 5\. Create buyer's credentials on [https://developer.paypal.com/developer/accounts/create](https://developer.paypal.com/developer/accounts/create)
