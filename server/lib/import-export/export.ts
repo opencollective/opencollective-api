@@ -97,26 +97,25 @@ export const traverse = async (
   callback: (ei: ExportedItem) => Promise<any>,
 ): Promise<void> => {
   if (model && where) {
+    debug('traverse', { model, where });
     const hasIdField = models[model]['tableAttributes'].id;
-    if (!where.id && parsed[model] && hasIdField) {
-      where.id = { [Op.notIn]: Array.from(parsed[model]) };
+    if (hasIdField) {
+      if (!parsed[model]) {
+        parsed[model] = new Set();
+      }
     }
-
     let records;
     for await (const pageRecords of paginate(model, where, order, limit)) {
       records = await Promise.all(pageRecords.map(record => serialize(model, req, record)));
       records = records.filter(Boolean);
 
-      if (hasIdField) {
-        if (!parsed[model]) {
-          parsed[model] = new Set(records.map(r => r.id));
-        } else {
-          records.forEach(r => parsed[model].add(r.id));
+      for (const record of records) {
+        if (!hasIdField) {
+          await callback(record);
+        } else if (hasIdField && !parsed[model]?.has(record.id)) {
+          parsed[model].add(record.id);
+          await callback(record);
         }
-      }
-
-      for (const element of records) {
-        await callback(element);
       }
 
       // Inject default dependencies for the model
@@ -130,7 +129,7 @@ export const traverse = async (
             where = dep.where(record);
           }
           // Find dependency which ID from record foreign key
-          else if (dep.from && record[dep.from] && !parsed[dep.model]?.has(record[dep.from])) {
+          else if (dep.from && record[dep.from]) {
             where['id'] = record[dep.from];
           }
           // Find dependency which foreign key is equal to the record ID
