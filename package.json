@@ -95,7 +95,7 @@
     "ics": "3.7.6",
     "intl-messageformat": "10.5.14",
     "jsonwebtoken": "9.0.2",
-    "juice": "10.0.0",
+    "juice": "10.0.1",
     "limax": "4.1.0",
     "lodash": "4.17.21",
     "lru-cache": "11.0.0",
