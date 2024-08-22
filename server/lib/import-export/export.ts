@@ -1,9 +1,9 @@
 import debugLib from 'debug';
-import { compact, concat, pick, set, uniqBy } from 'lodash';
+import { compact, concat, keys, pick, set, uniqBy, values } from 'lodash';
 import { DataType } from 'sequelize';
 
 import type { ModelNames, Models } from '../../models';
-import models, { Op, sequelize } from '../../models';
+import models, { sequelize } from '../../models';
 import { crypto } from '../encryption';
 import logger from '../logger';
 
@@ -91,6 +91,38 @@ async function* paginate(model: ModelNames, where: Record<string, any>, order: R
 
 const hashObject = (obj: Record<string, any>) => crypto.hash(JSON.stringify(obj));
 
+const isTargetWhere = q => {
+  const ks = keys(q.where);
+  const vs = values(q.where);
+  return ks.length === 1 && typeof vs[0] !== 'object';
+};
+
+/**
+ * Reducer that combines multiple queries that target a single EQ property to a single query with an IN clause
+ */
+const compactQueries = (queries, maxBatchSize = 500) => {
+  const compactableQueries = queries.reduce((acc, query) => {
+    if (isTargetWhere(query)) {
+      const key = keys(query.where)[0];
+      const value = values(query.where)[0];
+
+      const hasExistingQuery = acc.findLast(
+        q => q.model === query.model && key === keys(q.where)[0] && q.where[key].length < maxBatchSize,
+      );
+      if (hasExistingQuery) {
+        hasExistingQuery.where[key].push(value);
+      } else {
+        acc.push({ model: query.model, where: { [key]: [value] } });
+      }
+      return acc;
+    } else {
+      return acc.concat(query);
+    }
+  }, []);
+
+  return compactableQueries;
+};
+
 export const traverse = async (
   { model, where, order, dependencies, limit, defaultDependencies = {}, parsed = {}, depth = 1 }: RecipeItem,
   req: PartialRequest,
@@ -143,6 +175,7 @@ export const traverse = async (
       }
       // Remove duplicates
       queries = uniqBy(queries, query => hashObject(pick(query, ['model', 'where'])));
+      queries = compactQueries(queries);
       // TODO: COMBINE QUERIES FOR THE SAME MODEL
       await Promise.all(queries.map(query => traverse(query, req, callback)));
     }
