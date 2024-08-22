@@ -359,7 +359,7 @@ async function handleSubscriptionSuspended(req: Request): Promise<void> {
 
   const { order } = result;
   if (order.status !== OrderStatus.PAUSED) {
-    await pauseOrderInDb(order, subscription.status_change_note);
+    await pauseOrderInDb(order, subscription.status_change_note, 'PLATFORM');
   }
 }
 

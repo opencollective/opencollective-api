@@ -148,11 +148,7 @@ export async function pauseOrder(order: Order, reason: string, pausedBy: Order['
   await pauseOrderInDb(order, reason, pausedBy);
 }
 
-export async function pauseOrderInDb(
-  order: Order,
-  reason: string,
-  pausedBy: Order['data']['pausedBy'] = undefined,
-): Promise<void> {
+export async function pauseOrderInDb(order: Order, reason: string, pausedBy: Order['data']['pausedBy']): Promise<void> {
   if (order.status === OrderStatuses.PAUSED) {
     return;
   }
