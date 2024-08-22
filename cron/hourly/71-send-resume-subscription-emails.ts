@@ -41,7 +41,12 @@ export async function run() {
     where: {
       status: OrderStatuses.PAUSED,
       SubscriptionId: { [Op.ne]: null },
-      data: { needsAsyncDeactivation: { [Op.not]: true } },
+      data: {
+        needsAsyncDeactivation: { [Op.not]: true },
+        pausedBy: {
+          [Op.or]: [{ [Op.is]: null }, { [Op.notIn]: ['HOST', 'PLATFORM'] }],
+        },
+      },
       [Op.or]: [
         // Either we haven't sent any reminder yet
         { data: { resumeContribution: { reminder: { [Op.is]: null } } } },

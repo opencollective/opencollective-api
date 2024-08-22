@@ -1,8 +1,9 @@
 import config from 'config';
-import { get, pick } from 'lodash';
+import { get, pick, truncate } from 'lodash';
 import moment from 'moment';
 
 import { SupportedCurrency } from '../../constants/currencies';
+import FEATURE from '../../constants/feature';
 import INTERVALS from '../../constants/intervals';
 import ORDER_STATUS from '../../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
@@ -18,7 +19,7 @@ import Tier from '../../models/Tier';
 import Transaction from '../../models/Transaction';
 import User from '../../models/User';
 import { SubscriptionTransactions } from '../../types/paypal';
-import { PaymentProviderService } from '../types';
+import type { PaymentMethodServiceWithExternalRecurringManagement } from '../types';
 
 import { paypalRequest } from './api';
 import { getCaptureIdFromPaypalTransaction, refundPaypalCapture } from './payment';
@@ -28,6 +29,8 @@ import { getCaptureIdFromPaypalTransaction, refundPaypalCapture } from './paymen
  */
 export const CONTRIBUTION_PAUSED_MSG = `Your contribution to the Collective was paused. We'll inform you when it will be ready for re-activation.`;
 export const CANCEL_PAYPAL_EDITED_SUBSCRIPTION_REASON = 'Updated subscription';
+
+const SUSPEND_MAX_REASON_LENGTH = 128; // See https://developer.paypal.com/docs/api/subscriptions/v1/
 
 export const cancelPaypalSubscription = async (
   order: Order,
@@ -372,7 +375,7 @@ export const isPaypalSubscriptionPaymentMethod = (paymentMethod: PaymentMethod):
   );
 };
 
-const PayPalSubscription: PaymentProviderService = {
+const PayPalSubscription: PaymentMethodServiceWithExternalRecurringManagement = {
   features: {
     recurring: true,
     isRecurringManagedExternally: true,
@@ -393,6 +396,56 @@ const PayPalSubscription: PaymentProviderService = {
 
   async refundTransactionOnlyInDatabase(transaction: Transaction, user: User, reason: string): Promise<Transaction> {
     return createRefundTransaction(transaction, 0, { ...transaction.data, refundReason: reason }, user);
+  },
+
+  async pauseSubscription(order: Order, reason: string): Promise<void> {
+    const subscription = order.Subscription || (await order.getSubscription());
+    if (!subscription) {
+      throw new Error('Subscription not found');
+    }
+
+    const collective = order.collective || (await order.getCollective());
+    if (!collective) {
+      throw new Error('Collective not found');
+    }
+
+    const host = await collective.getHostCollective();
+    if (!host) {
+      throw new Error('Host not found');
+    }
+
+    const apiUrl = `billing/subscriptions/${order.Subscription.paypalSubscriptionId}/suspend`;
+    try {
+      await paypalRequest(apiUrl, { reason: truncate(reason, { length: SUSPEND_MAX_REASON_LENGTH }) }, host, 'POST');
+    } catch (e) {
+      logger.error(`[PayPal] Error while pausing subscription: ${e}`);
+      reportErrorToSentry(e, { feature: FEATURE.PAYPAL_DONATIONS, extra: { subscriptionId: subscription.id, reason } });
+      throw new Error('Failed to pause PayPal subscription');
+    }
+  },
+
+  async resumeSubscription(order: Order, reason: string): Promise<void> {
+    const subscription = order.Subscription || (await order.getSubscription());
+    if (!subscription) {
+      throw new Error('Subscription not found');
+    }
+
+    const host = await order.collective.getHostCollective();
+    if (!host) {
+      throw new Error('Host not found');
+    }
+
+    const apiUrl = `billing/subscriptions/${order.Subscription.paypalSubscriptionId}/activate`;
+    try {
+      await paypalRequest(apiUrl, null, host, 'POST');
+    } catch (e) {
+      logger.error(`[PayPal] Error while pausing subscription: ${e}`);
+      reportErrorToSentry(e, {
+        feature: FEATURE.PAYPAL_DONATIONS,
+        extra: { subscriptionId: subscription.id, reason: truncate(reason, { length: SUSPEND_MAX_REASON_LENGTH }) },
+      });
+      throw new Error('Failed to pause PayPal subscription');
+    }
   },
 };
 

@@ -9,12 +9,27 @@ import { PLANS_COLLECTIVE_SLUG } from '../../../server/constants/plans';
 import roles from '../../../server/constants/roles';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
 import emailLib from '../../../server/lib/email';
-import { createRefundTransaction, executeOrder, sendOrderPendingEmail } from '../../../server/lib/payments';
+import {
+  createRefundTransaction,
+  executeOrder,
+  pauseOrder,
+  resumeOrder,
+  sendOrderPendingEmail,
+} from '../../../server/lib/payments';
 import stripe from '../../../server/lib/stripe';
 import models from '../../../server/models';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
+import * as paypalAPI from '../../../server/paymentProviders/paypal/api';
 import stripeMocks from '../../mocks/stripe';
-import { fakeCollective, fakeHost, fakeOrder, fakePayoutMethod, fakeUser, randStr } from '../../test-helpers/fake-data';
+import {
+  fakeCollective,
+  fakeHost,
+  fakeOrder,
+  fakePaymentMethod,
+  fakePayoutMethod,
+  fakeUser,
+  randStr,
+} from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
 const AMOUNT = 1099;
@@ -816,6 +831,88 @@ describe('server/lib/payments', () => {
 
       expect(emailSendSpy.lastCall.args[2]).to.have.property('account');
       expect(emailSendSpy.lastCall.args[2].instructions).to.include('IBAN: DE893219828398123');
+    });
+  });
+
+  describe('pause and resume orders', () => {
+    describe('stripe', () => {
+      let orderToPause;
+
+      it('pauses order', async () => {
+        const paymentMethod = await fakePaymentMethod({ service: 'stripe', type: 'creditcard' });
+        const orderValues = { status: 'ACTIVE', interval: 'month', PaymentMethodId: paymentMethod.id };
+        orderToPause = await fakeOrder(orderValues, { withSubscription: true });
+        await pauseOrder(orderToPause, 'Paused for no reason', 'HOST');
+        const updatedOrder = await models.Order.findByPk(orderToPause.id, { include: { association: 'Subscription' } });
+        expect(updatedOrder.status).to.equal('PAUSED');
+        expect(updatedOrder.data.messageForContributors).to.equal('Paused for no reason');
+        expect(updatedOrder.data.pausedBy).to.equal('HOST');
+        expect(updatedOrder.Subscription.isActive).to.be.false;
+        expect(updatedOrder.Subscription.deactivatedAt).to.be.a('Date');
+      });
+
+      it('resumes order', async () => {
+        const paymentMethod = await fakePaymentMethod({ service: 'stripe', type: 'creditcard' });
+        const orderValues = { status: 'PAUSED', interval: 'month', PaymentMethodId: paymentMethod.id };
+        orderToPause = await fakeOrder(orderValues, { withSubscription: true });
+        await resumeOrder(orderToPause, "Let's continue");
+        const updatedOrder = await models.Order.findByPk(orderToPause.id, { include: { association: 'Subscription' } });
+        expect(updatedOrder.status).to.equal('ACTIVE');
+        expect(updatedOrder.Subscription.isActive).to.be.true;
+        expect(updatedOrder.Subscription.deactivatedAt).to.be.null;
+      });
+    });
+
+    describe('paypal', () => {
+      let orderToPause, paypalRequestStub;
+
+      beforeEach(() => {
+        paypalRequestStub = sandbox.stub(paypalAPI, 'paypalRequest');
+      });
+
+      afterEach(() => {
+        paypalRequestStub.restore();
+      });
+
+      it('pauses order', async () => {
+        const paymentMethod = await fakePaymentMethod({ service: 'paypal', type: 'subscription' });
+        const orderValues = { status: 'ACTIVE', interval: 'month', PaymentMethodId: paymentMethod.id };
+        orderToPause = await fakeOrder(orderValues, { withSubscription: true });
+        await pauseOrder(orderToPause, 'Paused for no reason', 'HOST');
+        const updatedOrder = await models.Order.findByPk(orderToPause.id, { include: { association: 'Subscription' } });
+        expect(updatedOrder.status).to.equal('PAUSED');
+        expect(updatedOrder.data.messageForContributors).to.equal('Paused for no reason');
+        expect(updatedOrder.data.pausedBy).to.equal('HOST');
+        expect(updatedOrder.Subscription.isActive).to.be.false;
+        expect(updatedOrder.Subscription.deactivatedAt).to.be.a('Date');
+        expect(paypalRequestStub.calledOnce).to.be.true;
+      });
+
+      it('resumes order', async () => {
+        const paymentMethod = await fakePaymentMethod({ service: 'paypal', type: 'subscription' });
+        const orderValues = { status: 'PAUSED', interval: 'month', PaymentMethodId: paymentMethod.id };
+        orderToPause = await fakeOrder(orderValues, { withSubscription: true });
+        await resumeOrder(orderToPause, "Let's continue");
+        const updatedOrder = await models.Order.findByPk(orderToPause.id, { include: { association: 'Subscription' } });
+        expect(updatedOrder.status).to.equal('ACTIVE');
+        expect(updatedOrder.Subscription.isActive).to.be.true;
+        expect(updatedOrder.Subscription.deactivatedAt).to.be.null;
+        expect(paypalRequestStub.calledOnce).to.be.true;
+      });
+
+      it('throws if cancellation fails on PayPal', async () => {
+        const paymentMethod = await fakePaymentMethod({ service: 'paypal', type: 'subscription' });
+        const orderValues = { status: 'ACTIVE', interval: 'month', PaymentMethodId: paymentMethod.id };
+        orderToPause = await fakeOrder(orderValues, { withSubscription: true });
+        paypalRequestStub.rejects(new Error('PayPal error'));
+        await expect(pauseOrder(orderToPause, 'Paused for no reason', 'HOST')).to.be.rejectedWith(
+          'Failed to pause PayPal subscription',
+        );
+
+        const updatedOrder = await models.Order.findByPk(orderToPause.id, { include: { association: 'Subscription' } });
+        expect(updatedOrder.status).to.equal('ACTIVE');
+        expect(updatedOrder.Subscription.isActive).to.be.true;
+      });
     });
   });
 });

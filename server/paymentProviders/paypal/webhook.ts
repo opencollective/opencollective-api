@@ -10,7 +10,7 @@ import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
 import logger from '../../lib/logger';
 import { floatAmountToCents } from '../../lib/math';
-import { createRefundTransaction } from '../../lib/payments';
+import { createRefundTransaction, pauseOrderInDb } from '../../lib/payments';
 import { validateWebhookEvent } from '../../lib/paypal';
 import { sendThankYouEmail } from '../../lib/recurring-contributions';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
@@ -296,9 +296,7 @@ async function handleCaptureRefunded(req: Request): Promise<void> {
 }
 
 /**
- * Handles both `BILLING.SUBSCRIPTION.CANCELLED` (users cancelling their subscription through PayPal's UI)
- * and `BILLING.SUBSCRIPTION.SUSPENDED` (subscription "paused", for example when payment fail more than the maximum allowed)
- * in the the same way, by marking order as cancelled.
+ * Handles `BILLING.SUBSCRIPTION.CANCELLED` (users cancelling their subscription through PayPal's UI) by marking order as cancelled.
  */
 async function handleSubscriptionCancelled(req: Request): Promise<void> {
   const subscription = req.body.resource;
@@ -337,12 +335,42 @@ async function handleSubscriptionCancelled(req: Request): Promise<void> {
   }
 }
 
+/**
+ * Handles `BILLING.SUBSCRIPTION.SUSPENDED` (subscription "paused") by marking order as paused.
+ */
+async function handleSubscriptionSuspended(req: Request): Promise<void> {
+  const subscription = req.body.resource;
+  if (subscription['status_change_note'] === CANCEL_PAYPAL_EDITED_SUBSCRIPTION_REASON) {
+    // Ignore, this is a subscription that was updated by the user through the edit subscription page
+    return;
+  }
+
+  const result = await loadSubscriptionForWebhookEvent(req, subscription.id, { throwIfMissing: false });
+  if (!result) {
+    // It's fine to ignore this event: if we can't find the subscription, it's probably because it was
+    // already updated with a new plan or payment method. We still log it for debugging purposes.
+    reportMessageToSentry(`No order found while cancelling PayPal subscription`, {
+      feature: FEATURE.PAYPAL_DONATIONS,
+      severity: 'warning',
+      extra: { body: req.body },
+    });
+    return;
+  }
+
+  const { order } = result;
+  if (order.status !== OrderStatus.PAUSED) {
+    await pauseOrderInDb(order, subscription.status_change_note, 'PLATFORM');
+  }
+}
+
 async function handleSubscriptionActivated(req: Request): Promise<void> {
   const subscription = req.body.resource;
   const email = subscription.subscriber?.email_address;
   if (email) {
     const { order } = await loadSubscriptionForWebhookEvent(req, subscription.id);
-    await order.paymentMethod.update({ name: email });
+    if (order.paymentMethod.name !== email) {
+      await order.paymentMethod.update({ name: email });
+    }
   }
 }
 
@@ -366,8 +394,9 @@ async function webhook(req: Request): Promise<void> {
       case 'PAYMENT.CAPTURE.REVERSED':
         return handleCaptureRefunded(req);
       case 'BILLING.SUBSCRIPTION.CANCELLED':
-      case 'BILLING.SUBSCRIPTION.SUSPENDED':
         return handleSubscriptionCancelled(req);
+      case 'BILLING.SUBSCRIPTION.SUSPENDED':
+        return handleSubscriptionSuspended(req);
       case 'BILLING.SUBSCRIPTION.ACTIVATED':
         return handleSubscriptionActivated(req);
       default:

@@ -84,6 +84,8 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
     hostFeePercent?: number;
     paymentProcessorFee?: number;
     memo?: string;
+    resumeReason?: string;
+    pausedBy?: 'HOST' | 'PLATFORM' | 'USER';
     tax?: OrderTax;
     paymentIntent?: any;
     previousPaymentIntents?: any[];
@@ -270,6 +272,10 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
       const isRegistration = tier?.type === TierType.TICKET;
       return `${isRegistration ? 'Registration' : 'Financial contribution'} to ${collective.name}${tierNameInfo}`;
     }
+  }
+
+  static isValidPausedBy(pausedBy: string): pausedBy is Order['data']['pausedBy'] {
+    return ['HOST', 'PLATFORM', 'USER'].includes(pausedBy);
   }
 
   /**

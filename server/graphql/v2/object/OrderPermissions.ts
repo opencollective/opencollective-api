@@ -67,7 +67,12 @@ const GraphQLOrderPermissions = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'If paused, whether the current user can resume this order',
       async resolve(order, _, req: express.Request): Promise<boolean> {
-        if (!req.remoteUser || order.status !== ORDER_STATUS.PAUSED || order.data?.needsAsyncDeactivation) {
+        if (
+          !req.remoteUser ||
+          order.status !== ORDER_STATUS.PAUSED ||
+          order.data?.needsAsyncDeactivation ||
+          ['HOST', 'PLATFORM'].includes(order.data?.pausedBy)
+        ) {
           return false;
         }
 
