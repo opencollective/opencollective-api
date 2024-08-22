@@ -73,22 +73,26 @@ const serialize = async (model: ModelNames, req: PartialRequest, document: Insta
 
 type ExportedItem = Record<string, any> & { model: ModelNames; id: number | string };
 
-async function* paginate(model: ModelNames, where: Record<string, any>, order: Record<string, any>, limit: number) {
+const PAGINATION_LIMIT = 10000;
+
+async function* paginate(model: ModelNames, where: Record<string, any>, order: Record<string, any>, limit?: number) {
   let offset = 0;
   let totalCount = 0;
-  debug({ model, where });
+  if (limit) {
+    return await (models[model] as any).findAll({ where, order, limit });
+  }
   do {
-    const result = await (models[model] as any).findAndCountAll({ where, order, limit, offset });
+    const result = await (models[model] as any).findAndCountAll({ where, order, limit: PAGINATION_LIMIT, offset });
     totalCount = result.count;
     yield result.rows;
-    offset += limit;
+    offset += PAGINATION_LIMIT;
   } while (offset < totalCount);
 }
 
 const hashObject = (obj: Record<string, any>) => crypto.hash(JSON.stringify(obj));
 
 export const traverse = async (
-  { model, where, order, dependencies, limit = 1000, defaultDependencies = {}, parsed = {}, depth = 1 }: RecipeItem,
+  { model, where, order, dependencies, limit, defaultDependencies = {}, parsed = {}, depth = 1 }: RecipeItem,
   req: PartialRequest,
   callback: (ei: ExportedItem) => Promise<any>,
 ): Promise<void> => {
