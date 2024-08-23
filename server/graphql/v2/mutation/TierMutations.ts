@@ -10,31 +10,38 @@ import { NotFound, Unauthorized } from '../../errors';
 import { getIntervalFromTierFrequency } from '../enum/TierFrequency';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
-import { getValueInCentsFromAmountInput } from '../input/AmountInput';
+import { AmountInputType, getValueInCentsFromAmountInput } from '../input/AmountInput';
 import { GraphQLTierCreateInput, TierCreateInputFields } from '../input/TierCreateInput';
 import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput';
 import { GraphQLTierUpdateInput, TierUpdateInputFields } from '../input/TierUpdateInput';
 import { GraphQLTier } from '../object/Tier';
 
 // Makes sure we default to `undefined` if the amount is not set to not override existing values with `null`
-const getAmountWithDefault = (amountInput, existingAmount = undefined) =>
+const getAmountWithDefault = (amountInput: AmountInputType, existingAmount: number = undefined): number =>
   (amountInput ? getValueInCentsFromAmountInput(amountInput) : existingAmount) ?? undefined;
+
+const fieldsWithoutTransform = [
+  'name',
+  'description',
+  'button',
+  'type',
+  'amountType',
+  'presets',
+  'maxQuantity',
+  'useStandalonePage',
+  'longDescription',
+  'videoUrl',
+] as const;
 
 const transformTierInputToAttributes = (
   tierInput: TierCreateInputFields | TierUpdateInputFields,
   existingTier: TierModel = null,
 ) => {
   // Copy all fields that don't need to be transformed
-  const attributes = pick(tierInput, [
-    'name',
-    'description',
-    'button',
-    'type',
-    'amountType',
-    'presets',
-    'maxQuantity',
-    'useStandalonePage',
-  ]);
+  const attributes = pick(tierInput, fieldsWithoutTransform) as Pick<
+    typeof tierInput,
+    (typeof fieldsWithoutTransform)[number]
+  >;
 
   // Transform fields that need to be transformed
   attributes['amount'] = getAmountWithDefault(tierInput.amount, existingTier?.amount);

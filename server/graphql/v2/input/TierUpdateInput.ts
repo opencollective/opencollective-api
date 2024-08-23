@@ -10,6 +10,7 @@ import { GraphQLNonEmptyString } from 'graphql-scalars';
 
 import { GraphQLTierAmountType, GraphQLTierType } from '../enum';
 import { GraphQLTierFrequency } from '../enum/TierFrequency';
+import GraphQLURL from '../scalar/URL';
 
 import { GraphQLAmountInput } from './AmountInput';
 import { TierCreateInputFields } from './TierCreateInput';
@@ -31,6 +32,12 @@ export const GraphQLTierUpdateInput = new GraphQLInputObjectType({
     },
     description: {
       type: GraphQLString,
+    },
+    longDescription: {
+      type: GraphQLString,
+    },
+    videoUrl: {
+      type: GraphQLURL,
     },
     button: {
       type: GraphQLString,
