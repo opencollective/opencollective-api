@@ -18,6 +18,8 @@ export type TierCreateInputFields = {
   amount?: AmountInputType;
   name?: string;
   description?: string;
+  longDescription?: string;
+  videoUrl?: string;
   button?: string;
   goal?: AmountInputType;
   type: TierType;

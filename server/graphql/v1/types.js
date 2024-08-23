@@ -1056,6 +1056,12 @@ export const TierType = new GraphQLObjectType({
           return tier.id;
         },
       },
+      idV2: {
+        type: new GraphQLNonNull(GraphQLString),
+        resolve(tier) {
+          return idEncode(tier.id, IDENTIFIER_TYPES.TIER);
+        },
+      },
       slug: {
         type: GraphQLString,
         resolve(tier) {
