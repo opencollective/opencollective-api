@@ -112,7 +112,7 @@ const compactQueries = (queries, maxBatchSize = 500) => {
       if (hasExistingQuery) {
         hasExistingQuery.where[key].push(value);
       } else {
-        acc.push({ model: query.model, where: { [key]: [value] } });
+        acc.push({ ...query, where: { [key]: [value] } });
       }
       return acc;
     } else {
