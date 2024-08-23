@@ -8,6 +8,7 @@ import { cwd } from 'process';
 import readline from 'readline';
 
 import { Command } from 'commander';
+import { isNull, isUndefined, mapValues, round } from 'lodash';
 import moment from 'moment';
 import type { Sequelize } from 'sequelize';
 import { Model as SequelizeModel, ModelStatic } from 'sequelize';
@@ -114,6 +115,16 @@ program.command('dump [recipe] [as_user] [env_file]').action(async (recipe, asUs
   sequelize.close();
 });
 
+const DEFAULT_VALUES = {
+  PayoutMethod: {
+    isSaved: false,
+    data: {},
+  },
+  PaymentMethod: {
+    currency: 'USD',
+  },
+};
+
 program.command('restore <file>').action(async file => {
   const database = process.env.PG_DATABASE;
   if (!database) {
@@ -168,7 +179,12 @@ program.command('restore <file>').action(async file => {
     logger.info('>>> Inserting Data...');
 
     for await (const line of rl) {
-      const row = JSON.parse(line);
+      let row = JSON.parse(line);
+      if (DEFAULT_VALUES[row.model]) {
+        row = mapValues(row, (value, key) =>
+          !isUndefined(DEFAULT_VALUES[row.model][key]) && isNull(value) ? DEFAULT_VALUES[row.model][key] : value,
+        );
+      }
       const model: ModelStatic<SequelizeModel> = models[row.model];
       await model.create(row, {
         transaction,
@@ -176,7 +192,7 @@ program.command('restore <file>').action(async file => {
         hooks: false,
         silent: true,
         logging: false,
-        raw: false,
+        raw: true,
         ignoreDuplicates: true,
       });
       count++;
