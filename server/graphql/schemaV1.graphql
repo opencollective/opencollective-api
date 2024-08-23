@@ -4560,18 +4560,6 @@ type Mutation {
   editConnectedAccount(connectedAccount: ConnectedAccountInputType!): ConnectedAccountType
 
   """
-  Update a single tier
-  """
-  editTier(
-    """
-    The tier to update
-    """
-    tier: TierInputType!
-  ): Tier @deprecated(reason: "2024-07-16: Please use editTiers mutation from GraphQLV2")
-  editTiers(id: Int!, tiers: [TierInputType]): [Tier]
-    @deprecated(reason: "2024-07-16: Please use editTiers mutation from GraphQLV2")
-
-  """
   Updates all the core contributors (role = ADMIN or MEMBER) for this collective.
   """
   editCoreContributors(collectiveId: Int!, members: [MemberInputType!]!): CollectiveInterface
@@ -4775,6 +4763,7 @@ input CollectiveInputType {
   backgroundImage: String
   tags: [String]
   tiers: [TierInputType]
+    @deprecated(reason: "2024-08-23: Not supported anymore in editCollective. Still usable in createCollective")
   settings: JSON
   data: JSON @deprecated(reason: "2020-10-08: data cannot be edited. This field will be ignored.")
 

@@ -224,62 +224,6 @@ describe('server/graphql/v1/mutation', () => {
   });
 
   describe('editCollective tests', () => {
-    describe('edit tiers', () => {
-      const editTiersMutation = gqlV1/* GraphQL */ `
-        mutation EditTiers($id: Int!, $tiers: [TierInputType]) {
-          editTiers(id: $id, tiers: $tiers) {
-            id
-            name
-            type
-            amount
-            interval
-            goal
-          }
-        }
-      `;
-
-      const tiers = [
-        { name: 'backer', type: 'TIER', amount: 10000, interval: 'month' },
-        { name: 'sponsor', type: 'TIER', amount: 500000, interval: 'year' },
-      ];
-
-      it('fails if not authenticated', async () => {
-        const result = await utils.graphqlQuery(editTiersMutation, {
-          id: collective1.id,
-          tiers,
-        });
-        expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.equal('You need to be logged in to edit tiers');
-      });
-
-      it('fails if not authenticated as host or member of collective', async () => {
-        const result = await utils.graphqlQuery(editTiersMutation, { id: collective1.id }, user3);
-        expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.equal(
-          "You need to be logged in as a core contributor or as a host of the Scouts d'Arlon collective",
-        );
-      });
-
-      it('add new tiers and update existing', async () => {
-        const result = await utils.graphqlQuery(editTiersMutation, { id: collective1.id, tiers }, user1);
-        result.errors && console.error(result.errors[0]);
-        expect(tiers).to.have.length(2);
-        tiers.sort((a, b) => b.amount - a.amount);
-        expect(tiers[0].interval).to.equal('year');
-        expect(tiers[1].interval).to.equal('month');
-        tiers[0].goal = 20000;
-        tiers[1].amount = 100000;
-        tiers.push({ name: 'free ticket', type: 'TICKET', amount: 0 });
-        const result2 = await utils.graphqlQuery(editTiersMutation, { id: collective1.id, tiers }, user1);
-        result2.errors && console.error(result2.errors[0]);
-        const updatedTiers = result2.data.editTiers;
-        updatedTiers.sort((a, b) => b.amount - a.amount);
-        expect(updatedTiers).to.have.length(3);
-        expect(updatedTiers[0].goal).to.equal(tiers[0].goal);
-        expect(updatedTiers[1].amount).to.equal(tiers[1].amount);
-      });
-    });
-
     describe('change the hostFeePercent of the host', () => {
       const updateHostFeePercentMutation = gqlV1/* GraphQL */ `
         mutation UpdateHostFeePercent($collective: CollectiveInputType!) {

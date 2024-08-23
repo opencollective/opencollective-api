@@ -382,7 +382,8 @@ export function editCollective(_, args, req) {
       })
       .then(async () => {
         // If we try to change the host
-        // @deprecated This is now done through dedicated `removeHost` mutation on GraphQL v2
+        // @deprecated This can now be done through dedicated `removeHost` mutation on GraphQL v2, but we still use it
+        // in https://github.com/opencollective/opencollective-frontend/blob/f30fee8638573d317749052de3a37d30fe1112b0/components/edit-collective/sections/Host.js#L91.
         if (
           newCollectiveData.HostCollectiveId !== undefined &&
           newCollectiveData.HostCollectiveId !== collective.HostCollectiveId
@@ -420,16 +421,6 @@ export function editCollective(_, args, req) {
         }
         // we omit those attributes that have already been updated above
         return collective.update(omit(newCollectiveData, ['HostCollectiveId', 'hostFeePercent', 'currency']));
-      })
-      .then(() => collective.editTiers(args.collective.tiers))
-      .then(() => {
-        // @deprecated since 2019-10-21: now using dedicated `editCoreContributors` endpoint
-        if (args.collective.members) {
-          return collective.editMembers(args.collective.members, {
-            CreatedByUserId: req.remoteUser.id,
-            remoteUserCollectiveId: req.remoteUser.CollectiveId,
-          });
-        }
       })
       .then(async () => {
         const isSlEqual = (aSl, bSl) => aSl.type === bSl.type && aSl.url === bSl.url;

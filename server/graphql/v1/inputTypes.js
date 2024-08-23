@@ -147,7 +147,10 @@ export const CollectiveInputType = new GraphQLInputObjectType({
     image: { type: GraphQLString },
     backgroundImage: { type: GraphQLString },
     tags: { type: new GraphQLList(GraphQLString) },
-    tiers: { type: new GraphQLList(TierInputType) },
+    tiers: {
+      type: new GraphQLList(TierInputType),
+      deprecationReason: '2024-08-23: Not supported anymore in editCollective. Still usable in createCollective',
+    },
     settings: { type: GraphQLJSON },
     data: { type: GraphQLJSON, deprecationReason: '2020-10-08: data cannot be edited. This field will be ignored.' },
     privateInstructions: { type: GraphQLString, description: 'Private instructions related to an event' },
@@ -234,7 +237,7 @@ const LocationInputType = new GraphQLInputObjectType({
   }),
 });
 
-export const TierInputType = new GraphQLInputObjectType({
+const TierInputType = new GraphQLInputObjectType({
   name: 'TierInputType',
   description: 'Input type for TierType',
   fields: () => ({
