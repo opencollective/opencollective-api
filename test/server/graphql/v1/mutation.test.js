@@ -125,14 +125,6 @@ describe('server/graphql/v1/mutation', () => {
           endsAt: 'Wed Apr 05 2017 12:00:00 GMT-0700 (PDT)',
           timezone: 'Europe/Brussels',
           ParentCollectiveId: collective.id,
-          tiers: [
-            { name: 'free ticket', description: 'Free ticket', amount: 0 },
-            {
-              name: 'sponsor',
-              description: 'Sponsor the drinks. Pretty sure everyone will love you.',
-              amount: 15000,
-            },
-          ],
         };
       };
 
@@ -157,7 +149,7 @@ describe('server/graphql/v1/mutation', () => {
         );
       });
 
-      it('creates an event with multiple tiers, uses the currency of parent collective and inherit fees', async () => {
+      it('creates an event, uses the currency of parent collective and inherit fees', async () => {
         await host.collective.update({
           currency: 'CAD',
           settings: { apply: true },
@@ -169,11 +161,9 @@ describe('server/graphql/v1/mutation', () => {
         result.errors && console.error(result.errors[0]);
         const createdEvent = result.data.createCollective;
         expect(createdEvent.slug).to.contain('brusselstogether-meetup');
-        expect(createdEvent.tiers.length).to.equal(event.tiers.length);
         expect(createdEvent.hostFeePercent).to.equal(10);
         expect(createdEvent.isActive).to.be.true;
         event.id = createdEvent.id;
-        event.tiers = createdEvent.tiers;
 
         // Make sure the creator of the event has been added as an ADMIN
         const members = await models.Member.findAll({
@@ -184,23 +174,11 @@ describe('server/graphql/v1/mutation', () => {
         expect(members).to.have.length(1);
         expect(members[0].role).to.equal(roles.HOST);
         expect(members[0].MemberCollectiveId).to.equal(collective1.HostCollectiveId);
-
-        // We remove the first tier
-        event.tiers.shift();
-
-        // We update the second (now only) tier
-        event.tiers[0].amount = 123;
-
         const updateQuery = gqlV1/* GraphQL */ `
           mutation EditCollective($collective: CollectiveInputType!) {
             editCollective(collective: $collective) {
               id
               slug
-              tiers {
-                id
-                name
-                amount
-              }
             }
           }
         `;
@@ -214,11 +192,6 @@ describe('server/graphql/v1/mutation', () => {
         expect(r3.errors[0].message).to.equal(
           'You must be logged in as admin of the scouts collective to edit this Event.',
         );
-
-        const r4 = await utils.graphqlQuery(updateQuery, { collective: event }, user1);
-        const updatedEvent = r4.data.editCollective;
-        expect(updatedEvent.tiers.length).to.equal(event.tiers.length);
-        expect(updatedEvent.tiers[0].amount).to.equal(event.tiers[0].amount);
       });
     });
   });

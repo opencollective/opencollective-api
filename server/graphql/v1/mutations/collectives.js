@@ -133,10 +133,6 @@ export async function createCollective(_, args, req) {
 
   const promises = [];
 
-  if (collectiveData.tiers) {
-    promises.push(collective.editTiers(collectiveData.tiers));
-  }
-
   if (collectiveData.HostCollectiveId) {
     promises.push(collective.addHost(hostCollective, req.remoteUser));
   }
