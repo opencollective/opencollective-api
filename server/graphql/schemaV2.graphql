@@ -3178,7 +3178,7 @@ type ContributorCollection implements Collection {
   nodes: [Contributor]
 }
 
-"\n    A person or an entity that contributes financially or by any other mean to the mission\n    of the collective. While \"Member\" is dedicated to permissions, this type is meant\n    to surface all the public contributors.\n  "
+"\n    A person or an entity that contributes financially or by any other mean to the mission\n    of the collective. While \"Member\" is dedicated to permissions, this type is meant\n    to surface all the public contributors and properly groups contributors who are part of\n    multiple tiers.\n  "
 type Contributor {
   """
   A unique identifier for this member
@@ -3188,7 +3188,7 @@ type Contributor {
   """
   Name of the contributor
   """
-  name: String!
+  name: String! @deprecated(reason: "2024-08-26: Use account.name instead")
 
   """
   All the roles for a given contributor
@@ -3218,17 +3218,22 @@ type Contributor {
   """
   How much money the user has contributed for this (in cents, using collective currency)
   """
-  totalAmountDonated: Int!
+  totalAmountDonated: Int! @deprecated(reason: "2024-08-26: Use totalAmountContributed instead")
+
+  """
+  How much money the user has contributed
+  """
+  totalAmountContributed: Amount!
 
   """
   Whether the contributor is an individual, an organization...
   """
-  type: String!
+  type: String! @deprecated(reason: "2024-08-26: Use account.type instead")
 
   """
   Defines if the contributors wants to be incognito (name not displayed)
   """
-  isIncognito: Boolean!
+  isIncognito: Boolean! @deprecated(reason: "2024-08-26: Use account.isIncognito instead")
 
   """
   Description of how the member contribute. Will usually be a tier name, or "design" or "code".
@@ -3236,14 +3241,15 @@ type Contributor {
   description: String
 
   """
-  If the contributor has a page on Open Collective, this is the slug to link to it
+  If the contributor has a page on Open Collective, this is the slug to link to it. Always null for incognito contributors
   """
-  collectiveSlug: String
+  collectiveSlug: String @deprecated(reason: "2024-08-26: Use account.slug instead")
+  account: String
 
   """
   Contributor avatar or logo
   """
-  image(height: Int, format: ImageFormat): String
+  image(height: Int, format: ImageFormat): String @deprecated(reason: "2024-08-26: Use account.image instead")
 
   """
   A public message from contributors to describe their contributions
