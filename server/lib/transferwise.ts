@@ -266,6 +266,18 @@ export const createQuote = async (
   );
 };
 
+export const getQuote = async (connectedAccount: ConnectedAccount, quoteId: string): Promise<QuoteV3> => {
+  const profile = connectedAccount.data.id;
+  return requestDataAndThrowParsedError(
+    axiosClient.get,
+    `/v3/profiles/${profile}/quotes/${quoteId}`,
+    {
+      connectedAccount,
+    },
+    'There was an error while creating the quote on Wise',
+  );
+};
+
 export const createRecipientAccount = async (
   connectedAccount: ConnectedAccount,
   { currency, type, accountHolderName, legalType, details }: RecipientAccount,

@@ -1,7 +1,7 @@
 import assert from 'assert';
 
 import { Request } from 'express';
-import { pick, toString } from 'lodash';
+import { omit, pick, toString } from 'lodash';
 
 import activities from '../../constants/activities';
 import { Service } from '../../constants/connected-account';
@@ -10,9 +10,14 @@ import { TransactionKind } from '../../constants/transaction-kind';
 import logger from '../../lib/logger';
 import { createRefundTransaction } from '../../lib/payments';
 import { createTransactionsFromPaidExpense } from '../../lib/transactions';
-import { getTransfer, verifyEvent } from '../../lib/transferwise';
+import { getQuote, getTransfer, verifyEvent } from '../../lib/transferwise';
 import models from '../../models';
-import { QuoteV2PaymentOption, QuoteV3PaymentOption, TransferStateChangeEvent } from '../../types/transferwise';
+import {
+  ExpenseDataQuoteV3,
+  QuoteV2PaymentOption,
+  QuoteV3PaymentOption,
+  TransferStateChangeEvent,
+} from '../../types/transferwise';
 
 export async function handleTransferStateChange(event: TransferStateChangeEvent): Promise<void> {
   const expense = await models.Expense.findOne({
@@ -70,12 +75,29 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
       platformFeeInHostCurrency: number;
     };
 
-    const paymentOption = expense.data.paymentOption as QuoteV2PaymentOption | QuoteV3PaymentOption;
+    let paymentOption = expense.data.paymentOption as QuoteV2PaymentOption | QuoteV3PaymentOption;
+    // Fetch up-to-date quote to check if payment option has changed
+    const quote = await getQuote(connectedAccount, transfer.quoteUuid);
+    assert(quote, 'Failed to fetch quote from Wise');
+    const wisePaymentOption = quote.paymentOptions.find(p => p.payIn === 'BALANCE' && p.payOut === quote.payOut);
+    if (
+      // Check if existing quote is QuoteV3
+      'price' in paymentOption &&
+      // Check if the priceDecisionReferenceId has changed
+      paymentOption.price.priceDecisionReferenceId !== wisePaymentOption.price?.priceDecisionReferenceId
+    ) {
+      logger.warn(`Wise updated the payment option for expense ${expense.id}, updating existing values...`);
+      const expenseDataQuote = { ...omit(quote, ['paymentOptions']), paymentOption } as ExpenseDataQuoteV3;
+      await expense.update({ data: { ...expense.data, quote: expenseDataQuote, paymentOption } });
+      paymentOption = wisePaymentOption;
+    }
+
     if (expense.host?.settings?.transferwise?.ignorePaymentProcessorFees) {
       // TODO: We should not just ignore fees, they should be recorded as a transaction from the host to the collective
       // See https://github.com/opencollective/opencollective/issues/5113
       feesInHostCurrency.paymentProcessorFeeInHostCurrency = 0;
     } else {
+      // This is simplified because we enforce sourceCurrency to be the same as hostCurrency
       feesInHostCurrency.paymentProcessorFeeInHostCurrency = Math.round(paymentOption.fee.total * 100);
     }
 
