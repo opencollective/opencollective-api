@@ -257,15 +257,14 @@ const PROD_SANITIZERS: { [k in ModelNames]: Sanitizer<k> } = {
         customerId: null,
         name: null,
         expiryDate: null,
-        currency: 'USD',
       };
     }
   },
   PayoutMethod: (payoutMethod, req) => {
     if (!getContextPermission(req as express.Request, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, payoutMethod.id)) {
       return {
-        data: {},
-        isSaved: false,
+        data: null,
+        isSaved: null,
         name: null,
       };
     }

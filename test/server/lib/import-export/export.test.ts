@@ -118,9 +118,9 @@ describe('export', () => {
 
           expect(results).to.have.length(1);
           expect(results[0].id).to.eq(payoutMethod.id);
-          expect(results[0].data).to.be.empty;
+          expect(results[0].data).to.be.null;
           expect(results[0].name).to.be.null;
-          expect(results[0].isSaved).to.be.false;
+          expect(results[0].isSaved).to.be.null;
         });
 
         it('...except if in context of a hosted expense', async () => {
