@@ -1,9 +1,9 @@
 import debugLib from 'debug';
-import { compact, concat, pick, set, uniqBy } from 'lodash';
+import { compact, concat, keys, pick, set, uniqBy, values } from 'lodash';
 import { DataType } from 'sequelize';
 
 import type { ModelNames, Models } from '../../models';
-import models, { Op } from '../../models';
+import models, { sequelize } from '../../models';
 import { crypto } from '../encryption';
 import logger from '../logger';
 
@@ -73,46 +73,80 @@ const serialize = async (model: ModelNames, req: PartialRequest, document: Insta
 
 type ExportedItem = Record<string, any> & { model: ModelNames; id: number | string };
 
-async function* paginate(model: ModelNames, where: Record<string, any>, order: Record<string, any>, limit: number) {
+const PAGINATION_LIMIT = 10000;
+
+async function* paginate(model: ModelNames, where: Record<string, any>, order: Record<string, any>, limit?: number) {
   let offset = 0;
   let totalCount = 0;
-  debug({ model, where });
+  if (limit) {
+    return await (models[model] as any).findAll({ where, order, limit });
+  }
   do {
-    const result = await (models[model] as any).findAndCountAll({ where, order, limit, offset });
+    const result = await (models[model] as any).findAndCountAll({ where, order, limit: PAGINATION_LIMIT, offset });
     totalCount = result.count;
     yield result.rows;
-    offset += limit;
+    offset += PAGINATION_LIMIT;
   } while (offset < totalCount);
 }
 
 const hashObject = (obj: Record<string, any>) => crypto.hash(JSON.stringify(obj));
 
+const isTargetWhere = q => {
+  const queryValues = values(q.where);
+  return queryValues.length === 1 && typeof queryValues[0] !== 'object';
+};
+
+/**
+ * Reducer that combines multiple queries that target a single EQ property to a single query with an IN clause
+ */
+const compactQueries = (queries, maxBatchSize = 500) => {
+  const compactableQueries = queries.reduce((acc, query) => {
+    if (isTargetWhere(query)) {
+      const key = keys(query.where)[0];
+      const value = values(query.where)[0];
+
+      const hasExistingQuery = acc.findLast(
+        q => q.model === query.model && key === keys(q.where)[0] && q.where[key].length < maxBatchSize,
+      );
+      if (hasExistingQuery) {
+        hasExistingQuery.where[key].push(value);
+      } else {
+        acc.push({ ...query, where: { [key]: [value] } });
+      }
+      return acc;
+    } else {
+      return acc.concat(query);
+    }
+  }, []);
+
+  return compactableQueries;
+};
+
 export const traverse = async (
-  { model, where, order, dependencies, limit = 1000, defaultDependencies = {}, parsed = {}, depth = 1 }: RecipeItem,
+  { model, where, order, dependencies, limit, defaultDependencies = {}, parsed = {}, depth = 1 }: RecipeItem,
   req: PartialRequest,
   callback: (ei: ExportedItem) => Promise<any>,
 ): Promise<void> => {
   if (model && where) {
+    debug('traverse', { model, where });
     const hasIdField = models[model]['tableAttributes'].id;
-    if (!where.id && parsed[model] && hasIdField) {
-      where.id = { [Op.notIn]: Array.from(parsed[model]) };
+    if (hasIdField) {
+      if (!parsed[model]) {
+        parsed[model] = new Set();
+      }
     }
-
     let records;
     for await (const pageRecords of paginate(model, where, order, limit)) {
       records = await Promise.all(pageRecords.map(record => serialize(model, req, record)));
       records = records.filter(Boolean);
 
-      if (hasIdField) {
-        if (!parsed[model]) {
-          parsed[model] = new Set(records.map(r => r.id));
-        } else {
-          records.forEach(r => parsed[model].add(r.id));
+      for (const record of records) {
+        if (!hasIdField) {
+          await callback(record);
+        } else if (hasIdField && !parsed[model]?.has(record.id)) {
+          parsed[model].add(record.id);
+          await callback(record);
         }
-      }
-
-      for (const element of records) {
-        await callback(element);
       }
 
       // Inject default dependencies for the model
@@ -126,7 +160,7 @@ export const traverse = async (
             where = dep.where(record);
           }
           // Find dependency which ID from record foreign key
-          else if (dep.from && record[dep.from] && !parsed[dep.model]?.has(record[dep.from])) {
+          else if (dep.from && record[dep.from]) {
             where['id'] = record[dep.from];
           }
           // Find dependency which foreign key is equal to the record ID
@@ -140,8 +174,15 @@ export const traverse = async (
       }
       // Remove duplicates
       queries = uniqBy(queries, query => hashObject(pick(query, ['model', 'where'])));
+      queries = compactQueries(queries);
       // TODO: COMBINE QUERIES FOR THE SAME MODEL
       await Promise.all(queries.map(query => traverse(query, req, callback)));
     }
   }
+};
+
+export const getMigrationsHash = async () => {
+  const [data] = await sequelize.query('SELECT name FROM "SequelizeMeta" ORDER BY name');
+  const migrationNames = data.map(d => d.name);
+  return hashObject(migrationNames);
 };
