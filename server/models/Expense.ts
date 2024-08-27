@@ -29,7 +29,15 @@ import sequelize, { DataTypes, Model, Op, QueryTypes } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
 import CustomDataTypes from '../models/DataTypes';
 import { Location } from '../types/Location';
-import { BatchGroup, ExpenseDataQuoteV2, ExpenseDataQuoteV3, Transfer } from '../types/transferwise';
+import {
+  BatchGroup,
+  ExpenseDataQuoteV2,
+  ExpenseDataQuoteV3,
+  QuoteV2PaymentOption,
+  QuoteV3PaymentOption,
+  RecipientAccount,
+  Transfer,
+} from '../types/transferwise';
 
 import AccountingCategory from './AccountingCategory';
 import Activity from './Activity';
@@ -83,8 +91,10 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   public declare data: Record<string, unknown> & {
     batchGroup?: BatchGroup;
     quote?: ExpenseDataQuoteV2 | ExpenseDataQuoteV3;
+    paymentOption?: QuoteV2PaymentOption | QuoteV3PaymentOption;
     transfer?: Transfer;
     valuesByRole?: ExpenseDataValuesByRole;
+    recipient?: RecipientAccount;
     payee?: {
       id?: number;
       name?: string;

@@ -66,6 +66,7 @@ describe('cron/daily/check-pending-transferwise-transactions', () => {
         paymentOption: { fee: { total: 10 }, sourceAmount: 110 },
       },
     });
+    sandbox.stub(transferwiseLib, 'getQuote').resolves({ paymentOptions: [{ fee: { total: 10 }, sourceAmount: 110 }] });
   });
 
   it('should complete processing transactions if transfer was sent', async () => {

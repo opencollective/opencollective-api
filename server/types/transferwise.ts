@@ -90,6 +90,7 @@ export type QuoteV3PaymentOption = {
     total: number;
   };
   price: {
+    priceDecisionReferenceId: string;
     priceSetId: number;
     total: {
       type: 'TOTAL';
@@ -156,6 +157,7 @@ export type QuoteV3 = {
   paymentMetadata?: {
     transferNature?: string;
   };
+  targetAccount?: number;
 };
 
 /** When saving the quote in expense data */
@@ -304,6 +306,7 @@ export type Transfer = {
   targetAccount: number;
   sourceAccount: null | number;
   quote: number;
+  quoteUuid: string;
   status: string;
   reference?: string;
   rate: number;

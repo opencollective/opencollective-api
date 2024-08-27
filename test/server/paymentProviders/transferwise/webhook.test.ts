@@ -55,6 +55,7 @@ describe('server/paymentProviders/transferwise/webhook', () => {
   beforeEach(() => {
     verifyEvent = sandbox.stub(transferwiseLib, 'verifyEvent').returns(event);
     sendMessage = sandbox.spy(emailLib, 'sendMessage');
+    sandbox.stub(transferwiseLib, 'getQuote').resolves({ paymentOptions: [{ fee: { total: 10 }, sourceAmount: 110 }] });
   });
   beforeEach(async () => {
     host = await fakeCollective({ isHostAccount: true });
@@ -70,6 +71,7 @@ describe('server/paymentProviders/transferwise/webhook', () => {
     const payoutMethod = await fakePayoutMethod({
       type: PayoutMethodTypes.BANK_ACCOUNT,
       data: {
+        id: 123,
         accountHolderName: 'Leo Kewitz',
         currency: 'EUR',
         type: 'iban',
@@ -90,8 +92,9 @@ describe('server/paymentProviders/transferwise/webhook', () => {
       type: 'INVOICE',
       description: 'January Invoice',
       data: {
+        recipient: payoutMethod.data,
         transfer: { id: event.data.resource.id },
-        quote: { fee: 10, rate: 1 },
+        quote: { fee: 10, rate: 1, targetAccount: 123 },
         paymentOption: { fee: { total: 10 }, sourceAmount: 110 },
       },
     });
