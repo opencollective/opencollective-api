@@ -31,7 +31,13 @@ import {
   WebhookCollectionArgs,
   WebhookCollectionResolver,
 } from '../collection/WebhookCollection';
-import { AccountTypeToModelMapping, GraphQLAccountType, GraphQLImageFormat, GraphQLMemberRole } from '../enum';
+import {
+  AccountTypeToModelMapping,
+  GraphQLAccountType,
+  GraphQLCurrency,
+  GraphQLImageFormat,
+  GraphQLMemberRole,
+} from '../enum';
 import { GraphQLActivityChannel } from '../enum/ActivityChannel';
 import { GraphQLActivityClassType } from '../enum/ActivityType';
 import { GraphQLExpenseDirection } from '../enum/ExpenseDirection';
@@ -158,7 +164,8 @@ const accountFieldsDefinition = () => ({
     },
   },
   currency: {
-    type: GraphQLString,
+    type: new GraphQLNonNull(GraphQLCurrency),
+    description: 'The currency of the account',
   },
   expensePolicy: {
     type: GraphQLString,
