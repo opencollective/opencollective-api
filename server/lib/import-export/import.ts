@@ -3,7 +3,7 @@ import fs from 'fs';
 import readline from 'readline';
 
 import debugLib from 'debug';
-import { isEmpty, mapKeys, mapValues, pick, set } from 'lodash';
+import { isEmpty, isNil, isUndefined, mapKeys, mapValues, pick, set } from 'lodash';
 import { Model as SequelizeModel, ModelStatic } from 'sequelize';
 
 import models, { ModelNames, sequelize } from '../../models';
@@ -12,6 +12,26 @@ import logger from '../logger';
 const debug = debugLib('import');
 
 export const MODELS_ARRAY = Object.values(models);
+
+const DEFAULT_VALUES = {
+  PayoutMethod: {
+    isSaved: false,
+    data: {},
+  },
+  PaymentMethod: {
+    currency: 'USD',
+  },
+};
+
+export const populateDefaultValues = (row: any) => {
+  if (DEFAULT_VALUES[row.model]) {
+    return mapValues(row, (value, key) =>
+      !isUndefined(DEFAULT_VALUES[row.model][key]) && isNil(value) ? DEFAULT_VALUES[row.model][key] : value,
+    );
+  } else {
+    return row;
+  }
+};
 
 const updateSequence = async (tableName, field) => {
   const [sequences] = await sequelize.query(`SELECT pg_get_serial_sequence('"${tableName}"', '${field}')`);
@@ -242,6 +262,8 @@ export const mergeRecords = async (dataFile: string, pkMap: PKMap, transaction) 
       Object.assign(record, remappedDependencies);
     }
 
+    record = populateDefaultValues(record);
+
     await model.create(record, {
       transaction,
       validate: false,
@@ -249,6 +271,7 @@ export const mergeRecords = async (dataFile: string, pkMap: PKMap, transaction) 
       silent: true,
       logging: false,
       ignoreDuplicates: true,
+      raw: true,
       returning: false,
     });
     count++;

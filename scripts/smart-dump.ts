@@ -8,14 +8,20 @@ import { cwd } from 'process';
 import readline from 'readline';
 
 import { Command } from 'commander';
-import { isNull, isUndefined, mapValues, round } from 'lodash';
+import { round } from 'lodash';
 import moment from 'moment';
 import type { Sequelize } from 'sequelize';
 import { Model as SequelizeModel, ModelStatic } from 'sequelize';
 
 import { loaders } from '../server/graphql/loaders';
 import { getMigrationsHash, traverse } from '../server/lib/import-export/export';
-import { mergeRecords, MODELS_ARRAY, remapPKs, resetModelsSequences } from '../server/lib/import-export/import';
+import {
+  mergeRecords,
+  MODELS_ARRAY,
+  populateDefaultValues,
+  remapPKs,
+  resetModelsSequences,
+} from '../server/lib/import-export/import';
 import { PartialRequest } from '../server/lib/import-export/types';
 import logger from '../server/lib/logger';
 import { md5 } from '../server/lib/utils';
@@ -115,16 +121,6 @@ program.command('dump [recipe] [as_user] [env_file]').action(async (recipe, asUs
   sequelize.close();
 });
 
-const DEFAULT_VALUES = {
-  PayoutMethod: {
-    isSaved: false,
-    data: {},
-  },
-  PaymentMethod: {
-    currency: 'USD',
-  },
-};
-
 program.command('restore <file>').action(async file => {
   const database = process.env.PG_DATABASE;
   if (!database) {
@@ -180,11 +176,10 @@ program.command('restore <file>').action(async file => {
 
     for await (const line of rl) {
       let row = JSON.parse(line);
-      if (DEFAULT_VALUES[row.model]) {
-        row = mapValues(row, (value, key) =>
-          !isUndefined(DEFAULT_VALUES[row.model][key]) && isNull(value) ? DEFAULT_VALUES[row.model][key] : value,
-        );
-      }
+
+      // Since we use `raw: true` in `Model.create`, we need to manually set default values when needed
+      row = populateDefaultValues(row);
+
       const model: ModelStatic<SequelizeModel> = models[row.model];
       await model.create(row, {
         transaction,
@@ -194,6 +189,7 @@ program.command('restore <file>').action(async file => {
         logging: false,
         raw: true,
         ignoreDuplicates: true,
+        returning: false,
       });
       count++;
     }
