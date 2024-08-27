@@ -55,8 +55,8 @@ export default {
       return hostApplicationIds.map(HostApplicationId => {
         const count = counters.find(c => c.HostApplicationId === HostApplicationId);
         return {
-          comments: count.comments,
-          privateNotes: count.privateNotes,
+          comments: count?.comments || 0,
+          privateNotes: count?.privateNotes || 0,
         };
       });
     });
