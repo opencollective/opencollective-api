@@ -3,6 +3,7 @@ import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { pick } from 'lodash';
 
 import models from '../../../models';
+import { CommentType } from '../../../models/Comment';
 import { Unauthorized } from '../../errors';
 import { CommentCollection } from '../collection/CommentCollection';
 import { GraphQLHostApplicationStatus } from '../enum/HostApplicationStatus';
@@ -97,13 +98,25 @@ export const GraphQLHostApplication = new GraphQLObjectType({
           return null;
         }
 
+        const type = [CommentType.COMMENT];
+        if (req.remoteUser?.isAdmin(hostApplication.HostCollectiveId)) {
+          type.push(CommentType.PRIVATE_NOTE);
+        }
+
         return {
           offset,
           limit,
-          totalCount: async () => req.loaders.Comment.countByHostApplication.load(hostApplication.id),
+          totalCount: async () => {
+            const counts = await req.loaders.Comment.countByHostApplication.load(hostApplication.id);
+            if (req.remoteUser?.isAdmin(hostApplication.HostCollectiveId)) {
+              return counts.comments + counts.privateNotes;
+            } else {
+              return counts.comments;
+            }
+          },
           nodes: async () =>
             models.Comment.findAll({
-              where: { HostApplicationId: hostApplication.id },
+              where: { HostApplicationId: hostApplication.id, type },
               order: [[orderBy.field, orderBy.direction]],
               offset,
               limit,

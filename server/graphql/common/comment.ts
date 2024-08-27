@@ -12,7 +12,7 @@ import { canComment as canCommentOrder } from '../common/orders';
 import { NotFound, Unauthorized, ValidationFailed } from '../errors';
 
 import { canComment as canCommentExpense, canUsePrivateNotes as canUseExpensePrivateNotes } from './expenses';
-import { canCommentHostApplication } from './host-applications';
+import { canCommentHostApplication, canMakePrivateNoteOnHostApplication } from './host-applications';
 import { checkRemoteUserCanUseComment } from './scope-check';
 import { canSeeUpdate } from './update';
 
@@ -101,6 +101,11 @@ const getCommentPermissionsError = async (req, commentedEntity, commentType) => 
   } else if (commentedEntity instanceof HostApplication) {
     if (!(await canCommentHostApplication(req, commentedEntity as HostApplication))) {
       return new Unauthorized('You do not have the permission to post comments on this host application');
+    } else if (
+      commentType === CommentType.PRIVATE_NOTE &&
+      !(await canMakePrivateNoteOnHostApplication(req, commentedEntity))
+    ) {
+      return new Unauthorized('You need to be a host admin to post comments in this context');
     }
   }
 };

@@ -1,6 +1,7 @@
 import DataLoader from 'dataloader';
 import express from 'express';
 import { set } from 'lodash';
+import { Sequelize } from 'sequelize';
 
 import { ReactionEmoji } from '../../constants/reaction-emoji';
 import models, { Op, sequelize } from '../../models';
@@ -31,16 +32,33 @@ export default {
     ),
 
   countByHostApplication: () => {
-    return new DataLoader<number, number>(async hostApplicationIds => {
-      const counters = await models.Comment.count({
-        attributes: ['HostApplicationId'],
+    return new DataLoader<number, { comments: number; privateNotes: number }>(async hostApplicationIds => {
+      const counters = (await models.Comment.findAll({
+        raw: true,
+        attributes: [
+          ['"HostApplicationId"', '"HostApplicationId"'],
+          [
+            Sequelize.literal(`count("HostApplicationId") filter (where "type" = 'COMMENT'::"enum_Comments_type")`),
+            '"comments"',
+          ],
+          [
+            Sequelize.literal(
+              `count("HostApplicationId") filter (where "type" = 'PRIVATE_NOTE'::"enum_Comments_type")`,
+            ),
+            '"privateNotes"',
+          ],
+        ],
         where: { HostApplicationId: hostApplicationIds },
         group: ['HostApplicationId'],
-      });
+      })) as unknown as { HostApplicationId: number; comments: number; privateNotes: number }[];
 
-      return hostApplicationIds.map(
-        HostApplicationId => counters.find(c => c.HostApplicationId === HostApplicationId)?.count || 0,
-      );
+      return hostApplicationIds.map(HostApplicationId => {
+        const count = counters.find(c => c.HostApplicationId === HostApplicationId);
+        return {
+          comments: count.comments,
+          privateNotes: count.privateNotes,
+        };
+      });
     });
   },
 

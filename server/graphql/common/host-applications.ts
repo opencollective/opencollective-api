@@ -13,3 +13,14 @@ export async function canCommentHostApplication(
 
   return false;
 }
+
+export async function canMakePrivateNoteOnHostApplication(
+  req: Express.Request,
+  hostApplication: HostApplication,
+): Promise<boolean> {
+  if (req.remoteUser.isAdmin(hostApplication.HostCollectiveId)) {
+    return true;
+  }
+
+  return false;
+}
