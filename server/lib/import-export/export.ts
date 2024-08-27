@@ -92,9 +92,8 @@ async function* paginate(model: ModelNames, where: Record<string, any>, order: R
 const hashObject = (obj: Record<string, any>) => crypto.hash(JSON.stringify(obj));
 
 const isTargetWhere = q => {
-  const ks = keys(q.where);
-  const vs = values(q.where);
-  return ks.length === 1 && typeof vs[0] !== 'object';
+  const queryValues = values(q.where);
+  return queryValues.length === 1 && typeof queryValues[0] !== 'object';
 };
 
 /**
