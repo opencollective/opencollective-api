@@ -12,6 +12,8 @@ import { GraphQLOrderCollection } from '../../collection/OrderCollection';
 import { GraphQLAccountOrdersFilter } from '../../enum/AccountOrdersFilter';
 import { GraphQLContributionFrequency } from '../../enum/ContributionFrequency';
 import { GraphQLOrderStatus } from '../../enum/OrderStatus';
+import { GraphQLPaymentMethodService } from '../../enum/PaymentMethodService';
+import { GraphQLPaymentMethodType } from '../../enum/PaymentMethodType';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
 import {
   CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
@@ -62,6 +64,14 @@ export const OrdersCollectionArgs = {
     type: GraphQLPaymentMethodReferenceInput,
     description:
       'Only return orders that were paid with this payment method. Must be an admin of the account owning the payment method.',
+  },
+  paymentMethodService: {
+    type: new GraphQLList(GraphQLPaymentMethodService),
+    description: 'Only return orders that match these payment method services',
+  },
+  paymentMethodType: {
+    type: new GraphQLList(GraphQLPaymentMethodType),
+    description: 'Only return orders that match these payment method types',
   },
   includeIncognito: {
     type: GraphQLBoolean,
@@ -225,6 +235,18 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
       throw new Unauthorized('You must be an admin of the payment method to fetch its orders');
     }
     where['PaymentMethodId'] = paymentMethod.id;
+  }
+
+  // Filter on payment method service/type
+  if (args.paymentMethodService || args.paymentMethodType) {
+    const paymentMethodInclude = { association: 'paymentMethod', required: true, where: {} };
+    if (args.paymentMethodService) {
+      paymentMethodInclude.where['service'] = args.paymentMethodService;
+    }
+    if (args.paymentMethodType) {
+      paymentMethodInclude.where['type'] = args.paymentMethodType;
+    }
+    include.push(paymentMethodInclude);
   }
 
   const isHostAdmin =
