@@ -27,6 +27,7 @@ describe('server/paymentProviders/transferwise/index', () => {
     rate: 0.9044,
     payOut: 'BANK_TRANSFER',
     expirationTime: moment().add(1, 'hour').format(),
+    targetAccount: 123,
     paymentOptions: [
       {
         formattedEstimatedDelivery: 'by March 18th',
@@ -79,7 +80,7 @@ describe('server/paymentProviders/transferwise/index', () => {
       },
     ]);
     createRecipientAccount = sandbox.stub(transferwiseLib, 'createRecipientAccount').resolves({
-      id: 13804569,
+      id: 123,
       accountHolderName: 'Leo Kewitz',
       currency: 'EUR',
       country: 'DE',
@@ -148,6 +149,7 @@ describe('server/paymentProviders/transferwise/index', () => {
     payoutMethod = await fakePayoutMethod({
       type: PayoutMethodTypes.BANK_ACCOUNT,
       data: {
+        id: 123,
         accountHolderName: 'Leo Kewitz',
         currency: 'EUR',
         type: 'iban',
@@ -167,6 +169,7 @@ describe('server/paymentProviders/transferwise/index', () => {
       category: 'Engineering',
       type: 'INVOICE',
       description: 'January Invoice',
+      data: { recipient: payoutMethod.data },
     });
   });
 
@@ -176,7 +179,7 @@ describe('server/paymentProviders/transferwise/index', () => {
     let quote;
     before(async () => {
       getExchangeRates.resolves([{ source: host.currency, target: 'EUR', rate: 0.9044 }]);
-      quote = await transferwise.quoteExpense(connectedAccount, payoutMethod, expense);
+      quote = await transferwise.quoteExpense(connectedAccount, payoutMethod, expense, 123);
     });
 
     it('should assign profileId to connectedAccount', () => {
@@ -196,8 +199,14 @@ describe('server/paymentProviders/transferwise/index', () => {
 
     it('should use existing quote if available', async () => {
       createQuote.resetHistory();
-      await transferwise.quoteExpense(connectedAccount, payoutMethod, expense);
+      await transferwise.quoteExpense(connectedAccount, payoutMethod, expense, 123);
       expect(createQuote.callCount).to.be.equal(0);
+    });
+
+    it('should create a new quote if targetAccount changes', async () => {
+      createQuote.resetHistory();
+      await transferwise.quoteExpense(connectedAccount, payoutMethod, expense, 91828971);
+      expect(createQuote.callCount).to.be.equal(1);
     });
   });
 

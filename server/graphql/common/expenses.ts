@@ -3168,7 +3168,15 @@ export async function quoteExpense(expense_, { req }) {
       throw new Error('Host is not connected to Transferwise');
     }
 
-    const quote = await paymentProviders.transferwise.quoteExpense(connectedAccount, payoutMethod, expense);
+    const recipientId =
+      get(expense.data, 'recipient.payoutMethodId') === payoutMethod.id ? expense.data.recipient?.id : undefined;
+
+    const quote = await paymentProviders.transferwise.quoteExpense(
+      connectedAccount,
+      payoutMethod,
+      expense,
+      recipientId,
+    );
     return quote;
   }
 }

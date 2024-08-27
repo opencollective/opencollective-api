@@ -111,20 +111,25 @@ async function quoteExpense(
 ): Promise<ExpenseDataQuoteV3 | ExpenseDataQuoteV2> {
   await populateProfileId(connectedAccount);
 
+  const existingQuote = expense.data?.quote;
   const isExistingQuoteValid =
     expense.feesPayer !== 'PAYEE' &&
     transferNature === undefined &&
-    expense.data?.quote &&
+    existingQuote &&
     // We want a paymentOption to be there
-    expense.data.quote['paymentOption'] &&
+    existingQuote['paymentOption'] &&
     // We cannot use quotes that don't have a valid paymentOption
-    expense.data.quote['paymentOption'].disabled === false &&
+    existingQuote['paymentOption'].disabled === false &&
+    // Make sure this is not a temporoary quote and it points to the correct Target Account
+    'targetAccount' in existingQuote &&
+    existingQuote.targetAccount === expense.data.recipient?.id &&
+    (targetAccount === undefined || existingQuote.targetAccount === targetAccount) &&
     // We can not reuse quotes if a Transfer was already created
     !expense.data.transfer &&
-    moment.utc().subtract(60, 'seconds').isBefore(expense.data.quote['expirationTime']);
+    moment.utc().subtract(60, 'seconds').isBefore(existingQuote['expirationTime']);
   if (isExistingQuoteValid) {
     logger.debug(`quoteExpense(): reusing existing quote...`);
-    return <ExpenseDataQuoteV3 | ExpenseDataQuoteV2>expense.data.quote;
+    return <ExpenseDataQuoteV3 | ExpenseDataQuoteV2>existingQuote;
   }
 
   expense.collective = expense.collective || (await Collective.findByPk(expense.CollectiveId));
@@ -133,6 +138,7 @@ async function quoteExpense(
   const targetCurrency = payoutMethod.unfilteredData.currency as string;
   const quoteParams = {
     profileId: connectedAccount.data.id,
+    // Attention: sourceCurrency must always be the host currency, we count with this when persisting the Processor Payment Fee
     sourceCurrency: expense.host.currency,
     targetCurrency,
     ...omitBy<Partial<Parameters<typeof transferwise.createQuote>[1]>>(
