@@ -86,7 +86,6 @@ program.command('check-host <hostSlug> [since]').action(async (hostSlug, since) 
       status: 'PAID',
       updatedAt: { [Op.gte]: since },
       data: { transfer: { [Op.ne]: null } },
-      feesPayer: 'COLLECTIVE',
     },
     include: [
       { model: models.Collective, as: 'collective' },

@@ -87,9 +87,9 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
       paymentOption.price.priceDecisionReferenceId !== wisePaymentOption.price?.priceDecisionReferenceId
     ) {
       logger.warn(`Wise updated the payment option for expense ${expense.id}, updating existing values...`);
+      paymentOption = wisePaymentOption;
       const expenseDataQuote = { ...omit(quote, ['paymentOptions']), paymentOption } as ExpenseDataQuoteV3;
       await expense.update({ data: { ...expense.data, quote: expenseDataQuote, paymentOption } });
-      paymentOption = wisePaymentOption;
     }
 
     if (expense.host?.settings?.transferwise?.ignorePaymentProcessorFees) {
