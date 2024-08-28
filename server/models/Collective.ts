@@ -3172,12 +3172,19 @@ class Collective extends Model<
       });
   };
 
-  getAccountForPaymentProvider = async function (provider) {
-    const connectedAccount = await ConnectedAccount.findOne({
+  getAccountForPaymentProvider = async function (provider: Service, options = { throwIfMissing: true }) {
+    let connectedAccount = await ConnectedAccount.findOne({
       where: { service: provider, CollectiveId: this.id },
     });
 
-    if (!connectedAccount) {
+    // If the account is connected to another account, we follow the chain
+    if (connectedAccount?.data?.sameAs) {
+      connectedAccount = await ConnectedAccount.findOne({
+        where: { id: connectedAccount.data.sameAs },
+      });
+    }
+
+    if (options.throwIfMissing && !connectedAccount) {
       throw new Error(`Host ${this.slug} is not connected to ${provider}`);
     }
 

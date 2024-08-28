@@ -39,8 +39,8 @@ program.command('check-expense <expenseId>').action(async expenseId => {
     return printAndExit(`Expense ${expenseId} not found or not paid using Wise.`, 'warn');
   }
 
-  const [connectedAccount] = await expense.host.getConnectedAccounts({
-    where: { service: Service.TRANSFERWISE, deletedAt: null },
+  const connectedAccount = await expense.host.getAccountForPaymentProvider(Service.TRANSFERWISE, {
+    throwIfMissing: false,
   });
   if (!connectedAccount) {
     return printAndExit(`${expense.host.slug} not connected to Wise`, 'error');
@@ -74,9 +74,7 @@ program.command('check-host <hostSlug> [since]').action(async (hostSlug, since) 
   since = since || moment.utc().startOf('year');
   console.log(`Checking expense for host ${hostSlug} since ${since}`);
   const host = await models.Collective.findOne({ where: { slug: hostSlug } });
-  const [connectedAccount] = await host.getConnectedAccounts({
-    where: { service: Service.TRANSFERWISE, deletedAt: null },
-  });
+  const connectedAccount = await host.getAccountForPaymentProvider(Service.TRANSFERWISE);
   if (!connectedAccount) {
     return printAndExit(`${host.slug} not connected to Wise`, 'error');
   }

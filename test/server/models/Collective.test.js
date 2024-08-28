@@ -16,6 +16,7 @@ import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 import {
   fakeActiveHost,
   fakeCollective,
+  fakeConnectedAccount,
   fakeEvent,
   fakeExpense,
   fakeHost,
@@ -1497,6 +1498,29 @@ describe('server/models/Collective', () => {
       it('checks the length (ignoring the HTML)', async () => {
         await expect(fakeCollective({ settings: { customEmailMessage: repeat('<div>x</div>', 499) } })).to.be.fulfilled;
       });
+    });
+  });
+
+  describe('getAccountForPaymentProvider', () => {
+    it('returns the connected account for specific service', async () => {
+      const collective = await fakeCollective();
+      const connectedAccount = await fakeConnectedAccount({ CollectiveId: collective.id, service: 'stripe' });
+
+      const account = await collective.getAccountForPaymentProvider('stripe');
+      expect(account.id).to.equal(connectedAccount.id);
+    });
+
+    it('returns the referenced connected account for specific service', async () => {
+      const collective = await fakeCollective();
+      const connectedAccount = await fakeConnectedAccount({ service: 'transferwise' });
+      await fakeConnectedAccount({
+        CollectiveId: collective.id,
+        service: 'transferwise',
+        data: { sameAs: connectedAccount.id },
+      });
+
+      const account = await collective.getAccountForPaymentProvider('transferwise');
+      expect(account.id).to.equal(connectedAccount.id);
     });
   });
 });

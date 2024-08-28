@@ -15,6 +15,7 @@ import {
   omit,
   omitBy,
   pick,
+  random,
   round,
   set,
   split,
@@ -24,6 +25,7 @@ import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../../constants/activities';
+import { Service } from '../../constants/connected-account';
 import { SupportedCurrency } from '../../constants/currencies';
 import status from '../../constants/expense-status';
 import { TransferwiseError } from '../../graphql/errors';
@@ -51,7 +53,7 @@ import {
 
 import { handleTransferStateChange } from './webhook';
 
-const PROVIDER_NAME = 'transferwise';
+const PROVIDER_NAME = Service.TRANSFERWISE;
 
 const hashObject = obj => crypto.createHash('sha1').update(JSON.stringify(obj)).digest('hex').slice(0, 7);
 const splitCSV = string => compact(split(string, /,\s*/));
@@ -654,10 +656,13 @@ const oauth = {
     CollectiveId: string | number,
     query?: { redirect: string },
   ): Promise<string> {
-    const hash = hashObject({ CollectiveId, userId: user.id });
-    const cacheKey = `transferwise_oauth_${hash}`;
-    await sessionCache.set(cacheKey, { CollectiveId, redirect: query.redirect, UserId: user.id }, 60 * 10);
-    return transferwise.getOAuthUrl(hash);
+    const state = hashObject({ CollectiveId, userId: user.id, nonce: random(100000) });
+    await sessionCache.set(
+      `transferwise_oauth_${state}`,
+      { CollectiveId, redirect: query.redirect, UserId: user.id },
+      60 * 10,
+    );
+    return transferwise.getOAuthUrl(state);
   },
 
   callback: async function (req: express.Request, res: express.Response): Promise<void> {
@@ -683,36 +688,70 @@ const oauth = {
       const collective = await Collective.findByPk(CollectiveId);
       assert(collective, `Could not find Collective #${CollectiveId}`);
 
+      const existingConnectedAccount = await ConnectedAccount.findOne({
+        where: { service: PROVIDER_NAME, CollectiveId },
+      });
       const conflictingConnectedAccount = await ConnectedAccount.findOne({
         where: { hash, CollectiveId: { [Op.ne]: collective.id } },
       });
-      assert(!conflictingConnectedAccount, 'This Wise account is already connected to another collective.');
 
       const accessToken = await transferwise.getOrRefreshToken({ code: code?.toString() });
       const { access_token: token, refresh_token: refreshToken, ...data } = accessToken;
 
-      const existingConnectedAccount = await ConnectedAccount.findOne({
-        where: { service: PROVIDER_NAME, CollectiveId },
-      });
+      // Link to existing connected account if the profileId is already connected to another collective
+      if (conflictingConnectedAccount) {
+        logger.warn(
+          `${collective.slug} connected a Wise account that is already connected to another collective, linking to existing account ${conflictingConnectedAccount.id}`,
+        );
 
-      if (existingConnectedAccount) {
-        await existingConnectedAccount.update({
-          token,
-          refreshToken,
-          data: { ...existingConnectedAccount.data, ...data },
-          hash,
-        });
-      } else {
-        const connectedAccount = await ConnectedAccount.create({
+        // Remove any existing connected account for this collective
+        if (existingConnectedAccount) {
+          await existingConnectedAccount.destroy();
+        }
+        // Create a new empty connected account pointing to the existing one that ports the same credentials
+        await ConnectedAccount.create({
           CollectiveId,
           CreatedByUserId: UserId,
           service: PROVIDER_NAME,
+          token: null,
+          refreshToken: null,
+          hash: hashObject({
+            profileId: toNumber(profileId),
+            service: 'transferwise',
+            sameAs: conflictingConnectedAccount.id,
+          }),
+          data: {
+            sameAs: conflictingConnectedAccount.id,
+          },
+        });
+        // Update the existing connected account where pointing to
+        await conflictingConnectedAccount.update({
           token,
           refreshToken,
-          data,
-          hash,
+          data: { ...conflictingConnectedAccount.data, ...data },
         });
-        await populateProfileId(connectedAccount, toNumber(profileId));
+      }
+      // Otherwise update the existing connected account or create a new one
+      else {
+        if (existingConnectedAccount) {
+          await existingConnectedAccount.update({
+            token,
+            refreshToken,
+            data: { ...existingConnectedAccount.data, ...data },
+            hash,
+          });
+        } else {
+          const connectedAccount = await ConnectedAccount.create({
+            CollectiveId,
+            CreatedByUserId: UserId,
+            service: PROVIDER_NAME,
+            token,
+            refreshToken,
+            data,
+            hash,
+          });
+          await populateProfileId(connectedAccount, toNumber(profileId));
+        }
       }
 
       // Automatically set OTT flag on for European contries and Australia.
@@ -725,6 +764,8 @@ const oauth = {
         set(settings, 'transferwise.ott', true);
         await collective.update({ settings });
       }
+
+      // Clear cached authorization state key
       await sessionCache.delete(cacheKey);
 
       res.redirect(redirectUrl.href);

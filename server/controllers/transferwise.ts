@@ -1,6 +1,7 @@
 import config from 'config';
 import { Request, Response } from 'express';
 
+import { Service } from '../constants/connected-account';
 import expenseStatus from '../constants/expense-status';
 import { getExpenseFees, setTransferWiseExpenseAsProcessing } from '../graphql/common/expenses';
 import { idDecode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
@@ -96,7 +97,7 @@ export async function payBatch(
       res.sendStatus(200);
       // Simulate transfer success in other environments so transactions don't get stuck.
       if (['development', 'staging'].includes(config.env)) {
-        const connectedAccount = await host.getAccountForPaymentProvider('transferwise');
+        const connectedAccount = await host.getAccountForPaymentProvider(Service.TRANSFERWISE);
         logger.debug(`Wise: Simulating transfer success for batch group ${fundResponse.id}`);
         for (const transferId of fundResponse.transferIds) {
           const response = await simulateTransferSuccess(connectedAccount, transferId);

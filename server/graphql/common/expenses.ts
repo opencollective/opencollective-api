@@ -32,6 +32,7 @@ import { v4 as uuid } from 'uuid';
 import { activities, roles } from '../../constants';
 import ActivityTypes from '../../constants/activities';
 import { CollectiveType } from '../../constants/collectives';
+import { Service } from '../../constants/connected-account';
 import { SupportedCurrency } from '../../constants/currencies';
 import { ExpenseFeesPayer } from '../../constants/expense-fees-payer';
 import { ExpenseRoles } from '../../constants/expense-roles';
@@ -1136,7 +1137,7 @@ export const scheduleExpenseForPayment = async (
   }
   // If PayPal, check if host is connected to PayPal
   else if (expense.PayoutMethod.type === PayoutMethodTypes.PAYPAL) {
-    await host.getAccountForPaymentProvider('paypal');
+    await host.getAccountForPaymentProvider(Service.PAYPAL);
   }
 
   const updatedExpense = await expense.update({
@@ -1631,11 +1632,12 @@ export async function createExpense(req: express.Request, expenseData: ExpenseDa
       logger.warn('The legal name should match the bank account holder name (${accountHolderName} ≠ ${legalName})');
     }
 
-    const connectedAccounts =
-      collective.host && (await collective.host.getConnectedAccounts({ where: { service: 'transferwise' } }));
-    if (connectedAccounts?.[0]) {
-      paymentProviders.transferwise.validatePayoutMethod(connectedAccounts[0], payoutMethod);
-      recipient = await paymentProviders.transferwise.createRecipient(connectedAccounts[0], payoutMethod);
+    const connectedAccount =
+      collective.host &&
+      (await collective.host.getAccountForPaymentProvider(Service.TRANSFERWISE, { throwIfMissing: false }));
+    if (connectedAccount) {
+      paymentProviders.transferwise.validatePayoutMethod(connectedAccount[0], payoutMethod);
+      recipient = await paymentProviders.transferwise.createRecipient(connectedAccount[0], payoutMethod);
     }
   }
 
@@ -2655,12 +2657,7 @@ export const getExpenseFees = async (
   const payoutMethodType = payoutMethod ? payoutMethod.type : expense.getPayoutMethodTypeFromLegacy();
 
   if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT) {
-    const [connectedAccount] = await host.getConnectedAccounts({
-      where: { service: 'transferwise', deletedAt: null },
-    });
-    if (!connectedAccount) {
-      throw new Error('Host is not connected to Transferwise');
-    }
+    const connectedAccount = await host.getAccountForPaymentProvider('transferwise');
 
     const existingQuote = expense.data?.quote;
     const existingPaymentOption = existingQuote?.paymentOption;
@@ -3007,12 +3004,7 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
           throw new Error('No Paypal account linked, please reconnect Paypal or pay manually');
         }
       } else if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT) {
-        const [connectedAccount] = await host.getConnectedAccounts({
-          where: { service: 'transferwise', deletedAt: null },
-        });
-        if (!connectedAccount) {
-          throw new Error('Host is not connected to Transferwise');
-        }
+        const connectedAccount = await host.getAccountForPaymentProvider(Service.TRANSFERWISE);
 
         const data = await paymentProviders.transferwise.payExpense(
           connectedAccount,
@@ -3161,12 +3153,7 @@ export async function quoteExpense(expense_, { req }) {
 
   const host = await expense.collective.getHostCollective({ loaders: req.loaders });
   if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT) {
-    const [connectedAccount] = await host.getConnectedAccounts({
-      where: { service: 'transferwise', deletedAt: null },
-    });
-    if (!connectedAccount) {
-      throw new Error('Host is not connected to Transferwise');
-    }
+    const connectedAccount = await host.getAccountForPaymentProvider(Service.TRANSFERWISE);
 
     const recipientId =
       get(expense.data, 'recipient.payoutMethodId') === payoutMethod.id ? expense.data.recipient?.id : undefined;

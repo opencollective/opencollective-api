@@ -121,6 +121,7 @@ const connectedAccountMutations = {
       await twoFactorAuthLib.enforceForAccount(req, collective, { alwaysAskForToken: true });
 
       await connectedAccount.destroy({ force: true });
+      await models.ConnectedAccount.destroy({ where: { data: { sameAs: connectedAccount.id } } });
 
       return connectedAccount;
     },
