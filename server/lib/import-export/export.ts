@@ -184,5 +184,6 @@ export const traverse = async (
 export const getMigrationsHash = async () => {
   const [data] = await sequelize.query('SELECT name FROM "SequelizeMeta" ORDER BY name');
   const migrationNames = data.map(d => d.name);
+  migrationNames.sort();
   return hashObject(migrationNames);
 };

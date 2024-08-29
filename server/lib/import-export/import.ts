@@ -98,7 +98,7 @@ const modelsDeduplicationSchema: Record<ModelNames, { unique?: string[] }> = {
   MigrationLog: {},
   Notification: {},
   OAuthAuthorizationCode: {},
-  Order: { unique: ['totalAmount', 'currency', 'createdAt', 'quantity', 'status', 'interval'] },
+  Order: { unique: ['totalAmount', 'currency', 'createdAt', 'quantity', 'status', 'interval', 'description'] },
   PaymentMethod: { unique: ['uuid'] },
   PayoutMethod: {},
   PaypalPlan: {},
@@ -157,21 +157,24 @@ export const remapPKs = async (dataFile: string): Promise<PKMap> => {
     // If we have a unique constraint, we need to check if the record already exists
     if (modelsDeduplicationSchema[record.model].unique) {
       const where = pick(record, modelsDeduplicationSchema[record.model].unique);
-      const existingRecord = await model.findOne({ where, paranoid: false });
-      if (existingRecord) {
-        // If record exists with same PK, we can mark it for ignoring
-        if (existingRecord[primaryKey] === record[primaryKey]) {
-          debug(`Record ${record.model}#${record[primaryKey]} already exists with same id`);
-          pkMap[record.model][record[primaryKey]] = IGNORE;
-          return;
-        }
-        // Else, we need remap to their existing PK
-        else {
-          debug(
-            `Record ${record.model}#${record[primaryKey]} already exists with different id ${existingRecord[primaryKey]}`,
-          );
-          pkMap[record.model][record[primaryKey]] = existingRecord[primaryKey];
-          return;
+      const hasNonNullValue = Object.values(where).some(value => !!value);
+      if (hasNonNullValue) {
+        const existingRecord = await model.findOne({ where, paranoid: false });
+        if (existingRecord) {
+          // If record exists with same PK, we can mark it for ignoring
+          if (existingRecord[primaryKey] === record[primaryKey]) {
+            debug(`Record ${record.model}#${record[primaryKey]} already exists with same id`);
+            pkMap[record.model][record[primaryKey]] = IGNORE;
+            return;
+          }
+          // Else, we need remap to their existing PK
+          else {
+            debug(
+              `Record ${record.model}#${record[primaryKey]} already exists with different id ${existingRecord[primaryKey]}`,
+            );
+            pkMap[record.model][record[primaryKey]] = existingRecord[primaryKey];
+            return;
+          }
         }
       }
     }
