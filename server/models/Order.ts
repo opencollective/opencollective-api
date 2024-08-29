@@ -403,6 +403,7 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
           'messageSource', :messageSource,
           'needsAsyncDeactivation', :needsAsyncDeactivation,
           'needsAsyncPause', :needsAsyncPause,
+          'needsAsyncReactivation', FALSE,
           'createStatusChangeActivity', :createActivity
         )
       WHERE id IN (
