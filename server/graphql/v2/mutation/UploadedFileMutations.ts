@@ -51,6 +51,7 @@ const uploadedFileMutations = {
       },
       req: Express.Request,
     ): Promise<Array<UploadFileResult>> {
+      const mutationStartDate = new Date();
       if (!req.remoteUser) {
         throw new Error('You need to be logged in to upload files');
       }
@@ -88,12 +89,20 @@ const uploadedFileMutations = {
       return Promise.all(
         args.files.map(async ({ file, kind, parseDocument, parsingOptions }) => {
           // Upload file
+          const uploadStartDate = new Date();
           const uploadStart = performance.now();
           const result: UploadFileResult = { file: null, parsingResult: null };
           result.file = await models.UploadedFile.uploadGraphQl(await file, kind, req.remoteUser);
           const uploadEnd = performance.now();
           const uploadDuration = (uploadEnd - uploadStart) / 1000.0;
-          await result.file.update({ data: { ...result.file.data, uploadStart, uploadEnd, uploadDuration } });
+          await result.file.update({
+            data: {
+              ...result.file.data,
+              mutationStartDate: mutationStartDate.toISOString(),
+              uploadStartDate: uploadStartDate.toISOString(),
+              uploadDuration,
+            },
+          });
 
           // Parse document if requested and we have enough time left
           const timeLeftForParsing = MAX_UPLOAD_TIME - uploadDuration;
