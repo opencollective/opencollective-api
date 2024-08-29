@@ -652,10 +652,15 @@ async function getAccountBalances(
 
 const oauth = {
   redirectUrl: async function (
-    user: { id: number },
+    user: User,
     CollectiveId: string | number,
     query?: { redirect: string },
   ): Promise<string> {
+    if (!this.rolesByCollectiveId) {
+      await user.populateRoles();
+    }
+    assert(user.isAdmin(CollectiveId), 'User must be an admin of the Collective');
+
     const state = hashObject({ CollectiveId, userId: user.id, nonce: random(100000) });
     await sessionCache.set(
       `transferwise_oauth_${state}`,
@@ -702,6 +707,12 @@ const oauth = {
       if (conflictingConnectedAccount) {
         logger.warn(
           `${collective.slug} connected a Wise account that is already connected to another collective, linking to existing account ${conflictingConnectedAccount.id}`,
+        );
+        const user = await User.findByPk(UserId);
+        await user.populateRoles();
+        assert(
+          user.isAdmin(conflictingConnectedAccount.CollectiveId),
+          'This account is already connected to another Collective, make sure you have the right permissions on the other Collective.',
         );
 
         // Remove any existing connected account for this collective

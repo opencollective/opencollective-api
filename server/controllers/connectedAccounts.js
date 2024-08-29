@@ -125,6 +125,7 @@ export const disconnect = async (req, res) => {
       const account = connectedAccounts.find(ca => ca.CreatedByUserId === remoteUser.id);
       assert(account, 'No connected account found for this user');
       await account.destroy();
+      await models.ConnectedAccount.destroy({ where: { data: { sameAs: account.id } } });
     } else {
       const account = await models.ConnectedAccount.findOne({
         where: { service, CollectiveId },
@@ -132,6 +133,7 @@ export const disconnect = async (req, res) => {
 
       if (account) {
         await account.destroy();
+        await models.ConnectedAccount.destroy({ where: { data: { sameAs: account.id } } });
       }
     }
 
