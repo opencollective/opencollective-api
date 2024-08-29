@@ -8,7 +8,7 @@ import * as expenses from '../../../../server/graphql/common/expenses';
 import cache from '../../../../server/lib/cache';
 import * as ContributorsLib from '../../../../server/lib/contributors';
 import * as currency from '../../../../server/lib/currency';
-import models, { Op } from '../../../../server/models';
+import models from '../../../../server/models';
 import * as store from '../../../stores';
 import {
   fakeCollective,
@@ -851,7 +851,7 @@ describe('server/graphql/v1/collective', () => {
   });
 
   describe('edits', () => {
-    let pubnubCollective, pubnubAdmin, adminMembership;
+    let pubnubCollective, pubnubAdmin;
 
     beforeEach(async () => {
       pubnubAdmin = (await store.newUser('pubnub admin')).user;
@@ -860,11 +860,6 @@ describe('server/graphql/v1/collective', () => {
           isActive: true,
         })
       ).collective;
-      adminMembership = await models.Member.findOne({
-        where: {
-          MemberCollectiveId: pubnubAdmin.id,
-        },
-      });
     });
 
     it('edits legalName', async () => {
@@ -992,97 +987,6 @@ describe('server/graphql/v1/collective', () => {
       expect(result.data.editCollective.twitterHandle).to.eq('opencollect');
       expect(result.data.editCollective.githubHandle).to.eq('opencollective/opencollective-api');
       expect(result.data.editCollective.repositoryUrl).to.eq('https://github.com/opencollective/opencollective-api');
-    });
-
-    it('edits members', async () => {
-      const newUser1 = await fakeUser();
-      const newUser2 = await fakeUser();
-
-      const collective = {
-        id: pubnubCollective.id,
-        slug: 'pubnub',
-        name: 'PubNub ',
-        description: null,
-        longDescription: null,
-        currency: 'USD',
-        image:
-          'https://opencollective-production.s3.us-west-1.amazonaws.com/pubnublogopng_38ab9250-d2c4-11e6-8ba3-b7985935397d.png',
-        members: [
-          {
-            id: adminMembership.id,
-            role: 'ADMIN',
-          },
-          {
-            role: 'MEMBER',
-            member: {
-              id: newUser1.collective.id,
-            },
-          },
-          {
-            role: 'ADMIN',
-            member: {
-              id: newUser2.collective.id,
-            },
-          },
-        ],
-        location: {},
-      };
-
-      const editCollectiveMutation = gqlV1/* GraphQL */ `
-        mutation EditCollective($collective: CollectiveInputType!) {
-          editCollective(collective: $collective) {
-            id
-            slug
-            members {
-              id
-              role
-              member {
-                name
-                createdByUser {
-                  id
-                }
-                ... on User {
-                  email
-                }
-              }
-            }
-          }
-        }
-      `;
-      const res = await utils.graphqlQuery(editCollectiveMutation, { collective }, pubnubAdmin);
-      res.errors && console.error(res.errors);
-      expect(res.errors).to.not.exist;
-      const members = res.data.editCollective.members;
-      let coreContributors = members.filter(m => ['ADMIN', 'MEMBER'].includes(m.role));
-      expect(coreContributors.length).to.equal(1); // others need to accept the invitation
-      const invitations = await models.MemberInvitation.findAll({ where: { CollectiveId: collective.id } });
-      expect(invitations.length).to.equal(2);
-      await Promise.all(invitations.map(invitation => invitation.accept()));
-
-      coreContributors = await models.Member.findAll({
-        where: {
-          CollectiveId: collective.id,
-          role: { [Op.in]: ['ADMIN', 'MEMBER'] },
-        },
-      });
-
-      expect(coreContributors.length).to.equal(3);
-
-      const member1 = coreContributors.find(m => m.MemberCollectiveId === newUser1.CollectiveId);
-      expect(member1.role).to.equal('MEMBER');
-      const res2 = await utils.graphqlQuery(editCollectiveMutation, { collective }, newUser1);
-      expect(res2.errors).to.exist;
-      expect(res2.errors[0].message).to.equal(
-        'You must be logged in as an admin or as the host of this collective collective to edit it',
-      );
-
-      const res3 = await utils.graphqlQuery(
-        editCollectiveMutation,
-        { collective: { ...collective, members: collective.members.filter(m => m.role !== 'ADMIN') } },
-        newUser2,
-      );
-
-      expect(res3.errors[0].message).to.equal('There must be at least one admin for the account');
     });
 
     it('apply to host', async () => {

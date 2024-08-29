@@ -25,7 +25,6 @@ import {
 import { editConnectedAccount } from './mutations/connectedAccounts';
 import { createWebhook, deleteNotification, editWebhooks } from './mutations/notifications';
 import * as paymentMethodsMutation from './mutations/paymentMethods';
-import { editTier, editTiers } from './mutations/tiers';
 import { updateUserEmail } from './mutations/users';
 import { CollectiveInterfaceType } from './CollectiveInterface';
 import {
@@ -34,10 +33,9 @@ import {
   MemberInputType,
   NotificationInputType,
   StripeCreditCardDataInputType,
-  TierInputType,
   UserInputType,
 } from './inputTypes';
-import { ConnectedAccountType, MemberType, NotificationType, PaymentMethodType, TierType, UserType } from './types';
+import { ConnectedAccountType, MemberType, NotificationType, PaymentMethodType, UserType } from './types';
 
 const mutations = {
   createCollective: {
@@ -184,31 +182,6 @@ const mutations = {
     },
     resolve(_, args, req) {
       return editConnectedAccount(req, args.connectedAccount);
-    },
-  },
-  editTier: {
-    type: TierType,
-    description: 'Update a single tier',
-    deprecationReason: '2024-07-16: Please use editTiers mutation from GraphQLV2',
-    args: {
-      tier: {
-        type: new GraphQLNonNull(TierInputType),
-        description: 'The tier to update',
-      },
-    },
-    resolve(_, args, req) {
-      return editTier(_, args, req);
-    },
-  },
-  editTiers: {
-    type: new GraphQLList(TierType),
-    deprecationReason: '2024-07-16: Please use editTiers mutation from GraphQLV2',
-    args: {
-      id: { type: new GraphQLNonNull(GraphQLInt) },
-      tiers: { type: new GraphQLList(TierInputType) },
-    },
-    resolve(_, args, req) {
-      return editTiers(_, args, req);
     },
   },
   editCoreContributors: {
