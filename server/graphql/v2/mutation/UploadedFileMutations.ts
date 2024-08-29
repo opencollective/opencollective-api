@@ -91,9 +91,11 @@ const uploadedFileMutations = {
           const uploadStart = performance.now();
           const result: UploadFileResult = { file: null, parsingResult: null };
           result.file = await models.UploadedFile.uploadGraphQl(await file, kind, req.remoteUser);
+          const uploadEnd = performance.now();
+          const uploadDuration = (uploadEnd - uploadStart) / 1000.0;
+          await result.file.update({ data: { ...result.file.data, uploadStart, uploadEnd, uploadDuration } });
 
           // Parse document if requested and we have enough time left
-          const uploadDuration = (performance.now() - uploadStart) / 1000.0;
           const timeLeftForParsing = MAX_UPLOAD_TIME - uploadDuration;
           if (parseDocument && timeLeftForParsing > 2e3) {
             result.parsingResult = await runOCRForExpenseFile(parser, result.file, {
