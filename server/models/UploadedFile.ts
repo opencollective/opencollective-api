@@ -36,8 +36,8 @@ type CommonDataShape = {
   completedAt?: string;
   /** A checksum of the content as returned by Amazon S3 (cannot be computed locally since we use server-side encryption) */
   s3SHA256?: string;
-  uploadStart?: number;
-  uploadEnd?: number;
+  mutationStartDate?: string;
+  uploadStartDate?: string;
   uploadDuration?: number; // in seconds
   ocrData?: {
     type: 'Expense';
