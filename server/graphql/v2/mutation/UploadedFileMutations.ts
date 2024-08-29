@@ -26,6 +26,10 @@ const GraphQLUploadFileResult = new GraphQLObjectType({
   }),
 });
 
+// The maximum time we allow for uploading + parsing a file. After that delay, any pending parsing will be ignored (and finished in the background)
+// and files will be returned directly.
+const MAX_UPLOAD_TIME = 10e3;
+
 const uploadedFileMutations = {
   uploadFile: {
     type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLUploadFileResult))),
@@ -83,11 +87,14 @@ const uploadedFileMutations = {
       const parser = useOCR ? getExpenseOCRParser(req.remoteUser) : null;
       return Promise.all(
         args.files.map(async ({ file, kind, parseDocument, parsingOptions }) => {
+          // Upload file
           const uploadStart = performance.now();
           const result: UploadFileResult = { file: null, parsingResult: null };
           result.file = await models.UploadedFile.uploadGraphQl(await file, kind, req.remoteUser);
+
+          // Parse document if requested and we have enough time left
           const uploadDuration = (performance.now() - uploadStart) / 1000.0;
-          const timeLeftForParsing = 25e3 - uploadDuration; // GraphQL queries timeout after 25s
+          const timeLeftForParsing = MAX_UPLOAD_TIME - uploadDuration;
           if (parseDocument && timeLeftForParsing > 2e3) {
             result.parsingResult = await runOCRForExpenseFile(parser, result.file, {
               ...parsingOptions,
