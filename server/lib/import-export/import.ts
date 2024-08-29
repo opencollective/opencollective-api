@@ -75,9 +75,7 @@ const getNextPK = async model => {
  */
 const modelsDeduplicationSchema: Record<ModelNames, { unique?: string[] }> = {
   AccountingCategory: {},
-  Activity: {
-    unique: ['type', 'createdAt'],
-  },
+  Activity: {},
   Agreement: {},
   Application: {},
   Collective: { unique: ['slug'] },
