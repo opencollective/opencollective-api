@@ -154,7 +154,6 @@ type Settings = {
   transferwise?: {
     ignorePaymentProcessorFees?: boolean;
     ott?: boolean;
-    isolateUsers?: boolean;
     blockedPaymentMethodTypes?: string[];
   };
   virtualcards?: {

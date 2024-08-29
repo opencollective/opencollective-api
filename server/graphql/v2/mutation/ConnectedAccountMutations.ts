@@ -110,12 +110,6 @@ const connectedAccountMutations = {
       const collective = await req.loaders.Collective.byId.load(connectedAccount.CollectiveId);
       if (!req.remoteUser.isAdminOfCollective(collective)) {
         throw new Unauthorized("You don't have permission to edit this collective");
-      } else if (
-        connectedAccount.service === 'transferwise' &&
-        collective.settings?.transferwise?.isolateUsers &&
-        req.remoteUser.id !== connectedAccount.CreatedByUserId
-      ) {
-        throw new Unauthorized("You don't have permission to edit this connected account");
       }
 
       await twoFactorAuthLib.enforceForAccount(req, collective, { alwaysAskForToken: true });
