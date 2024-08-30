@@ -24,7 +24,13 @@ export default async function (app) {
   app.use(
     helmet({
       // It's currently breaking GraphQL playgrounds, to consider when activating this
-      contentSecurityPolicy: false,
+      contentSecurityPolicy: {
+        useDefaults: false,
+        directives: {
+          defaultSrc: ["'none'"], // Disallow all sources by default
+          upgradeInsecureRequests: [], // Automatically upgrade HTTP requests to HTTPS
+        },
+      },
     }),
   );
 
