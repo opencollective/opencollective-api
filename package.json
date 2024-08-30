@@ -249,6 +249,7 @@
     "test:clean-db-snapshots": "rm -rf test/dbdumps/snapshots/*",
     "test:update-db-snapshots": "npm run test:clean-db-snapshots && UPDATE_DB_SNAPSHOTS=true npm run test $(grep -rH 'getOrCreateDBSnapshot' --include='*.test.js' --include='*.test.ts' . | cut -d ':' -f 1 | uniq)",
     "test:clean": "rm -rf .nyc_output coverage",
+    "test:generate": "./scripts/dev/create-test.sh $1",
     "test:graphql": "npm run test test/server/graphql",
     "test:lib": "npm run test test/server/lib",
     "test:models": "npm run test test/server/models",

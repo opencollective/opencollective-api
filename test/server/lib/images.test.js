@@ -37,6 +37,8 @@ describe('server/lib/images', () => {
         expect(isValidUploadedImage('https://valid-bucket.s3xus-west-1.amazonaws.com/image.jpg')).to.be.false;
         expect(isValidUploadedImage('https://valid-bucketxs3.us-west-1.amazonaws.com/image.jpg')).to.be.false;
         expect(isValidUploadedImage('https://valid-bucket.s3-us-west-1.amazonaws.com/image.jpg')).to.be.false; // Legacy pattern, not supported anymore
+        expect(isValidUploadedImage('https://valid-bucket.s3.us-west-1.amazonaws.com@maliciousdomain.com/image.jpg')).to
+          .be.false;
       });
     });
   });
