@@ -49,6 +49,13 @@ export default class RateLimit {
     }
   }
 
+  // Same as registerCall but throws an error if the limit has been reached
+  public async registerCallOrThrow(nbCalls = 1): Promise<void> {
+    if (!(await this.registerCall(nbCalls))) {
+      throw new Error('Rate limit reached');
+    }
+  }
+
   /** Resets the limit */
   public async reset() {
     return sessionCache.delete(this.cacheKey);
