@@ -137,7 +137,7 @@ ExpenseItem.init(
       allowNull: true,
     },
     url: {
-      type: DataTypes.STRING,
+      type: DataTypes.STRING(1200),
       allowNull: true,
       set(value: string | null): void {
         // Make sure empty strings are converted to null
