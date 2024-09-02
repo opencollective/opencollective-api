@@ -85,7 +85,10 @@ program.command('check <since> <until> [hosts]').action(async (since, until, hos
             },
           };
           if (IS_DRY) {
-            console.log(`\t\tDRY RUN: Would have updated expense.data.${MIGRATION_DATA_KEY} with`, addedData);
+            console.log(
+              `\t\tDRY RUN: Would have updated expense.data.${MIGRATION_DATA_KEY} with`,
+              JSON.stringify(addedData, null, 2),
+            );
           } else {
             await expense.update({
               data: {
@@ -190,6 +193,12 @@ program.command('fix [hosts]').action(async hosts => {
           paymentProcessorFeeInHostCurrency: feesInHostCurrency.paymentProcessorFeeInHostCurrency,
         };
 
+        assert.equal(
+          Math.abs(paymentOption.sourceAmount - paymentProcessorFeeData.paymentProcessorFeeInHostCurrency),
+          Math.abs(originalDebitTransaction.amountInHostCurrency),
+          'Net source amount should match original debit transaction amount',
+        );
+
         if (IS_DRY) {
           console.log(
             `\tDRY RUN: Would have deleted refund transactions for expense #${expense.id} and updated fees with:`,
@@ -210,7 +219,7 @@ program.command('fix [hosts]').action(async hosts => {
               ...originalDebitTransaction.toJSON(),
               ...paymentProcessorFeeData,
             },
-            pick(expense.data, ['fund']),
+            { ...pick(expense.data, ['fund']), fixedBy: 'wise/check-fees' },
           );
         }
 
