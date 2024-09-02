@@ -70,8 +70,15 @@ const checkPaymentProcessorFee = ({ expense, quote }) => {
   assert.equal(expense.data.paymentOption.fee.total, paymentOption.fee.total, `Fee mismatch`);
 };
 
-program.command('check-host <hostSlug> [since]').action(async (hostSlug, since) => {
-  since = since || moment.utc().startOf('year');
+program.command('check-host <hostSlug> [since] [until]').action(async (hostSlug, since, until) => {
+  since = moment.utc(since);
+  if (!since.isValid()) {
+    since = moment.utc().startOf('year').format();
+  }
+  until = moment.utc(until);
+  if (!until.isValid()) {
+    until = moment.utc().format();
+  }
   console.log(`Checking expense for host ${hostSlug} since ${since}`);
   const host = await models.Collective.findOne({ where: { slug: hostSlug } });
   const [connectedAccount] = await host.getConnectedAccounts({
@@ -84,7 +91,7 @@ program.command('check-host <hostSlug> [since]').action(async (hostSlug, since) 
     where: {
       HostCollectiveId: host.id,
       status: 'PAID',
-      updatedAt: { [Op.gte]: since },
+      createdAt: { [Op.between]: [since, until] },
       data: { transfer: { [Op.ne]: null } },
     },
     include: [
