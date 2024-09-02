@@ -210,7 +210,7 @@ program.command('fix [hosts]').action(async hosts => {
               ...originalDebitTransaction.toJSON(),
               ...paymentProcessorFeeData,
             },
-            pick(expense.data, ['fund']),
+            { ...pick(expense.data, ['fund']), fixedBy: 'wise/check-fees' },
           );
         }
 
