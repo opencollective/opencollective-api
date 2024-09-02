@@ -28,7 +28,7 @@ import { md5 } from '../server/lib/utils';
 import models, { sequelize } from '../server/models';
 
 const program = new Command();
-const nop = () => undefined;
+
 const exec = cmd => {
   try {
     execSync(cmd, { stdio: 'inherit' });
@@ -150,8 +150,6 @@ program.command('restore <file>').action(async file => {
   exec(`psql -h localhost -U opencollective ${database} < ${tempImportDir}/migrations.sql`);
   logger.info(`>>> DB Created! in ${moment(start).fromNow(true)}`);
 
-  await sequelize.sync().catch(nop);
-
   const transaction = await (sequelize as Sequelize).transaction();
 
   const modelsArray: ModelStatic<SequelizeModel>[] = Object.values(models);
@@ -253,8 +251,6 @@ program.command('merge <file>').action(async file => {
     );
     process.exit(1);
   }
-
-  await sequelize.sync().catch(nop);
 
   const transaction = await (sequelize as Sequelize).transaction();
   let err,
