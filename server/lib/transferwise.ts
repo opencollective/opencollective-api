@@ -274,7 +274,7 @@ export const getQuote = async (connectedAccount: ConnectedAccount, quoteId: stri
     {
       connectedAccount,
     },
-    'There was an error while fetching the quote on Wise',
+    'There was an error while creating the quote on Wise',
   );
 };
 

@@ -119,7 +119,7 @@ export const getPaidTaxTransactions = async (
 /**
  * From a payout provider response, compute all amounts and FX rates in their proper currency
  */
-export const computeExpenseAmounts = async (
+const computeExpenseAmounts = async (
   expense: Expense,
   hostCurrency: string,
   expenseToHostFxRate: number,
