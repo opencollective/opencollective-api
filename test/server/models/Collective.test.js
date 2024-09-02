@@ -28,6 +28,7 @@ import {
   fakeProject,
   fakeTransaction,
   fakeUser,
+  multiple,
   randStr,
 } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
@@ -1518,6 +1519,7 @@ describe('server/models/Collective', () => {
         service: 'transferwise',
         data: { sameAs: connectedAccount.id },
       });
+      await multiple(fakeConnectedAccount, 2, { service: 'transferwise' });
 
       const account = await collective.getAccountForPaymentProvider('transferwise');
       expect(account.id).to.equal(connectedAccount.id);
