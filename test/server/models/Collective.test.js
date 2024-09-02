@@ -1517,7 +1517,7 @@ describe('server/models/Collective', () => {
       await fakeConnectedAccount({
         CollectiveId: collective.id,
         service: 'transferwise',
-        data: { sameAs: connectedAccount.id },
+        data: { MirrorConnectedAccountId: connectedAccount.id },
       });
       await multiple(fakeConnectedAccount, 2, { service: 'transferwise' });
 

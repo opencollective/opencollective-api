@@ -729,10 +729,10 @@ const oauth = {
           hash: hashObject({
             profileId: toNumber(profileId),
             service: 'transferwise',
-            sameAs: conflictingConnectedAccount.id,
+            MirrorConnectedAccountId: conflictingConnectedAccount.id,
           }),
           data: {
-            sameAs: conflictingConnectedAccount.id,
+            MirrorConnectedAccountId: conflictingConnectedAccount.id,
           },
         });
         // Update the existing connected account where pointing to

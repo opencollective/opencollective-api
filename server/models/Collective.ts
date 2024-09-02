@@ -3177,9 +3177,9 @@ class Collective extends Model<
     });
 
     // If the account is connected to another account, we follow the chain
-    if (connectedAccount?.data?.sameAs) {
+    if (connectedAccount?.data?.MirrorConnectedAccountId) {
       connectedAccount = await ConnectedAccount.findOne({
-        where: { id: connectedAccount.data.sameAs },
+        where: { id: connectedAccount.data.MirrorConnectedAccountId },
       });
     }
 

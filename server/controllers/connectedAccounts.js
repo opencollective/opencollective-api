@@ -121,7 +121,7 @@ export const disconnect = async (req, res) => {
 
     if (account) {
       await account.destroy();
-      await models.ConnectedAccount.destroy({ where: { data: { sameAs: account.id } } });
+      await models.ConnectedAccount.destroy({ where: { data: { MirrorConnectedAccountId: account.id } } });
     }
 
     res.send({
