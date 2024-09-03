@@ -362,6 +362,8 @@ export default async app => {
    */
   app.post('/contact/send-message', email.messageSupport);
 
+  // TODO: This sanitizer only applies to the routes below. It uses sanitize-html & some custom logic to remove all HTML tags.
+  // It's not a good idea to use it globally, as it can break some routes that expect HTML content. We should aim at removing it.
   app.use(sanitizer()); // note: this break /webhooks/mailgun /graphiql
 
   /**
