@@ -120,6 +120,10 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Reques
         type: GraphQLString,
         description: 'Longer description for this expense',
       },
+      reference: {
+        type: GraphQLString,
+        description: 'Invoice reference number or any other identifier provided in the invoice',
+      },
       amount: {
         type: new GraphQLNonNull(GraphQLInt),
         description: "Total amount of the expense (sum of the item's amounts).",
