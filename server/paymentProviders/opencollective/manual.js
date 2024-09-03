@@ -2,7 +2,6 @@ import { pick } from 'lodash';
 
 import { maxInteger } from '../../constants/math';
 import { TransactionTypes } from '../../constants/transactions';
-import { FEATURE, hasOptedInForFeature } from '../../lib/allowed-features';
 import { getFxRate } from '../../lib/currency';
 import {
   createRefundTransaction,
@@ -35,12 +34,6 @@ async function getBalance() {
 async function processOrder(order) {
   // gets the Credit transaction generated
   const host = await order.collective.getHostCollective();
-
-  if (host.currency !== order.currency && !hasOptedInForFeature(host, FEATURE.CROSS_CURRENCY_MANUAL_TRANSACTIONS)) {
-    throw Error(
-      `Cannot manually record a transaction in a different currency than the currency of the host ${host.currency}`,
-    );
-  }
 
   // In some tests, we don't have an order.paymentMethod set ...
   if (!order.paymentMethod) {
