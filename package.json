@@ -110,7 +110,7 @@
     "p-queue": "6.6.2",
     "passport": "0.7.0",
     "passport-github": "1.1.0",
-    "paypal-adaptive": "0.4.2",
+    "@opencollective/paypal-adaptive": "2.0.0",
     "pg": "8.12.0",
     "pg-connection-string": "2.6.4",
     "pg-format": "1.0.4",

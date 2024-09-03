@@ -1,7 +1,7 @@
+import Paypal from '@opencollective/paypal-adaptive';
 import config from 'config';
 import debug from 'debug';
 import { get } from 'lodash';
-import Paypal from 'paypal-adaptive';
 
 const debugPaypal = debug('paypal');
 
@@ -13,9 +13,7 @@ const paypalAdaptiveClient = new Paypal({
   sandbox: config.env !== 'production',
 });
 
-const paypalAdaptive = {};
-
-paypalAdaptive.callPaypal = (endpointName, payload) => {
+const callPaypal = (method, payload) => {
   // Needs to be included in every call to PayPal
   const requestEnvelope = {
     errorLanguage: 'en_US',
@@ -24,10 +22,10 @@ paypalAdaptive.callPaypal = (endpointName, payload) => {
 
   // Note you can't use Promise.promisify because error details are in the response,
   // not always in the err
-  debugPaypal(`Paypal ${endpointName} payload: ${JSON.stringify(payload)}`); // leave this in permanently
+  debugPaypal(`Paypal ${method} payload: ${JSON.stringify(payload)}`); // leave this in permanently
   return new Promise((resolve, reject) => {
-    paypalAdaptiveClient[endpointName](Object.assign({}, payload, { requestEnvelope }), (err, res) => {
-      debugPaypal(`Paypal ${endpointName} response: ${JSON.stringify(res)}`); // leave this in permanently
+    method(Object.assign({}, payload, { requestEnvelope }), (err, res) => {
+      debugPaypal(`Paypal ${method} response: ${JSON.stringify(res)}`); // leave this in permanently
       if (get(res, 'responseEnvelope.ack') === 'Failure') {
         if (res.error[0].errorId === '579024') {
           return reject(
@@ -40,7 +38,7 @@ paypalAdaptive.callPaypal = (endpointName, payload) => {
         }
       }
       if (err) {
-        debugPaypal(`Paypal ${endpointName} error: ${JSON.stringify(err)}`); // leave this in permanently
+        debugPaypal(`Paypal ${method} error: ${JSON.stringify(err)}`); // leave this in permanently
         if (err.code === 'ENOTFOUND' && err.syscall === 'getaddrinfo') {
           return reject(new Error(`Unable to reach ${err.hostname}`));
         }
@@ -52,12 +50,18 @@ paypalAdaptive.callPaypal = (endpointName, payload) => {
   });
 };
 
-paypalAdaptive.pay = payload => paypalAdaptive.callPaypal('pay', payload);
-paypalAdaptive.paymentDetails = payload => paypalAdaptive.callPaypal('paymentDetails', payload);
-/** @returns {{httpStatusCode: number, paymentExecStatus: string, responseEnvelope: { ack: string, build: string, timestamp: string, correlationId: string }, payErrorList?: Array<{ error: { message: string }}> }} */
-paypalAdaptive.executePayment = payKey => paypalAdaptive.callPaypal('executePayment', { payKey });
-paypalAdaptive.preapproval = payload => paypalAdaptive.callPaypal('preapproval', payload);
-paypalAdaptive.preapprovalDetails = preapprovalKey =>
-  paypalAdaptive.callPaypal('preapprovalDetails', { preapprovalKey });
+const paypalAdaptive = {
+  pay: payload => callPaypal(paypalAdaptiveClient.pay, payload),
+  paymentDetails: payload => callPaypal(paypalAdaptiveClient.paymentDetails, payload),
+  executePayment: (payKey: string) =>
+    callPaypal(paypalAdaptiveClient.executePayment, { payKey }) as Promise<{
+      httpStatusCode: number;
+      paymentExecStatus: string;
+      responseEnvelope: { ack: string; build: string; timestamp: string; correlationId: string };
+      payErrorList?: Array<{ error: { message: string } }>;
+    }>,
+  preapproval: payload => callPaypal(paypalAdaptiveClient.preapproval, payload),
+  preapprovalDetails: preapprovalKey => callPaypal(paypalAdaptiveClient.preapprovalDetails, { preapprovalKey }),
+};
 
 export default paypalAdaptive;
