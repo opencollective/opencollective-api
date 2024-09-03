@@ -20,7 +20,11 @@ const sanitizeHelper = value => {
     const res = sanitize(value, { allowedTags: [] });
     return res.replace(/&amp;/g, '&');
   } else if (typeof value === 'object') {
-    value = mapValues(value, val => sanitizeHelper(val));
+    if (Array.isArray(value)) {
+      value = value.map(sanitizeHelper);
+    } else {
+      value = mapValues(value, val => sanitizeHelper(val));
+    }
   }
   return value;
 };
