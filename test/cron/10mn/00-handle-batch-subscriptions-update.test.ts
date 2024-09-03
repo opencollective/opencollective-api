@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { assert, createSandbox } from 'sinon';
 
-import { run as runCronJob } from '../../../cron/hourly/70-handle-batch-subscriptions-update';
+import { run as runCronJob } from '../../../cron/10mn/00-handle-batch-subscriptions-update';
 import { activities } from '../../../server/constants';
 import OrderStatuses from '../../../server/constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../server/constants/paymentMethods';
@@ -69,7 +69,7 @@ const fakeStripeSubscriptionOrder = async (collective: Collective, orderData: Or
   );
 };
 
-describe('cron/hourly/70-handle-batch-subscriptions-update', () => {
+describe('cron/10mn/00-handle-batch-subscriptions-update', () => {
   let sandbox, host;
 
   beforeEach(async () => {
