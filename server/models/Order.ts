@@ -371,7 +371,7 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
    * The only type of contributions that can be transferred are non-Stripe Connect credit card subscriptions.
    * In the future, we could add support for recurring contributions between children and parent collectives.
    *
-   * Note: the linked subscriptions will be cancelled in `cron/hourly/70-handle-batch-subscriptions-update.ts`.
+   * Note: the linked subscriptions will be cancelled in `cron/10mn/00-handle-batch-subscriptions-update.ts`.
    */
   static async stopActiveSubscriptions(
     collectiveId: number,
