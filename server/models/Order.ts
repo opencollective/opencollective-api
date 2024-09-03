@@ -401,6 +401,7 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
         "data" = COALESCE("data", '{}'::JSONB) || JSONB_BUILD_OBJECT(
           'messageForContributors', :messageForContributors,
           'messageSource', :messageSource,
+          'pausedBy', :pausedBy,
           'needsAsyncDeactivation', :needsAsyncDeactivation,
           'needsAsyncPause', :needsAsyncPause,
           'needsAsyncReactivation', FALSE,
@@ -426,6 +427,7 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
           collectiveId,
           newStatus,
           messageSource: messageSource || '',
+          pausedBy: newStatus === OrderStatus.PAUSED ? messageSource : null,
           needsAsyncDeactivation: paymentProviderAction === 'CANCEL',
           needsAsyncPause: paymentProviderAction === 'PAUSE',
           createActivity,
