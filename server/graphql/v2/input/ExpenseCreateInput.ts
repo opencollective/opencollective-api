@@ -80,6 +80,10 @@ export const getExpenseCreateInputFields = (): GraphQLInputFieldConfigMap => ({
     type: GraphQLAccountingCategoryReferenceInput,
     description: 'The accounting category this expense belongs to',
   },
+  reference: {
+    type: GraphQLString,
+    description: 'Invoice reference number or any other identifier provided in the invoice',
+  },
 });
 
 /**

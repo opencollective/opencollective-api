@@ -99,6 +99,7 @@ const mutationExpenseFields = gql`
     invoiceInfo
     amount
     description
+    reference
     type
     amountV2 {
       valueInCents
@@ -406,6 +407,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         ...getValidExpenseData(),
         payee: { legacyId: payee.id },
         accountingCategory: { id: encodedAccountingCategoryId },
+        reference: '123456',
       };
 
       const result = await graphqlQueryV2(
@@ -422,6 +424,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       const createdExpense = result.data.createExpense;
       expect(createdExpense.invoiceInfo).to.eq(expenseData.invoiceInfo);
       expect(createdExpense.amount).to.eq(4200);
+      expect(createdExpense.reference).to.eq('123456');
       expect(createdExpense.payee.legacyId).to.eq(payee.id);
       expect(createdExpense.payeeLocation).to.deep.equal(expenseData.payeeLocation);
       expect(createdExpense.customData.myCustomField).to.eq('myCustomValue');
@@ -1629,6 +1632,14 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(result.data.editExpense.payeeLocation).to.deep.equal(updatedExpenseData.payeeLocation);
     });
 
+    it('updates the reference', async () => {
+      const expense = await fakeExpense({ reference: 'Base reference' });
+      const updatedExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), reference: 'Edited reference' };
+      const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, expense.User);
+      result.errors && console.error(result.errors);
+      expect(result.data.editExpense.reference).to.deep.equal('Edited reference');
+    });
+
     describe('DRAFT', () => {
       it('allows a logged in user to submit a DRAFT intended for them', async () => {
         const anotherUser = await fakeUser();
@@ -1649,6 +1660,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const updatedExpenseData = {
           id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
           description: 'This is a test.',
+          reference: 'DRAFT-123',
           payee: {
             legacyId: anotherUser.collective.id,
           },
@@ -1666,6 +1678,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.data.editExpense.description).to.equal(updatedExpenseData.description);
         expect(result.data.editExpense.payee.legacyId).to.equal(anotherUser.collective.id);
         expect(result.data.editExpense.customData).to.deep.equal(expense.data.customData);
+        expect(result.data.editExpense.reference).to.deep.equal('DRAFT-123');
         expect(result.data.editExpense.taxes).to.deep.equal([{ id: 'VAT', type: 'VAT', rate: 0.055 }]);
       });
 
@@ -1676,6 +1689,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const updatedExpenseData = {
           id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
           description: 'This is a test.',
+          reference: 'DRAFT-123',
           payee: {
             name: 'New Folk',
             email: randEmail(),
@@ -1701,6 +1715,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         result.errors && console.error(result.errors);
         expect(result.errors).to.not.exist;
 
+        expect(result.data.editExpense.reference).to.deep.equal('DRAFT-123');
         expect(result.data.editExpense.description).to.equal(updatedExpenseData.description);
         expect(result.data.editExpense.payee.slug).to.equal(updatedExpenseData.payee.organization.slug);
         expect(result.data.editExpense.status).to.equal(expenseStatus.UNVERIFIED);
@@ -1766,6 +1781,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const updatedExpenseData = {
           id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
           description: 'July Invoice',
+          reference: 'DRAFT-123',
           payee: { legacyId: author.CollectiveId },
           items: [
             {
@@ -1784,6 +1800,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(expense.status).to.equal(expenseStatus.PENDING);
         expect(expense.description).to.equal(updatedExpenseData.description);
         expect(expense.amount).to.equal(10000);
+        expect(expense.reference).to.deep.equal('DRAFT-123');
         expect(expense.FromCollectiveId).to.equal(author.CollectiveId);
       });
 
@@ -1812,6 +1829,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           invoiceInfo: 'This is an invoice',
           payee: { legacyId: payee.collective.id },
           tags: ['newtag'],
+          reference: 'DRAFT-123',
           items: [
             {
               amount: 10000,
@@ -1829,6 +1847,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(expense.description).to.equal(updatedExpenseData.description);
         expect(expense.invoiceInfo).to.equal(updatedExpenseData.invoiceInfo);
         expect(expense.tags).to.deep.equal(updatedExpenseData.tags);
+        expect(expense.reference).to.deep.equal('DRAFT-123');
         expect(expense.data.items.length).to.equal(1);
         expect(expense.data.items[0].amount).to.equal(10000);
         expect(expense.data.items[0].currency).to.equal('USD');
