@@ -1637,7 +1637,7 @@ export async function createExpense(req: express.Request, expenseData: ExpenseDa
       (await collective.host.getAccountForPaymentProvider(Service.TRANSFERWISE, { throwIfMissing: false }));
     if (connectedAccount) {
       paymentProviders.transferwise.validatePayoutMethod(connectedAccount, payoutMethod);
-      recipient = await paymentProviders.transferwise.createRecipient(connectedAccount[0], payoutMethod);
+      recipient = await paymentProviders.transferwise.createRecipient(connectedAccount, payoutMethod);
     }
   }
 
