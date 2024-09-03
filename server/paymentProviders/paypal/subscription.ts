@@ -30,7 +30,7 @@ import { getCaptureIdFromPaypalTransaction, refundPaypalCapture } from './paymen
 export const CONTRIBUTION_PAUSED_MSG = `Your contribution to the Collective was paused. We'll inform you when it will be ready for re-activation.`;
 export const CANCEL_PAYPAL_EDITED_SUBSCRIPTION_REASON = 'Updated subscription';
 
-const SUSPEND_MAX_REASON_LENGTH = 128; // See https://developer.paypal.com/docs/api/subscriptions/v1/
+export const PAYPAL_SUSPEND_MAX_REASON_LENGTH = 128; // See https://developer.paypal.com/docs/api/subscriptions/v1/
 
 export const cancelPaypalSubscription = async (
   order: Order,
@@ -416,7 +416,12 @@ const PayPalSubscription: PaymentMethodServiceWithExternalRecurringManagement = 
 
     const apiUrl = `billing/subscriptions/${order.Subscription.paypalSubscriptionId}/suspend`;
     try {
-      await paypalRequest(apiUrl, { reason: truncate(reason, { length: SUSPEND_MAX_REASON_LENGTH }) }, host, 'POST');
+      await paypalRequest(
+        apiUrl,
+        { reason: truncate(reason, { length: PAYPAL_SUSPEND_MAX_REASON_LENGTH }) },
+        host,
+        'POST',
+      );
     } catch (e) {
       logger.error(`[PayPal] Error while pausing subscription: ${e}`);
       reportErrorToSentry(e, { feature: FEATURE.PAYPAL_DONATIONS, extra: { subscriptionId: subscription.id, reason } });
@@ -437,12 +442,17 @@ const PayPalSubscription: PaymentMethodServiceWithExternalRecurringManagement = 
 
     const apiUrl = `billing/subscriptions/${order.Subscription.paypalSubscriptionId}/activate`;
     try {
-      await paypalRequest(apiUrl, null, host, 'POST');
+      await paypalRequest(
+        apiUrl,
+        { reason: truncate(reason, { length: PAYPAL_SUSPEND_MAX_REASON_LENGTH }) },
+        host,
+        'POST',
+      );
     } catch (e) {
       logger.error(`[PayPal] Error while pausing subscription: ${e}`);
       reportErrorToSentry(e, {
         feature: FEATURE.PAYPAL_DONATIONS,
-        extra: { subscriptionId: subscription.id, reason: truncate(reason, { length: SUSPEND_MAX_REASON_LENGTH }) },
+        extra: { subscriptionId: subscription.id, reason },
       });
       throw new Error('Failed to pause PayPal subscription');
     }

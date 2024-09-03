@@ -6,6 +6,7 @@ import speakeasy from 'speakeasy';
 import { activities as ACTIVITY, roles } from '../../../../../server/constants';
 import { CollectiveType } from '../../../../../server/constants/collectives';
 import FEATURE from '../../../../../server/constants/feature';
+import OrderStatuses from '../../../../../server/constants/order-status';
 import POLICIES from '../../../../../server/constants/policies';
 import MemberRoles from '../../../../../server/constants/roles';
 import { idEncode } from '../../../../../server/graphql/v2/identifiers';
@@ -14,10 +15,12 @@ import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-fac
 import * as yubikeyOtp from '../../../../../server/lib/two-factor-authentication/yubikey-otp';
 import models from '../../../../../server/models';
 import {
+  fakeActiveHost,
   fakeCollective,
   fakeEvent,
   fakeHost,
   fakeLocation,
+  fakeOrder,
   fakeProject,
   fakeTier,
   fakeUser,
@@ -587,6 +590,395 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(activity.data).to.deep.equal({
         previousData: { hostFeePercent: 10 },
         newData: { hostFeePercent: 9.99, useCustomHostFee: true },
+      });
+    });
+  });
+
+  describe('editAccountFreezeStatus', () => {
+    let sandbox, sendEmailSpy;
+    const editAccountFreezeStatusMutation = gql`
+      mutation EditAccountFreezeStatus(
+        $account: AccountReferenceInput!
+        $action: AccountFreezeAction!
+        $messageForAccountAdmins: String
+        $messageForContributors: String
+        $pauseExistingRecurringContributions: Boolean
+      ) {
+        editAccountFreezeStatus(
+          account: $account
+          action: $action
+          messageForAccountAdmins: $messageForAccountAdmins
+          messageForContributors: $messageForContributors
+          pauseExistingRecurringContributions: $pauseExistingRecurringContributions
+        ) {
+          id
+          isFrozen
+          features {
+            ALL
+            RECEIVE_FINANCIAL_CONTRIBUTIONS
+            USE_EXPENSES
+          }
+          childrenAccounts {
+            nodes {
+              id
+              isFrozen
+              type
+              features {
+                ALL
+                RECEIVE_FINANCIAL_CONTRIBUTIONS
+                USE_EXPENSES
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    before(() => {
+      sandbox = createSandbox();
+      sendEmailSpy = sandbox.spy(emailLib, 'sendMessage');
+    });
+
+    after(() => {
+      sandbox.restore();
+    });
+
+    afterEach(() => {
+      sendEmailSpy.resetHistory();
+    });
+
+    const expectAllFeaturesDisabled = features =>
+      Object.values(features).forEach(value => expect(value).to.equal('DISABLED'));
+
+    it('must have a fiscal host', async () => {
+      const collectiveAdmin = await fakeUser();
+      const collective = await fakeCollective({ HostCollectiveId: null, admin: collectiveAdmin });
+      const mutationParams = { account: { legacyId: collective.id }, action: 'FREEZE' };
+      const result = await graphqlQueryV2(editAccountFreezeStatusMutation, mutationParams, collectiveAdmin);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Cannot find the host of this account');
+    });
+
+    it("must be a host admin of the collective's fiscal host", async () => {
+      const collectiveAdmin = await fakeUser();
+      const collective = await fakeCollective({ admin: collectiveAdmin });
+      const mutationParams = { account: { legacyId: collective.id }, action: 'FREEZE' };
+      const resultUnauthenticated = await graphqlQueryV2(editAccountFreezeStatusMutation, mutationParams);
+      expect(resultUnauthenticated.errors).to.exist;
+      expect(resultUnauthenticated.errors[0].extensions.code).to.equal('Unauthorized');
+
+      const resultRandomUser = await graphqlQueryV2(editAccountFreezeStatusMutation, mutationParams, randomUser);
+      expect(resultRandomUser.errors).to.exist;
+      expect(resultRandomUser.errors[0].extensions.code).to.equal('Unauthorized');
+
+      const resultCollectiveAdmin = await graphqlQueryV2(
+        editAccountFreezeStatusMutation,
+        mutationParams,
+        collectiveAdmin,
+      );
+      expect(resultCollectiveAdmin.errors).to.exist;
+      expect(resultCollectiveAdmin.errors[0].extensions.code).to.equal('Unauthorized');
+    });
+
+    it('must be a COLLECTIVE or FUND (no children)', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdmin });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+
+      const event = await fakeEvent({ ParentCollectiveId: collective.id });
+      const mutationParams = { account: { legacyId: event.id }, action: 'FREEZE' };
+      let result = await graphqlQueryV2(editAccountFreezeStatusMutation, mutationParams, hostAdmin);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(
+        'Only collective and funds can be frozen. To freeze children accounts (projects, events) you need to freeze the parent account.',
+      );
+
+      const project = await fakeProject({ ParentCollectiveId: collective.id });
+      mutationParams.account.legacyId = project.id;
+      result = await graphqlQueryV2(editAccountFreezeStatusMutation, mutationParams, hostAdmin);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(
+        'Only collective and funds can be frozen. To freeze children accounts (projects, events) you need to freeze the parent account.',
+      );
+    });
+
+    it('throws if already frozen', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdmin });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      await collective.disableFeature(FEATURE.ALL);
+
+      const mutationParams = { account: { legacyId: collective.id }, action: 'FREEZE' };
+      const result = await graphqlQueryV2(editAccountFreezeStatusMutation, mutationParams, hostAdmin);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('This account is already frozen');
+    });
+
+    describe('when not pausing existing subscriptions (default)', () => {
+      it('freezes the account and its children', async () => {
+        const hostAdmin = await fakeUser();
+        const host = await fakeActiveHost({ admin: hostAdmin });
+        const collectiveAdmin = await fakeUser();
+        const collective = await fakeCollective({ admin: collectiveAdmin, HostCollectiveId: host.id });
+        const existingOrder = await fakeOrder(
+          { status: OrderStatuses.ACTIVE, CollectiveId: collective.id },
+          { withSubscription: true },
+        );
+        await fakeEvent({ ParentCollectiveId: collective.id });
+        await fakeProject({ ParentCollectiveId: collective.id });
+
+        const messageForAccountAdmins = 'This is <strong>unacceptable</strong>!';
+        const mutationParams = { action: 'FREEZE', account: { legacyId: collective.id }, messageForAccountAdmins };
+        const result = await graphqlQueryV2(editAccountFreezeStatusMutation, mutationParams, hostAdmin);
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+
+        // Make sure all accounts are frozen, features marked as disabled
+        expect(result.data.editAccountFreezeStatus.isFrozen).to.be.true;
+        expect(result.data.editAccountFreezeStatus.childrenAccounts.nodes).to.have.length(2);
+        expect(result.data.editAccountFreezeStatus.childrenAccounts.nodes[0].isFrozen).to.be.true;
+        expect(result.data.editAccountFreezeStatus.childrenAccounts.nodes[1].isFrozen).to.be.true;
+        expectAllFeaturesDisabled(result.data.editAccountFreezeStatus.features);
+        expectAllFeaturesDisabled(result.data.editAccountFreezeStatus.childrenAccounts.nodes[0].features);
+        expectAllFeaturesDisabled(result.data.editAccountFreezeStatus.childrenAccounts.nodes[1].features);
+
+        // Order should not be affected
+        await existingOrder.reload();
+        expect(existingOrder.status).to.equal(OrderStatuses.ACTIVE);
+        expect(existingOrder.data?.needsAsyncPause).to.be.undefined;
+
+        // Check activity
+        const activity = await models.Activity.findOne({
+          where: {
+            type: ACTIVITY.COLLECTIVE_FROZEN,
+            UserId: hostAdmin.id,
+            CollectiveId: collective.id,
+            HostCollectiveId: host.id,
+          },
+        });
+
+        expect(activity).to.exist;
+        expect(activity.data.pauseExistingRecurringContributions).to.equal(false);
+
+        // Check email
+        await waitForCondition(() => sendEmailSpy.callCount === 1);
+        expect(sendEmailSpy.args[0][0]).to.equal(collectiveAdmin.email);
+        expect(sendEmailSpy.args[0][1]).to.equal(`Important: ${collective.name} has been frozen by ${host.name}`);
+        expect(sendEmailSpy.args[0][2]).to.include(
+          'the Collective will still continue to receive recurring donations that were started before this freeze',
+        );
+        expect(sendEmailSpy.args[0][2]).to.include(`This is &lt;strong&gt;unacceptable&lt;/strong&gt;!`); // HTML is not supported (it's a simple textarea). Make sure it's escaped.
+      });
+
+      it('unfreezes the account and its children', async () => {
+        const hostAdmin = await fakeUser();
+        const host = await fakeActiveHost({ admin: hostAdmin });
+        const collectiveAdmin = await fakeUser();
+        const collective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdmin });
+        await collective.disableFeature(FEATURE.ALL);
+        await fakeEvent({ ParentCollectiveId: collective.id });
+        await fakeProject({ ParentCollectiveId: collective.id });
+
+        const messageForAccountAdmins = 'Ok, this is <strong>acceptable</strong>...';
+        const mutationParams = { action: 'UNFREEZE', account: { legacyId: collective.id }, messageForAccountAdmins };
+        const { data, errors } = await graphqlQueryV2(editAccountFreezeStatusMutation, mutationParams, hostAdmin);
+        expect(errors).to.not.exist;
+
+        // Make sure all accounts are unfrozen, features marked as enabled
+        expect(data.editAccountFreezeStatus.isFrozen).to.be.false;
+        expect(data.editAccountFreezeStatus.childrenAccounts.nodes).to.have.length(2);
+        expect(data.editAccountFreezeStatus.features.ALL).to.equal('ACTIVE');
+        expect(data.editAccountFreezeStatus.features.RECEIVE_FINANCIAL_CONTRIBUTIONS).to.equal('AVAILABLE');
+        expect(data.editAccountFreezeStatus.features.USE_EXPENSES).to.equal('ACTIVE');
+
+        const returnedProject = data.editAccountFreezeStatus.childrenAccounts.nodes.find(a => a.type === 'PROJECT');
+        expect(returnedProject.isFrozen).to.be.false;
+        expect(returnedProject.features.ALL).to.equal('ACTIVE');
+        expect(returnedProject.features.RECEIVE_FINANCIAL_CONTRIBUTIONS).to.equal('AVAILABLE');
+        expect(returnedProject.features.USE_EXPENSES).to.equal('ACTIVE');
+
+        const returnedEvent = data.editAccountFreezeStatus.childrenAccounts.nodes.find(a => a.type === 'EVENT');
+        expect(returnedEvent.isFrozen).to.be.false;
+        expect(returnedEvent.features.ALL).to.equal('ACTIVE');
+        expect(returnedEvent.features.RECEIVE_FINANCIAL_CONTRIBUTIONS).to.equal('AVAILABLE');
+        expect(returnedEvent.features.USE_EXPENSES).to.equal('ACTIVE');
+
+        // Check activity
+        const activity = await models.Activity.findOne({
+          where: {
+            type: ACTIVITY.COLLECTIVE_UNFROZEN,
+            UserId: hostAdmin.id,
+            CollectiveId: collective.id,
+            HostCollectiveId: host.id,
+          },
+        });
+
+        expect(activity).to.exist;
+
+        // Check email
+        await waitForCondition(() => sendEmailSpy.callCount === 1);
+        expect(sendEmailSpy.args[0][0]).to.equal(collectiveAdmin.email);
+        expect(sendEmailSpy.args[0][1]).to.equal(`Important: ${collective.name} has been unfrozen by ${host.name}`);
+        expect(sendEmailSpy.args[0][2]).to.include('has unfrozen your Collective');
+        expect(sendEmailSpy.args[0][2]).to.include(`Ok, this is &lt;strong&gt;acceptable&lt;/strong&gt;...`); // HTML is not supported (it's a simple textarea). Make sure it's escaped.
+      });
+    });
+
+    describe('when pausing existing subscriptions', () => {
+      it('must provide a message for contributors (PayPal requirement)', async () => {
+        const hostAdmin = await fakeUser();
+        const host = await fakeActiveHost({ admin: hostAdmin });
+        const collectiveAdmin = await fakeUser();
+        const collective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdmin });
+        const mutationParams = {
+          action: 'FREEZE',
+          account: { legacyId: collective.id },
+          messageForAccountAdmins: 'This is <strong>unacceptable</strong>!',
+          pauseExistingRecurringContributions: true,
+        };
+        const result = await graphqlQueryV2(editAccountFreezeStatusMutation, mutationParams, hostAdmin);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal(
+          'You must provide a message for contributors when pausing recurring contributions',
+        );
+      });
+
+      it('freezes the account and its children and pauses contributions', async () => {
+        const hostAdmin = await fakeUser();
+        const host = await fakeActiveHost({ admin: hostAdmin });
+        const collectiveAdmin = await fakeUser();
+        const collective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdmin });
+        const event = await fakeEvent({ ParentCollectiveId: collective.id });
+        await fakeProject({ ParentCollectiveId: collective.id });
+        const existingOrder = await fakeOrder(
+          { status: OrderStatuses.ACTIVE, CollectiveId: collective.id },
+          { withSubscription: true },
+        );
+        const childOrder = await fakeOrder(
+          { status: OrderStatuses.ACTIVE, CollectiveId: event.id },
+          { withSubscription: true },
+        );
+
+        const mutationParams = {
+          action: 'FREEZE',
+          account: { legacyId: collective.id },
+          messageForAccountAdmins: 'This is <strong>unacceptable</strong>!',
+          pauseExistingRecurringContributions: true,
+          messageForContributors:
+            'Dear contributors, we are freezing the account for a while. We will let you know when it is back to normal.',
+        };
+        const result = await graphqlQueryV2(editAccountFreezeStatusMutation, mutationParams, hostAdmin);
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+
+        // Make sure all accounts are frozen, features marked as disabled
+        expect(result.data.editAccountFreezeStatus.isFrozen).to.be.true;
+        expect(result.data.editAccountFreezeStatus.childrenAccounts.nodes).to.have.length(2);
+        expect(result.data.editAccountFreezeStatus.childrenAccounts.nodes[0].isFrozen).to.be.true;
+        expect(result.data.editAccountFreezeStatus.childrenAccounts.nodes[1].isFrozen).to.be.true;
+        expectAllFeaturesDisabled(result.data.editAccountFreezeStatus.features);
+        expectAllFeaturesDisabled(result.data.editAccountFreezeStatus.childrenAccounts.nodes[0].features);
+        expectAllFeaturesDisabled(result.data.editAccountFreezeStatus.childrenAccounts.nodes[1].features);
+
+        // Orders should be paused
+        await existingOrder.reload();
+        expect(existingOrder.status).to.equal(OrderStatuses.PAUSED);
+        expect(existingOrder.data?.needsAsyncPause).to.be.true;
+        await childOrder.reload();
+        expect(childOrder.status).to.equal(OrderStatuses.PAUSED);
+        expect(childOrder.data?.needsAsyncPause).to.be.true;
+
+        // Check activity
+        const activity = await models.Activity.findOne({
+          where: {
+            type: ACTIVITY.COLLECTIVE_FROZEN,
+            UserId: hostAdmin.id,
+            CollectiveId: collective.id,
+            HostCollectiveId: host.id,
+          },
+        });
+
+        expect(activity).to.exist;
+        expect(activity.data.messageForContributors).to.equal(mutationParams.messageForContributors);
+        expect(activity.data.pauseExistingRecurringContributions).to.equal(true);
+
+        // Check email
+        await waitForCondition(() => sendEmailSpy.callCount === 1);
+        expect(sendEmailSpy.args[0][0]).to.equal(collectiveAdmin.email);
+        expect(sendEmailSpy.args[0][1]).to.equal(`Important: ${collective.name} has been frozen by ${host.name}`);
+        expect(sendEmailSpy.args[0][2]).to.include(
+          'All existing recurring contributions have been paused, and will not be processed until the Collective is unfrozen',
+        );
+        expect(sendEmailSpy.args[0][2]).to.include(`This is &lt;strong&gt;unacceptable&lt;/strong&gt;!`); // HTML is not supported (it's a simple textarea). Make sure it's escaped.
+      });
+
+      it('unfreezes the account and its children and resumes contributions', async () => {
+        const hostAdmin = await fakeUser();
+        const host = await fakeActiveHost({ admin: hostAdmin });
+        const collectiveAdmin = await fakeUser();
+        const collective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdmin });
+        await collective.disableFeature(FEATURE.ALL);
+        await fakeEvent({ ParentCollectiveId: collective.id });
+        const project = await fakeProject({ ParentCollectiveId: collective.id });
+        const existingOrder = await fakeOrder(
+          { status: OrderStatuses.PAUSED, CollectiveId: project.id },
+          { withSubscription: true },
+        );
+
+        const mutationParams = {
+          action: 'UNFREEZE',
+          account: { legacyId: collective.id },
+          messageForAccountAdmins: 'Ok, this is <strong>acceptable</strong>...',
+          pauseExistingRecurringContributions: true,
+          messageForContributors:
+            'Dear contributors, we have unfrozen the account. Your recurring contributions will resume shortly.',
+        };
+        const { data, errors } = await graphqlQueryV2(editAccountFreezeStatusMutation, mutationParams, hostAdmin);
+        expect(errors).to.not.exist;
+
+        // Make sure all accounts are unfrozen, features marked as enabled
+        expect(data.editAccountFreezeStatus.isFrozen).to.be.false;
+        expect(data.editAccountFreezeStatus.features.ALL).to.equal('ACTIVE');
+        expect(data.editAccountFreezeStatus.features.RECEIVE_FINANCIAL_CONTRIBUTIONS).to.equal('AVAILABLE');
+        expect(data.editAccountFreezeStatus.features.USE_EXPENSES).to.equal('ACTIVE');
+
+        const returnedProject = data.editAccountFreezeStatus.childrenAccounts.nodes.find(a => a.type === 'PROJECT');
+        expect(data.editAccountFreezeStatus.childrenAccounts.nodes).to.have.length(2);
+        expect(returnedProject.isFrozen).to.be.false;
+        expect(returnedProject.features.ALL).to.equal('ACTIVE');
+        expect(returnedProject.features.RECEIVE_FINANCIAL_CONTRIBUTIONS).to.equal('AVAILABLE');
+        expect(returnedProject.features.USE_EXPENSES).to.equal('ACTIVE');
+
+        const returnedEvent = data.editAccountFreezeStatus.childrenAccounts.nodes.find(a => a.type === 'EVENT');
+        expect(returnedEvent.isFrozen).to.be.false;
+        expect(returnedEvent.features.ALL).to.equal('ACTIVE');
+        expect(returnedEvent.features.RECEIVE_FINANCIAL_CONTRIBUTIONS).to.equal('AVAILABLE');
+        expect(returnedEvent.features.USE_EXPENSES).to.equal('ACTIVE');
+
+        // Check order
+        await existingOrder.reload();
+        expect(existingOrder.status).to.equal(OrderStatuses.PAUSED);
+        expect(existingOrder.data?.needsAsyncReactivation).to.be.true;
+
+        // Check activity
+        const activity = await models.Activity.findOne({
+          where: {
+            type: ACTIVITY.COLLECTIVE_UNFROZEN,
+            UserId: hostAdmin.id,
+            CollectiveId: collective.id,
+            HostCollectiveId: host.id,
+          },
+        });
+
+        expect(activity).to.exist;
+        expect(activity.data.messageForContributors).to.equal(mutationParams.messageForContributors);
+
+        // Check email
+        await waitForCondition(() => sendEmailSpy.callCount === 1);
+        expect(sendEmailSpy.args[0][0]).to.equal(collectiveAdmin.email);
+        expect(sendEmailSpy.args[0][1]).to.equal(`Important: ${collective.name} has been unfrozen by ${host.name}`);
+        expect(sendEmailSpy.args[0][2]).to.include('has unfrozen your Collective');
+        expect(sendEmailSpy.args[0][2]).to.include(`Ok, this is &lt;strong&gt;acceptable&lt;/strong&gt;...`); // HTML is not supported (it's a simple textarea). Make sure it's escaped.
       });
     });
   });

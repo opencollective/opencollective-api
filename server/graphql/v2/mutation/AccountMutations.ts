@@ -24,6 +24,7 @@ import * as webauthn from '../../../lib/two-factor-authentication/webauthn';
 import { validateYubikeyOTP } from '../../../lib/two-factor-authentication/yubikey-otp';
 import models, { Collective, sequelize } from '../../../models';
 import UserTwoFactorMethod from '../../../models/UserTwoFactorMethod';
+import { PAYPAL_SUSPEND_MAX_REASON_LENGTH } from '../../../paymentProviders/paypal/subscription';
 import { sendMessage } from '../../common/collective';
 import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { BadRequest, Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
@@ -292,6 +293,21 @@ const accountMutations = {
       message: {
         type: GraphQLString,
         description: 'Message to send by email to the admins of the account',
+        deprecationReason: '2024-08-23: Use messageForAccountAdmins instead',
+      },
+      messageForAccountAdmins: {
+        type: GraphQLString,
+        description: 'Message to send by email to the admins of the account',
+      },
+      messageForContributors: {
+        type: GraphQLString,
+        description:
+          'Message to send by email to the contributors when pausing their contributions (with PayPal) or unpausing',
+      },
+      pauseExistingRecurringContributions: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        defaultValue: false,
+        description: 'Whether to pause recurring contributions',
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Collective> {
@@ -307,12 +323,28 @@ const accountMutations = {
         throw new ValidationFailed(
           'Only collective and funds can be frozen. To freeze children accounts (projects, events) you need to freeze the parent account.',
         );
+      } else if (args.pauseExistingRecurringContributions) {
+        if (!args.messageForContributors) {
+          throw new ValidationFailed(
+            'You must provide a message for contributors when pausing recurring contributions',
+          );
+        } else if (args.messageForContributors.length > PAYPAL_SUSPEND_MAX_REASON_LENGTH) {
+          throw new ValidationFailed(
+            `The message for contributors must be less than ${PAYPAL_SUSPEND_MAX_REASON_LENGTH} characters`,
+          );
+        }
       }
 
+      const messageForAccountAdmins = args.messageForAccountAdmins || args.message;
       if (args.action === 'FREEZE') {
-        await account.freeze(args.message);
+        await account.freeze(
+          messageForAccountAdmins,
+          args.pauseExistingRecurringContributions,
+          args.messageForContributors,
+          req.remoteUser,
+        );
       } else if (args.action === 'UNFREEZE') {
-        await account.unfreeze(args.message);
+        await account.unfreeze(messageForAccountAdmins, args.messageForContributors, req.remoteUser);
       }
 
       return account.reload();

@@ -43,6 +43,8 @@ export async function run() {
       SubscriptionId: { [Op.ne]: null },
       data: {
         needsAsyncDeactivation: { [Op.not]: true },
+        needsAsyncPause: { [Op.not]: true },
+        needsAsyncReactivation: { [Op.not]: true },
         pausedBy: {
           [Op.or]: [{ [Op.is]: null }, { [Op.notIn]: ['HOST', 'PLATFORM'] }],
         },

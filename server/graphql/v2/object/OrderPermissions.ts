@@ -71,6 +71,8 @@ const GraphQLOrderPermissions = new GraphQLObjectType({
           !req.remoteUser ||
           order.status !== ORDER_STATUS.PAUSED ||
           order.data?.needsAsyncDeactivation ||
+          order.data?.needsAsyncPause ||
+          order.data?.needsAsyncReactivation ||
           ['HOST', 'PLATFORM'].includes(order.data?.pausedBy)
         ) {
           return false;
