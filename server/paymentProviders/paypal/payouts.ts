@@ -3,6 +3,7 @@ import { isNil, round, toNumber } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../../constants/activities';
+import { Service } from '../../constants/connected-account';
 import status from '../../constants/expense-status';
 import FEATURE from '../../constants/feature';
 import { getFxRate } from '../../lib/currency';
@@ -16,7 +17,7 @@ import models, { Collective } from '../../models';
 import Expense from '../../models/Expense';
 import { PayoutItemDetails } from '../../types/paypal';
 
-const providerName = 'paypal';
+const PROVIDER_NAME = Service.PAYPAL;
 
 export const payExpensesBatch = async (expenses: Expense[]): Promise<Expense[]> => {
   const [firstExpense] = expenses;
@@ -34,7 +35,7 @@ export const payExpensesBatch = async (expenses: Expense[]): Promise<Expense[]> 
     throw new Error(`Could not find the host reimbursing the expense.`);
   }
 
-  const connectedAccount = await host.getAccountForPaymentProvider(providerName);
+  const connectedAccount = await host.getAccountForPaymentProvider(PROVIDER_NAME);
 
   // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
   const getExpenseItem = expense => ({
@@ -172,7 +173,7 @@ export const checkBatchStatus = async (batch: Expense[]): Promise<Expense[]> => 
     throw new Error(`Could not find the host reimbursing the expense.`);
   }
 
-  const connectedAccount = await host.getAccountForPaymentProvider(providerName);
+  const connectedAccount = await host.getAccountForPaymentProvider(PROVIDER_NAME);
 
   const batchId = firstExpense.data.payout_batch_id as string;
   try {

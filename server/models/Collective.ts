@@ -154,7 +154,6 @@ type Settings = {
   transferwise?: {
     ignorePaymentProcessorFees?: boolean;
     ott?: boolean;
-    isolateUsers?: boolean;
     blockedPaymentMethodTypes?: string[];
   };
   virtualcards?: {
@@ -3172,12 +3171,19 @@ class Collective extends Model<
       });
   };
 
-  getAccountForPaymentProvider = async function (provider) {
-    const connectedAccount = await ConnectedAccount.findOne({
+  getAccountForPaymentProvider = async function (provider: Service, options = { throwIfMissing: true }) {
+    let connectedAccount = await ConnectedAccount.findOne({
       where: { service: provider, CollectiveId: this.id },
     });
 
-    if (!connectedAccount) {
+    // If the account is connected to another account, we follow the chain
+    if (connectedAccount?.data?.MirrorConnectedAccountId) {
+      connectedAccount = await ConnectedAccount.findOne({
+        where: { id: connectedAccount.data.MirrorConnectedAccountId },
+      });
+    }
+
+    if (options.throwIfMissing && !connectedAccount) {
       throw new Error(`Host ${this.slug} is not connected to ${provider}`);
     }
 

@@ -13,6 +13,7 @@ import { findLast, pick, round, takeRightWhile, toString, uniq } from 'lodash';
 import { WhereOptions } from 'sequelize';
 
 import ActivityTypes from '../../../constants/activities';
+import { Service } from '../../../constants/connected-account';
 import expenseStatus from '../../../constants/expense-status';
 import ExpenseTypes from '../../../constants/expense-type';
 import OAuthScopes from '../../../constants/oauth-scopes';
@@ -601,9 +602,7 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Reques
           if (payoutMethod?.type === 'BANK_ACCOUNT' && (await ExpenseLib.canPayExpense(req, expense))) {
             const collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
             const host = await collective.getHostCollective({ loaders: req.loaders });
-            const [connectedAccount] = await host.getConnectedAccounts({
-              where: { service: 'transferwise', deletedAt: null },
-            });
+            const connectedAccount = await host.getAccountForPaymentProvider(Service.TRANSFERWISE);
             return await transferwise.validateTransferRequirements(
               connectedAccount,
               payoutMethod,

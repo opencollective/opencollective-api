@@ -37,9 +37,8 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
     return;
   }
 
-  const [connectedAccount] = await expense.host.getConnectedAccounts({
-    where: { service: Service.TRANSFERWISE, deletedAt: null },
-    limit: 1,
+  const connectedAccount = await expense.host.getAccountForPaymentProvider(Service.TRANSFERWISE, {
+    throwIfMissing: false,
   });
 
   let transfer;
