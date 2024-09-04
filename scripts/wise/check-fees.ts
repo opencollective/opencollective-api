@@ -38,7 +38,8 @@ program.command('check <since> <until> [hosts]').action(async (since, until, hos
     const expenses = await models.Expense.findAll({
       where: {
         status: 'PAID',
-        createdAt: { [Op.between]: [since, until] },
+        // We use updatedAt here becacuse we want all transfers that were PAID in the period
+        updatedAt: { [Op.between]: [since, until] },
         data: { transfer: { [Op.ne]: null }, [MIGRATION_DATA_KEY]: null },
       },
       include: [
@@ -161,7 +162,7 @@ program.command('fix [hosts]').action(async hosts => {
           feesInHostCurrency.paymentProcessorFeeInHostCurrency = Math.round(paymentOption.fee.total * 100);
         }
 
-        const [originalDebitTransaction, ...otherDebits] = paymentFeeTransactions.filter(
+        const [originalDebitTransaction, ...otherDebits] = expense.Transactions.filter(
           t => t.type === 'DEBIT' && t.kind === TransactionKind.EXPENSE,
         );
         assert(otherDebits.length === 0, 'Expected exactly one original debit transaction');
