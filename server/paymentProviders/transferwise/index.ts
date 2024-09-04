@@ -68,12 +68,12 @@ async function populateProfileId(connectedAccount: ConnectedAccount, profileId?:
     const profiles = await transferwise.getProfiles(connectedAccount);
     const profile = profileId
       ? profiles.find(p => p.id === profileId)
-      : profiles.find(p => p.type === connectedAccount.data?.type) ||
-        profiles.find(p => p.type === 'business') ||
-        profiles[0];
+      : profiles.find(p => p.type === connectedAccount.data?.type);
     if (profile) {
       const hash = hashObject({ profileId: profile.id, service: PROVIDER_NAME });
       await connectedAccount.update({ data: { ...connectedAccount.data, ...profile }, hash });
+    } else {
+      throw new Error(`Could not find a Wise profile for connected account ${connectedAccount.id}`);
     }
   }
 }

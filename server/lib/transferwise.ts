@@ -381,7 +381,7 @@ export const fundTransfer = async (
 export const getProfiles = async (connectedAccount: ConnectedAccount): Promise<Profile[]> => {
   return requestDataAndThrowParsedError(
     axiosClient.get,
-    `/v1/profiles`,
+    `/v2/profiles`,
     {
       connectedAccount,
     },
