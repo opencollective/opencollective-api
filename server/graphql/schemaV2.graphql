@@ -2222,7 +2222,7 @@ type Expense {
   longDescription: String
 
   """
-  Invoice reference number or any other identifier provided in the invoice
+  User-provided reference number or any other identifier that references the invoice
   """
   reference: String
 
@@ -19947,7 +19947,7 @@ input ExpenseCreateInput {
   accountingCategory: AccountingCategoryReferenceInput
 
   """
-  Invoice reference number or any other identifier provided in the invoice
+  User-provided reference number or any other identifier that references the invoice
   """
   reference: String
 }
@@ -20054,7 +20054,7 @@ input ExpenseUpdateInput {
   longDescription: String
 
   """
-  Invoice reference number or any other identifier provided in the invoice
+  User-provided reference number or any other identifier that references the invoice
   """
   reference: String
 
@@ -20403,7 +20403,7 @@ input ExpenseInviteDraftInput {
   accountingCategory: AccountingCategoryReferenceInput
 
   """
-  Invoice reference number or any other identifier provided in the invoice
+  User-provided reference number or any other identifier that references the invoice
   """
   reference: String
 
