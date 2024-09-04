@@ -85,7 +85,7 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
     paymentProcessorFee?: number;
     memo?: string;
     resumeReason?: string;
-    pausedBy?: 'HOST' | 'PLATFORM' | 'USER';
+    pausedBy?: 'HOST' | 'PLATFORM' | 'USER' | 'COLLECTIVE';
     tax?: OrderTax;
     paymentIntent?: any;
     previousPaymentIntents?: any[];

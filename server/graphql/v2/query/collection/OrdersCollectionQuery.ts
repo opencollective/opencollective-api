@@ -11,6 +11,7 @@ import { NotFound, Unauthorized } from '../../../errors';
 import { GraphQLOrderCollection } from '../../collection/OrderCollection';
 import { GraphQLAccountOrdersFilter } from '../../enum/AccountOrdersFilter';
 import { GraphQLContributionFrequency } from '../../enum/ContributionFrequency';
+import { GraphQLOrderPausedBy } from '../../enum/OrderPausedBy';
 import { GraphQLOrderStatus } from '../../enum/OrderStatus';
 import { GraphQLPaymentMethodService } from '../../enum/PaymentMethodService';
 import { GraphQLPaymentMethodType } from '../../enum/PaymentMethodType';
@@ -32,25 +33,26 @@ const getJoinCondition = (
   account,
   association: OrderAssociation,
   includeHostedAccounts = false,
+  includeChildrenAccounts = false,
 ): Record<string, unknown> => {
   const associationFields = { collective: 'CollectiveId', fromCollective: 'FromCollectiveId' };
   const field = associationFields[association] || `$${association}.id$`;
+  const conditions = [{ [field]: account.id }];
 
-  if (!includeHostedAccounts || !account.isHostAccount) {
-    return { [field]: account.id };
-  } else {
-    return {
-      [Op.or]: [
-        {
-          [field]: account.id,
-        },
-        {
-          [`$${association}.HostCollectiveId$`]: account.id,
-          [`$${association}.approvedAt$`]: { [Op.not]: null },
-        },
-      ],
-    };
+  // Hosted accounts
+  if (includeHostedAccounts && account.isHostAccount) {
+    conditions.push({
+      [`$${association}.HostCollectiveId$`]: account.id,
+      [`$${association}.approvedAt$`]: { [Op.not]: null },
+    });
   }
+
+  // Children collectives
+  if (includeChildrenAccounts) {
+    conditions.push({ [`$${association}.ParentCollectiveId$`]: account.id });
+  }
+
+  return conditions.length === 1 ? conditions[0] : { [Op.or]: conditions };
 };
 
 export const OrdersCollectionArgs = {
@@ -59,6 +61,15 @@ export const OrdersCollectionArgs = {
   includeHostedAccounts: {
     type: GraphQLBoolean,
     description: 'If account is a host, also include hosted accounts orders',
+  },
+  includeChildrenAccounts: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Include orders from children events/projects',
+    defaultValue: false,
+  },
+  pausedBy: {
+    type: new GraphQLList(GraphQLOrderPausedBy),
+    description: 'Only return orders that were paused by these roles. status must be set to PAUSED.',
   },
   paymentMethod: {
     type: GraphQLPaymentMethodReferenceInput,
@@ -188,7 +199,9 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
 
     // Filter on fromCollective
     if (!args.filter || args.filter === 'OUTGOING') {
-      accountConditions.push(getJoinCondition(account, 'fromCollective', args.includeHostedAccounts));
+      accountConditions.push(
+        getJoinCondition(account, 'fromCollective', args.includeHostedAccounts, args.includeChildrenAccounts),
+      );
       if (oppositeAccount) {
         oppositeAccountConditions.push(getJoinCondition(oppositeAccount, 'collective'));
       }
@@ -211,7 +224,9 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
 
     // Filter on collective
     if (!args.filter || args.filter === 'INCOMING') {
-      accountConditions.push(getJoinCondition(account, 'collective', args.includeHostedAccounts));
+      accountConditions.push(
+        getJoinCondition(account, 'collective', args.includeHostedAccounts, args.includeChildrenAccounts),
+      );
       if (oppositeAccount) {
         oppositeAccountConditions.push(getJoinCondition(oppositeAccount, 'fromCollective'));
       }
@@ -307,6 +322,9 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
 
   if (args.status && args.status.length > 0) {
     where['status'] = { [Op.in]: args.status };
+    if (args.status.includes(OrderStatuses.PAUSED) && args.pausedBy) {
+      where['data.pausedBy'] = { [Op.in]: args.pausedBy };
+    }
   }
 
   if (args.frequency) {

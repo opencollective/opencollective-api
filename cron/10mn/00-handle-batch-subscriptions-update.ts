@@ -176,7 +176,13 @@ export async function run() {
             logger.debug('Updating order');
             await order.update({
               status: OrderStatuses.ACTIVE,
-              data: omit(order.data, ['needsAsyncReactivation', 'createStatusChangeActivity']),
+              data: omit(order.data, [
+                'needsAsyncReactivation',
+                'createStatusChangeActivity',
+                'pausedBy',
+                'messageForContributors',
+                'messageSource',
+              ]),
             });
             logger.debug('Updating subscription');
             await order.Subscription.update({ isActive: true, deactivatedAt: null });
