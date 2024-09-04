@@ -1,5 +1,5 @@
 import { TaxType } from '@opencollective/taxes';
-import { get, isEmpty, pick, sumBy } from 'lodash';
+import { get, isEmpty, isNil, pick, sumBy } from 'lodash';
 import { isMoment } from 'moment';
 import {
   BelongsToGetAssociationMixin,
@@ -936,8 +936,8 @@ Expense.init(
 
     reference: {
       type: DataTypes.STRING,
-      set(reference: string) {
-        this.setDataValue('reference', reference.trim());
+      set(reference: string | null) {
+        this.setDataValue('reference', isNil(reference) ? null : reference.trim());
       },
     },
   },
