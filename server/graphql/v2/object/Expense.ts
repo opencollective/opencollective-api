@@ -123,7 +123,7 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Reques
       },
       reference: {
         type: GraphQLString,
-        description: 'Invoice reference number or any other identifier provided in the invoice',
+        description: 'User-provided reference number or any other identifier that references the invoice',
       },
       amount: {
         type: new GraphQLNonNull(GraphQLInt),

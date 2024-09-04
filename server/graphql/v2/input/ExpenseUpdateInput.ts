@@ -32,7 +32,7 @@ export const GraphQLExpenseUpdateInput = new GraphQLInputObjectType({
     },
     reference: {
       type: GraphQLString,
-      description: 'Invoice reference number or any other identifier provided in the invoice',
+      description: 'User-provided reference number or any other identifier that references the invoice',
     },
     currency: {
       type: GraphQLCurrency,
