@@ -442,12 +442,7 @@ async function unscheduleExpenseForPayment(expense: Expense): Promise<void> {
 }
 
 async function payExpensesBatchGroup(host, expenses, x2faApproval?: string, remoteUser?) {
-  const connectedAccounts = await ConnectedAccount.findAll({
-    where: { service: PROVIDER_NAME, CollectiveId: host.id },
-  });
-  const connectedAccount = remoteUser
-    ? find(connectedAccounts, { CreatedByUserId: remoteUser?.id }) || connectedAccounts[0]
-    : connectedAccounts[0];
+  const connectedAccount = await host.getAccountForPaymentProvider(Service.TRANSFERWISE);
   assert(connectedAccount, `No connected account found for host ${host.id} and user ${remoteUser?.id}`);
 
   const profileId = connectedAccount.data.id;
