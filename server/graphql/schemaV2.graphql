@@ -504,6 +504,16 @@ interface Account {
     includeHostedAccounts: Boolean
 
     """
+    Include orders from children events/projects
+    """
+    includeChildrenAccounts: Boolean! = false
+
+    """
+    Only return orders that were paused by these roles. status must be set to PAUSED.
+    """
+    pausedBy: [OrderPausedBy]
+
+    """
     Only return orders that were paid with this payment method. Must be an admin of the account owning the payment method.
     """
     paymentMethod: PaymentMethodReferenceInput
@@ -2878,6 +2888,16 @@ type Host implements Account & AccountWithContributions {
     includeHostedAccounts: Boolean
 
     """
+    Include orders from children events/projects
+    """
+    includeChildrenAccounts: Boolean! = false
+
+    """
+    Only return orders that were paused by these roles. status must be set to PAUSED.
+    """
+    pausedBy: [OrderPausedBy]
+
+    """
     Only return orders that were paid with this payment method. Must be an admin of the account owning the payment method.
     """
     paymentMethod: PaymentMethodReferenceInput
@@ -4273,6 +4293,31 @@ input VirtualCardReferenceInput {
   id: String
 }
 
+"""
+The user or system that paused the order
+"""
+enum OrderPausedBy {
+  """
+  Individual who administers the account for this contribution
+  """
+  USER
+
+  """
+  The host of the collective
+  """
+  HOST
+
+  """
+  The platform
+  """
+  PLATFORM
+
+  """
+  The collective
+  """
+  COLLECTIVE
+}
+
 input PaymentMethodReferenceInput {
   """
   The id assigned to the payment method
@@ -4604,6 +4649,16 @@ type PaymentMethod {
     If account is a host, also include hosted accounts orders
     """
     includeHostedAccounts: Boolean
+
+    """
+    Include orders from children events/projects
+    """
+    includeChildrenAccounts: Boolean! = false
+
+    """
+    Only return orders that were paused by these roles. status must be set to PAUSED.
+    """
+    pausedBy: [OrderPausedBy]
 
     """
     Only return orders that match these payment method services
@@ -7669,6 +7724,16 @@ type Bot implements Account {
     includeHostedAccounts: Boolean
 
     """
+    Include orders from children events/projects
+    """
+    includeChildrenAccounts: Boolean! = false
+
+    """
+    Only return orders that were paused by these roles. status must be set to PAUSED.
+    """
+    pausedBy: [OrderPausedBy]
+
+    """
     Only return orders that were paid with this payment method. Must be an admin of the account owning the payment method.
     """
     paymentMethod: PaymentMethodReferenceInput
@@ -8438,6 +8503,16 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     If account is a host, also include hosted accounts orders
     """
     includeHostedAccounts: Boolean
+
+    """
+    Include orders from children events/projects
+    """
+    includeChildrenAccounts: Boolean! = false
+
+    """
+    Only return orders that were paused by these roles. status must be set to PAUSED.
+    """
+    pausedBy: [OrderPausedBy]
 
     """
     Only return orders that were paid with this payment method. Must be an admin of the account owning the payment method.
@@ -9664,6 +9739,16 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     includeHostedAccounts: Boolean
 
     """
+    Include orders from children events/projects
+    """
+    includeChildrenAccounts: Boolean! = false
+
+    """
+    Only return orders that were paused by these roles. status must be set to PAUSED.
+    """
+    pausedBy: [OrderPausedBy]
+
+    """
     Only return orders that were paid with this payment method. Must be an admin of the account owning the payment method.
     """
     paymentMethod: PaymentMethodReferenceInput
@@ -10670,6 +10755,16 @@ type Individual implements Account {
     includeHostedAccounts: Boolean
 
     """
+    Include orders from children events/projects
+    """
+    includeChildrenAccounts: Boolean! = false
+
+    """
+    Only return orders that were paused by these roles. status must be set to PAUSED.
+    """
+    pausedBy: [OrderPausedBy]
+
+    """
     Only return orders that were paid with this payment method. Must be an admin of the account owning the payment method.
     """
     paymentMethod: PaymentMethodReferenceInput
@@ -11647,6 +11742,16 @@ type Organization implements Account & AccountWithContributions {
     includeHostedAccounts: Boolean
 
     """
+    Include orders from children events/projects
+    """
+    includeChildrenAccounts: Boolean! = false
+
+    """
+    Only return orders that were paused by these roles. status must be set to PAUSED.
+    """
+    pausedBy: [OrderPausedBy]
+
+    """
     Only return orders that were paid with this payment method. Must be an admin of the account owning the payment method.
     """
     paymentMethod: PaymentMethodReferenceInput
@@ -12511,6 +12616,16 @@ type Vendor implements Account & AccountWithContributions {
     If account is a host, also include hosted accounts orders
     """
     includeHostedAccounts: Boolean
+
+    """
+    Include orders from children events/projects
+    """
+    includeChildrenAccounts: Boolean! = false
+
+    """
+    Only return orders that were paused by these roles. status must be set to PAUSED.
+    """
+    pausedBy: [OrderPausedBy]
 
     """
     Only return orders that were paid with this payment method. Must be an admin of the account owning the payment method.
@@ -13630,6 +13745,16 @@ type Query {
     If account is a host, also include hosted accounts orders
     """
     includeHostedAccounts: Boolean
+
+    """
+    Include orders from children events/projects
+    """
+    includeChildrenAccounts: Boolean! = false
+
+    """
+    Only return orders that were paused by these roles. status must be set to PAUSED.
+    """
+    pausedBy: [OrderPausedBy]
 
     """
     Only return orders that were paid with this payment method. Must be an admin of the account owning the payment method.
@@ -15889,6 +16014,16 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     includeHostedAccounts: Boolean
 
     """
+    Include orders from children events/projects
+    """
+    includeChildrenAccounts: Boolean! = false
+
+    """
+    Only return orders that were paused by these roles. status must be set to PAUSED.
+    """
+    pausedBy: [OrderPausedBy]
+
+    """
     Only return orders that were paid with this payment method. Must be an admin of the account owning the payment method.
     """
     paymentMethod: PaymentMethodReferenceInput
@@ -16771,6 +16906,16 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     If account is a host, also include hosted accounts orders
     """
     includeHostedAccounts: Boolean
+
+    """
+    Include orders from children events/projects
+    """
+    includeChildrenAccounts: Boolean! = false
+
+    """
+    Only return orders that were paused by these roles. status must be set to PAUSED.
+    """
+    pausedBy: [OrderPausedBy]
 
     """
     Only return orders that were paid with this payment method. Must be an admin of the account owning the payment method.
