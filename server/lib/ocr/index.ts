@@ -168,7 +168,7 @@ export const userCanUseOCR = async (user: User | undefined | null): Promise<bool
   }
 
   const internalHostIds = await getInternalHostsIds();
-  return Boolean(internalHostIds.some(id => user.isAdminOfCollective(id)));
+  return internalHostIds.some(id => user.isAdminOfCollective(id));
 };
 
 export const lookForParserDataInCache = async (
