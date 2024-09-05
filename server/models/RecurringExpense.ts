@@ -98,14 +98,7 @@ class RecurringExpense extends Model<RecurringExpenseAttributes, RecurringExpens
       AccountingCategoryId: expense.AccountingCategoryId,
       data: {
         items: expense.items?.map(item => ({
-          ...pick(item, [
-            'amount',
-            'currency',
-            'expenseCurrencyFxRate',
-            'expenseCurrencyFxRateSource',
-            'description',
-            'url',
-          ]),
+          ...pick(item, ['amount', 'currency', 'expenseCurrencyFxRate', 'expenseCurrencyFxRateSource', 'description']),
           incurredAt,
         })),
         payee: expense.fromCollective.minimal,
