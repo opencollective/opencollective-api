@@ -321,7 +321,8 @@ export const notifyByEmail = async (activity: Activity) => {
 
       // Never notify for certain updates (changelog, coming from OC Inc, etc)
       const update = await models.Update.findByPk(activity.data.update.id);
-      if (!update?.shouldNotify()) {
+      const shouldNotify = await update?.shouldNotify();
+      if (!shouldNotify) {
         return;
       }
 

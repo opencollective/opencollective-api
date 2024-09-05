@@ -9,10 +9,10 @@ import { CollectiveType } from '../../../constants/collectives';
 import roles from '../../../constants/roles';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import * as collectivelib from '../../../lib/collectivelib';
+import { defaultHostCollective } from '../../../lib/collectivelib';
 import * as github from '../../../lib/github';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import { defaultHostCollective } from '../../../lib/utils';
 import models, { sequelize } from '../../../models';
 import { SocialLinkType } from '../../../models/SocialLink';
 import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
@@ -214,7 +214,7 @@ export async function createCollectiveFromGithub(_, args, req) {
     collectiveData.CreatedByUserId = user.id;
     collectiveData.LastEditedByUserId = user.id;
     collective = await models.Collective.create(collectiveData);
-    const host = await req.loaders.Collective.byId.load(defaultHostCollective('opensource').CollectiveId);
+    const host = await defaultHostCollective('opensource');
     const promises = [
       collective.addUserWithRole(user, roles.ADMIN),
       collective.addHost(host, user, { shouldAutomaticallyApprove: true }),
@@ -271,7 +271,7 @@ export async function createCollectiveFromGithub(_, args, req) {
     throw new Error(err.message);
   }
 
-  const host = await req.loaders.Collective.byId.load(defaultHostCollective('opensource').CollectiveId);
+  const host = await defaultHostCollective('opensource');
   const promises = [
     collective.addUserWithRole(user, roles.ADMIN),
     collective.addHost(host, user, { skipCollectiveApplyActivity: true }),
