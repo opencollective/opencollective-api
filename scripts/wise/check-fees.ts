@@ -81,7 +81,7 @@ program.command('check <since> <until> [hosts]').action(async (since, until, hos
           );
           const addedData = {
             [MIGRATION_DATA_KEY]: {
-              quote: omit(quote, ['paymentOptions']) as ExpenseDataQuoteV3,
+              quote: { ...omit(quote, ['paymentOptions']), paymentOption } as ExpenseDataQuoteV3,
               paymentOption,
             },
           };
@@ -147,7 +147,11 @@ program.command('fix [hosts]').action(async hosts => {
         assert(paymentFeeTransactions.length === 2, 'Expected exacty two payment processor fee transactions');
 
         const { paymentOption, quote } = expense.data[MIGRATION_DATA_KEY] as typeof expense.data;
-        const feesInHostCurrency = (expense.data.feesInHostCurrency || {}) as {
+        const feesInHostCurrency = {
+          paymentProcessorFeeInHostCurrency: 0,
+          hostFeeInHostCurrency: 0,
+          platformFeeInHostCurrency: 0,
+        } as {
           paymentProcessorFeeInHostCurrency: number;
           hostFeeInHostCurrency: number;
           platformFeeInHostCurrency: number;
@@ -194,18 +198,29 @@ program.command('fix [hosts]').action(async hosts => {
           paymentProcessorFeeInHostCurrency: feesInHostCurrency.paymentProcessorFeeInHostCurrency,
         };
 
+        const newPaymentProcessorFeeTransaction = {
+          ...originalDebitTransaction.toJSON(),
+          ...paymentProcessorFeeData,
+        };
+
         assert.equal(
-          Math.abs(paymentOption.sourceAmount - paymentProcessorFeeData.paymentProcessorFeeInHostCurrency),
+          Math.round(
+            Math.abs(paymentOption.sourceAmount * 100 - paymentProcessorFeeData.paymentProcessorFeeInHostCurrency),
+          ),
           Math.abs(originalDebitTransaction.amountInHostCurrency),
           'Net source amount should match original debit transaction amount',
         );
+
+        const hasPaymentProcessorFee = Math.abs(paymentProcessorFeeData.paymentProcessorFeeInHostCurrency) > 0;
 
         if (IS_DRY) {
           console.log(
             `\tDRY RUN: Would have deleted refund transactions for expense #${expense.id} and updated fees with:`,
           );
           console.log(`\t\tNew expense data:`, newExpenseData);
-          console.log(`\t\tNew payment processor fee data:`, paymentProcessorFeeData);
+          hasPaymentProcessorFee
+            ? console.log(`\t\tNew payment processor fee transaction data:`, newPaymentProcessorFeeTransaction)
+            : console.log(`\t\tNo payment processor fee transaction to create`);
         } else {
           // Update Expense and backup previous data
           await expense.update({
@@ -214,14 +229,13 @@ program.command('fix [hosts]').action(async hosts => {
           // Soft-delete existing payment fee transactions
           await Promise.all(paymentFeeTransactions.map(t => t.destroy()));
 
-          // Create new ones
-          await models.Transaction.createPaymentProcessorFeeTransactions(
-            {
-              ...originalDebitTransaction.toJSON(),
-              ...paymentProcessorFeeData,
-            },
-            { ...pick(expense.data, ['fund']), fixedBy: 'wise/check-fees' },
-          );
+          if (hasPaymentProcessorFee) {
+            // Create new ones
+            await models.Transaction.createPaymentProcessorFeeTransactions(newPaymentProcessorFeeTransaction, {
+              ...pick(expense.data, ['fund']),
+              fixedBy: 'wise/check-fees',
+            });
+          }
         }
 
         console.log(`\t✅ Expense #${expense.id} for ${expense.collective.slug}`);
@@ -230,6 +244,7 @@ program.command('fix [hosts]').action(async hosts => {
       }
     }
   }
+  sequelize.close();
 });
 
 program.addHelpText(
