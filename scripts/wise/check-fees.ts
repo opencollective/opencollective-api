@@ -60,8 +60,8 @@ program.command('check <since> <until> [hosts]').action(async (since, until, hos
     });
     console.log(`Found ${expenses.length} expenses for ${slug}...`);
     const host = await models.Collective.findOne({ where: { slug } });
-    const [connectedAccount] = await host.getConnectedAccounts({
-      where: { service: Service.TRANSFERWISE, deletedAt: null },
+    const connectedAccount = await host.getAccountForPaymentProvider(Service.TRANSFERWISE, {
+      throwIfMissing: false,
     });
     if (!connectedAccount) {
       console.warn(`⚠️ ${slug} not connected to Wise`, 'error');
