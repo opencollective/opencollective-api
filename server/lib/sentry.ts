@@ -12,7 +12,7 @@ import * as Sentry from '@sentry/node';
 import type { SeverityLevel } from '@sentry/types';
 import axios, { AxiosError } from 'axios';
 import config from 'config';
-import { get, isEmpty, isEqual, pick } from 'lodash';
+import { cloneDeep, get, isEmpty, isEqual, pick } from 'lodash';
 
 import FEATURE from '../constants/feature';
 import { User } from '../models';
@@ -26,12 +26,13 @@ const MIN_EXECUTION_TIME_TO_SAMPLE = parseInt(config.sentry.minExecutionTimeToSa
 
 const checkIfSentryConfigured = () => Boolean(config.sentry?.dsn);
 
-const redactSensitiveDataFromRequest = request => {
-  if (!request) {
+const redactSensitiveDataFromRequest = rawRequest => {
+  if (!rawRequest) {
     return;
   }
 
   // Redact from payload
+  const request = cloneDeep(rawRequest);
   try {
     const reqBody = JSON.parse(request.data);
     request.data = JSON.stringify(utils.redactSensitiveFields(reqBody));
@@ -48,15 +49,17 @@ const redactSensitiveDataFromRequest = request => {
   if (request['query_string']) {
     request['query_string'] = utils.redactSensitiveFields(request['query_string']);
   }
+
+  return request;
 };
 
 Sentry.init({
   beforeSend(event) {
-    redactSensitiveDataFromRequest(event.request);
+    event.request = redactSensitiveDataFromRequest(event.request);
     return event;
   },
   beforeSendTransaction(event) {
-    redactSensitiveDataFromRequest(event.request);
+    event.request = redactSensitiveDataFromRequest(event.request);
     return event;
   },
   dsn: config.sentry.dsn,
@@ -245,7 +248,7 @@ export const reportErrorToSentry = (err: Error, params: CaptureErrorParams = {})
         `[Sentry disabled] The following error would be reported: ${err.message} (${safeJsonStringify(
           {
             err,
-            params: { ...params, req: simplifyReq(params.req) },
+            params: { ...params, req: redactSensitiveDataFromRequest(simplifyReq(params.req)) },
             stacktrace: err.stack,
           },
           null,

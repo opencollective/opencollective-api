@@ -1,4 +1,4 @@
-import { forEach as lodashEach } from 'lodash';
+import { mapValues } from 'lodash';
 import sanitize from 'sanitize-html';
 
 export default () => {
@@ -11,16 +11,20 @@ export default () => {
 };
 
 const sanitizeHelper = value => {
-  if (typeof value === 'string') {
+  if (!value) {
+    return value;
+  } else if (typeof value === 'string') {
     value = value.replace(/&gt;/gi, '>');
     value = value.replace(/&lt;/gi, '<');
     value = value.replace(/(&copy;|&quot;|&amp;)/gi, '');
     const res = sanitize(value, { allowedTags: [] });
     return res.replace(/&amp;/g, '&');
   } else if (typeof value === 'object') {
-    lodashEach(value, (val, key) => {
-      value[key] = sanitizeHelper(val);
-    });
+    if (Array.isArray(value)) {
+      value = value.map(sanitizeHelper);
+    } else {
+      value = mapValues(value, val => sanitizeHelper(val));
+    }
   }
   return value;
 };

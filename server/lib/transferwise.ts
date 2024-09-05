@@ -274,7 +274,7 @@ export const getQuote = async (connectedAccount: ConnectedAccount, quoteId: stri
     {
       connectedAccount,
     },
-    'There was an error while creating the quote on Wise',
+    'There was an error while fetching the quote on Wise',
   );
 };
 
@@ -381,7 +381,7 @@ export const fundTransfer = async (
 export const getProfiles = async (connectedAccount: ConnectedAccount): Promise<Profile[]> => {
   return requestDataAndThrowParsedError(
     axiosClient.get,
-    `/v1/profiles`,
+    `/v2/profiles`,
     {
       connectedAccount,
     },

@@ -18,7 +18,7 @@ import { filterUntil } from './utils';
  * Represent a single contributor.
  */
 export interface Contributor {
-  id: string;
+  id: number;
   name: string;
   roles: Array<MemberRoles>;
   isAdmin: boolean;
@@ -102,7 +102,8 @@ const contributorsQuery = `
     BOOL_OR(COALESCE((c."data" ->> 'isGuest') :: boolean, FALSE)) AS "isGuest",
     COALESCE(MAX(m.description), MAX(tiers.name)) AS "description",
     COALESCE(SUM(transactions."amountInHostCurrency") / COUNT(DISTINCT m.id), 0) AS "totalAmountDonatedInHostCurrency",
-    COALESCE(ROUND(SUM(transactions."amountInHostCurrency" * fx.rate) / COUNT(DISTINCT m.id)), 0) AS "totalAmountDonated"
+    COALESCE(ROUND(SUM(transactions."amountInHostCurrency" * fx.rate) / COUNT(DISTINCT m.id)), 0) AS "totalAmountDonated",
+    :currency AS "collectiveCurrency"
   FROM
     "Collectives" c
   INNER JOIN "Members" m

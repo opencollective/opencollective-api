@@ -26,6 +26,10 @@ const GraphQLUploadFileResult = new GraphQLObjectType({
   }),
 });
 
+// The maximum time we allow for uploading + parsing a file. After that delay, any pending parsing will be ignored (and finished in the background)
+// and files will be returned directly.
+const MAX_UPLOAD_TIME = 10e3;
+
 const uploadedFileMutations = {
   uploadFile: {
     type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLUploadFileResult))),
@@ -47,6 +51,7 @@ const uploadedFileMutations = {
       },
       req: Express.Request,
     ): Promise<Array<UploadFileResult>> {
+      const mutationStartDate = new Date();
       if (!req.remoteUser) {
         throw new Error('You need to be logged in to upload files');
       }
@@ -78,16 +83,29 @@ const uploadedFileMutations = {
       }
 
       // Upload & parse files
-      const canUseOCR = userCanUseOCR(req.remoteUser);
+      const canUseOCR = await userCanUseOCR(req.remoteUser);
       const useOCR = canUseOCR && args.files.some(r => r.parseDocument);
       const parser = useOCR ? getExpenseOCRParser(req.remoteUser) : null;
       return Promise.all(
         args.files.map(async ({ file, kind, parseDocument, parsingOptions }) => {
+          // Upload file
+          const uploadStartDate = new Date();
           const uploadStart = performance.now();
           const result: UploadFileResult = { file: null, parsingResult: null };
           result.file = await models.UploadedFile.uploadGraphQl(await file, kind, req.remoteUser);
-          const uploadDuration = (performance.now() - uploadStart) / 1000.0;
-          const timeLeftForParsing = 25e3 - uploadDuration; // GraphQL queries timeout after 25s
+          const uploadEnd = performance.now();
+          const uploadDuration = (uploadEnd - uploadStart) / 1000.0;
+          await result.file.update({
+            data: {
+              ...result.file.data,
+              mutationStartDate: mutationStartDate.toISOString(),
+              uploadStartDate: uploadStartDate.toISOString(),
+              uploadDuration,
+            },
+          });
+
+          // Parse document if requested and we have enough time left
+          const timeLeftForParsing = MAX_UPLOAD_TIME - uploadDuration;
           if (parseDocument && timeLeftForParsing > 2e3) {
             result.parsingResult = await runOCRForExpenseFile(parser, result.file, {
               ...parsingOptions,

@@ -15,6 +15,7 @@ import {
   omit,
   omitBy,
   pick,
+  random,
   round,
   set,
   split,
@@ -24,6 +25,7 @@ import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../../constants/activities';
+import { Service } from '../../constants/connected-account';
 import { SupportedCurrency } from '../../constants/currencies';
 import status from '../../constants/expense-status';
 import { TransferwiseError } from '../../graphql/errors';
@@ -51,7 +53,7 @@ import {
 
 import { handleTransferStateChange } from './webhook';
 
-const PROVIDER_NAME = 'transferwise';
+const PROVIDER_NAME = Service.TRANSFERWISE;
 
 const hashObject = obj => crypto.createHash('sha1').update(JSON.stringify(obj)).digest('hex').slice(0, 7);
 const splitCSV = string => compact(split(string, /,\s*/));
@@ -66,12 +68,12 @@ async function populateProfileId(connectedAccount: ConnectedAccount, profileId?:
     const profiles = await transferwise.getProfiles(connectedAccount);
     const profile = profileId
       ? profiles.find(p => p.id === profileId)
-      : profiles.find(p => p.type === connectedAccount.data?.type) ||
-        profiles.find(p => p.type === 'business') ||
-        profiles[0];
+      : profiles.find(p => p.type === connectedAccount.data?.type);
     if (profile) {
       const hash = hashObject({ profileId: profile.id, service: PROVIDER_NAME });
       await connectedAccount.update({ data: { ...connectedAccount.data, ...profile }, hash });
+    } else {
+      throw new Error(`Could not find a Wise profile for connected account ${connectedAccount.id}`);
     }
   }
 }
@@ -440,12 +442,7 @@ async function unscheduleExpenseForPayment(expense: Expense): Promise<void> {
 }
 
 async function payExpensesBatchGroup(host, expenses, x2faApproval?: string, remoteUser?) {
-  const connectedAccounts = await ConnectedAccount.findAll({
-    where: { service: PROVIDER_NAME, CollectiveId: host.id },
-  });
-  const connectedAccount = remoteUser
-    ? find(connectedAccounts, { CreatedByUserId: remoteUser?.id }) || connectedAccounts[0]
-    : connectedAccounts[0];
+  const connectedAccount = await host.getAccountForPaymentProvider(Service.TRANSFERWISE);
   assert(connectedAccount, `No connected account found for host ${host.id} and user ${remoteUser?.id}`);
 
   const profileId = connectedAccount.data.id;
@@ -650,14 +647,22 @@ async function getAccountBalances(
 
 const oauth = {
   redirectUrl: async function (
-    user: { id: number },
+    user: User,
     CollectiveId: string | number,
     query?: { redirect: string },
   ): Promise<string> {
-    const hash = hashObject({ CollectiveId, userId: user.id });
-    const cacheKey = `transferwise_oauth_${hash}`;
-    await sessionCache.set(cacheKey, { CollectiveId, redirect: query.redirect, UserId: user.id }, 60 * 10);
-    return transferwise.getOAuthUrl(hash);
+    if (!this.rolesByCollectiveId) {
+      await user.populateRoles();
+    }
+    assert(user.isAdmin(CollectiveId), 'User must be an admin of the Collective');
+
+    const state = hashObject({ CollectiveId, userId: user.id, nonce: random(100000) });
+    await sessionCache.set(
+      `transferwise_oauth_${state}`,
+      { CollectiveId, redirect: query.redirect, UserId: user.id },
+      60 * 10,
+    );
+    return transferwise.getOAuthUrl(state);
   },
 
   callback: async function (req: express.Request, res: express.Response): Promise<void> {
@@ -683,36 +688,76 @@ const oauth = {
       const collective = await Collective.findByPk(CollectiveId);
       assert(collective, `Could not find Collective #${CollectiveId}`);
 
+      const existingConnectedAccount = await ConnectedAccount.findOne({
+        where: { service: PROVIDER_NAME, CollectiveId },
+      });
       const conflictingConnectedAccount = await ConnectedAccount.findOne({
         where: { hash, CollectiveId: { [Op.ne]: collective.id } },
       });
-      assert(!conflictingConnectedAccount, 'This Wise account is already connected to another collective.');
 
       const accessToken = await transferwise.getOrRefreshToken({ code: code?.toString() });
       const { access_token: token, refresh_token: refreshToken, ...data } = accessToken;
 
-      const existingConnectedAccount = await ConnectedAccount.findOne({
-        where: { service: PROVIDER_NAME, CollectiveId },
-      });
+      // Link to existing connected account if the profileId is already connected to another collective
+      if (conflictingConnectedAccount) {
+        logger.warn(
+          `${collective.slug} connected a Wise account that is already connected to another collective, linking to existing account ${conflictingConnectedAccount.id}`,
+        );
+        const user = await User.findByPk(UserId);
+        await user.populateRoles();
+        assert(
+          user.isAdmin(conflictingConnectedAccount.CollectiveId),
+          'This account is already connected to another Collective, make sure you have the right permissions on the other Collective.',
+        );
 
-      if (existingConnectedAccount) {
-        await existingConnectedAccount.update({
-          token,
-          refreshToken,
-          data: { ...existingConnectedAccount.data, ...data },
-          hash,
-        });
-      } else {
-        const connectedAccount = await ConnectedAccount.create({
+        // Remove any existing connected account for this collective
+        if (existingConnectedAccount) {
+          await existingConnectedAccount.destroy();
+        }
+        // Create a new empty connected account pointing to the existing one that ports the same credentials
+        await ConnectedAccount.create({
           CollectiveId,
           CreatedByUserId: UserId,
           service: PROVIDER_NAME,
+          token: null,
+          refreshToken: null,
+          hash: hashObject({
+            profileId: toNumber(profileId),
+            service: 'transferwise',
+            MirrorConnectedAccountId: conflictingConnectedAccount.id,
+          }),
+          data: {
+            MirrorConnectedAccountId: conflictingConnectedAccount.id,
+          },
+        });
+        // Update the existing connected account where pointing to
+        await conflictingConnectedAccount.update({
           token,
           refreshToken,
-          data,
-          hash,
+          data: { ...conflictingConnectedAccount.data, ...data },
         });
-        await populateProfileId(connectedAccount, toNumber(profileId));
+      }
+      // Otherwise update the existing connected account or create a new one
+      else {
+        if (existingConnectedAccount) {
+          await existingConnectedAccount.update({
+            token,
+            refreshToken,
+            data: { ...existingConnectedAccount.data, ...data },
+            hash,
+          });
+        } else {
+          const connectedAccount = await ConnectedAccount.create({
+            CollectiveId,
+            CreatedByUserId: UserId,
+            service: PROVIDER_NAME,
+            token,
+            refreshToken,
+            data,
+            hash,
+          });
+          await populateProfileId(connectedAccount, toNumber(profileId));
+        }
       }
 
       // Automatically set OTT flag on for European contries and Australia.
@@ -725,6 +770,8 @@ const oauth = {
         set(settings, 'transferwise.ott', true);
         await collective.update({ settings });
       }
+
+      // Clear cached authorization state key
       await sessionCache.delete(cacheKey);
 
       res.redirect(redirectUrl.href);

@@ -11,6 +11,7 @@ import * as connectedAccounts from '../controllers/connectedAccounts';
 import { verifyJwt } from '../lib/auth';
 import errors from '../lib/errors';
 import logger from '../lib/logger';
+import RateLimit from '../lib/rate-limit';
 import { clearRedirectCookie, setRedirectCookie } from '../lib/redirect-cookie';
 import { reportMessageToSentry } from '../lib/sentry';
 import { TWITTER_SCOPES } from '../lib/twitter';
@@ -261,7 +262,15 @@ export function authenticateUser(req, res, next) {
   _authenticateUserByJwt(req, res, next);
 }
 
-export const authenticateService = (req, res, next) => {
+export const authenticateService = async (req, res, next) => {
+  // How many times a user can call this endpoint in a minute.
+  const rateLimit = new RateLimit(`connected-accounts-authenticate-${req.ip}`, 60, 10);
+  try {
+    await rateLimit.registerCallOrThrow();
+  } catch (e) {
+    return next(new errors.RateLimitExceeded());
+  }
+
   const { service } = req.params;
   const { context } = req.query;
   const opts = { callbackURL: getOAuthCallbackUrl(req) };
@@ -301,6 +310,14 @@ export const authenticateService = (req, res, next) => {
 };
 
 export const authenticateServiceCallback = async (req, res, next) => {
+  // How many times a user can call this endpoint in a minute.
+  const rateLimit = new RateLimit(`connected-accounts-callback-${req.ip}`, 60, 10);
+  try {
+    await rateLimit.registerCallOrThrow();
+  } catch (e) {
+    return next(new errors.RateLimitExceeded());
+  }
+
   const { service } = req.params;
   if (get(paymentProviders, `${service}.oauth.callback`)) {
     return paymentProviders[service].oauth.callback(req, res, next);
@@ -340,8 +357,16 @@ export const authenticateServiceCallback = async (req, res, next) => {
   })(req, res, next);
 };
 
-export const authenticateServiceDisconnect = (req, res) => {
-  connectedAccounts.disconnect(req, res);
+export const authenticateServiceDisconnect = async (req, res, next) => {
+  // How many times a user can call this endpoint in a minute.
+  const rateLimit = new RateLimit(`connected-accounts-disconnect-${req.ip}`, 60, 10);
+  try {
+    await rateLimit.registerCallOrThrow();
+  } catch (e) {
+    return next(new errors.RateLimitExceeded());
+  }
+
+  await connectedAccounts.disconnect(req, res);
 };
 
 function getOAuthCallbackUrl(req) {

@@ -154,7 +154,6 @@ type Settings = {
   transferwise?: {
     ignorePaymentProcessorFees?: boolean;
     ott?: boolean;
-    isolateUsers?: boolean;
     blockedPaymentMethodTypes?: string[];
   };
   virtualcards?: {
@@ -1110,14 +1109,31 @@ class Collective extends Model<
     return Promise.all([this, ...children].map(processCollective));
   };
 
-  freeze = async function (message) {
+  freeze = async function (
+    messageForCollectiveAdmins: string,
+    pauseExistingRecurringContributions: boolean,
+    messageForContributors: string,
+    user: User = null,
+  ) {
     if (this.isFrozen()) {
       throw new Error('This account is already frozen');
     }
 
     const host = this.host || (await this.getHostCollective());
     await sequelize.transaction(async transaction => {
+      // Block all features for this collective and its children
       await this.disableFeature(FEATURE.ALL, { transaction });
+
+      // Pause all recurring contributions
+      if (pauseExistingRecurringContributions) {
+        await Order.stopActiveSubscriptions(this.id, OrderStatuses.PAUSED, {
+          messageForContributors,
+          messageSource: 'HOST',
+          paymentProviderAction: 'PAUSE',
+          transaction,
+          createActivity: false, // We try to keep the freeze/unfreeze behavior as invisible as possible for most people
+        });
+      }
 
       // Create the notification
       await Activity.create(
@@ -1125,28 +1141,51 @@ class Collective extends Model<
           type: activities.COLLECTIVE_FROZEN,
           CollectiveId: this.id,
           HostCollectiveId: host.id,
-          data: { collective: this.info, host: host.info, message },
+          UserId: user?.id,
+          data: {
+            collective: this.info,
+            host: host.info,
+            message: messageForCollectiveAdmins,
+            pauseExistingRecurringContributions,
+            messageForContributors,
+          },
         },
         { transaction },
       );
     });
   };
 
-  unfreeze = async function (message) {
+  unfreeze = async function (messageForCollectiveAdmins: string, messageForContributors: string, user: User = null) {
     if (!this.isFrozen()) {
       throw new Error('This account is already unfrozen');
     }
 
     const host = this.host || (await this.getHostCollective());
     await sequelize.transaction(async transaction => {
+      // Unblock all features for this collective and its children
       await this.enableFeature(FEATURE.ALL, { transaction });
 
+      // Unpause all recurring contributions
+      await Order.resumePausedSubscriptions(this.id, {
+        messageForContributors,
+        messageSource: 'HOST',
+        transaction,
+        createActivity: false, // We try to keep the freeze/unfreeze behavior as invisible as possible for most people
+      });
+
+      // Create the notification
       await Activity.create(
         {
           type: activities.COLLECTIVE_UNFROZEN,
           CollectiveId: this.id,
           HostCollectiveId: host.id,
-          data: { collective: this.info, host: host.info, message },
+          UserId: user?.id,
+          data: {
+            collective: this.info,
+            host: host.info,
+            message: messageForCollectiveAdmins,
+            messageForContributors,
+          },
         },
         { transaction },
       );
@@ -2480,7 +2519,11 @@ class Collective extends Model<
     if (this.HostCollectiveId && this.approvedAt) {
       // Pause or cancel all orders that cannot be transferred
       const newOrderStatus = pauseContributions ? OrderStatuses.PAUSED : OrderStatuses.CANCELLED;
-      await Order.stopActiveSubscriptions(this.id, newOrderStatus, { messageForContributors, messageSource });
+      await Order.stopActiveSubscriptions(this.id, newOrderStatus, {
+        messageForContributors,
+        messageSource,
+        includeChildren: false, // children are handled recursively
+      });
 
       // Delete all virtual cards
       const virtualCards = await VirtualCard.findAll({ where: { CollectiveId: this.id } });
@@ -3172,12 +3215,19 @@ class Collective extends Model<
       });
   };
 
-  getAccountForPaymentProvider = async function (provider) {
-    const connectedAccount = await ConnectedAccount.findOne({
+  getAccountForPaymentProvider = async function (provider: Service, options = { throwIfMissing: true }) {
+    let connectedAccount = await ConnectedAccount.findOne({
       where: { service: provider, CollectiveId: this.id },
     });
 
-    if (!connectedAccount) {
+    // If the account is connected to another account, we follow the chain
+    if (connectedAccount?.data?.MirrorConnectedAccountId) {
+      connectedAccount = await ConnectedAccount.findOne({
+        where: { id: connectedAccount.data.MirrorConnectedAccountId },
+      });
+    }
+
+    if (options.throwIfMissing && !connectedAccount) {
       throw new Error(`Host ${this.slug} is not connected to ${provider}`);
     }
 

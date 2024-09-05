@@ -77,7 +77,6 @@ const OPT_OUT_FEATURE_FLAGS = {
 };
 
 const OPT_IN_FEATURE_FLAGS = {
-  [FEATURE.CROSS_CURRENCY_MANUAL_TRANSACTIONS]: 'settings.features.crossCurrencyManualTransactions',
   [FEATURE.COLLECTIVE_GOALS]: 'settings.collectivePage.showGoals',
   [FEATURE.PAYPAL_PAYOUTS]: 'settings.features.paypalPayouts',
   [FEATURE.PAYPAL_DONATIONS]: 'settings.features.paypalDonations',
@@ -145,7 +144,7 @@ export const hasOptedOutOfFeature = (collective: Collective, feature: FEATURE): 
   return optOutFlag ? get(collective, optOutFlag) === false : false;
 };
 
-export const hasOptedInForFeature = (collective: Collective, feature: FEATURE): boolean => {
+const hasOptedInForFeature = (collective: Collective, feature: FEATURE): boolean => {
   const optInFlag = OPT_IN_FEATURE_FLAGS[feature];
   return get(collective, optInFlag) === true;
 };

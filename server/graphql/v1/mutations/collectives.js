@@ -9,10 +9,10 @@ import { CollectiveType } from '../../../constants/collectives';
 import roles from '../../../constants/roles';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import * as collectivelib from '../../../lib/collectivelib';
+import { defaultHostCollective } from '../../../lib/collectivelib';
 import * as github from '../../../lib/github';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import { defaultHostCollective } from '../../../lib/utils';
 import models, { sequelize } from '../../../models';
 import { SocialLinkType } from '../../../models/SocialLink';
 import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
@@ -133,10 +133,6 @@ export async function createCollective(_, args, req) {
 
   const promises = [];
 
-  if (collectiveData.tiers) {
-    promises.push(collective.editTiers(collectiveData.tiers));
-  }
-
   if (collectiveData.HostCollectiveId) {
     promises.push(collective.addHost(hostCollective, req.remoteUser));
   }
@@ -218,7 +214,7 @@ export async function createCollectiveFromGithub(_, args, req) {
     collectiveData.CreatedByUserId = user.id;
     collectiveData.LastEditedByUserId = user.id;
     collective = await models.Collective.create(collectiveData);
-    const host = await req.loaders.Collective.byId.load(defaultHostCollective('opensource').CollectiveId);
+    const host = await defaultHostCollective('opensource');
     const promises = [
       collective.addUserWithRole(user, roles.ADMIN),
       collective.addHost(host, user, { shouldAutomaticallyApprove: true }),
@@ -275,7 +271,7 @@ export async function createCollectiveFromGithub(_, args, req) {
     throw new Error(err.message);
   }
 
-  const host = await req.loaders.Collective.byId.load(defaultHostCollective('opensource').CollectiveId);
+  const host = await defaultHostCollective('opensource');
   const promises = [
     collective.addUserWithRole(user, roles.ADMIN),
     collective.addHost(host, user, { skipCollectiveApplyActivity: true }),
@@ -382,7 +378,8 @@ export function editCollective(_, args, req) {
       })
       .then(async () => {
         // If we try to change the host
-        // @deprecated This is now done through dedicated `removeHost` mutation on GraphQL v2
+        // @deprecated This can now be done through dedicated `removeHost` mutation on GraphQL v2, but we still use it
+        // in https://github.com/opencollective/opencollective-frontend/blob/f30fee8638573d317749052de3a37d30fe1112b0/components/edit-collective/sections/Host.js#L91.
         if (
           newCollectiveData.HostCollectiveId !== undefined &&
           newCollectiveData.HostCollectiveId !== collective.HostCollectiveId
@@ -420,16 +417,6 @@ export function editCollective(_, args, req) {
         }
         // we omit those attributes that have already been updated above
         return collective.update(omit(newCollectiveData, ['HostCollectiveId', 'hostFeePercent', 'currency']));
-      })
-      .then(() => collective.editTiers(args.collective.tiers))
-      .then(() => {
-        // @deprecated since 2019-10-21: now using dedicated `editCoreContributors` endpoint
-        if (args.collective.members) {
-          return collective.editMembers(args.collective.members, {
-            CreatedByUserId: req.remoteUser.id,
-            remoteUserCollectiveId: req.remoteUser.CollectiveId,
-          });
-        }
       })
       .then(async () => {
         const isSlEqual = (aSl, bSl) => aSl.type === bSl.type && aSl.url === bSl.url;

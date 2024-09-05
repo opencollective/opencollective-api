@@ -1,13 +1,46 @@
 import { ModelNames, RecipeItem } from '../../server/lib/import-export/types';
 
+const basicDependencies: RecipeItem[] = [
+  { model: 'PayoutMethod', on: 'CollectiveId' },
+  { model: 'PaymentMethod', on: 'CollectiveId' },
+  { model: 'ConnectedAccount', on: 'CollectiveId' },
+  {
+    model: 'Order',
+    on: 'CollectiveId',
+  },
+  {
+    model: 'Expense',
+    on: 'CollectiveId',
+  },
+  { model: 'Tier', on: 'CollectiveId' },
+  { model: 'Update', on: 'CollectiveId' },
+  {
+    model: 'Collective',
+    on: 'ParentCollectiveId',
+  },
+  {
+    model: 'Member',
+    on: 'CollectiveId',
+  },
+];
+
 const entries: RecipeItem[] = [
   {
     model: 'Collective',
     where: {
-      slug: ['engineering'],
+      HostCollectiveId: 11004,
+      deletedAt: null,
+      isActive: true,
+    },
+    dependencies: [...basicDependencies],
+  },
+  {
+    model: 'Collective',
+    where: {
+      slug: 'opensource',
     },
     dependencies: [
-      { model: 'Agreement', on: 'CollectiveId' },
+      { model: 'Agreement', on: 'HostCollectiveId' },
       { model: 'AccountingCategory', on: 'CollectiveId' },
       {
         model: 'Transaction',
@@ -29,53 +62,7 @@ const entries: RecipeItem[] = [
           },
         ],
       },
-      { model: 'PayoutMethod', on: 'CollectiveId' },
-      { model: 'PaymentMethod', on: 'CollectiveId' },
-      { model: 'ConnectedAccount', on: 'CollectiveId' },
-      {
-        model: 'Order',
-        on: 'CollectiveId',
-      },
-      {
-        model: 'Order',
-        on: 'FromCollectiveId',
-      },
-      {
-        model: 'Expense',
-        on: 'CollectiveId',
-      },
-      {
-        model: 'Expense',
-        on: 'FromCollectiveId',
-      },
-      { model: 'Tier', on: 'CollectiveId' },
-      { model: 'Update', on: 'CollectiveId' },
-      {
-        model: 'Collective',
-        on: 'ParentCollectiveId',
-      },
-      {
-        model: 'Collective',
-        from: 'HostCollectiveId',
-      },
-      {
-        model: 'Member',
-        on: 'CollectiveId',
-      },
-      {
-        model: 'Member',
-        on: 'MemberCollectiveId',
-      },
-      {
-        model: 'User',
-        on: 'CollectiveId',
-        dependencies: [
-          {
-            model: 'Expense',
-            on: 'UserId',
-          },
-        ],
-      },
+      ...basicDependencies,
     ],
   },
 ];

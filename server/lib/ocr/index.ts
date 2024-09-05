@@ -5,8 +5,8 @@ import { SupportedCurrency } from '../../constants/currencies';
 import { GraphQLAmountFields } from '../../graphql/v2/object/Amount';
 import { ParseUploadedFileResult } from '../../graphql/v2/object/ParseUploadedFileResult';
 import { UploadedFile, User } from '../../models';
+import { getInternalHostsIds } from '../collectivelib';
 import { getDateKeyForFxRateMap, loadFxRatesMap } from '../currency';
-import { getInternalHostsIds } from '../utils';
 
 import { KlippaOCRService } from './klippa/KlippaOCRService';
 import type { ExpenseOCRParseResult, ExpenseOCRService } from './ExpenseOCRService';
@@ -156,11 +156,19 @@ export const runOCRForExpenseFile = async (
   }
 };
 
-export const userCanUseOCR = (user: User | undefined | null): boolean => {
-  return (
-    config.env.OC_ENV !== 'production' ||
-    Boolean(user && (user.isRoot() || getInternalHostsIds().some(id => user.isAdminOfCollective(id))))
-  );
+export const userCanUseOCR = async (user: User | undefined | null): Promise<boolean> => {
+  if (config.env.OC_ENV !== 'production') {
+    return true;
+  }
+
+  if (!user) {
+    return false;
+  } else if (user.isRoot()) {
+    return true;
+  }
+
+  const internalHostIds = await getInternalHostsIds();
+  return internalHostIds.some(id => user.isAdminOfCollective(id));
 };
 
 export const lookForParserDataInCache = async (

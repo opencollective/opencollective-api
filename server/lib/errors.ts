@@ -96,6 +96,13 @@ const errors = {
     this.message = msg;
     Error.call(this, msg);
   },
+
+  RateLimitExceeded: function (msg = 'Rate limit exceeded') {
+    this.code = 429;
+    this.type = 'rate_limit_exceeded';
+    this.message = msg;
+    Error.call(this, msg);
+  },
 };
 
 Object.keys(errors).forEach(error => {

@@ -1,5 +1,3 @@
-import assert from 'assert';
-
 import config from 'config';
 import { get } from 'lodash';
 
@@ -7,6 +5,7 @@ import { mustBeLoggedInTo } from '../lib/auth';
 import errors from '../lib/errors';
 import * as github from '../lib/github';
 import logger from '../lib/logger';
+import RateLimit from '../lib/rate-limit';
 import models from '../models';
 import paymentProviders from '../paymentProviders';
 
@@ -117,22 +116,13 @@ export const disconnect = async (req, res) => {
       throw new errors.Unauthorized('You are either logged out or not authorized to disconnect this account');
     }
 
-    const collective = await models.Collective.findByPk(CollectiveId);
-    if (service === 'transferwise' && collective.settings?.transferwise?.isolateUsers) {
-      const connectedAccounts = await models.ConnectedAccount.findAll({
-        where: { service, CollectiveId },
-      });
-      const account = connectedAccounts.find(ca => ca.CreatedByUserId === remoteUser.id);
-      assert(account, 'No connected account found for this user');
-      await account.destroy();
-    } else {
-      const account = await models.ConnectedAccount.findOne({
-        where: { service, CollectiveId },
-      });
+    const account = await models.ConnectedAccount.findOne({
+      where: { service, CollectiveId },
+    });
 
-      if (account) {
-        await account.destroy();
-      }
+    if (account) {
+      await account.destroy();
+      await models.ConnectedAccount.destroy({ where: { data: { MirrorConnectedAccountId: account.id } } });
     }
 
     res.send({
@@ -148,7 +138,15 @@ export const disconnect = async (req, res) => {
   }
 };
 
-export const verify = (req, res, next) => {
+export const verify = async (req, res, next) => {
+  // How many times a user can call this endpoint in a minute.
+  const rateLimit = new RateLimit(`connected-accounts-verify-${req.ip}`, 60, 10);
+  try {
+    await rateLimit.registerCallOrThrow();
+  } catch (e) {
+    return next(new errors.RateLimitExceeded());
+  }
+
   const payload = req.jwtPayload;
   const service = req.params.service;
 
@@ -186,6 +184,14 @@ const GITHUB_REPOS_FETCH_TIMEOUT = 1 * 60 * 1000;
 
 // used in Frontend by createCollective "GitHub flow"
 export const fetchAllRepositories = async (req, res, next) => {
+  // How many times a user can call this endpoint in a minute.
+  const rateLimit = new RateLimit(`connected-accounts-fetch-all-repositories-${req.ip}`, 60, 10);
+  try {
+    await rateLimit.registerCallOrThrow();
+  } catch (e) {
+    return next(new errors.RateLimitExceeded());
+  }
+
   if (req.jwtPayload?.scope !== 'connected-account') {
     const errorMessage = `Cannot use this token on this route (scope: ${
       req.jwtPayload?.scope || 'session'

@@ -11,7 +11,10 @@ import { NotFound, Unauthorized } from '../../../errors';
 import { GraphQLOrderCollection } from '../../collection/OrderCollection';
 import { GraphQLAccountOrdersFilter } from '../../enum/AccountOrdersFilter';
 import { GraphQLContributionFrequency } from '../../enum/ContributionFrequency';
+import { GraphQLOrderPausedBy } from '../../enum/OrderPausedBy';
 import { GraphQLOrderStatus } from '../../enum/OrderStatus';
+import { GraphQLPaymentMethodService } from '../../enum/PaymentMethodService';
+import { GraphQLPaymentMethodType } from '../../enum/PaymentMethodType';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
 import {
   CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
@@ -30,25 +33,26 @@ const getJoinCondition = (
   account,
   association: OrderAssociation,
   includeHostedAccounts = false,
+  includeChildrenAccounts = false,
 ): Record<string, unknown> => {
   const associationFields = { collective: 'CollectiveId', fromCollective: 'FromCollectiveId' };
   const field = associationFields[association] || `$${association}.id$`;
+  const conditions = [{ [field]: account.id }];
 
-  if (!includeHostedAccounts || !account.isHostAccount) {
-    return { [field]: account.id };
-  } else {
-    return {
-      [Op.or]: [
-        {
-          [field]: account.id,
-        },
-        {
-          [`$${association}.HostCollectiveId$`]: account.id,
-          [`$${association}.approvedAt$`]: { [Op.not]: null },
-        },
-      ],
-    };
+  // Hosted accounts
+  if (includeHostedAccounts && account.isHostAccount) {
+    conditions.push({
+      [`$${association}.HostCollectiveId$`]: account.id,
+      [`$${association}.approvedAt$`]: { [Op.not]: null },
+    });
   }
+
+  // Children collectives
+  if (includeChildrenAccounts) {
+    conditions.push({ [`$${association}.ParentCollectiveId$`]: account.id });
+  }
+
+  return conditions.length === 1 ? conditions[0] : { [Op.or]: conditions };
 };
 
 export const OrdersCollectionArgs = {
@@ -58,10 +62,27 @@ export const OrdersCollectionArgs = {
     type: GraphQLBoolean,
     description: 'If account is a host, also include hosted accounts orders',
   },
+  includeChildrenAccounts: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Include orders from children events/projects',
+    defaultValue: false,
+  },
+  pausedBy: {
+    type: new GraphQLList(GraphQLOrderPausedBy),
+    description: 'Only return orders that were paused by these roles. status must be set to PAUSED.',
+  },
   paymentMethod: {
     type: GraphQLPaymentMethodReferenceInput,
     description:
       'Only return orders that were paid with this payment method. Must be an admin of the account owning the payment method.',
+  },
+  paymentMethodService: {
+    type: new GraphQLList(GraphQLPaymentMethodService),
+    description: 'Only return orders that match these payment method services',
+  },
+  paymentMethodType: {
+    type: new GraphQLList(GraphQLPaymentMethodType),
+    description: 'Only return orders that match these payment method types',
   },
   includeIncognito: {
     type: GraphQLBoolean,
@@ -178,7 +199,9 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
 
     // Filter on fromCollective
     if (!args.filter || args.filter === 'OUTGOING') {
-      accountConditions.push(getJoinCondition(account, 'fromCollective', args.includeHostedAccounts));
+      accountConditions.push(
+        getJoinCondition(account, 'fromCollective', args.includeHostedAccounts, args.includeChildrenAccounts),
+      );
       if (oppositeAccount) {
         oppositeAccountConditions.push(getJoinCondition(oppositeAccount, 'collective'));
       }
@@ -201,7 +224,9 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
 
     // Filter on collective
     if (!args.filter || args.filter === 'INCOMING') {
-      accountConditions.push(getJoinCondition(account, 'collective', args.includeHostedAccounts));
+      accountConditions.push(
+        getJoinCondition(account, 'collective', args.includeHostedAccounts, args.includeChildrenAccounts),
+      );
       if (oppositeAccount) {
         oppositeAccountConditions.push(getJoinCondition(oppositeAccount, 'fromCollective'));
       }
@@ -225,6 +250,18 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
       throw new Unauthorized('You must be an admin of the payment method to fetch its orders');
     }
     where['PaymentMethodId'] = paymentMethod.id;
+  }
+
+  // Filter on payment method service/type
+  if (args.paymentMethodService || args.paymentMethodType) {
+    const paymentMethodInclude = { association: 'paymentMethod', required: true, where: {} };
+    if (args.paymentMethodService) {
+      paymentMethodInclude.where['service'] = args.paymentMethodService;
+    }
+    if (args.paymentMethodType) {
+      paymentMethodInclude.where['type'] = args.paymentMethodType;
+    }
+    include.push(paymentMethodInclude);
   }
 
   const isHostAdmin =
@@ -285,6 +322,9 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
 
   if (args.status && args.status.length > 0) {
     where['status'] = { [Op.in]: args.status };
+    if (args.status.includes(OrderStatuses.PAUSED) && args.pausedBy) {
+      where['data.pausedBy'] = { [Op.in]: args.pausedBy };
+    }
   }
 
   if (args.frequency) {

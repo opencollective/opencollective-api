@@ -9,7 +9,11 @@ Subject: Important: {{{collective.name}}} has been frozen by {{{host.name}}}
   In other words, they have temporarily limited what you (and your connected Projects & Events) can and cannot do on the platform.
   <br/><br/>
   Your collective, <a href="{{config.host.website}}/{{collective.slug}}">{{collective.name}}</a>, will not be able to accept funds, pay out expenses, post updates, create new Events or Projects, add new Team members under this collective.
-  However, the Collective will still continue to receive recurring donations that were started before this freeze.
+  {{#if pauseExistingRecurringContributions}}
+    All existing recurring contributions have been paused, and will not be processed until the Collective is unfrozen.
+  {{else}}
+    However, the Collective will still continue to receive recurring donations that were started before this freeze.
+  {{/if}}
   <br/><br/>
   If you have additional questions about this freeze, please <a href="{{config.host.website}}/{{host.slug}}/contact">contact</a> your fiscal host.
   {{#if message}}
