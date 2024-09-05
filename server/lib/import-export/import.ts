@@ -75,9 +75,7 @@ const getNextPK = async model => {
  */
 const modelsDeduplicationSchema: Record<ModelNames, { unique?: string[] }> = {
   AccountingCategory: {},
-  Activity: {
-    unique: ['type', 'createdAt'],
-  },
+  Activity: {},
   Agreement: {},
   Application: {},
   Collective: { unique: ['slug'] },
@@ -98,7 +96,7 @@ const modelsDeduplicationSchema: Record<ModelNames, { unique?: string[] }> = {
   MigrationLog: {},
   Notification: {},
   OAuthAuthorizationCode: {},
-  Order: { unique: ['totalAmount', 'currency', 'createdAt', 'quantity', 'status', 'interval'] },
+  Order: { unique: ['totalAmount', 'currency', 'createdAt', 'quantity', 'status', 'interval', 'description'] },
   PaymentMethod: { unique: ['uuid'] },
   PayoutMethod: {},
   PaypalPlan: {},
@@ -142,6 +140,15 @@ const forEachRecord = async (file: string, cb: (record: any) => Promise<void>) =
 const IGNORE = Symbol('IGNORE');
 type PKMap = Record<ModelNames, Record<number | string, number | string | typeof IGNORE>>;
 
+const equalDates = (firstDate, secondDate) => {
+  if (firstDate && secondDate) {
+    if (new Date(firstDate).getTime() === new Date(secondDate).getTime()) {
+      return true;
+    }
+  }
+  return false;
+};
+
 /**
  * Remap IDs in a JSONL file to avoid conflicts with existing records.
  */
@@ -157,33 +164,41 @@ export const remapPKs = async (dataFile: string): Promise<PKMap> => {
     // If we have a unique constraint, we need to check if the record already exists
     if (modelsDeduplicationSchema[record.model].unique) {
       const where = pick(record, modelsDeduplicationSchema[record.model].unique);
-      const existingRecord = await model.findOne({ where, paranoid: false });
-      if (existingRecord) {
-        // If record exists with same PK, we can mark it for ignoring
-        if (existingRecord[primaryKey] === record[primaryKey]) {
-          debug(`Record ${record.model}#${record[primaryKey]} already exists with same id`);
-          pkMap[record.model][record[primaryKey]] = IGNORE;
-          return;
-        }
-        // Else, we need remap to their existing PK
-        else {
-          debug(
-            `Record ${record.model}#${record[primaryKey]} already exists with different id ${existingRecord[primaryKey]}`,
-          );
-          pkMap[record.model][record[primaryKey]] = existingRecord[primaryKey];
-          return;
+      const hasNonNullValue = Object.values(where).some(value => !!value);
+      if (hasNonNullValue) {
+        const existingRecord = await model.findOne({ where, paranoid: false });
+        if (existingRecord) {
+          // If record exists with same PK, we can mark it for ignoring
+          if (existingRecord[primaryKey] === record[primaryKey]) {
+            debug(`Record ${record.model}#${record[primaryKey]} already exists with same id`);
+            pkMap[record.model][record[primaryKey]] = IGNORE;
+            return;
+          }
+          // Else, we need remap to their existing PK
+          else {
+            debug(
+              `Record ${record.model}#${record[primaryKey]} already exists with different id ${existingRecord[primaryKey]}`,
+            );
+            pkMap[record.model][record[primaryKey]] = existingRecord[primaryKey];
+            return;
+          }
         }
       }
     }
 
     // If we don't have a way to detect unique instances or can't find the same record, we need to check if the id is being used...
     if (primaryKey) {
-      const idIsBeingUsed = await model.count({ where: { [primaryKey]: record[primaryKey] }, paranoid: false });
-      // If the ID is already being used, we'll generate the next valid one and mark it for remapping
-      if (idIsBeingUsed) {
-        const newId = await getNextPK(model);
-        pkMap[record.model][record[primaryKey]] = newId;
-        debug(`Record ${record.model}#${record[primaryKey]} has conflicting id, remaping to ${newId}`);
+      const matchingRecord = await model.findOne({ where: { [primaryKey]: record[primaryKey] }, paranoid: false });
+      if (matchingRecord) {
+        if (equalDates(matchingRecord.dataValues['createdAt'], record.createdAt)) {
+          debug(`Record ${record.model}#${record[primaryKey]} already exists with same id and createdAt`);
+          pkMap[record.model][record[primaryKey]] = IGNORE;
+        } else {
+          // If the ID is already being used, we'll generate the next valid one and mark it for remapping
+          const newId = await getNextPK(model);
+          pkMap[record.model][record[primaryKey]] = newId;
+          debug(`Record ${record.model}#${record[primaryKey]} has conflicting id, remaping to ${newId}`);
+        }
       }
       // Otherwise we leave the map empty so we can insert the record as is.
     }

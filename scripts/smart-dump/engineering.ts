@@ -37,8 +37,16 @@ const entries: RecipeItem[] = [
         on: 'CollectiveId',
       },
       {
+        model: 'Order',
+        on: 'FromCollectiveId',
+      },
+      {
         model: 'Expense',
         on: 'CollectiveId',
+      },
+      {
+        model: 'Expense',
+        on: 'FromCollectiveId',
       },
       { model: 'Tier', on: 'CollectiveId' },
       { model: 'Update', on: 'CollectiveId' },
@@ -53,6 +61,20 @@ const entries: RecipeItem[] = [
       {
         model: 'Member',
         on: 'CollectiveId',
+      },
+      {
+        model: 'Member',
+        on: 'MemberCollectiveId',
+      },
+      {
+        model: 'User',
+        on: 'CollectiveId',
+        dependencies: [
+          {
+            model: 'Expense',
+            on: 'UserId',
+          },
+        ],
       },
     ],
   },
