@@ -51,7 +51,6 @@ enum FEATURE {
    * TODO: This is a user feature, not a collective feature. We should separate the two
    */
   CREATE_COLLECTIVE = 'CREATE_COLLECTIVE',
-  CROSS_CURRENCY_MANUAL_TRANSACTIONS = 'CROSS_CURRENCY_MANUAL_TRANSACTIONS',
   /** Whether this profile has transferwise enabled */
   TRANSFERWISE = 'TRANSFERWISE',
   /** Whether this profile has paypal payouts enabled */
