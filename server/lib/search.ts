@@ -405,7 +405,9 @@ export const parseSearchTerm = (
   } else if (searchTerm.match(/^\d+\.?\d*$/)) {
     return { type: 'number', term: parseFloat(searchTerm), isFloat: searchTerm.includes('.') };
   } else {
-    return { type: 'text', term: searchTerm, words: words(searchTerm).length };
+    // We use a custom patter here because Lodash will split A123 to ['A', '123']
+    const wordsCount = words(searchTerm, /[^, -]+/g).length;
+    return { type: 'text', term: searchTerm, words: wordsCount };
   }
 };
 

@@ -335,6 +335,7 @@ describe('server/lib/search', () => {
     it('goes back to text for everything else', () => {
       expect(parseSearchTerm('')).to.deep.equal({ type: 'text', term: '' });
       expect(parseSearchTerm('test')).to.deep.equal({ type: 'text', term: 'test', words: 1 });
+      expect(parseSearchTerm('A123')).to.deep.equal({ type: 'text', term: 'A123', words: 1 });
       expect(parseSearchTerm('test-hyphen')).to.deep.equal({ type: 'text', term: 'test-hyphen', words: 2 });
       expect(parseSearchTerm('#4242 not an id')).to.deep.equal({ type: 'text', term: '#4242 not an id', words: 4 });
       expect(parseSearchTerm('@slug not a slug')).to.deep.equal({ type: 'text', term: '@slug not a slug', words: 4 });
