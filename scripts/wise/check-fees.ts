@@ -141,10 +141,23 @@ program.command('fix [hosts]').action(async hosts => {
 
     for (const expense of expenses) {
       try {
+        const [originalDebitTransaction, ...otherDebits] = expense.Transactions.filter(
+          t => t.type === 'DEBIT' && t.kind === TransactionKind.EXPENSE,
+        );
+        assert(otherDebits.length === 0, 'Expected exactly one original debit transaction');
+        assert(originalDebitTransaction, 'Missing original debit transaction');
+
         const paymentFeeTransactions = expense.Transactions.filter(
           t => t.kind === TransactionKind.PAYMENT_PROCESSOR_FEE,
         );
-        assert(paymentFeeTransactions.length === 2, 'Expected exacty two payment processor fee transactions');
+        const hasSeparatePaymentProcessorFee = paymentFeeTransactions.length === 2;
+        const hadNoPaymentProcessorFee =
+          originalDebitTransaction.paymentProcessorFeeInHostCurrency === 0 &&
+          expense.data.paymentOption.fee.total === 0;
+        assert(
+          hasSeparatePaymentProcessorFee || hadNoPaymentProcessorFee,
+          'Expected exacty two payment processor fee transactions or no fees at all',
+        );
 
         const { paymentOption, quote } = expense.data[MIGRATION_DATA_KEY] as typeof expense.data;
         const feesInHostCurrency = {
@@ -165,12 +178,6 @@ program.command('fix [hosts]').action(async hosts => {
           // This is simplified because we enforce sourceCurrency to be the same as hostCurrency
           feesInHostCurrency.paymentProcessorFeeInHostCurrency = Math.round(paymentOption.fee.total * 100);
         }
-
-        const [originalDebitTransaction, ...otherDebits] = expense.Transactions.filter(
-          t => t.type === 'DEBIT' && t.kind === TransactionKind.EXPENSE,
-        );
-        assert(otherDebits.length === 0, 'Expected exactly one original debit transaction');
-        assert(originalDebitTransaction, 'Missing original debit transaction');
 
         const hostAmount =
           expense.feesPayer === 'PAYEE'
@@ -227,7 +234,9 @@ program.command('fix [hosts]').action(async hosts => {
             data: newExpenseData,
           });
           // Soft-delete existing payment fee transactions
-          await Promise.all(paymentFeeTransactions.map(t => t.destroy()));
+          if (paymentFeeTransactions.length > 0) {
+            await Promise.all(paymentFeeTransactions.map(t => t.destroy()));
+          }
 
           if (hasPaymentProcessorFee) {
             // Create new ones
