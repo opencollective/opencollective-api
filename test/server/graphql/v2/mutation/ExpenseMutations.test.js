@@ -224,12 +224,14 @@ const processExpenseMutation = gql`
     $action: ExpenseProcessAction!
     $paymentParams: ProcessExpensePaymentParams
     $message: String
+    $draftKey: String
   ) {
     processExpense(
       expense: { legacyId: $expenseId }
       action: $action
       paymentParams: $paymentParams
       message: $message
+      draftKey: $draftKey
     ) {
       id
       legacyId
@@ -1641,6 +1643,18 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
     });
 
     describe('DRAFT', () => {
+      let sandbox, emailSendMessageSpy;
+
+      beforeEach(() => {
+        sandbox = createSandbox();
+        emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage');
+      });
+
+      afterEach(() => {
+        emailSendMessageSpy.restore();
+        sandbox.restore();
+      });
+
       it('allows a logged in user to submit a DRAFT intended for them', async () => {
         const anotherUser = await fakeUser();
         const collective = await fakeCollective({ currency: 'EUR', settings: { VAT: { type: 'OWN' } } });
@@ -1854,6 +1868,190 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(expense.data.items[0].incurredAt).to.equal('2023-09-26T00:00:00.000Z');
         expect(expense.data.items[0].description).to.equal('Item 1');
         expect(expense.data.payee).to.contain({ id: payee.collective.id });
+      });
+
+      it('allows invited DRAFT to be edited by original author with draft-key', async () => {
+        const collective = await fakeCollective({ currency: 'EUR', settings: { VAT: { type: 'OWN' } } });
+        const draftAuthor = await fakeUser();
+        const payee = await fakeUser();
+        const expense = await fakeExpense({
+          status: expenseStatus.DRAFT,
+          type: ExpenseTypes.INVOICE,
+          currency: 'USD',
+          CollectiveId: collective.id,
+          UserId: draftAuthor.id,
+          invoiceInfo: 'old info',
+          data: {
+            draftKey: 'fake-key',
+            customData: { customField: 'customValue' },
+            taxes: [{ type: 'VAT', rate: 0.055 }],
+            payee: payee.collective.minimal,
+          },
+        });
+
+        const updatedExpenseData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          description: 'This is a test.',
+          invoiceInfo: 'This is an invoice',
+          payee: { legacyId: payee.collective.id },
+          tags: ['newtag'],
+          items: [
+            {
+              amount: 10000,
+              incurredAt: '2023-09-26T00:00:00.000Z',
+              description: 'Item 1',
+            },
+          ],
+        };
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          { expense: updatedExpenseData, draftKey: 'fake-key' },
+          draftAuthor,
+        );
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        await expense.reload();
+        expect(expense.status).to.equal(expenseStatus.DRAFT);
+        expect(expense.description).to.equal(updatedExpenseData.description);
+        expect(expense.invoiceInfo).to.equal(updatedExpenseData.invoiceInfo);
+        expect(expense.tags).to.deep.equal(updatedExpenseData.tags);
+        expect(expense.data.items.length).to.equal(1);
+        expect(expense.data.items[0].amount).to.equal(10000);
+        expect(expense.data.items[0].currency).to.equal('USD');
+        expect(expense.data.items[0].incurredAt).to.equal('2023-09-26T00:00:00.000Z');
+        expect(expense.data.items[0].description).to.equal('Item 1');
+        expect(expense.data.payee).to.contain({ id: payee.collective.id });
+      });
+
+      it('send notification to invited external user when DRAFT is updated', async () => {
+        const collective = await fakeCollective({ currency: 'EUR', settings: { VAT: { type: 'OWN' } } });
+        const draftAuthor = await fakeUser();
+        const expense = await fakeExpense({
+          status: expenseStatus.DRAFT,
+          type: ExpenseTypes.INVOICE,
+          currency: 'USD',
+          CollectiveId: collective.id,
+          UserId: draftAuthor.id,
+          invoiceInfo: 'old info',
+          data: {
+            draftKey: 'fake-key',
+            customData: { customField: 'customValue' },
+            taxes: [{ type: 'VAT', rate: 0.055 }],
+            payee: {
+              email: 'test@email.com',
+              name: 'test',
+            },
+          },
+        });
+
+        const updatedExpenseData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          description: 'This is a test.',
+          invoiceInfo: 'This is an invoice',
+          payee: {
+            email: 'test@email.com',
+            name: 'test',
+          },
+          tags: ['newtag'],
+          items: [
+            {
+              amount: 10000,
+              incurredAt: '2023-09-26T00:00:00.000Z',
+              description: 'Item 1',
+            },
+          ],
+        };
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          { expense: updatedExpenseData, draftKey: 'fake-key' },
+          draftAuthor,
+        );
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        await expense.reload();
+        expect(expense.status).to.equal(expenseStatus.DRAFT);
+        expect(expense.description).to.equal(updatedExpenseData.description);
+        expect(expense.invoiceInfo).to.equal(updatedExpenseData.invoiceInfo);
+        expect(expense.tags).to.deep.equal(updatedExpenseData.tags);
+        expect(expense.data.items.length).to.equal(1);
+        expect(expense.data.items[0].amount).to.equal(10000);
+        expect(expense.data.items[0].currency).to.equal('USD');
+        expect(expense.data.items[0].incurredAt).to.equal('2023-09-26T00:00:00.000Z');
+        expect(expense.data.items[0].description).to.equal('Item 1');
+        expect(expense.data.payee).to.contain({ email: 'test@email.com', name: 'test' });
+
+        await waitForCondition(() => emailSendMessageSpy.callCount === 1);
+        expect(emailSendMessageSpy.callCount).to.equal(1);
+        expect(emailSendMessageSpy.firstCall.args[0]).to.equal('test@email.com');
+        expect(emailSendMessageSpy.firstCall.args[1]).to.contain(
+          'An expense you were invited to receive has been updated',
+        );
+      });
+
+      it('invited external user can decline DRAFT expense invite', async () => {
+        const collective = await fakeCollective({ currency: 'EUR', settings: { VAT: { type: 'OWN' } } });
+        const draftAuthor = await fakeUser();
+        const expense = await fakeExpense({
+          status: expenseStatus.DRAFT,
+          type: ExpenseTypes.INVOICE,
+          currency: 'USD',
+          CollectiveId: collective.id,
+          UserId: draftAuthor.id,
+          invoiceInfo: 'old info',
+          data: {
+            draftKey: 'fake-key',
+            customData: { customField: 'customValue' },
+            taxes: [{ type: 'VAT', rate: 0.055 }],
+            payee: {
+              email: 'test@email.com',
+              name: 'test',
+            },
+          },
+        });
+
+        const mutationParams = { expenseId: expense.id, action: 'DECLINE_INVITED_EXPENSE', draftKey: 'fake-key' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams);
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        await expense.reload();
+        expect(expense.status).to.equal(expenseStatus.INVITE_DECLINED);
+
+        const activities = await expense.getActivities({ where: { type: 'collective.expense.invite.declined' } });
+        expect(activities).to.have.length(1);
+      });
+
+      it('invited user can decline DRAFT expense invite', async () => {
+        const collective = await fakeCollective({ currency: 'EUR', settings: { VAT: { type: 'OWN' } } });
+        const payee = await fakeUser();
+        const draftAuthor = await fakeUser();
+        const expense = await fakeExpense({
+          status: expenseStatus.DRAFT,
+          type: ExpenseTypes.INVOICE,
+          currency: 'USD',
+          CollectiveId: collective.id,
+          UserId: draftAuthor.id,
+          invoiceInfo: 'old info',
+          data: {
+            draftKey: 'fake-key',
+            customData: { customField: 'customValue' },
+            taxes: [{ type: 'VAT', rate: 0.055 }],
+            payee: payee.collective.minimal,
+          },
+        });
+
+        const mutationParams = { expenseId: expense.id, action: 'DECLINE_INVITED_EXPENSE' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, payee);
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        await expense.reload();
+        expect(expense.status).to.equal(expenseStatus.INVITE_DECLINED);
+
+        const activities = await expense.getActivities({ where: { type: 'collective.expense.invite.declined' } });
+        expect(activities).to.have.length(1);
       });
     });
 
