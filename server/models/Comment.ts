@@ -7,6 +7,7 @@ import sequelize, { DataTypes, Model } from '../lib/sequelize';
 import Collective from './Collective';
 import Conversation from './Conversation';
 import Expense from './Expense';
+import HostApplication from './HostApplication';
 import User from './User';
 
 // Options for sanitizing comment's body
@@ -28,6 +29,7 @@ class Comment extends Model<InferAttributes<Comment>, InferCreationAttributes<Co
   public declare FromCollectiveId: number;
   public declare CreatedByUserId: ForeignKey<User['id']>;
   public declare ExpenseId: ForeignKey<Expense['id']>;
+  public declare HostApplicationId: ForeignKey<HostApplication['id']>;
   public declare OrderId: number;
   public declare UpdateId: number;
   public declare ConversationId: number;
@@ -124,6 +126,17 @@ Comment.init(
       allowNull: true,
     },
 
+    HostApplicationId: {
+      type: DataTypes.INTEGER,
+      references: {
+        model: 'HostApplications',
+        key: 'id',
+      },
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE',
+      allowNull: true,
+    },
+
     OrderId: {
       type: DataTypes.INTEGER,
       references: {
@@ -189,8 +202,8 @@ Comment.init(
     paranoid: true,
     hooks: {
       beforeCreate: instance => {
-        if (!instance.ExpenseId && !instance.UpdateId && !instance.ConversationId) {
-          throw new Error('Comment must be linked to an expense, an update or a conversation');
+        if (!instance.ExpenseId && !instance.UpdateId && !instance.ConversationId && !instance.HostApplicationId) {
+          throw new Error('Comment must be linked to an expense, an update, a conversation or a host application');
         }
       },
       beforeDestroy: async (comment, options) => {

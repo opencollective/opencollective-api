@@ -83,6 +83,7 @@ enum ActivityTypes {
   // Contact
   COLLECTIVE_CONTACT = 'collective.contact',
   HOST_APPLICATION_CONTACT = 'host.application.contact',
+  HOST_APPLICATION_COMMENT_CREATED = 'host.application.comment.created',
   // Contributions
   CONTRIBUTION_REJECTED = 'contribution.rejected',
   SUBSCRIPTION_ACTIVATED = 'subscription.activated',
@@ -179,6 +180,7 @@ export const TransactionalActivities = [
   ActivityTypes.COLLECTIVE_EXPENSE_INVITE_DRAFTED,
   ActivityTypes.COLLECTIVE_EXPENSE_RECURRING_DRAFTED,
   ActivityTypes.HOST_APPLICATION_CONTACT,
+  ActivityTypes.HOST_APPLICATION_COMMENT_CREATED,
   ActivityTypes.OAUTH_APPLICATION_AUTHORIZED,
 ];
 
@@ -196,6 +198,7 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
   [ActivityClasses.COLLECTIVE]: [
     ActivityTypes.COLLECTIVE_APPLY,
     ActivityTypes.COLLECTIVE_APPROVED,
+    ActivityTypes.HOST_APPLICATION_COMMENT_CREATED,
     ActivityTypes.COLLECTIVE_CORE_MEMBER_INVITED,
     ActivityTypes.COLLECTIVE_CORE_MEMBER_INVITATION_DECLINED,
     ActivityTypes.COLLECTIVE_CORE_MEMBER_ADDED,

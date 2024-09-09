@@ -11,7 +11,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime, GraphQLNonEmptyString } from 'graphql-scalars';
-import { find, get, isEmpty, isNil, keyBy, mapValues, set, uniq } from 'lodash';
+import { compact, find, get, isEmpty, isNil, keyBy, mapValues, set, uniq } from 'lodash';
 import moment from 'moment';
 
 import { roles } from '../../../constants';
@@ -56,6 +56,7 @@ import {
 import { GraphQLAccountingCategoryKind } from '../enum/AccountingCategoryKind';
 import { GraphQLHostApplicationStatus } from '../enum/HostApplicationStatus';
 import { GraphQLHostFeeStructure } from '../enum/HostFeeStructure';
+import { GraphQLLastCommentBy } from '../enum/LastCommentByType';
 import { GraphQLLegalDocumentRequestStatus } from '../enum/LegalDocumentRequestStatus';
 import { GraphQLLegalDocumentType } from '../enum/LegalDocumentType';
 import { PaymentMethodLegacyTypeEnum } from '../enum/PaymentMethodLegacyType';
@@ -672,10 +673,46 @@ export const GraphQLHost = new GraphQLObjectType({
             type: GraphQLHostApplicationStatus,
             description: 'Filter applications by status',
           },
+          lastCommentBy: {
+            type: new GraphQLList(GraphQLLastCommentBy),
+            description: 'Filter host applications by the last user-role who replied to them',
+          },
         },
         resolve: async (host, args, req) => {
           if (!req.remoteUser?.isAdmin(host.id)) {
             throw new Unauthorized('You need to be logged in as an admin of the host to see its applications');
+          }
+
+          const where = {};
+
+          if (args.lastCommentBy?.length) {
+            const conditions = [];
+            const CollectiveIds = compact([
+              args.lastCommentBy.includes('COLLECTIVE_ADMIN') && '"HostApplication"."CollectiveId"',
+              args.lastCommentBy.includes('HOST_ADMIN') && `"collective"."HostCollectiveId"`,
+            ]);
+
+            // Collective Conditions
+            if (CollectiveIds.length) {
+              conditions.push(
+                sequelize.literal(
+                  `(SELECT "FromCollectiveId" FROM "Comments" WHERE "Comments"."HostApplicationId" = "HostApplication"."id" ORDER BY "id" DESC LIMIT 1)
+                    IN (
+                      SELECT "MemberCollectiveId" FROM "Members" WHERE
+                      "role" = 'ADMIN' AND "deletedAt" IS NULL AND
+                      "CollectiveId" IN (${CollectiveIds.join(',')})
+                  )`,
+                ),
+              );
+            }
+
+            where[Op.and] = where[Op.and] || [];
+            where[Op.and].push(conditions.length > 1 ? { [Op.or]: conditions } : conditions[0]);
+          }
+
+          where['HostCollectiveId'] = host.id;
+          if (args.status) {
+            where['status'] = args.status;
           }
 
           const searchTermConditions = buildSearchConditions(args.searchTerm, {
@@ -688,10 +725,7 @@ export const GraphQLHost = new GraphQLObjectType({
 
           const { rows, count } = await models.HostApplication.findAndCountAll({
             order: [[args.orderBy.field, args.orderBy.direction]],
-            where: {
-              HostCollectiveId: host.id,
-              ...(args.status && { status: args.status }),
-            },
+            where,
             limit: args.limit,
             offset: args.offset,
             include: [

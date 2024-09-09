@@ -1,5 +1,12 @@
 import { pick } from 'lodash';
-import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes } from 'sequelize';
+import {
+  BelongsToGetAssociationMixin,
+  CreationOptional,
+  ForeignKey,
+  InferAttributes,
+  InferCreationAttributes,
+  NonAttribute,
+} from 'sequelize';
 
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
@@ -24,6 +31,12 @@ class HostApplication extends Model<InferAttributes<HostApplication>, InferCreat
   public declare createdAt: CreationOptional<Date>;
   public declare updatedAt: CreationOptional<Date>;
   public declare deletedAt: CreationOptional<Date>;
+
+  public declare collective?: NonAttribute<Collective>;
+  public declare getCollective: BelongsToGetAssociationMixin<Collective>;
+
+  public declare host?: NonAttribute<Collective>;
+  public declare getHost: BelongsToGetAssociationMixin<Collective>;
 
   // ---- Static ----
 

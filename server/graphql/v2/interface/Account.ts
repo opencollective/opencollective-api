@@ -10,7 +10,7 @@ import { buildSearchConditions } from '../../../lib/search';
 import { getCollectiveFeed } from '../../../lib/timeline';
 import { getAccountReportNodesFromQueryResult } from '../../../lib/transaction-reports';
 import { canSeeLegalName } from '../../../lib/user-permissions';
-import models, { Op, sequelize } from '../../../models';
+import models, { Collective, Op, sequelize } from '../../../models';
 import Application from '../../../models/Application';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { GraphQLCollectiveFeatures } from '../../common/CollectiveFeatures';
@@ -20,6 +20,7 @@ import { BadRequest, ContentNotReady, Unauthorized } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { GraphQLConversationCollection } from '../collection/ConversationCollection';
 import { GraphQLExpenseCollection } from '../collection/ExpenseCollection';
+import { GraphQLHostApplicationCollection } from '../collection/HostApplicationCollection';
 import { GraphQLMemberCollection, GraphQLMemberOfCollection } from '../collection/MemberCollection';
 import { GraphQLOAuthApplicationCollection } from '../collection/OAuthApplicationCollection';
 import { GraphQLOrderCollection } from '../collection/OrderCollection';
@@ -42,6 +43,7 @@ import { GraphQLActivityChannel } from '../enum/ActivityChannel';
 import { GraphQLActivityClassType } from '../enum/ActivityType';
 import { GraphQLExpenseDirection } from '../enum/ExpenseDirection';
 import { GraphQLExpenseType } from '../enum/ExpenseType';
+import { GraphQLHostApplicationStatus } from '../enum/HostApplicationStatus';
 import { GraphQLLegalDocumentType } from '../enum/LegalDocumentType';
 import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
 import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType';
@@ -49,7 +51,10 @@ import { GraphQLTimeUnit } from '../enum/TimeUnit';
 import { GraphQLVirtualCardStatusEnum } from '../enum/VirtualCardStatus';
 import { idEncode } from '../identifiers';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
-import { GraphQLChronologicalOrderInput } from '../input/ChronologicalOrderInput';
+import {
+  CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
+  GraphQLChronologicalOrderInput,
+} from '../input/ChronologicalOrderInput';
 import { GraphQLOrderByInput, ORDER_BY_PSEUDO_FIELDS } from '../input/OrderByInput';
 import {
   GraphQLUpdateChronologicalOrderInput,
@@ -765,6 +770,22 @@ const accountFieldsDefinition = () => ({
     type: new GraphQLNonNull(GraphQLAccountPermissions),
     description: 'Logged-in user permissions on an account',
   },
+  hostApplicationRequests: {
+    type: new GraphQLNonNull(GraphQLHostApplicationCollection),
+    description: 'Host application requests',
+    args: {
+      ...CollectionArgs,
+      orderBy: {
+        type: new GraphQLNonNull(GraphQLChronologicalOrderInput),
+        defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
+        description: 'Order of the results',
+      },
+      status: {
+        type: GraphQLHostApplicationStatus,
+        description: 'Filter applications by status',
+      },
+    },
+  },
   feed: {
     type: new GraphQLList(GraphQLActivity),
     describe: 'Get the activity feed for this account',
@@ -1279,5 +1300,59 @@ export const AccountFields = {
     type: new GraphQLNonNull(GraphQLAccountPermissions),
     description: 'Logged-in user permissions on an account',
     resolve: collective => collective, // Individual resolvers in `AccountPermissions`
+  },
+  hostApplicationRequests: {
+    type: new GraphQLNonNull(GraphQLHostApplicationCollection),
+    description: 'Host application requests',
+    args: {
+      ...CollectionArgs,
+      orderBy: {
+        type: new GraphQLNonNull(GraphQLChronologicalOrderInput),
+        defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
+        description: 'Order of the results',
+      },
+      status: {
+        type: GraphQLHostApplicationStatus,
+        description: 'Filter applications by status',
+      },
+    },
+    async resolve(account: Collective, args, req: Express.Request) {
+      if (!req.remoteUser?.isAdmin(account.id)) {
+        throw new Unauthorized(
+          'You need to be logged in as an admin of the collective to see its host applications requests',
+        );
+      }
+
+      const where = {
+        CollectiveId: account.id,
+        ...(args.status && { status: args.status }),
+      };
+
+      return {
+        limit: args.limit,
+        offset: args.offset,
+        totalCount: () =>
+          models.HostApplication.count({
+            where,
+          }),
+        nodes: () =>
+          models.HostApplication.findAll({
+            order: [[args.orderBy.field, args.orderBy.direction]],
+            where,
+            limit: args.limit,
+            offset: args.offset,
+            include: [
+              {
+                model: models.Collective,
+                as: 'collective',
+              },
+              {
+                model: models.Collective,
+                as: 'host',
+              },
+            ],
+          }),
+      };
+    },
   },
 };

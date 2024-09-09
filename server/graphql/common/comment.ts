@@ -2,7 +2,7 @@ import { pick } from 'lodash';
 
 import ActivityTypes from '../../constants/activities';
 import { mustBeLoggedInTo } from '../../lib/auth';
-import models from '../../models';
+import models, { HostApplication } from '../../models';
 import Comment, { CommentType } from '../../models/Comment';
 import Conversation from '../../models/Conversation';
 import Expense from '../../models/Expense';
@@ -12,19 +12,24 @@ import { canComment as canCommentOrder } from '../common/orders';
 import { NotFound, Unauthorized, ValidationFailed } from '../errors';
 
 import { canComment as canCommentExpense, canUsePrivateNotes as canUseExpensePrivateNotes } from './expenses';
+import { canCommentHostApplication, canMakePrivateNoteOnHostApplication } from './host-applications';
 import { checkRemoteUserCanUseComment } from './scope-check';
 import { canSeeUpdate } from './update';
 
-type CommentableEntity = Update | Expense | Conversation | Order;
+type CommentableEntity = Update | Expense | Conversation | Order | HostApplication;
 
-type CommentAssociationData = Pick<Comment, 'UpdateId' | 'ExpenseId' | 'OrderId' | 'ConversationId'>;
+type CommentAssociationData = Pick<
+  Comment,
+  'UpdateId' | 'ExpenseId' | 'OrderId' | 'ConversationId' | 'HostApplicationId'
+>;
 
 const loadCommentedEntity = async (
   commentValues: CommentAssociationData,
   loaders: any,
-): Promise<[CommentableEntity, ActivityTypes]> => {
+): Promise<[CommentableEntity, ActivityTypes, Record<string, any>]> => {
   let activityType = ActivityTypes.COLLECTIVE_COMMENT_CREATED;
   let entity: CommentableEntity;
+  let activityData: Record<string, any> = {};
 
   if (commentValues.ExpenseId) {
     activityType = ActivityTypes.EXPENSE_COMMENT_CREATED;
@@ -32,7 +37,7 @@ const loadCommentedEntity = async (
     if (entity) {
       entity.collective = await loaders.Collective.byId.load(entity.CollectiveId);
       if (!entity.collective) {
-        return [null, activityType];
+        return [null, activityType, activityData];
       }
     }
   } else if (commentValues.ConversationId) {
@@ -41,7 +46,7 @@ const loadCommentedEntity = async (
     if (entity) {
       entity.collective = await loaders.Collective.byId.load(entity.CollectiveId);
       if (!entity.collective) {
-        return [null, activityType];
+        return [null, activityType, activityData];
       }
     }
   } else if (commentValues.UpdateId) {
@@ -50,7 +55,7 @@ const loadCommentedEntity = async (
     if (entity) {
       entity.collective = await loaders.Collective.byId.load(entity.CollectiveId);
       if (!entity.collective) {
-        return [null, activityType];
+        return [null, activityType, activityData];
       }
     }
   } else if (commentValues.OrderId) {
@@ -59,12 +64,21 @@ const loadCommentedEntity = async (
     if (entity) {
       entity.collective = await loaders.Collective.byId.load(entity.CollectiveId);
       if (!entity.collective) {
-        return [null, activityType];
+        return [null, activityType, activityData];
       }
     }
+  } else if (commentValues.HostApplicationId) {
+    entity = (await models.HostApplication.findByPk(commentValues.HostApplicationId)) as HostApplication;
+    activityType = ActivityTypes.HOST_APPLICATION_COMMENT_CREATED;
+    entity.host = await entity.getHost();
+    entity.collective = await entity.getCollective();
+    activityData = {
+      host: entity.host?.info,
+      collective: entity.collective?.info,
+    };
   }
 
-  return [entity, activityType];
+  return [entity, activityType, activityData];
 };
 
 const getCommentPermissionsError = async (req, commentedEntity, commentType) => {
@@ -83,6 +97,15 @@ const getCommentPermissionsError = async (req, commentedEntity, commentType) => 
       return new Unauthorized('You do not have the permission to post comments on this order');
     } else if (commentType !== CommentType.PRIVATE_NOTE) {
       return new Unauthorized('Only private notes are allowed on orders');
+    }
+  } else if (commentedEntity instanceof HostApplication) {
+    if (!(await canCommentHostApplication(req, commentedEntity as HostApplication))) {
+      return new Unauthorized('You do not have the permission to post comments on this host application');
+    } else if (
+      commentType === CommentType.PRIVATE_NOTE &&
+      !(await canMakePrivateNoteOnHostApplication(req, commentedEntity))
+    ) {
+      return new Unauthorized('You need to be a host admin to post comments in this context');
     }
   }
 };
@@ -151,15 +174,15 @@ async function createComment(commentData, req): Promise<Comment> {
     throw new ValidationFailed('Comment is empty');
   }
 
-  const { ConversationId, ExpenseId, UpdateId, OrderId, html, type } = commentData;
+  const { ConversationId, ExpenseId, UpdateId, OrderId, HostApplicationId, html, type } = commentData;
 
   // Ensure at least (and only) one entity to comment is specified
-  if ([ConversationId, ExpenseId, UpdateId, OrderId].filter(Boolean).length !== 1) {
+  if ([ConversationId, ExpenseId, UpdateId, OrderId, HostApplicationId].filter(Boolean).length !== 1) {
     throw new ValidationFailed('You must specify one entity to comment');
   }
 
   // Load entity and its collective id
-  const [commentedEntity, activityType] = await loadCommentedEntity(commentData, req.loaders);
+  const [commentedEntity, activityType, activityData] = await loadCommentedEntity(commentData, req.loaders);
   if (!commentedEntity) {
     throw new ValidationFailed("The item you're trying to comment doesn't exist or has been deleted.");
   }
@@ -178,6 +201,7 @@ async function createComment(commentData, req): Promise<Comment> {
     ExpenseId,
     UpdateId,
     ConversationId,
+    HostApplicationId,
     html, // HTML is sanitized at the model level, no need to do it here
     type,
   });
@@ -188,7 +212,7 @@ async function createComment(commentData, req): Promise<Comment> {
     UserId: comment.CreatedByUserId,
     CollectiveId: comment.CollectiveId,
     FromCollectiveId: comment.FromCollectiveId,
-    HostCollectiveId: commentedEntity.collective.approvedAt ? commentedEntity.collective.HostCollectiveId : null,
+    HostCollectiveId: 'HostCollectiveId' in commentedEntity ? commentedEntity.HostCollectiveId : null,
     ExpenseId: comment.ExpenseId,
     OrderId: comment.OrderId,
     data: {
@@ -199,6 +223,8 @@ async function createComment(commentData, req): Promise<Comment> {
       UpdateId: comment.UpdateId,
       OrderId: comment.OrderId,
       ConversationId: comment.ConversationId,
+      HostApplicationId: comment.HostApplicationId,
+      ...activityData,
     },
   });
 

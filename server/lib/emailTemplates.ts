@@ -1,5 +1,7 @@
 import fs from 'fs';
 
+import { idEncode } from '../graphql/v2/identifiers';
+
 import handlebars from './handlebars';
 
 /*
@@ -59,6 +61,7 @@ export const templateNames = [
   'fund.created.foundation',
   'fund.approved.foundation',
   'host.application.contact',
+  'host.application.comment.created',
   'host.report',
   'member.invitation',
   'oauth.application.authorized',
@@ -154,6 +157,9 @@ handlebars.registerPartial('eventdata', eventdata);
 handlebars.registerPartial('charge_date_notice', chargeDateNotice);
 handlebars.registerPartial('mr-footer', mthReportFooter);
 handlebars.registerPartial('mr-subscription', mthReportSubscription);
+handlebars.registerHelper('idEncode', (id, type) => {
+  return idEncode(id, type);
+});
 
 templateNames.forEach(template => {
   const source = fs.readFileSync(`${templatesPath}/emails/${template}.hbs`, 'utf8');
