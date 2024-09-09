@@ -129,6 +129,12 @@ const isDraftPayee = async (req: express.Request, expense: Expense): Promise<boo
   }
 };
 
+const hasCorrectDraftKey =
+  (draftKey?: string) =>
+  async (req: express.Request, expense: Expense): Promise<boolean> => {
+    return draftKey === expense.data.draftKey;
+  };
+
 const isHostAccountant = async (req: express.Request, expense: Expense): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
@@ -454,7 +460,7 @@ export const canEditExpense: ExpensePermissionEvaluator = async (
     return false;
   }
 
-  const nonEditableStatuses = ['PAID', 'PROCESSING', 'SCHEDULED_FOR_PAYMENT', 'CANCELED'];
+  const nonEditableStatuses = ['PAID', 'PROCESSING', 'SCHEDULED_FOR_PAYMENT', 'CANCELED', 'INVITE_DECLINED'];
 
   // Host and expense owner can attach receipts to paid charge expenses
   if (expense.type === EXPENSE_TYPE.CHARGE && ['PAID', 'PROCESSING'].includes(expense.status)) {
@@ -513,8 +519,8 @@ export const canDeleteExpense: ExpensePermissionEvaluator = async (
   if (!validateExpenseScope(req, options)) {
     return false;
   } else if (
-    ['DRAFT', 'PENDING'].includes(expense.status) &&
-    (await remoteUserMeetsOneCondition(req, expense, [isOwner, isDraftPayee], options))
+    ['DRAFT', 'PENDING', 'INVITE_DECLINED'].includes(expense.status) &&
+    (await remoteUserMeetsOneCondition(req, expense, [isOwner], options))
   ) {
     return true;
   } else if (!['REJECTED', 'SPAM', 'DRAFT', 'CANCELED'].includes(expense.status)) {
@@ -656,6 +662,37 @@ export const canReject: ExpensePermissionEvaluator = async (
     return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin], options);
   }
 };
+
+/**
+ * Creates an evaluator for an optional draftKey input that returns true if expense invite can be declined by this request
+ */
+export const buildCanDeclineExpenseInviteEvaluator: (draftKey?: string) => ExpensePermissionEvaluator =
+  draftKey =>
+  async (req: express.Request, expense: Expense, options = { throw: false }) => {
+    if (req.remoteUser && !validateExpenseScope(req, options)) {
+      return false;
+    } else if ('DRAFT' !== expense.status) {
+      if (options?.throw) {
+        throw new Forbidden(
+          'Can not decline expense invite in current status',
+          EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+        );
+      }
+      return false;
+    } else if (req.remoteUser && !canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+      if (options?.throw) {
+        throw new Forbidden(
+          'User cannot decline expenses invites',
+          EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE,
+        );
+      }
+      return false;
+    } else if (req.remoteUser) {
+      return isDraftPayee(req, expense);
+    } else {
+      return hasCorrectDraftKey(draftKey)(req, expense);
+    }
+  };
 
 /**
  * Returns true if expense can be rejected by user
@@ -995,6 +1032,30 @@ export const rejectExpense = async (req: express.Request, expense: Expense): Pro
 
   const updatedExpense = await expense.update({ status: 'REJECTED', lastEditedById: req.remoteUser.id });
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_REJECTED, req.remoteUser);
+  return updatedExpense;
+};
+
+export const declineInvitedExpense = async (
+  req: express.Request,
+  expense: Expense,
+  draftKey?: string,
+  message?: string,
+): Promise<Expense> => {
+  if (expense.status === 'INVITE_DECLINED') {
+    return expense;
+  }
+
+  if (!(await buildCanDeclineExpenseInviteEvaluator(draftKey)(req, expense))) {
+    throw new Forbidden();
+  }
+
+  const updatedExpense = await expense.update({ status: 'INVITE_DECLINED', lastEditedById: req.remoteUser?.id });
+  await expense.createActivity(
+    activities.COLLECTIVE_EXPENSE_INVITE_DECLINED,
+    req.remoteUser,
+    message ? { message } : null,
+  );
+
   return updatedExpense;
 };
 

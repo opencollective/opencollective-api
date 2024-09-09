@@ -95,6 +95,11 @@ export const sanitizeActivityData = async (req, activity): Promise<Partial<Activ
       toPick.push('errorMessage');
       toPick.push('paymentProcessorUrl');
     }
+  } else if (activity.type === ActivityTypes.COLLECTIVE_EXPENSE_INVITE_DECLINED) {
+    const collective = await req.loaders.Collective.byId.load(activity.CollectiveId);
+    if (req.remoteUser?.isAdminOfCollectiveOrHost(collective)) {
+      toPick.push('message');
+    }
   }
   return pick(activity.data, toPick);
 };
