@@ -460,12 +460,12 @@ export const notifyByEmail = async (activity: Activity) => {
         const expenseUpdatedTemplateForInvitee = 'collective.expense.draft.updated.to.invitee';
         if (activity.data.payee?.email) {
           await emailLib.send(expenseUpdatedTemplateForInvitee, activity.data.payee.email, activity.data);
-        } else if (activity.data.payee.id) {
+        } else if (activity.data.payee?.id) {
           await notify.collective(activity, {
             collectiveId: activity.data.payee.id,
             template: expenseUpdatedTemplateForInvitee,
           });
-        } else if (activity.data.payee.slug) {
+        } else if (activity.data.payee?.slug) {
           const collective = await models.Collective.findBySlug(activity.data.payee.slug);
           await notify.collective(activity, { collective, template: expenseUpdatedTemplateForInvitee });
         }
