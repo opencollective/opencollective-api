@@ -28,7 +28,7 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
   });
 
   describe('payExpensesBatch', () => {
-    let expense, host, collective, payoutMethod;
+    let expense, expense2, host, collective, payoutMethod;
     beforeEach(async () => {
       host = await fakeHost({ currency: 'USD' });
       await fakeConnectedAccount({
@@ -37,7 +37,7 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
         clientId: 'fake',
         token: 'fake',
       });
-      collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+      collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD', name: 'Great Future' });
       payoutMethod = await fakePayoutMethod({
         type: PayoutMethodTypes.PAYPAL,
         data: {
@@ -53,6 +53,17 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
         category: 'Engineering',
         type: 'INVOICE',
         description: 'May Invoice',
+        reference: '@VeryUn1queRef!',
+      });
+      expense2 = await fakeExpense({
+        status: status.SCHEDULED_FOR_PAYMENT,
+        amount: 424,
+        CollectiveId: collective.id,
+        currency: 'USD',
+        PayoutMethodId: payoutMethod.id,
+        category: 'Engineering',
+        type: 'INVOICE',
+        description: 'Stuff',
       });
       await fakeExpense({
         status: status.PAID,
@@ -65,16 +76,39 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
         description: 'January Invoice',
       });
       expense.collective = collective;
+      expense2.collective = collective;
       expense.PayoutMethod = payoutMethod;
+      expense2.PayoutMethod = payoutMethod;
       sandbox.stub(paypalLib, 'executePayouts').resolves({ batch_header: { payout_batch_id: 'fake' } });
     });
 
     it('should pay all expenses scheduled for payment', async () => {
-      await paypalPayouts.payExpensesBatch([expense]);
+      await paypalPayouts.payExpensesBatch([expense, expense2]);
       await expense.reload();
 
       assert.calledOnce(paypalLib.executePayouts);
+      expect(paypalLib.executePayouts.getCall(0).args[1]).to.containSubset({
+        sender_batch_header: {
+          recipient_type: 'EMAIL',
+          email_message: 'Good news, your expense was paid!',
+          email_subject: `Expense Payout for Great Future`,
+        },
+        items: [
+          {
+            note: 'Expense #1: May Invoice (@VeryUn1queRef!)',
+            receiver: 'nicolas@cage.com',
+            amount: { currency: 'USD', value: '100' },
+          },
+          {
+            note: 'Expense #2: Stuff',
+            receiver: 'nicolas@cage.com',
+            amount: { currency: 'USD', value: '4.24' },
+          },
+        ],
+      });
+
       expect(expense.data).to.deep.equals({ payout_batch_id: 'fake' });
+      expect(expense).to.have.property('status', status.PROCESSING);
     });
   });
 

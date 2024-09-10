@@ -1,5 +1,5 @@
 /* eslint-disable camelcase */
-import { isNil, round, toNumber } from 'lodash';
+import { isNil, round, toNumber, truncate } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../../constants/activities';
@@ -18,6 +18,19 @@ import Expense from '../../models/Expense';
 import { PayoutItemDetails } from '../../types/paypal';
 
 const PROVIDER_NAME = Service.PAYPAL;
+
+/**
+ * As per https://developer.paypal.com/docs/api/payments.payouts-batch/v1/#payouts_post!path=items/note&t=request,
+ * the note field supports "up to 4000 ASCII characters and 1000 non-ASCII characters"
+ */
+const getPayoutItemNote = (expense: Expense): string => {
+  let result = `Expense #${expense.id}: ${truncate(expense.description, { length: 1000 })}`; // `expense.description` is a string field (max 255 chars), we only truncate it to be safe if something changes in the future.
+  if (expense.reference) {
+    result += ` (${truncate(expense.reference, { length: 1000 })})`;
+  }
+
+  return result;
+};
 
 export const payExpensesBatch = async (expenses: Expense[]): Promise<Expense[]> => {
   const [firstExpense] = expenses;
@@ -39,7 +52,7 @@ export const payExpensesBatch = async (expenses: Expense[]): Promise<Expense[]> 
 
   // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
   const getExpenseItem = expense => ({
-    note: `Expense #${expense.id}: ${expense.description}`,
+    note: getPayoutItemNote(expense),
     amount: {
       currency: expense.currency,
       value: round(expense.amount / 100, 2).toString(),
