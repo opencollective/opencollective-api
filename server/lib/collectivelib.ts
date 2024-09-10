@@ -460,10 +460,10 @@ export async function deleteCollective(collective) {
 
 /**
  * Default host, set this for new collectives created through our flow
- *
- * @param {"opensource" | "foundation" | "europe" | "opencollective" | null} category of the collective
  */
-export const defaultHostCollective = async (category): Promise<Collective | null> => {
+export const defaultHostCollective = async (
+  category: 'opensource' | 'foundation' | 'europe' | 'opencollective',
+): Promise<Collective | null> => {
   if (config.env === 'production' || config.env === 'staging') {
     if (category === 'opensource') {
       return Collective.findBySlug('opensource', {}, false);
