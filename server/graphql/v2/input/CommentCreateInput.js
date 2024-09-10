@@ -14,7 +14,8 @@ import { GraphQLUpdateReferenceInput } from './UpdateReferenceInput';
  */
 export const GraphQLCommentCreateInput = new GraphQLInputObjectType({
   name: 'CommentCreateInput',
-  description: 'Input to create a comment. You can only specify one entity type: expense, conversation or update',
+  description:
+    'Input to create a comment. You can only specify one entity type: expense, conversation, update or host application',
   fields: () => ({
     html: { type: GraphQLString },
     expense: {

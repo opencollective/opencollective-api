@@ -212,7 +212,12 @@ async function createComment(commentData, req): Promise<Comment> {
     UserId: comment.CreatedByUserId,
     CollectiveId: comment.CollectiveId,
     FromCollectiveId: comment.FromCollectiveId,
-    HostCollectiveId: 'HostCollectiveId' in commentedEntity ? commentedEntity.HostCollectiveId : null,
+    HostCollectiveId:
+      commentedEntity instanceof HostApplication
+        ? commentedEntity.HostCollectiveId
+        : commentedEntity.collective.approvedAt
+          ? commentedEntity.collective.HostCollectiveId
+          : null,
     ExpenseId: comment.ExpenseId,
     OrderId: comment.OrderId,
     data: {
