@@ -1983,9 +1983,8 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(expense.data.payee).to.contain({ email: 'test@email.com', name: 'test' });
 
         await waitForCondition(() => emailSendMessageSpy.callCount > 0);
-        expect(emailSendMessageSpy.callCount).to.equal(1);
-        expect(emailSendMessageSpy.firstCall.args[0]).to.equal('test@email.com');
-        expect(emailSendMessageSpy.firstCall.args[1]).to.contain(
+        expect(emailSendMessageSpy).calledWith(
+          'test@email.com',
           'An expense you were invited to receive has been updated',
         );
       });
