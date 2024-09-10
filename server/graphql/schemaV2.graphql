@@ -2247,6 +2247,11 @@ type Expense {
   longDescription: String
 
   """
+  User-provided reference number or any other identifier that references the invoice
+  """
+  reference: String
+
+  """
   Total amount of the expense (sum of the item's amounts).
   """
   amount: Int! @deprecated(reason: "2022-02-09: Please use amountV2")
@@ -20231,6 +20236,11 @@ input ExpenseCreateInput {
   The accounting category this expense belongs to
   """
   accountingCategory: AccountingCategoryReferenceInput
+
+  """
+  User-provided reference number or any other identifier that references the invoice
+  """
+  reference: String
 }
 
 input PayoutMethodInput {
@@ -20333,6 +20343,11 @@ input ExpenseUpdateInput {
   Longer text to attach to the expense
   """
   longDescription: String
+
+  """
+  User-provided reference number or any other identifier that references the invoice
+  """
+  reference: String
 
   """
   Currency that should be used for the payout. Defaults to the account currency
@@ -20677,6 +20692,11 @@ input ExpenseInviteDraftInput {
   The accounting category this expense belongs to
   """
   accountingCategory: AccountingCategoryReferenceInput
+
+  """
+  User-provided reference number or any other identifier that references the invoice
+  """
+  reference: String
 
   """
   Note to be sent to the invited user through email.

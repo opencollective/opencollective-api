@@ -69,6 +69,7 @@ const EXPENSE_DRAFT_PUBLIC_FIELDS = [
   'payee.slug',
   'payee.id',
   'payee.organization',
+  'reference',
 ];
 const EXPENSE_DRAFT_PRIVATE_FIELDS = [
   'recipientNote',
@@ -119,6 +120,10 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Reques
       longDescription: {
         type: GraphQLString,
         description: 'Longer description for this expense',
+      },
+      reference: {
+        type: GraphQLString,
+        description: 'User-provided reference number or any other identifier that references the invoice',
       },
       amount: {
         type: new GraphQLNonNull(GraphQLInt),

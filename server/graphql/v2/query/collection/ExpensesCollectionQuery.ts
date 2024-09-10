@@ -274,7 +274,7 @@ export const ExpensesCollectionQueryResolver = async (
   // Not searching in items yet because one-to-many relationships with limits are broken in Sequelize. Could be fixed by https://github.com/sequelize/sequelize/issues/4376
   const searchTermConditions = buildSearchConditions(args.searchTerm, {
     idFields: ['id'],
-    dataFields: ['data.transactionId', 'data.transfer.id', 'data.transaction_id', 'data.batchGroup.id'],
+    dataFields: ['data.transactionId', 'data.transfer.id', 'data.transaction_id', 'data.batchGroup.id', 'reference'],
     slugFields: ['$fromCollective.slug$', '$collective.slug$', '$User.collective.slug$'],
     textFields: ['$fromCollective.name$', '$collective.name$', '$User.collective.name$', 'description'],
     emailFields: isHostAdmin ? ['$User.email$'] : [],

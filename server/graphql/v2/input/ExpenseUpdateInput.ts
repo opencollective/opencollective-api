@@ -30,6 +30,10 @@ export const GraphQLExpenseUpdateInput = new GraphQLInputObjectType({
       type: GraphQLString,
       description: 'Longer text to attach to the expense',
     },
+    reference: {
+      type: GraphQLString,
+      description: 'User-provided reference number or any other identifier that references the invoice',
+    },
     currency: {
       type: GraphQLCurrency,
       description: 'Currency that should be used for the payout. Defaults to the account currency',

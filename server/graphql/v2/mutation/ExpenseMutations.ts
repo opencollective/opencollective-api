@@ -121,6 +121,7 @@ const expenseMutations = {
           'items',
           'tax',
           'customData',
+          'reference',
         ]),
         payoutMethod,
         collective: await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true }),
@@ -188,6 +189,7 @@ const expenseMutations = {
         invoiceInfo: expense.invoiceInfo,
         customData: expense.customData,
         payoutMethod,
+        reference: expense.reference,
         items: items?.map(item => ({ ...item, id: item.id && idDecode(item.id, IDENTIFIER_TYPES.EXPENSE_ITEM) })),
         tax: expense.tax,
         attachedFiles: expense.attachedFiles?.map(attachedFile => ({
@@ -512,6 +514,7 @@ const expenseMutations = {
           payeeLocation: expenseData.payeeLocation,
           customData: expenseData.customData,
           taxes: expenseData.tax,
+          reference: expenseData.reference,
         },
         status: expenseStatus.DRAFT,
       });

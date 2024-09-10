@@ -1315,6 +1315,7 @@ type ExpenseData = {
   customData: Record<string, unknown>;
   accountingCategory?: AccountingCategory;
   transactionsImportRow?: TransactionsImportRow;
+  reference?: string;
 };
 
 const EXPENSE_EDITABLE_FIELDS = [
@@ -1326,6 +1327,7 @@ const EXPENSE_EDITABLE_FIELDS = [
   'privateMessage',
   'invoiceInfo',
   'payeeLocation',
+  'reference',
 ] as const;
 
 type ExpenseEditableFieldsUnion = (typeof EXPENSE_EDITABLE_FIELDS)[number];
@@ -1889,6 +1891,7 @@ export const DRAFT_EXPENSE_FIELDS = [
   'type',
   'privateMessage',
   'invoiceInfo',
+  'reference',
 ] as const;
 
 /**

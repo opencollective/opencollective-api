@@ -135,6 +135,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   public declare items?: ExpenseItem[];
   public declare attachedFiles?: ExpenseAttachedFile[];
   public declare accountingCategory?: AccountingCategory;
+  public declare reference: string;
 
   // Association getters
   declare getActivities: HasManyGetAssociationsMixin<Activity>;
@@ -931,6 +932,13 @@ Expense.init(
       type: DataTypes.BOOLEAN,
       defaultValue: false,
       allowNull: false,
+    },
+
+    reference: {
+      type: DataTypes.STRING,
+      set(reference: string | null) {
+        this.setDataValue('reference', reference?.trim() || null);
+      },
     },
   },
   {
