@@ -2631,6 +2631,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
             PayoutMethodId: payoutMethod.id,
             UserId: fromUser.id,
             FromCollectiveId: fromUser.CollectiveId,
+            reference: 'MyUniqueR€f',
           });
 
           // Updates the collective balance and pay the expense
@@ -2647,6 +2648,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           expect(callPaypal.firstCall.args[1].currencyCode).to.equal(expense.currency);
           expect(callPaypal.firstCall.args[1].memo).to.include('Reimbursement from');
           expect(callPaypal.firstCall.args[1].memo).to.include(expense.description);
+          expect(callPaypal.firstCall.args[1].memo).to.include(expense.reference);
           expect(res.errors).to.exist;
           expect(res.errors[0].message).to.contain('Not enough funds in your existing Paypal preapproval');
           const updatedExpense = await models.Expense.findByPk(expense.id);

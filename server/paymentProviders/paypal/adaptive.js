@@ -1,5 +1,5 @@
 import config from 'config';
-import { get, isNil } from 'lodash';
+import { get, isNil, truncate } from 'lodash';
 import { v1 as uuid } from 'uuid';
 
 import errors from '../../lib/errors';
@@ -43,6 +43,18 @@ const getPreapprovalDetailsAndUpdatePaymentMethod = async function (paymentMetho
   });
 };
 
+/**
+ * PayPal supports a maximum of 1000 characters for the memo field. Can include newline characters.
+ */
+const getMemo = (collective, expense) => {
+  let result = `Reimbursement from ${truncate(collective.name, { length: 300 })}: ${truncate(expense.description, { length: 300 })}`;
+  if (expense.reference) {
+    result += `\nReference: ${truncate(expense.reference, { length: 300 })}`;
+  }
+
+  return result;
+};
+
 export default {
   features: {
     recurring: false,
@@ -67,6 +79,7 @@ export default {
     const uri = `/${collective.slug}/expenses/${expense.id}`;
     const expenseUrl = config.host.website + uri;
     const amount = expense.amount / 100;
+    // See https://www.paypalobjects.com/webstatic/en_US/developer/docs/pdf/pp_adaptivepaymentsmobile.pdf
     const payload = {
       // Note: if we change this to 'PAY', payment will complete in one step
       // but we won't get any info on fees or conversion rates.
@@ -75,7 +88,7 @@ export default {
       // TODO does PayPal accept all the currencies that we support in our expenses?
       currencyCode: expense.currency,
       feesPayer: 'SENDER',
-      memo: `Reimbursement from ${collective.name}: ${expense.description}`,
+      memo: getMemo(collective, expense),
       trackingId: [uuid().substr(0, 8), expense.id].join(':'),
       preapprovalKey,
       returnUrl: `${expenseUrl}?result=success&service=paypal`,
