@@ -77,6 +77,7 @@ import {
   collectiveSlugReservedList,
   filterCollectiveSettings,
   getCollectiveAvatarUrl,
+  getCollectiveBackgroundImageUrl,
   isCollectiveSlugReserved,
   validateSettings,
 } from '../lib/collectivelib';
@@ -3250,31 +3251,8 @@ class Collective extends Model<
     return getCollectiveAvatarUrl(this.slug, this.type, this.image, args);
   };
 
-  getBackgroundImageUrl = function (args: any = {}) {
-    if (!this.backgroundImage) {
-      return null;
-    }
-
-    const sections = [config.host.images, this.slug];
-
-    sections.push(md5(this.backgroundImage).substring(0, 7));
-
-    sections.push('background');
-
-    if (args.height) {
-      sections.push(args.height);
-    }
-
-    // Re-use original image format if supported, default to png otherwise
-    let format = args.format;
-    if (!format) {
-      format = this.backgroundImage.split('.').pop();
-      if (!['jpg', 'png'].includes(format)) {
-        format = 'png';
-      }
-    }
-
-    return `${sections.join('/')}.${format}`;
+  getBackgroundImageUrl = function (args: Parameters<typeof getCollectiveBackgroundImageUrl>[2] = {}) {
+    return getCollectiveBackgroundImageUrl(this.backgroundImage, this.slug, args);
   };
 
   getHostedCollectivesCount = function () {
@@ -3780,6 +3758,26 @@ Collective.init(
           return image;
         }
       },
+      set(url: string) {
+        // A special handler to tolerate what could become a frequent developer mistake: fetching the `imageUrl`
+        // from GraphQL then passing this URL (which points to our image proxy) when trying to update the model.
+        // This handler detects this and simply ignores the update if the URL is the same as the current one.
+        try {
+          const parsedUrl = new URL(url);
+          if (parsedUrl.origin === config.host.images && this.image) {
+            const format = parsedUrl.pathname.split('.').pop(); // We don't want to compare on the format
+            const currentAvatarUrl = getCollectiveAvatarUrl(this.slug, this.type, this.image, { format });
+            if (currentAvatarUrl === url) {
+              return;
+            }
+          }
+        } catch (e) {
+          // Ignore errors, the validator will take care of throwing the right error message
+        }
+
+        // In normal cases, just set the value
+        this.setDataValue('image', url);
+      },
     },
 
     backgroundImage: {
@@ -3803,6 +3801,26 @@ Collective.init(
       },
       get() {
         return this.getDataValue('backgroundImage');
+      },
+      set(url: string) {
+        // A special handler to tolerate what could become a frequent developer mistake: fetching the `backgroundImageUrl`
+        // from GraphQL then passing this URL (which points to our image proxy) when trying to update the model.
+        // This handler detects this and simply ignores the update if the URL is the same as the current one.
+        try {
+          const parsedUrl = new URL(url);
+          if (parsedUrl.origin === config.host.images && this.backgroundImage) {
+            const format = parsedUrl.pathname.split('.').pop(); // We don't want to compare on the format
+            const currentBackgroundUrl = getCollectiveBackgroundImageUrl(this.backgroundImage, this.slug, { format });
+            if (currentBackgroundUrl === url) {
+              return;
+            }
+          }
+        } catch (e) {
+          // Ignore errors, the validator will take care of throwing the right error message
+        }
+
+        // In normal cases, just set the value
+        this.setDataValue('backgroundImage', url);
       },
     },
 
