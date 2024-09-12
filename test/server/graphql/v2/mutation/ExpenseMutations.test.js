@@ -1985,7 +1985,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         await waitForCondition(() => emailSendMessageSpy.callCount > 0);
         expect(emailSendMessageSpy).calledWith(
           'test@email.com',
-          'An expense you were invited to receive has been updated',
+          'An expense you were invited to submit has been updated',
         );
       });
 
