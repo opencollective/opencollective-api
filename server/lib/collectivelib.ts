@@ -21,7 +21,7 @@ import { md5 } from './utils';
 
 const { USER } = CollectiveType;
 
-type AvatarUrlOpts = {
+type ImageUrlOpts = {
   height?: boolean;
   format?: string;
 };
@@ -39,7 +39,7 @@ export const getCollectiveAvatarUrl = (
   collectiveSlug: string,
   collectiveType: CollectiveType,
   image: string,
-  args: AvatarUrlOpts,
+  args: ImageUrlOpts = {},
 ): string => {
   const sections = [config.host.images, collectiveSlug];
 
@@ -54,6 +54,37 @@ export const getCollectiveAvatarUrl = (
   }
 
   return `${sections.join('/')}.${args.format || 'png'}`;
+};
+
+export const getCollectiveBackgroundImageUrl = (
+  backgroundImage: string,
+  collectiveSlug: string,
+  args: ImageUrlOpts = {},
+) => {
+  if (!backgroundImage) {
+    return null;
+  }
+
+  const sections = [config.host.images, collectiveSlug];
+
+  sections.push(md5(backgroundImage).substring(0, 7));
+
+  sections.push('background');
+
+  if (args.height) {
+    sections.push(args.height);
+  }
+
+  // Re-use original image format if supported, default to png otherwise
+  let format = args.format;
+  if (!format) {
+    format = backgroundImage.split('.').pop();
+    if (!['jpg', 'png'].includes(format)) {
+      format = 'png';
+    }
+  }
+
+  return `${sections.join('/')}.${format}`;
 };
 
 export const COLLECTIVE_SETTINGS_KEYS_LIST = [
