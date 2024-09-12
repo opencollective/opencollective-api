@@ -68,9 +68,4 @@ export interface CollectionReturnType<T = unknown> {
   offset: number;
 }
 
-export type CollectionArgsType = {
-  limit?: number;
-  offset?: number;
-};
-
 export { GraphQLCollection, CollectionFields, CollectionArgs };
