@@ -1,9 +1,8 @@
 {
   "port": "PORT",
   "env": "OC_ENV",
-  "maildev": {
-    "client": "MAILDEV_CLIENT",
-    "server": "MAILDEV_SERVER"
+  "mailpit": {
+    "client": "MAILPIT_CLIENT"
   },
   "database": {
     "url": "PG_URL",

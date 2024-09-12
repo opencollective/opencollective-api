@@ -37,10 +37,6 @@ async function start(i) {
       config.env,
       i,
     );
-    if (config.maildev.server) {
-      const maildev = require('./maildev'); // eslint-disable-line @typescript-eslint/no-var-requires
-      maildev.listen();
-    }
   });
 
   server.timeout = 25000; // sets timeout to 25 seconds
