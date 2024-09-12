@@ -2,7 +2,7 @@ import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLN
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { assign, get, invert, isEmpty, isNil, isNull, merge, omit, omitBy } from 'lodash';
 import moment from 'moment';
-import { Order } from 'sequelize';
+import { Order, Sequelize } from 'sequelize';
 
 import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
@@ -701,6 +701,9 @@ const accountFieldsDefinition = () => ({
       accountType: {
         type: new GraphQLList(GraphQLAccountType),
       },
+      term: {
+        type: GraphQLString,
+      },
     },
     async resolve(account, args) {
       if (args.limit > 100) {
@@ -720,6 +723,12 @@ const accountFieldsDefinition = () => ({
       } else {
         where['type'] = {
           [Op.ne]: AccountTypeToModelMapping[CollectiveType.VENDOR],
+        };
+      }
+
+      if (args.term) {
+        where['searchTsVector'] = {
+          [Op.match]: Sequelize.fn('websearch_to_tsquery', args.term),
         };
       }
 

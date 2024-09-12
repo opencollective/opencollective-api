@@ -61,11 +61,16 @@ export const getCollectionArgs = ({ limit = 10, offset = 0 }) => ({
   },
 });
 
-export interface CollectionReturnType {
-  nodes: unknown[] | Promise<unknown[]> | (() => Promise<unknown[]>);
+export interface CollectionReturnType<T = unknown> {
+  nodes: T[] | Promise<T[]> | (() => Promise<T[]>);
   totalCount: number | Promise<number> | (() => Promise<number>);
   limit: number;
   offset: number;
 }
+
+export type CollectionArgsType = {
+  limit?: number;
+  offset?: number;
+};
 
 export { GraphQLCollection, CollectionFields, CollectionArgs };
