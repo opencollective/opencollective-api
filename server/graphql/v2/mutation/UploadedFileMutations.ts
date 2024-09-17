@@ -4,6 +4,7 @@ import { difference } from 'lodash';
 
 import { FileKind } from '../../../constants/file-kind';
 import { getExpenseOCRParser, runOCRForExpenseFile, userCanUseOCR } from '../../../lib/ocr';
+import { parseToBoolean } from '../../../lib/utils';
 import models, { UploadedFile } from '../../../models';
 import { checkRemoteUserCanUseExpenses } from '../../common/scope-check';
 import { RateLimitExceeded } from '../../errors';
@@ -106,7 +107,7 @@ const uploadedFileMutations = {
 
           // Parse document if requested and we have enough time left
           const timeLeftForParsing = MAX_UPLOAD_TIME - uploadDuration;
-          if (parseDocument && timeLeftForParsing > 2e3) {
+          if (parseDocument && timeLeftForParsing > 2e3 && !parseToBoolean(process.env.DISABLE_EXPENSE_OCR)) {
             result.parsingResult = await runOCRForExpenseFile(parser, result.file, {
               ...parsingOptions,
               timeoutInMs: timeLeftForParsing,
