@@ -179,7 +179,10 @@ export const lookForParserDataInCache = async (
   if (get(uploadedFile.data, 'ocrData.parser') === parser.PARSER_ID && get(uploadedFile.data, 'ocrData.result')) {
     fileWithExistingData = uploadedFile;
   } else if (get(uploadedFile.data, 's3SHA256')) {
-    fileWithExistingData = await UploadedFile.findOne({
+    // Postgres does not use our "UploadedFiles_s3_hash" when there's a `LIMIT 1` (aka `findOne`).
+    // Apparently, for a query with LIMIT 1, PostgreSQL might estimate that it's faster to start a
+    // sequential scan and stop as soon as it finds a match, rather than using an index scan followed by table lookups.
+    const similarFiles = await UploadedFile.findAll({
       order: [['id', 'DESC']],
       where: {
         data: {
@@ -188,6 +191,8 @@ export const lookForParserDataInCache = async (
         },
       },
     });
+
+    fileWithExistingData = similarFiles[0];
   }
 
   if (fileWithExistingData) {
