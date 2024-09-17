@@ -9,7 +9,7 @@ import { syncOrder } from '../../server/lib/stripe/sync-order';
 import { Collective, Op, Order, PaymentMethod } from '../../server/models';
 import { runCronJob } from '../utils';
 
-export async function run() {
+async function run() {
   logger.info('Starting job to fix stripe stale NEW paymentIntents');
 
   const results = await Order.findAndCountAll({
