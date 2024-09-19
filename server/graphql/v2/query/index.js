@@ -27,7 +27,7 @@ import OrganizationQuery from './OrganizationQuery';
 import PaypalPlanQuery from './PaypalPlanQuery';
 import PersonalTokenQuery from './PersonalTokenQuery';
 import ProjectQuery from './ProjectQuery';
-import SearchQuery from './search';
+import SearchQuery from './SearchQuery';
 import TierQuery from './TierQuery';
 import TransactionQuery from './TransactionQuery';
 import TransactionsImportQuery from './TransactionsImport';

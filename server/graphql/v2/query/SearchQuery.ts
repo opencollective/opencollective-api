@@ -1,5 +1,6 @@
+import { Client } from '@elastic/elasticsearch';
 import express from 'express';
-import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { Op } from 'sequelize';
 
 import { buildSearchConditions } from '../../../lib/search';
@@ -87,8 +88,18 @@ const SearchQuery = {
       description: 'The default limit for each entity type',
       defaultValue: 10,
     },
+    useElasticSearch: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether to use ElasticSearch or not',
+      defaultValue: false,
+    },
   },
   async resolve(_: void, args, req: express.Request) {
+    if (args.useElasticSearch) {
+      const client = new Client({ node: 'http://localhost:9200' });
+      throw new Error('Not implemented');
+    }
+
     const host = args.host && (await fetchAccountWithReference(args.host));
     const account = args.account && (await fetchAccountWithReference(args.account));
     // TODO: Permissions!

@@ -1,0 +1,11 @@
+version: "3"
+services:
+  elasticsearch:
+    image: elasticsearch:8.15.1
+    ports:
+      - 9200:9200
+      - 9300:9300
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - cluster.routing.allocation.disk.threshold_enabled=false
