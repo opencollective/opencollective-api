@@ -1,6 +1,7 @@
 import { Client } from '@elastic/elasticsearch';
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { groupBy, result } from 'lodash';
 import { Op } from 'sequelize';
 
 import { buildSearchConditions } from '../../../lib/search';
@@ -96,8 +97,84 @@ const SearchQuery = {
   },
   async resolve(_: void, args, req: express.Request) {
     if (args.useElasticSearch) {
-      const client = new Client({ node: 'http://localhost:9200' });
-      throw new Error('Not implemented');
+      // TODO: 2-steps search: first accounts, then associated data
+
+      const requestId = 'unique-string'; // TODO UUID
+      const baseSearchParams = { requestId, searchTerm: args.searchTerm };
+      return {
+        accounts: async () => {
+          const results = await req.loaders.search.load({ ...baseSearchParams, index: 'collectives' });
+          return {
+            nodes: () => req.loaders.Collective.byId.loadMany(results),
+            totalCount: results.length,
+            offset: 0,
+            limit: args.defaultLimit,
+          };
+        },
+        comments: async () => {
+          const results = await req.loaders.search.load({ ...baseSearchParams, index: 'comments' });
+          return {
+            nodes: () => req.loaders.Comment.byId.loadMany(results),
+            totalCount: results.length,
+            offset: 0,
+            limit: args.defaultLimit,
+          };
+        },
+        expenses: async () => {
+          const results = await req.loaders.search.load({ ...baseSearchParams, index: 'expenses' });
+          return {
+            nodes: () => req.loaders.Expense.byId.loadMany(results),
+            totalCount: results.length,
+            offset: 0,
+            limit: args.defaultLimit,
+          };
+        },
+        hostApplications: async () => {
+          const results = await req.loaders.search.load({ ...baseSearchParams, index: 'hostapplications' });
+          return {
+            nodes: () => req.loaders.HostApplication.byId.loadMany(results),
+            totalCount: results.length,
+            offset: 0,
+            limit: args.defaultLimit,
+          };
+        },
+        orders: async () => {
+          const results = await req.loaders.search.load({ ...baseSearchParams, index: 'orders' });
+          return {
+            nodes: () => req.loaders.Order.byId.loadMany(results),
+            totalCount: results.length,
+            offset: 0,
+            limit: args.defaultLimit,
+          };
+        },
+        tiers: async () => {
+          const results = await req.loaders.search.load({ ...baseSearchParams, index: 'tiers' });
+          return {
+            nodes: () => req.loaders.Tier.byId.loadMany(results),
+            totalCount: results.length,
+            offset: 0,
+            limit: args.defaultLimit,
+          };
+        },
+        transactions: async () => {
+          const results = await req.loaders.search.load({ ...baseSearchParams, index: 'transactions' });
+          return {
+            nodes: () => req.loaders.Transaction.byId.loadMany(results),
+            totalCount: results.length,
+            offset: 0,
+            limit: args.defaultLimit,
+          };
+        },
+        updates: async () => {
+          const results = await req.loaders.search.load({ ...baseSearchParams, index: 'updates' });
+          return {
+            nodes: () => req.loaders.Update.byId.loadMany(results),
+            totalCount: results.length,
+            offset: 0,
+            limit: args.defaultLimit,
+          };
+        },
+      };
     }
 
     const host = args.host && (await fetchAccountWithReference(args.host));

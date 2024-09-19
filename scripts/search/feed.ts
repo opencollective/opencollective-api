@@ -21,55 +21,141 @@ async function createIndices() {
         updatedAt: { type: 'date' },
         slug: { type: 'keyword' },
         name: { type: 'text' },
+        type: { type: 'keyword' },
+        legalName: { type: 'text' },
         description: { type: 'text' },
         longDescription: { type: 'text' },
         website: { type: 'keyword' },
         isActive: { type: 'boolean' },
         isHostAccount: { type: 'boolean' },
-        // TODO: Social accounts
         deactivatedAt: { type: 'date' },
+        // TODO: Social accounts
+        // TODO: administrated accounts
+      },
+    },
+  });
+  await client.indices.create({
+    index: 'comments',
+    mappings: {
+      properties: {
+        id: { type: 'keyword' },
+        createdAt: { type: 'date' },
+        updatedAt: { type: 'date' },
+        html: { type: 'text' },
+      },
+    },
+  });
+  await client.indices.create({
+    index: 'expenses',
+    mappings: {
+      properties: {
+        id: { type: 'keyword' },
+        createdAt: { type: 'date' },
+        updatedAt: { type: 'date' },
+        incurredAt: { type: 'date' },
+        description: { type: 'text' },
+        amount: { type: 'float' },
+        currency: { type: 'keyword' },
+        status: { type: 'keyword' },
+      },
+    },
+  });
+  await client.indices.create({
+    index: 'updates',
+    mappings: {
+      properties: {
+        id: { type: 'keyword' },
+        createdAt: { type: 'date' },
+        updatedAt: { type: 'date' },
+        html: { type: 'text' },
+      },
+    },
+  });
+  await client.indices.create({
+    index: 'transactions',
+    mappings: {
+      properties: {
+        id: { type: 'keyword' },
+        createdAt: { type: 'date' },
+        updatedAt: { type: 'date' },
+        kind: { type: 'keyword' },
+        description: { type: 'text' },
+      },
+    },
+  });
+  await client.indices.create({
+    index: 'orders',
+    mappings: {
+      properties: {
+        id: { type: 'keyword' },
+        createdAt: { type: 'date' },
+        updatedAt: { type: 'date' },
+        description: { type: 'text' },
+      },
+    },
+  });
+  await client.indices.create({
+    index: 'tiers',
+    mappings: {
+      properties: {
+        id: { type: 'keyword' },
+        createdAt: { type: 'date' },
+        updatedAt: { type: 'date' },
+        name: { type: 'text' },
+        description: { type: 'text' },
+      },
+    },
+  });
+  await client.indices.create({
+    index: 'hostapplications',
+    mappings: {
+      properties: {
+        id: { type: 'keyword' },
+        createdAt: { type: 'date' },
+        updatedAt: { type: 'date' },
+        message: { type: 'text' },
       },
     },
   });
 }
 
-async function feedData() {
-  const collectives = await models.Collective.findAll();
+async function modelToIndex(model, indexName) {
+  const index = await client.indices.get({ index: indexName });
+  const indexProperties = index[indexName].mappings.properties;
+  const attributes = Object.keys(indexProperties);
+  const modelEntries = await model.findAll({ attributes, raw: true });
   await client.bulk({
-    index: 'collectives',
-    body: collectives.flatMap(collective => [
-      { index: { _id: collective.id } },
-      {
-        id: collective.id,
-        createdAt: collective.createdAt,
-        updatedAt: collective.updatedAt,
-        slug: collective.slug,
-        name: collective.name,
-        description: collective.description,
-        longDescription: collective.longDescription,
-        website: collective.website,
-        isActive: collective.isActive,
-        isHostAccount: collective.isHostAccount,
-        deactivatedAt: collective.deactivatedAt,
-      },
-    ]),
+    index: indexName,
+    body: modelEntries.flatMap(entry => [{ index: { _id: entry.id } }, entry]),
   });
+}
+
+async function feedData() {
+  await modelToIndex(models.Collective, 'collectives');
+  await modelToIndex(models.Comment, 'comments');
+  await modelToIndex(models.Expense, 'expenses');
+  await modelToIndex(models.Update, 'updates');
+  await modelToIndex(models.Transaction, 'transactions');
+  await modelToIndex(models.Order, 'orders');
+  await modelToIndex(models.Tier, 'tiers');
+  await modelToIndex(models.HostApplication, 'hostapplications');
 }
 
 async function run() {
   // Ping the Elasticsearch cluster
+  console.log('Checking Elasticsearch cluster...');
   const pingResult = await client.ping();
   console.log('Elasticsearch cluster is up!');
 
   // Delete all existing indices
-  // const indices = await client.cat.indices({ format: 'json' });
-  // for (const index of indices) {
-  //   await client.indices.delete({ index: index.index });
-  // }
+  const indices = await client.cat.indices({ format: 'json' });
+  for (const index of indices) {
+    await client.indices.delete({ index: index.index });
+  }
 
-  // await createIndices();
+  await createIndices();
 
-  // await feedData();
+  await feedData();
 
   // check index size
   // const indexStats = await client.indices.stats({ index: 'collectives' });
@@ -77,7 +163,7 @@ async function run() {
 
   // Search for the document
   const searchResult = await client.search({
-    index: 'collectives',
+    index: '*',
     query: {
       match: { name: 'test' },
     },
