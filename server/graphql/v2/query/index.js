@@ -7,6 +7,7 @@ import ExpenseTagStatsCollectionQuery from './collection/ExpenseTagStatsCollecti
 import HostsCollectionQuery from './collection/HostsCollectionQuery';
 import getOrdersCollectionQuery from './collection/OrdersCollectionQuery';
 import TagStatsCollectionQuery from './collection/TagStatsCollectionQuery';
+import TransactionGroupCollectionQuery from './collection/TransactionGroupCollectionQuery';
 import TransactionsCollectionQuery from './collection/TransactionsCollectionQuery';
 import UpdatesCollectionQuery from './collection/UpdatesCollectionQuery';
 import VirtualCardRequestsCollectionQuery from './collection/VirtualCardRequestsCollectionQuery';
@@ -29,6 +30,7 @@ import PersonalTokenQuery from './PersonalTokenQuery';
 import ProjectQuery from './ProjectQuery';
 import SearchQuery from './SearchQuery';
 import TierQuery from './TierQuery';
+import TransactionGroupQuery from './TransactionGroupQuery';
 import TransactionQuery from './TransactionQuery';
 import TransactionsImportQuery from './TransactionsImport';
 import UpdateQuery from './UpdateQuery';
@@ -61,6 +63,8 @@ const query = {
   tier: TierQuery,
   transaction: TransactionQuery,
   transactions: TransactionsCollectionQuery,
+  transactionGroup: TransactionGroupQuery,
+  transactionGroups: TransactionGroupCollectionQuery,
   transactionsImport: TransactionsImportQuery,
   update: UpdateQuery,
   updates: UpdatesCollectionQuery,

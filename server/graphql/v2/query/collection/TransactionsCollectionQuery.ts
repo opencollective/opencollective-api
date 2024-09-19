@@ -45,6 +45,19 @@ const LEDGER_ORDERED_TRANSACTIONS_FIELDS = {
   ),
 };
 
+export const getTransactionKindPriorityCase = tableName => `
+  CASE
+    WHEN "${tableName}"."kind" IN ('CONTRIBUTION', 'EXPENSE', 'ADDED_FUNDS', 'BALANCE_TRANSFER', 'PREPAID_PAYMENT_METHOD') THEN 1
+    WHEN "${tableName}"."kind" IN ('PLATFORM_TIP') THEN 2
+    WHEN "${tableName}"."kind" IN ('PLATFORM_TIP_DEBT') THEN 3
+    WHEN "${tableName}"."kind" IN ('PAYMENT_PROCESSOR_FEE') THEN 4
+    WHEN "${tableName}"."kind" IN ('PAYMENT_PROCESSOR_COVER') THEN 5
+    WHEN "${tableName}"."kind" IN ('HOST_FEE') THEN 6
+    WHEN "${tableName}"."kind" IN ('HOST_FEE_SHARE') THEN 7
+    WHEN "${tableName}"."kind" IN ('HOST_FEE_SHARE_DEBT') THEN 8
+    ELSE 9
+  END`;
+
 export const TransactionsCollectionArgs = {
   limit: { ...CollectionArgs.limit, defaultValue: 100 },
   offset: CollectionArgs.offset,
@@ -497,21 +510,7 @@ export const TransactionsCollectionResolver = async (
     ? [
         [LEDGER_ORDERED_TRANSACTIONS_FIELDS[args.orderBy.field || 'createdAt'], args.orderBy.direction],
         ['TransactionGroup', args.orderBy.direction],
-        [
-          sequelize.literal(`
-        CASE
-          WHEN "Transaction"."kind" IN ('CONTRIBUTION', 'EXPENSE', 'ADDED_FUNDS', 'BALANCE_TRANSFER', 'PREPAID_PAYMENT_METHOD') THEN 1
-          WHEN "Transaction"."kind" IN ('PLATFORM_TIP') THEN 2
-          WHEN "Transaction"."kind" IN ('PLATFORM_TIP_DEBT') THEN 3
-          WHEN "Transaction"."kind" IN ('PAYMENT_PROCESSOR_FEE') THEN 4
-          WHEN "Transaction"."kind" IN ('PAYMENT_PROCESSOR_COVER') THEN 5
-          WHEN "Transaction"."kind" IN ('HOST_FEE') THEN 6
-          WHEN "Transaction"."kind" IN ('HOST_FEE_SHARE') THEN 7
-          WHEN "Transaction"."kind" IN ('HOST_FEE_SHARE_DEBT') THEN 8
-          ELSE 9
-        END`),
-          args.orderBy.direction,
-        ],
+        [sequelize.literal(getTransactionKindPriorityCase('Transaction')), args.orderBy.direction],
         [
           sequelize.literal(`
         CASE
