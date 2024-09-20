@@ -150,29 +150,41 @@ async function modelToIndex(model, indexName) {
     }),
   );
 
-  const modelEntries = await model.findAll({ attributes, raw: true });
-  if (modelEntries.length === 0) {
-    return;
-  }
-  await client.bulk({
-    index: indexName,
-    body: modelEntries.flatMap(entry => [
-      { index: { _id: entry.id } },
-      {
-        ...mapValues(entry, (value, key) => {
-          if (['html', 'longDescription'].includes(key)) {
-            return LibSanitize(value, { allowedTags: [], allowedAttributes: {} }); // TODO: Use native elastic search HTML stripping
-          } else if (indexProperties[key]) {
-            return value;
-          }
-        }),
+  const modelEntries = [];
+  let offset = 0;
+  const limit = 1000;
+  do {
+    console.log(`Feeding ${model.name} to ${indexName} (offset: ${offset})`);
+    const modelEntries = await model.findAll({
+      attributes,
+      raw: true,
+      limit,
+      offset,
+    });
+    if (modelEntries.length === 0) {
+      return;
+    }
+    await client.bulk({
+      index: indexName,
+      body: modelEntries.flatMap(entry => [
+        { index: { _id: entry.id } },
+        {
+          ...mapValues(entry, (value, key) => {
+            if (['html', 'longDescription'].includes(key)) {
+              return LibSanitize(value, { allowedTags: [], allowedAttributes: {} }); // TODO: Use native elastic search HTML stripping
+            } else if (indexProperties[key]) {
+              return value;
+            }
+          }),
 
-        ...mapValues(SPECIAL_COLUMNS[indexName], column => {
-          return column.transform(entry);
-        }),
-      },
-    ]),
-  });
+          ...mapValues(SPECIAL_COLUMNS[indexName], column => {
+            return column.transform(entry);
+          }),
+        },
+      ]),
+    });
+    offset += limit;
+  } while (modelEntries.length === limit);
 }
 
 async function feedData() {
