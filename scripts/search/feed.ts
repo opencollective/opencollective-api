@@ -1,5 +1,7 @@
+import '../../server/env';
+
 import { Client } from '@elastic/elasticsearch';
-import { compact, get, head, mapValues, omit, uniq } from 'lodash';
+import { compact, get, head, mapValues, uniq } from 'lodash';
 import LibSanitize from 'sanitize-html';
 
 import { sleep } from '../../server/lib/utils';
@@ -149,6 +151,9 @@ async function modelToIndex(model, indexName) {
   );
 
   const modelEntries = await model.findAll({ attributes, raw: true });
+  if (modelEntries.length === 0) {
+    return;
+  }
   await client.bulk({
     index: indexName,
     body: modelEntries.flatMap(entry => [
@@ -200,17 +205,6 @@ async function run() {
   // check index size
   // const indexStats = await client.indices.stats({ index: 'collectives' });
   // console.log(JSON.stringify(indexStats, null, 2));
-
-  // Search for the document
-  await sleep(3000);
-  const searchResult = await client.search({
-    index: 'transactions',
-    query: {
-      match: { merchantId: '72B37338XS835790K' },
-    },
-  });
-
-  console.log(JSON.stringify(searchResult, null, 2));
 }
 
 run()
