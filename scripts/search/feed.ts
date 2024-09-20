@@ -1,9 +1,10 @@
 import { Client } from '@elastic/elasticsearch';
-import { mapValues } from 'lodash';
+import { compact, get, head, mapValues, omit, uniq } from 'lodash';
+import LibSanitize from 'sanitize-html';
 
-import { stripHTML } from '../../server/lib/sanitize-html';
 import { sleep } from '../../server/lib/utils';
 import models from '../../server/models';
+import { MERCHANT_ID_PATHS } from '../../server/models/Transaction';
 
 const client = new Client({
   node: 'http://localhost:9200',
@@ -82,6 +83,8 @@ async function createIndices() {
         updatedAt: { type: 'date' },
         kind: { type: 'keyword' },
         description: { type: 'text' },
+        merchantId: { type: 'keyword' },
+        uuid: { type: 'keyword' },
         // TODO: payment provider ID
       },
     },
@@ -122,22 +125,47 @@ async function createIndices() {
   });
 }
 
+const SPECIAL_COLUMNS = {
+  transactions: {
+    merchantId: {
+      dbFields: ['kind', 'data'],
+      transform: transaction =>
+        head(compact(MERCHANT_ID_PATHS[transaction.kind]?.map(path => get(transaction, path)))) || null,
+    },
+  },
+};
+
 async function modelToIndex(model, indexName) {
   const index = await client.indices.get({ index: indexName });
   const indexProperties = index[indexName].mappings.properties;
-  const attributes = Object.keys(indexProperties);
+  const attributes = uniq(
+    Object.keys(indexProperties).flatMap(key => {
+      if (SPECIAL_COLUMNS[indexName]?.[key]) {
+        return SPECIAL_COLUMNS[indexName][key].dbFields;
+      } else {
+        return key;
+      }
+    }),
+  );
+
   const modelEntries = await model.findAll({ attributes, raw: true });
   await client.bulk({
     index: indexName,
     body: modelEntries.flatMap(entry => [
       { index: { _id: entry.id } },
-      mapValues(entry, (value, key) => {
-        if (['html', 'longDescription'].includes(key)) {
-          return stripHTML(value);
-        } else {
-          return value;
-        }
-      }),
+      {
+        ...mapValues(entry, (value, key) => {
+          if (['html', 'longDescription'].includes(key)) {
+            return LibSanitize(value, { allowedTags: [], allowedAttributes: {} }); // TODO: Use native elastic search HTML stripping
+          } else if (indexProperties[key]) {
+            return value;
+          }
+        }),
+
+        ...mapValues(SPECIAL_COLUMNS[indexName], column => {
+          return column.transform(entry);
+        }),
+      },
     ]),
   });
 }
@@ -174,10 +202,11 @@ async function run() {
   // console.log(JSON.stringify(indexStats, null, 2));
 
   // Search for the document
+  await sleep(3000);
   const searchResult = await client.search({
-    index: '*',
+    index: 'transactions',
     query: {
-      match: { name: 'test' },
+      match: { merchantId: '72B37338XS835790K' },
     },
   });
 
