@@ -27,7 +27,7 @@ export const generateSearchLoaders = () => {
       const limit = groupedRequests[requestId][0].limit;
       const indexes = groupedRequests[requestId].map(entry => entry.index);
 
-      const allCols = ['name', 'description', 'html', 'longDescription', 'legalName', 'merchantId'];
+      const allCols = ['name', 'slug', 'description', 'html', 'longDescription', 'legalName', 'merchantId'];
       const results = await client.search({
         index: indexes.join(','),
         body: {
