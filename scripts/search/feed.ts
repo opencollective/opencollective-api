@@ -150,12 +150,12 @@ async function modelToIndex(model, indexName) {
     }),
   );
 
-  const modelEntries = [];
+  let modelEntries = [];
   let offset = 0;
-  const limit = 1000;
+  const limit = 5000;
   do {
     console.log(`Feeding ${model.name} to ${indexName} (offset: ${offset})`);
-    const modelEntries = await model.findAll({
+    modelEntries = await model.findAll({
       attributes,
       raw: true,
       limit,
