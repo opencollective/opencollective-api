@@ -1,7 +1,8 @@
 import { Client } from '@elastic/elasticsearch';
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { groupBy, result } from 'lodash';
+import { GraphQLJSONObject } from 'graphql-scalars';
+import { groupBy, mapKeys, mapValues, result } from 'lodash';
 import { Op } from 'sequelize';
 
 import { buildSearchConditions } from '../../../lib/search';
@@ -14,41 +15,126 @@ import { GraphQLOrderCollection } from '../collection/OrderCollection';
 import { GraphQLTierCollection } from '../collection/TierCollection';
 import { GraphQLTransactionCollection } from '../collection/TransactionCollection';
 import { GraphQLUpdateCollection } from '../collection/UpdateCollection';
+import { idEncode } from '../identifiers';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 
 const GraphQLSearchResults = new GraphQLObjectType({
-  name: 'SearchResults',
+  name: 'SearchResponse',
   fields: {
-    accounts: {
-      type: new GraphQLNonNull(GraphQLAccountCollection),
+    results: {
+      type: new GraphQLNonNull(
+        new GraphQLObjectType({
+          name: 'SearchResults',
+          fields: {
+            accounts: {
+              type: new GraphQLNonNull(
+                new GraphQLObjectType({
+                  name: 'SearchResultsAccounts',
+                  fields: {
+                    collection: { type: new GraphQLNonNull(GraphQLAccountCollection) },
+                    highlights: { type: GraphQLJSONObject },
+                  },
+                }),
+              ),
+            },
+            comments: {
+              type: new GraphQLNonNull(
+                new GraphQLObjectType({
+                  name: 'SearchResultsComments',
+                  fields: {
+                    collection: { type: new GraphQLNonNull(CommentCollection) },
+                    highlights: { type: GraphQLJSONObject },
+                  },
+                }),
+              ),
+            },
+            expenses: {
+              type: new GraphQLNonNull(
+                new GraphQLObjectType({
+                  name: 'SearchResultsExpenses',
+                  fields: {
+                    collection: { type: new GraphQLNonNull(GraphQLExpenseCollection) },
+                    highlights: { type: GraphQLJSONObject },
+                  },
+                }),
+              ),
+            },
+            hostApplications: {
+              type: new GraphQLNonNull(
+                new GraphQLObjectType({
+                  name: 'SearchResultsHostApplications',
+                  fields: {
+                    collection: { type: new GraphQLNonNull(GraphQLHostApplicationCollection) },
+                    highlights: { type: GraphQLJSONObject },
+                  },
+                }),
+              ),
+            },
+            orders: {
+              type: new GraphQLNonNull(
+                new GraphQLObjectType({
+                  name: 'SearchResultsOrders',
+                  fields: {
+                    collection: { type: new GraphQLNonNull(GraphQLOrderCollection) },
+                    highlights: { type: GraphQLJSONObject },
+                  },
+                }),
+              ),
+            },
+            tiers: {
+              type: new GraphQLNonNull(
+                new GraphQLObjectType({
+                  name: 'SearchResultsTiers',
+                  fields: {
+                    collection: { type: new GraphQLNonNull(GraphQLTierCollection) },
+                    highlights: { type: GraphQLJSONObject },
+                  },
+                }),
+              ),
+            },
+            transactions: {
+              type: new GraphQLNonNull(
+                new GraphQLObjectType({
+                  name: 'SearchResultsTransactions',
+                  fields: {
+                    collection: { type: new GraphQLNonNull(GraphQLTransactionCollection) },
+                    highlights: { type: GraphQLJSONObject },
+                  },
+                }),
+              ),
+            },
+            updates: {
+              type: new GraphQLNonNull(
+                new GraphQLObjectType({
+                  name: 'SearchResultsUpdates',
+                  fields: {
+                    collection: { type: new GraphQLNonNull(GraphQLUpdateCollection) },
+                    highlights: { type: GraphQLJSONObject },
+                  },
+                }),
+              ),
+            },
+          },
+        }),
+      ),
     },
-    // agreements: {
-    //   type: new GraphQLNonNull(GraphQLAgreementCollection),
+    // highlights: {
+    //   type: new GraphQLNonNull(
+    //     new GraphQLObjectType({
+    //       name: 'SearchResultshighlights',
+    //       fields: {
+    //         accounts: { type: GraphQLJSONObject },
+    //         comments: { type: GraphQLJSONObject },
+    //         expenses: { type: GraphQLJSONObject },
+    //         hostApplications: { type: GraphQLJSONObject },
+    //         orders: { type: GraphQLJSONObject },
+    //         tiers: { type: GraphQLJSONObject },
+    //         transactions: { type: GraphQLJSONObject },
+    //         updates: { type: GraphQLJSONObject },
+    //       },
+    //     }),
+    //   ),
     // },
-    comments: {
-      type: new GraphQLNonNull(CommentCollection),
-    },
-    expenses: {
-      type: new GraphQLNonNull(GraphQLExpenseCollection),
-    },
-    hostApplications: {
-      type: new GraphQLNonNull(GraphQLHostApplicationCollection),
-    },
-    // legalDocuments: {
-    //   type: new GraphQLNonNull(GraphQLLegalDocumentCollection),
-    // },
-    orders: {
-      type: new GraphQLNonNull(GraphQLOrderCollection),
-    },
-    tiers: {
-      type: new GraphQLNonNull(GraphQLTierCollection),
-    },
-    transactions: {
-      type: new GraphQLNonNull(GraphQLTransactionCollection),
-    },
-    updates: {
-      type: new GraphQLNonNull(GraphQLUpdateCollection),
-    },
   },
 });
 
@@ -100,79 +186,28 @@ const SearchQuery = {
       // TODO: 2-steps search: first accounts, then associated data
 
       const requestId = 'unique-string'; // TODO UUID
-      const baseSearchParams = { requestId, searchTerm: args.searchTerm };
+      const baseSearchParams = { requestId, limit: args.defaultLimit, searchTerm: args.searchTerm };
       return {
-        accounts: async () => {
-          const results = await req.loaders.search.load({ ...baseSearchParams, index: 'collectives' });
-          return {
-            nodes: () => req.loaders.Collective.byId.loadMany(results),
-            totalCount: results.length,
-            offset: 0,
-            limit: args.defaultLimit,
-          };
-        },
-        comments: async () => {
-          const results = await req.loaders.search.load({ ...baseSearchParams, index: 'comments' });
-          return {
-            nodes: () => req.loaders.Comment.byId.loadMany(results),
-            totalCount: results.length,
-            offset: 0,
-            limit: args.defaultLimit,
-          };
-        },
-        expenses: async () => {
-          const results = await req.loaders.search.load({ ...baseSearchParams, index: 'expenses' });
-          return {
-            nodes: () => req.loaders.Expense.byId.loadMany(results),
-            totalCount: results.length,
-            offset: 0,
-            limit: args.defaultLimit,
-          };
-        },
-        hostApplications: async () => {
-          const results = await req.loaders.search.load({ ...baseSearchParams, index: 'hostapplications' });
-          return {
-            nodes: () => req.loaders.HostApplication.byId.loadMany(results),
-            totalCount: results.length,
-            offset: 0,
-            limit: args.defaultLimit,
-          };
-        },
-        orders: async () => {
-          const results = await req.loaders.search.load({ ...baseSearchParams, index: 'orders' });
-          return {
-            nodes: () => req.loaders.Order.byId.loadMany(results),
-            totalCount: results.length,
-            offset: 0,
-            limit: args.defaultLimit,
-          };
-        },
-        tiers: async () => {
-          const results = await req.loaders.search.load({ ...baseSearchParams, index: 'tiers' });
-          return {
-            nodes: () => req.loaders.Tier.byId.loadMany(results),
-            totalCount: results.length,
-            offset: 0,
-            limit: args.defaultLimit,
-          };
-        },
-        transactions: async () => {
-          const results = await req.loaders.search.load({ ...baseSearchParams, index: 'transactions' });
-          return {
-            nodes: () => req.loaders.Transaction.byId.loadMany(results),
-            totalCount: results.length,
-            offset: 0,
-            limit: args.defaultLimit,
-          };
-        },
-        updates: async () => {
-          const results = await req.loaders.search.load({ ...baseSearchParams, index: 'updates' });
-          return {
-            nodes: () => req.loaders.Update.byId.loadMany(results),
-            totalCount: results.length,
-            offset: 0,
-            limit: args.defaultLimit,
-          };
+        results: {
+          accounts: async () => {
+            const results = await req.loaders.search.load({ ...baseSearchParams, index: 'collectives' });
+            if (!results) {
+              return { collection: { totalCount: 0, offset: 0, limit: args.defaultLimit, nodes: () => [] } };
+            }
+
+            const hits = results['top_hits_by_index']['hits']['hits'];
+            const highlights = mapValues(groupBy(hits, '_id'), hits => hits[0]['highlight']);
+            console.log(highlights);
+            return {
+              highlights: mapKeys(highlights, (_, key) => idEncode(parseInt(key), 'account')),
+              collection: {
+                totalCount: results['doc_count'],
+                offset: 0,
+                limit: args.defaultLimit,
+                nodes: () => req.loaders.Collective.byId.loadMany(hits.map(r => r._id)),
+              },
+            };
+          },
         },
       };
     }

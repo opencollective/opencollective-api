@@ -1,5 +1,7 @@
 import { Client } from '@elastic/elasticsearch';
+import { mapValues } from 'lodash';
 
+import { stripHTML } from '../../server/lib/sanitize-html';
 import { sleep } from '../../server/lib/utils';
 import models from '../../server/models';
 
@@ -80,6 +82,7 @@ async function createIndices() {
         updatedAt: { type: 'date' },
         kind: { type: 'keyword' },
         description: { type: 'text' },
+        // TODO: payment provider ID
       },
     },
   });
@@ -126,7 +129,16 @@ async function modelToIndex(model, indexName) {
   const modelEntries = await model.findAll({ attributes, raw: true });
   await client.bulk({
     index: indexName,
-    body: modelEntries.flatMap(entry => [{ index: { _id: entry.id } }, entry]),
+    body: modelEntries.flatMap(entry => [
+      { index: { _id: entry.id } },
+      mapValues(entry, (value, key) => {
+        if (['html', 'longDescription'].includes(key)) {
+          return stripHTML(value);
+        } else {
+          return value;
+        }
+      }),
+    ]),
   });
 }
 

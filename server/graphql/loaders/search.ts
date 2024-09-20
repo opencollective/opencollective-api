@@ -6,6 +6,7 @@ type SearchParams = {
   requestId: string;
   searchTerm: string;
   index: string;
+  limit: number;
 };
 
 export const generateSearchLoaders = () => {
@@ -23,6 +24,7 @@ export const generateSearchLoaders = () => {
     }
     for (const requestId in groupedRequests) {
       const searchTerm = groupedRequests[requestId][0].searchTerm;
+      const limit = groupedRequests[requestId][0].limit;
       const indexes = groupedRequests[requestId].map(entry => entry.index);
 
       const results = await client.search({
@@ -47,7 +49,7 @@ export const generateSearchLoaders = () => {
               aggs: {
                 top_hits_by_index: {
                   top_hits: {
-                    size: 5, // TODO global limitation
+                    size: limit,
                     _source: {
                       includes: ['name', 'description', 'html', 'longDescription', 'legalName'],
                     },
@@ -77,12 +79,7 @@ export const generateSearchLoaders = () => {
 
     return entries.map(entry => {
       const results = requestsResults.get(entry.requestId);
-      const indexResults = results.aggregations.by_index.buckets.find(bucket => bucket.key === entry.index);
-      if (!indexResults) {
-        return [];
-      }
-      console.log(indexResults.top_hits_by_index.hits.hits);
-      return indexResults.top_hits_by_index.hits.hits.map(hit => hit._id);
+      return results.aggregations.by_index.buckets.find(bucket => bucket.key === entry.index);
     });
   });
 };
