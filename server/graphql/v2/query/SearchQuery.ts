@@ -208,6 +208,132 @@ const SearchQuery = {
               },
             };
           },
+          comments: async () => {
+            const results = await req.loaders.search.load({ ...baseSearchParams, index: 'comments' });
+            if (!results) {
+              return { collection: { totalCount: 0, offset: 0, limit: args.defaultLimit, nodes: () => [] } };
+            }
+
+            const hits = results['top_hits_by_index']['hits']['hits'];
+            const highlights = mapValues(groupBy(hits, '_id'), hits => hits[0]['highlight']);
+            return {
+              highlights: mapKeys(highlights, (_, key) => idEncode(parseInt(key), 'comment')),
+              collection: {
+                totalCount: results['doc_count'],
+                offset: 0,
+                limit: args.defaultLimit,
+                nodes: () => req.loaders.Comment.byId.loadMany(hits.map(r => r._id)),
+              },
+            };
+          },
+          expenses: async () => {
+            const results = await req.loaders.search.load({ ...baseSearchParams, index: 'expenses' });
+            if (!results) {
+              return { collection: { totalCount: 0, offset: 0, limit: args.defaultLimit, nodes: () => [] } };
+            }
+
+            const hits = results['top_hits_by_index']['hits']['hits'];
+            const highlights = mapValues(groupBy(hits, '_id'), hits => hits[0]['highlight']);
+            return {
+              highlights: mapKeys(highlights, (_, key) => idEncode(parseInt(key), 'expense')),
+              collection: {
+                totalCount: results['doc_count'],
+                offset: 0,
+                limit: args.defaultLimit,
+                nodes: () => req.loaders.Expense.byId.loadMany(hits.map(r => r._id)),
+              },
+            };
+          },
+          hostApplications: async () => {
+            const results = await req.loaders.search.load({ ...baseSearchParams, index: 'hostapplications' });
+            if (!results) {
+              return { collection: { totalCount: 0, offset: 0, limit: args.defaultLimit, nodes: () => [] } };
+            }
+
+            const hits = results['top_hits_by_index']['hits']['hits'];
+            const highlights = mapValues(groupBy(hits, '_id'), hits => hits[0]['highlight']);
+            return {
+              highlights: mapKeys(highlights, (_, key) => idEncode(parseInt(key), 'host-application')),
+              collection: {
+                totalCount: results['doc_count'],
+                offset: 0,
+                limit: args.defaultLimit,
+                nodes: () => req.loaders.HostApplication.byId.loadMany(hits.map(r => r._id)),
+              },
+            };
+          },
+          orders: async () => {
+            const results = await req.loaders.search.load({ ...baseSearchParams, index: 'orders' });
+            if (!results) {
+              return { collection: { totalCount: 0, offset: 0, limit: args.defaultLimit, nodes: () => [] } };
+            }
+
+            const hits = results['top_hits_by_index']['hits']['hits'];
+            const highlights = mapValues(groupBy(hits, '_id'), hits => hits[0]['highlight']);
+            return {
+              highlights: mapKeys(highlights, (_, key) => idEncode(parseInt(key), 'order')),
+              collection: {
+                totalCount: results['doc_count'],
+                offset: 0,
+                limit: args.defaultLimit,
+                nodes: () => req.loaders.Order.byId.loadMany(hits.map(r => r._id)),
+              },
+            };
+          },
+          tiers: async () => {
+            const results = await req.loaders.search.load({ ...baseSearchParams, index: 'tiers' });
+            if (!results) {
+              return { collection: { totalCount: 0, offset: 0, limit: args.defaultLimit, nodes: () => [] } };
+            }
+
+            const hits = results['top_hits_by_index']['hits']['hits'];
+            const highlights = mapValues(groupBy(hits, '_id'), hits => hits[0]['highlight']);
+            return {
+              highlights: mapKeys(highlights, (_, key) => idEncode(parseInt(key), 'tier')),
+              collection: {
+                totalCount: results['doc_count'],
+                offset: 0,
+                limit: args.defaultLimit,
+                nodes: () => req.loaders.Tier.byId.loadMany(hits.map(r => r._id)),
+              },
+            };
+          },
+          transactions: async () => {
+            const results = await req.loaders.search.load({ ...baseSearchParams, index: 'transactions' });
+            if (!results) {
+              return { collection: { totalCount: 0, offset: 0, limit: args.defaultLimit, nodes: () => [] } };
+            }
+
+            const hits = results['top_hits_by_index']['hits']['hits'];
+            const highlights = mapValues(groupBy(hits, '_uuid'), hits => hits[0]['highlight']);
+            return {
+              highlights: highlights,
+              collection: {
+                totalCount: results['doc_count'],
+                offset: 0,
+                limit: args.defaultLimit,
+                nodes: () => req.loaders.Transaction.byId.loadMany(hits.map(r => r._id)),
+              },
+            };
+          },
+          updates: async () => {
+            const results = await req.loaders.search.load({ ...baseSearchParams, index: 'updates' });
+            if (!results) {
+              return { collection: { totalCount: 0, offset: 0, limit: args.defaultLimit, nodes: () => [] } };
+            }
+
+            const hits = results['top_hits_by_index']['hits']['hits'];
+            const highlights = mapValues(groupBy(hits, '_id'), hits => hits[0]['highlight']);
+            return {
+              highlights: mapKeys(highlights, (_, key) => idEncode(parseInt(key), 'update')),
+              collection: {
+                totalCount: results['doc_count'],
+                offset: 0,
+                limit: args.defaultLimit,
+                nodes: () => req.loaders.Update.byId.loadMany(hits.map(r => r._id)),
+              },
+            };
+          },
         },
       };
     }

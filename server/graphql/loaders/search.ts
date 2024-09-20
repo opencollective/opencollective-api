@@ -27,6 +27,7 @@ export const generateSearchLoaders = () => {
       const limit = groupedRequests[requestId][0].limit;
       const indexes = groupedRequests[requestId].map(entry => entry.index);
 
+      const allCols = ['name', 'description', 'html', 'longDescription', 'legalName', 'merchantId'];
       const results = await client.search({
         index: indexes.join(','),
         body: {
@@ -34,7 +35,7 @@ export const generateSearchLoaders = () => {
           query: {
             multi_match: {
               query: searchTerm,
-              fields: ['name', 'description', 'html', 'longDescription', 'legalName'],
+              fields: allCols,
               type: 'best_fields',
               operator: 'or',
               fuzziness: 'AUTO',
@@ -51,7 +52,7 @@ export const generateSearchLoaders = () => {
                   top_hits: {
                     size: limit,
                     _source: {
-                      includes: ['name', 'description', 'html', 'longDescription', 'legalName'],
+                      includes: allCols,
                     },
                     highlight: {
                       fields: {
