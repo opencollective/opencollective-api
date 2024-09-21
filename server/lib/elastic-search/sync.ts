@@ -32,13 +32,15 @@ export async function createIndices() {
   }
 }
 
-async function removeDeletedEntries(model, indexName: ElasticSearchIndexName, fromDate: Date) {
+async function removeDeletedEntries(indexName: ElasticSearchIndexName, fromDate: Date) {
+  const adapter = Adapters[indexName];
+  const pageSize = 20000; // We're only fetching the id, so we can fetch more entries at once
   let offset = 0;
   let deletedEntries = [];
-  const pageSize = 20000; // We're only fetching the id, so we can fetch more entries at once
   do {
-    deletedEntries = await model.findAll({
+    deletedEntries = await adapter.model.findAll({
       attributes: ['id'],
+      include: adapter.getAttributesForFindAll?.(),
       where: { deletedAt: { [Op.gt]: fromDate } },
       raw: true,
       limit: pageSize,
@@ -54,22 +56,24 @@ async function removeDeletedEntries(model, indexName: ElasticSearchIndexName, fr
     offset += pageSize;
   } while (deletedEntries.length === pageSize);
 }
+
 async function syncModelWithElasticSearch(indexName: ElasticSearchIndexName, options: { fromDate?: Date } = {}) {
   // If there's a fromDate, it means we are doing a simple sync (not a full resync) and therefore need to look at deleted entries
   if (options.fromDate) {
-    await removeDeletedEntries(model, indexName, options.fromDate);
+    await removeDeletedEntries(indexName, options.fromDate);
   }
 
   // Sync new/edited entries
+  const adapter = Adapters[indexName];
+  const limit = 5000;
   let modelEntries = [];
   let firstProcessedEntry = null;
   let offset = 0;
-  const attributes = getModelAttributesForIndex(indexName);
   do {
-    modelEntries = await model.findAll({
-      attributes,
+    modelEntries = await adapter.model.findAll({
+      attributes: adapter.getAttributesForFindAll(),
       raw: true,
-      limit: MODELS_PAGE_SIZE,
+      limit,
       offset,
       order: [['id', 'DESC']],
       where: {
@@ -86,11 +90,34 @@ async function syncModelWithElasticSearch(indexName: ElasticSearchIndexName, opt
     // Send data to ElasticSearch
     await client.bulk({
       index: indexName,
-      body: modelEntries.flatMap(entry => [{ index: { _id: entry.id } }, prepareEntryForElasticSearch(entry)]),
+      body: modelEntries.flatMap(entry => [{ index: { _id: entry.id } }, adapter.mapModelInstanceToDocument(entry)]),
     });
-    offset += MODELS_PAGE_SIZE;
-  } while (modelEntries.length === MODELS_PAGE_SIZE);
+    offset += limit;
+  } while (modelEntries.length === limit);
 }
+
+/**
+ * Sync all the rows of a model with elastic search.
+ *
+ * @param options.fromDate Only sync rows updated/deleted after this date
+ */
+export const syncAllModelsWithElasticSearch = async (options: { fromDate?: Date } = {}) => {
+  await syncModelWithElasticSearch(ElasticSearchIndexName.COLLECTIVES, options);
+  await syncModelWithElasticSearch(ElasticSearchIndexName.COMMENTS, options);
+  await syncModelWithElasticSearch(ElasticSearchIndexName.EXPENSES, options);
+  await syncModelWithElasticSearch(ElasticSearchIndexName.UPDATES, options);
+  await syncModelWithElasticSearch(ElasticSearchIndexName.TRANSACTIONS, options);
+  await syncModelWithElasticSearch(ElasticSearchIndexName.ORDERS, options);
+  await syncModelWithElasticSearch(ElasticSearchIndexName.TIERS, options);
+  await syncModelWithElasticSearch(ElasticSearchIndexName.HOST_APPLICATIONS, options);
+};
+
+export const deleteAllExistingIndices = async () => {
+  const indices = await client.cat.indices({ format: 'json' });
+  for (const index of indices) {
+    await client.indices.delete({ index: index.index });
+  }
+};
 
 // ---- old ----
 
@@ -245,60 +272,3 @@ const IndexesDefinitions: Record<
     },
   },
 } as const;
-
-// TODO: sync updatedAt
-// TODO: sync deletedAt
-
-// async function syncModelWithElasticSearch(model, indexName, options: { fromDate?: Date } = {}) {
-//   // If there's a fromDate, it means we are doing a simple sync (not a full resync) and therefore need to look at deleted entries
-//   if (options.fromDate) {
-//     await removeDeletedEntries(model, indexName, options.fromDate);
-//   }
-
-//   // Sync new/edited entries
-//   let modelEntries = [];
-//   let firstProcessedEntry = null;
-//   let offset = 0;
-//   const attributes = getModelAttributesForIndex(indexName);
-//   do {
-//     modelEntries = await model.findAll({
-//       attributes,
-//       raw: true,
-//       limit: MODELS_PAGE_SIZE,
-//       offset,
-//       order: [['id', 'DESC']],
-//       where: {
-//         ...(firstProcessedEntry && { id: { [Op.lte]: firstProcessedEntry.id } }), // To not mess with the pagination in case entries are inserted while we iterate
-//         ...(options.fromDate && { updatedAt: { [Op.gt]: options.fromDate } }),
-//       },
-//     });
-//     if (modelEntries.length === 0) {
-//       return;
-//     } else if (!firstProcessedEntry) {
-//       firstProcessedEntry = modelEntries[0];
-//     }
-
-//     // Send data to ElasticSearch
-//     await client.bulk({
-//       index: indexName,
-//       body: modelEntries.flatMap(entry => [{ index: { _id: entry.id } }, prepareEntryForElasticSearch(entry)]),
-//     });
-//     offset += MODELS_PAGE_SIZE;
-//   } while (modelEntries.length === MODELS_PAGE_SIZE);
-// }
-
-/**
- * Sync all the rows of a model with elastic search.
- *
- * @param options.fromDate Only sync rows updated/deleted after this date
- */
-const syncAllModelsWithElasticSearch = async (options: { fromDate?: Date } = {}) => {
-  await syncModelWithElasticSearch(models.Collective, ElasticSearchIndexName.COLLECTIVES, options);
-  await syncModelWithElasticSearch(models.Comment, ElasticSearchIndexName.COMMENTS, options);
-  await syncModelWithElasticSearch(models.Expense, ElasticSearchIndexName.EXPENSES, options);
-  await syncModelWithElasticSearch(models.Update, ElasticSearchIndexName.UPDATES, options);
-  await syncModelWithElasticSearch(models.Transaction, ElasticSearchIndexName.TRANSACTIONS, options);
-  await syncModelWithElasticSearch(models.Order, ElasticSearchIndexName.ORDERS, options);
-  await syncModelWithElasticSearch(models.Tier, ElasticSearchIndexName.TIERS, options);
-  await syncModelWithElasticSearch(models.HostApplication, ElasticSearchIndexName.HOST_APPLICATIONS, options);
-};
