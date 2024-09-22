@@ -6,30 +6,33 @@ import { ElasticSearchIndexName } from '../constants';
 
 import { ElasticSearchModelToIndexAdapter } from './ElasticSearchModelToIndexAdapter';
 
-export class ElasticSearchCommentsAdapter
-  implements ElasticSearchModelToIndexAdapter<ElasticSearchIndexName.COMMENTS, typeof models.Comment>
+export class ElasticSearchExpensesAdapter
+  implements ElasticSearchModelToIndexAdapter<ElasticSearchIndexName.EXPENSES, typeof models.Expense>
 {
-  public readonly model = models.Comment;
-  public readonly index = ElasticSearchIndexName.COMMENTS;
+  public readonly model = models.Expense;
+  public readonly index = ElasticSearchIndexName.EXPENSES;
   public readonly mappings = {
     properties: {
       id: { type: 'keyword' },
       createdAt: { type: 'date' },
       updatedAt: { type: 'date' },
-      html: { type: 'text' },
+      description: { type: 'text' },
+      amount: { type: 'integer' },
+      currency: { type: 'keyword' },
+      status: { type: 'keyword' },
       // Relationships
+      UserId: { type: 'keyword' },
       CollectiveId: { type: 'keyword' },
       FromCollectiveId: { type: 'keyword' },
-      CreatedByUserId: { type: 'keyword' },
+      HostCollectiveId: { type: 'keyword' },
       // Special fields
       ParentCollectiveId: { type: 'keyword' },
-      HostCollectiveId: { type: 'keyword' },
     },
   } as const;
 
   public findEntriesToIndex(offset: number, limit: number, options: { fromDate: Date; firstReturnedId: number }) {
-    return models.Comment.findAll({
-      attributes: omit(Object.keys(this.mappings.properties), ['HostCollectiveId', 'ParentCollectiveId']),
+    return models.Expense.findAll({
+      attributes: omit(Object.keys(this.mappings.properties), ['ParentCollectiveId']),
       order: [['id', 'DESC']],
       offset,
       limit,
@@ -48,18 +51,21 @@ export class ElasticSearchCommentsAdapter
   }
 
   public mapModelInstanceToDocument(
-    instance: InstanceType<typeof models.Comment>,
+    instance: InstanceType<typeof models.Expense>,
   ): Record<keyof (typeof this.mappings)['properties'], unknown> {
     return {
       id: instance.id,
       createdAt: instance.createdAt,
       updatedAt: instance.updatedAt,
-      html: instance.html,
+      description: instance.description,
+      amount: instance.amount,
+      currency: instance.currency,
+      status: instance.status,
       CollectiveId: instance.CollectiveId,
-      FromCollectiveId: instance.FromCollectiveId,
-      CreatedByUserId: instance.CreatedByUserId,
-      HostCollectiveId: instance.collective.HostCollectiveId,
       ParentCollectiveId: instance.collective.ParentCollectiveId,
+      FromCollectiveId: instance.FromCollectiveId,
+      UserId: instance.UserId,
+      HostCollectiveId: instance.HostCollectiveId || instance.collective.HostCollectiveId,
     };
   }
 }

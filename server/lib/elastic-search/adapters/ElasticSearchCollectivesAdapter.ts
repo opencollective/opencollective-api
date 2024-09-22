@@ -1,8 +1,11 @@
-import models from '../../../models';
-import { ElasticSearchIndexName } from '../const';
-import { ElasticSearchModelToIndexAdapter } from '../ElasticSearchModelToIndexAdapter';
+import models, { Op } from '../../../models';
+import { ElasticSearchIndexName } from '../constants';
 
-export class ElasticSearchCollectivesAdapter implements ElasticSearchModelToIndexAdapter {
+import { ElasticSearchModelToIndexAdapter } from './ElasticSearchModelToIndexAdapter';
+
+export class ElasticSearchCollectivesAdapter
+  implements ElasticSearchModelToIndexAdapter<ElasticSearchIndexName.COLLECTIVES, typeof models.Collective>
+{
   public readonly model = models.Collective;
   public readonly index = ElasticSearchIndexName.COLLECTIVES;
   public readonly mappings = {
@@ -30,8 +33,22 @@ export class ElasticSearchCollectivesAdapter implements ElasticSearchModelToInde
     },
   } as const;
 
-  public getAttributesForFindAll(): string[] {
-    return Object.keys(this.mappings.properties);
+  public async findEntriesToIndex(
+    offset: number,
+    limit: number,
+    options: { fromDate: Date; firstReturnedId: number },
+  ): Promise<Array<InstanceType<typeof models.Collective>>> {
+    return models.Collective.findAll({
+      attributes: Object.keys(this.mappings.properties),
+      order: [['id', 'DESC']],
+      limit,
+      offset,
+      raw: true,
+      where: {
+        ...(options.fromDate ? { updatedAt: options.fromDate } : null),
+        ...(options.firstReturnedId ? { id: { [Op.lte]: options.firstReturnedId } } : null),
+      },
+    });
   }
 
   public mapModelInstanceToDocument(

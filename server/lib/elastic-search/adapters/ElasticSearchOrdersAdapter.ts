@@ -6,29 +6,29 @@ import { ElasticSearchIndexName } from '../constants';
 
 import { ElasticSearchModelToIndexAdapter } from './ElasticSearchModelToIndexAdapter';
 
-export class ElasticSearchCommentsAdapter
-  implements ElasticSearchModelToIndexAdapter<ElasticSearchIndexName.COMMENTS, typeof models.Comment>
+export class ElasticSearchOrdersAdapter
+  implements ElasticSearchModelToIndexAdapter<ElasticSearchIndexName.ORDERS, typeof models.Order>
 {
-  public readonly model = models.Comment;
-  public readonly index = ElasticSearchIndexName.COMMENTS;
+  public readonly model = models.Order;
+  public readonly index = ElasticSearchIndexName.ORDERS;
   public readonly mappings = {
     properties: {
       id: { type: 'keyword' },
       createdAt: { type: 'date' },
       updatedAt: { type: 'date' },
-      html: { type: 'text' },
+      description: { type: 'keyword' },
       // Relationships
       CollectiveId: { type: 'keyword' },
       FromCollectiveId: { type: 'keyword' },
       CreatedByUserId: { type: 'keyword' },
       // Special fields
-      ParentCollectiveId: { type: 'keyword' },
       HostCollectiveId: { type: 'keyword' },
+      ParentCollectiveId: { type: 'keyword' },
     },
   } as const;
 
   public findEntriesToIndex(offset: number, limit: number, options: { fromDate: Date; firstReturnedId: number }) {
-    return models.Comment.findAll({
+    return models.Order.findAll({
       attributes: omit(Object.keys(this.mappings.properties), ['HostCollectiveId', 'ParentCollectiveId']),
       order: [['id', 'DESC']],
       offset,
@@ -48,13 +48,13 @@ export class ElasticSearchCommentsAdapter
   }
 
   public mapModelInstanceToDocument(
-    instance: InstanceType<typeof models.Comment>,
+    instance: InstanceType<typeof models.Order>,
   ): Record<keyof (typeof this.mappings)['properties'], unknown> {
     return {
       id: instance.id,
       createdAt: instance.createdAt,
       updatedAt: instance.updatedAt,
-      html: instance.html,
+      description: instance.description,
       CollectiveId: instance.CollectiveId,
       FromCollectiveId: instance.FromCollectiveId,
       CreatedByUserId: instance.CreatedByUserId,

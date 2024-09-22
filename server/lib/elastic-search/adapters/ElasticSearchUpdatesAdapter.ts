@@ -6,11 +6,11 @@ import { ElasticSearchIndexName } from '../constants';
 
 import { ElasticSearchModelToIndexAdapter } from './ElasticSearchModelToIndexAdapter';
 
-export class ElasticSearchCommentsAdapter
-  implements ElasticSearchModelToIndexAdapter<ElasticSearchIndexName.COMMENTS, typeof models.Comment>
+export class ElasticSearchUpdatesAdapter
+  implements ElasticSearchModelToIndexAdapter<ElasticSearchIndexName.UPDATES, typeof models.Update>
 {
-  public readonly model = models.Comment;
-  public readonly index = ElasticSearchIndexName.COMMENTS;
+  public readonly model = models.Update;
+  public readonly index = ElasticSearchIndexName.UPDATES;
   public readonly mappings = {
     properties: {
       id: { type: 'keyword' },
@@ -28,7 +28,7 @@ export class ElasticSearchCommentsAdapter
   } as const;
 
   public findEntriesToIndex(offset: number, limit: number, options: { fromDate: Date; firstReturnedId: number }) {
-    return models.Comment.findAll({
+    return models.Update.findAll({
       attributes: omit(Object.keys(this.mappings.properties), ['HostCollectiveId', 'ParentCollectiveId']),
       order: [['id', 'DESC']],
       offset,
@@ -48,7 +48,7 @@ export class ElasticSearchCommentsAdapter
   }
 
   public mapModelInstanceToDocument(
-    instance: InstanceType<typeof models.Comment>,
+    instance: InstanceType<typeof models.Update>,
   ): Record<keyof (typeof this.mappings)['properties'], unknown> {
     return {
       id: instance.id,

@@ -6,30 +6,29 @@ import { ElasticSearchIndexName } from '../constants';
 
 import { ElasticSearchModelToIndexAdapter } from './ElasticSearchModelToIndexAdapter';
 
-export class ElasticSearchCommentsAdapter
-  implements ElasticSearchModelToIndexAdapter<ElasticSearchIndexName.COMMENTS, typeof models.Comment>
+export class ElasticSearchHostApplicationsAdapter
+  implements ElasticSearchModelToIndexAdapter<ElasticSearchIndexName.HOST_APPLICATIONS, typeof models.HostApplication>
 {
-  public readonly model = models.Comment;
-  public readonly index = ElasticSearchIndexName.COMMENTS;
+  public readonly model = models.HostApplication;
+  public readonly index = ElasticSearchIndexName.HOST_APPLICATIONS;
   public readonly mappings = {
     properties: {
       id: { type: 'keyword' },
       createdAt: { type: 'date' },
       updatedAt: { type: 'date' },
-      html: { type: 'text' },
+      message: { type: 'text' },
       // Relationships
       CollectiveId: { type: 'keyword' },
-      FromCollectiveId: { type: 'keyword' },
+      HostCollectiveId: { type: 'keyword' },
       CreatedByUserId: { type: 'keyword' },
       // Special fields
       ParentCollectiveId: { type: 'keyword' },
-      HostCollectiveId: { type: 'keyword' },
     },
   } as const;
 
   public findEntriesToIndex(offset: number, limit: number, options: { fromDate: Date; firstReturnedId: number }) {
-    return models.Comment.findAll({
-      attributes: omit(Object.keys(this.mappings.properties), ['HostCollectiveId', 'ParentCollectiveId']),
+    return models.HostApplication.findAll({
+      attributes: omit(Object.keys(this.mappings.properties), ['ParentCollectiveId']),
       order: [['id', 'DESC']],
       offset,
       limit,
@@ -41,24 +40,23 @@ export class ElasticSearchCommentsAdapter
         {
           association: 'collective',
           required: true,
-          attributes: ['HostCollectiveId', 'ParentCollectiveId'],
+          attributes: ['ParentCollectiveId'],
         },
       ],
     });
   }
 
   public mapModelInstanceToDocument(
-    instance: InstanceType<typeof models.Comment>,
+    instance: InstanceType<typeof models.HostApplication>,
   ): Record<keyof (typeof this.mappings)['properties'], unknown> {
     return {
       id: instance.id,
       createdAt: instance.createdAt,
       updatedAt: instance.updatedAt,
-      html: instance.html,
       CollectiveId: instance.CollectiveId,
-      FromCollectiveId: instance.FromCollectiveId,
+      HostCollectiveId: instance.HostCollectiveId,
       CreatedByUserId: instance.CreatedByUserId,
-      HostCollectiveId: instance.collective.HostCollectiveId,
+      message: instance.message,
       ParentCollectiveId: instance.collective.ParentCollectiveId,
     };
   }
