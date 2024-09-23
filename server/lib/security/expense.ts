@@ -130,7 +130,7 @@ const checkExpenseStats = (
   // Alerts that there was no expenses paid on the platform
   addBooleanCheck(checks, wasNeverPaidOnThePlatform, {
     scope,
-    level: Level.HIGH,
+    level: Level.MEDIUM,
     message: `${startCase(capitalize(scope))} has never been paid on the platform`,
     details,
   });
