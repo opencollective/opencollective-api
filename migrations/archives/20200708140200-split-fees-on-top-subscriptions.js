@@ -2,7 +2,6 @@
 
 import { defaultsDeep, omit } from 'lodash';
 
-import { PLATFORM_TIP_TRANSACTION_PROPERTIES } from '../server/constants/transactions';
 import { getFxRate } from '../server/lib/currency';
 import models from '../server/models';
 
@@ -31,14 +30,16 @@ module.exports = {
         console.warn(`    /!\\ Couldn't find the debit transaction, skipping...`);
       }
 
-      const platformCurrencyFxRate = await getFxRate(
-        credit.currency,
-        PLATFORM_TIP_TRANSACTION_PROPERTIES.currency,
-        credit.createdAt,
-      );
+      const platformCurrencyFxRate = await getFxRate(credit.currency, 8686, credit.createdAt);
       const donationTransaction = defaultsDeep(
         {},
-        PLATFORM_TIP_TRANSACTION_PROPERTIES,
+        {
+          kind: TransactionKind.PLATFORM_TIP,
+          CollectiveId: 8686,
+          HostCollectiveId: 8686,
+          hostCurrency: 'USD',
+          currency: 'USD',
+        },
         {
           description: 'Financial contribution to Open Collective',
           amount: Math.round(Math.abs(credit.platformFeeInHostCurrency) * platformCurrencyFxRate),
@@ -51,7 +52,7 @@ module.exports = {
           ),
           hostCurrencyFxRate: platformCurrencyFxRate,
           data: {
-            hostToPlatformFxRate: await getFxRate(credit.hostCurrency, PLATFORM_TIP_TRANSACTION_PROPERTIES.currency),
+            hostToPlatformFxRate: await getFxRate(credit.hostCurrency, 'USD'),
             isFeesOnTop: true,
           },
         },

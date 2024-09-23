@@ -6,6 +6,7 @@ import { activities } from '../../constants';
 import { SupportedCurrency } from '../../constants/currencies';
 import ExpenseStatus from '../../constants/expense-status';
 import ExpenseType from '../../constants/expense-type';
+import PlatformConstants from '../../constants/platform';
 import VirtualCardProviders from '../../constants/virtual-card-providers';
 import { VirtualCardLimitIntervals } from '../../constants/virtual-cards';
 import { isSupportedCurrency } from '../../lib/currency';
@@ -374,7 +375,7 @@ export const processCardUpdate = async (event: Stripe.Event) => {
 };
 
 export const getStripeClient = async host => {
-  if (host.slug === 'opencollective') {
+  if (host.id === PlatformConstants.PlatformCollectiveId) {
     return stripe;
   }
 

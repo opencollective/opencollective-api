@@ -6,7 +6,7 @@ import { expect } from 'chai';
 import { readFileSync } from 'fs-extra';
 import { times } from 'lodash';
 
-import { PLATFORM_TIP_TRANSACTION_PROPERTIES } from '../../server/constants/transactions';
+import PlatformConstants from '../../server/constants/platform';
 import models, { sequelize } from '../../server/models';
 import {
   fakeCollective,
@@ -98,7 +98,7 @@ describe('sql/ban-collectives', () => {
   before(async () => {
     await resetTestDB();
     await fakeHost({
-      id: PLATFORM_TIP_TRANSACTION_PROPERTIES.HostCollectiveId,
+      id: PlatformConstants.PlatformCollectiveId,
       slug: 'opencollective',
       name: 'Open Collective INC',
     });

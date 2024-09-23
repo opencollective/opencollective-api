@@ -7,6 +7,7 @@ import isURL from 'validator/lib/isURL';
 import activities from '../constants/activities';
 import { CollectiveType } from '../constants/collectives';
 import { MODERATION_CATEGORIES } from '../constants/moderation-categories';
+import PlatformConstants from '../constants/platform';
 import { VAT_OPTIONS } from '../constants/vat';
 import models, { Collective, Member, Op, sequelize } from '../models';
 import Expense from '../models/Expense';
@@ -528,5 +529,8 @@ export const defaultHostCollective = async (
 export const getInternalHostsIds = async (): Promise<number[]> => {
   const hostNames = ['opencollective', 'opensource', 'foundation', 'europe'];
   const hostCollectives = await Promise.all(hostNames.map(defaultHostCollective));
-  return hostCollectives.map(result => result?.id).filter(Boolean) as number[];
+  return [
+    PlatformConstants.PlatformCollectiveId,
+    ...hostCollectives.map(result => result?.id).filter(Boolean),
+  ] as number[];
 };
