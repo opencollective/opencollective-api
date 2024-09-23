@@ -3,13 +3,12 @@
 import { defaultsDeep, omit } from 'lodash';
 
 import roles from '../server/constants/roles';
-import { PLATFORM_TIP_TRANSACTION_PROPERTIES } from '../server/constants/transactions';
 import { getFxRate } from '../server/lib/currency';
 import models from '../server/models';
 
 module.exports = {
   up: async queryInterface => {
-    const platform = await models.Collective.findByPk(PLATFORM_TIP_TRANSACTION_PROPERTIES.CollectiveId);
+    const platform = await models.Collective.findByPk(8686);
 
     const [orders] = await queryInterface.sequelize.query(`
       SELECT * FROM "Orders"
@@ -33,14 +32,16 @@ module.exports = {
           console.warn(`    /!\\ Couldn't find the debit transaction, skipping...`);
         }
 
-        const platformCurrencyFxRate = await getFxRate(
-          credit.currency,
-          PLATFORM_TIP_TRANSACTION_PROPERTIES.currency,
-          credit.createdAt,
-        );
+        const platformCurrencyFxRate = await getFxRate(credit.currency, 'USD', credit.createdAt);
         const donationTransaction = defaultsDeep(
           {},
-          PLATFORM_TIP_TRANSACTION_PROPERTIES,
+          {
+            kind: TransactionKind.PLATFORM_TIP,
+            CollectiveId: 8686,
+            HostCollectiveId: 8686,
+            hostCurrency: 'USD',
+            currency: 'USD',
+          },
           {
             description: 'Financial contribution to Open Collective',
             amount: Math.round(Math.abs(credit.platformFeeInHostCurrency) * platformCurrencyFxRate),
@@ -53,7 +54,7 @@ module.exports = {
             ),
             hostCurrencyFxRate: platformCurrencyFxRate,
             data: {
-              hostToPlatformFxRate: await getFxRate(credit.hostCurrency, PLATFORM_TIP_TRANSACTION_PROPERTIES.currency),
+              hostToPlatformFxRate: await getFxRate(credit.hostCurrency, 'USD'),
               isFeesOnTop: true,
             },
           },
