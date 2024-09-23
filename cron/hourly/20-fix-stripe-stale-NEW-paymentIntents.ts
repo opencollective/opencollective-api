@@ -1,5 +1,6 @@
 import '../../server/env';
 
+import { isEmpty } from 'lodash';
 import moment from 'moment';
 
 import OrderStatuses from '../../server/constants/order-status';
@@ -9,11 +10,10 @@ import { syncOrder } from '../../server/lib/stripe/sync-order';
 import { Collective, Op, Order, PaymentMethod } from '../../server/models';
 import { runCronJob } from '../utils';
 
-async function run() {
-  logger.info('Starting job to fix stripe stale NEW paymentIntents');
+const PAGE_SIZE = 20;
 
-  const results = await Order.findAndCountAll({
-    limit: 20,
+async function* staleStripeNewPaymentIntentOrdersPager() {
+  const query = {
     include: [
       {
         model: PaymentMethod,
@@ -39,13 +39,44 @@ async function run() {
         [Op.lte]: moment().subtract(2, 'days').toDate(),
       },
     },
-  });
+  };
 
-  logger.info(`${results.count} stale (>=2 days old) stripe payment intent orders with status NEW.`);
-  logger.info(`Processing ${results.rows.length} orders...`);
-  for (const order of results.rows) {
-    await syncOrder(order, { IS_DRY: process.env.DRY, logging: logger.info });
+  const total = await Order.count(query);
+
+  logger.info(`${total} stale (>=2 days old) stripe payment intent orders with status NEW.`);
+
+  if (total === 0) {
+    return;
   }
+
+  let offset = 0;
+  while (true) {
+    const pageResult = await Order.findAll({
+      ...query,
+      limit: PAGE_SIZE,
+      offset,
+    });
+
+    if (isEmpty(pageResult)) {
+      return;
+    }
+
+    yield pageResult;
+
+    offset += PAGE_SIZE;
+  }
+}
+
+async function run() {
+  const pager = staleStripeNewPaymentIntentOrdersPager();
+
+  for await (const page of pager) {
+    logger.info(`Processing ${page.length} orders...`);
+    for (const order of page) {
+      await syncOrder(order, { IS_DRY: process.env.DRY, logging: logger.info });
+    }
+  }
+
   logger.info(`Done!`);
 }
 
