@@ -524,12 +524,12 @@ export const checkExpensesBatch = async (
         addBooleanCheck(checks, checkVector([orderStats.errorRate1M, orderStats.numOrders1M], [0.3, 10]), {
           scope: Scope.COLLECTIVE,
           level: Level.HIGH,
-          message: `High order error rate in current month`,
-          details: `The order error rate for this collective has been ${Math.round(
+          message: `High contribution error rate in current month`,
+          details: `The contribution error rate for this collective has been ${Math.round(
             orderStats.errorRate1M * 100,
           )}% over the current month, which is higher than the average of ${Math.round(
             orderStats.errorRate3M * 100,
-          )}% over the past 3 months.`,
+          )}% over the past 3 months. This could be a sign of fraudulent activity.`,
         });
         // Current month error rate above 20% and increasing by 40% compared to the previous 3 month period and more than 20 orders in the past 3 months
         addBooleanCheck(
@@ -541,24 +541,24 @@ export const checkExpensesBatch = async (
           {
             scope: Scope.COLLECTIVE,
             level: Level.HIGH,
-            message: `Recent increase in order error rate`,
-            details: `The order error rate for this collective has been ${Math.round(
+            message: `Recent increase in contribution error rate`,
+            details: `The contribution error rate for this collective has been ${Math.round(
               orderStats.errorRate1M * 100,
             )}% over the current month, which is higher than the average of ${Math.round(
               orderStats.errorRate3M * 100,
-            )}% over the past 3 months.`,
+            )}% over the past 3 months. This could be a sign of fraudulent activity.`,
           },
         );
         // 3 month error rate above 30% and yearly error rate above 20%
         addBooleanCheck(checks, checkVector([orderStats.errorRate3M, orderStats.errorRate12M], [0.3, 0.2]), {
           scope: Scope.COLLECTIVE,
           level: Level.MEDIUM,
-          message: `Collective has a consistently high order error rate`,
-          details: `The order error rate for this collective has been ${Math.round(
+          message: `Collective has a consistently high contribution error rate`,
+          details: `The contribution error rate for this collective has been ${Math.round(
             orderStats.errorRate3M * 100,
           )}% over the past 3 months, which is higher than the average of ${Math.round(
             orderStats.errorRate12M * 100,
-          )}% over the past 12 months.`,
+          )}% over the past 12 months. This could be a sign of fraudulent activity.`,
         });
       }
 
