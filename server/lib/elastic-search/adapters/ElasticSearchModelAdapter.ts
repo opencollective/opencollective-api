@@ -3,7 +3,7 @@ import { IndicesIndexSettings, MappingTypeMapping } from '@elastic/elasticsearch
 import { ModelType } from '../../../models';
 import { ElasticSearchIndexName } from '../constants';
 
-export interface ElasticSearchModelToIndexAdapter<TIndexName extends ElasticSearchIndexName, TModel extends ModelType> {
+export interface ElasticSearchModelAdapter<TIndexName extends ElasticSearchIndexName, TModel extends ModelType> {
   readonly model: TModel;
   readonly index: TIndexName;
   readonly mappings: MappingTypeMapping;

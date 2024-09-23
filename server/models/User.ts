@@ -249,6 +249,18 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     }
   };
 
+  getAdministratedCollectiveIds = function (): Array<number> {
+    if (!this.rolesByCollectiveId) {
+      logger.info("User.rolesByCollectiveId hasn't been populated.");
+      logger.debug(new Error().stack);
+      return [];
+    } else {
+      return Object.keys(this.rolesByCollectiveId)
+        .filter(CollectiveId => this.rolesByCollectiveId[CollectiveId].includes(MemberRoles.ADMIN))
+        .map(Number);
+    }
+  };
+
   // Adding some sugars
   isAdmin = function (CollectiveId) {
     const result =

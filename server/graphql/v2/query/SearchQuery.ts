@@ -1,8 +1,9 @@
 import { Client } from '@elastic/elasticsearch';
+import config from 'config';
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLJSONObject } from 'graphql-scalars';
-import { groupBy, mapKeys, mapValues, result } from 'lodash';
+import { groupBy, includes, mapKeys, mapValues, result } from 'lodash';
 import { Op } from 'sequelize';
 
 import { buildSearchConditions } from '../../../lib/search';
@@ -118,28 +119,11 @@ const GraphQLSearchResults = new GraphQLObjectType({
         }),
       ),
     },
-    // highlights: {
-    //   type: new GraphQLNonNull(
-    //     new GraphQLObjectType({
-    //       name: 'SearchResultshighlights',
-    //       fields: {
-    //         accounts: { type: GraphQLJSONObject },
-    //         comments: { type: GraphQLJSONObject },
-    //         expenses: { type: GraphQLJSONObject },
-    //         hostApplications: { type: GraphQLJSONObject },
-    //         orders: { type: GraphQLJSONObject },
-    //         tiers: { type: GraphQLJSONObject },
-    //         transactions: { type: GraphQLJSONObject },
-    //         updates: { type: GraphQLJSONObject },
-    //       },
-    //     }),
-    //   ),
-    // },
   },
 });
 
 // Adds a timeout and format the results
-const searchAndPaginateResults = (timeout: number, model, queryParameters) => async () => {
+const sqlSearchAndPaginateResults = (timeout: number, model, queryParameters) => async () => {
   return {
     collection: {
       nodes: () => model.findAll(queryParameters),
@@ -149,6 +133,10 @@ const searchAndPaginateResults = (timeout: number, model, queryParameters) => as
     },
   };
 };
+
+const getEmptyResults = () => ({
+  collection: { totalCount: 0, offset: 0, limit: 0, nodes: () => [] },
+});
 
 // TODO: Add matches somewhere
 // TODO: Special return type if something timeouts
@@ -180,10 +168,14 @@ const SearchQuery = {
     useElasticSearch: {
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Whether to use ElasticSearch or not',
-      defaultValue: false,
+      defaultValue: true,
     },
   },
   async resolve(_: void, args, req: express.Request) {
+    const host = args.host && (await fetchAccountWithReference(args.host));
+    const account = args.account && (await fetchAccountWithReference(args.account));
+    const adminOfAccountIds = req.remoteUser?.getAdministratedCollectiveIds() ?? [];
+
     if (args.useElasticSearch) {
       // TODO: 2-steps search: first accounts, then associated data
 
@@ -337,125 +329,205 @@ const SearchQuery = {
           },
         },
       };
-    }
+    } else {
+      // This is a fallback to Postgres as a search engine, it's not efficient and should be used only for dev/debugging.
+      if (config.env === 'production' && !req.remoteUser?.isRoot()) {
+        throw new Error('Searching without ElasticSearch is disabled in production');
+      }
 
-    const host = args.host && (await fetchAccountWithReference(args.host));
-    const account = args.account && (await fetchAccountWithReference(args.account));
-    // TODO: Permissions!
-    return {
-      results: {
-        accounts: searchAndPaginateResults(args.timeout, models.Collective, {
-          offset: 0,
-          limit: args.defaultLimit,
-          where: {
-            ...(host && { HostCollectiveId: host.id }),
-            [Op.and]: [
+      return {
+        results: {
+          accounts: sqlSearchAndPaginateResults(args.timeout, models.Collective, {
+            offset: 0,
+            limit: args.defaultLimit,
+            where: {
+              ...(host && { HostCollectiveId: host.id }),
+              ...(account && { [Op.or]: [{ id: account.id }, { ParentCollectiveId: account.id }] }),
+              [Op.or]: buildSearchConditions(args.searchTerm, {
+                idFields: ['id'],
+                textFields: ['name', 'description', 'longDescription', 'website'],
+                slugFields: ['slug'],
+                stringArrayFields: ['tags'],
+              }),
+            },
+          }),
+          comments: !adminOfAccountIds.length
+            ? getEmptyResults()
+            : sqlSearchAndPaginateResults(args.timeout, models.Comment, {
+                order: [['id', 'DESC']],
+                offset: 0,
+                limit: args.defaultLimit,
+                where: {
+                  [Op.or]: buildSearchConditions(args.searchTerm, {
+                    idFields: ['id'],
+                    textFields: ['html'],
+                  }),
+                },
+                include: [
+                  {
+                    association: 'collective',
+                    attributes: [],
+                    required: true,
+                    where: {
+                      // Can only search comments of collectives the user is admin of
+                      ...(host && { HostCollectiveId: host.id }),
+                      ...(account && { [Op.or]: [{ id: account.id }, { ParentCollectiveId: account.id }] }),
+                      [Op.or]: [{ CollectiveId: adminOfAccountIds }, { HostCollectiveId: adminOfAccountIds }],
+                    },
+                  },
+                ],
+              }),
+          expenses: sqlSearchAndPaginateResults(args.timeout, models.Expense, {
+            order: [['id', 'DESC']],
+            offset: 0,
+            limit: args.defaultLimit,
+            include: [
+              { association: 'User', attributes: [], include: [{ association: 'collective', attributes: [] }] },
+              { association: 'fromCollective', attributes: [] },
               {
-                [Op.or]: buildSearchConditions(args.searchTerm, {
-                  idFields: ['id'],
-                  textFields: ['name', 'description'],
-                }),
+                association: 'collective',
+                attributes: [],
+                required: true,
+                where: {
+                  ...(host && { HostCollectiveId: host.id }),
+                  ...(account && { [Op.or]: [{ id: account.id }, { ParentCollectiveId: account.id }] }),
+                },
               },
-              account && { [Op.or]: [{ id: account.id }, { ParentCollectiveId: account.id }] },
             ],
-          },
-        }),
-        comments: searchAndPaginateResults(args.timeout, models.Comment, {
-          order: [['id', 'DESC']],
-          offset: 0,
-          limit: args.defaultLimit,
-          where: {
-            [Op.or]: buildSearchConditions(args.searchTerm, { textFields: ['html'] }),
-          },
-        }),
-        expenses: searchAndPaginateResults(args.timeout, models.Expense, {
-          order: [['id', 'DESC']],
-          offset: 0,
-          limit: args.defaultLimit,
-          include: [
-            { association: 'User', attributes: [], include: [{ association: 'collective', attributes: [] }] },
-            { association: 'collective', attributes: [] },
-            { association: 'fromCollective', attributes: [] },
-            // TODO item
-          ],
-          where: {
-            [Op.or]: buildSearchConditions(args.searchTerm, {
-              idFields: ['id'],
-              slugFields: ['$fromCollective.slug$', '$collective.slug$', '$User.collective.slug$'],
-              textFields: ['$fromCollective.name$', '$collective.name$', '$User.collective.name$', 'description'],
-              emailFields: ['$User.email$'], // TODO permissions
-              amountFields: ['amount'],
-              stringArrayFields: ['tags'],
-              stringArrayTransformFn: (str: string) => str.toLowerCase(), // expense tags are stored lowercase
-            }),
-          },
-        }),
-        hostApplications: searchAndPaginateResults(args.timeout, models.HostApplication, {
-          order: [['id', 'DESC']],
-          offset: 0,
-          limit: args.defaultLimit,
-          include: [{ association: 'collective', attributes: [] }],
-          where: {
-            [Op.or]: buildSearchConditions(args.searchTerm, {
-              slugFields: ['$collective.slug$'],
-              textFields: ['message', '$collective.name$'],
-              idFields: ['id'],
-            }),
-          },
-        }),
-        orders: searchAndPaginateResults(args.timeout, models.Order, {
-          order: [['id', 'DESC']],
-          offset: 0,
-          limit: args.defaultLimit,
-          include: [
-            { model: models.Collective, as: 'fromCollective', attributes: [] },
-            { model: models.Collective, as: 'collective', attributes: [] },
-          ],
-          where: {
-            [Op.or]: buildSearchConditions(args.searchTerm, {
-              textFields: ['description', '$fromCollective.name$', '$collective.name$'],
-              idFields: ['id'],
-            }),
-          },
-        }),
-        tiers: searchAndPaginateResults(args.timeout, models.Tier, {
-          order: [['id', 'DESC']],
-          offset: 0,
-          limit: args.defaultLimit,
-          where: {
-            [Op.or]: buildSearchConditions(args.searchTerm, {
-              textFields: ['name', 'description'],
-              idFields: ['id'],
-            }),
-          },
-        }),
-        transactions: searchAndPaginateResults(args.timeout, models.Transaction, {
-          order: [['id', 'DESC']],
-          offset: 0,
-          limit: args.defaultLimit,
-          include: [
-            { model: models.Collective, as: 'fromCollective', attributes: [] },
-            { model: models.Collective, as: 'collective', attributes: [] },
-          ],
-          where: {
-            [Op.or]: buildSearchConditions(args.searchTerm, {
-              idFields: ['id', 'ExpenseId', 'OrderId'],
-              slugFields: ['$fromCollective.slug$', '$collective.slug$'],
-              textFields: ['$fromCollective.name$', '$collective.name$', 'description'],
-              amountFields: ['amount'],
-            }),
-          },
-        }),
-        updates: searchAndPaginateResults(args.timeout, models.Update, {
-          order: [['id', 'DESC']],
-          offset: 0,
-          limit: args.defaultLimit,
-          where: {
-            [Op.or]: buildSearchConditions(args.searchTerm, { textFields: ['html'] }),
-          },
-        }),
-      },
-    };
+            where: {
+              [Op.or]: buildSearchConditions(args.searchTerm, {
+                idFields: ['id'],
+                slugFields: ['$fromCollective.slug$', '$collective.slug$', '$User.collective.slug$'],
+                textFields: ['$fromCollective.name$', '$collective.name$', '$User.collective.name$', 'description'],
+                amountFields: ['amount'],
+                stringArrayFields: ['tags'],
+                stringArrayTransformFn: (str: string) => str.toLowerCase(), // expense tags are stored lowercase
+              }),
+            },
+          }),
+          hostApplications: !adminOfAccountIds.length
+            ? getEmptyResults()
+            : sqlSearchAndPaginateResults(args.timeout, models.HostApplication, {
+                order: [['id', 'DESC']],
+                offset: 0,
+                limit: args.defaultLimit,
+                include: [{ association: 'collective', attributes: [], required: true }],
+                where: {
+                  ...(host && { HostCollectiveId: host.id }),
+                  ...(account && { [Op.or]: [{ id: account.id }, { ParentCollectiveId: account.id }] }),
+                  [Op.and]: [
+                    {
+                      [Op.or]: [{ HostCollectiveId: adminOfAccountIds }, { CollectiveId: adminOfAccountIds }],
+                    },
+                    {
+                      [Op.or]: buildSearchConditions(args.searchTerm, {
+                        slugFields: ['$collective.slug$'],
+                        textFields: ['message', '$collective.name$'],
+                        idFields: ['id'],
+                      }),
+                    },
+                  ],
+                },
+              }),
+          orders: sqlSearchAndPaginateResults(args.timeout, models.Order, {
+            order: [['id', 'DESC']],
+            offset: 0,
+            limit: args.defaultLimit,
+            include: [
+              { model: models.Collective, as: 'fromCollective', attributes: [], required: true },
+              {
+                model: models.Collective,
+                as: 'collective',
+                attributes: [],
+                required: true,
+                where: {
+                  ...(host && { HostCollectiveId: host.id }),
+                  ...(account && { [Op.or]: [{ id: account.id }, { ParentCollectiveId: account.id }] }),
+                },
+              },
+            ],
+            where: {
+              [Op.or]: buildSearchConditions(args.searchTerm, {
+                textFields: ['description', '$fromCollective.name$', '$collective.name$'],
+                idFields: ['id'],
+              }),
+            },
+          }),
+          tiers: sqlSearchAndPaginateResults(args.timeout, models.Tier, {
+            order: [['id', 'DESC']],
+            offset: 0,
+            limit: args.defaultLimit,
+            include: [
+              {
+                model: models.Collective,
+                attributes: [],
+                required: true,
+                where: {
+                  ...(host && { HostCollectiveId: host.id }),
+                  ...(account && { [Op.or]: [{ id: account.id }, { ParentCollectiveId: account.id }] }),
+                },
+              },
+            ],
+            where: {
+              [Op.or]: buildSearchConditions(args.searchTerm, {
+                textFields: ['name', 'description'],
+                idFields: ['id'],
+                slugFields: ['slug'],
+              }),
+            },
+          }),
+          transactions: sqlSearchAndPaginateResults(args.timeout, models.Transaction, {
+            order: [['id', 'DESC']],
+            offset: 0,
+            limit: args.defaultLimit,
+            include: [
+              { model: models.Collective, as: 'fromCollective', attributes: [], required: true },
+              {
+                model: models.Collective,
+                as: 'collective',
+                attributes: [],
+                required: true,
+                where: {
+                  ...(account && { [Op.or]: [{ id: account.id }, { ParentCollectiveId: account.id }] }),
+                },
+              },
+            ],
+            where: {
+              ...(host && { HostCollectiveId: host.id }),
+              [Op.or]: buildSearchConditions(args.searchTerm, {
+                idFields: ['id', 'ExpenseId', 'OrderId'],
+                slugFields: ['$fromCollective.slug$', '$collective.slug$'],
+                textFields: ['$fromCollective.name$', '$collective.name$', 'description'],
+                amountFields: ['amount'],
+              }),
+            },
+          }),
+          updates: sqlSearchAndPaginateResults(args.timeout, models.Update, {
+            order: [['id', 'DESC']],
+            offset: 0,
+            limit: args.defaultLimit,
+            include: [
+              {
+                model: models.Collective,
+                as: 'collective',
+                attributes: [],
+                required: true,
+                where: {
+                  ...(host && { HostCollectiveId: host.id }),
+                  ...(account && { [Op.or]: [{ id: account.id }, { ParentCollectiveId: account.id }] }),
+                },
+              },
+            ],
+            where: {
+              [Op.or]: buildSearchConditions(args.searchTerm, {
+                idFields: ['id'],
+                textFields: ['html', 'title'],
+              }),
+            },
+          }),
+        },
+      };
+    }
   },
 };
 

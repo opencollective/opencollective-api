@@ -1,10 +1,10 @@
 import models, { Op } from '../../../models';
 import { ElasticSearchIndexName } from '../constants';
 
-import { ElasticSearchModelToIndexAdapter } from './ElasticSearchModelToIndexAdapter';
+import { ElasticSearchModelAdapter } from './ElasticSearchModelAdapter';
 
 export class ElasticSearchCollectivesAdapter
-  implements ElasticSearchModelToIndexAdapter<ElasticSearchIndexName.COLLECTIVES, typeof models.Collective>
+  implements ElasticSearchModelAdapter<ElasticSearchIndexName.COLLECTIVES, typeof models.Collective>
 {
   public readonly model = models.Collective;
   public readonly index = ElasticSearchIndexName.COLLECTIVES;

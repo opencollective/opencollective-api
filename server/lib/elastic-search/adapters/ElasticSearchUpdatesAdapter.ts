@@ -4,10 +4,10 @@ import { Op } from 'sequelize';
 import models from '../../../models';
 import { ElasticSearchIndexName } from '../constants';
 
-import { ElasticSearchModelToIndexAdapter } from './ElasticSearchModelToIndexAdapter';
+import { ElasticSearchModelAdapter } from './ElasticSearchModelAdapter';
 
 export class ElasticSearchUpdatesAdapter
-  implements ElasticSearchModelToIndexAdapter<ElasticSearchIndexName.UPDATES, typeof models.Update>
+  implements ElasticSearchModelAdapter<ElasticSearchIndexName.UPDATES, typeof models.Update>
 {
   public readonly model = models.Update;
   public readonly index = ElasticSearchIndexName.UPDATES;

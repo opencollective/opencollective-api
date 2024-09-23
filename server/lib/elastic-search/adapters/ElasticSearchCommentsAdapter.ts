@@ -4,10 +4,10 @@ import { Op } from 'sequelize';
 import models from '../../../models';
 import { ElasticSearchIndexName } from '../constants';
 
-import { ElasticSearchModelToIndexAdapter } from './ElasticSearchModelToIndexAdapter';
+import { ElasticSearchModelAdapter } from './ElasticSearchModelAdapter';
 
 export class ElasticSearchCommentsAdapter
-  implements ElasticSearchModelToIndexAdapter<ElasticSearchIndexName.COMMENTS, typeof models.Comment>
+  implements ElasticSearchModelAdapter<ElasticSearchIndexName.COMMENTS, typeof models.Comment>
 {
   public readonly model = models.Comment;
   public readonly index = ElasticSearchIndexName.COMMENTS;

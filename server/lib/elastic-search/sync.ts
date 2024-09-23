@@ -26,7 +26,7 @@ const Adapters = {
   [ElasticSearchIndexName.UPDATES]: new ElasticSearchUpdatesAdapter(),
 } as const;
 
-export async function createIndices() {
+export async function createElasticSearchIndices() {
   const client = getElasticSearchClient();
   for (const adapter of Object.values(Adapters)) {
     await client.indices.create({
@@ -61,7 +61,7 @@ async function removeDeletedEntries(indexName: ElasticSearchIndexName, fromDate:
   } while (deletedEntries.length === pageSize);
 }
 
-async function syncModelWithElasticSearch(indexName: ElasticSearchIndexName, options: { fromDate?: Date } = {}) {
+export async function syncElasticSearchIndex(indexName: ElasticSearchIndexName, options: { fromDate?: Date } = {}) {
   const { fromDate } = options;
 
   // If there's a fromDate, it means we are doing a simple sync (not a full resync) and therefore need to look at deleted entries
@@ -99,9 +99,9 @@ async function syncModelWithElasticSearch(indexName: ElasticSearchIndexName, opt
  *
  * @param options.fromDate Only sync rows updated/deleted after this date
  */
-export const syncAllModelsWithElasticSearch = async (options: { fromDate?: Date } = {}) => {
+export const syncElasticSearchIndexes = async (options: { fromDate?: Date } = {}) => {
   for (const indexName of Object.keys(Adapters)) {
-    await syncModelWithElasticSearch(indexName, options);
+    await syncElasticSearchIndex(indexName as ElasticSearchIndexName, options);
   }
 };
 
@@ -109,7 +109,7 @@ export const syncAllModelsWithElasticSearch = async (options: { fromDate?: Date 
  * Deletes all indexes currently on Elastic search, resulting in a clean new state.
  * Use carefully!
  */
-export const deleteAllExistingIndices = async () => {
+export const deleteElasticSearchIndices = async () => {
   const client = getElasticSearchClient();
   const indices = await client.cat.indices({ format: 'json' });
   for (const index of indices) {
