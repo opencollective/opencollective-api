@@ -26,7 +26,7 @@ import { TransactionTypes } from '../../../constants/transactions';
 import { FEATURE, hasFeature } from '../../../lib/allowed-features';
 import { getPolicy } from '../../../lib/policies';
 import SQLQueries from '../../../lib/queries';
-import { buildSearchConditions } from '../../../lib/search';
+import { buildSearchConditions } from '../../../lib/sql-search';
 import sequelize from '../../../lib/sequelize';
 import { getHostReportNodesFromQueryResult } from '../../../lib/transaction-reports';
 import { ifStr, parseToBoolean } from '../../../lib/utils';

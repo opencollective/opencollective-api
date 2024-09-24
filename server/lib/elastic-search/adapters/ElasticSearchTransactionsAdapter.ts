@@ -6,9 +6,7 @@ import { ElasticSearchIndexName } from '../constants';
 
 import { ElasticSearchModelAdapter } from './ElasticSearchModelAdapter';
 
-export class ElasticSearchTransactionsAdapter
-  implements ElasticSearchModelAdapter<ElasticSearchIndexName.TRANSACTIONS, typeof models.Transaction>
-{
+export class ElasticSearchTransactionsAdapter implements ElasticSearchModelAdapter {
   public readonly model = models.Transaction;
   public readonly index = ElasticSearchIndexName.TRANSACTIONS;
   public readonly mappings = {

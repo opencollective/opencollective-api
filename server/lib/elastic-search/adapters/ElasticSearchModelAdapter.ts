@@ -1,11 +1,13 @@
 import { IndicesIndexSettings, MappingTypeMapping } from '@elastic/elasticsearch/lib/api/types';
+import { ModelStatic } from 'sequelize';
 
+import { Model } from '../../../lib/sequelize';
 import { ModelType } from '../../../models';
 import { ElasticSearchIndexName } from '../constants';
 
-export interface ElasticSearchModelAdapter<TIndexName extends ElasticSearchIndexName, TModel extends ModelType> {
-  readonly model: TModel;
-  readonly index: TIndexName;
+export interface ElasticSearchModelAdapter {
+  readonly model: ModelStatic<Model>;
+  readonly index: ElasticSearchIndexName;
   readonly mappings: MappingTypeMapping;
   readonly settings?: IndicesIndexSettings;
 
@@ -14,10 +16,10 @@ export interface ElasticSearchModelAdapter<TIndexName extends ElasticSearchIndex
     offset: number,
     limit: number,
     options: { fromDate: Date; firstReturnedId: number },
-  ): Promise<Array<InstanceType<TModel>>>;
+  ): Promise<Array<InstanceType<ModelType>>>;
 
   /** Maps a model instance to an ElasticSearch document */
   mapModelInstanceToDocument(
-    instance: InstanceType<TModel>,
+    instance: InstanceType<ModelType>,
   ): Record<keyof (typeof this)['mappings']['properties'], unknown>;
 }

@@ -3,11 +3,13 @@
  */
 
 import { Op } from '../../models';
+import logger from '../logger';
 
 import { ElasticSearchCollectivesAdapter } from './adapters/ElasticSearchCollectivesAdapter';
 import { ElasticSearchCommentsAdapter } from './adapters/ElasticSearchCommentsAdapter';
 import { ElasticSearchExpensesAdapter } from './adapters/ElasticSearchExpensesAdapter';
 import { ElasticSearchHostApplicationsAdapter } from './adapters/ElasticSearchHostApplicationsAdapter';
+import { ElasticSearchModelAdapter } from './adapters/ElasticSearchModelAdapter';
 import { ElasticSearchOrdersAdapter } from './adapters/ElasticSearchOrdersAdapter';
 import { ElasticSearchTiersAdapter } from './adapters/ElasticSearchTiersAdapter';
 import { ElasticSearchTransactionsAdapter } from './adapters/ElasticSearchTransactionsAdapter';
@@ -15,7 +17,7 @@ import { ElasticSearchUpdatesAdapter } from './adapters/ElasticSearchUpdatesAdap
 import { getElasticSearchClient } from './client';
 import { ElasticSearchIndexName } from './constants';
 
-const Adapters = {
+const Adapters: Record<ElasticSearchIndexName, ElasticSearchModelAdapter> = {
   [ElasticSearchIndexName.COLLECTIVES]: new ElasticSearchCollectivesAdapter(),
   [ElasticSearchIndexName.COMMENTS]: new ElasticSearchCommentsAdapter(),
   [ElasticSearchIndexName.EXPENSES]: new ElasticSearchExpensesAdapter(),
@@ -27,7 +29,7 @@ const Adapters = {
 } as const;
 
 export async function createElasticSearchIndices() {
-  const client = getElasticSearchClient();
+  const client = getElasticSearchClient({ throwIfUnavailable: true });
   for (const adapter of Object.values(Adapters)) {
     await client.indices.create({
       index: adapter.index,
@@ -37,7 +39,7 @@ export async function createElasticSearchIndices() {
 }
 
 async function removeDeletedEntries(indexName: ElasticSearchIndexName, fromDate: Date) {
-  const client = getElasticSearchClient();
+  const client = getElasticSearchClient({ throwIfUnavailable: true });
   const adapter = Adapters[indexName];
   const pageSize = 20000; // We're only fetching the id, so we can fetch more entries at once
   let offset = 0;
@@ -50,6 +52,7 @@ async function removeDeletedEntries(indexName: ElasticSearchIndexName, fromDate:
       limit: pageSize,
       offset,
     });
+
     if (deletedEntries.length === 0) {
       return;
     }
@@ -61,8 +64,15 @@ async function removeDeletedEntries(indexName: ElasticSearchIndexName, fromDate:
   } while (deletedEntries.length === pageSize);
 }
 
-export async function syncElasticSearchIndex(indexName: ElasticSearchIndexName, options: { fromDate?: Date } = {}) {
+export async function syncElasticSearchIndex(
+  indexName: ElasticSearchIndexName,
+  options: { fromDate?: Date; log?: boolean } = {},
+) {
   const { fromDate } = options;
+
+  if (options.log) {
+    logger.info(`Syncing index ${indexName}...`);
+  }
 
   // If there's a fromDate, it means we are doing a simple sync (not a full resync) and therefore need to look at deleted entries
   if (fromDate) {
@@ -70,7 +80,7 @@ export async function syncElasticSearchIndex(indexName: ElasticSearchIndexName, 
   }
 
   // Sync new/edited entries
-  const client = getElasticSearchClient();
+  const client = getElasticSearchClient({ throwIfUnavailable: true });
   const adapter = Adapters[indexName];
   const limit = 5000;
   let modelEntries = [];
@@ -99,7 +109,7 @@ export async function syncElasticSearchIndex(indexName: ElasticSearchIndexName, 
  *
  * @param options.fromDate Only sync rows updated/deleted after this date
  */
-export const syncElasticSearchIndexes = async (options: { fromDate?: Date } = {}) => {
+export const syncElasticSearchIndexes = async (options: { fromDate?: Date; log?: boolean } = {}) => {
   for (const indexName of Object.keys(Adapters)) {
     await syncElasticSearchIndex(indexName as ElasticSearchIndexName, options);
   }
@@ -110,7 +120,7 @@ export const syncElasticSearchIndexes = async (options: { fromDate?: Date } = {}
  * Use carefully!
  */
 export const deleteElasticSearchIndices = async () => {
-  const client = getElasticSearchClient();
+  const client = getElasticSearchClient({ throwIfUnavailable: true });
   const indices = await client.cat.indices({ format: 'json' });
   for (const index of indices) {
     await client.indices.delete({ index: index.index });

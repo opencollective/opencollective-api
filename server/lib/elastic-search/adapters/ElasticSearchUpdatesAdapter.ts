@@ -2,13 +2,12 @@ import { omit } from 'lodash';
 import { Op } from 'sequelize';
 
 import models from '../../../models';
+import { stripHTML } from '../../sanitize-html';
 import { ElasticSearchIndexName } from '../constants';
 
 import { ElasticSearchModelAdapter } from './ElasticSearchModelAdapter';
 
-export class ElasticSearchUpdatesAdapter
-  implements ElasticSearchModelAdapter<ElasticSearchIndexName.UPDATES, typeof models.Update>
-{
+export class ElasticSearchUpdatesAdapter implements ElasticSearchModelAdapter {
   public readonly model = models.Update;
   public readonly index = ElasticSearchIndexName.UPDATES;
   public readonly mappings = {
@@ -54,7 +53,7 @@ export class ElasticSearchUpdatesAdapter
       id: instance.id,
       createdAt: instance.createdAt,
       updatedAt: instance.updatedAt,
-      html: instance.html,
+      html: stripHTML(instance.html),
       CollectiveId: instance.CollectiveId,
       FromCollectiveId: instance.FromCollectiveId,
       CreatedByUserId: instance.CreatedByUserId,

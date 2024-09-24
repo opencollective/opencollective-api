@@ -10,7 +10,7 @@ import { expenseStatus } from '../../../../constants';
 import { CollectiveType } from '../../../../constants/collectives';
 import { getBalances } from '../../../../lib/budget';
 import { loadFxRatesMap } from '../../../../lib/currency';
-import { buildSearchConditions } from '../../../../lib/search';
+import { buildSearchConditions } from '../../../../lib/sql-search';
 import { expenseMightBeSubjectToTaxForm } from '../../../../lib/tax-forms';
 import { AccountingCategory, Op, sequelize } from '../../../../models';
 import Expense, { ExpenseType } from '../../../../models/Expense';

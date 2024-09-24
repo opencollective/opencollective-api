@@ -3,6 +3,7 @@ import '../server/env';
 import { Command } from 'commander';
 import { uniq } from 'lodash';
 
+import { getElasticSearchClient } from '../server/lib/elastic-search/client';
 import { ElasticSearchIndexName } from '../server/lib/elastic-search/constants';
 import {
   createElasticSearchIndices,
@@ -16,19 +17,30 @@ import { confirm } from './common/helpers';
 
 const program = new Command();
 
+const checkElasticSearchAvailable = () => {
+  if (!getElasticSearchClient()) {
+    throw new Error('ElasticSearch is not configured');
+  }
+};
+
 // Re-index command
 program
-  .command('reindex')
-  .description('Reindex all models')
+  .command('reset')
+  .description('Drops all indices, re-create and re-index everything')
   .action(async () => {
+    checkElasticSearchAvailable();
     if (
-      confirm(
+      await confirm(
         'WARNING: This will delete all existing data in the indices and recreated everything, which is expensive. You should make sure that background synchronization job is disabled. Are you sure you want to continue?',
       )
     ) {
+      logger.info('Deleting all indices...');
       await deleteElasticSearchIndices();
+      logger.info('Creating new indices...');
       await createElasticSearchIndices();
-      await syncElasticSearchIndexes();
+      logger.info('Syncing all models...');
+      await syncElasticSearchIndexes({ log: true });
+      logger.info('Reindex completed!');
     }
   });
 
@@ -38,24 +50,27 @@ program
   .description('Sync models')
   .argument('<fromDate>', 'Only sync rows updated/deleted after this date')
   .argument('[indexes...]', 'Only sync specific indexes')
-  .action(async (fromDate, indexesStr) => {
+  .action(async (fromDate, indexesInput) => {
+    checkElasticSearchAvailable();
     const parsedDate = new Date(fromDate);
     if (isNaN(parsedDate.getTime())) {
       throw new Error('Invalid date');
     } else {
       const allIndexes = Object.values(ElasticSearchIndexName);
-      const indexes = indexesStr ? uniq(indexesStr.split(',')) : allIndexes;
+      const indexes = !indexesInput.length ? allIndexes : uniq(indexesInput);
       indexes.forEach(index => {
         if (!allIndexes.includes(index as ElasticSearchIndexName)) {
           throw new Error(`Invalid index: ${index}`);
         }
       });
 
-      const modelsLabels = indexes.length === allIndexes.length ? 'all models' : indexes.join(', ');
+      const modelsLabels = indexes.length === allIndexes.length ? 'all indices' : indexes.join(', ');
       logger.info(`Syncing ${modelsLabels} from ${parsedDate.toISOString()}`);
       for (const indexName of indexes) {
-        await syncElasticSearchIndex(indexName as ElasticSearchIndexName, { fromDate: parsedDate });
+        await syncElasticSearchIndex(indexName as ElasticSearchIndexName, { fromDate: parsedDate, log: true });
       }
+
+      logger.info('Sync completed!');
     }
   });
 

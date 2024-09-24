@@ -2,13 +2,12 @@ import { omit } from 'lodash';
 import { Op } from 'sequelize';
 
 import models from '../../../models';
+import { stripHTML } from '../../sanitize-html';
 import { ElasticSearchIndexName } from '../constants';
 
 import { ElasticSearchModelAdapter } from './ElasticSearchModelAdapter';
 
-export class ElasticSearchTiersAdapter
-  implements ElasticSearchModelAdapter<ElasticSearchIndexName.TIERS, typeof models.Tier>
-{
+export class ElasticSearchTiersAdapter implements ElasticSearchModelAdapter {
   public readonly model = models.Tier;
   public readonly index = ElasticSearchIndexName.TIERS;
   public readonly mappings = {
@@ -60,7 +59,7 @@ export class ElasticSearchTiersAdapter
       name: instance.name,
       slug: instance.slug,
       description: instance.description,
-      longDescription: instance.longDescription,
+      longDescription: stripHTML(instance.longDescription),
       CollectiveId: instance.CollectiveId,
       HostCollectiveId: instance.Collective.HostCollectiveId,
       ParentCollectiveId: instance.Collective.ParentCollectiveId,

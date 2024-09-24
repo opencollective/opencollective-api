@@ -1,11 +1,10 @@
 import models, { Op } from '../../../models';
+import { stripHTML } from '../../sanitize-html';
 import { ElasticSearchIndexName } from '../constants';
 
 import { ElasticSearchModelAdapter } from './ElasticSearchModelAdapter';
 
-export class ElasticSearchCollectivesAdapter
-  implements ElasticSearchModelAdapter<ElasticSearchIndexName.COLLECTIVES, typeof models.Collective>
-{
+export class ElasticSearchCollectivesAdapter implements ElasticSearchModelAdapter {
   public readonly model = models.Collective;
   public readonly index = ElasticSearchIndexName.COLLECTIVES;
   public readonly mappings = {
@@ -64,7 +63,7 @@ export class ElasticSearchCollectivesAdapter
       legalName: instance.legalName,
       countryISO: instance.countryISO,
       description: instance.description,
-      longDescription: instance.longDescription,
+      longDescription: stripHTML(instance.longDescription),
       website: instance.website,
       isActive: instance.isActive,
       isHostAccount: instance.isHostAccount,

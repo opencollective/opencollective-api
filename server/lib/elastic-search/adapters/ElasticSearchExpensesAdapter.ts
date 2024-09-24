@@ -2,13 +2,12 @@ import { omit } from 'lodash';
 import { Op } from 'sequelize';
 
 import models from '../../../models';
+import { stripHTML } from '../../sanitize-html';
 import { ElasticSearchIndexName } from '../constants';
 
 import { ElasticSearchModelAdapter } from './ElasticSearchModelAdapter';
 
-export class ElasticSearchExpensesAdapter
-  implements ElasticSearchModelAdapter<ElasticSearchIndexName.EXPENSES, typeof models.Expense>
-{
+export class ElasticSearchExpensesAdapter implements ElasticSearchModelAdapter {
   public readonly model = models.Expense;
   public readonly index = ElasticSearchIndexName.EXPENSES;
   public readonly mappings = {
@@ -17,6 +16,10 @@ export class ElasticSearchExpensesAdapter
       createdAt: { type: 'date' },
       updatedAt: { type: 'date' },
       description: { type: 'text' },
+      longDescription: { type: 'text' },
+      privateMessage: { type: 'text' },
+      invoiceInfo: { type: 'text' },
+      reference: { type: 'text' },
       amount: { type: 'integer' },
       currency: { type: 'keyword' },
       status: { type: 'keyword' },
@@ -58,6 +61,10 @@ export class ElasticSearchExpensesAdapter
       createdAt: instance.createdAt,
       updatedAt: instance.updatedAt,
       description: instance.description,
+      longDescription: stripHTML(instance.longDescription),
+      privateMessage: stripHTML(instance.privateMessage),
+      invoiceInfo: instance.invoiceInfo,
+      reference: instance.reference,
       amount: instance.amount,
       currency: instance.currency,
       status: instance.status,
