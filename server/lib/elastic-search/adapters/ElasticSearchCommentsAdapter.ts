@@ -26,6 +26,10 @@ export class ElasticSearchCommentsAdapter implements ElasticSearchModelAdapter {
     },
   } as const;
 
+  public readonly permissions = {
+    default: ['HOST_ADMIN', 'ACCOUNT_ADMIN', 'FROM_ACCOUNT_ADMIN'],
+  } as const;
+
   public findEntriesToIndex(offset: number, limit: number, options: { fromDate: Date; firstReturnedId: number }) {
     return models.Comment.findAll({
       attributes: omit(Object.keys(this.mappings.properties), ['HostCollectiveId', 'ParentCollectiveId']),

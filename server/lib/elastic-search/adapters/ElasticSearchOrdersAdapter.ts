@@ -25,6 +25,8 @@ export class ElasticSearchOrdersAdapter implements ElasticSearchModelAdapter {
     },
   } as const;
 
+  public readonly permissions = { default: 'PUBLIC' } as const;
+
   public findEntriesToIndex(offset: number, limit: number, options: { fromDate: Date; firstReturnedId: number }) {
     return models.Order.findAll({
       attributes: omit(Object.keys(this.mappings.properties), ['HostCollectiveId', 'ParentCollectiveId']),

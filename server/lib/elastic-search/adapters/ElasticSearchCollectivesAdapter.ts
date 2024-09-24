@@ -32,6 +32,13 @@ export class ElasticSearchCollectivesAdapter implements ElasticSearchModelAdapte
     },
   } as const;
 
+  public readonly permissions = {
+    default: 'PUBLIC',
+    fields: {
+      legalName: ['HOST_ADMIN', 'ACCOUNT_ADMIN'],
+    },
+  } as const;
+
   public async findEntriesToIndex(
     offset: number,
     limit: number,

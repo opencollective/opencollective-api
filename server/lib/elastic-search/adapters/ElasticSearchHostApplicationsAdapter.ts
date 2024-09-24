@@ -24,6 +24,10 @@ export class ElasticSearchHostApplicationsAdapter implements ElasticSearchModelA
     },
   } as const;
 
+  public readonly permissions = {
+    default: ['HOST_ADMIN', 'ACCOUNT_ADMIN'],
+  } as const;
+
   public findEntriesToIndex(offset: number, limit: number, options: { fromDate: Date; firstReturnedId: number }) {
     return models.HostApplication.findAll({
       attributes: omit(Object.keys(this.mappings.properties), ['ParentCollectiveId']),

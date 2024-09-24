@@ -28,6 +28,14 @@ export class ElasticSearchTransactionsAdapter implements ElasticSearchModelAdapt
     },
   } as const;
 
+  public readonly permissions = {
+    default: 'PUBLIC',
+    fields: {
+      merchantId: ['HOST_ADMIN'],
+      CreatedByUserId: ['HOST_ADMIN', 'FROM_ACCOUNT_ADMIN'],
+    },
+  } as const;
+
   public findEntriesToIndex(offset: number, limit: number, options: { fromDate: Date; firstReturnedId: number }) {
     return models.Transaction.findAll({
       attributes: omit(Object.keys(this.mappings.properties), ['merchantId']),

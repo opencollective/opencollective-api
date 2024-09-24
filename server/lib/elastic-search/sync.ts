@@ -5,32 +5,13 @@
 import { Op } from '../../models';
 import logger from '../logger';
 
-import { ElasticSearchCollectivesAdapter } from './adapters/ElasticSearchCollectivesAdapter';
-import { ElasticSearchCommentsAdapter } from './adapters/ElasticSearchCommentsAdapter';
-import { ElasticSearchExpensesAdapter } from './adapters/ElasticSearchExpensesAdapter';
-import { ElasticSearchHostApplicationsAdapter } from './adapters/ElasticSearchHostApplicationsAdapter';
-import { ElasticSearchModelAdapter } from './adapters/ElasticSearchModelAdapter';
-import { ElasticSearchOrdersAdapter } from './adapters/ElasticSearchOrdersAdapter';
-import { ElasticSearchTiersAdapter } from './adapters/ElasticSearchTiersAdapter';
-import { ElasticSearchTransactionsAdapter } from './adapters/ElasticSearchTransactionsAdapter';
-import { ElasticSearchUpdatesAdapter } from './adapters/ElasticSearchUpdatesAdapter';
+import { ElasticSearchModelsAdapters } from './adapters';
 import { getElasticSearchClient } from './client';
 import { ElasticSearchIndexName } from './constants';
 
-const Adapters: Record<ElasticSearchIndexName, ElasticSearchModelAdapter> = {
-  [ElasticSearchIndexName.COLLECTIVES]: new ElasticSearchCollectivesAdapter(),
-  [ElasticSearchIndexName.COMMENTS]: new ElasticSearchCommentsAdapter(),
-  [ElasticSearchIndexName.EXPENSES]: new ElasticSearchExpensesAdapter(),
-  [ElasticSearchIndexName.HOST_APPLICATIONS]: new ElasticSearchHostApplicationsAdapter(),
-  [ElasticSearchIndexName.ORDERS]: new ElasticSearchOrdersAdapter(),
-  [ElasticSearchIndexName.TIERS]: new ElasticSearchTiersAdapter(),
-  [ElasticSearchIndexName.TRANSACTIONS]: new ElasticSearchTransactionsAdapter(),
-  [ElasticSearchIndexName.UPDATES]: new ElasticSearchUpdatesAdapter(),
-} as const;
-
 export async function createElasticSearchIndices() {
   const client = getElasticSearchClient({ throwIfUnavailable: true });
-  for (const adapter of Object.values(Adapters)) {
+  for (const adapter of Object.values(ElasticSearchModelsAdapters)) {
     await client.indices.create({
       index: adapter.index,
       body: { mappings: adapter['mappings'], settings: adapter['settings'] },
@@ -40,7 +21,7 @@ export async function createElasticSearchIndices() {
 
 async function removeDeletedEntries(indexName: ElasticSearchIndexName, fromDate: Date) {
   const client = getElasticSearchClient({ throwIfUnavailable: true });
-  const adapter = Adapters[indexName];
+  const adapter = ElasticSearchModelsAdapters[indexName];
   const pageSize = 20000; // We're only fetching the id, so we can fetch more entries at once
   let offset = 0;
   let deletedEntries = [];
@@ -81,7 +62,7 @@ export async function syncElasticSearchIndex(
 
   // Sync new/edited entries
   const client = getElasticSearchClient({ throwIfUnavailable: true });
-  const adapter = Adapters[indexName];
+  const adapter = ElasticSearchModelsAdapters[indexName];
   const limit = 5000;
   let modelEntries = [];
   let firstReturnedId = undefined;
@@ -110,7 +91,7 @@ export async function syncElasticSearchIndex(
  * @param options.fromDate Only sync rows updated/deleted after this date
  */
 export const syncElasticSearchIndexes = async (options: { fromDate?: Date; log?: boolean } = {}) => {
-  for (const indexName of Object.keys(Adapters)) {
+  for (const indexName of Object.keys(ElasticSearchModelsAdapters)) {
     await syncElasticSearchIndex(indexName as ElasticSearchIndexName, options);
   }
 };

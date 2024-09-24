@@ -16,6 +16,7 @@ export class ElasticSearchUpdatesAdapter implements ElasticSearchModelAdapter {
       createdAt: { type: 'date' },
       updatedAt: { type: 'date' },
       html: { type: 'text' },
+      isPrivate: { type: 'boolean' },
       // Relationships
       CollectiveId: { type: 'keyword' },
       FromCollectiveId: { type: 'keyword' },
@@ -24,6 +25,11 @@ export class ElasticSearchUpdatesAdapter implements ElasticSearchModelAdapter {
       ParentCollectiveId: { type: 'keyword' },
       HostCollectiveId: { type: 'keyword' },
     },
+  } as const;
+
+  public readonly permissions = {
+    default: 'PUBLIC',
+    // TODO: Make it private if `isPrivate` is true
   } as const;
 
   public findEntriesToIndex(offset: number, limit: number, options: { fromDate: Date; firstReturnedId: number }) {
@@ -53,6 +59,7 @@ export class ElasticSearchUpdatesAdapter implements ElasticSearchModelAdapter {
       id: instance.id,
       createdAt: instance.createdAt,
       updatedAt: instance.updatedAt,
+      isPrivate: instance.isPrivate,
       html: stripHTML(instance.html),
       CollectiveId: instance.CollectiveId,
       FromCollectiveId: instance.FromCollectiveId,

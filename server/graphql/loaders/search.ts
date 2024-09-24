@@ -1,8 +1,12 @@
+import assert from 'assert';
+
 import { AggregationsMultiBucketAggregateBase, SearchResponse } from '@elastic/elasticsearch/lib/api/types';
 import DataLoader from 'dataloader';
 import { groupBy } from 'lodash';
 
-import { getElasticSearchClient } from '../../lib/elastic-search/client';
+import { ElasticSearchIndexName } from '../../lib/elastic-search/constants';
+import { elasticSearchGlobalSearch } from '../../lib/elastic-search/search';
+import { reportMessageToSentry } from '../../lib/sentry';
 import { Collective } from '../../models';
 
 type SearchParams = {
@@ -38,81 +42,30 @@ export type SearchResultBucket = {
 
 export const generateSearchLoaders = () => {
   return new DataLoader<SearchParams, SearchResultBucket>(async (entries: SearchParams[]) => {
-    const client = getElasticSearchClient({ throwIfUnavailable: true });
     const groupedRequests = groupBy(entries, 'requestId');
     const requestsResults = new Map<string, SearchResponse>();
 
     // All grouped requests must have the same searchTerm
-    const allRequestsHaveTheSameId = Object.values(groupedRequests).every(
-      group => new Set(group.map(entry => entry.searchTerm)).size === 1,
+    assert(
+      Object.values(groupedRequests).every(group => new Set(group.map(entry => entry.searchTerm)).size === 1),
+      'All requests must have the same searchTerm',
     );
-    if (!allRequestsHaveTheSameId) {
-      throw new Error('All requests must have the same searchTerm');
-    }
-    for (const requestId in groupedRequests) {
-      const searchTerm = groupedRequests[requestId][0].searchTerm;
-      const limit = groupedRequests[requestId][0].limit;
-      const indexes = groupedRequests[requestId].map(entry => entry.index);
-      const adminOfAccountIds = groupedRequests[requestId][0].adminOfAccountIds;
-      const account = groupedRequests[requestId][0].account;
-      const host = groupedRequests[requestId][0].host;
 
-      const allCols = [
-        'id',
-        'name',
-        'slug',
-        'description',
-        'html',
-        'longDescription',
-        'legalName',
-        'merchantId',
-        'uuid',
-      ];
-      const results = await client.search({
-        /* eslint-disable camelcase */
-        index: indexes.join(','),
-        body: {
-          size: 0, // We don't need hits at the top level
-          query: {
-            multi_match: {
-              query: searchTerm,
-              fields: allCols,
-              type: 'best_fields',
-              operator: 'or',
-              fuzziness: 'AUTO',
-            },
+    // Go through all the search request (one `search` field in the query = one request)
+    for (const requestId in groupedRequests) {
+      const firstRequest = groupedRequests[requestId][0];
+      const { searchTerm, limit, adminOfAccountIds, account, host } = firstRequest;
+      const indexes = groupedRequests[requestId].map(entry => entry.index) as ElasticSearchIndexName[];
+      const results = await elasticSearchGlobalSearch(indexes, searchTerm, limit, adminOfAccountIds, account, host);
+      if (results._shards.failures) {
+        reportMessageToSentry('ElasticSearch search shard failures', {
+          extra: {
+            failures: results._shards.failures,
+            request: firstRequest,
+            indexes,
           },
-          aggs: {
-            by_index: {
-              terms: {
-                field: '_index',
-                size: indexes.length, // Make sure we get all indexes
-              },
-              aggs: {
-                top_hits_by_index: {
-                  top_hits: {
-                    size: limit,
-                    _source: {
-                      includes: allCols,
-                    },
-                    highlight: {
-                      pre_tags: ['<em>'],
-                      post_tags: ['</em>'],
-                      fragment_size: 150,
-                      number_of_fragments: 3,
-                      fields: allCols.reduce((acc, field) => {
-                        acc[field] = {};
-                        return acc;
-                      }, {}),
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-        /* eslint-enable camelcase */
-      });
+        });
+      }
 
       requestsResults.set(requestId, results);
     }

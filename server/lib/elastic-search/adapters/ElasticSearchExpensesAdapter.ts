@@ -33,6 +33,15 @@ export class ElasticSearchExpensesAdapter implements ElasticSearchModelAdapter {
     },
   } as const;
 
+  public readonly permissions = {
+    default: 'PUBLIC',
+    fields: {
+      privateMessage: ['HOST_ADMIN', 'ACCOUNT_ADMIN'],
+      invoiceInfo: ['HOST_ADMIN', 'ACCOUNT_ADMIN'],
+      reference: ['HOST_ADMIN', 'ACCOUNT_ADMIN'],
+    },
+  } as const;
+
   public findEntriesToIndex(offset: number, limit: number, options: { fromDate: Date; firstReturnedId: number }) {
     return models.Expense.findAll({
       attributes: omit(Object.keys(this.mappings.properties), ['ParentCollectiveId']),

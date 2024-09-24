@@ -10,6 +10,10 @@ export interface ElasticSearchModelAdapter {
   readonly index: ElasticSearchIndexName;
   readonly mappings: MappingTypeMapping;
   readonly settings?: IndicesIndexSettings;
+  readonly permissions: {
+    default: 'PUBLIC' | readonly ('HOST_ADMIN' | 'ACCOUNT_ADMIN' | 'FROM_ACCOUNT_ADMIN')[];
+    fields?: Record<string, readonly ('HOST_ADMIN' | 'ACCOUNT_ADMIN' | 'FROM_ACCOUNT_ADMIN')[]>;
+  };
 
   /** Returns the attributes that `mapModelInstanceToDocument` needs to build the document */
   findEntriesToIndex(
