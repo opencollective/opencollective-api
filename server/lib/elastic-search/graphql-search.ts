@@ -76,7 +76,14 @@ const GraphQLSearchResultsStrategy: Record<
 export const getElasticSearchIndexResolver = (
   req,
   index: keyof typeof GraphQLSearchResultsStrategy | `${keyof typeof GraphQLSearchResultsStrategy}`,
-  baseSearchParams: { requestId: string; searchTerm: string; limit: number },
+  baseSearchParams: {
+    requestId: string;
+    searchTerm: string;
+    limit: number;
+    adminOfAccountIds: number[];
+    account: Collective;
+    host: Collective;
+  },
 ) => {
   return async () => {
     const strategy = GraphQLSearchResultsStrategy[index];

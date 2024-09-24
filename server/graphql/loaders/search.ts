@@ -3,12 +3,16 @@ import DataLoader from 'dataloader';
 import { groupBy } from 'lodash';
 
 import { getElasticSearchClient } from '../../lib/elastic-search/client';
+import { Collective } from '../../models';
 
 type SearchParams = {
   requestId: string;
   searchTerm: string;
   index: string;
   limit: number;
+  adminOfAccountIds: number[];
+  account: Collective;
+  host: Collective;
 };
 
 export type SearchResultBucket = {
@@ -49,6 +53,9 @@ export const generateSearchLoaders = () => {
       const searchTerm = groupedRequests[requestId][0].searchTerm;
       const limit = groupedRequests[requestId][0].limit;
       const indexes = groupedRequests[requestId].map(entry => entry.index);
+      const adminOfAccountIds = groupedRequests[requestId][0].adminOfAccountIds;
+      const account = groupedRequests[requestId][0].account;
+      const host = groupedRequests[requestId][0].host;
 
       const allCols = [
         'id',

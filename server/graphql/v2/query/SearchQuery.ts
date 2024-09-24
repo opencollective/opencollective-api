@@ -2,12 +2,10 @@ import config from 'config';
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLJSONObject } from 'graphql-scalars';
-import { groupBy, mapKeys, mapValues } from 'lodash';
-import { Op } from 'sequelize';
 
 import { getElasticSearchClient } from '../../../lib/elastic-search/client';
 import { getElasticSearchIndexResolver, getElasticSearchQueryId } from '../../../lib/elastic-search/graphql-search';
-import { buildSearchConditions, getSQLSearchResolver } from '../../../lib/sql-search';
+import { getSQLSearchResolver } from '../../../lib/sql-search';
 import models from '../../../models';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { CommentCollection } from '../collection/CommentCollection';
@@ -17,10 +15,9 @@ import { GraphQLOrderCollection } from '../collection/OrderCollection';
 import { GraphQLTierCollection } from '../collection/TierCollection';
 import { GraphQLTransactionCollection } from '../collection/TransactionCollection';
 import { GraphQLUpdateCollection } from '../collection/UpdateCollection';
-import { idEncode } from '../identifiers';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 
-const GraphQLSearchResults = new GraphQLObjectType({
+const GraphQLSearchResponse = new GraphQLObjectType({
   name: 'SearchResponse',
   fields: {
     results: {
@@ -124,7 +121,7 @@ const GraphQLSearchResults = new GraphQLObjectType({
 });
 
 const SearchQuery = {
-  type: GraphQLSearchResults,
+  type: GraphQLSearchResponse,
   description: '[!] Warning: this query is currently in beta and the API might change',
   args: {
     searchTerm: {
@@ -173,17 +170,17 @@ const SearchQuery = {
     // Elastic search
     if (useElasticSearch) {
       const requestId = getElasticSearchQueryId(req.remoteUser, host, account, searchTerm);
-      const baseSearchParams = { requestId, limit, searchTerm };
+      const query = { requestId, limit, searchTerm, adminOfAccountIds, account, host };
       return {
         results: {
-          accounts: getElasticSearchIndexResolver(req, 'collectives', baseSearchParams),
-          comments: getElasticSearchIndexResolver(req, 'comments', baseSearchParams),
-          expenses: getElasticSearchIndexResolver(req, 'expenses', baseSearchParams),
-          hostApplications: getElasticSearchIndexResolver(req, 'host-applications', baseSearchParams),
-          orders: getElasticSearchIndexResolver(req, 'orders', baseSearchParams),
-          tiers: getElasticSearchIndexResolver(req, 'tiers', baseSearchParams),
-          transactions: getElasticSearchIndexResolver(req, 'transactions', baseSearchParams),
-          updates: getElasticSearchIndexResolver(req, 'updates', baseSearchParams),
+          accounts: getElasticSearchIndexResolver(req, 'collectives', query),
+          comments: getElasticSearchIndexResolver(req, 'comments', query),
+          expenses: getElasticSearchIndexResolver(req, 'expenses', query),
+          hostApplications: getElasticSearchIndexResolver(req, 'host-applications', query),
+          orders: getElasticSearchIndexResolver(req, 'orders', query),
+          tiers: getElasticSearchIndexResolver(req, 'tiers', query),
+          transactions: getElasticSearchIndexResolver(req, 'transactions', query),
+          updates: getElasticSearchIndexResolver(req, 'updates', query),
         },
       };
     }
