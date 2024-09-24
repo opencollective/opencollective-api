@@ -3166,7 +3166,12 @@ export async function quoteExpense(expense_, { req }) {
     const connectedAccount = await host.getAccountForPaymentProvider(Service.TRANSFERWISE);
 
     const recipientId =
-      get(expense.data, 'recipient.payoutMethodId') === payoutMethod.id ? expense.data.recipient?.id : undefined;
+      // Check if the recipient is the same as the one in the expense
+      get(expense.data, 'recipient.payoutMethodId') === payoutMethod.id &&
+      // Ignore recipient for BRL and NPR to avoid the missing Transfer Nature error
+      !['BRL', 'NPR'].includes((payoutMethod.data as BankAccountPayoutMethodData)?.currency)
+        ? expense.data.recipient?.id
+        : undefined;
 
     const quote = await paymentProviders.transferwise.quoteExpense(
       connectedAccount,
