@@ -2,7 +2,7 @@ import { omit } from 'lodash';
 import { Op } from 'sequelize';
 
 import models from '../../../models';
-import { stripHTML } from '../../sanitize-html';
+import { stripHTMLOrEmpty } from '../../sanitize-html';
 import { ElasticSearchIndexName } from '../constants';
 
 import { ElasticSearchModelAdapter } from './ElasticSearchModelAdapter';
@@ -25,11 +25,6 @@ export class ElasticSearchUpdatesAdapter implements ElasticSearchModelAdapter {
       ParentCollectiveId: { type: 'keyword' },
       HostCollectiveId: { type: 'keyword' },
     },
-  } as const;
-
-  public readonly permissions = {
-    default: 'PUBLIC',
-    // TODO: Make it private if `isPrivate` is true
   } as const;
 
   public findEntriesToIndex(offset: number, limit: number, options: { fromDate: Date; firstReturnedId: number }) {
@@ -60,12 +55,30 @@ export class ElasticSearchUpdatesAdapter implements ElasticSearchModelAdapter {
       createdAt: instance.createdAt,
       updatedAt: instance.updatedAt,
       isPrivate: instance.isPrivate,
-      html: stripHTML(instance.html),
+      html: stripHTMLOrEmpty(instance.html),
       CollectiveId: instance.CollectiveId,
       FromCollectiveId: instance.FromCollectiveId,
       CreatedByUserId: instance.CreatedByUserId,
       HostCollectiveId: instance.collective.HostCollectiveId,
       ParentCollectiveId: instance.collective.ParentCollectiveId,
     };
+  }
+
+  public getIndexPermissions(adminOfAccountIds: number[]) {
+    /* eslint-disable camelcase */
+    return {
+      default: {
+        bool: {
+          minimum_should_match: 1,
+          should: [
+            { term: { isPrivate: false } },
+            { terms: { HostCollectiveId: adminOfAccountIds } },
+            { terms: { CollectiveId: adminOfAccountIds } },
+            { terms: { ParentCollectiveId: adminOfAccountIds } },
+          ],
+        },
+      },
+    };
+    /* eslint-enable camelcase */
   }
 }

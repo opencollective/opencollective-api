@@ -18,14 +18,11 @@ export class ElasticSearchOrdersAdapter implements ElasticSearchModelAdapter {
       // Relationships
       CollectiveId: { type: 'keyword' },
       FromCollectiveId: { type: 'keyword' },
-      CreatedByUserId: { type: 'keyword' },
       // Special fields
       HostCollectiveId: { type: 'keyword' },
       ParentCollectiveId: { type: 'keyword' },
     },
   } as const;
-
-  public readonly permissions = { default: 'PUBLIC' } as const;
 
   public findEntriesToIndex(offset: number, limit: number, options: { fromDate: Date; firstReturnedId: number }) {
     return models.Order.findAll({
@@ -57,9 +54,14 @@ export class ElasticSearchOrdersAdapter implements ElasticSearchModelAdapter {
       description: instance.description,
       CollectiveId: instance.CollectiveId,
       FromCollectiveId: instance.FromCollectiveId,
-      CreatedByUserId: instance.CreatedByUserId,
       HostCollectiveId: instance.collective.HostCollectiveId,
       ParentCollectiveId: instance.collective.ParentCollectiveId,
     };
+  }
+
+  public getIndexPermissions(/* _adminOfAccountIds: number[]*/) {
+    /* eslint-disable camelcase */
+    return { default: 'PUBLIC' as const };
+    /* eslint-enable camelcase */
   }
 }

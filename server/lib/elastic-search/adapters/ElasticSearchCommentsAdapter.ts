@@ -1,8 +1,10 @@
+import { QueryDslQueryContainer } from '@elastic/elasticsearch/lib/api/types';
 import { omit } from 'lodash';
 import { Op } from 'sequelize';
 
 import models from '../../../models';
-import { stripHTML } from '../../sanitize-html';
+import { CommentType } from '../../../models/Comment';
+import { stripHTMLOrEmpty } from '../../sanitize-html';
 import { ElasticSearchIndexName } from '../constants';
 
 import { ElasticSearchModelAdapter } from './ElasticSearchModelAdapter';
@@ -16,6 +18,7 @@ export class ElasticSearchCommentsAdapter implements ElasticSearchModelAdapter {
       createdAt: { type: 'date' },
       updatedAt: { type: 'date' },
       html: { type: 'text' },
+      type: { type: 'keyword' },
       // Relationships
       CollectiveId: { type: 'keyword' },
       FromCollectiveId: { type: 'keyword' },
@@ -24,10 +27,6 @@ export class ElasticSearchCommentsAdapter implements ElasticSearchModelAdapter {
       ParentCollectiveId: { type: 'keyword' },
       HostCollectiveId: { type: 'keyword' },
     },
-  } as const;
-
-  public readonly permissions = {
-    default: ['HOST_ADMIN', 'ACCOUNT_ADMIN', 'FROM_ACCOUNT_ADMIN'],
   } as const;
 
   public findEntriesToIndex(offset: number, limit: number, options: { fromDate: Date; firstReturnedId: number }) {
@@ -57,12 +56,49 @@ export class ElasticSearchCommentsAdapter implements ElasticSearchModelAdapter {
       id: instance.id,
       createdAt: instance.createdAt,
       updatedAt: instance.updatedAt,
-      html: stripHTML(instance.html),
+      html: stripHTMLOrEmpty(instance.html),
+      type: instance.type,
       CollectiveId: instance.CollectiveId,
       FromCollectiveId: instance.FromCollectiveId,
       CreatedByUserId: instance.CreatedByUserId,
       HostCollectiveId: instance.collective.HostCollectiveId,
       ParentCollectiveId: instance.collective.ParentCollectiveId,
     };
+  }
+
+  public getIndexPermissions(adminOfAccountIds: number[]) {
+    /* eslint-disable camelcase */
+    if (!adminOfAccountIds.length) {
+      return { default: 'FORBIDDEN' as const };
+    }
+
+    return {
+      default: {
+        bool: {
+          minimum_should_match: 1,
+          should: [
+            {
+              terms: { HostCollectiveId: adminOfAccountIds },
+            },
+            {
+              bool: {
+                filter: [{ term: { type: CommentType.COMMENT } }, { terms: { CollectiveId: adminOfAccountIds } }],
+              },
+            },
+            {
+              bool: {
+                filter: [{ term: { type: CommentType.COMMENT } }, { terms: { FromCollectiveId: adminOfAccountIds } }],
+              },
+            },
+            {
+              bool: {
+                filter: [{ term: { type: CommentType.COMMENT } }, { terms: { ParentCollectiveId: adminOfAccountIds } }],
+              },
+            },
+          ],
+        },
+      } satisfies QueryDslQueryContainer,
+    };
+    /* eslint-enable camelcase */
   }
 }

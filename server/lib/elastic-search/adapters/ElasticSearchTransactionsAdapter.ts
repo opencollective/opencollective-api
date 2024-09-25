@@ -22,17 +22,8 @@ export class ElasticSearchTransactionsAdapter implements ElasticSearchModelAdapt
       CollectiveId: { type: 'keyword' },
       FromCollectiveId: { type: 'keyword' },
       HostCollectiveId: { type: 'keyword' },
-      CreatedByUserId: { type: 'keyword' },
       // Special fields
       merchantId: { type: 'keyword' },
-    },
-  } as const;
-
-  public readonly permissions = {
-    default: 'PUBLIC',
-    fields: {
-      merchantId: ['HOST_ADMIN'],
-      CreatedByUserId: ['HOST_ADMIN', 'FROM_ACCOUNT_ADMIN'],
     },
   } as const;
 
@@ -62,9 +53,21 @@ export class ElasticSearchTransactionsAdapter implements ElasticSearchModelAdapt
       description: instance.description,
       CollectiveId: instance.CollectiveId,
       FromCollectiveId: instance.FromCollectiveId,
-      CreatedByUserId: instance.CreatedByUserId,
       HostCollectiveId: instance.HostCollectiveId,
       merchantId: instance.merchantId,
     };
+  }
+
+  public getIndexPermissions(adminOfAccountIds: number[]) {
+    /* eslint-disable camelcase */
+    return {
+      default: 'PUBLIC' as const,
+      fields: {
+        merchantId: {
+          terms: { HostCollectiveId: adminOfAccountIds },
+        },
+      },
+    };
+    /* eslint-enable camelcase */
   }
 }

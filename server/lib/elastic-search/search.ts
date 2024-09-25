@@ -6,7 +6,6 @@ import { QueryDslQueryContainer } from '@elastic/elasticsearch/lib/api/types';
 
 import { Collective } from '../../models';
 
-import { ElasticSearchModelAdapter } from './adapters/ElasticSearchModelAdapter';
 import { ElasticSearchModelsAdapters } from './adapters';
 import { getElasticSearchClient } from './client';
 import { ElasticSearchIndexName } from './constants';
@@ -28,87 +27,6 @@ const getAccountFilterConditions = (account: Collective, host: Collective) => {
   }
 
   return conditions;
-};
-
-const getSearchableFieldsForIndex = (adapter: ElasticSearchModelAdapter) => {
-  const getField = field => adapter.mappings.properties[field];
-  const getFieldPermissions = field => adapter.permissions.fields[field];
-  const isSupportedType = field => ['keyword', 'text'].includes(getField(field).type);
-  const fieldMatchPermission = (field, permission) => getFieldPermissions(field).includes(permission);
-
-  const allSearchableFields = Object.keys(adapter.mappings.properties).filter(isSupportedType);
-  const privateFields = adapter.permissions.fields ? Object.keys(adapter.permissions.fields) : [];
-  const publicFields = allSearchableFields.filter(field => !privateFields.includes(field));
-  const hostAdminFields = privateFields.filter(field => fieldMatchPermission(field, 'HOST_ADMIN'));
-  const accountAdminFields = privateFields.filter(field => fieldMatchPermission(field, 'ACCOUNT_ADMIN'));
-  const fromAccountAdminFields = privateFields.filter(field => fieldMatchPermission(field, 'FROM_ACCOUNT_ADMIN'));
-
-  return {
-    public: publicFields,
-    hostAdmin: hostAdminFields,
-    accountAdmin: accountAdminFields,
-    fromAccountAdmin: fromAccountAdminFields,
-  };
-};
-
-const getPrivateFieldsConditions = (
-  adminOfAccountIds: number[],
-  searchTerm: string,
-  fields: string[],
-  CollectiveIdColumn: 'HostCollectiveId' | 'CollectiveId' | 'FromCollectiveId',
-): QueryDslQueryContainer => {
-  if (!adminOfAccountIds.length || !fields.length) {
-    return null;
-  } else {
-    return {
-      /* eslint-disable camelcase */
-      bool: {
-        filter: [{ terms: { [CollectiveIdColumn]: adminOfAccountIds } }],
-        must: [
-          {
-            multi_match: {
-              query: searchTerm,
-              type: 'best_fields',
-              operator: 'or',
-              fuzziness: 'AUTO',
-              fields: fields,
-            },
-          },
-        ],
-      },
-    };
-    /* eslint-enable camelcase */
-  }
-};
-
-/**
- * Filters to apply to the query to match only entities that the user has access to, based
- * on the `adapter.default` permissions.
- */
-const getIndexDefaultAccountPermissionsFilter = (adapter, adminOfAccountIds): QueryDslQueryContainer[] => {
-  const conditions = [];
-  if (adapter.permissions.default === 'PUBLIC') {
-    return [];
-  }
-
-  if (adapter.permissions.default.includes('HOST_ADMIN')) {
-    conditions.push({ terms: { HostCollectiveId: adminOfAccountIds } });
-  }
-  if (adapter.permissions.default.includes('ACCOUNT_ADMIN')) {
-    conditions.push({ terms: { CollectiveId: adminOfAccountIds } });
-  }
-  if (adapter.permissions.default.includes('FROM_ACCOUNT_ADMIN')) {
-    conditions.push({ terms: { FromCollectiveId: adminOfAccountIds } });
-  }
-
-  if (conditions.length === 0) {
-    return [];
-  } else if (conditions.length === 1) {
-    return conditions;
-  } else {
-    // eslint-disable-next-line camelcase
-    return [{ bool: { should: conditions, minimum_should_match: 1 } }];
-  }
 };
 
 const buildQuery = (
@@ -135,13 +53,20 @@ const buildQuery = (
         const adapter = ElasticSearchModelsAdapters[index];
 
         // Avoid searching on private indexes if the user is not an admin of anything
-        if (adapter.permissions.default !== 'PUBLIC' && !adminOfAccountIds.length) {
+        const permissions = adapter.getIndexPermissions(adminOfAccountIds);
+        if (permissions.default === 'FORBIDDEN') {
           return [];
         }
 
+        // const fields = getSearchableFieldsForIndex(permissions);
+        const getField = field => adapter.mappings.properties[field];
+        const isSearchableField = field => ['keyword', 'text'].includes(getField(field).type);
+        const allFields = Object.keys(adapter.mappings.properties);
+        const searchableFields = allFields.filter(isSearchableField);
+        const publicFields = searchableFields.filter(field => !permissions.fields?.[field]);
+
         // Register fetched fields and indexes for later reuse in the aggregation
-        const fields = getSearchableFieldsForIndex(adapter);
-        Object.values(fields).forEach(fieldList => fieldList.forEach(fetchedFields.add, fetchedFields));
+        allFields.forEach(field => fetchedFields.add(field));
         fetchedIndexes.add(index);
 
         // Build the query for this index
@@ -149,30 +74,32 @@ const buildQuery = (
           // Public fields
           {
             bool: {
-              filter: [
-                { term: { _index: index } },
-                ...getIndexDefaultAccountPermissionsFilter(adapter, adminOfAccountIds),
-              ],
-              must: [
+              filter: [{ term: { _index: index } }, ...(permissions.default === 'PUBLIC' ? [] : [permissions.default])],
+              minimum_should_match: 1,
+              should: [
                 {
                   multi_match: {
                     query: searchTerm,
                     type: 'best_fields',
                     operator: 'or',
                     fuzziness: 'AUTO',
-                    fields: fields.public,
+                    fields: publicFields,
                   },
                 },
+                ...Object.entries(permissions.fields || {})
+                  .filter(([, conditions]) => conditions !== 'FORBIDDEN')
+                  .map(([field, conditions]) => {
+                    return {
+                      bool: {
+                        filter: conditions as QueryDslQueryContainer[],
+                        must: [{ match: { [field]: { query: searchTerm, fuzziness: 'AUTO' } } }],
+                      },
+                    } satisfies QueryDslQueryContainer;
+                  }),
               ],
             },
           },
-          // Private fields
-          ...[
-            getPrivateFieldsConditions(adminOfAccountIds, searchTerm, fields.hostAdmin, 'HostCollectiveId'),
-            getPrivateFieldsConditions(adminOfAccountIds, searchTerm, fields.accountAdmin, 'CollectiveId'),
-            getPrivateFieldsConditions(adminOfAccountIds, searchTerm, fields.fromAccountAdmin, 'FromCollectiveId'),
-          ].filter(Boolean),
-        ];
+        ] as QueryDslQueryContainer[];
       }),
     },
     /* eslint-enable camelcase */

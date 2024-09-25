@@ -1,5 +1,5 @@
 import models, { Op } from '../../../models';
-import { stripHTML } from '../../sanitize-html';
+import { stripHTMLOrEmpty } from '../../sanitize-html';
 import { ElasticSearchIndexName } from '../constants';
 
 import { ElasticSearchModelAdapter } from './ElasticSearchModelAdapter';
@@ -29,13 +29,6 @@ export class ElasticSearchCollectivesAdapter implements ElasticSearchModelAdapte
       // TODO: Social accounts
       // TODO: administrated accounts
       // TODO: location
-    },
-  } as const;
-
-  public readonly permissions = {
-    default: 'PUBLIC',
-    fields: {
-      legalName: ['HOST_ADMIN', 'ACCOUNT_ADMIN'],
     },
   } as const;
 
@@ -70,7 +63,7 @@ export class ElasticSearchCollectivesAdapter implements ElasticSearchModelAdapte
       legalName: instance.legalName,
       countryISO: instance.countryISO,
       description: instance.description,
-      longDescription: stripHTML(instance.longDescription),
+      longDescription: stripHTMLOrEmpty(instance.longDescription),
       website: instance.website,
       isActive: instance.isActive,
       isHostAccount: instance.isHostAccount,
@@ -78,5 +71,34 @@ export class ElasticSearchCollectivesAdapter implements ElasticSearchModelAdapte
       HostCollectiveId: instance.HostCollectiveId,
       ParentCollectiveId: instance.ParentCollectiveId,
     };
+  }
+
+  public getIndexPermissions(adminOfAccountIds: number[]) {
+    /* eslint-disable camelcase */
+    if (!adminOfAccountIds.length) {
+      return {
+        default: 'PUBLIC' as const,
+        fields: {
+          legalName: 'FORBIDDEN' as const,
+        },
+      };
+    }
+
+    return {
+      default: 'PUBLIC' as const,
+      fields: {
+        legalName: {
+          bool: {
+            minimum_should_match: 1,
+            should: [
+              { terms: { HostCollectiveId: adminOfAccountIds } },
+              { terms: { ParentCollectiveId: adminOfAccountIds } },
+              { terms: { CollectiveId: adminOfAccountIds } },
+            ],
+          },
+        },
+      },
+    };
+    /* eslint-enable camelcase */
   }
 }

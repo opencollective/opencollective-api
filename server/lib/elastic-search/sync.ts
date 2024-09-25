@@ -82,6 +82,9 @@ export async function syncElasticSearchIndex(
     });
 
     offset += limit;
+    if (options.log) {
+      logger.info(`... ${offset} entries synced`);
+    }
   } while (modelEntries.length === limit);
 }
 

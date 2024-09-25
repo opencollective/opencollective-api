@@ -5,6 +5,7 @@ import { uniq } from 'lodash';
 
 import { getElasticSearchClient } from '../server/lib/elastic-search/client';
 import { ElasticSearchIndexName } from '../server/lib/elastic-search/constants';
+import { elasticSearchGlobalSearch } from '../server/lib/elastic-search/search';
 import {
   createElasticSearchIndices,
   deleteElasticSearchIndices,
@@ -21,6 +22,25 @@ const checkElasticSearchAvailable = () => {
   if (!getElasticSearchClient()) {
     throw new Error('ElasticSearch is not configured');
   }
+};
+
+const parseIndexesFromInput = (
+  indexes,
+  defaultValue = Object.values(ElasticSearchIndexName),
+): ElasticSearchIndexName[] => {
+  if (!indexes?.length) {
+    return defaultValue;
+  }
+
+  const allIndexes = Object.values(ElasticSearchIndexName);
+  const uniqIndexes = uniq(indexes) as ElasticSearchIndexName[];
+  uniqIndexes.forEach(index => {
+    if (!allIndexes.includes(index as ElasticSearchIndexName)) {
+      throw new Error(`Invalid index: ${index}`);
+    }
+  });
+
+  return uniqIndexes;
 };
 
 // Re-index command
@@ -57,13 +77,7 @@ program
       throw new Error('Invalid date');
     } else {
       const allIndexes = Object.values(ElasticSearchIndexName);
-      const indexes = !indexesInput.length ? allIndexes : uniq(indexesInput);
-      indexes.forEach(index => {
-        if (!allIndexes.includes(index as ElasticSearchIndexName)) {
-          throw new Error(`Invalid index: ${index}`);
-        }
-      });
-
+      const indexes = parseIndexesFromInput(indexesInput);
       const modelsLabels = indexes.length === allIndexes.length ? 'all indices' : indexes.join(', ');
       logger.info(`Syncing ${modelsLabels} from ${parsedDate.toISOString()}`);
       for (const indexName of indexes) {
@@ -72,6 +86,46 @@ program
 
       logger.info('Sync completed!');
     }
+  });
+
+program
+  .command('stats')
+  .description('Show information about the ElasticSearch indices')
+  .argument('[indexes...]', 'Only show information about specific indexes')
+  .action(async indexesInput => {
+    checkElasticSearchAvailable();
+    const indexes = parseIndexesFromInput(indexesInput);
+    const client = getElasticSearchClient();
+    const result = await client.indices.stats({ index: indexes.join(',') });
+
+    let nbDocs = 0;
+    let totalSize = 0;
+    const formatSize = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+    Object.entries(result.indices).forEach(([index, values]) => {
+      console.log(`- Index: ${index}`);
+      console.log(`  - Docs: ${values.primaries.docs.count}`);
+      console.log(`  - Size: ${formatSize(values.primaries.store.size_in_bytes)}`);
+
+      nbDocs += values.primaries.docs.count;
+      totalSize += values.primaries.store.size_in_bytes;
+    });
+
+    console.log('====== Total ======');
+    console.log(`- Docs: ${nbDocs}`);
+    console.log(`- Size: ${formatSize(totalSize)}`);
+  });
+
+program
+  .command('query')
+  .description('Query ElasticSearch')
+  .argument('<query>', 'Query string')
+  .argument('[indexes...]', 'Only query specific indexes')
+  .option('--limit <limit>', 'Limit the number of results', '10')
+  .action(async (query, indexesInput, options) => {
+    checkElasticSearchAvailable();
+    const indexes = parseIndexesFromInput(indexesInput);
+    const result = await elasticSearchGlobalSearch(indexes, query, parseInt(options.limit, 3), [], null, null);
+    console.log('Result', JSON.stringify(result, null, 2));
   });
 
 // Entrypoint

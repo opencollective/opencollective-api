@@ -2,7 +2,7 @@ import { omit } from 'lodash';
 import { Op } from 'sequelize';
 
 import models from '../../../models';
-import { stripHTML } from '../../sanitize-html';
+import { stripHTMLOrEmpty } from '../../sanitize-html';
 import { ElasticSearchIndexName } from '../constants';
 
 import { ElasticSearchModelAdapter } from './ElasticSearchModelAdapter';
@@ -27,8 +27,6 @@ export class ElasticSearchTiersAdapter implements ElasticSearchModelAdapter {
       ParentCollectiveId: { type: 'keyword' },
     },
   } as const;
-
-  public readonly permissions = { default: 'PUBLIC' } as const;
 
   public findEntriesToIndex(offset: number, limit: number, options: { fromDate: Date; firstReturnedId: number }) {
     return models.Tier.findAll({
@@ -61,10 +59,16 @@ export class ElasticSearchTiersAdapter implements ElasticSearchModelAdapter {
       name: instance.name,
       slug: instance.slug,
       description: instance.description,
-      longDescription: stripHTML(instance.longDescription),
+      longDescription: stripHTMLOrEmpty(instance.longDescription),
       CollectiveId: instance.CollectiveId,
       HostCollectiveId: instance.Collective.HostCollectiveId,
       ParentCollectiveId: instance.Collective.ParentCollectiveId,
     };
+  }
+
+  public getIndexPermissions(/* _adminOfAccountIds: number[]*/) {
+    /* eslint-disable camelcase */
+    return { default: 'PUBLIC' as const };
+    /* eslint-enable camelcase */
   }
 }

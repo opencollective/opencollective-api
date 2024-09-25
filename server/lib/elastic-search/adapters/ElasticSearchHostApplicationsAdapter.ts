@@ -24,10 +24,6 @@ export class ElasticSearchHostApplicationsAdapter implements ElasticSearchModelA
     },
   } as const;
 
-  public readonly permissions = {
-    default: ['HOST_ADMIN', 'ACCOUNT_ADMIN'],
-  } as const;
-
   public findEntriesToIndex(offset: number, limit: number, options: { fromDate: Date; firstReturnedId: number }) {
     return models.HostApplication.findAll({
       attributes: omit(Object.keys(this.mappings.properties), ['ParentCollectiveId']),
@@ -61,5 +57,22 @@ export class ElasticSearchHostApplicationsAdapter implements ElasticSearchModelA
       message: instance.message,
       ParentCollectiveId: instance.collective.ParentCollectiveId,
     };
+  }
+
+  public getIndexPermissions(adminOfAccountIds: number[]) {
+    /* eslint-disable camelcase */
+    if (!adminOfAccountIds.length) {
+      return { default: 'FORBIDDEN' as const };
+    }
+
+    return {
+      default: {
+        bool: {
+          minimum_should_match: 1,
+          should: [{ terms: { HostCollectiveId: adminOfAccountIds } }, { terms: { CollectiveId: adminOfAccountIds } }],
+        },
+      },
+    };
+    /* eslint-enable camelcase */
   }
 }

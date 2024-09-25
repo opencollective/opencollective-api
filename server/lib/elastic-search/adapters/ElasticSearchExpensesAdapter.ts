@@ -2,7 +2,7 @@ import { omit } from 'lodash';
 import { Op } from 'sequelize';
 
 import models from '../../../models';
-import { stripHTML } from '../../sanitize-html';
+import { stripHTMLOrEmpty } from '../../sanitize-html';
 import { ElasticSearchIndexName } from '../constants';
 
 import { ElasticSearchModelAdapter } from './ElasticSearchModelAdapter';
@@ -30,15 +30,6 @@ export class ElasticSearchExpensesAdapter implements ElasticSearchModelAdapter {
       HostCollectiveId: { type: 'keyword' },
       // Special fields
       ParentCollectiveId: { type: 'keyword' },
-    },
-  } as const;
-
-  public readonly permissions = {
-    default: 'PUBLIC',
-    fields: {
-      privateMessage: ['HOST_ADMIN', 'ACCOUNT_ADMIN'],
-      invoiceInfo: ['HOST_ADMIN', 'ACCOUNT_ADMIN'],
-      reference: ['HOST_ADMIN', 'ACCOUNT_ADMIN'],
     },
   } as const;
 
@@ -70,8 +61,8 @@ export class ElasticSearchExpensesAdapter implements ElasticSearchModelAdapter {
       createdAt: instance.createdAt,
       updatedAt: instance.updatedAt,
       description: instance.description,
-      longDescription: stripHTML(instance.longDescription),
-      privateMessage: stripHTML(instance.privateMessage),
+      longDescription: stripHTMLOrEmpty(instance.longDescription),
+      privateMessage: stripHTMLOrEmpty(instance.privateMessage),
       invoiceInfo: instance.invoiceInfo,
       reference: instance.reference,
       amount: instance.amount,
@@ -83,5 +74,31 @@ export class ElasticSearchExpensesAdapter implements ElasticSearchModelAdapter {
       UserId: instance.UserId,
       HostCollectiveId: instance.HostCollectiveId || instance.collective.HostCollectiveId,
     };
+  }
+
+  public getIndexPermissions(adminOfAccountIds: number[]) {
+    /* eslint-disable camelcase */
+    const adminFieldPermissions = !adminOfAccountIds.length
+      ? ('FORBIDDEN' as const)
+      : {
+          bool: {
+            minimum_should_match: 1,
+            should: [
+              { terms: { HostCollectiveId: adminOfAccountIds } },
+              { terms: { ParentCollectiveId: adminOfAccountIds } },
+              { terms: { CollectiveId: adminOfAccountIds } },
+            ],
+          },
+        };
+
+    return {
+      default: 'PUBLIC' as const,
+      fields: {
+        privateMessage: adminFieldPermissions,
+        invoiceInfo: adminFieldPermissions,
+        reference: adminFieldPermissions,
+      },
+    };
+    /* eslint-enable camelcase */
   }
 }

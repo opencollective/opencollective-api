@@ -44,6 +44,10 @@ const SearchQuery = {
     },
   },
   async resolve(_: void, { searchTerm, ...args }, req: express.Request) {
+    if (config.env === 'production' && !req.remoteUser?.isRoot()) {
+      throw new Error('This query is only available to root users in production');
+    }
+
     const host = args.host && (await fetchAccountWithReference(args.host));
     const account = args.account && (await fetchAccountWithReference(args.account));
     const adminOfAccountIds = req.remoteUser?.getAdministratedCollectiveIds() ?? [];
@@ -76,10 +80,6 @@ const SearchQuery = {
     }
     // This falls back to Postgres as a search engine, which is not efficient and should be used only for dev/debugging.
     else {
-      if (config.env === 'production' && !req.remoteUser?.isRoot()) {
-        throw new Error('Searching without ElasticSearch is disabled in production');
-      }
-
       const query = { searchTerm, limit, adminOfAccountIds, host, account, timeout: args.timeout };
       return {
         results: {
