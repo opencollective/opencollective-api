@@ -26,9 +26,6 @@ export class ElasticSearchCollectivesAdapter implements ElasticSearchModelAdapte
       // Relationships
       HostCollectiveId: { type: 'keyword' },
       ParentCollectiveId: { type: 'keyword' },
-      // TODO: Social accounts
-      // TODO: administrated accounts
-      // TODO: location
     },
   } as const;
 

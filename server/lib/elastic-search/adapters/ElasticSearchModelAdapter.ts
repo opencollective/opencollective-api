@@ -5,7 +5,7 @@ import { Model } from '../../../lib/sequelize';
 import { ModelType } from '../../../models';
 import { ElasticSearchIndexName } from '../constants';
 
-export type ElasticSearchModelPermissions = {
+type ElasticSearchModelPermissions = {
   /** Either public, forbidden or an array of conditions (interpreted as OR) */
   default: QueryDslQueryContainer | 'PUBLIC' | 'FORBIDDEN';
   /** Additional per-field conditions */

@@ -40,6 +40,9 @@ export type SearchResultBucket = {
   };
 };
 
+/**
+ * A loader to batch search requests on multiple indexes into a single ElasticSearch query.
+ */
 export const generateSearchLoaders = () => {
   return new DataLoader<SearchParams, SearchResultBucket>(async (entries: SearchParams[]) => {
     const groupedRequests = groupBy(entries, 'requestId');
