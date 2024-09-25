@@ -3,21 +3,24 @@ import '../../server/env';
 import assert from 'assert';
 
 import { Command } from 'commander';
-import { omit, pick } from 'lodash';
+import { groupBy, omit, pick, round } from 'lodash';
 import moment from 'moment';
 
 import { Service } from '../../server/constants/connected-account';
 import { TransactionKind } from '../../server/constants/transaction-kind';
+import { TransactionTypes } from '../../server/constants/transactions';
+import { getFxRate } from '../../server/lib/currency';
 import { computeExpenseAmounts } from '../../server/lib/transactions';
 import * as transferwiseLib from '../../server/lib/transferwise';
 import models, { Op, sequelize } from '../../server/models';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
-import { ExpenseDataQuoteV3 } from '../../server/types/transferwise';
+import { ExpenseDataQuoteV3, QuoteV3, QuoteV3PaymentOption } from '../../server/types/transferwise';
 
 const program = new Command();
 
 const MIGRATION_DATA_KEY = 'checkFeesMigrationData';
 const POST_MIGRATION_DATA_KEY = 'migratedCheckFeesData';
+const REFUNDED_MIGRATION_DATA_KEY = 'migratedFeesRefunded';
 const IS_DRY = process.env.DRY !== 'false';
 
 program.command('check <since> <until> [hosts]').action(async (since, until, hosts) => {
@@ -253,6 +256,114 @@ program.command('fix [hosts]').action(async hosts => {
       }
     }
   }
+  sequelize.close();
+});
+
+type RefundData = {
+  [MIGRATION_DATA_KEY]: {
+    paymentOption: QuoteV3PaymentOption;
+    quote: QuoteV3;
+  };
+  [POST_MIGRATION_DATA_KEY]: {
+    paymentOption: QuoteV3PaymentOption;
+    quote: QuoteV3;
+  };
+};
+
+program.command('refund [hosts]').action(async hosts => {
+  hosts = hosts ? hosts.split(',') : [];
+  console.log(`Refunding Collectives for fees on expenses previously checked for hosts ${hosts.join(', ')}...`);
+  for (const slug of hosts) {
+    const expenses = await models.Expense.findAll({
+      where: {
+        status: 'PAID',
+        data: {
+          [MIGRATION_DATA_KEY]: { [Op.ne]: null },
+          [POST_MIGRATION_DATA_KEY]: { [Op.ne]: null },
+          [REFUNDED_MIGRATION_DATA_KEY]: null,
+        },
+      },
+      include: [
+        { model: models.Collective, as: 'host', required: true, where: { slug } },
+        { model: models.Collective, as: 'collective' },
+      ],
+    });
+
+    const groupedExpenses = groupBy(expenses, 'CollectiveId');
+    let totalRefunded = 0;
+    for (const key in groupedExpenses) {
+      const collectiveExpenses = groupedExpenses[key];
+      const collective = collectiveExpenses[0].collective;
+      const host = collectiveExpenses[0].host;
+      let currency;
+      try {
+        const totalDiff = collectiveExpenses.reduce((acc, expense) => {
+          const data = expense.data as RefundData;
+          const beforePaymentOption = data[POST_MIGRATION_DATA_KEY].paymentOption;
+          const afterPaymentOption = data[MIGRATION_DATA_KEY].paymentOption;
+          assert.equal(beforePaymentOption.sourceCurrency, afterPaymentOption.sourceCurrency);
+          assert.equal(beforePaymentOption.sourceCurrency, expense.host.currency);
+          currency = beforePaymentOption.sourceCurrency;
+          const diff = beforePaymentOption.sourceAmount - afterPaymentOption.sourceAmount;
+          return round(acc + diff, 2);
+        }, 0);
+        if (totalDiff < 0) {
+          console.log(`\tRefunding ${collective.slug} for a total of ${totalDiff} ${currency}`);
+          const amountInHostCurrency = Math.abs(totalDiff * 100);
+          totalRefunded += amountInHostCurrency;
+          const hostCurrencyFxRate = await getFxRate(collective.currency, host.currency);
+          const amount = Math.round(amountInHostCurrency / hostCurrencyFxRate);
+          const transactionData = {
+            type: TransactionTypes.CREDIT,
+            kind: TransactionKind.PAYMENT_PROCESSOR_COVER,
+            description: 'Wise Payment Processor Fee Compensation',
+            FromCollectiveId: host.id,
+            CollectiveId: collective.id,
+            HostCollectiveId: host.id,
+            // Compute amounts
+            amount: amount,
+            netAmountInCollectiveCurrency: amount,
+            currency: collective.currency,
+            amountInHostCurrency: amountInHostCurrency,
+            hostCurrency: host.currency,
+            hostCurrencyFxRate: hostCurrencyFxRate,
+            // No fees
+            platformFeeInHostCurrency: 0,
+            hostFeeInHostCurrency: 0,
+            paymentProcessorFeeInHostCurrency: 0,
+            createdAt: new Date(),
+            clearedAt: new Date(),
+          };
+          if (!IS_DRY) {
+            // Create refund transaction
+            const transaction = await models.Transaction.createDoubleEntry(transactionData);
+            // Mark expenses as refunded
+            await Promise.all(
+              collectiveExpenses.map(expense =>
+                expense.update({
+                  data: {
+                    ...expense.data,
+                    [REFUNDED_MIGRATION_DATA_KEY]: true,
+                    paymentFeeCoverTransaction: transaction.id,
+                  },
+                }),
+              ),
+            );
+          } else {
+            console.log(`\tDRY RUN: Would have refunded ${totalDiff} ${currency} to ${collective.slug}`);
+            console.log(`\tDRY RUN: Would have created a transaction with data:`, transactionData);
+          }
+        } else {
+          console.log(`\tNo refund needed for ${collective.slug} difference is positive: ${totalDiff} ${currency}`);
+        }
+      } catch (e) {
+        console.error(`Error calculating total diff for ${collective.slug}: ${e.message}`);
+        continue;
+      }
+    }
+    console.log(`Total refunded by ${slug}: ${totalRefunded / 100}`);
+  }
+
   sequelize.close();
 });
 
