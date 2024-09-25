@@ -315,7 +315,7 @@ program.command('refund [hosts]').action(async hosts => {
           const amount = Math.round(amountInHostCurrency / hostCurrencyFxRate);
           const transactionData = {
             type: TransactionTypes.CREDIT,
-            kind: TransactionKind.PAYMENT_PROCESSOR_COVER,
+            kind: TransactionKind.ADDED_FUNDS,
             description: 'Wise Payment Processor Fee Compensation',
             FromCollectiveId: host.id,
             CollectiveId: collective.id,
