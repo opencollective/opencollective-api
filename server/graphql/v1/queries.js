@@ -9,7 +9,7 @@ import { fetchCollectiveId } from '../../lib/cache';
 import logger from '../../lib/logger';
 import { getConsolidatedInvoicesData } from '../../lib/pdf';
 import rawQueries from '../../lib/queries';
-import { searchCollectivesByEmail, searchCollectivesInDB } from '../../lib/search';
+import { searchCollectivesByEmail, searchCollectivesInDB } from '../../lib/sql-search';
 import models, { Op, sequelize } from '../../models';
 import { NotFound, Unauthorized } from '../errors';
 

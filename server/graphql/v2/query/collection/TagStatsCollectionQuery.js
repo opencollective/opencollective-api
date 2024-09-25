@@ -1,7 +1,7 @@
 import { GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
 import { pick } from 'lodash';
 
-import { getColletiveTagFrequencies } from '../../../../lib/search';
+import { getColletiveTagFrequencies } from '../../../../lib/sql-search';
 import { GraphQLTagStatsCollection } from '../../collection/TagStatsCollection';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
 

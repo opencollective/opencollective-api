@@ -1,7 +1,7 @@
 import { GraphQLError, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
 import { pick } from 'lodash';
 
-import { getExpenseTagFrequencies } from '../../../../lib/search';
+import { getExpenseTagFrequencies } from '../../../../lib/sql-search';
 import { GraphQLTagStatsCollection } from '../../collection/TagStatsCollection';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
 

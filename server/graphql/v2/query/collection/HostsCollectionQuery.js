@@ -1,6 +1,6 @@
 import { GraphQLList, GraphQLString } from 'graphql';
 
-import { searchCollectivesInDB } from '../../../../lib/search';
+import { searchCollectivesInDB } from '../../../../lib/sql-search';
 import { GraphQLHostCollection } from '../../collection/HostCollection';
 import { ORDER_BY_PSEUDO_FIELDS } from '../../enum/OrderByFieldType';
 import { CollectionArgs } from '../../interface/Collection';

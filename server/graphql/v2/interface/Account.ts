@@ -6,7 +6,7 @@ import { Order } from 'sequelize';
 
 import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
-import { buildSearchConditions } from '../../../lib/search';
+import { buildSearchConditions } from '../../../lib/sql-search';
 import { getCollectiveFeed } from '../../../lib/timeline';
 import { getAccountReportNodesFromQueryResult } from '../../../lib/transaction-reports';
 import { canSeeLegalName } from '../../../lib/user-permissions';

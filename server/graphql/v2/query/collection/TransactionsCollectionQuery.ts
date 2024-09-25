@@ -7,7 +7,7 @@ import type { Order as SequelizeOrder } from 'sequelize';
 
 import { CollectiveType } from '../../../../constants/collectives';
 import cache, { memoize } from '../../../../lib/cache';
-import { buildSearchConditions } from '../../../../lib/search';
+import { buildSearchConditions } from '../../../../lib/sql-search';
 import { parseToBoolean } from '../../../../lib/utils';
 import { AccountingCategory, Expense, Op, PaymentMethod, sequelize } from '../../../../models';
 import Order from '../../../../models/Order';

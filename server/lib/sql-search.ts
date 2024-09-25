@@ -5,6 +5,7 @@
 import config from 'config';
 import slugify from 'limax';
 import { get, isEmpty, toString, words } from 'lodash';
+import { Model, ModelStatic, Order } from 'sequelize';
 import isEmail from 'validator/lib/isEmail';
 
 import { RateLimitExceeded } from '../graphql/errors';
@@ -18,6 +19,7 @@ import models, { Op, sequelize } from '../models';
 
 import { floatAmountToCents } from './math';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from './rate-limit';
+import { runPromiseOrTimeout } from './utils';
 
 // Returned when there's no result for a search
 const EMPTY_SEARCH_RESULT = [[], 0];
@@ -596,4 +598,227 @@ export const getExpenseTagFrequencies = async args => {
       replacements,
     },
   );
+};
+
+const getSQLSearchConditionsForModel = (
+  model: ModelStatic<Model>,
+  searchTerm: string,
+  adminOfAccountIds: number[],
+  host?: InstanceType<typeof models.Collective>,
+  account?: InstanceType<typeof models.Collective>,
+) => {
+  if (model instanceof models.Collective) {
+    return {
+      where: {
+        ...(host && { HostCollectiveId: host.id }),
+        ...(account && { [Op.or]: [{ id: account.id }, { ParentCollectiveId: account.id }] }),
+        [Op.or]: buildSearchConditions(searchTerm, {
+          idFields: ['id'],
+          textFields: ['name', 'description', 'longDescription', 'website'],
+          slugFields: ['slug'],
+          stringArrayFields: ['tags'],
+        }),
+      },
+    };
+  } else if (model instanceof models.Comment) {
+    return {
+      where: {
+        [Op.or]: buildSearchConditions(searchTerm, {
+          idFields: ['id'],
+          textFields: ['html'],
+        }),
+      },
+      include: [
+        {
+          association: 'collective',
+          attributes: [],
+          required: true,
+          where: {
+            // Can only search comments of collectives the user is admin of
+            ...(host && { HostCollectiveId: host.id }),
+            ...(account && { [Op.or]: [{ id: account.id }, { ParentCollectiveId: account.id }] }),
+            [Op.or]: [
+              { id: adminOfAccountIds },
+              { ParentCollectiveId: adminOfAccountIds },
+              { HostCollectiveId: adminOfAccountIds, isActive: true },
+            ],
+          },
+        },
+      ],
+    };
+  } else if (model instanceof models.Expense) {
+    return {
+      include: [
+        { association: 'User', attributes: [], include: [{ association: 'collective', attributes: [] }] },
+        { association: 'fromCollective', attributes: [] },
+        {
+          association: 'collective',
+          attributes: [],
+          required: true,
+          where: {
+            ...(host && { HostCollectiveId: host.id }),
+            ...(account && { [Op.or]: [{ id: account.id }, { ParentCollectiveId: account.id }] }),
+          },
+        },
+      ],
+      where: {
+        [Op.or]: buildSearchConditions(searchTerm, {
+          idFields: ['id'],
+          slugFields: ['$fromCollective.slug$', '$collective.slug$', '$User.collective.slug$'],
+          textFields: ['$fromCollective.name$', '$collective.name$', '$User.collective.name$', 'description'],
+          amountFields: ['amount'],
+          stringArrayFields: ['tags'],
+          stringArrayTransformFn: (str: string) => str.toLowerCase(), // expense tags are stored lowercase
+        }),
+      },
+    };
+  } else if (model instanceof models.HostApplication) {
+    return {
+      include: [{ association: 'collective', attributes: [], required: true }],
+      where: {
+        ...(host && { HostCollectiveId: host.id }),
+        ...(account && { [Op.or]: [{ id: account.id }, { ParentCollectiveId: account.id }] }),
+        [Op.and]: [
+          {
+            [Op.or]: [{ HostCollectiveId: adminOfAccountIds }, { CollectiveId: adminOfAccountIds }],
+          },
+          {
+            [Op.or]: buildSearchConditions(searchTerm, {
+              slugFields: ['$collective.slug$'],
+              textFields: ['message', '$collective.name$'],
+              idFields: ['id'],
+            }),
+          },
+        ],
+      },
+    };
+  } else if (model instanceof models.Order) {
+    return {
+      include: [
+        { model: models.Collective, as: 'fromCollective', attributes: [], required: true },
+        {
+          model: models.Collective,
+          as: 'collective',
+          attributes: [],
+          required: true,
+          where: {
+            ...(host && { HostCollectiveId: host.id }),
+            ...(account && { [Op.or]: [{ id: account.id }, { ParentCollectiveId: account.id }] }),
+          },
+        },
+      ],
+      where: {
+        [Op.or]: buildSearchConditions(searchTerm, {
+          textFields: ['description', '$fromCollective.name$', '$collective.name$'],
+          idFields: ['id'],
+        }),
+      },
+    };
+  } else if (model instanceof models.Tier) {
+    return {
+      include: [
+        {
+          model: models.Collective,
+          attributes: [],
+          required: true,
+          where: {
+            ...(host && { HostCollectiveId: host.id }),
+            ...(account && { [Op.or]: [{ id: account.id }, { ParentCollectiveId: account.id }] }),
+          },
+        },
+      ],
+      where: {
+        [Op.or]: buildSearchConditions(searchTerm, {
+          textFields: ['name', 'description'],
+          idFields: ['id'],
+          slugFields: ['slug'],
+        }),
+      },
+    };
+  } else if (model instanceof models.Transaction) {
+    return {
+      include: [
+        { model: models.Collective, as: 'fromCollective', attributes: [], required: true },
+        {
+          model: models.Collective,
+          as: 'collective',
+          attributes: [],
+          required: true,
+          where: {
+            ...(account && { [Op.or]: [{ id: account.id }, { ParentCollectiveId: account.id }] }),
+          },
+        },
+      ],
+      where: {
+        ...(host && { HostCollectiveId: host.id }),
+        [Op.or]: buildSearchConditions(searchTerm, {
+          idFields: ['id', 'ExpenseId', 'OrderId'],
+          slugFields: ['$fromCollective.slug$', '$collective.slug$'],
+          textFields: ['$fromCollective.name$', '$collective.name$', 'description'],
+          amountFields: ['amount'],
+        }),
+      },
+    };
+  } else if (model instanceof models.Update) {
+    return {
+      include: [
+        {
+          model: models.Collective,
+          as: 'collective',
+          attributes: [],
+          required: true,
+          where: {
+            ...(host && { HostCollectiveId: host.id }),
+            ...(account && { [Op.or]: [{ id: account.id }, { ParentCollectiveId: account.id }] }),
+          },
+        },
+      ],
+      where: {
+        [Op.and]: [
+          {
+            [Op.or]: buildSearchConditions(searchTerm, {
+              idFields: ['id'],
+              textFields: ['html', 'title'],
+            }),
+          },
+          {
+            [Op.or]: [{ isPrivate: false }, { CollectiveId: adminOfAccountIds }],
+          },
+        ],
+      },
+    };
+  } else {
+    throw new Error(`Unsupported SQL search for model: ${model.name}`);
+  }
+};
+
+export const getSQLSearchResolver = (
+  model: ModelStatic<Model>,
+  {
+    limit,
+    host,
+    account,
+    searchTerm,
+    timeout,
+    adminOfAccountIds,
+  }: {
+    limit: number;
+    host?: InstanceType<typeof models.Collective>;
+    account?: InstanceType<typeof models.Collective>;
+    searchTerm: string;
+    timeout: number;
+    adminOfAccountIds: number[];
+  },
+) => {
+  const timeoutMessage = 'Field resolution timed out';
+  const query = getSQLSearchConditionsForModel(model, searchTerm, adminOfAccountIds, host, account);
+  const order = [['id', 'ASC']] as Order;
+  return {
+    collection: {
+      nodes: () => runPromiseOrTimeout(model.findAll({ ...query, limit, order }), timeout, timeoutMessage),
+      totalCount: () => runPromiseOrTimeout(model.count(query), timeout, timeoutMessage),
+      offset: 0,
+      limit: limit,
+    },
+  };
 };
