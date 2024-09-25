@@ -26,7 +26,13 @@ const getAccountFilterConditions = (account: Collective, host: Collective) => {
     conditions.push({ term: { HostCollectiveId: host.id } });
   }
 
-  return conditions;
+  if (conditions.length < 2) {
+    return conditions;
+  } else {
+    return [
+      { bool: { minimum_should_match: 1, should: conditions } }, // eslint-disable-line camelcase
+    ];
+  }
 };
 
 const buildQuery = (
