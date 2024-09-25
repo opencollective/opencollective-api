@@ -13,6 +13,7 @@ import {
   syncElasticSearchIndexes,
 } from '../server/lib/elastic-search/sync';
 import logger from '../server/lib/logger';
+import models from '../server/models';
 
 import { confirm } from './common/helpers';
 
@@ -120,11 +121,29 @@ program
   .description('Query ElasticSearch')
   .argument('<query>', 'Query string')
   .argument('[indexes...]', 'Only query specific indexes')
-  .option('--limit <limit>', 'Limit the number of results', '10')
+  .option('--limit <limit>', 'Limit the number of results', '3')
+  .option('--account <accountSlug>', 'Account slug to filter results')
+  .option('--host <hostSlug>', 'Host slug to filter results')
+  .option('--as <userSlug>', 'User making the request')
   .action(async (query, indexesInput, options) => {
     checkElasticSearchAvailable();
     const indexes = parseIndexesFromInput(indexesInput);
-    const result = await elasticSearchGlobalSearch(indexes, query, parseInt(options.limit, 3), [], null, null);
+    const limit = parseInt(options.limit, 10);
+    const account = options.account && (await models.Collective.findBySlug(options.account));
+    const host = options.host && (await models.Collective.findBySlug(options.host));
+    let adminOfAccountIds = [];
+    if (options.as) {
+      const asCollective = await models.Collective.findBySlug(options.as);
+      const asUser = asCollective && (await models.User.findOne({ where: { CollectiveId: asCollective.id } }));
+      if (!asUser) {
+        throw new Error(`User not found: ${options.as}`);
+      }
+
+      await asUser.populateRoles();
+      adminOfAccountIds = Object.keys(asUser.rolesByCollectiveId).filter(id => asUser.isAdmin(id));
+    }
+
+    const result = await elasticSearchGlobalSearch(indexes, query, limit, adminOfAccountIds, account, host);
     console.log('Result', JSON.stringify(result, null, 2));
   });
 
