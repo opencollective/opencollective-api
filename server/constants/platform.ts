@@ -4,14 +4,14 @@ import moment from 'moment';
 import { SupportedCurrency } from './currencies';
 
 const isProdOrStaging = config.env === 'production' || config.env === 'staging';
-const migrationDate = moment('2024-10-05T00:00:00Z');
-function isMigrated() {
-  return isProdOrStaging && moment().isAfter(migrationDate);
-}
+const MIGRATION_DATE = moment('2024-10-01T00:00:00Z');
 
-const PlatformConstants = {
+/**
+ * Returns the platform constants based on a function to check if the platform has been migrated.
+ */
+const getPlatformConstants = (checkIfMigrated: () => boolean) => ({
   get PlatformCollectiveId() {
-    if (isMigrated()) {
+    if (checkIfMigrated()) {
       // ofico
       return 835523;
     }
@@ -47,5 +47,15 @@ const PlatformConstants = {
   get PlatformCountry() {
     return 'US';
   },
+});
+
+function isMigrated(date: moment.Moment) {
+  return isProdOrStaging && date.isAfter(MIGRATION_DATE);
+}
+
+export const getPlatformConstantsForDate = (date: Date | moment.Moment) => {
+  return getPlatformConstants(() => isMigrated(moment(date)));
 };
+
+const PlatformConstants = getPlatformConstants(() => isMigrated(moment()));
 export default PlatformConstants;
