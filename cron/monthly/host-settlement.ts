@@ -8,8 +8,8 @@ import moment from 'moment';
 import activityType from '../../server/constants/activities';
 import expenseStatus from '../../server/constants/expense-status';
 import expenseTypes from '../../server/constants/expense-type';
-import { getPlatformConstantsForDate } from '../../server/constants/platform';
 import { TransactionKind } from '../../server/constants/transaction-kind';
+import { SETTLEMENT_EXPENSE_PROPERTIES } from '../../server/constants/transactions';
 import { getTransactionsCsvUrl } from '../../server/lib/csv';
 import { getFxRate } from '../../server/lib/currency';
 import { getPendingHostFeeShare, getPendingPlatformTips } from '../../server/lib/host-metrics';
@@ -50,13 +50,12 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
   const month = momentDate.month();
   const startDate = new Date(year, month, 1);
   const endDate = new Date(year, month + 1, 1);
-  const PlatformConstants = getPlatformConstantsForDate(momentDate);
 
   console.info(`Invoicing hosts pending fees and tips for ${momentDate.format('MMMM')}.`);
 
   const payoutMethods = groupBy(
     await models.PayoutMethod.findAll({
-      where: { CollectiveId: PlatformConstants.PlatformCollectiveId, isSaved: true },
+      where: { CollectiveId: SETTLEMENT_EXPENSE_PROPERTIES.FromCollectiveId, isSaved: true },
     }),
     'type',
   );
@@ -71,18 +70,14 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       INNER JOIN "Transactions" t ON t."HostCollectiveId" = c.id AND t."deletedAt" IS NULL
       WHERE c."isHostAccount" IS TRUE
       AND t."createdAt" >= :startDate AND t."createdAt" < :endDate
-      AND c.id NOT IN (:ignoreSettlementForIds) -- Make sure we don't invoice OC Inc as reverse settlements are not supported yet
+      AND c.id != 8686 -- Make sure we don't invoice OC Inc as reverse settlements are not supported yet
       GROUP BY c.id
     `,
     {
       mapToModel: true,
       type: sequelize.QueryTypes.SELECT,
       model: models.Collective,
-      replacements: {
-        startDate: startDate,
-        endDate: endDate,
-        ignoreSettlementForIds: [PlatformConstants.PlatformCollectiveId],
-      },
+      replacements: { startDate: startDate, endDate: endDate },
     },
   );
 
@@ -213,13 +208,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
 
     const transactionIds = transactions.map(t => t.id);
     const expenseData = {
-      FromCollectiveId: PlatformConstants.PlatformCollectiveId,
-      lastEditedById: PlatformConstants.PlatformUserId,
-      UserId: PlatformConstants.PlatformUserId,
-      payeeLocation: {
-        address: PlatformConstants.PlatformAddress,
-        country: PlatformConstants.PlatformCountry,
-      },
+      ...SETTLEMENT_EXPENSE_PROPERTIES,
       PayoutMethodId: payoutMethod.id,
       amount: totalAmountCharged,
       CollectiveId: host.id,
@@ -242,7 +231,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       items = items.map(i => ({
         ...i,
         ExpenseId: expense.id,
-        CreatedByUserId: PlatformConstants.PlatformUserId,
+        CreatedByUserId: SETTLEMENT_EXPENSE_PROPERTIES.UserId,
       }));
       await models.ExpenseItem.bulkCreate(items);
 
@@ -257,7 +246,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
         await models.ExpenseAttachedFile.create({
           url: csvUrl,
           ExpenseId: expense.id,
-          CreatedByUserId: PlatformConstants.PlatformUserId,
+          CreatedByUserId: SETTLEMENT_EXPENSE_PROPERTIES.UserId,
         });
       }
 

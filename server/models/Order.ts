@@ -28,9 +28,8 @@ import ActivityTypes from '../constants/activities';
 import { SupportedCurrency } from '../constants/currencies';
 import OrderStatus from '../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
-import PlatformConstants from '../constants/platform';
 import TierType from '../constants/tiers';
-import { TransactionTypes } from '../constants/transactions';
+import { PLATFORM_TIP_TRANSACTION_PROPERTIES, TransactionTypes } from '../constants/transactions';
 import { executeOrder } from '../lib/payments';
 import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize, { DataTypes, Op, QueryTypes, Transaction as SequelizeTransaction } from '../lib/sequelize';
@@ -797,7 +796,7 @@ Order.prototype.getOrCreateMembers = async function () {
   // Register user as backer of Open Collective
   let platformTipMember;
   if (this.platformTipAmount) {
-    const platform = await Collective.findByPk(PlatformConstants.PlatformCollectiveId);
+    const platform = await Collective.findByPk(PLATFORM_TIP_TRANSACTION_PROPERTIES.CollectiveId);
     platformTipMember = await platform.findOrAddUserWithRole(
       { id: this.CreatedByUserId, CollectiveId: this.FromCollectiveId },
       roles.BACKER,

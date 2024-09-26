@@ -11,9 +11,9 @@ import {
 import Temporal from 'sequelize-temporal';
 
 import activities from '../constants/activities';
-import PlatformConstants from '../constants/platform';
 import MemberRoles from '../constants/roles';
 import * as errors from '../graphql/errors';
+import { defaultHostCollective } from '../lib/collectivelib';
 import logger from '../lib/logger';
 import * as SQLQueries from '../lib/queries';
 import { buildSanitizerOptions, generateSummaryForHTML, sanitizeHTML } from '../lib/sanitize-html';
@@ -196,7 +196,8 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
   };
 
   isPlatformUpdate = async function () {
-    return PlatformConstants.PlatformCollectiveId === this.CollectiveId;
+    const platform = await defaultHostCollective('opencollective');
+    return platform && platform.id === this.CollectiveId;
   };
 
   shouldNotify = async function (notificationAudience = this.notificationAudience) {

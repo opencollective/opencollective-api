@@ -53,9 +53,12 @@ function isMigrated(date: moment.Moment) {
   return isProdOrStaging && date.isAfter(MIGRATION_DATE);
 }
 
+// ts-unused-exports:disable-next-line
 export const getPlatformConstantsForDate = (date: Date | moment.Moment) => {
   return getPlatformConstants(() => isMigrated(moment(date)));
 };
 
 const PlatformConstants = getPlatformConstants(() => isMigrated(moment()));
+
+// ts-unused-exports:disable-next-line
 export default PlatformConstants;

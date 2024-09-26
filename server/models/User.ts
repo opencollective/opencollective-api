@@ -12,7 +12,6 @@ import { CollectiveType } from '../constants/collectives';
 import { Service } from '../constants/connected-account';
 import FEATURE from '../constants/feature';
 import OrderStatuses from '../constants/order-status';
-import PlatformConstants from '../constants/platform';
 import MemberRoles from '../constants/roles';
 import * as auth from '../lib/auth';
 import emailLib from '../lib/email';
@@ -284,20 +283,12 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     }
   };
 
-  isAdminOfPlatform = function (): boolean {
-    if (config.env === 'production') {
-      return this.hasRole([MemberRoles.ADMIN], PlatformConstants.PlatformCollectiveId);
-    } else {
-      // In other envs (especially tests), we may still rely on the legacy OC Inc account set with ID 1
-      return (
-        this.hasRole([MemberRoles.ADMIN], 1) ||
-        this.hasRole([MemberRoles.ADMIN], PlatformConstants.PlatformCollectiveId)
-      );
-    }
+  isAdminOfOpenCollectiveInc = function (): boolean {
+    return this.hasRole([MemberRoles.ADMIN], 1) || this.hasRole([MemberRoles.ADMIN], 8686);
   };
 
   isRoot = function (): boolean {
-    return Boolean(this.isAdminOfPlatform() && this.data?.isRoot);
+    return Boolean(this.isAdminOfOpenCollectiveInc() && this.data?.isRoot);
   };
 
   isMember = function (CollectiveId) {

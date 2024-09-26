@@ -1,7 +1,6 @@
 import config from 'config';
 import { orderBy } from 'lodash';
 
-import PlatformConstants from '../constants/platform';
 import { sequelize } from '../models';
 
 import { getTotalMoneyManagedAmount } from './budget';
@@ -122,10 +121,7 @@ export async function getPendingPlatformTips(
   host,
   { startDate = null, endDate = null, collectiveIds = null, status = ['OWED', 'INVOICED'] } = {},
 ) {
-  if (
-    config.env === 'production' &&
-    (host.slug === 'opencollective' || host.id === PlatformConstants.PlatformCollectiveId)
-  ) {
+  if (config.env === 'production' && host.slug === 'opencollective') {
     return 0;
   }
 
@@ -324,10 +320,7 @@ ORDER BY DATE_TRUNC(:timeUnit, t1."createdAt")`,
 }
 
 export async function getHostFeeShare(host, { startDate = null, endDate = null, collectiveIds = null } = {}) {
-  if (
-    config.env === 'production' &&
-    (host.slug === 'opencollective' || host.id === PlatformConstants.PlatformCollectiveId)
-  ) {
+  if (config.env === 'production' && host.slug === 'opencollective') {
     return 0;
   }
 

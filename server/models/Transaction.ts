@@ -16,9 +16,12 @@ import { v4 as uuid } from 'uuid';
 
 import activities from '../constants/activities';
 import { SupportedCurrency } from '../constants/currencies';
-import PlatformConstants from '../constants/platform';
 import { TransactionKind } from '../constants/transaction-kind';
-import { TransactionTypes } from '../constants/transactions';
+import {
+  HOST_FEE_SHARE_TRANSACTION_PROPERTIES,
+  PLATFORM_TIP_TRANSACTION_PROPERTIES,
+  TransactionTypes,
+} from '../constants/transactions';
 import { shouldGenerateTransactionActivities } from '../lib/activities';
 import { getFxRate } from '../lib/currency';
 import { toNegative } from '../lib/math';
@@ -565,7 +568,7 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
     const currency = transaction.currency;
 
     // amountInHostCurrency of the CREDIT should be in platform currency
-    const hostCurrency = PlatformConstants.PlatformCurrency;
+    const hostCurrency = PLATFORM_TIP_TRANSACTION_PROPERTIES.currency;
     const hostCurrencyFxRate = await Transaction.getFxRate(currency, hostCurrency, transaction);
     const amountInHostCurrency = Math.round(amount * hostCurrencyFxRate);
 
@@ -573,7 +576,7 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
     // it might be used later
     const hostToPlatformFxRate = await Transaction.getFxRate(
       transaction.hostCurrency,
-      PlatformConstants.PlatformCurrency,
+      PLATFORM_TIP_TRANSACTION_PROPERTIES.currency,
       transaction,
     );
 
@@ -590,8 +593,8 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
       type: CREDIT,
       kind: TransactionKind.PLATFORM_TIP,
       description: 'Financial contribution to Open Collective',
-      CollectiveId: PlatformConstants.PlatformCollectiveId,
-      HostCollectiveId: PlatformConstants.PlatformCollectiveId,
+      CollectiveId: PLATFORM_TIP_TRANSACTION_PROPERTIES.CollectiveId,
+      HostCollectiveId: PLATFORM_TIP_TRANSACTION_PROPERTIES.HostCollectiveId,
       // Compute Amounts
       amount,
       netAmountInCollectiveCurrency: amount,
@@ -899,8 +902,10 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
     }
 
     // Skip if missing or misconfigured
-    const hostFeeShareCollective = await Collective.findByPk(PlatformConstants.PlatformCollectiveId);
-    const hostFeeShareHostCollective = await Collective.findByPk(PlatformConstants.PlatformCollectiveId);
+    const hostFeeShareCollective = await Collective.findByPk(HOST_FEE_SHARE_TRANSACTION_PROPERTIES.CollectiveId);
+    const hostFeeShareHostCollective = await Collective.findByPk(
+      HOST_FEE_SHARE_TRANSACTION_PROPERTIES.HostCollectiveId,
+    );
     if (!hostFeeShareCollective || !hostFeeShareHostCollective) {
       return;
     }
@@ -915,7 +920,7 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
     }
 
     // This is a credit to Open Collective and needs to be inserted in USD
-    const hostCurrency = PlatformConstants.PlatformCurrency;
+    const hostCurrency = HOST_FEE_SHARE_TRANSACTION_PROPERTIES.hostCurrency;
     const hostCurrencyFxRate = await Transaction.getFxRate(currency, hostCurrency, transaction);
     const amountInHostCurrency = Math.round(amount * hostCurrencyFxRate);
 
@@ -925,8 +930,8 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
       description: 'Host Fee Share',
       TransactionGroup: hostFeeTransaction.TransactionGroup,
       FromCollectiveId: host.id,
-      CollectiveId: PlatformConstants.PlatformCollectiveId,
-      HostCollectiveId: PlatformConstants.PlatformCollectiveId,
+      CollectiveId: HOST_FEE_SHARE_TRANSACTION_PROPERTIES.CollectiveId,
+      HostCollectiveId: HOST_FEE_SHARE_TRANSACTION_PROPERTIES.HostCollectiveId,
       // Compute amounts
       amount,
       netAmountInCollectiveCurrency: amount,
@@ -1160,11 +1165,11 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
     // we should ideally not rely on `data?.hostToPlatformFxRate` for that
     if (transaction.data?.hostToPlatformFxRate) {
       if (
-        toCurrency === PlatformConstants.PlatformCurrency &&
+        toCurrency === PLATFORM_TIP_TRANSACTION_PROPERTIES.currency &&
         fromCurrency === transaction.hostCurrency &&
         transaction.type === CREDIT &&
         transaction.kind === TransactionKind.PLATFORM_TIP &&
-        transaction.FromCollectiveId === PlatformConstants.PlatformCollectiveId
+        transaction.FromCollectiveId === PLATFORM_TIP_TRANSACTION_PROPERTIES.CollectiveId
       ) {
         return transaction.data.hostToPlatformFxRate;
       }
