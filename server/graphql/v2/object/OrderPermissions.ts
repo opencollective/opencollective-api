@@ -73,7 +73,7 @@ const GraphQLOrderPermissions = new GraphQLObjectType({
           order.data?.needsAsyncDeactivation ||
           order.data?.needsAsyncPause ||
           order.data?.needsAsyncReactivation ||
-          ['HOST', 'PLATFORM'].includes(order.data?.pausedBy)
+          !['HOST', 'COLLECTIVE'].includes(order.data?.pausedBy)
         ) {
           return false;
         }
