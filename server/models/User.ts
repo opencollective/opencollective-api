@@ -285,9 +285,15 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   };
 
   isAdminOfPlatform = function (): boolean {
-    return (
-      this.hasRole([MemberRoles.ADMIN], 1) || this.hasRole([MemberRoles.ADMIN], PlatformConstants.PlatformCollectiveId)
-    );
+    if (config.env === 'production') {
+      return this.hasRole([MemberRoles.ADMIN], PlatformConstants.PlatformCollectiveId);
+    } else {
+      // In other envs (especially tests), we may still rely on the legacy OC Inc account set with ID 1
+      return (
+        this.hasRole([MemberRoles.ADMIN], 1) ||
+        this.hasRole([MemberRoles.ADMIN], PlatformConstants.PlatformCollectiveId)
+      );
+    }
   };
 
   isRoot = function (): boolean {
