@@ -123,6 +123,7 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
         id: PlatformConstants.PlatformCollectiveId,
       });
       opencollective.addUserWithRole(user3, roles.ADMIN);
+      user3.update({ data: { isRoot: true } });
       changelogUpdate = {
         title: 'Monthly changelog update',
         html: 'New feature added',
