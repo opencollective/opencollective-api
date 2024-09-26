@@ -29,169 +29,177 @@ describe('server/paymentProviders/transferwise/webhook', () => {
   });
 
   const sandbox = createSandbox();
-
-  const event = {
-    data: {
-      resource: {
-        id: 1234,
-        profile_id: 0,
-        account_id: 0,
-        type: 'transfer',
-      },
-      current_state: 'outgoing_payment_sent',
-      previous_state: 'processing',
-      occurred_at: '2020-03-02T13:37:54Z',
-    },
-    subscription_id: '00000000-0000-0000-0000-000000000000',
-    event_type: 'transfers#state-change',
-    schema_version: '2.0.0',
-    sent_at: '2020-03-02T13:37:54Z',
-  };
-  let verifyEvent, sendMessage;
-  let expense, host, collective;
-
   afterEach(sandbox.restore);
-  beforeEach(utils.resetTestDB);
-  beforeEach(() => {
-    verifyEvent = sandbox.stub(transferwiseLib, 'verifyEvent').returns(event);
-    sendMessage = sandbox.spy(emailLib, 'sendMessage');
-    sandbox.stub(transferwiseLib, 'getQuote').resolves({ paymentOptions: [{ fee: { total: 10 }, sourceAmount: 110 }] });
-  });
-  beforeEach(async () => {
-    host = await fakeCollective({ isHostAccount: true });
-    await fakeConnectedAccount({
-      CollectiveId: host.id,
-      service: 'transferwise',
-      token: '33b5e94d-9815-4ebc-b970-3612b6aec332',
-      data: { type: 'business', id: 0 },
-    });
-    collective = await fakeCollective({
-      HostCollectiveId: host.id,
-    });
-    const payoutMethod = await fakePayoutMethod({
-      type: PayoutMethodTypes.BANK_ACCOUNT,
+
+  describe('handleTransferStateChange', () => {
+    const event = {
       data: {
-        id: 123,
-        accountHolderName: 'Leo Kewitz',
-        currency: 'EUR',
-        type: 'iban',
-        legalType: 'PRIVATE',
-        details: {
-          IBAN: 'DE89370400440532013000',
+        resource: {
+          id: 1234,
+          profile_id: 0,
+          account_id: 0,
+          type: 'transfer',
         },
+        current_state: 'outgoing_payment_sent',
+        previous_state: 'processing',
+        occurred_at: '2020-03-02T13:37:54Z',
       },
+      subscription_id: '00000000-0000-0000-0000-000000000000',
+      event_type: 'transfers#state-change',
+      schema_version: '2.0.0',
+      sent_at: '2020-03-02T13:37:54Z',
+    };
+    let verifyEvent, sendMessage;
+    let expense, host, collective;
+
+    beforeEach(utils.resetTestDB);
+    beforeEach(() => {
+      verifyEvent = sandbox
+        .stub(transferwiseLib, 'getToken')
+        .callsFake(async connectedAccount => connectedAccount.token);
+      verifyEvent = sandbox.stub(transferwiseLib, 'getTransfer').resolves({ id: event.data.resource.id });
+      verifyEvent = sandbox.stub(transferwiseLib, 'verifyEvent').returns(event);
+      sendMessage = sandbox.spy(emailLib, 'sendMessage');
+      sandbox
+        .stub(transferwiseLib, 'getQuote')
+        .resolves({ paymentOptions: [{ fee: { total: 10 }, sourceAmount: 110 }] });
     });
-    expense = await fakeExpense({
-      status: status.PROCESSING,
-      amount: 10000,
-      CollectiveId: collective.id,
-      currency: 'USD',
-      PayoutMethodId: payoutMethod.id,
-      HostCollectiveId: host.id,
-      category: 'Engineering',
-      type: 'INVOICE',
-      description: 'January Invoice',
-      data: {
-        recipient: payoutMethod.data,
-        transfer: { id: event.data.resource.id },
-        quote: { fee: 10, rate: 1, targetAccount: 123 },
-        paymentOption: { fee: { total: 10 }, sourceAmount: 110 },
-      },
+    beforeEach(async () => {
+      host = await fakeCollective({ isHostAccount: true });
+      await fakeConnectedAccount({
+        CollectiveId: host.id,
+        service: 'transferwise',
+        token: '33b5e94d-9815-4ebc-b970-3612b6aec332',
+        data: { type: 'business', id: 0 },
+      });
+      collective = await fakeCollective({
+        HostCollectiveId: host.id,
+      });
+      const payoutMethod = await fakePayoutMethod({
+        type: PayoutMethodTypes.BANK_ACCOUNT,
+        data: {
+          id: 123,
+          accountHolderName: 'Leo Kewitz',
+          currency: 'EUR',
+          type: 'iban',
+          legalType: 'PRIVATE',
+          details: {
+            IBAN: 'DE89370400440532013000',
+          },
+        },
+      });
+      expense = await fakeExpense({
+        status: status.PROCESSING,
+        amount: 10000,
+        CollectiveId: collective.id,
+        currency: 'USD',
+        PayoutMethodId: payoutMethod.id,
+        HostCollectiveId: host.id,
+        category: 'Engineering',
+        type: 'INVOICE',
+        description: 'January Invoice',
+        data: {
+          recipient: payoutMethod.data,
+          transfer: { id: event.data.resource.id },
+          quote: { fee: 10, rate: 1, targetAccount: 123 },
+          paymentOption: { fee: { total: 10 }, sourceAmount: 110 },
+        },
+      });
     });
-  });
 
-  it('assigns rawBody to request and verifies the event signature', async () => {
-    await api.post('/webhooks/transferwise').send(event).expect(200);
+    it('assigns rawBody to request and verifies the event signature', async () => {
+      await api.post('/webhooks/transferwise').send(event).expect(200);
 
-    assert.calledOnce(verifyEvent);
-    const { args } = verifyEvent.getCall(0);
-    expect(args[0]).to.have.property('rawBody');
-  });
-
-  it('should mark expense as paid and create transactions if transfer was sent', async () => {
-    await api.post('/webhooks/transferwise').send(event).expect(200);
-
-    await expense.reload();
-    expect(expense).to.have.property('status', status.PAID);
-    const [debitTransaction] = await expense.getTransactions({ where: { type: 'DEBIT' } });
-    expect(debitTransaction).to.be.have.property('paymentProcessorFeeInHostCurrency', -1000);
-    expect(debitTransaction).to.be.have.property('netAmountInCollectiveCurrency', -11000);
-    expect(debitTransaction).to.be.have.nested.property('data.transfer.id', 1234);
-  });
-
-  it('should ignore payment processor fee if host.settings.transferwise.ignorePaymentProcessorFees is true', async () => {
-    await host.update({
-      settings: defaultsDeep(host.settings, { transferwise: { ignorePaymentProcessorFees: true } }),
+      assert.calledOnce(verifyEvent);
+      const { args } = verifyEvent.getCall(0);
+      expect(args[0]).to.have.property('rawBody');
     });
 
-    await api.post('/webhooks/transferwise').send(event).expect(200);
-    await expense.reload();
-    expect(expense).to.have.property('status', status.PAID);
+    it('should mark expense as paid and create transactions if transfer was sent', async () => {
+      await api.post('/webhooks/transferwise').send(event).expect(200);
 
-    const [debitTransaction] = await expense.getTransactions({ where: { type: 'DEBIT' } });
-    expect(debitTransaction).to.be.have.property('paymentProcessorFeeInHostCurrency', 0);
-    expect(debitTransaction).to.be.have.property('netAmountInCollectiveCurrency', -10000);
-  });
-
-  it('should set expense as error when funds are refunded', async () => {
-    const refundEvent = { ...event, data: { ...event.data, current_state: 'funds_refunded' } };
-    verifyEvent.returns(refundEvent);
-
-    await api.post('/webhooks/transferwise').send(event).expect(200);
-
-    await expense.reload();
-    expect(expense).to.have.property('status', status.ERROR);
-  });
-
-  it('should send a notification email to the payee and the host when funds are refunded', async () => {
-    const admin = await fakeUser({ email: 'admin@oc.com' });
-    await fakeMember({ CollectiveId: host.id, MemberCollectiveId: admin.CollectiveId, role: roles.ADMIN });
-    const refundEvent = { ...event, data: { ...event.data, current_state: 'funds_refunded' } };
-    verifyEvent.returns(refundEvent);
-
-    await api.post('/webhooks/transferwise').send(event).expect(200);
-
-    await utils.waitForCondition(() => sendMessage.callCount === 2);
-
-    expect(sendMessage.args[0][0]).to.equal(expense.User.email);
-    expect(sendMessage.args[0][1]).to.contain(
-      `Payment from ${collective.name} for ${expense.description} expense failed`,
-    );
-    expect(sendMessage.args[1][0]).to.equal(admin.email);
-    expect(sendMessage.args[1][1]).to.contain(`🚨 Transaction failed on ${collective.name}`);
-  });
-
-  it('should return 200 OK if the transaction is not associated to any expense', async () => {
-    const refundEvent = { ...event, data: { ...event.data, resource: { id: 0 } } };
-    verifyEvent.returns(refundEvent);
-
-    await api.post('/webhooks/transferwise').send(event).expect(200);
-  });
-
-  it('works with Expenses with feesPayer = PAYEE', async () => {
-    await expense.update({
-      feesPayer: 'PAYEE',
-      data: {
-        ...expense.data,
-        paymentOption: { fee: { total: 10 }, sourceAmount: 100 },
-      },
+      await expense.reload();
+      expect(expense).to.have.property('status', status.PAID);
+      const [debitTransaction] = await expense.getTransactions({ where: { type: 'DEBIT' } });
+      expect(debitTransaction).to.be.have.property('paymentProcessorFeeInHostCurrency', -1000);
+      expect(debitTransaction).to.be.have.property('netAmountInCollectiveCurrency', -11000);
+      expect(debitTransaction).to.be.have.nested.property('data.transfer.id', 1234);
     });
-    await api.post('/webhooks/transferwise').send(event).expect(200);
 
-    await expense.reload();
-    expect(expense).to.have.property('status', status.PAID);
-    const [debit, credit] = await expense.getTransactions();
+    it('should ignore payment processor fee if host.settings.transferwise.ignorePaymentProcessorFees is true', async () => {
+      await host.update({
+        settings: defaultsDeep(host.settings, { transferwise: { ignorePaymentProcessorFees: true } }),
+      });
 
-    expect(debit).to.have.property('paymentProcessorFeeInHostCurrency', -1000);
-    expect(debit).to.have.property('netAmountInCollectiveCurrency', -10000);
-    expect(debit).to.have.property('amountInHostCurrency', -9000);
-    expect(debit).to.have.property('amount', -9000);
-    expect(debit).to.have.nested.property('data.expenseToHostFxRate', 1);
-    expect(debit).to.have.nested.property('data.transfer.id', 1234);
+      await api.post('/webhooks/transferwise').send(event).expect(200);
+      await expense.reload();
+      expect(expense).to.have.property('status', status.PAID);
 
-    expect(credit).to.have.property('paymentProcessorFeeInHostCurrency', -1000);
-    expect(credit).to.have.property('netAmountInCollectiveCurrency', 9000);
-    expect(credit).to.have.property('amountInHostCurrency', 10000);
-    expect(credit).to.have.property('amount', 10000);
+      const [debitTransaction] = await expense.getTransactions({ where: { type: 'DEBIT' } });
+      expect(debitTransaction).to.be.have.property('paymentProcessorFeeInHostCurrency', 0);
+      expect(debitTransaction).to.be.have.property('netAmountInCollectiveCurrency', -10000);
+    });
+
+    it('should set expense as error when the transfer fails', async () => {
+      const refundEvent = { ...event, data: { ...event.data, current_state: 'cancelled' } };
+      verifyEvent.returns(refundEvent);
+
+      await api.post('/webhooks/transferwise').send(event).expect(200);
+
+      await expense.reload();
+      expect(expense).to.have.property('status', status.ERROR);
+    });
+
+    it('should send a notification email to the payee and the host when the transfer fails', async () => {
+      const admin = await fakeUser({ email: 'admin@oc.com' });
+      await fakeMember({ CollectiveId: host.id, MemberCollectiveId: admin.CollectiveId, role: roles.ADMIN });
+      const refundEvent = { ...event, data: { ...event.data, current_state: 'cancelled' } };
+      verifyEvent.returns(refundEvent);
+
+      await api.post('/webhooks/transferwise').send(event).expect(200);
+
+      await utils.waitForCondition(() => sendMessage.callCount === 2);
+
+      expect(sendMessage.args[0][0]).to.equal(expense.User.email);
+      expect(sendMessage.args[0][1]).to.contain(
+        `Payment from ${collective.name} for ${expense.description} expense failed`,
+      );
+      expect(sendMessage.args[1][0]).to.equal(admin.email);
+      expect(sendMessage.args[1][1]).to.contain(`🚨 Transaction failed on ${collective.name}`);
+    });
+
+    it('should return 200 OK if the transaction is not associated to any expense', async () => {
+      const refundEvent = { ...event, data: { ...event.data, resource: { id: 0 } } };
+      verifyEvent.returns(refundEvent);
+
+      await api.post('/webhooks/transferwise').send(event).expect(200);
+    });
+
+    it('works with Expenses with feesPayer = PAYEE', async () => {
+      await expense.update({
+        feesPayer: 'PAYEE',
+        data: {
+          ...expense.data,
+          paymentOption: { fee: { total: 10 }, sourceAmount: 100 },
+        },
+      });
+      await api.post('/webhooks/transferwise').send(event).expect(200);
+
+      await expense.reload();
+      expect(expense).to.have.property('status', status.PAID);
+      const [debit, credit] = await expense.getTransactions();
+
+      expect(debit).to.have.property('paymentProcessorFeeInHostCurrency', -1000);
+      expect(debit).to.have.property('netAmountInCollectiveCurrency', -10000);
+      expect(debit).to.have.property('amountInHostCurrency', -9000);
+      expect(debit).to.have.property('amount', -9000);
+      expect(debit).to.have.nested.property('data.expenseToHostFxRate', 1);
+      expect(debit).to.have.nested.property('data.transfer.id', 1234);
+
+      expect(credit).to.have.property('paymentProcessorFeeInHostCurrency', -1000);
+      expect(credit).to.have.property('netAmountInCollectiveCurrency', 9000);
+      expect(credit).to.have.property('amountInHostCurrency', 10000);
+      expect(credit).to.have.property('amount', 10000);
+    });
   });
 });

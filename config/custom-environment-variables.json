@@ -249,5 +249,8 @@
   },
   "settlement": {
     "minimumAmountInUSD": "SETTLEMENT_MINIMUM_AMOUNT_IN_USD"
+  },
+  "ngrok": {
+    "authtoken": "NGROK_AUTHTOKEN"
   }
 }

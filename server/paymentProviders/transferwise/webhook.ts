@@ -16,6 +16,7 @@ import {
   ExpenseDataQuoteV3,
   QuoteV2PaymentOption,
   QuoteV3PaymentOption,
+  TransferRefundEvent,
   TransferStateChangeEvent,
 } from '../../types/transferwise';
 
@@ -117,32 +118,46 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
 
     // Mark Expense as Paid, create activity and send notifications
     await expense.markAsPaid();
-  } else if (
-    (expense.status === expenseStatus.PROCESSING || expense.status === expenseStatus.PAID) &&
-    (event.data.current_state === 'funds_refunded' || event.data.current_state === 'cancelled')
-  ) {
-    logger.info(`Wise: Transfer failed, setting status to error and refunding existing transactions.`, event);
-    const transaction = await models.Transaction.findOne({
-      where: {
-        ExpenseId: expense.id,
-        RefundTransactionId: null,
-        kind: TransactionKind.EXPENSE,
-        isRefund: false,
-        data: { transfer: { id: toString(event.data.resource.id) } },
-      },
-      include: [{ model: models.Expense }],
-    });
-    if (transaction) {
-      await createRefundTransaction(transaction, transaction.paymentProcessorFeeInHostCurrency, null, expense.User);
-      logger.info(`Wise: Refunded transactions for Wise transfer #${event.data.resource.id}.`);
-    } else {
-      logger.info(`Wise: Wise transfer #${event.data.resource.id} has no transactions, skipping refund.`);
-    }
+  } else if (expense.status === expenseStatus.PROCESSING && event.data.current_state === 'cancelled') {
+    logger.info(`Wise: Transfer failed, setting status to error.`, event);
     await expense.update({ data: { ...expense.data, transfer } });
     await expense.setError(expense.lastEditedById);
     await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, null, { isSystem: true, event });
   }
 }
+
+const handleTransferRefund = async (event: TransferRefundEvent): Promise<void> => {
+  const expense = await models.Expense.findOne({
+    where: {
+      status: [expenseStatus.PROCESSING, expenseStatus.PAID],
+      data: { transfer: { id: toString(event.data.resource.id) } },
+    },
+    include: [
+      { model: models.Collective, as: 'host' },
+      { model: models.User, as: 'User' },
+    ],
+  });
+
+  if (!expense) {
+    // This is probably some other transfer not executed through our platform.
+    logger.warn('Could not find related Expense, ignoring transferwise event.', event);
+    return;
+  }
+
+  try {
+    assert.equal(
+      expense.data.transfer.sourceCurrency,
+      event.data.resource.refund_currency,
+      'Refund currency does not match transfer source currency',
+    );
+    const transactions = await expense.getTransactions();
+    const expenseDebit = transactions.find(t => t.kind === TransactionKind.EXPENSE && t.type === 'DEBIT');
+    assert(expenseDebit);
+  } catch (e) {
+    logger.error('Could not find related transactions, ignoring transferwise event.', event);
+    return;
+  }
+};
 
 async function webhook(req: Request & { rawBody: string }): Promise<void> {
   const event = verifyEvent(req);
@@ -151,7 +166,11 @@ async function webhook(req: Request & { rawBody: string }): Promise<void> {
     case 'transfers#state-change':
       await handleTransferStateChange(event as TransferStateChangeEvent);
       break;
+    case 'transfers#refund':
+      await handleTransferRefund(event as TransferRefundEvent);
+      break;
     default:
+      logger.debug('Ignoring unknown Wise event.', event.event_type);
       break;
   }
 }
