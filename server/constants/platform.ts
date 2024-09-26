@@ -49,8 +49,13 @@ const getPlatformConstants = (checkIfMigrated: () => boolean) => ({
   },
 });
 
+let __testingMigration = false;
+export function __setIsTestingMigration(v: boolean) {
+  __testingMigration = v;
+}
+
 function isMigrated(date: moment.Moment) {
-  return isProdOrStaging && date.isAfter(MIGRATION_DATE);
+  return (isProdOrStaging || __testingMigration) && date.isAfter(MIGRATION_DATE);
 }
 
 export const getPlatformConstantsForDate = (date: Date | moment.Moment) => {
