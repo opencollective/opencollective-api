@@ -3,11 +3,13 @@ import gql from 'fake-tag';
 import { describe, it } from 'mocha';
 import { assert, createSandbox } from 'sinon';
 
+import PlatformConstants from '../../../../../server/constants/platform';
 import roles from '../../../../../server/constants/roles';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import emailLib from '../../../../../server/lib/email';
 import twitterLib from '../../../../../server/lib/twitter';
 import models from '../../../../../server/models';
+import { randStr } from '../../../../test-helpers/fake-data';
 import * as utils from '../../../../utils';
 
 let host, user1, user2, collective1, event1, update1;
@@ -115,7 +117,11 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
     before(async () => {
       sendEmailSpy.resetHistory();
       user3 = await models.User.createUserWithCollective(utils.data('user3'));
-      opencollective = await models.Collective.create({ name: 'Open Collective', slug: 'opencollective', id: 8686 });
+      opencollective = await models.Collective.create({
+        name: 'Open Collective',
+        slug: randStr('platform-'),
+        id: PlatformConstants.PlatformCollectiveId,
+      });
       opencollective.addUserWithRole(user3, roles.ADMIN);
       changelogUpdate = {
         title: 'Monthly changelog update',

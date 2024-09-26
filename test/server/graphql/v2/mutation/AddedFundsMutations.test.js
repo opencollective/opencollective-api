@@ -4,6 +4,7 @@ import { groupBy } from 'lodash';
 import { createSandbox } from 'sinon';
 
 import { roles } from '../../../../../server/constants';
+import PlatformConstants from '../../../../../server/constants/platform';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import { idEncode } from '../../../../../server/graphql/v2/identifiers';
 import * as libcurrency from '../../../../../server/lib/currency';
@@ -17,6 +18,7 @@ import {
   fakeTier,
   fakeUser,
   fakeUserToken,
+  randStr,
 } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, oAuthGraphqlQueryV2 } from '../../../../utils';
 import * as utils from '../../../../utils';
@@ -165,9 +167,9 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
     randomUser = await fakeUser();
     collective = await fakeCollective();
     await fakeCollective({
-      id: 8686,
-      slug: 'open-collective',
-      HostCollectiveId: 8686,
+      id: PlatformConstants.PlatformCollectiveId,
+      slug: randStr('platform-'),
+      HostCollectiveId: PlatformConstants.PlatformCollectiveId,
     });
 
     await collective.addUserWithRole(collectiveAdmin, roles.ADMIN);
