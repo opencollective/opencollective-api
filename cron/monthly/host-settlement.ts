@@ -8,7 +8,7 @@ import moment from 'moment';
 import activityType from '../../server/constants/activities';
 import expenseStatus from '../../server/constants/expense-status';
 import expenseTypes from '../../server/constants/expense-type';
-import PlatformConstants from '../../server/constants/platform';
+import { getPlatformConstantsForDate } from '../../server/constants/platform';
 import { TransactionKind } from '../../server/constants/transaction-kind';
 import { getTransactionsCsvUrl } from '../../server/lib/csv';
 import { getFxRate } from '../../server/lib/currency';
@@ -50,6 +50,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
   const month = momentDate.month();
   const startDate = new Date(year, month, 1);
   const endDate = new Date(year, month + 1, 1);
+  const PlatformConstants = getPlatformConstantsForDate(momentDate);
 
   console.info(`Invoicing hosts pending fees and tips for ${momentDate.format('MMMM')}.`);
 
