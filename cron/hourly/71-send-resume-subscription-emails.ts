@@ -45,9 +45,7 @@ export async function run() {
         needsAsyncDeactivation: { [Op.not]: true },
         needsAsyncPause: { [Op.not]: true },
         needsAsyncReactivation: { [Op.not]: true },
-        pausedBy: {
-          [Op.or]: [{ [Op.is]: null }, { [Op.notIn]: ['HOST', 'PLATFORM'] }],
-        },
+        pausedBy: { [Op.in]: ['HOST', 'COLLECTIVE'] }, // We don't want to send emails when paused by the user (because they know they paused it) or by the platform (because it usually means they paused it on the payment processor interface)
       },
       [Op.or]: [
         // Either we haven't sent any reminder yet
