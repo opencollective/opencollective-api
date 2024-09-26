@@ -73,7 +73,11 @@ async function run() {
   for await (const page of pager) {
     logger.info(`Processing ${page.length} orders...`);
     for (const order of page) {
-      await syncOrder(order, { IS_DRY: process.env.DRY, logging: logger.info });
+      try {
+        await syncOrder(order, { IS_DRY: process.env.DRY, logging: logger.info });
+      } catch (err) {
+        logger.error(err);
+      }
     }
   }
 

@@ -71,7 +71,11 @@ const main = async () => {
   for await (const page of pager) {
     console.log(`Processing ${page.length} orders...`);
     for (const order of page) {
-      await syncOrder(order, { IS_DRY: process.env.DRY });
+      try {
+        await syncOrder(order, { IS_DRY: process.env.DRY });
+      } catch (err) {
+        console.error(err);
+      }
     }
   }
 
