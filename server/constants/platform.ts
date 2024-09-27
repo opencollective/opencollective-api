@@ -59,7 +59,7 @@ export function __setIsTestingMigration(v: boolean) {
 }
 
 function isMigrated(date: moment.Moment) {
-  return (isProdOrStaging || __testingMigration) && date.isAfter(MIGRATION_DATE);
+  return (isProdOrStaging || __testingMigration) && date.isAfter(PLATFORM_MIGRATION_DATE);
 }
 
 export const getPlatformConstantsForDate = (date: Date | moment.Moment) => {
