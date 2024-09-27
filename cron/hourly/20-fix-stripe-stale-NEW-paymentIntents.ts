@@ -49,27 +49,31 @@ async function* staleStripeNewPaymentIntentOrdersPager() {
 
   const total = await Order.count(query);
 
-  logger.info(`${total} stale (>=2 days old) stripe payment intent orders with status NEW.`);
+  console.log(`${total} stale (>=2 days old) stripe payment intent orders with status NEW.`);
 
   if (total === 0) {
     return;
   }
 
-  let offset = 0;
+  let lastOrderId = 0;
   while (true) {
     const pageResult = await Order.findAll({
       ...query,
+      where: {
+        ...query.where,
+        id: { [Op.gt]: lastOrderId },
+      },
+      order: [['id', 'ASC']],
       limit: PAGE_SIZE,
-      offset,
     });
 
     if (isEmpty(pageResult)) {
       return;
     }
 
-    yield pageResult;
+    lastOrderId = pageResult[pageResult.length - 1].id;
 
-    offset += PAGE_SIZE;
+    yield pageResult;
   }
 }
 
