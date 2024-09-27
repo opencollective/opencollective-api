@@ -187,6 +187,7 @@ type Data = Partial<{
   platformTips: boolean;
   isGuest: boolean;
   spamReport: SpamAnalysisReport;
+  canHaveChangelogUpdates: boolean;
   vendorInfo: Partial<{
     contact: Partial<{
       name: string;

@@ -19,8 +19,8 @@ export async function createUpdate(_, args, req) {
     throw new Error('This collective does not exist');
   } else if (!req.remoteUser.isAdminOfCollective(collective)) {
     throw new Forbidden("You don't have sufficient permissions to create an update");
-  } else if (args.update.isChangelog && !req.remoteUser.isAdminOfOpenCollectiveInc()) {
-    throw new Forbidden('Only root users can create changelog updates.');
+  } else if (args.update.isChangelog && !collective.data?.canHaveChangelogUpdates) {
+    throw new Forbidden('This account cannot have changelog updates');
   }
 
   await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
