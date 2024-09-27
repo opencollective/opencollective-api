@@ -49,7 +49,7 @@ async function* staleStripeNewPaymentIntentOrdersPager() {
 
   const total = await Order.count(query);
 
-  console.log(`${total} stale (>=2 days old) stripe payment intent orders with status NEW.`);
+  logger.info(`${total} stale (>=2 days old) stripe payment intent orders with status NEW.`);
 
   if (total === 0) {
     return;
