@@ -7,10 +7,16 @@ import OrderStatuses from '../../server/constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../server/constants/paymentMethods';
 import logger from '../../server/lib/logger';
 import { syncOrder } from '../../server/lib/stripe/sync-order';
+import { parseToBoolean } from '../../server/lib/utils';
 import { Collective, Op, Order, PaymentMethod } from '../../server/models';
 import { runCronJob } from '../utils';
 
 const PAGE_SIZE = 20;
+
+if (parseToBoolean(process.env.SKIP_STRIPE_STALE_NEW_PAYMENT_INTENTS)) {
+  console.log('Skipping because SKIP_STRIPE_STALE_NEW_PAYMENT_INTENTS is set.');
+  process.exit();
+}
 
 async function* staleStripeNewPaymentIntentOrdersPager() {
   const query = {
