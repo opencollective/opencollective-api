@@ -16,8 +16,8 @@ export const PLATFORM_MIGRATION_DATE = moment('2024-10-01T00:00:00Z');
 const getPlatformConstants = (checkIfMigrated: () => boolean) => ({
   get PlatformCollectiveId() {
     if (checkIfMigrated()) {
-      // ofico
-      return 835523;
+      // OFT - Open Finance Technologies
+      return 845576;
     }
     // opencollective
     return 8686;

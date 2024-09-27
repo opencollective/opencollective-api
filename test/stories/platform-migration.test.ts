@@ -32,7 +32,7 @@ describe('platform constants', () => {
 
   it('platform collective id is migrated after migration cutoff', () => {
     sandbox.useFakeTimers(moment('2024-10-01T00:00:01Z').toDate());
-    expect(PlatformConstants.PlatformCollectiveId).to.equal(835523);
+    expect(PlatformConstants.PlatformCollectiveId).to.equal(845576);
   });
 });
 
@@ -51,7 +51,7 @@ describe('platform transactions', () => {
     });
 
     await fakeOrganization({
-      id: 835523,
+      id: 845576,
       slug: randStr('platform-'),
     });
   });
@@ -116,7 +116,7 @@ describe('platform transactions', () => {
           txn => txn.type === TransactionTypes.CREDIT && txn.kind === TransactionKind.PLATFORM_TIP,
         );
         expect(platformTipTransaction).to.exist;
-        expect(platformTipTransaction.toAccount.legacyId).to.eql(835523);
+        expect(platformTipTransaction.toAccount.legacyId).to.eql(845576);
       },
     },
     {
@@ -146,13 +146,13 @@ describe('platform transactions', () => {
           txn => txn.type === TransactionTypes.CREDIT && txn.kind === TransactionKind.PLATFORM_TIP,
         );
         expect(platformTipTransaction).to.exist;
-        expect(platformTipTransaction.toAccount.legacyId).to.eql(835523);
+        expect(platformTipTransaction.toAccount.legacyId).to.eql(845576);
 
         const platformTipDebtTransaction = result.data?.createOrder?.order?.transactions?.find(
           txn => txn.type === TransactionTypes.CREDIT && txn.kind === TransactionKind.PLATFORM_TIP_DEBT,
         );
         expect(platformTipDebtTransaction).to.exist;
-        expect(platformTipDebtTransaction.fromAccount.legacyId).to.eql(835523);
+        expect(platformTipDebtTransaction.fromAccount.legacyId).to.eql(845576);
       },
     },
     {
@@ -194,7 +194,7 @@ describe('platform transactions', () => {
           txn => txn.type === TransactionTypes.CREDIT && txn.kind === TransactionKind.HOST_FEE_SHARE,
         );
         expect(hostFeeShareTransaction).to.exist;
-        expect(hostFeeShareTransaction.toAccount.legacyId).to.eql(835523);
+        expect(hostFeeShareTransaction.toAccount.legacyId).to.eql(845576);
       },
     },
     {
@@ -242,13 +242,13 @@ describe('platform transactions', () => {
           txn => txn.type === TransactionTypes.CREDIT && txn.kind === TransactionKind.HOST_FEE_SHARE,
         );
         expect(hostFeeShareTransaction).to.exist;
-        expect(hostFeeShareTransaction.toAccount.legacyId).to.eql(835523);
+        expect(hostFeeShareTransaction.toAccount.legacyId).to.eql(845576);
 
         const hostFeeShareDebtTransaction = result.data?.createOrder?.order?.transactions?.find(
           txn => txn.type === TransactionTypes.CREDIT && txn.kind === TransactionKind.HOST_FEE_SHARE_DEBT,
         );
         expect(hostFeeShareDebtTransaction).to.exist;
-        expect(hostFeeShareDebtTransaction.fromAccount.legacyId).to.eql(835523);
+        expect(hostFeeShareDebtTransaction.fromAccount.legacyId).to.eql(845576);
       },
     },
   ].map(tc =>
