@@ -4,7 +4,11 @@ import moment from 'moment';
 import { SupportedCurrency } from './currencies';
 
 const isProdOrStaging = config.env === 'production' || config.env === 'staging';
-const MIGRATION_DATE = moment('2024-10-01T00:00:00Z');
+
+/**
+ * Defines the transition date and time from OCI to Ofico.
+ */
+export const PLATFORM_MIGRATION_DATE = moment('2024-10-01T00:00:00Z');
 
 /**
  * Returns the platform constants based on a function to check if the platform has been migrated.
