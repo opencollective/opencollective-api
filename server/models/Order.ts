@@ -279,7 +279,7 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
   }
 
   static isValidPausedBy(pausedBy: string): pausedBy is Order['data']['pausedBy'] {
-    return ['HOST', 'PLATFORM', 'USER'].includes(pausedBy);
+    return ['HOST', 'PLATFORM', 'USER', 'COLLECTIVE'].includes(pausedBy);
   }
 
   /**
