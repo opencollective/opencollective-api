@@ -24,7 +24,7 @@ import { reportErrorToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { canUseFeature } from '../../../lib/user-permissions';
 import { formatCurrency } from '../../../lib/utils';
-import models, { Op } from '../../../models';
+import models, { Op, Order } from '../../../models';
 import {
   BadRequest,
   FeatureNotAllowedForUser,
@@ -229,6 +229,22 @@ export async function createOrder(order, req) {
     throw new ValidationFailed('Manual payment methods cannot be used for subscriptions');
   } else if (order.interval && order.totalAmount === 0) {
     throw new ValidationFailed('Subscriptions cannot be free');
+  }
+
+  if (order.paymentMethod.type === PAYMENT_METHOD_TYPE.PAYMENT_INTENT && order.paymentMethod.paymentIntentId) {
+    const existingOrder = await Order.findOne({
+      where: {
+        data: {
+          paymentIntent: {
+            id: order.paymentMethod.paymentIntentId,
+          },
+        },
+      },
+    });
+
+    if (existingOrder) {
+      throw new ValidationFailed('Payment intent already used for another order');
+    }
   }
 
   await checkOrdersLimit(order, reqIp, reqMask);
