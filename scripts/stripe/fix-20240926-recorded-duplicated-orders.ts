@@ -45,6 +45,46 @@ const AFFECTED_ORDERS_QUERY = `
     SELECT * FROM duplicated_orders WHERE duplicated_number >= 2
 `;
 
+const AFFECTED_ORDERS_NON_PAID_QUERY = `
+    WITH count_payment_intents AS (
+        SELECT o."data"#>>'{paymentIntent,id}' AS payment_intent_id, count(1) AS count
+        FROM "Orders" o
+        INNER JOIN "PaymentMethods" pm ON pm.id = o."PaymentMethodId"
+        WHERE TRUE
+        AND pm."service" = 'stripe'
+        AND o.status <> 'PAID'
+        AND o."data"#>>'{paymentIntent,id}' IS NOT NULL
+        GROUP BY o."data"#>>'{paymentIntent,id}'
+    ),
+    duplicated_payment_intents as (
+        SELECT payment_intent_id FROM count_payment_intents WHERE count >= 2
+    ),
+    duplicated_non_paid_orders AS (
+        SELECT 
+            o.id,
+            o.status,
+            duplicated_payment_intents.payment_intent_id,
+            RANK () OVER ( 
+                    PARTITION BY duplicated_payment_intents.payment_intent_id
+                    ORDER BY o."processedAt" NULLS LAST, o."id" ASC
+                ) "duplicated_number",
+            o."createdAt",
+            o."updatedAt",
+            o."SubscriptionId",
+            o."PaymentMethodId",
+            o."description",
+            o."processedAt",
+            o."totalAmount",
+            o."FromCollectiveId",
+            from_collective."slug"
+        FROM "Orders" o
+        INNER JOIN duplicated_payment_intents ON duplicated_payment_intents.payment_intent_id = o."data"#>>'{paymentIntent,id}'
+        JOIN "Collectives" from_collective ON from_collective.id = o."FromCollectiveId"
+        ORDER BY o."data"#>>'{paymentIntent,id}', o."processedAt" NULLS LAST, o."id" ASC
+    )
+    SELECT * FROM duplicated_non_paid_orders WHERE duplicated_number >= 2
+`;
+
 const AFFECTED_TRANSACTIONS_QUERY = `
     WITH count_payment_intents AS (
         SELECT o."data"#>>'{previousPaymentIntents,0,id}' AS payment_intent_id, count(1) AS count
@@ -89,6 +129,20 @@ const AFFECTED_TRANSACTIONS_QUERY = `
     INNER JOIN orders_to_delete o ON o.id = t."OrderId" 
 `;
 
+const DUPLICATED_PAYMENT_INTENTS = `
+    WITH count_payment_intents AS (
+        SELECT o."data"#>>'{paymentIntent,id}' AS payment_intent_id, count(1) AS count
+        FROM "Orders" o
+        INNER JOIN "PaymentMethods" pm ON pm.id = o."PaymentMethodId"
+        WHERE TRUE
+        AND pm."service" = 'stripe'
+        AND o.status <> 'PAID'
+        AND o."data"#>>'{paymentIntent,id}' IS NOT NULL
+        GROUP BY o."data"#>>'{paymentIntent,id}'
+    )
+    SELECT count(payment_intent_id) FROM count_payment_intents WHERE count >= 2
+`;
+
 type AffectedOrder = {
   id: number;
 };
@@ -101,6 +155,7 @@ type AffectedTransaction = {
 
 const main = async () => {
   console.log(`Starting...`);
+  console.log(`Querying affected orders...`);
   const orders: AffectedOrder[] = await sequelize.query(AFFECTED_ORDERS_QUERY, {
     type: QueryTypes.SELECT,
   });
@@ -121,6 +176,7 @@ const main = async () => {
 
   console.log(`Done processing ${processedOrders} orders.`);
 
+  console.log(`Querying affected transactions...`);
   const transactions: AffectedTransaction[] = await sequelize.query(AFFECTED_TRANSACTIONS_QUERY, {
     type: QueryTypes.SELECT,
   });
@@ -143,6 +199,33 @@ const main = async () => {
   }
 
   console.log(`Done processing ${processedTransactions} transactions.`);
+
+  console.log(`Querying affected non paid orders...`);
+  const nonPaidOrders: AffectedOrder[] = await sequelize.query(AFFECTED_ORDERS_NON_PAID_QUERY, {
+    type: QueryTypes.SELECT,
+  });
+  console.log(`Processing ${orders.length} non paid orders...`);
+
+  let processedNonPaidOrders = 0;
+  for (const order of nonPaidOrders) {
+    console.log(`Deleting order ${order.id}`);
+    if (!process.env.DRY) {
+      try {
+        await Order.destroy({ where: { id: order.id } });
+        processedNonPaidOrders++;
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  }
+
+  console.log(`Done processing ${processedNonPaidOrders} non paid orders.`);
+
+  const countOfDuplicatedPaymentIntents: { count: number }[] = await sequelize.query(DUPLICATED_PAYMENT_INTENTS, {
+    type: QueryTypes.SELECT,
+  });
+
+  console.log(`${countOfDuplicatedPaymentIntents[0].count} duplicated payment intents attached to orders left.`);
 };
 
 main()
