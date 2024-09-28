@@ -231,7 +231,7 @@ export async function createOrder(order, req) {
     throw new ValidationFailed('Subscriptions cannot be free');
   }
 
-  if (order.paymentMethod.type === PAYMENT_METHOD_TYPE.PAYMENT_INTENT && order.paymentMethod.paymentIntentId) {
+  if (order.paymentMethod?.type === PAYMENT_METHOD_TYPE.PAYMENT_INTENT && order.paymentMethod?.paymentIntentId) {
     const existingOrder = await Order.findOne({
       where: {
         data: {
