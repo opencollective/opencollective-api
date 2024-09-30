@@ -22,7 +22,7 @@ const updateHostPlans = async () => {
 
 const movePlatformStripeAccount = async () => {
   const oci = await models.Collective.findByPk(PlatformConstants.OCICollectiveId);
-  const ofitech = await models.Collective.findByPk(PlatformConstants.OFTCollectiveId);
+  const ofitech = await models.Collective.findByPk(PlatformConstants.OfitechCollectiveId);
   if (!oci || !ofitech) {
     throw new Error(`Could not find the necessary collectives (OCI: ${Boolean(oci)}, Ofitech: ${Boolean(ofitech)})`);
   }

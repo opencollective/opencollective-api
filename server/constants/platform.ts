@@ -18,13 +18,13 @@ const getPlatformConstants = (checkIfMigrated: () => boolean) => ({
     return 8686;
   },
 
-  get OFTCollectiveId() {
+  get OfitechCollectiveId() {
     return 845576;
   },
 
   get PlatformCollectiveId() {
     if (checkIfMigrated()) {
-      return this.OFTCollectiveId;
+      return this.OfitechCollectiveId;
     } else {
       return this.OCICollectiveId;
     }
