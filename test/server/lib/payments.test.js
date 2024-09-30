@@ -5,6 +5,7 @@ import { createSandbox } from 'sinon';
 
 import { activities } from '../../../server/constants';
 import status from '../../../server/constants/order-status';
+import PlatformConstants from '../../../server/constants/platform';
 import roles from '../../../server/constants/roles';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
 import emailLib from '../../../server/lib/email';
@@ -430,7 +431,7 @@ describe('server/lib/payments', () => {
 
     it('should refund platform fees on top when refunding original transaction', async () => {
       // Create Open Collective Inc
-      await fakeHost({ id: 8686, name: 'Open Collective' });
+      await fakeHost({ id: PlatformConstants.PlatformCollectiveId, name: 'Open Collective' });
       const host = await fakeHost({ name: 'Host' });
       const collective = await fakeCollective({ HostCollectiveId: host.id, name: 'Collective' });
       const contributorUser = await fakeUser(undefined, { name: 'User' });
@@ -496,7 +497,7 @@ describe('server/lib/payments', () => {
 
     it('should not create payment processor fee cover for contribution to the host itself', async () => {
       // Create Open Collective Inc
-      await fakeHost({ id: 8686, name: 'Open Collective' });
+      await fakeHost({ id: PlatformConstants.PlatformCollectiveId, name: 'Open Collective' });
       const host = await fakeHost({ name: 'Host' });
       const contributorUser = await fakeUser(undefined, { name: 'User' });
       const order = await fakeOrder({
@@ -545,7 +546,7 @@ describe('server/lib/payments', () => {
 
     it('should be able to refund only the host fee', async () => {
       // Create Open Collective Inc
-      await fakeHost({ id: 8686, name: 'Open Collective' });
+      await fakeHost({ id: PlatformConstants.PlatformCollectiveId, name: 'Open Collective' });
       const host = await fakeHost({ name: 'Host' });
       const contributorUser = await fakeUser(undefined, { name: 'User' });
       const collective = await fakeCollective({ name: 'Collective', HostCollectiveId: host.id });
@@ -596,7 +597,7 @@ describe('server/lib/payments', () => {
 
     it('should be able to refund only the platform tip', async () => {
       // Create Open Collective Inc
-      await fakeHost({ id: 8686, name: 'Open Collective' });
+      await fakeHost({ id: PlatformConstants.PlatformCollectiveId, name: 'Open Collective' });
       const host = await fakeHost({ name: 'Host' });
       const contributorUser = await fakeUser(undefined, { name: 'User' });
       const collective = await fakeCollective({ name: 'Collective', HostCollectiveId: host.id });

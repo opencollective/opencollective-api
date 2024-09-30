@@ -5,6 +5,7 @@ import { compact, omit } from 'lodash';
 import Stripe from 'stripe';
 
 import { Service as ConnectedAccountServices } from '../../server/constants/connected-account';
+import PlatformConstants from '../../server/constants/platform';
 import logger from '../../server/lib/logger';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import models from '../../server/models';
@@ -39,7 +40,9 @@ async function reconcileConnectedAccount(connectedAccount) {
           expenses.map(expense => expense.data?.transactionId || expense.data?.refundTransactionId),
         );
 
-        const stripe = Stripe(host.slug === 'opencollective' ? config.stripe.secret : connectedAccount.token);
+        const stripe = Stripe(
+          host.id === PlatformConstants.PlatformCollectiveId ? config.stripe.secret : connectedAccount.token,
+        );
 
         const result = await stripe.issuing.transactions.list({
           card: card.id,

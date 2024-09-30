@@ -4,7 +4,11 @@ import moment from 'moment';
 import { SupportedCurrency } from './currencies';
 
 const isProdOrStaging = config.env === 'production' || config.env === 'staging';
-const MIGRATION_DATE = moment('2024-10-01T00:00:00Z');
+
+/**
+ * Defines the transition date and time from OCI to Ofico.
+ */
+export const PLATFORM_MIGRATION_DATE = moment('2024-10-01T00:00:00Z');
 
 /**
  * Returns the platform constants based on a function to check if the platform has been migrated.
@@ -14,13 +18,13 @@ const getPlatformConstants = (checkIfMigrated: () => boolean) => ({
     return 8686;
   },
 
-  get OFTCollectiveId() {
+  get OfitechCollectiveId() {
     return 845576;
   },
 
   get PlatformCollectiveId() {
     if (checkIfMigrated()) {
-      return this.OFTCollectiveId;
+      return this.OfitechCollectiveId;
     } else {
       return this.OCICollectiveId;
     }
@@ -61,16 +65,18 @@ const getPlatformConstants = (checkIfMigrated: () => boolean) => ({
   },
 });
 
-function isMigrated(date: moment.Moment) {
-  return isProdOrStaging && date.isAfter(MIGRATION_DATE);
+let __testingMigration = false;
+export function __setIsTestingMigration(v: boolean) {
+  __testingMigration = v;
 }
 
-// ts-unused-exports:disable-next-line
+function isMigrated(date: moment.Moment) {
+  return (isProdOrStaging || __testingMigration) && date.isAfter(PLATFORM_MIGRATION_DATE);
+}
+
 export const getPlatformConstantsForDate = (date: Date | moment.Moment) => {
   return getPlatformConstants(() => isMigrated(moment(date)));
 };
 
 const PlatformConstants = getPlatformConstants(() => isMigrated(moment()));
-
-// ts-unused-exports:disable-next-line
 export default PlatformConstants;

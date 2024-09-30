@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 import { times } from 'lodash';
 
+import PlatformConstants from '../../../server/constants/platform';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
-import { PLATFORM_TIP_TRANSACTION_PROPERTIES } from '../../../server/constants/transactions';
 import models, { Op } from '../../../server/models';
 import TransactionSettlement, { TransactionSettlementStatus } from '../../../server/models/TransactionSettlement';
 import {
@@ -62,7 +62,7 @@ const fakeContributionWithPlatformTipNewFormat = async (fromCollective, collecti
     type: 'DEBIT',
     amount: -200,
     CollectiveId: transaction.FromCollectiveId,
-    FromCollectiveId: PLATFORM_TIP_TRANSACTION_PROPERTIES.CollectiveId,
+    FromCollectiveId: PlatformConstants.PlatformCollectiveId,
     HostCollectiveId: null,
     description: 'Tip transaction from the contributor to Open Collective',
   });
@@ -74,8 +74,8 @@ const fakeContributionWithPlatformTipNewFormat = async (fromCollective, collecti
     type: 'CREDIT',
     amount: 200,
     FromCollectiveId: transaction.FromCollectiveId,
-    CollectiveId: PLATFORM_TIP_TRANSACTION_PROPERTIES.CollectiveId,
-    HostCollectiveId: PLATFORM_TIP_TRANSACTION_PROPERTIES.HostCollectiveId,
+    CollectiveId: PlatformConstants.PlatformCollectiveId,
+    HostCollectiveId: PlatformConstants.PlatformCollectiveId,
     description: 'Tip transaction from the contributor to Open Collective',
   });
 
@@ -86,7 +86,7 @@ const fakeContributionWithPlatformTipNewFormat = async (fromCollective, collecti
     type: 'DEBIT',
     amount: -200,
     FromCollectiveId: transaction.HostCollectiveId,
-    CollectiveId: PLATFORM_TIP_TRANSACTION_PROPERTIES.CollectiveId,
+    CollectiveId: PlatformConstants.PlatformCollectiveId,
     HostCollectiveId: transaction.HostCollectiveId,
     isDebt: true,
     description: 'Tip transaction from the HOST to Open Collective',
@@ -98,9 +98,9 @@ const fakeContributionWithPlatformTipNewFormat = async (fromCollective, collecti
     type: 'CREDIT',
     TransactionGroup: transaction.TransactionGroup,
     amount: 200,
-    FromCollectiveId: PLATFORM_TIP_TRANSACTION_PROPERTIES.CollectiveId,
+    FromCollectiveId: PlatformConstants.PlatformCollectiveId,
     CollectiveId: transaction.HostCollectiveId,
-    HostCollectiveId: PLATFORM_TIP_TRANSACTION_PROPERTIES.HostCollectiveId,
+    HostCollectiveId: PlatformConstants.PlatformCollectiveId,
     isDebt: true,
     description: 'Tip transaction from the HOST to Open Collective',
   });
@@ -131,7 +131,7 @@ describe('server/models/TransactionSettlement', () => {
   before(async () => {
     await utils.resetTestDB();
 
-    await fakeOrganization({ id: PLATFORM_TIP_TRANSACTION_PROPERTIES.CollectiveId, name: 'Open Collective' });
+    await fakeOrganization({ id: PlatformConstants.PlatformCollectiveId, name: 'Open Collective' });
     host = await fakeHost({ name: 'Open Source' });
     collective = await fakeCollective({ HostCollectiveId: host.id, name: 'ESLint' });
 
@@ -154,7 +154,7 @@ describe('server/models/TransactionSettlement', () => {
 
   it('0. Properly initializes test data', async () => {
     // Snapshot initial state for simpler reviews & debug. Ignore unrelated transactions
-    const watchedCollectiveIds = [collective.id, host.id, PLATFORM_TIP_TRANSACTION_PROPERTIES.CollectiveId];
+    const watchedCollectiveIds = [collective.id, host.id, PlatformConstants.PlatformCollectiveId];
     const transactions = await models.Transaction.findAll({
       include: [{ association: 'host' }, { association: 'collective' }, { association: 'fromCollective' }],
       order: [['id', 'ASC']],

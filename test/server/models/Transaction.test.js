@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import config from 'config';
 import { createSandbox } from 'sinon';
 
+import PlatformConstants from '../../../server/constants/platform';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
 import * as LibActivities from '../../../server/lib/activities';
 import models from '../../../server/models';
@@ -56,11 +57,11 @@ describe('server/models/Transaction', () => {
     sandbox = createSandbox();
     user = await fakeUser({}, { name: 'User' });
     inc = await fakeHost({
-      id: 8686,
-      slug: 'opencollectiveinc',
+      id: PlatformConstants.PlatformCollectiveId,
+      slug: randStr('platform-'),
       name: 'Open Collective',
       CreatedByUserId: user.id,
-      HostCollectiveId: 8686,
+      HostCollectiveId: PlatformConstants.PlatformCollectiveId,
     });
     host = await fakeHost({
       name: 'Random Host',

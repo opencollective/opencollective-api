@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import config from 'config';
 import { createSandbox } from 'sinon';
 
+import PlatformConstants from '../../../../server/constants/platform';
 import * as budget from '../../../../server/lib/budget';
 import emailLib from '../../../../server/lib/email';
 import stripe from '../../../../server/lib/stripe';
@@ -27,7 +28,7 @@ describe('server/paymentProviders/stripe/virtual-cards', () => {
     );
 
     sendMessage = sandbox.spy(emailLib, 'sendMessage');
-    host = await fakeCollective({ isHostAccount: true, slug: 'opencollective' });
+    host = await fakeCollective({ id: PlatformConstants.PlatformCollectiveId, isHostAccount: true });
     await fakeConnectedAccount({
       CollectiveId: host.id,
       service: 'stripe',
