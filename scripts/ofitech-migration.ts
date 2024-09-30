@@ -4,20 +4,27 @@
  */
 
 import PlatformConstants from '../server/constants/platform';
-import { defaultHostCollective } from '../server/lib/collectivelib';
-import models from '../server/models';
+import models, { sequelize } from '../server/models';
 
 const DRY_RUN = process.env.DRY_RUN !== 'false';
 
 const updateHostPlans = async () => {
-  // Update plan for OSC
-  const osc = await defaultHostCollective('opensource');
-  const newPlan = { ...osc.data.plan, hostFeeSharePercent: 0 };
+  const hostsToRemoveHostFeeShareFor = ['opensource', 'europe', 'oce-foundation-usd', 'oce-foundation-eur'];
   if (DRY_RUN) {
-    console.log('Would update OSC plan to:', newPlan);
-  } else {
-    await osc.update({ data: { plan: newPlan } });
+    console.log(`Would update OSC plan for ${hostsToRemoveHostFeeShareFor.join(', ')}`);
+    return;
   }
+
+  await sequelize.query(
+    `
+    UPDATE "Collectives"
+    SET data = jsonb_set(data, '{plan,hostFeeSharePercent}', '0')
+    WHERE slug IN (:slugs)  
+  `,
+    {
+      replacements: { slugs: hostsToRemoveHostFeeShareFor },
+    },
+  );
 };
 
 const movePlatformStripeAccount = async () => {
