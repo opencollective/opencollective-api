@@ -883,7 +883,7 @@ async function handleIssuingWebhooks(request: Request<unknown, Stripe.Event>) {
     return;
   }
 
-  const stripeClient = await virtualcard.getStripeClient(virtualCard.host);
+  const stripeClient = await virtualcard.getStripeClient(virtualCard.host, true);
   const webhookSigningSecret = await virtualcard.getWebhookSigninSecret(virtualCard.host);
 
   try {
