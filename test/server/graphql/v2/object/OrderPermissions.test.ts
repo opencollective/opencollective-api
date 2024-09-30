@@ -45,7 +45,7 @@ describe('server/graphql/v2/object/OrderPermissions', () => {
 
   describe('canResume', () => {
     it('is true if the order is paused and the user is an admin of the fromCollective', async () => {
-      await order.update({ status: 'PAUSED' });
+      await order.update({ status: 'PAUSED', data: { pausedBy: 'HOST' } });
       const result = await graphqlQueryV2(orderQuery, { legacyId: order.id }, owner);
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
@@ -54,7 +54,7 @@ describe('server/graphql/v2/object/OrderPermissions', () => {
 
     it('is false if the order is not paused', async () => {
       for (const status of Object.values(omit(OrderStatuses, ['PAUSED']))) {
-        await order.update({ status });
+        await order.update({ status, data: { pausedBy: 'HOST' } });
         const result = await graphqlQueryV2(orderQuery, { legacyId: order.id }, owner);
         result.errors && console.error(result.errors);
         expect(result.errors).to.not.exist;
@@ -62,16 +62,8 @@ describe('server/graphql/v2/object/OrderPermissions', () => {
       }
     });
 
-    it('is false if the order is paused by the host', async () => {
-      await order.update({ status: 'PAUSED', data: { pausedBy: 'HOST' } });
-      const result = await graphqlQueryV2(orderQuery, { legacyId: order.id }, owner);
-      result.errors && console.error(result.errors);
-      expect(result.errors).to.not.exist;
-      expect(result.data.order.permissions.canResume).to.be.false;
-    });
-
-    it('is false if the order is paused by the platform', async () => {
-      await order.update({ status: 'PAUSED', data: { pausedBy: 'PLATFORM' } });
+    it('is false if the order is paused by the user', async () => {
+      await order.update({ status: 'PAUSED', data: { pausedBy: 'USER' } });
       const result = await graphqlQueryV2(orderQuery, { legacyId: order.id }, owner);
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
@@ -79,7 +71,7 @@ describe('server/graphql/v2/object/OrderPermissions', () => {
     });
 
     it('is false if the order has async deactivation pending', async () => {
-      await order.update({ status: 'PAUSED', data: { needsAsyncDeactivation: true } });
+      await order.update({ status: 'PAUSED', data: { needsAsyncDeactivation: true, pausedBy: 'HOST' } });
       const result = await graphqlQueryV2(orderQuery, { legacyId: order.id }, owner);
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;

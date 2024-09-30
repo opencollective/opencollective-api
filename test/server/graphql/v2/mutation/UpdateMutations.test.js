@@ -115,7 +115,12 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
     before(async () => {
       sendEmailSpy.resetHistory();
       user3 = await models.User.createUserWithCollective(utils.data('user3'));
-      opencollective = await models.Collective.create({ name: 'Open Collective', slug: 'opencollective', id: 8686 });
+      opencollective = await models.Collective.create({
+        name: 'Open Collective',
+        slug: 'opencollective',
+        id: 8686,
+        data: { canHaveChangelogUpdates: true },
+      });
       opencollective.addUserWithRole(user3, roles.ADMIN);
       changelogUpdate = {
         title: 'Monthly changelog update',

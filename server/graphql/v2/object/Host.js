@@ -696,7 +696,7 @@ export const GraphQLHost = new GraphQLObjectType({
             if (CollectiveIds.length) {
               conditions.push(
                 sequelize.literal(
-                  `(SELECT "FromCollectiveId" FROM "Comments" WHERE "Comments"."HostApplicationId" = "HostApplication"."id" ORDER BY "id" DESC LIMIT 1)
+                  `(SELECT "FromCollectiveId" FROM "Comments" WHERE "Comments"."HostApplicationId" = "HostApplication"."id" ORDER BY "Comments"."createdAt" DESC LIMIT 1)
                     IN (
                       SELECT "MemberCollectiveId" FROM "Members" WHERE
                       "role" = 'ADMIN' AND "deletedAt" IS NULL AND

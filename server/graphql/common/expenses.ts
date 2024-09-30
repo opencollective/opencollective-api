@@ -37,6 +37,7 @@ import { SupportedCurrency } from '../../constants/currencies';
 import { ExpenseFeesPayer } from '../../constants/expense-fees-payer';
 import { ExpenseRoles } from '../../constants/expense-roles';
 import statuses from '../../constants/expense-status';
+import ExpenseStatuses from '../../constants/expense-status';
 import EXPENSE_TYPE from '../../constants/expense-type';
 import FEATURE from '../../constants/feature';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
@@ -695,7 +696,11 @@ export const canUnapprove: ExpensePermissionEvaluator = async (
 ) => {
   if (!validateExpenseScope(req, options)) {
     return false;
-  } else if (!['APPROVED', 'ERROR'].includes(expense.status)) {
+  } else if (
+    ![ExpenseStatuses.INCOMPLETE, ExpenseStatuses.APPROVED, ExpenseStatuses.ERROR].includes(
+      expense.status as ExpenseStatuses,
+    )
+  ) {
     if (options?.throw) {
       throw new Forbidden(
         'Can not unapprove expense in current status',
@@ -708,6 +713,8 @@ export const canUnapprove: ExpensePermissionEvaluator = async (
       throw new Forbidden('User cannot unapprove expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
     }
     return false;
+  } else if (expense.status === ExpenseStatuses.INCOMPLETE) {
+    return remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options);
   } else {
     return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin], options);
   }
@@ -3159,7 +3166,12 @@ export async function quoteExpense(expense_, { req }) {
     const connectedAccount = await host.getAccountForPaymentProvider(Service.TRANSFERWISE);
 
     const recipientId =
-      get(expense.data, 'recipient.payoutMethodId') === payoutMethod.id ? expense.data.recipient?.id : undefined;
+      // Check if the recipient is the same as the one in the expense
+      get(expense.data, 'recipient.payoutMethodId') === payoutMethod.id &&
+      // Ignore recipient for BRL and NPR to avoid the missing Transfer Nature error
+      !['BRL', 'NPR'].includes((payoutMethod.data as BankAccountPayoutMethodData)?.currency)
+        ? expense.data.recipient?.id
+        : undefined;
 
     const quote = await paymentProviders.transferwise.quoteExpense(
       connectedAccount,

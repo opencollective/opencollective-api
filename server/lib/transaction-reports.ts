@@ -10,7 +10,7 @@ async function calculateReportNode({ groups, startingBalanceByCurrency, currency
     await Promise.all(
       Object.keys(startingBalanceByCurrency).map(async (c: SupportedCurrency) => {
         const fxRate = await getFxRate(c, currency, date);
-        return Math.round(startingBalanceByCurrency[currency] * fxRate);
+        return Math.round(startingBalanceByCurrency[c] * fxRate);
       }),
     )
   ).reduce((acc, balance) => acc + balance, 0);
