@@ -530,7 +530,7 @@ export const getInternalHostsIds = async (): Promise<number[]> => {
   const hostNames = ['opencollective', 'opensource', 'foundation', 'europe'];
   const hostCollectives = await Promise.all(hostNames.map(defaultHostCollective));
   return [
-    PlatformConstants.PlatformCollectiveId,
+    ...PlatformConstants.AllPlatformCollectiveIds,
     ...hostCollectives.map(result => result?.id).filter(Boolean),
   ] as number[];
 };
