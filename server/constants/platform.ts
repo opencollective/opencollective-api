@@ -15,7 +15,7 @@ const getPlatformConstants = (checkIfMigrated: () => boolean) => ({
   },
 
   get OFTCollectiveId() {
-    return 835523;
+    return 845576;
   },
 
   get PlatformCollectiveId() {
