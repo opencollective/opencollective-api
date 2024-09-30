@@ -187,6 +187,7 @@ type Data = Partial<{
   platformTips: boolean;
   isGuest: boolean;
   spamReport: SpamAnalysisReport;
+  canHaveChangelogUpdates: boolean;
   vendorInfo: Partial<{
     contact: Partial<{
       name: string;
@@ -1113,7 +1114,7 @@ class Collective extends Model<
   freeze = async function (
     messageForCollectiveAdmins: string,
     pauseExistingRecurringContributions: boolean,
-    messageForContributors: string,
+    messageForContributors: string = undefined,
     user: User = null,
   ) {
     if (this.isFrozen()) {
@@ -1982,10 +1983,15 @@ class Collective extends Model<
    *
    * It's expected that child Collectives like EVENTS are returned
    */
-  getHostedCollectives = async function (queryParams = {}) {
+  getHostedCollectives = async function (
+    queryParams: Parameters<typeof Collective.findAll>[0] & {
+      where?: Omit<Parameters<typeof Collective.findAll>[0]['where'], 'HostCollectiveId' | 'isActive'>;
+    } = {},
+  ) {
+    const conditions = { isActive: true, HostCollectiveId: this.id, approvedAt: { [Op.not]: null } };
     return Collective.findAll({
       ...queryParams,
-      where: { isActive: true, HostCollectiveId: this.id, approvedAt: { [Op.not]: null } },
+      where: queryParams.where ? { [Op.and]: [queryParams.where, conditions] } : conditions,
     });
   };
 

@@ -1,14 +1,19 @@
-import { GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { Order } from 'sequelize';
 
 import models, { Op } from '../../../../models';
 import { GraphQLUpdateCollection } from '../../collection/UpdateCollection';
 import { AccountTypeToModelMapping, GraphQLAccountType } from '../../enum';
 import { fetchAccountsIdsWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
+import {
+  GraphQLUpdateChronologicalOrderInput,
+  UPDATE_CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
+} from '../../input/UpdateChronologicalOrderInput';
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
 
 const UpdatesCollectionQuery = {
   type: new GraphQLNonNull(GraphQLUpdateCollection),
+  description: 'This query currently returns only published updates',
   args: {
     ...CollectionArgs,
     accountTag: {
@@ -23,6 +28,11 @@ const UpdatesCollectionQuery = {
     host: {
       type: new GraphQLList(GraphQLAccountReferenceInput),
       description: 'Host for the accounts for which to get updates',
+    },
+    onlyChangelogUpdates: { type: GraphQLBoolean },
+    orderBy: {
+      type: new GraphQLNonNull(GraphQLUpdateChronologicalOrderInput),
+      defaultValue: UPDATE_CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
     },
   },
   async resolve(_: void, args): Promise<CollectionReturnType> {
@@ -54,7 +64,11 @@ const UpdatesCollectionQuery = {
       }
     }
 
-    const order: Order = [['publishedAt', 'DESC']];
+    if (args.onlyChangelogUpdates) {
+      where['isChangelog'] = args.onlyChangelogUpdates;
+    }
+
+    const order: Order = [[args.orderBy.field, args.orderBy.direction]];
     const result = await models.Update.findAndCountAll({ where, order, offset, limit, include });
     return { nodes: result.rows, totalCount: result.count, limit, offset };
   },

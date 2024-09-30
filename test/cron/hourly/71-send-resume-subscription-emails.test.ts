@@ -30,13 +30,13 @@ describe('cron/hourly/71-send-resume-subscription-emails', () => {
     await fakeOrder({ status: OrderStatuses.PAID, CollectiveId: collective.id }, { withSubscription: true });
     await fakeOrder({ status: OrderStatuses.CANCELLED, CollectiveId: collective.id }, { withSubscription: true });
 
-    // Add an order paused by the host (should not receive emails)
+    // Add an order paused by the user (should not receive emails)
     await fakeOrder(
       {
         status: OrderStatuses.PAUSED,
         FromCollectiveId: collective.HostCollectiveId,
         CollectiveId: collective.id,
-        data: { pausedBy: 'HOST' },
+        data: { pausedBy: 'USER' },
       },
       { withSubscription: true },
     );
@@ -44,7 +44,12 @@ describe('cron/hourly/71-send-resume-subscription-emails', () => {
     // Add a legit paused orders
     contributor = await fakeUser();
     await fakeOrder(
-      { status: OrderStatuses.PAUSED, FromCollectiveId: contributor.CollectiveId, CollectiveId: collective.id },
+      {
+        status: OrderStatuses.PAUSED,
+        FromCollectiveId: contributor.CollectiveId,
+        CollectiveId: collective.id,
+        data: { pausedBy: 'COLLECTIVE' },
+      },
       { withSubscription: true },
     );
   });
