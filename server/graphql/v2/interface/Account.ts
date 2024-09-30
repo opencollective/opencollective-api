@@ -486,6 +486,13 @@ const accountFieldsDefinition = () => ({
       return collective;
     },
   },
+  canHaveChangelogUpdates: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Whether this account can have changelog updates',
+    resolve(collective) {
+      return Boolean(collective.data?.canHaveChangelogUpdates);
+    },
+  },
   updates: {
     type: new GraphQLNonNull(GraphQLUpdateCollection),
     description:
