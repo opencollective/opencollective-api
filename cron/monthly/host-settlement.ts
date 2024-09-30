@@ -85,7 +85,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       replacements: {
         startDate: startDate,
         endDate: endDate,
-        ignoreSettlementForIds: [PlatformConstants.PlatformCollectiveId],
+        ignoreSettlementForIds: PlatformConstants.AllPlatformCollectiveIds,
       },
     },
   );

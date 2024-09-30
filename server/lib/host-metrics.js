@@ -124,7 +124,7 @@ export async function getPendingPlatformTips(
 ) {
   if (
     config.env === 'production' &&
-    (host.slug === 'opencollective' || host.id === PlatformConstants.PlatformCollectiveId)
+    (host.slug === 'opencollective' || PlatformConstants.AllPlatformCollectiveIds.includes(host.id))
   ) {
     return 0;
   }
@@ -326,7 +326,7 @@ ORDER BY DATE_TRUNC(:timeUnit, t1."createdAt")`,
 export async function getHostFeeShare(host, { startDate = null, endDate = null, collectiveIds = null } = {}) {
   if (
     config.env === 'production' &&
-    (host.slug === 'opencollective' || host.id === PlatformConstants.PlatformCollectiveId)
+    (host.slug === 'opencollective' || PlatformConstants.AllPlatformCollectiveIds.includes(host.id))
   ) {
     return 0;
   }
