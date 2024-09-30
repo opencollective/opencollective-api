@@ -3,7 +3,6 @@ import gql from 'fake-tag';
 import { describe, it } from 'mocha';
 import { assert, createSandbox } from 'sinon';
 
-import PlatformConstants from '../../../../../server/constants/platform';
 import roles from '../../../../../server/constants/roles';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import emailLib from '../../../../../server/lib/email';
@@ -120,7 +119,6 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
       opencollective = await models.Collective.create({
         name: 'Open Collective',
         slug: randStr('platform-'),
-        id: PlatformConstants.PlatformCollectiveId,
         data: { canHaveChangelogUpdates: true },
       });
       opencollective.addUserWithRole(user3, roles.ADMIN);
