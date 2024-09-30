@@ -8,8 +8,8 @@ import moment from 'moment';
 import activityType from '../../server/constants/activities';
 import expenseStatus from '../../server/constants/expense-status';
 import expenseTypes from '../../server/constants/expense-type';
+import { getPlatformConstantsForDate, PLATFORM_MIGRATION_DATE } from '../../server/constants/platform';
 import { TransactionKind } from '../../server/constants/transaction-kind';
-import { SETTLEMENT_EXPENSE_PROPERTIES } from '../../server/constants/transactions';
 import { getTransactionsCsvUrl } from '../../server/lib/csv';
 import { getFxRate } from '../../server/lib/currency';
 import { getPendingHostFeeShare, getPendingPlatformTips } from '../../server/lib/host-metrics';
@@ -50,12 +50,17 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
   const month = momentDate.month();
   const startDate = new Date(year, month, 1);
   const endDate = new Date(year, month + 1, 1);
+  const PlatformConstants = getPlatformConstantsForDate(momentDate);
+
+  if (momentDate.isSameOrAfter(PLATFORM_MIGRATION_DATE)) {
+    throw new Error('This script is not yet compatible with the new platform setup.');
+  }
 
   console.info(`Invoicing hosts pending fees and tips for ${momentDate.format('MMMM')}.`);
 
   const payoutMethods = groupBy(
     await models.PayoutMethod.findAll({
-      where: { CollectiveId: SETTLEMENT_EXPENSE_PROPERTIES.FromCollectiveId, isSaved: true },
+      where: { CollectiveId: PlatformConstants.PlatformCollectiveId, isSaved: true },
     }),
     'type',
   );
@@ -70,14 +75,18 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       INNER JOIN "Transactions" t ON t."HostCollectiveId" = c.id AND t."deletedAt" IS NULL
       WHERE c."isHostAccount" IS TRUE
       AND t."createdAt" >= :startDate AND t."createdAt" < :endDate
-      AND c.id != 8686 -- Make sure we don't invoice OC Inc as reverse settlements are not supported yet
+      AND c.id NOT IN (:ignoreSettlementForIds) -- Make sure we don't invoice OC Inc as reverse settlements are not supported yet
       GROUP BY c.id
     `,
     {
       mapToModel: true,
       type: sequelize.QueryTypes.SELECT,
       model: models.Collective,
-      replacements: { startDate: startDate, endDate: endDate },
+      replacements: {
+        startDate: startDate,
+        endDate: endDate,
+        ignoreSettlementForIds: PlatformConstants.AllPlatformCollectiveIds,
+      },
     },
   );
 
@@ -208,7 +217,13 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
 
     const transactionIds = transactions.map(t => t.id);
     const expenseData = {
-      ...SETTLEMENT_EXPENSE_PROPERTIES,
+      FromCollectiveId: PlatformConstants.PlatformCollectiveId,
+      lastEditedById: PlatformConstants.PlatformUserId,
+      UserId: PlatformConstants.PlatformUserId,
+      payeeLocation: {
+        address: PlatformConstants.PlatformAddress,
+        country: PlatformConstants.PlatformCountry,
+      },
       PayoutMethodId: payoutMethod.id,
       amount: totalAmountCharged,
       CollectiveId: host.id,
@@ -231,7 +246,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       items = items.map(i => ({
         ...i,
         ExpenseId: expense.id,
-        CreatedByUserId: SETTLEMENT_EXPENSE_PROPERTIES.UserId,
+        CreatedByUserId: PlatformConstants.PlatformUserId,
       }));
       await models.ExpenseItem.bulkCreate(items);
 
@@ -246,7 +261,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
         await models.ExpenseAttachedFile.create({
           url: csvUrl,
           ExpenseId: expense.id,
-          CreatedByUserId: SETTLEMENT_EXPENSE_PROPERTIES.UserId,
+          CreatedByUserId: PlatformConstants.PlatformUserId,
         });
       }
 

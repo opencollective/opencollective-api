@@ -40,5 +40,8 @@ export const GraphQLExpenseProcessAction = new GraphQLEnumType({
     RELEASE: {
       description: 'To release the expense from hold',
     },
+    DECLINE_INVITED_EXPENSE: {
+      description: 'To decline an invited expense',
+    },
   },
 });

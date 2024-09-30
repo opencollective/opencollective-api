@@ -78,6 +78,19 @@ const GraphQLExpensePermissions = new GraphQLObjectType({
         return ExpenseLib.canReject(req, expense);
       },
     },
+    canDeclineExpenseInvite: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the user or the given draft key is allowed decline the expense invite',
+      args: {
+        draftKey: {
+          type: GraphQLString,
+          description: 'Key for draft expense',
+        },
+      },
+      async resolve(expense, args, req: express.Request): Promise<boolean> {
+        return ExpenseLib.buildCanDeclineExpenseInviteEvaluator(args.draftKey)(req, expense);
+      },
+    },
     canMarkAsSpam: {
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Whether the current user can mark this expense as spam',

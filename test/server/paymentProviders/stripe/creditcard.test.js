@@ -5,6 +5,7 @@ import { assert, createSandbox } from 'sinon';
 
 import { Service } from '../../../../server/constants/connected-account';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
+import PlatformConstants from '../../../../server/constants/platform';
 import cache from '../../../../server/lib/cache';
 import stripe from '../../../../server/lib/stripe';
 import * as common from '../../../../server/paymentProviders/stripe/common';
@@ -28,8 +29,8 @@ describe('server/paymentProviders/stripe/creditcard', () => {
 
     let collective, host, paymentMethod, order;
     beforeEach(async () => {
-      // platform tip transaction expects platform collective by id 8686
-      await fakeCollective({ id: 8686 });
+      // platform tip transaction expects platform collective
+      await fakeCollective({ id: PlatformConstants.PlatformCollectiveId });
 
       const fromCollective = await fakeCollective();
       collective = await fakeCollective();

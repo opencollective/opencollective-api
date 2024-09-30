@@ -8,6 +8,7 @@ import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/ide
 import emailLib from '../../../../../server/lib/email';
 import twitterLib from '../../../../../server/lib/twitter';
 import models from '../../../../../server/models';
+import { randStr } from '../../../../test-helpers/fake-data';
 import * as utils from '../../../../utils';
 
 let host, user1, user2, collective1, event1, update1;
@@ -117,11 +118,11 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
       user3 = await models.User.createUserWithCollective(utils.data('user3'));
       opencollective = await models.Collective.create({
         name: 'Open Collective',
-        slug: 'opencollective',
-        id: 8686,
+        slug: randStr('platform-'),
         data: { canHaveChangelogUpdates: true },
       });
       opencollective.addUserWithRole(user3, roles.ADMIN);
+      user3.update({ data: { isRoot: true } });
       changelogUpdate = {
         title: 'Monthly changelog update',
         html: 'New feature added',

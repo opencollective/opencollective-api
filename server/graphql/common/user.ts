@@ -5,7 +5,6 @@ import { activities } from '../../constants';
 import { CollectiveType } from '../../constants/collectives';
 import roles from '../../constants/roles';
 import cache from '../../lib/cache';
-import { defaultHostCollective } from '../../lib/collectivelib';
 import emailLib from '../../lib/email';
 import logger from '../../lib/logger';
 import models, { Collective, Op, sequelize } from '../../models';
@@ -98,10 +97,6 @@ export const createUser = (
 };
 
 export const hasSeenLatestChangelogEntry = async (user: User): Promise<boolean> => {
-  const platform = await defaultHostCollective('opencollective');
-  if (!platform) {
-    return true;
-  }
   const cacheKey = 'latest_changelog_publish_date';
   let latestChangelogUpdatePublishDate = await cache.get(cacheKey);
   // Make sure we don't show the changelog notifications for newly confirmed users
