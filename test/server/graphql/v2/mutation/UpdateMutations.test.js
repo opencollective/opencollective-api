@@ -121,6 +121,7 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
         name: 'Open Collective',
         slug: randStr('platform-'),
         id: PlatformConstants.PlatformCollectiveId,
+        data: { canHaveChangelogUpdates: true },
       });
       opencollective.addUserWithRole(user3, roles.ADMIN);
       user3.update({ data: { isRoot: true } });

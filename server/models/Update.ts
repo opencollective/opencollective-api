@@ -195,13 +195,13 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
     }
   };
 
-  isPlatformUpdate = async function () {
-    return PlatformConstants.PlatformCollectiveId === this.CollectiveId;
+  isPlatformUpdate = function () {
+    return PlatformConstants.AllPlatformCollectiveIds.includes(this.CollectiveId);
   };
 
-  shouldNotify = async function (notificationAudience = this.notificationAudience) {
+  shouldNotify = function (notificationAudience = this.notificationAudience) {
     const audience = notificationAudience || this.notificationAudience || 'ALL';
-    return !(audience === 'NO_ONE' || this.isChangelog || (await this.isPlatformUpdate()));
+    return !(audience === 'NO_ONE' || this.isChangelog || this.isPlatformUpdate());
   };
 
   /**
@@ -210,7 +210,7 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
   getUsersIdsToNotify = async function (channel?: UpdateChannel): Promise<Array<number>> {
     const audience = this.notificationAudience || 'ALL';
 
-    const shouldNotify = await this.shouldNotify(audience);
+    const shouldNotify = this.shouldNotify(audience);
     if (!shouldNotify) {
       return [];
     }
@@ -237,7 +237,7 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
     this.collective = this.collective || (await this.getCollective());
     const audience = notificationAudience || this.notificationAudience || 'ALL';
 
-    const shouldNotify = await this.shouldNotify(audience);
+    const shouldNotify = this.shouldNotify(audience);
     if (!shouldNotify) {
       return 0;
     }
@@ -259,7 +259,7 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
    * Gets a summary of who will be notified about this update
    */
   getAudienceMembersStats = async function (audience, channel?: UpdateChannel) {
-    const shouldNotify = await this.shouldNotify(audience);
+    const shouldNotify = this.shouldNotify(audience);
     if (!shouldNotify) {
       return {};
     }

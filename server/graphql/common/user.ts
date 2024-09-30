@@ -106,21 +106,22 @@ export const hasSeenLatestChangelogEntry = async (user: User): Promise<boolean> 
     return userChangelogViewDate >= new Date(latestChangelogUpdatePublishDate);
   } else {
     const latestChangelogUpdate = await models.Update.findOne({
+      attributes: [[sequelize.fn('max', sequelize.col('publishedAt')), 'publishedAt']],
+      raw: true,
       where: {
-        CollectiveId: PlatformConstants.PlatformCollectiveId,
         publishedAt: { [Op.ne]: null },
         isChangelog: true,
       },
-      order: [['publishedAt', 'DESC']],
     });
 
-    latestChangelogUpdatePublishDate = latestChangelogUpdate?.publishedAt;
+    latestChangelogUpdatePublishDate = latestChangelogUpdate.publishedAt;
     if (!latestChangelogUpdatePublishDate) {
       return true;
     }
     // keep the latest change log publish date for a day in cache
     cache.set(cacheKey, latestChangelogUpdatePublishDate, 24 * 60 * 60);
   }
+
   return userChangelogViewDate >= latestChangelogUpdatePublishDate;
 };
 

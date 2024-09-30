@@ -58,6 +58,11 @@ const getPlatformConstants = (checkIfMigrated: () => boolean) => ({
   get PlatformCountry() {
     return 'US';
   },
+
+  /** Gets all platform collective ids - old and new */
+  get AllPlatformCollectiveIds() {
+    return [8686, 835523];
+  },
 });
 
 let __testingMigration = false;
