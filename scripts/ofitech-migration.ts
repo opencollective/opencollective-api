@@ -8,6 +8,9 @@ import models, { sequelize } from '../server/models';
 
 const DRY_RUN = process.env.DRY_RUN !== 'false';
 
+console.log(`Running in ${DRY_RUN ? 'DRY RUN' : 'REAL RUN'} mode`);
+console.log(`Current platform account: ${PlatformConstants.PlatformCollectiveId}`);
+
 const updateHostPlans = async () => {
   const hostsToRemoveHostFeeShareFor = ['opensource', 'europe', 'oce-foundation-usd', 'oce-foundation-eur'];
   if (DRY_RUN) {
@@ -39,7 +42,7 @@ const movePlatformStripeAccount = async () => {
     throw new Error('OCI does not have a Stripe account, is it already migrated?');
   }
 
-  if (!DRY_RUN) {
+  if (DRY_RUN) {
     console.log(`Would move Stripe account ${stripeAccount.id} from @${oci.slug} to @${ofitech.slug}`);
   } else {
     await stripeAccount.update({ CollectiveId: ofitech.id });
