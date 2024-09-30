@@ -1,4 +1,17 @@
-const plans = {
+export type HostPlan = {
+  hostedCollectivesLimit?: number;
+  addedFundsLimit?: number;
+  bankTransfersLimit?: number;
+  transferwisePayoutsLimit?: number;
+  manualPayments?: boolean;
+  hostDashboard?: boolean;
+  hostFees?: boolean;
+  hostFeeSharePercent?: number;
+  level?: number;
+  platformTips?: boolean;
+};
+
+const plans: Record<string, HostPlan> = {
   // Legacy Plans (automatically set for accounts created before 2020)
   'legacy-custom-host-plan': {
     hostedCollectivesLimit: 100,
@@ -200,8 +213,6 @@ const plans = {
     hostFeeSharePercent: 0,
     level: 100,
   },
-};
-
-export const PLANS_COLLECTIVE_SLUG = 'opencollective';
+} as const;
 
 export default plans;

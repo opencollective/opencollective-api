@@ -57,7 +57,7 @@ import expenseTypes from '../constants/expense-type';
 import FEATURE from '../constants/feature';
 import OrderStatuses from '../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
-import plans from '../constants/plans';
+import plans, { HostPlan } from '../constants/plans';
 import POLICIES, { Policies } from '../constants/policies';
 import roles, { MemberRoleLabels } from '../constants/roles';
 import { hasOptedOutOfFeature, isFeatureAllowedForCollectiveType } from '../lib/allowed-features';
@@ -188,6 +188,7 @@ type Data = Partial<{
   isGuest: boolean;
   spamReport: SpamAnalysisReport;
   canHaveChangelogUpdates: boolean;
+  plan: HostPlan;
   vendorInfo: Partial<{
     contact: Partial<{
       name: string;
