@@ -5,7 +5,6 @@ import { createSandbox } from 'sinon';
 
 import { activities } from '../../../server/constants';
 import status from '../../../server/constants/order-status';
-import { PLANS_COLLECTIVE_SLUG } from '../../../server/constants/plans';
 import roles from '../../../server/constants/roles';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
 import emailLib from '../../../server/lib/email';
@@ -113,7 +112,6 @@ describe('server/lib/payments-legacy', () => {
   beforeEach('create a collective', () =>
     models.Collective.create({
       ...utils.data('collective1'),
-      slug: PLANS_COLLECTIVE_SLUG,
     }).then(g => (collective = g)),
   );
   beforeEach('create a collective', () =>
