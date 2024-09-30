@@ -194,6 +194,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
       ExpenseId: this.id,
       TransactionId: transaction?.id,
       data: {
+        ...pick(this.data, 'payee'),
         ...pick(data, [
           'isManualPayout',
           'error',

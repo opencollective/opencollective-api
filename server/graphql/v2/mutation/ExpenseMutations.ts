@@ -24,6 +24,7 @@ import {
   canDeleteExpense,
   canVerifyDraftExpense,
   createExpense,
+  declineInvitedExpense,
   DRAFT_EXPENSE_FIELDS,
   editExpense,
   editExpenseDraft,
@@ -206,7 +207,7 @@ const expenseMutations = {
       const userIsAuthor = req.remoteUser?.id === existingExpense.UserId;
       const isRecurring = Boolean(existingExpense.RecurringExpenseId);
       // Draft can be edited by the author of the expense if the expense is not recurring
-      if (existingExpense.status === expenseStatus.DRAFT && !args.draftKey && userIsAuthor && !isRecurring) {
+      if (existingExpense.status === expenseStatus.DRAFT && !userIsOriginalPayee && userIsAuthor && !isRecurring) {
         return editExpenseDraft(req, expenseData, args);
       }
       // Draft can be submitted by: new user with draft-key, payee of the original expense or author of the original expense (in the case of Recurring Expense draft)
@@ -270,6 +271,10 @@ const expenseMutations = {
       expense: {
         type: new GraphQLNonNull(GraphQLExpenseReferenceInput),
         description: 'Reference of the expense to process',
+      },
+      draftKey: {
+        type: GraphQLString,
+        description: 'Expense draft key if its action by invited user without account',
       },
       action: {
         type: new GraphQLNonNull(GraphQLExpenseProcessAction),
@@ -352,7 +357,9 @@ const expenseMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<ExpenseModel> {
-      checkRemoteUserCanUseExpenses(req);
+      if (args.action !== 'DECLINE_INVITED_EXPENSE' || !args.draftKey || req.remoteUser) {
+        checkRemoteUserCanUseExpenses(req);
+      }
 
       let expense = await fetchExpenseWithReference(args.expense, { loaders: req.loaders, throwIfMissing: true });
       expense.collective = await expense.getCollective();
@@ -418,9 +425,11 @@ const expenseMutations = {
         case 'RELEASE':
           expense = await releaseExpense(req, expense);
           break;
+        case 'DECLINE_INVITED_EXPENSE':
+          expense = await declineInvitedExpense(req, expense, args.draftKey, args.message);
       }
 
-      if (args.message) {
+      if (args.message && args.action !== 'DECLINE_INVITED_EXPENSE') {
         await createComment(
           {
             ExpenseId: expense.id,
