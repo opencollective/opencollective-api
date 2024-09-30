@@ -3,7 +3,6 @@ import { pick } from 'lodash';
 
 import { activities } from '../../constants';
 import { CollectiveType } from '../../constants/collectives';
-import PlatformConstants from '../../constants/platform';
 import roles from '../../constants/roles';
 import cache from '../../lib/cache';
 import emailLib from '../../lib/email';
