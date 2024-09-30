@@ -5,6 +5,7 @@ import { createSandbox } from 'sinon';
 
 import { activities } from '../../../server/constants';
 import status from '../../../server/constants/order-status';
+import PlatformConstants from '../../../server/constants/platform';
 import roles from '../../../server/constants/roles';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
 import emailLib from '../../../server/lib/email';
