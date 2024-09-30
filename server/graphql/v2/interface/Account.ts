@@ -708,7 +708,7 @@ const accountFieldsDefinition = () => ({
       accountType: {
         type: new GraphQLList(GraphQLAccountType),
       },
-      term: {
+      searchTerm: {
         type: GraphQLString,
       },
     },
@@ -733,9 +733,9 @@ const accountFieldsDefinition = () => ({
         };
       }
 
-      if (args.term) {
+      if (args.searchTerm) {
         where['searchTsVector'] = {
-          [Op.match]: Sequelize.fn('websearch_to_tsquery', args.term),
+          [Op.match]: Sequelize.fn('websearch_to_tsquery', args.searchTerm),
         };
       }
 
