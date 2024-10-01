@@ -818,6 +818,11 @@ interface Account {
   stats: AccountStats
 
   """
+  Whether this account can have changelog updates
+  """
+  canHaveChangelogUpdates: Boolean!
+
+  """
   Updates published by the account. To see unpublished updates, you need to be an admin and have the scope "updates".
   """
   updates(
@@ -877,6 +882,7 @@ interface Account {
     offset: Int! = 0
     isActive: Boolean
     accountType: [AccountType]
+    searchTerm: String
   ): AccountCollection!
 
   """
@@ -3217,6 +3223,11 @@ type Host implements Account & AccountWithContributions {
   stats: AccountStats
 
   """
+  Whether this account can have changelog updates
+  """
+  canHaveChangelogUpdates: Boolean!
+
+  """
   Updates published by the account. To see unpublished updates, you need to be an admin and have the scope "updates".
   """
   updates(
@@ -3276,6 +3287,7 @@ type Host implements Account & AccountWithContributions {
     offset: Int! = 0
     isActive: Boolean
     accountType: [AccountType]
+    searchTerm: String
   ): AccountCollection!
 
   """
@@ -8112,6 +8124,11 @@ type Bot implements Account {
   stats: AccountStats
 
   """
+  Whether this account can have changelog updates
+  """
+  canHaveChangelogUpdates: Boolean!
+
+  """
   Updates published by the account. To see unpublished updates, you need to be an admin and have the scope "updates".
   """
   updates(
@@ -8171,6 +8188,7 @@ type Bot implements Account {
     offset: Int! = 0
     isActive: Boolean
     accountType: [AccountType]
+    searchTerm: String
   ): AccountCollection!
 
   """
@@ -8918,6 +8936,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   stats: AccountStats
 
   """
+  Whether this account can have changelog updates
+  """
+  canHaveChangelogUpdates: Boolean!
+
+  """
   Updates published by the account. To see unpublished updates, you need to be an admin and have the scope "updates".
   """
   updates(
@@ -8977,6 +9000,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     offset: Int! = 0
     isActive: Boolean
     accountType: [AccountType]
+    searchTerm: String
   ): AccountCollection!
 
   """
@@ -10177,6 +10201,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   stats: AccountStats
 
   """
+  Whether this account can have changelog updates
+  """
+  canHaveChangelogUpdates: Boolean!
+
+  """
   Updates published by the account. To see unpublished updates, you need to be an admin and have the scope "updates".
   """
   updates(
@@ -10236,6 +10265,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     offset: Int! = 0
     isActive: Boolean
     accountType: [AccountType]
+    searchTerm: String
   ): AccountCollection!
 
   """
@@ -11216,6 +11246,11 @@ type Individual implements Account {
   stats: AccountStats
 
   """
+  Whether this account can have changelog updates
+  """
+  canHaveChangelogUpdates: Boolean!
+
+  """
   Updates published by the account. To see unpublished updates, you need to be an admin and have the scope "updates".
   """
   updates(
@@ -11275,6 +11310,7 @@ type Individual implements Account {
     offset: Int! = 0
     isActive: Boolean
     accountType: [AccountType]
+    searchTerm: String
   ): AccountCollection!
 
   """
@@ -12228,6 +12264,11 @@ type Organization implements Account & AccountWithContributions {
   stats: AccountStats
 
   """
+  Whether this account can have changelog updates
+  """
+  canHaveChangelogUpdates: Boolean!
+
+  """
   Updates published by the account. To see unpublished updates, you need to be an admin and have the scope "updates".
   """
   updates(
@@ -12287,6 +12328,7 @@ type Organization implements Account & AccountWithContributions {
     offset: Int! = 0
     isActive: Boolean
     accountType: [AccountType]
+    searchTerm: String
   ): AccountCollection!
 
   """
@@ -13131,6 +13173,11 @@ type Vendor implements Account & AccountWithContributions {
   stats: AccountStats
 
   """
+  Whether this account can have changelog updates
+  """
+  canHaveChangelogUpdates: Boolean!
+
+  """
   Updates published by the account. To see unpublished updates, you need to be an admin and have the scope "updates".
   """
   updates(
@@ -13190,6 +13237,7 @@ type Vendor implements Account & AccountWithContributions {
     offset: Int! = 0
     isActive: Boolean
     accountType: [AccountType]
+    searchTerm: String
   ): AccountCollection!
 
   """
@@ -14406,6 +14454,10 @@ type Query {
     """
     account: AccountReferenceInput
   ): Update
+
+  """
+  This query currently returns only published updates
+  """
   updates(
     """
     The number of results to fetch (default 10, max 1000)
@@ -14431,6 +14483,8 @@ type Query {
     Host for the accounts for which to get updates
     """
     host: [AccountReferenceInput]
+    onlyChangelogUpdates: Boolean
+    orderBy: UpdateChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
   ): UpdateCollection!
   paypalPlan(
     """
@@ -16605,6 +16659,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   stats: AccountStats
 
   """
+  Whether this account can have changelog updates
+  """
+  canHaveChangelogUpdates: Boolean!
+
+  """
   Updates published by the account. To see unpublished updates, you need to be an admin and have the scope "updates".
   """
   updates(
@@ -16664,6 +16723,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     offset: Int! = 0
     isActive: Boolean
     accountType: [AccountType]
+    searchTerm: String
   ): AccountCollection!
 
   """
@@ -17524,6 +17584,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   stats: AccountStats
 
   """
+  Whether this account can have changelog updates
+  """
+  canHaveChangelogUpdates: Boolean!
+
+  """
   Updates published by the account. To see unpublished updates, you need to be an admin and have the scope "updates".
   """
   updates(
@@ -17583,6 +17648,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     offset: Int! = 0
     isActive: Boolean
     accountType: [AccountType]
+    searchTerm: String
   ): AccountCollection!
 
   """
