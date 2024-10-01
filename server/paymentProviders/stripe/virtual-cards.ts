@@ -122,13 +122,9 @@ export const updateVirtualCardLimit = async (
   });
 };
 
-const setCardStatus = async (
-  virtualCard: VirtualCard,
-  status: Stripe.Issuing.CardUpdateParams.Status,
-  allowPlatformFallback = false,
-) => {
+const setCardStatus = async (virtualCard: VirtualCard, status: Stripe.Issuing.CardUpdateParams.Status) => {
   const host = await virtualCard.getHost();
-  const stripe = await getStripeClient(host, allowPlatformFallback);
+  const stripe = await getStripeClient(host);
 
   const response = await stripe.issuing.cards.update(virtualCard.id, {
     status,
@@ -139,9 +135,9 @@ const setCardStatus = async (
   return data;
 };
 
-export const deleteCard = async virtualCard => setCardStatus(virtualCard, 'canceled', true);
+export const deleteCard = async virtualCard => setCardStatus(virtualCard, 'canceled');
 
-export const pauseCard = async virtualCard => setCardStatus(virtualCard, 'inactive', true);
+export const pauseCard = async virtualCard => setCardStatus(virtualCard, 'inactive');
 
 export const resumeCard = async virtualCard => setCardStatus(virtualCard, 'active');
 
@@ -176,7 +172,7 @@ export const processAuthorization = async (event: Stripe.Event) => {
   const amount = convertToStripeAmount(currency, Math.abs(stripeAuthorization.pending_request.amount));
   const collective = virtualCard.collective;
   const balance = await collective.getBalanceAmount({ currency, withBlockedFunds: true });
-  const stripe = await getStripeClient(host, true);
+  const stripe = await getStripeClient(host);
 
   if (balance.value >= amount) {
     await stripe.issuing.authorizations.approve(stripeAuthorization.id);
@@ -378,10 +374,8 @@ export const processCardUpdate = async (event: Stripe.Event) => {
   return virtualCard;
 };
 
-export const getStripeClient = async (host, allowPlatformFallback = false) => {
+export const getStripeClient = async host => {
   if (host.id === PlatformConstants.PlatformCollectiveId) {
-    return stripe;
-  } else if (host.id === PlatformConstants.OCICollectiveId && allowPlatformFallback) {
     return stripe;
   }
 
@@ -391,14 +385,7 @@ export const getStripeClient = async (host, allowPlatformFallback = false) => {
 };
 
 export const getWebhookSigninSecret = async host => {
-  let connectedAccount = await host.getAccountForPaymentProvider('stripe');
-
-  // Fallback to Platform Collective if OCI does not have a Stripe account
-  if (!connectedAccount && host.id === PlatformConstants.OCICollectiveId) {
-    host = await models.Collective.findByPk(PlatformConstants.OfitechCollectiveId);
-    connectedAccount = await host.getAccountForPaymentProvider('stripe');
-  }
-
+  const connectedAccount = await host.getAccountForPaymentProvider('stripe');
   if (!connectedAccount) {
     throw new Error('Stripe not connected for Host');
   }

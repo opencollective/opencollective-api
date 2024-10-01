@@ -14,7 +14,10 @@ import { runCronJob } from '../utils';
 
 const DRY = process.env.DRY;
 
-async function reconcileConnectedAccount(connectedAccount, host, cards) {
+async function reconcileConnectedAccount(connectedAccount) {
+  const host = connectedAccount.collective;
+  const cards = host.virtualCards.filter(card => card.provider === connectedAccount.service.toUpperCase());
+
   logger.info(`Found ${cards.length} cards connected to host #${connectedAccount.CollectiveId} ${host.slug}...`);
 
   for (const card of cards) {
@@ -38,7 +41,7 @@ async function reconcileConnectedAccount(connectedAccount, host, cards) {
         );
 
         const stripe = Stripe(
-          PlatformConstants.AllPlatformCollectiveIds.includes(host.id) ? config.stripe.secret : connectedAccount.token,
+          host.id === PlatformConstants.PlatformCollectiveId ? config.stripe.secret : connectedAccount.token,
         );
 
         const result = await stripe.issuing.transactions.list({
@@ -99,23 +102,10 @@ async function run() {
   logger.info(`Found ${connectedAccounts.length} connected Stripe accounts...`);
 
   for (const connectedAccount of connectedAccounts) {
-    const host = connectedAccount.collective;
-    const cards = host.virtualCards.filter(card => card.provider === connectedAccount.service.toUpperCase());
-    await reconcileConnectedAccount(connectedAccount, host, cards).catch(error => {
+    await reconcileConnectedAccount(connectedAccount).catch(error => {
       console.error(error);
       reportErrorToSentry(error);
     });
-
-    // If we enter this condition, we can assume that the Stripe account for OCI has moved to Ofitech. We still want to synchronize
-    // OCI legacy cards.
-    if (host.id === PlatformConstants.OfitechCollectiveId) {
-      const host = await models.Collective.findByPk(PlatformConstants.OCICollectiveId);
-      const cards = await host.getVirtualCards();
-      await reconcileConnectedAccount(connectedAccount, host, cards).catch(error => {
-        console.error(error);
-        reportErrorToSentry(error);
-      });
-    }
   }
 }
 
