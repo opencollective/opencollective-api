@@ -52,7 +52,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
   const endDate = new Date(year, month + 1, 1);
   const PlatformConstants = getPlatformConstantsForDate(momentDate);
 
-  if (momentDate.isSameOrAfter(PLATFORM_MIGRATION_DATE)) {
+  if (momentDate.isSameOrAfter(PLATFORM_MIGRATION_DATE) && config.env === 'production') {
     throw new Error('This script is not yet compatible with the new platform setup.');
   }
 
