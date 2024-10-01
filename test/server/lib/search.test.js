@@ -8,7 +8,7 @@ import {
   parseSearchTerm,
   searchCollectivesByEmail,
   searchCollectivesInDB,
-} from '../../../server/lib/search';
+} from '../../../server/lib/sql-search';
 import { Op } from '../../../server/models';
 import { newUser } from '../../stores';
 import { fakeCollective, fakeHost, fakeUser, randStr } from '../../test-helpers/fake-data';

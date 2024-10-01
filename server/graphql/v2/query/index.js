@@ -27,6 +27,7 @@ import OrganizationQuery from './OrganizationQuery';
 import PaypalPlanQuery from './PaypalPlanQuery';
 import PersonalTokenQuery from './PersonalTokenQuery';
 import ProjectQuery from './ProjectQuery';
+import SearchQuery from './SearchQuery';
 import TierQuery from './TierQuery';
 import TransactionQuery from './TransactionQuery';
 import TransactionsImportQuery from './TransactionsImport';
@@ -55,6 +56,7 @@ const query = {
   orders: getOrdersCollectionQuery(),
   organization: OrganizationQuery,
   project: ProjectQuery,
+  search: SearchQuery,
   tagStats: TagStatsCollectionQuery,
   tier: TierQuery,
   transaction: TransactionQuery,

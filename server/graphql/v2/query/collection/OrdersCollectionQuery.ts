@@ -4,7 +4,7 @@ import { GraphQLDateTime } from 'graphql-scalars';
 import { Includeable, Order } from 'sequelize';
 
 import OrderStatuses from '../../../../constants/order-status';
-import { buildSearchConditions } from '../../../../lib/search';
+import { buildSearchConditions } from '../../../../lib/sql-search';
 import models, { Op } from '../../../../models';
 import { checkScope } from '../../../common/scope-check';
 import { NotFound, Unauthorized } from '../../../errors';

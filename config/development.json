@@ -1,5 +1,8 @@
 {
   "env": "development",
+  "elasticSearch": {
+    "url": "http://localhost:9200"
+  },
   "maildev": {
     "client": true,
     "server": true
