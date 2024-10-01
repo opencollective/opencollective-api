@@ -1449,7 +1449,7 @@ class Collective extends Model<
     });
   };
 
-  getChildren = function (query: FindOptions<InferAttributes<Collective>> = {}) {
+  getChildren = function (query: FindOptions<InferAttributes<Collective>> = {}): Promise<Collective[]> {
     return Collective.findAll({
       order: [
         ['createdAt', 'DESC'],

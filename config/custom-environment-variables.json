@@ -1,6 +1,9 @@
 {
   "port": "PORT",
   "env": "OC_ENV",
+  "elasticSearch": {
+    "url": "ELASTICSEARCH_URL"
+  },
   "maildev": {
     "client": "MAILDEV_CLIENT",
     "server": "MAILDEV_SERVER"

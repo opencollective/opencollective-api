@@ -2,7 +2,7 @@ import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString 
 import { cloneDeep, invert, isNil } from 'lodash';
 
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
-import { buildSearchConditions } from '../../../lib/search';
+import { buildSearchConditions } from '../../../lib/sql-search';
 import models, { Op, sequelize } from '../../../models';
 import { checkScope } from '../../common/scope-check';
 import { ValidationFailed } from '../../errors';

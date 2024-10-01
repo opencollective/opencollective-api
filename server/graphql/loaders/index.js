@@ -33,6 +33,7 @@ import {
 } from './members';
 import * as orderLoaders from './order';
 import { generateCollectivePayoutMethodsLoader, generateCollectivePaypalPayoutMethodsLoader } from './payout-method';
+import { generateSearchLoaders } from './search';
 import * as transactionLoaders from './transactions';
 import { generateTransactionsImportStatsLoader } from './transactions-import';
 import updatesLoader from './updates';
@@ -872,6 +873,8 @@ export const loaders = req => {
 
   /** *** TransactionsImports *****/
   context.loaders.TransactionsImport.stats = generateTransactionsImportStatsLoader();
+
+  context.loaders.search = generateSearchLoaders();
 
   return context.loaders;
 };

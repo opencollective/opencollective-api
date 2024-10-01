@@ -19,6 +19,9 @@ import { getOrCreateVendor, getVirtualCardForTransaction, persistVirtualCardTran
 
 export const assignCardToCollective = async (cardNumber, expiryDate, cvv, name, collectiveId, host, userId) => {
   const stripe = await getStripeClient(host);
+  if (!stripe) {
+    throw new Error('Stripe not connected for Host');
+  }
 
   const list = await stripe.issuing.cards.list({ last4: cardNumber.slice(-4) });
   const cards = list.data;
@@ -64,6 +67,9 @@ export const createVirtualCard = async (
   virtualCardRequestId = null,
 ) => {
   const stripe = await getStripeClient(host);
+  if (!stripe) {
+    throw new Error('Stripe not connected for Host');
+  }
 
   const cardholders = await stripe.issuing.cardholders.list({ type: 'company', status: 'active' });
 
@@ -105,6 +111,9 @@ export const updateVirtualCardLimit = async (
 ) => {
   const host = virtualCard.host;
   const stripe = await getStripeClient(host);
+  if (!stripe) {
+    throw new Error('Stripe not connected for Host');
+  }
 
   return stripe.issuing.cards.update(virtualCard.id, {
     // eslint-disable-next-line camelcase
@@ -122,13 +131,12 @@ export const updateVirtualCardLimit = async (
   });
 };
 
-const setCardStatus = async (
-  virtualCard: VirtualCard,
-  status: Stripe.Issuing.CardUpdateParams.Status,
-  allowPlatformFallback = false,
-) => {
+const setCardStatus = async (virtualCard: VirtualCard, status: Stripe.Issuing.CardUpdateParams.Status) => {
   const host = await virtualCard.getHost();
-  const stripe = await getStripeClient(host, allowPlatformFallback);
+  const stripe = await getStripeClient(host);
+  if (!stripe) {
+    throw new Error('Stripe not connected for Host');
+  }
 
   const response = await stripe.issuing.cards.update(virtualCard.id, {
     status,
@@ -139,9 +147,9 @@ const setCardStatus = async (
   return data;
 };
 
-export const deleteCard = async virtualCard => setCardStatus(virtualCard, 'canceled', true);
+export const deleteCard = async virtualCard => setCardStatus(virtualCard, 'canceled');
 
-export const pauseCard = async virtualCard => setCardStatus(virtualCard, 'inactive', true);
+export const pauseCard = async virtualCard => setCardStatus(virtualCard, 'inactive');
 
 export const resumeCard = async virtualCard => setCardStatus(virtualCard, 'active');
 
@@ -176,7 +184,10 @@ export const processAuthorization = async (event: Stripe.Event) => {
   const amount = convertToStripeAmount(currency, Math.abs(stripeAuthorization.pending_request.amount));
   const collective = virtualCard.collective;
   const balance = await collective.getBalanceAmount({ currency, withBlockedFunds: true });
-  const stripe = await getStripeClient(host, true);
+  const stripe = await getStripeClient(host);
+  if (!stripe) {
+    throw new Error('Stripe not connected for Host');
+  }
 
   if (balance.value >= amount) {
     await stripe.issuing.authorizations.approve(stripeAuthorization.id);
@@ -378,10 +389,8 @@ export const processCardUpdate = async (event: Stripe.Event) => {
   return virtualCard;
 };
 
-export const getStripeClient = async (host, allowPlatformFallback = false) => {
+export const getStripeClient = async host => {
   if (host.id === PlatformConstants.PlatformCollectiveId) {
-    return stripe;
-  } else if (host.id === PlatformConstants.OCICollectiveId && allowPlatformFallback) {
     return stripe;
   }
 
@@ -391,14 +400,7 @@ export const getStripeClient = async (host, allowPlatformFallback = false) => {
 };
 
 export const getWebhookSigninSecret = async host => {
-  let connectedAccount = await host.getAccountForPaymentProvider('stripe');
-
-  // Fallback to Platform Collective if OCI does not have a Stripe account
-  if (!connectedAccount && host.id === PlatformConstants.OCICollectiveId) {
-    host = await models.Collective.findByPk(PlatformConstants.OfitechCollectiveId);
-    connectedAccount = await host.getAccountForPaymentProvider('stripe');
-  }
-
+  const connectedAccount = await host.getAccountForPaymentProvider('stripe');
   if (!connectedAccount) {
     throw new Error('Stripe not connected for Host');
   }
