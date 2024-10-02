@@ -1,3 +1,4 @@
+import { omit } from 'lodash';
 import type Stripe from 'stripe';
 
 import OrderStatuses from '../../constants/order-status';
@@ -22,10 +23,16 @@ export const syncOrder = async (order, { IS_DRY, logging }: { IS_DRY?; logging? 
   if (charge && paymentIntent.status === 'succeeded') {
     logging?.(`Order ${order.id} has charge: ${charge.id}`);
     const transaction = await models.Transaction.findOne({
-      where: { OrderId: order.id, data: { charge: { id: charge.id } } },
+      where: { data: { charge: { id: charge.id } } },
     });
     if (transaction) {
-      logging?.(`Order ${order.id} already processed charge ${charge.id}`);
+      logging?.(`Order ${transaction.OrderId} already processed charge ${charge.id}`);
+      if (transaction.OrderId !== order.id) {
+        await order.update({
+          status: OrderStatuses.CANCELLED,
+          data: omit(order.data, 'paymentIntent'),
+        });
+      }
       return;
     }
 

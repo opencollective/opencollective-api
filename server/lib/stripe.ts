@@ -48,13 +48,15 @@ export const extractFees = (balance, currency) => {
  * See https://stripe.com/docs/testing#cards
  */
 export const isTestToken = token => {
-  return [
-    'tok_visa',
-    'tok_bypassPending',
-    'tok_chargeDeclined',
-    'tok_chargeDeclinedExpiredCard',
-    'tok_chargeDeclinedProcessingError',
-  ].includes(token);
+  return (
+    [
+      'tok_visa',
+      'tok_bypassPending',
+      'tok_chargeDeclined',
+      'tok_chargeDeclinedExpiredCard',
+      'tok_chargeDeclinedProcessingError',
+    ].includes(token) || token.startsWith('stripe-payment-method-id-')
+  );
 };
 
 /**

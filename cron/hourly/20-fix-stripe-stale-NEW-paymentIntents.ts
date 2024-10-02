@@ -55,21 +55,25 @@ async function* staleStripeNewPaymentIntentOrdersPager() {
     return;
   }
 
-  let offset = 0;
+  let lastOrderId = 0;
   while (true) {
     const pageResult = await Order.findAll({
       ...query,
+      where: {
+        ...query.where,
+        id: { [Op.gt]: lastOrderId },
+      },
+      order: [['id', 'ASC']],
       limit: PAGE_SIZE,
-      offset,
     });
 
     if (isEmpty(pageResult)) {
       return;
     }
 
-    yield pageResult;
+    lastOrderId = pageResult[pageResult.length - 1].id;
 
-    offset += PAGE_SIZE;
+    yield pageResult;
   }
 }
 
