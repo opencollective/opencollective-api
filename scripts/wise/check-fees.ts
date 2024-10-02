@@ -7,6 +7,7 @@ import { groupBy, omit, pick, round } from 'lodash';
 import moment from 'moment';
 
 import { Service } from '../../server/constants/connected-account';
+import OrderStatuses from '../../server/constants/order-status';
 import { TransactionKind } from '../../server/constants/transaction-kind';
 import { TransactionTypes } from '../../server/constants/transactions';
 import { getFxRate } from '../../server/lib/currency';
@@ -313,6 +314,20 @@ program.command('refund [hosts]').action(async hosts => {
           totalRefunded += amountInHostCurrency;
           const hostCurrencyFxRate = await getFxRate(collective.currency, host.currency);
           const amount = Math.round(amountInHostCurrency / hostCurrencyFxRate);
+          const hostPaymentMethod = await host.getOrCreateHostPaymentMethod();
+          const order = await models.Order.create({
+            description: 'Wise Payment Processor Fee Compensation',
+            totalAmount: amount,
+            currency: collective.currency,
+            FromCollectiveId: host.id,
+            CollectiveId: collective.id,
+            platformTipEligible: false,
+            status: OrderStatuses.PAID,
+            PaymentMethodId: hostPaymentMethod.id,
+            CreatedByUserId: 11257,
+            data: { hostFeePercent: 0, paymentProcessorFee: 0 },
+          });
+
           const transactionData = {
             type: TransactionTypes.CREDIT,
             kind: TransactionKind.ADDED_FUNDS,
@@ -327,6 +342,7 @@ program.command('refund [hosts]').action(async hosts => {
             amountInHostCurrency: amountInHostCurrency,
             hostCurrency: host.currency,
             hostCurrencyFxRate: hostCurrencyFxRate,
+            OrderId: order.id,
             // No fees
             platformFeeInHostCurrency: 0,
             hostFeeInHostCurrency: 0,
