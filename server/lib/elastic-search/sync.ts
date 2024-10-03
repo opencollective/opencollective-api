@@ -9,14 +9,17 @@ import { ElasticSearchModelsAdapters } from './adapters';
 import { getElasticSearchClient } from './client';
 import { ElasticSearchIndexName } from './constants';
 
-export async function createElasticSearchIndices() {
+export async function createElasticSearchIndex(indexName: ElasticSearchIndexName) {
   const client = getElasticSearchClient({ throwIfUnavailable: true });
-  for (const adapter of Object.values(ElasticSearchModelsAdapters)) {
-    await client.indices.create({
-      index: adapter.index,
-      body: { mappings: adapter['mappings'], settings: adapter['settings'] },
-    });
+  const adapter = ElasticSearchModelsAdapters[indexName];
+  if (!adapter) {
+    throw new Error(`No ElasticSearch adapter found for index ${indexName}`);
   }
+
+  return client.indices.create({
+    index: adapter.index,
+    body: { mappings: adapter['mappings'], settings: adapter['settings'] },
+  });
 }
 
 async function removeDeletedEntries(indexName: ElasticSearchIndexName, fromDate: Date) {
@@ -89,24 +92,18 @@ export async function syncElasticSearchIndex(
 }
 
 /**
- * Sync all the rows of a model with elastic search.
- *
- * @param options.fromDate Only sync rows updated/deleted after this date
+ * Deletes a single index from Elastic search.
  */
-export const syncElasticSearchIndexes = async (options: { fromDate?: Date; log?: boolean } = {}) => {
-  for (const indexName of Object.keys(ElasticSearchModelsAdapters)) {
-    await syncElasticSearchIndex(indexName as ElasticSearchIndexName, options);
-  }
-};
-
-/**
- * Deletes all indexes currently on Elastic search, resulting in a clean new state.
- * Use carefully!
- */
-export const deleteElasticSearchIndices = async () => {
+export const deleteElasticSearchIndex = async (indexName: ElasticSearchIndexName, { throwIfMissing = true } = {}) => {
   const client = getElasticSearchClient({ throwIfUnavailable: true });
   const indices = await client.cat.indices({ format: 'json' });
-  for (const index of indices) {
-    await client.indices.delete({ index: index.index });
+  if (!indices.find(index => index.index === indexName)) {
+    if (throwIfMissing) {
+      throw new Error(`Index ${indexName} not found`);
+    } else {
+      return;
+    }
   }
+
+  await client.indices.delete({ index: indexName });
 };
