@@ -1,7 +1,7 @@
 import '../server/env';
 
 import { Command } from 'commander';
-import { uniq } from 'lodash';
+import { partition, uniq } from 'lodash';
 
 import { getElasticSearchClient } from '../server/lib/elastic-search/client';
 import { ElasticSearchIndexName } from '../server/lib/elastic-search/constants';
@@ -9,6 +9,7 @@ import { elasticSearchGlobalSearch } from '../server/lib/elastic-search/search';
 import {
   createElasticSearchIndex,
   deleteElasticSearchIndex,
+  getAvailableElasticSearchIndexes,
   syncElasticSearchIndex,
 } from '../server/lib/elastic-search/sync';
 import logger from '../server/lib/logger';
@@ -59,10 +60,26 @@ program
       logger.info('Dropping all indices...');
       for (const indexName of indexes) {
         logger.info(`Dropping index ${indexName}`);
-        await deleteElasticSearchIndex(indexName, { throwIfMissing: false });
+        await deleteElasticSearchIndex(indexName);
       }
       logger.info('Drop completed!');
     }
+  });
+
+// Command to create indices
+program
+  .command('create')
+  .description('Creates indices')
+  .argument('[indexes...]', 'Create indices (must not exist)')
+  .action(async indexesInput => {
+    checkElasticSearchAvailable();
+    const indexes = parseIndexesFromInput(indexesInput);
+    logger.info('Creating all indices...');
+    for (const indexName of indexes) {
+      logger.info(`Creating index ${indexName}`);
+      await createElasticSearchIndex(indexName);
+    }
+    logger.info('Create completed!');
   });
 
 // Re-index command
@@ -122,11 +139,17 @@ program
     checkElasticSearchAvailable();
     const indexes = parseIndexesFromInput(indexesInput);
     const client = getElasticSearchClient();
-    const result = await client.indices.stats({ index: indexes.join(',') });
+    const availableIndexes = await getAvailableElasticSearchIndexes();
+    const [availableIndexesToQuery, unknownIndexes] = partition(indexes, index => availableIndexes.includes(index));
+    if (unknownIndexes.length) {
+      logger.warn(`Unknown indexes: ${unknownIndexes.join(', ')}`);
+    }
 
+    const result = await client.indices.stats({ index: availableIndexesToQuery.join(',') });
     let nbDocs = 0;
     let totalSize = 0;
     const formatSize = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+
     Object.entries(result.indices).forEach(([index, values]) => {
       console.log(`- Index: ${index}`);
       console.log(`  - Docs: ${values.primaries.docs.count}`);

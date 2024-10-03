@@ -91,19 +91,23 @@ export async function syncElasticSearchIndex(
   } while (modelEntries.length === limit);
 }
 
+export const getAvailableElasticSearchIndexes = async (): Promise<string[]> => {
+  const client = getElasticSearchClient({ throwIfUnavailable: true });
+  const indices = await client.cat.indices({ format: 'json' });
+  return indices.map(index => index.index);
+};
+
 /**
  * Deletes a single index from Elastic search.
  */
 export const deleteElasticSearchIndex = async (indexName: ElasticSearchIndexName, { throwIfMissing = true } = {}) => {
-  const client = getElasticSearchClient({ throwIfUnavailable: true });
-  const indices = await client.cat.indices({ format: 'json' });
-  if (!indices.find(index => index.index === indexName)) {
-    if (throwIfMissing) {
-      throw new Error(`Index ${indexName} not found`);
-    } else {
+  if (!throwIfMissing) {
+    const indices = await getAvailableElasticSearchIndexes();
+    if (!indices.find(index => index === indexName)) {
       return;
     }
   }
 
+  const client = getElasticSearchClient({ throwIfUnavailable: true });
   await client.indices.delete({ index: indexName });
 };
