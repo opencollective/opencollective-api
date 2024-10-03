@@ -59,6 +59,12 @@
     "slowRequest": "SLOW_REQUEST",
     "slowRequestThreshold": "SLOW_REQUEST_THRESHOLD"
   },
+  "plaid": {
+    "clientId": "PLAID_CLIENT_ID",
+    "secret": "PLAID_SECRET",
+    "publicKey": "PLAID_PUBLIC_KEY",
+    "env": "PLAID_ENV"
+  },
   "stripe": {
     "secret": "STRIPE_SECRET",
     "key": "STRIPE_KEY",

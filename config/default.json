@@ -247,6 +247,9 @@
   "opentelemetry": {
     "enabled": false
   },
+  "plaid": {
+    "env": "sandbox"
+  },
   "statsd": {
     "enabled": false,
     "url": "localhost",
