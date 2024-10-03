@@ -7,10 +7,9 @@ import { getElasticSearchClient } from '../server/lib/elastic-search/client';
 import { ElasticSearchIndexName } from '../server/lib/elastic-search/constants';
 import { elasticSearchGlobalSearch } from '../server/lib/elastic-search/search';
 import {
-  createElasticSearchIndices,
-  deleteElasticSearchIndices,
+  createElasticSearchIndex,
+  deleteElasticSearchIndex,
   syncElasticSearchIndex,
-  syncElasticSearchIndexes,
 } from '../server/lib/elastic-search/sync';
 import logger from '../server/lib/logger';
 import models from '../server/models';
@@ -44,24 +43,50 @@ const parseIndexesFromInput = (
   return uniqIndexes;
 };
 
+// Command to drop everything
+program
+  .command('drop')
+  .description('Drops indices')
+  .argument('[indexes...]', 'Only drop specific indexes')
+  .action(async indexesInput => {
+    checkElasticSearchAvailable();
+    const indexes = parseIndexesFromInput(indexesInput);
+    if (
+      await confirm(
+        'WARNING: This will delete all existing data in the indices, which is expensive. You should make sure that background synchronization job is disabled. Are you sure you want to continue?',
+      )
+    ) {
+      logger.info('Dropping all indices...');
+      for (const indexName of indexes) {
+        logger.info(`Dropping index ${indexName}`);
+        await deleteElasticSearchIndex(indexName, { throwIfMissing: false });
+      }
+      logger.info('Drop completed!');
+    }
+  });
+
 // Re-index command
 program
   .command('reset')
   .description('Drops all indices, re-create and re-index everything')
-  .action(async () => {
+  .argument('[indexes...]', 'Only sync specific indexes')
+  .action(async indexesInput => {
     checkElasticSearchAvailable();
+    const indexes = parseIndexesFromInput(indexesInput);
     if (
       await confirm(
         'WARNING: This will delete all existing data in the indices and recreated everything, which is expensive. You should make sure that background synchronization job is disabled. Are you sure you want to continue?',
       )
     ) {
-      logger.info('Deleting all indices...');
-      await deleteElasticSearchIndices();
-      logger.info('Creating new indices...');
-      await createElasticSearchIndices();
       logger.info('Syncing all models...');
-      await syncElasticSearchIndexes({ log: true });
-      logger.info('Reindex completed!');
+      for (const indexName of indexes) {
+        logger.info(`Dropping index ${indexName}`);
+        await deleteElasticSearchIndex(indexName, { throwIfMissing: false });
+        logger.info(`Re-creating index ${indexName}`);
+        await createElasticSearchIndex(indexName);
+        await syncElasticSearchIndex(indexName, { log: true });
+      }
+      logger.info('Re-index completed!');
     }
   });
 
