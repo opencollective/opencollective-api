@@ -1,10 +1,10 @@
 {
   "env": "development",
-  "mailpit": {
-    "client": true
-  },
   "elasticSearch": {
     "url": "http://localhost:9200"
+  },
+  "mailpit": {
+    "client": true
   },
   "limits": {
     "ordersPerHour": {

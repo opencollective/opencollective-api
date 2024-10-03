@@ -1,14 +1,4 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["local>opencollective/renovate-config"],
-  "customManagers": [
-    {
-      "customType": "regex",
-      "fileMatch": ["^scripts/dev/run-mailpit\\.sh$"],
-      "matchStrings": ["VERSION=v(?<currentValue>.*?)\\s"],
-      "depNameTemplate": "axllent/mailpit",
-      "datasourceTemplate": "github-releases",
-      "versioningTemplate": "semver"
-    }
-  ]
+  "extends": ["local>opencollective/renovate-config"]
 }
