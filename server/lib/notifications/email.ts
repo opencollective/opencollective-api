@@ -12,6 +12,7 @@ import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
 import models, { Activity, Collective } from '../../models';
 import { CommentType } from '../../models/Comment';
+import { ExpenseStatus } from '../../models/Expense';
 import { UpdateChannel } from '../../models/Update';
 import User from '../../models/User';
 import emailLib from '../email';
@@ -322,8 +323,7 @@ export const notifyByEmail = async (activity: Activity) => {
 
       // Never notify for certain updates (changelog, coming from OC Inc, etc)
       const update = await models.Update.findByPk(activity.data.update.id);
-      const shouldNotify = await update?.shouldNotify();
-      if (!shouldNotify) {
+      if (!update?.shouldNotify()) {
         return;
       }
 
@@ -454,6 +454,24 @@ export const notifyByEmail = async (activity: Activity) => {
       if (activity.data.notifyCollective) {
         await notify.collective(activity);
       }
+
+      if (activity.data.expense.status === ExpenseStatus.DRAFT) {
+        const expenseUpdatedTemplateForInvitee = 'collective.expense.draft.updated.to.invitee';
+        if (activity.data.payee?.email) {
+          await emailLib.send(expenseUpdatedTemplateForInvitee, activity.data.payee.email, activity.data);
+        } else if (activity.data.payee?.id) {
+          await notify.collective(activity, {
+            collectiveId: activity.data.payee.id,
+            template: expenseUpdatedTemplateForInvitee,
+          });
+        } else if (activity.data.payee?.slug) {
+          const collective = await models.Collective.findBySlug(activity.data.payee.slug);
+          await notify.collective(activity, { collective, template: expenseUpdatedTemplateForInvitee });
+        }
+      }
+      break;
+
+    case ActivityTypes.COLLECTIVE_EXPENSE_INVITE_DECLINED:
       break;
 
     case ActivityTypes.COLLECTIVE_EXPENSE_REJECTED:

@@ -1,6 +1,6 @@
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 
-import { searchCollectivesInDB } from '../../../../lib/search';
+import { searchCollectivesInDB } from '../../../../lib/sql-search';
 import { GraphQLAccountCollection } from '../../collection/AccountCollection';
 import { AccountTypeToModelMapping, GraphQLAccountType, GraphQLCountryISO } from '../../enum';
 import { GraphQLTagSearchOperator } from '../../enum/TagSearchOperator';

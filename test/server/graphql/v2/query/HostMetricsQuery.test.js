@@ -2,8 +2,9 @@ import { expect } from 'chai';
 import gql from 'fake-tag';
 import { useFakeTimers } from 'sinon';
 
+import PlatformConstants from '../../../../../server/constants/platform';
 import { processOrder } from '../../../../../server/lib/payments';
-import { fakeCollective, fakeHost, fakeOrder, fakeUser } from '../../../../test-helpers/fake-data';
+import { fakeCollective, fakeHost, fakeOrder, fakeUser, randStr } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
 describe('server/graphql/v2/query/HostMetricsQuery', () => {
@@ -47,9 +48,9 @@ describe('server/graphql/v2/query/HostMetricsQuery', () => {
 
   before(async () => {
     await fakeCollective({
-      id: 8686,
-      slug: 'open-collective',
-      HostCollectiveId: 8686,
+      id: PlatformConstants.PlatformCollectiveId,
+      slug: randStr('platform-'),
+      HostCollectiveId: PlatformConstants.PlatformCollectiveId,
     });
     collectiveAdminUser = await fakeUser();
     hostAdminUser = await fakeUser();

@@ -57,7 +57,7 @@ import expenseTypes from '../constants/expense-type';
 import FEATURE from '../constants/feature';
 import OrderStatuses from '../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
-import plans from '../constants/plans';
+import plans, { HostPlan } from '../constants/plans';
 import POLICIES, { Policies } from '../constants/policies';
 import roles, { MemberRoleLabels } from '../constants/roles';
 import { hasOptedOutOfFeature, isFeatureAllowedForCollectiveType } from '../lib/allowed-features';
@@ -187,6 +187,8 @@ type Data = Partial<{
   platformTips: boolean;
   isGuest: boolean;
   spamReport: SpamAnalysisReport;
+  canHaveChangelogUpdates: boolean;
+  plan: HostPlan;
   vendorInfo: Partial<{
     contact: Partial<{
       name: string;
@@ -1113,7 +1115,7 @@ class Collective extends Model<
   freeze = async function (
     messageForCollectiveAdmins: string,
     pauseExistingRecurringContributions: boolean,
-    messageForContributors: string,
+    messageForContributors: string = undefined,
     user: User = null,
   ) {
     if (this.isFrozen()) {
@@ -1447,7 +1449,7 @@ class Collective extends Model<
     });
   };
 
-  getChildren = function (query: FindOptions<InferAttributes<Collective>> = {}) {
+  getChildren = function (query: FindOptions<InferAttributes<Collective>> = {}): Promise<Collective[]> {
     return Collective.findAll({
       order: [
         ['createdAt', 'DESC'],
@@ -1982,10 +1984,15 @@ class Collective extends Model<
    *
    * It's expected that child Collectives like EVENTS are returned
    */
-  getHostedCollectives = async function (queryParams = {}) {
+  getHostedCollectives = async function (
+    queryParams: Parameters<typeof Collective.findAll>[0] & {
+      where?: Omit<Parameters<typeof Collective.findAll>[0]['where'], 'HostCollectiveId' | 'isActive'>;
+    } = {},
+  ) {
+    const conditions = { isActive: true, HostCollectiveId: this.id, approvedAt: { [Op.not]: null } };
     return Collective.findAll({
       ...queryParams,
-      where: { isActive: true, HostCollectiveId: this.id, approvedAt: { [Op.not]: null } },
+      where: queryParams.where ? { [Op.and]: [queryParams.where, conditions] } : conditions,
     });
   };
 

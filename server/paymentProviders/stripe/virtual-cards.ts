@@ -6,6 +6,7 @@ import { activities } from '../../constants';
 import { SupportedCurrency } from '../../constants/currencies';
 import ExpenseStatus from '../../constants/expense-status';
 import ExpenseType from '../../constants/expense-type';
+import PlatformConstants from '../../constants/platform';
 import VirtualCardProviders from '../../constants/virtual-card-providers';
 import { VirtualCardLimitIntervals } from '../../constants/virtual-cards';
 import { isSupportedCurrency } from '../../lib/currency';
@@ -18,6 +19,9 @@ import { getOrCreateVendor, getVirtualCardForTransaction, persistVirtualCardTran
 
 export const assignCardToCollective = async (cardNumber, expiryDate, cvv, name, collectiveId, host, userId) => {
   const stripe = await getStripeClient(host);
+  if (!stripe) {
+    throw new Error('Stripe not connected for Host');
+  }
 
   const list = await stripe.issuing.cards.list({ last4: cardNumber.slice(-4) });
   const cards = list.data;
@@ -63,6 +67,9 @@ export const createVirtualCard = async (
   virtualCardRequestId = null,
 ) => {
   const stripe = await getStripeClient(host);
+  if (!stripe) {
+    throw new Error('Stripe not connected for Host');
+  }
 
   const cardholders = await stripe.issuing.cardholders.list({ type: 'company', status: 'active' });
 
@@ -104,6 +111,9 @@ export const updateVirtualCardLimit = async (
 ) => {
   const host = virtualCard.host;
   const stripe = await getStripeClient(host);
+  if (!stripe) {
+    throw new Error('Stripe not connected for Host');
+  }
 
   return stripe.issuing.cards.update(virtualCard.id, {
     // eslint-disable-next-line camelcase
@@ -124,6 +134,9 @@ export const updateVirtualCardLimit = async (
 const setCardStatus = async (virtualCard: VirtualCard, status: Stripe.Issuing.CardUpdateParams.Status) => {
   const host = await virtualCard.getHost();
   const stripe = await getStripeClient(host);
+  if (!stripe) {
+    throw new Error('Stripe not connected for Host');
+  }
 
   const response = await stripe.issuing.cards.update(virtualCard.id, {
     status,
@@ -172,6 +185,9 @@ export const processAuthorization = async (event: Stripe.Event) => {
   const collective = virtualCard.collective;
   const balance = await collective.getBalanceAmount({ currency, withBlockedFunds: true });
   const stripe = await getStripeClient(host);
+  if (!stripe) {
+    throw new Error('Stripe not connected for Host');
+  }
 
   if (balance.value >= amount) {
     await stripe.issuing.authorizations.approve(stripeAuthorization.id);
@@ -374,7 +390,7 @@ export const processCardUpdate = async (event: Stripe.Event) => {
 };
 
 export const getStripeClient = async host => {
-  if (host.slug === 'opencollective') {
+  if (host.id === PlatformConstants.PlatformCollectiveId) {
     return stripe;
   }
 

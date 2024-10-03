@@ -602,3 +602,16 @@ export const omitDeep = (obj, keys) =>
     (acc, next) => ({ ...acc, [next]: isObject(obj[next]) ? omitDeep(obj[next], keys) : obj[next] }),
     {},
   );
+
+/**
+ *
+ * @param {Promise} promise
+ * @param {number} timeout
+ * @returns
+ */
+export const runPromiseOrTimeout = async (promise, timeout, errorMessage = 'Promise timed out') => {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(errorMessage)), timeout)),
+  ]);
+};

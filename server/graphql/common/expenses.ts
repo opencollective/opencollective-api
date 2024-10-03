@@ -37,6 +37,7 @@ import { SupportedCurrency } from '../../constants/currencies';
 import { ExpenseFeesPayer } from '../../constants/expense-fees-payer';
 import { ExpenseRoles } from '../../constants/expense-roles';
 import statuses from '../../constants/expense-status';
+import ExpenseStatuses from '../../constants/expense-status';
 import EXPENSE_TYPE from '../../constants/expense-type';
 import FEATURE from '../../constants/feature';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
@@ -128,6 +129,12 @@ const isDraftPayee = async (req: express.Request, expense: Expense): Promise<boo
     return false;
   }
 };
+
+const hasCorrectDraftKey =
+  (draftKey?: string) =>
+  async (req: express.Request, expense: Expense): Promise<boolean> => {
+    return draftKey === expense.data.draftKey;
+  };
 
 const isHostAccountant = async (req: express.Request, expense: Expense): Promise<boolean> => {
   if (!req.remoteUser) {
@@ -454,7 +461,7 @@ export const canEditExpense: ExpensePermissionEvaluator = async (
     return false;
   }
 
-  const nonEditableStatuses = ['PAID', 'PROCESSING', 'SCHEDULED_FOR_PAYMENT', 'CANCELED'];
+  const nonEditableStatuses = ['PAID', 'PROCESSING', 'SCHEDULED_FOR_PAYMENT', 'CANCELED', 'INVITE_DECLINED'];
 
   // Host and expense owner can attach receipts to paid charge expenses
   if (expense.type === EXPENSE_TYPE.CHARGE && ['PAID', 'PROCESSING'].includes(expense.status)) {
@@ -513,8 +520,8 @@ export const canDeleteExpense: ExpensePermissionEvaluator = async (
   if (!validateExpenseScope(req, options)) {
     return false;
   } else if (
-    ['DRAFT', 'PENDING'].includes(expense.status) &&
-    (await remoteUserMeetsOneCondition(req, expense, [isOwner, isDraftPayee], options))
+    ['DRAFT', 'PENDING', 'INVITE_DECLINED'].includes(expense.status) &&
+    (await remoteUserMeetsOneCondition(req, expense, [isOwner], options))
   ) {
     return true;
   } else if (!['REJECTED', 'SPAM', 'DRAFT', 'CANCELED'].includes(expense.status)) {
@@ -658,6 +665,37 @@ export const canReject: ExpensePermissionEvaluator = async (
 };
 
 /**
+ * Creates an evaluator for an optional draftKey input that returns true if expense invite can be declined by this request
+ */
+export const buildCanDeclineExpenseInviteEvaluator: (draftKey?: string) => ExpensePermissionEvaluator =
+  draftKey =>
+  async (req: express.Request, expense: Expense, options = { throw: false }) => {
+    if (req.remoteUser && !validateExpenseScope(req, options)) {
+      return false;
+    } else if ('DRAFT' !== expense.status) {
+      if (options?.throw) {
+        throw new Forbidden(
+          'Can not decline expense invite in current status',
+          EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+        );
+      }
+      return false;
+    } else if (req.remoteUser && !canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+      if (options?.throw) {
+        throw new Forbidden(
+          'User cannot decline expenses invites',
+          EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE,
+        );
+      }
+      return false;
+    } else if (req.remoteUser) {
+      return isDraftPayee(req, expense);
+    } else {
+      return hasCorrectDraftKey(draftKey)(req, expense);
+    }
+  };
+
+/**
  * Returns true if expense can be rejected by user
  */
 export const canMarkAsSpam: ExpensePermissionEvaluator = async (
@@ -695,7 +733,11 @@ export const canUnapprove: ExpensePermissionEvaluator = async (
 ) => {
   if (!validateExpenseScope(req, options)) {
     return false;
-  } else if (!['APPROVED', 'ERROR'].includes(expense.status)) {
+  } else if (
+    ![ExpenseStatuses.INCOMPLETE, ExpenseStatuses.APPROVED, ExpenseStatuses.ERROR].includes(
+      expense.status as ExpenseStatuses,
+    )
+  ) {
     if (options?.throw) {
       throw new Forbidden(
         'Can not unapprove expense in current status',
@@ -708,6 +750,8 @@ export const canUnapprove: ExpensePermissionEvaluator = async (
       throw new Forbidden('User cannot unapprove expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
     }
     return false;
+  } else if (expense.status === ExpenseStatuses.INCOMPLETE) {
+    return remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options);
   } else {
     return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin], options);
   }
@@ -995,6 +1039,30 @@ export const rejectExpense = async (req: express.Request, expense: Expense): Pro
 
   const updatedExpense = await expense.update({ status: 'REJECTED', lastEditedById: req.remoteUser.id });
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_REJECTED, req.remoteUser);
+  return updatedExpense;
+};
+
+export const declineInvitedExpense = async (
+  req: express.Request,
+  expense: Expense,
+  draftKey?: string,
+  message?: string,
+): Promise<Expense> => {
+  if (expense.status === 'INVITE_DECLINED') {
+    return expense;
+  }
+
+  if (!(await buildCanDeclineExpenseInviteEvaluator(draftKey)(req, expense))) {
+    throw new Forbidden();
+  }
+
+  const updatedExpense = await expense.update({ status: 'INVITE_DECLINED', lastEditedById: req.remoteUser?.id });
+  await expense.createActivity(
+    activities.COLLECTIVE_EXPENSE_INVITE_DECLINED,
+    req.remoteUser,
+    message ? { message } : null,
+  );
+
   return updatedExpense;
 };
 
@@ -3159,7 +3227,12 @@ export async function quoteExpense(expense_, { req }) {
     const connectedAccount = await host.getAccountForPaymentProvider(Service.TRANSFERWISE);
 
     const recipientId =
-      get(expense.data, 'recipient.payoutMethodId') === payoutMethod.id ? expense.data.recipient?.id : undefined;
+      // Check if the recipient is the same as the one in the expense
+      get(expense.data, 'recipient.payoutMethodId') === payoutMethod.id &&
+      // Ignore recipient for BRL and NPR to avoid the missing Transfer Nature error
+      !['BRL', 'NPR'].includes((payoutMethod.data as BankAccountPayoutMethodData)?.currency)
+        ? expense.data.recipient?.id
+        : undefined;
 
     const quote = await paymentProviders.transferwise.quoteExpense(
       connectedAccount,

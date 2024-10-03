@@ -7,6 +7,7 @@ import isURL from 'validator/lib/isURL';
 import activities from '../constants/activities';
 import { CollectiveType } from '../constants/collectives';
 import { MODERATION_CATEGORIES } from '../constants/moderation-categories';
+import PlatformConstants from '../constants/platform';
 import { VAT_OPTIONS } from '../constants/vat';
 import models, { Collective, Member, Op, sequelize } from '../models';
 import Expense from '../models/Expense';
@@ -491,10 +492,10 @@ export async function deleteCollective(collective) {
 
 /**
  * Default host, set this for new collectives created through our flow
- *
- * @param {"opensource" | "foundation" | "europe" | "opencollective" | null} category of the collective
  */
-export const defaultHostCollective = async (category): Promise<Collective | null> => {
+export const defaultHostCollective = async (
+  category: 'opensource' | 'foundation' | 'europe' | 'opencollective',
+): Promise<Collective | null> => {
   if (config.env === 'production' || config.env === 'staging') {
     if (category === 'opensource') {
       return Collective.findBySlug('opensource', {}, false);
@@ -528,5 +529,8 @@ export const defaultHostCollective = async (category): Promise<Collective | null
 export const getInternalHostsIds = async (): Promise<number[]> => {
   const hostNames = ['opencollective', 'opensource', 'foundation', 'europe'];
   const hostCollectives = await Promise.all(hostNames.map(defaultHostCollective));
-  return hostCollectives.map(result => result?.id).filter(Boolean) as number[];
+  return [
+    ...PlatformConstants.AllPlatformCollectiveIds,
+    ...hostCollectives.map(result => result?.id).filter(Boolean),
+  ] as number[];
 };

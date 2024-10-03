@@ -31,6 +31,7 @@ enum ExpenseStatuses {
   SCHEDULED_FOR_PAYMENT = 'SCHEDULED_FOR_PAYMENT',
   SPAM = 'SPAM',
   CANCELED = 'CANCELED',
+  INVITE_DECLINED = 'INVITE_DECLINED',
 }
 
 export default ExpenseStatuses;

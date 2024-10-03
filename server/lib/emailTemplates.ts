@@ -42,6 +42,7 @@ export const templateNames = [
   'collective.expense.rejected',
   'collective.expense.incomplete',
   'collective.expense.updated',
+  'collective.expense.draft.updated.to.invitee',
   'collective.expense.reApprovalRequested',
   'collective.member.created',
   'collective.monthlyreport',

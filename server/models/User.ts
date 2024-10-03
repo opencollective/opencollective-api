@@ -12,6 +12,7 @@ import { CollectiveType } from '../constants/collectives';
 import { Service } from '../constants/connected-account';
 import FEATURE from '../constants/feature';
 import OrderStatuses from '../constants/order-status';
+import PlatformConstants from '../constants/platform';
 import MemberRoles from '../constants/roles';
 import * as auth from '../lib/auth';
 import emailLib from '../lib/email';
@@ -249,6 +250,18 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     }
   };
 
+  getAdministratedCollectiveIds = function (): Array<number> {
+    if (!this.rolesByCollectiveId) {
+      logger.info("User.rolesByCollectiveId hasn't been populated.");
+      logger.debug(new Error().stack);
+      return [];
+    } else {
+      return Object.keys(this.rolesByCollectiveId)
+        .filter(CollectiveId => this.rolesByCollectiveId[CollectiveId].includes(MemberRoles.ADMIN))
+        .map(Number);
+    }
+  };
+
   // Adding some sugars
   isAdmin = function (CollectiveId) {
     const result =
@@ -283,12 +296,20 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     }
   };
 
-  isAdminOfOpenCollectiveInc = function (): boolean {
-    return this.hasRole([MemberRoles.ADMIN], 1) || this.hasRole([MemberRoles.ADMIN], 8686);
+  isAdminOfPlatform = function (): boolean {
+    if (config.env === 'production') {
+      return this.hasRole([MemberRoles.ADMIN], PlatformConstants.PlatformCollectiveId);
+    } else {
+      // In other envs (especially tests), we may still rely on the legacy OC Inc account set with ID 1
+      return (
+        this.hasRole([MemberRoles.ADMIN], 1) ||
+        this.hasRole([MemberRoles.ADMIN], PlatformConstants.PlatformCollectiveId)
+      );
+    }
   };
 
   isRoot = function (): boolean {
-    return Boolean(this.isAdminOfOpenCollectiveInc() && this.data?.isRoot);
+    return Boolean(this.isAdminOfPlatform() && this.data?.isRoot);
   };
 
   isMember = function (CollectiveId) {

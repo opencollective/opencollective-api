@@ -7,6 +7,7 @@ import { createSandbox } from 'sinon';
 import { expenseStatus, roles } from '../../../server/constants';
 import FEATURE from '../../../server/constants/feature';
 import plans from '../../../server/constants/plans';
+import PlatformConstants from '../../../server/constants/platform';
 import POLICIES from '../../../server/constants/policies';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
 import { getFxRate } from '../../../server/lib/currency';
@@ -1352,7 +1353,11 @@ describe('server/models/Collective', () => {
     before(async () => {
       await utils.resetTestDB();
       const user = await fakeUser({ id: 30 }, { id: 20, slug: 'pia' });
-      const opencollective = await fakeHost({ id: 8686, slug: 'opencollective', CreatedByUserId: user.id });
+      const opencollective = await fakeHost({
+        id: PlatformConstants.PlatformCollectiveId,
+        slug: randStr('platform-'),
+        CreatedByUserId: user.id,
+      });
       // Move Collectives ID auto increment pointer up, so we don't collide with the manually created id:1
       await sequelize.query(`ALTER SEQUENCE "Groups_id_seq" RESTART WITH 1453`);
       await fakePayoutMethod({

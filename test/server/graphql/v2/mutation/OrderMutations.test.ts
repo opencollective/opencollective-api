@@ -8,6 +8,7 @@ import { createSandbox, useFakeTimers } from 'sinon';
 import { roles } from '../../../../../server/constants';
 import OrderStatuses from '../../../../../server/constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../server/constants/paymentMethods';
+import PlatformConstants from '../../../../../server/constants/platform';
 import MemberRoles from '../../../../../server/constants/roles';
 import { TransactionTypes } from '../../../../../server/constants/transactions';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
@@ -377,7 +378,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         });
 
         // Add OC Inc (for platform tips)
-        await fakeOrganization({ id: 8686, slug: 'opencollective' });
+        await fakeOrganization({ id: PlatformConstants.PlatformCollectiveId, slug: randStr('platform-') });
 
         // Some default params to create a valid order
         validOrderParams = {
@@ -2012,7 +2013,10 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
     beforeEach(async () => {
       await resetTestDB();
-      const rootOrg = await fakeOrganization({ id: 8686, slug: 'opencollective' });
+      const rootOrg = await fakeOrganization({
+        id: PlatformConstants.PlatformCollectiveId,
+        slug: randStr('platform-'),
+      });
       rootUser = await fakeUser({ data: { isRoot: true } }, { name: 'Root user' }, { enable2FA: true });
       await rootOrg.addUserWithRole(rootUser, 'ADMIN');
     });
@@ -2422,7 +2426,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
     before(async () => {
       await resetTestDB();
-      await fakeHost({ id: 8686, slug: 'opencollective' });
+      await fakeHost({ id: PlatformConstants.PlatformCollectiveId, slug: randStr('platform-') });
       adminUser = await fakeUser();
       user = await fakeUser();
       randomUser = await fakeUser();

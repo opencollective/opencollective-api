@@ -3,6 +3,9 @@
   "mailpit": {
     "client": true
   },
+  "elasticSearch": {
+    "url": "http://localhost:9200"
+  },
   "limits": {
     "ordersPerHour": {
       "perAccount": 100,

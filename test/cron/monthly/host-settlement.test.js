@@ -3,6 +3,7 @@ import moment from 'moment';
 import sinon, { useFakeTimers } from 'sinon';
 
 import { run as invoicePlatformFees } from '../../../cron/monthly/host-settlement';
+import PlatformConstants from '../../../server/constants/platform';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
 import { createRefundTransaction } from '../../../server/lib/payments';
 import { getTaxesSummary } from '../../../server/lib/transactions';
@@ -17,6 +18,7 @@ import {
   fakeTransaction,
   fakeUser,
   fakeUUID,
+  randStr,
 } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
@@ -28,7 +30,11 @@ describe('cron/monthly/host-settlement', () => {
   before(async () => {
     await utils.resetTestDB();
     const user = await fakeUser({ id: 30 }, { id: 20, slug: 'pia' });
-    const oc = await fakeHost({ id: 8686, slug: 'opencollective', CreatedByUserId: user.id });
+    const oc = await fakeHost({
+      id: PlatformConstants.PlatformCollectiveId,
+      slug: randStr('platform-'),
+      CreatedByUserId: user.id,
+    });
 
     // Move Collectives ID auto increment pointer up, so we don't collide with the manually created id:1
     await sequelize.query(`ALTER SEQUENCE "Groups_id_seq" RESTART WITH 1453`);

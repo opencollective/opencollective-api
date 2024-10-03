@@ -4,6 +4,9 @@
   "mailpit": {
     "client": "MAILPIT_CLIENT"
   },
+  "elasticSearch": {
+    "url": "ELASTICSEARCH_URL"
+  },
   "database": {
     "url": "PG_URL",
     "override": {

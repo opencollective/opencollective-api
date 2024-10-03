@@ -26,8 +26,8 @@ import { TransactionTypes } from '../../../constants/transactions';
 import { FEATURE, hasFeature } from '../../../lib/allowed-features';
 import { getPolicy } from '../../../lib/policies';
 import SQLQueries from '../../../lib/queries';
-import { buildSearchConditions } from '../../../lib/search';
 import sequelize from '../../../lib/sequelize';
+import { buildSearchConditions } from '../../../lib/sql-search';
 import { getHostReportNodesFromQueryResult } from '../../../lib/transaction-reports';
 import { ifStr, parseToBoolean } from '../../../lib/utils';
 import models, { Collective, Op } from '../../../models';
@@ -696,7 +696,7 @@ export const GraphQLHost = new GraphQLObjectType({
             if (CollectiveIds.length) {
               conditions.push(
                 sequelize.literal(
-                  `(SELECT "FromCollectiveId" FROM "Comments" WHERE "Comments"."HostApplicationId" = "HostApplication"."id" ORDER BY "id" DESC LIMIT 1)
+                  `(SELECT "FromCollectiveId" FROM "Comments" WHERE "Comments"."HostApplicationId" = "HostApplication"."id" ORDER BY "Comments"."createdAt" DESC LIMIT 1)
                     IN (
                       SELECT "MemberCollectiveId" FROM "Members" WHERE
                       "role" = 'ADMIN' AND "deletedAt" IS NULL AND

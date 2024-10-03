@@ -14,11 +14,8 @@ import Stripe from 'stripe';
 
 import { run as runSettlementScript } from '../../cron/monthly/host-settlement';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../server/constants/paymentMethods';
+import PlatformConstants from '../../server/constants/platform';
 import { TransactionKind } from '../../server/constants/transaction-kind';
-import {
-  PLATFORM_TIP_TRANSACTION_PROPERTIES,
-  SETTLEMENT_EXPENSE_PROPERTIES,
-} from '../../server/constants/transactions';
 import { markExpenseAsUnpaid, payExpense } from '../../server/graphql/common/expenses';
 import { createRefundTransaction, executeOrder, findPaymentMethodProvider } from '../../server/lib/payments';
 import models from '../../server/models';
@@ -92,7 +89,7 @@ const setupTestData = async (
   });
   const contributorUser = await fakeUser(undefined, { name: 'Ben' });
   const contributorCollective = await fakeCollective({ name: 'Webpack', HostCollectiveId: host.id });
-  const ocInc = await fakeHost({ name: 'OC Inc', id: PLATFORM_TIP_TRANSACTION_PROPERTIES.CollectiveId });
+  const ocInc = await fakeHost({ name: 'OC Inc', id: PlatformConstants.PlatformCollectiveId });
   await fakePayoutMethod({ type: PayoutMethodTypes.OTHER, CollectiveId: ocInc.id }); // For the settlement expense
   await fakePayoutMethod({
     type: PayoutMethodTypes.BANK_ACCOUNT,
@@ -100,7 +97,7 @@ const setupTestData = async (
     data: { currency: 'USD' },
     isSaved: true,
   }); // For the settlement expense
-  await fakeUser({ id: SETTLEMENT_EXPENSE_PROPERTIES.UserId, name: 'Pia' });
+  await fakeUser({ id: PlatformConstants.PlatformUserId, name: 'Pia' });
   let FromCollectiveId;
   if (selfContribution) {
     FromCollectiveId = collective.id;
