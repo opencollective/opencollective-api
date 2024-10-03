@@ -28,12 +28,13 @@ export const MAX_RETRIES = 6;
  * Subscriptions are considered due if their `nextChargeDate` is
  * already past.
  */
-export async function ordersWithPendingCharges({ limit, startDate } = {}) {
+export async function ordersWithPendingCharges({ limit, startDate, limitedToOrderIds = undefined } = {}) {
   return models.Order.findAndCountAll({
     where: {
       status: { [Op.not]: status.PAUSED },
       SubscriptionId: { [Op.ne]: null },
       deletedAt: null,
+      ...(limitedToOrderIds && { id: { [Op.in]: limitedToOrderIds } }),
     },
     order: [
       ['createdAt', 'ASC'],
