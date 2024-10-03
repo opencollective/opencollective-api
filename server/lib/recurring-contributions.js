@@ -35,6 +35,10 @@ export async function ordersWithPendingCharges({ limit, startDate } = {}) {
       SubscriptionId: { [Op.ne]: null },
       deletedAt: null,
     },
+    order: [
+      ['createdAt', 'ASC'],
+      ['id', 'ASC'],
+    ],
     limit: limit,
     include: [
       { model: models.User, as: 'createdByUser' },
