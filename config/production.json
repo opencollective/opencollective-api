@@ -41,7 +41,7 @@
   },
   "transferwise": {
     "apiUrl": "https://api.transferwise.com",
-    "oauthUrl": "https://transferwise.com",
+    "oauthUrl": "https://wise.com",
     "redirectUri": "https://api.opencollective.com/connected-accounts/transferwise/callback"
   },
   "pdfService": {
