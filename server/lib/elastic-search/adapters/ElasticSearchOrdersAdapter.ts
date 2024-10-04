@@ -21,6 +21,7 @@ export class ElasticSearchOrdersAdapter implements ElasticSearchModelAdapter {
       // Special fields
       HostCollectiveId: { type: 'keyword' },
       ParentCollectiveId: { type: 'keyword' },
+      paypalSubscriptionId: { type: 'keyword' },
     },
   } as const;
 
@@ -49,6 +50,11 @@ export class ElasticSearchOrdersAdapter implements ElasticSearchModelAdapter {
           required: true,
           attributes: ['HostCollectiveId', 'ParentCollectiveId'],
         },
+        {
+          model: models.Subscription,
+          required: false,
+          attributes: ['paypalSubscriptionId'],
+        },
       ],
     });
   }
@@ -65,12 +71,20 @@ export class ElasticSearchOrdersAdapter implements ElasticSearchModelAdapter {
       FromCollectiveId: instance.FromCollectiveId,
       HostCollectiveId: instance.collective.HostCollectiveId,
       ParentCollectiveId: instance.collective.ParentCollectiveId,
+      paypalSubscriptionId: instance.Subscription?.paypalSubscriptionId,
     };
   }
 
-  public getIndexPermissions(/* _adminOfAccountIds: number[]*/) {
+  public getIndexPermissions(adminOfAccountIds: number[]) {
     /* eslint-disable camelcase */
-    return { default: 'PUBLIC' as const };
+    return {
+      default: 'PUBLIC' as const,
+      fields: {
+        paypalSubscriptionId: {
+          terms: { HostCollectiveId: adminOfAccountIds },
+        },
+      },
+    };
     /* eslint-enable camelcase */
   }
 }
