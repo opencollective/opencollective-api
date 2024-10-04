@@ -6,12 +6,13 @@ import PlatformConstants from '../../constants/platform';
 import { Collective, ConnectedAccount, sequelize, TransactionsImport, User } from '../../models';
 import { reportErrorToSentry } from '../sentry';
 
-import { PlaidClient } from './client';
+import { getPlaidClient } from './client';
+import { getPlaidWebhookUrl } from './webhooks';
 
 export const generatePlaidLinkToken = async (
   remoteUser: User,
-  products: Array<Products | `${Products}`>,
-  countryCodes: Array<CountryCode | `${CountryCode}`>,
+  products: readonly (Products | `${Products}`)[],
+  countryCodes: readonly (CountryCode | `${CountryCode}`)[],
 ) => {
   const linkTokenConfig = {
     /* eslint-disable camelcase */
@@ -20,10 +21,11 @@ export const generatePlaidLinkToken = async (
     language: 'en',
     products: products as Products[],
     country_codes: countryCodes as CountryCode[],
-    // TODO: webhook: 'https://www.example.com/webhook',
+    webhook: getPlaidWebhookUrl(),
     /* eslint-enable camelcase */
   };
 
+  const PlaidClient = getPlaidClient();
   const tokenResponse = await PlaidClient.linkTokenCreate(linkTokenConfig);
   return tokenResponse.data;
 };
@@ -44,6 +46,7 @@ export const connectPlaidAccount = async (
   // Exchange Plaid public token
   let exchangeTokenResponse: ItemPublicTokenExchangeResponse;
   try {
+    const PlaidClient = getPlaidClient();
     const exchangeTokenAxiosResponse = await PlaidClient.itemPublicTokenExchange({
       /* eslint-disable camelcase */
       public_token: publicToken,
@@ -65,17 +68,6 @@ export const connectPlaidAccount = async (
 
   // Create connected account
   return sequelize.transaction(async transaction => {
-    const transactionsImport = await TransactionsImport.createWithActivity(
-      remoteUser,
-      host,
-      {
-        type: 'PLAID',
-        source: truncate(sourceName, { length: 255 }) || 'Bank',
-        name: truncate(name, { length: 255 }) || 'Bank Account',
-      },
-      { transaction },
-    );
-
     const connectedAccount = await ConnectedAccount.create(
       {
         CollectiveId: host.id,
@@ -83,9 +75,18 @@ export const connectPlaidAccount = async (
         clientId: exchangeTokenResponse['item_id'],
         token: exchangeTokenResponse['access_token'],
         CreatedByUserId: remoteUser.id,
-        data: {
-          transactionsImportId: transactionsImport.id,
-        },
+      },
+      { transaction },
+    );
+
+    const transactionsImport = await TransactionsImport.createWithActivity(
+      remoteUser,
+      host,
+      {
+        type: 'PLAID',
+        source: truncate(sourceName, { length: 255 }) || 'Bank',
+        name: truncate(name, { length: 255 }) || 'Bank Account',
+        ConnectedAccountId: connectedAccount.id,
       },
       { transaction },
     );

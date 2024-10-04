@@ -810,6 +810,8 @@ export const fakeConnectedAccount = async (
   return models.ConnectedAccount.create(
     {
       service,
+      clientId: randStr('client-id-'),
+      token: randStr('token-'),
       ...connectedAccountData,
       CollectiveId,
     },

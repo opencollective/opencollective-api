@@ -462,6 +462,8 @@ export const md5 = value => crypto.createHash('md5').update(value).digest('hex')
 
 export const sha512 = value => crypto.createHash('sha512').update(value).digest('hex');
 
+export const sha256 = value => crypto.createHash('sha256').update(value).digest('hex');
+
 /**
  * Filter `list` with `filterFunc` until `conditionFunc` returns true.
  */

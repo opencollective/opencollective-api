@@ -29,6 +29,7 @@ class TransactionsImportRow extends Model<
   public declare description: string;
   public declare date: Date;
   public declare amount: number;
+  public declare isUnique: boolean;
   public declare currency: SupportedCurrency;
   public declare rawValue: Record<string, string>;
   public declare createdAt: Date;
@@ -98,6 +99,11 @@ TransactionsImportRow.init(
       allowNull: false,
     },
     currency: CustomDataTypes(DataTypes).currency,
+    isUnique: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
     rawValue: {
       type: DataTypes.JSONB,
       allowNull: true,
