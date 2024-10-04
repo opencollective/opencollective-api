@@ -47,6 +47,7 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
     csvConfig: {
       type: GraphQLJSON,
       description: 'Configuration for the CSV import',
+      resolve: importInstance => importInstance.settings?.csvConfig,
     },
     createdAt: {
       type: new GraphQLNonNull(GraphQLDateTime),
@@ -55,6 +56,10 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
     updatedAt: {
       type: new GraphQLNonNull(GraphQLDateTime),
       description: 'When the import was last updated',
+    },
+    lastSyncAt: {
+      type: GraphQLDateTime,
+      description: 'When the import was last synced',
     },
     rows: {
       type: new GraphQLNonNull(GraphQLTransactionsImportRowCollection),
