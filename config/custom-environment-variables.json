@@ -1,12 +1,11 @@
 {
   "port": "PORT",
   "env": "OC_ENV",
+  "mailpit": {
+    "client": "MAILPIT_CLIENT"
+  },
   "elasticSearch": {
     "url": "ELASTICSEARCH_URL"
-  },
-  "maildev": {
-    "client": "MAILDEV_CLIENT",
-    "server": "MAILDEV_SERVER"
   },
   "database": {
     "url": "PG_URL",

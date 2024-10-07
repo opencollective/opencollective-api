@@ -2,7 +2,7 @@
 
 ## Receiving Emails
 
-- By default, [MailDev](https://github.com/maildev/maildev) is configured in development environment
+- Start mailpit server with: `npm run mailpit`
 - Open `http://localhost:1080` to browse outgoing emails
 
 ## Email Templates

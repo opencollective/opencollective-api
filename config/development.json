@@ -3,9 +3,8 @@
   "elasticSearch": {
     "url": "http://localhost:9200"
   },
-  "maildev": {
-    "client": true,
-    "server": true
+  "mailpit": {
+    "client": true
   },
   "limits": {
     "ordersPerHour": {
