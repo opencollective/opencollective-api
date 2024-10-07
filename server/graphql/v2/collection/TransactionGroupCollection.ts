@@ -10,7 +10,7 @@ export const GraphQLTransactionGroupCollection = new GraphQLObjectType({
   fields: () => ({
     ...CollectionFields,
     nodes: {
-      type: new GraphQLList(GraphQLTransactionGroup),
+      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLTransactionGroup))),
     },
   }),
 });
