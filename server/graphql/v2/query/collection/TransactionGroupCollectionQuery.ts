@@ -8,12 +8,12 @@ import { getFxRate } from '../../../../lib/currency';
 import { Op, sequelize } from '../../../../models';
 import Transaction from '../../../../models/Transaction';
 import { GraphQLTransactionGroupCollection } from '../../collection/TransactionGroupCollection';
+import { GraphQLTransactionKind } from '../../enum/TransactionKind';
 import { GraphQLTransactionType } from '../../enum/TransactionType';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
 
 import { getTransactionKindPriorityCase } from './TransactionsCollectionQuery';
-import { GraphQLTransactionKind } from '../../enum/TransactionKind';
 
 export const TransactionGroupCollectionArgs = {
   limit: { ...CollectionArgs.limit, defaultValue: 100 },
@@ -63,7 +63,8 @@ export const TransactionGroupCollectionResolver = async (args, req: express.Requ
     (SELECT t2."id"
     FROM "Transactions" "t2"
     WHERE "t2"."TransactionGroup" = "Transaction"."TransactionGroup"
-    AND "t2"."CollectiveId" = ${account.id}
+      AND "t2"."CollectiveId" = ${account.id}
+      AND "t2"."deletedAt" IS NULL
     ORDER BY ${getTransactionKindPriorityCase('t2')}, "t2"."id" ASC LIMIT 1)
   `;
 
@@ -71,10 +72,11 @@ export const TransactionGroupCollectionResolver = async (args, req: express.Requ
     where.push({
       [Op.and]: sequelize.literal(
         `EXISTS (
-            SELECT 1 FROM "Transactions" t3
-            WHERE t3."id" = (${primaryTransactionIdSubquery})
-              AND t3."type" = '${args.type}'
-          )`,
+          SELECT 1 FROM "Transactions" t3
+          WHERE t3."id" = (${primaryTransactionIdSubquery})
+            AND t3."type" = '${args.type}'
+            AND t3."deletedAt" IS NULL
+        )`,
       ),
     });
   }
@@ -83,10 +85,11 @@ export const TransactionGroupCollectionResolver = async (args, req: express.Requ
     where.push({
       [Op.and]: sequelize.literal(
         `EXISTS (
-            SELECT 1 FROM "Transactions" t4
-            WHERE t4."id" = (${primaryTransactionIdSubquery})
-              AND t4."kind" = '${args.kind}'
-          )`,
+          SELECT 1 FROM "Transactions" t4
+          WHERE t4."id" = (${primaryTransactionIdSubquery})
+            AND t4."kind" = '${args.kind}'
+            AND t4."deletedAt" IS NULL
+        )`,
       ),
     });
   }
