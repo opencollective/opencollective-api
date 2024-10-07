@@ -6187,7 +6187,7 @@ type TransactionGroupCollection implements Collection {
   offset: Int
   limit: Int
   totalCount: Int
-  nodes: [TransactionGroup]
+  nodes: [TransactionGroup!]!
 }
 
 """

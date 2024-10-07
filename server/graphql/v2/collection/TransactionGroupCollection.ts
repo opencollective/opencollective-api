@@ -1,4 +1,4 @@
-import { GraphQLList, GraphQLObjectType } from 'graphql';
+import { GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 
 import { CollectionFields, GraphQLCollection } from '../interface/Collection';
 import { GraphQLTransactionGroup } from '../object/TransactionGroup';
