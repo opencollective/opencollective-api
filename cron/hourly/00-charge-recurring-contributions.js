@@ -55,6 +55,7 @@ async function run(options) {
   const { count, rows: orders } = await ordersWithPendingCharges({
     limit: options.limit,
     startDate: options.startDate,
+    limitedToOrderIds: options.orderIds,
   });
   console.log(
     `${count} recurring contributions pending charges. Charging ${orders.length} contributions right now. dryRun: ${options.dryRun}`,
@@ -179,12 +180,24 @@ function parseCommandLineArguments() {
     action: 'store_const',
     const: true,
   });
+  parser.add_argument('--orders', {
+    help: 'Comma separated list of order ids to process',
+  });
   const args = parser.parse_args();
   return {
     dryRun: args.dryrun,
     limit: args.limit,
     concurrency: args.concurrency,
     simulate: args.simulate,
+    orderIds: args.orders
+      ? args.orders.split(',').map(str => {
+          const num = Number(str);
+          if (isNaN(num)) {
+            throw new Error(`Invalid order id: ${str}`);
+          }
+          return num;
+        })
+      : undefined,
   };
 }
 /* eslint-enable camelcase */
