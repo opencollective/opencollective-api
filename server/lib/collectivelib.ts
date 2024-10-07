@@ -139,6 +139,7 @@ export const COLLECTIVE_SETTINGS_KEYS_LIST = [
   'customEmailMessage',
   'expenseTypes',
   'exportedTransactionsFieldSets',
+  'exportedHostedCollectivesFieldSets',
 ];
 
 /**
