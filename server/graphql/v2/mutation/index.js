@@ -25,6 +25,7 @@ import orderMutations from './OrderMutations';
 import paymentMethodMutations from './PaymentMethodMutations';
 import payoutMethodMutations from './PayoutMethodMutations';
 import personalTokenMutations from './PersonalTokenMutations';
+import { plaidMutations } from './PlaidMutations';
 import rootMutations from './RootMutations';
 import { sendSurveyResponseMutation } from './SendSurveyResponseMutation';
 import socialLinkMutations from './SocialLinkMutations';
@@ -63,6 +64,7 @@ const mutation = {
   ...orderMutations,
   ...paymentMethodMutations,
   ...payoutMethodMutations,
+  ...plaidMutations,
   ...rootMutations,
   ...transactionMutations,
   ...transactionImportsMutations,

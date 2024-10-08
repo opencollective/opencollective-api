@@ -59,6 +59,10 @@ const getPlatformConstants = (checkIfMigrated: () => boolean) => ({
     return 'US';
   },
 
+  get PlatformName() {
+    return 'Open Collective';
+  },
+
   /** Gets all platform collective ids - old and new */
   get AllPlatformCollectiveIds() {
     return [8686, 835523];
