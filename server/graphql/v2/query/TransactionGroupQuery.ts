@@ -1,6 +1,5 @@
 import { GraphQLNonNull, GraphQLString } from 'graphql';
 
-import { getFxRate } from '../../../lib/currency';
 import { sequelize, Transaction } from '../../../models';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLTransactionGroup } from '../object/TransactionGroup';
@@ -20,7 +19,7 @@ const TransactionGroupQuery = {
       description: 'Account associated to the transaction group',
     },
   },
-  async resolve(_, args) {
+  async resolve(_, args, req) {
     if (!args.account) {
       throw new Error('You need to provide an account argument');
     }
@@ -41,7 +40,11 @@ const TransactionGroupQuery = {
     const primaryTransaction = transactions[0]; // First transaction based on the ordering using getTransactionKindPriorityCase
     const convertedAmounts = await Promise.all(
       transactions.map(async t => {
-        const fxRate = await getFxRate(t.currency, account.currency, t.createdAt);
+        const fxRate = await req.loaders.CurrencyExchangeRate.fxRate.load({
+          fromCurrency: t.currency,
+          toCurrency: account.currency,
+          date: t.createdAt,
+        });
         return Math.round(t.netAmountInCollectiveCurrency * fxRate);
       }),
     );
