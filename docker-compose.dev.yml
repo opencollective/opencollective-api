@@ -9,6 +9,11 @@ services:
       - discovery.type=single-node
       - xpack.security.enabled=false
       - cluster.routing.allocation.disk.threshold_enabled=false
+    deploy:
+      resources:
+        limits:
+          cpus: '${ELASTICSEARCH_CPU_LIMIT:-0.50}'
+          memory: '${ELASTICSEARCH_MEMORY_LIMIT:-12gb}'
   mailpit:
     image: axllent/mailpit
     profiles: [full, mail, debug, dev]
