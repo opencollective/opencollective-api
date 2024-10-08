@@ -15,7 +15,7 @@ export const GraphQLTransactionGroup = new GraphQLObjectType({
       id: {
         type: new GraphQLNonNull(GraphQLString),
       },
-      amount: {
+      totalAmount: {
         type: new GraphQLNonNull(GraphQLAmount),
       },
       host: {

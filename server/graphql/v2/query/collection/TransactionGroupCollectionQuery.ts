@@ -123,7 +123,7 @@ export const TransactionGroupCollectionResolver = async (args, req: express.Requ
 
       return {
         id: group.TransactionGroup,
-        amount: {
+        totalAmount: {
           value: amountInAccountCurrency,
           currency: account.currency,
         },
@@ -137,9 +137,9 @@ export const TransactionGroupCollectionResolver = async (args, req: express.Requ
   const transactionGroups = Object.values(
     transactionGroupsInAccountCurrency.reduce((acc, group) => {
       if (!acc[group.id]) {
-        acc[group.id] = { ...group, amount: { value: 0, currency: account.currency } };
+        acc[group.id] = { ...group, totalAmount: { value: 0, currency: account.currency } };
       }
-      acc[group.id].amount.value += group.amount.value;
+      acc[group.id].totalAmount.value += group.totalAmount.value;
       if (new Date(group.createdAt) < new Date(acc[group.id].createdAt)) {
         acc[group.id].createdAt = group.createdAt;
       }

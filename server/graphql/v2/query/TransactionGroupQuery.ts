@@ -50,7 +50,7 @@ const TransactionGroupQuery = {
     return {
       id: args.groupId,
       account: account,
-      amount: {
+      totalAmount: {
         value: totalAmountInAccountCurrency,
         currency: account.currency,
       },

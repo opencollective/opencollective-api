@@ -6195,7 +6195,7 @@ Transaction group
 """
 type TransactionGroup {
   id: String!
-  amount: Amount!
+  totalAmount: Amount!
   host: Account
 
   """
