@@ -38,12 +38,17 @@ const TransactionGroupQuery = {
     });
 
     const primaryTransaction = transactions[0]; // First transaction based on the ordering using getTransactionKindPriorityCase
+
+    if (!primaryTransaction) {
+      throw new Error('No transaction group found');
+    }
+
     const convertedAmounts = await Promise.all(
       transactions.map(async t => {
         const fxRate = await req.loaders.CurrencyExchangeRate.fxRate.load({
           fromCurrency: t.currency,
           toCurrency: account.currency,
-          date: t.createdAt,
+          date: t.createdAt.toISOString(),
         });
         return Math.round(t.netAmountInCollectiveCurrency * fxRate);
       }),

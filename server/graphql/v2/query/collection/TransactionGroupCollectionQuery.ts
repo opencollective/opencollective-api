@@ -4,7 +4,6 @@ import { GraphQLDateTime } from 'graphql-scalars';
 import { isNil } from 'lodash';
 
 import { SupportedCurrency } from '../../../../constants/currencies';
-import { getFxRate } from '../../../../lib/currency';
 import { Op, sequelize } from '../../../../models';
 import Transaction from '../../../../models/Transaction';
 import { GraphQLTransactionGroupCollection } from '../../collection/TransactionGroupCollection';
@@ -118,7 +117,11 @@ export const TransactionGroupCollectionResolver = async (args, req: express.Requ
 
   const transactionGroupsInAccountCurrency = await Promise.all(
     transactionGroupsByCurrency.map(async group => {
-      const fxRate = await getFxRate(group.currency, account.currency, group.minCreatedAt);
+      const fxRate = await req.loaders.CurrencyExchangeRate.fxRate.load({
+        fromCurrency: group.currency,
+        toCurrency: account.currency,
+        date: group.minCreatedAt.toISOString(),
+      });
       const amountInAccountCurrency = Math.round(group.sumAmount * fxRate);
 
       return {
