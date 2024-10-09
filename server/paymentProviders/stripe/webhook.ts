@@ -185,10 +185,12 @@ export const paymentIntentSucceeded = async (event: Stripe.Event) => {
 
   // If charge was already processed, ignore event. (Potential edge-case: if the webhook is called while processing a 3DS validation)
   const existingChargeTransaction = await models.Transaction.findOne({
-    where: { OrderId: order.id, data: { charge: { id: charge.id } } },
+    where: { data: { charge: { id: charge.id } } },
   });
   if (existingChargeTransaction) {
-    logger.info(`Stripe Webhook: ${order.id} already processed charge ${charge.id}, ignoring event ${event.id}`);
+    logger.info(
+      `Stripe Webhook: ${existingChargeTransaction.OrderId} already processed charge ${charge.id}, ignoring event ${event.id}`,
+    );
     return;
   }
 
