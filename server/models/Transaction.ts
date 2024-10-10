@@ -523,7 +523,7 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
       type: DEBIT,
       kind: TransactionKind.PLATFORM_TIP_DEBT,
       isDebt: true,
-      description: 'Platform Tip collected for Open Collective',
+      description: 'Platform Tip collected for the Open Collective platform',
       FromCollectiveId: host.id,
       // Opposite amounts
       amount: -platformTipTransaction.amount,
