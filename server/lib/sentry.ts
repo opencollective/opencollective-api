@@ -95,6 +95,7 @@ export enum HandlerType {
   EXPRESS = 'EXPRESS',
   CRON = 'CRON',
   FALLBACK = 'FALLBACK',
+  WEBHOOK = 'WEBHOOK',
 }
 
 export type CaptureErrorParams = {

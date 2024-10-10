@@ -147,6 +147,16 @@ export const sleep = async (timeout = 200) =>
   });
 
 /**
+ * Sleep until the process is resumed.
+ * @returns {{ promise: Promise<void>; resume: () => void }}
+ */
+export const getResumableSleep = () => {
+  let resume;
+  const promise = new Promise(resolve => (resume = resolve));
+  return { promise, resume };
+};
+
+/**
  * Wait for condition to be met
  * E.g. await waitForCondition(() => emailSendMessageSpy.callCount === 1)
  * @param {() => boolean | Promise<boolean>} cond

@@ -1,15 +1,33 @@
+import config from 'config';
 import { Configuration, PlaidApi, PlaidEnvironments } from 'plaid';
 
-// Set up the Plaid client
-const plaidConfig = new Configuration({
-  basePath: PlaidEnvironments['sandbox'],
-  baseOptions: {
-    headers: {
-      'PLAID-CLIENT-ID': process.env.PLAID_CLIENT_ID,
-      'PLAID-SECRET': process.env.PLAID_SECRET,
-      'Plaid-Version': '2020-09-14',
-    },
-  },
-});
+let plaidClient: PlaidApi | undefined;
 
-export const PlaidClient = new PlaidApi(plaidConfig);
+export const getPlaidClient = ({ throwIfMissing = true } = {}) => {
+  // Check config
+  if (!config.plaid || !config.plaid.clientId || !config.plaid.secret) {
+    if (throwIfMissing) {
+      throw new Error('Plaid credentials are missing');
+    } else {
+      return undefined;
+    }
+  }
+
+  // Initialize as a singleton
+  if (!plaidClient) {
+    plaidClient = new PlaidApi(
+      new Configuration({
+        basePath: PlaidEnvironments[config.plaid.env],
+        baseOptions: {
+          headers: {
+            'PLAID-CLIENT-ID': config.plaid.clientId,
+            'PLAID-SECRET': config.plaid.secret,
+            'Plaid-Version': '2020-09-14',
+          },
+        },
+      }),
+    );
+  }
+
+  return plaidClient;
+};
