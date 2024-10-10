@@ -564,7 +564,9 @@ export const notifyByEmail = async (activity: Activity) => {
       });
 
       if (isCommentFromHostAdmin) {
-        await notify.collective(activity);
+        await notify.collective(activity, {
+          replyTo: activity.data.host.data?.replyToEmail || undefined,
+        });
       }
 
       break;

@@ -1,16 +1,16 @@
 import '../server/env';
 
 import { Command } from 'commander';
-import { uniq } from 'lodash';
+import { partition, uniq } from 'lodash';
 
 import { getElasticSearchClient } from '../server/lib/elastic-search/client';
 import { ElasticSearchIndexName } from '../server/lib/elastic-search/constants';
 import { elasticSearchGlobalSearch } from '../server/lib/elastic-search/search';
 import {
-  createElasticSearchIndices,
-  deleteElasticSearchIndices,
+  createElasticSearchIndex,
+  deleteElasticSearchIndex,
+  getAvailableElasticSearchIndexes,
   syncElasticSearchIndex,
-  syncElasticSearchIndexes,
 } from '../server/lib/elastic-search/sync';
 import logger from '../server/lib/logger';
 import models from '../server/models';
@@ -44,24 +44,66 @@ const parseIndexesFromInput = (
   return uniqIndexes;
 };
 
+// Command to drop everything
+program
+  .command('drop')
+  .description('Drops indices')
+  .argument('[indexes...]', 'Only drop specific indexes')
+  .action(async indexesInput => {
+    checkElasticSearchAvailable();
+    const indexes = parseIndexesFromInput(indexesInput);
+    if (
+      await confirm(
+        'WARNING: This will delete all existing data in the indices, which is expensive. You should make sure that background synchronization job is disabled. Are you sure you want to continue?',
+      )
+    ) {
+      logger.info('Dropping all indices...');
+      for (const indexName of indexes) {
+        logger.info(`Dropping index ${indexName}`);
+        await deleteElasticSearchIndex(indexName);
+      }
+      logger.info('Drop completed!');
+    }
+  });
+
+// Command to create indices
+program
+  .command('create')
+  .description('Creates indices')
+  .argument('[indexes...]', 'Create indices (must not exist)')
+  .action(async indexesInput => {
+    checkElasticSearchAvailable();
+    const indexes = parseIndexesFromInput(indexesInput);
+    logger.info('Creating all indices...');
+    for (const indexName of indexes) {
+      logger.info(`Creating index ${indexName}`);
+      await createElasticSearchIndex(indexName);
+    }
+    logger.info('Create completed!');
+  });
+
 // Re-index command
 program
   .command('reset')
   .description('Drops all indices, re-create and re-index everything')
-  .action(async () => {
+  .argument('[indexes...]', 'Only sync specific indexes')
+  .action(async indexesInput => {
     checkElasticSearchAvailable();
+    const indexes = parseIndexesFromInput(indexesInput);
     if (
       await confirm(
         'WARNING: This will delete all existing data in the indices and recreated everything, which is expensive. You should make sure that background synchronization job is disabled. Are you sure you want to continue?',
       )
     ) {
-      logger.info('Deleting all indices...');
-      await deleteElasticSearchIndices();
-      logger.info('Creating new indices...');
-      await createElasticSearchIndices();
       logger.info('Syncing all models...');
-      await syncElasticSearchIndexes({ log: true });
-      logger.info('Reindex completed!');
+      for (const indexName of indexes) {
+        logger.info(`Dropping index ${indexName}`);
+        await deleteElasticSearchIndex(indexName, { throwIfMissing: false });
+        logger.info(`Re-creating index ${indexName}`);
+        await createElasticSearchIndex(indexName);
+        await syncElasticSearchIndex(indexName, { log: true });
+      }
+      logger.info('Re-index completed!');
     }
   });
 
@@ -97,11 +139,17 @@ program
     checkElasticSearchAvailable();
     const indexes = parseIndexesFromInput(indexesInput);
     const client = getElasticSearchClient();
-    const result = await client.indices.stats({ index: indexes.join(',') });
+    const availableIndexes = await getAvailableElasticSearchIndexes();
+    const [availableIndexesToQuery, unknownIndexes] = partition(indexes, index => availableIndexes.includes(index));
+    if (unknownIndexes.length) {
+      logger.warn(`Unknown indexes: ${unknownIndexes.join(', ')}`);
+    }
 
+    const result = await client.indices.stats({ index: availableIndexesToQuery.join(',') });
     let nbDocs = 0;
     let totalSize = 0;
     const formatSize = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+
     Object.entries(result.indices).forEach(([index, values]) => {
       console.log(`- Index: ${index}`);
       console.log(`  - Docs: ${values.primaries.docs.count}`);

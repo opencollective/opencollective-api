@@ -1,12 +1,11 @@
 {
   "port": "PORT",
   "env": "OC_ENV",
+  "mailpit": {
+    "client": "MAILPIT_CLIENT"
+  },
   "elasticSearch": {
     "url": "ELASTICSEARCH_URL"
-  },
-  "maildev": {
-    "client": "MAILDEV_CLIENT",
-    "server": "MAILDEV_SERVER"
   },
   "database": {
     "url": "PG_URL",
@@ -59,6 +58,12 @@
     "accessLogs": "ACCESS_LOGS",
     "slowRequest": "SLOW_REQUEST",
     "slowRequestThreshold": "SLOW_REQUEST_THRESHOLD"
+  },
+  "plaid": {
+    "clientId": "PLAID_CLIENT_ID",
+    "secret": "PLAID_SECRET",
+    "publicKey": "PLAID_PUBLIC_KEY",
+    "env": "PLAID_ENV"
   },
   "stripe": {
     "secret": "STRIPE_SECRET",

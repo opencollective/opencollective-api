@@ -41,3 +41,6 @@ typings
 output/
 
 *.swp
+
+# Dev binaries
+scripts/dev/bin

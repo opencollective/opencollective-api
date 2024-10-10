@@ -1,7 +1,7 @@
-version: "3"
 services:
   elasticsearch:
     image: elasticsearch:8.15.1
+    profiles: [full, search]
     ports:
       - 9200:9200
       - 9300:9300
@@ -9,3 +9,23 @@ services:
       - discovery.type=single-node
       - xpack.security.enabled=false
       - cluster.routing.allocation.disk.threshold_enabled=false
+    deploy:
+      resources:
+        limits:
+          cpus: '${ELASTICSEARCH_CPU_LIMIT:-0.50}'
+          memory: '${ELASTICSEARCH_MEMORY_LIMIT:-12gb}'
+  mailpit:
+    image: axllent/mailpit
+    profiles: [full, mail, debug, dev]
+    container_name: mailpit
+    restart: unless-stopped
+    volumes:
+      - ./test/output/emails-data:/data
+    ports:
+      - 1080:8025
+      - 1025:1025
+    environment:
+      MP_MAX_MESSAGES: 5000
+      MP_DATABASE: /data/mailpit.db
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1

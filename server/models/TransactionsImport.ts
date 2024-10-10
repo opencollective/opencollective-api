@@ -6,6 +6,7 @@ import type {
   HasManyGetAssociationsMixin,
   InferAttributes,
   InferCreationAttributes,
+  Transaction as SequelizeTransaction,
 } from 'sequelize';
 
 import ActivityTypes from '../constants/activities';
@@ -23,13 +24,15 @@ type CreationAttributes = InferCreationAttributes<
   { omit: 'id' | 'csvConfig' | 'createdAt' | 'updatedAt' | 'deletedAt' | 'UploadedFileId' }
 >;
 
+export const TransactionsImportTypes = ['CSV', 'MANUAL', 'PLAID'] as const;
+
 class TransactionsImport extends Model<InferAttributes<TransactionsImport>, CreationAttributes> {
   public declare id: CreationOptional<number>;
   public declare CollectiveId: ForeignKey<Collective['id']>;
   public declare UploadedFileId: CreationOptional<ForeignKey<UploadedFile['id']>>;
   public declare source: string;
   public declare name: string;
-  public declare type: 'CSV' | 'MANUAL';
+  public declare type: (typeof TransactionsImportTypes)[number];
   public declare csvConfig: CreationOptional<Record<string, unknown>> | null;
   public declare createdAt: CreationOptional<Date>;
   public declare updatedAt: CreationOptional<Date>;
@@ -45,9 +48,9 @@ class TransactionsImport extends Model<InferAttributes<TransactionsImport>, Crea
     remoteUser: User,
     collective: Collective,
     attributes: Omit<CreationAttributes, 'CollectiveId'>,
-    { UserTokenId }: { UserTokenId?: number } = {},
+    { UserTokenId, transaction }: { UserTokenId?: number; transaction?: SequelizeTransaction } = {},
   ): Promise<TransactionsImport> {
-    return sequelize.transaction(async transaction => {
+    const runWithTransaction = async transaction => {
       const importInstance = await TransactionsImport.create(
         {
           ...attributes,
@@ -66,7 +69,13 @@ class TransactionsImport extends Model<InferAttributes<TransactionsImport>, Crea
       });
 
       return importInstance;
-    });
+    };
+
+    if (transaction) {
+      return runWithTransaction(transaction);
+    } else {
+      return sequelize.transaction(runWithTransaction);
+    }
   }
 
   async addRows(data, { transaction }) {
@@ -114,10 +123,13 @@ TransactionsImport.init(
       },
     },
     type: {
-      type: DataTypes.ENUM('CSV', 'MANUAL'),
+      type: DataTypes.ENUM(...TransactionsImportTypes),
       allowNull: false,
       validate: {
-        isIn: [['CSV', 'MANUAL']],
+        isIn: {
+          args: [TransactionsImportTypes],
+          msg: `Transactions import type must be one of ${TransactionsImportTypes.join(', ')}`,
+        },
       },
     },
     csvConfig: {

@@ -41,7 +41,7 @@ type SendMessageData = {
 } & Record<string, any>;
 
 export const getMailer = () => {
-  if (config.maildev.client) {
+  if (config.mailpit.client) {
     return nodemailer.createTransport({
       host: '127.0.0.1',
       ignoreTLS: true,

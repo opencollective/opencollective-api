@@ -589,7 +589,7 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
       ]),
       type: CREDIT,
       kind: TransactionKind.PLATFORM_TIP,
-      description: 'Financial contribution to Open Collective',
+      description: 'Financial contribution to the Open Collective Platform',
       CollectiveId: PlatformConstants.PlatformCollectiveId,
       HostCollectiveId: PlatformConstants.PlatformCollectiveId,
       // Compute Amounts
