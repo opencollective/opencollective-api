@@ -12,14 +12,14 @@ exports[`server/models/Transaction createFromContributionPayload creates a doubl
 
 exports[`server/models/Transaction fees on top should create an additional pair of transactions between contributor and Open Collective Inc 1`] = `
 "
-| kind              | type   | isDebt | From            | To              | Host            | amount | currency | platformFee | paymentFee | Settlement | description                                            |
-| ----------------- | ------ | ------ | --------------- | --------------- | --------------- | ------ | -------- | ----------- | ---------- | ---------- | ------------------------------------------------------ |
-| PLATFORM_TIP      | DEBIT  | false  | Open Collective | User            | NULL            | -1000  | USD      | 0           | 0          |            | Financial contribution to the Open Collective Platform |
-| PLATFORM_TIP      | CREDIT | false  | User            | Open Collective | Open Collective | 1000   | USD      | 0           | 0          |            | Financial contribution to the Open Collective Platform |
-| PLATFORM_TIP_DEBT | DEBIT  | true   | Random Host     | Open Collective | Open Collective | -1000  | USD      | 0           | 0          | OWED       | Platform Tip collected for Open Collective             |
-| PLATFORM_TIP_DEBT | CREDIT | true   | Open Collective | Random Host     | Random Host     | 1000   | USD      | 0           | 0          | OWED       | Platform Tip collected for Open Collective             |
-| HOST_FEE          | DEBIT  | false  | Random Host     | Collective      | Random Host     | -500   | USD      | 0           | 0          |            | Host Fee                                               |
-| HOST_FEE          | CREDIT | false  | Collective      | Random Host     | Random Host     | 500    | USD      | 0           | 0          |            | Host Fee                                               |
-| CONTRIBUTION      | DEBIT  | false  | Collective      | User            | NULL            | -9800  | USD      | 0           | -200       |            | $100 donation to Merveilles                            |
-| CONTRIBUTION      | CREDIT | false  | User            | Collective      | Random Host     | 10000  | USD      | 0           | -200       |            | $100 donation to Merveilles                            |"
+| kind              | type   | isDebt | From            | To              | Host            | amount | currency | platformFee | paymentFee | Settlement | description                                             |
+| ----------------- | ------ | ------ | --------------- | --------------- | --------------- | ------ | -------- | ----------- | ---------- | ---------- | ------------------------------------------------------- |
+| PLATFORM_TIP      | DEBIT  | false  | Open Collective | User            | NULL            | -1000  | USD      | 0           | 0          |            | Financial contribution to the Open Collective Platform  |
+| PLATFORM_TIP      | CREDIT | false  | User            | Open Collective | Open Collective | 1000   | USD      | 0           | 0          |            | Financial contribution to the Open Collective Platform  |
+| PLATFORM_TIP_DEBT | DEBIT  | true   | Random Host     | Open Collective | Open Collective | -1000  | USD      | 0           | 0          | OWED       | Platform Tip collected for the Open Collective platform |
+| PLATFORM_TIP_DEBT | CREDIT | true   | Open Collective | Random Host     | Random Host     | 1000   | USD      | 0           | 0          | OWED       | Platform Tip collected for the Open Collective platform |
+| HOST_FEE          | DEBIT  | false  | Random Host     | Collective      | Random Host     | -500   | USD      | 0           | 0          |            | Host Fee                                                |
+| HOST_FEE          | CREDIT | false  | Collective      | Random Host     | Random Host     | 500    | USD      | 0           | 0          |            | Host Fee                                                |
+| CONTRIBUTION      | DEBIT  | false  | Collective      | User            | NULL            | -9800  | USD      | 0           | -200       |            | $100 donation to Merveilles                             |
+| CONTRIBUTION      | CREDIT | false  | User            | Collective      | Random Host     | 10000  | USD      | 0           | -200       |            | $100 donation to Merveilles                             |"
 `;
