@@ -42,7 +42,7 @@
     "@node-oauth/oauth2-server": "4.3.3",
     "@octokit/auth-oauth-app": "7.1.0",
     "@octokit/rest": "19.0.13",
-    "@opencollective/taxes": "4.4.0",
+    "@opencollective/taxes": "5.0.0",
     "@paypal/payouts-sdk": "1.1.1",
     "@peculiar/asn1-schema": "2.3.13",
     "@peculiar/asn1-x509": "2.3.8",
