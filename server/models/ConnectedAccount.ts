@@ -1,10 +1,18 @@
 import config from 'config';
 import { isNil } from 'lodash';
-import { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
+import {
+  BelongsToGetAssociationMixin,
+  CreationOptional,
+  InferAttributes,
+  InferCreationAttributes,
+  NonAttribute,
+} from 'sequelize';
 
 import { supportedServices } from '../constants/connected-account';
 import { crypto } from '../lib/encryption';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
+
+import Collective from './Collective';
 
 class ConnectedAccount extends Model<
   InferAttributes<ConnectedAccount, { omit: 'info' | 'activity' | 'paypalConfig' }>,
@@ -24,6 +32,9 @@ class ConnectedAccount extends Model<
   public declare CreatedByUserId: CreationOptional<number>;
   public declare createdAt: CreationOptional<Date>;
   public declare updatedAt: CreationOptional<Date>;
+
+  public declare collective?: NonAttribute<Collective>;
+  public declare getCollective: BelongsToGetAssociationMixin<Collective>;
 
   get info() {
     return {

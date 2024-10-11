@@ -2,7 +2,7 @@ import { GraphQLNonNull, GraphQLString } from 'graphql';
 
 import models from '../../../models';
 import { checkRemoteUserCanUseTransactions } from '../../common/scope-check';
-import { NotFound, Unauthorized } from '../../errors';
+import { Unauthorized } from '../../errors';
 import { idDecode } from '../identifiers';
 import { GraphQLTransactionsImport } from '../object/TransactionsImport';
 
@@ -19,7 +19,7 @@ const TransactionsImportQuery = {
     checkRemoteUserCanUseTransactions(req);
     const transactionsImport = await models.TransactionsImport.findByPk(idDecode(args.id, 'transactions-import'));
     if (!transactionsImport) {
-      throw new NotFound('Transactions Import Not Found');
+      return null;
     } else if (!req.remoteUser.isAdmin(transactionsImport.CollectiveId)) {
       throw new Unauthorized('You need to be an admin of the account to fetch the import');
     }

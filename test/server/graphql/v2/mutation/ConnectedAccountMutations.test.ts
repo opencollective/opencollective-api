@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import gql from 'fake-tag';
 import { createSandbox, stub } from 'sinon';
 
+import * as PlaidConnect from '../../../../../server/lib/plaid/connect';
 import * as transferwise from '../../../../../server/lib/transferwise';
 import models from '../../../../../server/models';
 import { fakeCollective, fakeConnectedAccount, fakeUser } from '../../../../test-helpers/fake-data';
@@ -156,6 +157,25 @@ describe('server/graphql/v2/mutation/ConnectedAccountMutations', () => {
 
       const createdConnectedAccount = await models.ConnectedAccount.findByPk(connectedAccount.id, { paranoid: false });
       expect(createdConnectedAccount).to.be.null;
+    });
+
+    describe('should disconnect on 3rd party services', () => {
+      it('with Plaid', async () => {
+        sandbox.stub(PlaidConnect, 'disconnectPlaidAccount').resolves();
+        const connectedAccount = await fakeConnectedAccount({ service: 'plaid' });
+        await connectedAccount.collective.addUserWithRole(user, 'ADMIN');
+        const result = await graphqlQueryV2(
+          deleteConnectedAccountMutation,
+          { connectedAccount: { legacyId: connectedAccount.id } },
+          user,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(PlaidConnect.disconnectPlaidAccount).to.have.been.calledOnce;
+        const deletedAccount = await models.ConnectedAccount.findByPk(connectedAccount.id);
+        expect(deletedAccount).to.be.null;
+      });
     });
   });
 });

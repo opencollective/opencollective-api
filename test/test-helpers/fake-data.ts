@@ -807,7 +807,7 @@ export const fakeConnectedAccount = async (
   const CollectiveId = connectedAccountData.CollectiveId || (await fakeCollective({}, sequelizeParams)).id;
   const service = sample(['github', 'twitter', 'stripe', 'transferwise']);
 
-  return models.ConnectedAccount.create(
+  const connectedAccount = await models.ConnectedAccount.create(
     {
       service,
       clientId: randStr('client-id-'),
@@ -817,6 +817,9 @@ export const fakeConnectedAccount = async (
     },
     sequelizeParams,
   );
+
+  connectedAccount.collective = await models.Collective.findByPk(connectedAccount.CollectiveId);
+  return connectedAccount;
 };
 
 /**
@@ -870,13 +873,16 @@ export const fakeTransaction = async (
 };
 
 export const fakeTransactionsImport = async (data: Partial<InferCreationAttributes<TransactionsImport>> = {}) => {
-  return models.TransactionsImport.create({
+  const transactionsImport = await models.TransactionsImport.create({
     type: 'MANUAL',
     source: randStr('source'),
     name: randStr('name'),
     CollectiveId: data.CollectiveId || (await fakeCollective()).id,
     ...data,
   });
+
+  transactionsImport.collective = await transactionsImport.getCollective();
+  return transactionsImport;
 };
 
 export const fakeTransactionsImportRow = async (data: Partial<InferCreationAttributes<TransactionsImportRow>> = {}) => {

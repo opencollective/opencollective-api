@@ -6891,6 +6891,11 @@ type TransactionsImport {
   lastSyncAt: DateTime
 
   """
+  Connected account linked to the import
+  """
+  connectedAccount: ConnectedAccount
+
+  """
   List of rows in the import
   """
   rows: TransactionsImportRowCollection!
@@ -19947,6 +19952,26 @@ type Mutation {
   ): TransactionsImport!
 
   """
+  Edit an import
+  """
+  editTransactionsImport(
+    """
+    ID of the import to edit
+    """
+    id: NonEmptyString!
+
+    """
+    Source of the import (e.g. "Bank of America", "Eventbrite", etc...)
+    """
+    source: NonEmptyString
+
+    """
+    Name of the import (e.g. "Contributions May 2021", "Tickets for Mautic Conference 2024")
+    """
+    name: NonEmptyString
+  ): TransactionsImport!
+
+  """
   Import transactions, manually or from a CSV file
   """
   importTransactions(
@@ -19985,6 +20010,16 @@ type Mutation {
     """
     rows: [TransactionsImportRowUpdateInput!]!
   ): TransactionsImport!
+
+  """
+  Delete an import and all its associated rows
+  """
+  deleteTransactionsImport(
+    """
+    ID of the import to delete
+    """
+    id: NonEmptyString!
+  ): Boolean!
 
   """
   Create update. Scope: "updates".

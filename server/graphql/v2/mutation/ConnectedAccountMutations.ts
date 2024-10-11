@@ -5,9 +5,10 @@ import { pick } from 'lodash';
 import { Service } from '../../../constants/connected-account';
 import { crypto } from '../../../lib/encryption';
 import * as paypal from '../../../lib/paypal';
+import { disconnectPlaidAccount } from '../../../lib/plaid/connect';
 import * as transferwise from '../../../lib/transferwise';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import type { ConnectedAccount as ConnectedAccountModel } from '../../../models';
+import type { ConnectedAccount, ConnectedAccount as ConnectedAccountModel } from '../../../models';
 import models from '../../../models';
 import { checkRemoteUserCanUseConnectedAccounts } from '../../common/scope-check';
 import { Unauthorized, ValidationFailed } from '../../errors';
@@ -100,7 +101,7 @@ const connectedAccountMutations = {
         description: 'ConnectedAccount reference containing either id or legacyId',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+    async resolve(_: void, args, req: express.Request): Promise<ConnectedAccount> {
       checkRemoteUserCanUseConnectedAccounts(req);
 
       const connectedAccount = await fetchConnectedAccountWithReference(args.connectedAccount, {
@@ -113,6 +114,10 @@ const connectedAccountMutations = {
       }
 
       await twoFactorAuthLib.enforceForAccount(req, collective, { alwaysAskForToken: true });
+
+      if (connectedAccount.service === Service.PLAID) {
+        await disconnectPlaidAccount(connectedAccount);
+      }
 
       await connectedAccount.destroy({ force: true });
       await models.ConnectedAccount.destroy({ where: { data: { MirrorConnectedAccountId: connectedAccount.id } } });

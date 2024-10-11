@@ -1,6 +1,6 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
-import models from '../../../models';
+import models, { ConnectedAccount } from '../../../models';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
@@ -24,7 +24,7 @@ export const GraphQLConnectedAccountReferenceInput = new GraphQLInputObjectType(
 export const fetchConnectedAccountWithReference = async (
   input,
   { throwIfMissing } = { throwIfMissing: false },
-): Promise<any> => {
+): Promise<ConnectedAccount> => {
   let connectedAccount;
   if (input.id) {
     const id = idDecode(input.id, IDENTIFIER_TYPES.CONNECTED_ACCOUNT);

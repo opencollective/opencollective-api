@@ -79,6 +79,7 @@ class TransactionsImport extends Model<InferAttributes<TransactionsImport>, Crea
   public declare importRows?: TransactionsImportRow[];
   public declare getImportRows: HasManyGetAssociationsMixin<TransactionsImportRow>;
   public declare createImportRow: HasManyCreateAssociationMixin<TransactionsImportRow>;
+  public declare getConnectedAccount: BelongsToGetAssociationMixin<ConnectedAccount>;
 
   static async createWithActivity(
     remoteUser: User,
