@@ -112,7 +112,7 @@
     "passport": "0.7.0",
     "passport-github": "1.1.0",
     "paypal-adaptive": "0.4.2",
-    "pg": "8.12.0",
+    "pg": "8.13.0",
     "pg-connection-string": "2.7.0",
     "pg-format": "1.0.4",
     "plaid": "28.0.0",
