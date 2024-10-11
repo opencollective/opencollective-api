@@ -280,7 +280,7 @@ export type TransferStatus =
 export interface WebhookEvent {
   data: Record<string, unknown>;
   subscription_id: string;
-  event_type: string;
+  event_type: 'transfers#refund' | 'transfers#state-change';
   schema_version: '2.0.0';
   sent_at: string;
 }
@@ -298,6 +298,21 @@ export interface TransferStateChangeEvent extends WebhookEvent {
     occurred_at: string;
   };
   event_type: 'transfers#state-change';
+}
+
+export interface TransferRefundEvent extends WebhookEvent {
+  data: {
+    resource: {
+      type: 'transfer';
+      id: number;
+      profile_id: number;
+      account_id: number;
+      refund_amount: number;
+      refund_currency: string;
+    };
+    occurred_at: string;
+  };
+  event_type: 'transfers#refund';
 }
 
 export type Transfer = {
@@ -407,6 +422,7 @@ export type Webhook = {
   trigger_on:
     | 'transfers#state-change' // Profile and Application
     | 'transfers#active-cases' // Profile
+    | 'transfers#refund'
     | 'balances#credit' // Profile
     | 'profiles#verification-state-change'; // Application
   scope: {
