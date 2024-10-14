@@ -54,7 +54,7 @@ const UpdatesCollectionQuery = {
       };
       if (args.host) {
         const hostCollectiveIds = await fetchAccountsIdsWithReference(args.host);
-        include.where = { ...include.where, HostCollectiveId: hostCollectiveIds };
+        include.where = { ...include.where, HostCollectiveId: hostCollectiveIds, approvedAt: { [Op.ne]: null } };
       }
       if (args.accountTag) {
         include.where = { ...include.where, tags: { [Op.overlap]: args.accountTag } };
