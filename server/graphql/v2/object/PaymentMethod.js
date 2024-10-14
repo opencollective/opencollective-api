@@ -146,7 +146,7 @@ export const GraphQLPaymentMethod = new GraphQLObjectType({
             hosts = [host];
           }
 
-          return hosts;
+          return hosts?.filter(Boolean);
         },
       },
       expiryDate: {
