@@ -1182,6 +1182,11 @@ export const scheduleExpenseForPayment = async (
     throw new Unauthorized('Multi-currency expenses are not enabled for this collective');
   }
 
+  // Update the feesPayer right away because the rest of the process (i.e create transactions) depends on this
+  if (options.feesPayer && options.feesPayer !== expense.feesPayer) {
+    await expense.update({ feesPayer: options.feesPayer });
+  }
+
   expense.PayoutMethod = await req.loaders.PayoutMethod.byId.load(expense.PayoutMethodId);
   await checkHasBalanceToPayExpense(host, expense, expense.PayoutMethod);
   if (expense.PayoutMethod.type === PayoutMethodTypes.PAYPAL) {
@@ -1191,12 +1196,6 @@ export const scheduleExpenseForPayment = async (
       const expensePaidAmountKey = `${req.remoteUser.id}_2fa_payment_limit`;
       await validateExpensePayout2FALimit(req, host, expense, expensePaidAmountKey);
     }
-  }
-
-  // Update the feesPayer right away because the rest of the process (i.e create transactions) depends on this
-  const { feesPayer } = options;
-  if (feesPayer && feesPayer !== expense.feesPayer) {
-    await expense.update({ feesPayer: feesPayer });
   }
 
   // If Wise, add expense to a new batch group
