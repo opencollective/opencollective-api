@@ -90,7 +90,7 @@ const isValidUnsubscribeToken = (token, email, collectiveSlug, type) => {
 /*
  * Gets the body from a string (usually a template)
  */
-const getTemplateAttributes = (str: string) => {
+export const getTemplateAttributes = (str: string) => {
   let index = 0;
   const lines = str.split('\n');
   const attributes = { body: '', subject: '' };
@@ -273,7 +273,7 @@ const generateEmailFromTemplate = (
   recipient,
   data: SendMessageData = {},
   options: SendMessageOptions = {},
-) => {
+): ReturnType<typeof render> => {
   const slug = get(options, 'collective.slug') || get(data, 'collective.slug') || '';
   const hostSlug = get(data, 'host.slug');
   const eventSlug = get(data, 'event.slug');
@@ -364,12 +364,11 @@ const generateEmailFromTemplate = (
   data.config = pick(config, ['host']);
 
   if (!templates[template]) {
-    return Promise.reject(new Error(`Invalid email template: ${template}`));
+    throw new Error(`Invalid email template: ${template}`);
   }
 
   const renderedTemplate = render(template, data);
-
-  return Promise.resolve(renderedTemplate);
+  return renderedTemplate;
 };
 
 const isNotificationActive = async (template, data) => {
@@ -400,20 +399,19 @@ const generateEmailFromTemplateAndSend = async (
     return;
   }
 
-  return generateEmailFromTemplate(template, recipient, data, options)
-    .then(renderedTemplate => {
-      const attributes = getTemplateAttributes(renderedTemplate.html);
-      options.text = renderedTemplate.text;
-      options.tag = template;
-      options.unsubscribeUrl = data.unsubscribeUrl;
-      debug(`Sending email to: ${recipient} subject: ${attributes.subject}`);
-      return emailLib.sendMessage(recipient, attributes.subject, attributes.body, options);
-    })
-    .catch(err => {
-      logger.error(err.message);
-      logger.debug(err);
-      reportErrorToSentry(err);
-    });
+  try {
+    const renderedTemplate = generateEmailFromTemplate(template, recipient, data, options);
+    const attributes = getTemplateAttributes(renderedTemplate.html);
+    options.text = renderedTemplate.text;
+    options.tag = template;
+    options.unsubscribeUrl = data.unsubscribeUrl;
+    debug(`Sending email to: ${recipient} subject: ${attributes.subject}`);
+    return emailLib.sendMessage(recipient, attributes.subject, attributes.body, options);
+  } catch (err) {
+    logger.error(err.message);
+    logger.debug(err);
+    reportErrorToSentry(err, { severity: 'error', extra: { template, recipient, data, options } });
+  }
 };
 
 const generateFromEmailHeader = (name, email = 'no-reply@opencollective.com') => {
