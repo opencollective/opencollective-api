@@ -232,22 +232,21 @@ const handleTransferRefund = async (event: TransferRefundEvent): Promise<void> =
       );
       assert(creditTransaction, 'Could not find related CREDIT transaction');
       const paymentProcessorFee = expense.data.paymentOption.fee.total;
-
-      if (refundedAmount === sourceAmount) {
-        logger.verbose('Wise: Paid Expense was fully refunded', event);
-        await createRefundTransaction(
-          creditTransaction,
-          paymentProcessorFee * 100,
-          pick(creditTransaction.data, ['transfer']),
-          expense.User,
-        );
-      } else if (refundedAmount < sourceAmount) {
+      if (refundedAmount < sourceAmount) {
         logger.verbose('Wise: Paid Expense was partially refunded', event);
         const difference = sourceAmount - refundedAmount;
         const paymentProcessorFee = expense.data.paymentOption.fee.total;
         await createRefundTransaction(
           creditTransaction,
           Math.round((paymentProcessorFee - difference) * 100),
+          pick(creditTransaction.data, ['transfer']),
+          expense.User,
+        );
+      } else {
+        logger.verbose('Wise: Paid Expense was fully refunded', event);
+        await createRefundTransaction(
+          creditTransaction,
+          paymentProcessorFee * 100,
           pick(creditTransaction.data, ['transfer']),
           expense.User,
         );
@@ -260,14 +259,7 @@ const handleTransferRefund = async (event: TransferRefundEvent): Promise<void> =
         await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, null, { isSystem: true, event });
       }
     } else {
-      if (refundedAmount === sourceAmount) {
-        logger.verbose('Wise: Expense was never marked as Paid, marking it as error', event);
-        await expense.update({ data: { ...expense.data, refundWiseEventTimestamp, refundEvent: event } });
-        if (expense.status !== expenseStatus.ERROR) {
-          await expense.setError(expense.lastEditedById);
-          await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, null, { isSystem: true, event });
-        }
-      } else if (refundedAmount < sourceAmount) {
+      if (refundedAmount < sourceAmount) {
         logger.verbose(
           'Wise: Expense was never marked as Paid and it was just partially refunded, creating Payment Processor Fee transaction',
           event,
@@ -288,6 +280,13 @@ const handleTransferRefund = async (event: TransferRefundEvent): Promise<void> =
           HostCollectiveId: host.id,
           PayoutMethodId: expense.PayoutMethodId,
         });
+        await expense.update({ data: { ...expense.data, refundWiseEventTimestamp, refundEvent: event } });
+        if (expense.status !== expenseStatus.ERROR) {
+          await expense.setError(expense.lastEditedById);
+          await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, null, { isSystem: true, event });
+        }
+      } else {
+        logger.verbose('Wise: Expense was never marked as Paid, marking it as error', event);
         await expense.update({ data: { ...expense.data, refundWiseEventTimestamp, refundEvent: event } });
         if (expense.status !== expenseStatus.ERROR) {
           await expense.setError(expense.lastEditedById);
