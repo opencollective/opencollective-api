@@ -131,7 +131,7 @@ const transactionImportsMutations = {
           await importInstance.update(
             {
               UploadedFileId: file?.id,
-              settings: { csvConfig: args.csvConfig },
+              settings: { ...importInstance.settings, csvConfig: args.csvConfig },
               lastSyncAt: new Date(),
             },
             { transaction },
