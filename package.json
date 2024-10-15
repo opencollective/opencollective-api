@@ -65,7 +65,7 @@
     "commander": "12.1.0",
     "config": "3.3.12",
     "connect-redis": "7.1.1",
-    "cookie-parser": "1.4.6",
+    "cookie-parser": "1.4.7",
     "cors": "2.8.5",
     "crypto-js": "4.2.0",
     "crypto-random-string": "3.3.1",
