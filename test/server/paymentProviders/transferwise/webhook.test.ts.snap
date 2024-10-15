@@ -1,5 +1,33 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
+exports[`server/paymentProviders/transferwise/webhook handleTransferRefund Expense was already PAID (has Transactions) feesPayer = PAYEE should fully refund the transactions if refunded amount matches the amount paid 1`] = `
+"
+| kind                  | description                                               | type   | amount | currency | amountInHostCurrency | hostCurrency | netAmountInCollectiveCurrency | To                      | From                    | Host        | data.refundWiseEventTimestamp |
+| --------------------- | --------------------------------------------------------- | ------ | ------ | -------- | -------------------- | ------------ | ----------------------------- | ----------------------- | ----------------------- | ----------- | ----------------------------- |
+| EXPENSE               | Refund of \\"Invoice\\"                                       | CREDIT | 10000  | USD      | 10000                | USD          | 10000                         | Collective              | User                    | Fiscal Host |                               |
+| EXPENSE               | Refund of \\"Invoice\\"                                       | DEBIT  | -10000 | USD      | -10000               | USD          | -10000                        | User                    | Collective              | NULL        |                               |
+| PAYMENT_PROCESSOR_FEE | Refund of \\"Other Payment Processor payment processor fee\\" | CREDIT | 1000   | USD      | 1000                 | USD          | 1000                          | Collective              | Other Payment Processor | Fiscal Host |                               |
+| PAYMENT_PROCESSOR_FEE | Refund of \\"Other Payment Processor payment processor fee\\" | DEBIT  | -1000  | USD      | -1000                | USD          | -1000                         | Other Payment Processor | Collective              | NULL        |                               |
+| EXPENSE               | Invoice                                                   | CREDIT | 10000  | USD      | 10000                | USD          | 10000                         | User                    | Collective              | NULL        | 2024-10-11T11:27:11.421Z      |
+| EXPENSE               | Invoice                                                   | DEBIT  | -10000 | USD      | -10000               | USD          | -10000                        | Collective              | User                    | Fiscal Host | 2024-10-11T11:27:11.421Z      |
+| PAYMENT_PROCESSOR_FEE | Other Payment Processor payment processor fee             | CREDIT | 1000   | USD      | 1000                 | USD          | 1000                          | Other Payment Processor | Collective              | NULL        |                               |
+| PAYMENT_PROCESSOR_FEE | Other Payment Processor payment processor fee             | DEBIT  | -1000  | USD      | -1000                | USD          | -1000                         | Collective              | Other Payment Processor | Fiscal Host |                               |"
+`;
+
+exports[`server/paymentProviders/transferwise/webhook handleTransferRefund Expense was already PAID (has Transactions) feesPayer = PAYEE should partially refund the transactions if refunded amount is less than the amount paid 1`] = `
+"
+| kind                  | description                                               | type   | amount | currency | amountInHostCurrency | hostCurrency | netAmountInCollectiveCurrency | To                      | From                    | Host        | data.refundWiseEventTimestamp |
+| --------------------- | --------------------------------------------------------- | ------ | ------ | -------- | -------------------- | ------------ | ----------------------------- | ----------------------- | ----------------------- | ----------- | ----------------------------- |
+| EXPENSE               | Refund of \\"Invoice\\"                                       | CREDIT | 10000  | USD      | 10000                | USD          | 10000                         | Collective              | User                    | Fiscal Host |                               |
+| EXPENSE               | Refund of \\"Invoice\\"                                       | DEBIT  | -10000 | USD      | -10000               | USD          | -10000                        | User                    | Collective              | NULL        |                               |
+| PAYMENT_PROCESSOR_FEE | Refund of \\"Other Payment Processor payment processor fee\\" | CREDIT | 500    | USD      | 500                  | USD          | 500                           | Collective              | Other Payment Processor | Fiscal Host |                               |
+| PAYMENT_PROCESSOR_FEE | Refund of \\"Other Payment Processor payment processor fee\\" | DEBIT  | -500   | USD      | -500                 | USD          | -500                          | Other Payment Processor | Collective              | NULL        |                               |
+| EXPENSE               | Invoice                                                   | CREDIT | 10000  | USD      | 10000                | USD          | 10000                         | User                    | Collective              | NULL        | 2024-10-11T11:27:11.421Z      |
+| EXPENSE               | Invoice                                                   | DEBIT  | -10000 | USD      | -10000               | USD          | -10000                        | Collective              | User                    | Fiscal Host | 2024-10-11T11:27:11.421Z      |
+| PAYMENT_PROCESSOR_FEE | Other Payment Processor payment processor fee             | CREDIT | 1000   | USD      | 1000                 | USD          | 1000                          | Other Payment Processor | Collective              | NULL        |                               |
+| PAYMENT_PROCESSOR_FEE | Other Payment Processor payment processor fee             | DEBIT  | -1000  | USD      | -1000                | USD          | -1000                         | Collective              | Other Payment Processor | Fiscal Host |                               |"
+`;
+
 exports[`server/paymentProviders/transferwise/webhook handleTransferRefund Expense was already PAID (has Transactions) should fully refund the transactions if refunded amount matches the amount paid 1`] = `
 "
 | kind                  | description                                               | type   | amount | currency | amountInHostCurrency | hostCurrency | netAmountInCollectiveCurrency | To                      | From                    | Host        | data.refundWiseEventTimestamp |

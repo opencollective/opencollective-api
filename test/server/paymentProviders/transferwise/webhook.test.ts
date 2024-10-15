@@ -267,6 +267,7 @@ describe('server/paymentProviders/transferwise/webhook', () => {
       collectiveCurrency,
       expense,
       now = '2024-10-11T11:27:11.421Z',
+      feesPayer = 'COLLECTIVE',
     }: {
       amount: number;
       fees: number;
@@ -274,6 +275,7 @@ describe('server/paymentProviders/transferwise/webhook', () => {
       collectiveCurrency?: SupportedCurrency;
       expense?: any;
       now?: string;
+      feesPayer?: 'COLLECTIVE' | 'PAYEE';
     }) => {
       const transferId = randNumber();
       const hostCurrencyFxRate = await getFxRate(collectiveCurrency || 'USD', 'USD');
@@ -310,6 +312,7 @@ describe('server/paymentProviders/transferwise/webhook', () => {
       if (expense) {
         await expense.update({
           status: status.PROCESSING,
+          feesPayer,
           data: {
             ...expense.data,
             transfer: { id: transferId, sourceCurrency: 'USD', sourceValue: totalDecimal },
@@ -328,6 +331,7 @@ describe('server/paymentProviders/transferwise/webhook', () => {
           FromCollectiveId: user.collective.id,
           HostCollectiveId: host.id,
           type: 'INVOICE',
+          feesPayer,
           data: {
             recipient: payoutMethod.data,
             transfer: { id: transferId, sourceCurrency: 'USD', sourceValue: totalDecimal },
@@ -343,17 +347,6 @@ describe('server/paymentProviders/transferwise/webhook', () => {
 
       return { expense, event };
     };
-
-    // it('should mark expense as paid and create transactions if transfer was sent', async () => {
-    //   await api.post('/webhooks/transferwise').send(event).expect(200);
-
-    //   await expense.reload();
-    //   expect(expense).to.have.property('status', status.PAID);
-    //   const [debitTransaction] = await expense.getTransactions({ where: { type: 'DEBIT' } });
-    //   expect(debitTransaction).to.be.have.property('paymentProcessorFeeInHostCurrency', -1000);
-    //   expect(debitTransaction).to.be.have.property('netAmountInCollectiveCurrency', -11000);
-    //   expect(debitTransaction).to.be.have.nested.property('data.transfer.id', 1234);
-    // });
 
     describe('Expense was still in PROCESSING (has no Transactions)', () => {
       it('should just mark the Expense as Error if it was fully refunded', async () => {
@@ -490,6 +483,102 @@ describe('server/paymentProviders/transferwise/webhook', () => {
           'HostCollectiveId',
           'data.refundWiseEventTimestamp',
         ]);
+      });
+
+      describe('feesPayer = PAYEE', () => {
+        it('should fully refund the transactions if refunded amount matches the amount paid', async () => {
+          const { expense, event } = await setup({ amount: 10000, fees: 1000, refunded: 11000, feesPayer: 'PAYEE' });
+          // Pay the Expense
+          await handleTransferStateChange({
+            data: {
+              resource: {
+                id: expense.data.transfer.id,
+                profile_id: 0,
+                account_id: 0,
+                type: 'transfer',
+              },
+              current_state: 'outgoing_payment_sent',
+              previous_state: 'processing',
+              occurred_at: '2020-03-02T13:37:54Z',
+            },
+            subscription_id: '00000000-0000-0000-0000-000000000000',
+            event_type: 'transfers#state-change',
+            schema_version: '2.0.0',
+            sent_at: '2020-03-02T13:37:54Z',
+          });
+          await expense.reload();
+          expect(expense).to.have.property('status', status.PAID);
+          expect(expense).to.have.nested.property('data.transfer.id', event.data.resource.id);
+
+          // Trigger the Refund event
+          await api.post('/webhooks/transferwise').send(event).expect(200);
+          await expense.reload({ include: [{ model: models.Transaction }] });
+          expect(expense).to.have.property('status', status.ERROR);
+          expect(expense).to.have.nested.property('data.transfer.id', event.data.resource.id);
+          expect(expense).to.have.nested.property('data.refundWiseEventTimestamp', event.data.occurred_at);
+
+          await utils.snapshotLedger([
+            'kind',
+            'description',
+            'type',
+            'amount',
+            'currency',
+            'amountInHostCurrency',
+            'hostCurrency',
+            'netAmountInCollectiveCurrency',
+            'CollectiveId',
+            'FromCollectiveId',
+            'HostCollectiveId',
+            'data.refundWiseEventTimestamp',
+          ]);
+        });
+
+        it('should partially refund the transactions if refunded amount is less than the amount paid', async () => {
+          const { expense, event } = await setup({ amount: 10000, fees: 1000, refunded: 10500, feesPayer: 'PAYEE' });
+          // Pay the Expense
+          await handleTransferStateChange({
+            data: {
+              resource: {
+                id: expense.data.transfer.id,
+                profile_id: 0,
+                account_id: 0,
+                type: 'transfer',
+              },
+              current_state: 'outgoing_payment_sent',
+              previous_state: 'processing',
+              occurred_at: '2020-03-02T13:37:54Z',
+            },
+            subscription_id: '00000000-0000-0000-0000-000000000000',
+            event_type: 'transfers#state-change',
+            schema_version: '2.0.0',
+            sent_at: '2020-03-02T13:37:54Z',
+          });
+          await expense.reload();
+          expect(expense).to.have.property('status', status.PAID);
+          expect(expense).to.have.nested.property('data.transfer.id', event.data.resource.id);
+
+          // Trigger the Refund event
+          await api.post('/webhooks/transferwise').send(event).expect(200);
+          await expense.reload({ include: [{ model: models.Transaction }] });
+          expect(expense).to.have.property('status', status.ERROR);
+          expect(expense).to.have.nested.property('data.transfer.id', event.data.resource.id);
+          expect(expense).to.have.nested.property('data.refundWiseEventTimestamp', event.data.occurred_at);
+
+          await utils.snapshotLedger([
+            'kind',
+            'description',
+            'type',
+            'amount',
+            'currency',
+            'amountInHostCurrency',
+            'hostCurrency',
+            'netAmountInCollectiveCurrency',
+            'CollectiveId',
+            'FromCollectiveId',
+            'HostCollectiveId',
+            'data.refundWiseEventTimestamp',
+          ]);
+        });
       });
 
       it('should work with an expense that was paid multiple times', async () => {
