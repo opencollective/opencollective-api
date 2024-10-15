@@ -227,6 +227,7 @@ describe('server/paymentProviders/transferwise/webhook', () => {
       sandbox
         .stub(config, 'ledger')
         .value({ ...config.ledger, separatePaymentProcessorFees: true, separateTaxes: true });
+      sandbox.stub(config, 'transferwise').value({ ...config.transferwise, useTransferRefundHandler: 'true' });
       sandbox.stub(transferwiseLib, 'getToken').callsFake(async connectedAccount => connectedAccount.token);
 
       getTransfer = sandbox.stub(transferwiseLib, 'getTransfer');
