@@ -128,7 +128,14 @@ const transactionImportsMutations = {
 
       return sequelize.transaction(async transaction => {
         if (file || args.csvConfig) {
-          await importInstance.update({ UploadedFileId: file?.id, csvConfig: args.csvConfig }, { transaction });
+          await importInstance.update(
+            {
+              UploadedFileId: file?.id,
+              settings: { ...importInstance.settings, csvConfig: args.csvConfig },
+              lastSyncAt: new Date(),
+            },
+            { transaction },
+          );
         }
 
         await importInstance.addRows(

@@ -62,7 +62,6 @@
   "plaid": {
     "clientId": "PLAID_CLIENT_ID",
     "secret": "PLAID_SECRET",
-    "publicKey": "PLAID_PUBLIC_KEY",
     "env": "PLAID_ENV"
   },
   "stripe": {
