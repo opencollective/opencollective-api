@@ -12,6 +12,11 @@ describe('server/models/TransactionsImport', () => {
     });
 
     it('should return a set with the source IDs of all rows', async () => {
+      // Add some random data
+      await fakeTransactionsImportRow();
+      await fakeTransactionsImportRow();
+
+      // Add some legit rows
       const transactionsImport = await fakeTransactionsImport();
       await fakeTransactionsImportRow({ TransactionsImportId: transactionsImport.id, sourceId: '1' });
       await fakeTransactionsImportRow({ TransactionsImportId: transactionsImport.id, sourceId: '2' });
