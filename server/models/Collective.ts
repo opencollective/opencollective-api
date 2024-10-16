@@ -133,8 +133,13 @@ import VirtualCard from './VirtualCard';
 
 const debug = debugLib('models:Collective');
 
-type Goal = {
+type LegacyGoal = {
   type: string;
+  amount: number;
+};
+
+type Goal = {
+  type: 'YEARLY' | 'MONTHLY' | 'ALL_TIME';
   amount: number;
 };
 
@@ -146,7 +151,8 @@ type TaxSettings = {
 };
 
 type Settings = {
-  goals?: Array<Goal>;
+  goals?: Array<LegacyGoal>;
+  goal?: Goal;
   disablePublicExpenseSubmission?: boolean;
   isPlatformRevenueDirectlyCollected?: boolean;
   features?: {
@@ -577,7 +583,7 @@ class Collective extends Model<
    * Used for the monthly reports to backers
    */
   getNextGoal = async function (until) {
-    const goals = <Array<Goal>>get(this, 'settings.goals');
+    const goals = <Array<LegacyGoal>>get(this, 'settings.goals');
     if (!goals) {
       return null;
     }

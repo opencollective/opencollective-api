@@ -6,6 +6,7 @@ import { Order, Sequelize } from 'sequelize';
 
 import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
+import GoalTypes from '../../../constants/goal-types';
 import { buildSearchConditions } from '../../../lib/sql-search';
 import { getCollectiveFeed } from '../../../lib/timeline';
 import { getAccountReportNodesFromQueryResult } from '../../../lib/transaction-reports';
@@ -66,6 +67,7 @@ import { GraphQLAccountStats } from '../object/AccountStats';
 import { GraphQLActivity } from '../object/Activity';
 import { GraphQLActivitySubscription } from '../object/ActivitySubscription';
 import { GraphQLConnectedAccount } from '../object/ConnectedAccount';
+import { GraphQLGoal } from '../object/Goal';
 import { GraphQLLegalDocument } from '../object/LegalDocument';
 import { GraphQLLocation } from '../object/Location';
 import { GraphQLMemberInvitation } from '../object/MemberInvitation';
@@ -989,6 +991,36 @@ const accountFieldsDefinition = () => ({
         dateFrom: args.dateFrom,
         dateTo: args.dateTo,
         nodes,
+      };
+    },
+  },
+  goal: {
+    type: GraphQLGoal,
+    async resolve(account, _, req) {
+      const goal = account.settings.goal;
+      if (!goal) {
+        return null;
+      }
+
+      let currentAmountProgress;
+
+      if (goal.type === GoalTypes.MONTHLY_BUDGET) {
+        currentAmountProgress = (await account.getYearlyBudget({ loaders: req.loaders })) / 12;
+      } else if (goal.type === GoalTypes.YEARLY_BUDGET) {
+        currentAmountProgress = await account.getYearlyBudget({ loaders: req.loaders });
+      } else {
+        currentAmountProgress = await account.getTotalAmountReceived({ loaders: req.loaders, net: true });
+      }
+      const progress = Math.floor((currentAmountProgress / goal.amount) * 100);
+
+      return {
+        ...goal,
+        amount: {
+          value: goal.amount,
+          currency: account.currency,
+        },
+        progress,
+        accountId: account.id,
       };
     },
   },
