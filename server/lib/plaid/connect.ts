@@ -91,6 +91,36 @@ export const connectPlaidAccount = async (
       { transaction },
     );
 
+    // Record the transactions import ID in the connected account for audit purposes
+    await connectedAccount.update({ data: { transactionsImportId: transactionsImport.id } }, { transaction });
+
     return { connectedAccount, transactionsImport };
   });
+};
+
+export const disconnectPlaidAccount = async (connectedAccount: ConnectedAccount): Promise<void> => {
+  if (connectedAccount.service !== Service.PLAID) {
+    throw new Error('Only Plaid accounts can be disconnected');
+  }
+
+  const PlaidClient = getPlaidClient();
+  try {
+    await PlaidClient.itemRemove({
+      /* eslint-disable camelcase */
+      access_token: connectedAccount.token,
+      /* eslint-enable camelcase */
+    });
+  } catch (error) {
+    const errorData = error.response?.data;
+    if (!errorData) {
+      throw new Error('A network error occurred while disconnecting the Plaid account');
+    } else if (errorData.error_code === 'INVALID_ACCESS_TOKEN') {
+      throw new Error('Provided Plaid access token is invalid');
+    } else {
+      reportErrorToSentry(error, { extra: { errorData } });
+      throw new Error('An error occurred while disconnecting the Plaid account');
+    }
+  }
+
+  await TransactionsImport.update({ ConnectedAccountId: null }, { where: { ConnectedAccountId: connectedAccount.id } });
 };

@@ -8,6 +8,8 @@ import { getIdEncodeResolver } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
 import { GraphQLFileInfo } from '../interface/FileInfo';
 
+import { GraphQLConnectedAccount } from './ConnectedAccount';
+
 export const GraphQLTransactionsImport = new GraphQLObjectType({
   name: 'TransactionsImport',
   fields: () => ({
@@ -60,6 +62,15 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
     lastSyncAt: {
       type: GraphQLDateTime,
       description: 'When the import was last synced',
+    },
+    connectedAccount: {
+      type: GraphQLConnectedAccount,
+      description: 'Connected account linked to the import',
+      resolve: (importInstance, _, req) => {
+        if (importInstance.ConnectedAccountId) {
+          return req.loaders.ConnectedAccount.byId.load(importInstance.ConnectedAccountId);
+        }
+      },
     },
     rows: {
       type: new GraphQLNonNull(GraphQLTransactionsImportRowCollection),

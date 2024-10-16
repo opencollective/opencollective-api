@@ -1,12 +1,14 @@
 import config from 'config';
 import type { Request } from 'express';
-import { GraphQLList, GraphQLNonNull } from 'graphql';
+import { GraphQLBoolean, GraphQLList, GraphQLNonNull } from 'graphql';
 import { GraphQLJSONObject, GraphQLNonEmptyString } from 'graphql-scalars';
 import GraphQLUpload from 'graphql-upload/GraphQLUpload.js';
-import { isUndefined, omit, omitBy } from 'lodash';
+import { isUndefined, omit, omitBy, pick } from 'lodash';
 
+import { disconnectPlaidAccount } from '../../../lib/plaid/connect';
 import RateLimit from '../../../lib/rate-limit';
-import { sequelize, TransactionsImport, TransactionsImportRow, UploadedFile } from '../../../models';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
+import { ConnectedAccount, sequelize, TransactionsImport, TransactionsImportRow, UploadedFile } from '../../../models';
 import { checkRemoteUserCanUseTransactions } from '../../common/scope-check';
 import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 import { GraphQLTransactionsImportType } from '../enum/TransactionsImportType';
@@ -64,6 +66,36 @@ const transactionImportsMutations = {
       );
     },
   },
+  editTransactionsImport: {
+    type: new GraphQLNonNull(GraphQLTransactionsImport),
+    description: 'Edit an import',
+    args: {
+      id: {
+        type: new GraphQLNonNull(GraphQLNonEmptyString),
+        description: 'ID of the import to edit',
+      },
+      source: {
+        type: GraphQLNonEmptyString,
+        description: 'Source of the import (e.g. "Bank of America", "Eventbrite", etc...)',
+      },
+      name: {
+        type: GraphQLNonEmptyString,
+        description: 'Name of the import (e.g. "Contributions May 2021", "Tickets for Mautic Conference 2024")',
+      },
+    },
+    resolve: async (_: void, args, req: Request) => {
+      checkRemoteUserCanUseTransactions(req);
+      const importId = idDecode(args.id, 'transactions-import');
+      const importInstance = await TransactionsImport.findByPk(importId, { include: [{ association: 'collective' }] });
+      if (!importInstance) {
+        throw new NotFound('Import not found');
+      } else if (!req.remoteUser.isAdminOfCollective(importInstance.collective)) {
+        throw new Unauthorized('You need to be an admin of the account to edit an import');
+      }
+
+      return importInstance.update(pick(args, ['source', 'name']));
+    },
+  },
   importTransactions: {
     type: new GraphQLNonNull(GraphQLTransactionsImport),
     description: 'Import transactions, manually or from a CSV file',
@@ -100,6 +132,8 @@ const transactionImportsMutations = {
         throw new ValidationFailed('You must provide at least one row to import');
       } else if (args.data.length > maxRows) {
         throw new ValidationFailed(`You can import up to ${maxRows} at once`);
+      } else if (['CSV', 'MANUAL'].includes(importInstance.type) === false) {
+        throw new ValidationFailed('You can only import transactions in CSV or manually created imports');
       }
 
       // Rate rate limit on the number of rows imported per hour
@@ -211,6 +245,59 @@ const transactionImportsMutations = {
 
         // Update import
         return transactionsImport.update({ updatedAt: new Date() }, { transaction });
+      });
+    },
+  },
+  deleteTransactionsImport: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Delete an import and all its associated rows',
+    args: {
+      id: {
+        type: new GraphQLNonNull(GraphQLNonEmptyString),
+        description: 'ID of the import to delete',
+      },
+    },
+    resolve: async (_: void, args, req: Request) => {
+      checkRemoteUserCanUseTransactions(req);
+      const importId = idDecode(args.id, 'transactions-import');
+      const importInstance = await TransactionsImport.findByPk(importId, { include: [{ association: 'collective' }] });
+      if (!importInstance) {
+        throw new NotFound('Import not found');
+      } else if (!req.remoteUser.isAdminOfCollective(importInstance.collective)) {
+        throw new Unauthorized('You need to be an admin of the account to delete an import');
+      }
+
+      let connectedAccount;
+      if (importInstance.type === 'PLAID' && importInstance.ConnectedAccountId) {
+        connectedAccount = await importInstance.getConnectedAccount();
+        if (!connectedAccount) {
+          throw new Error('Connected account not found');
+        }
+
+        await twoFactorAuthLib.enforceForAccount(req, connectedAccount.collective, { alwaysAskForToken: true }); // To match the permissions in deleteConnectedAccount
+        await disconnectPlaidAccount(connectedAccount);
+      }
+
+      return sequelize.transaction(async transaction => {
+        // Delete import
+        await importInstance.destroy({ transaction });
+
+        // Delete import rows
+        await TransactionsImportRow.destroy({ transaction, where: { TransactionsImportId: importId } });
+
+        // Delete uploaded files
+        await UploadedFile.destroy({ transaction, where: { id: importInstance.UploadedFileId } });
+
+        // Delete associated connected accounts
+        if (connectedAccount) {
+          await connectedAccount.destroy({ transaction, force: true });
+          await ConnectedAccount.destroy({
+            transaction,
+            where: { data: { MirrorConnectedAccountId: connectedAccount.id } },
+          });
+        }
+
+        return true;
       });
     },
   },
