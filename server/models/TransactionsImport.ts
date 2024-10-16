@@ -211,11 +211,6 @@ TransactionsImport.init(
         },
       },
     },
-    // @deprecated: We've moved this to `settings.csvConfig`. Keeping it here until it's deleted from the database with a migration.
-    // csvConfig: {
-    //   type: DataTypes.JSONB,
-    //   allowNull: true,
-    // },
     settings: {
       type: DataTypes.JSONB,
       allowNull: true,
