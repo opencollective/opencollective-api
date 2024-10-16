@@ -225,7 +225,7 @@ export async function getSumCollectivesAmountSpent(
     : net
       ? 'netAmountInHostCurrency'
       : 'amountInHostCurrency';
-  const transactionType = 'DEBIT_WITHOUT_HOST_FEE';
+  const transactionType = 'DEBIT_WITHOUT_CONTRIBUTIONS_HOST_FEE_AND_PAYMENT_PROCESSOR_FEE';
 
   const results = await sumCollectivesTransactions(missingCollectiveIds, {
     column,
@@ -628,13 +628,13 @@ export async function sumCollectivesTransactions(
   }
   if (transactionType) {
     // This is usually to calculate for money spent
-    if (transactionType === 'DEBIT_WITHOUT_HOST_FEE') {
+    if (transactionType === 'DEBIT_WITHOUT_CONTRIBUTIONS_HOST_FEE_AND_PAYMENT_PROCESSOR_FEE') {
       where[Op.and] = where[Op.and] || [];
       // Include or not payment processor fee if it's net or not (if net include, if not not)
       if (['netAmountInCollectiveCurrency', 'netAmountInHostCurrency'].includes(column)) {
         where[Op.and].push({
           [Op.or]: [
-            { type: DEBIT, kind: { [Op.notIn]: ['HOST_FEE'] } },
+            { type: DEBIT, [Op.not]: { kind: ['HOST_FEE', 'PAYMENT_PROCESSOR_FEE'], OrderId: { [Op.not]: null } } },
             { type: CREDIT, kind: 'PAYMENT_PROCESSOR_COVER' },
           ],
         });
@@ -675,7 +675,7 @@ export async function sumCollectivesTransactions(
         [Op.or]: [{ isRefund: { [Op.not]: true } }, { kind: 'PAYMENT_PROCESSOR_COVER' }],
         OrderId: { [Op.not]: null },
       });
-    } else if (separateFees && transactionType === 'DEBIT_WITHOUT_HOST_FEE') {
+    } else if (separateFees && transactionType === 'DEBIT_WITHOUT_CONTRIBUTIONS_HOST_FEE_AND_PAYMENT_PROCESSOR_FEE') {
       where[Op.and].push({ [Op.or]: [{ isRefund: { [Op.not]: true } }, { kind: 'PAYMENT_PROCESSOR_COVER' }] });
     } else {
       where[Op.and].push({ isRefund: { [Op.not]: true } });
