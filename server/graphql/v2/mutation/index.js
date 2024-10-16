@@ -15,6 +15,7 @@ import createProjectMutation from './CreateProjectMutation';
 import emojiReactionMutations from './EmojiReactionMutations';
 import expenseMutations from './ExpenseMutations';
 import guestMutations from './GuestMutations';
+import goalMutations from './GoalMutations';
 import hostApplicationMutations from './HostApplicationMutations';
 import individualMutations from './IndividualMutations';
 import { legalDocumentsMutations } from './LegalDocumentsMutations';
@@ -55,6 +56,7 @@ const mutation = {
   ...emojiReactionMutations,
   ...expenseMutations,
   ...guestMutations,
+  ...goalMutations,
   ...hostApplicationMutations,
   ...individualMutations,
   ...legalDocumentsMutations,
