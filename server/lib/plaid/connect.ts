@@ -25,9 +25,14 @@ export const generatePlaidLinkToken = async (
     /* eslint-enable camelcase */
   };
 
-  const PlaidClient = getPlaidClient();
-  const tokenResponse = await PlaidClient.linkTokenCreate(linkTokenConfig);
-  return tokenResponse.data;
+  try {
+    const PlaidClient = getPlaidClient();
+    const tokenResponse = await PlaidClient.linkTokenCreate(linkTokenConfig);
+    return tokenResponse.data;
+  } catch (e) {
+    reportErrorToSentry(e, { extra: { linkTokenConfig }, user: remoteUser });
+    throw new Error('Failed to generate Plaid link token');
+  }
 };
 
 export const connectPlaidAccount = async (
