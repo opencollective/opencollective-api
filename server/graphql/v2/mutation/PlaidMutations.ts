@@ -2,8 +2,15 @@ import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { pick } from 'lodash';
 
 import { connectPlaidAccount, generatePlaidLinkToken } from '../../../lib/plaid/connect';
+import { requestPlaidAccountSync } from '../../../lib/plaid/sync';
+import RateLimit from '../../../lib/rate-limit';
 import { checkRemoteUserCanRoot } from '../../common/scope-check';
+import { Forbidden, RateLimitExceeded } from '../../errors';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import {
+  fetchConnectedAccountWithReference,
+  GraphQLConnectedAccountReferenceInput,
+} from '../input/ConnectedAccountReferenceInput';
 import { GraphQLConnectedAccount } from '../object/ConnectedAccount';
 import { GraphQLTransactionsImport } from '../object/TransactionsImport';
 
@@ -85,6 +92,35 @@ export const plaidMutations = {
       const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
       const accountInfo = pick(args, ['sourceName', 'name']);
       return connectPlaidAccount(req.remoteUser, host, args.publicToken, accountInfo);
+    },
+  },
+  syncPlaidAccount: {
+    type: new GraphQLNonNull(GraphQLTransactionsImport),
+    description: 'Manually request a sync for Plaid account',
+    args: {
+      connectedAccount: {
+        type: new GraphQLNonNull(GraphQLConnectedAccountReferenceInput),
+        description: 'The connected account to refresh',
+      },
+    },
+    resolve: async (_, args, req) => {
+      checkRemoteUserCanRoot(req);
+      const connectedAccount = await fetchConnectedAccountWithReference(args.connectedAccount, {
+        throwIfMissing: true,
+      });
+      if (!req.remoteUser.isAdmin(connectedAccount.CollectiveId)) {
+        throw new Forbidden('You do not have permission to sync this account');
+      }
+
+      const rateLimiter = new RateLimit(`syncPlaidAccount:${connectedAccount.id}`, 2, 60);
+      if (!(await rateLimiter.registerCall())) {
+        throw new RateLimitExceeded(
+          'A sync was already requested for this account recently. Please wait a few seconds before trying again.',
+        );
+      }
+
+      await requestPlaidAccountSync(connectedAccount);
+      return connectedAccount;
     },
   },
 };

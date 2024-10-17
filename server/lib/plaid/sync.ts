@@ -5,8 +5,31 @@ import ConnectedAccount from '../../models/ConnectedAccount';
 import { TransactionsImportLockedError } from '../../models/TransactionsImport';
 import logger from '../logger';
 import { floatAmountToCents } from '../math';
+import { reportErrorToSentry } from '../sentry';
 
 import { getPlaidClient } from './client';
+
+/**
+ * Plaid only sync bank accounts a few times per day. You can use this function to trigger
+ * a sync manually. Behind the scenes, Plaid will query the bank, then -if there's something
+ * new- update its database and call our webhook to notify us that new transactions are
+ * available. The webhook itself will call `syncPlaidAccount` to import the new transactions.
+ *
+ * See https://plaid.com/docs/transactions/webhooks/#forcing-transactions-refresh
+ */
+export const requestPlaidAccountSync = async (connectedAccount: ConnectedAccount): Promise<void> => {
+  try {
+    await getPlaidClient().transactionsRefresh({
+      /* eslint-disable camelcase */
+      client_id: connectedAccount.clientId,
+      access_token: connectedAccount.token,
+      /* eslint-enable camelcase */
+    });
+  } catch (e) {
+    reportErrorToSentry(e, { extra: { connectedAccountId: connectedAccount.id } });
+    throw new Error(`Failed to request a bank account sync: ${e.message}`);
+  }
+};
 
 /**
  * Sync transactions for a Plaid connected account

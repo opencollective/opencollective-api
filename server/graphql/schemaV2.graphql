@@ -6891,6 +6891,16 @@ type TransactionsImport {
   lastSyncAt: DateTime
 
   """
+  Whether the import is currently syncing
+  """
+  isSyncing: Boolean!
+
+  """
+  Cursor that defines where the last sync left off. Useful to know if there is new data to sync
+  """
+  lastSyncCursor: String
+
+  """
   Connected account linked to the import
   """
   connectedAccount: ConnectedAccount
@@ -19795,6 +19805,16 @@ type Mutation {
     """
     name: String
   ): PlaidConnectAccountResponse!
+
+  """
+  Manually request a sync for Plaid account
+  """
+  syncPlaidAccount(
+    """
+    The connected account to refresh
+    """
+    connectedAccount: ConnectedAccountReferenceInput!
+  ): TransactionsImport!
 
   """
   [Root only] Edits account flags (deleted, banned, archived, trusted host)

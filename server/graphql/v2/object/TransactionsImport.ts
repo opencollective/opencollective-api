@@ -1,6 +1,7 @@
-import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON, GraphQLNonEmptyString } from 'graphql-scalars';
 
+import { TransactionsImport } from '../../../models';
 import TransactionsImportRow from '../../../models/TransactionsImportRow';
 import { GraphQLTransactionsImportRowCollection } from '../collection/GraphQLTransactionsImportRow';
 import { GraphQLTransactionsImportType } from '../enum/TransactionsImportType';
@@ -62,6 +63,16 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
     lastSyncAt: {
       type: GraphQLDateTime,
       description: 'When the import was last synced',
+    },
+    isSyncing: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the import is currently syncing',
+      resolve: (importInstance: TransactionsImport) => Boolean(importInstance.data?.lockedAt),
+    },
+    lastSyncCursor: {
+      type: GraphQLString,
+      description: 'Cursor that defines where the last sync left off. Useful to know if there is new data to sync',
+      resolve: (importInstance: TransactionsImport) => importInstance.data?.plaid?.lastSyncCursor,
     },
     connectedAccount: {
       type: GraphQLConnectedAccount,
