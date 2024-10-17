@@ -50,6 +50,55 @@ const TransactionArgs = {
   },
 };
 
+const TransactionSummary = new GraphQLObjectType({
+  name: 'TransactionSummary',
+  description: 'Summary of transactions for the account',
+  args: {
+    dateFrom: {
+      type: GraphQLDateTime,
+      description: 'Calculate amount after this date',
+    },
+    dateTo: {
+      type: GraphQLDateTime,
+      description: 'Calculate amount before this date',
+    },
+  },
+  fields: () => ({
+    expenseCount: {
+      type: GraphQLInt,
+      resolve: ({ summary }) => summary.expenseCount,
+    },
+    expenseTotal: {
+      type: GraphQLAmount,
+      resolve: ({ account, summary }) =>
+        summary.expenseTotal && { value: summary.expenseTotal, currency: account.currency },
+    },
+    expenseMaxValue: {
+      type: GraphQLAmount,
+      resolve: ({ account, summary }) =>
+        summary.expenseMaxValue && { value: summary.expenseMaxValue, currency: account.currency },
+    },
+    expenseDistinctPayee: {
+      type: GraphQLInt,
+      resolve: ({ summary }) => summary.expenseDistinctPayee,
+    },
+    contributionCount: {
+      type: GraphQLInt,
+      resolve: ({ summary }) => summary.contributionCount,
+    },
+    contributionTotal: {
+      type: GraphQLAmount,
+      resolve: ({ account, summary }) =>
+        summary.contributionTotal && { value: summary.contributionTotal, currency: account.currency },
+    },
+    hostFeeTotal: {
+      type: GraphQLAmount,
+      resolve: ({ account, summary }) =>
+        summary.hostFeeTotal && { value: summary.hostFeeTotal, currency: account.currency },
+    },
+  }),
+});
+
 export const GraphQLAccountStats = new GraphQLObjectType({
   name: 'AccountStats',
   description: 'Stats for the Account',
@@ -59,6 +108,16 @@ export const GraphQLAccountStats = new GraphQLObjectType({
         type: GraphQLString,
         resolve(collective) {
           return idEncode(collective.id);
+        },
+      },
+      summary: {
+        type: TransactionSummary,
+        async resolve(account, args, req) {
+          const summary = await req.loaders.Collective.stats.transactionSummary.buildLoader(args).load(account.id);
+          if (!summary) {
+            return null;
+          }
+          return { account, summary };
         },
       },
       balanceWithBlockedFunds: {

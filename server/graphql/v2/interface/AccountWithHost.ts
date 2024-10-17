@@ -2,7 +2,9 @@ import { GraphQLBoolean, GraphQLFloat, GraphQLInterfaceType, GraphQLNonNull } fr
 import { GraphQLDateTime } from 'graphql-scalars';
 import { clamp, isNumber } from 'lodash';
 
+import ActivityTypes from '../../../constants/activities';
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
+import models from '../../../models';
 import Agreement from '../../../models/Agreement';
 import Collective from '../../../models/Collective';
 import HostApplication from '../../../models/HostApplication';
@@ -123,6 +125,21 @@ export const AccountWithHostFields = {
     type: GraphQLDateTime,
     resolve(account: Collective): Date {
       return account.approvedAt;
+    },
+  },
+  unfrozenAt: {
+    type: GraphQLDateTime,
+    description: 'Date when the collective was last unfrozen by current Fiscal Host',
+    async resolve(collective) {
+      const activity = await models.Activity.findOne({
+        order: [['createdAt', 'DESC']],
+        where: {
+          CollectiveId: collective.id,
+          type: ActivityTypes.COLLECTIVE_UNFROZEN,
+          HostCollectiveId: collective.HostCollectiveId,
+        },
+      });
+      return activity?.createdAt;
     },
   },
   isApproved: {

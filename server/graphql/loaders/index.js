@@ -466,6 +466,50 @@ export const loaders = req => {
 
       return sortResultsSimple(collectiveIds, stats, row => row.CollectiveId);
     }),
+    transactionSummary: {
+      buildLoader: ({
+        dateFrom = moment.utc().subtract(1, 'year').toISOString(),
+        dateTo = moment.utc().toISOString(),
+      } = {}) =>
+        new DataLoader(async collectiveIds => {
+          const stats = await sequelize.query(
+            `
+            SELECT
+              t."CollectiveId",
+              c."currency",
+              COUNT(t.id) FILTER (WHERE t.kind = 'EXPENSE' AND t.type = 'DEBIT') AS "expenseCount",
+              SUM(ABS(t.amount)) FILTER (WHERE t.kind = 'EXPENSE' AND t.type = 'DEBIT') AS "expenseTotal",
+              MAX(ABS(t.amount)) FILTER (WHERE t.kind = 'EXPENSE' AND t.type = 'DEBIT') AS "expenseMaxValue",
+              COUNT(DISTINCT t."FromCollectiveId") FILTER (WHERE t.kind = 'EXPENSE' AND t.type = 'DEBIT') AS "expenseDistinctPayee",
+              COUNT(t.id) FILTER (WHERE t.kind IN ('CONTRIBUTION', 'ADDED_FUNDS') AND t.type = 'CREDIT') AS "contributionCount",
+              SUM(t.amount) FILTER (WHERE t.kind IN ('CONTRIBUTION', 'ADDED_FUNDS') AND t.type = 'CREDIT') AS "contributionTotal",
+              SUM(ABS(t.amount)) FILTER (WHERE t.kind IN ('HOST_FEE') AND t.type = 'DEBIT') AS "hostFeeTotal"
+            FROM
+              "Transactions" t
+              INNER JOIN "Collectives" c ON t."CollectiveId" = c.id
+            WHERE t."CollectiveId" IN (:collectiveIds)
+              AND t."deletedAt" IS NULL
+              AND t."createdAt" > :dateFrom
+              AND t."createdAt" <= :dateTo
+              AND t."HostCollectiveId" = c."HostCollectiveId"
+              AND t."currency" = c."currency"
+            GROUP BY
+              t."CollectiveId", c."currency"
+            `,
+            {
+              replacements: {
+                collectiveIds,
+                dateFrom,
+                dateTo,
+              },
+              type: sequelize.QueryTypes.SELECT,
+              raw: true,
+            },
+          );
+
+          return sortResultsSimple(collectiveIds, stats, row => row.CollectiveId);
+        }),
+    },
   };
 
   /** *** Tier *****/
