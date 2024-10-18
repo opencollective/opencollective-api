@@ -112,10 +112,10 @@ export const plaidMutations = {
         throw new Forbidden('You do not have permission to sync this account');
       }
 
-      const rateLimiter = new RateLimit(`syncPlaidAccount:${connectedAccount.id}`, 2, 60);
+      const rateLimiter = new RateLimit(`syncPlaidAccount:${connectedAccount.id}`, 2, 5 * 60);
       if (!(await rateLimiter.registerCall())) {
         throw new RateLimitExceeded(
-          'A sync was already requested for this account recently. Please wait a few seconds before trying again.',
+          'A sync was already requested for this account recently. Please wait a few minutes before trying again.',
         );
       }
 
