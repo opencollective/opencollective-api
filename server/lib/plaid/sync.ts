@@ -117,7 +117,7 @@ const syncTransactionsImport = async (
               isUnique: true, // This enables the unique index on the sourceId column
               description: plaidTransaction.name,
               date: new Date(plaidTransaction.date),
-              amount: floatAmountToCents(plaidTransaction.amount),
+              amount: -floatAmountToCents(plaidTransaction.amount),
               currency: plaidTransaction.iso_currency_code,
               rawValue: plaidTransaction,
             })),
