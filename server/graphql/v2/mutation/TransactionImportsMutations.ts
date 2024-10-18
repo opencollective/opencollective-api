@@ -194,8 +194,16 @@ const transactionImportsMutations = {
         description: 'ID of the import to add transactions to',
       },
       rows: {
-        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLTransactionsImportRowUpdateInput))),
+        type: new GraphQLList(new GraphQLNonNull(GraphQLTransactionsImportRowUpdateInput)),
         description: 'Rows to update',
+      },
+      dismissAll: {
+        type: GraphQLBoolean,
+        description: 'Whether to ignore all non-processed rows',
+      },
+      restoreAll: {
+        type: GraphQLBoolean,
+        description: 'Whether to restore all dismissed rows',
       },
     },
     resolve: async (_: void, args, req: Request) => {
@@ -213,35 +221,52 @@ const transactionImportsMutations = {
       // Preload orders
       return sequelize.transaction(async transaction => {
         // Update rows
-        await Promise.all(
-          args.rows.map(async row => {
-            const rowId = idDecode(row.id, 'transactions-import-row');
-            const values = omitBy(omit(row, ['id', 'order']), isUndefined);
-            if (row.amount) {
-              values.amount = getValueInCentsFromAmountInput(row.amount);
-              values.currency = row.amount.currency;
-            }
-            if (row.order) {
-              const orderId = getDatabaseIdFromOrderReference(row.order);
-              const order = await req.loaders.Order.byId.load(orderId);
-              const collective = order && (await req.loaders.Collective.byId.load(order.CollectiveId));
-              if (!order || !collective || collective.HostCollectiveId !== transactionsImport.CollectiveId) {
-                throw new Unauthorized(`Order not found or not associated with the import: ${orderId}`);
+        if (args.rows?.length) {
+          await Promise.all(
+            args.rows.map(async row => {
+              const rowId = idDecode(row.id, 'transactions-import-row');
+              const values = omitBy(omit(row, ['id', 'order']), isUndefined);
+              if (row.amount) {
+                values.amount = getValueInCentsFromAmountInput(row.amount);
+                values.currency = row.amount.currency;
+              }
+              if (row.order) {
+                const orderId = getDatabaseIdFromOrderReference(row.order);
+                const order = await req.loaders.Order.byId.load(orderId);
+                const collective = order && (await req.loaders.Collective.byId.load(order.CollectiveId));
+                if (!order || !collective || collective.HostCollectiveId !== transactionsImport.CollectiveId) {
+                  throw new Unauthorized(`Order not found or not associated with the import: ${orderId}`);
+                }
+
+                values['OrderId'] = order.id;
               }
 
-              values['OrderId'] = order.id;
-            }
+              const [updatedCount] = await TransactionsImportRow.update(values, {
+                where: { id: rowId, TransactionsImportId: importId },
+                transaction,
+              });
 
-            const [updatedCount] = await TransactionsImportRow.update(values, {
-              where: { id: rowId, TransactionsImportId: importId },
+              if (!updatedCount) {
+                throw new NotFound(`Row not found: ${row.id}`);
+              }
+            }),
+          );
+        } else if (args.dismissAll) {
+          await TransactionsImportRow.update(
+            { isDismissed: true },
+            {
+              where: { TransactionsImportId: importId, isDismissed: false, ExpenseId: null, OrderId: null },
               transaction,
-            });
-
-            if (!updatedCount) {
-              throw new NotFound(`Row not found: ${row.id}`);
-            }
-          }),
-        );
+            },
+          );
+        } else if (args.restoreAll) {
+          await TransactionsImportRow.update(
+            { isDismissed: false },
+            { where: { TransactionsImportId: importId, isDismissed: true }, transaction },
+          );
+        } else {
+          throw new ValidationFailed('You must provide at least one row to update or dismiss all rows');
+        }
 
         // Update import
         return transactionsImport.update({ updatedAt: new Date() }, { transaction });
