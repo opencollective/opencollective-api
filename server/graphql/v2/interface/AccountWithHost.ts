@@ -15,6 +15,7 @@ import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
 import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType';
 import { GraphQLHost } from '../object/Host';
 import { GraphQLHostApplication } from '../object/HostApplication';
+import { HostedAccountSummary, resolveHostedAccountSummary } from '../object/HostedAccountSummary';
 
 import { getCollectionArgs } from './Collection';
 
@@ -189,6 +190,20 @@ export const AccountWithHostFields = {
         },
       };
     },
+  },
+  summary: {
+    type: HostedAccountSummary,
+    args: {
+      dateFrom: {
+        type: GraphQLDateTime,
+        description: 'Calculate amount after this date',
+      },
+      dateTo: {
+        type: GraphQLDateTime,
+        description: 'Calculate amount before this date',
+      },
+    },
+    resolve: resolveHostedAccountSummary,
   },
 };
 
