@@ -4,6 +4,7 @@ import { assign, get, invert, isEmpty, isNil, isNull, merge, omit, omitBy } from
 import moment from 'moment';
 import { Order, Sequelize } from 'sequelize';
 
+import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import { buildSearchConditions } from '../../../lib/sql-search';
@@ -209,6 +210,28 @@ const accountFieldsDefinition = () => ({
   updatedAt: {
     type: GraphQLDateTime,
     description: 'The time of last update',
+  },
+  unhostedAt: {
+    description: 'Date of unhosting by a given Fiscal Host.',
+    type: GraphQLDateTime,
+    args: {
+      host: {
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+        description: 'The host account this collective was hosted by',
+      },
+    },
+    async resolve(collective, args, req) {
+      const host = await fetchAccountWithReference(args.host, { loaders: req.loaders, throwIfMissing: true });
+      const activity = await models.Activity.findOne({
+        order: [['createdAt', 'DESC']],
+        where: {
+          CollectiveId: collective.id,
+          type: ActivityTypes.COLLECTIVE_UNHOSTED,
+          HostCollectiveId: host.id,
+        },
+      });
+      return activity?.createdAt;
+    },
   },
   isArchived: {
     type: new GraphQLNonNull(GraphQLBoolean),
@@ -1131,6 +1154,7 @@ export const AccountFields = {
       }
     },
   },
+
   transactions: accountTransactions,
   orders: accountOrders,
   expenses: {
