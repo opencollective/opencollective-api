@@ -4668,6 +4668,7 @@ type Mutation {
     """
     notifications: [NotificationInputType]
   ): [NotificationType]
+    @deprecated(reason: "2024-10-21: Please use createWebhook/deleteWebhook/updateWebhook from GraphQLV2")
 
   """
   Register user-level webhooks for a collective.
@@ -4682,7 +4683,7 @@ type Mutation {
     The notification object.
     """
     notification: NotificationInputType
-  ): NotificationType
+  ): NotificationType @deprecated(reason: "2024-10-21: Moved to GraphQLV2")
 
   """
   Deletes a notification by ID.

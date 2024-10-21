@@ -359,6 +359,7 @@ const mutations = {
   editWebhooks: {
     type: new GraphQLList(NotificationType),
     description: 'Edits (by replacing) the admin-level webhooks for a collective.',
+    deprecationReason: '2024-10-21: Please use createWebhook/deleteWebhook/updateWebhook from GraphQLV2',
     args: {
       collectiveId: {
         type: new GraphQLNonNull(GraphQLInt),
@@ -376,6 +377,7 @@ const mutations = {
   createWebhook: {
     type: NotificationType,
     description: 'Register user-level webhooks for a collective.',
+    deprecationReason: '2024-10-21: Moved to GraphQLV2',
     args: {
       collectiveSlug: {
         type: new GraphQLNonNull(GraphQLString),
@@ -393,6 +395,7 @@ const mutations = {
   deleteNotification: {
     type: NotificationType,
     description: 'Deletes a notification by ID.',
+    deprecated: '2024-10-21: Please use deleteWebhook from GraphQLV2',
     args: {
       id: {
         type: new GraphQLNonNull(GraphQLInt),
