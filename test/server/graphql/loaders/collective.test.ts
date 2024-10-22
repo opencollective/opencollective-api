@@ -194,7 +194,7 @@ describe('server/graphql/loaders/collective', () => {
 
       expect(result).to.containSubset({
         CollectiveId: collectives[0].id,
-        currency: 'USD',
+        hostCurrency: 'USD',
         expenseCount: 2,
         expenseTotal: 3000,
         expenseMaxValue: 2000,
@@ -214,7 +214,7 @@ describe('server/graphql/loaders/collective', () => {
 
       expect(result).to.containSubset({
         CollectiveId: collectives[0].id,
-        currency: 'USD',
+        hostCurrency: 'USD',
         expenseCount: 1,
         expenseTotal: 1000,
         expenseMaxValue: 1000,

@@ -474,7 +474,7 @@ export const loaders = req => {
             `
             SELECT
               t."CollectiveId",
-              c."currency",
+              t."hostCurrency",
               COUNT(t.id) FILTER (WHERE t.kind = 'EXPENSE' AND t.type = 'DEBIT') AS "expenseCount",
               SUM(ABS(t."amountInHostCurrency")) FILTER (WHERE t.kind = 'EXPENSE' AND t.type = 'DEBIT') AS "expenseTotal",
               MAX(ABS(t."amountInHostCurrency")) FILTER (WHERE t.kind = 'EXPENSE' AND t.type = 'DEBIT') AS "expenseMaxValue",
@@ -492,7 +492,7 @@ export const loaders = req => {
               ${ifStr(dateTo, 'AND t."createdAt" <= :dateTo')}
               AND t."HostCollectiveId" = c."HostCollectiveId"
             GROUP BY
-              t."CollectiveId", c."currency"
+              t."CollectiveId", t."hostCurrency"
             `,
             {
               replacements: {
