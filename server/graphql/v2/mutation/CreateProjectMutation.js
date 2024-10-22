@@ -43,7 +43,7 @@ async function createProject(_, args, req) {
   const projectData = {
     type: 'PROJECT',
     slug: args.project.slug.toLowerCase(),
-    ...pick(args.project, ['name', 'description']),
+    ...pick(args.project, ['name', 'description', 'tags']),
     ...pick(parent, ['currency', 'isActive', 'platformFeePercent', 'hostFeePercent', 'data.useCustomHostFee']),
     approvedAt: parent.isActive ? new Date() : null,
     ParentCollectiveId: parent.id,
