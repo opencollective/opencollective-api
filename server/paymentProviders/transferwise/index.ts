@@ -791,18 +791,21 @@ const oauth = {
 
 const APPLICATION_TRIGGERS = ['transfers#state-change', 'transfers#refund'] as const;
 
-async function createWebhooksForHost(host = config.host.api): Promise<Webhook> {
-  const url = `${host}/webhooks/transferwise`;
+async function createWebhooksForHost(): Promise<Webhook[]> {
+  const url = `${config.host.api}/webhooks/transferwise`;
   const existingWebhooks = await transferwise.listApplicationWebhooks();
 
+  const webhooks = [];
   for (const trigger_on of APPLICATION_TRIGGERS) {
-    if (existingWebhooks?.find(w => w.trigger_on === trigger_on && w.delivery.url === url)) {
+    const existingWebhook = existingWebhooks?.find(w => w.trigger_on === trigger_on && w.delivery.url === url);
+    if (existingWebhook) {
       logger.info(`TransferWise App Webhook already exists for ${url}.`);
-      return;
+      webhooks.push(existingWebhook);
+      continue;
     }
 
     logger.info(`Creating TransferWise App Webhook on ${url} for ${trigger_on} events...`);
-    await transferwise.createApplicationWebhook({
+    const webhook = await transferwise.createApplicationWebhook({
       name: 'Open Collective',
       trigger_on,
       delivery: {
@@ -810,15 +813,17 @@ async function createWebhooksForHost(host = config.host.api): Promise<Webhook> {
         url,
       },
     });
+    webhooks.push(webhook);
   }
+  return webhooks;
 }
 
-async function removeWebhooksForHost(host) {
-  logger.info(`Removing TransferWise Webhooks for ${host}...`);
+async function removeWebhooksForHost() {
+  logger.info(`Removing TransferWise Webhooks for ${config.host.api}...`);
   const existingWebhooks = (await transferwise.listApplicationWebhooks()) || [];
   await Promise.all(
     existingWebhooks
-      .filter(w => w.delivery.url.includes(host))
+      .filter(w => w.delivery.url.includes(config.host.api))
       .map(async w => {
         await transferwise.deleteApplicationWebhook(w.id);
         logger.info(`Removed TransferWise Webhook for event ${w.trigger_on} ${w.delivery.url}`);
