@@ -3,7 +3,7 @@ import type { Request } from 'express';
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull } from 'graphql';
 import { GraphQLJSONObject, GraphQLNonEmptyString } from 'graphql-scalars';
 import GraphQLUpload from 'graphql-upload/GraphQLUpload.js';
-import { isUndefined, omit, omitBy, pick } from 'lodash';
+import { omit, pick } from 'lodash';
 
 import { disconnectPlaidAccount } from '../../../lib/plaid/connect';
 import RateLimit from '../../../lib/rate-limit';
@@ -17,7 +17,10 @@ import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../inpu
 import { getValueInCentsFromAmountInput } from '../input/AmountInput';
 import { getDatabaseIdFromOrderReference } from '../input/OrderReferenceInput';
 import { GraphQLTransactionsImportRowCreateInput } from '../input/TransactionsImportRowCreateInput';
-import { GraphQLTransactionsImportRowUpdateInput } from '../input/TransactionsImportRowUpdateInput';
+import {
+  GraphQLTransactionsImportRowUpdateInput,
+  TransactionImportRowGraphQLType,
+} from '../input/TransactionsImportRowUpdateInput';
 import { GraphQLTransactionsImport } from '../object/TransactionsImport';
 
 const transactionImportsMutations = {
@@ -206,7 +209,16 @@ const transactionImportsMutations = {
         description: 'Whether to restore all dismissed rows',
       },
     },
-    resolve: async (_: void, args, req: Request) => {
+    resolve: async (
+      _: void,
+      args: {
+        id: string;
+        rows?: TransactionImportRowGraphQLType[];
+        dismissAll?: boolean;
+        restoreAll?: boolean;
+      },
+      req: Request,
+    ) => {
       checkRemoteUserCanUseTransactions(req);
       const importId = idDecode(args.id, 'transactions-import');
       const transactionsImport = await TransactionsImport.findByPk(importId, {
@@ -225,7 +237,12 @@ const transactionImportsMutations = {
           await Promise.all(
             args.rows.map(async row => {
               const rowId = idDecode(row.id, 'transactions-import-row');
-              const values = omitBy(omit(row, ['id', 'order']), isUndefined);
+              let values: Parameters<typeof TransactionsImportRow.update>[0] = pick(row, [
+                'sourceId',
+                'description',
+                'date',
+                'isDismissed',
+              ]);
               if (row.amount) {
                 values.amount = getValueInCentsFromAmountInput(row.amount);
                 values.currency = row.amount.currency;
@@ -239,6 +256,11 @@ const transactionImportsMutations = {
                 }
 
                 values['OrderId'] = order.id;
+              }
+
+              // For plaid imports, users can't change amount, date or sourceId
+              if (transactionsImport.type === 'PLAID') {
+                values = omit(values, ['amount', 'date', 'sourceId']);
               }
 
               const [updatedCount] = await TransactionsImportRow.update(values, {
