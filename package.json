@@ -60,7 +60,7 @@
     "bcrypt": "5.1.1",
     "blurhash": "2.0.5",
     "burner-email-providers": "github:opencollective/burner-email-providers",
-    "cloudflare": "3.4.0",
+    "cloudflare": "3.5.0",
     "cloudflare-ip": "0.0.7",
     "commander": "12.1.0",
     "config": "3.3.12",
