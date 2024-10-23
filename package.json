@@ -122,7 +122,7 @@
     "sequelize": "6.37.4",
     "sequelize-cli": "6.6.2",
     "sequelize-temporal": "2.0.0",
-    "sharp": "0.33.4",
+    "sharp": "0.33.5",
     "spdx-license-list": "6.9.0",
     "speakeasy": "2.0.0",
     "stripe": "14.25.0",
