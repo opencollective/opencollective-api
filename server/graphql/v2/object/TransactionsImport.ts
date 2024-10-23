@@ -129,7 +129,7 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
         }
 
         return {
-          offset: 0,
+          offset: args.offset,
           limit: args.limit,
           totalCount: () => TransactionsImportRow.count({ where }),
           nodes: () =>

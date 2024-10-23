@@ -265,7 +265,7 @@ const transactionImportsMutations = {
             { where: { TransactionsImportId: importId, isDismissed: true }, transaction },
           );
         } else {
-          throw new ValidationFailed('You must provide at least one row to update or dismiss all rows');
+          throw new ValidationFailed('You must provide at least one row to update or dismiss/restore all rows');
         }
 
         // Update import
