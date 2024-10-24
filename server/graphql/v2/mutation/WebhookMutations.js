@@ -38,7 +38,7 @@ const createWebhook = {
       type: args.webhook.activityType,
       webhookUrl: args.webhook.webhookUrl,
       UserId: req.remoteUser.id,
-      CollectiveId: account.CollectiveId,
+      CollectiveId: account.id,
     };
 
     return models.Notification.create(createParams);

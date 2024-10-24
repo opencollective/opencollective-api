@@ -36,7 +36,9 @@ export const GraphQLWebhook = new GraphQLObjectType({
     account: {
       type: new GraphQLNonNull(GraphQLAccount),
       resolve(notification, args, req) {
-        return req.loaders.Collective.byId.load(notification.CollectiveId);
+        if (notification.CollectiveId) {
+          return req.loaders.Collective.byId.load(notification.CollectiveId);
+        }
       },
     },
   }),
