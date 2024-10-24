@@ -1,8 +1,18 @@
 import { GraphQLBoolean, GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLNonEmptyString } from 'graphql-scalars';
 
-import { GraphQLAmountInput } from './AmountInput';
-import { GraphQLOrderReferenceInput } from './OrderReferenceInput';
+import { AmountInputType, GraphQLAmountInput } from './AmountInput';
+import { GraphQLOrderReferenceInput, OrderReferenceInputGraphQLType } from './OrderReferenceInput';
+
+export type TransactionImportRowGraphQLType = {
+  id: string;
+  sourceId?: string | null;
+  description?: string | null;
+  date?: string | null;
+  amount?: AmountInputType | null;
+  isDismissed?: boolean | null;
+  order?: OrderReferenceInputGraphQLType | null;
+};
 
 export const GraphQLTransactionsImportRowUpdateInput = new GraphQLInputObjectType({
   name: 'TransactionsImportRowUpdateInput',

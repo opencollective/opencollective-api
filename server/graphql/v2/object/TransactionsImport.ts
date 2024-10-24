@@ -1,12 +1,15 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON, GraphQLNonEmptyString } from 'graphql-scalars';
 
-import { TransactionsImport } from '../../../models';
+import { buildSearchConditions } from '../../../lib/sql-search';
+import { Op, TransactionsImport } from '../../../models';
 import TransactionsImportRow from '../../../models/TransactionsImportRow';
 import { GraphQLTransactionsImportRowCollection } from '../collection/GraphQLTransactionsImportRow';
+import { GraphQLTransactionsImportRowStatus, TransactionsImportRowStatus } from '../enum/TransactionsImportRowStatus';
 import { GraphQLTransactionsImportType } from '../enum/TransactionsImportType';
 import { getIdEncodeResolver } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
+import { getCollectionArgs } from '../interface/Collection';
 import { GraphQLFileInfo } from '../interface/FileInfo';
 
 import { GraphQLConnectedAccount } from './ConnectedAccount';
@@ -86,15 +89,54 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
     rows: {
       type: new GraphQLNonNull(GraphQLTransactionsImportRowCollection),
       description: 'List of rows in the import',
-      resolve: async importInstance => {
-        const where = { TransactionsImportId: importInstance.id };
+      args: {
+        ...getCollectionArgs({ limit: 100 }),
+        status: {
+          type: GraphQLTransactionsImportRowStatus,
+          description: 'Filter rows by status',
+        },
+        searchTerm: {
+          type: GraphQLString,
+          description: 'Search by text',
+        },
+      },
+      resolve: async (
+        importInstance,
+        args: { limit: number; offset: number; status: TransactionsImportRowStatus; searchTerm: string },
+      ) => {
+        const where: Parameters<typeof TransactionsImportRow.findAll>[0]['where'] = {
+          [Op.and]: [{ TransactionsImportId: importInstance.id }],
+        };
+
+        // Filter by status
+        if (args.status) {
+          if (args.status === 'IGNORED') {
+            where[Op.and].push({ isDismissed: true });
+          } else if (args.status === 'LINKED') {
+            where[Op.and].push({ [Op.or]: [{ ExpenseId: { [Op.not]: null } }, { OrderId: { [Op.not]: null } }] });
+          } else if (args.status === 'PENDING') {
+            where[Op.and].push({ ExpenseId: null }, { OrderId: null }, { isDismissed: false });
+          }
+        }
+
+        // Search term
+        if (args.searchTerm) {
+          where[Op.and].push({
+            [Op.or]: buildSearchConditions(args.searchTerm, {
+              textFields: ['description', 'sourceId'],
+            }),
+          });
+        }
+
         return {
-          offset: 0,
-          limit: 1000000, // TODO: pagination
+          offset: args.offset,
+          limit: args.limit,
           totalCount: () => TransactionsImportRow.count({ where }),
           nodes: () =>
             TransactionsImportRow.findAll({
               where,
+              limit: args.limit,
+              offset: args.offset,
               order: [
                 ['createdAt', 'ASC'],
                 ['id', 'ASC'],

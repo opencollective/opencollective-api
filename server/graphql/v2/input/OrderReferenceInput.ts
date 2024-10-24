@@ -19,9 +19,9 @@ export const GraphQLOrderReferenceInput = new GraphQLInputObjectType({
   }),
 });
 
-export type ObjectReference = { id?: string; legacyId?: number };
+export type OrderReferenceInputGraphQLType = { id?: string; legacyId?: number };
 
-export const getDatabaseIdFromOrderReference = (input: ObjectReference): number => {
+export const getDatabaseIdFromOrderReference = (input: OrderReferenceInputGraphQLType): number => {
   if (input.id) {
     return idDecode(input.id, IDENTIFIER_TYPES.ORDER);
   } else if (input.legacyId) {
@@ -32,7 +32,7 @@ export const getDatabaseIdFromOrderReference = (input: ObjectReference): number 
 };
 
 export const fetchOrderWithReference = async (
-  input: ObjectReference,
+  input: OrderReferenceInputGraphQLType,
   {
     include = undefined,
     throwIfMissing = true,
@@ -51,7 +51,7 @@ export const fetchOrderWithReference = async (
 };
 
 export const fetchOrdersWithReferences = async (
-  inputs: ObjectReference[],
+  inputs: OrderReferenceInputGraphQLType[],
   { include }: { include?: Includeable | Includeable[] },
 ) => {
   if (inputs.length === 0) {
