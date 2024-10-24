@@ -1,3 +1,4 @@
+/* eslint-disable camelcase */
 import assert from 'assert';
 import crypto from 'crypto';
 
@@ -788,25 +789,46 @@ const oauth = {
   },
 };
 
-async function setUpWebhook(): Promise<Webhook> {
+const APPLICATION_TRIGGERS = ['transfers#state-change', 'transfers#refund'] as const;
+
+async function createWebhooksForHost(): Promise<Webhook[]> {
   const url = `${config.host.api}/webhooks/transferwise`;
   const existingWebhooks = await transferwise.listApplicationWebhooks();
 
-  if (existingWebhooks?.find(w => w.trigger_on === 'transfers#state-change' && w.delivery.url === url)) {
-    logger.info(`TransferWise App Webhook already exists for ${url}.`);
-    return;
-  }
+  const webhooks = [];
+  for (const trigger_on of APPLICATION_TRIGGERS) {
+    const existingWebhook = existingWebhooks?.find(w => w.trigger_on === trigger_on && w.delivery.url === url);
+    if (existingWebhook) {
+      logger.info(`TransferWise App Webhook already exists for ${url}.`);
+      webhooks.push(existingWebhook);
+      continue;
+    }
 
-  logger.info(`Creating TransferWise App Webhook on ${url}...`);
-  return await transferwise.createApplicationWebhook({
-    name: 'Open Collective',
-    // eslint-disable-next-line camelcase
-    trigger_on: 'transfers#state-change',
-    delivery: {
-      version: '2.0.0',
-      url,
-    },
-  });
+    logger.info(`Creating TransferWise App Webhook on ${url} for ${trigger_on} events...`);
+    const webhook = await transferwise.createApplicationWebhook({
+      name: 'Open Collective',
+      trigger_on,
+      delivery: {
+        version: '2.0.0',
+        url,
+      },
+    });
+    webhooks.push(webhook);
+  }
+  return webhooks;
+}
+
+async function removeWebhooksForHost() {
+  logger.info(`Removing TransferWise Webhooks for ${config.host.api}...`);
+  const existingWebhooks = (await transferwise.listApplicationWebhooks()) || [];
+  await Promise.all(
+    existingWebhooks
+      .filter(w => w.delivery.url.includes(config.host.api))
+      .map(async w => {
+        await transferwise.deleteApplicationWebhook(w.id);
+        logger.info(`Removed TransferWise Webhook for event ${w.trigger_on} ${w.delivery.url}`);
+      }),
+  );
 }
 
 export default {
@@ -818,10 +840,11 @@ export default {
   quoteExpense,
   payExpense,
   payExpensesBatchGroup,
-  setUpWebhook,
+  createWebhooksForHost,
   validatePayoutMethod,
   scheduleExpenseForPayment,
   unscheduleExpenseForPayment,
   validateTransferRequirements,
+  removeWebhooksForHost,
   oauth,
 };

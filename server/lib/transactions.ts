@@ -251,7 +251,9 @@ export async function createTransactionsFromPaidExpense(
     },
   };
 
-  // If the payee is assuming the fees, we adapt the amounts
+  // Since both EXPENSE and PAYMENT_PROCESSOR_FEES are attributed to the collective,
+  // here we deduct the fees from the EXPENSE DEBIT amount so it sums up correctly to
+  // the full amount when combined with the PAYMENT_PROCESSOR_FEES DEBIT.
   if (expense.feesPayer === 'PAYEE') {
     transaction.amount += processedAmounts.paymentProcessorFee.inCollectiveCurrency;
     transaction.amountInHostCurrency += processedAmounts.paymentProcessorFee.inHostCurrency;

@@ -7,8 +7,10 @@ const run = async () => {
   const action = process.argv?.[2];
   if (action === 'up') {
     console.log('Creating TransferWise app webhook...');
-    const webhook = await transferwise.setUpWebhook();
-    console.log(`Webhook created: ${webhook.id} -> ${webhook.delivery.url}`);
+    const webhooks = await transferwise.createWebhooksForHost();
+    webhooks.forEach(webhook => {
+      console.log(`Webhook created: ${webhook.id} -> ${webhook.trigger_on} ${webhook.delivery.url}`);
+    });
   } else if (action === 'list') {
     console.log('Listing app webhooks...');
     const hooks = await listApplicationWebhooks();
