@@ -67,6 +67,15 @@ const getPlatformConstants = (checkIfMigrated: () => boolean) => ({
   get AllPlatformCollectiveIds() {
     return [8686, 835523];
   },
+
+  get FirstPartyHostCollectiveIds() {
+    return [
+      11004, // opensource
+      9807, // europe
+      729588, // oce-foundation-eur
+      696998, // oce-foundation-usd
+    ];
+  },
 });
 
 let __testingMigration = false;
