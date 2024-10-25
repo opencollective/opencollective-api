@@ -112,9 +112,7 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
       nextReminderDate: Date;
     };
     platformTip?: number;
-    fromAccountInfo?: {
-      // TODO: type me
-    };
+    fromAccountInfo?: Record<string, unknown>; // TODO: type me
   };
 
   declare taxAmount?: number;

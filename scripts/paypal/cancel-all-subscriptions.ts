@@ -134,7 +134,7 @@ const main = async () => {
         } else {
           logger.warn(result);
         }
-      } catch (e) {
+      } catch {
         // Ignore errors, they'll be logged by the paypalRequestV2 function
         continue;
       }

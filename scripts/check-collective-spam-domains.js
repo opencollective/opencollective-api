@@ -1,6 +1,6 @@
 import '../server/env';
 
-import getUrls from 'get-urls'; // eslint-disable-line n/no-unpublished-import
+import getUrls from 'get-urls';
 import { padEnd } from 'lodash';
 import moment from 'moment';
 

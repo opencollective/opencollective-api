@@ -35,7 +35,7 @@ import { randStr } from './test-helpers/fake-data';
 
 jsonData.application = {
   name: 'client',
-  api_key: config.keys.opencollective.apiKey, // eslint-disable-line camelcase
+  api_key: config.keys.opencollective.apiKey,
 };
 
 export const data = path => {
@@ -445,7 +445,7 @@ export function stubStripeBalance(sandbox, amount, currency, applicationFee = 0,
     amount: convertToStripeAmount(currency, amount),
     currency: currency.toLowerCase(),
     fee,
-    fee_details: feeDetails, // eslint-disable-line camelcase
+    fee_details: feeDetails,
     net: convertToStripeAmount(currency, amount - fee),
     status: 'pending',
     type: 'charge',

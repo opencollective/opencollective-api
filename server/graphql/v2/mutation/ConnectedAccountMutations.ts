@@ -58,13 +58,13 @@ const connectedAccountMutations = {
         if (args.connectedAccount.service === Service.TRANSFERWISE) {
           try {
             await transferwise.getProfiles(args.connectedAccount.token);
-          } catch (e) {
+          } catch {
             throw new ValidationFailed('The token is not a valid TransferWise token');
           }
         } else if (args.connectedAccount.service === Service.PAYPAL) {
           try {
             await paypal.validateConnectedAccount(args.connectedAccount);
-          } catch (e) {
+          } catch {
             throw new ValidationFailed('The Client ID and Token are not a valid combination');
           }
         }

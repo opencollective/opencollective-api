@@ -70,7 +70,6 @@ export class ElasticSearchTransactionsAdapter implements ElasticSearchModelAdapt
   }
 
   public getIndexPermissions(adminOfAccountIds: number[]) {
-    /* eslint-disable camelcase */
     return {
       default: 'PUBLIC' as const,
       fields: {
@@ -79,6 +78,5 @@ export class ElasticSearchTransactionsAdapter implements ElasticSearchModelAdapt
           : { terms: { HostCollectiveId: adminOfAccountIds } },
       },
     };
-    /* eslint-enable camelcase */
   }
 }

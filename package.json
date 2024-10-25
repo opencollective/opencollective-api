@@ -139,6 +139,7 @@
   "devDependencies": {
     "@babel/cli": "^7.23.4",
     "@babel/register": "^7.23.7",
+    "@eslint/compat": "^1.2.1",
     "@graphql-eslint/eslint-plugin": "^3.20.1",
     "@opentelemetry/api": "^1.7.0",
     "@opentelemetry/auto-instrumentations-node": "^0.53.0",
@@ -156,8 +157,7 @@
     "@types/node-fetch": "^2.6.10",
     "@types/nodemailer": "^6.4.14",
     "@types/validator": "^13.11.8",
-    "@typescript-eslint/eslint-plugin": "^7.10.0",
-    "@typescript-eslint/parser": "^7.10.0",
+    "@typescript-eslint/parser": "^8.13.0",
     "babel-plugin-istanbul": "^7.0.0",
     "chai": "^4.3.10",
     "chai-as-promised": "^7.1.1",
@@ -166,16 +166,18 @@
     "chai-subset": "^1.6.0",
     "commitizen": "^4.3.0",
     "cz-conventional-changelog": "^3.3.0",
-    "eslint": "^8.57.0",
-    "eslint-config-opencollective": "^4.0.0",
-    "eslint-plugin-import": "^2.29.1",
+    "eslint": "^9.14.0",
+    "eslint-config-opencollective": "^5.1.0",
+    "eslint-import-resolver-typescript": "^3.6.3",
+    "eslint-plugin-import": "^2.31.0",
     "eslint-plugin-mocha": "10.5.0",
-    "eslint-plugin-n": "^17.7.0",
-    "eslint-plugin-react": "^7.34.1",
-    "eslint-plugin-simple-import-sort": "^12.1.0",
+    "eslint-plugin-n": "^17.11.1",
+    "eslint-plugin-react": "^7.37.2",
+    "eslint-plugin-simple-import-sort": "^12.1.1",
     "exif-reader": "^2.0.1",
     "fake-tag": "^3.0.0",
     "geoip-lite": "^1.4.9",
+    "globals": "^15.12.0",
     "husky": "^9.0.10",
     "lint-staged": "^15.2.2",
     "markdown-table": "^2.0.0",
@@ -190,7 +192,8 @@
     "sinon-chai": "^3.7.0",
     "supertest": "^7.0.0",
     "ts-unused-exports": "^10.1.0",
-    "typescript": "5.7.2"
+    "typescript": "5.7.2",
+    "typescript-eslint": "^8.13.0"
   },
   "scripts": {
     "build": "npm run build:clean && npm run build:updates && npm run build:server",
@@ -232,12 +235,12 @@
     "graphql:update": "npm-run-all graphql:updateV1 graphql:updateV2",
     "graphql:updateV1": "npm run script scripts/update-gql-schemas.ts http://localhost:3060/graphql/v1 server/graphql/schemaV1.graphql && prettier server/graphql/schemaV1.graphql --write",
     "graphql:updateV2": "npm run script scripts/update-gql-schemas.ts http://localhost:3060/graphql/v2 server/graphql/schemaV2.graphql && prettier server/graphql/schemaV2.graphql --write",
-    "lint": "eslint . --ext='js,ts,graphql'",
+    "lint": "eslint .",
     "lint:check": "npm run lint -- --quiet",
     "lint:fix": "npm run lint -- --fix",
     "mailpit": "./scripts/dev/run-docker.sh compose -f docker-compose.dev.yml --profile mail up",
     "postinstall": "./scripts/postinstall.sh",
-    "prettier": "prettier \"**/*.@(js|ts|json|md)\" --ignore-path .eslintignore",
+    "prettier": "prettier \"**/*.@(js|ts|json|md)\"",
     "prettier:check": "npm run prettier -- --check",
     "prettier:write": "npm run prettier -- --write",
     "script": "babel-node --extensions .js,.ts $1",
@@ -294,6 +297,10 @@
       "husky",
       "lint-staged",
       "mocha"
+    ],
+    "ignores": [
+      "eslint-import-resolver-typescript",
+      "typescript-eslint"
     ]
   }
 }

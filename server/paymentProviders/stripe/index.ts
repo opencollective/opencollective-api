@@ -27,15 +27,12 @@ const AUTHORIZE_URI = 'https://connect.stripe.com/oauth/authorize';
 export default {
   // Payment Method types implemented using Stripe
   types: {
-    // eslint-disable-next-line camelcase
     bacs_debit: bacsdebit,
     bancontact: bancontact,
     default: creditcard,
     creditcard,
     paymentintent,
-    // eslint-disable-next-line camelcase
     us_bank_account: paymentintent,
-    // eslint-disable-next-line camelcase
     sepa_debit: paymentintent,
     link: paymentintent,
   },

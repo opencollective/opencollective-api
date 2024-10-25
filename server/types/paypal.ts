@@ -1,5 +1,3 @@
-/* eslint-disable camelcase */
-
 type BatchStatus = 'DENIED' | 'PENDING' | 'PROCESSING' | 'SUCCESS' | 'CANCELED';
 
 type TransactionStatus =
