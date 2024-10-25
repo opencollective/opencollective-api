@@ -48,11 +48,11 @@ describe('server/graphql/v2/mutation/PlaidMutations', () => {
       }
     `;
 
-    it('must be root', async () => {
+    it('must be the member of a 1st party host or platform', async () => {
       const remoteUser = await fakeUser();
       const result = await graphqlQueryV2(GENERATE_PLAID_LINK_TOKEN_MUTATION, {}, remoteUser);
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.equal('You need to be logged in as root.');
+      expect(result.errors[0].message).to.equal('You do not have permission to connect a Plaid account');
     });
 
     it('should generate a Plaid Link token', async () => {
@@ -103,7 +103,7 @@ describe('server/graphql/v2/mutation/PlaidMutations', () => {
       }
     `;
 
-    it('must be root', async () => {
+    it('must be the member of a 1st party host or platform', async () => {
       const remoteUser = await fakeUser();
       const result = await graphqlQueryV2(
         CONNECT_PLAID_ACCOUNT_MUTATION,
@@ -111,7 +111,7 @@ describe('server/graphql/v2/mutation/PlaidMutations', () => {
         remoteUser,
       );
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.equal('You need to be logged in as root.');
+      expect(result.errors[0].message).to.equal('You do not have permission to connect a Plaid account');
     });
 
     it('should connect a Plaid account', async () => {

@@ -1,10 +1,11 @@
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { pick } from 'lodash';
 
+import PlatformConstants from '../../../constants/platform';
 import { connectPlaidAccount, generatePlaidLinkToken } from '../../../lib/plaid/connect';
 import { requestPlaidAccountSync } from '../../../lib/plaid/sync';
 import RateLimit from '../../../lib/rate-limit';
-import { checkRemoteUserCanRoot } from '../../common/scope-check';
+import { checkRemoteUserCanUseTransactions } from '../../common/scope-check';
 import { Forbidden, RateLimitExceeded } from '../../errors';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import {
@@ -55,8 +56,15 @@ export const plaidMutations = {
   generatePlaidLinkToken: {
     type: new GraphQLNonNull(GraphQLPlaidLinkTokenCreateResponse),
     description: 'Generate a Plaid Link token',
-    resolve: async (_, _args, req) => {
-      checkRemoteUserCanRoot(req);
+    resolve: async (_, _args, req: Express.Request) => {
+      checkRemoteUserCanUseTransactions(req);
+
+      // Check if user is an admin of any third party host or platform
+      const allowedIds = [...PlatformConstants.FirstPartyHostCollectiveIds, PlatformConstants.PlatformCollectiveId];
+      if (!allowedIds.some(id => req.remoteUser.isAdmin(id))) {
+        throw new Forbidden('You do not have permission to connect a Plaid account');
+      }
+
       const tokenData = await generatePlaidLinkToken(req.remoteUser, ['auth', 'transactions'], ['US']);
       return {
         linkToken: tokenData['link_token'],
@@ -88,8 +96,12 @@ export const plaidMutations = {
       },
     },
     resolve: async (_, args, req) => {
-      checkRemoteUserCanRoot(req);
+      checkRemoteUserCanUseTransactions(req);
       const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
+      if (!req.remoteUser.isAdminOfCollective(host)) {
+        throw new Forbidden('You do not have permission to connect a Plaid account');
+      }
+
       const accountInfo = pick(args, ['sourceName', 'name']);
       return connectPlaidAccount(req.remoteUser, host, args.publicToken, accountInfo);
     },
@@ -104,7 +116,7 @@ export const plaidMutations = {
       },
     },
     resolve: async (_, args, req) => {
-      checkRemoteUserCanRoot(req);
+      checkRemoteUserCanUseTransactions(req);
       const connectedAccount = await fetchConnectedAccountWithReference(args.connectedAccount, {
         throwIfMissing: true,
       });
