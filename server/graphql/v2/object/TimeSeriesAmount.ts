@@ -1,4 +1,4 @@
-import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import moment from 'moment';
 
@@ -44,6 +44,7 @@ const GraphQLTimeSeriesAmountNodes = new GraphQLObjectType({
   fields: () => ({
     date: { type: new GraphQLNonNull(GraphQLDateTime) },
     amount: { type: new GraphQLNonNull(GraphQLAmount) },
+    count: { type: GraphQLInt },
     label: { type: GraphQLString },
   }),
 });

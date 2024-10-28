@@ -1,13 +1,15 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { get, has, pick } from 'lodash';
+import { get, has, memoize, pick, sortBy } from 'lodash';
 import moment from 'moment';
 
 import { getCollectiveIds } from '../../../lib/budget';
+import { getFxRate } from '../../../lib/currency';
 import queries from '../../../lib/queries';
 import sequelize, { QueryTypes } from '../../../lib/sequelize';
 import { computeDatesAsISOStrings } from '../../../lib/utils';
 import models from '../../../models';
+import { ValidationFailed } from '../../errors';
 import { GraphQLContributionFrequency } from '../enum/ContributionFrequency';
 import { GraphQLCurrency } from '../enum/Currency';
 import { GraphQLExpenseType } from '../enum/ExpenseType';
@@ -197,6 +199,181 @@ export const GraphQLAccountStats = new GraphQLObjectType({
             includeChildren: args.includeChildren,
             currency: args.currency,
           });
+        },
+      },
+      amountPledgedTimeSeries: {
+        description: 'Amount pledged time series',
+        type: new GraphQLNonNull(GraphQLTimeSeriesAmount),
+        args: TimeSeriesArgs,
+        /**
+         * @param {import('../../common/helpers').GraphQLArguments<TimeSeriesArgs>} args
+         * @param {import('../../../models').Collective} account
+         */
+        async resolve(account, args) {
+          const dateFrom = args.dateFrom || moment().toDate();
+          const dateTo = args.dateTo || moment().add(24, 'month').toDate();
+          const timeUnit = args.timeUnit || getTimeUnit(getNumberOfDays(dateFrom, dateTo, account) || 1);
+
+          if (moment(dateFrom).isAfter(dateTo)) {
+            throw new ValidationFailed("'dateFrom' must be before 'dateTo'");
+          }
+
+          /**
+           * @type {{pledges: number; nextChargeAt: Date; currency: string; totalAmount: number}[]}
+           */
+          const currentMonthPledges = await sequelize.query(
+            `
+            SELECT
+                DATE_TRUNC('day', s."nextChargeDate") as "nextChargeAt",
+                count(1) as "pledges",
+                o."currency",
+                sum(o."totalAmount") as "totalAmount"
+            FROM "Orders" o
+            JOIN "Subscriptions" s on s.id = o."SubscriptionId"
+            WHERE TRUE
+            AND s."isActive"
+            AND s."nextChargeDate" > NOW()
+            AND s."nextChargeDate" <= DATE_TRUNC('month', NOW()) + interval '1 month' - interval '1 day'
+            AND o."CollectiveId" = :collectiveId
+            AND o."deletedAt" IS NULL
+            GROUP BY DATE_TRUNC('day', s."nextChargeDate"), o."currency";
+          `,
+            {
+              type: QueryTypes.SELECT,
+              replacements: {
+                collectiveId: account.id,
+              },
+            },
+          );
+
+          /**
+           * @type {{pledges: number; interval: string; nextChargeAt: Date; currency: string; totalAmount: number}[]}
+           */
+          const activePledges = await sequelize.query(
+            `
+            SELECT
+                DATE_TRUNC('day', s."nextChargeDate") as "nextChargeAt",
+                count(1) as "pledges",
+                o."interval",
+                o."currency",
+                sum(o."totalAmount") as "totalAmount"
+            FROM "Orders" o
+            JOIN "Subscriptions" s on s.id = o."SubscriptionId"
+            WHERE TRUE
+            AND s."isActive"
+            AND o."CollectiveId" = :collectiveId
+            AND o."deletedAt" IS NULL
+            GROUP BY DATE_TRUNC('day', s."nextChargeDate"), o."interval", o."currency";
+          `,
+            {
+              type: QueryTypes.SELECT,
+              replacements: {
+                collectiveId: account.id,
+              },
+            },
+          );
+
+          const years = moment(dateTo).diff(moment(), 'years').toFixed(0);
+          const months = moment(dateTo).diff(moment(), 'month').toFixed(0);
+          const projectedPledges = [];
+          activePledges.forEach(pledge => {
+            if (pledge.interval === 'year') {
+              for (let i = 0; i <= years; i++) {
+                projectedPledges.push({
+                  ...pledge,
+                  nextChargeAt: moment(pledge.nextChargeAt).add(i, 'year').toISOString(),
+                });
+              }
+            } else if (pledge.interval === 'month') {
+              for (let i = 0; i <= months; i++) {
+                projectedPledges.push({
+                  ...pledge,
+                  nextChargeAt: moment(pledge.nextChargeAt).add(i, 'month').toISOString(),
+                });
+              }
+            }
+          });
+          const futureProjectedPledges = projectedPledges.filter(p =>
+            moment(p.nextChargeAt).isAfter(moment().add(1, 'month').startOf('month')),
+          );
+
+          const toCurrency = account.currency;
+          const getFxForCurrency = memoize(
+            fromCurrency => {
+              return getFxRate(fromCurrency, toCurrency);
+            },
+            fromCurrency => fromCurrency,
+          );
+
+          /**
+           * @type {{pledges: number; nextChargeAt: Date; currency: string; totalAmount: number}[]}
+           */
+          const expectedFunds = await sequelize.query(
+            `
+            SELECT
+                DATE_TRUNC('day', date(o."data"#>>'{expectedAt}')) as "nextChargeAt",
+                count(1) as "pledges",
+                o."currency",
+                sum(o."totalAmount") as "totalAmount"
+            FROM "Orders" o
+            WHERE TRUE
+            -- AND o."status" = 'PENDING'
+            AND o."data"#>>'{isPendingContribution}' = 'true'
+            AND o."deletedAt" IS NULL
+            AND date(o."data"#>>'{expectedAt}') <= :dateTo
+            AND date(o."data"#>>'{expectedAt}') >= :dateFrom
+            AND o."CollectiveId" = :collectiveId
+            GROUP BY DATE_TRUNC('day', date(o."data"#>>'{expectedAt}')), o."currency";
+          `,
+            {
+              type: QueryTypes.SELECT,
+              replacements: {
+                collectiveId: account.id,
+                dateFrom,
+                dateTo,
+              },
+            },
+          );
+
+          const pledges = [...currentMonthPledges, ...futureProjectedPledges, ...expectedFunds].filter(
+            p => moment(p.nextChargeAt).isAfter(dateFrom) && moment(p.nextChargeAt).isBefore(dateTo),
+          );
+          const perPeriod = {};
+
+          for (const pledge of pledges) {
+            const period = moment(pledge.nextChargeAt).startOf(timeUnit.toLowerCase()).toISOString();
+            perPeriod[period] = perPeriod[period]
+              ? {
+                  ...perPeriod[period],
+                  pledges: perPeriod[period].pledges + pledge.pledges,
+                  totalAmount:
+                    perPeriod[period].totalAmount + pledge.totalAmount * (await getFxForCurrency(pledge.currency)),
+                }
+              : {
+                  date: moment(period).toDate(),
+                  pledges: pledge.pledges,
+                  totalAmount: pledge.totalAmount * (await getFxForCurrency(pledge.currency)),
+                };
+          }
+
+          const nodes = sortBy(
+            Object.values(perPeriod).map(p => ({
+              date: p.date,
+              amount: {
+                value: p.totalAmount,
+                currency: account.currency,
+              },
+              count: p.pledges,
+            })),
+            'date',
+          );
+
+          return {
+            nodes,
+            timeUnit,
+            dateFrom,
+            dateTo,
+          };
         },
       },
       totalAmountReceivedTimeSeries: {
