@@ -1,4 +1,26 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["local>opencollective/renovate-config"]
+  "extends": ["local>opencollective/renovate-config"],
+  "assignees": ["betree", "gustavlrsn", "hdiniz", "kewitz"],
+  "assigneesSampleSize": 1,
+  "packageRules": [
+    {
+      "assignees": ["betree"],
+      "matchPackageNames": [
+        "@elastic/elasticsearch",
+        "@escape.tech/graphql-armor",
+        "@node-oauth/oauth2-server",
+        "@opencollective/taxes",
+        "@sentry/**"
+      ]
+    },
+    {
+      "assignees": ["hdiniz"],
+      "matchPackageNames": ["@peculiar/**", "@simplewebauthn/**", "@opentelemetry/**"]
+    },
+    {
+      "assignees": ["kewitz"],
+      "matchPackageNames": ["@paypal/payouts-sdk"]
+    }
+  ]
 }
