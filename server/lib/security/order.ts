@@ -114,9 +114,9 @@ const makeStatLimitChecker =
     const stat = await statFn(...args);
     const statArray = [stat.numberOfOrders, stat.errorRate, stat.paymentMethodRate];
     const fail = limits.every((limit, index) => limit <= statArray[index]);
-    debug(`Checking ${statArray.join()} below treshold ${limitParams.join()}: ${fail ? 'FAIL' : 'PASS'}`);
+    debug(`Checking ${statArray.join()} below threshold ${limitParams.join()}: ${fail ? 'FAIL' : 'PASS'}`);
     if (fail) {
-      throw new Error(`Stat ${statArray.join()} above treshold ${limitParams.join()}`);
+      throw new Error(`Stat ${statArray.join()} above threshold ${limitParams.join()}`);
     }
   };
 

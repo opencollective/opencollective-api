@@ -81,13 +81,13 @@ describe('lib/security/order', () => {
         config.fraud.order.user = defaultuser;
       });
 
-      it('should pass if user stats are below treshold', async () => {
+      it('should pass if user stats are below threshold', async () => {
         await expect(checkUser(user)).to.be.fulfilled;
       });
 
-      it('should throw if user stats hit the treshold', async () => {
+      it('should throw if user stats hit the threshold', async () => {
         config.fraud.order.user = '[["1 month", 5, 0.8, 0.2]]';
-        await expect(checkUser(user)).to.be.rejectedWith('above treshold');
+        await expect(checkUser(user)).to.be.rejectedWith('above threshold');
       });
     });
 
@@ -98,13 +98,13 @@ describe('lib/security/order', () => {
         config.fraud.order.ip = defaultip;
       });
 
-      it('should pass if ip stats are below treshold', async () => {
+      it('should pass if ip stats are below threshold', async () => {
         await expect(checkIP('127.0.0.1')).to.be.fulfilled;
       });
 
-      it('should throw if ip stats hit the treshold', async () => {
+      it('should throw if ip stats hit the threshold', async () => {
         config.fraud.order.ip = '[["5 days", 5, 0.8, 0.2]]';
-        await expect(checkIP('127.0.0.1')).to.be.rejectedWith('above treshold');
+        await expect(checkIP('127.0.0.1')).to.be.rejectedWith('above threshold');
       });
     });
 
@@ -115,13 +115,13 @@ describe('lib/security/order', () => {
         config.fraud.order.email = defaultemail;
       });
 
-      it('should pass if email stats are below treshold', async () => {
+      it('should pass if email stats are below threshold', async () => {
         await expect(checkEmail('crook@tempmail.com')).to.be.fulfilled;
       });
 
-      it('should throw if email stats hit the treshold', async () => {
+      it('should throw if email stats hit the threshold', async () => {
         config.fraud.order.email = '[["1 month", 5, 0.8, 0.2]]';
-        await expect(checkEmail('crook@tempmail.com')).to.be.rejectedWith('above treshold');
+        await expect(checkEmail('crook@tempmail.com')).to.be.rejectedWith('above threshold');
       });
     });
   });
