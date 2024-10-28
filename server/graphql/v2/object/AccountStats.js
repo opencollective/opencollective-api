@@ -206,7 +206,6 @@ export const GraphQLAccountStats = new GraphQLObjectType({
         type: new GraphQLNonNull(GraphQLTimeSeriesAmount),
         args: TimeSeriesArgs,
         /**
-         * @param {import('../../common/helpers').GraphQLArguments<TimeSeriesArgs>} args
          * @param {import('../../../models').Collective} account
          */
         async resolve(account, args) {
