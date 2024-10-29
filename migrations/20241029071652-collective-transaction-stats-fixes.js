@@ -78,7 +78,9 @@ module.exports = {
               WHERE (t.type = 'DEBIT' AND NOT (
                -- Do not include fees for orders, include for expenses
                 t.kind IN ('HOST_FEE', 'PAYMENT_PROCESSOR_FEE') AND t."OrderId" IS NOT NULL
-              ))
+              )) OR (
+                t.type = 'CREDIT' AND t.kind = 'PAYMENT_PROCESSOR_COVER' AND t."OrderId" IS NULL
+              )
             )
             AS "totalNetAmountSpentInHostCurrency",
 
@@ -167,7 +169,9 @@ module.exports = {
               WHERE (t.type = 'DEBIT' AND NOT (
                 -- Do not include fees for orders, include for expenses
                 t.kind IN ('HOST_FEE', 'PAYMENT_PROCESSOR_FEE') AND t."OrderId" IS NOT NULL
-              ))
+              )) OR (
+                t.type = 'CREDIT' AND t.kind = 'PAYMENT_PROCESSOR_COVER' AND t."OrderId" IS NULL
+              )
             )
             AS "totalNetAmountSpentInHostCurrency"
 

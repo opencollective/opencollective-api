@@ -650,10 +650,14 @@ export async function sumCollectivesTransactions(
     if (transactionType === 'DEBIT_WITHOUT_CONTRIBUTIONS_HOST_FEE_AND_PAYMENT_PROCESSOR_FEE') {
       where[Op.and] = where[Op.and] || [];
       if (['netAmountInCollectiveCurrency', 'netAmountInHostCurrency'].includes(column)) {
-        where[Op.and].push(
-          // Do not count host fees and payment processor fees related with orders (count if expenses!)
-          { type: DEBIT, [Op.not]: { kind: ['HOST_FEE', 'PAYMENT_PROCESSOR_FEE'], OrderId: { [Op.not]: null } } },
-        );
+        where[Op.and].push({
+          [Op.or]: [
+            // Do not count host fees and payment processor fees related with orders (count if expenses!)
+            { type: DEBIT, [Op.not]: { kind: ['HOST_FEE', 'PAYMENT_PROCESSOR_FEE'], OrderId: { [Op.not]: null } } },
+            // In case an Expense is refunded, we need to count its payment processor cover
+            { type: CREDIT, kind: 'PAYMENT_PROCESSOR_COVER', OrderId: null },
+          ],
+        });
       } else {
         where[Op.and].push(
           // Do not count host fees and payment processor fees, be it related with expense or orders
