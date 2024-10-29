@@ -156,7 +156,18 @@ export async function getTotalAmountReceivedAmount(
 
 export async function getTotalAmountSpentAmount(
   collective,
-  { loaders, net, kind, startDate, endDate, includeChildren, includeGiftCards, version, currency } = {},
+  {
+    loaders,
+    net,
+    useMaterializedView,
+    kind,
+    startDate,
+    endDate,
+    includeChildren,
+    includeGiftCards,
+    version,
+    currency,
+  } = {},
 ) {
   version = version || collective.settings?.budget?.version || DEFAULT_BUDGET_VERSION;
   currency = currency || collective.currency;
@@ -165,6 +176,7 @@ export async function getTotalAmountSpentAmount(
 
   const transactionArgs = {
     net,
+    useMaterializedView,
     kind,
     startDate,
     endDate,
@@ -195,7 +207,8 @@ export async function getTotalAmountSpentAmount(
 export async function getSumCollectivesAmountSpent(
   collectiveIds,
   {
-    net,
+    net = false,
+    useMaterializedView = true,
     kind,
     startDate,
     endDate,
@@ -206,7 +219,13 @@ export async function getSumCollectivesAmountSpent(
   } = {},
 ) {
   const fastResults =
-    version === DEFAULT_BUDGET_VERSION && !kind && !startDate && !endDate && !includeChildren && !includeGiftCards
+    useMaterializedView === true &&
+    version === DEFAULT_BUDGET_VERSION &&
+    !kind &&
+    !startDate &&
+    !endDate &&
+    !includeChildren &&
+    !includeGiftCards
       ? await getCurrentCollectiveTransactionStats(collectiveIds, {
           loaders,
           column: net ? 'totalNetAmountSpentInHostCurrency' : 'totalAmountSpentInHostCurrency',
@@ -630,10 +649,17 @@ export async function sumCollectivesTransactions(
     // This is usually to calculate for money spent NET or not (net=true, net-false)
     if (transactionType === 'DEBIT_WITHOUT_CONTRIBUTIONS_HOST_FEE_AND_PAYMENT_PROCESSOR_FEE') {
       where[Op.and] = where[Op.and] || [];
-      where[Op.and].push(
-        // Do not count host fees and payment processor fees that are related to orders
-        { type: DEBIT, [Op.not]: { kind: ['HOST_FEE', 'PAYMENT_PROCESSOR_FEE'], OrderId: { [Op.not]: null } } },
-      );
+      if (['netAmountInCollectiveCurrency', 'netAmountInHostCurrency'].includes(column)) {
+        where[Op.and].push(
+          // Do not count host fees and payment processor fees related with orders (count if expenses!)
+          { type: DEBIT, [Op.not]: { kind: ['HOST_FEE', 'PAYMENT_PROCESSOR_FEE'], OrderId: { [Op.not]: null } } },
+        );
+      } else {
+        where[Op.and].push(
+          // Do not count host fees and payment processor fees, be it related with expense or orders
+          { type: DEBIT, [Op.not]: { kind: ['HOST_FEE', 'PAYMENT_PROCESSOR_FEE'] } },
+        );
+      }
       // This is usually to calculate for NET amount money received
     } else if (transactionType === 'CREDIT_WITH_CONTRIBUTIONS_HOST_FEE_AND_PAYMENT_PROCESSOR_FEE') {
       where = {

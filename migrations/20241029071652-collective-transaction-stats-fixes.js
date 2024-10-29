@@ -32,9 +32,9 @@ module.exports = {
 
           SUM(t."amountInHostCurrency")
             FILTER (
-              -- Get all credits except PAYMENT_PROCESSOR_COVER from expenses or from before separate fees
+              -- Get all credits except PAYMENT_PROCESSOR_COVER
               WHERE (t.type = 'CREDIT' AND NOT (
-                t.kind = 'PAYMENT_PROCESSOR_COVER' AND (t."OrderId" IS NULL OR t."createdAt" < '2024-01-01')
+                t.kind = 'PAYMENT_PROCESSOR_COVER'
               ))
             )
             AS "totalAmountReceivedInHostCurrency",
@@ -61,7 +61,8 @@ module.exports = {
           SUM(t."amountInHostCurrency")
             FILTER (
               WHERE t.type = 'DEBIT' AND NOT (
-                t.kind IN ('HOST_FEE', 'PAYMENT_PROCESSOR_FEE') AND t."OrderId" IS NOT NULL
+                -- Do not include for orders or expenses
+                t.kind IN ('HOST_FEE', 'PAYMENT_PROCESSOR_FEE')
               )
             )
             AS "totalAmountSpentInHostCurrency",
@@ -75,6 +76,7 @@ module.exports = {
           )
             FILTER (
               WHERE (t.type = 'DEBIT' AND NOT (
+               -- Do not include fees for orders, include for expenses
                 t.kind IN ('HOST_FEE', 'PAYMENT_PROCESSOR_FEE') AND t."OrderId" IS NOT NULL
               ))
             )
@@ -119,9 +121,9 @@ module.exports = {
 
           SUM(t."amountInHostCurrency")
             FILTER (
-              -- Get all credits except PAYMENT_PROCESSOR_COVER from expenses or from before separate fees
+              -- Get all credits except PAYMENT_PROCESSOR_COVER
               WHERE (t.type = 'CREDIT' AND NOT (
-                t.kind = 'PAYMENT_PROCESSOR_COVER' AND (t."OrderId" IS NULL OR t."createdAt" < '2024-01-01')
+                t.kind = 'PAYMENT_PROCESSOR_COVER'
               ))
             )
             AS "totalAmountReceivedInHostCurrency",
@@ -148,7 +150,8 @@ module.exports = {
           SUM(t."amountInHostCurrency")
             FILTER (
               WHERE t.type = 'DEBIT' AND NOT (
-                t.kind IN ('HOST_FEE', 'PAYMENT_PROCESSOR_FEE') AND t."OrderId" IS NOT NULL
+                -- Do not include for orders or expenses
+                t.kind IN ('HOST_FEE', 'PAYMENT_PROCESSOR_FEE')
               )
             )
             AS "totalAmountSpentInHostCurrency",
@@ -162,6 +165,7 @@ module.exports = {
           )
             FILTER (
               WHERE (t.type = 'DEBIT' AND NOT (
+                -- Do not include fees for orders, include for expenses
                 t.kind IN ('HOST_FEE', 'PAYMENT_PROCESSOR_FEE') AND t."OrderId" IS NOT NULL
               ))
             )
