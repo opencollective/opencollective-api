@@ -293,17 +293,16 @@ export const ExpensesCollectionQueryResolver = async (
   }
 
   if (!isNil(args.chargeHasReceipts)) {
-    where[Op.and].push({
-      [Op.or]: [
-        { type: { [Op.ne]: ExpenseType.CHARGE } },
-        sequelize.where(
-          sequelize.literal(`
-                 NOT EXISTS (SELECT id from "ExpenseItems" ei where ei."ExpenseId" = "Expense".id and ei.url IS NULL)`),
-          Op.eq,
-          args.chargeHasReceipts,
+    where[Op.and].push(
+      { type: ExpenseType.CHARGE },
+      sequelize.where(
+        sequelize.literal(
+          `NOT EXISTS (SELECT id from "ExpenseItems" ei WHERE ei."ExpenseId" = "Expense".id and ei.url IS NULL AND ei."deletedAt" IS NULL)`,
         ),
-      ],
-    });
+        Op.eq,
+        args.chargeHasReceipts,
+      ),
+    );
   }
 
   if (!isEmpty(args.virtualCards)) {
