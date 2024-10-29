@@ -1,8 +1,9 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { get, has, pick } from 'lodash';
+import { get, has, intersection, pick } from 'lodash';
 import moment from 'moment';
 
+import { TransactionKind } from '../../../constants/transaction-kind';
 import { getCollectiveIds } from '../../../lib/budget';
 import queries from '../../../lib/queries';
 import sequelize, { QueryTypes } from '../../../lib/sequelize';
@@ -16,6 +17,8 @@ import { idEncode } from '../identifiers';
 import { GraphQLAmount } from '../object/Amount';
 import { GraphQLAmountStats } from '../object/AmountStats';
 import { getNumberOfDays, getTimeUnit, GraphQLTimeSeriesAmount, TimeSeriesArgs } from '../object/TimeSeriesAmount';
+
+const { ADDED_FUNDS, CONTRIBUTION } = TransactionKind;
 
 const TransactionArgs = {
   net: {
@@ -532,12 +535,13 @@ export const GraphQLAccountStats = new GraphQLObjectType({
         type: new GraphQLList(GraphQLAmountStats),
         description: 'Return amount stats for contributions (default, and only for now: one-time vs recurring)',
         args: {
-          ...pick(TransactionArgs, ['dateFrom', 'dateTo', 'includeChildren']),
+          ...pick(TransactionArgs, ['dateFrom', 'dateTo', 'includeChildren', 'kind']),
         },
         async resolve(collective, args) {
           const dateFrom = args.dateFrom ? moment(args.dateFrom) : null;
           const dateTo = args.dateTo ? moment(args.dateTo) : null;
           const collectiveIds = await getCollectiveIds(collective, args.includeChildren);
+          const kinds = args.kind ? intersection(args.kind, [CONTRIBUTION, ADDED_FUNDS]) : [CONTRIBUTION];
           return sequelize.query(
             `
             SELECT
@@ -553,7 +557,7 @@ export const GraphQLAccountStats = new GraphQLObjectType({
               AND o."CollectiveId" IN (:collectiveIds)
               AND o."FromCollectiveId" NOT IN (:collectiveIds)
               AND t."type" = 'CREDIT'
-              AND t."kind" = 'CONTRIBUTION'
+              AND t."kind" IN (:kinds)
               ${dateFrom ? `AND t."createdAt" >= :startDate` : ``}
               ${dateTo ? `AND t."createdAt" <= :endDate` : ``}
             GROUP BY "label", t."currency"
@@ -563,6 +567,7 @@ export const GraphQLAccountStats = new GraphQLObjectType({
               type: QueryTypes.SELECT,
               replacements: {
                 collectiveIds,
+                kinds,
                 ...computeDatesAsISOStrings(dateFrom, dateTo),
               },
             },
@@ -575,12 +580,14 @@ export const GraphQLAccountStats = new GraphQLObjectType({
         args: {
           ...TimeSeriesArgs, // dateFrom / dateTo / timeUnit
           includeChildren: TransactionArgs.includeChildren,
+          kind: TransactionArgs.kind,
         },
         async resolve(collective, args) {
           const dateFrom = args.dateFrom ? moment(args.dateFrom) : moment(collective.createdAt || new Date(2015, 1, 1));
           const dateTo = args.dateTo ? moment(args.dateTo) : moment();
           const timeUnit = args.timeUnit || getTimeUnit(getNumberOfDays(dateFrom, dateTo, collective) || 1);
           const collectiveIds = await getCollectiveIds(collective, args.includeChildren);
+          const kinds = args.kind ? intersection(args.kind, [CONTRIBUTION, ADDED_FUNDS]) : [CONTRIBUTION];
           const results = await sequelize.query(
             `
             SELECT
@@ -607,6 +614,7 @@ export const GraphQLAccountStats = new GraphQLObjectType({
               replacements: {
                 collectiveIds,
                 timeUnit,
+                kinds,
                 ...computeDatesAsISOStrings(dateFrom, dateTo),
               },
             },
