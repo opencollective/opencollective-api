@@ -627,31 +627,42 @@ export async function sumCollectivesTransactions(
     }
   }
   if (transactionType) {
-    // This is usually to calculate for money spent
+    // This is usually to calculate for money spent NET or not (net=true, net-false)
     if (transactionType === 'DEBIT_WITHOUT_CONTRIBUTIONS_HOST_FEE_AND_PAYMENT_PROCESSOR_FEE') {
       where[Op.and] = where[Op.and] || [];
-      // Include or not payment processor fee if it's net or not (if net include, if not not)
-      if (['netAmountInCollectiveCurrency', 'netAmountInHostCurrency'].includes(column)) {
-        where[Op.and].push({
-          [Op.or]: [
-            { type: DEBIT, [Op.not]: { kind: ['HOST_FEE', 'PAYMENT_PROCESSOR_FEE'], OrderId: { [Op.not]: null } } },
-            { type: CREDIT, kind: 'PAYMENT_PROCESSOR_COVER' },
-          ],
-        });
-      } else {
-        where[Op.and].push({ type: DEBIT, kind: { [Op.notIn]: ['HOST_FEE', 'PAYMENT_PROCESSOR_FEE'] } });
-      }
+      where[Op.and].push(
+        // Do not count host fees and payment processor fees that are related to orders
+        { type: DEBIT, [Op.not]: { kind: ['HOST_FEE', 'PAYMENT_PROCESSOR_FEE'], OrderId: { [Op.not]: null } } },
+      );
       // This is usually to calculate for NET amount money received
     } else if (transactionType === 'CREDIT_WITH_CONTRIBUTIONS_HOST_FEE_AND_PAYMENT_PROCESSOR_FEE') {
       where = {
         ...where,
         [Op.or]: [
-          // Get all credits except PAYMENT_PROCESSOR_COVER from expenses
-          { type: CREDIT, [Op.not]: { kind: 'PAYMENT_PROCESSOR_COVER', OrderId: null } },
+          // Get all credits except PAYMENT_PROCESSOR_COVER from expenses or before separate fees
+          {
+            type: CREDIT,
+            [Op.not]: {
+              kind: 'PAYMENT_PROCESSOR_COVER',
+              [Op.or]: { OrderId: null, createdAt: { [Op.lt]: '2024-01-01' } },
+            },
+          },
           // Deduct host fees and payment processor fees that are related to orders
           { type: DEBIT, kind: ['HOST_FEE', 'PAYMENT_PROCESSOR_FEE'], OrderId: { [Op.not]: null } },
         ],
       };
+      // This is usually to calculate for GROSS amount money received
+    } else if (transactionType === 'CREDIT') {
+      where[Op.and] = where[Op.and] || [];
+      where[Op.and].push(
+        // Get all credits except PAYMENT_PROCESSOR_COVER
+        {
+          type: CREDIT,
+          [Op.not]: {
+            kind: 'PAYMENT_PROCESSOR_COVER',
+          },
+        },
+      );
     } else {
       where.type = transactionType;
     }
@@ -667,19 +678,10 @@ export async function sumCollectivesTransactions(
   if (excludeRefunds) {
     where[Op.and] = where[Op.and] || [];
     // Exclude refunded transactions
+    // Note that PAYMENT_PROCESSOR_COVER and PAYMENT_PROCESSOR_FEE usually don't have RefundTransactionId set
+    // We need to make sure to include/exclude them both in the queries even if part of a refunded transaction
+    // For now, we're including them
     where[Op.and].push({ RefundTransactionId: { [Op.is]: null } });
-    // Also exclude anything with isRefund=true (PAYMENT_PROCESSOR_COVER doesn't have RefundTransactionId set)
-    const separateFees = parseToBoolean(config.ledger.separatePaymentProcessorFees) === true;
-    if (separateFees && transactionType === 'CREDIT_WITH_CONTRIBUTIONS_HOST_FEE_AND_PAYMENT_PROCESSOR_FEE') {
-      where[Op.and].push({
-        [Op.or]: [{ isRefund: { [Op.not]: true } }, { kind: 'PAYMENT_PROCESSOR_COVER' }],
-        OrderId: { [Op.not]: null },
-      });
-    } else if (separateFees && transactionType === 'DEBIT_WITHOUT_CONTRIBUTIONS_HOST_FEE_AND_PAYMENT_PROCESSOR_FEE') {
-      where[Op.and].push({ [Op.or]: [{ isRefund: { [Op.not]: true } }, { kind: 'PAYMENT_PROCESSOR_COVER' }] });
-    } else {
-      where[Op.and].push({ isRefund: { [Op.not]: true } });
-    }
   }
 
   if (hostCollectiveId) {
