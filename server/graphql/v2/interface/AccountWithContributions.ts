@@ -9,13 +9,15 @@ import {
   GraphQLNonNull,
   GraphQLString,
 } from 'graphql';
+import { GraphQLDateTime } from 'graphql-scalars';
 import { isNil, omit } from 'lodash';
 import { OrderItem } from 'sequelize';
 
 import PlatformConstants from '../../../constants/platform';
 import { filterContributors } from '../../../lib/contributors';
-import models, { Collective } from '../../../models';
+import models, { Collective, sequelize } from '../../../models';
 import { checkReceiveFinancialContributions } from '../../common/features';
+import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { GraphQLContributorCollection } from '../collection/ContributorCollection';
 import { GraphQLTierCollection } from '../collection/TierCollection';
 import { GraphQLAccountType, GraphQLMemberRole } from '../enum';
@@ -90,6 +92,96 @@ export const AccountWithContributionsFields = {
         limit,
         totalCount: filteredContributors.length,
         nodes: filteredContributors.slice(offset, limit + offset),
+      };
+    },
+  },
+  activeContributors: {
+    type: GraphQLAccountCollection,
+    description: '[!] Warning: this query is currently in beta and the API might change',
+    args: {
+      ...CollectionArgs,
+      dateFrom: { type: GraphQLDateTime },
+      dateTo: { type: GraphQLDateTime },
+      includeActiveRecurringContributions: { type: GraphQLBoolean },
+    },
+    async resolve(account, args) {
+      const collectiveIdsResult = await sequelize.query(
+        `WITH "CollectiveDonations" AS (
+            SELECT 
+              "Orders"."FromCollectiveId",
+              SUM("Transactions"."amountInHostCurrency") AS total_donated
+            FROM "Orders"
+            INNER JOIN "Transactions" ON "Transactions"."OrderId" = "Orders".id
+            WHERE "Orders"."CollectiveId" = :accountId
+             ${
+               args.includeActiveRecurringContributions
+                 ? `
+              AND (
+                ("Orders".status = 'ACTIVE' AND "Orders".interval IN ('month', 'year'))
+                OR ("Orders".status = 'PAID' AND "Orders"."createdAt" >= :dateFrom)
+              )`
+                 : ''
+             }
+         
+              AND "Transactions".type = 'CREDIT'
+              AND "Transactions"."CollectiveId" = :accountId
+              AND "Transactions"."FromCollectiveId" = "Orders"."FromCollectiveId"
+              AND "Transactions"."isRefund" = FALSE
+              AND "Transactions"."RefundTransactionId" IS NULL
+              AND "Transactions"."deletedAt" IS NULL
+              AND "Orders"."deletedAt" IS NULL
+              ${!args.includeActiveRecurringContributions && args.dateTo ? `AND "Transactions"."createdAt" <= :dateTo` : ''}
+              ${!args.includeActiveRecurringContributions && args.dateFrom ? `AND "Transactions"."createdAt" >= :dateFrom` : ''}
+            GROUP BY "Orders"."FromCollectiveId"
+          )
+          SELECT DISTINCT "Collectives".id, "Collectives".slug, "CollectiveDonations".total_donated
+          FROM "Collectives"
+          INNER JOIN "Members" m ON m."MemberCollectiveId" = "Collectives".id
+          INNER JOIN "CollectiveDonations" ON "Collectives".id = "CollectiveDonations"."FromCollectiveId"
+          WHERE m."CollectiveId" = :accountId 
+          AND m."MemberCollectiveId" != :accountId
+          AND m."deletedAt" IS NULL
+          AND m."role" = 'BACKER'
+          AND "Collectives"."deletedAt" IS NULL 
+          AND "CollectiveDonations".total_donated > 0
+          ORDER BY "CollectiveDonations".total_donated DESC;
+          `,
+        {
+          replacements: {
+            accountId: account.id,
+            dateFrom: args.dateFrom,
+            dateTo: args.dateTo,
+          },
+          type: sequelize.QueryTypes.SELECT,
+        },
+      );
+
+      const collectiveIds = collectiveIdsResult.map(result => result.id);
+
+      const collectives = await models.Collective.findAll({
+        where: {
+          id: collectiveIds,
+        },
+        order: collectiveIds.length
+          ? [
+              // To maintain the order of total donations
+              sequelize.literal(`
+          CASE id
+            ${collectiveIds.map((id, index) => `WHEN ${id} THEN ${index}`).join(' ')}
+            ELSE ${collectiveIds.length}
+          END
+        `),
+            ]
+          : undefined,
+        offset: args.offset,
+        limit: args.limit,
+      });
+
+      return {
+        totalCount: collectives.length,
+        nodes: collectives,
+        limit: args.limit,
+        offset: args.offset,
       };
     },
   },

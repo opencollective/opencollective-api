@@ -1000,6 +1000,20 @@ interface Account {
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
+  activeContributors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+    dateFrom: DateTime
+    dateTo: DateTime
+    includeActiveRecurringContributions: Boolean
+  ): AccountCollection
 }
 
 """
@@ -3479,6 +3493,20 @@ type Host implements Account & AccountWithContributions {
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
+  activeContributors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+    dateFrom: DateTime
+    dateTo: DateTime
+    includeActiveRecurringContributions: Boolean
+  ): AccountCollection
   webhooks(
     """
     The number of results to fetch (default 10, max 1000)
@@ -8573,6 +8601,20 @@ type Bot implements Account {
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
+  activeContributors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+    dateFrom: DateTime
+    dateTo: DateTime
+    includeActiveRecurringContributions: Boolean
+  ): AccountCollection
   webhooks(
     """
     The number of results to fetch (default 10, max 1000)
@@ -9430,6 +9472,20 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
+  activeContributors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+    dateFrom: DateTime
+    dateTo: DateTime
+    includeActiveRecurringContributions: Boolean
+  ): AccountCollection
   webhooks(
     """
     The number of results to fetch (default 10, max 1000)
@@ -10818,6 +10874,20 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
+  activeContributors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+    dateFrom: DateTime
+    dateTo: DateTime
+    includeActiveRecurringContributions: Boolean
+  ): AccountCollection
   webhooks(
     """
     The number of results to fetch (default 10, max 1000)
@@ -11924,6 +11994,20 @@ type Individual implements Account {
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
+  activeContributors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+    dateFrom: DateTime
+    dateTo: DateTime
+    includeActiveRecurringContributions: Boolean
+  ): AccountCollection
   webhooks(
     """
     The number of results to fetch (default 10, max 1000)
@@ -12987,6 +13071,20 @@ type Organization implements Account & AccountWithContributions {
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
+  activeContributors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+    dateFrom: DateTime
+    dateTo: DateTime
+    includeActiveRecurringContributions: Boolean
+  ): AccountCollection
   webhooks(
     """
     The number of results to fetch (default 10, max 1000)
@@ -13941,6 +14039,20 @@ type Vendor implements Account & AccountWithContributions {
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
+  activeContributors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+    dateFrom: DateTime
+    dateTo: DateTime
+    includeActiveRecurringContributions: Boolean
+  ): AccountCollection
   webhooks(
     """
     The number of results to fetch (default 10, max 1000)
@@ -17527,6 +17639,20 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
+  activeContributors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+    dateFrom: DateTime
+    dateTo: DateTime
+    includeActiveRecurringContributions: Boolean
+  ): AccountCollection
   webhooks(
     """
     The number of results to fetch (default 10, max 1000)
@@ -18513,6 +18639,20 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
+  activeContributors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+    dateFrom: DateTime
+    dateTo: DateTime
+    includeActiveRecurringContributions: Boolean
+  ): AccountCollection
   webhooks(
     """
     The number of results to fetch (default 10, max 1000)
