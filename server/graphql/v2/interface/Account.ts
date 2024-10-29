@@ -96,6 +96,7 @@ import GraphQLEmailAddress from '../scalar/EmailAddress';
 import { CollectionArgs } from './Collection';
 import { HasMembersFields } from './HasMembers';
 import { IsMemberOfFields } from './IsMemberOf';
+import { GraphQLGoalType } from '../enum/GoalType';
 
 const accountFieldsDefinition = () => ({
   id: {
@@ -1021,6 +1022,80 @@ const accountFieldsDefinition = () => ({
         },
         progress,
         accountId: account.id,
+      };
+    },
+  },
+  activeContributors: {
+    type: GraphQLAccountCollection,
+    args: {
+      ...CollectionArgs,
+      forGoalType: { type: GraphQLGoalType },
+      dateFrom: { type: GraphQLDateTime },
+      dateTo: { type: GraphQLDateTime },
+      includeActiveRecurringContributions: { type: GraphQLBoolean },
+    },
+    async resolve(account, args) {
+      const collectiveIdsResult = await sequelize.query(
+        `WITH "CollectiveDonations" AS (
+            SELECT 
+              "Orders"."FromCollectiveId",
+              SUM("Transactions".amount) AS total_donated
+            FROM "Orders"
+            JOIN "Transactions" ON "Transactions"."OrderId" = "Orders".id
+            WHERE "Orders"."CollectiveId" = :accountId
+             ${
+               args.includeActiveRecurringContributions
+                 ? `
+              AND (
+                ("Orders".status = 'ACTIVE' AND "Orders".interval IN ('month', 'year'))
+                OR ("Orders".status = 'PAID' AND "Orders"."createdAt" >= :dateFrom)
+              )`
+                 : ''
+             }
+         
+              AND "Transactions".type = 'CREDIT'
+              AND "Transactions"."CollectiveId" = :accountId
+              AND "Transactions"."FromCollectiveId" = "Orders"."FromCollectiveId"
+              AND "Transactions"."isRefund" = FALSE
+              AND "Transactions"."RefundTransactionId" IS NULL
+              AND "Transactions"."deletedAt" IS NULL
+              AND "Orders"."deletedAt" IS NULL
+              ${!args.includeActiveRecurringContributions && args.dateTo ? `AND "Transactions"."createdAt" <= :dateTo` : ''}
+              ${!args.includeActiveRecurringContributions && args.dateFrom ? `AND "Transactions"."createdAt" >= :dateFrom` : ''}
+            GROUP BY "Orders"."FromCollectiveId"
+          )
+          SELECT "Collectives".id
+          FROM "Collectives"
+          JOIN "CollectiveDonations" ON "Collectives".id = "CollectiveDonations"."FromCollectiveId"
+          WHERE "Collectives"."deletedAt" IS NULL
+          ORDER BY "CollectiveDonations".total_donated DESC;
+          `,
+        {
+          replacements: {
+            accountId: account.id,
+            dateFrom: args.dateFrom,
+            dateTo: args.dateTo,
+          },
+          type: sequelize.QueryTypes.SELECT,
+        },
+      );
+
+      const collectiveIds = collectiveIdsResult.map(result => result.id);
+
+      const collectives = await models.Collective.findAll({
+        where: {
+          id: collectiveIds,
+        },
+        order: [['id', 'DESC']], // To maintain the order of total donations
+        offset: args.offset,
+        limit: args.limit,
+      });
+
+      return {
+        totalCount: collectiveIdsResult.length,
+        nodes: collectives,
+        limit: args.limit,
+        offset: args.offset,
       };
     },
   },
