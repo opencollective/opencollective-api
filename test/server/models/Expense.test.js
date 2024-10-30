@@ -137,9 +137,9 @@ describe('test/server/models/Expense', () => {
       const tags = await Expense.getCollectiveExpensesTags(collective);
 
       expect(tags).to.deep.eq([
-        { label: 'team', count: 3, amount: 1470, currency: 'USD' },
-        { label: 'office', count: 1, amount: 840, currency: 'USD' },
-        { label: 'food', count: 2, amount: 630, currency: 'USD' },
+        { label: 'team', count: 3, amount: 1400, currency: 'USD' },
+        { label: 'office', count: 1, amount: 800, currency: 'USD' },
+        { label: 'food', count: 2, amount: 600, currency: 'USD' },
       ]);
     });
 
@@ -149,8 +149,8 @@ describe('test/server/models/Expense', () => {
       });
 
       expect(tags).to.deep.eq([
-        { label: 'food', count: 2, amount: 630, currency: 'USD' },
-        { label: 'team', count: 2, amount: 630, currency: 'USD' },
+        { label: 'food', count: 2, amount: 600, currency: 'USD' },
+        { label: 'team', count: 2, amount: 600, currency: 'USD' },
       ]);
     });
 
@@ -162,42 +162,42 @@ describe('test/server/models/Expense', () => {
           date: moment.utc().subtract(1, 'days').startOf('day').toDate(),
           label: 'food',
           count: 1,
-          amount: 210,
+          amount: 200,
           currency: 'USD',
         },
         {
           date: moment.utc().subtract(1, 'days').startOf('day').toDate(),
           label: 'team',
           count: 1,
-          amount: 210,
+          amount: 200,
           currency: 'USD',
         },
         {
           date: moment.utc().subtract(2, 'days').startOf('day').toDate(),
           label: 'food',
           count: 1,
-          amount: 420,
+          amount: 400,
           currency: 'USD',
         },
         {
           date: moment.utc().subtract(2, 'days').startOf('day').toDate(),
           label: 'team',
           count: 1,
-          amount: 420,
+          amount: 400,
           currency: 'USD',
         },
         {
           date: moment.utc().subtract(3, 'days').startOf('day').toDate(),
           label: 'office',
           count: 1,
-          amount: 840,
+          amount: 800,
           currency: 'USD',
         },
         {
           date: moment.utc().subtract(3, 'days').startOf('day').toDate(),
           label: 'team',
           count: 1,
-          amount: 840,
+          amount: 800,
           currency: 'USD',
         },
       ]);
@@ -213,28 +213,28 @@ describe('test/server/models/Expense', () => {
           date: moment.utc().subtract(1, 'days').startOf('day').toDate(),
           label: 'food',
           count: 1,
-          amount: 210,
+          amount: 200,
           currency: 'USD',
         },
         {
           date: moment.utc().subtract(1, 'days').startOf('day').toDate(),
           label: 'team',
           count: 1,
-          amount: 210,
+          amount: 200,
           currency: 'USD',
         },
         {
           date: moment.utc().subtract(2, 'days').startOf('day').toDate(),
           label: 'food',
           count: 1,
-          amount: 420,
+          amount: 400,
           currency: 'USD',
         },
         {
           date: moment.utc().subtract(2, 'days').startOf('day').toDate(),
           label: 'team',
           count: 1,
-          amount: 420,
+          amount: 400,
           currency: 'USD',
         },
       ]);
