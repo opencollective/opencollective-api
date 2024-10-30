@@ -527,6 +527,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
         CollectiveId: { [Op.in]: collectiveIds },
         FromCollectiveId: { [Op.notIn]: collectiveIds },
         type: 'DEBIT',
+        kind: 'EXPENSE', // net=false don't include related PAYMENT_PROCESSOR_FEE
         RefundTransactionId: null,
       },
     ];
@@ -594,6 +595,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
         CollectiveId: { [Op.in]: collectiveIds },
         FromCollectiveId: { [Op.notIn]: collectiveIds },
         type: 'DEBIT',
+        kind: 'EXPENSE', // net=false don't include related PAYMENT_PROCESSOR_FEE
         RefundTransactionId: null,
       },
     ];
