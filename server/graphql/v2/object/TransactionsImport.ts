@@ -138,8 +138,9 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
               limit: args.limit,
               offset: args.offset,
               order: [
-                ['createdAt', 'ASC'],
-                ['id', 'ASC'],
+                ['date', 'DESC'],
+                ['createdAt', 'DESC'],
+                ['id', 'DESC'],
               ],
             }),
         };
