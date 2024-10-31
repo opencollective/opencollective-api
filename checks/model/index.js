@@ -11,6 +11,7 @@ import { checkIndependentCollectives } from './independent-collectives';
 import { checkMembers } from './members';
 import { checkOrders } from './orders';
 import { checkPaymentMethods } from './payment-methods';
+import { checkTiers } from './tiers';
 import { checkTransactions } from './transactions';
 import { checkUsers } from './users';
 import { checkVirtualCards } from './virtual-cards';
@@ -23,6 +24,7 @@ const allModelChecks = [
   checkMembers,
   checkOrders,
   checkPaymentMethods,
+  checkTiers,
   checkTransactions,
   checkUsers,
   checkVirtualCards,
