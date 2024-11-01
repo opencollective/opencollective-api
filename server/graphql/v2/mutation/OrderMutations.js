@@ -31,7 +31,7 @@ import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../../../lib/saniti
 import { checkGuestContribution, checkOrdersLimit } from '../../../lib/security/limit';
 import { orderFraudProtection } from '../../../lib/security/order';
 import { reportErrorToSentry } from '../../../lib/sentry';
-import stripe, { convertToStripeAmount } from '../../../lib/stripe';
+import stripe, { convertToStripeAmount, sanitizeStripeError } from '../../../lib/stripe';
 import {
   updateOrderSubscription,
   updatePaymentMethodForSubscription,
@@ -545,7 +545,7 @@ const orderMutations = {
       const updatedOrder = await confirmOrderLegacy(baseOrder, req.remoteUser, args.guestToken);
       return {
         order: updatedOrder,
-        stripeError: updatedOrder.stripeError,
+        stripeError: sanitizeStripeError(updatedOrder.stripeError),
         guestToken: args.guestToken,
       };
     },
