@@ -24,6 +24,7 @@ import roles from '../../constants/roles';
 import { getCollectiveAvatarUrl } from '../../lib/collectivelib';
 import { filterContributors } from '../../lib/contributors';
 import { reportMessageToSentry } from '../../lib/sentry';
+import { sanitizeStripeError } from '../../lib/stripe';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import models, { Op, sequelize } from '../../models';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
@@ -1499,7 +1500,7 @@ export const OrderType = new GraphQLObjectType({
       stripeError: {
         type: StripeErrorType,
         resolve(order) {
-          return order.stripeError;
+          return sanitizeStripeError(order.stripeError); // The stripe error is set on the order @ https://github.com/opencollective/opencollective-api/blob/92c5b94c02e50c97eab623eaf1748ed0913c2ecc/server/graphql/v1/mutations/orders.js#L665
         },
       },
     };
@@ -1773,7 +1774,7 @@ export const PaymentMethodType = new GraphQLObjectType({
       stripeError: {
         type: StripeErrorType,
         resolve(paymentMethod) {
-          return paymentMethod.stripeError;
+          return sanitizeStripeError(paymentMethod.stripeError);
         },
       },
     };
