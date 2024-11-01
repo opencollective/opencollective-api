@@ -25,6 +25,8 @@ const EXCLUDED_HOST_SLUGS = process.env.EXCLUDED_HOST ? process.env.EXCLUDED_HOS
 const START_DATE = process.env.START_DATE ? moment.utc(process.env.START_DATE) : moment.utc().subtract(2, 'day');
 const END_DATE = process.env.END_DATE ? moment.utc(process.env.END_DATE) : moment(START_DATE).add(1, 'day');
 const DRY_RUN = process.env.DRY_RUN ? parseToBoolean(process.env.DRY_RUN) : false;
+const ONLY_CHECK_PAYPAL = process.env.ONLY_CHECK_PAYPAL ? parseToBoolean(process.env.ONLY_CHECK_PAYPAL) : false;
+const IGNORE_ERRORS = process.env.IGNORE_ERRORS ? parseToBoolean(process.env.IGNORE_ERRORS) : false;
 
 // Filter out transactions that are not related to contributions
 // See https://developer.paypal.com/docs/transaction-search/transaction-event-codes/
@@ -41,26 +43,18 @@ const WATCHED_EVENT_TYPES = [
 const IGNORED_HOSTS = [
   // Token is invalid
   'access2perspectives',
+  'foundation',
   // Transactions search API is not enabled
-  'allforclimate',
-  'arcadianodes',
-  'better-together',
+  'blackqueerlife',
   'bruijnlogistics',
-  'deeptimewalk-cic',
   'cct',
-  'heroes-of-newerth-community',
+  'kragelund-developments',
   'lucy-parsons-labs',
   'madeinjlm',
-  'monachelle',
-  'nfsc',
   'osgeo-foundation',
   'ppy',
   'proofing-future',
   'secdsm',
-  'stroud-district-community-hubs',
-  'the-book-haven-npc',
-  'thenewoilmedia',
-  'wildseed-society',
 ];
 
 /**
@@ -265,9 +259,15 @@ const processHost = async (host, periodStart: moment.Moment, periodEnd: moment.M
           fields: 'transaction_info',
           currentPage,
         }));
+        if (ONLY_CHECK_PAYPAL) {
+          return;
+        }
       } catch (e) {
         if (e.message.includes('Authorization failed due to insufficient permissions')) {
           logger.warn(`Skipping @${host.slug} because Transactions Search API is not enabled`);
+          return;
+        } else if (IGNORE_ERRORS) {
+          console.error(`Error while fetching transactions for @${host.slug}: ${e.message}`);
           return;
         } else {
           throw e;
