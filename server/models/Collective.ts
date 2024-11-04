@@ -3712,7 +3712,7 @@ Collective.init(
     },
 
     expensePolicy: {
-      type: DataTypes.TEXT, // HTML
+      type: DataTypes.VIRTUAL, // HTML
       validate: {
         len: [0, 50000], // just to prevent people from putting a lot of text in there
       },
