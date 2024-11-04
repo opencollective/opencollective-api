@@ -95,6 +95,10 @@ const expenseMutations = {
         type: GraphQLTransactionsImportRowReferenceInput,
         description: 'If the expense was imported, this is the reference to the row',
       },
+      privateComment: {
+        type: GraphQLString,
+        description: 'A optional private comment to add to the created expense',
+      },
     },
     async resolve(_: void, args, req: express.Request): Promise<ExpenseModel> {
       checkRemoteUserCanUseExpenses(req);
@@ -142,6 +146,17 @@ const expenseMutations = {
 
       if (args.recurring) {
         await models.RecurringExpense.createFromExpense(expense, args.recurring.interval, args.recurring.endsAt);
+      }
+
+      if (args.privateComment) {
+        await createComment(
+          {
+            ExpenseId: expense.id,
+            html: args.privateComment,
+            type: CommentType.PRIVATE_NOTE,
+          },
+          req,
+        );
       }
 
       return expense;
