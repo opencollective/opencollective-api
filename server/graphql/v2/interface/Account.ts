@@ -180,6 +180,7 @@ const accountFieldsDefinition = () => ({
   },
   expensePolicy: {
     type: GraphQLString,
+    deprecationReason: '2024-11-04: Please use policies.EXPENSE_POLICIES',
   },
   isIncognito: {
     type: new GraphQLNonNull(GraphQLBoolean),

@@ -59,7 +59,7 @@ import FEATURE from '../constants/feature';
 import OrderStatuses from '../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import plans, { HostPlan } from '../constants/plans';
-import POLICIES, { Policies } from '../constants/policies';
+import POLICIES, { DEFAULT_POLICIES, Policies } from '../constants/policies';
 import roles, { MemberRoleLabels } from '../constants/roles';
 import { hasOptedOutOfFeature, isFeatureAllowedForCollectiveType } from '../lib/allowed-features';
 import {
@@ -290,6 +290,7 @@ class Collective extends Model<
   public declare platformFeePercent: number;
   public declare description: string;
   public declare longDescription: string;
+  /** @deprecated Use policies @see {@link Policies.EXPENSE_POLICIES}*/
   public declare expensePolicy: string;
   public declare contributionPolicy: string;
   public declare currency: SupportedCurrency;
@@ -3495,7 +3496,7 @@ class Collective extends Model<
     return metrics;
   };
 
-  setPolicies = async function (policies) {
+  setPolicies = async function (policies: Policies) {
     for (const policy of Object.keys(policies)) {
       if (!POLICIES[policy]) {
         throw new Error(`Policy ${policy} is not supported`);
@@ -3715,11 +3716,33 @@ Collective.init(
       validate: {
         len: [0, 50000], // just to prevent people from putting a lot of text in there
       },
+      get() {
+        const currentPolicy =
+          this.data.policies?.[POLICIES.EXPENSE_POLICIES] || DEFAULT_POLICIES[POLICIES.EXPENSE_POLICIES];
+
+        return currentPolicy?.invoicePolicy;
+      },
       set(expensePolicy: string) {
+        const currentPolicy =
+          this.data.policies?.[POLICIES.EXPENSE_POLICIES] || DEFAULT_POLICIES[POLICIES.EXPENSE_POLICIES];
         if (expensePolicy) {
-          this.setDataValue('expensePolicy', sanitizeHTML(expensePolicy, optsSanitizeHtmlForSimplified));
+          this.setPolicies({
+            ...this.data.policies,
+            [POLICIES.EXPENSE_POLICIES]: {
+              ...currentPolicy,
+              invoicePolicy: expensePolicy,
+              receiptPolicy: expensePolicy,
+            },
+          });
         } else {
-          this.setDataValue('expensePolicy', null);
+          this.setPolicies({
+            ...this.data.policies,
+            [POLICIES.EXPENSE_POLICIES]: {
+              ...currentPolicy,
+              invoicePolicy: '',
+              receiptPolicy: '',
+            },
+          });
         }
       },
     },

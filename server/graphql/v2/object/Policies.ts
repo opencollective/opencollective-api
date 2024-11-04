@@ -17,6 +17,19 @@ export const GraphQLPolicies = new GraphQLObjectType({
       type: GraphQLString,
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.ACCOUNT),
     },
+    [POLICIES.EXPENSE_POLICIES]: {
+      type: new GraphQLObjectType({
+        name: POLICIES.EXPENSE_POLICIES,
+        fields: () => ({
+          invoicePolicy: { type: GraphQLString },
+          receiptPolicy: { type: GraphQLString },
+          titlePolicy: { type: GraphQLString },
+        }),
+      }),
+      async resolve(account) {
+        return await getPolicy(account, POLICIES.EXPENSE_POLICIES);
+      },
+    },
     [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: {
       type: new GraphQLObjectType({
         name: POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE,

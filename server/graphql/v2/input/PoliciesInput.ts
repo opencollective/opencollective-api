@@ -1,4 +1,4 @@
-import { GraphQLBoolean, GraphQLInputObjectType, GraphQLInt } from 'graphql';
+import { GraphQLBoolean, GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
 import POLICIES from '../../../constants/policies';
 import { GraphQLPolicyApplication } from '../enum/PolicyApplication';
@@ -6,6 +6,16 @@ import { GraphQLPolicyApplication } from '../enum/PolicyApplication';
 export const GraphQLPoliciesInput = new GraphQLInputObjectType({
   name: 'PoliciesInput',
   fields: () => ({
+    [POLICIES.EXPENSE_POLICIES]: {
+      type: new GraphQLInputObjectType({
+        name: 'PoliciesExpensePolicies',
+        fields: () => ({
+          invoicePolicy: { type: GraphQLString },
+          receiptPolicy: { type: GraphQLString },
+          titlePolicy: { type: GraphQLString },
+        }),
+      }),
+    },
     [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: {
       type: new GraphQLInputObjectType({
         name: 'PoliciesCollectiveExpenseAuthorCannotApprove',

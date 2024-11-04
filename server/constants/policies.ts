@@ -19,9 +19,15 @@ enum POLICIES {
   EXPENSE_PUBLIC_VENDORS = 'EXPENSE_PUBLIC_VENDORS',
   // When enabled, admins of the collective are allowed to see the payout methods of expenses
   COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS = 'COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS',
+  EXPENSE_POLICIES = 'EXPENSE_POLICIES',
 }
 
 export type Policies = Partial<{
+  [POLICIES.EXPENSE_POLICIES]: {
+    invoicePolicy: string;
+    receiptPolicy: string;
+    titlePolicy: string;
+  };
   [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: {
     enabled: boolean;
     amountInCents: number;
@@ -48,6 +54,11 @@ export type Policies = Partial<{
 }>;
 
 export const DEFAULT_POLICIES: { [T in POLICIES]: Policies[T] } = {
+  [POLICIES.EXPENSE_POLICIES]: {
+    invoicePolicy: '',
+    receiptPolicy: '',
+    titlePolicy: '',
+  },
   [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: {
     enabled: false,
     amountInCents: 0,
