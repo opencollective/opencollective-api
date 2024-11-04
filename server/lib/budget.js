@@ -543,6 +543,8 @@ export async function sumCollectivesTransactions(
     extraAttributes = [],
   } = {},
 ) {
+  const separatePaymentProcessorFees = parseToBoolean(config.ledger.separatePaymentProcessorFees) === true;
+
   if (withBlockedFunds) {
     if (startDate || endDate || groupByAttributes.length) {
       throw new Error('withBlockedFunds is not supported together with startDate, endDate or groupByAttributes');
@@ -634,8 +636,11 @@ export async function sumCollectivesTransactions(
       if (['netAmountInCollectiveCurrency', 'netAmountInHostCurrency'].includes(column)) {
         where[Op.and].push({
           [Op.or]: [
-            { type: DEBIT, [Op.not]: { kind: ['HOST_FEE', 'PAYMENT_PROCESSOR_FEE'], OrderId: { [Op.not]: null } } },
-            { type: CREDIT, kind: 'PAYMENT_PROCESSOR_COVER' },
+            {
+              type: DEBIT,
+              [Op.not]: { [Op.and]: { kind: ['HOST_FEE', 'PAYMENT_PROCESSOR_FEE'], OrderId: { [Op.not]: null } } },
+            },
+            { type: CREDIT, kind: 'PAYMENT_PROCESSOR_COVER', OrderId: null },
           ],
         });
       } else {
@@ -646,8 +651,19 @@ export async function sumCollectivesTransactions(
       where = {
         ...where,
         [Op.or]: [
-          // Get all credits except PAYMENT_PROCESSOR_COVER from expenses
-          { type: CREDIT, [Op.not]: { kind: 'PAYMENT_PROCESSOR_COVER', OrderId: null } },
+          // Get all credits except PAYMENT_PROCESSOR_COVER from expenses or before separate fees
+          {
+            type: CREDIT,
+            [Op.not]: [
+              {
+                kind: 'PAYMENT_PROCESSOR_COVER',
+                [Op.or]: {
+                  OrderId: null,
+                  ...(separatePaymentProcessorFees && { createdAt: { [Op.lt]: '2024-01-01' } }),
+                },
+              },
+            ],
+          },
           // Deduct host fees and payment processor fees that are related to orders
           { type: DEBIT, kind: ['HOST_FEE', 'PAYMENT_PROCESSOR_FEE'], OrderId: { [Op.not]: null } },
         ],
@@ -669,13 +685,15 @@ export async function sumCollectivesTransactions(
     // Exclude refunded transactions
     where[Op.and].push({ RefundTransactionId: { [Op.is]: null } });
     // Also exclude anything with isRefund=true (PAYMENT_PROCESSOR_COVER doesn't have RefundTransactionId set)
-    const separateFees = parseToBoolean(config.ledger.separatePaymentProcessorFees) === true;
-    if (separateFees && transactionType === 'CREDIT_WITH_CONTRIBUTIONS_HOST_FEE_AND_PAYMENT_PROCESSOR_FEE') {
-      where[Op.and].push({
-        [Op.or]: [{ isRefund: { [Op.not]: true } }, { kind: 'PAYMENT_PROCESSOR_COVER' }],
-        OrderId: { [Op.not]: null },
-      });
-    } else if (separateFees && transactionType === 'DEBIT_WITHOUT_CONTRIBUTIONS_HOST_FEE_AND_PAYMENT_PROCESSOR_FEE') {
+    if (
+      separatePaymentProcessorFees &&
+      transactionType === 'CREDIT_WITH_CONTRIBUTIONS_HOST_FEE_AND_PAYMENT_PROCESSOR_FEE'
+    ) {
+      where[Op.and].push({ [Op.or]: [{ isRefund: { [Op.not]: true } }, { kind: 'PAYMENT_PROCESSOR_COVER' }] });
+    } else if (
+      separatePaymentProcessorFees &&
+      transactionType === 'DEBIT_WITHOUT_CONTRIBUTIONS_HOST_FEE_AND_PAYMENT_PROCESSOR_FEE'
+    ) {
       where[Op.and].push({ [Op.or]: [{ isRefund: { [Op.not]: true } }, { kind: 'PAYMENT_PROCESSOR_COVER' }] });
     } else {
       where[Op.and].push({ isRefund: { [Op.not]: true } });
