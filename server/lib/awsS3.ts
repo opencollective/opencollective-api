@@ -60,7 +60,11 @@ export const uploadToS3 = async (
     const filePath = `/tmp/${params.Key}`;
     logger.warn(`S3 is not set, saving file to ${filePath}. This should only be done in development.`);
     const isBuffer = params.Body instanceof Buffer;
-    fs.writeFile(filePath, isBuffer ? <Buffer>params.Body : params.Body.toString('utf8'), logger.info);
+    fs.writeFile(
+      filePath,
+      isBuffer ? new Uint8Array(params.Body as Buffer) : params.Body.toString('utf8'),
+      logger.info,
+    );
     return { url: `file://${filePath}` };
   }
 };
