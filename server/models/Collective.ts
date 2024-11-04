@@ -3727,7 +3727,7 @@ Collective.init(
           this.data?.policies?.[POLICIES.EXPENSE_POLICIES] || DEFAULT_POLICIES[POLICIES.EXPENSE_POLICIES];
         if (expensePolicy) {
           this.setPolicies({
-            ...this.data.policies,
+            ...(this.data?.policies || {}),
             [POLICIES.EXPENSE_POLICIES]: {
               ...currentPolicy,
               invoicePolicy: expensePolicy,
