@@ -5160,6 +5160,31 @@ type AccountStats {
   ): Amount!
 
   """
+  Amount pledged time series
+  """
+  amountPledgedTimeSeries(
+    """
+    The start date of the time series
+    """
+    dateFrom: DateTime
+
+    """
+    The end date of the time series
+    """
+    dateTo: DateTime
+
+    """
+    The time unit of the time series (such as MONTH, YEAR, WEEK etc). If no value is provided this is calculated using the dateFrom and dateTo values.
+    """
+    timeUnit: TimeUnit
+
+    """
+    Include expected funds.
+    """
+    includeExpectedFunds: Boolean = false
+  ): TimeSeriesAmount!
+
+  """
   Total amount received time series
   """
   totalAmountReceivedTimeSeries(
@@ -5553,6 +5578,7 @@ enum TimeUnit {
 type TimeSeriesAmountNode {
   date: DateTime!
   amount: Amount!
+  count: Int
   label: String
 }
 
@@ -6928,7 +6954,27 @@ type TransactionsImport {
   """
   List of rows in the import
   """
-  rows: TransactionsImportRowCollection!
+  rows(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 100
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+
+    """
+    Filter rows by status
+    """
+    status: TransactionsImportRowStatus
+
+    """
+    Search by text
+    """
+    searchTerm: String
+  ): TransactionsImportRowCollection!
   stats: TransactionsImportStats
 }
 
@@ -7010,6 +7056,26 @@ type TransactionsImportRow {
 The `JSONObject` scalar type represents JSON objects as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
 """
 scalar JSONObject
+
+"""
+The status of a row in a transactions import
+"""
+enum TransactionsImportRowStatus {
+  """
+  The row has not been processed yet
+  """
+  PENDING
+
+  """
+  The row has been linked to an existing expense or order
+  """
+  LINKED
+
+  """
+  The row has been ignored
+  """
+  IGNORED
+}
 
 type TransactionsImportStats {
   """
@@ -20222,7 +20288,17 @@ type Mutation {
     """
     Rows to update
     """
-    rows: [TransactionsImportRowUpdateInput!]!
+    rows: [TransactionsImportRowUpdateInput!]
+
+    """
+    Whether to ignore all non-processed rows
+    """
+    dismissAll: Boolean
+
+    """
+    Whether to restore all dismissed rows
+    """
+    restoreAll: Boolean
   ): TransactionsImport!
 
   """
