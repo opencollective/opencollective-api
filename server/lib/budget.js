@@ -528,7 +528,7 @@ export async function getTotalMoneyManagedAmount(
 export async function sumCollectivesTransactions(
   ids,
   {
-    column,
+    column = '',
     transactionType = null,
     kind = null,
     startDate = null,

@@ -186,8 +186,8 @@ export async function verifyAuthenticationResponse(user: User, response: Authent
   const verificationResponse = await simplewebauthn.verifyAuthenticationResponse({
     authenticator: {
       counter: method.data.counter,
-      credentialID: Buffer.from(method.data.credentialId, 'base64url'),
-      credentialPublicKey: Buffer.from(method.data.credentialPublicKey, 'base64url'),
+      credentialID: new Uint8Array(Buffer.from(method.data.credentialId, 'base64url')),
+      credentialPublicKey: new Uint8Array(Buffer.from(method.data.credentialPublicKey, 'base64url')),
     },
     expectedChallenge,
     expectedOrigin: config.webauthn.expectedOrigins,
@@ -242,7 +242,7 @@ async function getAuthenticatorMetadata(
   // The fido aaguid can be present on the Extension OID 1.3.6.1.4.1.45724.1.1.4 (id-fido-gen-ce-aaguid)
   // https://www.w3.org/Submission/2015/SUBM-fido-key-attestation-20151120/
   const attestationObject = decodeAttestationObject(
-    Buffer.from(registrationResponse.registrationInfo?.attestationObject),
+    new Uint8Array(Buffer.from(registrationResponse.registrationInfo?.attestationObject)),
   );
   const attestationStatement = attestationObject.get('attStmt');
   if (!attestationStatement) {

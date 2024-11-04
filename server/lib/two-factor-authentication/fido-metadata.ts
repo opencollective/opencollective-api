@@ -63,7 +63,7 @@ export async function downloadFidoMetadata(): Promise<Metadata> {
   const certs = (
     typeof decodedMetadataJwt.header.x5c === 'string' ? [decodedMetadataJwt.header.x5c] : decodedMetadataJwt.header.x5c
   )
-    .map(base64Pem => new crypto.X509Certificate(Buffer.from(base64Pem, 'base64')))
+    .map(base64Pem => new crypto.X509Certificate(new Uint8Array(Buffer.from(base64Pem, 'base64'))))
     .join('\n');
 
   return jwt.verify(text, certs) as Metadata;
