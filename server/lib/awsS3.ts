@@ -1,4 +1,5 @@
 import fs from 'fs';
+import path from 'path';
 
 import {
   CopyObjectCommand,
@@ -57,7 +58,10 @@ export const uploadToS3 = async (
       }
     }
   } else if (config.env === 'development') {
-    const filePath = `/tmp/${params.Key}`;
+    const filePath = path.resolve('/tmp', params.Key);
+    if (!filePath.startsWith('/tmp')) {
+      throw new Error('Invalid file path');
+    }
     logger.warn(`S3 is not set, saving file to ${filePath}. This should only be done in development.`);
     const isBuffer = params.Body instanceof Buffer;
     fs.writeFile(
