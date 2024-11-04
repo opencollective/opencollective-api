@@ -3726,23 +3726,27 @@ Collective.init(
         const currentPolicy =
           this.data?.policies?.[POLICIES.EXPENSE_POLICIES] || DEFAULT_POLICIES[POLICIES.EXPENSE_POLICIES];
         if (expensePolicy) {
-          this.setPolicies({
-            ...(this.data?.policies || {}),
+          const data = this.getDataValue('data');
+          const newPolicies = {
+            ...(data?.policies || {}),
             [POLICIES.EXPENSE_POLICIES]: {
               ...currentPolicy,
-              invoicePolicy: expensePolicy,
-              receiptPolicy: expensePolicy,
+              invoicePolicy: sanitizeHTML(expensePolicy, optsSanitizeHtmlForSimplified),
+              receiptPolicy: sanitizeHTML(expensePolicy, optsSanitizeHtmlForSimplified),
             },
-          });
+          };
+          this.setDataValue('data', { data: { ...data, policies: newPolicies } });
         } else {
-          this.setPolicies({
-            ...(this.data?.policies || {}),
+          const data = this.getDataValue('data');
+          const newPolicies = {
+            ...(data?.policies || {}),
             [POLICIES.EXPENSE_POLICIES]: {
               ...currentPolicy,
               invoicePolicy: '',
               receiptPolicy: '',
             },
-          });
+          };
+          this.setDataValue('data', { data: { ...data, policies: newPolicies } });
         }
       },
     },
