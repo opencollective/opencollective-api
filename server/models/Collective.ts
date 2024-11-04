@@ -3718,13 +3718,13 @@ Collective.init(
       },
       get() {
         const currentPolicy =
-          this.data.policies?.[POLICIES.EXPENSE_POLICIES] || DEFAULT_POLICIES[POLICIES.EXPENSE_POLICIES];
+          this.data?.policies?.[POLICIES.EXPENSE_POLICIES] || DEFAULT_POLICIES[POLICIES.EXPENSE_POLICIES];
 
         return currentPolicy?.invoicePolicy;
       },
       set(expensePolicy: string) {
         const currentPolicy =
-          this.data.policies?.[POLICIES.EXPENSE_POLICIES] || DEFAULT_POLICIES[POLICIES.EXPENSE_POLICIES];
+          this.data?.policies?.[POLICIES.EXPENSE_POLICIES] || DEFAULT_POLICIES[POLICIES.EXPENSE_POLICIES];
         if (expensePolicy) {
           this.setPolicies({
             ...this.data.policies,
@@ -3736,7 +3736,7 @@ Collective.init(
           });
         } else {
           this.setPolicies({
-            ...this.data.policies,
+            ...(this.data?.policies || {}),
             [POLICIES.EXPENSE_POLICIES]: {
               ...currentPolicy,
               invoicePolicy: '',
