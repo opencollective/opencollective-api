@@ -135,6 +135,7 @@ const contributorsQuery = `
     m."CollectiveId" = :collectiveId
     AND m."MemberCollectiveId" != :collectiveId
     AND m."deletedAt" IS NULL
+    AND m."role" != 'FOLLOWER'
     AND c."deletedAt" IS NULL
     AND (transactions."ExpenseId" IS NULL OR e."type" != 'SETTLEMENT')
   GROUP BY
