@@ -204,7 +204,14 @@ export const GraphQLAccountStats = new GraphQLObjectType({
       amountPledgedTimeSeries: {
         description: 'Amount pledged time series',
         type: new GraphQLNonNull(GraphQLTimeSeriesAmount),
-        args: TimeSeriesArgs,
+        args: {
+          ...TimeSeriesArgs,
+          includeExpectedFunds: {
+            type: GraphQLBoolean,
+            defaultValue: false,
+            description: 'Include expected funds.',
+          },
+        },
         /**
          * @param {import('../../../models').Collective} account
          */
@@ -304,11 +311,14 @@ export const GraphQLAccountStats = new GraphQLObjectType({
             fromCurrency => fromCurrency,
           );
 
-          /**
-           * @type {{pledges: number; nextChargeAt: Date; currency: string; totalAmount: number}[]}
-           */
-          const expectedFunds = await sequelize.query(
-            `
+          let expectedFunds = [];
+
+          if (args.includeExpectedFunds) {
+            /**
+             * @type {{pledges: number; nextChargeAt: Date; currency: string; totalAmount: number}[]}
+             */
+            expectedFunds = await sequelize.query(
+              `
             SELECT
                 DATE_TRUNC('day', date(o."data"#>>'{expectedAt}')) as "nextChargeAt",
                 count(1) as "pledges",
@@ -316,7 +326,7 @@ export const GraphQLAccountStats = new GraphQLObjectType({
                 sum(o."totalAmount") as "totalAmount"
             FROM "Orders" o
             WHERE TRUE
-            -- AND o."status" = 'PENDING'
+            AND o."status" = 'PENDING'
             AND o."data"#>>'{isPendingContribution}' = 'true'
             AND o."deletedAt" IS NULL
             AND date(o."data"#>>'{expectedAt}') <= :dateTo
@@ -324,15 +334,16 @@ export const GraphQLAccountStats = new GraphQLObjectType({
             AND o."CollectiveId" = :collectiveId
             GROUP BY DATE_TRUNC('day', date(o."data"#>>'{expectedAt}')), o."currency";
           `,
-            {
-              type: QueryTypes.SELECT,
-              replacements: {
-                collectiveId: account.id,
-                dateFrom,
-                dateTo,
+              {
+                type: QueryTypes.SELECT,
+                replacements: {
+                  collectiveId: account.id,
+                  dateFrom,
+                  dateTo,
+                },
               },
-            },
-          );
+            );
+          }
 
           const pledges = [...currentMonthPledges, ...futureProjectedPledges, ...expectedFunds].filter(
             p => moment(p.nextChargeAt).isAfter(dateFrom) && moment(p.nextChargeAt).isBefore(dateTo),
