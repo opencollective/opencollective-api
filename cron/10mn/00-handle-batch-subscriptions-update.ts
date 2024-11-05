@@ -110,7 +110,7 @@ export async function run() {
       [Op.or]: [
         { data: { needsAsyncDeactivation: true }, '$Subscription.isActive$': true },
         { data: { needsAsyncPause: true }, '$Subscription.isActive$': true },
-        { data: { needsAsyncReactivation: true }, '$Subscription.isActive$': false },
+        { data: { needsAsyncReactivation: true }, '$Subscription.isActive$': false, '$collective.isActive$': true },
       ],
       updatedAt: {
         [Op.gt]: moment().subtract(1, 'month').toDate(), // For performance, only look at orders updated recently
