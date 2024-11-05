@@ -283,7 +283,7 @@ export async function getWebauthDeviceData(
     description: metadata?.metadataStatement?.description,
     icon: metadata?.metadataStatement?.icon,
     credentialPublicKey: Buffer.from(registrationResponse.registrationInfo.credential.publicKey).toString('base64url'),
-    credentialId: Buffer.from(registrationResponse.registrationInfo.credential.id).toString('base64url'),
+    credentialId: registrationResponse.registrationInfo.credential.id,
     counter: registrationResponse.registrationInfo.credential.counter,
     credentialDeviceType: registrationResponse.registrationInfo.credentialDeviceType,
     credentialType: registrationResponse.registrationInfo.credentialType,
