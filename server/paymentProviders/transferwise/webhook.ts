@@ -174,7 +174,7 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
 const handleTransferRefund = async (event: TransferRefundEvent): Promise<void> => {
   const isUsingTransferRefundHandler = parseToBoolean(config.transferwise.useTransferRefundHandler);
   if (!isUsingTransferRefundHandler) {
-    logger.debug('Wise: Ignoring refund event, transfers#refund handler is disabled.');
+    logger.debug('Wise: Ignoring refund event, transfers#refund handler is disabled.', event);
     return;
   }
 
