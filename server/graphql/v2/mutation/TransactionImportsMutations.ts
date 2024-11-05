@@ -3,7 +3,7 @@ import type { Request } from 'express';
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull } from 'graphql';
 import { GraphQLJSONObject, GraphQLNonEmptyString } from 'graphql-scalars';
 import GraphQLUpload from 'graphql-upload/GraphQLUpload.js';
-import { isUndefined, omit, omitBy, pick } from 'lodash';
+import { omit, pick } from 'lodash';
 
 import { disconnectPlaidAccount } from '../../../lib/plaid/connect';
 import RateLimit from '../../../lib/rate-limit';
@@ -17,7 +17,10 @@ import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../inpu
 import { getValueInCentsFromAmountInput } from '../input/AmountInput';
 import { getDatabaseIdFromOrderReference } from '../input/OrderReferenceInput';
 import { GraphQLTransactionsImportRowCreateInput } from '../input/TransactionsImportRowCreateInput';
-import { GraphQLTransactionsImportRowUpdateInput } from '../input/TransactionsImportRowUpdateInput';
+import {
+  GraphQLTransactionsImportRowUpdateInput,
+  TransactionImportRowGraphQLType,
+} from '../input/TransactionsImportRowUpdateInput';
 import { GraphQLTransactionsImport } from '../object/TransactionsImport';
 
 const transactionImportsMutations = {
@@ -194,11 +197,28 @@ const transactionImportsMutations = {
         description: 'ID of the import to add transactions to',
       },
       rows: {
-        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLTransactionsImportRowUpdateInput))),
+        type: new GraphQLList(new GraphQLNonNull(GraphQLTransactionsImportRowUpdateInput)),
         description: 'Rows to update',
       },
+      dismissAll: {
+        type: GraphQLBoolean,
+        description: 'Whether to ignore all non-processed rows',
+      },
+      restoreAll: {
+        type: GraphQLBoolean,
+        description: 'Whether to restore all dismissed rows',
+      },
     },
-    resolve: async (_: void, args, req: Request) => {
+    resolve: async (
+      _: void,
+      args: {
+        id: string;
+        rows?: TransactionImportRowGraphQLType[];
+        dismissAll?: boolean;
+        restoreAll?: boolean;
+      },
+      req: Request,
+    ) => {
       checkRemoteUserCanUseTransactions(req);
       const importId = idDecode(args.id, 'transactions-import');
       const transactionsImport = await TransactionsImport.findByPk(importId, {
@@ -213,35 +233,62 @@ const transactionImportsMutations = {
       // Preload orders
       return sequelize.transaction(async transaction => {
         // Update rows
-        await Promise.all(
-          args.rows.map(async row => {
-            const rowId = idDecode(row.id, 'transactions-import-row');
-            const values = omitBy(omit(row, ['id', 'order']), isUndefined);
-            if (row.amount) {
-              values.amount = getValueInCentsFromAmountInput(row.amount);
-              values.currency = row.amount.currency;
-            }
-            if (row.order) {
-              const orderId = getDatabaseIdFromOrderReference(row.order);
-              const order = await req.loaders.Order.byId.load(orderId);
-              const collective = order && (await req.loaders.Collective.byId.load(order.CollectiveId));
-              if (!order || !collective || collective.HostCollectiveId !== transactionsImport.CollectiveId) {
-                throw new Unauthorized(`Order not found or not associated with the import: ${orderId}`);
+        if (args.rows?.length) {
+          await Promise.all(
+            args.rows.map(async row => {
+              const rowId = idDecode(row.id, 'transactions-import-row');
+              let values: Parameters<typeof TransactionsImportRow.update>[0] = pick(row, [
+                'sourceId',
+                'description',
+                'date',
+                'isDismissed',
+              ]);
+              if (row.amount) {
+                values.amount = getValueInCentsFromAmountInput(row.amount);
+                values.currency = row.amount.currency;
+              }
+              if (row.order) {
+                const orderId = getDatabaseIdFromOrderReference(row.order);
+                const order = await req.loaders.Order.byId.load(orderId);
+                const collective = order && (await req.loaders.Collective.byId.load(order.CollectiveId));
+                if (!order || !collective || collective.HostCollectiveId !== transactionsImport.CollectiveId) {
+                  throw new Unauthorized(`Order not found or not associated with the import: ${orderId}`);
+                }
+
+                values['OrderId'] = order.id;
               }
 
-              values['OrderId'] = order.id;
-            }
+              // For plaid imports, users can't change amount, date or sourceId
+              if (transactionsImport.type === 'PLAID') {
+                values = omit(values, ['amount', 'date', 'sourceId']);
+              }
 
-            const [updatedCount] = await TransactionsImportRow.update(values, {
-              where: { id: rowId, TransactionsImportId: importId },
+              const [updatedCount] = await TransactionsImportRow.update(values, {
+                where: { id: rowId, TransactionsImportId: importId },
+                transaction,
+              });
+
+              if (!updatedCount) {
+                throw new NotFound(`Row not found: ${row.id}`);
+              }
+            }),
+          );
+        } else if (args.dismissAll) {
+          await TransactionsImportRow.update(
+            { isDismissed: true },
+            {
+              where: { TransactionsImportId: importId, isDismissed: false, ExpenseId: null, OrderId: null },
               transaction,
-            });
-
-            if (!updatedCount) {
-              throw new NotFound(`Row not found: ${row.id}`);
-            }
-          }),
-        );
+            },
+          );
+        } else if (args.restoreAll) {
+          await TransactionsImportRow.update(
+            { isDismissed: false },
+            { where: { TransactionsImportId: importId, isDismissed: true }, transaction },
+          );
+        } else {
+          throw new ValidationFailed('You must provide at least one row to update or dismiss/restore all rows');
+        }
 
         // Update import
         return transactionsImport.update({ updatedAt: new Date() }, { transaction });

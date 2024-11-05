@@ -119,7 +119,9 @@ export const legalDocumentsMutations = {
         data: {
           ...legalDocument.data,
           valuesHash,
-          encryptedFormData: encodeBase64(LegalDocument.encrypt(Buffer.from(JSON.stringify(args.formData)))),
+          encryptedFormData: encodeBase64(
+            new Uint8Array(LegalDocument.encrypt(Buffer.from(JSON.stringify(args.formData)))),
+          ),
         },
       });
 

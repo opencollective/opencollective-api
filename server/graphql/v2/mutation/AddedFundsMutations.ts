@@ -24,7 +24,11 @@ import {
 } from '../input/AccountingCategoryInput';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { AmountInputType, getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/AmountInput';
-import { fetchOrderWithReference, GraphQLOrderReferenceInput, ObjectReference } from '../input/OrderReferenceInput';
+import {
+  fetchOrderWithReference,
+  GraphQLOrderReferenceInput,
+  OrderReferenceInputGraphQLType,
+} from '../input/OrderReferenceInput';
 import { GraphQLTaxInput, TaxInput } from '../input/TaxInput';
 import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput';
 import {
@@ -297,7 +301,7 @@ export default {
     },
     resolve: async (
       _,
-      args: Omit<AddFundsMutationArgs, 'transactionsImportRow'> & { order: ObjectReference },
+      args: Omit<AddFundsMutationArgs, 'transactionsImportRow'> & { order: OrderReferenceInputGraphQLType },
       req: express.Request,
     ) => {
       checkRemoteUserCanUseHost(req);

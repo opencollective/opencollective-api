@@ -16,7 +16,7 @@ export default function streamToBuffer(stream: Readable): Promise<Buffer> {
       })
       .pipe(writable)
       .on('finish', (): void => {
-        resolve(Buffer.concat(data));
+        resolve(Buffer.concat(data.map(d => new Uint8Array(d))));
       })
       .on('error', (error: Error): void => {
         reject(error);

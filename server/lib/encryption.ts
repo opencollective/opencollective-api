@@ -17,7 +17,7 @@ export const secretbox = {
     const keyUint8Array = decodeBase64(key);
 
     const nonce = Nonce();
-    const box = _secretbox(buff, nonce, keyUint8Array);
+    const box = _secretbox(new Uint8Array(buff), nonce, keyUint8Array);
 
     const fullMessage = new Uint8Array(nonce.length + box.length);
     fullMessage.set(nonce);
@@ -29,7 +29,7 @@ export const secretbox = {
     const keyUint8Array = decodeBase64(key);
     const nonce = buffWithNonce.slice(0, nonceLength);
     const message = buffWithNonce.slice(nonceLength, buffWithNonce.length);
-    const decrypted = _secretbox.open(message, nonce, keyUint8Array);
+    const decrypted = _secretbox.open(new Uint8Array(message), new Uint8Array(nonce), keyUint8Array);
 
     if (!decrypted) {
       throw new Error('Could not decrypt message');
@@ -44,7 +44,7 @@ export const secretbox = {
     const keyUint8Array = decodeBase64(key);
     const nonce = buffWithNonce.slice(0, nonceLength);
     const message = buffWithNonce.slice(nonceLength, buffWithNonce.length);
-    const decrypted = _secretbox.open(message, nonce, keyUint8Array);
+    const decrypted = _secretbox.open(new Uint8Array(message), new Uint8Array(nonce), keyUint8Array);
     if (!decrypted) {
       throw new Error('Could not decrypt message');
     }

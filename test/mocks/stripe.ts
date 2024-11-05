@@ -435,7 +435,7 @@ export default {
         payment_intent: null,
         reason: 'fraudulent',
         status: 'warning_needs_response',
-      } as Stripe.Dispute,
+      } as unknown as Stripe.Dispute,
     },
     livemode: false,
     pending_webhooks: 0,
@@ -493,7 +493,7 @@ export default {
       idempotency_key: 'edac8120-a02b-4136-9e4d-295c2f506b95',
     },
     type: 'charge.dispute.closed',
-  } as Stripe.Event,
+  } as unknown as Stripe.Event,
 
   webhook_dispute_won: {
     id: 'evt_3LpcvEJKGTeo5jKp1P6hkDxm',
@@ -542,7 +542,7 @@ export default {
       idempotency_key: 'edac8120-a02b-4136-9e4d-295c2f506b95',
     },
     type: 'charge.dispute.closed',
-  } as Stripe.Event,
+  } as unknown as Stripe.Event,
 
   webhook_review_opened: {
     id: 'evt_1LxBZNJKGTeo5jKpolE0e9UC',

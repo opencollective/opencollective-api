@@ -28,6 +28,7 @@ const expensesQuery = gql`
     $status: [ExpenseStatusFilter]
     $searchTerm: String
     $customData: JSON
+    $chargeHasReceipts: Boolean
   ) {
     expenses(
       fromAccount: $fromAccount
@@ -36,6 +37,7 @@ const expensesQuery = gql`
       status: $status
       searchTerm: $searchTerm
       customData: $customData
+      chargeHasReceipts: $chargeHasReceipts
     ) {
       totalCount
       totalAmount {
@@ -462,6 +464,66 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
       const result = await graphqlQueryV2(expensesQuery, { searchTerm: slug });
       expect(result.data.expenses.totalCount).to.eq(1);
       expect(result.data.expenses.nodes[0].legacyId).to.eq(expenseTwo.id);
+    });
+  });
+
+  describe('chargeHasReceipts', () => {
+    it('Returns virtual card expenses with receipts', async () => {
+      const collective = await fakeCollective();
+      await fakeExpense({ type: 'INVOICE', CollectiveId: collective.id }); // random Expense
+      const virtualCardWithReceipt = await fakeExpense({
+        type: 'CHARGE',
+        CollectiveId: collective.id,
+        items: [{ description: 'item 1', amount: 1000, currency: 'USD', url: 'http://example.com' }],
+      });
+
+      await fakeExpense({
+        type: 'CHARGE',
+        CollectiveId: collective.id,
+        items: [
+          {
+            description: 'item 1',
+            amount: 1000,
+            currency: 'USD',
+            url: null,
+          },
+        ],
+      });
+
+      const queryParams = { account: { legacyId: collective.id }, chargeHasReceipts: true };
+      const result = await graphqlQueryV2(expensesQuery, queryParams);
+      expect(result.errors).to.not.exist;
+      expect(result.data.expenses.totalCount).to.eq(1);
+      expect(result.data.expenses.nodes[0].legacyId).to.eq(virtualCardWithReceipt.id);
+    });
+
+    it('Returns virtual card expenses without receipts', async () => {
+      const collective = await fakeCollective();
+      await fakeExpense({ type: 'INVOICE', CollectiveId: collective.id }); // random Expense
+      const virtualCardWithoutReceipt = await fakeExpense({
+        type: 'CHARGE',
+        CollectiveId: collective.id,
+        items: [{ description: 'item 1', amount: 1000, currency: 'USD', url: null }],
+      });
+
+      await fakeExpense({
+        type: 'CHARGE',
+        CollectiveId: collective.id,
+        items: [
+          {
+            description: 'item 1',
+            amount: 1000,
+            currency: 'USD',
+            url: 'http://example.com',
+          },
+        ],
+      });
+
+      const queryParams = { account: { legacyId: collective.id }, chargeHasReceipts: false };
+      const result = await graphqlQueryV2(expensesQuery, queryParams);
+      expect(result.errors).to.not.exist;
+      expect(result.data.expenses.totalCount).to.eq(1);
+      expect(result.data.expenses.nodes[0].legacyId).to.eq(virtualCardWithoutReceipt.id);
     });
   });
 });
