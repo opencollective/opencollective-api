@@ -50,7 +50,7 @@
     "@sentry/types": "7.119.2",
     "@shopify/address": "4.3.0",
     "@simplewebauthn/server": "11.0.0",
-    "@simplewebauthn/types": "9.0.1",
+    "@simplewebauthn/types": "11.0.0",
     "@superfaceai/passport-twitter-oauth2": "1.2.4",
     "argparse": "2.0.1",
     "async-mutex": "0.5.0",
