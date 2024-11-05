@@ -15,10 +15,12 @@ export const PLATFORM_MIGRATION_DATE = moment('2024-10-01T00:00:00Z');
  */
 const getPlatformConstants = (checkIfMigrated: () => boolean) => ({
   get OCICollectiveId() {
+    // https://opencollective.com/opencollective
     return 8686;
   },
 
   get OfitechCollectiveId() {
+    // https://opencollective.com/ofitech
     return 845576;
   },
 
@@ -31,8 +33,8 @@ const getPlatformConstants = (checkIfMigrated: () => boolean) => ({
   },
 
   get PlatformUserId() {
-    // Pia's account
-    return 30;
+    // https://opencollective.com/ofitech-admin
+    return 741159;
   },
 
   get PlatformCurrency(): SupportedCurrency {
@@ -40,19 +42,21 @@ const getPlatformConstants = (checkIfMigrated: () => boolean) => ({
   },
 
   get PlatformBankAccountId() {
-    return 2955;
+    // Ofitech bank account
+    return 70674;
   },
 
-  get PlatformPayPalId() {
-    return 6087;
-  },
+  // Not supported for now
+  // get PlatformPayPalId() {
+  //   return 6087;
+  // },
 
   get PlatformDefaultPaymentMethodId() {
-    return 2955;
+    return this.PlatformBankAccountId;
   },
 
   get PlatformAddress() {
-    return '340 S Lemon Ave #3717, Walnut, CA 91789';
+    return '440 N Barranca Ave #3489, Covina, CA 91723';
   },
 
   get PlatformCountry() {

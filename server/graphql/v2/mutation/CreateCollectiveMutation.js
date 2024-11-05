@@ -6,7 +6,7 @@ import { get, pick } from 'lodash';
 import POLICIES from '../../../constants/policies';
 import roles from '../../../constants/roles';
 import { purgeCacheForCollective } from '../../../lib/cache';
-import { defaultHostCollective, isCollectiveSlugReserved } from '../../../lib/collectivelib';
+import { canUseSlug, defaultHostCollective } from '../../../lib/collectivelib';
 import * as github from '../../../lib/github';
 import { OSCValidator } from '../../../lib/osc-validator';
 import { getPolicy } from '../../../lib/policies';
@@ -66,7 +66,7 @@ async function createCollective(_, args, req) {
         collectiveData.data = args.testPayload.data;
       }
 
-      if (isCollectiveSlugReserved(collectiveData.slug)) {
+      if (!canUseSlug(collectiveData.slug, remoteUser)) {
         throw new Error(`The slug '${collectiveData.slug}' is not allowed.`);
       }
       const collectiveWithSlug = await models.Collective.findOne({ where: { slug: collectiveData.slug }, transaction });

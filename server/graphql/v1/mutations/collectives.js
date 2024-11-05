@@ -12,6 +12,7 @@ import * as collectivelib from '../../../lib/collectivelib';
 import { defaultHostCollective } from '../../../lib/collectivelib';
 import * as github from '../../../lib/github';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
+import { containsProtectedBrandName } from '../../../lib/string-utils';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { sequelize } from '../../../models';
 import { SocialLinkType } from '../../../models/SocialLink';
@@ -415,6 +416,22 @@ export function editCollective(_, args, req) {
             privateInstructions: args.collective.privateInstructions,
           };
         }
+
+        // Validate slug/name
+        if (newCollectiveData.slug && newCollectiveData.slug !== collective.slug) {
+          if (!collectivelib.canUseSlug(newCollectiveData.slug, req.remoteUser)) {
+            throw new Error(`The slug '${newCollectiveData.slug}' is not allowed.`);
+          }
+        }
+        if (
+          newCollectiveData.name &&
+          newCollectiveData.name !== collective.name &&
+          !req.remoteUser.isAdminOfAnyPlatformAccount() &&
+          containsProtectedBrandName(newCollectiveData.name)
+        ) {
+          throw new Error(`The name '${newCollectiveData.name}' is not allowed.`);
+        }
+
         // we omit those attributes that have already been updated above
         return collective.update(omit(newCollectiveData, ['HostCollectiveId', 'hostFeePercent', 'currency']));
       })

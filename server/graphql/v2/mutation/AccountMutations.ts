@@ -650,6 +650,7 @@ const accountMutations = {
 
       for (const key of Object.keys(args.account)) {
         switch (key) {
+          // If ever implementing name/slug change here, make sure to protect them with `canUseSlug`/`containsProtectedBrandName`!
           case 'currency': {
             const previousData = { currency: account.currency };
             await account.setCurrency(args.account[key]);

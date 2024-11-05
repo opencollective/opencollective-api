@@ -80,6 +80,7 @@
     "express-basic-auth": "1.2.1",
     "express-session": "1.18.1",
     "express-ws": "5.0.2",
+    "fast-levenshtein": "3.0.0",
     "fast-redact": "3.5.0",
     "fs-extra": "11.2.0",
     "get-urls": "10.0.1",
