@@ -22,7 +22,7 @@ module.exports = {
 
   async down(queryInterface, Sequelize) {
     await queryInterface.addColumn('Collectives', 'expensePolicy', {
-      type: Sequelize.STRING,
+      type: Sequelize.TEXT,
     });
     await queryInterface.sequelize.query(`
       UPDATE "Collectives" SET
