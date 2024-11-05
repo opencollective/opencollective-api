@@ -55,7 +55,7 @@ const vendorMutations = {
         settings: {},
       };
 
-      if (['EIN', 'VAT', 'GST'].includes(vendorInfo.taxType)) {
+      if (['EIN', 'VAT', 'GST'].includes(vendorInfo?.taxType)) {
         assert(vendorInfo.taxId, new BadRequest('taxId is required when taxType is provided'));
         // Store Tax id in settings, to be consistent with other types of collectives
         vendorData.settings[vendorInfo.taxType] = { number: vendorInfo.taxId, type: 'OWN' };
@@ -67,13 +67,13 @@ const vendorMutations = {
         await vendor.setLocation(args.vendor.location);
       }
 
-      if (args.vendor.vendorInfo?.taxFormUrl) {
+      if (vendorInfo?.taxFormUrl) {
         const requiredTaxForms = await host.getRequiredLegalDocuments({ where: { documentType: 'US_TAX_FORM' } });
         if (!requiredTaxForms.length) {
           throw new BadRequest('Host does not require tax forms');
         }
 
-        await LegalDocument.manuallyMarkTaxFormAsReceived(vendor, req.remoteUser, args.vendor.vendorInfo.taxFormUrl, {
+        await LegalDocument.manuallyMarkTaxFormAsReceived(vendor, req.remoteUser, vendorInfo.taxFormUrl, {
           UserTokenId: req.userToken?.id,
         });
       }
