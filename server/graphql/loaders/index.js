@@ -468,10 +468,12 @@ export const loaders = req => {
       return sortResultsSimple(collectiveIds, stats, row => row.CollectiveId);
     }),
     hostedAccountSummary: {
-      buildLoader: ({ dateFrom, dateTo } = {}) =>
-        new DataLoader(async collectiveIds => {
-          const stats = await sequelize.query(
-            `
+      buildLoader: ({ dateFrom, dateTo } = {}) => {
+        const key = `${dateFrom}-${dateTo}`;
+        if (!context.loaders.Collective.stats.hostedAccountSummary[key]) {
+          context.loaders.Collective.stats.hostedAccountSummary[key] = new DataLoader(async collectiveIds => {
+            const stats = await sequelize.query(
+              `
             SELECT
               t."CollectiveId",
               t."hostCurrency",
@@ -494,19 +496,23 @@ export const loaders = req => {
             GROUP BY
               t."CollectiveId", t."hostCurrency"
             `,
-            {
-              replacements: {
-                collectiveIds,
-                dateFrom,
-                dateTo,
+              {
+                replacements: {
+                  collectiveIds,
+                  dateFrom,
+                  dateTo,
+                },
+                type: sequelize.QueryTypes.SELECT,
+                raw: true,
               },
-              type: sequelize.QueryTypes.SELECT,
-              raw: true,
-            },
-          );
+            );
 
-          return sortResultsSimple(collectiveIds, stats, row => row.CollectiveId);
-        }),
+            return sortResultsSimple(collectiveIds, stats, row => row.CollectiveId);
+          });
+        }
+
+        return context.loaders.Collective.stats.hostedAccountSummary[key];
+      },
     },
   };
 
