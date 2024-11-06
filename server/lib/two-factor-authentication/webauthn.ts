@@ -8,7 +8,6 @@ import { decodeAttestationObject } from '@simplewebauthn/server/helpers';
 import type {
   AuthenticationResponseJSON,
   PublicKeyCredentialCreationOptionsJSON,
-  PublicKeyCredentialDescriptorFuture,
   RegistrationResponseJSON,
   // eslint-disable-next-line import/no-unresolved, n/no-missing-import
 } from '@simplewebauthn/types';
@@ -64,18 +63,17 @@ export async function generateRegistrationOptions(user: User, req): Promise<Publ
     },
   });
 
-  const excludeCredentials = methods.map(
-    method =>
-      <PublicKeyCredentialDescriptorFuture>{
-        id: Buffer.from(method.data.credentialId, 'base64url'),
-        type: 'public-key',
-      },
+  const excludeCredentials: simplewebauthn.GenerateRegistrationOptionsOpts['excludeCredentials'] = methods.map(
+    method => ({
+      id: method.data.credentialId,
+      type: 'public-key',
+    }),
   );
 
   const options = await simplewebauthn.generateRegistrationOptions({
     rpName: config.webauthn.rpName,
     rpID: config.webauthn.rpId,
-    userID: idEncode(user.id, IDENTIFIER_TYPES.USER),
+    userID: new Uint8Array(Buffer.from(idEncode(user.id, IDENTIFIER_TYPES.USER))),
     userName: collective.slug,
     userDisplayName: collective.name,
     attestationType: 'direct',
@@ -135,12 +133,11 @@ export async function authenticationOptions(user: User, req) {
     },
   });
 
-  const allowCredentials = methods.map(
-    method =>
-      <PublicKeyCredentialDescriptorFuture>{
-        id: Buffer.from(method.data.credentialId, 'base64url'),
-        type: 'public-key',
-      },
+  const allowCredentials: simplewebauthn.GenerateAuthenticationOptionsOpts['allowCredentials'] = methods.map(
+    method => ({
+      id: method.data.credentialId,
+      type: 'public-key',
+    }),
   );
 
   const options = await simplewebauthn.generateAuthenticationOptions({
@@ -184,10 +181,10 @@ export async function verifyAuthenticationResponse(user: User, response: Authent
   }
 
   const verificationResponse = await simplewebauthn.verifyAuthenticationResponse({
-    authenticator: {
+    credential: {
       counter: method.data.counter,
-      credentialID: new Uint8Array(Buffer.from(method.data.credentialId, 'base64url')),
-      credentialPublicKey: new Uint8Array(Buffer.from(method.data.credentialPublicKey, 'base64url')),
+      id: method.data.credentialId,
+      publicKey: new Uint8Array(Buffer.from(method.data.credentialPublicKey, 'base64url')),
     },
     expectedChallenge,
     expectedOrigin: config.webauthn.expectedOrigins,
@@ -285,9 +282,9 @@ export async function getWebauthDeviceData(
     aaguid: registrationResponse.registrationInfo.aaguid,
     description: metadata?.metadataStatement?.description,
     icon: metadata?.metadataStatement?.icon,
-    credentialPublicKey: Buffer.from(registrationResponse.registrationInfo.credentialPublicKey).toString('base64url'),
-    credentialId: Buffer.from(registrationResponse.registrationInfo.credentialID).toString('base64url'),
-    counter: registrationResponse.registrationInfo.counter,
+    credentialPublicKey: Buffer.from(registrationResponse.registrationInfo.credential.publicKey).toString('base64url'),
+    credentialId: registrationResponse.registrationInfo.credential.id,
+    counter: registrationResponse.registrationInfo.credential.counter,
     credentialDeviceType: registrationResponse.registrationInfo.credentialDeviceType,
     credentialType: registrationResponse.registrationInfo.credentialType,
     fmt: registrationResponse.registrationInfo.fmt,
