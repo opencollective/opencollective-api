@@ -4,6 +4,7 @@ import debugLib from 'debug';
 import { Request } from 'express';
 import { get, omit } from 'lodash';
 import moment from 'moment';
+import { Transaction } from 'sequelize';
 import type Stripe from 'stripe';
 import { v4 as uuid } from 'uuid';
 
@@ -167,56 +168,98 @@ export const paymentIntentSucceeded = async (event: Stripe.Event) => {
     charge = await stripe.charges.retrieve(charge, { stripeAccount });
   }
 
-  const order = await models.Order.findOne({
-    where: {
-      data: { paymentIntent: { id: paymentIntent.id } },
-    },
-    include: [
-      { association: 'collective', required: true },
-      { association: 'fromCollective', required: true },
-      { association: 'createdByUser', required: true },
-    ],
-  });
+  let sequelizeTransaction: Transaction = await sequelize.transaction();
 
-  if (!order) {
-    logger.debug(`Stripe Webhook: Could not find Order for Payment Intent ${paymentIntent.id}`);
-    return;
-  }
-
-  // If charge was already processed, ignore event. (Potential edge-case: if the webhook is called while processing a 3DS validation)
-  const existingChargeTransaction = await models.Transaction.findOne({
-    where: { data: { charge: { id: charge.id } } },
-  });
-  if (existingChargeTransaction) {
-    logger.info(
-      `Stripe Webhook: ${existingChargeTransaction.OrderId} already processed charge ${charge.id}, ignoring event ${event.id}`,
-    );
-    return;
-  }
-
-  await createOrUpdateOrderStripePaymentMethod(order, stripeAccount, paymentIntent);
-
-  const transaction = await createChargeTransactions(charge, { order });
-  const sideEffects: Promise<unknown>[] = [
-    order.update({
-      status: !order.SubscriptionId ? OrderStatuses.PAID : OrderStatuses.ACTIVE,
-      processedAt: new Date(),
-      data: {
-        ...omit(order.data, 'paymentIntent'),
-        previousPaymentIntents: [...(order.data.previousPaymentIntents ?? []), paymentIntent],
+  let order: Order;
+  let previousOrderData: Order['data'];
+  try {
+    order = await models.Order.findOne({
+      transaction: sequelizeTransaction,
+      lock: sequelizeTransaction.LOCK.UPDATE,
+      where: {
+        data: { paymentIntent: { id: paymentIntent.id } },
       },
-    }),
-    order.getOrCreateMembers(),
-  ];
+      include: [
+        { association: 'collective', required: true },
+        { association: 'fromCollective', required: true },
+        { association: 'createdByUser', required: true },
+      ],
+    });
 
-  // after successful first payment of a recurring subscription where the payment confirmation is async
-  // and the subscription is managed by us.
-  if (order.interval && !order.SubscriptionId) {
-    sideEffects.push(createSubscription(order));
+    if (!order) {
+      logger.debug(`Stripe Webhook: Could not find Order for Payment Intent ${paymentIntent.id}`);
+      await sequelizeTransaction.rollback();
+      return;
+    }
+
+    previousOrderData = order.data;
+    await order.update(
+      {
+        data: {
+          ...omit(order.data, 'paymentIntent'),
+          previousPaymentIntents: [...(order.data.previousPaymentIntents ?? []), paymentIntent],
+        },
+      },
+      {
+        transaction: sequelizeTransaction,
+      },
+    );
+
+    await sequelizeTransaction.commit();
+    sequelizeTransaction = null;
+
+    // If charge was already processed, ignore event. (Potential edge-case: if the webhook is called while processing a 3DS validation)
+    const existingChargeTransaction = await models.Transaction.findOne({
+      where: { data: { charge: { id: charge.id } } },
+    });
+    if (existingChargeTransaction) {
+      logger.info(
+        `Stripe Webhook: ${existingChargeTransaction.OrderId} already processed charge ${charge.id}, ignoring event ${event.id}`,
+      );
+      return;
+    }
+
+    await createOrUpdateOrderStripePaymentMethod(order, stripeAccount, paymentIntent);
+
+    const transaction = await createChargeTransactions(charge, { order });
+    const sideEffects: Promise<unknown>[] = [
+      order.update({
+        status: !order.SubscriptionId ? OrderStatuses.PAID : OrderStatuses.ACTIVE,
+        processedAt: new Date(),
+        data: {
+          ...omit(order.data, 'paymentIntent'),
+          previousPaymentIntents: [...(order.data.previousPaymentIntents ?? []), paymentIntent],
+        },
+      }),
+      order.getOrCreateMembers(),
+    ];
+
+    // after successful first payment of a recurring subscription where the payment confirmation is async
+    // and the subscription is managed by us.
+    if (order.interval && !order.SubscriptionId) {
+      sideEffects.push(createSubscription(order));
+    }
+
+    sendEmailNotifications(order, transaction);
+    await Promise.all(sideEffects);
+  } catch (err) {
+    logger.error(
+      `Stripe Webhook: paymentIntentSuceeded errored on paymentIntentId ${paymentIntent.id}, OrderId: ${order?.id}: ${err}`,
+      err,
+    );
+
+    if (order) {
+      await order.update({
+        data: previousOrderData,
+      });
+    }
+
+    if (sequelizeTransaction) {
+      sequelizeTransaction.rollback();
+    }
+
+    throw err;
   }
-
-  sendEmailNotifications(order, transaction);
-  await Promise.all(sideEffects);
 };
 
 export const paymentIntentProcessing = async (event: Stripe.Event) => {
