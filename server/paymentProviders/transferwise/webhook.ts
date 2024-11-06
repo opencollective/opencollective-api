@@ -1,25 +1,34 @@
 import assert from 'assert';
 
+import config from 'config';
 import { Request } from 'express';
 import { omit, pick, toString } from 'lodash';
 
 import activities from '../../constants/activities';
 import { Service } from '../../constants/connected-account';
 import expenseStatus from '../../constants/expense-status';
+import FEATURE from '../../constants/feature';
 import { TransactionKind } from '../../constants/transaction-kind';
+import { TransactionTypes } from '../../constants/transactions';
 import logger from '../../lib/logger';
+import { lockUntilResolved } from '../../lib/mutex';
 import { createRefundTransaction } from '../../lib/payments';
+import { reportErrorToSentry } from '../../lib/sentry';
 import { createTransactionsFromPaidExpense } from '../../lib/transactions';
 import { getQuote, getTransfer, verifyEvent } from '../../lib/transferwise';
+import { parseToBoolean } from '../../lib/utils';
 import models from '../../models';
 import {
   ExpenseDataQuoteV3,
   QuoteV2PaymentOption,
   QuoteV3PaymentOption,
+  TransferRefundEvent,
   TransferStateChangeEvent,
 } from '../../types/transferwise';
 
 export async function handleTransferStateChange(event: TransferStateChangeEvent): Promise<void> {
+  const isUsingTransferRefundHandler = parseToBoolean(config.transferwise.useTransferRefundHandler);
+
   const expense = await models.Expense.findOne({
     where: {
       status: [expenseStatus.PROCESSING, expenseStatus.PAID],
@@ -33,126 +42,280 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
 
   if (!expense) {
     // This is probably some other transfer not executed through our platform.
-    logger.debug('Ignoring transferwise event.', event);
+    logger.debug('Wise: Could not find related Expense, ignoring event.', event);
     return;
   }
 
-  const connectedAccount = await expense.host.getAccountForPaymentProvider(Service.TRANSFERWISE, {
-    throwIfMissing: false,
-  });
-
-  let transfer;
-  if (!connectedAccount) {
-    logger.error(`Wise: No connected account found for host ${expense.host.slug}.`);
-    transfer = expense.data.transfer;
-  } else {
-    transfer = await getTransfer(connectedAccount, event.data.resource.id).catch(e => {
-      logger.error(`Wise: Failed to fetch transfer ${event.data.resource.id} from Wise`, e);
-      return expense.data.transfer;
+  const MUTEX_LOCK_KEY = `wise-webhook-${expense.id}`;
+  return lockUntilResolved(MUTEX_LOCK_KEY, async () => {
+    await expense.reload();
+    const connectedAccount = await expense.host.getAccountForPaymentProvider(Service.TRANSFERWISE, {
+      throwIfMissing: false,
     });
-  }
 
-  const transaction = await models.Transaction.findOne({
-    where: {
-      ExpenseId: expense.id,
-      data: { transfer: { id: toString(event.data.resource.id) } },
-    },
-  });
-  if (
-    transaction &&
-    expense.status === expenseStatus.PROCESSING &&
-    event.data.current_state === 'outgoing_payment_sent'
-  ) {
-    logger.info(`Wise: Transfer sent, marking expense as paid.`, event);
-    // Mark Expense as Paid, create activity and send notifications
-    await expense.markAsPaid();
-  } else if (expense.status === expenseStatus.PROCESSING && event.data.current_state === 'outgoing_payment_sent') {
-    logger.info(`Wise: Transfer sent, marking expense as paid and creating transactions.`, event);
-    const feesInHostCurrency = (expense.data.feesInHostCurrency || {}) as {
-      paymentProcessorFeeInHostCurrency: number;
-      hostFeeInHostCurrency: number;
-      platformFeeInHostCurrency: number;
-    };
-
-    let paymentOption = expense.data.paymentOption as QuoteV2PaymentOption | QuoteV3PaymentOption;
-    // Fetch up-to-date quote to check if payment option has changed
-    const quote = await getQuote(connectedAccount, transfer.quoteUuid);
-    assert(quote, 'Failed to fetch quote from Wise');
-    const wisePaymentOption = quote.paymentOptions.find(p => p.payIn === 'BALANCE' && p.payOut === quote.payOut);
-    if (
-      // Check if existing quote is QuoteV3
-      'price' in paymentOption &&
-      // Check if the priceDecisionReferenceId has changed
-      paymentOption.price.priceDecisionReferenceId !== wisePaymentOption.price?.priceDecisionReferenceId
-    ) {
-      logger.warn(`Wise updated the payment option for expense ${expense.id}, updating existing values...`);
-      paymentOption = wisePaymentOption;
-      const expenseDataQuote = { ...omit(quote, ['paymentOptions']), paymentOption } as ExpenseDataQuoteV3;
-      await expense.update({ data: { ...expense.data, quote: expenseDataQuote, paymentOption } });
-    }
-
-    if (expense.host?.settings?.transferwise?.ignorePaymentProcessorFees) {
-      // TODO: We should not just ignore fees, they should be recorded as a transaction from the host to the collective
-      // See https://github.com/opencollective/opencollective/issues/5113
-      feesInHostCurrency.paymentProcessorFeeInHostCurrency = 0;
+    let transfer;
+    if (!connectedAccount) {
+      logger.error(`Wise: No connected account found for host ${expense.host.slug}.`);
+      transfer = expense.data.transfer;
     } else {
-      // This is simplified because we enforce sourceCurrency to be the same as hostCurrency
-      feesInHostCurrency.paymentProcessorFeeInHostCurrency = Math.round(paymentOption.fee.total * 100);
+      transfer = await getTransfer(connectedAccount, event.data.resource.id).catch(e => {
+        logger.error(`Wise: Failed to fetch transfer ${event.data.resource.id} from Wise`, e);
+        return expense.data.transfer;
+      });
     }
 
-    const hostAmount =
-      expense.feesPayer === 'PAYEE' ? paymentOption.sourceAmount : paymentOption.sourceAmount - paymentOption.fee.total;
-    assert(hostAmount, 'Expense is missing paymentOption information');
-    const expenseToHostRate = hostAmount ? (hostAmount * 100) / expense.amount : 'auto';
-
-    // This will detect that payoutMethodType=BANK_ACCOUNT and set service=wise AND type=bank_transfer
-    await expense.setAndSavePaymentMethodIfMissing();
-
-    await createTransactionsFromPaidExpense(expense.host, expense, feesInHostCurrency, expenseToHostRate, {
-      ...pick(expense.data, ['fund']),
-      transfer,
-      clearedAt: event.data?.occurred_at && new Date(event.data.occurred_at),
-    });
-    await expense.update({ data: { ...expense.data, feesInHostCurrency, transfer } });
-
-    // Mark Expense as Paid, create activity and send notifications
-    await expense.markAsPaid();
-  } else if (
-    (expense.status === expenseStatus.PROCESSING || expense.status === expenseStatus.PAID) &&
-    (event.data.current_state === 'funds_refunded' || event.data.current_state === 'cancelled')
-  ) {
-    logger.info(`Wise: Transfer failed, setting status to error and refunding existing transactions.`, event);
     const transaction = await models.Transaction.findOne({
       where: {
         ExpenseId: expense.id,
-        RefundTransactionId: null,
-        kind: TransactionKind.EXPENSE,
-        isRefund: false,
         data: { transfer: { id: toString(event.data.resource.id) } },
       },
-      include: [{ model: models.Expense }],
     });
-    if (transaction) {
-      await createRefundTransaction(transaction, transaction.paymentProcessorFeeInHostCurrency, null, expense.User);
-      logger.info(`Wise: Refunded transactions for Wise transfer #${event.data.resource.id}.`);
-    } else {
-      logger.info(`Wise: Wise transfer #${event.data.resource.id} has no transactions, skipping refund.`);
+    if (
+      transaction &&
+      expense.status === expenseStatus.PROCESSING &&
+      event.data.current_state === 'outgoing_payment_sent'
+    ) {
+      logger.info(`Wise: Transfer sent, marking expense as paid.`, event);
+      // Mark Expense as Paid, create activity and send notifications
+      await expense.markAsPaid();
+    } else if (expense.status === expenseStatus.PROCESSING && event.data.current_state === 'outgoing_payment_sent') {
+      logger.info(`Wise: Transfer sent, marking expense as paid and creating transactions.`, event);
+      const feesInHostCurrency = (expense.data.feesInHostCurrency || {}) as {
+        paymentProcessorFeeInHostCurrency: number;
+        hostFeeInHostCurrency: number;
+        platformFeeInHostCurrency: number;
+      };
+
+      let paymentOption = expense.data.paymentOption as QuoteV2PaymentOption | QuoteV3PaymentOption;
+      // Fetch up-to-date quote to check if payment option has changed
+      const quote = await getQuote(connectedAccount, transfer.quoteUuid);
+      assert(quote, 'Failed to fetch quote from Wise');
+      const wisePaymentOption = quote.paymentOptions.find(p => p.payIn === 'BALANCE' && p.payOut === quote.payOut);
+      if (
+        // Check if existing quote is QuoteV3
+        'price' in paymentOption &&
+        // Check if the priceDecisionReferenceId has changed
+        paymentOption.price.priceDecisionReferenceId !== wisePaymentOption.price?.priceDecisionReferenceId
+      ) {
+        logger.warn(`Wise: updated the payment option for expense ${expense.id}, updating existing values...`);
+        paymentOption = wisePaymentOption;
+        const expenseDataQuote = { ...omit(quote, ['paymentOptions']), paymentOption } as ExpenseDataQuoteV3;
+        await expense.update({ data: { ...expense.data, quote: expenseDataQuote, paymentOption } });
+      }
+
+      if (expense.host?.settings?.transferwise?.ignorePaymentProcessorFees) {
+        // TODO: We should not just ignore fees, they should be recorded as a transaction from the host to the collective
+        // See https://github.com/opencollective/opencollective/issues/5113
+        feesInHostCurrency.paymentProcessorFeeInHostCurrency = 0;
+      } else {
+        // This is simplified because we enforce sourceCurrency to be the same as hostCurrency
+        feesInHostCurrency.paymentProcessorFeeInHostCurrency = Math.round(paymentOption.fee.total * 100);
+      }
+
+      const hostAmount =
+        expense.feesPayer === 'PAYEE'
+          ? paymentOption.sourceAmount
+          : paymentOption.sourceAmount - paymentOption.fee.total;
+      assert(hostAmount, 'Expense is missing paymentOption information');
+      const expenseToHostRate = hostAmount ? (hostAmount * 100) / expense.amount : 'auto';
+
+      // This will detect that payoutMethodType=BANK_ACCOUNT and set service=wise AND type=bank_transfer
+      await expense.setAndSavePaymentMethodIfMissing();
+
+      await createTransactionsFromPaidExpense(expense.host, expense, feesInHostCurrency, expenseToHostRate, {
+        ...pick(expense.data, ['fund']),
+        transfer,
+        clearedAt: event.data?.occurred_at && new Date(event.data.occurred_at),
+      });
+      await expense.update({ data: { ...expense.data, feesInHostCurrency, transfer } });
+
+      // Mark Expense as Paid, create activity and send notifications
+      await expense.markAsPaid();
     }
-    await expense.update({ data: { ...expense.data, transfer } });
-    await expense.setError(expense.lastEditedById);
-    await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, null, { isSystem: true, event });
-  }
+    // Legacy refund handler
+    else if (
+      !isUsingTransferRefundHandler &&
+      (expense.status === expenseStatus.PROCESSING || expense.status === expenseStatus.PAID) &&
+      (event.data.current_state === 'funds_refunded' || event.data.current_state === 'cancelled')
+    ) {
+      logger.info(`Wise: Transfer failed, setting status to error and refunding existing transactions.`, event);
+      const transaction = await models.Transaction.findOne({
+        where: {
+          ExpenseId: expense.id,
+          RefundTransactionId: null,
+          kind: TransactionKind.EXPENSE,
+          isRefund: false,
+          data: { transfer: { id: toString(event.data.resource.id) } },
+        },
+        include: [{ model: models.Expense }],
+      });
+      if (transaction) {
+        await createRefundTransaction(transaction, transaction.paymentProcessorFeeInHostCurrency, null, expense.User);
+        logger.info(`Wise: Refunded transactions for Wise transfer #${event.data.resource.id}.`);
+      } else {
+        logger.info(`Wise: Wise transfer #${event.data.resource.id} has no transactions, skipping refund.`);
+      }
+      await expense.update({ data: { ...expense.data, transfer } });
+      await expense.setError(expense.lastEditedById);
+      await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, null, { isSystem: true, event });
+    } else if (
+      isUsingTransferRefundHandler &&
+      expense.status === expenseStatus.PROCESSING &&
+      event.data.current_state === 'cancelled'
+    ) {
+      logger.info(`Wise: Transfer failed, setting status to error.`, event);
+      await expense.update({ data: { ...expense.data, transfer } });
+      await expense.setError(expense.lastEditedById);
+      await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, null, { isSystem: true, event });
+    }
+  });
 }
+
+const handleTransferRefund = async (event: TransferRefundEvent): Promise<void> => {
+  const isUsingTransferRefundHandler = parseToBoolean(config.transferwise.useTransferRefundHandler);
+  if (!isUsingTransferRefundHandler) {
+    logger.debug('Wise: Ignoring refund event, transfers#refund handler is disabled.', event);
+    return;
+  }
+
+  const transferId = event.data.resource.id;
+  const refundWiseEventTimestamp = event.data.occurred_at;
+  const expense = await models.Expense.findOne({
+    where: {
+      status: [expenseStatus.PROCESSING, expenseStatus.PAID, expenseStatus.ERROR],
+      data: { transfer: { id: transferId } },
+    },
+    include: [
+      {
+        model: models.Collective,
+        as: 'collective',
+        include: [{ model: models.Collective, as: 'host', required: true }],
+        required: true,
+      },
+      { model: models.User, as: 'User' },
+      { model: models.Transaction },
+    ],
+  });
+
+  if (!expense) {
+    // This is probably some other transfer not executed through our platform.
+    logger.warn('Wise: Could not find related Expense, ignoring transferwise event.', event);
+    return;
+  } else if (expense.data.refundWiseEventTimestamp === refundWiseEventTimestamp) {
+    logger.debug('Wise: Ignoring duplicate refund event.', event);
+    return;
+  }
+
+  const MUTEX_LOCK_KEY = `wise-webhook-${expense.id}`;
+  return lockUntilResolved(MUTEX_LOCK_KEY, async () => {
+    await expense.reload();
+    const collective = expense.collective;
+    const host = collective.host;
+
+    const refundCurrency = event.data.resource.refund_currency;
+    if (refundCurrency !== expense.data.transfer.sourceCurrency) {
+      // This condition is guaranteed by Wise, but we should still check it
+      // Can we recover from this? How to infer the correct FX Rate so we know if this is a partial refund or not?
+      logger.warn('Wise: Refund currency does not match transfer source currency', event);
+      throw new Error('Refund currency does not match transfer source currency.');
+    }
+
+    const refundedAmount = event.data.resource.refund_amount;
+    const sourceAmount = expense.data.transfer.sourceValue;
+    const relatedTransferTransactions = expense.Transactions.filter(t => t.data?.transfer?.id === transferId);
+    const hasTransactions = relatedTransferTransactions.some(t => t.kind === TransactionKind.EXPENSE);
+
+    if (hasTransactions) {
+      assert.equal(refundCurrency, host.currency, 'Refund currency does not match host currency');
+      const creditTransaction = relatedTransferTransactions.find(
+        t => t.type === TransactionTypes.CREDIT && t.kind === TransactionKind.EXPENSE,
+      );
+      assert(creditTransaction, 'Could not find related CREDIT transaction');
+      const paymentProcessorFee = expense.data.paymentOption.fee.total;
+      if (refundedAmount < sourceAmount) {
+        logger.verbose('Wise: Paid Expense was partially refunded', event);
+        const difference = sourceAmount - refundedAmount;
+        const paymentProcessorFee = expense.data.paymentOption.fee.total;
+        await createRefundTransaction(
+          creditTransaction,
+          Math.round((paymentProcessorFee - difference) * 100),
+          pick(creditTransaction.data, ['transfer']),
+          expense.User,
+        );
+      } else {
+        logger.verbose('Wise: Paid Expense was fully refunded', event);
+        await createRefundTransaction(
+          creditTransaction,
+          paymentProcessorFee * 100,
+          pick(creditTransaction.data, ['transfer']),
+          expense.User,
+        );
+      }
+
+      await expense.update({ data: { ...expense.data, refundWiseEventTimestamp, refundEvent: event } });
+      await relatedTransferTransactions.map(t => t.update({ data: { ...t.data, refundWiseEventTimestamp } }));
+      if (expense.status !== expenseStatus.ERROR) {
+        await expense.setError(expense.lastEditedById);
+        await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, null, { isSystem: true, event });
+      }
+    } else {
+      if (refundedAmount < sourceAmount) {
+        logger.verbose(
+          'Wise: Expense was never marked as Paid and it was just partially refunded, creating Payment Processor Fee transaction',
+          event,
+        );
+        assert.equal(refundCurrency, host.currency, 'Refund currency does not match host currency');
+        const hostCurrency = host.currency;
+        const difference = sourceAmount - refundedAmount;
+        const paymentProcessorFeeInHostCurrency = difference * 100;
+        const hostCurrencyFxRate = await models.Transaction.getFxRate(collective.currency, hostCurrency);
+        await models.Transaction.createPaymentProcessorFeeTransactions({
+          amount: 0,
+          paymentProcessorFeeInHostCurrency,
+          currency: collective.currency,
+          hostCurrencyFxRate,
+          hostCurrency,
+          CollectiveId: expense.CollectiveId,
+          ExpenseId: expense.id,
+          HostCollectiveId: host.id,
+          PayoutMethodId: expense.PayoutMethodId,
+        });
+        await expense.update({ data: { ...expense.data, refundWiseEventTimestamp, refundEvent: event } });
+        if (expense.status !== expenseStatus.ERROR) {
+          await expense.setError(expense.lastEditedById);
+          await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, null, { isSystem: true, event });
+        }
+      } else {
+        logger.verbose('Wise: Expense was never marked as Paid, marking it as error', event);
+        await expense.update({ data: { ...expense.data, refundWiseEventTimestamp, refundEvent: event } });
+        if (expense.status !== expenseStatus.ERROR) {
+          await expense.setError(expense.lastEditedById);
+          await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, null, { isSystem: true, event });
+        }
+      }
+    }
+  });
+};
 
 async function webhook(req: Request & { rawBody: string }): Promise<void> {
   const event = verifyEvent(req);
 
-  switch (event.event_type) {
-    case 'transfers#state-change':
-      await handleTransferStateChange(event as TransferStateChangeEvent);
-      break;
-    default:
-      break;
+  try {
+    switch (event.event_type) {
+      case 'transfers#state-change':
+        await handleTransferStateChange(event as TransferStateChangeEvent);
+        break;
+      case 'transfers#refund':
+        await handleTransferRefund(event as TransferRefundEvent);
+        break;
+      default:
+        logger.debug('Wise: Ignoring unknown event.', event.event_type);
+        break;
+    }
+  } catch (error) {
+    logger.error('Wise: Error processing event', error);
+    reportErrorToSentry(error, { extra: { event }, feature: FEATURE.TRANSFERWISE });
+    throw error;
   }
 }
 

@@ -167,7 +167,7 @@ export const fakeUser = async (
 
   const userCollective = await fakeCollective({
     type: CollectiveType.USER,
-    name: randStr('User Name'),
+    name: (userData?.name as string) || randStr('User Name'),
     slug: randStr('user-'),
     data: { UserId: user.id },
     HostCollectiveId: null,
