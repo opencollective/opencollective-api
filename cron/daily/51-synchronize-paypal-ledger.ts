@@ -293,8 +293,18 @@ const processHost = async (host, periodStart: moment.Moment, periodEnd: moment.M
       // Fetch missing transactions details from PayPal
       logger.info(`${missingTransactions.length} transactions seems missing from @${host.slug}'s ledger`);
       for (const transaction of missingTransactions) {
+        let captureDetails;
         const captureUrl = `payments/captures/${transaction.transaction_info.transaction_id}`;
-        const captureDetails = (await paypalRequestV2(captureUrl, host, 'GET')) as PaypalCapture;
+        try {
+          captureDetails = (await paypalRequestV2(captureUrl, host, 'GET')) as PaypalCapture;
+        } catch (e) {
+          logger.error(
+            `Error while fetching capture details for ${transaction.transaction_info.transaction_id}: ${e.message}`,
+          );
+          reportErrorToSentry(e, { extra: { transaction, hostSlug: host.slug } });
+          continue;
+        }
+
         if (captureDetails.status !== 'COMPLETED') {
           // TODO: if status is REFUNDED, we should record the transaction + its refund
           logger.debug(
