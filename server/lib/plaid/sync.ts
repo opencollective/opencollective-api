@@ -5,7 +5,7 @@ import ConnectedAccount from '../../models/ConnectedAccount';
 import { TransactionsImportLockedError } from '../../models/TransactionsImport';
 import logger from '../logger';
 import { floatAmountToCents } from '../math';
-import { reportErrorToSentry } from '../sentry';
+import { reportErrorToSentry, reportMessageToSentry } from '../sentry';
 
 import { getPlaidClient } from './client';
 
@@ -100,6 +100,16 @@ const syncTransactionsImport = async (
       });
 
       const data = response.data; // We're only interested in new transactions for now, but Plaid also returns `modified` and `removed` transactions
+      if (data.removed.length || data.modified.length) {
+        reportMessageToSentry('Plaid returned removed or modified transactions', {
+          extra: {
+            connectedAccountId: connectedAccount.id,
+            removed: data.removed,
+            modified: data.modified,
+          },
+        });
+      }
+
       const newTransactions = data.added.filter(transaction => !syncedTransactionIds.has(transaction.transaction_id));
       if (options.log) {
         logger.info(
