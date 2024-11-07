@@ -478,13 +478,16 @@ export const loaders = req => {
               t."CollectiveId",
               t."hostCurrency",
               COUNT(t.id) FILTER (WHERE t.kind = 'EXPENSE' AND t.type = 'DEBIT') AS "expenseCount",
+              EXTRACT('days' FROM (NOW() - MIN(t."createdAt") FILTER (WHERE t.kind = 'EXPENSE' AND t.type = 'DEBIT'))) as "daysSinceFirstExpense",
               SUM(ABS(t."amountInHostCurrency")) FILTER (WHERE t.kind = 'EXPENSE' AND t.type = 'DEBIT') AS "expenseTotal",
               MAX(ABS(t."amountInHostCurrency")) FILTER (WHERE t.kind = 'EXPENSE' AND t.type = 'DEBIT') AS "expenseMaxValue",
               COUNT(DISTINCT t."FromCollectiveId") FILTER (WHERE t.kind = 'EXPENSE' AND t.type = 'DEBIT') AS "expenseDistinctPayee",
               COUNT(t.id) FILTER (WHERE t.kind IN ('CONTRIBUTION', 'ADDED_FUNDS') AND t.type = 'CREDIT') AS "contributionCount",
+              EXTRACT('days' FROM (NOW() - MIN(t."createdAt") FILTER (WHERE t.kind IN ('CONTRIBUTION', 'ADDED_FUNDS') AND t.type = 'CREDIT'))) as "daysSinceFirstContribution",
               SUM(t."amountInHostCurrency") FILTER (WHERE t.kind IN ('CONTRIBUTION', 'ADDED_FUNDS') AND t.type = 'CREDIT') AS "contributionTotal",
               SUM(ABS(t."amountInHostCurrency")) FILTER (WHERE t.kind = 'HOST_FEE' AND t.type = 'DEBIT') AS "hostFeeTotal",
               SUM(ABS(t."amountInHostCurrency")) FILTER (WHERE t.type = 'DEBIT' AND t.kind != 'HOST_FEE' AND t.kind != 'PAYMENT_PROCESSOR_FEE') AS "spentTotal",
+              SUM(ABS(t."amountInHostCurrency")) FILTER (WHERE t.type = 'CREDIT' AND t."kind" NOT IN ('PAYMENT_PROCESSOR_COVER')) AS "receivedTotal"
             FROM
               "Transactions" t
               INNER JOIN "Collectives" c ON t."CollectiveId" = c.id
