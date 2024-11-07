@@ -483,8 +483,8 @@ export const loaders = req => {
               COUNT(DISTINCT t."FromCollectiveId") FILTER (WHERE t.kind = 'EXPENSE' AND t.type = 'DEBIT') AS "expenseDistinctPayee",
               COUNT(t.id) FILTER (WHERE t.kind IN ('CONTRIBUTION', 'ADDED_FUNDS') AND t.type = 'CREDIT') AS "contributionCount",
               SUM(t."amountInHostCurrency") FILTER (WHERE t.kind IN ('CONTRIBUTION', 'ADDED_FUNDS') AND t.type = 'CREDIT') AS "contributionTotal",
-              SUM(ABS(t."amountInHostCurrency")) FILTER (WHERE t.kind IN ('HOST_FEE') AND t.type = 'DEBIT') AS "hostFeeTotal",
-              SUM(ABS(t."amountInHostCurrency")) FILTER (WHERE t.kind IN ('CONTRIBUTION', 'EXPENSE') AND t.type = 'DEBIT') AS "spentTotal"
+              SUM(ABS(t."amountInHostCurrency")) FILTER (WHERE t.kind = 'HOST_FEE' AND t.type = 'DEBIT') AS "hostFeeTotal",
+              SUM(ABS(t."amountInHostCurrency")) FILTER (WHERE t.type = 'DEBIT' AND t.kind != 'HOST_FEE' AND t.kind != 'PAYMENT_PROCESSOR_FEE') AS "spentTotal",
             FROM
               "Transactions" t
               INNER JOIN "Collectives" c ON t."CollectiveId" = c.id
