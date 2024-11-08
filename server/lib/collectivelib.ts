@@ -9,7 +9,7 @@ import { CollectiveType } from '../constants/collectives';
 import { MODERATION_CATEGORIES } from '../constants/moderation-categories';
 import PlatformConstants from '../constants/platform';
 import { VAT_OPTIONS } from '../constants/vat';
-import models, { Collective, Member, Op, sequelize } from '../models';
+import models, { Collective, Member, Op, sequelize, User } from '../models';
 import Expense from '../models/Expense';
 import { MemberModelInterface } from '../models/Member';
 import MemberInvitation from '../models/MemberInvitation';
@@ -18,6 +18,7 @@ import PaymentMethod from '../models/PaymentMethod';
 
 import logger from './logger';
 import { stripHTML } from './sanitize-html';
+import { containsProtectedBrandName } from './string-utils';
 import { md5 } from './utils';
 
 const { USER } = CollectiveType;
@@ -316,6 +317,16 @@ export const collectiveSlugReservedList = [
  */
 export function isCollectiveSlugReserved(slug: string): boolean {
   return collectiveSlugReservedList.includes(slug);
+}
+
+export function canUseSlug(slug: string, user: User | null): boolean {
+  if (isCollectiveSlugReserved(slug)) {
+    return false;
+  } else if (user?.isAdminOfAnyPlatformAccount()) {
+    return true;
+  } else {
+    return !containsProtectedBrandName(slug);
+  }
 }
 
 /**

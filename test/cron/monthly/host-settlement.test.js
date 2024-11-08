@@ -3,7 +3,7 @@ import moment from 'moment';
 import sinon, { useFakeTimers } from 'sinon';
 
 import { run as invoicePlatformFees } from '../../../cron/monthly/host-settlement';
-import PlatformConstants from '../../../server/constants/platform';
+import PlatformConstants, { PLATFORM_MIGRATION_DATE } from '../../../server/constants/platform';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
 import { createRefundTransaction } from '../../../server/lib/payments';
 import { getTaxesSummary } from '../../../server/lib/transactions';
@@ -29,7 +29,7 @@ describe('cron/monthly/host-settlement', () => {
 
   before(async () => {
     await utils.resetTestDB();
-    const user = await fakeUser({ id: 30 }, { id: 20, slug: 'pia' });
+    const user = await fakeUser({ id: PlatformConstants.PlatformUserId }, { slug: 'ofitech-admin' });
     const oc = await fakeHost({
       id: PlatformConstants.PlatformCollectiveId,
       slug: randStr('platform-'),
@@ -366,5 +366,16 @@ describe('cron/monthly/host-settlement', () => {
 
     const summary = getTaxesSummary(eurHostTransactions);
     expect(summary.VAT.collected).to.eq(210e2); // 21% of 1000€
+  });
+
+  it('should add a comment with the platform migration info if running for October 2024', async () => {
+    if (moment.utc().isAfter(PLATFORM_MIGRATION_DATE.clone().add(1, 'month'))) {
+      console.warn('This test can safely be removed after November 2024');
+      return;
+    }
+
+    const comments = await gphHostSettlementExpense.getComments();
+    expect(comments).to.have.length(1);
+    expect(comments[0]).to.have.property('html').that.includes('transition of the Open Collective platform');
   });
 });

@@ -308,6 +308,10 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     }
   };
 
+  isAdminOfAnyPlatformAccount = function (): boolean {
+    return PlatformConstants.AllPlatformCollectiveIds.some(id => this.hasRole([MemberRoles.ADMIN], id));
+  };
+
   isRoot = function (): boolean {
     return Boolean(this.isAdminOfPlatform() && this.data?.isRoot);
   };

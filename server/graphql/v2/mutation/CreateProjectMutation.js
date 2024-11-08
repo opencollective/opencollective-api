@@ -2,7 +2,7 @@ import { GraphQLNonNull } from 'graphql';
 import { pick } from 'lodash';
 
 import roles from '../../../constants/roles';
-import { isCollectiveSlugReserved } from '../../../lib/collectivelib';
+import { canUseSlug } from '../../../lib/collectivelib';
 import models from '../../../models';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { Forbidden, NotFound } from '../../errors';
@@ -51,7 +51,7 @@ async function createProject(_, args, req) {
     settings: { ...DEFAULT_PROJECT_SETTINGS, ...args.project.settings },
   };
 
-  if (isCollectiveSlugReserved(projectData.slug)) {
+  if (!canUseSlug(projectData.slug, req.remoteUser)) {
     throw new Error(`The slug '${projectData.slug}' is not allowed.`);
   }
   const checkSlug = await models.Collective.findOne({ where: { slug: projectData.slug } });

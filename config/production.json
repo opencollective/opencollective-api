@@ -78,7 +78,8 @@
       11049, // OCF
       98478, // SCN
       9807, // OCE
-      73495 // AFC
+      73495, // AFC
+      845576 // Ofitech
     ],
     "collectivesWithManyTransactions": [
       11004, // OSC
@@ -86,7 +87,8 @@
       11049, // OCF
       166914, // Logseq
       9807, // OCE
-      73495 // AFC
+      73495, // AFC
+      845576 // Ofitech
     ]
   }
 }

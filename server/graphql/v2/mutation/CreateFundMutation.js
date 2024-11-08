@@ -3,7 +3,7 @@ import { get, pick } from 'lodash';
 
 import roles from '../../../constants/roles';
 import { purgeCacheForCollective } from '../../../lib/cache';
-import { isCollectiveSlugReserved } from '../../../lib/collectivelib';
+import { canUseSlug } from '../../../lib/collectivelib';
 import models from '../../../models';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { ValidationFailed } from '../../errors';
@@ -49,7 +49,7 @@ async function createFund(_, args, req) {
     settings: { ...DEFAULT_COLLECTIVE_SETTINGS, ...args.fund.settings },
   };
 
-  if (isCollectiveSlugReserved(fundData.slug)) {
+  if (!canUseSlug(fundData.slug, req.remoteUser)) {
     throw new Error(`The slug '${fundData.slug}' is not allowed.`);
   }
   const withSlug = await models.Collective.findOne({ where: { slug: fundData.slug } });

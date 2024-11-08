@@ -4,7 +4,7 @@ import { pick } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import roles from '../../../constants/roles';
-import { isCollectiveSlugReserved } from '../../../lib/collectivelib';
+import { canUseSlug } from '../../../lib/collectivelib';
 import models from '../../../models';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { BadRequest, NotFound, Unauthorized } from '../../errors';
@@ -42,7 +42,7 @@ async function createEvent(_, args, req) {
     settings: { ...DEFAULT_EVENT_SETTINGS, ...args.event.settings },
   };
 
-  if (isCollectiveSlugReserved(eventData.slug)) {
+  if (!canUseSlug(eventData.slug, req.remoteUser)) {
     throw new Error(`The slug '${eventData.slug}' is not allowed.`);
   }
   const checkSlug = await models.Collective.findOne({ where: { slug: eventData.slug } });

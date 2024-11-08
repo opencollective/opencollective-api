@@ -2,7 +2,7 @@ import { GraphQLList, GraphQLNonNull } from 'graphql';
 import { pick } from 'lodash';
 
 import roles from '../../../constants/roles';
-import { isCollectiveSlugReserved } from '../../../lib/collectivelib';
+import { canUseSlug } from '../../../lib/collectivelib';
 import models from '../../../models';
 import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation';
 import { processInviteMembersInput } from '../../common/members';
@@ -27,7 +27,7 @@ async function createOrganization(_, args, req) {
     settings: { ...DEFAULT_ORGANIZATION_SETTINGS, ...args.organization.settings },
   };
 
-  if (isCollectiveSlugReserved(organizationData.slug)) {
+  if (!canUseSlug(organizationData.slug, req.remoteUser)) {
     throw new Error(`The slug '${organizationData.slug}' is not allowed.`);
   }
   const collectiveWithSlug = await models.Collective.findOne({ where: { slug: organizationData.slug } });

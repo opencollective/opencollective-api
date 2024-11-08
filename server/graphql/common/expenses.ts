@@ -42,6 +42,7 @@ import EXPENSE_TYPE from '../../constants/expense-type';
 import FEATURE from '../../constants/feature';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import { EXPENSE_PERMISSION_ERROR_CODES } from '../../constants/permissions';
+import PlatformConstants from '../../constants/platform';
 import POLICIES from '../../constants/policies';
 import { TransactionKind } from '../../constants/transaction-kind';
 import cache from '../../lib/cache';
@@ -716,6 +717,14 @@ export const canMarkAsSpam: ExpensePermissionEvaluator = async (
   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     if (options?.throw) {
       throw new Forbidden('User cannot mark expenses as spam', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
+    }
+    return false;
+  } else if (expense.UserId === PlatformConstants.PlatformUserId) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'Cannot mark platform expenses as spam',
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE,
+      );
     }
     return false;
   } else {
