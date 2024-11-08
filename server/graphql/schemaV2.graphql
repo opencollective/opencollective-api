@@ -5494,6 +5494,11 @@ type AccountStats {
     Include transactions from children (Projects and Events)
     """
     includeChildren: Boolean = false
+
+    """
+    Filter by kind
+    """
+    kind: [TransactionKind]
   ): [AmountStats]
 
   """
@@ -5519,6 +5524,11 @@ type AccountStats {
     Include transactions from children (Projects and Events)
     """
     includeChildren: Boolean = false
+
+    """
+    Filter by kind
+    """
+    kind: [TransactionKind]
   ): TimeSeriesAmount!
 }
 
@@ -9590,11 +9600,31 @@ Return a summary of transaction info about a given account within the context of
 """
 type HostedAccountSummary {
   expenseCount: Int
+
+  """
+  Average calculated based on the number of months since the first transaction of this kind within the requested time frame
+  """
+  expenseMonthlyAverageCount: Float
   expenseTotal: Amount
+
+  """
+  Average calculated based on the number of months since the first transaction of this kind within the requested time frame
+  """
+  expenseMonthlyAverageTotal: Amount
   expenseMaxValue: Amount
   expenseDistinctPayee: Int
   contributionCount: Int
+
+  """
+  Average calculated based on the number of months since the first transaction of this kind within the requested time frame
+  """
+  contributionMonthlyAverageCount: Float
   contributionTotal: Amount
+
+  """
+  Average calculated based on the number of months since the first transaction of this kind within the requested time frame
+  """
+  contributionMonthlyAverageTotal: Amount
   hostFeeTotal: Amount
   spentTotal: Amount
 }

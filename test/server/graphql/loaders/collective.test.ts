@@ -135,7 +135,10 @@ describe('server/graphql/loaders/collective', () => {
 
     before(async () => {
       const host = await fakeActiveHost();
-      collectives = await multiple(fakeCollective, 3, { HostCollectiveId: host.id });
+      collectives = await multiple(fakeCollective, 3, {
+        HostCollectiveId: host.id,
+        approvedAt: moment().utc().subtract(10, 'days').toDate(),
+      });
       await Promise.all(
         collectives.map(async c => {
           await fakeTransaction({
