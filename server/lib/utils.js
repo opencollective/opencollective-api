@@ -531,7 +531,8 @@ export const computeDatesAsISOStrings = (startDate, endDate) => {
  * @param {String} string
  * @returns string
  */
-export const ifStr = (condition, expression) => (condition ? expression : '');
+export const ifStr = (condition, trueExpression, falseExpression = undefined) =>
+  condition ? trueExpression : falseExpression || '';
 
 export const redactSensitiveFields = fastRedact({
   serialize: false,

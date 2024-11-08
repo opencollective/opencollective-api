@@ -477,6 +477,7 @@ export const loaders = req => {
             SELECT
               t."CollectiveId",
               t."hostCurrency",
+              EXTRACT('days' FROM (NOW() - MAX(c."approvedAt"))) as "daysSinceApproved",
               COUNT(t.id) FILTER (WHERE t.kind = 'EXPENSE' AND t.type = 'DEBIT') AS "expenseCount",
               EXTRACT('days' FROM (NOW() - MIN(t."createdAt") FILTER (WHERE t.kind = 'EXPENSE' AND t.type = 'DEBIT'))) as "daysSinceFirstExpense",
               SUM(ABS(t."amountInHostCurrency")) FILTER (WHERE t.kind = 'EXPENSE' AND t.type = 'DEBIT') AS "expenseTotal",
@@ -493,7 +494,7 @@ export const loaders = req => {
               INNER JOIN "Collectives" c ON t."CollectiveId" = c.id
             WHERE t."CollectiveId" IN (:collectiveIds)
               AND t."deletedAt" IS NULL
-              ${ifStr(dateFrom, 'AND t."createdAt" > :dateFrom')}
+              ${ifStr(dateFrom, 'AND t."createdAt" > :dateFrom', 'AND t."createdAt" > c."approvedAt"')}
               ${ifStr(dateTo, 'AND t."createdAt" <= :dateTo')}
               AND t."HostCollectiveId" = c."HostCollectiveId"
             GROUP BY
