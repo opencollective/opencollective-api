@@ -248,14 +248,14 @@ export const paymentIntentSucceeded = async (event: Stripe.Event) => {
       err,
     );
 
+    if (sequelizeTransaction) {
+      await sequelizeTransaction.rollback();
+    }
+
     if (order) {
       await order.update({
         data: previousOrderData,
       });
-    }
-
-    if (sequelizeTransaction) {
-      sequelizeTransaction.rollback();
     }
 
     throw err;
