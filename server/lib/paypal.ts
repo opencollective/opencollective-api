@@ -185,7 +185,7 @@ const WATCHED_EVENT_TYPES = [
 /**
  * See https://developer.paypal.com/docs/api/webhooks/v1/#webhooks_list
  */
-const listPaypalWebhooks = async (host): Promise<PaypalWebhook[]> => {
+export const listPaypalWebhooks = async (host): Promise<PaypalWebhook[]> => {
   const result = await paypalRequest('notifications/webhooks', null, host, 'GET');
   return <PaypalWebhook[]>result['webhooks'];
 };

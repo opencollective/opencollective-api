@@ -12,6 +12,7 @@ import FEATURE from '../../server/constants/feature';
 import OrderStatuses from '../../server/constants/order-status';
 import logger from '../../server/lib/logger';
 import { getHostsWithPayPalConnected, listPayPalTransactions } from '../../server/lib/paypal';
+import { sendThankYouEmail } from '../../server/lib/recurring-contributions';
 import { reportErrorToSentry, reportMessageToSentry } from '../../server/lib/sentry';
 import { parseToBoolean } from '../../server/lib/utils';
 import models, { Collective, sequelize } from '../../server/models';
@@ -168,10 +169,10 @@ const handleSubscriptionTransaction = async (
   transaction: PaypalTransactionSearchResult['transaction_details'][0],
   captureDetails: PaypalCapture,
 ) => {
-  let order;
+  let order, subscription;
   const paypalSubscriptionId = transaction.transaction_info.paypal_reference_id;
   try {
-    ({ order } = await loadDataForSubscription(paypalSubscriptionId, host));
+    ({ order, subscription } = await loadDataForSubscription(paypalSubscriptionId, host));
   } catch (e) {
     logger.error(`Error while loading data for subscription ${paypalSubscriptionId}: ${e.message}`);
     reportErrorToSentry(e, { extra: { paypalSubscriptionId, transaction } });
@@ -181,10 +182,17 @@ const handleSubscriptionTransaction = async (
   const msg = `Record subscription transaction ${transaction.transaction_info.transaction_id} for order #${order.id}`;
   logger.info(DRY_RUN ? `DRY RUN: ${msg}` : msg);
   if (!DRY_RUN) {
-    return recordPaypalCapture(order, captureDetails, {
+    const captureDate = new Date(captureDetails.create_time);
+    const isFirstCharge = subscription?.chargeNumber === 0;
+    const dbTransaction = await recordPaypalCapture(order, captureDetails, {
       data: { recordedFrom: 'cron/daily/51-synchronize-paypal-ledger' },
-      createdAt: new Date(captureDetails.create_time),
+      createdAt: captureDate,
     });
+
+    // If the capture is less than 48 hours old, send the thank you email
+    if (moment().diff(captureDate, 'hours') < 48) {
+      await sendThankYouEmail(order, dbTransaction, isFirstCharge);
+    }
   }
 };
 
@@ -199,7 +207,10 @@ const handleCheckoutTransaction = async (
   const captureId = transaction.transaction_info.transaction_id;
   const order = await models.Order.findOne({
     where: { data: { paypalCaptureId: captureId } },
-    include: [{ association: 'collective', required: true, where: { HostCollectiveId: host.id } }],
+    include: [
+      { association: 'collective', required: true, where: { HostCollectiveId: host.id } },
+      { association: 'fromCollective' },
+    ],
   });
 
   if (!order) {
@@ -215,13 +226,19 @@ const handleCheckoutTransaction = async (
   const msg = `Record checkout transaction ${transaction.transaction_info.transaction_id} for order #${order.id}`;
   logger.info(DRY_RUN ? `DRY RUN: ${msg}` : msg);
   if (!DRY_RUN) {
-    await recordPaypalCapture(order, captureDetails, {
+    const captureDate = new Date(captureDetails.create_time);
+    const dbTransaction = await recordPaypalCapture(order, captureDetails, {
       data: { recordedFrom: 'cron/daily/51-synchronize-paypal-ledger' },
-      createdAt: new Date(captureDetails.create_time),
+      createdAt: captureDate,
     });
 
     if (order.status !== OrderStatuses.PAID) {
       await order.update({ status: OrderStatuses.PAID });
+
+      // If the capture is less than 48 hours old, send the thank you email
+      if (moment().diff(captureDate, 'hours') < 48) {
+        await sendThankYouEmail(order, dbTransaction);
+      }
     }
   }
 };
