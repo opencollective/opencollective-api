@@ -416,7 +416,7 @@ export type Webhook = {
   id: string;
   name: string;
   delivery: {
-    version: '2.0.0';
+    version: string;
     url: string;
   };
   trigger_on:

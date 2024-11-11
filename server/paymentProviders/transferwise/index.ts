@@ -789,29 +789,42 @@ const oauth = {
   },
 };
 
-const APPLICATION_TRIGGERS = ['transfers#state-change', 'transfers#refund'] as const;
-
 async function createWebhooksForHost(): Promise<Webhook[]> {
   const url = `${config.host.api}/webhooks/transferwise`;
   const existingWebhooks = await transferwise.listApplicationWebhooks();
 
+  const requiredHooks = [
+    {
+      trigger_on: 'transfers#state-change',
+      delivery: {
+        version: '2.0.0',
+        url,
+      },
+    },
+    {
+      trigger_on: 'transfers#refund',
+      delivery: {
+        version: '1.0.0',
+        url,
+      },
+    },
+  ] as const;
+
   const webhooks = [];
-  for (const trigger_on of APPLICATION_TRIGGERS) {
-    const existingWebhook = existingWebhooks?.find(w => w.trigger_on === trigger_on && w.delivery.url === url);
+  for (const hook of requiredHooks) {
+    const existingWebhook = existingWebhooks?.find(
+      existingHook => existingHook.trigger_on === hook.trigger_on && existingHook.delivery.url === hook.delivery.url,
+    );
     if (existingWebhook) {
       logger.info(`TransferWise App Webhook already exists for ${url}.`);
       webhooks.push(existingWebhook);
       continue;
     }
 
-    logger.info(`Creating TransferWise App Webhook on ${url} for ${trigger_on} events...`);
+    logger.info(`Creating TransferWise App Webhook on ${hook.delivery.url} for ${hook.trigger_on} events...`);
     const webhook = await transferwise.createApplicationWebhook({
       name: 'Open Collective',
-      trigger_on,
-      delivery: {
-        version: '2.0.0',
-        url,
-      },
+      ...hook,
     });
     webhooks.push(webhook);
   }
