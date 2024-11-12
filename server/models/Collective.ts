@@ -25,6 +25,7 @@ import {
   sum,
   sumBy,
   trim,
+  uniqWith,
   unset,
 } from 'lodash';
 import moment from 'moment';
@@ -632,21 +633,19 @@ class Collective extends Model<
     return nextGoal;
   };
 
-  updateSocialLinks = async function (socialLinks) {
+  updateSocialLinks = async function (socialLinksInput, dbTransaction = null) {
+    const areSocialLinkEqual = (aSl, bSl) => aSl.type === bSl.type && aSl.url === bSl.url;
+    const socialLinks = uniqWith(socialLinksInput, areSocialLinkEqual);
     if (socialLinks.length > 10) {
       throw new Error('account cannot set more than 10 social links');
     }
 
     if (socialLinks.length === 0) {
-      await SocialLink.destroy({
-        where: {
-          CollectiveId: this.id,
-        },
-      });
+      await SocialLink.destroy({ where: { CollectiveId: this.id }, transaction: dbTransaction });
       return [];
     }
 
-    return await sequelize.transaction(async transaction => {
+    const runInTransaction = async transaction => {
       const existingLinks = await SocialLink.findAll({
         where: {
           CollectiveId: this.id,
@@ -729,7 +728,9 @@ class Collective extends Model<
       );
 
       return updatedSocialLinks;
-    });
+    };
+
+    return dbTransaction ? runInTransaction(dbTransaction) : sequelize.transaction(runInTransaction);
   };
 
   getParentCollective = async function ({ attributes = null, loaders = null } = {}) {

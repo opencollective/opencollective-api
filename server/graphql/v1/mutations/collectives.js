@@ -1,6 +1,6 @@
 import config from 'config';
 import slugify from 'limax';
-import { cloneDeep, get, isEqual, isNil, isUndefined, omit, pick, truncate, uniqWith } from 'lodash';
+import { cloneDeep, get, isEqual, isNil, isUndefined, omit, pick, truncate } from 'lodash';
 import { Op, QueryTypes } from 'sequelize';
 import { v4 as uuid } from 'uuid';
 
@@ -436,10 +436,8 @@ export function editCollective(_, args, req) {
         return collective.update(omit(newCollectiveData, ['HostCollectiveId', 'hostFeePercent', 'currency']));
       })
       .then(async () => {
-        const isSlEqual = (aSl, bSl) => aSl.type === bSl.type && aSl.url === bSl.url;
-
         if (args.collective.socialLinks) {
-          return collective.updateSocialLinks(uniqWith(args.collective.socialLinks, isSlEqual));
+          return collective.updateSocialLinks(args.collective.socialLinks);
         } else if (
           args.collective.website ||
           args.collective.repositoryUrl ||
@@ -481,7 +479,7 @@ export function editCollective(_, args, req) {
             });
           }
 
-          return collective.updateSocialLinks(uniqWith(socialLinks, isSlEqual));
+          return collective.updateSocialLinks(socialLinks);
         }
       })
       .then(async () => {

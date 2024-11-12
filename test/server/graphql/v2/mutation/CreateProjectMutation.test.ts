@@ -12,6 +12,10 @@ const createProjectMutation = gql`
       slug
       hostFeePercent
       hostFeesStructure
+      socialLinks {
+        type
+        url
+      }
     }
   }
 `;
@@ -77,5 +81,18 @@ describe('server/graphql/v2/mutation/CreateProjectMutation', () => {
     const project = result.data.createProject;
     expect(project.hostFeePercent).to.equal(7.77);
     expect(project.hostFeesStructure).to.equal('CUSTOM_FEE');
+  });
+
+  it('can set social links', async () => {
+    const adminUser = await fakeUser();
+    const parentCollective = await fakeCollective({ admin: adminUser });
+    const parent = { legacyId: parentCollective.id };
+    const socialLinks = [{ type: 'WEBSITE', url: 'https://example.com/' }];
+    const mutationArgs = { parent, project: { ...VALID_PROJECT_ATTRIBUTES, slug: randStr(), socialLinks } };
+    const result = await utils.graphqlQueryV2(createProjectMutation, mutationArgs, adminUser);
+    result.errors && console.error(result.errors);
+    expect(result.errors).to.not.exist;
+    const project = result.data.createProject;
+    expect(project.socialLinks).to.deep.equal(socialLinks);
   });
 });
