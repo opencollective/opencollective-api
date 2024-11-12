@@ -764,7 +764,7 @@ const accountMutations = {
         );
       }
 
-      return collectivelib.deleteCollective(account);
+      return collectivelib.deleteCollective(account, req.remoteUser);
     },
   },
   sendMessage: {

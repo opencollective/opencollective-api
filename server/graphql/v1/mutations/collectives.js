@@ -675,7 +675,7 @@ export async function deleteCollective(_, args, req) {
 
   await twoFactorAuthLib.enforceForAccount(req, collective, { alwaysAskForToken: true });
 
-  return collectivelib.deleteCollective(collective);
+  return collectivelib.deleteCollective(collective, req.remoteUser);
 }
 
 export async function activateCollectiveAsHost(_, args, req) {

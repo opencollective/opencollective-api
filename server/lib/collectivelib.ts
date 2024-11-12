@@ -425,7 +425,7 @@ export async function isCollectiveDeletable(collective) {
   return !hasUndeletableData;
 }
 
-export async function deleteCollective(collective) {
+export async function deleteCollective(collective: Collective, remoteUser: User) {
   let user;
   if (collective.type === USER) {
     user = await models.User.findOne({ where: { CollectiveId: collective.id } });
@@ -497,6 +497,7 @@ export async function deleteCollective(collective) {
     FromCollectiveId: collective.id,
     HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
     data: collective.info,
+    UserId: remoteUser.id,
   });
 
   return collective;
