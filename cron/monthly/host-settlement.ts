@@ -264,11 +264,12 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
 
       // Mark transactions as invoiced
       await models.TransactionSettlement.markTransactionsAsInvoiced(transactions, expense.id);
-      await expense.createActivity(activityType.COLLECTIVE_EXPENSE_CREATED);
+
+      const platformUser = await models.User.findByPk(PlatformConstants.PlatformUserId);
+      await expense.createActivity(activityType.COLLECTIVE_EXPENSE_CREATED, platformUser);
 
       // If running for the month of `PLATFORM_MIGRATION_DATE`, add a comment to explain why we're using a different profile
       if (momentDate.isSame(PLATFORM_MIGRATION_DATE, 'month') && momentDate.isSame(PLATFORM_MIGRATION_DATE, 'year')) {
-        const platformUser = await models.User.findByPk(PlatformConstants.PlatformUserId);
         await models.Comment.create({
           CreatedByUserId: platformUser.id,
           FromCollectiveId: platformUser.CollectiveId,
