@@ -96,6 +96,10 @@ export const HostedAccountSummary = new GraphQLObjectType({
         return { value, currency: host.currency };
       },
     },
+    contributionRefundedTotal: {
+      type: GraphQLAmount,
+      resolve: ({ host, summary }) => ({ value: summary?.contributionRefundedTotal || 0, currency: host.currency }),
+    },
   }),
 });
 
