@@ -3,7 +3,7 @@ import { pick } from 'lodash';
 
 import roles from '../../../constants/roles';
 import { canUseSlug } from '../../../lib/collectivelib';
-import models from '../../../models';
+import models, { sequelize } from '../../../models';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { Forbidden, NotFound } from '../../errors';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
@@ -43,7 +43,7 @@ async function createProject(_, args, req) {
   const projectData = {
     type: 'PROJECT',
     slug: args.project.slug.toLowerCase(),
-    ...pick(args.project, ['name', 'description', 'tags', 'website']),
+    ...pick(args.project, ['name', 'description', 'tags']),
     ...pick(parent, ['currency', 'isActive', 'platformFeePercent', 'hostFeePercent', 'data.useCustomHostFee']),
     approvedAt: parent.isActive ? new Date() : null,
     ParentCollectiveId: parent.id,
@@ -59,7 +59,14 @@ async function createProject(_, args, req) {
     throw new Error(`The slug '${projectData.slug}' is already taken. Please use another slug for your Project.`);
   }
 
-  const project = await models.Collective.create(projectData);
+  const project = await sequelize.transaction(async dbTransaction => {
+    const project = await models.Collective.create(projectData, { transaction: dbTransaction });
+    if (args.project.socialLinks) {
+      await project.updateSocialLinks(args.project.socialLinks, dbTransaction);
+    }
+
+    return project;
+  });
 
   if (parent.HostCollectiveId) {
     const host = await req.loaders.Collective.byId.load(parent.HostCollectiveId);
