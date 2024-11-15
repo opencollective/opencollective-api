@@ -331,6 +331,7 @@ async function handleSubscriptionCancelled(req: Request): Promise<void> {
       isActive: false,
       deactivatedAt: new Date(),
       nextChargeDate: null,
+      data: { ...order.Subscription.data, deactivatedFromPayPalWebhook: true },
     });
   }
 }
@@ -359,7 +360,7 @@ async function handleSubscriptionSuspended(req: Request): Promise<void> {
 
   const { order } = result;
   if (order.status !== OrderStatus.PAUSED) {
-    await pauseOrderInDb(order, subscription.status_change_note, 'PLATFORM');
+    await pauseOrderInDb(order, subscription.status_change_note, 'USER');
   }
 }
 

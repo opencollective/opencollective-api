@@ -18,7 +18,7 @@ import PaypalPlan from '../../models/PaypalPlan';
 import Tier from '../../models/Tier';
 import Transaction from '../../models/Transaction';
 import User from '../../models/User';
-import { SubscriptionTransactions } from '../../types/paypal';
+import { PayPalSubscription, SubscriptionTransactions } from '../../types/paypal';
 import type { PaymentMethodServiceWithExternalRecurringManagement } from '../types';
 
 import { paypalRequest } from './api';
@@ -318,8 +318,13 @@ const createSubscription = async (order: Order, paypalSubscriptionId) => {
   });
 };
 
-export const fetchPaypalSubscription = async (hostCollective, subscriptionId) => {
-  return paypalRequest(`billing/subscriptions/${subscriptionId}`, null, hostCollective, 'GET');
+export const fetchPaypalSubscription = async (hostCollective, subscriptionId): Promise<PayPalSubscription> => {
+  return paypalRequest(
+    `billing/subscriptions/${subscriptionId}`,
+    null,
+    hostCollective,
+    'GET',
+  ) as Promise<PayPalSubscription>;
 };
 
 export const fetchPaypalTransactionsForSubscription = async (
@@ -337,7 +342,7 @@ export const fetchPaypalTransactionsForSubscription = async (
  * Ensures that subscription can be used for this contribution. This is to prevent malicious users
  * from manually creating a subscription that would not match the minimum imposed by a tier.
  */
-const verifySubscription = async (order: Order, paypalSubscription) => {
+const verifySubscription = async (order: Order, paypalSubscription: PayPalSubscription) => {
   if (paypalSubscription.status !== 'APPROVED') {
     throw new Error('Subscription must be approved to be activated');
   }
@@ -375,7 +380,7 @@ export const isPaypalSubscriptionPaymentMethod = (paymentMethod: PaymentMethod):
   );
 };
 
-const PayPalSubscription: PaymentMethodServiceWithExternalRecurringManagement = {
+const PaymentMethodServicePayPalSubscription: PaymentMethodServiceWithExternalRecurringManagement = {
   features: {
     recurring: true,
     isRecurringManagedExternally: true,
@@ -459,4 +464,4 @@ const PayPalSubscription: PaymentMethodServiceWithExternalRecurringManagement = 
   },
 };
 
-export default PayPalSubscription;
+export default PaymentMethodServicePayPalSubscription;
