@@ -13,6 +13,7 @@ import { get, isNil, round } from 'lodash';
 
 import orderStatus from '../../../constants/order-status';
 import { PAYMENT_METHOD_SERVICE } from '../../../constants/paymentMethods';
+import PlatformConstants from '../../../constants/platform';
 import roles from '../../../constants/roles';
 import { TransactionKind } from '../../../constants/transaction-kind';
 import { getDashboardObjectIdURL } from '../../../lib/stripe';
@@ -33,7 +34,7 @@ import { GraphQLTaxInfo } from '../object/TaxInfo';
 
 import { GraphQLAccount } from './Account';
 
-const { EXPENSE } = TransactionKind;
+const { EXPENSE, PLATFORM_TIP } = TransactionKind;
 
 /**
  * @typedef {import("../../../models/PaymentMethod")} PaymentMethod
@@ -731,8 +732,14 @@ export const TransactionFields = () => {
       type: GraphQLString,
       description: 'Merchant ID related to the Transaction (Stripe, PayPal, Wise, Privacy)',
       async resolve(transaction, _, req) {
-        if (!req.remoteUser || !req.remoteUser.hasRole([roles.ACCOUNTANT, roles.ADMIN], transaction.HostCollectiveId)) {
+        const allowedRoles = [roles.ACCOUNTANT, roles.ADMIN];
+        if (!req.remoteUser || !req.remoteUser.hasRole(allowedRoles, transaction.HostCollectiveId)) {
           return;
+        }
+
+        const merchantIdFromTransaction = transaction.merchantId;
+        if (merchantIdFromTransaction) {
+          return merchantIdFromTransaction;
         }
 
         // NOTE: We don't have transaction?.data?.transaction stored for transactions < 2022-09-27, but we have it available in expense.data
@@ -741,9 +748,17 @@ export const TransactionFields = () => {
           if (!expense && transaction.ExpenseId) {
             expense = await req.loaders.Expense.byId.load(transaction.ExpenseId);
           }
-          return transaction.merchantId || expense?.data?.transactionId;
-        } else {
-          return transaction.merchantId;
+          return expense?.data?.transactionId;
+        } else if (
+          transaction.kind === PLATFORM_TIP &&
+          req.remoteUser.hasRole(allowedRoles, PlatformConstants.PlatformCollectiveId)
+        ) {
+          // For Stripe platform tips collected directly, we have to get the merchant ID from the related contribution transaction
+          const contributionTransaction =
+            await req.loaders.Transaction.relatedContributionTransaction.load(transaction);
+          if (contributionTransaction && contributionTransaction.data?.isPlatformRevenueDirectlyCollected) {
+            return contributionTransaction.merchantId;
+          }
         }
       },
     },

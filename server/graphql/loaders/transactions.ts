@@ -150,3 +150,32 @@ export const generateRelatedTransactionsLoader = (): DataLoader<Transaction, Tra
       cacheKeyFn: transaction => transaction.id,
     },
   );
+
+export const generateRelatedContributionTransactionLoader = (): DataLoader<Transaction, Transaction> => {
+  return new DataLoader(
+    async (transactions: Transaction[]) => {
+      const relatedTransactions = await models.Transaction.findAll({
+        where: {
+          [Op.or]: transactions.map(transaction => ({
+            TransactionGroup: transaction.TransactionGroup,
+            kind: TransactionKind.CONTRIBUTION,
+            type: transaction.type,
+          })),
+        },
+      });
+      const groupedTransactions = groupBy(relatedTransactions, 'TransactionGroup');
+      return transactions.map(transaction => {
+        if (groupedTransactions[transaction.TransactionGroup]) {
+          return groupedTransactions[transaction.TransactionGroup].find(
+            t => t.id !== transaction.id && t.type === transaction.type,
+          );
+        } else {
+          return null;
+        }
+      });
+    },
+    {
+      cacheKeyFn: transaction => transaction.id,
+    },
+  );
+};
