@@ -233,6 +233,14 @@ export async function refundTransaction(
     }
   }
 
+  // Check if the hosted collective has enough funds to refund the transaction
+  if (collective && collective.HostCollectiveId && transaction.type === 'CREDIT') {
+    const balanceInHostCurrency = await collective.getBalance({ currency: transaction.hostCurrency });
+    if (balanceInHostCurrency < transaction.amountInHostCurrency) {
+      throw new Forbidden('Not enough funds to refund this transaction');
+    }
+  }
+
   // 2. Refund via payment method
   // 3. Create new transactions with the refund value in our database
   const result = await refundTransactionPayment(transaction, req.remoteUser, args.message);

@@ -23,7 +23,7 @@ const transactionMutations = {
         description: 'Reference of the transaction to refund',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<typeof GraphQLTransaction> {
+    async resolve(_: void, args, req: express.Request): Promise<Transaction> {
       checkRemoteUserCanUseTransactions(req);
       const transaction = await fetchTransactionWithReference(args.transaction, { throwIfMissing: true });
       return refundTransaction(transaction, req);

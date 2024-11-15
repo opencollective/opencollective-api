@@ -1,11 +1,13 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
+import { pick } from 'lodash';
 import nock from 'nock';
 import { createSandbox } from 'sinon';
 import Stripe from 'stripe';
 
 import { SupportedCurrency } from '../../../../../server/constants/currencies';
 import MemberRoles from '../../../../../server/constants/roles';
+import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import { TransactionTypes } from '../../../../../server/constants/transactions';
 import * as TransactionMutationHelpers from '../../../../../server/graphql/common/transactions';
 import emailLib from '../../../../../server/lib/email';
@@ -13,7 +15,7 @@ import { calcFee, executeOrder } from '../../../../../server/lib/payments';
 import stripe, { convertFromStripeAmount, convertToStripeAmount, extractFees } from '../../../../../server/lib/stripe';
 import models from '../../../../../server/models';
 import stripeMocks from '../../../../mocks/stripe';
-import { fakeCollective, fakeOrder, fakeUser, randStr } from '../../../../test-helpers/fake-data';
+import { fakeCollective, fakeOrder, fakeTransaction, fakeUser, randStr } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
 import * as utils from '../../../../utils';
 
@@ -91,10 +93,12 @@ describe('server/graphql/v2/mutation/TransactionMutations', () => {
     await hostAdminUser.populateRoles();
     order1 = await fakeOrder({
       CollectiveId: collective.id,
+      totalAmount: stripeMocks.balance.amount,
     });
     order1 = await order1.setPaymentMethod({ token: STRIPE_TOKEN });
     order2 = await fakeOrder({
       CollectiveId: collective.id,
+      totalAmount: stripeMocks.balance.amount,
     });
     order2 = await order2.setPaymentMethod({ token: STRIPE_TOKEN });
     await models.ConnectedAccount.create({
@@ -173,6 +177,16 @@ describe('server/graphql/v2/mutation/TransactionMutations', () => {
       expect(refund1.CreatedByUserId).to.equal(hostAdminUser.id);
       expect(refund2.CreatedByUserId).to.equal(hostAdminUser.id);
     });
+
+    it('error if the collective does not have enough funds', async () => {
+      const result = await graphqlQueryV2(
+        refundTransactionMutation,
+        { transaction: { legacyId: transaction1.id } },
+        hostAdminUser,
+      );
+      const [{ message }] = result.errors;
+      expect(message).to.equal('Not enough funds to refund this transaction');
+    });
   });
 
   describe('rejectTransaction', () => {
@@ -210,6 +224,11 @@ describe('server/graphql/v2/mutation/TransactionMutations', () => {
     });
 
     it('rejects the transaction', async () => {
+      // Add funds to the collective
+      await fakeTransaction({
+        ...pick(transaction1, ['CollectiveId', 'HostCollectiveId', 'amount', 'amountInHostCurrency', 'currency']),
+        kind: TransactionKind.ADDED_FUNDS,
+      });
       const message = 'We do not want your contribution';
       const result = await graphqlQueryV2(
         rejectTransactionMutation,
@@ -359,6 +378,12 @@ describe('refundTransaction legacy tests', () => {
       data: { charge, balanceTransaction },
     };
     const transaction = await models.Transaction.createFromContributionPayload(transactionPayload);
+    await fakeTransaction({
+      ...pick(transaction, ['CollectiveId', 'HostCollectiveId']),
+      amount: 100000,
+      amountInHostCurrency: 100000,
+      kind: TransactionKind.ADDED_FUNDS,
+    });
     return { user, host, collective, tier, paymentMethod, order, transaction };
   }
 
@@ -407,7 +432,7 @@ describe('refundTransaction legacy tests', () => {
       const { user, collective, host, transaction } = await setupTestObjects();
 
       // Balance pre-refund
-      expect(await collective.getBalance()).to.eq(400000);
+      expect(await collective.getBalance()).to.eq(500000);
 
       // When the above transaction is refunded
       const result = await graphqlQueryV2(
@@ -432,7 +457,7 @@ describe('refundTransaction legacy tests', () => {
       await snapshotTransactionsForRefund(allTransactions);
 
       // Collective balance should go back to 0
-      expect(await collective.getBalance()).to.eq(0);
+      expect(await collective.getBalance()).to.eq(100000);
 
       // And two new transactions should be created in the
       // database. This only makes sense in an empty database. For
