@@ -191,7 +191,7 @@ export const canReject = canRefund;
 export async function refundTransaction(
   passedTransaction: Transaction,
   req: express.Request,
-  args: { message?: string } = {},
+  args: { message?: string; ignoreBalanceCheck?: boolean } = {},
 ) {
   // 0. Retrieve transaction from database
   const transaction = await models.Transaction.findByPk(passedTransaction.id, {
@@ -234,7 +234,7 @@ export async function refundTransaction(
   }
 
   // Check if the hosted collective has enough funds to refund the transaction
-  if (collective && collective.HostCollectiveId && transaction.type === 'CREDIT') {
+  if (!args?.ignoreBalanceCheck && collective && collective.HostCollectiveId && transaction.type === 'CREDIT') {
     const balanceInHostCurrency = await collective.getBalance({ currency: transaction.hostCurrency });
     if (balanceInHostCurrency < transaction.amountInHostCurrency) {
       throw new Forbidden('Not enough funds to refund this transaction');

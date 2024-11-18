@@ -22,8 +22,8 @@ import * as utils from '../../../../utils';
 const STRIPE_TOKEN = 'tok_123456781234567812345678';
 
 const refundTransactionMutation = gql`
-  mutation RefundTransaction($transaction: TransactionReferenceInput!) {
-    refundTransaction(transaction: $transaction) {
+  mutation RefundTransaction($transaction: TransactionReferenceInput!, $ignoreBalanceCheck: Boolean) {
+    refundTransaction(transaction: $transaction, ignoreBalanceCheck: $ignoreBalanceCheck) {
       id
       legacyId
     }
@@ -181,11 +181,23 @@ describe('server/graphql/v2/mutation/TransactionMutations', () => {
     it('error if the collective does not have enough funds', async () => {
       const result = await graphqlQueryV2(
         refundTransactionMutation,
-        { transaction: { legacyId: transaction1.id } },
+        { transaction: { legacyId: transaction2.id } },
         hostAdminUser,
       );
       const [{ message }] = result.errors;
       expect(message).to.equal('Not enough funds to refund this transaction');
+    });
+
+    it('allows use to bypass the balance check', async () => {
+      const result = await graphqlQueryV2(
+        refundTransactionMutation,
+        { transaction: { legacyId: transaction2.id }, ignoreBalanceCheck: true },
+        hostAdminUser,
+      );
+      expect(result.errors).to.not.exist;
+
+      const balance = await collective.getBalance();
+      expect(balance).to.not.be.above(0);
     });
   });
 
