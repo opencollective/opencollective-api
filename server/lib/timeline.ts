@@ -245,7 +245,7 @@ export const getCollectiveFeed = async ({
 }) => {
   const isDisabled = parseToBoolean(config.timeline.disabled);
   if (isDisabled) {
-    return [];
+    return null;
   }
 
   const redis = await createRedisClient(RedisInstanceType.TIMELINE);
