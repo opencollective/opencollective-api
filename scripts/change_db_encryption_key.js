@@ -61,7 +61,7 @@ async function main(args) {
 }
 
 /** Return the options passed by the user to run the script */
-/* eslint-disable camelcase */
+
 function parseCommandLineArguments() {
   const parser = new ArgumentParser({
     addHelp: true,
@@ -91,7 +91,6 @@ function parseCommandLineArguments() {
   });
   return parser.parse_args();
 }
-/* eslint-enable camelcase */
 
 if (!module.parent) {
   main(parseCommandLineArguments());

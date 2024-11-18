@@ -1,6 +1,4 @@
-/* eslint-disable n/no-extraneous-require */
-/* eslint-disable n/no-unpublished-require */
-/* eslint-disable @typescript-eslint/no-var-requires */
+/* eslint-disable @typescript-eslint/no-require-imports */
 
 import config from 'config';
 

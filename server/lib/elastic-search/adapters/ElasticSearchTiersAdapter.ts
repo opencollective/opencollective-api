@@ -67,8 +67,6 @@ export class ElasticSearchTiersAdapter implements ElasticSearchModelAdapter {
   }
 
   public getIndexPermissions(/* _adminOfAccountIds: number[]*/) {
-    /* eslint-disable camelcase */
     return { default: 'PUBLIC' as const };
-    /* eslint-enable camelcase */
   }
 }

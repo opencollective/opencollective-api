@@ -92,7 +92,7 @@ export const GraphQLTransferWise = new GraphQLObjectType({
         if (host) {
           try {
             return await transferwise.getAvailableCurrencies(host, args?.ignoreBlockedCurrencies);
-          } catch (_) {
+          } catch {
             return [];
           }
         } else {

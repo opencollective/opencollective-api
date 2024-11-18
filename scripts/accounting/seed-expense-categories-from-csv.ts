@@ -4,7 +4,7 @@ import fs from 'fs';
 
 import axios from 'axios';
 import { InvalidOptionArgumentError, program } from 'commander';
-import { parse } from 'csv-parse/sync'; // eslint-disable-line
+import { parse } from 'csv-parse/sync';
 
 import models, { Op, sequelize } from '../../server/models';
 

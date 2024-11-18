@@ -100,7 +100,7 @@ export const verifyPlaidWebhookRequest = async (req: Request) => {
   try {
     const pem = jwkToPem(key);
     claims = jwt.verify(signedJwt, pem, { algorithms: [key.alg as jwt.Algorithm] });
-  } catch (error) {
+  } catch {
     return false;
   }
 

@@ -35,7 +35,7 @@ import { randStr } from './test-helpers/fake-data';
 
 jsonData.application = {
   name: 'client',
-  api_key: config.keys.opencollective.apiKey, // eslint-disable-line camelcase
+  api_key: config.keys.opencollective.apiKey,
 };
 
 export const data = path => {
@@ -320,8 +320,8 @@ export const createStripeToken = async () => {
     .create({
       card: {
         number: '4242424242424242',
-        exp_month: 12, // eslint-disable-line camelcase
-        exp_year: 2028, // eslint-disable-line camelcase
+        exp_month: 12,
+        exp_year: 2028,
         cvc: 222,
       },
     })
@@ -373,7 +373,7 @@ export function stubStripeBalance(sandbox, amount, currency, applicationFee = 0,
     amount: convertToStripeAmount(currency, amount),
     currency: currency.toLowerCase(),
     fee,
-    fee_details: feeDetails, // eslint-disable-line camelcase
+    fee_details: feeDetails,
     net: convertToStripeAmount(currency, amount - fee),
     status: 'pending',
     type: 'charge',

@@ -863,7 +863,9 @@ export const executeOrder = async (
     // safe to create subscription after this.
 
     // The order will be updated to ACTIVE
-    order.interval && (await createSubscription(order));
+    if (order.interval) {
+      await createSubscription(order);
+    }
 
     // Register user as collective backer (don't do for internal transfers)
     // Or in the case of tickets register the user as an ATTENDEE

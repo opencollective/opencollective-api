@@ -88,7 +88,7 @@ const updateExpenseParsingResultWithCurrency = async (
         toCurrency: targetCurrency,
       })),
     );
-  } catch (e) {
+  } catch {
     return {
       success: false,
       message: `Could not load exchange rates for ${uniq(

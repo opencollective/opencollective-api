@@ -314,7 +314,6 @@ async function payExpense(
       // In development mode we don't have webhooks set up, so we need to manually trigger the event handler.
       if (config.env === 'development') {
         await handleTransferStateChange({
-          // eslint-disable-next-line camelcase
           data: { resource: response, current_state: 'outgoing_payment_sent' },
         } as any);
       }

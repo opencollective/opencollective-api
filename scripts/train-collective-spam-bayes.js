@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 
 import bayes from 'bayes';
-import geoip from 'geoip-lite'; // eslint-disable-line n/no-unpublished-import
+import geoip from 'geoip-lite';
 import { get } from 'lodash';
 
 import { collectiveBayesContent } from '../server/lib/spam';

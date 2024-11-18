@@ -36,7 +36,7 @@ const redactSensitiveDataFromRequest = rawRequest => {
   try {
     const reqBody = JSON.parse(request.data);
     request.data = JSON.stringify(utils.redactSensitiveFields(reqBody));
-  } catch (e) {
+  } catch {
     // request data is not a json
   }
 
@@ -270,7 +270,11 @@ export const reportMessageToSentry = (message: string, params: CaptureErrorParam
     } else {
       const errorDetailsStr = safeJsonStringify(params);
       const logMsg = `[Sentry fallback] ${message} (${errorDetailsStr})`;
-      params?.severity === 'warning' ? logger.warn(logMsg) : logger.error(logMsg);
+      if (params?.severity === 'warning') {
+        logger.warn(logMsg);
+      } else {
+        logger.error(logMsg);
+      }
     }
   });
 };

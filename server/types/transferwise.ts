@@ -1,5 +1,3 @@
-/* eslint-disable camelcase */
-
 export type Quote = {
   id?: number;
   source: string;

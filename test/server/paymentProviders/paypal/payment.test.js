@@ -46,7 +46,7 @@ describe('server/paymentProviders/paypal/payment', () => {
           .persist()
           .post('/v1/oauth2/token')
           .basicAuth({ user: 'my-client-id', pass: 'my-client-secret' })
-          .reply(200, { access_token: 'dat-token' }); // eslint-disable-line camelcase
+          .reply(200, { access_token: 'dat-token' });
 
         // Mock the query to get order details
         if (!failOnOrderDetails) {

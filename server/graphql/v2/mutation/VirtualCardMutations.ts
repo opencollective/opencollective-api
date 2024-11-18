@@ -1,4 +1,3 @@
-/* eslint-disable camelcase */
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
 

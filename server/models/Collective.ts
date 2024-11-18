@@ -3779,7 +3779,7 @@ Collective.init(
               return;
             }
           }
-        } catch (e) {
+        } catch {
           // Ignore errors, the validator will take care of throwing the right error message
         }
 
@@ -3823,7 +3823,7 @@ Collective.init(
               return;
             }
           }
-        } catch (e) {
+        } catch {
           // Ignore errors, the validator will take care of throwing the right error message
         }
 

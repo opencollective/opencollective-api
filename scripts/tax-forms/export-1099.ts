@@ -17,7 +17,7 @@ import path from 'path';
 import { Parser } from '@json2csv/plainjs';
 import { Command } from 'commander';
 import { get, truncate } from 'lodash';
-import markdownTable from 'markdown-table'; // eslint-disable-line n/no-unpublished-import
+import markdownTable from 'markdown-table';
 
 import { formatCurrency } from '../../server/lib/utils';
 import models, { sequelize } from '../../server/models';
@@ -425,7 +425,7 @@ const parseCommandLine = () => {
 const tryAndDecryptInstance = (encryptedFormData): HelloWorksTaxFormInstance => {
   try {
     return JSON.parse(LegalDocument.decrypt(Buffer.from(encryptedFormData, 'base64')).toString());
-  } catch (e) {
+  } catch {
     return null;
   }
 };
