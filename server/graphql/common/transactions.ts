@@ -1,3 +1,5 @@
+import assert from 'assert';
+
 import express from 'express';
 import { isNull } from 'lodash';
 import moment from 'moment';
@@ -219,12 +221,13 @@ export async function refundTransaction(
     throw new Forbidden('Cannot refund this transaction');
   }
 
-  // Check 2FA
+  const creditTransaction = transaction.type === 'CREDIT' ? transaction : await transaction.getOppositeTransaction();
   const collective = transaction.type === 'CREDIT' ? transaction.collective : transaction.fromCollective;
+
+  // Check 2FA
   if (collective && req.remoteUser.isAdminOfCollective(collective)) {
     await twoFactorAuthLib.enforceForAccount(req, collective);
   } else {
-    const creditTransaction = transaction.type === 'CREDIT' ? transaction : await transaction.getOppositeTransaction();
     if (req.remoteUser.isAdmin(creditTransaction?.HostCollectiveId)) {
       await twoFactorAuthLib.enforceForAccount(
         req,
@@ -233,10 +236,16 @@ export async function refundTransaction(
     }
   }
 
+  if (args?.ignoreBalanceCheck) {
+    assert(
+      req.remoteUser.isAdmin(creditTransaction?.HostCollectiveId),
+      'Only Fiscal-Host admins can ignore balance check',
+    );
+  }
   // Check if the hosted collective has enough funds to refund the transaction
-  if (!args?.ignoreBalanceCheck && collective && collective.HostCollectiveId && transaction.type === 'CREDIT') {
-    const balanceInHostCurrency = await collective.getBalance({ currency: transaction.hostCurrency });
-    if (balanceInHostCurrency < transaction.amountInHostCurrency) {
+  else {
+    const balanceInHostCurrency = await collective.getBalance({ currency: creditTransaction.hostCurrency });
+    if (balanceInHostCurrency < creditTransaction.amountInHostCurrency) {
       throw new Forbidden('Not enough funds to refund this transaction');
     }
   }
