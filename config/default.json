@@ -217,7 +217,8 @@
     "orderedTransactions": false
   },
   "timeline": {
-    "daysCached": 7
+    "daysCached": 7,
+    "disabled": false
   },
   "twoFactorAuthentication": {
     "enabled": true

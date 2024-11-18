@@ -220,7 +220,8 @@
     "orderedTransactions": "LEDGER_ORDERED_TRANSACTIONS"
   },
   "timeline": {
-    "daysCached": "TIMELINE_DAYS_CACHED"
+    "daysCached": "TIMELINE_DAYS_CACHED",
+    "disabled": "TIMELINE_DISABLED"
   },
   "activities": {
     "skipTransactions": "SKIP_TRANSACTION_ACTIVITIES",

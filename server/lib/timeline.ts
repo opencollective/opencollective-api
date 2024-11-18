@@ -12,6 +12,7 @@ import { MemberModelInterface } from '../models/Member';
 
 import cache from './cache';
 import { utils } from './statsd';
+import { parseToBoolean } from './utils';
 
 const debug = debugLib('timeline');
 
@@ -242,11 +243,17 @@ export const getCollectiveFeed = async ({
   limit: number;
   classes: ActivityClasses[];
 }) => {
+  const isDisabled = parseToBoolean(config.timeline.disabled);
+  if (isDisabled) {
+    return null;
+  }
+
   const redis = await createRedisClient(RedisInstanceType.TIMELINE);
   // If we don't have a redis client, we can't cache the timeline using sorted sets
   if (!redis) {
     debug('Redis is not configured, skipping cached timeline');
     const stopWatch = utils.stopwatch('timeline.readPage.noCache');
+
     const where = await makeTimelineQuery(collective, classes);
     if (dateTo) {
       where['createdAt'] = { [Op.lt]: dateTo };
