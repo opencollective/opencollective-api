@@ -765,7 +765,7 @@ const oauth = {
       if (
         (collective.countryISO &&
           (isMemberOfTheEuropeanUnion(collective.countryISO) || ['AU', 'GB'].includes(collective.countryISO))) ||
-        ['AUD', 'DKK', 'EUR', 'GBP', 'SEK', 'USD'].includes(collective.currency) ||
+        ['AUD', 'DKK', 'EUR', 'GBP', 'SEK'].includes(collective.currency) ||
         config.env === 'development'
       ) {
         const settings = collective.settings ? cloneDeep(collective.settings) : {};
