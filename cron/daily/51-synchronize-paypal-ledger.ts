@@ -233,7 +233,7 @@ const handleCheckoutTransaction = async (
     });
 
     if (order.status !== OrderStatuses.PAID) {
-      await order.update({ status: OrderStatuses.PAID });
+      await order.update({ status: OrderStatuses.PAID, processedAt: captureDate });
 
       // If the capture is less than 48 hours old, send the thank you email
       if (moment().diff(captureDate, 'hours') < 48) {

@@ -29,8 +29,34 @@ async function checkDuplicateNonRecurringContribution() {
   }
 }
 
-export async function checkOrders() {
+async function checkPaidOrdersWithNullProcessedAt({ fix = false } = {}) {
+  const message = 'Paid Order with null processedAt';
+
+  const results = await sequelize.query(`
+    SELECT id, "updatedAt"
+    FROM "Orders"
+    WHERE status = 'PAID'
+    AND "processedAt" IS NULL
+    ORDER BY "createdAt" DESC
+  `);
+
+  if (results.length > 0) {
+    if (!fix) {
+      throw new Error(message);
+    } else {
+      await sequelize.query(`
+        UPDATE "Orders"
+        SET "processedAt" = "updatedAt"
+        WHERE status = 'PAID'
+        AND "processedAt" IS NULL
+      `);
+    }
+  }
+}
+
+export async function checkOrders({ fix = false } = {}) {
   await checkDuplicateNonRecurringContribution();
+  await checkPaidOrdersWithNullProcessedAt({ fix });
 }
 
 if (!module.parent) {
