@@ -907,6 +907,7 @@ export const loaders = req => {
     paymentProcessorFeeAmountForTransaction: transactionLoaders.generatePaymentProcessorFeeAmountForTransactionLoader(),
     taxAmountForTransaction: transactionLoaders.generateTaxAmountForTransactionLoader(),
     relatedTransactions: transactionLoaders.generateRelatedTransactionsLoader(),
+    relatedContributionTransaction: transactionLoaders.generateRelatedContributionTransactionLoader(),
     balanceById: new DataLoader(async transactionIds => {
       const transactionBalances = await sequelize.query(
         ` SELECT      id, balance
