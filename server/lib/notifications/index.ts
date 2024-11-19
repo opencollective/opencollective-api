@@ -1,6 +1,5 @@
 import axios, { AxiosError } from 'axios';
 import config from 'config';
-import moment from 'moment';
 
 import { activities, channels } from '../../constants';
 import ActivityTypes from '../../constants/activities';
@@ -25,18 +24,15 @@ const shouldSkipActivity = (activity: Activity) => {
   return false;
 };
 
-const publishToWebhook = async (notification: Notification, activity: Activity) => {
+const publishToWebhook = async (notification: Notification, activity: Activity): Promise<boolean> => {
   if (slackLib.isSlackWebhookUrl(notification.webhookUrl)) {
-    return slackLib.postActivityOnPublicChannel(activity, notification.webhookUrl);
+    await slackLib.postActivityOnPublicChannel(activity, notification.webhookUrl);
+    return true;
   } else {
     const sanitizedActivity = sanitizeActivity(activity);
     const enrichedActivity = enrichActivity(sanitizedActivity);
     const response = await axios.post(notification.webhookUrl, enrichedActivity, { maxRedirects: 0, timeout: 30000 });
-    const isSuccess = response.status >= 200 && response.status < 300;
-    if (isSuccess && (!notification.lastSuccessAt || !moment(notification.lastSuccessAt).isSame(moment(), 'day'))) {
-      await notification.update({ lastSuccessAt: new Date() });
-    }
-    return response;
+    return response.status >= 200 && response.status < 300;
   }
 };
 
@@ -87,11 +83,16 @@ const dispatch = async (
 
         try {
           if (notifConfig.channel === channels.SLACK) {
-            return await slackLib.postActivityOnPublicChannel(activity, notifConfig.webhookUrl);
+            await slackLib.postActivityOnPublicChannel(activity, notifConfig.webhookUrl);
+            notifConfig.recordSuccess(); // No need to await
           } else if (notifConfig.channel === channels.TWITTER) {
-            return await twitter.tweetActivity(activity);
+            await twitter.tweetActivity(activity);
+            notifConfig.recordSuccess(); // No need to await
           } else if (notifConfig.channel === channels.WEBHOOK) {
-            return await publishToWebhook(notifConfig, activity);
+            const success = await publishToWebhook(notifConfig, activity);
+            if (success) {
+              notifConfig.recordSuccess(); // No need to await
+            }
           }
         } catch (e) {
           const stringifiedError =
