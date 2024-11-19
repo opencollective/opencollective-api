@@ -31,7 +31,6 @@ import { HandlerType, reportMessageToSentry, SentryGraphQLPlugin, sentryHandleSl
 import { parseToBoolean } from './lib/utils';
 import * as authentication from './middleware/authentication';
 import errorHandler from './middleware/error-handler';
-import * as params from './middleware/params';
 import required from './middleware/required-param';
 import sanitizer from './middleware/sanitizer';
 
@@ -126,16 +125,6 @@ export default async app => {
     app.oauth.authorize({ allowEmptyState: true, authenticateHandler: authorizeAuthenticateHandler }),
   );
   app.post('/oauth/authenticate', noCache, app.oauth.authenticate());
-
-  /**
-   * Parameters.
-   */
-  app.param('uuid', params.uuid);
-  app.param('userid', params.userid);
-  app.param('collectiveid', params.collectiveid);
-  app.param('transactionuuid', params.transactionuuid);
-  app.param('paranoidtransactionid', params.paranoidtransactionid);
-  app.param('expenseid', params.expenseid);
 
   /**
    * GraphQL caching
