@@ -1,5 +1,5 @@
 import express from 'express';
-import { GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLNonNull, GraphQLString } from 'graphql';
 
 import { activities } from '../../../constants';
 import orderStatus from '../../../constants/order-status';
@@ -22,11 +22,15 @@ const transactionMutations = {
         type: new GraphQLNonNull(GraphQLTransactionReferenceInput),
         description: 'Reference of the transaction to refund',
       },
+      ignoreBalanceCheck: {
+        type: GraphQLBoolean,
+        description: 'If true, the refund will be processed even if it exceeds the balance of the Collective',
+      },
     },
-    async resolve(_: void, args, req: express.Request): Promise<typeof GraphQLTransaction> {
+    async resolve(_: void, args, req: express.Request): Promise<Transaction> {
       checkRemoteUserCanUseTransactions(req);
       const transaction = await fetchTransactionWithReference(args.transaction, { throwIfMissing: true });
-      return refundTransaction(transaction, req);
+      return refundTransaction(transaction, req, { ignoreBalanceCheck: args.ignoreBalanceCheck });
     },
   },
   rejectTransaction: {
