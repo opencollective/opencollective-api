@@ -3,7 +3,7 @@ import '../../server/env';
 import { flatten, uniq } from 'lodash';
 
 import logger from '../../server/lib/logger';
-import { MigrationLog, sequelize } from '../../server/models';
+import { Member, MigrationLog, sequelize } from '../../server/models';
 import { MigrationLogType } from '../../server/models/MigrationLog';
 
 import { runCheckThenExit } from './_utils';
@@ -107,10 +107,62 @@ async function checkDuplicateMembers({ fix = false } = {}) {
   }
 }
 
+async function checkMissingMembers({ fix = false }) {
+  const message = 'No missing members';
+
+  const results = await sequelize.query(
+    `
+    SELECT o.id, o."FromCollectiveId", o."CollectiveId", o."CreatedByUserId", o."TierId", o."createdAt", t."type" AS "tierType"
+    FROM "Orders" o
+    LEFT JOIN "Members" m
+      ON o."FromCollectiveId" = m."MemberCollectiveId"
+      AND m."CollectiveId" = o."CollectiveId"
+      AND m."deletedAt" IS NULL
+      AND (
+        (m."TierId" IS NULL AND o."TierId" IS NULL)
+        OR (m."TierId" = o."TierId")
+      )
+    LEFT JOIN "Tiers" t
+      ON t."id" = o."TierId"
+    WHERE o.status in ('PAID', 'ACTIVE')
+    AND o."deletedAt" IS NULL
+    AND m.id IS NULL
+    `,
+    { type: sequelize.QueryTypes.SELECT, raw: true },
+  );
+
+  if (results.length > 0) {
+    if (!fix) {
+      throw new Error(message);
+    } else {
+      logger.warn(`Fixing: ${message}`);
+      for (const result of results) {
+        await Member.create({
+          MemberCollectiveId: result.FromCollectiveId,
+          CollectiveId: result.CollectiveId,
+          CreatedByUserId: result.CreatedByUserId,
+          TierId: result.TierId,
+          since: result.createdAt,
+          role: result.tierType === 'TICKET' ? 'ATTENDEE' : 'BACKER',
+        });
+      }
+
+      // Members don't have a `data` column that we could use to log that they've been created from this script, so we
+      // create a new migration log instead.
+      await MigrationLog.create({
+        type: MigrationLogType.MODEL_FIX,
+        description: `Missing members check: Added ${results.length} missing members`,
+        data: { results },
+      });
+    }
+  }
+}
+
 export async function checkMembers({ fix = false } = {}) {
   await checkDeletedMembers({ fix });
   await checkMemberTypes();
   await checkDuplicateMembers({ fix });
+  await checkMissingMembers({ fix });
 }
 
 if (!module.parent) {
