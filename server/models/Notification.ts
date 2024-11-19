@@ -1,5 +1,6 @@
 import debugLib from 'debug';
 import { compact, defaults, isNil, keys, pick, pickBy, reject, uniq } from 'lodash';
+import moment from 'moment';
 import prependHttp from 'prepend-http';
 import { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
 import isIP from 'validator/lib/isIP';
@@ -37,6 +38,12 @@ class Notification extends Model<InferAttributes<Notification>, InferCreationAtt
 
   getUser() {
     return User.findByPk(this.UserId);
+  }
+
+  async recordSuccess() {
+    if (!this.lastSuccessAt || !moment(this.lastSuccessAt).isSame(moment(), 'day')) {
+      await this.update({ lastSuccessAt: new Date() });
+    }
   }
 
   static async createMany(
