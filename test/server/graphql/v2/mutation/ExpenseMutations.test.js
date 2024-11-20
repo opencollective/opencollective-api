@@ -18,6 +18,7 @@ import {
   TwoFactorAuthenticationHeader,
   TwoFactorMethod,
 } from '../../../../../server/lib/two-factor-authentication/lib';
+import { sleep } from '../../../../../server/lib/utils';
 import models from '../../../../../server/models';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../../server/models/LegalDocument';
 import { PayoutMethodTypes } from '../../../../../server/models/PayoutMethod';
@@ -4207,8 +4208,12 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
     let sandbox, collective, expense, user;
 
     const draftExpenseAndInviteUserMutation = gql`
-      mutation DraftExpenseAndInviteUser($expense: ExpenseInviteDraftInput!, $account: AccountReferenceInput!) {
-        draftExpenseAndInviteUser(expense: $expense, account: $account) {
+      mutation DraftExpenseAndInviteUser(
+        $expense: ExpenseInviteDraftInput!
+        $account: AccountReferenceInput!
+        $skipInvite: Boolean
+      ) {
+        draftExpenseAndInviteUser(expense: $expense, account: $account, skipInvite: $skipInvite) {
           id
           legacyId
           status
@@ -4332,6 +4337,22 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
       const [recipient] = emailLib.sendMessage.thirdCall.args;
       expect(recipient).to.eq(existingUser.email);
+    });
+
+    it('allows to skip email invitation', async () => {
+      emailLib.sendMessage.resetHistory();
+      const result = await graphqlQueryV2(
+        draftExpenseAndInviteUserMutation,
+        { expense: invoice, account: { legacyId: collective.id }, skipInvite: true },
+        user,
+      );
+
+      await sleep(100);
+
+      const draftedExpense = result.data.draftExpenseAndInviteUser;
+      expense = await models.Expense.findByPk(draftedExpense.legacyId);
+      expect(expense.status).to.eq(expenseStatus.DRAFT);
+      expect(emailLib.sendMessage.callCount).to.eq(0);
     });
   });
 });

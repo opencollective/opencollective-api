@@ -455,6 +455,11 @@ const expenseMutations = {
         type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Account where the expense will be created',
       },
+      skipInvite: {
+        type: GraphQLBoolean,
+        description: 'Skip sending the invite email',
+        defaultValue: false,
+      },
     },
     async resolve(_: void, args, req: express.Request): Promise<ExpenseModel> {
       checkRemoteUserCanUseExpenses(req);
@@ -528,7 +533,9 @@ const expenseMutations = {
         status: expenseStatus.DRAFT,
       });
 
-      await sendDraftExpenseInvite(req, expense, collective, draftKey);
+      if (!args.skipInvite) {
+        await sendDraftExpenseInvite(req, expense, collective, draftKey);
+      }
 
       return expense;
     },
