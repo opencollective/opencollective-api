@@ -18,7 +18,9 @@ const query = `SELECT "Orders"."id"
   FROM "Orders", "Collectives", "Collectives" as "FromCollectives"
   WHERE "Orders"."CollectiveId" = "Collectives"."id" AND "FromCollectives"."id" = "Orders"."FromCollectiveId"
   AND "Orders"."status" IN ('ACTIVE', 'PAID')
+  AND "Orders"."deletedAt" IS NULL
   AND "Collectives"."settings"->'moderation'->'rejectedCategories' IS NOT NULL
+  AND jsonb_array_length("Collectives"."settings"->'moderation'->'rejectedCategories') > 0
   AND "FromCollectives"."data"->'categories' IS NOT NULL`;
 
 const getContributorRejectedCategories = (fromCollective, collective) => {
