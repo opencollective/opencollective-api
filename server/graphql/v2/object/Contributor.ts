@@ -2,7 +2,9 @@ import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectT
 import { GraphQLDateTime } from 'graphql-scalars';
 
 import { getCollectiveAvatarUrl } from '../../../lib/collectivelib';
+import Collective from '../../../models/Collective';
 import { GraphQLImageFormat, GraphQLMemberRole } from '../enum';
+import { GraphQLAccount } from '../interface/Account';
 
 import { GraphQLAmount } from './Amount';
 
@@ -81,8 +83,8 @@ export const GraphQLContributor = new GraphQLObjectType({
       },
     },
     account: {
-      type: GraphQLString,
-      resolve(contributor, _, req): Promise<string | null> {
+      type: GraphQLAccount,
+      resolve(contributor, _, req): Promise<Collective | null> {
         return req.loaders.Collective.byId.load(contributor.id);
       },
     },
