@@ -29,7 +29,7 @@ import {
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
-import { activities, roles } from '../../constants';
+import { activities, expenseStatus, roles } from '../../constants';
 import ActivityTypes from '../../constants/activities';
 import { CollectiveType } from '../../constants/collectives';
 import { Service } from '../../constants/connected-account';
@@ -394,6 +394,14 @@ export const canSeeExpenseSecurityChecks: ExpensePermissionEvaluator = async (re
   }
 
   return remoteUserMeetsOneCondition(req, expense, [isHostAdmin]);
+};
+
+export const canSeeDraftKey: ExpensePermissionEvaluator = async (req, expense) => {
+  if (expense.status !== expenseStatus.DRAFT) {
+    return false;
+  }
+
+  return canSeeExpenseSecurityChecks(req, expense);
 };
 
 export const canSeeExpenseCustomData: ExpensePermissionEvaluator = async (req, expense) => {

@@ -634,6 +634,15 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Reques
           }
         },
       },
+      draftKey: {
+        type: GraphQLString,
+        description: '[Host Admin only] Key to access the draft of this expense',
+        async resolve(expense, _, req) {
+          if (await ExpenseLib.canSeeDraftKey(req, expense)) {
+            return expense.data?.draftKey;
+          }
+        },
+      },
       customData: {
         type: GraphQLJSON,
         description: 'Custom data for this expense',
