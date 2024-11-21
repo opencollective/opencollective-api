@@ -1,6 +1,7 @@
 import '../../server/env';
 
 import logger from '../../server/lib/logger';
+import { HandlerType, reportErrorToSentry } from '../../server/lib/sentry';
 import { sequelize } from '../../server/models';
 import { runCronJob } from '../utils';
 
@@ -24,6 +25,7 @@ async function run() {
       logger.info(`${view} materialized view refreshed in ${runSeconds}.${runMilliSeconds} seconds`);
     } catch (e) {
       const [runSeconds, runMilliSeconds] = process.hrtime(startTime);
+      reportErrorToSentry(e, { handler: HandlerType.CRON, severity: 'error', extra: { view } });
       logger.error(
         `Error while refreshing ${view} materialized view after ${runSeconds}.${runMilliSeconds} seconds: ${e.message}`,
         e,
@@ -39,6 +41,7 @@ async function run() {
       const [runSeconds, runMilliSeconds] = process.hrtime(startTime);
       logger.info(`${view} materialized view refreshed in ${runSeconds}.${runMilliSeconds} seconds`);
     } catch (e) {
+      reportErrorToSentry(e, { handler: HandlerType.CRON, severity: 'error', extra: { view } });
       const [runSeconds, runMilliSeconds] = process.hrtime(startTime);
       logger.error(
         `Error while refreshing ${view} materialized view after ${runSeconds}.${runMilliSeconds} seconds: ${e.message}`,
