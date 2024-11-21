@@ -2534,6 +2534,11 @@ type Expense {
   securityChecks: [SecurityCheck]
 
   """
+  [Host Admin only] Key to access the draft of this expense
+  """
+  draftKey: String
+
+  """
   Custom data for this expense
   """
   customData: JSON
@@ -19487,6 +19492,11 @@ type Mutation {
     Account where the expense will be created
     """
     account: AccountReferenceInput!
+
+    """
+    Skip sending the invite email
+    """
+    skipInvite: Boolean = false
   ): Expense!
 
   """

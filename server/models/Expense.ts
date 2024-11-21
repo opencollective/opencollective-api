@@ -163,7 +163,9 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   createActivity = async function (
     type: ActivityTypes,
     user: User | { id: number } | null = null,
-    data: ({ notifyCollective?: boolean; ledgerTransaction?: Transaction } & Record<string, unknown>) | null = {},
+    data:
+      | ({ notifyCollective?: boolean; ledgerTransaction?: Transaction; notify?: boolean } & Record<string, unknown>)
+      | null = {},
   ) {
     const submittedByUser = await this.getSubmitterUser();
     const submittedByUserCollective = await Collective.findByPk(submittedByUser.CollectiveId);
@@ -205,6 +207,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
           'message',
           'event',
           'isSystem',
+          'notify',
           'notifyCollective',
           'reference',
           'estimatedDelivery',

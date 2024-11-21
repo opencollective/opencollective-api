@@ -29,7 +29,7 @@ import {
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
-import { activities, roles } from '../../constants';
+import { activities, expenseStatus, roles } from '../../constants';
 import ActivityTypes from '../../constants/activities';
 import { CollectiveType } from '../../constants/collectives';
 import { Service } from '../../constants/connected-account';
@@ -391,6 +391,24 @@ export const canSeeExpenseSecurityChecks: ExpensePermissionEvaluator = async (re
   // Only trusted hosts can use security checks
   if (!get(expense.collective, 'host.data.isTrustedHost')) {
     return false;
+  }
+
+  return remoteUserMeetsOneCondition(req, expense, [isHostAdmin]);
+};
+
+export const canSeeDraftKey: ExpensePermissionEvaluator = async (req, expense) => {
+  if (expense.status !== expenseStatus.DRAFT) {
+    return false;
+  }
+
+  if (!validateExpenseScope(req)) {
+    return false;
+  }
+
+  // Preload host and collective, we'll need them for permissions checks
+  expense.collective = expense.collective || (await req.loaders.Collective.byId.load(expense.CollectiveId));
+  if (expense.collective?.HostCollectiveId && !expense.collective.host) {
+    expense.collective.host = await req.loaders.Collective.byId.load(expense.collective.HostCollectiveId);
   }
 
   return remoteUserMeetsOneCondition(req, expense, [isHostAdmin]);
