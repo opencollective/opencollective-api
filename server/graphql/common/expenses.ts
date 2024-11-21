@@ -401,7 +401,17 @@ export const canSeeDraftKey: ExpensePermissionEvaluator = async (req, expense) =
     return false;
   }
 
-  return canSeeExpenseSecurityChecks(req, expense);
+  if (!validateExpenseScope(req)) {
+    return false;
+  }
+
+  // Preload host and collective, we'll need them for permissions checks
+  expense.collective = expense.collective || (await req.loaders.Collective.byId.load(expense.CollectiveId));
+  if (expense.collective?.HostCollectiveId && !expense.collective.host) {
+    expense.collective.host = await req.loaders.Collective.byId.load(expense.collective.HostCollectiveId);
+  }
+
+  return remoteUserMeetsOneCondition(req, expense, [isHostAdmin]);
 };
 
 export const canSeeExpenseCustomData: ExpensePermissionEvaluator = async (req, expense) => {

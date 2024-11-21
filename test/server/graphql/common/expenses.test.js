@@ -15,6 +15,7 @@ import {
   canMarkAsUnpaid,
   canPayExpense,
   canReject,
+  canSeeDraftKey,
   canSeeExpenseAttachments,
   canSeeExpenseDraftPrivateDetails,
   canSeeExpenseInvoiceInfo,
@@ -858,6 +859,52 @@ describe('server/graphql/common/expenses', () => {
           except: contexts.virtualCard,
         },
       );
+    });
+  });
+
+  describe('canSeeDraftKey', () => {
+    it('can not be seen if the expense is not a DRAFT', async () => {
+      await runForAllContexts(async context => {
+        await context.expense.update({ status: 'PENDING' });
+        expect(await checkAllPermissions(canSeeDraftKey, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: false,
+          collectiveAccountant: false,
+          hostAdmin: false,
+          hostAccountant: false,
+          expenseOwner: false,
+          limitedHostAdmin: false,
+        });
+      });
+    });
+
+    it('can only be seen by host admin', async () => {
+      let context = contexts.normal;
+      await context.expense.update({ status: 'DRAFT' });
+      expect(await checkAllPermissions(canSeeDraftKey, context)).to.deep.equal({
+        public: false,
+        randomUser: false,
+        collectiveAdmin: false,
+        collectiveAccountant: false,
+        hostAdmin: true,
+        hostAccountant: false,
+        expenseOwner: false,
+        limitedHostAdmin: false,
+      });
+
+      context = contexts.selfHosted;
+      await context.expense.update({ status: 'DRAFT' });
+      expect(await checkAllPermissions(canSeeDraftKey, context)).to.deep.equal({
+        public: false,
+        randomUser: false,
+        collectiveAdmin: true,
+        collectiveAccountant: false,
+        hostAdmin: true,
+        hostAccountant: false,
+        expenseOwner: false,
+        limitedHostAdmin: false,
+      });
     });
   });
 
