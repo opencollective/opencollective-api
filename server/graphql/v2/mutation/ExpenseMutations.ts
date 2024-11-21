@@ -456,7 +456,7 @@ const expenseMutations = {
         description: 'Account where the expense will be created',
       },
       skipInvite: {
-        type: GraphQLBoolean,
+        type: new GraphQLNonNull(GraphQLBoolean),
         description: 'Skip sending the invite email',
         defaultValue: false,
       },
@@ -510,6 +510,7 @@ const expenseMutations = {
 
       const expense = await models.Expense.create({
         ...pick(expenseData, DRAFT_EXPENSE_FIELDS),
+        status: expenseStatus.DRAFT,
         CollectiveId: collective.id,
         FromCollectiveId: fromCollective.id,
         lastEditedById: remoteUser.id,
@@ -529,13 +530,11 @@ const expenseMutations = {
           customData: expenseData.customData,
           taxes: expenseData.tax,
           reference: expenseData.reference,
+          notify: !args.skipInvite,
         },
-        status: expenseStatus.DRAFT,
       });
 
-      if (!args.skipInvite) {
-        await sendDraftExpenseInvite(req, expense, collective, draftKey);
-      }
+      await sendDraftExpenseInvite(req, expense, collective, draftKey);
 
       return expense;
     },
