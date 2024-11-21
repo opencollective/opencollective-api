@@ -77,7 +77,7 @@ async function run({ dryRun, limit, force } = {}) {
     let shouldNotifyContributor = true;
     let actionTaken = false;
 
-    // Retrieve latest transaction
+    // Retrieve latest transaction to refund it (less than 30 days)
     const transaction = await models.Transaction.findOne({
       where: {
         OrderId: order.id,
@@ -110,6 +110,7 @@ async function run({ dryRun, limit, force } = {}) {
             } else if (force) {
               await createRefundTransaction(transaction, 0, null);
             } else {
+              // don't mark as REJECTED non-refunded one time contributions
               if (order.status === 'PAID') {
                 shouldMarkAsRejected = false;
                 shouldNotifyContributor = false;
