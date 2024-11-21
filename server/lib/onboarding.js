@@ -33,11 +33,6 @@ async function processCollective(collective, template) {
     template = `${template}.opensource`;
   }
 
-  const host = await collective.getHostCollective();
-  if (host && host.slug === 'foundation' && templateNames.includes(`${template}.foundation`)) {
-    template = `${template}.foundation`;
-  }
-
   // if the collective created is an ORGANIZATION, we only send an onboarding email if there is one specific to organizations
   if (collective.type === 'ORGANIZATION') {
     const orgTemplate = `${template}.${collective.type.toLowerCase()}`;

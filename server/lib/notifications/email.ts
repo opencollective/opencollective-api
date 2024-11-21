@@ -525,16 +525,6 @@ export const notifyByEmail = async (activity: Activity) => {
       break;
 
     case ActivityTypes.COLLECTIVE_APPROVED:
-      // Funds MVP
-      if (get(activity, 'data.collective.type') === 'FUND' || get(activity, 'data.collective.settings.fund') === true) {
-        if (get(activity, 'data.host.slug') === 'foundation') {
-          await notify.collective(activity, {
-            collectiveId: activity.CollectiveId,
-            template: 'fund.approved.foundation',
-          });
-        }
-        break;
-      }
       await notify.collective(activity, {
         collectiveId: activity.CollectiveId,
         replyTo: activity.data.host.data?.replyToEmail || undefined,
@@ -590,17 +580,6 @@ export const notifyByEmail = async (activity: Activity) => {
       break;
 
     case ActivityTypes.COLLECTIVE_CREATED:
-      // Funds MVP
-      if (get(activity, 'data.collective.type') === 'FUND' || get(activity, 'data.collective.settings.fund') === true) {
-        if (get(activity, 'data.host.slug') === 'foundation') {
-          await notify.collective(activity, {
-            collectiveId: activity.CollectiveId,
-            template: 'fund.created.foundation',
-          });
-        }
-        break;
-      }
-
       // Disable for the-social-change-nest
       if (get(activity, 'data.host.slug') === 'the-social-change-nest') {
         break;

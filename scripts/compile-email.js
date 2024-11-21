@@ -230,22 +230,6 @@ data['report.platform'] = {
       collectives: 1171,
     },
     {
-      host: 'foundation',
-      currency: 'USD',
-      HostCollectiveId: 11049,
-      backers: 54,
-      activeCollectives: 16,
-      totalRevenue: 826084,
-      hostFees: 39252,
-      platformFeesPaypal: 0,
-      platformFeesStripe: 24380,
-      platformFeesManual: 14947,
-      platformFeesDue: 14947,
-      platformFees: 39327,
-      hostCurrency: 'USD',
-      collectives: 55,
-    },
-    {
       host: 'faly',
       currency: 'CHF',
       HostCollectiveId: 8860,
@@ -495,15 +479,6 @@ data['collective.member.created'] = {
     subscription: {
       interval: 'month',
     },
-  },
-};
-data['collective.apply.foundation'] = {
-  collective: {
-    name: 'TheCollective',
-  },
-  host: {
-    slug: 'foundation',
-    name: 'foundation',
   },
 };
 
