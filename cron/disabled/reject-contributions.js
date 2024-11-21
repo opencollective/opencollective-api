@@ -21,7 +21,8 @@ const query = `SELECT "Orders"."id"
   AND "Orders"."deletedAt" IS NULL
   AND "Collectives"."settings"->'moderation'->'rejectedCategories' IS NOT NULL
   AND jsonb_array_length("Collectives"."settings"->'moderation'->'rejectedCategories') > 0
-  AND "FromCollectives"."data"->'categories' IS NOT NULL`;
+  AND "FromCollectives"."data"->'categories' IS NOT NULL
+  ORDER BY "Orders"."createdAt" ASC`;
 
 const getContributorRejectedCategories = (fromCollective, collective) => {
   const rejectedCategories = get(collective, 'settings.moderation.rejectedCategories', []);
