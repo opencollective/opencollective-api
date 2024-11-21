@@ -15,18 +15,18 @@ const data = {};
 data['user.new.token'] = {
   loginLink: 'https://opencollective.com/signin?next=',
 };
-data['onboarding.day21.noTwitter'] = {
+const mockCollective = {
   collective: {
     name: 'yeoman',
     slug: 'yeoman',
   },
 };
-data['onboarding.day2.opensource'] =
-  data['onboarding.day7.opensource'] =
-  data['onboarding.noExpenses.opensource'] =
-  data['onboarding.day28'] =
-  data['onboarding.day35.inactive'] =
-    data['onboarding.day21.noTwitter'];
+data['onboarding.day2.opensource'] = mockCollective;
+data['onboarding.day7.opensource'] = mockCollective;
+data['onboarding.noExpenses.opensource'] = mockCollective;
+data['onboarding.day28'] = mockCollective;
+data['onboarding.day35.inactive'] = mockCollective;
+data['onboarding.day21.noTwitter'] = mockCollective;
 data['collective.expense.approved'] = {
   host: { id: 1, name: 'WWCode', slug: 'wwcode' },
   expense: {
