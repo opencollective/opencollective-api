@@ -18,8 +18,11 @@ const query = `SELECT "Orders"."id"
   FROM "Orders", "Collectives", "Collectives" as "FromCollectives"
   WHERE "Orders"."CollectiveId" = "Collectives"."id" AND "FromCollectives"."id" = "Orders"."FromCollectiveId"
   AND "Orders"."status" IN ('ACTIVE', 'PAID')
+  AND "Orders"."deletedAt" IS NULL
   AND "Collectives"."settings"->'moderation'->'rejectedCategories' IS NOT NULL
-  AND "FromCollectives"."data"->'categories' IS NOT NULL`;
+  AND jsonb_array_length("Collectives"."settings"->'moderation'->'rejectedCategories') > 0
+  AND "FromCollectives"."data"->'categories' IS NOT NULL
+  ORDER BY "Orders"."createdAt" ASC`;
 
 const getContributorRejectedCategories = (fromCollective, collective) => {
   const rejectedCategories = get(collective, 'settings.moderation.rejectedCategories', []);
@@ -74,7 +77,7 @@ async function run({ dryRun, limit, force } = {}) {
     let shouldNotifyContributor = true;
     let actionTaken = false;
 
-    // Retrieve latest transaction
+    // Retrieve latest transaction to refund it (less than 30 days)
     const transaction = await models.Transaction.findOne({
       where: {
         OrderId: order.id,
@@ -107,6 +110,7 @@ async function run({ dryRun, limit, force } = {}) {
             } else if (force) {
               await createRefundTransaction(transaction, 0, null);
             } else {
+              // don't mark as REJECTED non-refunded one time contributions
               if (order.status === 'PAID') {
                 shouldMarkAsRejected = false;
                 shouldNotifyContributor = false;
