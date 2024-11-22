@@ -41,7 +41,11 @@ program.command('email <email> [env]').action(async email => {
     process.exit(1);
   }
 
-  const jwt = await user.generateSessionToken({ createActivity: false, updateLastLoginAt: false });
+  const jwt = await user.generateSessionToken({
+    createActivity: false,
+    updateLastLoginAt: false,
+    expiration: 60 * 60 * 24,
+  });
 
   console.log(`localStorage.accessToken = '${jwt}'`);
   console.log(`${config.host.website}/signin/${jwt}`);
