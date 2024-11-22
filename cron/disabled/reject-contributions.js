@@ -73,7 +73,6 @@ async function run({ dryRun, limit, force } = {}) {
 
     logger.info(`  - Found rejected categories: ${rejectedCategories.join(', ')}`);
 
-    let shouldMarkAsRejected = true;
     let shouldNotifyContributor = true;
     let actionTaken = false;
 
@@ -110,9 +109,7 @@ async function run({ dryRun, limit, force } = {}) {
             } else if (force) {
               await createRefundTransaction(transaction, 0, null);
             } else {
-              // don't mark as REJECTED non-refunded one time contributions
               if (order.status === 'PAID') {
-                shouldMarkAsRejected = false;
                 shouldNotifyContributor = false;
               }
             }
@@ -132,19 +129,16 @@ async function run({ dryRun, limit, force } = {}) {
     } else {
       logger.info(`  - No transaction found`);
       if (order.status === 'PAID') {
-        shouldMarkAsRejected = false;
         shouldNotifyContributor = false;
       }
     }
 
-    // Mark the Order as rejected (only if we found a transaction to refund)
-    if (shouldMarkAsRejected) {
-      logger.info(`  - Marking order #${order.id} as rejected `);
-      if (!dryRun) {
-        await order.update({ status: orderStatus.REJECTED });
-      }
-      actionTaken = true;
+    // Mark the Order as rejected (always)
+    logger.info(`  - Marking order #${order.id} as rejected `);
+    if (!dryRun) {
+      await order.update({ status: orderStatus.REJECTED });
     }
+    actionTaken = true;
 
     // Deactivate subscription
     if (order.SubscriptionId) {
