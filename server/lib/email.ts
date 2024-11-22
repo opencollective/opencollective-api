@@ -308,13 +308,7 @@ const generateEmailFromTemplate = (
   }
 
   if (template === 'collective.approved') {
-    if (['foundation', 'the-social-change-nest'].includes(hostSlug)) {
-      template = `${template}.${hostSlug}`;
-    }
-  }
-
-  if (template === 'collective.apply') {
-    if (hostSlug === 'foundation') {
+    if (['the-social-change-nest'].includes(hostSlug)) {
       template = `${template}.${hostSlug}`;
     }
   }
@@ -332,7 +326,7 @@ const generateEmailFromTemplate = (
   if (template === activities.ORDER_THANKYOU) {
     if (slug.match(/wwcode/)) {
       template = `${activities.ORDER_THANKYOU}.wwcode`;
-    } else if (['foundation', 'opensource'].includes(hostSlug)) {
+    } else if (['opensource'].includes(hostSlug)) {
       template = `${activities.ORDER_THANKYOU}.${hostSlug}`;
     } else if (includes(['laprimaire', 'lesbarbares', 'enmarchebe', 'monnaie-libre'], slug)) {
       template = `${activities.ORDER_THANKYOU}.fr`;
