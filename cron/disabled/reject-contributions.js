@@ -134,7 +134,7 @@ async function run({ dryRun, limit, force } = {}) {
     }
 
     // Mark the Order as rejected (always)
-    logger.info(`  - Marking order #${order.id} as rejected `);
+    logger.info(`  - Marking order #${order.id} (${order.status}) as REJECTED`);
     if (!dryRun) {
       await order.update({ status: orderStatus.REJECTED });
     }
@@ -143,21 +143,20 @@ async function run({ dryRun, limit, force } = {}) {
     // Deactivate subscription
     if (order.SubscriptionId) {
       const subscription = await models.Subscription.findByPk(order.SubscriptionId);
-      if (subscription) {
+      if (subscription?.isActive) {
         logger.info(`  - Deactivating subscription #${order.SubscriptionId}`);
         if (!dryRun) {
           await subscription.deactivate('Contribution rejected');
         }
         actionTaken = true;
       } else {
-        logger.info(`  - Subscription not found`);
+        logger.info(`  - Subscription not active or not found`);
       }
     } else {
       logger.info(`  - No subscription to deactivate`);
     }
 
     // Remove memberships
-
     const membershipSearchParams = {
       where: {
         MemberCollectiveId: fromCollective.id,
