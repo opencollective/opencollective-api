@@ -74,7 +74,6 @@ async function run({ dryRun, limit, force } = {}) {
     logger.info(`  - Found rejected categories: ${rejectedCategories.join(', ')}`);
 
     let shouldNotifyContributor = true;
-    let actionTaken = false;
 
     // Retrieve latest transaction to refund it (less than 30 days)
     const transaction = await models.Transaction.findOne({
@@ -121,7 +120,6 @@ async function run({ dryRun, limit, force } = {}) {
               }
             }
           }
-          actionTaken = true;
         }
       } else {
         logger.info(`  - Transaction already refunded`);
@@ -138,7 +136,6 @@ async function run({ dryRun, limit, force } = {}) {
     if (!dryRun) {
       await order.update({ status: orderStatus.REJECTED });
     }
-    actionTaken = true;
 
     // Deactivate subscription
     if (order.SubscriptionId) {
@@ -148,7 +145,6 @@ async function run({ dryRun, limit, force } = {}) {
         if (!dryRun) {
           await subscription.deactivate('Contribution rejected');
         }
-        actionTaken = true;
       } else {
         logger.info(`  - Subscription not active or not found`);
       }
@@ -170,18 +166,15 @@ async function run({ dryRun, limit, force } = {}) {
       if (!dryRun) {
         await models.Member.destroy(membershipSearchParams);
       }
-      actionTaken = true;
     } else {
       logger.info(`  - No BACKER memberships to delete`);
     }
 
-    if (actionTaken) {
-      logger.info(`  - Purging cache for ${collective.slug}`);
-      logger.info(`  - Purging cache for ${fromCollective.slug}`);
-      if (!dryRun) {
-        purgeCacheForCollective(collective.slug);
-        purgeCacheForCollective(fromCollective.slug);
-      }
+    logger.info(`  - Purging cache for ${collective.slug}`);
+    logger.info(`  - Purging cache for ${fromCollective.slug}`);
+    if (!dryRun) {
+      purgeCacheForCollective(collective.slug);
+      purgeCacheForCollective(fromCollective.slug);
     }
 
     if (shouldNotifyContributor) {
