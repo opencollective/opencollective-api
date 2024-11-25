@@ -73,9 +73,7 @@ async function run({ dryRun, limit, force } = {}) {
 
     logger.info(`  - Found rejected categories: ${rejectedCategories.join(', ')}`);
 
-    let shouldMarkAsRejected = true;
     let shouldNotifyContributor = true;
-    let actionTaken = false;
 
     // Retrieve latest transaction to refund it (less than 30 days)
     const transaction = await models.Transaction.findOne({
@@ -110,9 +108,7 @@ async function run({ dryRun, limit, force } = {}) {
             } else if (force) {
               await createRefundTransaction(transaction, 0, null);
             } else {
-              // don't mark as REJECTED non-refunded one time contributions
               if (order.status === 'PAID') {
-                shouldMarkAsRejected = false;
                 shouldNotifyContributor = false;
               }
             }
@@ -124,7 +120,6 @@ async function run({ dryRun, limit, force } = {}) {
               }
             }
           }
-          actionTaken = true;
         }
       } else {
         logger.info(`  - Transaction already refunded`);
@@ -132,38 +127,32 @@ async function run({ dryRun, limit, force } = {}) {
     } else {
       logger.info(`  - No transaction found`);
       if (order.status === 'PAID') {
-        shouldMarkAsRejected = false;
         shouldNotifyContributor = false;
       }
     }
 
-    // Mark the Order as rejected (only if we found a transaction to refund)
-    if (shouldMarkAsRejected) {
-      logger.info(`  - Marking order #${order.id} as rejected `);
-      if (!dryRun) {
-        await order.update({ status: orderStatus.REJECTED });
-      }
-      actionTaken = true;
+    // Mark the Order as rejected (always)
+    logger.info(`  - Marking order #${order.id} (${order.status}) as REJECTED`);
+    if (!dryRun) {
+      await order.update({ status: orderStatus.REJECTED });
     }
 
     // Deactivate subscription
     if (order.SubscriptionId) {
       const subscription = await models.Subscription.findByPk(order.SubscriptionId);
-      if (subscription) {
+      if (subscription?.isActive) {
         logger.info(`  - Deactivating subscription #${order.SubscriptionId}`);
         if (!dryRun) {
           await subscription.deactivate('Contribution rejected');
         }
-        actionTaken = true;
       } else {
-        logger.info(`  - Subscription not found`);
+        logger.info(`  - Subscription not active or not found`);
       }
     } else {
       logger.info(`  - No subscription to deactivate`);
     }
 
     // Remove memberships
-
     const membershipSearchParams = {
       where: {
         MemberCollectiveId: fromCollective.id,
@@ -177,18 +166,15 @@ async function run({ dryRun, limit, force } = {}) {
       if (!dryRun) {
         await models.Member.destroy(membershipSearchParams);
       }
-      actionTaken = true;
     } else {
       logger.info(`  - No BACKER memberships to delete`);
     }
 
-    if (actionTaken) {
-      logger.info(`  - Purging cache for ${collective.slug}`);
-      logger.info(`  - Purging cache for ${fromCollective.slug}`);
-      if (!dryRun) {
-        purgeCacheForCollective(collective.slug);
-        purgeCacheForCollective(fromCollective.slug);
-      }
+    logger.info(`  - Purging cache for ${collective.slug}`);
+    logger.info(`  - Purging cache for ${fromCollective.slug}`);
+    if (!dryRun) {
+      purgeCacheForCollective(collective.slug);
+      purgeCacheForCollective(fromCollective.slug);
     }
 
     if (shouldNotifyContributor) {
