@@ -1,6 +1,6 @@
 import '../../server/env';
 
-import { flatten, uniq } from 'lodash';
+import { flatten, min, uniq } from 'lodash';
 
 import logger from '../../server/lib/logger';
 import { Member, MigrationLog, sequelize } from '../../server/models';
@@ -70,7 +70,7 @@ async function checkDuplicateMembers({ fix = false } = {}) {
     `SELECT ARRAY_AGG(DISTINCT m2.id) AS duplicate_ids
      FROM "Members" m1
      INNER JOIN "Members" m2
-       ON m1.id != m2.id
+       ON m1.id < m2.id
        AND m1."CollectiveId" = m2."CollectiveId"
        AND m1."MemberCollectiveId" = m2."MemberCollectiveId"
        AND m1."role" = m2."role"
@@ -112,7 +112,13 @@ async function checkMissingMembers({ fix = false }) {
 
   const results = await sequelize.query(
     `
-    SELECT o.id, o."FromCollectiveId", o."CollectiveId", o."CreatedByUserId", o."TierId", o."createdAt", t."type" AS "tierType"
+    SELECT
+      o."FromCollectiveId",
+      o."CollectiveId",
+      o."TierId",
+      t."type" AS "tierType",
+      ARRAY_AGG(o."CreatedByUserId") AS "CreatedByUserId",
+      ARRAY_AGG(o."createdAt") AS "createdAt"
     FROM "Orders" o
     LEFT JOIN "Members" m
       ON o."FromCollectiveId" = m."MemberCollectiveId"
@@ -122,11 +128,14 @@ async function checkMissingMembers({ fix = false }) {
         (m."TierId" IS NULL AND o."TierId" IS NULL)
         OR (m."TierId" = o."TierId")
       )
+    INNER JOIN "Collectives" c
+      ON c."id" = o."CollectiveId" AND c."deletedAt" IS NULL
     LEFT JOIN "Tiers" t
-      ON t."id" = o."TierId"
+      ON t."id" = o."TierId" AND t."deletedAt" IS NULL
     WHERE o.status in ('PAID', 'ACTIVE')
     AND o."deletedAt" IS NULL
     AND m.id IS NULL
+    GROUP BY o."FromCollectiveId", o."CollectiveId", o."TierId", t."type"
     `,
     { type: sequelize.QueryTypes.SELECT, raw: true },
   );
@@ -140,9 +149,9 @@ async function checkMissingMembers({ fix = false }) {
         await Member.create({
           MemberCollectiveId: result.FromCollectiveId,
           CollectiveId: result.CollectiveId,
-          CreatedByUserId: result.CreatedByUserId,
+          CreatedByUserId: result.CreatedByUserId[0],
           TierId: result.TierId,
-          since: result.createdAt,
+          since: min(result.createdAt),
           role: result.tierType === 'TICKET' ? 'ATTENDEE' : 'BACKER',
         });
       }
