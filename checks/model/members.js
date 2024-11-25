@@ -130,6 +130,8 @@ async function checkMissingMembers({ fix = false }) {
       )
     INNER JOIN "Collectives" c
       ON c."id" = o."CollectiveId" AND c."deletedAt" IS NULL
+    INNER JOIN "Collectives" fc
+      ON fc."id" = o."FromCollectiveId" AND fc."deletedAt" IS NULL
     LEFT JOIN "Tiers" t
       ON t."id" = o."TierId" AND t."deletedAt" IS NULL
     WHERE o.status in ('PAID', 'ACTIVE')
