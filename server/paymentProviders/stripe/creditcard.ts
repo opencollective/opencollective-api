@@ -57,6 +57,7 @@ const createChargeAndTransactions = async (
       metadata: {
         from: `${config.host.website}/${order.fromCollective.slug}`,
         to: `${config.host.website}/${order.collective.slug}`,
+        orderId: order.id,
       },
     };
     // We don't add a platform fee if the host is the root account
