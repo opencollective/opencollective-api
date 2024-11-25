@@ -32,13 +32,16 @@ async function checkDuplicateNonRecurringContribution() {
 async function checkPaidOrdersWithNullProcessedAt({ fix = false } = {}) {
   const message = 'Paid Order with null processedAt';
 
-  const results = await sequelize.query(`
+  const results = await sequelize.query(
+    `
     SELECT id, "updatedAt"
     FROM "Orders"
     WHERE status = 'PAID'
     AND "processedAt" IS NULL
     ORDER BY "createdAt" DESC
-  `);
+  `,
+    { type: sequelize.QueryTypes.SELECT, raw: true },
+  );
 
   if (results.length > 0) {
     if (!fix) {
