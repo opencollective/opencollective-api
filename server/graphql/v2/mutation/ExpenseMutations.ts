@@ -4,6 +4,7 @@ import {
   GraphQLEnumType,
   GraphQLInputObjectType,
   GraphQLInt,
+  GraphQLList,
   GraphQLNonNull,
   GraphQLString,
 } from 'graphql';
@@ -45,6 +46,7 @@ import {
 } from '../../common/expenses';
 import { checkRemoteUserCanUseExpenses, enforceScope } from '../../common/scope-check';
 import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
+import { GraphQLExpenseLockableFields } from '../enum/ExpenseLockableFields';
 import { GraphQLExpenseProcessAction } from '../enum/ExpenseProcessAction';
 import { GraphQLFeesPayer } from '../enum/FeesPayer';
 import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
@@ -460,6 +462,10 @@ const expenseMutations = {
         description: 'Skip sending the invite email',
         defaultValue: false,
       },
+      lockedFields: {
+        type: new GraphQLList(GraphQLExpenseLockableFields),
+        description: 'Fields that the user should not be able to edit when submitting the draft',
+      },
     },
     async resolve(_: void, args, req: express.Request): Promise<ExpenseModel> {
       checkRemoteUserCanUseExpenses(req);
@@ -531,6 +537,7 @@ const expenseMutations = {
           taxes: expenseData.tax,
           reference: expenseData.reference,
           notify: !args.skipInvite,
+          lockedFields: args.lockedFields,
         },
       });
 
