@@ -12,6 +12,7 @@ import {
 import { isNil, omit } from 'lodash';
 import { OrderItem } from 'sequelize';
 
+import PlatformConstants from '../../../constants/platform';
 import { filterContributors } from '../../../lib/contributors';
 import models, { Collective } from '../../../models';
 import { checkReceiveFinancialContributions } from '../../common/features';
@@ -106,7 +107,10 @@ export const AccountWithContributionsFields = {
     async resolve(account: Collective, _, req: express.Request): Promise<boolean> {
       if (!isNil(account.data?.platformTips)) {
         return account.data.platformTips;
+      } else if (PlatformConstants.AllPlatformCollectiveIds.includes(account.id)) {
+        return false;
       }
+
       const host = await req.loaders.Collective.host.load(account);
       if (host) {
         const plan = await host.getPlan();
