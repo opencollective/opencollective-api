@@ -155,9 +155,7 @@ const transactionImportsMutations = {
       // Handle CSV
       let file;
       if (args.file) {
-        file = await UploadedFile.uploadGraphQl(await args.file, 'TRANSACTIONS_IMPORT', req.remoteUser, {
-          supportedMimeTypes: ['text/csv'],
-        });
+        file = await UploadedFile.uploadGraphQl(await args.file, 'TRANSACTIONS_IMPORT', req.remoteUser);
       }
 
       // Register rate limit call as soon as the file is uploaded

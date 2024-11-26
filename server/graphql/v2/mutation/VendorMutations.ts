@@ -12,6 +12,7 @@ import models, { Activity, LegalDocument } from '../../../models';
 import { checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { BadRequest, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
+import { handleCollectiveImageUploadFromArgs } from '../input/AccountCreateInputImageFields';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLVendorCreateInput, GraphQLVendorEditInput } from '../input/VendorInput';
 import { GraphQLVendor } from '../object/Vendor';
@@ -41,11 +42,13 @@ const vendorMutations = {
       }
 
       const { vendorInfo } = args.vendor;
+      const { avatar, banner } = await handleCollectiveImageUploadFromArgs(req.remoteUser, args.vendor);
       const vendorData = {
         type: CollectiveType.VENDOR,
         slug: `${host.id}-${slugify(args.vendor.name)}-${uuid().substr(0, 8)}`,
         CreatedByUserId: req.remoteUser.id,
-        image: args.vendor.imageUrl || null,
+        image: avatar?.url || args.vendor.imageUrl,
+        backgroundImage: banner?.url,
         isActive: false,
         ParentCollectiveId: host.id,
         ...pick(args.vendor, ['name', 'legalName', 'tags']),
@@ -125,9 +128,16 @@ const vendorMutations = {
       }
 
       const { vendorInfo } = args.vendor;
-      const image = isUndefined(args.vendor.imageUrl) ? vendor.image : args.vendor.imageUrl;
+      const { avatar, banner } = await handleCollectiveImageUploadFromArgs(req.remoteUser, args.vendor);
+      const image = !isUndefined(args.vendor.imageUrl)
+        ? args.vendor.imageUrl
+        : !isUndefined(avatar)
+          ? avatar?.url
+          : vendor.image;
+      const backgroundImage = !isUndefined(banner) ? banner?.url : vendor.backgroundImage;
       const vendorData = {
         image,
+        backgroundImage,
         ...pick(args.vendor, ['name', 'legalName', 'tags']),
         deactivatedAt: args.archive ? new Date() : null,
         settings: vendor.settings,

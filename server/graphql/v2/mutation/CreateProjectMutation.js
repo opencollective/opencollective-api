@@ -6,6 +6,7 @@ import { canUseSlug } from '../../../lib/collectivelib';
 import models, { sequelize } from '../../../models';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { Forbidden, NotFound } from '../../errors';
+import { handleCollectiveImageUploadFromArgs } from '../input/AccountCreateInputImageFields';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLProjectCreateInput } from '../input/ProjectCreateInput';
 import { GraphQLProject } from '../object/Project';
@@ -58,6 +59,10 @@ async function createProject(_, args, req) {
   if (checkSlug) {
     throw new Error(`The slug '${projectData.slug}' is already taken. Please use another slug for your Project.`);
   }
+
+  const { avatar, banner } = await handleCollectiveImageUploadFromArgs(req.remoteUser, args.project);
+  projectData.image = avatar?.url;
+  projectData.backgroundImage = banner?.url;
 
   const project = await sequelize.transaction(async dbTransaction => {
     const project = await models.Collective.create(projectData, { transaction: dbTransaction });

@@ -7,6 +7,7 @@ import models from '../../../models';
 import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation';
 import { processInviteMembersInput } from '../../common/members';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
+import { handleCollectiveImageUploadFromArgs } from '../input/AccountCreateInputImageFields';
 import { GraphQLInviteMemberInput } from '../input/InviteMemberInput';
 import { GraphQLOrganizationCreateInput } from '../input/OrganizationCreateInput';
 import { GraphQLOrganization } from '../object/Organization';
@@ -18,6 +19,7 @@ const DEFAULT_ORGANIZATION_SETTINGS = {
 async function createOrganization(_, args, req) {
   checkRemoteUserCanUseAccount(req);
 
+  const { avatar, banner } = await handleCollectiveImageUploadFromArgs(req.remoteUser, args.organization);
   const organizationData = {
     type: 'ORGANIZATION',
     slug: args.organization.slug.toLowerCase(),
@@ -25,6 +27,8 @@ async function createOrganization(_, args, req) {
     isActive: false,
     CreatedByUserId: req.remoteUser.id,
     settings: { ...DEFAULT_ORGANIZATION_SETTINGS, ...args.organization.settings },
+    image: avatar?.url,
+    backgroundImage: banner?.url,
   };
 
   if (!canUseSlug(organizationData.slug, req.remoteUser)) {

@@ -649,17 +649,29 @@ export const useIntegrationTestRecorder = (baseUrl, testFileName, preProcessNock
   });
 };
 
-export const getMockFileUpload = ({ mockFile = 'camera.png' } = {}) => {
+/**
+ * @param {"images/camera.png"|"images/empty.jpg"|"images/corrupt.jpg"|"files/transactions.csv"} mockFile
+ * @param {object} options
+ * @param {number} options.simulatedSize - An approximate size to simulate the file size in bytes (to test for large files)
+ */
+export const getMockFileUpload = (mockFile = 'images/camera.png', { simulatedSize } = {}) => {
   const file = new Upload();
+  const mimeType = mockFile.includes('.csv') ? 'text/csv' : mockFile.includes('.png') ? 'image/png' : 'image/jpeg';
+
   file.promise = Promise.resolve({
     filename: mockFile,
-    mimetype: 'image/png',
+    mimetype: mimeType,
     encoding: 'binary',
     createReadStream: () => {
       const stream = new Readable();
-      const imagePath = path.join(__dirname, `./mocks/images/${mockFile}`);
+      const imagePath = path.join(__dirname, `./mocks/${mockFile}`);
       const fileContent = fs.readFileSync(imagePath);
       stream.push(fileContent);
+      if (simulatedSize) {
+        const padding = Buffer.alloc(simulatedSize - fileContent.length);
+        stream.push(padding);
+      }
+
       stream.push(null);
       return stream;
     },

@@ -1,6 +1,7 @@
 import { GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
 
+import { AccountImagesInputFields } from './AccountCreateInputImageFields';
 import { GraphQLLocationInput } from './LocationInput';
 
 export const GraphQLCollectiveCreateInput = new GraphQLInputObjectType({
@@ -14,5 +15,6 @@ export const GraphQLCollectiveCreateInput = new GraphQLInputObjectType({
     githubHandle: { type: GraphQLString, deprecationReason: '2022-06-03: Please use repositoryUrl' },
     repositoryUrl: { type: GraphQLString, deprecationReason: '2023-01-16: Please use socialLinks' },
     settings: { type: GraphQLJSON },
+    ...AccountImagesInputFields,
   }),
 });

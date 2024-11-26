@@ -7,6 +7,7 @@ import { canUseSlug } from '../../../lib/collectivelib';
 import models from '../../../models';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { ValidationFailed } from '../../errors';
+import { handleCollectiveImageUploadFromArgs } from '../input/AccountCreateInputImageFields';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLFundCreateInput } from '../input/FundCreateInput';
 import { GraphQLFund } from '../object/Fund';
@@ -40,6 +41,7 @@ const DEFAULT_COLLECTIVE_SETTINGS = {
 async function createFund(_, args, req) {
   checkRemoteUserCanUseAccount(req);
 
+  const { avatar, banner } = await handleCollectiveImageUploadFromArgs(req.remoteUser, args.fund);
   const fundData = {
     type: 'FUND',
     slug: args.fund.slug.toLowerCase(),
@@ -47,6 +49,8 @@ async function createFund(_, args, req) {
     isActive: false,
     CreatedByUserId: req.remoteUser.id,
     settings: { ...DEFAULT_COLLECTIVE_SETTINGS, ...args.fund.settings },
+    image: avatar?.url,
+    backgroundImage: banner?.url,
   };
 
   if (!canUseSlug(fundData.slug, req.remoteUser)) {

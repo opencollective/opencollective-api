@@ -5,7 +5,7 @@ import { CollectiveType } from '../../../../../server/constants/collectives';
 import models from '../../../../../server/models';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../../server/models/LegalDocument';
 import { fakeCollective, fakeHost, fakeTransaction, fakeUser } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2 } from '../../../../utils';
+import { getMockFileUpload, graphqlQueryV2 } from '../../../../utils';
 
 describe('server/graphql/v2/mutation/VendorMutations', () => {
   const vendorData = {
@@ -113,6 +113,28 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
       const location = await vendor.getLocation();
       expect(location.address).to.equal('Zorg Planet, 123');
     });
+
+    it('creates a vendor account with an image', async () => {
+      const result = await graphqlQueryV2(
+        createVendorMutation,
+        {
+          host: { legacyId: host.id },
+          vendor: {
+            ...vendorData,
+            image: getMockFileUpload('images/camera.png'),
+            backgroundImage: getMockFileUpload('images/camera.png'),
+          },
+        },
+        hostAdminUser,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      const vendor = await models.Collective.findByPk(result.data?.createVendor?.legacyId);
+      expect(vendor).to.exist;
+      expect(vendor.image).to.match(/\/account-avatar\/.+\/camera.png/);
+      expect(vendor.backgroundImage).to.match(/\/account-banner\/.+\/camera.png/);
+    });
   });
 
   describe('editVendor', () => {
@@ -179,6 +201,8 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
           taxId: 'BE0411905847',
           notes: 'Zorg is still great vendor',
         },
+        image: getMockFileUpload('images/camera.png'),
+        backgroundImage: getMockFileUpload('images/camera.png'),
       };
       const result = await graphqlQueryV2(
         editVendorMutation,
@@ -198,6 +222,8 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
       expect(vendor.legalName).to.equal('Zorg 2 Inc');
       expect(vendor.settings.VAT).to.deep.equal({ number: newVendorData.vendorInfo.taxId, type: 'OWN' });
       expect(vendor.data.vendorInfo).to.deep.equal({ ...vendorData.vendorInfo, ...newVendorData.vendorInfo });
+      expect(vendor.image).to.match(/\/account-avatar\/.+\/camera.png/);
+      expect(vendor.backgroundImage).to.match(/\/account-banner\/.+\/camera.png/);
 
       const location = await vendor.getLocation();
       expect(location.address).to.equal('Zorg Avenue, 1');

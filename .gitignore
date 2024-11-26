@@ -39,6 +39,7 @@ typings
 
 # test artifacts
 output/
+!test/mocks/files/*.csv
 
 *.swp
 

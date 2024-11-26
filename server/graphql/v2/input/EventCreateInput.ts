@@ -1,6 +1,8 @@
 import { GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
+import { AccountImagesInputFields } from './AccountCreateInputImageFields';
+
 export const GraphQLEventCreateInput = new GraphQLInputObjectType({
   name: 'EventCreateInput',
   fields: () => ({
@@ -22,5 +24,6 @@ export const GraphQLEventCreateInput = new GraphQLInputObjectType({
       type: new GraphQLNonNull(GraphQLString),
       default: 'UTC',
     },
+    ...AccountImagesInputFields,
   }),
 });

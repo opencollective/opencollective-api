@@ -8,6 +8,7 @@ import { canUseSlug } from '../../../lib/collectivelib';
 import models from '../../../models';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { BadRequest, NotFound, Unauthorized } from '../../errors';
+import { handleCollectiveImageUploadFromArgs } from '../input/AccountCreateInputImageFields';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLEventCreateInput } from '../input/EventCreateInput';
 import { GraphQLEvent } from '../object/Event';
@@ -28,6 +29,7 @@ async function createEvent(_, args, req) {
     throw new Unauthorized(`You must be logged in as a member of the ${parent.slug} collective to create an Event`);
   }
 
+  const { avatar, banner } = await handleCollectiveImageUploadFromArgs(req.remoteUser, args.event);
   const eventData = {
     type: 'EVENT',
     slug: `${slugify(args.event.slug || args.event.name)}-${uuid().substr(0, 8)}`,
@@ -40,6 +42,8 @@ async function createEvent(_, args, req) {
     ParentCollectiveId: parent.id,
     CreatedByUserId: req.remoteUser.id,
     settings: { ...DEFAULT_EVENT_SETTINGS, ...args.event.settings },
+    image: avatar?.url,
+    backgroundImage: banner?.url,
   };
 
   if (!canUseSlug(eventData.slug, req.remoteUser)) {
