@@ -174,7 +174,7 @@ describe('server/models/TransactionSettlement', () => {
   it('1. getHostDebts returns all debts for host', async () => {
     const debts = await TransactionSettlement.getHostDebts(host.id);
     await utils.preloadAssociationsForTransactions(debts, SNAPSHOT_COLUMNS);
-    utils.snapshotTransactions(debts, { columns: SNAPSHOT_COLUMNS, loadAssociations: true });
+    utils.snapshotTransactions(debts, { columns: SNAPSHOT_COLUMNS });
   });
 
   it('2. updateTransactionsSettlementStatus updates statuses selectively', async () => {
@@ -186,13 +186,13 @@ describe('server/models/TransactionSettlement', () => {
 
     const updatedDebts = await TransactionSettlement.getHostDebts(host.id);
     await utils.preloadAssociationsForTransactions(updatedDebts, SNAPSHOT_COLUMNS);
-    utils.snapshotTransactions(updatedDebts, { columns: SNAPSHOT_COLUMNS, loadAssociations: true });
+    utils.snapshotTransactions(updatedDebts, { columns: SNAPSHOT_COLUMNS });
   });
 
   it('3. getHostDebts can then filter by settlement status', async () => {
     const debts = await TransactionSettlement.getHostDebts(host.id, TransactionSettlementStatus.OWED);
     await utils.preloadAssociationsForTransactions(debts, SNAPSHOT_COLUMNS);
-    utils.snapshotTransactions(debts, { columns: SNAPSHOT_COLUMNS, loadAssociations: true });
+    utils.snapshotTransactions(debts, { columns: SNAPSHOT_COLUMNS });
   });
 
   it('4. getAccountsWithOwedSettlements returns all accounts with OWED debts', async () => {

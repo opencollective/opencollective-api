@@ -55,6 +55,7 @@ import {
   seedDefaultVendors,
   snapshotTransactions,
   waitForCondition,
+  waitForEmail,
 } from '../../../../utils';
 
 const SECRET_KEY = config.dbEncryption.secretKey;
@@ -1983,11 +1984,11 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(expense.data.items[0].description).to.equal('Item 1');
         expect(expense.data.payee).to.contain({ email: 'test@email.com', name: 'test' });
 
-        await waitForCondition(() => emailSendMessageSpy.callCount > 0);
-        expect(emailSendMessageSpy).calledWith(
-          'test@email.com',
-          'An expense you were invited to submit has been updated',
-        );
+        await waitForEmail(emailSendMessageSpy, [
+          { to: 'test@email.com' },
+          { subject: 'An expense you were invited to submit has been updated' },
+          { html: `/expenses/${expense.id}`, op: 'contains' },
+        ]);
       });
 
       it('invited external user can decline DRAFT expense invite', async () => {
