@@ -757,7 +757,7 @@ export const TransactionFields = () => {
           const contributionTransaction =
             await req.loaders.Transaction.relatedContributionTransaction.load(transaction);
           if (contributionTransaction && contributionTransaction.data?.isPlatformRevenueDirectlyCollected) {
-            return contributionTransaction.merchantId;
+            return get(contributionTransaction, 'data.charge.application_fee');
           }
         }
       },
