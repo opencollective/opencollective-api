@@ -47,7 +47,6 @@ async function createCollective(_, args, req) {
     throw new RateLimitExceeded();
   }
 
-  const { avatar, banner } = await handleCollectiveImageUploadFromArgs(req.remoteUser, args.collective);
   return sequelize
     .transaction(async transaction => {
       const collectiveData = {
@@ -56,8 +55,6 @@ async function createCollective(_, args, req) {
         isActive: false,
         CreatedByUserId: remoteUser.id,
         settings: { ...DEFAULT_COLLECTIVE_SETTINGS, ...args.collective.settings },
-        image: avatar?.url,
-        backgroundImage: banner?.url,
       };
 
       if (!isProd && args.testPayload) {
@@ -164,6 +161,14 @@ async function createCollective(_, args, req) {
       // Add location
       if (args.collective.location) {
         await collective.setLocation(args.collective.location, transaction);
+      }
+
+      const { avatar, banner } = await handleCollectiveImageUploadFromArgs(req.remoteUser, args.collective);
+      if (avatar || banner) {
+        await collective.update(
+          { image: avatar?.url ?? collective.image, backgroundImage: banner?.url ?? collective.backgroundImage },
+          { transaction, hooks: false },
+        );
       }
 
       return collective;

@@ -29,7 +29,6 @@ async function createEvent(_, args, req) {
     throw new Unauthorized(`You must be logged in as a member of the ${parent.slug} collective to create an Event`);
   }
 
-  const { avatar, banner } = await handleCollectiveImageUploadFromArgs(req.remoteUser, args.event);
   const eventData = {
     type: 'EVENT',
     slug: `${slugify(args.event.slug || args.event.name)}-${uuid().substr(0, 8)}`,
@@ -42,8 +41,6 @@ async function createEvent(_, args, req) {
     ParentCollectiveId: parent.id,
     CreatedByUserId: req.remoteUser.id,
     settings: { ...DEFAULT_EVENT_SETTINGS, ...args.event.settings },
-    image: avatar?.url,
-    backgroundImage: banner?.url,
   };
 
   if (!canUseSlug(eventData.slug, req.remoteUser)) {
@@ -54,7 +51,16 @@ async function createEvent(_, args, req) {
     throw new Error(`The slug '${eventData.slug}' is already taken. Please use another slug for the Event.`);
   }
 
-  const event = await models.Collective.create(eventData);
+  // Validate now to avoid uploading images if the collective is invalid
+  const event = models.Collective.build(eventData);
+  await event.validate();
+
+  // Attach images
+  const { avatar, banner } = await handleCollectiveImageUploadFromArgs(req.remoteUser, args.event);
+  event.image = avatar?.url ?? event.image;
+  event.backgroundImage = banner?.url ?? event.backgroundImage;
+
+  await event.save();
   event.generateCollectiveCreatedActivity(req.remoteUser, req.userToken);
   return event;
 }

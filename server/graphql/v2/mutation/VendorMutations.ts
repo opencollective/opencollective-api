@@ -42,13 +42,11 @@ const vendorMutations = {
       }
 
       const { vendorInfo } = args.vendor;
-      const { avatar, banner } = await handleCollectiveImageUploadFromArgs(req.remoteUser, args.vendor);
       const vendorData = {
         type: CollectiveType.VENDOR,
         slug: `${host.id}-${slugify(args.vendor.name)}-${uuid().substr(0, 8)}`,
         CreatedByUserId: req.remoteUser.id,
-        image: avatar?.url || args.vendor.imageUrl,
-        backgroundImage: banner?.url,
+        image: args.vendor.imageUrl,
         isActive: false,
         ParentCollectiveId: host.id,
         ...pick(args.vendor, ['name', 'legalName', 'tags']),
@@ -64,7 +62,16 @@ const vendorMutations = {
         vendorData.settings[vendorInfo.taxType] = { number: vendorInfo.taxId, type: 'OWN' };
       }
 
-      const vendor = await models.Collective.create(vendorData);
+      // Validate now to avoid uploading images if the collective is invalid
+      const vendor = models.Collective.build(vendorData);
+      await vendor.validate();
+
+      // Attach images
+      const { avatar, banner } = await handleCollectiveImageUploadFromArgs(req.remoteUser, args.vendor);
+      vendor.image = avatar?.url ?? vendor.image;
+      vendor.backgroundImage = banner?.url ?? vendor.backgroundImage;
+
+      await vendor.save();
 
       if (args.vendor.location) {
         await vendor.setLocation(args.vendor.location);

@@ -60,14 +60,16 @@ async function createProject(_, args, req) {
     throw new Error(`The slug '${projectData.slug}' is already taken. Please use another slug for your Project.`);
   }
 
-  const { avatar, banner } = await handleCollectiveImageUploadFromArgs(req.remoteUser, args.project);
-  projectData.image = avatar?.url;
-  projectData.backgroundImage = banner?.url;
-
   const project = await sequelize.transaction(async dbTransaction => {
     const project = await models.Collective.create(projectData, { transaction: dbTransaction });
     if (args.project.socialLinks) {
       await project.updateSocialLinks(args.project.socialLinks, dbTransaction);
+    }
+
+    // Attach images
+    const { avatar, banner } = await handleCollectiveImageUploadFromArgs(req.remoteUser, args.project);
+    if (avatar || banner) {
+      await project.update({ image: avatar?.url, backgroundImage: banner?.url }, { transaction: dbTransaction });
     }
 
     return project;

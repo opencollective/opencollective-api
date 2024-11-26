@@ -41,7 +41,6 @@ const DEFAULT_COLLECTIVE_SETTINGS = {
 async function createFund(_, args, req) {
   checkRemoteUserCanUseAccount(req);
 
-  const { avatar, banner } = await handleCollectiveImageUploadFromArgs(req.remoteUser, args.fund);
   const fundData = {
     type: 'FUND',
     slug: args.fund.slug.toLowerCase(),
@@ -49,8 +48,6 @@ async function createFund(_, args, req) {
     isActive: false,
     CreatedByUserId: req.remoteUser.id,
     settings: { ...DEFAULT_COLLECTIVE_SETTINGS, ...args.fund.settings },
-    image: avatar?.url,
-    backgroundImage: banner?.url,
   };
 
   if (!canUseSlug(fundData.slug, req.remoteUser)) {
@@ -72,7 +69,16 @@ async function createFund(_, args, req) {
     }
   }
 
-  const fund = await models.Collective.create(fundData);
+  // Validate now to avoid uploading images if the collective is invalid
+  const fund = models.Collective.build(fundData);
+  await fund.validate();
+
+  // Attach images
+  const { avatar, banner } = await handleCollectiveImageUploadFromArgs(req.remoteUser, args.fund);
+  fund.image = avatar?.url ?? fund.image;
+  fund.backgroundImage = banner?.url ?? fund.backgroundImage;
+
+  await fund.save();
 
   // Add authenticated user as an admin
   await fund.addUserWithRole(req.remoteUser, roles.ADMIN, { CreatedByUserId: req.remoteUser.id });

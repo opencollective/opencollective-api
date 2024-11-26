@@ -19,7 +19,6 @@ const DEFAULT_ORGANIZATION_SETTINGS = {
 async function createOrganization(_, args, req) {
   checkRemoteUserCanUseAccount(req);
 
-  const { avatar, banner } = await handleCollectiveImageUploadFromArgs(req.remoteUser, args.organization);
   const organizationData = {
     type: 'ORGANIZATION',
     slug: args.organization.slug.toLowerCase(),
@@ -27,8 +26,6 @@ async function createOrganization(_, args, req) {
     isActive: false,
     CreatedByUserId: req.remoteUser.id,
     settings: { ...DEFAULT_ORGANIZATION_SETTINGS, ...args.organization.settings },
-    image: avatar?.url,
-    backgroundImage: banner?.url,
   };
 
   if (!canUseSlug(organizationData.slug, req.remoteUser)) {
@@ -39,7 +36,16 @@ async function createOrganization(_, args, req) {
     throw new Error(`The slug ${organizationData.slug} is already taken. Please use another slug for your collective.`);
   }
 
-  const organization = await models.Collective.create(organizationData);
+  // Validate now to avoid uploading images if the collective is invalid
+  const organization = models.Collective.build(organizationData);
+  await organization.validate();
+
+  // Attach images
+  const { avatar, banner } = await handleCollectiveImageUploadFromArgs(req.remoteUser, args.organization);
+  organization.image = avatar?.url ?? organization.image;
+  organization.backgroundImage = banner?.url ?? organization.backgroundImage;
+
+  await organization.save();
 
   // Add authenticated user as an admin
   await organization.addUserWithRole(req.remoteUser, roles.ADMIN, { CreatedByUserId: req.remoteUser.id });
