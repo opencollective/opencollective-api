@@ -1,3 +1,5 @@
+import assert from 'assert';
+
 import express from 'express';
 import {
   GraphQLBoolean,
@@ -18,7 +20,7 @@ import RateLimit from '../../../lib/rate-limit';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication/lib';
 import models from '../../../models';
 import { CommentType } from '../../../models/Comment';
-import ExpenseModel from '../../../models/Expense';
+import ExpenseModel, { ExpenseLockableFields } from '../../../models/Expense';
 import { createComment } from '../../common/comment';
 import {
   approveExpense,
@@ -514,6 +516,17 @@ const expenseMutations = {
         payee.email = payee.email.toLowerCase();
       }
 
+      const amount = models.Expense.computeTotalAmountForExpense(items, expenseData.tax);
+
+      if (args.lockedFields?.includes(ExpenseLockableFields.AMOUNT)) {
+        assert(items.length > 0, new ValidationFailed('You need to provide at least one item to lock the amount'));
+        assert(
+          items.every(item => item.amount),
+          new ValidationFailed('All items must have an amount to lock the total amount'),
+        );
+        assert(amount > 0, new ValidationFailed('The total amount must be greater than 0'));
+      }
+
       const expense = await models.Expense.create({
         ...pick(expenseData, DRAFT_EXPENSE_FIELDS),
         status: expenseStatus.DRAFT,
@@ -523,7 +536,7 @@ const expenseMutations = {
         UserId: remoteUser.id,
         currency: expenseData.currency || collective.currency,
         incurredAt: new Date(),
-        amount: models.Expense.computeTotalAmountForExpense(items, expenseData.tax),
+        amount,
         data: {
           items: expenseData.items,
           attachedFiles: expenseData.attachedFiles,
