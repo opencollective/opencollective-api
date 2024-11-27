@@ -204,7 +204,7 @@ interface Account {
   The currency of the account
   """
   currency: Currency!
-  expensePolicy: String
+  expensePolicy: String @deprecated(reason: "2024-11-04: Please use policies.EXPENSE_POLICIES")
 
   """
   Defines if the contributors wants to be incognito (name not displayed)
@@ -2666,7 +2666,7 @@ type Host implements Account & AccountWithContributions {
   The currency of the account
   """
   currency: Currency!
-  expensePolicy: String
+  expensePolicy: String @deprecated(reason: "2024-11-04: Please use policies.EXPENSE_POLICIES")
 
   """
   Defines if the contributors wants to be incognito (name not displayed)
@@ -4153,7 +4153,7 @@ type Contributor {
   If the contributor has a page on Open Collective, this is the slug to link to it. Always null for incognito contributors
   """
   collectiveSlug: String @deprecated(reason: "2024-08-26: Use account.slug instead")
-  account: String
+  account: Account
 
   """
   Contributor avatar or logo
@@ -5843,6 +5843,7 @@ enum VirtualCardStatus {
 
 type Policies {
   id: String
+  EXPENSE_POLICIES: EXPENSE_POLICIES
   EXPENSE_AUTHOR_CANNOT_APPROVE: EXPENSE_AUTHOR_CANNOT_APPROVE
   REQUIRE_2FA_FOR_ADMINS: Boolean
   COLLECTIVE_ADMINS_CAN_REFUND: Boolean
@@ -5851,6 +5852,12 @@ type Policies {
   EXPENSE_CATEGORIZATION: EXPENSE_CATEGORIZATION
   EXPENSE_PUBLIC_VENDORS: Boolean
   COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS: Boolean
+}
+
+type EXPENSE_POLICIES {
+  invoicePolicy: String
+  receiptPolicy: String
+  titlePolicy: String
 }
 
 type EXPENSE_AUTHOR_CANNOT_APPROVE {
@@ -7728,7 +7735,7 @@ type Bot implements Account {
   The currency of the account
   """
   currency: Currency!
-  expensePolicy: String
+  expensePolicy: String @deprecated(reason: "2024-11-04: Please use policies.EXPENSE_POLICIES")
 
   """
   Defines if the contributors wants to be incognito (name not displayed)
@@ -8585,7 +8592,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   The currency of the account
   """
   currency: Currency!
-  expensePolicy: String
+  expensePolicy: String @deprecated(reason: "2024-11-04: Please use policies.EXPENSE_POLICIES")
 
   """
   Defines if the contributors wants to be incognito (name not displayed)
@@ -9973,7 +9980,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   The currency of the account
   """
   currency: Currency!
-  expensePolicy: String
+  expensePolicy: String @deprecated(reason: "2024-11-04: Please use policies.EXPENSE_POLICIES")
 
   """
   Defines if the contributors wants to be incognito (name not displayed)
@@ -11081,7 +11088,7 @@ type Individual implements Account {
   The currency of the account
   """
   currency: Currency!
-  expensePolicy: String
+  expensePolicy: String @deprecated(reason: "2024-11-04: Please use policies.EXPENSE_POLICIES")
 
   """
   Defines if the contributors wants to be incognito (name not displayed)
@@ -12144,7 +12151,7 @@ type Organization implements Account & AccountWithContributions {
   The currency of the account
   """
   currency: Currency!
-  expensePolicy: String
+  expensePolicy: String @deprecated(reason: "2024-11-04: Please use policies.EXPENSE_POLICIES")
 
   """
   Defines if the contributors wants to be incognito (name not displayed)
@@ -13096,7 +13103,7 @@ type Vendor implements Account & AccountWithContributions {
   The currency of the account
   """
   currency: Currency!
-  expensePolicy: String
+  expensePolicy: String @deprecated(reason: "2024-11-04: Please use policies.EXPENSE_POLICIES")
 
   """
   Defines if the contributors wants to be incognito (name not displayed)
@@ -16682,7 +16689,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   The currency of the account
   """
   currency: Currency!
-  expensePolicy: String
+  expensePolicy: String @deprecated(reason: "2024-11-04: Please use policies.EXPENSE_POLICIES")
 
   """
   Defines if the contributors wants to be incognito (name not displayed)
@@ -17668,7 +17675,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   The currency of the account
   """
   currency: Currency!
-  expensePolicy: String
+  expensePolicy: String @deprecated(reason: "2024-11-04: Please use policies.EXPENSE_POLICIES")
 
   """
   Defines if the contributors wants to be incognito (name not displayed)
@@ -19422,6 +19429,11 @@ type Mutation {
     If the expense was imported, this is the reference to the row
     """
     transactionsImportRow: TransactionsImportRowReferenceInput
+
+    """
+    A optional private comment to add to the created expense
+    """
+    privateComment: String
   ): Expense!
 
   """
@@ -19496,7 +19508,7 @@ type Mutation {
     """
     Skip sending the invite email
     """
-    skipInvite: Boolean = false
+    skipInvite: Boolean! = false
   ): Expense!
 
   """
@@ -20782,6 +20794,16 @@ input CollectiveCreateInput {
   githubHandle: String @deprecated(reason: "2022-06-03: Please use repositoryUrl")
   repositoryUrl: String @deprecated(reason: "2023-01-16: Please use socialLinks")
   settings: JSON
+
+  """
+  The profile avatar image
+  """
+  image: Upload
+
+  """
+  The profile background image, for the banner and social media sharing
+  """
+  backgroundImage: Upload
 }
 
 """
@@ -20818,6 +20840,11 @@ input LocationInput {
   """
   structured: JSON
 }
+
+"""
+The `Upload` scalar type represents a file upload.
+"""
+scalar Upload
 
 input IndividualCreateInput {
   name: String!
@@ -20864,6 +20891,16 @@ input EventCreateInput {
   Timezone of the Event (TZ database format, e.g. UTC or Europe/Berlin)
   """
   timezone: String!
+
+  """
+  The profile avatar image
+  """
+  image: Upload
+
+  """
+  The profile background image, for the banner and social media sharing
+  """
+  backgroundImage: Upload
 }
 
 input FundCreateInput {
@@ -20872,6 +20909,16 @@ input FundCreateInput {
   description: String!
   tags: [String]
   settings: JSON
+
+  """
+  The profile avatar image
+  """
+  image: Upload
+
+  """
+  The profile background image, for the banner and social media sharing
+  """
+  backgroundImage: Upload
 }
 
 input OrganizationCreateInput {
@@ -20881,6 +20928,16 @@ input OrganizationCreateInput {
   description: String!
   website: String @deprecated(reason: "2024-11-12: Please use socialLinks")
   settings: JSON
+
+  """
+  The profile avatar image
+  """
+  image: Upload
+
+  """
+  The profile background image, for the banner and social media sharing
+  """
+  backgroundImage: Upload
 }
 
 input ProjectCreateInput {
@@ -20894,6 +20951,16 @@ input ProjectCreateInput {
   The social links in order of preference
   """
   socialLinks: [SocialLinkInput!]
+
+  """
+  The profile avatar image
+  """
+  image: Upload
+
+  """
+  The profile background image, for the banner and social media sharing
+  """
+  backgroundImage: Upload
 }
 
 input SocialLinkInput {
@@ -20950,6 +21017,7 @@ input AccountUpdateInput {
 }
 
 input PoliciesInput {
+  EXPENSE_POLICIES: PoliciesExpensePolicies
   EXPENSE_AUTHOR_CANNOT_APPROVE: PoliciesCollectiveExpenseAuthorCannotApprove
   REQUIRE_2FA_FOR_ADMINS: Boolean
   COLLECTIVE_ADMINS_CAN_REFUND: Boolean
@@ -20957,6 +21025,12 @@ input PoliciesInput {
   EXPENSE_CATEGORIZATION: PoliciesExpenseCategorizationInput
   EXPENSE_PUBLIC_VENDORS: Boolean
   COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS: Boolean
+}
+
+input PoliciesExpensePolicies {
+  invoicePolicy: String
+  receiptPolicy: String
+  titlePolicy: String
 }
 
 input PoliciesCollectiveExpenseAuthorCannotApprove {
@@ -21892,11 +21966,6 @@ type IndividualConfirmEmailResponse {
   """
   sessionToken: String
 }
-
-"""
-The `Upload` scalar type represents a file upload.
-"""
-scalar Upload
 
 input MemberInvitationReferenceInput {
   """
@@ -22898,9 +22967,19 @@ input VendorCreateInput {
   legalName: String
   tags: [NonEmptyString]
   location: LocationInput
-  imageUrl: String
+  imageUrl: String @deprecated(reason: "2024-11-26: Please use image + backgroundImage fields")
   vendorInfo: VendorInfoInput
   payoutMethod: PayoutMethodInput
+
+  """
+  The profile avatar image
+  """
+  image: Upload
+
+  """
+  The profile background image, for the banner and social media sharing
+  """
+  backgroundImage: Upload
 }
 
 """
@@ -22942,7 +23021,17 @@ input VendorEditInput {
   legalName: String
   tags: [NonEmptyString]
   location: LocationInput
-  imageUrl: String
+  imageUrl: String @deprecated(reason: "2024-11-26: Please use image + backgroundImage fields")
   vendorInfo: VendorInfoInput
   payoutMethod: PayoutMethodInput
+
+  """
+  The profile avatar image
+  """
+  image: Upload
+
+  """
+  The profile background image, for the banner and social media sharing
+  """
+  backgroundImage: Upload
 }
