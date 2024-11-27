@@ -1,6 +1,7 @@
 import { GraphQLBoolean, GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLNonEmptyString } from 'graphql-scalars';
 
+import { AccountImagesInputFields } from './AccountCreateInputImageFields';
 import { AccountReferenceInputFields } from './AccountReferenceInput';
 import { GraphQLLocationInput } from './LocationInput';
 import { GraphQLPayoutMethodInput } from './PayoutMethodInput';
@@ -36,9 +37,10 @@ const VendorInputFields = {
   legalName: { type: GraphQLString },
   tags: { type: new GraphQLList(GraphQLNonEmptyString) },
   location: { type: GraphQLLocationInput },
-  imageUrl: { type: GraphQLString },
+  imageUrl: { type: GraphQLString, deprecationReason: '2024-11-26: Please use image + backgroundImage fields' },
   vendorInfo: { type: GraphQLVendorInfoInput },
   payoutMethod: { type: GraphQLPayoutMethodInput },
+  ...AccountImagesInputFields,
 };
 
 export const GraphQLVendorCreateInput = new GraphQLInputObjectType({

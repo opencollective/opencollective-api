@@ -13,9 +13,12 @@ export const checkRemoteUserCanUseVirtualCards = (req: Express.Request): void =>
   enforceScope(req, 'virtualCards');
 };
 
-export const checkRemoteUserCanUseAccount = (req: Express.Request): void => {
+export const checkRemoteUserCanUseAccount = (
+  req: Express.Request,
+  { signedOutMessage = 'You need to be logged in to manage account.' } = {},
+): void => {
   if (!req.remoteUser) {
-    throw new Unauthorized('You need to be logged in to manage account.');
+    throw new Unauthorized(signedOutMessage);
   }
   enforceScope(req, 'account');
 };

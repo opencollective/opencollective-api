@@ -77,6 +77,20 @@ export const SUPPORTED_FILE_EXTENSIONS: Record<SUPPORTED_FILE_TYPES_UNION, strin
   'text/csv': '.csv',
 } as const;
 
+const SupportedTypeByKind: Record<FileKind, readonly SupportedFileType[]> = {
+  ACCOUNT_AVATAR: SUPPORTED_FILE_TYPES_IMAGES,
+  ACCOUNT_BANNER: SUPPORTED_FILE_TYPES_IMAGES,
+  EXPENSE_ATTACHED_FILE: SUPPORTED_FILE_TYPES,
+  EXPENSE_ITEM: SUPPORTED_FILE_TYPES,
+  TRANSACTIONS_IMPORT: ['text/csv'],
+  ACCOUNT_LONG_DESCRIPTION: SUPPORTED_FILE_TYPES_IMAGES,
+  UPDATE: SUPPORTED_FILE_TYPES_IMAGES,
+  COMMENT: SUPPORTED_FILE_TYPES_IMAGES,
+  TIER_LONG_DESCRIPTION: SUPPORTED_FILE_TYPES_IMAGES,
+  ACCOUNT_CUSTOM_EMAIL: SUPPORTED_FILE_TYPES_IMAGES,
+  AGREEMENT_ATTACHMENT: SUPPORTED_FILE_TYPES,
+} as const;
+
 /**
  * A file uploaded to our S3 bucket.
  */
@@ -141,19 +155,13 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
     };
   }
 
-  public static async uploadGraphQl(
-    file: GraphQLFileUpload,
-    kind: FileKind,
-    user: User | null,
-    args: {
-      fileName?: string;
-      supportedMimeTypes: readonly SupportedFileType[];
-    } = {
-      supportedMimeTypes: SUPPORTED_FILE_TYPES,
-    },
-  ): Promise<UploadedFile> {
+  public static async uploadGraphQl(file: GraphQLFileUpload, kind: FileKind, user: User | null): Promise<UploadedFile> {
+    if (!kind || !SupportedTypeByKind[kind]) {
+      throw new Error('Invalid file kind');
+    }
+
     const fileUpload = await UploadedFile.getFileUploadFromGraphQLUpload(file);
-    return UploadedFile.upload(fileUpload, kind, user, args);
+    return UploadedFile.upload(fileUpload, kind, user);
   }
 
   public static validateFile(
@@ -167,6 +175,8 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
       throw new ErrorClass(`Mimetype of the file should be one of: ${supported.join(', ')}`);
     } else if (file.size > MAX_FILE_SIZE) {
       throw new ErrorClass(`File size cannot exceed ${MAX_FILE_SIZE / 1024 / 1024}MB`);
+    } else if (!file.size) {
+      throw new ErrorClass('File is empty');
     }
   }
 
@@ -176,13 +186,10 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
     user: User | null,
     args: {
       fileName?: string;
-      supportedMimeTypes?: readonly SupportedFileType[];
-    } = {
-      supportedMimeTypes: SUPPORTED_FILE_TYPES,
-    },
+    } = {},
   ): Promise<UploadedFile> {
     // Validate file
-    UploadedFile.validateFile(file, args.supportedMimeTypes);
+    UploadedFile.validateFile(file, SupportedTypeByKind[kind]);
 
     // Should only happen in dev/test envs
     if (!checkS3Configured()) {
@@ -192,11 +199,16 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
 
     // Strip EXIF data from images
     if (UploadedFile.isSupportedImageMimeType(file.mimetype)) {
-      const image = sharp(file.buffer);
-      file.buffer = await image
-        .rotate() // Auto-rotate based on EXIF Orientation tag
-        .toBuffer(); // The default behaviour, when withMetadata is not used, is to strip all metadata and convert to the device-independent sRGB colour space
-      file.size = file.buffer.length;
+      try {
+        const image = sharp(file.buffer);
+        file.buffer = await image
+          .rotate() // Auto-rotate based on EXIF Orientation tag
+          .toBuffer(); // The default behaviour, when withMetadata is not used, is to strip all metadata and convert to the device-independent sRGB colour space
+        file.size = file.buffer.length;
+      } catch (e) {
+        reportErrorToSentry(e, { user });
+        throw new Error('The image is corrupted');
+      }
     }
 
     /**

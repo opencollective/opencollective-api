@@ -14,8 +14,9 @@ import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import models, { sequelize } from '../../../models';
 import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation';
 import { processInviteMembersInput } from '../../common/members';
-import { checkScope } from '../../common/scope-check';
-import { RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
+import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
+import { RateLimitExceeded, ValidationFailed } from '../../errors';
+import { handleCollectiveImageUploadFromArgs } from '../input/AccountCreateInputImageFields';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLCollectiveCreateInput } from '../input/CollectiveCreateInput';
 import { GraphQLIndividualCreateInput } from '../input/IndividualCreateInput';
@@ -28,9 +29,7 @@ const DEFAULT_COLLECTIVE_SETTINGS = {
 
 async function createCollective(_, args, req) {
   // Ok for non-authenticated users, we only check scope
-  if (!checkScope(req, 'account')) {
-    throw new Unauthorized('The User Token is not allowed for operations in scope "account".');
-  }
+  checkRemoteUserCanUseAccount(req, { signedOutMessage: 'You need to be logged in to create a collective' });
 
   let shouldAutomaticallyApprove = false;
   const isProd = config.env === 'production';
@@ -42,7 +41,7 @@ async function createCollective(_, args, req) {
     host = await fetchAccountWithReference(args.host, { loaders });
   }
 
-  const rateLimitKey = remoteUser ? `collective_create_${remoteUser.id}` : `collective_create_ip_${req.ip}`;
+  const rateLimitKey = `collective_create_${remoteUser.id}`;
   const rateLimit = new RateLimit(rateLimitKey, 60, ONE_HOUR_IN_SECONDS, true);
   if (!(await rateLimit.registerCall())) {
     throw new RateLimitExceeded();
@@ -50,10 +49,6 @@ async function createCollective(_, args, req) {
 
   return sequelize
     .transaction(async transaction => {
-      if (!remoteUser) {
-        throw new Unauthorized('You need to be logged in to create a collective');
-      }
-
       const collectiveData = {
         slug: args.collective.slug.toLowerCase(),
         ...pick(args.collective, ['name', 'description', 'tags', 'githubHandle', 'repositoryUrl']),
@@ -166,6 +161,14 @@ async function createCollective(_, args, req) {
       // Add location
       if (args.collective.location) {
         await collective.setLocation(args.collective.location, transaction);
+      }
+
+      const { avatar, banner } = await handleCollectiveImageUploadFromArgs(req.remoteUser, args.collective);
+      if (avatar || banner) {
+        await collective.update(
+          { image: avatar?.url ?? collective.image, backgroundImage: banner?.url ?? collective.backgroundImage },
+          { transaction, hooks: false },
+        );
       }
 
       return collective;

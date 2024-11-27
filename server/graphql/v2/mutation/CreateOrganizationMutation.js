@@ -7,6 +7,7 @@ import models from '../../../models';
 import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation';
 import { processInviteMembersInput } from '../../common/members';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
+import { handleCollectiveImageUploadFromArgs } from '../input/AccountCreateInputImageFields';
 import { GraphQLInviteMemberInput } from '../input/InviteMemberInput';
 import { GraphQLOrganizationCreateInput } from '../input/OrganizationCreateInput';
 import { GraphQLOrganization } from '../object/Organization';
@@ -35,7 +36,16 @@ async function createOrganization(_, args, req) {
     throw new Error(`The slug ${organizationData.slug} is already taken. Please use another slug for your collective.`);
   }
 
-  const organization = await models.Collective.create(organizationData);
+  // Validate now to avoid uploading images if the collective is invalid
+  const organization = models.Collective.build(organizationData);
+  await organization.validate();
+
+  // Attach images
+  const { avatar, banner } = await handleCollectiveImageUploadFromArgs(req.remoteUser, args.organization);
+  organization.image = avatar?.url ?? organization.image;
+  organization.backgroundImage = banner?.url ?? organization.backgroundImage;
+
+  await organization.save();
 
   // Add authenticated user as an admin
   await organization.addUserWithRole(req.remoteUser, roles.ADMIN, { CreatedByUserId: req.remoteUser.id });

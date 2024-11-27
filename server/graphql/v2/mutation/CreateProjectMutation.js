@@ -6,6 +6,7 @@ import { canUseSlug } from '../../../lib/collectivelib';
 import models, { sequelize } from '../../../models';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { Forbidden, NotFound } from '../../errors';
+import { handleCollectiveImageUploadFromArgs } from '../input/AccountCreateInputImageFields';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLProjectCreateInput } from '../input/ProjectCreateInput';
 import { GraphQLProject } from '../object/Project';
@@ -63,6 +64,12 @@ async function createProject(_, args, req) {
     const project = await models.Collective.create(projectData, { transaction: dbTransaction });
     if (args.project.socialLinks) {
       await project.updateSocialLinks(args.project.socialLinks, dbTransaction);
+    }
+
+    // Attach images
+    const { avatar, banner } = await handleCollectiveImageUploadFromArgs(req.remoteUser, args.project);
+    if (avatar || banner) {
+      await project.update({ image: avatar?.url, backgroundImage: banner?.url }, { transaction: dbTransaction });
     }
 
     return project;

@@ -7,6 +7,7 @@ import { canUseSlug } from '../../../lib/collectivelib';
 import models from '../../../models';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { ValidationFailed } from '../../errors';
+import { handleCollectiveImageUploadFromArgs } from '../input/AccountCreateInputImageFields';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLFundCreateInput } from '../input/FundCreateInput';
 import { GraphQLFund } from '../object/Fund';
@@ -68,7 +69,16 @@ async function createFund(_, args, req) {
     }
   }
 
-  const fund = await models.Collective.create(fundData);
+  // Validate now to avoid uploading images if the collective is invalid
+  const fund = models.Collective.build(fundData);
+  await fund.validate();
+
+  // Attach images
+  const { avatar, banner } = await handleCollectiveImageUploadFromArgs(req.remoteUser, args.fund);
+  fund.image = avatar?.url ?? fund.image;
+  fund.backgroundImage = banner?.url ?? fund.backgroundImage;
+
+  await fund.save();
 
   // Add authenticated user as an admin
   await fund.addUserWithRole(req.remoteUser, roles.ADMIN, { CreatedByUserId: req.remoteUser.id });

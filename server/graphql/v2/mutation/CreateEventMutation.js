@@ -8,6 +8,7 @@ import { canUseSlug } from '../../../lib/collectivelib';
 import models from '../../../models';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { BadRequest, NotFound, Unauthorized } from '../../errors';
+import { handleCollectiveImageUploadFromArgs } from '../input/AccountCreateInputImageFields';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLEventCreateInput } from '../input/EventCreateInput';
 import { GraphQLEvent } from '../object/Event';
@@ -50,7 +51,16 @@ async function createEvent(_, args, req) {
     throw new Error(`The slug '${eventData.slug}' is already taken. Please use another slug for the Event.`);
   }
 
-  const event = await models.Collective.create(eventData);
+  // Validate now to avoid uploading images if the collective is invalid
+  const event = models.Collective.build(eventData);
+  await event.validate();
+
+  // Attach images
+  const { avatar, banner } = await handleCollectiveImageUploadFromArgs(req.remoteUser, args.event);
+  event.image = avatar?.url ?? event.image;
+  event.backgroundImage = banner?.url ?? event.backgroundImage;
+
+  await event.save();
   event.generateCollectiveCreatedActivity(req.remoteUser, req.userToken);
   return event;
 }
