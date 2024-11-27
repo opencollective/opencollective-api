@@ -311,7 +311,7 @@ export async function createOrder(order, req) {
             where: {
               TierId: tier.id,
               FromCollectiveId: order.fromCollective.id,
-              status: { [Op.not]: [status.ERROR, status.EXPIRED] },
+              status: { [Op.not]: [status.ERROR, status.EXPIRED, status.NEW] },
             },
           });
           if (existingTicket) {
