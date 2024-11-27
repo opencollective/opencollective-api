@@ -13,7 +13,7 @@ import Upload from 'graphql-upload/Upload.js';
 import { cloneDeep, get, groupBy, isArray, omit, values } from 'lodash';
 import markdownTable from 'markdown-table';
 import nock from 'nock';
-import { assert } from 'sinon';
+import sinon, { assert } from 'sinon';
 import speakeasy from 'speakeasy';
 
 import * as dbRestore from '../scripts/db_restore';
@@ -27,7 +27,7 @@ import { calcFee } from '../server/lib/payments';
 /* Server code being used */
 import stripe, { convertToStripeAmount } from '../server/lib/stripe';
 import { formatCurrency } from '../server/lib/utils';
-import models, { sequelize } from '../server/models';
+import models, { sequelize, UserToken } from '../server/models';
 
 /* Test data */
 import jsonData from './mocks/data';
@@ -116,7 +116,20 @@ export const makeRequest = (
   headers = {},
   userToken = undefined,
   personalToken = undefined,
-) => {
+): {
+  remoteUser: typeof remoteUser;
+  jwtPayload: typeof jwtPayload;
+  body: { query: string };
+  loaders: ReturnType<typeof loaders>;
+  headers: typeof headers;
+  header: (key: string) => string;
+  get: (key: string) => string;
+  userToken: typeof userToken;
+  personalToken: typeof personalToken;
+  res: { cookie: () => void };
+  query?: string;
+  variables?: Record<string, unknown>;
+} => {
   return {
     remoteUser,
     jwtPayload,
@@ -163,7 +176,14 @@ export const getResumableSleep = () => {
  * @param {*} options: { timeout, delay }
  * @returns {Promise}
  */
-export const waitForCondition = async (cond, options = {}) => {
+export const waitForCondition = async (
+  cond,
+  options: {
+    timeout?: number;
+    delay?: number;
+    onFailure?: () => void;
+  } = {},
+) => {
   const timeout = options?.timeout || 10000;
   let time = 0;
   while (time < timeout) {
@@ -181,6 +201,65 @@ export const waitForCondition = async (cond, options = {}) => {
   assert.fail(`Timeout waiting for condition: ${cond.toString()}`);
   throw new Error('Timeout waiting for condition', cond);
 };
+
+type EmailMatcher = {
+  /** @default eq */
+  op?: 'eq' | 'contains' | 'startsWith' | 'endsWith';
+} & ({ to: string } | { subject: string } | { text: string } | { html: string } | { bcc: string } | { listId: string });
+
+/**
+ * A specialization of `waitForCondition` that waits for an email
+ */
+export const waitForEmail = async (
+  emailSpy: sinon.Spy,
+  matchers: EmailMatcher | EmailMatcher[],
+  {
+    timeout = 10000,
+    matcherStrategy = 'every',
+  }: {
+    timeout?: number;
+    matcherStrategy?: 'every' | 'some';
+  } = {},
+) => {
+  const matchersArray = Array.isArray(matchers) ? matchers : [matchers];
+  return waitForCondition(
+    () =>
+      emailSpy.args?.find(email => {
+        return matchersArray[matcherStrategy](matcher => {
+          const [to, subject, html, meta] = email;
+          const { text, bcc, listId } = meta;
+          const allValues = { to, subject, text, html, bcc, listId };
+          const valueKeys = Object.keys(matcher).filter(k => k !== 'op');
+          return valueKeys.every(valueKey => {
+            const value = allValues[valueKey];
+            if (typeof value !== 'string') {
+              return false;
+            }
+
+            switch (matcher.op) {
+              case 'contains':
+                return value.includes(matcher[valueKey]);
+              case 'startsWith':
+                return value.startsWith(matcher[valueKey]);
+              case 'endsWith':
+                return value.endsWith(matcher[valueKey]);
+              default:
+                return value === matcher[valueKey];
+            }
+          });
+        });
+      }),
+    {
+      timeout: timeout,
+      onFailure: () => {
+        assert.fail(
+          `Email not found with matchers: ${JSON.stringify(matchers)} in ${emailSpy.args?.length ? JSON.stringify(emailSpy.args) : 'an empty inbox'}`,
+        );
+      },
+    },
+  );
+};
+
 /**
  * This function allows to test queries and mutations against a specific schema.
  * @param {string} query - Queries and Mutations to serve against the type schema. Example: `query Expense($id: Int!) { Expense(id: $id) { description } }`
@@ -190,13 +269,13 @@ export const waitForCondition = async (cond, options = {}) => {
  */
 export const graphqlQuery = async (
   query,
-  variables,
-  remoteUser,
+  variables = null,
+  remoteUser = null,
   schema = schemaV1,
-  jwtPayload,
-  headers,
-  userToken,
-  personalToken,
+  jwtPayload = null,
+  headers = null,
+  userToken = null,
+  personalToken = null,
 ) => {
   const prepare = () => {
     if (remoteUser) {
@@ -248,8 +327,14 @@ export async function graphqlQueryV2(
  * @param {object} variables - Variables to use in the queries and mutations. Example: { id: 1 }
  * @param {object} userToken - The user token to add to the context.
  */
-export async function oAuthGraphqlQueryV2(query, variables, userToken = {}, jwtPayload = null, headers = {}) {
-  return graphqlQuery(query, variables, userToken.user, schemaV2, jwtPayload, headers, userToken);
+export async function oAuthGraphqlQueryV2(
+  query,
+  variables,
+  userToken: UserToken = null,
+  jwtPayload = null,
+  headers = {},
+) {
+  return graphqlQuery(query, variables, userToken?.user, schemaV2, jwtPayload, headers, userToken);
 }
 
 /**
@@ -314,19 +399,6 @@ export const separator = length => {
 };
 
 /* ---- Stripe Helpers ---- */
-
-export const createStripeToken = async () => {
-  return stripe.tokens
-    .create({
-      card: {
-        number: '4242424242424242',
-        exp_month: 12, // eslint-disable-line camelcase
-        exp_year: 2028, // eslint-disable-line camelcase
-        cvc: 222,
-      },
-    })
-    .then(st => st.id);
-};
 
 /** Stub Stripe methods used while creating transactions
  *
@@ -489,7 +561,7 @@ export const nockFixerRates = ratesConfig => {
   nock('https://data.fixer.io')
     .persist()
     .get(/.*/)
-    .query(({ base, symbols }) => {
+    .query(({ base, symbols }: { base: string; symbols: string }) => {
       const splitSymbols = symbols.split(',');
       if (splitSymbols.every(symbol => Boolean(ratesConfig[base][symbol]))) {
         logger.debug(`Fixer: Returning mock value for ${base} -> ${symbols}`);
@@ -499,7 +571,7 @@ export const nockFixerRates = ratesConfig => {
       }
     })
     .reply(url => {
-      const { base, symbols } = querystring.parse(url);
+      const { base, symbols } = querystring.parse(url) as { base: string; symbols: string };
       return [
         200,
         {
@@ -582,7 +654,13 @@ export const printLedger = async (columns = ['type', 'amount', 'CollectiveId', '
  * Generate a snapshot using a markdown table, aliasing columns for a prettier output.
  * If associations (collective, host, ...etc) are loaded, their names will be used for the output.
  */
-export const snapshotTransactions = (transactions, params = {}) => {
+export const snapshotTransactions = (
+  transactions,
+  params: {
+    columns?: string[];
+    prettyAmounts?: boolean;
+  } = {},
+) => {
   if (!transactions?.length) {
     throw new Error('snapshotTransactions does not support empty arrays');
   }
@@ -593,7 +671,16 @@ export const snapshotTransactions = (transactions, params = {}) => {
 /**
  * Makes a full snapshot of the ledger
  */
-export const snapshotLedger = async (columns, { where = null, order = [['id', 'DESC']] } = {}) => {
+export const snapshotLedger = async (
+  columns,
+  {
+    where = null,
+    order = [['id', 'DESC']],
+  }: {
+    where?: Parameters<typeof models.Transaction.findAll>[0]['where'];
+    order?: Parameters<typeof models.Transaction.findAll>[0]['order'];
+  } = {},
+) => {
   const transactions = await models.Transaction.findAll({ where, order });
   await preloadAssociationsForTransactions(transactions, columns);
   if (columns.includes('settlementStatus')) {
@@ -649,12 +736,14 @@ export const useIntegrationTestRecorder = (baseUrl, testFileName, preProcessNock
   });
 };
 
-/**
- * @param {"images/camera.png"|"images/empty.jpg"|"images/corrupt.jpg"|"files/transactions.csv"} mockFile
- * @param {object} options
- * @param {number} options.simulatedSize - An approximate size to simulate the file size in bytes (to test for large files)
- */
-export const getMockFileUpload = (mockFile = 'images/camera.png', { simulatedSize } = {}) => {
+export const getMockFileUpload = (
+  mockFile:
+    | 'images/camera.png'
+    | 'images/empty.jpg'
+    | 'images/corrupt.jpg'
+    | 'files/transactions.csv' = 'images/camera.png',
+  { simulatedSize }: { simulatedSize?: number } = {},
+) => {
   const file = new Upload();
   const mimeType = mockFile.includes('.csv') ? 'text/csv' : mockFile.includes('.png') ? 'image/png' : 'image/jpeg';
 
