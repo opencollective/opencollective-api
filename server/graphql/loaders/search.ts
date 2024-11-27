@@ -43,7 +43,7 @@ export type SearchResultBucket = {
 /**
  * A loader to batch search requests on multiple indexes into a single ElasticSearch query.
  */
-export const generateSearchLoaders = () => {
+export const generateSearchLoaders = req => {
   return new DataLoader<SearchParams, SearchResultBucket>(async (entries: SearchParams[]) => {
     const groupedRequests = groupBy(entries, 'requestId');
     const requestsResults = new Map<string, SearchResponse>();
@@ -57,26 +57,32 @@ export const generateSearchLoaders = () => {
     // Go through all the search request (one `search` field in the query = one request)
     for (const requestId in groupedRequests) {
       const firstRequest = groupedRequests[requestId][0];
-      const { searchTerm, limit, adminOfAccountIds, account, host } = firstRequest;
+      const { searchTerm, limit, account, host } = firstRequest;
       const indexes = groupedRequests[requestId].map(entry => entry.index) as ElasticSearchIndexName[];
-      const results = await elasticSearchGlobalSearch(indexes, searchTerm, limit, adminOfAccountIds, account, host);
-      if (results._shards.failures) {
-        reportMessageToSentry('ElasticSearch search shard failures', {
-          extra: {
-            failures: results._shards.failures,
-            request: firstRequest,
-            indexes,
-          },
-        });
-      }
+      const results = await elasticSearchGlobalSearch(indexes, searchTerm, limit, req.remoteUser, account, host);
+      if (results) {
+        if (results._shards?.failures) {
+          reportMessageToSentry('ElasticSearch search shard failures', {
+            extra: {
+              failures: results._shards.failures,
+              request: firstRequest,
+              indexes,
+            },
+          });
+        }
 
-      requestsResults.set(requestId, results);
+        requestsResults.set(requestId, results);
+      }
     }
 
     return entries.map(entry => {
       const results = requestsResults.get(entry.requestId);
-      const resultsAggregationsByIndex = results.aggregations.by_index as AggregationsMultiBucketAggregateBase;
-      const buckets = resultsAggregationsByIndex.buckets as Array<SearchResultBucket>;
+      const resultsAggregationsByIndex = results?.aggregations?.by_index as AggregationsMultiBucketAggregateBase;
+      const buckets = resultsAggregationsByIndex?.buckets as Array<SearchResultBucket>;
+      if (!buckets) {
+        return null;
+      }
+
       return buckets.find(bucket => bucket.key === entry.index);
     });
   });

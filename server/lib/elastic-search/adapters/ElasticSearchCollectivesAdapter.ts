@@ -90,7 +90,7 @@ export class ElasticSearchCollectivesAdapter implements ElasticSearchModelAdapte
             should: [
               { terms: { HostCollectiveId: adminOfAccountIds } },
               { terms: { ParentCollectiveId: adminOfAccountIds } },
-              { terms: { CollectiveId: adminOfAccountIds } },
+              { terms: { id: adminOfAccountIds } },
             ],
           },
         },

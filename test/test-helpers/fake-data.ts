@@ -50,7 +50,7 @@ import AccountingCategory from '../../server/models/AccountingCategory';
 import Application, { ApplicationType } from '../../server/models/Application';
 import Comment from '../../server/models/Comment';
 import Conversation from '../../server/models/Conversation';
-import { HostApplicationStatus } from '../../server/models/HostApplication';
+import HostApplication, { HostApplicationStatus } from '../../server/models/HostApplication';
 import LegalDocument, { LEGAL_DOCUMENT_SERVICE } from '../../server/models/LegalDocument';
 import { MemberModelInterface } from '../../server/models/Member';
 import MemberInvitation from '../../server/models/MemberInvitation';
@@ -210,7 +210,7 @@ export const fakeActiveHost = async (hostData: Parameters<typeof fakeCollective>
 };
 
 /** Create a fake host application */
-export const fakeHostApplication = async data => {
+export const fakeHostApplication = async (data: Partial<InferCreationAttributes<HostApplication>> = {}) => {
   const CollectiveId = data.CollectiveId || (await fakeCollective()).id;
   const HostCollectiveId = data.HostCollectiveId || (await fakeHost()).id;
   return models.HostApplication.create({

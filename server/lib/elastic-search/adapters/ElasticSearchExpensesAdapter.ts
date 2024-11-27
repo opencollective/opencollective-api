@@ -87,6 +87,7 @@ export class ElasticSearchExpensesAdapter implements ElasticSearchModelAdapter {
               { terms: { HostCollectiveId: adminOfAccountIds } },
               { terms: { ParentCollectiveId: adminOfAccountIds } },
               { terms: { CollectiveId: adminOfAccountIds } },
+              { terms: { FromCollectiveId: adminOfAccountIds } },
             ],
           },
         };

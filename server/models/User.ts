@@ -3,7 +3,7 @@ import { isEmailBurner } from 'burner-email-providers';
 import config from 'config';
 import debugLib from 'debug';
 import slugify from 'limax';
-import { defaults, get, intersection, isEmpty, pick } from 'lodash';
+import { defaults, get, intersection, isEmpty, pick, uniq } from 'lodash';
 import { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
@@ -256,9 +256,12 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
       logger.debug(new Error().stack);
       return [];
     } else {
-      return Object.keys(this.rolesByCollectiveId)
-        .filter(CollectiveId => this.rolesByCollectiveId[CollectiveId].includes(MemberRoles.ADMIN))
-        .map(Number);
+      return uniq([
+        this.CollectiveId,
+        ...Object.keys(this.rolesByCollectiveId)
+          .filter(CollectiveId => this.rolesByCollectiveId[CollectiveId].includes(MemberRoles.ADMIN))
+          .map(Number),
+      ]);
     }
   };
 

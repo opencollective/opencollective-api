@@ -269,7 +269,18 @@ jobs:
         ports:
           - 5432:5432
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
-
+      elastic:
+        image: elasticsearch:8.15.2
+        ports:
+          - 9200:9200
+        env:
+          discovery.type: single-node
+          xpack.security.enabled: false
+        options: >-
+          --health-cmd="curl --silent --fail http://localhost:9200/_cluster/health || exit 1"
+          --health-interval=10s
+          --health-timeout=15s
+          --health-retries=30
     steps:
       - name: Checkout
         uses: actions/checkout@v4

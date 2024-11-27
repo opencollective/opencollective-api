@@ -6,6 +6,9 @@
       "benchmark": true
     }
   },
+  "elasticSearch": {
+    "url": "http://localhost:9200"
+  },
   "fees": {
     "default": {
       "hostPercent": 5,
