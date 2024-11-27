@@ -1,6 +1,7 @@
-import { GraphQLNonNull } from 'graphql';
-import { pick } from 'lodash';
+import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
+import { pick, set } from 'lodash';
 
+import FEATURE from '../../../constants/feature';
 import roles from '../../../constants/roles';
 import { canUseSlug } from '../../../lib/collectivelib';
 import models, { sequelize } from '../../../models';
@@ -50,7 +51,12 @@ async function createProject(_, args, req) {
     ParentCollectiveId: parent.id,
     CreatedByUserId: req.remoteUser.id,
     settings: { ...DEFAULT_PROJECT_SETTINGS, ...args.project.settings },
+    data: {},
   };
+
+  if (args.disableContributions) {
+    set(projectData.data, `features.${FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS}`, false);
+  }
 
   if (!canUseSlug(projectData.slug, req.remoteUser)) {
     throw new Error(`The slug '${projectData.slug}' is not allowed.`);
@@ -103,6 +109,11 @@ const createProjectMutation = {
     parent: {
       description: 'Reference to the parent Account creating the Project.',
       type: GraphQLAccountReferenceInput,
+    },
+    disableContributions: {
+      description: 'Set to true to disable contributions to this project. Host admins will still be able to add funds.',
+      type: new GraphQLNonNull(GraphQLBoolean),
+      defaultValue: false,
     },
   },
   resolve: (_, args, req) => {

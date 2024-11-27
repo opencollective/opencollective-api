@@ -5,8 +5,12 @@ import { fakeCollective, fakeUser, randStr } from '../../../../test-helpers/fake
 import * as utils from '../../../../utils';
 
 const createProjectMutation = gql`
-  mutation CreateProject($project: ProjectCreateInput!, $parent: AccountReferenceInput!) {
-    createProject(project: $project, parent: $parent) {
+  mutation CreateProject(
+    $project: ProjectCreateInput!
+    $parent: AccountReferenceInput!
+    $disableContributions: Boolean
+  ) {
+    createProject(project: $project, parent: $parent, disableContributions: $disableContributions) {
       id
       name
       slug
@@ -17,6 +21,9 @@ const createProjectMutation = gql`
       socialLinks {
         type
         url
+      }
+      features {
+        RECEIVE_FINANCIAL_CONTRIBUTIONS
       }
     }
   }
@@ -98,6 +105,19 @@ describe('server/graphql/v2/mutation/CreateProjectMutation', () => {
     expect(result.errors).to.not.exist;
     const project = result.data.createProject;
     expect(project.socialLinks).to.deep.equal(socialLinks);
+  });
+
+  it('can disable contributions to the project', async () => {
+    const adminUser = await fakeUser();
+    const parentCollective = await fakeCollective({ admin: adminUser });
+    const parent = { legacyId: parentCollective.id };
+    const disableContributions = true;
+    const mutationArgs = { parent, project: { ...VALID_PROJECT_ATTRIBUTES, slug: randStr() }, disableContributions };
+    const result = await utils.graphqlQueryV2(createProjectMutation, mutationArgs, adminUser);
+    result.errors && console.error(result.errors);
+    expect(result.errors).to.not.exist;
+    const project = result.data.createProject;
+    expect(project.features.RECEIVE_FINANCIAL_CONTRIBUTIONS).to.equal('DISABLED');
   });
 
   describe('images', async () => {
