@@ -56,6 +56,8 @@ async function hasUploadedFilePermission(req: Request, uploadedFile: UploadedFil
  * thumbnail - return thumbnail json
  */
 export async function getFile(req: Request, res: Response) {
+  res.set('Cache-Control', 'private');
+
   if (!req.remoteUser) {
     return res.status(401).send({ message: 'Authentication Required' });
   }
