@@ -7,7 +7,7 @@ import PlatformConstants, { PLATFORM_MIGRATION_DATE } from '../../../server/cons
 import { TransactionKind } from '../../../server/constants/transaction-kind';
 import { createRefundTransaction } from '../../../server/lib/payments';
 import { getTaxesSummary } from '../../../server/lib/transactions';
-import models, { sequelize } from '../../../server/models';
+import models, { sequelize, UploadedFile } from '../../../server/models';
 import {
   fakeCollective,
   fakeConnectedAccount,
@@ -281,7 +281,8 @@ describe('cron/monthly/host-settlement', () => {
 
   it('should attach detailed list of transactions in the expense', async () => {
     const [attachment] = await gphHostSettlementExpense.getAttachedFiles();
-    expect(attachment).to.have.property('url').that.includes('.csv');
+    expect(attachment).to.have.property('url');
+    expect(UploadedFile.getOpenCollectiveS3BucketURLFromProtectedURL(attachment.url)).to.have.string('.csv');
   });
 
   it('should consider fixed fee per host collective', async () => {
