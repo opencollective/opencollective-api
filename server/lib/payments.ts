@@ -777,11 +777,12 @@ export const sendEmailNotifications = (order: Order, transaction?: Transaction |
   }
 };
 
-export const createSubscription = async (order: Order): Promise<void> => {
+export const createSubscription = async (order: Order, data?: { lastChargedAt?: Date }): Promise<void> => {
   const subscription = await Subscription.create({
     amount: order.totalAmount,
     interval: order.interval,
     currency: order.currency,
+    lastChargedAt: data?.lastChargedAt,
   });
   // The order instance doesn't have the Subscription field
   // here because it was just created and no models were

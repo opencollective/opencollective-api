@@ -147,6 +147,13 @@ export const GraphQLOrder = new GraphQLObjectType({
           return subscription?.nextChargeDate;
         },
       },
+      lastChargedAt: {
+        type: GraphQLDateTime,
+        async resolve(order, _, req) {
+          const subscription = order.SubscriptionId && (await req.loaders.Subscription.byId.load(order.SubscriptionId));
+          return subscription?.lastChargedAt;
+        },
+      },
       tier: {
         type: GraphQLTier,
         resolve(order, args, req) {
