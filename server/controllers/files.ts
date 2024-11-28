@@ -78,7 +78,7 @@ export async function getFile(req: Request, res: Response) {
 
   const actualUrl = uploadedFile.getDataValue('url');
 
-  if (!hasUploadedFilePermission(req, uploadedFile)) {
+  if (!(await hasUploadedFilePermission(req, uploadedFile))) {
     return res.status(403).send({ message: 'Unauthorized' });
   }
 
