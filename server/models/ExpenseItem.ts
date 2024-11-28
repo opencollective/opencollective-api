@@ -142,12 +142,6 @@ ExpenseItem.init(
       type: DataTypes.STRING(1200),
       allowNull: true,
       set(value: string | null): void {
-        console.log(
-          'settter called',
-          value,
-          UploadedFile.isOpenCollectiveProtectedS3BucketURL(value),
-          UploadedFile.getOpenCollectiveS3BucketURLFromProtectedURL(value),
-        );
         if (UploadedFile.isOpenCollectiveProtectedS3BucketURL(value)) {
           this.setDataValue('url', UploadedFile.getOpenCollectiveS3BucketURLFromProtectedURL(value));
         } else {

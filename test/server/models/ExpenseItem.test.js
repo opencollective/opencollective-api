@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import models from '../../../server/models';
+import models, { UploadedFile } from '../../../server/models';
 import { randUrl } from '../../stores';
 import { fakeExpense, fakeUser } from '../../test-helpers/fake-data';
 
@@ -18,7 +18,8 @@ describe('test/server/models/ExpenseItem', () => {
       };
 
       const item = await models.ExpenseItem.createFromData(data, user, expense);
-      expect(item.url).to.equal(data.url);
+      expect(item.getDataValue('url')).to.equal(data.url);
+      expect(UploadedFile.getOpenCollectiveS3BucketURLFromProtectedURL(item.url)).to.equal(data.url);
       expect(item.amount).to.equal(data.amount);
       expect(item.incurredAt.getTime()).to.equal(data.incurredAt.getTime());
       expect(item.deletedAt).to.be.null;

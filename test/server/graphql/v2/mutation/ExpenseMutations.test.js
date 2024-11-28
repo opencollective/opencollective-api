@@ -19,7 +19,7 @@ import {
   TwoFactorMethod,
 } from '../../../../../server/lib/two-factor-authentication/lib';
 import { sleep } from '../../../../../server/lib/utils';
-import models from '../../../../../server/models';
+import models, { UploadedFile } from '../../../../../server/models';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../../server/models/LegalDocument';
 import { PayoutMethodTypes } from '../../../../../server/models/PayoutMethod';
 import UserTwoFactorMethod from '../../../../../server/models/UserTwoFactorMethod';
@@ -1421,7 +1421,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expenseUpdateData.items.forEach(item => {
         const itemFromAPI = itemsFromAPI.find(a => a.description === item.description);
         expect(itemFromAPI).to.exist;
-        expect(itemFromAPI.url).to.equal(item.url);
+        expect(UploadedFile.getOpenCollectiveS3BucketURLFromProtectedURL(itemFromAPI.url)).to.equal(item.url);
         expect(itemFromAPI.amount).to.equal(item.amount);
       });
     });
