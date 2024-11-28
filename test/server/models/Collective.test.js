@@ -338,6 +338,15 @@ describe('server/models/Collective', () => {
         expect(collective.image).to.equal(validImage); // Not updated
       });
 
+      it('tolerates passing an URL from the image service with a size if it is the same as the current one', async () => {
+        const collective = await fakeCollective({ image: validImage });
+        const imageUrl = collective.getImageUrl({ height: 64 });
+        expect(imageUrl).to.not.equal(validImage);
+        expect(imageUrl).to.satisfy(url => url.startsWith(config.host.images));
+        await collective.update({ image: imageUrl });
+        expect(collective.image).to.equal(validImage); // Not updated
+      });
+
       it('tolerates passing an URL from the image service if only the extension differs', async () => {
         const collective = await fakeCollective({ image: validImage });
         const imageUrl = collective.getImageUrl();
@@ -401,6 +410,15 @@ describe('server/models/Collective', () => {
       it('tolerates passing an URL from the image service if it is the same as the current one', async () => {
         const collective = await fakeCollective({ backgroundImage: validImage });
         const backgroundImageUrl = collective.getBackgroundImageUrl();
+        expect(backgroundImageUrl).to.not.equal(validImage);
+        expect(backgroundImageUrl).to.satisfy(url => url.startsWith(config.host.images));
+        await collective.update({ backgroundImage: backgroundImageUrl });
+        expect(collective.backgroundImage).to.equal(validImage); // Not updated
+      });
+
+      it('tolerates passing an URL from the image service with a size if it is the same as the current one', async () => {
+        const collective = await fakeCollective({ backgroundImage: validImage });
+        const backgroundImageUrl = collective.getBackgroundImageUrl({ height: 64 });
         expect(backgroundImageUrl).to.not.equal(validImage);
         expect(backgroundImageUrl).to.satisfy(url => url.startsWith(config.host.images));
         await collective.update({ backgroundImage: backgroundImageUrl });
