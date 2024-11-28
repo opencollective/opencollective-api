@@ -1,7 +1,8 @@
 import { expect } from 'chai';
+import config from 'config';
 
 import OrderStatuses from '../../../server/constants/order-status';
-import { isCollectiveDeletable } from '../../../server/lib/collectivelib';
+import { isCollectiveDeletable, parseImageServiceUrl } from '../../../server/lib/collectivelib';
 import {
   fakeCollective,
   fakeEvent,
@@ -79,6 +80,70 @@ describe('server/lib/collectivelib', () => {
       const parent = await fakeCollective();
       await fakeEvent({ ParentCollectiveId: parent.id });
       expect(await isCollectiveDeletable(parent)).to.be.false;
+    });
+  });
+
+  describe('parseImageServiceUrl', () => {
+    it('parses valid image URLs without size', () => {
+      expect(parseImageServiceUrl(`${config.host.images}/babel/9a38a01/background.jpg`)).to.deep.equal({
+        slug: 'babel',
+        hash: '9a38a01',
+        type: 'background',
+        format: 'jpg',
+        height: undefined,
+      });
+
+      expect(parseImageServiceUrl(`${config.host.images}/babel/9a38a01/avatar.jpg?foo=bar`)).to.deep.equal({
+        slug: 'babel',
+        hash: '9a38a01',
+        type: 'avatar',
+        format: 'jpg',
+        height: undefined,
+      });
+
+      expect(parseImageServiceUrl(`${config.host.images}/babel/9a38a01/logo.jpg?foo=bar`)).to.deep.equal({
+        slug: 'babel',
+        hash: '9a38a01',
+        type: 'logo',
+        format: 'jpg',
+        height: undefined,
+      });
+    });
+
+    it('parses valid image URLs with size', () => {
+      expect(parseImageServiceUrl(`${config.host.images}/babel/9a38a01/background/960.jpg`)).to.deep.equal({
+        slug: 'babel',
+        hash: '9a38a01',
+        type: 'background',
+        format: 'jpg',
+        height: 960,
+      });
+
+      expect(parseImageServiceUrl(`${config.host.images}/babel/9a38a01/avatar/200.jpg`)).to.deep.equal({
+        slug: 'babel',
+        hash: '9a38a01',
+        type: 'avatar',
+        format: 'jpg',
+        height: 200,
+      });
+
+      expect(parseImageServiceUrl(`${config.host.images}/babel/9a38a01/logo/300.PNG`)).to.deep.equal({
+        slug: 'babel',
+        hash: '9a38a01',
+        type: 'logo',
+        format: 'PNG',
+        height: 300,
+      });
+    });
+
+    it('returns null for invalid image URLs', () => {
+      expect(parseImageServiceUrl(``)).to.be.null;
+      expect(parseImageServiceUrl(`https://random-domain.com/babel/9a38a01/background.jpg`)).to.be.null;
+      expect(parseImageServiceUrl(`${config.host.images}/babel/9a38a01/invalid.jpg`)).to.be.null;
+      expect(parseImageServiceUrl(`${config.host.images}/babel/9a38a01/invalid.jpg`)).to.be.null;
+      expect(parseImageServiceUrl(`${config.host.images}/babel/9a38a01/background/invalid.jpg`)).to.be.null;
+      expect(parseImageServiceUrl(`${config.host.images}/babel/9a38a01/avatar/invalid.jpg`)).to.be.null;
+      expect(parseImageServiceUrl(`${config.host.images}/babel/9a38a01/logo/invalid.jpg`)).to.be.null;
     });
   });
 });
