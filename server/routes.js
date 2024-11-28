@@ -11,6 +11,7 @@ import { get, pick } from 'lodash';
 import multer from 'multer';
 
 import * as connectedAccounts from './controllers/connectedAccounts';
+import * as filesController from './controllers/files';
 import * as gitbook from './controllers/gitbook';
 import uploadImage from './controllers/images';
 import LegalDocumentsController from './controllers/legal-documents';
@@ -377,6 +378,8 @@ export default async app => {
    * Gitbook Search API
    */
   app.get('/docs/search', gitbook.search);
+
+  app.get('/files/:base64UrlEncodedUrl', filesController.getFile);
 
   /**
    * An endpoint to easily test Sentry integration
