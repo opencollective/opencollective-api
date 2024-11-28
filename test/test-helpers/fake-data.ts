@@ -202,6 +202,7 @@ export const fakeActiveHost = async (hostData: Parameters<typeof fakeCollective>
     HostCollectiveId: null,
     isHostAccount: true,
     isActive: true,
+    approvedAt: new Date(),
     ...hostData,
   });
 

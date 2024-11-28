@@ -183,6 +183,12 @@ async function createCollective(_, args, req) {
           shouldAutomaticallyApprove = true;
         }
       }
+
+      // In test/dev environments, we can skip the approval process
+      if (args.skipApprovalTestOnly && !isProd) {
+        shouldAutomaticallyApprove = true;
+      }
+
       // Add the host if any
       if (host) {
         await collective.addHost(host, remoteUser, {
@@ -231,12 +237,6 @@ const createCollectiveMutation = {
       description: 'User information to create along with the collective',
       type: GraphQLIndividualCreateInput,
     },
-    automateApprovalWithGithub: {
-      description: 'Whether to trigger the automated approval for Open Source collectives with GitHub.',
-      type: GraphQLBoolean,
-      defaultValue: false,
-      deprecationReason: '2022-10-12: This is now automated',
-    },
     message: {
       type: GraphQLString,
       description: 'A message to attach for the host to review the application',
@@ -257,6 +257,11 @@ const createCollectiveMutation = {
     inviteMembers: {
       type: new GraphQLList(GraphQLInviteMemberInput),
       description: 'List of members to invite on Collective creation.',
+    },
+    skipApprovalTestOnly: {
+      description: 'Marks the collective as approved directly. Only available in test/CI environments.',
+      type: GraphQLBoolean,
+      defaultValue: false,
     },
   },
   resolve: (_, args, req) => {

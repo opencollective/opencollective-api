@@ -38,7 +38,7 @@ const checkIsActiveIfExistsInDB = async (
   return checkIsActive(checkExistsInDB(query, queryOptions), fallback);
 };
 
-export const checkReceiveFinancialContributions = async (collective, req) => {
+export const checkReceiveFinancialContributions = async (collective, req, { ignoreActive = false } = {}) => {
   if (!collective.HostCollectiveId || !collective.approvedAt) {
     return FEATURE_STATUS.DISABLED;
   } else if (!collective.isActive) {
@@ -49,6 +49,8 @@ export const checkReceiveFinancialContributions = async (collective, req) => {
     !req.remoteUser?.isAdminOfCollectiveOrHost(collective)
   ) {
     return FEATURE_STATUS.UNSUPPORTED;
+  } else if (isFeatureBlockedForAccount(collective, FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS)) {
+    return FEATURE_STATUS.DISABLED;
   }
 
   // Check if contributions are disabled at the host level
@@ -66,6 +68,10 @@ export const checkReceiveFinancialContributions = async (collective, req) => {
     if (!hasSomeActiveTiers) {
       return FEATURE_STATUS.DISABLED;
     }
+  }
+
+  if (ignoreActive) {
+    return FEATURE_STATUS.AVAILABLE;
   }
 
   return checkIsActiveIfExistsInDB(

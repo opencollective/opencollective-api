@@ -25,10 +25,12 @@ import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { canUseFeature } from '../../../lib/user-permissions';
 import { formatCurrency } from '../../../lib/utils';
 import models, { Op, Order } from '../../../models';
+import { checkReceiveFinancialContributions } from '../../common/features';
 import {
   BadRequest,
   FeatureNotAllowedForUser,
   FeatureNotSupportedForCollective,
+  Forbidden,
   NotFound,
   Unauthorized,
   ValidationFailed,
@@ -221,7 +223,33 @@ export async function createOrder(order, req) {
 
   if (remoteUser && !canUseFeature(remoteUser, FEATURE.ORDER)) {
     throw new FeatureNotAllowedForUser();
-  } else if (!remoteUser) {
+  }
+
+  // Check the existence of the recipient Collective
+  if (!order.collective?.id) {
+    throw new Error('Collective not found');
+  }
+
+  const collective = await loaders.Collective.byId.load(order.collective.id);
+  if (!collective) {
+    throw new Error(`No collective found: ${order.collective.id || order.collective.website}`);
+  }
+
+  if (order.fromCollective && order.fromCollective.id === collective.id) {
+    throw new Error('Orders cannot be created for a collective by that same collective.');
+  }
+
+  const host = await collective.getHostCollective({ loaders: req.loaders });
+  if (!host) {
+    throw new Error('This collective has no host and cannot accept financial contributions at this time.');
+  }
+
+  const receiveOrdersStatus = await checkReceiveFinancialContributions(collective, req, { ignoreActive: true });
+  if (!['ACTIVE', 'AVAILABLE'].includes(receiveOrdersStatus)) {
+    throw new Forbidden('This collective cannot receive financial contributions');
+  }
+
+  if (!remoteUser) {
     await checkGuestContribution(order, loaders);
   }
 
@@ -262,26 +290,6 @@ export async function createOrder(order, req) {
     // ---- Set defaults ----
     order.quantity = order.quantity || 1;
     order.taxAmount = order.taxAmount || 0;
-
-    // Check the existence of the recipient Collective
-    if (!order.collective?.id) {
-      throw new Error('Collective not found');
-    }
-
-    const collective = await loaders.Collective.byId.load(order.collective.id);
-    if (!collective) {
-      throw new Error(`No collective found: ${order.collective.id || order.collective.website}`);
-    }
-
-    if (order.fromCollective && order.fromCollective.id === collective.id) {
-      throw new Error('Orders cannot be created for a collective by that same collective.');
-    }
-
-    const host = await collective.getHostCollective({ loaders: req.loaders });
-    if (!host) {
-      throw new Error('This collective has no host and cannot accept financial contributions at this time.');
-    }
-
     order.collective = collective;
 
     let tier;
