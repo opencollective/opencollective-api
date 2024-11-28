@@ -1,6 +1,6 @@
 import config from 'config';
 import { pick } from 'lodash';
-import type { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes } from 'sequelize';
+import type { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
 import { DataTypes, Model, Transaction } from 'sequelize';
 import isURL from 'validator/lib/isURL';
 
@@ -12,7 +12,7 @@ import sequelize from '../lib/sequelize';
 
 import { FX_RATE_SOURCE } from './CurrencyExchangeRate';
 import Expense from './Expense';
-import { MAX_UPLOADED_FILE_URL_LENGTH } from './UploadedFile';
+import UploadedFile, { MAX_UPLOADED_FILE_URL_LENGTH } from './UploadedFile';
 import User from './User';
 
 // Expense items diff as [newEntries, removedEntries, updatedEntries]
@@ -35,6 +35,8 @@ class ExpenseItem extends Model<InferAttributes<ExpenseItem>, InferCreationAttri
   declare public deletedAt: CreationOptional<Date>;
   declare public incurredAt: Date;
   declare public description: CreationOptional<string>;
+
+  public declare Expense: NonAttribute<Expense>;
 
   public static editableFields = [
     'amount',
@@ -140,8 +142,24 @@ ExpenseItem.init(
       type: DataTypes.STRING(1200),
       allowNull: true,
       set(value: string | null): void {
-        // Make sure empty strings are converted to null
-        this.setDataValue('url', value || null);
+        console.log(
+          'settter called',
+          value,
+          UploadedFile.isOpenCollectiveProtectedS3BucketURL(value),
+          UploadedFile.getOpenCollectiveS3BucketURLFromProtectedURL(value),
+        );
+        if (UploadedFile.isOpenCollectiveProtectedS3BucketURL(value)) {
+          this.setDataValue('url', UploadedFile.getOpenCollectiveS3BucketURLFromProtectedURL(value));
+        } else {
+          // Make sure empty strings are converted to null
+          this.setDataValue('url', value || null);
+        }
+      },
+      get() {
+        const url = this.getDataValue('url');
+        if (url) {
+          return UploadedFile.getProtectedURLFromOpenCollectiveS3Bucket(url);
+        }
       },
       validate: {
         isValidURL(url: string): void {

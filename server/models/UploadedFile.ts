@@ -65,7 +65,7 @@ type FileUpload = {
 const MAX_FILENAME_LENGTH = 1024; // From S3
 export const MAX_UPLOADED_FILE_URL_LENGTH = 1200; // From S3
 const MAX_FILE_SIZE = 1024 * 1024 * 10; // 10MB
-const SUPPORTED_FILE_TYPES_IMAGES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'] as const;
+export const SUPPORTED_FILE_TYPES_IMAGES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'] as const;
 export const SUPPORTED_FILE_TYPES = [...SUPPORTED_FILE_TYPES_IMAGES, 'application/pdf', 'text/csv'] as const;
 type SupportedFileType = (typeof SUPPORTED_FILE_TYPES)[number];
 export const SUPPORTED_FILE_EXTENSIONS: Record<SUPPORTED_FILE_TYPES_UNION, string> = {
@@ -114,6 +114,10 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
 
   // ==== Static methods ====
   public static isOpenCollectiveS3BucketURL(url: string): boolean {
+    if (UploadedFile.isOpenCollectiveProtectedS3BucketURL(url)) {
+      return true;
+    }
+
     if (!url) {
       return false;
     }
@@ -127,6 +131,52 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
 
     const endpoint = config.aws.s3.endpoint || `https://${config.aws.s3.bucket}.s3.us-west-1.amazonaws.com`;
     return parsedURL.origin === endpoint && /\/\w+/.test(parsedURL.pathname);
+  }
+
+  public static isOpenCollectiveProtectedS3BucketURL(url: string): boolean {
+    if (!url) {
+      return false;
+    }
+
+    let parsedURL: URL;
+    try {
+      parsedURL = new URL(url);
+    } catch (e) {
+      return false;
+    }
+
+    return parsedURL.origin === config.host.website && /\/api\/files\/\w+/.test(parsedURL.pathname);
+  }
+
+  public static getOpenCollectiveS3BucketURLFromProtectedURL(url: string): string {
+    if (!UploadedFile.isOpenCollectiveProtectedS3BucketURL(url)) {
+      return null;
+    }
+
+    let parsedURL: URL;
+    try {
+      parsedURL = new URL(url);
+    } catch (e) {
+      return null;
+    }
+
+    const match = parsedURL.pathname.match(/\/api\/files\/([^\/]+)\/?/);
+
+    if (match.length !== 2) {
+      return null;
+    }
+
+    const base64UrlEncodedUrl = match[1];
+
+    const uploadedFileUrl = Buffer.from(base64UrlEncodedUrl, 'base64url').toString();
+
+    return uploadedFileUrl;
+  }
+
+  public static getProtectedURLFromOpenCollectiveS3Bucket(url: string): string {
+    const base64UrlEncodedUrl = Buffer.from(url).toString('base64url');
+
+    return `${config.host.website}/api/files/${base64UrlEncodedUrl}`;
   }
 
   public static isSupportedImageMimeType(mimeType: string): boolean {
@@ -346,6 +396,15 @@ UploadedFile.init(
       type: DataTypes.STRING,
       allowNull: false,
       unique: true,
+      get() {
+        const url = this.getDataValue('url');
+        const kind = this.getDataValue('kind');
+        if (['EXPENSE_ITEM', 'EXPENSE_ATTACHED_FILE'].includes(kind) && UploadedFile.isOpenCollectiveS3BucketURL(url)) {
+          return UploadedFile.getProtectedURLFromOpenCollectiveS3Bucket(url);
+        } else {
+          return url;
+        }
+      },
       validate: {
         notNull: true,
         notEmpty: true,

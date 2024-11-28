@@ -1,5 +1,5 @@
 import config from 'config';
-import { DataTypes, ForeignKey, Model, Transaction } from 'sequelize';
+import { DataTypes, ForeignKey, Model, NonAttribute, Transaction } from 'sequelize';
 import isURL from 'validator/lib/isURL';
 
 import { diffDBEntries } from '../lib/data';
@@ -8,7 +8,7 @@ import sequelize from '../lib/sequelize';
 import { isValidRESTServiceURL } from '../lib/url-utils';
 
 import Expense from './Expense';
-import { MAX_UPLOADED_FILE_URL_LENGTH } from './UploadedFile';
+import UploadedFile, { MAX_UPLOADED_FILE_URL_LENGTH } from './UploadedFile';
 import User from './User';
 
 /**
@@ -20,6 +20,8 @@ class ExpenseAttachedFile extends Model {
   declare public CreatedByUserId: ForeignKey<User['id']>;
   declare public url: string;
   declare public createdAt: Date;
+
+  public declare Expense?: NonAttribute<Expense>;
 
   /**
    * Create an attachment from user-submitted data.
@@ -77,6 +79,19 @@ ExpenseAttachedFile.init(
     url: {
       type: DataTypes.STRING,
       allowNull: false,
+      set(value: string): void {
+        if (UploadedFile.isOpenCollectiveProtectedS3BucketURL(value)) {
+          this.setDataValue('url', UploadedFile.getOpenCollectiveS3BucketURLFromProtectedURL(value));
+        } else {
+          this.setDataValue('url', value);
+        }
+      },
+      get() {
+        const url = this.getDataValue('url');
+        if (url) {
+          return UploadedFile.getProtectedURLFromOpenCollectiveS3Bucket(url);
+        }
+      },
       validate: {
         notNull: true,
         notEmpty: true,
