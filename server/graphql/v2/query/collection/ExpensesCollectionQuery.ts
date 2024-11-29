@@ -394,7 +394,7 @@ export const ExpensesCollectionQueryResolver = async (
     if (CollectiveIds.length) {
       conditions.push(
         sequelize.literal(
-          `(SELECT "FromCollectiveId" FROM "Comments" WHERE "Comments"."ExpenseId" = "Expense"."id" ORDER BY "id" DESC LIMIT 1)
+          `(SELECT "FromCollectiveId" FROM "Comments" WHERE "Comments"."deletedAt" IS NULL AND "Comments"."ExpenseId" = "Expense"."id" ORDER BY "id" DESC LIMIT 1)
             IN (
               SELECT "MemberCollectiveId" FROM "Members" WHERE
               "role" = 'ADMIN' AND "deletedAt" IS NULL AND
@@ -407,7 +407,7 @@ export const ExpensesCollectionQueryResolver = async (
     if (args.lastCommentBy.includes('USER')) {
       conditions.push(
         sequelize.literal(
-          `(SELECT "CreatedByUserId" FROM "Comments" WHERE "Comments"."ExpenseId" = "Expense"."id" ORDER BY "id" DESC LIMIT 1) = "Expense"."UserId"`,
+          `(SELECT "CreatedByUserId" FROM "Comments" WHERE "Comments"."deletedAt" IS NULL AND "Comments"."ExpenseId" = "Expense"."id" ORDER BY "id" DESC LIMIT 1) = "Expense"."UserId"`,
         ),
       );
     }
@@ -448,7 +448,7 @@ export const ExpensesCollectionQueryResolver = async (
   const { offset, limit } = args;
 
   const fetchNodes = () => {
-    return Expense.findAll({ include, where, order, offset, limit });
+    return Expense.findAll({ include, where, order, offset, limit, logging: true });
   };
 
   const fetchTotalCount = () => {
