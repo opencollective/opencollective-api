@@ -145,7 +145,7 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
       return false;
     }
 
-    return parsedURL.origin === config.host.website && /\/api\/files\/\w+/.test(parsedURL.pathname);
+    return parsedURL.origin === config.host.website && /^\/api\/files\/\w+/.test(parsedURL.pathname);
   }
 
   public static getOpenCollectiveS3BucketURLFromProtectedURL(url: string): string {
