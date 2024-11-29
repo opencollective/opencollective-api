@@ -65,7 +65,12 @@ import { canUseFeature } from '../../lib/user-permissions';
 import { formatCurrency, parseToBoolean } from '../../lib/utils';
 import models, { Collective, sequelize, TransactionsImportRow } from '../../models';
 import AccountingCategory, { AccountingCategoryAppliesTo } from '../../models/AccountingCategory';
-import Expense, { ExpenseDataValuesByRole, ExpenseStatus, ExpenseTaxDefinition } from '../../models/Expense';
+import Expense, {
+  ExpenseDataValuesByRole,
+  ExpenseLockableFields,
+  ExpenseStatus,
+  ExpenseTaxDefinition,
+} from '../../models/Expense';
 import ExpenseAttachedFile from '../../models/ExpenseAttachedFile';
 import ExpenseItem from '../../models/ExpenseItem';
 import { MigrationLogType } from '../../models/MigrationLog';
@@ -1923,6 +1928,8 @@ export async function submitExpenseDraft(
     throw new Unauthorized('You need to submit the right draft key to edit this expense');
   }
 
+  await checkLockedFields(existingExpense, { ...expenseData, payee: requestedPayee || args.expense.payee });
+
   const options = { overrideRemoteUser: undefined, skipPermissionCheck: true, skipActivity: true };
   if (requestedPayee) {
     if (!req.remoteUser?.isAdminOfCollective(requestedPayee)) {
@@ -2011,6 +2018,45 @@ const isDifferentInvitedPayee = (expense: Expense, payee): boolean => {
   return false;
 };
 
+const checkLockedFields = async (
+  existing: Expense,
+  updated: ExpenseData & { payee?: Collective | { legacyId: number } | { email: string; name: string } },
+): Promise<void> => {
+  const lockedFields = existing?.data?.lockedFields;
+  if (!lockedFields) {
+    return;
+  }
+
+  if (lockedFields.includes(ExpenseLockableFields.DESCRIPTION) && isValueChanging(existing, updated, 'description')) {
+    throw new Unauthorized('Description cannot be edited');
+  }
+
+  if (lockedFields.includes(ExpenseLockableFields.TYPE) && isValueChanging(existing, updated, 'type')) {
+    throw new Unauthorized('Type cannot be edited');
+  }
+
+  if (lockedFields.includes(ExpenseLockableFields.PAYEE) && updated.payee) {
+    const expectedPayee = existing.data.payee;
+    if ('id' in expectedPayee) {
+      const updatedId = 'legacyId' in updated.payee ? updated.payee.legacyId : (updated.payee as Collective).id;
+      assert(updatedId && expectedPayee.id === updatedId, new Unauthorized('Payee cannot be edited'));
+    } else if ('email' in expectedPayee) {
+      if ('email' in updated.payee) {
+        assert(expectedPayee.email === updated.payee.email, new Unauthorized('Payee cannot be edited'));
+      } else {
+        const updatedId = 'legacyId' in updated.payee ? updated.payee.legacyId : updated.payee.id;
+        const user = await models.User.findOne({ where: { CollectiveId: updatedId } });
+        assert(user && expectedPayee.email === user.email, new Unauthorized('Payee cannot be edited'));
+      }
+    }
+  }
+
+  if (lockedFields.includes(ExpenseLockableFields.AMOUNT)) {
+    assert(!isValueChanging(existing, updated, 'amount'), new Unauthorized('Amount cannot be edited'));
+    assert(!isValueChanging(existing, updated, 'currency'), new Unauthorized('Currency cannot be edited'));
+  }
+};
+
 export async function sendDraftExpenseInvite(
   req: express.Request,
   expense: Expense,
@@ -2061,6 +2107,8 @@ export async function editExpenseDraft(req: express.Request, expenseData: Expens
       attachedFiles: expenseData.attachedFiles,
     },
   };
+
+  await checkLockedFields(existingExpense, expenseData);
 
   if (args.expense.payee && isDifferentInvitedPayee(existingExpense, args.expense.payee)) {
     const payee = args.expense.payee as { email: string; name?: string };
@@ -2255,6 +2303,13 @@ export async function editExpense(
       );
     }
   }
+
+  await checkLockedFields(expense, {
+    ...expenseData,
+    items: updatedItemsData,
+    amount: models.Expense.computeTotalAmountForExpense(updatedItemsData, taxes),
+    payee: options?.overrideRemoteUser?.collective || expenseData.fromCollective,
+  });
 
   // Let's take the opportunity to update collective's location
   const existingLocation = await fromCollective.getLocation();

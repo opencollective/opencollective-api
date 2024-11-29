@@ -74,6 +74,13 @@ export type ExpenseTaxDefinition = {
   idNumber?: string;
 };
 
+export enum ExpenseLockableFields {
+  AMOUNT = 'AMOUNT',
+  PAYEE = 'PAYEE',
+  DESCRIPTION = 'DESCRIPTION',
+  TYPE = 'TYPE',
+}
+
 class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Expense>> {
   public declare readonly id: CreationOptional<number>;
   public declare UserId: ForeignKey<User['id']>;
@@ -102,6 +109,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
     };
     draftKey?: string;
     taxes?: ExpenseTaxDefinition[];
+    lockedFields?: ExpenseLockableFields[];
   };
 
   public declare currency: SupportedCurrency;

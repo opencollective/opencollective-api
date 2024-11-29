@@ -1,9 +1,12 @@
+import assert from 'assert';
+
 import express from 'express';
 import {
   GraphQLBoolean,
   GraphQLEnumType,
   GraphQLInputObjectType,
   GraphQLInt,
+  GraphQLList,
   GraphQLNonNull,
   GraphQLString,
 } from 'graphql';
@@ -17,7 +20,7 @@ import RateLimit from '../../../lib/rate-limit';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication/lib';
 import models from '../../../models';
 import { CommentType } from '../../../models/Comment';
-import ExpenseModel from '../../../models/Expense';
+import ExpenseModel, { ExpenseLockableFields } from '../../../models/Expense';
 import { createComment } from '../../common/comment';
 import {
   approveExpense,
@@ -45,6 +48,7 @@ import {
 } from '../../common/expenses';
 import { checkRemoteUserCanUseExpenses, enforceScope } from '../../common/scope-check';
 import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
+import { GraphQLExpenseLockableFields } from '../enum/ExpenseLockableFields';
 import { GraphQLExpenseProcessAction } from '../enum/ExpenseProcessAction';
 import { GraphQLFeesPayer } from '../enum/FeesPayer';
 import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
@@ -460,6 +464,10 @@ const expenseMutations = {
         description: 'Skip sending the invite email',
         defaultValue: false,
       },
+      lockedFields: {
+        type: new GraphQLList(GraphQLExpenseLockableFields),
+        description: 'Fields that the user should not be able to edit when submitting the draft',
+      },
     },
     async resolve(_: void, args, req: express.Request): Promise<ExpenseModel> {
       checkRemoteUserCanUseExpenses(req);
@@ -508,6 +516,17 @@ const expenseMutations = {
         payee.email = payee.email.toLowerCase();
       }
 
+      const amount = models.Expense.computeTotalAmountForExpense(items, expenseData.tax);
+
+      if (args.lockedFields?.includes(ExpenseLockableFields.AMOUNT)) {
+        assert(items.length > 0, new ValidationFailed('You need to provide at least one item to lock the amount'));
+        assert(
+          items.every(item => item.amount),
+          new ValidationFailed('All items must have an amount to lock the total amount'),
+        );
+        assert(amount > 0, new ValidationFailed('The total amount must be greater than 0'));
+      }
+
       const expense = await models.Expense.create({
         ...pick(expenseData, DRAFT_EXPENSE_FIELDS),
         status: expenseStatus.DRAFT,
@@ -517,7 +536,7 @@ const expenseMutations = {
         UserId: remoteUser.id,
         currency: expenseData.currency || collective.currency,
         incurredAt: new Date(),
-        amount: models.Expense.computeTotalAmountForExpense(items, expenseData.tax),
+        amount,
         data: {
           items: expenseData.items,
           attachedFiles: expenseData.attachedFiles,
@@ -531,6 +550,7 @@ const expenseMutations = {
           taxes: expenseData.tax,
           reference: expenseData.reference,
           notify: !args.skipInvite,
+          lockedFields: args.lockedFields,
         },
       });
 
