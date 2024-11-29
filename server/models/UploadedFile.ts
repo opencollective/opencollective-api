@@ -160,7 +160,7 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
       return null;
     }
 
-    const match = parsedURL.pathname.match(/\/api\/files\/([^\/]+)\/?/);
+    const match = parsedURL.pathname.match(/^\/api\/files\/([^\/]+)\/?/);
 
     if (match.length !== 2) {
       return null;
