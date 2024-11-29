@@ -32,7 +32,8 @@
     },
     "error": {
       "detailed": "GRAPHQL_ERROR_DETAILED"
-    }
+    },
+    "resolverTimeDebugWarning": "GRAPHQL_RESOLVER_TIME_DEBUG"
   },
   "memcache": {
     "servers": "MEMCACHE_SERVERS",
