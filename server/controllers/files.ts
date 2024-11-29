@@ -8,7 +8,9 @@ import { SUPPORTED_FILE_TYPES_IMAGES } from '../models/UploadedFile';
 
 async function hasUploadedFilePermission(req: Request, uploadedFile: UploadedFile): Promise<boolean> {
   const actualUrl = uploadedFile.getDataValue('url');
-  if (req.remoteUser.id !== uploadedFile.CreatedByUserId) {
+  if (req.remoteUser?.id === uploadedFile.CreatedByUserId) {
+    return true;
+  } else {
     switch (uploadedFile.kind) {
       case 'EXPENSE_ITEM': {
         const expenseItem = await ExpenseItem.findOne({
@@ -48,7 +50,7 @@ async function hasUploadedFilePermission(req: Request, uploadedFile: UploadedFil
 }
 
 /**
- * GET /files/:base64UrlEncodedUrl
+ * GET /api/files/:base64UrlEncodedUrl
  *
  * Query Params
  *
@@ -67,7 +69,15 @@ export async function getFile(req: Request, res: Response) {
 
   const { base64UrlEncodedUrl } = req.params;
 
-  const uploadedFileUrl = Buffer.from(base64UrlEncodedUrl, 'base64url').toString();
+  let uploadedFileUrl: string;
+
+  try {
+    uploadedFileUrl = Buffer.from(base64UrlEncodedUrl, 'base64url').toString();
+    new URL(uploadedFileUrl);
+  } catch (err) {
+    return res.status(400);
+  }
+
   const uploadedFile = await UploadedFile.findOne({
     where: {
       url: uploadedFileUrl,

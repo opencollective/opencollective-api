@@ -103,9 +103,9 @@ ExpenseAttachedFile.init(
           if (
             !isURL(url, {
               // eslint-disable-next-line camelcase
-              require_host: config.env !== 'development',
+              require_host: config.env !== 'development' && config.env !== 'test',
               // eslint-disable-next-line camelcase
-              require_tld: config.env !== 'development',
+              require_tld: config.env !== 'development' && config.env !== 'test',
             })
           ) {
             throw new Error('File URL is not a valid URL');
