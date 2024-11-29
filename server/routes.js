@@ -373,13 +373,12 @@ export default async app => {
    * File downloads
    */
   app.get('/legal-documents/:id/download', LegalDocumentsController.download);
+  app.get('/files/:base64UrlEncodedUrl', filesController.getFile);
 
   /**
    * Gitbook Search API
    */
   app.get('/docs/search', gitbook.search);
-
-  app.get('/files/:base64UrlEncodedUrl', filesController.getFile);
 
   /**
    * An endpoint to easily test Sentry integration

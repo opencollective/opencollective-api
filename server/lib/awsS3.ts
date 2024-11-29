@@ -40,6 +40,10 @@ if (config.aws.s3.key) {
   });
 }
 
+/**
+ * Returns a signed GET url to an S3 resource.
+ * By default the URL expires in 10 minutes.
+ */
 export function getSignedGetURL(params: GetObjectCommand['input'], options?: { expiresIn: number }) {
   const command = new GetObjectCommand(params);
   return getSignedUrl(s3, command, { expiresIn: options?.expiresIn || 10 * 60 });
