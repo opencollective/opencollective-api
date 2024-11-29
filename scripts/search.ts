@@ -115,20 +115,59 @@ program
   .argument('[indexes...]', 'Only sync specific indexes')
   .action(async (fromDate, indexesInput) => {
     checkElasticSearchAvailable();
-    const parsedDate = new Date(fromDate);
-    if (isNaN(parsedDate.getTime())) {
-      throw new Error('Invalid date');
-    } else {
-      const allIndexes = Object.values(ElasticSearchIndexName);
-      const indexes = parseIndexesFromInput(indexesInput);
-      const modelsLabels = indexes.length === allIndexes.length ? 'all indices' : indexes.join(', ');
-      logger.info(`Syncing ${modelsLabels} from ${parsedDate.toISOString()}`);
-      for (const indexName of indexes) {
-        await syncElasticSearchIndex(indexName as ElasticSearchIndexName, { fromDate: parsedDate, log: true });
-      }
 
-      logger.info('Sync completed!');
+    let parsedDate;
+    if (fromDate !== 'all') {
+      parsedDate = new Date(fromDate);
+      if (isNaN(parsedDate.getTime())) {
+        throw new Error('Invalid date');
+      }
     }
+
+    const allIndexes = Object.values(ElasticSearchIndexName);
+    const indexes = parseIndexesFromInput(indexesInput);
+    const modelsLabels = indexes.length === allIndexes.length ? 'all indices' : indexes.join(', ');
+    logger.info(`Syncing ${modelsLabels} from ${!parsedDate ? 'all time' : parsedDate.toISOString()}`);
+    for (const indexName of indexes) {
+      await syncElasticSearchIndex(indexName as ElasticSearchIndexName, { fromDate: parsedDate, log: true });
+    }
+
+    logger.info('Sync completed!');
+  });
+
+// Info command, to get the list of fields in the index
+program
+  .command('info')
+  .description('Show information about the ElasticSearch indices')
+  .argument('[indexes...]', 'Only show information about specific indexes')
+  .action(async indexesInput => {
+    checkElasticSearchAvailable();
+    const indexes = parseIndexesFromInput(indexesInput);
+    const availableIndexes = await getAvailableElasticSearchIndexes();
+    const [availableIndexesToQuery, unknownIndexes] = partition(indexes, index => availableIndexes.includes(index));
+    if (unknownIndexes.length) {
+      logger.warn(`Unknown indexes: ${unknownIndexes.join(', ')}`);
+    }
+
+    const client = getElasticSearchClient();
+    for (const index of availableIndexesToQuery) {
+      const result = await client.indices.getMapping({ index });
+      console.log(`Index: ${index}`);
+      console.log(JSON.stringify(result, null, 2));
+    }
+  });
+
+// Get the values for a single entry in an index
+program
+  .command('get')
+  .description('Get a single entry from an index')
+  .argument('<index>', 'Index name')
+  .argument('<id>', 'Entry ID')
+  .action(async (index, id) => {
+    checkElasticSearchAvailable();
+    const client = getElasticSearchClient();
+    const result = await client.get({ index, id });
+    console.log(JSON.stringify(result, null, 2));
   });
 
 program
@@ -179,18 +218,19 @@ program
     const limit = parseInt(options.limit, 10);
     const account = options.account && (await models.Collective.findBySlug(options.account));
     const host = options.host && (await models.Collective.findBySlug(options.host));
-    let asUser = null;
+    let user = null;
     if (options.as) {
       const asCollective = await models.Collective.findBySlug(options.as);
-      asUser = asCollective && (await models.User.findOne({ where: { CollectiveId: asCollective.id } }));
-      if (!asUser) {
+      user = asCollective && (await models.User.findOne({ where: { CollectiveId: asCollective.id } }));
+      if (!user) {
         throw new Error(`User not found: ${options.as}`);
       }
 
-      await asUser.populateRoles();
+      await user.populateRoles();
     }
 
-    const result = await elasticSearchGlobalSearch(indexes, query, limit, asUser, account, host);
+    const indexInputs = indexes.map(index => ({ index }));
+    const result = await elasticSearchGlobalSearch(indexInputs, query, { account, host, limit, user });
     console.log('Result', JSON.stringify(result, null, 2));
   });
 

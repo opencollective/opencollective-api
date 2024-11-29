@@ -14837,11 +14837,6 @@ type Query {
     The default limit for each entity type
     """
     defaultLimit: Int! = 10
-
-    """
-    Whether to use ElasticSearch or not
-    """
-    useElasticSearch: Boolean! = true
   ): SearchResponse!
   tagStats(
     """
@@ -18665,7 +18660,22 @@ type SearchResults {
   """
   Search results for Accounts
   """
-  accounts: SearchResultsAccounts
+  accounts(
+    """
+    Type of account
+    """
+    type: AccountType
+
+    """
+    Whether the account is a host or not
+    """
+    isHost: Boolean
+
+    """
+    Tags to filter the accounts
+    """
+    tags: [String]
+  ): SearchResultsAccounts
 
   """
   Search results for Comments

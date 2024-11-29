@@ -3,12 +3,14 @@
  */
 
 import { QueryDslQueryContainer } from '@elastic/elasticsearch/lib/api/types';
+import { isEmpty, isNil } from 'lodash';
 
 import { Collective, User } from '../../models';
+import { reportErrorToSentry } from '../sentry';
 
 import { ElasticSearchModelsAdapters } from './adapters';
 import { getElasticSearchClient } from './client';
-import { ElasticSearchIndexName } from './constants';
+import { ElasticSearchIndexName, ElasticSearchIndexParams } from './constants';
 
 /**
  * Enforce some conditions to match only entities that are related to this account or host.
@@ -35,9 +37,35 @@ const getAccountFilterConditions = (account: Collective, host: Collective) => {
   }
 };
 
+const getIndexConditions = (
+  index: ElasticSearchIndexName,
+  params: ElasticSearchIndexParams[ElasticSearchIndexName],
+) => {
+  if (!params) {
+    return [];
+  }
+
+  switch (index) {
+    case ElasticSearchIndexName.COLLECTIVES:
+      params = params as ElasticSearchIndexParams[ElasticSearchIndexName.COLLECTIVES];
+      return [
+        ...(params.type ? [{ term: { type: params.type } }] : []),
+        ...(!isNil(params.isHost) ? [{ term: { isHostAccount: params.isHost } }] : []),
+        ...(!isNil(params.tags) && !isEmpty(params.tags) ? [{ terms: { tags: params.tags } }] : []),
+      ];
+    default:
+      return [];
+  }
+};
+
+export type ElasticSearchIndexRequest<T extends ElasticSearchIndexName = ElasticSearchIndexName> = {
+  index: T;
+  indexParams?: ElasticSearchIndexParams[T];
+};
+
 const buildQuery = (
   searchTerm: string,
-  indexes: ElasticSearchIndexName[],
+  indexes: ElasticSearchIndexRequest[],
   remoteUser: User | null,
   account: Collective,
   host: Collective,
@@ -58,7 +86,7 @@ const buildQuery = (
       // Filter to match on CollectiveId/ParentCollectiveId/HostCollectiveId
       ...(accountConditions.length && { filter: accountConditions }),
       // We now build the should array dynamically
-      should: indexes.flatMap(index => {
+      should: indexes.flatMap(({ index, indexParams }) => {
         const adapter = ElasticSearchModelsAdapters[index];
 
         // Avoid searching on private indexes if the user is not an admin of anything
@@ -83,7 +111,11 @@ const buildQuery = (
           // Public fields
           {
             bool: {
-              filter: [{ term: { _index: index } }, ...(permissions.default === 'PUBLIC' ? [] : [permissions.default])],
+              filter: [
+                { term: { _index: index } },
+                ...(permissions.default === 'PUBLIC' ? [] : [permissions.default]),
+                ...getIndexConditions(index, indexParams),
+              ],
               minimum_should_match: 1,
               should: [
                 {
@@ -118,58 +150,73 @@ const buildQuery = (
 };
 
 export const elasticSearchGlobalSearch = async (
-  requestedIndexes: ElasticSearchIndexName[],
+  requestedIndexes: ElasticSearchIndexRequest[],
   searchTerm: string,
-  limit: number,
-  remoteUser: User | null,
-  account: Collective,
-  host: Collective,
+  {
+    account,
+    host,
+    timeoutInSeconds = 30,
+    limit = 50,
+    user,
+  }: {
+    account?: Collective;
+    host?: Collective;
+    timeoutInSeconds?: number;
+    limit?: number;
+    user?: User;
+  } = {},
 ) => {
   const client = getElasticSearchClient({ throwIfUnavailable: true });
-  const { query, fields, indexes } = buildQuery(searchTerm, requestedIndexes, remoteUser, account, host);
+  const { query, fields, indexes } = buildQuery(searchTerm, requestedIndexes, user, account, host);
 
   // Due to permissions, we may end up searching on no index at all (e.g. trying to search for comments while unauthenticated)
   if (indexes.size === 0) {
     return null;
   }
 
-  return client.search({
-    /* eslint-disable camelcase */
-    index: Array.from(indexes).join(','),
-    body: {
-      size: 0, // We don't need hits at the top level
-      query,
-      // Aggregate results by index, keeping only `limit` top hits per index
-      aggs: {
-        by_index: {
-          terms: {
-            field: '_index',
-            size: indexes.size, // Make sure we get all indexes
-          },
-          aggs: {
-            top_hits_by_index: {
-              top_hits: {
-                size: limit,
-                _source: {
-                  // We only need to retrieve the IDs, the rest will be fetched by the loaders
-                  includes: ['id', 'uuid'],
-                },
-                highlight: {
-                  pre_tags: ['<em>'],
-                  post_tags: ['</em>'],
-                  fragment_size: 150,
-                  number_of_fragments: 3,
-                  fields: Array.from(fields).reduce((acc, field) => {
-                    acc[field] = {};
-                    return acc;
-                  }, {}),
+  try {
+    return await client.search({
+      /* eslint-disable camelcase */
+      timeout: `${timeoutInSeconds}s`,
+      index: Array.from(indexes).join(','),
+      body: {
+        size: 0, // We don't need hits at the top level
+        query,
+        // Aggregate results by index, keeping only `limit` top hits per index
+        aggs: {
+          by_index: {
+            terms: {
+              field: '_index',
+              size: indexes.size, // Make sure we get all indexes
+            },
+            aggs: {
+              top_hits_by_index: {
+                top_hits: {
+                  size: limit,
+                  _source: {
+                    // We only need to retrieve the IDs, the rest will be fetched by the loaders
+                    includes: ['id', 'uuid'],
+                  },
+                  highlight: {
+                    pre_tags: ['<em>'],
+                    post_tags: ['</em>'],
+                    fragment_size: 150,
+                    number_of_fragments: 3,
+                    fields: Array.from(fields).reduce((acc, field) => {
+                      acc[field] = {};
+                      return acc;
+                    }, {}),
+                  },
                 },
               },
             },
           },
         },
       },
-    },
-    /* eslint-enable camelcase */
-  });
+      /* eslint-enable camelcase */
+    });
+  } catch (e) {
+    reportErrorToSentry(e, { user, extra: { requestedIndexes, searchTerm, limit, account, host } });
+    throw new Error('The search query failed, please try again later');
+  }
 };
