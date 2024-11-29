@@ -17,7 +17,7 @@ async function hasUploadedFilePermission(req: Request, uploadedFile: UploadedFil
           where: {
             url: actualUrl,
           },
-          include: { model: Expense, include: [{ model: Collective, as: 'fromCollective' }] },
+          include: { model: Expense, include: [{ association: 'fromCollective' }] },
         });
 
         const expense = expenseItem?.Expense;
