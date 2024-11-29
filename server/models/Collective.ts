@@ -80,6 +80,7 @@ import {
   getCollectiveAvatarUrl,
   getCollectiveBackgroundImageUrl,
   isCollectiveSlugReserved,
+  parseImageServiceUrl,
   validateSettings,
 } from '../lib/collectivelib';
 import { invalidateContributorsCache } from '../lib/contributors';
@@ -3797,17 +3798,15 @@ Collective.init(
         // A special handler to tolerate what could become a frequent developer mistake: fetching the `imageUrl`
         // from GraphQL then passing this URL (which points to our image proxy) when trying to update the model.
         // This handler detects this and simply ignores the update if the URL is the same as the current one.
-        try {
-          const parsedUrl = new URL(url);
-          if (parsedUrl.origin === config.host.images && this.image) {
-            const format = parsedUrl.pathname.split('.').pop(); // We don't want to compare on the format
-            const currentAvatarUrl = getCollectiveAvatarUrl(this.slug, this.type, this.image, { format });
-            if (currentAvatarUrl === url) {
+        if (this.image) {
+          const imageServiceDetails = parseImageServiceUrl(url);
+          if (imageServiceDetails) {
+            const imageOpts = pick(imageServiceDetails, ['format', 'height']);
+            const expectedUrl = getCollectiveAvatarUrl(this.slug, this.type, this.image, imageOpts);
+            if (expectedUrl === url) {
               return;
             }
           }
-        } catch (e) {
-          // Ignore errors, the validator will take care of throwing the right error message
         }
 
         // In normal cases, just set the value
@@ -3841,17 +3840,15 @@ Collective.init(
         // A special handler to tolerate what could become a frequent developer mistake: fetching the `backgroundImageUrl`
         // from GraphQL then passing this URL (which points to our image proxy) when trying to update the model.
         // This handler detects this and simply ignores the update if the URL is the same as the current one.
-        try {
-          const parsedUrl = new URL(url);
-          if (parsedUrl.origin === config.host.images && this.backgroundImage) {
-            const format = parsedUrl.pathname.split('.').pop(); // We don't want to compare on the format
-            const currentBackgroundUrl = getCollectiveBackgroundImageUrl(this.backgroundImage, this.slug, { format });
-            if (currentBackgroundUrl === url) {
+        if (this.backgroundImage) {
+          const imageServiceDetails = parseImageServiceUrl(url);
+          if (imageServiceDetails) {
+            const imageOpts = pick(imageServiceDetails, ['format', 'height']);
+            const expectedUrl = getCollectiveBackgroundImageUrl(this.backgroundImage, this.slug, imageOpts);
+            if (expectedUrl === url) {
               return;
             }
           }
-        } catch (e) {
-          // Ignore errors, the validator will take care of throwing the right error message
         }
 
         // In normal cases, just set the value

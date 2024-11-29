@@ -31,6 +31,7 @@ import { CommentCollection } from '../collection/CommentCollection';
 import { GraphQLLegalDocumentCollection } from '../collection/LegalDocumentCollection';
 import { GraphQLCurrency } from '../enum';
 import { GraphQLExpenseCurrencySource } from '../enum/ExpenseCurrencySource';
+import { GraphQLExpenseLockableFields } from '../enum/ExpenseLockableFields';
 import GraphQLExpenseStatus from '../enum/ExpenseStatus';
 import { GraphQLExpenseType } from '../enum/ExpenseType';
 import { GraphQLFeesPayer } from '../enum/FeesPayer';
@@ -666,6 +667,13 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Reques
               ) || null
             );
           }
+        },
+      },
+      lockedFields: {
+        type: new GraphQLList(GraphQLExpenseLockableFields),
+        description: 'Fields that cannot be edited on this expense',
+        async resolve(expense) {
+          return expense.data?.lockedFields || [];
         },
       },
     };

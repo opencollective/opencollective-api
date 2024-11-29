@@ -2054,6 +2054,286 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const activities = await expense.getActivities({ where: { type: 'collective.expense.invite.declined' } });
         expect(activities).to.have.length(1);
       });
+
+      describe('lockedFields', () => {
+        it('cannot update PAYEE by ID', async () => {
+          const expectedUser = await fakeUser();
+          const expense = await fakeExpense({
+            data: { draftKey: 'fake-key', lockedFields: ['PAYEE'], payee: { id: expectedUser.CollectiveId } },
+            status: expenseStatus.DRAFT,
+          });
+          const anotherUser = await fakeUser();
+
+          let result = await graphqlQueryV2(
+            editExpenseMutation,
+            {
+              expense: {
+                id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+
+                payee: {
+                  legacyId: 122,
+                },
+              },
+              draftKey: 'fake-key',
+            },
+            anotherUser,
+          );
+          expect(result.errors[0].message).to.include('Payee cannot be edited');
+
+          result = await graphqlQueryV2(
+            editExpenseMutation,
+            {
+              expense: {
+                id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+
+                payee: {
+                  name: 'New Folk',
+                  email: randEmail(),
+                  organization: {
+                    name: 'Folk Ventures',
+                    slug: randStr('folk-'),
+                  },
+                },
+              },
+              draftKey: 'fake-key',
+            },
+            anotherUser,
+          );
+          expect(result.errors[0].message).to.include('Payee cannot be edited');
+
+          result = await graphqlQueryV2(
+            editExpenseMutation,
+            {
+              expense: {
+                id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+
+                payee: {
+                  legacyId: expectedUser.CollectiveId,
+                },
+              },
+              draftKey: 'fake-key',
+            },
+            expectedUser,
+          );
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+        });
+
+        it('cannot update invited PAYEE by email with different email', async () => {
+          const email = randEmail();
+          const expense = await fakeExpense({
+            data: { draftKey: 'fake-key', lockedFields: ['PAYEE'], payee: { email } },
+            status: expenseStatus.DRAFT,
+          });
+          const anotherUser = await fakeUser();
+          let result = await graphqlQueryV2(
+            editExpenseMutation,
+            {
+              expense: {
+                id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+                payee: {
+                  name: 'New Folk',
+                  email: randEmail(),
+                },
+              },
+              draftKey: 'fake-key',
+            },
+            anotherUser,
+          );
+          expect(result.errors[0].message).to.include('Payee cannot be edited');
+
+          result = await graphqlQueryV2(
+            editExpenseMutation,
+            {
+              expense: {
+                id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+                payee: {
+                  name: 'New Folk',
+                  email,
+                },
+              },
+              draftKey: 'fake-key',
+            },
+            anotherUser,
+          );
+          expect(result.errors).to.not.exist;
+        });
+
+        it('cannot update invited PAYEE by email with different user', async () => {
+          const correctUser = await fakeUser();
+          const expense = await fakeExpense({
+            data: { draftKey: 'fake-key', lockedFields: ['PAYEE'], payee: { email: correctUser.email } },
+            status: expenseStatus.DRAFT,
+          });
+          const anotherUser = await fakeUser();
+          let result = await graphqlQueryV2(
+            editExpenseMutation,
+            {
+              expense: {
+                id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+                payee: {
+                  legacyId: anotherUser.CollectiveId,
+                },
+              },
+              draftKey: 'fake-key',
+            },
+            anotherUser,
+          );
+          expect(result.errors[0].message).to.include('Payee cannot be edited');
+
+          result = await graphqlQueryV2(
+            editExpenseMutation,
+            {
+              expense: {
+                id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+                payee: {
+                  legacyId: correctUser.CollectiveId,
+                },
+              },
+              draftKey: 'fake-key',
+            },
+            correctUser,
+          );
+          expect(result.errors).to.not.exist;
+        });
+
+        it('cannot update DESCRIPTION or TYPE', async () => {
+          const expense = await fakeExpense({
+            type: 'INVOICE',
+            description: 'TEST',
+            data: { draftKey: 'fake-key', lockedFields: ['DESCRIPTION', 'TYPE'] },
+            status: expenseStatus.DRAFT,
+          });
+          const anotherUser = await fakeUser();
+
+          let result = await graphqlQueryV2(
+            editExpenseMutation,
+            {
+              expense: {
+                id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+                description: 'This is a test.',
+                type: 'INVOICE',
+                payee: {
+                  name: 'New Folk',
+                  email: randEmail(),
+                  organization: {
+                    name: 'Folk Ventures',
+                    slug: randStr('folk-'),
+                  },
+                },
+              },
+              draftKey: 'fake-key',
+            },
+            anotherUser,
+          );
+          expect(result.errors[0].message).to.include('Description cannot be edited');
+
+          result = await graphqlQueryV2(
+            editExpenseMutation,
+            {
+              expense: {
+                id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+                description: 'TEST',
+                type: 'RECEIPT',
+                payee: {
+                  name: 'New Folk',
+                  email: randEmail(),
+                  organization: {
+                    name: 'Folk Ventures',
+                    slug: randStr('folk-'),
+                  },
+                },
+              },
+              draftKey: 'fake-key',
+            },
+            anotherUser,
+          );
+          expect(result.errors[0].message).to.include('Type cannot be edited');
+        });
+
+        it('cannot update AMOUNT', async () => {
+          const expense = await fakeExpense({
+            amount: 1000,
+            currency: 'USD',
+            data: { draftKey: 'fake-key', lockedFields: ['AMOUNT'] },
+            status: expenseStatus.DRAFT,
+          });
+          const anotherUser = await fakeUser();
+
+          let result = await graphqlQueryV2(
+            editExpenseMutation,
+            {
+              expense: {
+                id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+                currency: 'USD',
+                items: [
+                  {
+                    amount: 2000,
+                    incurredAt: new Date(),
+                    description: 'Item 1',
+                  },
+                ],
+                payee: {
+                  name: 'New Folk',
+                  email: randEmail(),
+                },
+              },
+              draftKey: 'fake-key',
+            },
+            anotherUser,
+          );
+          expect(result.errors[0].message).to.include('Amount cannot be edited');
+
+          result = await graphqlQueryV2(
+            editExpenseMutation,
+            {
+              expense: {
+                id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+                currency: 'EUR',
+                items: [
+                  {
+                    amount: 2000,
+                    incurredAt: new Date(),
+                    description: 'Item 1',
+                  },
+                ],
+                payee: {
+                  name: 'New Folk',
+                  email: randEmail(),
+                },
+              },
+              draftKey: 'fake-key',
+            },
+            anotherUser,
+          );
+          expect(result.errors[0].message).to.include('Currency cannot be edited');
+
+          result = await graphqlQueryV2(
+            editExpenseMutation,
+            {
+              expense: {
+                id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+                currency: 'USD',
+                description: 'This is a test.',
+                items: [
+                  {
+                    amount: 1000,
+                    incurredAt: new Date(),
+                    description: 'Item 1',
+                  },
+                ],
+                payee: {
+                  name: 'New Folk',
+                  email: randEmail(),
+                },
+              },
+              draftKey: 'fake-key',
+            },
+            anotherUser,
+          );
+          expect(result.errors).to.not.exist;
+        });
+      });
     });
 
     it('resets paid card charge expense missing details status', async () => {
@@ -4213,12 +4493,19 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         $expense: ExpenseInviteDraftInput!
         $account: AccountReferenceInput!
         $skipInvite: Boolean
+        $lockedFields: [ExpenseLockableFields]
       ) {
-        draftExpenseAndInviteUser(expense: $expense, account: $account, skipInvite: $skipInvite) {
+        draftExpenseAndInviteUser(
+          expense: $expense
+          account: $account
+          skipInvite: $skipInvite
+          lockedFields: $lockedFields
+        ) {
           id
           legacyId
           status
           draft
+          lockedFields
         }
       }
     `;
@@ -4354,6 +4641,17 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expense = await models.Expense.findByPk(draftedExpense.legacyId);
       expect(expense.status).to.eq(expenseStatus.DRAFT);
       expect(emailLib.sendMessage.callCount).to.eq(0);
+    });
+
+    it('allows user to lock expense fields', async () => {
+      const result = await graphqlQueryV2(
+        draftExpenseAndInviteUserMutation,
+        { expense: invoice, account: { legacyId: collective.id }, lockedFields: ['AMOUNT', 'TYPE'] },
+        user,
+      );
+
+      const draftedExpense = result.data.draftExpenseAndInviteUser;
+      expect(draftedExpense.lockedFields).to.deep.equal(['AMOUNT', 'TYPE']);
     });
   });
 });
