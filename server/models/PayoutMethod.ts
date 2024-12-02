@@ -242,13 +242,13 @@ PayoutMethod.init(
           if (this.type === PayoutMethodTypes.PAYPAL) {
             if (!value || !value.email || !isEmail(value.email)) {
               throw new Error('Invalid PayPal email address');
-            } else if (!objHasOnlyKeys(value, ['email'])) {
+            } else if (!objHasOnlyKeys(value, ['email', 'currency'])) {
               throw new Error('Data for this payout method contains too much information');
             }
           } else if (this.type === PayoutMethodTypes.OTHER) {
             if (!value || !value.content || typeof value.content !== 'string') {
               throw new Error('Invalid format of custom payout method');
-            } else if (!objHasOnlyKeys(value, ['content'])) {
+            } else if (!objHasOnlyKeys(value, ['content', 'currency'])) {
               throw new Error('Data for this payout method contains too much information');
             }
           } else if (this.type === PayoutMethodTypes.BANK_ACCOUNT) {
