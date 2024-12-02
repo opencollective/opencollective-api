@@ -17,7 +17,7 @@ import { runCronJob } from '../utils';
 const query = `SELECT "Orders"."id"
   FROM "Orders", "Collectives", "Collectives" as "FromCollectives"
   WHERE "Orders"."CollectiveId" = "Collectives"."id" AND "FromCollectives"."id" = "Orders"."FromCollectiveId"
-  AND "Orders"."status" IN ('ACTIVE', 'PAID')
+  AND "Orders"."status" IN ('ACTIVE', 'PAID', 'CANCELLED')
   AND "Orders"."deletedAt" IS NULL
   AND "Collectives"."settings"->'moderation'->'rejectedCategories' IS NOT NULL
   AND jsonb_array_length("Collectives"."settings"->'moderation'->'rejectedCategories') > 0
@@ -108,7 +108,7 @@ async function run({ dryRun, limit, force } = {}) {
             } else if (force) {
               await createRefundTransaction(transaction, 0, null);
             } else {
-              if (order.status === 'PAID') {
+              if (order.status === 'PAID' || order.status === 'CANCELLED') {
                 shouldNotifyContributor = false;
               }
             }
@@ -126,7 +126,7 @@ async function run({ dryRun, limit, force } = {}) {
       }
     } else {
       logger.info(`  - No transaction found`);
-      if (order.status === 'PAID') {
+      if (order.status === 'PAID' || order.status === 'CANCELLED') {
         shouldNotifyContributor = false;
       }
     }
