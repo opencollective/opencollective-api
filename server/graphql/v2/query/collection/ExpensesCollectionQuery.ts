@@ -448,7 +448,7 @@ export const ExpensesCollectionQueryResolver = async (
   const { offset, limit } = args;
 
   const fetchNodes = () => {
-    return Expense.findAll({ include, where, order, offset, limit, logging: true });
+    return Expense.findAll({ include, where, order, offset, limit });
   };
 
   const fetchTotalCount = () => {
