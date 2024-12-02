@@ -123,6 +123,9 @@ async function run({ dryRun, limit, force } = {}) {
         }
       } else {
         logger.info(`  - Transaction already refunded`);
+        if (order.status === 'PAID' || order.status === 'CANCELLED') {
+          shouldNotifyContributor = false;
+        }
       }
     } else {
       logger.info(`  - No transaction found`);
