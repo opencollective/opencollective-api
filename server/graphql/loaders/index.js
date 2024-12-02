@@ -926,7 +926,7 @@ export const loaders = req => {
   /** *** TransactionsImports *****/
   context.loaders.TransactionsImport.stats = generateTransactionsImportStatsLoader();
 
-  context.loaders.search = generateSearchLoaders();
+  context.loaders.search = generateSearchLoaders(req);
 
   return context.loaders;
 };

@@ -111,3 +111,8 @@ export const deleteElasticSearchIndex = async (indexName: ElasticSearchIndexName
   const client = getElasticSearchClient({ throwIfUnavailable: true });
   await client.indices.delete({ index: indexName });
 };
+
+export const waitForAllIndexesRefresh = async () => {
+  const client = getElasticSearchClient({ throwIfUnavailable: true });
+  await client.indices.refresh({ index: '_all' });
+};

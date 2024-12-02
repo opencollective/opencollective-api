@@ -16,6 +16,8 @@ export class ElasticSearchUpdatesAdapter implements ElasticSearchModelAdapter {
       createdAt: { type: 'date' },
       updatedAt: { type: 'date' },
       html: { type: 'text' },
+      title: { type: 'text' },
+      slug: { type: 'keyword' },
       isPrivate: { type: 'boolean' },
       // Relationships
       CollectiveId: { type: 'keyword' },
@@ -55,7 +57,9 @@ export class ElasticSearchUpdatesAdapter implements ElasticSearchModelAdapter {
       createdAt: instance.createdAt,
       updatedAt: instance.updatedAt,
       isPrivate: instance.isPrivate,
+      slug: instance.slug,
       html: stripHTMLOrEmpty(instance.html),
+      title: instance.title,
       CollectiveId: instance.CollectiveId,
       FromCollectiveId: instance.FromCollectiveId,
       CreatedByUserId: instance.CreatedByUserId,

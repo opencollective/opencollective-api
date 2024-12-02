@@ -11,6 +11,7 @@ import VirtualCardProviders from '../../../../../server/constants/virtual-card-p
 import { GraphQLProcessHostApplicationAction } from '../../../../../server/graphql/v2/enum';
 import emailLib from '../../../../../server/lib/email';
 import models from '../../../../../server/models';
+import { HostApplicationStatus } from '../../../../../server/models/HostApplication';
 import { VirtualCardStatus } from '../../../../../server/models/VirtualCard';
 import * as stripeVirtualCardService from '../../../../../server/paymentProviders/stripe/virtual-cards';
 import { randEmail } from '../../../../stores';
@@ -173,7 +174,7 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
       application = await fakeHostApplication({
         CollectiveId: collective.id,
         HostCollectiveId: host.id,
-        status: 'PENDING',
+        status: HostApplicationStatus.PENDING,
       });
       tiersInDifferentCurrency = await Promise.all([
         fakeTier({ CollectiveId: collective.id, currency: 'VUV' }),

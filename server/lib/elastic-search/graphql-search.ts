@@ -80,7 +80,6 @@ export const getElasticSearchIndexResolver = (
     requestId: string;
     searchTerm: string;
     limit: number;
-    adminOfAccountIds: number[];
     account: Collective;
     host: Collective;
   },

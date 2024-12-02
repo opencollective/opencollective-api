@@ -15,7 +15,7 @@ import {
   getAmountRangeQuery,
   makeConsolidatedBalanceSubquery,
 } from '../graphql/v2/input/AmountRangeInput';
-import models, { Op, sequelize } from '../models';
+import models, { Op, sequelize, User } from '../models';
 
 import { floatAmountToCents } from './math';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from './rate-limit';
@@ -597,10 +597,11 @@ export const getExpenseTagFrequencies = async args => {
 const getSQLSearchConditionsForModel = (
   model: ModelStatic<Model>,
   searchTerm: string,
-  adminOfAccountIds: number[],
+  remoteUser: User,
   host?: InstanceType<typeof models.Collective>,
   account?: InstanceType<typeof models.Collective>,
 ) => {
+  const adminOfAccountIds = remoteUser?.getAdministratedCollectiveIds?.() || [];
   if (model instanceof models.Collective) {
     return {
       where: {
@@ -794,18 +795,18 @@ export const getSQLSearchResolver = (
     account,
     searchTerm,
     timeout,
-    adminOfAccountIds,
+    remoteUser,
   }: {
     limit: number;
     host?: InstanceType<typeof models.Collective>;
     account?: InstanceType<typeof models.Collective>;
     searchTerm: string;
     timeout: number;
-    adminOfAccountIds: number[];
+    remoteUser: User | null;
   },
 ) => {
   const timeoutMessage = 'Field resolution timed out';
-  const query = getSQLSearchConditionsForModel(model, searchTerm, adminOfAccountIds, host, account);
+  const query = getSQLSearchConditionsForModel(model, searchTerm, remoteUser, host, account);
   const order = [['id', 'ASC']] as Order;
   return {
     collection: {

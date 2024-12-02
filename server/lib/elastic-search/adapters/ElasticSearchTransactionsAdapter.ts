@@ -18,6 +18,7 @@ export class ElasticSearchTransactionsAdapter implements ElasticSearchModelAdapt
       kind: { type: 'keyword' },
       description: { type: 'text' },
       uuid: { type: 'keyword' },
+      TransactionGroup: { type: 'keyword' },
       // Relationships
       CollectiveId: { type: 'keyword' },
       FromCollectiveId: { type: 'keyword' },
@@ -54,6 +55,7 @@ export class ElasticSearchTransactionsAdapter implements ElasticSearchModelAdapt
       CollectiveId: instance.CollectiveId,
       FromCollectiveId: instance.FromCollectiveId,
       HostCollectiveId: instance.HostCollectiveId,
+      TransactionGroup: instance.TransactionGroup,
       merchantId: instance.merchantId,
     };
   }
@@ -63,9 +65,9 @@ export class ElasticSearchTransactionsAdapter implements ElasticSearchModelAdapt
     return {
       default: 'PUBLIC' as const,
       fields: {
-        merchantId: {
-          terms: { HostCollectiveId: adminOfAccountIds },
-        },
+        merchantId: !adminOfAccountIds.length
+          ? ('FORBIDDEN' as const)
+          : { terms: { HostCollectiveId: adminOfAccountIds } },
       },
     };
     /* eslint-enable camelcase */

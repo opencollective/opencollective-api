@@ -4,7 +4,7 @@
 
 import { QueryDslQueryContainer } from '@elastic/elasticsearch/lib/api/types';
 
-import { Collective } from '../../models';
+import { Collective, User } from '../../models';
 
 import { ElasticSearchModelsAdapters } from './adapters';
 import { getElasticSearchClient } from './client';
@@ -38,7 +38,7 @@ const getAccountFilterConditions = (account: Collective, host: Collective) => {
 const buildQuery = (
   searchTerm: string,
   indexes: ElasticSearchIndexName[],
-  adminOfAccountIds: number[],
+  remoteUser: User | null,
   account: Collective,
   host: Collective,
 ): {
@@ -49,6 +49,9 @@ const buildQuery = (
   const accountConditions = getAccountFilterConditions(account, host);
   const fetchedFields = new Set<string>();
   const fetchedIndexes = new Set<ElasticSearchIndexName>();
+  const adminOfAccountIds = !remoteUser ? [] : remoteUser.getAdministratedCollectiveIds();
+  const isRoot = remoteUser && remoteUser.isRoot();
+
   const query: QueryDslQueryContainer = {
     /* eslint-disable camelcase */
     bool: {
@@ -59,7 +62,7 @@ const buildQuery = (
         const adapter = ElasticSearchModelsAdapters[index];
 
         // Avoid searching on private indexes if the user is not an admin of anything
-        const permissions = adapter.getIndexPermissions(adminOfAccountIds);
+        const permissions = isRoot ? { default: 'PUBLIC' } : adapter.getIndexPermissions(adminOfAccountIds);
         if (permissions.default === 'FORBIDDEN') {
           return [];
         }
@@ -69,7 +72,7 @@ const buildQuery = (
         const isSearchableField = field => ['keyword', 'text'].includes(getField(field).type);
         const allFields = Object.keys(adapter.mappings.properties);
         const searchableFields = allFields.filter(isSearchableField);
-        const publicFields = searchableFields.filter(field => !permissions.fields?.[field]);
+        const publicFields = searchableFields.filter(field => !permissions['fields']?.[field]);
 
         // Register fetched fields and indexes for later reuse in the aggregation
         allFields.forEach(field => fetchedFields.add(field));
@@ -92,7 +95,7 @@ const buildQuery = (
                     fields: publicFields,
                   },
                 },
-                ...Object.entries(permissions.fields || {})
+                ...Object.entries(permissions['fields'] || {})
                   .filter(([, conditions]) => conditions !== 'FORBIDDEN')
                   .map(([field, conditions]) => {
                     return {
@@ -118,12 +121,17 @@ export const elasticSearchGlobalSearch = async (
   requestedIndexes: ElasticSearchIndexName[],
   searchTerm: string,
   limit: number,
-  adminOfAccountIds: number[],
+  remoteUser: User | null,
   account: Collective,
   host: Collective,
 ) => {
   const client = getElasticSearchClient({ throwIfUnavailable: true });
-  const { query, fields, indexes } = buildQuery(searchTerm, requestedIndexes, adminOfAccountIds, account, host);
+  const { query, fields, indexes } = buildQuery(searchTerm, requestedIndexes, remoteUser, account, host);
+
+  // Due to permissions, we may end up searching on no index at all (e.g. trying to search for comments while unauthenticated)
+  if (indexes.size === 0) {
+    return null;
+  }
 
   return client.search({
     /* eslint-disable camelcase */
