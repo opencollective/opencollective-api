@@ -31,7 +31,7 @@ import Order from '../../models/Order';
 import PaymentMethod from '../../models/PaymentMethod';
 
 import { getVirtualCardForTransaction } from './../utils';
-import { createChargeTransactions, createPaymentMethod } from './common';
+import { createChargeTransactions, createPaymentMethod, UNKNOWN_ERROR_MSG, userFriendlyErrorMessage } from './common';
 import * as virtualcard from './virtual-cards';
 
 const debug = debugLib('stripe');
@@ -320,7 +320,9 @@ export const paymentIntentFailed = async (event: Stripe.Event) => {
     data: { ...order.data, paymentIntent },
   });
 
-  sendOrderFailedEmail(order, reason);
+  const userFriendlyError = userFriendlyErrorMessage({ message: reason }) || UNKNOWN_ERROR_MSG;
+
+  sendOrderFailedEmail(order, userFriendlyError);
 };
 
 export const chargeDisputeCreated = async (event: Stripe.Event) => {

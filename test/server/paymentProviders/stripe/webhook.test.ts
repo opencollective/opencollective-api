@@ -617,7 +617,7 @@ describe('webhook', () => {
           {
             dataValues: { id: order.id },
           },
-          "You invested all your money on FTX and now you don't have anything left",
+          'Something went wrong with the payment, please contact support@opencollective.com.',
         );
       });
     });
