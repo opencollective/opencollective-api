@@ -24,7 +24,7 @@ async function hasUploadedFilePermission(req: Request, uploadedFile: UploadedFil
         return req.remoteUser?.id === uploadedFile.CreatedByUserId;
       }
 
-      if (expense && (await canSeeExpenseAttachments(req, expense))) {
+      if (await canSeeExpenseAttachments(req, expense)) {
         return true;
       }
       break;
@@ -43,7 +43,7 @@ async function hasUploadedFilePermission(req: Request, uploadedFile: UploadedFil
         return req.remoteUser?.id === uploadedFile.CreatedByUserId;
       }
 
-      if (expense && (await canSeeExpenseAttachments(req, expense))) {
+      if (await canSeeExpenseAttachments(req, expense)) {
         return true;
       }
 
