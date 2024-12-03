@@ -2,10 +2,10 @@ import assert from 'assert';
 
 import { AggregationsMultiBucketAggregateBase, SearchResponse } from '@elastic/elasticsearch/lib/api/types';
 import DataLoader from 'dataloader';
-import { groupBy } from 'lodash';
+import { groupBy, pick } from 'lodash';
 
-import { ElasticSearchIndexName } from '../../lib/elastic-search/constants';
-import { elasticSearchGlobalSearch } from '../../lib/elastic-search/search';
+import { ElasticSearchIndexName, ElasticSearchIndexParams } from '../../lib/elastic-search/constants';
+import { elasticSearchGlobalSearch, ElasticSearchIndexRequest } from '../../lib/elastic-search/search';
 import { reportMessageToSentry } from '../../lib/sentry';
 import { Collective } from '../../models';
 
@@ -13,6 +13,7 @@ type SearchParams = {
   requestId: string;
   searchTerm: string;
   index: string;
+  indexParams: ElasticSearchIndexParams[ElasticSearchIndexName];
   limit: number;
   adminOfAccountIds: number[];
   account: Collective;
@@ -40,6 +41,17 @@ export type SearchResultBucket = {
   };
 };
 
+const getSearchIndexes = (requests: SearchParams[]): ElasticSearchIndexRequest[] => {
+  const results: Partial<Record<ElasticSearchIndexName, ElasticSearchIndexRequest>> = {};
+  for (const request of requests) {
+    if (!results[request.index]) {
+      results[request.index] = pick(request, ['index', 'indexParams']);
+    }
+  }
+
+  return Object.values(results);
+};
+
 /**
  * A loader to batch search requests on multiple indexes into a single ElasticSearch query.
  */
@@ -58,8 +70,14 @@ export const generateSearchLoaders = req => {
     for (const requestId in groupedRequests) {
       const firstRequest = groupedRequests[requestId][0];
       const { searchTerm, limit, account, host } = firstRequest;
-      const indexes = groupedRequests[requestId].map(entry => entry.index) as ElasticSearchIndexName[];
-      const results = await elasticSearchGlobalSearch(indexes, searchTerm, limit, req.remoteUser, account, host);
+      const indexes = getSearchIndexes(groupedRequests[requestId]);
+      const results = await elasticSearchGlobalSearch(indexes, searchTerm, {
+        user: req.remoteUser,
+        account,
+        host,
+        limit,
+      });
+
       if (results) {
         if (results._shards?.failures) {
           reportMessageToSentry('ElasticSearch search shard failures', {

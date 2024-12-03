@@ -23,6 +23,7 @@ export class ElasticSearchCollectivesAdapter implements ElasticSearchModelAdapte
       isActive: { type: 'boolean' },
       isHostAccount: { type: 'boolean' },
       deactivatedAt: { type: 'date' },
+      tags: { type: 'keyword' },
       // Relationships
       HostCollectiveId: { type: 'keyword' },
       ParentCollectiveId: { type: 'keyword' },
@@ -57,6 +58,7 @@ export class ElasticSearchCollectivesAdapter implements ElasticSearchModelAdapte
       slug: instance.slug,
       name: instance.name,
       type: instance.type,
+      tags: instance.tags,
       legalName: instance.legalName,
       countryISO: instance.countryISO,
       description: instance.description,
