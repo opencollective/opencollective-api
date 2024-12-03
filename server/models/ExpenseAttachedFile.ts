@@ -8,7 +8,7 @@ import sequelize from '../lib/sequelize';
 import { isValidRESTServiceURL } from '../lib/url-utils';
 
 import Expense from './Expense';
-import UploadedFile, { MAX_UPLOADED_FILE_URL_LENGTH } from './UploadedFile';
+import { MAX_UPLOADED_FILE_URL_LENGTH } from './UploadedFile';
 import User from './User';
 
 /**
@@ -79,19 +79,6 @@ ExpenseAttachedFile.init(
     url: {
       type: DataTypes.STRING,
       allowNull: false,
-      set(value: string): void {
-        if (UploadedFile.isOpenCollectiveProtectedS3BucketURL(value)) {
-          this.setDataValue('url', UploadedFile.getOpenCollectiveS3BucketURLFromProtectedURL(value));
-        } else {
-          this.setDataValue('url', value);
-        }
-      },
-      get() {
-        const url = this.getDataValue('url');
-        if (url) {
-          return UploadedFile.getProtectedURLFromOpenCollectiveS3Bucket(url);
-        }
-      },
       validate: {
         notNull: true,
         notEmpty: true,

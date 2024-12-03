@@ -1,6 +1,7 @@
 import express from 'express';
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
+import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLFileInfo } from '../interface/FileInfo';
 import URL from '../scalar/URL';
@@ -16,6 +17,12 @@ const GraphQLExpenseAttachedFile = new GraphQLObjectType({
     },
     url: {
       type: URL,
+      async resolve(item, _, req: express.Request): Promise<string | undefined> {
+        if (item.url && getContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_ATTACHMENTS_URL, item.ExpenseId)) {
+          const uploadedFile = await req.loaders.UploadedFile.byUrl.load(item.url);
+          return uploadedFile?.url;
+        }
+      },
     },
     info: {
       type: GraphQLFileInfo,

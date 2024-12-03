@@ -64,7 +64,7 @@ export const loaders = req => {
   // Uploaded files
   context.loaders.UploadedFile.byUrl = new DataLoader(async urls => {
     const files = await models.UploadedFile.findAll({ where: { url: urls } });
-    return sortResultsSimple(urls, files, file => file.url);
+    return sortResultsSimple(urls, files, file => file.getDataValue('url'));
   });
 
   // Conversation

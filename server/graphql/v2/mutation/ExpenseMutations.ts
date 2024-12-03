@@ -215,7 +215,7 @@ const expenseMutations = {
         items: items?.map(item => ({ ...item, id: item.id && idDecode(item.id, IDENTIFIER_TYPES.EXPENSE_ITEM) })),
         tax: expense.tax,
         attachedFiles: expense.attachedFiles?.map(attachedFile => ({
-          id: attachedFile.id && idDecode(attachedFile.id, IDENTIFIER_TYPES.EXPENSE_ITEM),
+          id: attachedFile.id && idDecode(attachedFile.id, IDENTIFIER_TYPES.EXPENSE_ATTACHED_FILE),
           url: attachedFile.url,
         })),
         fromCollective: requestedPayee,

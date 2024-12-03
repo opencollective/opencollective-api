@@ -373,7 +373,7 @@ export default async app => {
    * File downloads
    */
   app.get('/legal-documents/:id/download', LegalDocumentsController.download);
-  app.get('/files/:base64UrlEncodedUrl', filesController.getFile);
+  app.get('/files/:uploadedFileId', filesController.getFile);
 
   /**
    * Gitbook Search API

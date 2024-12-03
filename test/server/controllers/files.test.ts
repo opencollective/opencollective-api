@@ -6,6 +6,7 @@ import sinon from 'sinon';
 import { expenseStatus } from '../../../server/constants';
 import * as FilesController from '../../../server/controllers/files';
 import { loaders } from '../../../server/graphql/loaders';
+import { idEncode, IDENTIFIER_TYPES } from '../../../server/graphql/v2/identifiers';
 import * as awsS3 from '../../../server/lib/awsS3';
 import { Collective, Expense, UploadedFile, User } from '../../../server/models';
 import {
@@ -16,24 +17,20 @@ import {
   fakeExpenseItem,
   fakePayoutMethod,
   fakeUploadedFile,
-  fakeUploadedFileURL,
   fakeUser,
 } from '../../test-helpers/fake-data';
 
-function base64UrlEncode(v: string): string {
-  return Buffer.from(v).toString('base64url');
-}
-
 async function makeRequest(
-  base64UrlEncodedUrl: string,
+  id: number,
   remoteUser?: User,
   options?: { thumbnail?: boolean },
 ): Promise<httpMocks.MockResponse<any>> {
+  const encodedId = idEncode(id, IDENTIFIER_TYPES.UPLOADED_FILE);
   const request = httpMocks.createRequest({
     method: 'GET',
-    url: `/api/files/${base64UrlEncodedUrl}`,
+    url: `/api/files/${encodedId}`,
     params: {
-      base64UrlEncodedUrl,
+      uploadedFileId: encodedId,
     },
     query: options?.thumbnail
       ? {
@@ -110,6 +107,7 @@ describe('server/controllers/files', () => {
       amount: 10000,
       CollectiveId: collective.id,
       HostCollectiveId: host.id,
+      FromCollectiveId: submitter.collective.id,
       currency: 'USD',
       PayoutMethodId: payoutMethod.id,
       type: 'RECEIPT',
@@ -122,13 +120,13 @@ describe('server/controllers/files', () => {
       CreatedByUserId: submitter.id,
       ExpenseId: expense.id,
       description: 'Item',
-      url: expenseItemUploadedFile.url,
+      url: expenseItemUploadedFile.getDataValue('url'),
     });
 
     await fakeExpenseAttachedFile({
       CreatedByUserId: submitter.id,
       ExpenseId: expense.id,
-      url: expenseAttachedUploadedFile.url,
+      url: expenseAttachedUploadedFile.getDataValue('url'),
     });
   });
 
@@ -138,23 +136,33 @@ describe('server/controllers/files', () => {
 
   describe('authenticated access to files', () => {
     it('should return 401 if not logged in', async () => {
-      const s3Url = uploadedFile.getDataValue('url');
-      const base64UrlEncodedUrl = base64UrlEncode(s3Url);
-      const response = await makeRequest(base64UrlEncodedUrl);
+      const response = await makeRequest(uploadedFile.id);
 
       expect(response._getStatusCode()).to.eql(401);
     });
 
     it('should return 400 if malformed request', async () => {
-      const response = await makeRequest('some-string', otherUser);
+      const request = httpMocks.createRequest({
+        method: 'GET',
+        url: `/api/files/invalid-id`,
+        params: {
+          uploadedFileId: 'invalid-id',
+        },
+      });
+
+      const response = httpMocks.createResponse();
+
+      request.remoteUser = otherUser;
+      request.loaders = loaders({ remoteUser: otherUser });
+      await FilesController.getFile(request, response);
+
       expect(response._getStatusCode()).to.eql(400);
     });
 
     it('should return 403 if uploaded file does not exist', async () => {
-      const s3Url = fakeUploadedFileURL('EXPENSE_ITEM');
-      const base64UrlEncodedUrl = base64UrlEncode(s3Url);
-
-      const response = await makeRequest(base64UrlEncodedUrl, otherUser);
+      const deletedUploadedFile = await fakeUploadedFile();
+      await deletedUploadedFile.destroy();
+      const response = await makeRequest(deletedUploadedFile.id, otherUser);
 
       expect(response._getStatusCode()).to.eql(403);
     });
@@ -162,9 +170,8 @@ describe('server/controllers/files', () => {
     it('should redirect to recently submitted uploaded file if belongs to user', async () => {
       const actualUrl = uploadedFile.getDataValue('url');
       sandbox.stub(awsS3, 'getSignedGetURL').resolves(`${actualUrl}?signed`);
-      const base64UrlEncodedUrl = base64UrlEncode(actualUrl);
 
-      const response = await makeRequest(base64UrlEncodedUrl, otherUser);
+      const response = await makeRequest(uploadedFile.id, otherUser);
 
       expect(response._getStatusCode()).to.eql(307);
       expect(response._getRedirectUrl()).to.eql(`${actualUrl}?signed`);
@@ -174,20 +181,18 @@ describe('server/controllers/files', () => {
       const actualUrl = expenseItemUploadedFile.getDataValue('url');
       sandbox.stub(awsS3, 'getSignedGetURL').resolves(`${actualUrl}?signed`);
 
-      const base64UrlEncodedUrl = base64UrlEncode(actualUrl);
-
-      const otherUserResponse = await makeRequest(base64UrlEncodedUrl, otherUser);
+      const otherUserResponse = await makeRequest(expenseItemUploadedFile.id, otherUser);
       expect(otherUserResponse._getStatusCode()).to.eql(403);
 
-      const submitterResponse = await makeRequest(base64UrlEncodedUrl, submitter);
+      const submitterResponse = await makeRequest(expenseItemUploadedFile.id, submitter);
       expect(submitterResponse._getStatusCode()).to.eql(307);
       expect(submitterResponse._getRedirectUrl()).to.eql(`${actualUrl}?signed`);
 
-      const hostAdminResponse = await makeRequest(base64UrlEncodedUrl, hostAdmin);
+      const hostAdminResponse = await makeRequest(expenseItemUploadedFile.id, hostAdmin);
       expect(hostAdminResponse._getStatusCode()).to.eql(307);
       expect(hostAdminResponse._getRedirectUrl()).to.eql(`${actualUrl}?signed`);
 
-      const collectiveAdminResponse = await makeRequest(base64UrlEncodedUrl, collectiveAdmin);
+      const collectiveAdminResponse = await makeRequest(expenseItemUploadedFile.id, collectiveAdmin);
       expect(collectiveAdminResponse._getStatusCode()).to.eql(307);
       expect(collectiveAdminResponse._getRedirectUrl()).to.eql(`${actualUrl}?signed`);
     });
@@ -196,48 +201,43 @@ describe('server/controllers/files', () => {
       const actualUrl = expenseAttachedUploadedFile.getDataValue('url');
       sandbox.stub(awsS3, 'getSignedGetURL').resolves(`${actualUrl}?signed`);
 
-      const base64UrlEncodedUrl = base64UrlEncode(actualUrl);
-
-      const otherUserResponse = await makeRequest(base64UrlEncodedUrl, otherUser);
+      const otherUserResponse = await makeRequest(expenseAttachedUploadedFile.id, otherUser);
       expect(otherUserResponse._getStatusCode()).to.eql(403);
 
-      const submitterResponse = await makeRequest(base64UrlEncodedUrl, submitter);
+      const submitterResponse = await makeRequest(expenseAttachedUploadedFile.id, submitter);
       expect(submitterResponse._getStatusCode()).to.eql(307);
       expect(submitterResponse._getRedirectUrl()).to.eql(`${actualUrl}?signed`);
 
-      const hostAdminResponse = await makeRequest(base64UrlEncodedUrl, hostAdmin);
+      const hostAdminResponse = await makeRequest(expenseAttachedUploadedFile.id, hostAdmin);
       expect(hostAdminResponse._getStatusCode()).to.eql(307);
       expect(hostAdminResponse._getRedirectUrl()).to.eql(`${actualUrl}?signed`);
 
-      const collectiveAdminResponse = await makeRequest(base64UrlEncodedUrl, collectiveAdmin);
+      const collectiveAdminResponse = await makeRequest(expenseAttachedUploadedFile.id, collectiveAdmin);
       expect(collectiveAdminResponse._getStatusCode()).to.eql(307);
       expect(collectiveAdminResponse._getRedirectUrl()).to.eql(`${actualUrl}?signed`);
     });
 
     it('should redirect to resource if user has access to expense item thumbnail', async () => {
-      const actualUrl = expenseItemUploadedFile.getDataValue('url');
       const thumbnailUrl = `${config.host.website}/static/images/mime-pdf.png`;
 
-      const base64UrlEncodedUrl = base64UrlEncode(actualUrl);
-
-      const otherUserResponse = await makeRequest(base64UrlEncodedUrl, otherUser, {
+      const otherUserResponse = await makeRequest(expenseAttachedUploadedFile.id, otherUser, {
         thumbnail: true,
       });
       expect(otherUserResponse._getStatusCode()).to.eql(403);
 
-      const submitterResponse = await makeRequest(base64UrlEncodedUrl, submitter, {
+      const submitterResponse = await makeRequest(expenseAttachedUploadedFile.id, submitter, {
         thumbnail: true,
       });
       expect(submitterResponse._getStatusCode()).to.eql(307);
       expect(submitterResponse._getRedirectUrl()).to.eql(thumbnailUrl);
 
-      const hostAdminResponse = await makeRequest(base64UrlEncodedUrl, hostAdmin, {
+      const hostAdminResponse = await makeRequest(expenseAttachedUploadedFile.id, hostAdmin, {
         thumbnail: true,
       });
       expect(hostAdminResponse._getStatusCode()).to.eql(307);
       expect(hostAdminResponse._getRedirectUrl()).to.eql(thumbnailUrl);
 
-      const collectiveAdminResponse = await makeRequest(base64UrlEncodedUrl, collectiveAdmin, {
+      const collectiveAdminResponse = await makeRequest(expenseAttachedUploadedFile.id, collectiveAdmin, {
         thumbnail: true,
       });
       expect(collectiveAdminResponse._getStatusCode()).to.eql(307);
@@ -245,29 +245,26 @@ describe('server/controllers/files', () => {
     });
 
     it('should redirect to resource if user has access to expense attached file thumbnail', async () => {
-      const actualUrl = expenseAttachedUploadedFile.getDataValue('url');
       const thumbnailUrl = `${config.host.website}/static/images/mime-pdf.png`;
 
-      const base64UrlEncodedUrl = base64UrlEncode(actualUrl);
-
-      const otherUserResponse = await makeRequest(base64UrlEncodedUrl, otherUser, {
+      const otherUserResponse = await makeRequest(expenseAttachedUploadedFile.id, otherUser, {
         thumbnail: true,
       });
       expect(otherUserResponse._getStatusCode()).to.eql(403);
 
-      const submitterResponse = await makeRequest(base64UrlEncodedUrl, submitter, {
+      const submitterResponse = await makeRequest(expenseAttachedUploadedFile.id, submitter, {
         thumbnail: true,
       });
       expect(submitterResponse._getStatusCode()).to.eql(307);
       expect(submitterResponse._getRedirectUrl()).to.eql(thumbnailUrl);
 
-      const hostAdminResponse = await makeRequest(base64UrlEncodedUrl, hostAdmin, {
+      const hostAdminResponse = await makeRequest(expenseAttachedUploadedFile.id, hostAdmin, {
         thumbnail: true,
       });
       expect(hostAdminResponse._getStatusCode()).to.eql(307);
       expect(hostAdminResponse._getRedirectUrl()).to.eql(thumbnailUrl);
 
-      const collectiveAdminResponse = await makeRequest(base64UrlEncodedUrl, collectiveAdmin, {
+      const collectiveAdminResponse = await makeRequest(expenseAttachedUploadedFile.id, collectiveAdmin, {
         thumbnail: true,
       });
       expect(collectiveAdminResponse._getStatusCode()).to.eql(307);
