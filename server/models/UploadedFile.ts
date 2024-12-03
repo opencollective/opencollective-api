@@ -17,6 +17,7 @@ import { v4 as uuid } from 'uuid';
 import isURL from 'validator/lib/isURL';
 
 import { FileKind, SUPPORTED_FILE_KINDS } from '../constants/file-kind';
+import { idDecode, idEncode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
 import { checkS3Configured, uploadToS3 } from '../lib/awsS3';
 import logger from '../lib/logger';
 import { ExpenseOCRParseResult, ExpenseOCRService } from '../lib/ocr/ExpenseOCRService';
@@ -145,10 +146,10 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
       return false;
     }
 
-    return parsedURL.origin === config.host.website && /^\/api\/files\/\w+/.test(parsedURL.pathname);
+    return parsedURL.origin === config.host.website && /^\/api\/files\/[^\/]+\/?$/.test(parsedURL.pathname);
   }
 
-  public static getOpenCollectiveS3BucketURLFromProtectedURL(url: string): string {
+  public static getFromProtectedURL(url: string): Promise<UploadedFile> {
     if (!UploadedFile.isOpenCollectiveProtectedS3BucketURL(url)) {
       return null;
     }
@@ -160,23 +161,19 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
       return null;
     }
 
-    const match = parsedURL.pathname.match(/^\/api\/files\/([^\/]+)\/?/);
+    const match = parsedURL.pathname.match(/^\/api\/files\/([^\/]+)\/?$/);
 
     if (match?.length !== 2) {
       return null;
     }
 
-    const base64UrlEncodedUrl = match[1];
+    const encodedId = match[1];
 
-    const uploadedFileUrl = Buffer.from(base64UrlEncodedUrl, 'base64url').toString();
-
-    return uploadedFileUrl;
+    return UploadedFile.findByPk(idDecode(encodedId, IDENTIFIER_TYPES.UPLOADED_FILE));
   }
 
-  public static getProtectedURLFromOpenCollectiveS3Bucket(url: string): string {
-    const base64UrlEncodedUrl = Buffer.from(url).toString('base64url');
-
-    return `${config.host.website}/api/files/${base64UrlEncodedUrl}`;
+  public static getProtectedURLFromOpenCollectiveS3Bucket(uploadedFile: UploadedFile): string {
+    return `${config.host.website}/api/files/${idEncode(uploadedFile.id, IDENTIFIER_TYPES.UPLOADED_FILE)}`;
   }
 
   public static isSupportedImageMimeType(mimeType: string): boolean {
@@ -400,7 +397,7 @@ UploadedFile.init(
         const url = this.getDataValue('url');
         const kind = this.getDataValue('kind');
         if (['EXPENSE_ITEM', 'EXPENSE_ATTACHED_FILE'].includes(kind) && UploadedFile.isOpenCollectiveS3BucketURL(url)) {
-          return UploadedFile.getProtectedURLFromOpenCollectiveS3Bucket(url);
+          return UploadedFile.getProtectedURLFromOpenCollectiveS3Bucket(this);
         } else {
           return url;
         }

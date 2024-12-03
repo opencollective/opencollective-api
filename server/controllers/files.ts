@@ -2,47 +2,52 @@ import config from 'config';
 import { Request, Response } from 'express';
 
 import { canSeeExpenseAttachments } from '../graphql/common/expenses';
+import { idDecode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
 import { getSignedGetURL, parseS3Url } from '../lib/awsS3';
 import { Collective, Expense, ExpenseAttachedFile, ExpenseItem, UploadedFile } from '../models';
 import { SUPPORTED_FILE_TYPES_IMAGES } from '../models/UploadedFile';
 
 async function hasUploadedFilePermission(req: Request, uploadedFile: UploadedFile): Promise<boolean> {
   const actualUrl = uploadedFile.getDataValue('url');
-  if (req.remoteUser?.id === uploadedFile.CreatedByUserId) {
-    return true;
-  } else {
-    switch (uploadedFile.kind) {
-      case 'EXPENSE_ITEM': {
-        const expenseItem = await ExpenseItem.findOne({
-          where: {
-            url: actualUrl,
-          },
-          include: { model: Expense, include: [{ association: 'fromCollective' }] },
-        });
+  switch (uploadedFile.kind) {
+    case 'EXPENSE_ITEM': {
+      const expenseItem = await ExpenseItem.findOne({
+        where: {
+          url: actualUrl,
+        },
+        include: { model: Expense, include: [{ association: 'fromCollective' }] },
+      });
 
-        const expense = expenseItem?.Expense;
+      const expense = expenseItem?.Expense;
 
-        if (expense && (await canSeeExpenseAttachments(req, expense))) {
-          return true;
-        }
-        break;
+      if (!expense) {
+        return req.remoteUser?.id === uploadedFile.CreatedByUserId;
       }
-      case 'EXPENSE_ATTACHED_FILE': {
-        const expenseAttachedFile = await ExpenseAttachedFile.findOne({
-          where: {
-            url: actualUrl,
-          },
-          include: { model: Expense, include: [{ model: Collective, as: 'fromCollective' }] },
-        });
 
-        const expense = expenseAttachedFile?.Expense;
-
-        if (expense && (await canSeeExpenseAttachments(req, expense))) {
-          return true;
-        }
-
-        break;
+      if (expense && (await canSeeExpenseAttachments(req, expense))) {
+        return true;
       }
+      break;
+    }
+    case 'EXPENSE_ATTACHED_FILE': {
+      const expenseAttachedFile = await ExpenseAttachedFile.findOne({
+        where: {
+          url: actualUrl,
+        },
+        include: { model: Expense, include: [{ model: Collective, as: 'fromCollective' }] },
+      });
+
+      const expense = expenseAttachedFile?.Expense;
+
+      if (!expense) {
+        return req.remoteUser?.id === uploadedFile.CreatedByUserId;
+      }
+
+      if (expense && (await canSeeExpenseAttachments(req, expense))) {
+        return true;
+      }
+
+      break;
     }
   }
 
@@ -50,7 +55,7 @@ async function hasUploadedFilePermission(req: Request, uploadedFile: UploadedFil
 }
 
 /**
- * GET /api/files/:base64UrlEncodedUrl
+ * GET /api/files/:uploadedFileId
  *
  * Query Params
  *
@@ -67,20 +72,18 @@ export async function getFile(req: Request, res: Response) {
   const isJsonAccepted = req.query.json !== undefined;
   const isThumbnail = req.query.thumbnail !== undefined;
 
-  const { base64UrlEncodedUrl } = req.params;
+  const { uploadedFileId } = req.params;
 
-  let uploadedFileUrl: string;
-
+  let decodedId: number;
   try {
-    uploadedFileUrl = Buffer.from(base64UrlEncodedUrl, 'base64url').toString();
-    new URL(uploadedFileUrl);
+    decodedId = idDecode(uploadedFileId, IDENTIFIER_TYPES.UPLOADED_FILE);
   } catch (err) {
-    return res.status(400);
+    return res.status(400).send({ message: 'Invalid id' });
   }
 
   const uploadedFile = await UploadedFile.findOne({
     where: {
-      url: uploadedFileUrl,
+      id: decodedId,
     },
   });
 

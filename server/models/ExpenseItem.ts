@@ -12,7 +12,7 @@ import sequelize from '../lib/sequelize';
 
 import { FX_RATE_SOURCE } from './CurrencyExchangeRate';
 import Expense from './Expense';
-import UploadedFile, { MAX_UPLOADED_FILE_URL_LENGTH } from './UploadedFile';
+import { MAX_UPLOADED_FILE_URL_LENGTH } from './UploadedFile';
 import User from './User';
 
 // Expense items diff as [newEntries, removedEntries, updatedEntries]
@@ -142,18 +142,8 @@ ExpenseItem.init(
       type: DataTypes.STRING(1200),
       allowNull: true,
       set(value: string | null): void {
-        if (UploadedFile.isOpenCollectiveProtectedS3BucketURL(value)) {
-          this.setDataValue('url', UploadedFile.getOpenCollectiveS3BucketURLFromProtectedURL(value));
-        } else {
-          // Make sure empty strings are converted to null
-          this.setDataValue('url', value || null);
-        }
-      },
-      get() {
-        const url = this.getDataValue('url');
-        if (url) {
-          return UploadedFile.getProtectedURLFromOpenCollectiveS3Bucket(url);
-        }
+        // Make sure empty strings are converted to null
+        this.setDataValue('url', value || null);
       },
       validate: {
         isValidURL(url: string): void {
