@@ -108,7 +108,7 @@ const deleteLegalDocuments = () => {
     .catch(e => console.error('Cannot remove legal documents, please do it manually', e));
 };
 
-export const sanitizeDB = async () => {
+const sanitizeDB = async () => {
   return Promise.all([
     replaceHostStripeTokens(),
     replaceUsersStripeTokens(),
