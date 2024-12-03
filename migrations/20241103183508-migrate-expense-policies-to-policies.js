@@ -5,13 +5,26 @@ module.exports = {
   async up(queryInterface) {
     await queryInterface.sequelize.query(`
       UPDATE "Collectives" SET
+        data = jsonb_set(
+          data,
+          '{policies}',
+          '{}'
+        )
+      WHERE jsonb_typeof(data -> 'policies') = 'array'
+    `);
+
+    await queryInterface.sequelize.query(`
+      UPDATE "Collectives" SET
       data = jsonb_set(
-        data,
-        '{policies,EXPENSE_POLICIES}',
-        jsonb_build_object(
-          'invoicePolicy', "expensePolicy",
-          'receiptPolicy', "expensePolicy",
-          'titlePolicy', ''
+        COALESCE(data, '{"policies": {}}'),
+        '{policies}',
+        COALESCE(data#>'{policies}', '{}') ||
+        jsonb_build_object('EXPENSE_POLICIES',
+          jsonb_build_object(
+            'invoicePolicy', COALESCE("expensePolicy", ''),
+            'receiptPolicy', COALESCE("expensePolicy", ''),
+            'titlePolicy', ''
+          )
         )
       )
       WHERE TRIM("expensePolicy") <> '' AND "expensePolicy" IS NOT NULL;
