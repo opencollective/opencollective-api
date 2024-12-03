@@ -418,7 +418,6 @@ UploadedFile.init(
               require_tld: config.env !== 'development' && config.env !== 'test',
             })
           ) {
-            console.log(url);
             throw new Error('File URL is not a valid URL');
           }
 
