@@ -89,7 +89,6 @@ const GraphQLExpenseItem = new GraphQLObjectType({
     url: {
       type: URL,
       async resolve(item, _, req: express.Request): Promise<string | undefined> {
-        console.log(item.url);
         if (item.url && getContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_ATTACHMENTS_URL, item.ExpenseId)) {
           const uploadedFile = await req.loaders.UploadedFile.byUrl.load(item.url);
           return uploadedFile?.url;
