@@ -6,14 +6,14 @@ import sequelize, { DataTypes, Model } from '../lib/sequelize';
 import User from './User';
 
 class EmojiReaction extends Model<InferAttributes<EmojiReaction>, InferCreationAttributes<EmojiReaction>> {
-  public declare readonly id: CreationOptional<number>;
-  public declare UserId: ForeignKey<User['id']>;
-  public declare FromCollectiveId: number;
-  public declare CommentId: number;
-  public declare UpdateId: number;
-  public declare emoji: ReactionEmoji;
-  public declare createdAt: Date;
-  public declare updatedAt: Date;
+  declare public readonly id: CreationOptional<number>;
+  declare public UserId: ForeignKey<User['id']>;
+  declare public FromCollectiveId: number;
+  declare public CommentId: number;
+  declare public UpdateId: number;
+  declare public emoji: ReactionEmoji;
+  declare public createdAt: Date;
+  declare public updatedAt: Date;
 
   static async addReactionOnComment(user, commentId: number, emoji: ReactionEmoji) {
     try {

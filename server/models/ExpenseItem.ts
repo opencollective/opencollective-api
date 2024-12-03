@@ -22,19 +22,19 @@ type ExpenseItemsDiff = [Record<string, unknown>[], ExpenseItem[], Record<string
  * Sequelize model to represent an ExpenseItem, linked to the `ExpenseItems` table.
  */
 class ExpenseItem extends Model<InferAttributes<ExpenseItem>, InferCreationAttributes<ExpenseItem>> {
-  public declare readonly id: CreationOptional<number>;
-  public declare ExpenseId: ForeignKey<Expense['id']>;
-  public declare CreatedByUserId: ForeignKey<User['id']>;
-  public declare amount: number;
-  public declare currency: SupportedCurrency;
-  public declare expenseCurrencyFxRate: number;
-  public declare expenseCurrencyFxRateSource: FX_RATE_SOURCE | `${FX_RATE_SOURCE}`;
-  public declare url: string;
-  public declare createdAt: CreationOptional<Date>;
-  public declare updatedAt: CreationOptional<Date>;
-  public declare deletedAt: CreationOptional<Date>;
-  public declare incurredAt: Date;
-  public declare description: CreationOptional<string>;
+  declare public readonly id: CreationOptional<number>;
+  declare public ExpenseId: ForeignKey<Expense['id']>;
+  declare public CreatedByUserId: ForeignKey<User['id']>;
+  declare public amount: number;
+  declare public currency: SupportedCurrency;
+  declare public expenseCurrencyFxRate: number;
+  declare public expenseCurrencyFxRateSource: FX_RATE_SOURCE | `${FX_RATE_SOURCE}`;
+  declare public url: string;
+  declare public createdAt: CreationOptional<Date>;
+  declare public updatedAt: CreationOptional<Date>;
+  declare public deletedAt: CreationOptional<Date>;
+  declare public incurredAt: Date;
+  declare public description: CreationOptional<string>;
 
   public static editableFields = [
     'amount',

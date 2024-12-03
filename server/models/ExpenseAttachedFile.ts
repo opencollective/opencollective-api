@@ -15,11 +15,11 @@ import User from './User';
  * Sequelize model to represent an ExpenseAttachedFile, linked to the `ExpenseAttachedFiles` table.
  */
 class ExpenseAttachedFile extends Model {
-  public declare readonly id: number;
-  public declare ExpenseId: ForeignKey<Expense['id']>;
-  public declare CreatedByUserId: ForeignKey<User['id']>;
-  public declare url: string;
-  public declare createdAt: Date;
+  declare public readonly id: number;
+  declare public ExpenseId: ForeignKey<Expense['id']>;
+  declare public CreatedByUserId: ForeignKey<User['id']>;
+  declare public url: string;
+  declare public createdAt: Date;
 
   /**
    * Create an attachment from user-submitted data.

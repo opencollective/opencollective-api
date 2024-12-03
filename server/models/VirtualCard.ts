@@ -26,32 +26,32 @@ export enum VirtualCardStatus {
 }
 
 class VirtualCard extends Model<InferAttributes<VirtualCard, { omit: 'info' }>, InferCreationAttributes<VirtualCard>> {
-  public declare id: CreationOptional<string>;
-  public declare CollectiveId: number;
-  public declare HostCollectiveId: number;
-  public declare UserId: ForeignKey<User['id']>;
-  public declare VirtualCardRequestId: ForeignKey<VirtualCardRequest['id']>;
-  public declare name: string;
-  public declare last4: string;
-  public declare data: Record<string, any>;
-  public declare privateData: string | Record<string, any>;
-  public declare provider: VirtualCardProviders;
-  public declare spendingLimitAmount: number;
-  public declare spendingLimitInterval: string;
-  public declare currency: SupportedCurrency;
-  public declare createdAt: CreationOptional<Date>;
-  public declare updatedAt: CreationOptional<Date>;
-  public declare deletedAt: CreationOptional<Date>;
-  public declare resumedAt: CreationOptional<Date>;
+  declare public id: CreationOptional<string>;
+  declare public CollectiveId: number;
+  declare public HostCollectiveId: number;
+  declare public UserId: ForeignKey<User['id']>;
+  declare public VirtualCardRequestId: ForeignKey<VirtualCardRequest['id']>;
+  declare public name: string;
+  declare public last4: string;
+  declare public data: Record<string, any>;
+  declare public privateData: string | Record<string, any>;
+  declare public provider: VirtualCardProviders;
+  declare public spendingLimitAmount: number;
+  declare public spendingLimitInterval: string;
+  declare public currency: SupportedCurrency;
+  declare public createdAt: CreationOptional<Date>;
+  declare public updatedAt: CreationOptional<Date>;
+  declare public deletedAt: CreationOptional<Date>;
+  declare public resumedAt: CreationOptional<Date>;
 
   // Associations
-  public declare collective?: NonAttribute<any>;
-  public declare host?: NonAttribute<Collective>;
-  public declare getHost: BelongsToGetAssociationMixin<Collective>;
-  public declare user?: NonAttribute<any>;
+  declare public collective?: NonAttribute<any>;
+  declare public host?: NonAttribute<Collective>;
+  declare public getHost: BelongsToGetAssociationMixin<Collective>;
+  declare public user?: NonAttribute<any>;
 
-  public declare virtualCardRequest?: NonAttribute<VirtualCardRequest>;
-  public declare getVirtualCardRequest?: BelongsToGetAssociationMixin<VirtualCardRequest>;
+  declare public virtualCardRequest?: NonAttribute<VirtualCardRequest>;
+  declare public getVirtualCardRequest?: BelongsToGetAssociationMixin<VirtualCardRequest>;
 
   async getExpensesMissingDetails(): Promise<Array<any>> {
     return Expense.findPendingCardCharges({

@@ -60,26 +60,26 @@ export class TransactionsImportLockedError extends Error {
 }
 
 class TransactionsImport extends Model<InferAttributes<TransactionsImport>, CreationAttributes> {
-  public declare id: number;
-  public declare CollectiveId: ForeignKey<Collective['id']>;
-  public declare UploadedFileId: ForeignKey<UploadedFile['id']>;
-  public declare ConnectedAccountId: ForeignKey<ConnectedAccount['id']>;
-  public declare source: string;
-  public declare name: string;
-  public declare type: (typeof TransactionsImportTypes)[number];
-  public declare settings: TransactionsImportSettings | null;
-  public declare data: TransactionsImportData | null;
-  public declare createdAt: Date;
-  public declare updatedAt: Date;
-  public declare deletedAt: Date;
-  public declare lastSyncAt: Date;
+  declare public id: number;
+  declare public CollectiveId: ForeignKey<Collective['id']>;
+  declare public UploadedFileId: ForeignKey<UploadedFile['id']>;
+  declare public ConnectedAccountId: ForeignKey<ConnectedAccount['id']>;
+  declare public source: string;
+  declare public name: string;
+  declare public type: (typeof TransactionsImportTypes)[number];
+  declare public settings: TransactionsImportSettings | null;
+  declare public data: TransactionsImportData | null;
+  declare public createdAt: Date;
+  declare public updatedAt: Date;
+  declare public deletedAt: Date;
+  declare public lastSyncAt: Date;
 
-  public declare collective?: Collective;
-  public declare getCollective: BelongsToGetAssociationMixin<Collective>;
-  public declare importRows?: TransactionsImportRow[];
-  public declare getImportRows: HasManyGetAssociationsMixin<TransactionsImportRow>;
-  public declare createImportRow: HasManyCreateAssociationMixin<TransactionsImportRow>;
-  public declare getConnectedAccount: BelongsToGetAssociationMixin<ConnectedAccount>;
+  declare public collective?: Collective;
+  declare public getCollective: BelongsToGetAssociationMixin<Collective>;
+  declare public importRows?: TransactionsImportRow[];
+  declare public getImportRows: HasManyGetAssociationsMixin<TransactionsImportRow>;
+  declare public createImportRow: HasManyCreateAssociationMixin<TransactionsImportRow>;
+  declare public getConnectedAccount: BelongsToGetAssociationMixin<ConnectedAccount>;
 
   static async createWithActivity(
     remoteUser: User,

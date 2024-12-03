@@ -11,22 +11,22 @@ import User from './User';
 export type ApplicationType = 'apiKey' | 'oAuth';
 
 class Application extends Model<InferAttributes<Application>, InferCreationAttributes<Application>> {
-  public declare readonly id: CreationOptional<number>;
-  public declare CollectiveId: number;
-  public declare CreatedByUserId: ForeignKey<User['id']>;
-  public declare type: ApplicationType;
-  public declare apiKey: string;
-  public declare clientId: string;
-  public declare clientSecret: string;
-  public declare callbackUrl: string;
-  public declare name: string;
-  public declare description: string;
-  public declare disabled: boolean;
-  public declare preAuthorize2FA: CreationOptional<boolean>;
-  public declare createdAt: CreationOptional<Date>;
-  public declare updatedAt: CreationOptional<Date>;
-  public declare deletedAt: CreationOptional<Date>;
-  public declare data: JSON;
+  declare public readonly id: CreationOptional<number>;
+  declare public CollectiveId: number;
+  declare public CreatedByUserId: ForeignKey<User['id']>;
+  declare public type: ApplicationType;
+  declare public apiKey: string;
+  declare public clientId: string;
+  declare public clientSecret: string;
+  declare public callbackUrl: string;
+  declare public name: string;
+  declare public description: string;
+  declare public disabled: boolean;
+  declare public preAuthorize2FA: CreationOptional<boolean>;
+  declare public createdAt: CreationOptional<Date>;
+  declare public updatedAt: CreationOptional<Date>;
+  declare public deletedAt: CreationOptional<Date>;
+  declare public data: JSON;
 
   get info(): NonAttribute<Partial<Application>> {
     return {

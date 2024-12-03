@@ -11,24 +11,24 @@ export enum TokenType {
 }
 
 class UserToken extends Model<InferAttributes<UserToken>, InferCreationAttributes<UserToken>> {
-  public declare id: CreationOptional<number>;
-  public declare type: 'OAUTH';
-  public declare accessToken: string;
-  public declare accessTokenExpiresAt: Date;
-  public declare refreshToken: string;
-  public declare refreshTokenExpiresAt?: Date;
-  public declare ApplicationId: number;
-  public declare UserId: ForeignKey<User['id']>;
-  public declare data: Record<string, unknown>;
-  public declare scope: string[];
-  public declare preAuthorize2FA: boolean;
-  public declare createdAt: CreationOptional<Date>;
-  public declare updatedAt: CreationOptional<Date>;
-  public declare deletedAt: CreationOptional<Date>;
-  public declare lastUsedAt: CreationOptional<Date>;
+  declare public id: CreationOptional<number>;
+  declare public type: 'OAUTH';
+  declare public accessToken: string;
+  declare public accessTokenExpiresAt: Date;
+  declare public refreshToken: string;
+  declare public refreshTokenExpiresAt?: Date;
+  declare public ApplicationId: number;
+  declare public UserId: ForeignKey<User['id']>;
+  declare public data: Record<string, unknown>;
+  declare public scope: string[];
+  declare public preAuthorize2FA: boolean;
+  declare public createdAt: CreationOptional<Date>;
+  declare public updatedAt: CreationOptional<Date>;
+  declare public deletedAt: CreationOptional<Date>;
+  declare public lastUsedAt: CreationOptional<Date>;
 
-  public declare user?: NonAttribute<User>;
-  public declare client?: NonAttribute<OAuth2Server.Client>;
+  declare public user?: NonAttribute<User>;
+  declare public client?: NonAttribute<OAuth2Server.Client>;
 
   hasScope(scope): boolean {
     return Boolean(this.scope && this.scope.includes(scope));

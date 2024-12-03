@@ -31,14 +31,14 @@ export enum SocialLinkType {
 }
 
 class SocialLink extends Model<InferAttributes<SocialLink>, InferCreationAttributes<SocialLink>> {
-  public declare CollectiveId: number;
-  public declare type: SocialLinkType;
-  public declare url: string;
-  public declare order: number;
-  public declare createdAt: CreationOptional<Date>;
-  public declare updatedAt: CreationOptional<Date>;
+  declare public CollectiveId: number;
+  declare public type: SocialLinkType;
+  declare public url: string;
+  declare public order: number;
+  declare public createdAt: CreationOptional<Date>;
+  declare public updatedAt: CreationOptional<Date>;
 
-  public declare collective?: NonAttribute<Collective>;
+  declare public collective?: NonAttribute<Collective>;
 }
 
 SocialLink.init(

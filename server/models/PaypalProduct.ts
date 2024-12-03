@@ -10,13 +10,13 @@ export interface PaypalProductCreateAttributes {
 }
 
 class PaypalProduct extends Model<InferAttributes<PaypalProduct>, PaypalProductCreateAttributes> {
-  public declare id: string;
-  public declare CollectiveId: number;
-  public declare HostCollectiveId: number;
-  public declare TierId: number;
-  public declare createdAt: Date;
-  public declare updatedAt: Date;
-  public declare deletedAt: Date;
+  declare public id: string;
+  declare public CollectiveId: number;
+  declare public HostCollectiveId: number;
+  declare public TierId: number;
+  declare public createdAt: Date;
+  declare public updatedAt: Date;
+  declare public deletedAt: Date;
 }
 
 PaypalProduct.init(

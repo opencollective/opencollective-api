@@ -33,33 +33,33 @@ const longDescriptionSanitizerOpts = buildSanitizerOptions({
 export type TierType = 'TIER' | 'MEMBERSHIP' | 'DONATION' | 'TICKET' | 'PRODUCT' | 'SERVICE';
 
 class Tier extends Model<InferAttributes<Tier>, InferCreationAttributes<Tier>> {
-  public declare readonly id: CreationOptional<number>;
-  public declare CollectiveId: number;
-  public declare slug: string;
-  public declare name: string;
-  public declare type: TierType;
-  public declare description: string;
-  public declare longDescription: string;
-  public declare useStandalonePage: boolean;
-  public declare videoUrl: string;
-  public declare button: string;
-  public declare amount: number;
-  public declare presets: number[];
-  public declare amountType: 'FIXED' | 'FLEXIBLE';
-  public declare minimumAmount: number;
-  public declare currency: SupportedCurrency;
-  public declare interval: 'month' | 'year' | 'flexible';
-  public declare maxQuantity: number;
-  public declare goal: number;
-  public declare customFields: Record<string, unknown>;
-  public declare data: Record<string, unknown>;
-  public declare startsAt: CreationOptional<Date>;
-  public declare endsAt: CreationOptional<Date>;
-  public declare createdAt: CreationOptional<Date>;
-  public declare updatedAt: CreationOptional<Date>;
-  public declare deletedAt: CreationOptional<Date>;
+  declare public readonly id: CreationOptional<number>;
+  declare public CollectiveId: number;
+  declare public slug: string;
+  declare public name: string;
+  declare public type: TierType;
+  declare public description: string;
+  declare public longDescription: string;
+  declare public useStandalonePage: boolean;
+  declare public videoUrl: string;
+  declare public button: string;
+  declare public amount: number;
+  declare public presets: number[];
+  declare public amountType: 'FIXED' | 'FLEXIBLE';
+  declare public minimumAmount: number;
+  declare public currency: SupportedCurrency;
+  declare public interval: 'month' | 'year' | 'flexible';
+  declare public maxQuantity: number;
+  declare public goal: number;
+  declare public customFields: Record<string, unknown>;
+  declare public data: Record<string, unknown>;
+  declare public startsAt: CreationOptional<Date>;
+  declare public endsAt: CreationOptional<Date>;
+  declare public createdAt: CreationOptional<Date>;
+  declare public updatedAt: CreationOptional<Date>;
+  declare public deletedAt: CreationOptional<Date>;
 
-  public declare Collective?: Collective;
+  declare public Collective?: Collective;
 
   /**
    * Instance Methods

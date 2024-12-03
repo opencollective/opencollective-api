@@ -14,21 +14,21 @@ import ConversationFollower from './ConversationFollower';
 import User from './User';
 
 class Conversation extends Model<InferAttributes<Conversation>, InferCreationAttributes<Conversation>> {
-  public declare readonly id: CreationOptional<number>;
-  public declare title: string;
-  public declare slug: string;
-  public declare summary: string;
-  public declare tags: string[];
-  public declare CollectiveId: number;
-  public declare FromCollectiveId: number;
-  public declare CreatedByUserId: ForeignKey<User['id']>;
-  public declare RootCommentId: ForeignKey<Comment['id']>;
-  public declare createdAt: CreationOptional<Date>;
-  public declare updatedAt: CreationOptional<Date>;
-  public declare deletedAt: CreationOptional<Date>;
+  declare public readonly id: CreationOptional<number>;
+  declare public title: string;
+  declare public slug: string;
+  declare public summary: string;
+  declare public tags: string[];
+  declare public CollectiveId: number;
+  declare public FromCollectiveId: number;
+  declare public CreatedByUserId: ForeignKey<User['id']>;
+  declare public RootCommentId: ForeignKey<Comment['id']>;
+  declare public createdAt: CreationOptional<Date>;
+  declare public updatedAt: CreationOptional<Date>;
+  declare public deletedAt: CreationOptional<Date>;
 
-  public declare collective?: Collective;
-  public declare fromCollective?: Collective;
+  declare public collective?: Collective;
+  declare public fromCollective?: Collective;
 
   // ---- Static methods ----
 

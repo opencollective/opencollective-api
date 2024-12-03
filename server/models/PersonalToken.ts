@@ -9,22 +9,22 @@ import Application from './Application';
 import User from './User';
 
 class PersonalToken extends Model<InferAttributes<PersonalToken>, InferCreationAttributes<PersonalToken>> {
-  public declare readonly id: CreationOptional<number>;
-  public declare token: string;
-  public declare expiresAt: Date;
-  public declare createdAt: CreationOptional<Date>;
-  public declare updatedAt: CreationOptional<Date>;
-  public declare deletedAt: CreationOptional<Date>;
-  public declare lastUsedAt: CreationOptional<Date>;
-  public declare data: Record<string, unknown>;
-  public declare CollectiveId: number;
-  public declare UserId: ForeignKey<User['id']>;
-  public declare scope: oAuthScopes[];
-  public declare name: string;
-  public declare preAuthorize2FA: CreationOptional<boolean>;
+  declare public readonly id: CreationOptional<number>;
+  declare public token: string;
+  declare public expiresAt: Date;
+  declare public createdAt: CreationOptional<Date>;
+  declare public updatedAt: CreationOptional<Date>;
+  declare public deletedAt: CreationOptional<Date>;
+  declare public lastUsedAt: CreationOptional<Date>;
+  declare public data: Record<string, unknown>;
+  declare public CollectiveId: number;
+  declare public UserId: ForeignKey<User['id']>;
+  declare public scope: oAuthScopes[];
+  declare public name: string;
+  declare public preAuthorize2FA: CreationOptional<boolean>;
 
-  public declare application?: NonAttribute<typeof Application>;
-  public declare user?: NonAttribute<typeof User>;
+  declare public application?: NonAttribute<typeof Application>;
+  declare public user?: NonAttribute<typeof User>;
 
   public static generateToken(): string {
     return randomBytes(20).toString('hex');

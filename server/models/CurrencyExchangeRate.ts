@@ -16,13 +16,13 @@ class CurrencyExchangeRate extends Model<
   InferAttributes<CurrencyExchangeRate>,
   InferCreationAttributes<CurrencyExchangeRate>
 > {
-  public declare readonly id: CreationOptional<number>;
-  public declare rate: number;
-  public declare from: string;
-  public declare to: string;
-  public declare createdAt: Date;
-  public declare updatedAt: Date;
-  public declare deletedAt: Date;
+  declare public readonly id: CreationOptional<number>;
+  declare public rate: number;
+  declare public from: string;
+  declare public to: string;
+  declare public createdAt: Date;
+  declare public updatedAt: Date;
+  declare public deletedAt: Date;
 
   static getMany(
     fromCurrency: string,

@@ -24,17 +24,17 @@ const DEFAULT_ACTIVE_STATE_BY_CHANNEL = {
 };
 
 class Notification extends Model<InferAttributes<Notification>, InferCreationAttributes<Notification>> {
-  public declare readonly id: CreationOptional<number>;
-  public declare channel: channels;
-  public declare type: ActivityTypes | ActivityClasses | string;
-  public declare active: boolean;
-  public declare createdAt: CreationOptional<Date>;
-  public declare CollectiveId: CreationOptional<number>;
-  public declare UserId: CreationOptional<number>;
-  public declare webhookUrl: CreationOptional<string>;
-  public declare User?: User;
-  public declare Collective?: Collective;
-  public declare lastSuccessAt: CreationOptional<Date>;
+  declare public readonly id: CreationOptional<number>;
+  declare public channel: channels;
+  declare public type: ActivityTypes | ActivityClasses | string;
+  declare public active: boolean;
+  declare public createdAt: CreationOptional<Date>;
+  declare public CollectiveId: CreationOptional<number>;
+  declare public UserId: CreationOptional<number>;
+  declare public webhookUrl: CreationOptional<string>;
+  declare public User?: User;
+  declare public Collective?: Collective;
+  declare public lastSuccessAt: CreationOptional<Date>;
 
   getUser() {
     return User.findByPk(this.UserId);
