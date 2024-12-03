@@ -763,6 +763,40 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           expect(result.errors[0].message).to.equal('Account Not Found');
         });
 
+        it('collective must not have RECEIVE_FINANCIAL_CONTRIBUTIONS disabled', async () => {
+          const fromUser = await fakeUser();
+          const collective = await fakeCollective({
+            admin: fromUser,
+            HostCollectiveId: host.id,
+            data: { features: { RECEIVE_FINANCIAL_CONTRIBUTIONS: false } },
+          });
+          const orderData = {
+            ...validOrderParams,
+            toAccount: { legacyId: collective.id },
+            fromAccount: { legacyId: fromUser.CollectiveId },
+          };
+          const result = await callCreateOrder({ order: orderData }, fromUser);
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.equal('This collective cannot receive financial contributions');
+        });
+
+        it('collective must not have ALL features disabled', async () => {
+          const fromUser = await fakeUser();
+          const collective = await fakeCollective({
+            admin: fromUser,
+            data: { features: { ALL: false } },
+            HostCollectiveId: host.id,
+          });
+          const orderData = {
+            ...validOrderParams,
+            toAccount: { legacyId: collective.id },
+            fromAccount: { legacyId: fromUser.CollectiveId },
+          };
+          const result = await callCreateOrder({ order: orderData }, fromUser);
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.equal('This collective cannot receive financial contributions');
+        });
+
         it('tier must exist', async () => {
           const fromUser = await fakeUser();
           const orderData = { ...validOrderParams, tier: { legacyId: 9999999 } };

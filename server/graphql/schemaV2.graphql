@@ -18913,6 +18913,11 @@ type Mutation {
     Reference to the parent Account creating the Project.
     """
     parent: AccountReferenceInput
+
+    """
+    Set to true to disable contributions to this project. Host admins will still be able to add funds.
+    """
+    disableContributions: Boolean! = false
   ): Project
 
   """

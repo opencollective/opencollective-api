@@ -45,7 +45,14 @@ import { updateSubscriptionWithPaypal } from '../../../paymentProviders/paypal/s
 import { checkReceiveFinancialContributions } from '../../common/features';
 import * as OrdersLib from '../../common/orders';
 import { checkRemoteUserCanRoot, checkRemoteUserCanUseOrders, checkScope } from '../../common/scope-check';
-import { BadRequest, FeatureNotAllowedForUser, NotFound, Unauthorized, ValidationFailed } from '../../errors';
+import {
+  BadRequest,
+  FeatureNotAllowedForUser,
+  Forbidden,
+  NotFound,
+  Unauthorized,
+  ValidationFailed,
+} from '../../errors';
 import {
   confirmOrder as confirmOrderLegacy,
   createOrder as createOrderLegacy,
@@ -958,6 +965,13 @@ const orderMutations = {
 
       const toAccount = await fetchAccountWithReference(paymentIntentInput.toAccount, { throwIfMissing: true });
       const hostStripeAccount = await toAccount.getHostStripeAccount();
+      if (
+        !['ACTIVE', 'AVAILABLE'].includes(
+          await checkReceiveFinancialContributions(toAccount, req, { ignoreActive: true }),
+        )
+      ) {
+        throw new Forbidden('This collective cannot receive financial contributions');
+      }
 
       const isPlatformHost = hostStripeAccount.username === config.stripe.accountId;
 

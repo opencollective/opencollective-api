@@ -176,7 +176,7 @@ type Settings = {
 
 type Data = Partial<{
   policies: Policies;
-  features: Record<FEATURE, boolean>;
+  features: Partial<Record<FEATURE, boolean>>;
   address: StructuredAddress;
   replyToEmail: string;
   isTrustedHost: boolean;

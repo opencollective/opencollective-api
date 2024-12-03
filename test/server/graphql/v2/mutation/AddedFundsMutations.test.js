@@ -268,6 +268,25 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
       expect(result.data.addFunds.accountingCategory.id).to.equal(encodedAccountingCategoryId);
     });
 
+    it('can add funds as host admin even if RECEIVE_FINANCIAL_CONTRIBUTIONS is false', async () => {
+      const collective = await fakeCollective({ settings: { features: { RECEIVE_FINANCIAL_CONTRIBUTIONS: false } } });
+      const hostAdmin = await fakeUser();
+      await collective.host.addUserWithRole(hostAdmin, roles.ADMIN);
+      const result = await graphqlQueryV2(
+        addFundsMutation,
+        {
+          ...validMutationVariables,
+          account: { legacyId: collective.id },
+          fromAccount: { legacyId: randomUser.CollectiveId },
+        },
+        hostAdmin,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.addFunds.amount.valueInCents).to.equal(2000);
+      expect(result.data.addFunds.amount.currency).to.equal('USD');
+    });
+
     it('can add funds as host admin with authorization', async () => {
       const userToken = await fakeUserToken({ scope: ['host'], UserId: hostAdmin.id });
       const result = await oAuthGraphqlQueryV2(
