@@ -805,12 +805,14 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       const itemsFromAPI = result.data.editExpense.items;
       expect(result.data.editExpense.amount).to.equal(1000);
       expect(itemsFromAPI.length).to.equal(2);
-      expenseUpdateData.items.forEach(item => {
+
+      for (const item of expenseUpdateData.items) {
         const itemFromAPI = itemsFromAPI.find(a => a.description === item.description);
         expect(itemFromAPI).to.exist;
-        expect(UploadedFile.getOpenCollectiveS3BucketURLFromProtectedURL(itemFromAPI.url)).to.equal(item.url);
+        const uploadedFile = await UploadedFile.getFromProtectedURL(itemFromAPI.url);
+        expect(itemFromAPI.url).to.equal(UploadedFile.getProtectedURLFromOpenCollectiveS3Bucket(uploadedFile.id));
         expect(itemFromAPI.amount).to.equal(item.amount);
-      });
+      }
     });
 
     it('updates the items', async () => {
