@@ -21,7 +21,7 @@ class ExpenseAttachedFile extends Model {
   declare public url: string;
   declare public createdAt: Date;
 
-  public declare Expense?: NonAttribute<Expense>;
+  declare public Expense?: NonAttribute<Expense>;
 
   /**
    * Create an attachment from user-submitted data.

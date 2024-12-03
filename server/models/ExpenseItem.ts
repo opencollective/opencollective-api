@@ -36,7 +36,7 @@ class ExpenseItem extends Model<InferAttributes<ExpenseItem>, InferCreationAttri
   declare public incurredAt: Date;
   declare public description: CreationOptional<string>;
 
-  public declare Expense: NonAttribute<Expense>;
+  declare public Expense: NonAttribute<Expense>;
 
   public static editableFields = [
     'amount',
