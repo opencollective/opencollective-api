@@ -18,23 +18,23 @@ class ConnectedAccount extends Model<
   InferAttributes<ConnectedAccount, { omit: 'info' | 'activity' | 'paypalConfig' }>,
   InferCreationAttributes<ConnectedAccount>
 > {
-  public declare readonly id: CreationOptional<number>;
-  public declare service: string;
-  public declare username: string;
-  public declare clientId: string;
-  public declare token: string;
-  public declare refreshToken: string;
-  public declare hash: string;
-  public declare data: CreationOptional<Record<string, any>>;
-  public declare settings: CreationOptional<Record<string, any>>;
+  declare public readonly id: CreationOptional<number>;
+  declare public service: string;
+  declare public username: string;
+  declare public clientId: string;
+  declare public token: string;
+  declare public refreshToken: string;
+  declare public hash: string;
+  declare public data: CreationOptional<Record<string, any>>;
+  declare public settings: CreationOptional<Record<string, any>>;
 
-  public declare CollectiveId: CreationOptional<number>;
-  public declare CreatedByUserId: CreationOptional<number>;
-  public declare createdAt: CreationOptional<Date>;
-  public declare updatedAt: CreationOptional<Date>;
+  declare public CollectiveId: CreationOptional<number>;
+  declare public CreatedByUserId: CreationOptional<number>;
+  declare public createdAt: CreationOptional<Date>;
+  declare public updatedAt: CreationOptional<Date>;
 
-  public declare collective?: NonAttribute<Collective>;
-  public declare getCollective: BelongsToGetAssociationMixin<Collective>;
+  declare public collective?: NonAttribute<Collective>;
+  declare public getCollective: BelongsToGetAssociationMixin<Collective>;
 
   get info() {
     return {

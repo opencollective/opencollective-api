@@ -7,18 +7,18 @@ import sequelize, { DataTypes, Model } from '../lib/sequelize';
 import Expense from './Expense';
 
 class Activity extends Model<InferAttributes<Activity>, InferCreationAttributes<Activity>> {
-  public declare readonly id: CreationOptional<number>;
-  public declare type: ActivityTypes;
-  public declare data: CreationOptional<Record<string, any> & { notify?: boolean }>;
-  public declare CollectiveId: CreationOptional<number>;
-  public declare FromCollectiveId: CreationOptional<number>;
-  public declare HostCollectiveId: CreationOptional<number>;
-  public declare UserId: CreationOptional<number>;
-  public declare UserTokenId: CreationOptional<number>;
-  public declare TransactionId: CreationOptional<number>;
-  public declare ExpenseId: ForeignKey<Expense['id']>;
-  public declare OrderId: CreationOptional<number>;
-  public declare createdAt: CreationOptional<Date>;
+  declare public readonly id: CreationOptional<number>;
+  declare public type: ActivityTypes;
+  declare public data: CreationOptional<Record<string, any> & { notify?: boolean }>;
+  declare public CollectiveId: CreationOptional<number>;
+  declare public FromCollectiveId: CreationOptional<number>;
+  declare public HostCollectiveId: CreationOptional<number>;
+  declare public UserId: CreationOptional<number>;
+  declare public UserTokenId: CreationOptional<number>;
+  declare public TransactionId: CreationOptional<number>;
+  declare public ExpenseId: ForeignKey<Expense['id']>;
+  declare public OrderId: CreationOptional<number>;
+  declare public createdAt: CreationOptional<Date>;
 }
 
 Activity.init(

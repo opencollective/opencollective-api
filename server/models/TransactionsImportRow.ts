@@ -19,25 +19,25 @@ class TransactionsImportRow extends Model<
   InferAttributes<TransactionsImportRow>,
   InferCreationAttributes<TransactionsImportRow>
 > {
-  public declare id: CreationOptional<number>;
-  public declare CollectiveId: ForeignKey<Collective['id']>;
-  public declare TransactionsImportId: ForeignKey<TransactionsImport['id']>;
-  public declare ExpenseId: ForeignKey<Expense['id']>;
-  public declare OrderId: ForeignKey<Order['id']>;
-  public declare sourceId: string;
-  public declare isDismissed: boolean;
-  public declare description: string;
-  public declare date: Date;
-  public declare amount: number;
-  public declare isUnique: boolean;
-  public declare currency: SupportedCurrency;
-  public declare rawValue: Record<string, string>;
-  public declare createdAt: Date;
-  public declare updatedAt: Date;
-  public declare deletedAt: Date | null;
+  declare public id: CreationOptional<number>;
+  declare public CollectiveId: ForeignKey<Collective['id']>;
+  declare public TransactionsImportId: ForeignKey<TransactionsImport['id']>;
+  declare public ExpenseId: ForeignKey<Expense['id']>;
+  declare public OrderId: ForeignKey<Order['id']>;
+  declare public sourceId: string;
+  declare public isDismissed: boolean;
+  declare public description: string;
+  declare public date: Date;
+  declare public amount: number;
+  declare public isUnique: boolean;
+  declare public currency: SupportedCurrency;
+  declare public rawValue: Record<string, string>;
+  declare public createdAt: Date;
+  declare public updatedAt: Date;
+  declare public deletedAt: Date | null;
 
-  public declare import?: TransactionsImport;
-  public declare getImport: BelongsToGetAssociationMixin<TransactionsImport>;
+  declare public import?: TransactionsImport;
+  declare public getImport: BelongsToGetAssociationMixin<TransactionsImport>;
 
   public isProcessed(): boolean {
     return Boolean(this.OrderId || this.ExpenseId || this.isDismissed);

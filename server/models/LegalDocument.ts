@@ -50,22 +50,22 @@ const ENCRYPTION_KEY = get(config, 'taxForms.encryptionKey');
 export type LegalDocumentAttributes = InferAttributes<LegalDocument>;
 
 class LegalDocument extends Model<LegalDocumentAttributes, InferCreationAttributes<LegalDocument>> {
-  public declare id: number;
-  public declare year: number;
-  public declare documentType: string;
-  public declare documentLink: string;
-  public declare requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS | `${LEGAL_DOCUMENT_REQUEST_STATUS}`;
-  public declare service: LEGAL_DOCUMENT_SERVICE | `${LEGAL_DOCUMENT_SERVICE}`;
+  declare public id: number;
+  declare public year: number;
+  declare public documentType: string;
+  declare public documentLink: string;
+  declare public requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS | `${LEGAL_DOCUMENT_REQUEST_STATUS}`;
+  declare public service: LEGAL_DOCUMENT_SERVICE | `${LEGAL_DOCUMENT_SERVICE}`;
 
-  public declare CollectiveId: number;
-  public declare collective?: Collective;
-  public declare getCollective: BelongsToGetAssociationMixin<Collective>;
+  declare public CollectiveId: number;
+  declare public collective?: Collective;
+  declare public getCollective: BelongsToGetAssociationMixin<Collective>;
 
-  public declare createdAt: Date;
-  public declare updatedAt: Date;
-  public declare deletedAt?: Date;
+  declare public createdAt: Date;
+  declare public updatedAt: Date;
+  declare public deletedAt?: Date;
 
-  public declare data: any;
+  declare public data: any;
 
   static findByTypeYearCollective = ({ documentType, year, collective }) => {
     return LegalDocument.findOne({

@@ -10,20 +10,20 @@ class OAuthAuthorizationCode extends Model<
   InferAttributes<OAuthAuthorizationCode>,
   InferCreationAttributes<OAuthAuthorizationCode>
 > {
-  public declare readonly id: CreationOptional<number>;
-  public declare code: string;
-  public declare redirectUri: string;
-  public declare expiresAt: Date;
-  public declare data: Record<string, unknown>;
-  public declare createdAt: CreationOptional<Date>;
-  public declare updatedAt: CreationOptional<Date>;
-  public declare deletedAt: CreationOptional<Date>;
-  public declare ApplicationId: number;
-  public declare UserId: ForeignKey<User['id']>;
-  public declare scope: string[];
+  declare public readonly id: CreationOptional<number>;
+  declare public code: string;
+  declare public redirectUri: string;
+  declare public expiresAt: Date;
+  declare public data: Record<string, unknown>;
+  declare public createdAt: CreationOptional<Date>;
+  declare public updatedAt: CreationOptional<Date>;
+  declare public deletedAt: CreationOptional<Date>;
+  declare public ApplicationId: number;
+  declare public UserId: ForeignKey<User['id']>;
+  declare public scope: string[];
 
-  public declare application?: NonAttribute<Application>;
-  public declare user?: NonAttribute<User>;
+  declare public application?: NonAttribute<Application>;
+  declare public user?: NonAttribute<User>;
 }
 
 OAuthAuthorizationCode.init(

@@ -62,35 +62,35 @@ const PRIVATE_UPDATE_TARGET_ROLES = [
 const PUBLIC_UPDATE_TARGET_ROLES = [...PRIVATE_UPDATE_TARGET_ROLES, MemberRoles.FOLLOWER];
 
 class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Update>> {
-  public declare id: CreationOptional<number>;
-  public declare slug: string;
-  public declare CollectiveId: number;
-  public declare TierId: number;
-  public declare FromCollectiveId: number;
-  public declare CreatedByUserId: number;
-  public declare LastEditedByUserId: number;
-  public declare title: string;
-  public declare html: string;
-  public declare summary: string;
-  public declare image: string;
-  public declare isPrivate: boolean;
-  public declare isChangelog: boolean;
-  public declare notificationAudience: (typeof UPDATE_NOTIFICATION_AUDIENCE)[keyof typeof UPDATE_NOTIFICATION_AUDIENCE];
-  public declare tags: string[];
+  declare public id: CreationOptional<number>;
+  declare public slug: string;
+  declare public CollectiveId: number;
+  declare public TierId: number;
+  declare public FromCollectiveId: number;
+  declare public CreatedByUserId: number;
+  declare public LastEditedByUserId: number;
+  declare public title: string;
+  declare public html: string;
+  declare public summary: string;
+  declare public image: string;
+  declare public isPrivate: boolean;
+  declare public isChangelog: boolean;
+  declare public notificationAudience: (typeof UPDATE_NOTIFICATION_AUDIENCE)[keyof typeof UPDATE_NOTIFICATION_AUDIENCE];
+  declare public tags: string[];
 
-  public declare publishedAt: Date;
-  public declare makePublicOn: Date;
-  public declare createdAt: Date;
-  public declare updatedAt: Date;
-  public declare deletedAt: Date;
+  declare public publishedAt: Date;
+  declare public makePublicOn: Date;
+  declare public createdAt: Date;
+  declare public updatedAt: Date;
+  declare public deletedAt: Date;
 
-  public declare collective?: Collective;
-  public declare fromCollective?: Collective;
+  declare public collective?: Collective;
+  declare public fromCollective?: Collective;
 
-  public declare getCollective: BelongsToGetAssociationMixin<Collective>;
-  public declare getFromCollective: BelongsToGetAssociationMixin<Collective>;
-  public declare getCreatedByUser: BelongsToGetAssociationMixin<User>;
-  public declare getLastEditedByUser: BelongsToGetAssociationMixin<User>;
+  declare public getCollective: BelongsToGetAssociationMixin<Collective>;
+  declare public getFromCollective: BelongsToGetAssociationMixin<Collective>;
+  declare public getCreatedByUser: BelongsToGetAssociationMixin<User>;
+  declare public getLastEditedByUser: BelongsToGetAssociationMixin<User>;
 
   /**
    * Instance Methods

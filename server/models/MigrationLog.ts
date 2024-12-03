@@ -26,12 +26,12 @@ export type MigrationLogDataForMergeAccounts = {
 type MigrationLogData = MigrationLogDataForMergeAccounts | Record<string, unknown>;
 
 class MigrationLog extends Model<InferAttributes<MigrationLog>, InferCreationAttributes<MigrationLog>> {
-  public declare id: CreationOptional<number>;
-  public declare type: MigrationLogType;
-  public declare createdAt: CreationOptional<Date>;
-  public declare description: string;
-  public declare data: MigrationLogData;
-  public declare CreatedByUserId: ForeignKey<User['id']>;
+  declare public id: CreationOptional<number>;
+  declare public type: MigrationLogType;
+  declare public createdAt: CreationOptional<Date>;
+  declare public description: string;
+  declare public data: MigrationLogData;
+  declare public CreatedByUserId: ForeignKey<User['id']>;
 
   static async getDataForMergeAccounts(
     fromAccountId: number,

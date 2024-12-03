@@ -8,13 +8,13 @@ class RequiredLegalDocument extends Model<
   InferAttributes<RequiredLegalDocument>,
   InferAttributes<RequiredLegalDocument>
 > {
-  public declare readonly id: CreationOptional<number>;
-  public declare documentType: LEGAL_DOCUMENT_TYPE;
-  public declare HostCollectiveId: number;
+  declare public readonly id: CreationOptional<number>;
+  declare public documentType: LEGAL_DOCUMENT_TYPE;
+  declare public HostCollectiveId: number;
 
-  public declare createdAt: CreationOptional<Date>;
-  public declare updatedAt: CreationOptional<Date>;
-  public declare deletedAt: CreationOptional<Date>;
+  declare public createdAt: CreationOptional<Date>;
+  declare public updatedAt: CreationOptional<Date>;
+  declare public deletedAt: CreationOptional<Date>;
 }
 
 RequiredLegalDocument.init(

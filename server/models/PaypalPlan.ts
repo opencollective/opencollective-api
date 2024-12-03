@@ -23,14 +23,14 @@ interface PaypalPlanCreateWithProductAttributes extends PaypalPlanCommonCreateAt
 type PaypalPlanCreateAttributes = PaypalPlanCreateWithProductIdAttributes | PaypalPlanCreateWithProductAttributes;
 
 class PaypalPlan extends Model<InferAttributes<PaypalPlan>, PaypalPlanCreateAttributes> {
-  public declare id: string;
-  public declare ProductId: string;
-  public declare currency: SupportedCurrency;
-  public declare interval: string;
-  public declare amount: number;
-  public declare createdAt: Date;
-  public declare updatedAt: Date;
-  public declare deletedAt: Date;
+  declare public id: string;
+  declare public ProductId: string;
+  declare public currency: SupportedCurrency;
+  declare public interval: string;
+  declare public amount: number;
+  declare public createdAt: Date;
+  declare public updatedAt: Date;
+  declare public deletedAt: Date;
 }
 
 PaypalPlan.init(

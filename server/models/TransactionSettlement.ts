@@ -26,15 +26,15 @@ class TransactionSettlement extends Model<
   InferAttributes<TransactionSettlement>,
   InferCreationAttributes<TransactionSettlement>
 > {
-  public declare TransactionGroup: string;
-  public declare kind: TransactionKind | `${TransactionKind}`;
-  public declare status: TransactionSettlementStatus;
-  public declare ExpenseId: ForeignKey<Expense['id']>;
-  public declare createdAt: CreationOptional<Date>;
-  public declare updatedAt: CreationOptional<Date>;
-  public declare deletedAt: CreationOptional<Date>;
+  declare public TransactionGroup: string;
+  declare public kind: TransactionKind | `${TransactionKind}`;
+  declare public status: TransactionSettlementStatus;
+  declare public ExpenseId: ForeignKey<Expense['id']>;
+  declare public createdAt: CreationOptional<Date>;
+  declare public updatedAt: CreationOptional<Date>;
+  declare public deletedAt: CreationOptional<Date>;
 
-  public declare getExpense: BelongsToGetAssociationMixin<Expense>;
+  declare public getExpense: BelongsToGetAssociationMixin<Expense>;
 
   // ---- Static methods ----
 

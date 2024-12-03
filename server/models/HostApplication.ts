@@ -21,22 +21,22 @@ export enum HostApplicationStatus {
 }
 
 class HostApplication extends Model<InferAttributes<HostApplication>, InferCreationAttributes<HostApplication>> {
-  public declare readonly id: CreationOptional<number>;
-  public declare CollectiveId: number;
-  public declare HostCollectiveId: number;
-  public declare CreatedByUserId: ForeignKey<User['id']>;
-  public declare status: HostApplicationStatus;
-  public declare customData: Record<string, unknown> | null;
-  public declare message: string;
-  public declare createdAt: CreationOptional<Date>;
-  public declare updatedAt: CreationOptional<Date>;
-  public declare deletedAt: CreationOptional<Date>;
+  declare public readonly id: CreationOptional<number>;
+  declare public CollectiveId: number;
+  declare public HostCollectiveId: number;
+  declare public CreatedByUserId: ForeignKey<User['id']>;
+  declare public status: HostApplicationStatus;
+  declare public customData: Record<string, unknown> | null;
+  declare public message: string;
+  declare public createdAt: CreationOptional<Date>;
+  declare public updatedAt: CreationOptional<Date>;
+  declare public deletedAt: CreationOptional<Date>;
 
-  public declare collective?: NonAttribute<Collective>;
-  public declare getCollective: BelongsToGetAssociationMixin<Collective>;
+  declare public collective?: NonAttribute<Collective>;
+  declare public getCollective: BelongsToGetAssociationMixin<Collective>;
 
-  public declare host?: NonAttribute<Collective>;
-  public declare getHost: BelongsToGetAssociationMixin<Collective>;
+  declare public host?: NonAttribute<Collective>;
+  declare public getHost: BelongsToGetAssociationMixin<Collective>;
 
   // ---- Static ----
 

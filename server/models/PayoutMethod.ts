@@ -76,17 +76,17 @@ type PayoutMethodDataType =
  * Sequelize model to represent an PayoutMethod, linked to the `PayoutMethods` table.
  */
 class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCreationAttributes<PayoutMethod>> {
-  public declare readonly id: CreationOptional<number>;
-  public declare type: PayoutMethodTypes;
-  public declare createdAt: CreationOptional<Date>;
-  public declare updatedAt: CreationOptional<Date>;
-  public declare deletedAt: CreationOptional<Date>;
-  public declare name: string;
-  public declare isSaved: boolean;
-  public declare CollectiveId: number;
-  public declare CreatedByUserId: ForeignKey<User['id']>;
+  declare public readonly id: CreationOptional<number>;
+  declare public type: PayoutMethodTypes;
+  declare public createdAt: CreationOptional<Date>;
+  declare public updatedAt: CreationOptional<Date>;
+  declare public deletedAt: CreationOptional<Date>;
+  declare public name: string;
+  declare public isSaved: boolean;
+  declare public CollectiveId: number;
+  declare public CreatedByUserId: ForeignKey<User['id']>;
 
-  public declare Collective?: Collective;
+  declare public Collective?: Collective;
 
   private static editableFields = ['data', 'name', 'isSaved'];
 

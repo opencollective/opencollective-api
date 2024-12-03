@@ -17,13 +17,13 @@ export enum AssetType {
  * Sequelize model to represent an SuspendedAsset, linked to the `SuspendedAssets` table.
  */
 class SuspendedAsset extends Model<InferAttributes<SuspendedAsset>, InferCreationAttributes<SuspendedAsset>> {
-  public declare readonly id: CreationOptional<number>;
-  public declare type: AssetType;
-  public declare reason: string;
-  public declare fingerprint: string;
-  public declare createdAt: Date;
-  public declare updatedAt: Date;
-  public declare deletedAt: Date;
+  declare public readonly id: CreationOptional<number>;
+  declare public type: AssetType;
+  declare public reason: string;
+  declare public fingerprint: string;
+  declare public createdAt: Date;
+  declare public updatedAt: Date;
+  declare public deletedAt: Date;
 
   static async assertAssetIsNotSuspended({
     type,

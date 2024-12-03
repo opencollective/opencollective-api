@@ -24,23 +24,23 @@ export enum CommentType {
 }
 
 class Comment extends Model<InferAttributes<Comment>, InferCreationAttributes<Comment>> {
-  public declare readonly id: CreationOptional<number>;
-  public declare CollectiveId: number;
-  public declare FromCollectiveId: number;
-  public declare CreatedByUserId: ForeignKey<User['id']>;
-  public declare ExpenseId: ForeignKey<Expense['id']>;
-  public declare HostApplicationId: ForeignKey<HostApplication['id']>;
-  public declare OrderId: number;
-  public declare UpdateId: number;
-  public declare ConversationId: number;
-  public declare html: string;
-  public declare type: CommentType;
-  public declare createdAt: CreationOptional<Date>;
-  public declare updatedAt: CreationOptional<Date>;
-  public declare deletedAt: CreationOptional<Date>;
+  declare public readonly id: CreationOptional<number>;
+  declare public CollectiveId: number;
+  declare public FromCollectiveId: number;
+  declare public CreatedByUserId: ForeignKey<User['id']>;
+  declare public ExpenseId: ForeignKey<Expense['id']>;
+  declare public HostApplicationId: ForeignKey<HostApplication['id']>;
+  declare public OrderId: number;
+  declare public UpdateId: number;
+  declare public ConversationId: number;
+  declare public html: string;
+  declare public type: CommentType;
+  declare public createdAt: CreationOptional<Date>;
+  declare public updatedAt: CreationOptional<Date>;
+  declare public deletedAt: CreationOptional<Date>;
 
-  public declare fromCollective?: NonAttribute<Collective>;
-  public declare collective?: NonAttribute<Collective>;
+  declare public fromCollective?: NonAttribute<Collective>;
+  declare public collective?: NonAttribute<Collective>;
 
   // Returns the User model of the User that created this Update
   getUser = function () {

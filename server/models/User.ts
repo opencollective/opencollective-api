@@ -36,37 +36,37 @@ type UserData = {
 };
 
 class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
-  public declare readonly id: CreationOptional<number>;
-  public declare email: string;
-  public declare emailWaitingForValidation: CreationOptional<string>;
-  public declare emailConfirmationToken: CreationOptional<string>;
+  declare public readonly id: CreationOptional<number>;
+  declare public email: string;
+  declare public emailWaitingForValidation: CreationOptional<string>;
+  declare public emailConfirmationToken: CreationOptional<string>;
   /**
    * @deprecated use `UserTwoFactorAuthMethod`
    */
-  public declare twoFactorAuthToken: CreationOptional<string>;
+  declare public twoFactorAuthToken: CreationOptional<string>;
   /**
    * @deprecated use `UserTwoFactorAuthMethod`
    */
-  public declare yubikeyDeviceId: CreationOptional<string>;
-  public declare twoFactorAuthRecoveryCodes: CreationOptional<string[]>;
-  public declare CollectiveId: number;
-  public declare newsletterOptIn: boolean;
-  public declare data: CreationOptional<Record<string, unknown> & UserData>;
-  public declare createdAt: CreationOptional<Date>;
-  public declare changelogViewDate: CreationOptional<Date>;
-  public declare updatedAt: CreationOptional<Date>;
-  public declare deletedAt: CreationOptional<Date>;
-  public declare confirmedAt: CreationOptional<Date>;
-  public declare lastLoginAt: CreationOptional<Date>;
-  public declare passwordHash: CreationOptional<string>;
-  public declare passwordUpdatedAt: CreationOptional<Date>;
+  declare public yubikeyDeviceId: CreationOptional<string>;
+  declare public twoFactorAuthRecoveryCodes: CreationOptional<string[]>;
+  declare public CollectiveId: number;
+  declare public newsletterOptIn: boolean;
+  declare public data: CreationOptional<Record<string, unknown> & UserData>;
+  declare public createdAt: CreationOptional<Date>;
+  declare public changelogViewDate: CreationOptional<Date>;
+  declare public updatedAt: CreationOptional<Date>;
+  declare public deletedAt: CreationOptional<Date>;
+  declare public confirmedAt: CreationOptional<Date>;
+  declare public lastLoginAt: CreationOptional<Date>;
+  declare public passwordHash: CreationOptional<string>;
+  declare public passwordUpdatedAt: CreationOptional<Date>;
 
   // TODO: We should ideally rely on this.changed(...)
   public _emailChanged?: NonAttribute<boolean>;
   public _emailWaitingForValidationChanged?: NonAttribute<boolean>;
 
   // Associations
-  public declare collective?: Collective;
+  declare public collective?: Collective;
 
   // Non-model attributes
   public rolesByCollectiveId?: NonAttribute<Record<string, MemberRoles[]>>;
