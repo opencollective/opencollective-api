@@ -19,7 +19,7 @@ import {
   TwoFactorMethod,
 } from '../../../../../server/lib/two-factor-authentication/lib';
 import { sleep } from '../../../../../server/lib/utils';
-import models, { UploadedFile } from '../../../../../server/models';
+import models from '../../../../../server/models';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../../server/models/LegalDocument';
 import { PayoutMethodTypes } from '../../../../../server/models/PayoutMethod';
 import UserTwoFactorMethod from '../../../../../server/models/UserTwoFactorMethod';
@@ -1419,13 +1419,12 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(result.data.editExpense.amount).to.equal(1000);
       expect(itemsFromAPI.length).to.equal(2);
 
-      for (const item of expenseUpdateData.items) {
+      expenseUpdateData.items.forEach(item => {
         const itemFromAPI = itemsFromAPI.find(a => a.description === item.description);
         expect(itemFromAPI).to.exist;
-        const uploadedFile = await UploadedFile.getFromProtectedURL(itemFromAPI.url);
-        expect(itemFromAPI.url).to.equal(UploadedFile.getProtectedURLFromOpenCollectiveS3Bucket(uploadedFile.id));
+        expect(itemFromAPI.url).to.equal(item.url);
         expect(itemFromAPI.amount).to.equal(item.amount);
-      }
+      });
     });
 
     it('updates the items', async () => {

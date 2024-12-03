@@ -20,7 +20,7 @@ const GraphQLExpenseAttachedFile = new GraphQLObjectType({
       async resolve(item, _, req: express.Request): Promise<string | undefined> {
         if (item.url && getContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_ATTACHMENTS_URL, item.ExpenseId)) {
           const uploadedFile = await req.loaders.UploadedFile.byUrl.load(item.url);
-          return uploadedFile?.url;
+          return uploadedFile?.url || item.url;
         }
       },
     },
