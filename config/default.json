@@ -1,5 +1,9 @@
 {
   "port": "3060",
+  "services": {
+    "server": true,
+    "searchSync": true
+  },
   "mailpit": {
     "client": false
   },

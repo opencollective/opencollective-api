@@ -20,3 +20,7 @@ export const ElasticSearchModelsAdapters: Record<ElasticSearchIndexName, Elastic
   [ElasticSearchIndexName.TRANSACTIONS]: new ElasticSearchTransactionsAdapter(),
   [ElasticSearchIndexName.UPDATES]: new ElasticSearchUpdatesAdapter(),
 } as const;
+
+export const getAdapterFromTableName = (table: string): ElasticSearchModelAdapter | undefined => {
+  return Object.values(ElasticSearchModelsAdapters).find(adapter => adapter.model.tableName === table);
+};

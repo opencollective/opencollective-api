@@ -1,13 +1,13 @@
 import { omit } from 'lodash';
 import { Op } from 'sequelize';
 
-import models from '../../../models';
+import HostApplication from '../../../models/HostApplication';
 import { ElasticSearchIndexName } from '../constants';
 
 import { ElasticSearchModelAdapter } from './ElasticSearchModelAdapter';
 
 export class ElasticSearchHostApplicationsAdapter implements ElasticSearchModelAdapter {
-  public readonly model = models.HostApplication;
+  public readonly model = HostApplication;
   public readonly index = ElasticSearchIndexName.HOST_APPLICATIONS;
   public readonly mappings = {
     properties: {
@@ -33,7 +33,7 @@ export class ElasticSearchHostApplicationsAdapter implements ElasticSearchModelA
       ids?: number[];
     } = {},
   ) {
-    return models.HostApplication.findAll({
+    return HostApplication.findAll({
       attributes: omit(Object.keys(this.mappings.properties), ['ParentCollectiveId']),
       order: [['id', 'DESC']],
       limit: options.limit,
@@ -54,7 +54,7 @@ export class ElasticSearchHostApplicationsAdapter implements ElasticSearchModelA
   }
 
   public mapModelInstanceToDocument(
-    instance: InstanceType<typeof models.HostApplication>,
+    instance: InstanceType<typeof HostApplication>,
   ): Record<keyof (typeof this.mappings)['properties'], unknown> {
     return {
       id: instance.id,

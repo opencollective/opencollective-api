@@ -195,3 +195,11 @@ export const waitForAllIndexesRefresh = async () => {
   const client = getElasticSearchClient({ throwIfUnavailable: true });
   await client.indices.refresh({ index: '_all' });
 };
+
+/**
+ * Re-indexes all entries across all indexes related to this `accountId`, either through `CollectiveId`,
+ * `HostCollectiveId`, `FromCollectiveId`...etc.
+ */
+export const elasticSearchFullAccountReIndex = async (accountId: number) => {
+  // TODO: Implement this
+};
