@@ -96,6 +96,7 @@ export enum HandlerType {
   CRON = 'CRON',
   FALLBACK = 'FALLBACK',
   WEBHOOK = 'WEBHOOK',
+  ELASTICSEARCH_SYNC_JOB = 'ELASTICSEARCH_SYNC_JOB',
 }
 
 export type CaptureErrorParams = {

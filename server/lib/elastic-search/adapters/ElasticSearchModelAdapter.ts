@@ -12,20 +12,24 @@ type ElasticSearchModelPermissions = {
   fields?: Record<string, QueryDslQueryContainer | 'FORBIDDEN'>;
 };
 
+export type FindEntriesToIndexOptions = {
+  offset?: number;
+  limit?: number;
+  fromDate?: Date;
+  maxId?: number;
+  ids?: number[];
+  relatedToCollectiveIds?: number[];
+};
+
 export interface ElasticSearchModelAdapter {
-  readonly model: ModelStatic<Model>;
   readonly index: ElasticSearchIndexName;
   readonly mappings: MappingTypeMapping;
   readonly settings?: IndicesIndexSettings;
 
+  getModel(): ModelStatic<Model>;
+
   /** Returns the attributes that `mapModelInstanceToDocument` needs to build the document */
-  findEntriesToIndex(options?: {
-    offset?: number;
-    limit?: number;
-    fromDate?: Date;
-    maxId?: number;
-    ids?: number[];
-  }): Promise<Array<InstanceType<ModelType>>>;
+  findEntriesToIndex(options?: FindEntriesToIndexOptions): Promise<Array<InstanceType<ModelType>>>;
 
   /** Maps a model instance to an ElasticSearch document */
   mapModelInstanceToDocument(

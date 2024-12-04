@@ -31,7 +31,7 @@ async function removeDeletedEntries(indexName: ElasticSearchIndexName, fromDate:
   let offset = 0;
   let deletedEntries = [];
   do {
-    deletedEntries = await adapter.model.findAll({
+    deletedEntries = await adapter.getModel().findAll({
       attributes: ['id'],
       where: { deletedAt: { [Op.gt]: fromDate } },
       raw: true,
@@ -83,7 +83,7 @@ export async function restoreUndeletedEntries(indexName: ElasticSearchIndexName,
   /* eslint-enable camelcase */
 
   // Search for entries that are not marked as deleted in the database
-  const undeletedEntries = (await adapter.model.findAll({
+  const undeletedEntries = (await adapter.getModel().findAll({
     attributes: ['id'],
     where: { id: { [Op.not]: allIds } },
     raw: true,

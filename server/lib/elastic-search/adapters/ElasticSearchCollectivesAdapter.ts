@@ -2,10 +2,9 @@ import models, { Op } from '../../../models';
 import { stripHTMLOrEmpty } from '../../sanitize-html';
 import { ElasticSearchIndexName } from '../constants';
 
-import { ElasticSearchModelAdapter } from './ElasticSearchModelAdapter';
+import { ElasticSearchModelAdapter, FindEntriesToIndexOptions } from './ElasticSearchModelAdapter';
 
 export class ElasticSearchCollectivesAdapter implements ElasticSearchModelAdapter {
-  public readonly model = models.Collective;
   public readonly index = ElasticSearchIndexName.COLLECTIVES;
   public readonly mappings = {
     properties: {
@@ -30,15 +29,11 @@ export class ElasticSearchCollectivesAdapter implements ElasticSearchModelAdapte
     },
   } as const;
 
-  public async findEntriesToIndex(
-    options: {
-      offset?: number;
-      limit?: number;
-      fromDate?: Date;
-      maxId?: number;
-      ids?: number[];
-    } = {},
-  ): Promise<Array<InstanceType<typeof models.Collective>>> {
+  public getModel() {
+    return models.Collective;
+  }
+
+  public async findEntriesToIndex(options: FindEntriesToIndexOptions = {}) {
     return models.Collective.findAll({
       attributes: Object.keys(this.mappings.properties),
       order: [['id', 'DESC']],
@@ -49,6 +44,15 @@ export class ElasticSearchCollectivesAdapter implements ElasticSearchModelAdapte
         ...(options.fromDate ? { updatedAt: options.fromDate } : null),
         ...(options.maxId ? { id: { [Op.lte]: options.maxId } } : null),
         ...(options.ids?.length ? { id: { [Op.in]: options.ids } } : null),
+        ...(options.relatedToCollectiveIds?.length
+          ? {
+              [Op.or]: [
+                { id: options.relatedToCollectiveIds },
+                { HostCollectiveId: options.relatedToCollectiveIds },
+                { ParentCollectiveId: options.relatedToCollectiveIds },
+              ],
+            }
+          : null),
       },
     });
   }
@@ -72,7 +76,7 @@ export class ElasticSearchCollectivesAdapter implements ElasticSearchModelAdapte
       isActive: instance.isActive,
       isHostAccount: instance.isHostAccount,
       deactivatedAt: instance.deactivatedAt,
-      HostCollectiveId: instance.HostCollectiveId,
+      HostCollectiveId: !instance.isActive ? null : instance.HostCollectiveId,
       ParentCollectiveId: instance.ParentCollectiveId,
     };
   }

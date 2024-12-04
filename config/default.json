@@ -1,5 +1,9 @@
 {
   "port": "3060",
+  "services": {
+    "server": true,
+    "searchSync": false
+  },
   "mailpit": {
     "client": false
   },
@@ -15,6 +19,9 @@
       "benchmark": true
     },
     "readOnly": false
+  },
+  "elasticSearch": {
+    "maxSyncDelay": 5000
   },
   "maintenancedb": {
     "url": "postgres://127.0.0.1:5432/postgres"

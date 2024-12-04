@@ -4,10 +4,9 @@ import { Op } from 'sequelize';
 import models from '../../../models';
 import { ElasticSearchIndexName } from '../constants';
 
-import { ElasticSearchModelAdapter } from './ElasticSearchModelAdapter';
+import { ElasticSearchModelAdapter, FindEntriesToIndexOptions } from './ElasticSearchModelAdapter';
 
 export class ElasticSearchTransactionsAdapter implements ElasticSearchModelAdapter {
-  public readonly model = models.Transaction;
   public readonly index = ElasticSearchIndexName.TRANSACTIONS;
   public readonly mappings = {
     properties: {
@@ -28,15 +27,11 @@ export class ElasticSearchTransactionsAdapter implements ElasticSearchModelAdapt
     },
   } as const;
 
-  public findEntriesToIndex(
-    options: {
-      offset?: number;
-      limit?: number;
-      fromDate?: Date;
-      maxId?: number;
-      ids?: number[];
-    } = {},
-  ) {
+  public getModel() {
+    return models.Transaction;
+  }
+
+  public findEntriesToIndex(options: FindEntriesToIndexOptions = {}) {
     return models.Transaction.findAll({
       attributes: omit(Object.keys(this.mappings.properties), ['merchantId']),
       order: [['id', 'DESC']],
@@ -45,7 +40,16 @@ export class ElasticSearchTransactionsAdapter implements ElasticSearchModelAdapt
       where: {
         ...(options.fromDate ? { updatedAt: options.fromDate } : null),
         ...(options.maxId ? { id: { [Op.lte]: options.maxId } } : null),
-        ...(options.ids?.length ? { id: { [Op.in]: options.ids } } : null),
+        ...(options.ids?.length ? { id: options.ids } : null),
+        ...(options.relatedToCollectiveIds?.length
+          ? {
+              [Op.or]: [
+                { CollectiveId: options.relatedToCollectiveIds },
+                { FromCollectiveId: options.relatedToCollectiveIds },
+                { HostCollectiveId: options.relatedToCollectiveIds },
+              ],
+            }
+          : null),
       },
     });
   }

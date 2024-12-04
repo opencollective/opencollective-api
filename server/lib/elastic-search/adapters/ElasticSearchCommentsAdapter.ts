@@ -7,10 +7,9 @@ import { CommentType } from '../../../models/Comment';
 import { stripHTMLOrEmpty } from '../../sanitize-html';
 import { ElasticSearchIndexName } from '../constants';
 
-import { ElasticSearchModelAdapter } from './ElasticSearchModelAdapter';
+import { ElasticSearchModelAdapter, FindEntriesToIndexOptions } from './ElasticSearchModelAdapter';
 
 export class ElasticSearchCommentsAdapter implements ElasticSearchModelAdapter {
-  public readonly model = models.Comment;
   public readonly index = ElasticSearchIndexName.COMMENTS;
   public readonly mappings = {
     properties: {
@@ -29,15 +28,11 @@ export class ElasticSearchCommentsAdapter implements ElasticSearchModelAdapter {
     },
   } as const;
 
-  public findEntriesToIndex(
-    options: {
-      offset?: number;
-      limit?: number;
-      fromDate?: Date;
-      maxId?: number;
-      ids?: number[];
-    } = {},
-  ) {
+  public getModel() {
+    return models.Comment;
+  }
+
+  public findEntriesToIndex(options: FindEntriesToIndexOptions = {}) {
     return models.Comment.findAll({
       attributes: omit(Object.keys(this.mappings.properties), ['HostCollectiveId', 'ParentCollectiveId']),
       order: [['id', 'DESC']],
@@ -47,12 +42,20 @@ export class ElasticSearchCommentsAdapter implements ElasticSearchModelAdapter {
         ...(options.fromDate ? { updatedAt: options.fromDate } : null),
         ...(options.maxId ? { id: { [Op.lte]: options.maxId } } : null),
         ...(options.ids?.length ? { id: { [Op.in]: options.ids } } : null),
+        ...(options.relatedToCollectiveIds?.length
+          ? {
+              [Op.or]: [
+                { CollectiveId: options.relatedToCollectiveIds },
+                { FromCollectiveId: options.relatedToCollectiveIds },
+              ],
+            }
+          : null),
       },
       include: [
         {
           association: 'collective',
           required: true,
-          attributes: ['HostCollectiveId', 'ParentCollectiveId'],
+          attributes: ['isActive', 'HostCollectiveId', 'ParentCollectiveId'],
         },
         {
           association: 'expense',
@@ -84,7 +87,7 @@ export class ElasticSearchCommentsAdapter implements ElasticSearchModelAdapter {
       HostCollectiveId:
         instance.expense?.HostCollectiveId ??
         instance.hostApplication?.HostCollectiveId ??
-        instance.collective.HostCollectiveId,
+        (!instance.collective.isActive ? null : instance.collective.HostCollectiveId),
     };
   }
 
