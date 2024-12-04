@@ -19,11 +19,13 @@ export interface ElasticSearchModelAdapter {
   readonly settings?: IndicesIndexSettings;
 
   /** Returns the attributes that `mapModelInstanceToDocument` needs to build the document */
-  findEntriesToIndex(
-    offset: number,
-    limit: number,
-    options: { fromDate: Date; firstReturnedId: number },
-  ): Promise<Array<InstanceType<ModelType>>>;
+  findEntriesToIndex(options?: {
+    offset?: number;
+    limit?: number;
+    fromDate?: Date;
+    maxId?: number;
+    ids?: number[];
+  }): Promise<Array<InstanceType<ModelType>>>;
 
   /** Maps a model instance to an ElasticSearch document */
   mapModelInstanceToDocument(
