@@ -1,11 +1,16 @@
 {
   "port": "PORT",
   "env": "OC_ENV",
+  "services": {
+    "server": "ENABLE_SERVICE_SERVER",
+    "searchSync": "ENABLE_SERVICE_SEARCH_SYNC"
+  },
   "mailpit": {
     "client": "MAILPIT_CLIENT"
   },
   "elasticSearch": {
-    "url": "ELASTICSEARCH_URL"
+    "url": "ELASTICSEARCH_URL",
+    "maxSyncDelay": "ELASTICSEARCH_MAX_SYNC_DELAY"
   },
   "database": {
     "url": "PG_URL",

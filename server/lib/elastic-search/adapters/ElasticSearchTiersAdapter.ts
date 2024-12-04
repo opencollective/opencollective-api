@@ -5,10 +5,9 @@ import models from '../../../models';
 import { stripHTMLOrEmpty } from '../../sanitize-html';
 import { ElasticSearchIndexName } from '../constants';
 
-import { ElasticSearchModelAdapter } from './ElasticSearchModelAdapter';
+import { ElasticSearchModelAdapter, FindEntriesToIndexOptions } from './ElasticSearchModelAdapter';
 
 export class ElasticSearchTiersAdapter implements ElasticSearchModelAdapter {
-  public readonly model = models.Tier;
   public readonly index = ElasticSearchIndexName.TIERS;
   public readonly mappings = {
     properties: {
@@ -28,15 +27,11 @@ export class ElasticSearchTiersAdapter implements ElasticSearchModelAdapter {
     },
   } as const;
 
-  public findEntriesToIndex(
-    options: {
-      offset?: number;
-      limit?: number;
-      fromDate?: Date;
-      maxId?: number;
-      ids?: number[];
-    } = {},
-  ) {
+  public getModel() {
+    return models.Tier;
+  }
+
+  public findEntriesToIndex(options: FindEntriesToIndexOptions = {}) {
     return models.Tier.findAll({
       attributes: omit(Object.keys(this.mappings.properties), ['HostCollectiveId', 'ParentCollectiveId']),
       order: [['id', 'DESC']],
@@ -45,13 +40,14 @@ export class ElasticSearchTiersAdapter implements ElasticSearchModelAdapter {
       where: {
         ...(options.fromDate ? { updatedAt: options.fromDate } : null),
         ...(options.maxId ? { id: { [Op.lte]: options.maxId } } : null),
-        ...(options.ids?.length ? { id: { [Op.in]: options.ids } } : null),
+        ...(options.ids?.length ? { id: options.ids } : null),
+        ...(options.relatedToCollectiveIds?.length ? { CollectiveId: options.relatedToCollectiveIds } : null),
       },
       include: [
         {
           association: 'Collective',
           required: true,
-          attributes: ['HostCollectiveId', 'ParentCollectiveId'],
+          attributes: ['isActive', 'HostCollectiveId', 'ParentCollectiveId'],
         },
       ],
     });
@@ -70,7 +66,7 @@ export class ElasticSearchTiersAdapter implements ElasticSearchModelAdapter {
       description: instance.description,
       longDescription: stripHTMLOrEmpty(instance.longDescription),
       CollectiveId: instance.CollectiveId,
-      HostCollectiveId: instance.Collective.HostCollectiveId,
+      HostCollectiveId: !instance.Collective.isActive ? null : instance.Collective.HostCollectiveId,
       ParentCollectiveId: instance.Collective.ParentCollectiveId,
     };
   }

@@ -20,3 +20,19 @@ export const ElasticSearchModelsAdapters: Record<ElasticSearchIndexName, Elastic
   [ElasticSearchIndexName.TRANSACTIONS]: new ElasticSearchTransactionsAdapter(),
   [ElasticSearchIndexName.UPDATES]: new ElasticSearchUpdatesAdapter(),
 } as const;
+
+let AdaptersFromTableNames: Record<string, ElasticSearchModelAdapter>;
+
+export const getAdapterFromTableName = (table: string): ElasticSearchModelAdapter | undefined => {
+  if (!AdaptersFromTableNames) {
+    AdaptersFromTableNames = Object.values(ElasticSearchModelsAdapters).reduce(
+      (acc, adapter) => {
+        acc[adapter.getModel().tableName] = adapter;
+        return acc;
+      },
+      {} as Record<string, ElasticSearchModelAdapter>,
+    );
+  }
+
+  return AdaptersFromTableNames[table];
+};

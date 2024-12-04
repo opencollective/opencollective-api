@@ -4,10 +4,9 @@ import { Op } from 'sequelize';
 import models from '../../../models';
 import { ElasticSearchIndexName } from '../constants';
 
-import { ElasticSearchModelAdapter } from './ElasticSearchModelAdapter';
+import { ElasticSearchModelAdapter, FindEntriesToIndexOptions } from './ElasticSearchModelAdapter';
 
 export class ElasticSearchHostApplicationsAdapter implements ElasticSearchModelAdapter {
-  public readonly model = models.HostApplication;
   public readonly index = ElasticSearchIndexName.HOST_APPLICATIONS;
   public readonly mappings = {
     properties: {
@@ -24,15 +23,11 @@ export class ElasticSearchHostApplicationsAdapter implements ElasticSearchModelA
     },
   } as const;
 
-  public findEntriesToIndex(
-    options: {
-      offset?: number;
-      limit?: number;
-      fromDate?: Date;
-      maxId?: number;
-      ids?: number[];
-    } = {},
-  ) {
+  public getModel() {
+    return models.HostApplication;
+  }
+
+  public findEntriesToIndex(options: FindEntriesToIndexOptions = {}) {
     return models.HostApplication.findAll({
       attributes: omit(Object.keys(this.mappings.properties), ['ParentCollectiveId']),
       order: [['id', 'DESC']],
@@ -41,7 +36,15 @@ export class ElasticSearchHostApplicationsAdapter implements ElasticSearchModelA
       where: {
         ...(options.fromDate ? { updatedAt: options.fromDate } : null),
         ...(options.maxId ? { id: { [Op.lte]: options.maxId } } : null),
-        ...(options.ids?.length ? { id: { [Op.in]: options.ids } } : null),
+        ...(options.ids?.length ? { id: options.ids } : null),
+        ...(options.relatedToCollectiveIds?.length
+          ? {
+              [Op.or]: [
+                { CollectiveId: options.relatedToCollectiveIds },
+                { HostCollectiveId: options.relatedToCollectiveIds },
+              ],
+            }
+          : null),
       },
       include: [
         {
