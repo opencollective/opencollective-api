@@ -1,14 +1,14 @@
 import { omit } from 'lodash';
 import { Op } from 'sequelize';
 
-import models from '../../../models';
+import Expense from '../../../models/Expense';
 import { stripHTMLOrEmpty } from '../../sanitize-html';
 import { ElasticSearchIndexName } from '../constants';
 
 import { ElasticSearchModelAdapter } from './ElasticSearchModelAdapter';
 
 export class ElasticSearchExpensesAdapter implements ElasticSearchModelAdapter {
-  public readonly model = models.Expense;
+  public readonly model = Expense;
   public readonly index = ElasticSearchIndexName.EXPENSES;
   public readonly mappings = {
     properties: {
@@ -23,6 +23,7 @@ export class ElasticSearchExpensesAdapter implements ElasticSearchModelAdapter {
       amount: { type: 'integer' },
       currency: { type: 'keyword' },
       status: { type: 'keyword' },
+      items: { type: 'text' },
       // Relationships
       UserId: { type: 'keyword' },
       CollectiveId: { type: 'keyword' },
@@ -42,7 +43,7 @@ export class ElasticSearchExpensesAdapter implements ElasticSearchModelAdapter {
       ids?: number[];
     } = {},
   ) {
-    return models.Expense.findAll({
+    return Expense.findAll({
       attributes: omit(Object.keys(this.mappings.properties), ['ParentCollectiveId']),
       order: [['id', 'DESC']],
       limit: options.limit,
@@ -56,14 +57,19 @@ export class ElasticSearchExpensesAdapter implements ElasticSearchModelAdapter {
         {
           association: 'collective',
           required: true,
-          attributes: ['HostCollectiveId', 'ParentCollectiveId'],
+          attributes: ['isActive', 'HostCollectiveId', 'ParentCollectiveId'],
+        },
+        {
+          association: 'items',
+          required: true,
+          attributes: ['description'],
         },
       ],
     });
   }
 
   public mapModelInstanceToDocument(
-    instance: InstanceType<typeof models.Expense>,
+    instance: InstanceType<typeof Expense>,
   ): Record<keyof (typeof this.mappings)['properties'], unknown> {
     return {
       id: instance.id,
@@ -74,6 +80,7 @@ export class ElasticSearchExpensesAdapter implements ElasticSearchModelAdapter {
       privateMessage: stripHTMLOrEmpty(instance.privateMessage),
       invoiceInfo: instance.invoiceInfo,
       reference: instance.reference,
+      items: instance.items.map(item => item.description).join(' '),
       amount: instance.amount,
       currency: instance.currency,
       status: instance.status,
@@ -81,7 +88,8 @@ export class ElasticSearchExpensesAdapter implements ElasticSearchModelAdapter {
       ParentCollectiveId: instance.collective.ParentCollectiveId,
       FromCollectiveId: instance.FromCollectiveId,
       UserId: instance.UserId,
-      HostCollectiveId: instance.HostCollectiveId || instance.collective.HostCollectiveId,
+      HostCollectiveId:
+        instance.HostCollectiveId || (!instance.collective.isActive ? null : instance.collective.HostCollectiveId),
     };
   }
 

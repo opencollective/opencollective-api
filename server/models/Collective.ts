@@ -85,6 +85,7 @@ import {
 } from '../lib/collectivelib';
 import { invalidateContributorsCache } from '../lib/contributors';
 import { getFxRate } from '../lib/currency';
+import { ElasticSearchBatchProcessor } from '../lib/elastic-search/batch-processor';
 import emailLib from '../lib/email';
 import { formatAddress } from '../lib/format-address';
 import { getGithubHandleFromUrl, getGithubUrlFromHandle } from '../lib/github';
@@ -2609,12 +2610,17 @@ class Collective extends Model<
         }
       }
 
-      return this.addHost(newHostCollective, remoteUser, {
+      await this.addHost(newHostCollective, remoteUser, {
         message,
         applicationData,
         shouldAutomaticallyApprove,
       });
     }
+
+    // Update caches
+    purgeCacheForCollective(this.slug);
+
+    return this;
   };
 
   // edit the list of members and admins of this collective (create/update/remove)

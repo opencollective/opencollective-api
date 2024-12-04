@@ -7,14 +7,16 @@ import config from 'config';
 import express from 'express';
 import throng from 'throng';
 
+import { startElasticSearchPostgresSync } from './lib/elastic-search/sync-postgres';
 import expressLib from './lib/express';
 import logger from './lib/logger';
 import { updateCachedFidoMetadata } from './lib/two-factor-authentication/fido-metadata';
+import { parseToBoolean } from './lib/utils';
 import routes from './routes';
 
 const workers = process.env.WEB_CONCURRENCY || 1;
 
-async function start(i) {
+async function startExpressServer(workerId) {
   const expressApp = express();
 
   await updateCachedFidoMetadata();
@@ -35,7 +37,7 @@ async function start(i) {
       host,
       server.address().port,
       config.env,
-      i,
+      workerId,
     );
   });
 
@@ -45,15 +47,22 @@ async function start(i) {
   return expressApp;
 }
 
+// Start the express server
 let app;
+if (parseToBoolean(config.services.server)) {
+  if (['production', 'staging'].includes(config.env) && workers > 1) {
+    throng({ worker: startExpressServer, count: workers });
+  } else {
+    app = startExpressServer(1);
+  }
+}
 
-if (['production', 'staging'].includes(config.env) && workers > 1) {
-  throng({ worker: start, count: workers });
-} else {
-  app = start(1);
+// Start the search sync job
+if (parseToBoolean(config.services.searchSync)) {
+  startElasticSearchPostgresSync();
 }
 
 // This is used by tests
-export default async function () {
-  return app ? app : start(1);
+export default async function startServerForTest() {
+  return app ? app : parseToBoolean(config.services.server) ? startExpressServer(1) : null;
 }

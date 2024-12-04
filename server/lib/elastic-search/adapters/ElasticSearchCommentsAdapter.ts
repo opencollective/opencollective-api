@@ -2,15 +2,14 @@ import { QueryDslQueryContainer } from '@elastic/elasticsearch/lib/api/types';
 import { omit } from 'lodash';
 import { Op } from 'sequelize';
 
-import models from '../../../models';
-import { CommentType } from '../../../models/Comment';
+import Comment, { CommentType } from '../../../models/Comment';
 import { stripHTMLOrEmpty } from '../../sanitize-html';
 import { ElasticSearchIndexName } from '../constants';
 
 import { ElasticSearchModelAdapter } from './ElasticSearchModelAdapter';
 
 export class ElasticSearchCommentsAdapter implements ElasticSearchModelAdapter {
-  public readonly model = models.Comment;
+  public readonly model = Comment;
   public readonly index = ElasticSearchIndexName.COMMENTS;
   public readonly mappings = {
     properties: {
@@ -38,7 +37,7 @@ export class ElasticSearchCommentsAdapter implements ElasticSearchModelAdapter {
       ids?: number[];
     } = {},
   ) {
-    return models.Comment.findAll({
+    return Comment.findAll({
       attributes: omit(Object.keys(this.mappings.properties), ['HostCollectiveId', 'ParentCollectiveId']),
       order: [['id', 'DESC']],
       limit: options.limit,
@@ -52,7 +51,7 @@ export class ElasticSearchCommentsAdapter implements ElasticSearchModelAdapter {
         {
           association: 'collective',
           required: true,
-          attributes: ['HostCollectiveId', 'ParentCollectiveId'],
+          attributes: ['isActive', 'HostCollectiveId', 'ParentCollectiveId'],
         },
         {
           association: 'expense',
@@ -69,7 +68,7 @@ export class ElasticSearchCommentsAdapter implements ElasticSearchModelAdapter {
   }
 
   public mapModelInstanceToDocument(
-    instance: InstanceType<typeof models.Comment>,
+    instance: InstanceType<typeof Comment>,
   ): Record<keyof (typeof this.mappings)['properties'], unknown> {
     return {
       id: instance.id,
@@ -84,7 +83,7 @@ export class ElasticSearchCommentsAdapter implements ElasticSearchModelAdapter {
       HostCollectiveId:
         instance.expense?.HostCollectiveId ??
         instance.hostApplication?.HostCollectiveId ??
-        instance.collective.HostCollectiveId,
+        (!instance.collective.isActive ? null : instance.collective.HostCollectiveId),
     };
   }
 

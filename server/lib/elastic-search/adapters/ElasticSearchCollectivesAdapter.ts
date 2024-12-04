@@ -1,11 +1,12 @@
-import models, { Op } from '../../../models';
+import { Op } from '../../../models';
+import Collective from '../../../models/Collective';
 import { stripHTMLOrEmpty } from '../../sanitize-html';
 import { ElasticSearchIndexName } from '../constants';
 
 import { ElasticSearchModelAdapter } from './ElasticSearchModelAdapter';
 
 export class ElasticSearchCollectivesAdapter implements ElasticSearchModelAdapter {
-  public readonly model = models.Collective;
+  public readonly model = Collective;
   public readonly index = ElasticSearchIndexName.COLLECTIVES;
   public readonly mappings = {
     properties: {
@@ -38,8 +39,8 @@ export class ElasticSearchCollectivesAdapter implements ElasticSearchModelAdapte
       maxId?: number;
       ids?: number[];
     } = {},
-  ): Promise<Array<InstanceType<typeof models.Collective>>> {
-    return models.Collective.findAll({
+  ): Promise<Array<InstanceType<typeof Collective>>> {
+    return Collective.findAll({
       attributes: Object.keys(this.mappings.properties),
       order: [['id', 'DESC']],
       limit: options.limit,
@@ -54,7 +55,7 @@ export class ElasticSearchCollectivesAdapter implements ElasticSearchModelAdapte
   }
 
   public mapModelInstanceToDocument(
-    instance: InstanceType<typeof models.Collective>,
+    instance: InstanceType<typeof Collective>,
   ): Record<keyof (typeof this.mappings)['properties'], unknown> {
     return {
       id: instance.id,
@@ -72,7 +73,7 @@ export class ElasticSearchCollectivesAdapter implements ElasticSearchModelAdapte
       isActive: instance.isActive,
       isHostAccount: instance.isHostAccount,
       deactivatedAt: instance.deactivatedAt,
-      HostCollectiveId: instance.HostCollectiveId,
+      HostCollectiveId: !instance.isActive ? null : instance.HostCollectiveId,
       ParentCollectiveId: instance.ParentCollectiveId,
     };
   }
