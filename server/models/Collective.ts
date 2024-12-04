@@ -331,6 +331,9 @@ class Collective extends Model<
   declare public adminMembers?: NonAttribute<Array<MemberModelInterface>>;
   declare public getAdminMembers: HasManyGetAssociationsMixin<MemberModelInterface>;
 
+  declare public socialLinks?: NonAttribute<Array<SocialLink>>;
+  declare public getSocialLinks: HasManyGetAssociationsMixin<SocialLink>;
+
   declare public legalDocuments?: NonAttribute<LegalDocument[]>;
   declare public RequiredLegalDocuments?: NonAttribute<RequiredLegalDocument[]>;
   declare public getLegalDocuments: HasManyGetAssociationsMixin<LegalDocument>;
