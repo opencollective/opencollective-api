@@ -329,10 +329,18 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
   }
 
   if (args.chargedDateFrom) {
-    where[Op.and].push({ ['$Subscription.lastChargedAt$']: { [Op.gte]: args.chargedDateFrom } });
+    where[Op.and].push(
+      sequelize.where(sequelize.literal(`COALESCE("Subscription"."lastChargedAt", "Order"."createdAt")`), {
+        [Op.gte]: args.chargedDateFrom,
+      }),
+    );
   }
   if (args.chargedDateTo) {
-    where[Op.and].push({ ['$Subscription.lastChargedAt$']: { [Op.lte]: args.chargedDateTo } });
+    where[Op.and].push(
+      sequelize.where(sequelize.literal(`COALESCE("Subscription"."lastChargedAt", "Order"."createdAt")`), {
+        [Op.lte]: args.chargedDateTo,
+      }),
+    );
   }
 
   if (args.status && args.status.length > 0) {
@@ -400,7 +408,7 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
   }
   const { offset, limit } = args;
   return {
-    nodes: () => models.Order.findAll({ include, where, order, offset, limit, logging: true }),
+    nodes: () => models.Order.findAll({ include, where, order, offset, limit }),
     totalCount: () => models.Order.count({ include, where }),
     limit: args.limit,
     offset: args.offset,
