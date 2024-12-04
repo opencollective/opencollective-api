@@ -131,6 +131,17 @@ const isDraftPayee = async (req: express.Request, expense: Expense): Promise<boo
     return false;
   } else if (expense.data?.payee?.['id']) {
     return req.remoteUser.isAdmin(expense.data.payee['id']);
+  } else if (expense?.data?.payee?.slug) {
+    const payee = await models.Collective.findOne({
+      attributes: ['id'],
+      where: { slug: expense?.data?.payee?.slug },
+    });
+
+    if (!payee) {
+      return false;
+    }
+
+    return req.remoteUser.isAdmin(payee.id);
   } else {
     return false;
   }

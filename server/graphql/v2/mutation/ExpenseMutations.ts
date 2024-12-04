@@ -183,7 +183,8 @@ const expenseMutations = {
       // NOTE(oauth-scope): Ok for non-authenticated users, we only check scope
       enforceScope(req, 'expenses');
 
-      const getId = (reference: { id?: string | number; legacyId?: number }) => reference?.id || reference?.legacyId;
+      const getId = (reference: { id?: string | number; legacyId?: number; slug?: string }) =>
+        reference?.id || reference?.legacyId || reference?.slug;
 
       // Support deprecated `attachments` field
       const items = args.expense.items || args.expense.attachments;
