@@ -44,7 +44,7 @@ async function checkActiveApprovedAtInconsistency() {
 
   if (results.activeUnapproved > 0 || results.inactiveApproved > 0) {
     throw new Error(
-      `${message} (${results[0].activeUnapproved} activeUnapproved, ${results[0].inactiveApproved} inactiveApproved)`,
+      `${message} (${results.activeUnapproved} activeUnapproved, ${results.inactiveApproved} inactiveApproved)`,
     );
   }
 }
