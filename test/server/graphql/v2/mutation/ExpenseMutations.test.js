@@ -41,6 +41,7 @@ import {
   fakeTransaction,
   fakeTransactionsImport,
   fakeTransactionsImportRow,
+  fakeUploadedFile,
   fakeUser,
   fakeVirtualCard,
   multiple,
@@ -183,6 +184,9 @@ const mutationExpenseFields = gql`
       }
       incurredAt
       description
+    }
+    attachedFiles {
+      url
     }
     requiredLegalDocuments
     tags
@@ -1032,6 +1036,166 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(transactions[0].description).to.eq(expenseData.description);
         expect(transactions[0].amount).to.eq(-4200);
         expect(transactions[0].amountInHostCurrency).to.eq(-4200);
+      });
+    });
+
+    describe('with uploaded files', () => {
+      it('creates if submitter has permission to uploaded file expense item', async () => {
+        const user = await fakeUser();
+        const existingUploadedFile = await fakeUploadedFile({
+          kind: 'EXPENSE_ITEM',
+          CreatedByUserId: user.id,
+        });
+        const collectiveAdmin = await fakeUser();
+        const collective = await fakeCollective({ admin: collectiveAdmin.collective });
+        const payee = await fakeCollective({
+          type: 'ORGANIZATION',
+          admin: user.collective,
+          location: { address: null },
+        });
+        const expenseData = {
+          ...getValidExpenseData(),
+          type: 'RECEIPT',
+          items: [
+            {
+              url: existingUploadedFile.url,
+              description: 'A first item',
+              amount: 4200,
+            },
+          ],
+          payee: { legacyId: payee.id },
+          reference: '123456',
+        };
+
+        const result = await graphqlQueryV2(
+          createExpenseMutation,
+          { expense: expenseData, account: { legacyId: collective.id } },
+          user,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+      });
+
+      it('fails if submitter does not have permission to uploaded file expense item', async () => {
+        const existingUploadedFile = await fakeUploadedFile({
+          kind: 'EXPENSE_ITEM',
+        });
+
+        const user = await fakeUser();
+        const collectiveAdmin = await fakeUser();
+        const collective = await fakeCollective({ admin: collectiveAdmin.collective });
+        const payee = await fakeCollective({
+          type: 'ORGANIZATION',
+          admin: user.collective,
+          location: { address: null },
+        });
+        const expenseData = {
+          ...getValidExpenseData(),
+          type: 'RECEIPT',
+          items: [
+            {
+              url: existingUploadedFile.url,
+              description: 'A first item',
+              amount: 4200,
+            },
+          ],
+          payee: { legacyId: payee.id },
+          reference: '123456',
+        };
+
+        const result = await graphqlQueryV2(
+          createExpenseMutation,
+          { expense: expenseData, account: { legacyId: collective.id } },
+          user,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eql('Invalid expense item url');
+        expect(result.data).to.not.exist;
+      });
+
+      it('creates if submitter has permission to uploaded file expense attached file item', async () => {
+        const user = await fakeUser();
+        const existingUploadedFile = await fakeUploadedFile({
+          kind: 'EXPENSE_ATTACHED_FILE',
+          CreatedByUserId: user.id,
+        });
+        const collectiveAdmin = await fakeUser();
+        const collective = await fakeCollective({ admin: collectiveAdmin.collective });
+        const payee = await fakeCollective({
+          type: 'ORGANIZATION',
+          admin: user.collective,
+          location: { address: null },
+        });
+        const expenseData = {
+          ...getValidExpenseData(),
+          type: 'INVOICE',
+          items: [
+            {
+              description: 'A first item',
+              amount: 4200,
+            },
+          ],
+          attachedFiles: [
+            {
+              url: existingUploadedFile.url,
+            },
+          ],
+          payee: { legacyId: payee.id },
+          reference: '123456',
+        };
+
+        const result = await graphqlQueryV2(
+          createExpenseMutation,
+          { expense: expenseData, account: { legacyId: collective.id } },
+          user,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+      });
+
+      it('fails if submitter does not have permission to uploaded file expense attached file item', async () => {
+        const existingUploadedFile = await fakeUploadedFile({
+          kind: 'EXPENSE_ATTACHED_FILE',
+        });
+
+        const user = await fakeUser();
+        const collectiveAdmin = await fakeUser();
+        const collective = await fakeCollective({ admin: collectiveAdmin.collective });
+        const payee = await fakeCollective({
+          type: 'ORGANIZATION',
+          admin: user.collective,
+          location: { address: null },
+        });
+        const expenseData = {
+          ...getValidExpenseData(),
+          type: 'INVOICE',
+          items: [
+            {
+              description: 'A first item',
+              amount: 4200,
+            },
+          ],
+          attachedFiles: [
+            {
+              url: existingUploadedFile.url,
+            },
+          ],
+          payee: { legacyId: payee.id },
+          reference: '123456',
+        };
+
+        const result = await graphqlQueryV2(
+          createExpenseMutation,
+          { expense: expenseData, account: { legacyId: collective.id } },
+          user,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eql('Invalid expense attached file url');
+        expect(result.data).to.not.exist;
       });
     });
   });
@@ -2457,6 +2621,116 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
             requestStatus: 'REQUESTED',
           },
         });
+      });
+    });
+
+    describe('with uploaded files', () => {
+      it('edits if submitter has permission to uploaded file expense item', async () => {
+        const expense = await fakeExpense({ status: 'APPROVED', amount: 3000 });
+        const uploadedFile = await fakeUploadedFile({
+          kind: 'EXPENSE_ITEM',
+          CreatedByUserId: expense.User.id,
+        });
+        const expenseUpdateData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          items: [
+            {
+              amount: 800,
+              description: 'Burger',
+              url: randUrl(),
+            },
+            {
+              amount: 200,
+              description: 'French Fries',
+              url: uploadedFile.url,
+            },
+          ],
+        };
+
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: expenseUpdateData }, expense.User);
+        const itemsFromAPI = result.data.editExpense.items;
+        expect(result.data.editExpense.amount).to.equal(1000);
+        expect(itemsFromAPI.length).to.equal(2);
+
+        expenseUpdateData.items.forEach(item => {
+          const itemFromAPI = itemsFromAPI.find(a => a.description === item.description);
+          expect(itemFromAPI).to.exist;
+          expect(itemFromAPI.url).to.equal(item.url);
+          expect(itemFromAPI.amount).to.equal(item.amount);
+        });
+      });
+
+      it('fails to edit if submitter does not have permission to uploaded file expense item', async () => {
+        const expense = await fakeExpense({ status: 'APPROVED', amount: 3000 });
+        const uploadedFile = await fakeUploadedFile({
+          kind: 'EXPENSE_ITEM',
+        });
+        const expenseUpdateData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          items: [
+            {
+              amount: 800,
+              description: 'Burger',
+              url: randUrl(),
+            },
+            {
+              amount: 200,
+              description: 'French Fries',
+              url: uploadedFile.url,
+            },
+          ],
+        };
+
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: expenseUpdateData }, expense.User);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eql('Invalid expense item url');
+      });
+
+      it('edits if submitter has permission to uploaded file expense attached file', async () => {
+        const expense = await fakeExpense({ status: 'APPROVED', type: 'INVOICE', amount: 3000 });
+        const uploadedFile = await fakeUploadedFile({
+          kind: 'EXPENSE_ATTACHED_FILE',
+          CreatedByUserId: expense.User.id,
+        });
+        const expenseUpdateData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          attachedFiles: [
+            {
+              url: randUrl(),
+            },
+            {
+              url: uploadedFile.url,
+            },
+          ],
+        };
+
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: expenseUpdateData }, expense.User);
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        const itemsFromAPI = result.data.editExpense.attachedFiles;
+        expect(itemsFromAPI.length).to.equal(2);
+      });
+
+      it('fails to edit if submitter does not have permission to uploaded file expense attached file', async () => {
+        const expense = await fakeExpense({ status: 'APPROVED', type: 'INVOICE', amount: 3000 });
+        const uploadedFile = await fakeUploadedFile({
+          kind: 'EXPENSE_ATTACHED_FILE',
+        });
+        const expenseUpdateData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          attachedFiles: [
+            {
+              url: randUrl(),
+            },
+            {
+              url: uploadedFile.url,
+            },
+          ],
+        };
+
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: expenseUpdateData }, expense.User);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eql('Invalid expense attached file url');
       });
     });
   });
