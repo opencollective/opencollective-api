@@ -2,6 +2,8 @@
  * Functions to sync data between the database and elastic search
  */
 
+import { chunk } from 'lodash';
+
 import { Op } from '../../models';
 import logger from '../logger';
 
@@ -35,6 +37,7 @@ async function removeDeletedEntries(indexName: ElasticSearchIndexName, fromDate:
       raw: true,
       limit: pageSize,
       offset,
+      paranoid: false,
     });
 
     if (deletedEntries.length === 0) {
@@ -46,6 +49,81 @@ async function removeDeletedEntries(indexName: ElasticSearchIndexName, fromDate:
     });
     offset += pageSize;
   } while (deletedEntries.length === pageSize);
+}
+
+export async function restoreUndeletedEntries(indexName: ElasticSearchIndexName, { log = false } = {}) {
+  const client = getElasticSearchClient({ throwIfUnavailable: true });
+  const adapter = ElasticSearchModelsAdapters[indexName];
+
+  if (log) {
+    logger.info(`Fetching IDs of all undeleted entries in index ${indexName}...`);
+  }
+
+  /* eslint-disable camelcase */
+  let scrollSearch = await client.search({
+    index: indexName,
+    body: { _source: false },
+    filter_path: ['hits.hits._id', '_scroll_id'],
+    size: 10_000, // Max value allowed by ES
+    scroll: '1m', // Keep the search context alive for 1 minute
+  });
+
+  let allIds = scrollSearch.hits.hits.map(hit => hit._id);
+  const scrollId = scrollSearch._scroll_id;
+
+  // Continue scrolling through results
+  while (scrollSearch.hits.hits.length > 0) {
+    scrollSearch = await client.scroll({ scroll_id: scrollId, scroll: '1m' });
+    allIds = allIds.concat(scrollSearch.hits.hits.map(hit => hit._id));
+    logger.info(`Fetched ${allIds.length} IDs...`);
+  }
+
+  // Clear the scroll when done
+  await client.clearScroll({ scroll_id: scrollId });
+  /* eslint-enable camelcase */
+
+  // Search for entries that are not marked as deleted in the database
+  const undeletedEntries = (await adapter.model.findAll({
+    attributes: ['id'],
+    where: { id: { [Op.not]: allIds } },
+    raw: true,
+  })) as unknown as Array<{ id: number }>;
+
+  if (!undeletedEntries.length) {
+    if (log) {
+      logger.info('No undeleted entries found');
+    }
+    return;
+  } else if (log) {
+    logger.info(`Restoring ${undeletedEntries.length} undeleted entries...`);
+  }
+
+  // Restore undeleted entries
+  const undeletedIds = undeletedEntries.map(entry => entry.id);
+  const limit = 5_000;
+  let modelEntries = [];
+  let maxId = undefined;
+  let offset = 0;
+
+  for (const ids of chunk(undeletedIds, limit)) {
+    modelEntries = await adapter.findEntriesToIndex({ offset, limit, ids });
+    if (modelEntries.length === 0) {
+      return;
+    } else if (!maxId) {
+      maxId = modelEntries[0].id;
+    }
+
+    // Send data to ElasticSearch
+    await client.bulk({
+      index: indexName,
+      body: modelEntries.flatMap(entry => [{ index: { _id: entry.id } }, adapter.mapModelInstanceToDocument(entry)]),
+    });
+
+    offset += limit;
+    if (log) {
+      logger.info(`... ${offset} entries synced`);
+    }
+  }
 }
 
 export async function syncElasticSearchIndex(
@@ -61,6 +139,7 @@ export async function syncElasticSearchIndex(
   // If there's a fromDate, it means we are doing a simple sync (not a full resync) and therefore need to look at deleted entries
   if (fromDate) {
     await removeDeletedEntries(indexName, fromDate);
+    await restoreUndeletedEntries(indexName);
   }
 
   // Sync new/edited entries
@@ -68,14 +147,14 @@ export async function syncElasticSearchIndex(
   const adapter = ElasticSearchModelsAdapters[indexName];
   const limit = 5000;
   let modelEntries = [];
-  let firstReturnedId = undefined;
+  let maxId = undefined;
   let offset = 0;
   do {
-    modelEntries = await adapter.findEntriesToIndex(offset, limit, { fromDate, firstReturnedId });
+    modelEntries = await adapter.findEntriesToIndex({ offset, limit, fromDate, maxId });
     if (modelEntries.length === 0) {
       return;
-    } else if (!firstReturnedId) {
-      firstReturnedId = modelEntries[0].id;
+    } else if (!maxId) {
+      maxId = modelEntries[0].id;
     }
 
     // Send data to ElasticSearch

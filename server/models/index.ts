@@ -165,6 +165,8 @@ Comment.belongsTo(Collective, { foreignKey: 'FromCollectiveId', as: 'fromCollect
 Comment.belongsTo(Expense, { foreignKey: 'ExpenseId', as: 'expense' });
 Comment.belongsTo(HostApplication, { foreignKey: 'HostApplicationId', as: 'hostApplication' });
 Comment.belongsTo(Update, { foreignKey: 'UpdateId', as: 'update' });
+Comment.belongsTo(Order, { foreignKey: 'OrderId', as: 'order' });
+Comment.belongsTo(Conversation, { foreignKey: 'ConversationId', as: 'conversation' });
 Comment.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'user' });
 
 // ConnectedAccount

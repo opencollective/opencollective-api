@@ -41,6 +41,8 @@ class Comment extends Model<InferAttributes<Comment>, InferCreationAttributes<Co
 
   declare public fromCollective?: NonAttribute<Collective>;
   declare public collective?: NonAttribute<Collective>;
+  declare public expense?: NonAttribute<Expense>;
+  declare public hostApplication?: NonAttribute<HostApplication>;
 
   // Returns the User model of the User that created this Update
   getUser = function () {

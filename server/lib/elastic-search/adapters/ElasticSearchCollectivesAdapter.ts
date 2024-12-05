@@ -31,19 +31,24 @@ export class ElasticSearchCollectivesAdapter implements ElasticSearchModelAdapte
   } as const;
 
   public async findEntriesToIndex(
-    offset: number,
-    limit: number,
-    options: { fromDate: Date; firstReturnedId: number },
+    options: {
+      offset?: number;
+      limit?: number;
+      fromDate?: Date;
+      maxId?: number;
+      ids?: number[];
+    } = {},
   ): Promise<Array<InstanceType<typeof models.Collective>>> {
     return models.Collective.findAll({
       attributes: Object.keys(this.mappings.properties),
       order: [['id', 'DESC']],
-      limit,
-      offset,
+      limit: options.limit,
+      offset: options.offset,
       raw: true,
       where: {
         ...(options.fromDate ? { updatedAt: options.fromDate } : null),
-        ...(options.firstReturnedId ? { id: { [Op.lte]: options.firstReturnedId } } : null),
+        ...(options.maxId ? { id: { [Op.lte]: options.maxId } } : null),
+        ...(options.ids?.length ? { id: { [Op.in]: options.ids } } : null),
       },
     });
   }

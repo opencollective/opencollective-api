@@ -10,6 +10,7 @@ import {
   createElasticSearchIndex,
   deleteElasticSearchIndex,
   getAvailableElasticSearchIndexes,
+  restoreUndeletedEntries,
   syncElasticSearchIndex,
 } from '../server/lib/elastic-search/sync';
 import logger from '../server/lib/logger';
@@ -105,6 +106,23 @@ program
       }
       logger.info('Re-index completed!');
     }
+  });
+
+// Restore undeleted entries
+program
+  .command('restore')
+  .description('Restore undeleted entries')
+  .argument('[indexes...]', 'Only sync specific indexes')
+  .action(async indexesInput => {
+    checkElasticSearchAvailable();
+
+    const indexes = parseIndexesFromInput(indexesInput);
+    for (const indexName of indexes) {
+      logger.info(`Restoring undeleted entries for index ${indexName}`);
+      await restoreUndeletedEntries(indexName as ElasticSearchIndexName, { log: true });
+    }
+
+    logger.info('Restore completed!');
   });
 
 // Sync command
