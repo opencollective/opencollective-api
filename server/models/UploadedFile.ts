@@ -4,7 +4,7 @@ import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { encode } from 'blurhash';
 import config from 'config';
 import type { FileUpload as GraphQLFileUpload } from 'graphql-upload/Upload.js';
-import { kebabCase } from 'lodash';
+import { isEmpty, kebabCase } from 'lodash';
 import {
   BelongsToGetAssociationMixin,
   CreationOptional,
@@ -123,7 +123,7 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
       return false;
     }
 
-    let parsedURL;
+    let parsedURL: URL;
     try {
       parsedURL = new URL(url);
     } catch {
@@ -131,7 +131,14 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
     }
 
     const endpoint = config.aws.s3.endpoint || `https://${config.aws.s3.bucket}.s3.us-west-1.amazonaws.com`;
-    return parsedURL.origin === endpoint && /\/\w+/.test(parsedURL.pathname);
+    return (
+      parsedURL.origin === endpoint &&
+      /\/\w+/.test(parsedURL.pathname) &&
+      isEmpty(parsedURL.search) &&
+      isEmpty(parsedURL.hash) &&
+      isEmpty(parsedURL.username) &&
+      isEmpty(parsedURL.password)
+    );
   }
 
   public static isOpenCollectiveProtectedS3BucketURL(url: string): boolean {
@@ -174,6 +181,25 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
 
   public static getProtectedURLFromOpenCollectiveS3Bucket(uploadedFile: UploadedFile): string {
     return `${config.host.website}/api/files/${idEncode(uploadedFile.id, IDENTIFIER_TYPES.UPLOADED_FILE)}`;
+  }
+
+  public static isUploadedFileURL(url: string): boolean {
+    return UploadedFile.isOpenCollectiveProtectedS3BucketURL(url) || UploadedFile.isOpenCollectiveS3BucketURL(url);
+  }
+
+  public static getFromURL(url: string): Promise<UploadedFile> {
+    if (!UploadedFile.isUploadedFileURL(url)) {
+      return null;
+    }
+
+    if (UploadedFile.isOpenCollectiveProtectedS3BucketURL(url)) {
+      return UploadedFile.getFromProtectedURL(url);
+    }
+    return UploadedFile.findOne({
+      where: {
+        url,
+      },
+    });
   }
 
   public static isSupportedImageMimeType(mimeType: string): boolean {

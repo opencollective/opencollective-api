@@ -3,7 +3,7 @@ import assert from 'assert';
 import * as LibTaxes from '@opencollective/taxes';
 import config from 'config';
 import debugLib from 'debug';
-import express from 'express';
+import express, { Request } from 'express';
 import {
   cloneDeep,
   find,
@@ -103,6 +103,7 @@ import { GraphQLCurrencyExchangeRateInputType } from '../v2/input/CurrencyExchan
 
 import { getContextPermission, PERMISSION_TYPE } from './context-permissions';
 import { checkRemoteUserCanRoot, checkScope } from './scope-check';
+import { hasUploadedFilePermission } from './uploaded-file';
 
 const debug = debugLib('expenses');
 
@@ -1500,7 +1501,7 @@ const checkCanUseAccountingCategory = (
   }
 };
 
-async function prepareAttachedFiles(attachedFiles: ExpenseData['attachedFiles']) {
+async function prepareAttachedFiles(req: Request, attachedFiles: ExpenseData['attachedFiles']) {
   if (!attachedFiles) {
     return null;
   } else if (!attachedFiles.length) {
@@ -1513,15 +1514,18 @@ async function prepareAttachedFiles(attachedFiles: ExpenseData['attachedFiles'])
       continue;
     }
 
-    if (UploadedFile.isOpenCollectiveProtectedS3BucketURL(item.url)) {
-      const uploadedFile = await UploadedFile.getFromProtectedURL(item.url);
-      if (!uploadedFile) {
-        throw new ValidationFailed('Invalid expense item url');
-      }
-      mapItemUrlToUploadedFile[item.url] = uploadedFile.getDataValue('url');
-    } else {
+    if (!UploadedFile.isUploadedFileURL(item.url)) {
       mapItemUrlToUploadedFile[item.url] = item.url;
+      continue;
     }
+
+    const uploadedFile = await UploadedFile.getFromURL(item.url);
+
+    if (!(await hasUploadedFilePermission(req, uploadedFile))) {
+      throw new ValidationFailed('Invalid expense attached file url');
+    }
+
+    mapItemUrlToUploadedFile[item.url] = uploadedFile.getDataValue('url');
   }
 
   return attachedFiles.map(file => ({
@@ -1531,6 +1535,7 @@ async function prepareAttachedFiles(attachedFiles: ExpenseData['attachedFiles'])
 }
 
 export const prepareExpenseItemInputs = async (
+  req: Request,
   expenseCurrency: SupportedCurrency,
   itemsInput: Array<ExpenseItem | (Record<string, unknown> & { url?: string })>,
   { isEditing = false } = {},
@@ -1569,15 +1574,18 @@ export const prepareExpenseItemInputs = async (
       continue;
     }
 
-    if (UploadedFile.isOpenCollectiveProtectedS3BucketURL(item.url)) {
-      const uploadedFile = await UploadedFile.getFromProtectedURL(item.url);
-      if (!uploadedFile) {
-        throw new ValidationFailed('Invalid expense item url');
-      }
-      mapItemUrlToUploadedFile[item.url] = uploadedFile.getDataValue('url');
-    } else {
+    if (!UploadedFile.isUploadedFileURL(item.url)) {
       mapItemUrlToUploadedFile[item.url] = item.url;
+      continue;
     }
+
+    const uploadedFile = await UploadedFile.getFromURL(item.url);
+
+    if (!(await hasUploadedFilePermission(req, uploadedFile))) {
+      throw new ValidationFailed('Invalid expense item url');
+    }
+
+    mapItemUrlToUploadedFile[item.url] = uploadedFile.getDataValue('url');
   }
 
   // Prepare items
@@ -1707,7 +1715,7 @@ export async function createExpense(req: express.Request, expenseData: ExpenseDa
     }
   }
 
-  const itemsData: Partial<ExpenseItem>[] = await prepareExpenseItemInputs(expenseCurrency, expenseData.items);
+  const itemsData: Partial<ExpenseItem>[] = await prepareExpenseItemInputs(req, expenseCurrency, expenseData.items);
   const taxes = expenseData.tax || [];
 
   checkTaxes(collective, collective.host, expenseData.type, taxes);
@@ -1863,7 +1871,7 @@ export async function createExpense(req: express.Request, expenseData: ExpenseDa
     );
 
     // Create attached files
-    const attachedFiles = await prepareAttachedFiles(expenseData.attachedFiles);
+    const attachedFiles = await prepareAttachedFiles(req, expenseData.attachedFiles);
     createdExpense.attachedFiles = await createAttachedFiles(createdExpense, attachedFiles, remoteUser, t);
 
     // Link to transactions import
@@ -2157,9 +2165,9 @@ export async function editExpenseDraft(req: express.Request, expenseData: Expens
 
   const currency = expenseData.currency || existingExpense.currency;
   const items =
-    (await prepareExpenseItemInputs(currency, expenseData.items, { isEditing: true })) || existingExpense.items;
+    (await prepareExpenseItemInputs(req, currency, expenseData.items, { isEditing: true })) || existingExpense.items;
 
-  const attachedFiles = await prepareAttachedFiles(expenseData.attachedFiles);
+  const attachedFiles = await prepareAttachedFiles(req, expenseData.attachedFiles);
   const newExpenseValues = {
     ...pick(expenseData, DRAFT_EXPENSE_FIELDS),
     amount: models.Expense.computeTotalAmountForExpense(items, expenseData.tax),
@@ -2332,7 +2340,7 @@ export async function editExpense(
 
   const expenseCurrency = expenseData.currency || expense.currency;
   const updatedItemsData: Partial<ExpenseItem>[] =
-    (await prepareExpenseItemInputs(expenseCurrency, expenseData.items, { isEditing: true })) || expense.items;
+    (await prepareExpenseItemInputs(req, expenseCurrency, expenseData.items, { isEditing: true })) || expense.items;
   const [hasItemChanges, itemsDiff] = await getItemsChanges(expense.items, updatedItemsData);
   const taxes = expenseData.tax || (expense.data?.taxes as ExpenseTaxDefinition[]) || [];
   checkTaxes(expense.collective, expense.collective.host, expenseType, taxes);
@@ -2489,7 +2497,7 @@ export async function editExpense(
 
     // Update attached files
     if (expenseData.attachedFiles) {
-      const attachedFiles = await prepareAttachedFiles(expenseData.attachedFiles);
+      const attachedFiles = await prepareAttachedFiles(req, expenseData.attachedFiles);
       const [newAttachedFiles, removedAttachedFiles, updatedAttachedFiles] = models.ExpenseAttachedFile.diffDBEntries(
         expense.attachedFiles,
         attachedFiles,

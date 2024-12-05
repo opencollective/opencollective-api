@@ -524,7 +524,7 @@ const expenseMutations = {
       const fromCollective = await remoteUser.getCollective({ loaders: req.loaders });
       const payeeLegacyId = expenseData.payee?.legacyId || expenseData.payee?.id;
       const currency = expenseData.currency || collective.currency;
-      const items = await prepareExpenseItemInputs(currency, expenseData.items);
+      const items = await prepareExpenseItemInputs(req, currency, expenseData.items);
       const payee = payeeLegacyId
         ? (await fetchAccountWithReference({ legacyId: payeeLegacyId }, { throwIfMissing: true }))?.minimal
         : expenseData.payee;
