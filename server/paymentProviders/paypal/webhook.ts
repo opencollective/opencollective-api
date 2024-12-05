@@ -141,6 +141,7 @@ async function handleSaleCompleted(req: Request): Promise<void> {
       nextPeriodStart: nextChargeDate,
       isActive: true,
       activatedAt: order.Subscription.activatedAt || new Date(),
+      lastChargedAt: transaction.clearedAt || transaction.createdAt,
     });
   });
 

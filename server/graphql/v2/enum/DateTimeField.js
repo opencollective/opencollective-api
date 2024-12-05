@@ -12,5 +12,9 @@ export const GraphQLDateTimeField = new GraphQLEnumType({
       value: 'clearedAt',
       description: 'Transactions only: The date when a transaction was cleared by the payment processor',
     },
+    LAST_CHARGED_AT: {
+      value: 'lastChargedAt',
+      description: 'Orders only: The date when an order was last charged, defaults to createdAt if never charged',
+    },
   },
 });

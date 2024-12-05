@@ -107,7 +107,7 @@ async function processOrder(order) {
   const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
 
   // Use the above payment method to donate to Collective
-  const transactions = await models.Transaction.createFromContributionPayload({
+  const transaction = await models.Transaction.createFromContributionPayload({
     CreatedByUserId: user.id,
     FromCollectiveId: order.FromCollectiveId,
     CollectiveId: order.CollectiveId,
@@ -123,6 +123,7 @@ async function processOrder(order) {
     paymentProcessorFeeInHostCurrency: 0,
     taxAmount: order.taxAmount,
     description: order.description,
+    clearedAt: new Date(),
     data: {
       hasPlatformTip: platformTip ? true : false,
       isSharedRevenue,
@@ -136,8 +137,12 @@ async function processOrder(order) {
 
   // Mark paymentMethod as confirmed
   order.paymentMethod.update({ confirmedAt: new Date() });
+  if (order.SubscriptionId) {
+    const subscription = await models.Subscription.findByPk(order.SubscriptionId);
+    await subscription.update({ lastChargedAt: transaction.clearedAt });
+  }
 
-  return transactions;
+  return transaction;
 }
 
 async function refundTransaction(transaction, user) {

@@ -24,6 +24,7 @@ class Subscription extends Model<InferAttributes<Subscription>, InferCreationAtt
   declare paypalSubscriptionId: string;
   declare isManagedExternally: boolean;
   declare activatedAt: Date;
+  declare lastChargedAt: Date;
   declare deactivatedAt: Date;
   declare createdAt: Date;
   declare updatedAt: Date;
@@ -83,6 +84,8 @@ Subscription.init(
     isManagedExternally: { type: DataTypes.BOOLEAN, defaultValue: false },
 
     activatedAt: DataTypes.DATE,
+
+    lastChargedAt: DataTypes.DATE,
 
     deactivatedAt: DataTypes.DATE,
 

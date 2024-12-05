@@ -212,7 +212,10 @@ export const paymentIntentSucceeded = async (event: Stripe.Event) => {
   // after successful first payment of a recurring subscription where the payment confirmation is async
   // and the subscription is managed by us.
   if (order.interval && !order.SubscriptionId) {
-    sideEffects.push(createSubscription(order));
+    sideEffects.push(createSubscription(order, { lastChargedAt: transaction.clearedAt || transaction.createdAt }));
+  } else if (order.SubscriptionId) {
+    const subscription = await models.Subscription.findByPk(order.SubscriptionId);
+    sideEffects.push(subscription.update({ lastChargedAt: transaction.clearedAt }));
   }
 
   sendEmailNotifications(order, transaction);

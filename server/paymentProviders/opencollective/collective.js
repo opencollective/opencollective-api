@@ -87,6 +87,7 @@ paymentMethodProvider.processOrder = async order => {
     hostFeeInHostCurrency,
     taxAmount: order.taxAmount,
     description: order.description,
+    clearedAt: new Date(),
     data: {
       hasPlatformTip: !!platformTip,
       isSharedRevenue,
@@ -97,7 +98,12 @@ paymentMethodProvider.processOrder = async order => {
     },
   };
 
-  return models.Transaction.createFromContributionPayload(transactionPayload);
+  const transaction = models.Transaction.createFromContributionPayload(transactionPayload);
+  if (order.SubscriptionId) {
+    const subscription = await models.Subscription.findByPk(order.SubscriptionId);
+    await subscription.update({ lastChargedAt: transaction.clearedAt });
+  }
+  return transaction;
 };
 
 /**

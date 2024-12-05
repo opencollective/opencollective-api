@@ -777,11 +777,12 @@ export const sendEmailNotifications = (order: Order, transaction?: Transaction |
   }
 };
 
-export const createSubscription = async (order: Order): Promise<void> => {
+export const createSubscription = async (order: Order, data?: { lastChargedAt?: Date }): Promise<void> => {
   const subscription = await Subscription.create({
     amount: order.totalAmount,
     interval: order.interval,
     currency: order.currency,
+    lastChargedAt: data?.lastChargedAt,
   });
   // The order instance doesn't have the Subscription field
   // here because it was just created and no models were
@@ -863,7 +864,7 @@ export const executeOrder = async (
     // safe to create subscription after this.
 
     // The order will be updated to ACTIVE
-    order.interval && (await createSubscription(order));
+    order.interval && (await createSubscription(order, { lastChargedAt: order.processedAt }));
 
     // Register user as collective backer (don't do for internal transfers)
     // Or in the case of tickets register the user as an ATTENDEE
