@@ -1,58 +1,11 @@
 import config from 'config';
 import { Request, Response } from 'express';
 
-import { canSeeExpenseAttachments } from '../graphql/common/expenses';
+import { hasUploadedFilePermission } from '../graphql/common/uploaded-file';
 import { idDecode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
 import { getSignedGetURL, parseS3Url } from '../lib/awsS3';
-import { Collective, Expense, ExpenseAttachedFile, ExpenseItem, UploadedFile } from '../models';
+import { UploadedFile } from '../models';
 import { SUPPORTED_FILE_TYPES_IMAGES } from '../models/UploadedFile';
-
-async function hasUploadedFilePermission(req: Request, uploadedFile: UploadedFile): Promise<boolean> {
-  const actualUrl = uploadedFile.getDataValue('url');
-  switch (uploadedFile.kind) {
-    case 'EXPENSE_ITEM': {
-      const expenseItem = await ExpenseItem.findOne({
-        where: {
-          url: actualUrl,
-        },
-        include: { model: Expense, include: [{ association: 'fromCollective' }] },
-      });
-
-      const expense = expenseItem?.Expense;
-
-      if (!expense) {
-        return req.remoteUser?.id === uploadedFile.CreatedByUserId;
-      }
-
-      if (await canSeeExpenseAttachments(req, expense)) {
-        return true;
-      }
-      break;
-    }
-    case 'EXPENSE_ATTACHED_FILE': {
-      const expenseAttachedFile = await ExpenseAttachedFile.findOne({
-        where: {
-          url: actualUrl,
-        },
-        include: { model: Expense, include: [{ model: Collective, as: 'fromCollective' }] },
-      });
-
-      const expense = expenseAttachedFile?.Expense;
-
-      if (!expense) {
-        return req.remoteUser?.id === uploadedFile.CreatedByUserId;
-      }
-
-      if (await canSeeExpenseAttachments(req, expense)) {
-        return true;
-      }
-
-      break;
-    }
-  }
-
-  return false;
-}
 
 /**
  * GET /api/files/:uploadedFileId
