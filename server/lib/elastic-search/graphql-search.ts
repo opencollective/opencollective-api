@@ -6,6 +6,7 @@ import DataLoader from 'dataloader';
 import {
   GraphQLBoolean,
   GraphQLFieldConfigArgumentMap,
+  GraphQLFloat,
   GraphQLList,
   GraphQLNonNull,
   GraphQLObjectType,
@@ -128,6 +129,7 @@ const buildSearchResultsType = (index: ElasticSearchIndexName, name: string, col
       fields: {
         collection: { type: new GraphQLNonNull(collectionType) },
         highlights: { type: GraphQLJSONObject },
+        maxScore: { type: new GraphQLNonNull(GraphQLFloat) },
       },
     }),
     resolve: async (baseSearchParams: GraphQLSearchParams, args, req) => {
@@ -136,10 +138,15 @@ const buildSearchResultsType = (index: ElasticSearchIndexName, name: string, col
       const results = (await req.loaders.search.load(fullSearchParams)) as SearchResultBucket;
 
       if (!results || results['doc_count'] === 0) {
-        return { collection: { totalCount: 0, offset: 0, limit: baseSearchParams.limit, nodes: () => [] } };
+        return {
+          maxScore: 0,
+          collection: { totalCount: 0, offset: 0, limit: baseSearchParams.limit, nodes: () => [] },
+          highlights: {},
+        };
       }
 
       const hits = results['top_hits_by_index']['hits']['hits'];
+      const maxScore = results['top_hits_by_index']['hits']['max_score'] ?? 0;
       const getSQLIdFromHit = hit => hit['_source']['id'];
       const hitsGroupedBySQLId = groupBy(hits, getSQLIdFromHit);
       const hitsGroupedByGraphQLKey = mapKeys(hitsGroupedBySQLId, result =>
@@ -148,6 +155,7 @@ const buildSearchResultsType = (index: ElasticSearchIndexName, name: string, col
       const highlights = mapValues(hitsGroupedByGraphQLKey, hits => hits[0]['highlight']);
 
       return {
+        maxScore,
         highlights,
         collection: {
           totalCount: results['doc_count'],
