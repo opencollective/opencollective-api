@@ -6,7 +6,7 @@ import logger from '../../lib/logger';
 import { getApplicationFee } from '../../lib/payments';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
 import stripe, { convertToStripeAmount } from '../../lib/stripe';
-import { Collective } from '../../models';
+import models, { Collective } from '../../models';
 import Order from '../../models/Order';
 import PaymentMethod from '../../models/PaymentMethod';
 import User from '../../models/User';
@@ -117,7 +117,12 @@ const createChargeAndTransactions = async (
   });
 
   const charge = paymentIntent.latest_charge || (paymentIntent as any).charges.data[0];
-  return createChargeTransactions(charge as Stripe.Charge, { order });
+  const transaction = await createChargeTransactions(charge as Stripe.Charge, { order });
+  if (order.SubscriptionId) {
+    const subscription = await models.Subscription.findByPk(order.SubscriptionId);
+    await subscription.update({ lastChargedAt: transaction.clearedAt });
+  }
+  return transaction;
 };
 
 export const setupCreditCard = async (

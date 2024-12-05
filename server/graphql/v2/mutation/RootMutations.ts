@@ -1,6 +1,7 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { cloneDeep, isNil, omit, uniqBy } from 'lodash';
+import { cloneDeep, isNil, omit, pick, uniqBy } from 'lodash';
+import { v4 as uuid } from 'uuid';
 
 import { CollectiveType } from '../../../constants/collectives';
 import roles from '../../../constants/roles';
@@ -311,6 +312,59 @@ export default {
       });
 
       return moveExpenses(req, expenses, destinationAccount);
+    },
+  },
+  rootAnonymizeAccount: {
+    type: new GraphQLNonNull(GraphQLAccount),
+    description: '[Root only] Anonymizes an account',
+    args: {
+      account: {
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+        description: 'Account to anonymize',
+      },
+    },
+    async resolve(_: void, args, req: express.Request): Promise<Collective> {
+      checkRemoteUserCanRoot(req);
+
+      // Always enforce 2FA for root actions
+      await twoFactorAuthLib.validateRequest(req, { requireTwoFactorAuthEnabled: true });
+
+      const stripFields = [
+        'slug',
+        'name',
+        'legalName',
+        'company',
+        'description',
+        'longDescription',
+        'twitterHandle',
+        'image',
+        'backgroundImage',
+        'website',
+        'tags',
+      ];
+      const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
+      return sequelize.transaction(async transaction => {
+        // Fetch the social links to make a backup, then destroy them
+        const socialLinks = await account.getSocialLinks({ transaction });
+        if (socialLinks.length) {
+          await models.SocialLink.destroy({ where: { CollectiveId: account.id }, transaction });
+        }
+
+        // Anonymize the account
+        return account.update(
+          {
+            ...stripFields.reduce((acc, field) => ({ ...acc, [field]: null }), {}),
+            slug: `account-${uuid().substr(0, 8)}`,
+            name: 'Anonymous',
+            data: {
+              ...account.data,
+              preAnonymizedValues: pick(account.dataValues, stripFields),
+              preAnonymizedSocialLinks: socialLinks.map(sl => sl.dataValues),
+            },
+          },
+          { transaction },
+        );
+      });
     },
   },
 };

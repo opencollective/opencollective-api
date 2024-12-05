@@ -189,6 +189,10 @@ const handleSubscriptionTransaction = async (
       createdAt: captureDate,
     });
 
+    if (subscription) {
+      await subscription.update({ lastChargedAt: captureDate });
+    }
+
     // If the capture is less than 48 hours old, send the thank you email
     if (moment().diff(captureDate, 'hours') < 48) {
       await sendThankYouEmail(order, dbTransaction, isFirstCharge);

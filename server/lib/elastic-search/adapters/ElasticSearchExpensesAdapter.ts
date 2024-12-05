@@ -33,15 +33,24 @@ export class ElasticSearchExpensesAdapter implements ElasticSearchModelAdapter {
     },
   } as const;
 
-  public findEntriesToIndex(offset: number, limit: number, options: { fromDate: Date; firstReturnedId: number }) {
+  public findEntriesToIndex(
+    options: {
+      offset?: number;
+      limit?: number;
+      fromDate?: Date;
+      maxId?: number;
+      ids?: number[];
+    } = {},
+  ) {
     return models.Expense.findAll({
       attributes: omit(Object.keys(this.mappings.properties), ['ParentCollectiveId']),
       order: [['id', 'DESC']],
-      offset,
-      limit,
+      limit: options.limit,
+      offset: options.offset,
       where: {
         ...(options.fromDate ? { updatedAt: options.fromDate } : null),
-        ...(options.firstReturnedId ? { id: { [Op.lte]: options.firstReturnedId } } : null),
+        ...(options.maxId ? { id: { [Op.lte]: options.maxId } } : null),
+        ...(options.ids?.length ? { id: { [Op.in]: options.ids } } : null),
       },
       include: [
         {

@@ -630,11 +630,11 @@ export async function unarchiveCollective(_, args, req) {
 
   if (collective.type === CollectiveType.EVENT || collective.type === CollectiveType.PROJECT) {
     const parentCollective = await req.loaders.Collective.byId.load(collective.ParentCollectiveId);
-    const updatedCollective = collective.update({
+    const updatedCollective = await collective.update({
       deactivatedAt: null,
       isActive: parentCollective.isActive,
       HostCollectiveId: parentCollective.HostCollectiveId,
-      approvedAt: collective.approvedAt || Date.now(),
+      approvedAt: collective.approvedAt,
     });
 
     // purge cache for parent to make sure the card gets updated on the collective page

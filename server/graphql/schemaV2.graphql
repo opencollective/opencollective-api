@@ -594,6 +594,16 @@ interface Account {
     expectedDateTo: DateTime
 
     """
+    Return orders that were charged after this date
+    """
+    chargedDateFrom: DateTime
+
+    """
+    Return orders that were charged before this date
+    """
+    chargedDateTo: DateTime
+
+    """
     The term to search
     """
     searchTerm: String
@@ -1823,6 +1833,11 @@ enum DateTimeField {
   Transactions only: The date when a transaction was cleared by the payment processor
   """
   EFFECTIVE_DATE
+
+  """
+  Orders only: The date when an order was last charged, defaults to createdAt if never charged
+  """
+  LAST_CHARGED_AT
 }
 
 """
@@ -1952,6 +1967,7 @@ type Order {
   status: OrderStatus
   frequency: ContributionFrequency
   nextChargeDate: DateTime
+  lastChargedAt: DateTime
   tier: Tier
   fromAccount: Account
   toAccount: Account
@@ -3088,6 +3104,16 @@ type Host implements Account & AccountWithContributions {
     expectedDateTo: DateTime
 
     """
+    Return orders that were charged after this date
+    """
+    chargedDateFrom: DateTime
+
+    """
+    Return orders that were charged before this date
+    """
+    chargedDateTo: DateTime
+
+    """
     The term to search
     """
     searchTerm: String
@@ -3528,6 +3554,24 @@ type Host implements Account & AccountWithContributions {
     offset: Int! = 0
     roles: [MemberRole]
   ): ContributorCollection!
+
+  """
+  [!] Warning: this query is currently in beta and the API might change
+  """
+  activeContributors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+    dateFrom: DateTime
+    dateTo: DateTime
+    includeActiveRecurringContributions: Boolean
+  ): AccountCollection!
 
   """
   How much platform fees are charged for this account
@@ -4051,6 +4095,24 @@ interface AccountWithContributions {
   ): ContributorCollection!
 
   """
+  [!] Warning: this query is currently in beta and the API might change
+  """
+  activeContributors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+    dateFrom: DateTime
+    dateTo: DateTime
+    includeActiveRecurringContributions: Boolean
+  ): AccountCollection!
+
+  """
   How much platform fees are charged for this account
   """
   platformFeePercent: Float!
@@ -4169,6 +4231,16 @@ type Contributor {
   A public message from contributors to describe their contributions
   """
   publicMessage: String
+}
+
+"""
+A collection of "Accounts"
+"""
+type AccountCollection implements Collection {
+  offset: Int
+  limit: Int
+  totalCount: Int
+  nodes: [Account]
 }
 
 """
@@ -4314,6 +4386,7 @@ Possible fields you can use to order by
 """
 enum OrderByFieldType {
   CREATED_AT
+  LAST_CHARGED_AT
 
   """
   The financial activity of the collective (number of transactions)
@@ -4697,16 +4770,6 @@ type CommentCollection implements Collection {
   nodes: [Comment]
 }
 
-"""
-A collection of "Accounts"
-"""
-type AccountCollection implements Collection {
-  offset: Int
-  limit: Int
-  totalCount: Int
-  nodes: [Account]
-}
-
 type ConversationStats {
   id: String!
 
@@ -4899,6 +4962,16 @@ type PaymentMethod {
     Only return pending orders that were expected before this date
     """
     expectedDateTo: DateTime
+
+    """
+    Return orders that were charged after this date
+    """
+    chargedDateFrom: DateTime
+
+    """
+    Return orders that were charged before this date
+    """
+    chargedDateTo: DateTime
 
     """
     The term to search
@@ -8182,6 +8255,16 @@ type Bot implements Account {
     expectedDateTo: DateTime
 
     """
+    Return orders that were charged after this date
+    """
+    chargedDateFrom: DateTime
+
+    """
+    Return orders that were charged before this date
+    """
+    chargedDateTo: DateTime
+
+    """
     The term to search
     """
     searchTerm: String
@@ -9039,6 +9122,16 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     expectedDateTo: DateTime
 
     """
+    Return orders that were charged after this date
+    """
+    chargedDateFrom: DateTime
+
+    """
+    Return orders that were charged before this date
+    """
+    chargedDateTo: DateTime
+
+    """
     The term to search
     """
     searchTerm: String
@@ -9545,6 +9638,24 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     offset: Int! = 0
     roles: [MemberRole]
   ): ContributorCollection!
+
+  """
+  [!] Warning: this query is currently in beta and the API might change
+  """
+  activeContributors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+    dateFrom: DateTime
+    dateTo: DateTime
+    includeActiveRecurringContributions: Boolean
+  ): AccountCollection!
 
   """
   Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account
@@ -10427,6 +10538,16 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     expectedDateTo: DateTime
 
     """
+    Return orders that were charged after this date
+    """
+    chargedDateFrom: DateTime
+
+    """
+    Return orders that were charged before this date
+    """
+    chargedDateTo: DateTime
+
+    """
     The term to search
     """
     searchTerm: String
@@ -10933,6 +11054,24 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     offset: Int! = 0
     roles: [MemberRole]
   ): ContributorCollection!
+
+  """
+  [!] Warning: this query is currently in beta and the API might change
+  """
+  activeContributors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+    dateFrom: DateTime
+    dateTo: DateTime
+    includeActiveRecurringContributions: Boolean
+  ): AccountCollection!
 
   """
   Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account
@@ -11533,6 +11672,16 @@ type Individual implements Account {
     Only return pending orders that were expected before this date
     """
     expectedDateTo: DateTime
+
+    """
+    Return orders that were charged after this date
+    """
+    chargedDateFrom: DateTime
+
+    """
+    Return orders that were charged before this date
+    """
+    chargedDateTo: DateTime
 
     """
     The term to search
@@ -12598,6 +12747,16 @@ type Organization implements Account & AccountWithContributions {
     expectedDateTo: DateTime
 
     """
+    Return orders that were charged after this date
+    """
+    chargedDateFrom: DateTime
+
+    """
+    Return orders that were charged before this date
+    """
+    chargedDateTo: DateTime
+
+    """
     The term to search
     """
     searchTerm: String
@@ -13036,6 +13195,24 @@ type Organization implements Account & AccountWithContributions {
     offset: Int! = 0
     roles: [MemberRole]
   ): ContributorCollection!
+
+  """
+  [!] Warning: this query is currently in beta and the API might change
+  """
+  activeContributors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+    dateFrom: DateTime
+    dateTo: DateTime
+    includeActiveRecurringContributions: Boolean
+  ): AccountCollection!
 
   """
   How much platform fees are charged for this account
@@ -13550,6 +13727,16 @@ type Vendor implements Account & AccountWithContributions {
     expectedDateTo: DateTime
 
     """
+    Return orders that were charged after this date
+    """
+    chargedDateFrom: DateTime
+
+    """
+    Return orders that were charged before this date
+    """
+    chargedDateTo: DateTime
+
+    """
     The term to search
     """
     searchTerm: String
@@ -13990,6 +14177,24 @@ type Vendor implements Account & AccountWithContributions {
     offset: Int! = 0
     roles: [MemberRole]
   ): ContributorCollection!
+
+  """
+  [!] Warning: this query is currently in beta and the API might change
+  """
+  activeContributors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+    dateFrom: DateTime
+    dateTo: DateTime
+    includeActiveRecurringContributions: Boolean
+  ): AccountCollection!
 
   """
   How much platform fees are charged for this account
@@ -14743,6 +14948,16 @@ type Query {
     Only return pending orders that were expected before this date
     """
     expectedDateTo: DateTime
+
+    """
+    Return orders that were charged after this date
+    """
+    chargedDateFrom: DateTime
+
+    """
+    Return orders that were charged before this date
+    """
+    chargedDateTo: DateTime
 
     """
     The term to search
@@ -17131,6 +17346,16 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     expectedDateTo: DateTime
 
     """
+    Return orders that were charged after this date
+    """
+    chargedDateFrom: DateTime
+
+    """
+    Return orders that were charged before this date
+    """
+    chargedDateTo: DateTime
+
+    """
     The term to search
     """
     searchTerm: String
@@ -17637,6 +17862,24 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     offset: Int! = 0
     roles: [MemberRole]
   ): ContributorCollection!
+
+  """
+  [!] Warning: this query is currently in beta and the API might change
+  """
+  activeContributors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+    dateFrom: DateTime
+    dateTo: DateTime
+    includeActiveRecurringContributions: Boolean
+  ): AccountCollection!
 
   """
   Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account
@@ -18117,6 +18360,16 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     expectedDateTo: DateTime
 
     """
+    Return orders that were charged after this date
+    """
+    chargedDateFrom: DateTime
+
+    """
+    Return orders that were charged before this date
+    """
+    chargedDateTo: DateTime
+
+    """
     The term to search
     """
     searchTerm: String
@@ -18625,6 +18878,24 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   ): ContributorCollection!
 
   """
+  [!] Warning: this query is currently in beta and the API might change
+  """
+  activeContributors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+    dateFrom: DateTime
+    dateTo: DateTime
+    includeActiveRecurringContributions: Boolean
+  ): AccountCollection!
+
+  """
   Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account
   """
   platformContributionAvailable: Boolean!
@@ -18716,41 +18987,49 @@ type SearchResults {
 type SearchResultsAccounts {
   collection: AccountCollection!
   highlights: JSONObject
+  maxScore: Float!
 }
 
 type SearchResultsComments {
   collection: CommentCollection!
   highlights: JSONObject
+  maxScore: Float!
 }
 
 type SearchResultsExpenses {
   collection: ExpenseCollection!
   highlights: JSONObject
+  maxScore: Float!
 }
 
 type SearchResultsHostApplications {
   collection: HostApplicationCollection!
   highlights: JSONObject
+  maxScore: Float!
 }
 
 type SearchResultsOrders {
   collection: OrderCollection!
   highlights: JSONObject
+  maxScore: Float!
 }
 
 type SearchResultsTiers {
   collection: TierCollection!
   highlights: JSONObject
+  maxScore: Float!
 }
 
 type SearchResultsTransactions {
   collection: TransactionCollection!
   highlights: JSONObject
+  maxScore: Float!
 }
 
 type SearchResultsUpdates {
   collection: UpdateCollection!
   highlights: JSONObject
+  maxScore: Float!
 }
 
 input TierReferenceInput {
@@ -18835,11 +19114,6 @@ type Mutation {
     user: IndividualCreateInput
 
     """
-    Whether to trigger the automated approval for Open Source collectives with GitHub.
-    """
-    automateApprovalWithGithub: Boolean = false @deprecated(reason: "2022-10-12: This is now automated")
-
-    """
     A message to attach for the host to review the application
     """
     message: String
@@ -18863,6 +19137,11 @@ type Mutation {
     List of members to invite on Collective creation.
     """
     inviteMembers: [InviteMemberInput]
+
+    """
+    Marks the collective as approved directly. Only available in test/CI environments.
+    """
+    skipApprovalTestOnly: Boolean = false
   ): Collective
 
   """
@@ -20296,6 +20575,16 @@ type Mutation {
     """
     destinationAccount: AccountReferenceInput!
   ): [Expense]!
+
+  """
+  [Root only] Anonymizes an account
+  """
+  rootAnonymizeAccount(
+    """
+    Account to anonymize
+    """
+    account: AccountReferenceInput!
+  ): Account!
 
   """
   Refunds a transaction. Scope: "transactions".

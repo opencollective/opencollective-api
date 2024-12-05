@@ -5,7 +5,7 @@ import { Includeable, Order } from 'sequelize';
 
 import OrderStatuses from '../../../../constants/order-status';
 import { buildSearchConditions } from '../../../../lib/sql-search';
-import models, { Op } from '../../../../models';
+import models, { Op, sequelize } from '../../../../models';
 import { checkScope } from '../../../common/scope-check';
 import { NotFound, Unauthorized } from '../../../errors';
 import { GraphQLOrderCollection } from '../../collection/OrderCollection';
@@ -130,6 +130,14 @@ export const OrdersCollectionArgs = {
     type: GraphQLDateTime,
     description: 'Only return pending orders that were expected before this date',
   },
+  chargedDateFrom: {
+    type: GraphQLDateTime,
+    description: 'Return orders that were charged after this date',
+  },
+  chargedDateTo: {
+    type: GraphQLDateTime,
+    description: 'Return orders that were charged before this date',
+  },
   searchTerm: {
     type: GraphQLString,
     description: 'The term to search',
@@ -169,6 +177,7 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
   const include: Includeable[] = [
     { association: 'fromCollective', required: true, attributes: [] },
     { association: 'collective', required: true, attributes: [] },
+    { model: models.Subscription, required: false, attributes: [] },
   ];
 
   // Check Pagination arguments
@@ -314,10 +323,24 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
   if (args.expectedDateFrom) {
     where['data.expectedAt'] = { [Op.gte]: args.expectedDateFrom };
   }
-
   if (args.expectedDateTo) {
     where['data.expectedAt'] = where['data.expectedAt'] || {};
     where['data.expectedAt'][Op.lte] = args.expectedDateTo;
+  }
+
+  if (args.chargedDateFrom) {
+    where[Op.and].push(
+      sequelize.where(sequelize.literal(`COALESCE("Subscription"."lastChargedAt", "Order"."createdAt")`), {
+        [Op.gte]: args.chargedDateFrom,
+      }),
+    );
+  }
+  if (args.chargedDateTo) {
+    where[Op.and].push(
+      sequelize.where(sequelize.literal(`COALESCE("Subscription"."lastChargedAt", "Order"."createdAt")`), {
+        [Op.lte]: args.chargedDateTo,
+      }),
+    );
   }
 
   if (args.status && args.status.length > 0) {
@@ -374,7 +397,15 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     where['status'] = { ...where['status'], [Op.ne]: OrderStatuses.PENDING };
   }
 
-  const order: Order = [[args.orderBy.field, args.orderBy.direction]];
+  let order: Order;
+  if (args.orderBy.field === 'lastChargedAt') {
+    include.push({ model: models.Subscription, required: false });
+    order = [
+      [sequelize.literal(`COALESCE("Subscription"."lastChargedAt", "Order"."createdAt")`), args.orderBy.direction],
+    ];
+  } else {
+    order = [[args.orderBy.field, args.orderBy.direction]];
+  }
   const { offset, limit } = args;
   return {
     nodes: () => models.Order.findAll({ include, where, order, offset, limit }),

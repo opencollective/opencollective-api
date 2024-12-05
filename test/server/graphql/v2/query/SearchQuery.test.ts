@@ -7,6 +7,7 @@ import sinon from 'sinon';
 
 import PlatformConstants from '../../../../../server/constants/platform';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
+import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import * as ElasticSearchClientSingletonLib from '../../../../../server/lib/elastic-search/client';
 import { ElasticSearchIndexName } from '../../../../../server/lib/elastic-search/constants';
 import {
@@ -15,7 +16,7 @@ import {
   syncElasticSearchIndex,
   waitForAllIndexesRefresh,
 } from '../../../../../server/lib/elastic-search/sync';
-import { User } from '../../../../../server/models';
+import { Collective, User } from '../../../../../server/models';
 import { CommentType } from '../../../../../server/models/Comment';
 import {
   fakeActiveHost,
@@ -50,6 +51,7 @@ describe('server/graphql/v2/query/SearchQuery', () => {
         results {
           accounts @include(if: $includeAccounts) {
             highlights
+            maxScore
             collection {
               totalCount
               nodes {
@@ -61,6 +63,7 @@ describe('server/graphql/v2/query/SearchQuery', () => {
           }
           comments @include(if: $includeComments) {
             highlights
+            maxScore
             collection {
               totalCount
               nodes {
@@ -70,6 +73,7 @@ describe('server/graphql/v2/query/SearchQuery', () => {
           }
           expenses @include(if: $includeExpenses) {
             highlights
+            maxScore
             collection {
               totalCount
               nodes {
@@ -79,6 +83,7 @@ describe('server/graphql/v2/query/SearchQuery', () => {
           }
           hostApplications @include(if: $includeHostApplications) {
             highlights
+            maxScore
             collection {
               totalCount
               nodes {
@@ -88,6 +93,7 @@ describe('server/graphql/v2/query/SearchQuery', () => {
           }
           orders @include(if: $includeOrders) {
             highlights
+            maxScore
             collection {
               totalCount
               nodes {
@@ -97,6 +103,7 @@ describe('server/graphql/v2/query/SearchQuery', () => {
           }
           tiers @include(if: $includeTiers) {
             highlights
+            maxScore
             collection {
               totalCount
               nodes {
@@ -106,6 +113,7 @@ describe('server/graphql/v2/query/SearchQuery', () => {
           }
           transactions @include(if: $includeTransactions) {
             highlights
+            maxScore
             collection {
               totalCount
               nodes {
@@ -115,6 +123,7 @@ describe('server/graphql/v2/query/SearchQuery', () => {
           }
           updates @include(if: $includeUpdates) {
             highlights
+            maxScore
             collection {
               totalCount
               nodes {
@@ -160,6 +169,9 @@ describe('server/graphql/v2/query/SearchQuery', () => {
 
   let sandbox: sinon.SinonSandbox,
     elasticSearchClient: Client,
+    host: Collective,
+    collective: Collective,
+    project: Collective,
     testUsers: {
       hostAdmin: User;
       collectiveAdmin: User;
@@ -185,20 +197,20 @@ describe('server/graphql/v2/query/SearchQuery', () => {
     const platform = await fakeOrganization({ name: 'Open Collective', id: PlatformConstants.PlatformCollectiveId });
     await platform.addUserWithRole(testUsers.rootUser, 'ADMIN');
 
-    const host = await fakeActiveHost({
+    host = await fakeActiveHost({
       name: 'Incredible Host',
       slug: 'incredible-host',
       admin: testUsers.hostAdmin,
     });
 
-    const collective = await fakeCollective({
+    collective = await fakeCollective({
       name: 'Incredible Collective with AUniqueCollectiveName',
       HostCollectiveId: host.id,
       slug: 'incredible',
       admin: testUsers.collectiveAdmin,
     });
 
-    const project = await fakeProject({
+    project = await fakeProject({
       name: 'Incredible Project',
       legalName: 'SecretProjectLegalName',
       slug: 'incredible-project',
@@ -326,6 +338,18 @@ describe('server/graphql/v2/query/SearchQuery', () => {
     const results = queryResult.data.search.results;
     expect(results.accounts.collection.totalCount).to.eq(3); // Collective + host + project
     expect(results.accounts.collection.nodes).to.have.length(3);
+    expect(results.accounts.maxScore).to.be.gt(0);
+    expect(results.accounts.highlights).to.deep.eq({
+      [idEncode(host.id, IDENTIFIER_TYPES.ACCOUNT)]: {
+        name: ['<em>Incredible</em> Host'],
+      },
+      [idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT)]: {
+        name: ['<em>Incredible</em> Collective with AUniqueCollectiveName'],
+      },
+      [idEncode(project.id, IDENTIFIER_TYPES.ACCOUNT)]: {
+        name: ['<em>Incredible</em> Project'],
+      },
+    });
 
     expect(results.comments).to.be.undefined;
 

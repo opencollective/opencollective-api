@@ -117,6 +117,10 @@ async function processOrder(order) {
     order.paymentMethod = sourcePaymentMethod;
     // gets the Credit transaction generated
     creditTransaction = await sourcePaymentMethodProvider.processOrder(order);
+    if (order.SubscriptionId) {
+      const subscription = await models.Subscription.findByPk(order.SubscriptionId);
+      await subscription.update({ lastChargedAt: creditTransaction.clearedAt });
+    }
   } finally {
     // undo modification of original order after processing the source payment method order
     await order.update({ PaymentMethodId: paymentMethod.id });

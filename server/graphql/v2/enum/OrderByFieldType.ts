@@ -4,6 +4,7 @@ export enum ORDER_BY_PSEUDO_FIELDS {
   ACTIVITY = 'ACTIVITY',
   BALANCE = 'BALANCE',
   CREATED_AT = 'CREATED_AT',
+  LAST_CHARGED_AT = 'LAST_CHARGED_AT',
   HOST_RANK = 'HOST_RANK',
   RANK = 'RANK',
   HOSTED_COLLECTIVES_COUNT = 'HOSTED_COLLECTIVES_COUNT',
@@ -16,6 +17,7 @@ export const GraphQLOrderByFieldType = new GraphQLEnumType({
   description: 'Possible fields you can use to order by',
   values: {
     CREATED_AT: {},
+    LAST_CHARGED_AT: {},
     ACTIVITY: { description: 'The financial activity of the collective (number of transactions)' },
     HOST_RANK: {},
     HOSTED_COLLECTIVES_COUNT: {},
