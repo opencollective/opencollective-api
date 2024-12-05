@@ -1000,20 +1000,6 @@ interface Account {
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
-  activeContributors(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-    dateFrom: DateTime
-    dateTo: DateTime
-    includeActiveRecurringContributions: Boolean
-  ): AccountCollection
 }
 
 """
@@ -3493,20 +3479,6 @@ type Host implements Account & AccountWithContributions {
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
-  activeContributors(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-    dateFrom: DateTime
-    dateTo: DateTime
-    includeActiveRecurringContributions: Boolean
-  ): AccountCollection
   webhooks(
     """
     The number of results to fetch (default 10, max 1000)
@@ -3556,6 +3528,24 @@ type Host implements Account & AccountWithContributions {
     offset: Int! = 0
     roles: [MemberRole]
   ): ContributorCollection!
+
+  """
+  [!] Warning: this query is currently in beta and the API might change
+  """
+  activeContributors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+    dateFrom: DateTime
+    dateTo: DateTime
+    includeActiveRecurringContributions: Boolean
+  ): AccountCollection!
 
   """
   How much platform fees are charged for this account
@@ -4079,6 +4069,24 @@ interface AccountWithContributions {
   ): ContributorCollection!
 
   """
+  [!] Warning: this query is currently in beta and the API might change
+  """
+  activeContributors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+    dateFrom: DateTime
+    dateTo: DateTime
+    includeActiveRecurringContributions: Boolean
+  ): AccountCollection!
+
+  """
   How much platform fees are charged for this account
   """
   platformFeePercent: Float!
@@ -4197,6 +4205,16 @@ type Contributor {
   A public message from contributors to describe their contributions
   """
   publicMessage: String
+}
+
+"""
+A collection of "Accounts"
+"""
+type AccountCollection implements Collection {
+  offset: Int
+  limit: Int
+  totalCount: Int
+  nodes: [Account]
 }
 
 """
@@ -4723,16 +4741,6 @@ type CommentCollection implements Collection {
   limit: Int
   totalCount: Int
   nodes: [Comment]
-}
-
-"""
-A collection of "Accounts"
-"""
-type AccountCollection implements Collection {
-  offset: Int
-  limit: Int
-  totalCount: Int
-  nodes: [Account]
 }
 
 type ConversationStats {
@@ -8601,20 +8609,6 @@ type Bot implements Account {
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
-  activeContributors(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-    dateFrom: DateTime
-    dateTo: DateTime
-    includeActiveRecurringContributions: Boolean
-  ): AccountCollection
   webhooks(
     """
     The number of results to fetch (default 10, max 1000)
@@ -9472,20 +9466,6 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
-  activeContributors(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-    dateFrom: DateTime
-    dateTo: DateTime
-    includeActiveRecurringContributions: Boolean
-  ): AccountCollection
   webhooks(
     """
     The number of results to fetch (default 10, max 1000)
@@ -9601,6 +9581,24 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     offset: Int! = 0
     roles: [MemberRole]
   ): ContributorCollection!
+
+  """
+  [!] Warning: this query is currently in beta and the API might change
+  """
+  activeContributors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+    dateFrom: DateTime
+    dateTo: DateTime
+    includeActiveRecurringContributions: Boolean
+  ): AccountCollection!
 
   """
   Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account
@@ -10874,20 +10872,6 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
-  activeContributors(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-    dateFrom: DateTime
-    dateTo: DateTime
-    includeActiveRecurringContributions: Boolean
-  ): AccountCollection
   webhooks(
     """
     The number of results to fetch (default 10, max 1000)
@@ -11003,6 +10987,24 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     offset: Int! = 0
     roles: [MemberRole]
   ): ContributorCollection!
+
+  """
+  [!] Warning: this query is currently in beta and the API might change
+  """
+  activeContributors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+    dateFrom: DateTime
+    dateTo: DateTime
+    includeActiveRecurringContributions: Boolean
+  ): AccountCollection!
 
   """
   Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account
@@ -11994,20 +11996,6 @@ type Individual implements Account {
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
-  activeContributors(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-    dateFrom: DateTime
-    dateTo: DateTime
-    includeActiveRecurringContributions: Boolean
-  ): AccountCollection
   webhooks(
     """
     The number of results to fetch (default 10, max 1000)
@@ -13071,20 +13059,6 @@ type Organization implements Account & AccountWithContributions {
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
-  activeContributors(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-    dateFrom: DateTime
-    dateTo: DateTime
-    includeActiveRecurringContributions: Boolean
-  ): AccountCollection
   webhooks(
     """
     The number of results to fetch (default 10, max 1000)
@@ -13134,6 +13108,24 @@ type Organization implements Account & AccountWithContributions {
     offset: Int! = 0
     roles: [MemberRole]
   ): ContributorCollection!
+
+  """
+  [!] Warning: this query is currently in beta and the API might change
+  """
+  activeContributors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+    dateFrom: DateTime
+    dateTo: DateTime
+    includeActiveRecurringContributions: Boolean
+  ): AccountCollection!
 
   """
   How much platform fees are charged for this account
@@ -14039,20 +14031,6 @@ type Vendor implements Account & AccountWithContributions {
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
-  activeContributors(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-    dateFrom: DateTime
-    dateTo: DateTime
-    includeActiveRecurringContributions: Boolean
-  ): AccountCollection
   webhooks(
     """
     The number of results to fetch (default 10, max 1000)
@@ -14102,6 +14080,24 @@ type Vendor implements Account & AccountWithContributions {
     offset: Int! = 0
     roles: [MemberRole]
   ): ContributorCollection!
+
+  """
+  [!] Warning: this query is currently in beta and the API might change
+  """
+  activeContributors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+    dateFrom: DateTime
+    dateTo: DateTime
+    includeActiveRecurringContributions: Boolean
+  ): AccountCollection!
 
   """
   How much platform fees are charged for this account
@@ -17639,20 +17635,6 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
-  activeContributors(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-    dateFrom: DateTime
-    dateTo: DateTime
-    includeActiveRecurringContributions: Boolean
-  ): AccountCollection
   webhooks(
     """
     The number of results to fetch (default 10, max 1000)
@@ -17768,6 +17750,24 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     offset: Int! = 0
     roles: [MemberRole]
   ): ContributorCollection!
+
+  """
+  [!] Warning: this query is currently in beta and the API might change
+  """
+  activeContributors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+    dateFrom: DateTime
+    dateTo: DateTime
+    includeActiveRecurringContributions: Boolean
+  ): AccountCollection!
 
   """
   Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account
@@ -18639,20 +18639,6 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
-  activeContributors(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-    dateFrom: DateTime
-    dateTo: DateTime
-    includeActiveRecurringContributions: Boolean
-  ): AccountCollection
   webhooks(
     """
     The number of results to fetch (default 10, max 1000)
@@ -18768,6 +18754,24 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     offset: Int! = 0
     roles: [MemberRole]
   ): ContributorCollection!
+
+  """
+  [!] Warning: this query is currently in beta and the API might change
+  """
+  activeContributors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+    dateFrom: DateTime
+    dateTo: DateTime
+    includeActiveRecurringContributions: Boolean
+  ): AccountCollection!
 
   """
   Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account
