@@ -1,14 +1,14 @@
 import { omit } from 'lodash';
 import { Op } from 'sequelize';
 
-import models from '../../../models';
+import Tier from '../../../models/Tier';
 import { stripHTMLOrEmpty } from '../../sanitize-html';
 import { ElasticSearchIndexName } from '../constants';
 
 import { ElasticSearchModelAdapter } from './ElasticSearchModelAdapter';
 
 export class ElasticSearchTiersAdapter implements ElasticSearchModelAdapter {
-  public readonly model = models.Tier;
+  public readonly model = Tier;
   public readonly index = ElasticSearchIndexName.TIERS;
   public readonly mappings = {
     properties: {
@@ -37,7 +37,7 @@ export class ElasticSearchTiersAdapter implements ElasticSearchModelAdapter {
       ids?: number[];
     } = {},
   ) {
-    return models.Tier.findAll({
+    return Tier.findAll({
       attributes: omit(Object.keys(this.mappings.properties), ['HostCollectiveId', 'ParentCollectiveId']),
       order: [['id', 'DESC']],
       limit: options.limit,
@@ -58,7 +58,7 @@ export class ElasticSearchTiersAdapter implements ElasticSearchModelAdapter {
   }
 
   public mapModelInstanceToDocument(
-    instance: InstanceType<typeof models.Tier>,
+    instance: InstanceType<typeof Tier>,
   ): Record<keyof (typeof this.mappings)['properties'], unknown> {
     return {
       id: instance.id,

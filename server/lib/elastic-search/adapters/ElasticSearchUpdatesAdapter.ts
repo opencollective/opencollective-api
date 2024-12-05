@@ -1,14 +1,14 @@
 import { omit } from 'lodash';
 import { Op } from 'sequelize';
 
-import models from '../../../models';
+import Update from '../../../models/Update';
 import { stripHTMLOrEmpty } from '../../sanitize-html';
 import { ElasticSearchIndexName } from '../constants';
 
 import { ElasticSearchModelAdapter } from './ElasticSearchModelAdapter';
 
 export class ElasticSearchUpdatesAdapter implements ElasticSearchModelAdapter {
-  public readonly model = models.Update;
+  public readonly model = Update;
   public readonly index = ElasticSearchIndexName.UPDATES;
   public readonly mappings = {
     properties: {
@@ -38,7 +38,7 @@ export class ElasticSearchUpdatesAdapter implements ElasticSearchModelAdapter {
       ids?: number[];
     } = {},
   ) {
-    return models.Update.findAll({
+    return Update.findAll({
       attributes: omit(Object.keys(this.mappings.properties), ['HostCollectiveId', 'ParentCollectiveId']),
       order: [['id', 'DESC']],
       limit: options.limit,
@@ -59,7 +59,7 @@ export class ElasticSearchUpdatesAdapter implements ElasticSearchModelAdapter {
   }
 
   public mapModelInstanceToDocument(
-    instance: InstanceType<typeof models.Update>,
+    instance: InstanceType<typeof Update>,
   ): Record<keyof (typeof this.mappings)['properties'], unknown> {
     return {
       id: instance.id,

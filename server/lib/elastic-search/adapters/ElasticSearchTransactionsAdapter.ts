@@ -1,13 +1,13 @@
 import { omit } from 'lodash';
 import { Op } from 'sequelize';
 
-import models from '../../../models';
+import Transaction from '../../../models/Transaction';
 import { ElasticSearchIndexName } from '../constants';
 
 import { ElasticSearchModelAdapter } from './ElasticSearchModelAdapter';
 
 export class ElasticSearchTransactionsAdapter implements ElasticSearchModelAdapter {
-  public readonly model = models.Transaction;
+  public readonly model = Transaction;
   public readonly index = ElasticSearchIndexName.TRANSACTIONS;
   public readonly mappings = {
     properties: {
@@ -37,7 +37,7 @@ export class ElasticSearchTransactionsAdapter implements ElasticSearchModelAdapt
       ids?: number[];
     } = {},
   ) {
-    return models.Transaction.findAll({
+    return Transaction.findAll({
       attributes: omit(Object.keys(this.mappings.properties), ['merchantId']),
       order: [['id', 'DESC']],
       limit: options.limit,
@@ -51,7 +51,7 @@ export class ElasticSearchTransactionsAdapter implements ElasticSearchModelAdapt
   }
 
   public mapModelInstanceToDocument(
-    instance: InstanceType<typeof models.Transaction>,
+    instance: InstanceType<typeof Transaction>,
   ): Record<keyof (typeof this.mappings)['properties'], unknown> {
     return {
       id: instance.id,
