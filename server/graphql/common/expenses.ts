@@ -132,7 +132,13 @@ const isDraftPayee = async (req: express.Request, expense: Expense): Promise<boo
     return false;
   }
 
-  const payee = await fetchAccountWithReference(pick(expense.data?.payee, ['id', 'legacyId', 'slug']));
+  const payeeReference = pick(expense.data?.payee, ['id', 'legacyId', 'slug']);
+
+  if (isEmpty(payeeReference)) {
+    return false;
+  }
+
+  const payee = await fetchAccountWithReference(payeeReference);
   if (!payee) {
     return false;
   }
