@@ -96,7 +96,7 @@ export const AccountWithContributionsFields = {
     },
   },
   activeContributors: {
-    type: GraphQLAccountCollection,
+    type: new GraphQLNonNull(GraphQLAccountCollection),
     description: '[!] Warning: this query is currently in beta and the API might change',
     args: {
       ...CollectionArgs,
