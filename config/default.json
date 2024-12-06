@@ -194,7 +194,8 @@
     },
     "error": {
       "detailed": false
-    }
+    },
+    "resolverTimeDebugWarning": 200
   },
   "pdfService": {
     "fetchTransactionsReceipts": false
