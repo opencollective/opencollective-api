@@ -18,7 +18,7 @@ If you see a step below that could be improved (or is outdated), please update t
 
 2. Make sure you have a PostgreSQL database available
 
-- Check the version: 11.0, 10.3, 9.6.8, 9.5.12, 9.4.17, 9.3.22 or newer
+- Check the version: 16.0 or newer
 - More info in our [PostgreSQL Database](docs/postgres.md) documentation
 
 3. For [node-gyp](https://github.com/nodejs/node-gyp), make sure you have Python 2 available and configured as the active version.
