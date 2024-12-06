@@ -551,7 +551,7 @@ interface Account {
     """
     Use this field to filter orders on their frequency (ONETIME, MONTHLY or YEARLY)
     """
-    frequency: ContributionFrequency
+    frequency: [ContributionFrequency]
 
     """
     Use this field to filter orders on their statuses
@@ -3061,7 +3061,7 @@ type Host implements Account & AccountWithContributions {
     """
     Use this field to filter orders on their frequency (ONETIME, MONTHLY or YEARLY)
     """
-    frequency: ContributionFrequency
+    frequency: [ContributionFrequency]
 
     """
     Use this field to filter orders on their statuses
@@ -4921,7 +4921,7 @@ type PaymentMethod {
     """
     Use this field to filter orders on their frequency (ONETIME, MONTHLY or YEARLY)
     """
-    frequency: ContributionFrequency
+    frequency: [ContributionFrequency]
 
     """
     Use this field to filter orders on their statuses
@@ -8212,7 +8212,7 @@ type Bot implements Account {
     """
     Use this field to filter orders on their frequency (ONETIME, MONTHLY or YEARLY)
     """
-    frequency: ContributionFrequency
+    frequency: [ContributionFrequency]
 
     """
     Use this field to filter orders on their statuses
@@ -9079,7 +9079,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     """
     Use this field to filter orders on their frequency (ONETIME, MONTHLY or YEARLY)
     """
-    frequency: ContributionFrequency
+    frequency: [ContributionFrequency]
 
     """
     Use this field to filter orders on their statuses
@@ -10495,7 +10495,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     """
     Use this field to filter orders on their frequency (ONETIME, MONTHLY or YEARLY)
     """
-    frequency: ContributionFrequency
+    frequency: [ContributionFrequency]
 
     """
     Use this field to filter orders on their statuses
@@ -11631,7 +11631,7 @@ type Individual implements Account {
     """
     Use this field to filter orders on their frequency (ONETIME, MONTHLY or YEARLY)
     """
-    frequency: ContributionFrequency
+    frequency: [ContributionFrequency]
 
     """
     Use this field to filter orders on their statuses
@@ -12704,7 +12704,7 @@ type Organization implements Account & AccountWithContributions {
     """
     Use this field to filter orders on their frequency (ONETIME, MONTHLY or YEARLY)
     """
-    frequency: ContributionFrequency
+    frequency: [ContributionFrequency]
 
     """
     Use this field to filter orders on their statuses
@@ -13684,7 +13684,7 @@ type Vendor implements Account & AccountWithContributions {
     """
     Use this field to filter orders on their frequency (ONETIME, MONTHLY or YEARLY)
     """
-    frequency: ContributionFrequency
+    frequency: [ContributionFrequency]
 
     """
     Use this field to filter orders on their statuses
@@ -14907,7 +14907,7 @@ type Query {
     """
     Use this field to filter orders on their frequency (ONETIME, MONTHLY or YEARLY)
     """
-    frequency: ContributionFrequency
+    frequency: [ContributionFrequency]
 
     """
     Use this field to filter orders on their statuses
@@ -17303,7 +17303,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     """
     Use this field to filter orders on their frequency (ONETIME, MONTHLY or YEARLY)
     """
-    frequency: ContributionFrequency
+    frequency: [ContributionFrequency]
 
     """
     Use this field to filter orders on their statuses
@@ -18317,7 +18317,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     """
     Use this field to filter orders on their frequency (ONETIME, MONTHLY or YEARLY)
     """
-    frequency: ContributionFrequency
+    frequency: [ContributionFrequency]
 
     """
     Use this field to filter orders on their statuses
