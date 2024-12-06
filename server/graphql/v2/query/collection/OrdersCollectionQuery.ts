@@ -1,6 +1,7 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLEnumType, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
+import { compact } from 'lodash';
 import { Includeable, Order } from 'sequelize';
 
 import OrderStatuses from '../../../../constants/order-status';
@@ -94,7 +95,7 @@ export const OrdersCollectionArgs = {
     description: 'Account orders filter (INCOMING or OUTGOING)',
   },
   frequency: {
-    type: GraphQLContributionFrequency,
+    type: new GraphQLList(GraphQLContributionFrequency),
     description: 'Use this field to filter orders on their frequency (ONETIME, MONTHLY or YEARLY)',
   },
   status: {
@@ -351,15 +352,18 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
   }
 
   if (args.frequency) {
-    if (args.frequency === 'ONETIME') {
+    if (args.frequency.includes('ONETIME')) {
       where['SubscriptionId'] = { [Op.is]: null };
-    } else if (args.frequency === 'MONTHLY') {
-      include.push({ model: models.Subscription, required: true, where: { interval: 'month' } });
-    } else if (args.frequency === 'YEARLY') {
-      include.push({ model: models.Subscription, required: true, where: { interval: 'year' } });
+    } else {
+      const intervals = compact([
+        args.frequency.includes('MONTHLY') && 'month',
+        args.frequency.includes('YEARLY') && 'year',
+      ]);
+      where[Op.and].push({
+        ['$Subscription.interval$']: { [Op.in]: intervals },
+      });
     }
   } else if (args.onlySubscriptions) {
-    include.push({ model: models.Subscription, required: false });
     where[Op.and].push({
       [Op.or]: [
         { ['$Subscription.id$']: { [Op.ne]: null } },
@@ -367,7 +371,9 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
       ],
     });
   } else if (args.onlyActiveSubscriptions) {
-    include.push({ model: models.Subscription, required: true, where: { isActive: true } });
+    where[Op.and].push({
+      ['$Subscription.isActive$']: true,
+    });
   }
 
   if (args.tierSlug) {
@@ -408,7 +414,7 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
   }
   const { offset, limit } = args;
   return {
-    nodes: () => models.Order.findAll({ include, where, order, offset, limit }),
+    nodes: () => models.Order.findAll({ include, where, order, offset, limit, logging: true }),
     totalCount: () => models.Order.count({ include, where }),
     limit: args.limit,
     offset: args.offset,
