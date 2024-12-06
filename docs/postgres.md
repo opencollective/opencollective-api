@@ -1,8 +1,8 @@
 # PostgreSQL Database
 
-You need to have PostgreSQL > 13.x.
+You need to have PostgreSQL > 14.x.
 
-In production, we're currently running 13.7.
+In production, we're currently running 16.4.
 
 ## Installation
 
@@ -57,7 +57,7 @@ If you don't want to run a local instance of PostgreSQL in your computer, you ca
 Create and run the container:
 
 ```
-docker run -p 5432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust -d --name opencollective-postgres --shm-size=1g --memory=4g --cpus=2  postgres:13.7
+docker run -p 5432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust -d --name opencollective-postgres --shm-size=1g --memory=4g --cpus=2  postgres:14
 ```
 
 Set the necessary environment variables:
