@@ -30,6 +30,7 @@ export class ElasticSearchExpensesAdapter implements ElasticSearchModelAdapter {
       HostCollectiveId: { type: 'keyword' },
       // Special fields
       ParentCollectiveId: { type: 'keyword' },
+      items: { type: 'text' },
     },
   } as const;
 
@@ -43,7 +44,7 @@ export class ElasticSearchExpensesAdapter implements ElasticSearchModelAdapter {
     } = {},
   ) {
     return models.Expense.findAll({
-      attributes: omit(Object.keys(this.mappings.properties), ['ParentCollectiveId']),
+      attributes: omit(Object.keys(this.mappings.properties), ['ParentCollectiveId', 'items']),
       order: [['id', 'DESC']],
       limit: options.limit,
       offset: options.offset,
@@ -57,6 +58,11 @@ export class ElasticSearchExpensesAdapter implements ElasticSearchModelAdapter {
           association: 'collective',
           required: true,
           attributes: ['HostCollectiveId', 'ParentCollectiveId'],
+        },
+        {
+          association: 'items',
+          required: false,
+          attributes: ['description'],
         },
       ],
     });
@@ -82,6 +88,7 @@ export class ElasticSearchExpensesAdapter implements ElasticSearchModelAdapter {
       FromCollectiveId: instance.FromCollectiveId,
       UserId: instance.UserId,
       HostCollectiveId: instance.HostCollectiveId || instance.collective.HostCollectiveId,
+      items: instance.items.map(item => item.description).join(' '),
     };
   }
 
