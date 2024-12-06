@@ -15,6 +15,7 @@ import {
   PutObjectCommandOutput,
   S3Client,
 } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import config from 'config';
 
 import logger from '../lib/logger';
@@ -37,6 +38,15 @@ if (config.aws.s3.key) {
       secretAccessKey: config.aws.s3.secret,
     },
   });
+}
+
+/**
+ * Returns a signed GET url to an S3 resource.
+ * By default the URL expires in 10 minutes.
+ */
+export function getSignedGetURL(params: GetObjectCommand['input'], options?: { expiresIn: number }) {
+  const command = new GetObjectCommand(params);
+  return getSignedUrl(s3, command, { expiresIn: options?.expiresIn || 10 * 60 });
 }
 
 export const uploadToS3 = async (
