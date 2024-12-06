@@ -6,6 +6,7 @@ import { cloneDeep, flatten, intersection, isEmpty, isNil, pick, uniq } from 'lo
 import type { Order as SequelizeOrder } from 'sequelize';
 
 import { CollectiveType } from '../../../../constants/collectives';
+import { TransactionKind } from '../../../../constants/transaction-kind';
 import cache, { memoize } from '../../../../lib/cache';
 import { buildSearchConditions } from '../../../../lib/sql-search';
 import { parseToBoolean } from '../../../../lib/utils';
@@ -44,6 +45,8 @@ const LEDGER_ORDERED_TRANSACTIONS_FIELDS = {
     'ROUND(EXTRACT(epoch FROM COALESCE("Transaction"."clearedAt", "Transaction"."createdAt") AT TIME ZONE \'UTC\') / 10)',
   ),
 };
+
+const { PLATFORM_TIP, HOST_FEE_SHARE } = TransactionKind;
 
 export const getTransactionKindPriorityCase = tableName => `
   CASE
@@ -126,6 +129,10 @@ export const TransactionsCollectionArgs = {
   searchTerm: {
     type: GraphQLString,
     description: 'The term to search',
+  },
+  hasDebt: {
+    type: GraphQLBoolean,
+    description: 'If true, return transactions with debt attached, if false transactions without debt attached.',
   },
   hasExpense: {
     type: GraphQLBoolean,
@@ -495,6 +502,25 @@ export const TransactionsCollectionResolver = async (
 
   if (!isNil(args.isRefund)) {
     where.push({ isRefund: args.isRefund });
+  }
+
+  if (args.hasDebt !== undefined) {
+    const hasDebtSubquery = `SELECT id FROM "Transactions" as "DebtTransaction"
+      WHERE "DebtTransaction"."TransactionGroup" = "Transaction"."TransactionGroup"
+      AND ("DebtTransaction".kind)::text = CONCAT(("Transaction"."kind")::text, '_DEBT')
+      AND "DebtTransaction"."type" != "Transaction"."type"
+      AND "DebtTransaction"."deletedAt" IS NULL`;
+    if (args.hasDebt === true) {
+      where.push({ kind: [PLATFORM_TIP, HOST_FEE_SHARE] }); // Need to be this kind to have debt
+      where.push(sequelize.literal(`EXISTS (${hasDebtSubquery})`));
+    } else if (args.hasDebt === false) {
+      where.push(
+        sequelize.or(
+          { kind: { [Op.not]: [PLATFORM_TIP, HOST_FEE_SHARE] } }, // No Debt if not this kind
+          sequelize.literal(`NOT EXISTS (${hasDebtSubquery})`),
+        ),
+      );
+    }
   }
 
   /* 
