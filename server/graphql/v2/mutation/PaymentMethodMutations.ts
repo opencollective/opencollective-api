@@ -4,7 +4,7 @@ import { omit, pick } from 'lodash';
 
 import { Service } from '../../../constants/connected-account';
 import FEATURE_STATUS from '../../../constants/feature-status';
-import stripe from '../../../lib/stripe';
+import stripe, { sanitizeStripeError } from '../../../lib/stripe';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import { createOrRetrievePaymentMethodFromSetupIntent } from '../../../paymentProviders/stripe/common';
@@ -108,11 +108,11 @@ const addCreditCard = {
 
       return {
         paymentMethod: pm,
-        stripeError: {
+        stripeError: sanitizeStripeError({
           message: error.message,
           account: error.stripeAccount,
           response: error.stripeResponse,
-        },
+        }),
       };
     }
 
