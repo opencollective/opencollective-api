@@ -2,7 +2,7 @@ import { GraphQLBoolean, GraphQLInputObjectType, GraphQLInt, GraphQLString } fro
 
 import Tier from '../../../models/Tier';
 import { NotFound } from '../../errors';
-import { idDecode } from '../identifiers';
+import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
 export const GraphQLTierReferenceInput = new GraphQLInputObjectType({
   name: 'TierReferenceInput',
@@ -34,7 +34,7 @@ export const fetchTierWithReference = async (
   const loadTier = id => (loaders ? loaders.Tier.byId.load(id) : Tier.findByPk(id));
   let tier;
   if (input.id) {
-    const id = idDecode(input.id, 'tier');
+    const id = idDecode(input.id, IDENTIFIER_TYPES.TIER);
     tier = await loadTier(id);
   } else if (input.legacyId) {
     tier = await loadTier(input.legacyId);
@@ -45,4 +45,14 @@ export const fetchTierWithReference = async (
     throw new NotFound(`Tier Not Found`);
   }
   return tier;
+};
+
+export const getDatabaseIdFromTierReference = (input: { id?: string; legacyId?: number }): number => {
+  if (input.id) {
+    return idDecode(input.id, IDENTIFIER_TYPES.TIER);
+  } else if (input.legacyId) {
+    return input.legacyId;
+  } else {
+    throw new Error(`Please provide an id or a legacyId (got ${JSON.stringify(input)})`);
+  }
 };
