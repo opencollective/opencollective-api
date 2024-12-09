@@ -110,6 +110,11 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
     draftKey?: string;
     taxes?: ExpenseTaxDefinition[];
     lockedFields?: ExpenseLockableFields[];
+    payout_item?: {
+      note?: string;
+      receiver?: string;
+      purpose?: string;
+    };
   };
 
   declare public currency: SupportedCurrency;

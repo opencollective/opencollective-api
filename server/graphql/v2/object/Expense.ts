@@ -669,6 +669,22 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Reques
           }
         },
       },
+      transferReference: {
+        type: GraphQLString,
+        description: 'The reference text used in the payment transfer',
+        async resolve(expense, _, req) {
+          if (await ExpenseLib.canSeeExpenseCustomData(req, expense)) {
+            return (
+              toString(
+                // Wise
+                expense.data?.transfer?.details?.reference ||
+                  // PayPal Payouts
+                  expense.data?.payout_item?.note,
+              ) || null
+            );
+          }
+        },
+      },
       lockedFields: {
         type: new GraphQLList(GraphQLExpenseLockableFields),
         description: 'Fields that cannot be edited on this expense',
