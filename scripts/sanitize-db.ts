@@ -45,9 +45,14 @@ export const testStripeAccounts = {
     },
     CollectiveId: 9802,
   },
-};
+} as const;
 
-const createConnectedAccount = hostname => {
+const createConnectedAccount = async (hostname: keyof typeof testStripeAccounts) => {
+  const host = await models.Collective.findByPk(testStripeAccounts[hostname].CollectiveId);
+  if (!host) {
+    return;
+  }
+
   return models.ConnectedAccount.create(testStripeAccounts[hostname]).catch(e => {
     // will fail if the host is not present
     console.log(`[warning] Unable to create a connected account for ${hostname}`);
@@ -58,7 +63,16 @@ const createConnectedAccount = hostname => {
 };
 
 const replaceHostStripeTokens = () => {
-  return models.ConnectedAccount.destroy({ where: { service: 'stripe' }, force: true })
+  return models.ConnectedAccount.destroy({
+    where: sequelize.literal(
+      `service = 'stripe'
+      AND (
+        data->>'publishableKey' IS NULL
+        OR data->>'publishableKey' NOT ILIKE 'pk_test_%'
+      )`,
+    ),
+    force: true,
+  })
     .then(() => createConnectedAccount('opensource'))
     .then(() => createConnectedAccount('opensourceDvl'))
     .then(() => createConnectedAccount('other'))
