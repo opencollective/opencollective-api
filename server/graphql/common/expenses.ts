@@ -3,7 +3,7 @@ import assert from 'assert';
 import * as LibTaxes from '@opencollective/taxes';
 import config from 'config';
 import debugLib from 'debug';
-import express from 'express';
+import express, { Request } from 'express';
 import {
   cloneDeep,
   find,
@@ -63,7 +63,7 @@ import { CreateTransfer } from '../../lib/transferwise';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import { canUseFeature } from '../../lib/user-permissions';
 import { formatCurrency, parseToBoolean } from '../../lib/utils';
-import models, { Collective, sequelize, TransactionsImportRow } from '../../models';
+import models, { Collective, sequelize, TransactionsImportRow, UploadedFile } from '../../models';
 import AccountingCategory, { AccountingCategoryAppliesTo } from '../../models/AccountingCategory';
 import Expense, {
   ExpenseDataValuesByRole,
@@ -102,6 +102,7 @@ import { GraphQLCurrencyExchangeRateInputType } from '../v2/input/CurrencyExchan
 
 import { getContextPermission, PERMISSION_TYPE } from './context-permissions';
 import { checkRemoteUserCanRoot, checkScope } from './scope-check';
+import { hasUploadedFilePermission } from './uploaded-file';
 
 const debug = debugLib('expenses');
 
@@ -1397,8 +1398,8 @@ type ExpenseData = {
   id?: number;
   payoutMethod?: Record<string, unknown>;
   payeeLocation?: Location;
-  items?: Record<string, unknown>[];
-  attachedFiles?: Record<string, unknown>[];
+  items?: (Record<string, unknown> & { url?: string })[];
+  attachedFiles?: (Record<string, unknown> & { url: string })[];
   collective?: Collective;
   fromCollective?: Collective;
   tags?: string[];
@@ -1490,9 +1491,43 @@ const checkCanUseAccountingCategory = (
   }
 };
 
+async function prepareAttachedFiles(req: Request, attachedFiles: ExpenseData['attachedFiles']) {
+  if (!attachedFiles) {
+    return null;
+  } else if (!attachedFiles.length) {
+    return [];
+  }
+
+  const mapItemUrlToUploadedFile: Record<string, string> = {};
+  for (const item of attachedFiles) {
+    if (!item.url) {
+      continue;
+    }
+
+    if (!UploadedFile.isUploadedFileURL(item.url)) {
+      mapItemUrlToUploadedFile[item.url] = item.url;
+      continue;
+    }
+
+    const uploadedFile = await UploadedFile.getFromURL(item.url);
+
+    if (!(await hasUploadedFilePermission(req, uploadedFile))) {
+      throw new ValidationFailed('Invalid expense attached file url');
+    }
+
+    mapItemUrlToUploadedFile[item.url] = uploadedFile.getDataValue('url');
+  }
+
+  return attachedFiles.map(file => ({
+    ...file,
+    url: mapItemUrlToUploadedFile[file.url],
+  }));
+}
+
 export const prepareExpenseItemInputs = async (
+  req: Request,
   expenseCurrency: SupportedCurrency,
-  itemsInput: Array<ExpenseItem | Record<string, unknown>>,
+  itemsInput: Array<ExpenseItem | (Record<string, unknown> & { url?: string })>,
   { isEditing = false } = {},
 ): Promise<Array<Partial<ExpenseItem>>> => {
   if (!itemsInput) {
@@ -1523,10 +1558,34 @@ export const prepareExpenseItemInputs = async (
     );
   }
 
+  const mapItemUrlToUploadedFile: Record<string, string> = {};
+  for (const item of itemsInput) {
+    if (!item.url) {
+      continue;
+    }
+
+    if (!UploadedFile.isUploadedFileURL(item.url)) {
+      mapItemUrlToUploadedFile[item.url] = item.url;
+      continue;
+    }
+
+    const uploadedFile = await UploadedFile.getFromURL(item.url);
+
+    if (!(await hasUploadedFilePermission(req, uploadedFile))) {
+      throw new ValidationFailed('Invalid expense item url');
+    }
+
+    mapItemUrlToUploadedFile[item.url] = uploadedFile.getDataValue('url');
+  }
+
   // Prepare items
   return itemsInput.map(itemInput => {
     const fieldsToPick = [...ExpenseItem.editableFields, ...(isEditing ? ['id'] : [])];
     const values: Partial<ExpenseItem> = pick(itemInput, fieldsToPick);
+
+    if (values.url) {
+      values.url = mapItemUrlToUploadedFile[values.url];
+    }
 
     if (itemInput['amount'] && itemInput['amountV2']) {
       throw new ValidationFailed('`amount` and `amountV2` are mutually exclusive. Please use `amountV2` only.');
@@ -1646,7 +1705,7 @@ export async function createExpense(req: express.Request, expenseData: ExpenseDa
     }
   }
 
-  const itemsData: Partial<ExpenseItem>[] = await prepareExpenseItemInputs(expenseCurrency, expenseData.items);
+  const itemsData: Partial<ExpenseItem>[] = await prepareExpenseItemInputs(req, expenseCurrency, expenseData.items);
   const taxes = expenseData.tax || [];
 
   checkTaxes(collective, collective.host, expenseData.type, taxes);
@@ -1802,7 +1861,8 @@ export async function createExpense(req: express.Request, expenseData: ExpenseDa
     );
 
     // Create attached files
-    createdExpense.attachedFiles = await createAttachedFiles(createdExpense, expenseData.attachedFiles, remoteUser, t);
+    const attachedFiles = await prepareAttachedFiles(req, expenseData.attachedFiles);
+    createdExpense.attachedFiles = await createAttachedFiles(createdExpense, attachedFiles, remoteUser, t);
 
     // Link to transactions import
     if (expenseData.transactionsImportRow) {
@@ -2095,7 +2155,9 @@ export async function editExpenseDraft(req: express.Request, expenseData: Expens
 
   const currency = expenseData.currency || existingExpense.currency;
   const items =
-    (await prepareExpenseItemInputs(currency, expenseData.items, { isEditing: true })) || existingExpense.items;
+    (await prepareExpenseItemInputs(req, currency, expenseData.items, { isEditing: true })) || existingExpense.items;
+
+  const attachedFiles = await prepareAttachedFiles(req, expenseData.attachedFiles);
   const newExpenseValues = {
     ...pick(expenseData, DRAFT_EXPENSE_FIELDS),
     amount: models.Expense.computeTotalAmountForExpense(items, expenseData.tax),
@@ -2104,7 +2166,7 @@ export async function editExpenseDraft(req: express.Request, expenseData: Expens
     data: {
       items,
       taxes: expenseData.tax,
-      attachedFiles: expenseData.attachedFiles,
+      attachedFiles: attachedFiles,
     },
   };
 
@@ -2268,7 +2330,7 @@ export async function editExpense(
 
   const expenseCurrency = expenseData.currency || expense.currency;
   const updatedItemsData: Partial<ExpenseItem>[] =
-    (await prepareExpenseItemInputs(expenseCurrency, expenseData.items, { isEditing: true })) || expense.items;
+    (await prepareExpenseItemInputs(req, expenseCurrency, expenseData.items, { isEditing: true })) || expense.items;
   const [hasItemChanges, itemsDiff] = await getItemsChanges(expense.items, updatedItemsData);
   const taxes = expenseData.tax || (expense.data?.taxes as ExpenseTaxDefinition[]) || [];
   checkTaxes(expense.collective, expense.collective.host, expenseType, taxes);
@@ -2425,9 +2487,10 @@ export async function editExpense(
 
     // Update attached files
     if (expenseData.attachedFiles) {
+      const attachedFiles = await prepareAttachedFiles(req, expenseData.attachedFiles);
       const [newAttachedFiles, removedAttachedFiles, updatedAttachedFiles] = models.ExpenseAttachedFile.diffDBEntries(
         expense.attachedFiles,
-        expenseData.attachedFiles,
+        attachedFiles,
       );
 
       await createAttachedFiles(expense, newAttachedFiles, remoteUser, transaction);
