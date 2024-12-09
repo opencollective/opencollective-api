@@ -82,20 +82,20 @@ export enum ExpenseLockableFields {
 }
 
 class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Expense>> {
-  declare public readonly id: CreationOptional<number>;
-  declare public UserId: ForeignKey<User['id']>;
-  declare public lastEditedById: ForeignKey<User['id']>;
-  declare public HostCollectiveId: number;
-  declare public FromCollectiveId: number;
-  declare public CollectiveId: number;
-  declare public PayoutMethodId: ForeignKey<PayoutMethod['id']>;
-  declare public PaymentMethodId: number;
-  declare public VirtualCardId: ForeignKey<VirtualCard['id']>;
-  declare public RecurringExpenseId: ForeignKey<RecurringExpense['id']>;
-  declare public AccountingCategoryId: ForeignKey<AccountingCategory['id']>;
+  public declare readonly id: CreationOptional<number>;
+  public declare UserId: ForeignKey<User['id']>;
+  public declare lastEditedById: ForeignKey<User['id']>;
+  public declare HostCollectiveId: number;
+  public declare FromCollectiveId: number;
+  public declare CollectiveId: number;
+  public declare PayoutMethodId: ForeignKey<PayoutMethod['id']>;
+  public declare PaymentMethodId: number;
+  public declare VirtualCardId: ForeignKey<VirtualCard['id']>;
+  public declare RecurringExpenseId: ForeignKey<RecurringExpense['id']>;
+  public declare AccountingCategoryId: ForeignKey<AccountingCategory['id']>;
 
-  declare public payeeLocation: Location;
-  declare public data: Record<string, unknown> & {
+  public declare payeeLocation: Location;
+  public declare data: Record<string, unknown> & {
     batchGroup?: BatchGroup;
     quote?: ExpenseDataQuoteV2 | ExpenseDataQuoteV3;
     paymentOption?: QuoteV2PaymentOption | QuoteV3PaymentOption;
@@ -110,40 +110,45 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
     draftKey?: string;
     taxes?: ExpenseTaxDefinition[];
     lockedFields?: ExpenseLockableFields[];
+    payout_item?: {
+      note?: string;
+      receiver?: string;
+      purpose?: string;
+    };
   };
 
-  declare public currency: SupportedCurrency;
-  declare public amount: number;
-  declare public description: string;
-  declare public longDescription: CreationOptional<string>;
-  declare public privateMessage: CreationOptional<string>;
-  declare public invoiceInfo: CreationOptional<string>;
-  declare public legacyPayoutMethod: 'paypal' | 'manual' | 'donation' | 'other';
+  public declare currency: SupportedCurrency;
+  public declare amount: number;
+  public declare description: string;
+  public declare longDescription: CreationOptional<string>;
+  public declare privateMessage: CreationOptional<string>;
+  public declare invoiceInfo: CreationOptional<string>;
+  public declare legacyPayoutMethod: 'paypal' | 'manual' | 'donation' | 'other';
 
-  declare public status: keyof typeof ExpenseStatus;
-  declare public onHold: boolean;
-  declare public type: ExpenseType;
-  declare public feesPayer: 'COLLECTIVE' | 'PAYEE';
-  declare public tags: string[];
+  public declare status: keyof typeof ExpenseStatus;
+  public declare onHold: boolean;
+  public declare type: ExpenseType;
+  public declare feesPayer: 'COLLECTIVE' | 'PAYEE';
+  public declare tags: string[];
 
-  declare public incurredAt: CreationOptional<Date>;
-  declare public createdAt: CreationOptional<Date>;
-  declare public updatedAt: CreationOptional<Date>;
-  declare public deletedAt: CreationOptional<Date>;
+  public declare incurredAt: CreationOptional<Date>;
+  public declare createdAt: CreationOptional<Date>;
+  public declare updatedAt: CreationOptional<Date>;
+  public declare deletedAt: CreationOptional<Date>;
 
-  declare public activities?: Activity[];
-  declare public Transactions?: Transaction[];
-  declare public collective?: Collective;
-  declare public fromCollective?: Collective;
-  declare public host?: Collective;
-  declare public User?: User;
-  declare public PayoutMethod?: PayoutMethod;
-  declare public PaymentMethod?: PaymentMethod;
-  declare public virtualCard?: VirtualCard;
-  declare public items?: ExpenseItem[];
-  declare public attachedFiles?: ExpenseAttachedFile[];
-  declare public accountingCategory?: AccountingCategory;
-  declare public reference: string;
+  public declare activities?: Activity[];
+  public declare Transactions?: Transaction[];
+  public declare collective?: Collective;
+  public declare fromCollective?: Collective;
+  public declare host?: Collective;
+  public declare User?: User;
+  public declare PayoutMethod?: PayoutMethod;
+  public declare PaymentMethod?: PaymentMethod;
+  public declare virtualCard?: VirtualCard;
+  public declare items?: ExpenseItem[];
+  public declare attachedFiles?: ExpenseAttachedFile[];
+  public declare accountingCategory?: AccountingCategory;
+  public declare reference: string;
 
   // Association getters
   declare getActivities: HasManyGetAssociationsMixin<Activity>;
