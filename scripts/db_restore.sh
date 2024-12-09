@@ -1,37 +1,36 @@
 #!/bin/bash
 
 usage() {
-  echo "Usage: db_restore.sh -d DBNAME -U DBUSER --use-postgis -f DBDUMP_FILE";
-  echo "e.g.";
+  echo "Usage: db_restore.sh -d DBNAME -U DBUSER --use-postgis -f DBDUMP_FILE"
+  echo "e.g."
   echo "> db_restore.sh -d opencollective_dvl -U opencollective -f test/dbdumps/opencollective_dvl.pgsql"
-  exit 0;
+  exit 0
 }
 
-while [[ $# -gt 0 ]]
-do
-key="$1"
+while [[ $# -gt 0 ]]; do
+  key="$1"
 
-case $key in
-    -d|--dbname)
+  case $key in
+  -d | --dbname)
     LOCALDBNAME="$2"
     shift # past argument
     ;;
-    -U|--username)
+  -U | --username)
     LOCALDBUSER="$2"
     shift # past argument
     ;;
-    --use-postgis)
+  --use-postgis)
     USE_POSTGIS=1
     ;;
-    -f|--file)
+  -f | --file)
     DBDUMP_FILE="$2"
     shift # past argument
     ;;
-    *)
-            # unknown option
+  *)
+    # unknown option
     ;;
-esac
-shift # past argument or value
+  esac
+  shift # past argument or value
 done
 
 LOCALDBUSER=${LOCALDBUSER:-"opencollective"}
@@ -42,7 +41,7 @@ echo "LOCALDBUSER=$LOCALDBUSER"
 echo "LOCALDBNAME=$LOCALDBNAME"
 echo "DBDUMP_FILE=$DBDUMP_FILE"
 
-if [ -z "$LOCALDBNAME" ]; then usage; fi;
+if [ -z "$LOCALDBNAME" ]; then usage; fi
 
 # kill all connections to the postgres server
 # echo "Killing all connections to database '$LOCALDBNAME'"
@@ -53,8 +52,11 @@ if [ -z "$LOCALDBNAME" ]; then usage; fi;
 # where pg_stat_activity.datname = '$LOCALDBNAME'
 # EOF
 
-dropdb -U postgres -h localhost --if-exists $LOCALDBNAME;
-createdb -U postgres -h localhost $LOCALDBNAME 2> /dev/null
+echo "Dropping '$LOCALDBNAME'"
+dropdb -U postgres -h localhost --if-exists $LOCALDBNAME
+
+echo "Creating '$LOCALDBNAME'"
+createdb -U postgres -h localhost $LOCALDBNAME 2>/dev/null
 
 # When restoring old backups, you may need to enable Postgis
 if [ "$USE_POSTGIS" = "1" ]; then
@@ -71,6 +73,10 @@ fi
   psql -U postgres -h localhost "${LOCALDBNAME}" -c "CREATE ROLE ${LOCALDBUSER} WITH login;" 2>/dev/null
   set -e
 } | tee >/dev/null
+
+# Update table permissions
+echo "Updating table permissions"
+psql -U postgres -h localhost $LOCALDBNAME -c "GRANT ALL ON SCHEMA public TO ${LOCALDBUSER};"
 
 # The first time we run it, we will trigger FK constraints errors
 set +e
