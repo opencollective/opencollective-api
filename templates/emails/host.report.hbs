@@ -70,6 +70,12 @@ Subject: {{#if erratumMessage}}Erratum{{#if erratumNumber}} {{erratumNumber}}{{/
   }
 </style>
 
+<div style="font-family: Arial, sans-serif; border: 1px solid rgb(240, 173, 78); border-radius: 4px; background-color: rgb(252, 248, 227); padding: 20px; margin: 32px 0;" >
+   <h3 style="margin: 0px 0px 15px; color: rgb(138, 109, 59); font-size: 20px; font-weight: bold; line-height: 1.2;" >Important Notice</h3>
+   <p style="color: rgb(138, 109, 59); font-size: 14px; line-height: 1.5;">This email report will be discontinued after <strong>January 1st, 2025</strong>. For more accurate and up-to-date information, please use <a href="{{@root.config.host.website}}/dashboard/{{collective.slug}}/reports/transactions" target="_blank" rel="noopener noreferrer">our new live Dashboard reports</a>.</p>
+   <p style="color: rgb(138, 109, 59); font-size: 14px; line-height: 1.5; margin-bottom: 0;">If you have any issues, please contact us at <a href="mailto:support@opencollective.com" style="color: rgb(138, 109, 59); text-decoration: underline;">support@opencollective.com</a>.</p>
+</div>
+
 <div class="hidden">
   Collectives: {{number stats.totalCollectives}} ({{number stats.totalActiveCollectives}} active) //
   Backers: {{number stats.backers.total}} (+{{number stats.backers.new}}{{#if stats.backers.lost}},
