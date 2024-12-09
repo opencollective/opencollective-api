@@ -104,6 +104,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
     recipient?: RecipientAccount;
     payee?: {
       id?: number;
+      slug?: string;
       name?: string;
       email?: string;
     };
