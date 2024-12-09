@@ -25,6 +25,7 @@ import {
   fetchPaymentMethodWithReference,
   GraphQLPaymentMethodReferenceInput,
 } from '../../input/PaymentMethodReferenceInput';
+import { getDatabaseIdFromTierReference, GraphQLTierReferenceInput } from '../../input/TierReferenceInput';
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
 
 type OrderAssociation = 'fromCollective' | 'collective';
@@ -146,6 +147,9 @@ export const OrdersCollectionArgs = {
   tierSlug: {
     type: GraphQLString,
     deprecationReason: '2022-02-25: Should be replaced by a tier reference. Not existing yet.',
+  },
+  tier: {
+    type: new GraphQLList(GraphQLTierReferenceInput),
   },
   onlySubscriptions: {
     type: GraphQLBoolean,
@@ -351,6 +355,11 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     }
   }
 
+  if (args.tier) {
+    const tierIds = args.tier.map(getDatabaseIdFromTierReference);
+    include.push({ association: 'Tier', required: true, where: { id: { [Op.in]: tierIds } } });
+  }
+
   if (args.frequency) {
     if (args.frequency.includes('ONETIME')) {
       where['SubscriptionId'] = { [Op.is]: null };
@@ -405,7 +414,6 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
 
   let order: Order;
   if (args.orderBy.field === 'lastChargedAt') {
-    include.push({ model: models.Subscription, required: false });
     order = [
       [sequelize.literal(`COALESCE("Subscription"."lastChargedAt", "Order"."createdAt")`), args.orderBy.direction],
     ];
