@@ -58,6 +58,10 @@ async function createProject(_, args, req) {
     set(projectData.data, `features.${FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS}`, false);
   }
 
+  if (args.disableExpenses) {
+    set(projectData.data, `features.${FEATURE.RECEIVE_EXPENSES}`, false);
+  }
+
   if (!canUseSlug(projectData.slug, req.remoteUser)) {
     throw new Error(`The slug '${projectData.slug}' is not allowed.`);
   }
@@ -112,6 +116,11 @@ const createProjectMutation = {
     },
     disableContributions: {
       description: 'Set to true to disable contributions to this project. Host admins will still be able to add funds.',
+      type: new GraphQLNonNull(GraphQLBoolean),
+      defaultValue: false,
+    },
+    disableExpenses: {
+      description: 'Set to true to disable expenses for this project.',
       type: new GraphQLNonNull(GraphQLBoolean),
       defaultValue: false,
     },
