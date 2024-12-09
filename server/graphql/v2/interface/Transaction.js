@@ -34,7 +34,7 @@ import { GraphQLTaxInfo } from '../object/TaxInfo';
 
 import { GraphQLAccount } from './Account';
 
-const { EXPENSE, PLATFORM_TIP } = TransactionKind;
+const { EXPENSE, PLATFORM_TIP, HOST_FEE_SHARE } = TransactionKind;
 
 /**
  * @typedef {import("../../../models/PaymentMethod")} PaymentMethod
@@ -750,7 +750,7 @@ export const TransactionFields = () => {
           }
           return expense?.data?.transactionId;
         } else if (
-          transaction.kind === PLATFORM_TIP &&
+          [PLATFORM_TIP, HOST_FEE_SHARE].includes(transaction.kind) &&
           req.remoteUser.hasRole(allowedRoles, PlatformConstants.PlatformCollectiveId)
         ) {
           // For Stripe platform tips collected directly, we have to get the merchant ID from the related contribution transaction
