@@ -4,7 +4,14 @@ import gql from 'fake-tag';
 import { CollectiveType } from '../../../../../server/constants/collectives';
 import models from '../../../../../server/models';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../../server/models/LegalDocument';
-import { fakeCollective, fakeHost, fakeTransaction, fakeUser } from '../../../../test-helpers/fake-data';
+import {
+  fakeCollective,
+  fakeExpense,
+  fakeHost,
+  fakePayoutMethod,
+  fakeTransaction,
+  fakeUser,
+} from '../../../../test-helpers/fake-data';
 import { getMockFileUpload, graphqlQueryV2 } from '../../../../utils';
 
 describe('server/graphql/v2/mutation/VendorMutations', () => {
@@ -227,6 +234,55 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
 
       const location = await vendor.getLocation();
       expect(location.address).to.equal('Zorg Avenue, 1');
+    });
+
+    it('invalidates existing Payout Method and updates existing Expenses', async () => {
+      const vendor = await fakeCollective({
+        type: CollectiveType.VENDOR,
+        ParentCollectiveId: host.id,
+        data: { vendorInfo: vendorData.vendorInfo },
+      });
+      const existingPayoutMethod = await fakePayoutMethod({ CollectiveId: vendor.id, isSaved: true });
+      const existingExpense = await fakeExpense({
+        FromCollectiveId: vendor.id,
+        PayoutMethodId: existingPayoutMethod.id,
+        status: 'PENDING',
+      });
+      const existingPaidExpense = await fakeExpense({
+        FromCollectiveId: vendor.id,
+        PayoutMethodId: existingPayoutMethod.id,
+        status: 'PAID',
+      });
+      const newVendorData = {
+        legacyId: vendor.id,
+        payoutMethod: {
+          type: 'PAYPAL',
+          name: 'Zorg Inc',
+          data: { email: 'zorg@zorg.com' },
+          isSaved: true,
+        },
+      };
+      const result = await graphqlQueryV2(
+        editVendorMutation,
+        {
+          vendor: newVendorData,
+        },
+        hostAdminUser,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      await existingPayoutMethod.reload();
+      expect(existingPayoutMethod.isSaved).to.be.false;
+
+      await existingExpense.reload();
+      expect(existingExpense.PayoutMethodId).to.not.equal(existingPayoutMethod.id);
+
+      await existingPaidExpense.reload();
+      expect(existingPaidExpense.PayoutMethodId).to.equal(existingPayoutMethod.id);
+
+      await models.PayoutMethod.destroy({ where: { CollectiveId: vendor.id }, force: true });
+      await models.Expense.destroy({ where: { FromCollectiveId: vendor.id }, force: true });
     });
   });
 
