@@ -422,7 +422,7 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
   }
   const { offset, limit } = args;
   return {
-    nodes: () => models.Order.findAll({ include, where, order, offset, limit, logging: true }),
+    nodes: () => models.Order.findAll({ include, where, order, offset, limit }),
     totalCount: () => models.Order.count({ include, where }),
     limit: args.limit,
     offset: args.offset,
