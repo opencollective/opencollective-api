@@ -8,8 +8,8 @@ if ! command -v docker &>/dev/null; then
 fi
 
 if docker info &>/dev/null; then
-  docker $@
+  docker "$@"
 else
-  echo "Docker requires root privileges. Running with sudo..."
-  sudo docker $@
+  echo "Docker requires root privileges. Running with sudo: docker $@"
+  sudo docker "$@"
 fi

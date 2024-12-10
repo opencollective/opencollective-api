@@ -36,6 +36,7 @@ done
 LOCALDBUSER=${LOCALDBUSER:-"opencollective"}
 LOCALDBNAME=${LOCALDBNAME:-"opencollective_dvl"}
 DBDUMP_FILE=${DBDUMP_FILE:-"test/dbdumps/opencollective_dvl.pgsql"}
+LOCAL_FILE=$DBDUMP_FILE
 
 echo "LOCALDBUSER=$LOCALDBUSER"
 echo "LOCALDBNAME=$LOCALDBNAME"
@@ -52,39 +53,57 @@ if [ -z "$LOCALDBNAME" ]; then usage; fi
 # where pg_stat_activity.datname = '$LOCALDBNAME'
 # EOF
 
+# Adapt commands based on docker usage
+CMD_DROP_DB="dropdb"
+CMD_CREATE_DB="createdb"
+CMD_PSQL="psql"
+CMD_PG_RESTORE="pg_restore"
+
+if [ "$USE_DOCKER" = "true" ]; then
+  echo "Using docker to run Postgres commands"
+  CMD_DOCKER="./scripts/dev/run-docker.sh run --rm --network host"
+  CMD_DROP_DB="$CMD_DOCKER postgres:16 dropdb"
+  CMD_CREATE_DB="$CMD_DOCKER postgres:16 createdb"
+  CMD_PSQL="$CMD_DOCKER postgres:16 psql"
+  CMD_PG_RESTORE="$CMD_DOCKER -v ./$(dirname "$DBDUMP_FILE"):/dbdumps postgres:16 pg_restore"
+  LOCAL_FILE="/dbdumps/$(basename "$DBDUMP_FILE")"
+fi
+
+set -e
+
 echo "Dropping '$LOCALDBNAME'"
-dropdb -U postgres -h localhost --if-exists $LOCALDBNAME
+$CMD_DROP_DB -U postgres -h localhost --if-exists $LOCALDBNAME
 
 echo "Creating '$LOCALDBNAME'"
-createdb -U postgres -h localhost $LOCALDBNAME 2>/dev/null
+$CMD_CREATE_DB -U postgres -h localhost $LOCALDBNAME 2>/dev/null
 
 # When restoring old backups, you may need to enable Postgis
 if [ "$USE_POSTGIS" = "1" ]; then
   echo "Enabling Postgis"
-  psql "${LOCALDBNAME}" -c "CREATE EXTENSION postgis;"
-  psql "${LOCALDBNAME}" -c "ALTER TABLE public.spatial_ref_sys OWNER TO ${LOCALDBUSER};"
-  psql "${LOCALDBNAME}" -c "GRANT SELECT, INSERT ON TABLE public.spatial_ref_sys TO public;"
+  $CMD_PSQL "${LOCALDBNAME}" -c "CREATE EXTENSION postgis;"
+  $CMD_PSQL "${LOCALDBNAME}" -c "ALTER TABLE public.spatial_ref_sys OWNER TO ${LOCALDBUSER};"
+  $CMD_PSQL "${LOCALDBNAME}" -c "GRANT SELECT, INSERT ON TABLE public.spatial_ref_sys TO public;"
 fi
 
 # cool trick: all stdout ignored in this block
 {
   set +e
   # We make sure the user $LOCALDBUSER has access; could fail
-  psql -U postgres -h localhost "${LOCALDBNAME}" -c "CREATE ROLE ${LOCALDBUSER} WITH login;" 2>/dev/null
+  $CMD_PSQL -U postgres -h localhost "${LOCALDBNAME}" -c "CREATE ROLE ${LOCALDBUSER} WITH login;" 2>/dev/null
   set -e
 } | tee >/dev/null
 
 # Update table permissions
 echo "Updating table permissions"
-psql -U postgres -h localhost $LOCALDBNAME -c "GRANT ALL ON SCHEMA public TO ${LOCALDBUSER};"
+$CMD_PSQL -U postgres -h localhost $LOCALDBNAME -c "GRANT ALL ON SCHEMA public TO ${LOCALDBUSER};"
 
 # The first time we run it, we will trigger FK constraints errors
 set +e
-pg_restore -U postgres -h localhost --no-acl --no-owner --role=${LOCALDBUSER} -n public -O -c -d "${LOCALDBNAME}" "${DBDUMP_FILE}" 2>/dev/null
+$CMD_PG_RESTORE -U postgres -h localhost --no-acl --no-owner --role=${LOCALDBUSER} -n public -O -c -d "${LOCALDBNAME}" "${LOCAL_FILE}" 2>/dev/null
 set -e
 
 # So we run it twice :-)
-pg_restore -U postgres -h localhost --no-acl --no-owner --role=${LOCALDBUSER} -n public -O -c -d "${LOCALDBNAME}" "${DBDUMP_FILE}"
+$CMD_PG_RESTORE -U postgres -h localhost --no-acl --no-owner --role=${LOCALDBUSER} -n public -O -c -d "${LOCALDBNAME}" "${LOCAL_FILE}"
 
 echo "DB restored to postgres://localhost/${LOCALDBNAME}"
 
