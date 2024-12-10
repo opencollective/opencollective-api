@@ -8,7 +8,8 @@ import { v4 as uuid } from 'uuid';
 import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import { getDiffBetweenInstances } from '../../../lib/data';
-import models, { Activity, LegalDocument } from '../../../models';
+import models, { Activity, LegalDocument, Op } from '../../../models';
+import { ExpenseStatus } from '../../../models/Expense';
 import { checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { BadRequest, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
@@ -193,13 +194,14 @@ const vendorMutations = {
       }
 
       if (args.vendor.payoutMethod) {
+        let payoutMethod;
         const existingPayoutMethods = await vendor.getPayoutMethods({ where: { isSaved: true } });
         if (!args.vendor.payoutMethod.id) {
           if (!isEmpty(existingPayoutMethods)) {
             existingPayoutMethods.map(pm => pm.update({ isSaved: false }));
           }
 
-          await models.PayoutMethod.create({
+          payoutMethod = await models.PayoutMethod.create({
             ...pick(args.vendor.payoutMethod, ['name', 'data', 'type']),
             CollectiveId: vendor.id,
             CreatedByUserId: req.remoteUser.id,
@@ -207,10 +209,24 @@ const vendorMutations = {
           });
         } else {
           const payoutMethodId = idDecode(args.vendor.payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD);
+          payoutMethod = await models.PayoutMethod.findByPk(payoutMethodId);
           await Promise.all(
             existingPayoutMethods.filter(pm => pm.id !== payoutMethodId).map(pm => pm.update({ isSaved: false })),
           );
         }
+
+        // Since vendors can only have a single payout method, we update all expenses to use the new one
+        await models.Expense.update(
+          { PayoutMethodId: payoutMethod.id },
+          {
+            where: {
+              FromCollectiveId: vendor.id,
+              status: {
+                [Op.in]: [ExpenseStatus.APPROVED, ExpenseStatus.DRAFT, ExpenseStatus.ERROR, ExpenseStatus.PENDING],
+              },
+            },
+          },
+        );
       }
       return vendor;
     },
