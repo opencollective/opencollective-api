@@ -198,7 +198,7 @@ jobs:
         run: npm run build
 
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     timeout-minutes: 30
 
@@ -209,7 +209,7 @@ jobs:
           - 6379:6379
         options: --entrypoint redis-server
       postgres:
-        image: postgres:14.15
+        image: postgres:15.10
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
@@ -242,7 +242,9 @@ jobs:
       - run: npm run db:restore
       - run: npm run db:migrate
 
-      - run: npm run test -- --ignore "test/server/graphql/**"
+      # We have to specify OPENSSL_CONF=/dev/null for html-pdf to work
+      # We can remove it once we tackle https://github.com/opencollective/opencollective/issues/7622
+      - run: OPENSSL_CONF=/dev/null npm run test -- --ignore "test/server/graphql/**"
 
       - name: Report coverage
         uses: codecov/codecov-action@v4
@@ -251,7 +253,7 @@ jobs:
           flags: Unit
 
   test-graphql:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     services:
@@ -261,7 +263,7 @@ jobs:
           - 6379:6379
         options: --entrypoint redis-server
       postgres:
-        image: postgres:14.15
+        image: postgres:15.10
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
@@ -324,7 +326,7 @@ jobs:
           - 6379:6379
         options: --entrypoint redis-server
       postgres:
-        image: postgres:14.15
+        image: postgres:15.10
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
@@ -366,7 +368,7 @@ jobs:
           - 6379:6379
         options: --entrypoint redis-server
       postgres:
-        image: postgres:14.15
+        image: postgres:15.10
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
