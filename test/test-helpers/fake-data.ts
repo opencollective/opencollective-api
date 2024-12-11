@@ -406,7 +406,7 @@ export const fakeUploadedFile = async (fileData: Partial<InferCreationAttributes
     fileName,
     fileType,
     ...fileData,
-    CreatedByUserId: <number>fileData.CreatedByUserId || (await fakeUser()).id,
+    CreatedByUserId: <number>fileData?.CreatedByUserId || (await fakeUser()).id,
   });
 };
 

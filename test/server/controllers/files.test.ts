@@ -175,10 +175,10 @@ describe('server/controllers/files', () => {
   });
 
   describe('authenticated access to files', () => {
-    it('should return 401 if not logged in', async () => {
+    it('should return 403 if not logged in', async () => {
       const response = await makeRequest(uploadedFile.id);
 
-      expect(response._getStatusCode()).to.eql(401);
+      expect(response._getStatusCode()).to.eql(403);
     });
 
     it('should return 400 if malformed request', async () => {
