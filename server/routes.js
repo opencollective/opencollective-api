@@ -21,6 +21,7 @@ import { paypalWebhook, plaidWebhook, stripeWebhook, transferwiseWebhook } from 
 import { getGraphqlCacheProperties } from './graphql/cache';
 import graphqlSchemaV1 from './graphql/v1/schema';
 import graphqlSchemaV2 from './graphql/v2/schema';
+import { apolloSlowRequestCachePlugin, apolloSlowResolverDebugPlugin } from './lib/apollo';
 import cache from './lib/cache';
 import errors from './lib/errors';
 import expressLimiter from './lib/express-limiter';
@@ -129,29 +130,30 @@ export default async app => {
   /**
    * GraphQL caching
    */
-  app.use('/graphql', async (req, res, next) => {
-    req.startAt = req.startAt || new Date();
-    const { cacheKey, cacheSlug } = getGraphqlCacheProperties(req) || {}; // Returns null if not cacheable (e.g. if logged in)
-    const enabled = parseToBoolean(config.graphql.cache.enabled);
-    if (cacheKey && enabled) {
-      const fromCache = await cache.get(cacheKey);
-      if (fromCache) {
-        // Track all slow queries on Sentry performance
-        res.servedFromGraphqlCache = true;
-        req.endAt = req.endAt || new Date();
-        const executionTime = req.endAt - req.startAt;
-        sentryHandleSlowRequests(executionTime);
-        res.set('Execution-Time', executionTime);
-        res.set('GraphQL-Cache', 'HIT');
-        res.send(fromCache);
-        return;
+  if (parseToBoolean(config.graphql.cache.enabled)) {
+    app.use('/graphql', async (req, res, next) => {
+      req.startAt = req.startAt || new Date();
+      const { cacheKey, cacheSlug } = getGraphqlCacheProperties(req) || {}; // Returns null if not cacheable (e.g. if logged in)
+      if (cacheKey) {
+        const fromCache = await cache.get(cacheKey);
+        if (fromCache) {
+          // Track all slow queries on Sentry performance
+          res.servedFromGraphqlCache = true;
+          req.endAt = req.endAt || new Date();
+          const executionTime = req.endAt - req.startAt;
+          sentryHandleSlowRequests(executionTime);
+          res.set('Execution-Time', executionTime);
+          res.set('GraphQL-Cache', 'HIT');
+          res.send(fromCache);
+          return;
+        }
+        res.set('GraphQL-Cache', 'MISS');
+        req.cacheKey = cacheKey;
+        req.cacheSlug = cacheSlug;
       }
-      res.set('GraphQL-Cache', 'MISS');
-      req.cacheKey = cacheKey;
-      req.cacheSlug = cacheSlug;
-    }
-    next();
-  });
+      next();
+    });
+  }
 
   /**
    * GraphQL scope
@@ -229,8 +231,6 @@ export default async app => {
     graphqlPlugins.push(SentryGraphQLPlugin);
   }
 
-  const minExecutionTimeToCache = parseInt(config.graphql.cache.minExecutionTimeToCache);
-
   const httpServer = http.createServer(app);
 
   const apolloServerOptions = {
@@ -264,33 +264,8 @@ export default async app => {
     ...graphqlProtection,
     plugins: [
       ApolloServerPluginDrainHttpServer({ httpServer }),
-      {
-        async requestDidStart() {
-          return {
-            async willSendResponse(requestContext) {
-              const response = requestContext.response;
-              const result = response?.body?.singleResult;
-              if (!result) {
-                return;
-              }
-
-              const req = requestContext.contextValue; // From apolloExpressMiddlewareOptions context()
-
-              req.endAt = req.endAt || new Date();
-              const executionTime = req.endAt - req.startAt;
-              req.res.set('Execution-Time', executionTime);
-
-              // Track all slow queries on Sentry performance
-              sentryHandleSlowRequests(executionTime);
-
-              // This will never happen for logged-in users as cacheKey is not set
-              if (req.cacheKey && !response?.errors && executionTime > minExecutionTimeToCache) {
-                cache.set(req.cacheKey, result, Number(config.graphql.cache.ttl));
-              }
-            },
-          };
-        },
-      },
+      apolloSlowRequestCachePlugin,
+      apolloSlowResolverDebugPlugin,
       ...graphqlPlugins,
     ],
   };
