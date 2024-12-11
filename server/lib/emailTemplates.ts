@@ -154,9 +154,17 @@ handlebars.registerHelper('idEncode', (id, type) => {
   return idEncode(id, type);
 });
 
-templateNames.forEach(template => {
-  const source = fs.readFileSync(`${templatesPath}/emails/${template}.hbs`, 'utf8');
-  templates[template] = handlebars.compile(source);
-});
+export const isValidTemplate = (template: string): template is EmailTemplates => {
+  return Boolean(templates[template]);
+};
+
+export const recompileAllTemplates = () => {
+  templateNames.forEach(template => {
+    const source = fs.readFileSync(`${templatesPath}/emails/${template}.hbs`, 'utf8');
+    templates[template] = handlebars.compile(source);
+  });
+};
+
+recompileAllTemplates();
 
 export default templates as Record<EmailTemplates, handlebars.TemplateDelegate>;
