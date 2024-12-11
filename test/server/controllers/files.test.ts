@@ -23,7 +23,7 @@ import {
 async function makeRequest(
   id: number,
   remoteUser?: User,
-  options?: { thumbnail?: boolean },
+  options?: { thumbnail?: boolean; expenseId?: string; draftKey?: string },
 ): Promise<httpMocks.MockResponse<any>> {
   const encodedId = idEncode(id, IDENTIFIER_TYPES.UPLOADED_FILE);
   const request = httpMocks.createRequest({
@@ -32,11 +32,7 @@ async function makeRequest(
     params: {
       uploadedFileId: encodedId,
     },
-    query: options?.thumbnail
-      ? {
-          thumbnail: true,
-        }
-      : undefined,
+    query: options,
   });
 
   request.remoteUser = remoteUser;
@@ -59,6 +55,12 @@ describe('server/controllers/files', () => {
   let expenseAttachedUploadedFile: UploadedFile;
   let uploadedFile: UploadedFile;
   let expense: Expense;
+
+  const draftKey = 'draft-key';
+  let draftExpense: Expense;
+
+  let draftExpenseItemUploadedFile: UploadedFile;
+  let draftExpenseAttachedUploadedFile: UploadedFile;
 
   let sandbox;
 
@@ -127,6 +129,44 @@ describe('server/controllers/files', () => {
       CreatedByUserId: submitter.id,
       ExpenseId: expense.id,
       url: expenseAttachedUploadedFile.getDataValue('url'),
+    });
+
+    draftExpenseItemUploadedFile = await fakeUploadedFile({
+      kind: 'EXPENSE_ITEM',
+      CreatedByUserId: submitter.id,
+      fileType: 'application/pdf',
+    });
+
+    draftExpenseAttachedUploadedFile = await fakeUploadedFile({
+      kind: 'EXPENSE_ATTACHED_FILE',
+      CreatedByUserId: submitter.id,
+      fileType: 'application/pdf',
+    });
+
+    draftExpense = await fakeExpense({
+      status: expenseStatus.DRAFT,
+      amount: 10000,
+      CollectiveId: collective.id,
+      HostCollectiveId: host.id,
+      FromCollectiveId: submitter.collective.id,
+      currency: 'USD',
+      PayoutMethodId: payoutMethod.id,
+      type: 'RECEIPT',
+      description: 'Reimbursement',
+      CreatedByUserId: submitter.id,
+      data: {
+        draftKey,
+        items: [
+          {
+            url: draftExpenseItemUploadedFile.getDataValue('url'),
+          },
+        ],
+        attachedFiles: [
+          {
+            url: draftExpenseAttachedUploadedFile.getDataValue('url'),
+          },
+        ],
+      },
     });
   });
 
@@ -269,6 +309,49 @@ describe('server/controllers/files', () => {
       });
       expect(collectiveAdminResponse._getStatusCode()).to.eql(307);
       expect(collectiveAdminResponse._getRedirectUrl()).to.eql(thumbnailUrl);
+    });
+
+    describe('draft expenses', () => {
+      it('should redirect to resource if user has access to draft expense item', async () => {
+        const actualUrl = draftExpenseItemUploadedFile.getDataValue('url');
+        sandbox.stub(awsS3, 'getSignedGetURL').resolves(`${actualUrl}?signed`);
+
+        const otherUserResponse = await makeRequest(draftExpenseItemUploadedFile.id, otherUser);
+        expect(otherUserResponse._getStatusCode()).to.eql(403);
+
+        const otherUserWithDraftKeyResponse = await makeRequest(draftExpenseItemUploadedFile.id, otherUser, {
+          expenseId: idEncode(draftExpense.id, IDENTIFIER_TYPES.EXPENSE),
+          draftKey,
+        });
+        expect(otherUserWithDraftKeyResponse._getStatusCode()).to.eql(307);
+        expect(otherUserWithDraftKeyResponse._getRedirectUrl()).to.eql(`${actualUrl}?signed`);
+
+        const submitterResponse = await makeRequest(draftExpenseItemUploadedFile.id, submitter);
+        expect(submitterResponse._getStatusCode()).to.eql(307);
+        expect(submitterResponse._getRedirectUrl()).to.eql(`${actualUrl}?signed`);
+
+        const hostAdminResponse = await makeRequest(draftExpenseItemUploadedFile.id, hostAdmin);
+        expect(hostAdminResponse._getStatusCode()).to.eql(403);
+
+        const hostAdminWithExpenseIdResponse = await makeRequest(draftExpenseItemUploadedFile.id, hostAdmin, {
+          expenseId: idEncode(draftExpense.id, IDENTIFIER_TYPES.EXPENSE),
+        });
+        expect(hostAdminWithExpenseIdResponse._getStatusCode()).to.eql(307);
+        expect(hostAdminWithExpenseIdResponse._getRedirectUrl()).to.eql(`${actualUrl}?signed`);
+
+        const collectiveAdminResponse = await makeRequest(draftExpenseItemUploadedFile.id, collectiveAdmin);
+        expect(collectiveAdminResponse._getStatusCode()).to.eql(403);
+
+        const collectiveAdminWithExpenseIdResponse = await makeRequest(
+          draftExpenseItemUploadedFile.id,
+          collectiveAdmin,
+          {
+            expenseId: idEncode(draftExpense.id, IDENTIFIER_TYPES.EXPENSE),
+          },
+        );
+        expect(collectiveAdminWithExpenseIdResponse._getStatusCode()).to.eql(307);
+        expect(collectiveAdminWithExpenseIdResponse._getRedirectUrl()).to.eql(`${actualUrl}?signed`);
+      });
     });
   });
 });

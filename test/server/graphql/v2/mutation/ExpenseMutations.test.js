@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import config from 'config';
 import crypto from 'crypto-js';
 import gql from 'fake-tag';
-import { defaultsDeep, omit, pick, sumBy } from 'lodash';
+import { cloneDeep, defaultsDeep, omit, pick, sumBy } from 'lodash';
 import { createSandbox } from 'sinon';
 import speakeasy from 'speakeasy';
 
@@ -19,7 +19,7 @@ import {
   TwoFactorMethod,
 } from '../../../../../server/lib/two-factor-authentication/lib';
 import { sleep } from '../../../../../server/lib/utils';
-import models from '../../../../../server/models';
+import models, { UploadedFile } from '../../../../../server/models';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../../server/models/LegalDocument';
 import { PayoutMethodTypes } from '../../../../../server/models/PayoutMethod';
 import UserTwoFactorMethod from '../../../../../server/models/UserTwoFactorMethod';
@@ -1823,18 +1823,26 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       });
 
       it('allows a logged in user to submit a DRAFT intended for them', async () => {
+        const submitter = await fakeUser();
         const anotherUser = await fakeUser();
         const collective = await fakeCollective({ currency: 'EUR', settings: { VAT: { type: 'OWN' } } });
+        const expenseAttachedFile = await fakeUploadedFile({
+          kind: 'EXPENSE_ATTACHED_FILE',
+          CreatedByUserId: submitter.id,
+        });
+
         const expense = await fakeExpense({
           status: expenseStatus.DRAFT,
           type: ExpenseTypes.INVOICE,
           currency: 'USD',
           CollectiveId: collective.id,
+          FromCollectiveId: submitter.collective.id,
           data: {
             draftKey: 'fake-key',
             customData: { customField: 'customValue' },
             taxes: [{ type: 'VAT', rate: 0.055 }],
             payee: anotherUser.collective.minimal,
+            attachedFiles: [{ url: expenseAttachedFile.getDataValue('url') }],
           },
         });
 
@@ -1845,6 +1853,13 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           payee: {
             legacyId: anotherUser.collective.id,
           },
+          attachedFiles: [
+            {
+              url: UploadedFile.getProtectedURLFromOpenCollectiveS3Bucket(expenseAttachedFile, {
+                expenseId: expense.id,
+              }),
+            },
+          ],
         };
 
         const result = await graphqlQueryV2(
@@ -1861,10 +1876,33 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.data.editExpense.customData).to.deep.equal(expense.data.customData);
         expect(result.data.editExpense.reference).to.deep.equal('DRAFT-123');
         expect(result.data.editExpense.taxes).to.deep.equal([{ id: 'VAT', type: 'VAT', rate: 0.055 }]);
+        expect(result.data.editExpense.attachedFiles).to.exist;
+        expect(result.data.editExpense.attachedFiles).to.have.length(1);
+        expect(result.data.editExpense.attachedFiles[0].url).to.eql(expenseAttachedFile.url);
       });
 
       it('allows a new user/organization to submit the DRAFT if the draft key is provided', async () => {
-        const expense = await fakeExpense({ data: { draftKey: 'fake-key' }, status: expenseStatus.DRAFT });
+        const submitter = await fakeUser();
+        const expenseAttachedFile = await fakeUploadedFile({
+          kind: 'EXPENSE_ITEM',
+          CreatedByUserId: submitter.id,
+        });
+
+        const expense = await fakeExpense({
+          type: ExpenseTypes.RECEIPT,
+          FromCollectiveId: submitter.collective.id,
+          data: {
+            draftKey: 'fake-key',
+            items: [
+              {
+                url: expenseAttachedFile.getDataValue('url'),
+                amount: 10000,
+                incurredAt: '2023-09-26T00:00:00.000Z',
+              },
+            ],
+          },
+          status: expenseStatus.DRAFT,
+        });
         const anotherUser = await fakeUser();
 
         const updatedExpenseData = {
@@ -1879,6 +1917,16 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
               slug: randStr('folk-'),
             },
           },
+          items: [
+            {
+              url: UploadedFile.getProtectedURLFromOpenCollectiveS3Bucket(expenseAttachedFile, {
+                expenseId: expense.id,
+                draftKey: 'fake-key',
+              }),
+              amount: 10000,
+              incurredAt: '2023-09-26T00:00:00.000Z',
+            },
+          ],
         };
 
         const { errors } = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData });
@@ -4832,6 +4880,31 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
       const draftedExpense = result.data.draftExpenseAndInviteUser;
       expense = await models.Expense.findByPk(draftedExpense.legacyId);
+    });
+
+    it('should accept protected file upload url', async () => {
+      const expenseExpenseItemUploadedFile = await fakeUploadedFile({
+        kind: 'EXPENSE_ITEM',
+        CreatedByUserId: user.id,
+      });
+
+      const expenseInput = cloneDeep(invoice);
+      expenseInput.items[0].url = expenseExpenseItemUploadedFile.url;
+
+      const result = await graphqlQueryV2(
+        draftExpenseAndInviteUserMutation,
+        { expense: expenseInput, account: { legacyId: collective.id } },
+        user,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data?.draftExpenseAndInviteUser?.draft?.items).to.exist;
+      expect(result.data.draftExpenseAndInviteUser.draft?.items).to.have.length(1);
+
+      const expectedUrl = new URL(expenseExpenseItemUploadedFile.url);
+      expectedUrl.searchParams.set('expenseId', result.data.draftExpenseAndInviteUser.id);
+      expect(result.data.draftExpenseAndInviteUser.draft.items[0].url).to.eql(expectedUrl.toString());
     });
 
     it('should create a new DRAFT expense with a draftKey', async () => {
