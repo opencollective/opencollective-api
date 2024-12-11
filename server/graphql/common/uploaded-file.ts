@@ -4,7 +4,7 @@ import { Collective, Expense, ExpenseAttachedFile, ExpenseItem, UploadedFile } f
 import { ExpenseStatus } from '../../models/Expense';
 import { idDecode, IDENTIFIER_TYPES } from '../v2/identifiers';
 
-import { canSeeExpenseAttachments } from './expenses';
+import { canSeeExpenseAttachments, canSeeExpenseDraftPrivateDetails } from './expenses';
 
 export async function hasProtectedUrlPermission(req: Request, url: string) {
   const requestedUrl = new URL(url);
@@ -51,7 +51,7 @@ export async function hasUploadedFilePermission(
 
     const fileIsInDraft = itemMatches || attachedFileMatches;
 
-    if (fileIsInDraft && (await canSeeExpenseAttachments(req, expense))) {
+    if (fileIsInDraft && (await canSeeExpenseDraftPrivateDetails(req, expense))) {
       return true;
     }
 
