@@ -400,7 +400,7 @@ export const fakeUploadedFile = async (fileData: Partial<InferCreationAttributes
   const fileName = `${randStr()}${extension}`;
   const kind = sample(SUPPORTED_FILE_KINDS);
   return models.UploadedFile.create({
-    url: fakeUploadedFileURL(kind, fileName),
+    url: fakeUploadedFileURL(fileData?.kind || kind, fileName),
     kind,
     fileSize: randNumber(100, 100000),
     fileName,
