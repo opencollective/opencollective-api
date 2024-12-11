@@ -2003,12 +2003,7 @@ export async function submitExpenseDraft(
 
   await checkLockedFields(existingExpense, { ...expenseData, payee: requestedPayee || args.expense.payee });
 
-  const options = {
-    overrideRemoteUser: undefined,
-    skipPermissionCheck: true,
-    skipActivity: true,
-    draftKey: args.draftKey,
-  };
+  const options = { overrideRemoteUser: undefined, skipPermissionCheck: true, skipActivity: true };
   if (requestedPayee) {
     if (!req.remoteUser?.isAdminOfCollective(requestedPayee)) {
       throw new Unauthorized('User needs to be the admin of the payee to submit an expense on their behalf');
@@ -2156,11 +2151,7 @@ export async function sendDraftExpenseInvite(
   }
 }
 
-export async function editExpenseDraft(
-  req: express.Request,
-  expenseData: ExpenseData,
-  args: Record<string, any> & { draftKey?: string },
-) {
+export async function editExpenseDraft(req: express.Request, expenseData: ExpenseData, args: Record<string, any>) {
   const existingExpense = await models.Expense.findByPk(expenseData.id, {
     include: [{ model: models.ExpenseItem, as: 'items' }],
   });

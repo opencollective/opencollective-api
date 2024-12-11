@@ -561,13 +561,15 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Reques
                 item.url = uploadedFile
                   ? UploadedFile.getProtectedURLFromOpenCollectiveS3Bucket(uploadedFile, {
                       expenseId: expense.id,
-                      draftKey: req?.remoteUser ? null : expense.data.draftKey,
+                      draftKey: req.remoteUser ? null : expense.data.draftKey,
                     })
                   : item.url;
               }
             }
 
-            draftData.items = items;
+            if (items.length > 0) {
+              draftData.items = items;
+            }
 
             const attachedFiles = (draftData.attachedFiles as { url?: string }[]) || [];
             for (const attachedFile of attachedFiles) {
@@ -577,13 +579,15 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Reques
                 attachedFile.url = uploadedFile
                   ? UploadedFile.getProtectedURLFromOpenCollectiveS3Bucket(uploadedFile, {
                       expenseId: expense.id,
-                      draftKey: req?.remoteUser ? null : expense.data.draftKey,
+                      draftKey: req.remoteUser ? null : expense.data.draftKey,
                     })
                   : attachedFile.url;
               }
             }
 
-            draftData.attachedFiles = attachedFiles;
+            if (attachedFiles.length > 0) {
+              draftData.attachedFiles = attachedFiles;
+            }
 
             return draftData;
           }

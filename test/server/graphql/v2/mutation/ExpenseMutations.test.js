@@ -4964,10 +4964,11 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
+      const email = await waitForCondition(() => {
+        return emailLib.sendMessage.getCalls().find(call => call.firstArg === existingUser.email);
+      });
 
-      await waitForCondition(() => emailLib.sendMessage.thirdCall);
-
-      const [recipient] = emailLib.sendMessage.thirdCall.args;
+      const [recipient] = email.args;
       expect(recipient).to.eq(existingUser.email);
     });
 
