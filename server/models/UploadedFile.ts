@@ -131,10 +131,13 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
     }
 
     const endpoint = config.aws.s3.endpoint || `https://${config.aws.s3.bucket}.s3.us-west-1.amazonaws.com`;
+    const searchParams = parsedURL.searchParams;
+    searchParams.delete('draftKey');
+    searchParams.delete('expenseId');
     return (
       parsedURL.origin === endpoint &&
       /\/\w+/.test(parsedURL.pathname) &&
-      isEmpty(parsedURL.search) &&
+      searchParams.size === 0 &&
       isEmpty(parsedURL.hash) &&
       isEmpty(parsedURL.username) &&
       isEmpty(parsedURL.password)
@@ -179,8 +182,23 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
     return UploadedFile.findByPk(idDecode(encodedId, IDENTIFIER_TYPES.UPLOADED_FILE));
   }
 
-  public static getProtectedURLFromOpenCollectiveS3Bucket(uploadedFile: UploadedFile): string {
-    return `${config.host.website}/api/files/${idEncode(uploadedFile.id, IDENTIFIER_TYPES.UPLOADED_FILE)}`;
+  public static getProtectedURLFromOpenCollectiveS3Bucket(
+    uploadedFile: UploadedFile,
+    options?: { expenseId: number; draftKey: string },
+  ): string {
+    const url = new URL(
+      `${config.host.website}/api/files/${idEncode(uploadedFile.id, IDENTIFIER_TYPES.UPLOADED_FILE)}`,
+    );
+
+    if (options?.expenseId) {
+      url.searchParams.set('expenseId', idEncode(options.expenseId, IDENTIFIER_TYPES.EXPENSE));
+
+      if (options?.draftKey) {
+        url.searchParams.set('draftKey', options.draftKey);
+      }
+    }
+
+    return url.toString();
   }
 
   public static isUploadedFileURL(url: string): boolean {

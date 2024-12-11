@@ -19,7 +19,7 @@ import ExpenseTypes from '../../../constants/expense-type';
 import OAuthScopes from '../../../constants/oauth-scopes';
 import { floatAmountToCents } from '../../../lib/math';
 import SQLQueries from '../../../lib/queries';
-import models, { Activity } from '../../../models';
+import models, { Activity, UploadedFile } from '../../../models';
 import { CommentType } from '../../../models/Comment';
 import ExpenseModel from '../../../models/Expense';
 import LegalDocument, { LEGAL_DOCUMENT_TYPE, LegalDocumentAttributes } from '../../../models/LegalDocument';
@@ -547,15 +547,43 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Reques
           if (expense.status === expenseStatus.DRAFT) {
             let draftFields = EXPENSE_DRAFT_PUBLIC_FIELDS;
             let itemsFields = EXPENSE_DRAFT_ITEMS_PUBLIC_FIELDS;
-            if (await ExpenseLib.canSeeExpenseDraftPrivateDetails(req, expense)) {
+            const canSeeExpenseDraftPrivateDetails = await ExpenseLib.canSeeExpenseDraftPrivateDetails(req, expense);
+            if (canSeeExpenseDraftPrivateDetails) {
               draftFields = [...draftFields, ...EXPENSE_DRAFT_PRIVATE_FIELDS];
               itemsFields = [...itemsFields, ...EXPENSE_DRAFT_ITEMS_PRIVATE_FIELDS];
             }
 
             const draftData = pick(expense.data, draftFields);
-            if (expense.data?.items) {
-              draftData.items = (expense.data.items as any[]).map(item => pick(item, itemsFields));
+            const items = ((expense.data.items as { url?: string }[]) || []).map(item => pick(item, itemsFields));
+            for (const item of items) {
+              if (item.url) {
+                const uploadedFile = await req.loaders.UploadedFile.byUrl.load(item.url);
+                item.url = uploadedFile
+                  ? UploadedFile.getProtectedURLFromOpenCollectiveS3Bucket(uploadedFile, {
+                      expenseId: expense.id,
+                      draftKey: req?.remoteUser ? null : expense.data.draftKey,
+                    })
+                  : item.url;
+              }
             }
+
+            draftData.items = items;
+
+            const attachedFiles = (draftData.attachedFiles as { url?: string }[]) || [];
+            for (const attachedFile of attachedFiles) {
+              if (attachedFile.url) {
+                const uploadedFile = await req.loaders.UploadedFile.byUrl.load(attachedFile.url);
+
+                attachedFile.url = uploadedFile
+                  ? UploadedFile.getProtectedURLFromOpenCollectiveS3Bucket(uploadedFile, {
+                      expenseId: expense.id,
+                      draftKey: req?.remoteUser ? null : expense.data.draftKey,
+                    })
+                  : attachedFile.url;
+              }
+            }
+
+            draftData.attachedFiles = attachedFiles;
 
             return draftData;
           }

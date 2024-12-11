@@ -36,6 +36,7 @@ import {
   markExpenseAsSpam,
   markExpenseAsUnpaid,
   payExpense,
+  prepareAttachedFiles,
   prepareExpenseItemInputs,
   rejectExpense,
   releaseExpense,
@@ -525,6 +526,8 @@ const expenseMutations = {
       const payeeLegacyId = expenseData.payee?.legacyId || expenseData.payee?.id;
       const currency = expenseData.currency || collective.currency;
       const items = await prepareExpenseItemInputs(req, currency, expenseData.items);
+      const attachedFiles = await prepareAttachedFiles(req, expenseData.attachedFiles);
+
       const payee = payeeLegacyId
         ? (await fetchAccountWithReference({ legacyId: payeeLegacyId }, { throwIfMissing: true }))?.minimal
         : expenseData.payee;
@@ -555,8 +558,8 @@ const expenseMutations = {
         incurredAt: new Date(),
         amount,
         data: {
-          items: expenseData.items,
-          attachedFiles: expenseData.attachedFiles,
+          items,
+          attachedFiles,
           payee,
           invitedByCollectiveId: fromCollective.id,
           draftKey,

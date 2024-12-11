@@ -18,14 +18,19 @@ import { SUPPORTED_FILE_TYPES_IMAGES } from '../models/UploadedFile';
 export async function getFile(req: Request, res: Response) {
   res.set('Cache-Control', 'private');
 
-  if (!req.remoteUser) {
-    return res.status(401).send({ message: 'Authentication Required' });
-  }
-
   const isJsonAccepted = req.query.json !== undefined;
   const isThumbnail = req.query.thumbnail !== undefined;
 
   const { uploadedFileId } = req.params;
+  const { expenseId, draftKey } = req.query;
+
+  if (expenseId && typeof expenseId !== 'string') {
+    return res.status(400).send({ message: 'Invalid id' });
+  }
+
+  if (draftKey && typeof draftKey !== 'string') {
+    return res.status(400).send({ message: 'Invalid id' });
+  }
 
   let decodedId: number;
   try {
@@ -34,11 +39,7 @@ export async function getFile(req: Request, res: Response) {
     return res.status(400).send({ message: 'Invalid id' });
   }
 
-  const uploadedFile = await UploadedFile.findOne({
-    where: {
-      id: decodedId,
-    },
-  });
+  const uploadedFile = await UploadedFile.findByPk(decodedId);
 
   if (!uploadedFile) {
     return res.status(403).send({ message: 'Unauthorized' });
@@ -46,7 +47,12 @@ export async function getFile(req: Request, res: Response) {
 
   const actualUrl = uploadedFile.getDataValue('url');
 
-  if (!(await hasUploadedFilePermission(req, uploadedFile))) {
+  if (
+    !(await hasUploadedFilePermission(req, uploadedFile, {
+      expenseId: expenseId ? idDecode(expenseId as string, IDENTIFIER_TYPES.EXPENSE) : null,
+      draftKey: draftKey as string,
+    }))
+  ) {
     return res.status(403).send({ message: 'Unauthorized' });
   }
 

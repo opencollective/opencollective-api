@@ -103,7 +103,7 @@ import { GraphQLCurrencyExchangeRateInputType } from '../v2/input/CurrencyExchan
 
 import { getContextPermission, PERMISSION_TYPE } from './context-permissions';
 import { checkRemoteUserCanRoot, checkScope } from './scope-check';
-import { hasUploadedFilePermission } from './uploaded-file';
+import { hasProtectedUrlPermission } from './uploaded-file';
 
 const debug = debugLib('expenses');
 
@@ -1501,7 +1501,7 @@ const checkCanUseAccountingCategory = (
   }
 };
 
-async function prepareAttachedFiles(req: Request, attachedFiles: ExpenseData['attachedFiles']) {
+export async function prepareAttachedFiles(req: Request, attachedFiles: ExpenseData['attachedFiles']) {
   if (!attachedFiles) {
     return null;
   } else if (!attachedFiles.length) {
@@ -1519,11 +1519,11 @@ async function prepareAttachedFiles(req: Request, attachedFiles: ExpenseData['at
       continue;
     }
 
-    const uploadedFile = await UploadedFile.getFromURL(item.url);
-
-    if (!(await hasUploadedFilePermission(req, uploadedFile))) {
+    if (!(await hasProtectedUrlPermission(req, item.url))) {
       throw new ValidationFailed('Invalid expense attached file url');
     }
+
+    const uploadedFile = await UploadedFile.getFromURL(item.url);
 
     mapItemUrlToUploadedFile[item.url] = uploadedFile.getDataValue('url');
   }
@@ -1579,12 +1579,11 @@ export const prepareExpenseItemInputs = async (
       continue;
     }
 
-    const uploadedFile = await UploadedFile.getFromURL(item.url);
-
-    if (!(await hasUploadedFilePermission(req, uploadedFile))) {
+    if (!(await hasProtectedUrlPermission(req, item.url))) {
       throw new ValidationFailed('Invalid expense item url');
     }
 
+    const uploadedFile = await UploadedFile.getFromURL(item.url);
     mapItemUrlToUploadedFile[item.url] = uploadedFile.getDataValue('url');
   }
 
@@ -1975,7 +1974,11 @@ export async function submitExpenseDraft(
     args,
     requestedPayee,
     originalPayee,
-  }: { args?: Record<string, any>; originalPayee?: Collective; requestedPayee?: Collective } = {},
+  }: {
+    args?: Record<string, any> & { draftKey?: string };
+    originalPayee?: Collective;
+    requestedPayee?: Collective;
+  } = {},
 ) {
   // It is a submit on behalf being completed
   let existingExpense = await models.Expense.findByPk(expenseData.id, {
@@ -2000,7 +2003,12 @@ export async function submitExpenseDraft(
 
   await checkLockedFields(existingExpense, { ...expenseData, payee: requestedPayee || args.expense.payee });
 
-  const options = { overrideRemoteUser: undefined, skipPermissionCheck: true, skipActivity: true };
+  const options = {
+    overrideRemoteUser: undefined,
+    skipPermissionCheck: true,
+    skipActivity: true,
+    draftKey: args.draftKey,
+  };
   if (requestedPayee) {
     if (!req.remoteUser?.isAdminOfCollective(requestedPayee)) {
       throw new Unauthorized('User needs to be the admin of the payee to submit an expense on their behalf');
@@ -2148,7 +2156,11 @@ export async function sendDraftExpenseInvite(
   }
 }
 
-export async function editExpenseDraft(req: express.Request, expenseData: ExpenseData, args?: Record<string, any>) {
+export async function editExpenseDraft(
+  req: express.Request,
+  expenseData: ExpenseData,
+  args: Record<string, any> & { draftKey?: string },
+) {
   const existingExpense = await models.Expense.findByPk(expenseData.id, {
     include: [{ model: models.ExpenseItem, as: 'items' }],
   });
@@ -2260,7 +2272,7 @@ const editOnlyTagsAndAccountingCategory = async (
 export async function editExpense(
   req: express.Request,
   expenseData: ExpenseData,
-  options: { skipActivity?: boolean; overrideRemoteUser?: User; skipPermissionCheck?: boolean } = {},
+  options: { skipActivity?: boolean; overrideRemoteUser?: User; skipPermissionCheck?: boolean; draftKey?: string } = {},
 ): Promise<Expense> {
   const remoteUser = options?.overrideRemoteUser || req.remoteUser;
   if (!remoteUser) {
