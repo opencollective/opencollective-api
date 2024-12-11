@@ -183,16 +183,18 @@ const expenseMutations = {
       // NOTE(oauth-scope): Ok for non-authenticated users, we only check scope
       enforceScope(req, 'expenses');
 
-      const getId = (reference: { id?: string | number; legacyId?: number }) => reference?.id || reference?.legacyId;
+      const isExistingAccountReference = (reference: { id?: string | number; legacyId?: number; slug?: string }) =>
+        reference?.id || reference?.legacyId || reference?.slug;
 
       // Support deprecated `attachments` field
       const items = args.expense.items || args.expense.attachments;
       const expense = args.expense;
       const existingExpense = await fetchExpenseWithReference(expense, { loaders: req.loaders, throwIfMissing: true });
       const requestedPayee =
-        getId(expense.payee) && (await fetchAccountWithReference(expense.payee, { throwIfMissing: false }));
+        isExistingAccountReference(expense.payee) &&
+        (await fetchAccountWithReference(expense.payee, { throwIfMissing: false }));
       const originalPayee =
-        getId(existingExpense.data?.payee) &&
+        isExistingAccountReference(existingExpense.data?.payee) &&
         (await fetchAccountWithReference(existingExpense.data.payee, { throwIfMissing: false }));
 
       const payoutMethod = expense.payoutMethod;

@@ -97,6 +97,7 @@ import {
   ValidationFailed,
 } from '../errors';
 import { CurrencyExchangeRateSourceTypeEnum } from '../v2/enum/CurrencyExchangeRateSourceType';
+import { fetchAccountWithReference } from '../v2/input/AccountReferenceInput';
 import { getValueInCentsFromAmountInput } from '../v2/input/AmountInput';
 import { GraphQLCurrencyExchangeRateInputType } from '../v2/input/CurrencyExchangeRateInput';
 
@@ -129,11 +130,20 @@ const isOwnerAccountant = async (req: express.Request, expense: Expense): Promis
 const isDraftPayee = async (req: express.Request, expense: Expense): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
-  } else if (expense.data?.payee?.['id']) {
-    return req.remoteUser.isAdmin(expense.data.payee['id']);
-  } else {
+  }
+
+  const payeeReference = pick(expense.data?.payee, ['id', 'legacyId', 'slug']);
+
+  if (isEmpty(payeeReference)) {
     return false;
   }
+
+  const payee = await fetchAccountWithReference(payeeReference);
+  if (!payee) {
+    return false;
+  }
+
+  return req.remoteUser.isAdmin(payee.id);
 };
 
 const hasCorrectDraftKey =
