@@ -8,6 +8,7 @@ import { OrderItem, Sequelize } from 'sequelize';
 
 import { expenseStatus } from '../../../../constants';
 import { CollectiveType } from '../../../../constants/collectives';
+import MemberRoles from '../../../../constants/roles';
 import { getBalances } from '../../../../lib/budget';
 import { loadFxRatesMap } from '../../../../lib/currency';
 import { buildSearchConditions } from '../../../../lib/sql-search';
@@ -383,7 +384,10 @@ export const ExpensesCollectionQueryResolver = async (
   }
 
   if (args.lastCommentBy?.length) {
-    assert(host && req.remoteUser.isAdmin(host.id), 'You need to be an admin of the host to filter by lastCommentBy');
+    assert(
+      host && req.remoteUser.hasRole([MemberRoles.HOST, MemberRoles.ADMIN, MemberRoles.ACCOUNTANT], host.id),
+      'You need to be an admin of the host to filter by lastCommentBy',
+    );
     const conditions = [];
     const CollectiveIds = compact([
       args.lastCommentBy.includes('COLLECTIVE_ADMIN') && '"Expense"."CollectiveId"',
