@@ -1,7 +1,7 @@
 import '../server/env';
 
 import channels from '../server/constants/channels';
-import models, { Op } from '../server/models';
+import models, { Op, sequelize } from '../server/models';
 
 export const testStripeAccounts = {
   // Open Source Collective 501c6
