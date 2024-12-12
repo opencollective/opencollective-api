@@ -297,7 +297,7 @@ describe('server/graphql/v2/mutation/UploadedFileMutations', () => {
           const hourlyLimit = config.limits.klippa.perUser.hour;
 
           // Mock the clock to make sure we don't trigger the hourly limit
-          clock = sinon.useFakeTimers(moment().subtract(20, 'hours').toDate());
+          clock = sinon.useFakeTimers({ now: moment().subtract(20, 'hours').toDate(), shouldAdvanceTime: true });
           const validRequests = [];
           for (let i = 0; i < dailyLimit; i++) {
             const result = await graphqlQueryV2(uploadFileMutation, args, user);

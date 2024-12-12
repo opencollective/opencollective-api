@@ -2840,7 +2840,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         describe('when charge is due today', () => {
           it('from monthly to yearly', async () => {
             const today = moment(new Date(2022, 0, 1)); // 1st of January 2022
-            clock = useFakeTimers(today.toDate()); // Manually setting today's date
+            clock = useFakeTimers({ now: today.toDate(), shouldAdvanceTime: true }); // Manually setting today's date
             const { result, order } = await updateFakeOrder(today, 'month', 'year');
             expect(result.errors).to.not.exist;
             expect(result.data.updateOrder.tier.name).to.eq(fixedYearlyTier.name);
@@ -2852,7 +2852,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
           it('from yearly to monthly', async () => {
             const today = moment(new Date(2022, 0, 1)); // 1st of January 2022
-            clock = useFakeTimers(today.toDate()); // Manually setting today's date
+            clock = useFakeTimers({ now: today.toDate(), shouldAdvanceTime: true }); // Manually setting today's date
             const { result, order } = await updateFakeOrder(today, 'year', 'month');
             expect(result.errors).to.not.exist;
             expect(result.data.updateOrder.tier.name).to.eq(fixedMonthlyTier.name);
@@ -2866,7 +2866,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         describe('with a recent past charge (keep the existing date)', () => {
           it('from monthly to yearly', async () => {
             const today = moment(new Date(2022, 0, 12)); // 12th of January 2022
-            clock = useFakeTimers(today.toDate()); // Manually setting today's date
+            clock = useFakeTimers({ now: today.toDate(), shouldAdvanceTime: true }); // Manually setting today's date
             const firstOfJanuary = moment(new Date(2022, 0, 1)); // 1st of January 2022
             const { result, order } = await updateFakeOrder(firstOfJanuary, 'month', 'year');
             expect(result.errors).to.not.exist;
@@ -2879,7 +2879,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
           it('from yearly to monthly', async () => {
             const today = moment(new Date(2022, 0, 12)); // 12th of January 2022
-            clock = useFakeTimers(today.toDate()); // Manually setting today's date
+            clock = useFakeTimers({ now: today.toDate(), shouldAdvanceTime: true }); // Manually setting today's date
             const firstOfJanuary = moment(new Date(2022, 0, 1)); // 1st of January 2022
             const { result, order } = await updateFakeOrder(firstOfJanuary, 'year', 'month');
             expect(result.errors).to.not.exist;
@@ -2894,7 +2894,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         describe('with an old dur charge', () => {
           it('from monthly to yearly', async () => {
             const today = moment(new Date(2022, 6, 1)); // 1st of July 2022
-            clock = useFakeTimers(today.toDate()); // Manually setting today's date
+            clock = useFakeTimers({ now: today.toDate(), shouldAdvanceTime: true }); // Manually setting today's date
             const firstOfJanuary = moment(new Date(2022, 0, 1)); // 1st of January 2022
             const { result, order } = await updateFakeOrder(firstOfJanuary, 'month', 'year');
             expect(result.errors).to.not.exist;
@@ -2907,7 +2907,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
           it('from yearly to monthly', async () => {
             const today = moment(new Date(2022, 6, 12)); // 12th of July 2022
-            clock = useFakeTimers(today.toDate()); // Manually setting today's date
+            clock = useFakeTimers({ now: today.toDate(), shouldAdvanceTime: true }); // Manually setting today's date
             const firstOfJanuary = moment(new Date(2022, 0, 1)); // 1st of January 2022
             const { result, order } = await updateFakeOrder(firstOfJanuary, 'year', 'month');
             expect(result.errors).to.not.exist;
@@ -2920,7 +2920,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
           it('from yearly to monthly (on the 1st of the month)', async () => {
             const today = moment(new Date(2022, 6, 1)); // 1st of July 2022
-            clock = useFakeTimers(today.toDate()); // Manually setting today's date
+            clock = useFakeTimers({ now: today.toDate(), shouldAdvanceTime: true }); // Manually setting today's date
             const firstOfJanuary = moment(new Date(2022, 0, 1)); // 1st of January 2022
             const { result, order } = await updateFakeOrder(firstOfJanuary, 'year', 'month');
             expect(result.errors).to.not.exist;

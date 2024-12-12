@@ -30,7 +30,7 @@ describe('server/routes/oauth', () => {
 
   it('goes through the entire OAuth flow', async () => {
     const fakeNow = new Date(2022, 0, 1);
-    clock = useFakeTimers(fakeNow);
+    clock = useFakeTimers({ now: fakeNow, shouldAdvanceTime: true });
     const application = await fakeApplication();
 
     // Get authorization code

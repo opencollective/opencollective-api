@@ -19,7 +19,7 @@ describe('server/lib/spam', () => {
   let clock;
 
   before(() => {
-    clock = useFakeTimers(new Date('2020-01-01T00:00:00.000Z'));
+    clock = useFakeTimers({ now: new Date('2020-01-01T00:00:00.000Z'), shouldAdvanceTime: true });
   });
 
   after(() => {

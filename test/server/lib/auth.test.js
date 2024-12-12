@@ -8,7 +8,10 @@ import * as auth from '../../../server/lib/auth';
 describe('server/lib/auth', () => {
   it('should generate valid tokens', () => {
     // Given that time `Date.now` returns zero (0)
-    const clock = useFakeTimers();
+    const clock = useFakeTimers({
+      now: 0,
+      shouldAdvanceTime: true,
+    });
 
     // When the token is generated
     const token = auth.createJwt('subject', { foo: 'bar' }, 5);
