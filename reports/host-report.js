@@ -10,10 +10,11 @@ import { generateHostFeeAmountForTransactionLoader } from '../server/graphql/loa
 import { getHostTransactionsCsvAsAdmin } from '../server/lib/csv';
 import emailLib from '../server/lib/email';
 import { getBackersStats, getHostedCollectives, sumTransactions } from '../server/lib/hostlib';
+import { exportToPDF } from '../server/lib/pdf.js';
 import { stripHTML } from '../server/lib/sanitize-html';
 import { reportErrorToSentry, reportMessageToSentry } from '../server/lib/sentry';
 import { getPaidTaxTransactions, getTaxesSummary, getTransactions } from '../server/lib/transactions';
-import { exportToPDF, sumByWhen } from '../server/lib/utils';
+import { sumByWhen } from '../server/lib/utils';
 import models, { Op, sequelize } from '../server/models';
 
 const debug = debugLib('hostreport');

@@ -395,3 +395,20 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           schema: 'main:server/graphql/schemaV2.graphql'
           fail-on-breaking: false
+
+  circular-dependencies:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: 'package.json'
+          cache: 'npm'
+
+      - name: Check circular dependencies
+        run: npm run dependencies:check-circular
