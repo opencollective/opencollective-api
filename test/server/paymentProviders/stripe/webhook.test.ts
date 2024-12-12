@@ -585,6 +585,46 @@ describe('webhook', () => {
         await order.reload();
         expect(order.status).to.equal(OrderStatuses.PROCESSING);
         expect(order.data.paymentIntent.charges).to.not.be.null;
+
+        const paymentMethod = await order.getPaymentMethod();
+        expect(paymentMethod.service).to.equal(PAYMENT_METHOD_SERVICE.STRIPE);
+        expect(paymentMethod.type).to.equal(PAYMENT_METHOD_TYPE.US_BANK_ACCOUNT);
+      });
+
+      it('stores proper card info in payment method', async () => {
+        sandbox.stub(stripe.paymentMethods, 'retrieve').resolves({
+          type: 'card',
+          id: 'pm_123456789abcdef123456789',
+          card: {
+            brand: 'Visa',
+            last4: '1234',
+            country: 'US',
+            exp_year: 2024,
+            exp_month: 12,
+          },
+        });
+
+        await webhook.paymentIntentProcessing(event);
+        await order.reload();
+        expect(order.status).to.equal(OrderStatuses.PROCESSING);
+        expect(order.data.paymentIntent.charges).to.not.be.null;
+
+        const paymentMethod = await order.getPaymentMethod();
+        expect(paymentMethod.service).to.equal(PAYMENT_METHOD_SERVICE.STRIPE);
+        expect(paymentMethod.type).to.equal(PAYMENT_METHOD_TYPE.CREDITCARD);
+        expect(paymentMethod.data).to.deep.eq({
+          brand: 'Visa',
+          country: 'US',
+          expYear: 2024,
+          expMonth: 12,
+          stripeAccount: 'acct_15vekcDjPFcHOcTm',
+          stripePaymentMethodId: 'pm_123456789abcdef123456789',
+        });
+        expect(paymentMethod.name).to.equal('1234');
+        expect(paymentMethod.expiryDate).to.not.be.null;
+        expect(paymentMethod.expiryDate.getFullYear()).to.equal(2024);
+        expect(paymentMethod.expiryDate.getMonth()).to.equal(11);
+        expect(paymentMethod.expiryDate.getDate()).to.equal(31);
       });
     });
 
