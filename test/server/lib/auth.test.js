@@ -10,7 +10,7 @@ describe('server/lib/auth', () => {
     // Given that time `Date.now` returns zero (0)
     const clock = useFakeTimers({
       now: 0,
-      shouldAdvanceTime: true,
+      toFake: ['Date'],
     });
 
     // When the token is generated

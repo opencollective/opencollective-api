@@ -85,7 +85,7 @@ describe('server/graphql/common/transactions', () => {
       kind: TransactionKind.CONTRIBUTION,
       OrderId: order.id,
     });
-    timer = useFakeTimers({ now: new Date('2020-07-23 0:0').getTime(), shouldAdvanceTime: true });
+    timer = useFakeTimers({ now: new Date('2020-07-23 0:0').getTime(), toFake: ['Date'] });
     oldTransaction = await fakeTransaction({
       CollectiveId: collective.id,
       FromCollectiveId: contributor.CollectiveId,

@@ -88,7 +88,7 @@ describe('server/models/User', () => {
       () =>
         (clock = useFakeTimers({
           now: 0,
-          shouldAdvanceTime: true,
+          toFake: ['Date'],
         })),
     );
     afterEach(() => clock.restore());

@@ -36,7 +36,7 @@ describe('server/lib/subscriptions', () => {
         describe('with an order that has a pending payment', () => {
           it('to what it was before, keep the past due date', async () => {
             const today = moment(new Date(2022, 0, 1)); // 1st of January 2022
-            clock = sinon.useFakeTimers({ now: today.toDate(), shouldAdvanceTime: true }); // Manually setting today's date
+            clock = sinon.useFakeTimers({ now: today.toDate(), toFake: ['Date'] }); // Manually setting today's date
             const paypalPm = await fakePaymentMethod({
               service: PAYMENT_METHOD_SERVICE.PAYPAL,
               type: PAYMENT_METHOD_TYPE.SUBSCRIPTION,
@@ -71,7 +71,7 @@ describe('server/lib/subscriptions', () => {
         describe('with an order that has a future payment', () => {
           it('before the 15th of the month => 1st of next month', async () => {
             const today = moment(new Date(2022, 0, 1)); // 1st of January 2022
-            clock = sinon.useFakeTimers({ now: today.toDate(), shouldAdvanceTime: true }); // Manually setting today's date
+            clock = sinon.useFakeTimers({ now: today.toDate(), toFake: ['Date'] }); // Manually setting today's date
             const paypalPm = await fakePaymentMethod({
               service: PAYMENT_METHOD_SERVICE.PAYPAL,
               type: PAYMENT_METHOD_TYPE.SUBSCRIPTION,
@@ -103,7 +103,7 @@ describe('server/lib/subscriptions', () => {
 
           it('after the 15th of the month => skip next month', async () => {
             const today = moment(new Date(2022, 0, 18)); // 18th of January 2022
-            clock = sinon.useFakeTimers({ now: today.toDate(), shouldAdvanceTime: true }); // Manually setting today's date
+            clock = sinon.useFakeTimers({ now: today.toDate(), toFake: ['Date'] }); // Manually setting today's date
             const paypalPm = await fakePaymentMethod({
               service: PAYMENT_METHOD_SERVICE.PAYPAL,
               type: PAYMENT_METHOD_TYPE.SUBSCRIPTION,

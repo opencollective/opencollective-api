@@ -121,7 +121,7 @@ describe('server/lib/recurring-contributions', () => {
       };
 
       // And given that we freeze time
-      const clock = useFakeTimers({ now: new Date('2018-01-28 0:0').getTime(), shouldAdvanceTime: true });
+      const clock = useFakeTimers({ now: new Date('2018-01-28 0:0').getTime(), toFake: ['Date'] });
 
       // When dates are updated with failure
       const updatedDates = getNextChargeAndPeriodStartDates('failure', order);
@@ -185,7 +185,7 @@ describe('server/lib/recurring-contributions', () => {
       };
 
       // And given that we freeze time
-      const clock = useFakeTimers({ now: new Date('2018-01-28 0:0').getTime(), shouldAdvanceTime: true });
+      const clock = useFakeTimers({ now: new Date('2018-01-28 0:0').getTime(), toFake: ['Date'] });
 
       // when dates are updated with 'updated' status
       const updatedDates = getNextChargeAndPeriodStartDates('updated', order);

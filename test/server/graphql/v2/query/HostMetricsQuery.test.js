@@ -60,7 +60,7 @@ describe('server/graphql/v2/query/HostMetricsQuery', () => {
     collective1 = await fakeCollective({ admin: collectiveAdminUser, HostCollectiveId: host.id, hostFeePercent: 30 });
     collective2 = await fakeCollective({ admin: collectiveAdminUser, HostCollectiveId: host.id, hostFeePercent: 30 });
 
-    let clock = useFakeTimers({ now: new Date('2021-02-01 0:0').getTime(), shouldAdvanceTime: true });
+    let clock = useFakeTimers({ now: new Date('2021-02-01 0:0').getTime(), toFake: ['Date'] });
     try {
       const order1 = await fakeOrder({
         CollectiveId: collective1.id,
@@ -72,7 +72,7 @@ describe('server/graphql/v2/query/HostMetricsQuery', () => {
       clock.restore();
     }
 
-    clock = useFakeTimers({ now: new Date('2021-06-01 0:0').getTime(), shouldAdvanceTime: true });
+    clock = useFakeTimers({ now: new Date('2021-06-01 0:0').getTime(), toFake: ['Date'] });
     try {
       const order2 = await fakeOrder({
         CollectiveId: collective2.id,

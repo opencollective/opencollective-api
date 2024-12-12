@@ -26,12 +26,12 @@ describe('platform constants', () => {
   });
 
   it('platform collective id is same before migration cutoff', () => {
-    sandbox.useFakeTimers({ now: moment('2024-10-01T00:00:00Z').toDate(), shouldAdvanceTime: true });
+    sandbox.useFakeTimers({ now: moment('2024-10-01T00:00:00Z').toDate(), toFake: ['Date'] });
     expect(PlatformConstants.PlatformCollectiveId).to.equal(8686);
   });
 
   it('platform collective id is migrated after migration cutoff', () => {
-    sandbox.useFakeTimers({ now: moment('2024-10-01T00:00:01Z').toDate(), shouldAdvanceTime: true });
+    sandbox.useFakeTimers({ now: moment('2024-10-01T00:00:01Z').toDate(), toFake: ['Date'] });
     expect(PlatformConstants.PlatformCollectiveId).to.equal(845576);
   });
 });
@@ -253,7 +253,7 @@ describe('platform transactions', () => {
     },
   ].map(tc =>
     ('only' in tc && tc.only ? it.only : it)(tc.title, async () => {
-      sandbox.useFakeTimers({ now: tc.when, shouldAdvanceTime: true });
+      sandbox.useFakeTimers({ now: tc.when, toFake: ['Date'] });
 
       const result = await makeContribution(
         {

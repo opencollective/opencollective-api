@@ -341,7 +341,7 @@ export async function stripeOneTimeDonation(opt) {
   // requested creation date. It will be reset right after the
   // execution of the order.
   if (createdAt) {
-    sandbox.useFakeTimers({ now: new Date(createdAt).getTime(), shouldAdvanceTime: true });
+    sandbox.useFakeTimers({ now: new Date(createdAt).getTime(), toFake: ['Date'] });
   }
 
   // Stub the stripe calls before executing the order.
