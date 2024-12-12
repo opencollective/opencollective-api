@@ -102,7 +102,7 @@ describe('cron/hourly/71-send-resume-subscription-emails', () => {
       );
 
       // 1st reminder
-      clock = sandbox.useFakeTimers({ now: moment(nextReminderDate).add(1, 'day').toDate(), shouldAdvanceTime: true });
+      clock = sandbox.useFakeTimers({ now: moment(nextReminderDate).add(1, 'day').toDate(), toFake: ['Date'] });
       updatedOrders = await runCronJob();
       expect(updatedOrders).to.have.length(1);
       expect(updatedOrders[0].status).to.equal(OrderStatuses.PAUSED);
@@ -125,7 +125,7 @@ describe('cron/hourly/71-send-resume-subscription-emails', () => {
 
       // 2nd reminder
       clock.restore();
-      clock = sandbox.useFakeTimers({ now: moment(nextReminderDate).add(1, 'day').toDate(), shouldAdvanceTime: true });
+      clock = sandbox.useFakeTimers({ now: moment(nextReminderDate).add(1, 'day').toDate(), toFake: ['Date'] });
       updatedOrders = await runCronJob();
       expect(updatedOrders).to.have.length(1);
       expect(updatedOrders[0].status).to.equal(OrderStatuses.PAUSED);
@@ -148,7 +148,7 @@ describe('cron/hourly/71-send-resume-subscription-emails', () => {
 
       // 3rd and final reminder
       clock.restore();
-      clock = sandbox.useFakeTimers({ now: moment(nextReminderDate).add(1, 'day').toDate(), shouldAdvanceTime: true });
+      clock = sandbox.useFakeTimers({ now: moment(nextReminderDate).add(1, 'day').toDate(), toFake: ['Date'] });
       updatedOrders = await runCronJob();
       expect(updatedOrders).to.have.length(1);
       expect(updatedOrders[0].data.resumeContribution.reminder).to.equal(4);
@@ -165,7 +165,7 @@ describe('cron/hourly/71-send-resume-subscription-emails', () => {
 
       // No more reminders
       clock.restore();
-      clock = sandbox.useFakeTimers({ now: moment(nextReminderDate).add(60, 'day').toDate(), shouldAdvanceTime: true });
+      clock = sandbox.useFakeTimers({ now: moment(nextReminderDate).add(60, 'day').toDate(), toFake: ['Date'] });
       updatedOrders = await runCronJob();
       expect(updatedOrders).to.have.length(0);
     });

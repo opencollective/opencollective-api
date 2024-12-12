@@ -198,7 +198,7 @@ describe('cron/monthly/host-settlement', () => {
     );
 
     // Refund contributions that must be
-    let clock = sinon.useFakeTimers(moment(lastMonth).add(1, 'day').toDate());
+    let clock = sinon.useFakeTimers({ toFake: ['Date'], now: moment(lastMonth).add(1, 'day').toDate() });
     await createRefundTransaction(unsettledRefundedContribution, 0, null, user, fakeUUID('00000008'));
     await createRefundTransaction(settledRefundedContribution, 0, null, user, fakeUUID('00000009'));
     clock.restore();
@@ -225,7 +225,7 @@ describe('cron/monthly/host-settlement', () => {
     });
 
     // Create Contributions
-    clock = useFakeTimers(lastMonth.toDate()); // Manually setting today's date
+    clock = useFakeTimers({ now: lastMonth.toDate(), toFake: ['Date'] }); // Manually setting today's date
     const order = await fakeOrder({
       description: 'EUR Contribution with tip + host fee',
       CollectiveId: eurCollective.id,

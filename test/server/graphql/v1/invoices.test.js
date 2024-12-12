@@ -18,7 +18,7 @@ import * as utils from '../../../utils';
  * The payment method is always stripe for now.
  */
 async function donate(user, currency, amount, createdAt, collective) {
-  const timer = useFakeTimers(new Date(createdAt).getTime());
+  const timer = useFakeTimers({ toFake: ['Date'], now: new Date(createdAt).getTime() });
   try {
     await store.stripeConnectedAccount(collective.HostCollectiveId);
     await store.stripeOneTimeDonation({
