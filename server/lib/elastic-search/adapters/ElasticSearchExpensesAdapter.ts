@@ -5,10 +5,9 @@ import models from '../../../models';
 import { stripHTMLOrEmpty } from '../../sanitize-html';
 import { ElasticSearchIndexName } from '../constants';
 
-import { ElasticSearchModelAdapter } from './ElasticSearchModelAdapter';
+import { ElasticSearchModelAdapter, FindEntriesToIndexOptions } from './ElasticSearchModelAdapter';
 
 export class ElasticSearchExpensesAdapter implements ElasticSearchModelAdapter {
-  public readonly model = models.Expense;
   public readonly index = ElasticSearchIndexName.EXPENSES;
   public readonly mappings = {
     properties: {
@@ -34,15 +33,11 @@ export class ElasticSearchExpensesAdapter implements ElasticSearchModelAdapter {
     },
   } as const;
 
-  public findEntriesToIndex(
-    options: {
-      offset?: number;
-      limit?: number;
-      fromDate?: Date;
-      maxId?: number;
-      ids?: number[];
-    } = {},
-  ) {
+  public getModel() {
+    return models.Expense;
+  }
+
+  public findEntriesToIndex(options: FindEntriesToIndexOptions = {}) {
     return models.Expense.findAll({
       attributes: omit(Object.keys(this.mappings.properties), ['ParentCollectiveId', 'items']),
       order: [['id', 'DESC']],
@@ -51,13 +46,27 @@ export class ElasticSearchExpensesAdapter implements ElasticSearchModelAdapter {
       where: {
         ...(options.fromDate ? { updatedAt: options.fromDate } : null),
         ...(options.maxId ? { id: { [Op.lte]: options.maxId } } : null),
-        ...(options.ids?.length ? { id: { [Op.in]: options.ids } } : null),
+        ...(options.ids?.length ? { id: options.ids } : null),
+        ...(options.relatedToCollectiveIds?.length
+          ? {
+              [Op.or]: [
+                { CollectiveId: options.relatedToCollectiveIds },
+                { FromCollectiveId: options.relatedToCollectiveIds },
+                { HostCollectiveId: options.relatedToCollectiveIds },
+              ],
+            }
+          : null),
       },
       include: [
         {
           association: 'collective',
           required: true,
-          attributes: ['HostCollectiveId', 'ParentCollectiveId'],
+          attributes: ['isActive', 'HostCollectiveId', 'ParentCollectiveId'],
+        },
+        {
+          association: 'items',
+          required: true,
+          attributes: ['description'],
         },
         {
           association: 'items',
@@ -87,8 +96,9 @@ export class ElasticSearchExpensesAdapter implements ElasticSearchModelAdapter {
       ParentCollectiveId: instance.collective.ParentCollectiveId,
       FromCollectiveId: instance.FromCollectiveId,
       UserId: instance.UserId,
-      HostCollectiveId: instance.HostCollectiveId || instance.collective.HostCollectiveId,
-      items: instance.items.map(item => item.description).join(' '),
+      items: instance.items.map(item => item.description).join(', '),
+      HostCollectiveId:
+        instance.HostCollectiveId || (!instance.collective.isActive ? null : instance.collective.HostCollectiveId),
     };
   }
 
