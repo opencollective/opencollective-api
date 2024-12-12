@@ -1,7 +1,5 @@
 import '../server/env';
 
-import config from 'config';
-
 import channels from '../server/constants/channels';
 import models, { Op, sequelize } from '../server/models';
 
@@ -110,46 +108,13 @@ const deleteLegalDocuments = () => {
     .catch(e => console.error('Cannot remove legal documents, please do it manually', e));
 };
 
-const replaceUploadedFiles = async () => {
-  // Update all private images
-  await sequelize.query(`UPDATE "ExpenseItems" SET "url" = :url`, {
-    replacements: {
-      url: `https://${config.aws.s3.bucket}.s3.us-west-1.amazonaws.com/expense-item/ba69869c-c38b-467a-96f4-3623adfad784/My%20super%20invoice.jpg`,
-    },
-  });
-
-  await sequelize.query(`UPDATE "ExpenseAttachedFiles" SET "url" = :url`, {
-    replacements: {
-      url: `https://${config.aws.s3.bucket}.s3.us-west-1.amazonaws.com/expense-attached-file/31d9cf1f-80f4-49fa-8030-e546b7f2807b/invoice_4.jpg`,
-    },
-  });
-
-  // Update UploadedFiles record: remove all private files then insert defaults
-  await sequelize.query(`DELETE FROM "UploadedFiles" WHERE kind IN ('EXPENSE_ITEM', 'EXPENSE_ATTACHED_FILE')`);
-  await models.UploadedFile.create({
-    url: `https://${config.aws.s3.bucket}.s3.us-west-1.amazonaws.com/expense-item/ba69869c-c38b-467a-96f4-3623adfad784/My%20super%20invoice.jpg`,
-    kind: 'EXPENSE_ITEM',
-    fileName: 'My super invoice.jpg',
-    fileType: 'image/jpeg',
-    fileSize: 100,
-  });
-  await models.UploadedFile.create({
-    url: `https://${config.aws.s3.bucket}.s3.us-west-1.amazonaws.com/expense-attached-file/31d9cf1f-80f4-49fa-8030-e546b7f2807b/invoice_4.jpg`,
-    kind: 'EXPENSE_ATTACHED_FILE',
-    fileName: 'invoice_4.jpg',
-    fileType: 'image/jpeg',
-    fileSize: 100,
-  });
-};
-
-export const sanitizeDB = async () => {
+const sanitizeDB = async () => {
   return Promise.all([
     replaceHostStripeTokens(),
     replaceUsersStripeTokens(),
     removeConnectedAccountsTokens(),
     deleteWebhooks(),
     deleteLegalDocuments(),
-    replaceUploadedFiles(),
   ]);
 };
 
