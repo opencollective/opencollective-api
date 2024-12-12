@@ -45,7 +45,7 @@
     "@opencollective/taxes": "5.0.0",
     "@paypal/payouts-sdk": "1.1.1",
     "@peculiar/asn1-schema": "2.3.13",
-    "@peculiar/asn1-x509": "2.3.8",
+    "@peculiar/asn1-x509": "2.3.13",
     "@sentry/node": "7.119.2",
     "@sentry/types": "7.119.2",
     "@shopify/address": "4.3.0",
