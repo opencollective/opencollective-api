@@ -6,11 +6,6 @@ import models, { Op, sequelize } from '../../server/models';
 
 const startDate = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date('2024-01-01');
 
-if (process.argv.length < 3) {
-  console.error('Usage: ./scripts/ledger/split-payment-processor-fees.ts migrate|rollback|check (rollbackTimestamp)');
-  process.exit(1);
-}
-
 const getTransactionsToMigrateQuery = `
   SELECT *
   FROM "Transactions" t
@@ -219,6 +214,11 @@ export const main = async (command: Command, additionalParameters = undefined) =
 };
 
 if (!module.parent) {
+  if (process.argv.length < 3) {
+    console.error('Usage: ./scripts/ledger/split-payment-processor-fees.ts migrate|rollback|check (rollbackTimestamp)');
+    process.exit(1);
+  }
+
   main(process.argv[2] as Command, process.argv.slice(2))
     .then(() => process.exit())
     .catch(e => {
