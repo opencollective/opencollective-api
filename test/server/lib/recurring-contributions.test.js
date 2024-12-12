@@ -185,7 +185,7 @@ describe('server/lib/recurring-contributions', () => {
       };
 
       // And given that we freeze time
-      const clock = useFakeTimers(new Date('2018-01-28 0:0').getTime());
+      const clock = useFakeTimers({ now: new Date('2018-01-28 0:0').getTime(), shouldAdvanceTime: true });
 
       // when dates are updated with 'updated' status
       const updatedDates = getNextChargeAndPeriodStartDates('updated', order);

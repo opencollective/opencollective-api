@@ -84,7 +84,13 @@ describe('server/models/User', () => {
     // Ensure the date will start at 0 instead of starting at epoch so
     // date related things can be tested
     let clock;
-    beforeEach(() => (clock = useFakeTimers()));
+    beforeEach(
+      () =>
+        (clock = useFakeTimers({
+          now: 0,
+          shouldAdvanceTime: true,
+        })),
+    );
     afterEach(() => clock.restore());
 
     it('should generate valid JWTokens with user data', async () => {
