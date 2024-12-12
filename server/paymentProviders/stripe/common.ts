@@ -492,7 +492,7 @@ export async function createPaymentMethod(
   const paymentIntentCharge: Stripe.Charge = (originPaymentIntent as any)?.charges?.data?.[0];
   const paymentMethodChargeDetails = paymentIntentCharge?.payment_method_details;
 
-  const paymentMethodData = {
+  const paymentMethodData: Record<string, unknown> = {
     stripePaymentMethodId: stripePaymentMethod.id,
     stripeAccount,
     ...mapStripePaymentMethodExtraData(stripePaymentMethod, paymentMethodChargeDetails),
@@ -500,6 +500,11 @@ export async function createPaymentMethod(
   };
 
   const paymentMethodName = formatPaymentMethodName(stripePaymentMethod, paymentMethodChargeDetails);
+  let expiryDate;
+  if (paymentMethodData.expYear && paymentMethodData.expMonth) {
+    const { expYear, expMonth } = paymentMethodData;
+    expiryDate = moment.utc(`${expYear}-${expMonth}`, 'YYYY-MM').endOf('month');
+  }
 
   return await PaymentMethod.create(
     {
@@ -515,6 +520,7 @@ export async function createPaymentMethod(
         (stripePaymentMethod.type !== 'bancontact' && originPaymentIntent?.setup_future_usage === 'off_session'),
       confirmedAt: new Date(),
       data: paymentMethodData,
+      expiryDate,
     },
     createOptions,
   );
