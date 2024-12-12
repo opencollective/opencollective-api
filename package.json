@@ -225,6 +225,7 @@
     "db:seed": "./scripts/sequelize.sh db:seed",
     "db:setup": "babel-node --extensions .js,.ts ./scripts/db_setup.js",
     "depcheck": "npx @opencollective/depcheck .",
+    "dependencies:check-circular": "npx madge --circular --extensions ts,js server",
     "deploy:production": "./scripts/pre-deploy.sh production && git push production main",
     "deploy:staging": "./scripts/pre-deploy.sh staging && git push -f staging main",
     "dev": "nodemon server/index.js -x \"babel-node --extensions .js,.ts\" . -e js,hbs,ts",

@@ -26,8 +26,8 @@ import { GraphQLTierCollection } from '../../graphql/v2/collection/TierCollectio
 import { GraphQLTransactionCollection } from '../../graphql/v2/collection/TransactionCollection';
 import { GraphQLUpdateCollection } from '../../graphql/v2/collection/UpdateCollection';
 import { AccountTypeToModelMapping, GraphQLAccountType } from '../../graphql/v2/enum';
+import { GraphQLAccountTypeKeys } from '../../graphql/v2/enum/AccountType';
 import { idEncode } from '../../graphql/v2/identifiers';
-import type { SearchQueryAccountsResolverArgs } from '../../graphql/v2/object/SearchResponse';
 import { Collective, User } from '../../models';
 
 import { ElasticSearchIndexName, ElasticSearchIndexParams } from './constants';
@@ -38,6 +38,12 @@ type GraphQLSearchParams = {
   limit: number;
   account: Collective;
   host: Collective;
+};
+
+export type SearchQueryAccountsResolverArgs = {
+  type: GraphQLAccountTypeKeys;
+  isHost: boolean;
+  tags: string[];
 };
 
 /**

@@ -1,6 +1,7 @@
 import { assert, expect } from 'chai';
 
-import { exportToPDF, redactSensitiveFields } from '../../../server/lib/utils';
+import { exportToPDF } from '../../../server/lib/pdf';
+import { redactSensitiveFields } from '../../../server/lib/utils';
 
 describe('server/lib/utils', () => {
   it('redacts sensitive fields', () => {
