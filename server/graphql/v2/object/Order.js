@@ -208,6 +208,14 @@ export const GraphQLOrder = new GraphQLObjectType({
           return { value, currency: order.currency };
         },
       },
+      totalContributed: {
+        type: new GraphQLNonNull(GraphQLAmount),
+        description: 'Total amount contributed with this order.',
+        async resolve(order, args, req) {
+          const value = await req.loaders.Order.totalContributed.load(order.id);
+          return { value, currency: order.currency };
+        },
+      },
       paymentMethod: {
         type: GraphQLPaymentMethod,
         resolve(order, _, req) {

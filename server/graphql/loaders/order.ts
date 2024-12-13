@@ -1,10 +1,12 @@
 import DataLoader from 'dataloader';
 
 import ACTIVITY from '../../constants/activities';
-import models from '../../models';
+import { TransactionKind } from '../../constants/transaction-kind';
+import { TransactionTypes } from '../../constants/transactions';
+import models, { Op, sequelize } from '../../models';
 import Activity from '../../models/Activity';
 
-import { sortResultsArray } from './helpers';
+import { sortResultsArray, sortResultsSimple } from './helpers';
 
 export const PUBLIC_ORDER_ACTIVITIES = [
   ACTIVITY.COLLECTIVE_TRANSACTION_CREATED,
@@ -57,3 +59,22 @@ export const generateOrderActivitiesLoader = (): DataLoader<number, Activity[]> 
     return sortResultsArray(orderIDs, activities, activity => activity.OrderId);
   });
 };
+
+export const generateOrderTotalContributedLoader = (): DataLoader<number, number> =>
+  new DataLoader(async (orderIds: number[]) => {
+    // The main assumption here is that Order.Currency is always the same as the CONTRIBUTION transactions
+    const totalAmountsPerOrderId = (await models.Transaction.findAll({
+      attributes: ['OrderId', [sequelize.fn('SUM', sequelize.col('amount')), 'totalAmount']],
+      where: {
+        OrderId: { [Op.in]: orderIds },
+        type: TransactionTypes.CREDIT,
+        kind: TransactionKind.CONTRIBUTION,
+        RefundTransactionId: null,
+      },
+      group: ['OrderId'],
+      raw: true,
+    })) as unknown as { OrderId: number; totalAmount: number }[];
+
+    const orders = sortResultsSimple(orderIds, totalAmountsPerOrderId, result => result.OrderId);
+    return orders.map(t => t?.totalAmount);
+  });
