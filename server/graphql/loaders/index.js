@@ -358,31 +358,6 @@ export const loaders = req => {
         })
         .then(results => sortResults(ids, results, 'CollectiveId'));
     }),
-    expenses: new DataLoader(ids =>
-      models.Expense.findAll({
-        attributes: [
-          'CollectiveId',
-          'status',
-          [sequelize.fn('COALESCE', sequelize.fn('COUNT', sequelize.col('id')), 0), 'count'],
-        ],
-        where: { CollectiveId: { [Op.in]: ids } },
-        group: ['CollectiveId', 'status'],
-      })
-        .then(rows => {
-          const results = groupBy(rows, 'CollectiveId');
-          return Object.keys(results).map(CollectiveId => {
-            const stats = {};
-            results[CollectiveId].map(e => e.dataValues).map(stat => {
-              stats[stat.status] = stat.count;
-            });
-            return {
-              CollectiveId: Number(CollectiveId),
-              ...stats,
-            };
-          });
-        })
-        .then(results => sortResults(ids, results, 'CollectiveId')),
-    ),
     activeRecurringContributions: {
       buildLoader({ currency, includeChildren = undefined } = {}) {
         const key = `${currency}-${includeChildren}`;
