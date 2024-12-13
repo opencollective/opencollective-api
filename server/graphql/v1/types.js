@@ -90,6 +90,7 @@ const PayoutMethodTypeEnum = new GraphQLEnumType({
   }, {}),
 });
 
+// @deprecated Still used in Collective.payoutMethods by `expenseFormPayeeStepCollectivePickerSearchQuery`
 export const PayoutMethodType = new GraphQLObjectType({
   name: 'PayoutMethod',
   description: 'A payout method for expenses',
@@ -682,6 +683,7 @@ export const InvoiceType = new GraphQLObjectType({
 const ExpenseItemType = new GraphQLObjectType({
   name: 'ExpenseItem',
   description: 'Public fields for an expense item',
+  deprecationReason: '2024-12-13: Please move to GraphQL v2',
   fields: () => ({
     id: { type: new GraphQLNonNull(GraphQLInt) },
     amount: { type: new GraphQLNonNull(GraphQLInt) },
@@ -697,6 +699,7 @@ const ExpenseItemType = new GraphQLObjectType({
 const ExpenseAttachedFile = new GraphQLObjectType({
   name: 'ExpenseAttachedFile',
   description: "Fields for an expense's attached file",
+  deprecationReason: '2024-12-13: Please move to GraphQL v2',
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLInt),
@@ -711,6 +714,7 @@ const ExpenseAttachedFile = new GraphQLObjectType({
 export const ExpenseType = new GraphQLObjectType({
   name: 'ExpenseType',
   description: 'This represents an Expense',
+  deprecationReason: '2024-12-13: Please move to GraphQL v2',
   fields: () => {
     return {
       id: {
@@ -781,6 +785,7 @@ export const ExpenseType = new GraphQLObjectType({
       },
       PayoutMethod: {
         type: PayoutMethodType,
+        deprecationReason: '2024-12-13: Please move to GraphQL v2',
         async resolve(expense, _, req) {
           if (!expense.PayoutMethodId || !(await canSeeExpensePayoutMethodPrivateDetails(req, expense))) {
             return null;
@@ -809,6 +814,7 @@ export const ExpenseType = new GraphQLObjectType({
       },
       items: {
         type: new GraphQLList(ExpenseItemType),
+        deprecationReason: '2024-12-13: Please move to GraphQL v2',
         async resolve(expense, _, req) {
           const canSeeAttachments = await canSeeExpenseAttachments(req, expense);
           return (await req.loaders.Expense.items.load(expense.id)).map(async item => {
@@ -1463,15 +1469,9 @@ export const OrderType = new GraphQLObjectType({
       isPastDue: {
         description: 'Whether this subscription is past due or not',
         type: GraphQLBoolean,
-        resolve(order, args, req) {
-          // if logged out experience, always return false
-          if (!req.remoteUser) {
-            return false;
-          }
-          // otherwise, check if this user has permission
-          return order
-            .getSubscriptionForUser(req.remoteUser)
-            .then(subscription => subscription && subscription.isActive && subscription.chargeRetryCount > 0);
+        deprecationReason: '2024-12-13: Not used, so we stop returning it.',
+        resolve() {
+          return null;
         },
       },
       // Note this field is public
