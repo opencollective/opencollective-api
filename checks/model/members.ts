@@ -2,11 +2,12 @@ import '../../server/env';
 
 import { flatten, min, uniq } from 'lodash';
 
+import MemberRoles from '../../server/constants/roles';
 import logger from '../../server/lib/logger';
 import { Member, MigrationLog, sequelize } from '../../server/models';
 import { MigrationLogType } from '../../server/models/MigrationLog';
 
-import { runCheckThenExit } from './_utils';
+import { runAllChecksThenExit } from './_utils';
 
 async function checkDeletedMembers({ fix = false } = {}) {
   const message = 'No non-deleted Members without a matching non-deleted Collective';
@@ -156,8 +157,8 @@ async function checkMissingMembers({ fix = false }) {
           CollectiveId: result.CollectiveId,
           CreatedByUserId: result.CreatedByUserId[0],
           TierId: result.TierId,
-          since: min(result.createdAt),
-          role: result.tierType === 'TICKET' ? 'ATTENDEE' : 'BACKER',
+          since: min(result.createdAt) as Date,
+          role: result.tierType === 'TICKET' ? MemberRoles.ATTENDEE : MemberRoles.BACKER,
         });
       }
 
@@ -172,13 +173,8 @@ async function checkMissingMembers({ fix = false }) {
   }
 }
 
-export async function checkMembers({ fix = false } = {}) {
-  await checkDeletedMembers({ fix });
-  await checkMemberTypes();
-  await checkDuplicateMembers({ fix });
-  await checkMissingMembers({ fix });
-}
+export const checks = [checkDeletedMembers, checkMemberTypes, checkDuplicateMembers, checkMissingMembers];
 
 if (!module.parent) {
-  runCheckThenExit(checkMembers);
+  runAllChecksThenExit(checks);
 }

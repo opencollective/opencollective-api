@@ -3,7 +3,7 @@ import '../../server/env';
 import logger from '../../server/lib/logger';
 import { sequelize } from '../../server/models';
 
-import { runCheckThenExit } from './_utils';
+import { runAllChecksThenExit } from './_utils';
 
 async function checkIsActive({ fix = false } = {}) {
   const message = 'Independent Collectives without isActive=TRUE';
@@ -163,14 +163,14 @@ async function checkHostFeePercent({ fix = false } = {}) {
   }
 }
 
-export async function checkIndependentCollectives({ fix = false } = {}) {
-  await checkIsActive({ fix });
-  await checkHasHostCollectiveId({ fix });
-  await checkApprovedAt({ fix });
-  await checkIsHostAccount({ fix });
-  await checkHostFeePercent({ fix });
-}
+export const checks = [
+  checkIsActive,
+  checkHasHostCollectiveId,
+  checkApprovedAt,
+  checkIsHostAccount,
+  checkHostFeePercent,
+];
 
 if (!module.parent) {
-  runCheckThenExit(checkIndependentCollectives);
+  runAllChecksThenExit(checks);
 }

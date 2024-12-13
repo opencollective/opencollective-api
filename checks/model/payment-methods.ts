@@ -2,7 +2,7 @@ import '../../server/env';
 
 import { sequelize } from '../../server/models';
 
-import { runCheckThenExit } from './_utils';
+import { runAllChecksThenExit } from './_utils';
 
 async function checkCollectivePaymentMethodsCurrencies({ fix = false } = {}) {
   const message = 'Collective payment method must have the same currency as the host';
@@ -46,10 +46,8 @@ async function checkCollectivePaymentMethodsCurrencies({ fix = false } = {}) {
   }
 }
 
-export async function checkPaymentMethods({ fix = false } = {}) {
-  await checkCollectivePaymentMethodsCurrencies({ fix });
-}
+export const checks = [checkCollectivePaymentMethodsCurrencies];
 
 if (!module.parent) {
-  runCheckThenExit(checkPaymentMethods);
+  runAllChecksThenExit(checks);
 }

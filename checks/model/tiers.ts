@@ -2,7 +2,7 @@ import '../../server/env';
 
 import { sequelize } from '../../server/models';
 
-import { runCheckThenExit } from './_utils';
+import { runAllChecksThenExit } from './_utils';
 
 async function checkTiersMinimumAmountWithPresets({ fix = false } = {}) {
   const message = 'Tiers presets cannot be lower than the minimum amount';
@@ -34,10 +34,8 @@ async function checkTiersMinimumAmountWithPresets({ fix = false } = {}) {
   }
 }
 
-export async function checkTiers({ fix = false } = {}) {
-  await checkTiersMinimumAmountWithPresets({ fix });
-}
+export const checks = [checkTiersMinimumAmountWithPresets];
 
 if (!module.parent) {
-  runCheckThenExit(checkTiers);
+  runAllChecksThenExit(checks);
 }
