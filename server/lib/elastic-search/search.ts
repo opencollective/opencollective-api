@@ -8,6 +8,7 @@ import { isEmpty, isNil } from 'lodash';
 import { Collective, User } from '../../models';
 import { reportErrorToSentry } from '../sentry';
 
+import { ElasticSearchModelAdapter } from './adapters/ElasticSearchModelAdapter';
 import { ElasticSearchModelsAdapters } from './adapters';
 import { getElasticSearchClient } from './client';
 import { formatIndexNameForElasticSearch } from './common';
@@ -64,6 +65,18 @@ export type ElasticSearchIndexRequest<T extends ElasticSearchIndexName = Elastic
   indexParams?: ElasticSearchIndexParams[T];
 };
 
+const isSearchableField = (adapter, field) => {
+  return adapter.weights[field] !== 0 && ['keyword', 'text'].includes(adapter.mappings.properties[field].type);
+};
+
+const addWeightToField = (adapter: ElasticSearchModelAdapter, field: string): string => {
+  if (adapter.weights[field] === 1 || adapter.weights[field] === undefined) {
+    return field;
+  } else {
+    return `${field}^${adapter.weights[field]}`;
+  }
+};
+
 const buildQuery = (
   searchTerm: string,
   indexes: ElasticSearchIndexRequest[],
@@ -97,10 +110,8 @@ const buildQuery = (
         }
 
         // const fields = getSearchableFieldsForIndex(permissions);
-        const getField = field => adapter.mappings.properties[field];
-        const isSearchableField = field => ['keyword', 'text'].includes(getField(field).type);
         const allFields = Object.keys(adapter.mappings.properties);
-        const searchableFields = allFields.filter(isSearchableField);
+        const searchableFields = allFields.filter(field => isSearchableField(adapter, field));
         const publicFields = searchableFields.filter(field => !permissions['fields']?.[field]);
 
         // Register fetched fields and indexes for later reuse in the aggregation
@@ -119,22 +130,26 @@ const buildQuery = (
               ],
               minimum_should_match: 1,
               should: [
+                // Search in all public fields
                 {
                   multi_match: {
                     query: searchTerm,
                     type: 'best_fields',
                     operator: 'or',
                     fuzziness: 'AUTO',
-                    fields: publicFields,
+                    fields: publicFields.map(field => addWeightToField(adapter, field)),
                   },
                 },
+                // Search in private fields
                 ...Object.entries(permissions['fields'] || {})
                   .filter(([, conditions]) => conditions !== 'FORBIDDEN')
                   .map(([field, conditions]) => {
                     return {
                       bool: {
                         filter: conditions as QueryDslQueryContainer[],
-                        must: [{ match: { [field]: { query: searchTerm, fuzziness: 'AUTO' } } }],
+                        must: [
+                          { match: { [field]: { query: searchTerm, fuzziness: 'AUTO' } } }, // TODO: Should add field weight here, but it doesn't work with "must" (only "should")
+                        ],
                       },
                     } satisfies QueryDslQueryContainer;
                   }),
@@ -199,10 +214,10 @@ export const elasticSearchGlobalSearch = async (
                     includes: ['id', 'uuid'],
                   },
                   highlight: {
-                    pre_tags: ['<em>'],
-                    post_tags: ['</em>'],
-                    fragment_size: 150,
-                    number_of_fragments: 3,
+                    pre_tags: ['<mark>'],
+                    post_tags: ['</mark>'],
+                    fragment_size: 40,
+                    number_of_fragments: 1,
                     fields: Array.from(fields).reduce((acc, field) => {
                       acc[field] = {};
                       return acc;

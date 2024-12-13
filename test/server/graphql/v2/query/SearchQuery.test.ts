@@ -197,6 +197,7 @@ describe('server/graphql/v2/query/SearchQuery', () => {
     const platform = await fakeOrganization({ name: 'Open Collective', id: PlatformConstants.PlatformCollectiveId });
     await platform.addUserWithRole(testUsers.rootUser, 'ADMIN');
 
+    // Some accounts
     host = await fakeActiveHost({
       name: 'Incredible Host',
       slug: 'incredible-host',
@@ -218,6 +219,10 @@ describe('server/graphql/v2/query/SearchQuery', () => {
       admin: testUsers.projectAdmin,
     });
 
+    await fakeCollective({ name: 'a-prioritized-unique-name-or-slug', slug: 'whatever' });
+    await fakeCollective({ name: 'whatever', slug: 'a-prioritized-unique-name-or-slug' });
+
+    // An expense
     const expense = await fakeExpense({
       CollectiveId: project.id,
       FromCollectiveId: testUsers.fromUser.CollectiveId,
@@ -339,22 +344,43 @@ describe('server/graphql/v2/query/SearchQuery', () => {
     expect(results.accounts.collection.totalCount).to.eq(3); // Collective + host + project
     expect(results.accounts.collection.nodes).to.have.length(3);
     expect(results.accounts.maxScore).to.be.gt(0);
-    expect(results.accounts.highlights).to.deep.eq({
-      [idEncode(host.id, IDENTIFIER_TYPES.ACCOUNT)]: {
-        name: ['<em>Incredible</em> Host'],
-      },
-      [idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT)]: {
-        name: ['<em>Incredible</em> Collective with AUniqueCollectiveName'],
-      },
-      [idEncode(project.id, IDENTIFIER_TYPES.ACCOUNT)]: {
-        name: ['<em>Incredible</em> Project'],
-      },
-    });
+
+    expect(results.accounts.highlights).to.have.property(idEncode(host.id, IDENTIFIER_TYPES.ACCOUNT));
+    const hostMatch = results.accounts.highlights[idEncode(host.id, IDENTIFIER_TYPES.ACCOUNT)];
+    expect(hostMatch.score).to.be.closeTo(20, 15);
+    expect(hostMatch.fields.name).to.deep.eq(['<em>Incredible</em> Host']);
+    const collectiveMatch = results.accounts.highlights[idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT)];
+    expect(collectiveMatch.score).to.be.closeTo(20, 15);
+    expect(collectiveMatch.fields.name).to.deep.eq(['<em>Incredible</em> Collective with AUniqueCollectiveName']);
+    const projectMatch = results.accounts.highlights[idEncode(project.id, IDENTIFIER_TYPES.ACCOUNT)];
+    expect(projectMatch.score).to.be.closeTo(20, 15);
+    expect(projectMatch.fields.name).to.deep.eq(['<em>Incredible</em> Project']);
 
     expect(results.comments).to.be.undefined;
-
     expect(searchSpy.callCount).to.eq(1);
     expect(searchSpy.firstCall.args[0].index).to.eq('collectives,expenses');
+  });
+
+  describe('weights', () => {
+    it('should prioritize the slug over the name', async () => {
+      const queryResult = await callSearchQuery('a-prioritized-unique-name-or-slug', { includeAccounts: true });
+      queryResult.errors && console.error(queryResult.errors);
+      console.log(JSON.stringify(queryResult, null, 2));
+      expect(queryResult.errors).to.be.undefined;
+      expect(queryResult.data.search.results.accounts.collection.totalCount).to.eq(2);
+      const [first, second] = queryResult.data.search.results.accounts.collection.nodes;
+      expect(first.slug).to.eq('a-prioritized-unique-name-or-slug');
+      expect(second.slug).to.eq('whatever');
+
+      const highlights = queryResult.data.search.results.accounts.highlights;
+      const firstScore = highlights[idEncode(first.id, IDENTIFIER_TYPES.ACCOUNT)];
+      const secondScore = highlights[idEncode(second.id, IDENTIFIER_TYPES.ACCOUNT)];
+      expect(firstScore).to.be.gt(secondScore);
+    });
+
+    it('should prioritize the name over the description', async () => {
+      expect(true).to.be.false; // TODO
+    });
   });
 
   describe('permissions', () => {
@@ -629,6 +655,10 @@ describe('server/graphql/v2/query/SearchQuery', () => {
           unauthenticated: 1,
         });
       });
+    });
+
+    it('no match on private fields should still return public results', async () => {
+      expect(true).to.be.false; // TODO
     });
   });
 });
