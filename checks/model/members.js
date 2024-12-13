@@ -117,8 +117,8 @@ async function checkMissingMembers({ fix = false }) {
       o."CollectiveId",
       o."TierId",
       t."type" AS "tierType",
-      ARRAY_AGG(o."CreatedByUserId") AS "CreatedByUserId",
-      ARRAY_AGG(o."createdAt") AS "createdAt"
+      ARRAY_AGG(DISTINCT o."CreatedByUserId") AS "CreatedByUserId",
+      ARRAY_AGG(DISTINCT o."createdAt") AS "createdAt"
     FROM "Orders" o
     LEFT JOIN "Members" m
       ON o."FromCollectiveId" = m."MemberCollectiveId"
@@ -136,6 +136,9 @@ async function checkMissingMembers({ fix = false }) {
       ON t."id" = o."TierId" AND t."deletedAt" IS NULL
     WHERE o.status in ('PAID', 'ACTIVE')
     AND o."deletedAt" IS NULL
+    AND o."CollectiveId" != c."HostCollectiveId" -- Ignore contributions to the host
+    AND (o."data" ->> 'isBalanceTransfer')::boolean IS DISTINCT FROM true -- Ignore balance transfers
+    AND o."totalAmount" > 0 -- Ignore free tickets
     AND m.id IS NULL
     GROUP BY o."FromCollectiveId", o."CollectiveId", o."TierId", t."type"
     `,
