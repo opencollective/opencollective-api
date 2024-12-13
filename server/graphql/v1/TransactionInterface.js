@@ -416,6 +416,7 @@ export const TransactionExpenseType = new GraphQLObjectType({
       },
       expense: {
         type: ExpenseType,
+        deprecationReason: '2024-12-13: Please move to GraphQL v2',
         resolve(transaction, args, req) {
           // If it's a expense transaction it'll have an ExpenseId
           // otherwise we return null

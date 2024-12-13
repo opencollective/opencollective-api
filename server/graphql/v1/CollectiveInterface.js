@@ -452,6 +452,7 @@ export const CollectiveStatsType = new GraphQLObjectType({
       },
       expenses: {
         description: 'Breakdown of expenses submitted to this collective by type (ALL/PENDING/APPROVED/PAID/REJECTED)',
+        deprecationReason: '2024-12-13: Please move to GraphQL v2',
         type: ExpensesStatsType,
         resolve(collective) {
           return collective;
@@ -740,6 +741,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       },
       expenses: {
         type: new GraphQLList(ExpenseType),
+        deprecationReason: '2024-12-13: Please move to GraphQL v2',
         args: {
           type: { type: GraphQLString },
           limit: { type: GraphQLInt },
@@ -1569,6 +1571,7 @@ const CollectiveFields = () => {
     },
     expenses: {
       type: new GraphQLList(ExpenseType),
+      deprecationReason: '2024-12-13: Please move to GraphQL v2',
       args: {
         type: { type: GraphQLString },
         limit: { type: GraphQLInt },
