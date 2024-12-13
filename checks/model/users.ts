@@ -2,7 +2,7 @@ import '../../server/env';
 
 import { sequelize } from '../../server/models';
 
-import { runCheckThenExit } from './_utils';
+import { runAllChecksThenExit } from './_utils';
 
 async function checkDeletedCollectives() {
   const message = 'No Users without a matching Collective (no auto fix)';
@@ -42,11 +42,8 @@ async function checkDeletedUsers() {
   }
 }
 
-export async function checkUsers() {
-  await checkDeletedCollectives();
-  await checkDeletedUsers();
-}
+export const checks = [checkDeletedCollectives, checkDeletedUsers];
 
 if (!module.parent) {
-  runCheckThenExit(checkUsers);
+  runAllChecksThenExit(checks);
 }

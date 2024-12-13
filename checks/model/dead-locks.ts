@@ -5,7 +5,7 @@ import { flatten, uniq } from 'lodash';
 import logger from '../../server/lib/logger';
 import { sequelize } from '../../server/models';
 
-import { runCheckThenExit } from './_utils';
+import { runAllChecksThenExit } from './_utils';
 
 async function checkTransactionsImports({ fix = false } = {}) {
   const message = 'No deadlocks found in TransactionsImports';
@@ -39,10 +39,8 @@ async function checkTransactionsImports({ fix = false } = {}) {
   }
 }
 
-export async function checkDeadLocks({ fix = false } = {}) {
-  await checkTransactionsImports({ fix });
-}
+export const checks = [checkTransactionsImports];
 
 if (!module.parent) {
-  runCheckThenExit(checkDeadLocks);
+  runAllChecksThenExit(checks);
 }

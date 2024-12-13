@@ -2,7 +2,7 @@ import '../../server/env';
 
 import { sequelize } from '../../server/models';
 
-import { runCheckThenExit } from './_utils';
+import { runAllChecksThenExit } from './_utils';
 
 async function checkDuplicateNonRecurringContribution() {
   const message = 'Duplicate non-recurring Contribution (no auto fix)';
@@ -57,11 +57,8 @@ async function checkPaidOrdersWithNullProcessedAt({ fix = false } = {}) {
   }
 }
 
-export async function checkOrders({ fix = false } = {}) {
-  await checkDuplicateNonRecurringContribution();
-  await checkPaidOrdersWithNullProcessedAt({ fix });
-}
+export const checks = [checkDuplicateNonRecurringContribution, checkPaidOrdersWithNullProcessedAt];
 
 if (!module.parent) {
-  runCheckThenExit(checkOrders);
+  runAllChecksThenExit(checks);
 }

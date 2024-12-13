@@ -3,7 +3,7 @@ import '../../server/env';
 import logger from '../../server/lib/logger';
 import { sequelize } from '../../server/models';
 
-import { runCheckThenExit } from './_utils';
+import { runAllChecksThenExit } from './_utils';
 
 async function checkDeletedVirtualCardsWithExpenses({ fix = false } = {}) {
   const message = 'Deleted Virtual Cards with non-deleted Expenses ';
@@ -37,10 +37,8 @@ async function checkDeletedVirtualCardsWithExpenses({ fix = false } = {}) {
   }
 }
 
-export async function checkVirtualCards({ fix = false } = {}) {
-  await checkDeletedVirtualCardsWithExpenses({ fix });
-}
+export const checks = [checkDeletedVirtualCardsWithExpenses];
 
 if (!module.parent) {
-  runCheckThenExit(checkVirtualCards);
+  runAllChecksThenExit(checks);
 }

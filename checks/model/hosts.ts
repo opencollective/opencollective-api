@@ -3,7 +3,7 @@ import '../../server/env';
 import logger from '../../server/lib/logger';
 import { sequelize } from '../../server/models';
 
-import { runCheckThenExit } from './_utils';
+import { runAllChecksThenExit } from './_utils';
 
 async function checkHostFeePercent({ fix = false } = {}) {
   const message = 'Host without hostFeePercent';
@@ -137,14 +137,8 @@ async function checkHostActive({ fix = false } = {}) {
   }
 }
 
-export async function checkHosts({ fix = false } = {}) {
-  await checkHostFeePercent({ fix });
-
-  await checkHostMemberEntry({ fix });
-
-  await checkHostActive({ fix });
-}
+export const checks = [checkHostFeePercent, checkHostMemberEntry, checkHostActive];
 
 if (!module.parent) {
-  runCheckThenExit(checkHosts);
+  runAllChecksThenExit(checks);
 }

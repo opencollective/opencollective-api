@@ -3,7 +3,7 @@ import '../../server/env';
 import logger from '../../server/lib/logger';
 import { sequelize } from '../../server/models';
 
-import { runCheckThenExit } from './_utils';
+import { runAllChecksThenExit } from './_utils';
 
 async function checkDeletedCollectives({ fix = false } = {}) {
   const message = 'No Transactions without a matching Collective';
@@ -108,13 +108,8 @@ async function checkUniqueTransactionGroup() {
   }
 }
 
-export async function checkTransactions({ fix = false } = {}) {
-  await checkDeletedCollectives({ fix });
-  await checkOrphanTransactions();
-  await checkUniqueUuid();
-  await checkUniqueTransactionGroup();
-}
+export const checks = [checkDeletedCollectives, checkOrphanTransactions, checkUniqueUuid, checkUniqueTransactionGroup];
 
 if (!module.parent) {
-  runCheckThenExit(checkTransactions);
+  runAllChecksThenExit(checks);
 }

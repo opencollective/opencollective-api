@@ -3,7 +3,7 @@ import '../../server/env';
 import logger from '../../server/lib/logger';
 import { sequelize } from '../../server/models';
 
-import { runCheckThenExit } from './_utils';
+import { runAllChecksThenExit } from './_utils';
 
 async function checkHostFeePercent({ fix = false } = {}) {
   const message = 'Hosted Collectives without hostFeePercent';
@@ -79,11 +79,8 @@ async function checkPendingHostApplications({ fix = false } = {}) {
   }
 }
 
-export async function checkHostedCollectives({ fix = false } = {}) {
-  await checkHostFeePercent({ fix });
-  await checkPendingHostApplications({ fix });
-}
+export const checks = [checkHostFeePercent, checkPendingHostApplications];
 
 if (!module.parent) {
-  runCheckThenExit(checkHostedCollectives);
+  runAllChecksThenExit(checks);
 }
