@@ -7,7 +7,11 @@ import { CommentType } from '../../../models/Comment';
 import { stripHTMLOrEmpty } from '../../sanitize-html';
 import { ElasticSearchIndexName } from '../constants';
 
-import { ElasticSearchModelAdapter, FindEntriesToIndexOptions } from './ElasticSearchModelAdapter';
+import {
+  ElasticSearchFieldWeight,
+  ElasticSearchModelAdapter,
+  FindEntriesToIndexOptions,
+} from './ElasticSearchModelAdapter';
 
 export class ElasticSearchCommentsAdapter implements ElasticSearchModelAdapter {
   public readonly index = ElasticSearchIndexName.COMMENTS;
@@ -31,6 +35,20 @@ export class ElasticSearchCommentsAdapter implements ElasticSearchModelAdapter {
   public getModel() {
     return models.Comment;
   }
+
+  public readonly weights: Partial<Record<keyof (typeof this.mappings)['properties'], ElasticSearchFieldWeight>> = {
+    html: 10,
+    // Ignored fields
+    id: 0,
+    CollectiveId: 0,
+    FromCollectiveId: 0,
+    CreatedByUserId: 0,
+    ParentCollectiveId: 0,
+    HostCollectiveId: 0,
+    createdAt: 0,
+    updatedAt: 0,
+    type: 0,
+  };
 
   public findEntriesToIndex(options: FindEntriesToIndexOptions = {}) {
     return models.Comment.findAll({

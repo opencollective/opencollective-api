@@ -1,4 +1,4 @@
-import { IndicesIndexSettings, MappingTypeMapping, QueryDslQueryContainer } from '@elastic/elasticsearch/lib/api/types';
+import { MappingTypeMapping, QueryDslQueryContainer } from '@elastic/elasticsearch/lib/api/types';
 import { ModelStatic } from 'sequelize';
 
 import { Model } from '../../../lib/sequelize';
@@ -21,10 +21,12 @@ export type FindEntriesToIndexOptions = {
   relatedToCollectiveIds?: number[];
 };
 
+export type ElasticSearchFieldWeight = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
+
 export interface ElasticSearchModelAdapter {
   readonly index: ElasticSearchIndexName;
   readonly mappings: MappingTypeMapping;
-  readonly settings?: IndicesIndexSettings;
+  readonly weights: Partial<Record<keyof (typeof this)['mappings']['properties'], ElasticSearchFieldWeight>>;
 
   getModel(): ModelStatic<Model>;
 

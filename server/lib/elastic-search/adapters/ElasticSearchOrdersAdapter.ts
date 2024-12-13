@@ -4,7 +4,11 @@ import { Op } from 'sequelize';
 import models, { Subscription } from '../../../models';
 import { ElasticSearchIndexName } from '../constants';
 
-import { ElasticSearchModelAdapter, FindEntriesToIndexOptions } from './ElasticSearchModelAdapter';
+import {
+  ElasticSearchFieldWeight,
+  ElasticSearchModelAdapter,
+  FindEntriesToIndexOptions,
+} from './ElasticSearchModelAdapter';
 
 export class ElasticSearchOrdersAdapter implements ElasticSearchModelAdapter {
   public readonly index = ElasticSearchIndexName.ORDERS;
@@ -28,6 +32,19 @@ export class ElasticSearchOrdersAdapter implements ElasticSearchModelAdapter {
   public getModel() {
     return models.Order;
   }
+
+  public readonly weights: Partial<Record<keyof (typeof this.mappings)['properties'], ElasticSearchFieldWeight>> = {
+    paypalSubscriptionId: 10,
+    id: 10,
+    description: 5,
+    // Ignored fields
+    CollectiveId: 0,
+    FromCollectiveId: 0,
+    HostCollectiveId: 0,
+    ParentCollectiveId: 0,
+    createdAt: 0,
+    updatedAt: 0,
+  };
 
   public findEntriesToIndex(options: FindEntriesToIndexOptions = {}) {
     return models.Order.findAll({
@@ -81,7 +98,6 @@ export class ElasticSearchOrdersAdapter implements ElasticSearchModelAdapter {
   }
 
   public getIndexPermissions(adminOfAccountIds: number[]) {
-    /* eslint-disable camelcase */
     return {
       default: 'PUBLIC' as const,
       fields: {
@@ -93,6 +109,5 @@ export class ElasticSearchOrdersAdapter implements ElasticSearchModelAdapter {
         },
       },
     };
-    /* eslint-enable camelcase */
   }
 }

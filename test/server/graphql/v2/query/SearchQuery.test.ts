@@ -9,6 +9,7 @@ import PlatformConstants from '../../../../../server/constants/platform';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import * as ElasticSearchClientSingletonLib from '../../../../../server/lib/elastic-search/client';
+import { formatIndexNameForElasticSearch } from '../../../../../server/lib/elastic-search/common';
 import { ElasticSearchIndexName } from '../../../../../server/lib/elastic-search/constants';
 import {
   createElasticSearchIndex,
@@ -197,6 +198,7 @@ describe('server/graphql/v2/query/SearchQuery', () => {
     const platform = await fakeOrganization({ name: 'Open Collective', id: PlatformConstants.PlatformCollectiveId });
     await platform.addUserWithRole(testUsers.rootUser, 'ADMIN');
 
+    // Some accounts
     host = await fakeActiveHost({
       name: 'Incredible Host',
       slug: 'incredible-host',
@@ -218,16 +220,26 @@ describe('server/graphql/v2/query/SearchQuery', () => {
       admin: testUsers.projectAdmin,
     });
 
+    // To test slug prioritization over name
+    await fakeCollective({ name: 'a-prioritized-unique-name-or-slug', slug: 'whatever' });
+    await fakeCollective({ name: 'whatever', slug: 'a-prioritized-unique-name-or-slug' });
+
+    // To test name prioritization over description
+    await fakeCollective({ name: 'frank zappa', description: 'whatever' });
+    await fakeCollective({ name: 'whatever', description: 'the legendary artist frank zappa' });
+
+    // An expense
     const expense = await fakeExpense({
       CollectiveId: project.id,
       FromCollectiveId: testUsers.fromUser.CollectiveId,
       UserId: testUsers.fromUser.id,
+      description: 'FullyPublicExpenseDescription',
       privateMessage: '<div>AVerySecretExpensePrivateMessage</div>',
       invoiceInfo: 'AVerySecretExpenseInvoiceInfo',
       reference: 'AVerySecretExpenseReference',
     });
 
-    // A regular comment
+    // A regular expense comment
     await fakeComment({
       CollectiveId: project.id,
       FromCollectiveId: testUsers.fromUser.CollectiveId,
@@ -285,7 +297,7 @@ describe('server/graphql/v2/query/SearchQuery', () => {
     );
 
     // A public update
-    await fakeUpdate({
+    const publicUpdate = await fakeUpdate({
       FromCollectiveId: testUsers.fromUser.CollectiveId,
       CollectiveId: project.id,
       CreatedByUserId: testUsers.fromUser.id,
@@ -301,6 +313,15 @@ describe('server/graphql/v2/query/SearchQuery', () => {
       html: '<div>AVeryUniquePrivateUpdateHtml</div>',
       title: 'AVeryUniquePrivateUpdateTitle',
       isPrivate: true,
+    });
+
+    // A comment on a public update
+    await fakeComment({
+      CollectiveId: project.id,
+      FromCollectiveId: testUsers.fromUser.CollectiveId,
+      CreatedByUserId: testUsers.fromUser.id,
+      html: '<div>A comment on a public update</div>',
+      UpdateId: publicUpdate.id,
     });
 
     // Populate roles for all test users
@@ -339,22 +360,57 @@ describe('server/graphql/v2/query/SearchQuery', () => {
     expect(results.accounts.collection.totalCount).to.eq(3); // Collective + host + project
     expect(results.accounts.collection.nodes).to.have.length(3);
     expect(results.accounts.maxScore).to.be.gt(0);
-    expect(results.accounts.highlights).to.deep.eq({
-      [idEncode(host.id, IDENTIFIER_TYPES.ACCOUNT)]: {
-        name: ['<em>Incredible</em> Host'],
-      },
-      [idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT)]: {
-        name: ['<em>Incredible</em> Collective with AUniqueCollectiveName'],
-      },
-      [idEncode(project.id, IDENTIFIER_TYPES.ACCOUNT)]: {
-        name: ['<em>Incredible</em> Project'],
-      },
-    });
+
+    expect(results.accounts.highlights).to.have.property(idEncode(host.id, IDENTIFIER_TYPES.ACCOUNT));
+    const hostMatch = results.accounts.highlights[idEncode(host.id, IDENTIFIER_TYPES.ACCOUNT)];
+    expect(hostMatch.score).to.be.within(1, 100);
+    expect(hostMatch.fields.name).to.deep.eq(['<mark>Incredible</mark> Host']);
+    const collectiveMatch = results.accounts.highlights[idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT)];
+    expect(collectiveMatch.score).to.be.within(1, 100);
+    expect(collectiveMatch.fields.name).to.deep.eq(['<mark>Incredible</mark> Collective with AUniqueCollectiveName']);
+    const projectMatch = results.accounts.highlights[idEncode(project.id, IDENTIFIER_TYPES.ACCOUNT)];
+    expect(projectMatch.score).to.be.within(1, 100);
+    expect(projectMatch.fields.name).to.deep.eq(['<mark>Incredible</mark> Project']);
 
     expect(results.comments).to.be.undefined;
-
     expect(searchSpy.callCount).to.eq(1);
-    expect(searchSpy.firstCall.args[0].index).to.eq('collectives,expenses');
+    expect(searchSpy.firstCall.args[0].index).to.eq(
+      `${formatIndexNameForElasticSearch(ElasticSearchIndexName.COLLECTIVES)},${formatIndexNameForElasticSearch(ElasticSearchIndexName.EXPENSES)}`,
+    );
+  });
+
+  describe('weights', () => {
+    it('should prioritize the slug over the name', async () => {
+      const queryResult = await callSearchQuery('a-prioritized-unique-name-or-slug', { includeAccounts: true });
+      queryResult.errors && console.error(queryResult.errors);
+
+      expect(queryResult.errors).to.be.undefined;
+      expect(queryResult.data.search.results.accounts.collection.totalCount).to.eq(2);
+      const [first, second] = queryResult.data.search.results.accounts.collection.nodes;
+      expect(first.slug).to.eq('a-prioritized-unique-name-or-slug');
+      expect(second.slug).to.eq('whatever');
+
+      const highlights = queryResult.data.search.results.accounts.highlights;
+      const firstScore = highlights[first.id].score;
+      const secondScore = highlights[second.id].score;
+      expect(firstScore).to.be.gt(secondScore);
+    });
+
+    it('should prioritize the name over the description', async () => {
+      const queryResult = await callSearchQuery('frank zappa', { includeAccounts: true });
+      queryResult.errors && console.error(queryResult.errors);
+
+      expect(queryResult.errors).to.be.undefined;
+      expect(queryResult.data.search.results.accounts.collection.totalCount).to.eq(2);
+      const [first, second] = queryResult.data.search.results.accounts.collection.nodes;
+      expect(first.name).to.eq('frank zappa');
+      expect(second.name).to.eq('whatever');
+
+      const highlights = queryResult.data.search.results.accounts.highlights;
+      const firstScore = highlights[first.id].score;
+      const secondScore = highlights[second.id].score;
+      expect(firstScore).to.be.gt(secondScore);
+    });
   });
 
   describe('permissions', () => {
@@ -486,6 +542,18 @@ describe('server/graphql/v2/query/SearchQuery', () => {
           unauthenticated: 0,
         });
       });
+
+      describe('description (public)', () => {
+        testPermissionsForField('expenses', 'FullyPublicExpenseDescription', {
+          hostAdmin: 1,
+          collectiveAdmin: 1,
+          projectAdmin: 1,
+          randomUser: 1,
+          rootUser: 1,
+          fromUser: 1,
+          unauthenticated: 1,
+        });
+      });
     });
 
     describe('hostApplications', () => {
@@ -503,7 +571,7 @@ describe('server/graphql/v2/query/SearchQuery', () => {
     });
 
     describe('orders', () => {
-      describe('description', () => {
+      describe('description (public)', () => {
         testPermissionsForField('orders', 'AVeryUniqueOrderDescription', {
           hostAdmin: 1,
           collectiveAdmin: 1,
@@ -567,7 +635,7 @@ describe('server/graphql/v2/query/SearchQuery', () => {
     });
 
     describe('transactions', () => {
-      describe('description', () => {
+      describe('description (public)', () => {
         testPermissionsForField('transactions', 'AVeryUniqueTransactionDescription', {
           // Using 2 for CREDIT + DEBIT
           hostAdmin: 2,
