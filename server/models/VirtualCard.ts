@@ -184,7 +184,7 @@ VirtualCard.init(
         const encrypted = this.getDataValue('privateData');
         try {
           return JSON.parse(crypto.decrypt(encrypted as string));
-        } catch (e) {
+        } catch {
           return null;
         }
       },

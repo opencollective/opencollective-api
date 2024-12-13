@@ -121,7 +121,7 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
     let parsedURL;
     try {
       parsedURL = new URL(url);
-    } catch (e) {
+    } catch {
       return false;
     }
 

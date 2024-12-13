@@ -229,9 +229,11 @@ program.command('fix [hosts]').action(async hosts => {
             `\tDRY RUN: Would have deleted refund transactions for expense #${expense.id} and updated fees with:`,
           );
           console.log(`\t\tNew expense data:`, newExpenseData);
-          hasPaymentProcessorFee
-            ? console.log(`\t\tNew payment processor fee transaction data:`, newPaymentProcessorFeeTransaction)
-            : console.log(`\t\tNo payment processor fee transaction to create`);
+          if (hasPaymentProcessorFee) {
+            console.log(`\t\tNew payment processor fee transaction data:`, newPaymentProcessorFeeTransaction);
+          } else {
+            console.log(`\t\tNo payment processor fee transaction to create`);
+          }
         } else {
           // Update Expense and backup previous data
           await expense.update({

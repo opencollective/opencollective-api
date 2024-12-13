@@ -586,7 +586,6 @@ export const chargeDisputeClosed = async (event: Stripe.Event) => {
 export const reviewOpened = async (event: Stripe.Event) => {
   const review = event.data.object as Stripe.Review;
   const paymentIntentTransaction = await models.Transaction.findOne({
-    // eslint-disable-next-line camelcase
     where: { data: { charge: { payment_intent: review.payment_intent } } },
     include: [
       {
@@ -668,7 +667,6 @@ export const reviewClosed = async (event: Stripe.Event) => {
   const clearedAt = event.created && moment.unix(event.created).toDate();
 
   const paymentIntentTransaction = await models.Transaction.findOne({
-    // eslint-disable-next-line camelcase
     where: { data: { charge: { payment_intent: stripePaymentIntentId } } },
     include: [
       {
@@ -941,7 +939,7 @@ export const webhook = async (request: Request<unknown, Stripe.Event>) => {
       request.headers['stripe-signature'],
       config.stripe.webhookSigningSecret,
     );
-  } catch (e) {
+  } catch {
     throw new Error('Source of event not recognized');
   }
 

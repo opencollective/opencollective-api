@@ -55,7 +55,7 @@ program.command('dump [recipe] [as_user] [env_file]').action(async (recipe, asUs
   const remoteUser = await models.User.findOne({ include: [{ association: 'collective', where: { slug: asUser } }] });
   const req: PartialRequest = { remoteUser, loaders: loaders({ remoteUser }) };
 
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { entries, defaultDependencies } = require(recipe);
   const parsed = {};
   const date = new Date().toISOString().substring(0, 10);
@@ -74,6 +74,7 @@ program.command('dump [recipe] [as_user] [env_file]').action(async (recipe, asUs
       asUser,
       hash,
       migrationsHash,
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       recipe: require(recipe),
     }),
   );

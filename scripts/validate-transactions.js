@@ -4,7 +4,7 @@ import models, { Op, sequelize } from '../server/models';
 
 async function run() {
   let page = 0;
-  // eslint-disable-next-line no-constant-condition
+
   while (true) {
     console.log(`Page ${page}`);
     const transactions = await models.Transaction.findAll({

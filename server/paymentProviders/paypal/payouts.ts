@@ -50,7 +50,6 @@ export const payExpensesBatch = async (expenses: Expense[]): Promise<Expense[]> 
 
   const connectedAccount = await host.getAccountForPaymentProvider(PROVIDER_NAME);
 
-  // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
   const getExpenseItem = expense => ({
     note: getPayoutItemNote(expense),
     amount: {
@@ -125,7 +124,7 @@ export const checkBatchItemStatus = async (
         if (isMultiCurrency && !item.currency_conversion?.exchange_rate) {
           try {
             fxRate = await getFxRate(expense.currency, host.currency);
-          } catch (e) {
+          } catch {
             // We don't want to fail recording the transaction if we can't get an FX rate, but we'll probably
             // want to go back and update it later.
             logger.error(`Could not fetch FX rate when recording expense #${expense.id} payment`);

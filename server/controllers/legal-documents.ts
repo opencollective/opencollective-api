@@ -64,7 +64,7 @@ export default {
     let decodedId;
     try {
       decodedId = idDecode(id, 'legal-document');
-    } catch (e) {
+    } catch {
       return res.status(400).send({ message: 'Invalid id' });
     }
 
@@ -79,7 +79,6 @@ export default {
 
       if (!legalDocument) {
         return res.status(404).send({ message: 'Legal document not found' });
-        // eslint-disable-next-line no-constant-condition
       } else if (!(await hasPermissionToDownload(legalDocument, req.remoteUser))) {
         return res.status(403).send({ message: 'Unauthorized' });
       } else if (!(await twoFactorAuthLib.userHasTwoFactorAuthEnabled(req.remoteUser))) {

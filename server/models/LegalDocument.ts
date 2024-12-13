@@ -305,7 +305,7 @@ class LegalDocument extends Model<LegalDocumentAttributes, InferCreationAttribut
     try {
       const { bucket } = parseS3Url(this.documentLink);
       return bucket === getTaxFormsS3Bucket();
-    } catch (e) {
+    } catch {
       return false;
     }
   };

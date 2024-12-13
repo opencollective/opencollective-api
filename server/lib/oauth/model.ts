@@ -1,6 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable @typescript-eslint/no-empty-function */
-
 import crypto from 'crypto';
 
 import type OAuth2Server from '@node-oauth/oauth2-server';

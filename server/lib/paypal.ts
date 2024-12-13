@@ -34,7 +34,7 @@ const getPaypalWebhookUrl = host => {
 const parseError = e => {
   try {
     return JSON.parse(e.message).message;
-  } catch (_) {
+  } catch {
     return e.message;
   }
 };
@@ -263,7 +263,7 @@ const hostPaypalWebhookIsReady = async (host): Promise<boolean> => {
   try {
     const webhook = await getPaypalWebhook(host, webhookId);
     return Boolean(webhook && !getWebhookIncompatibilities(webhook));
-  } catch (e) {
+  } catch {
     // Can happen when the webhook has been deleted manually on PayPal
     logger.info(`Something's wrong with ${host.slug}'s webhook, let's recreate it`);
     return false;
