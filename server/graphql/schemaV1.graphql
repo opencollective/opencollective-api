@@ -131,8 +131,6 @@ interface CollectiveInterface {
   ordersFromCollective(subscriptionsOnly: Boolean): [OrderType]
   stats: CollectiveStatsType
   transactions(type: String, limit: Int, offset: Int, includeExpenseTransactions: Boolean): [Transaction]
-  expenses(type: String, limit: Int, offset: Int, status: String, includeHostedCollectives: Boolean): [ExpenseType]
-    @deprecated(reason: "2024-12-13: Please move to GraphQL v2")
 
   """
   The list of expense types supported by this account
@@ -368,11 +366,6 @@ type OrderType {
   currency: String
   createdAt: DateString
   updatedAt: DateString
-
-  """
-  Whether this subscription is past due or not
-  """
-  isPastDue: Boolean @deprecated(reason: "2024-12-13: Not used, so we stop returning it.")
 
   """
   If there is a subscription, is it active?
@@ -882,79 +875,6 @@ type NotificationType {
 }
 
 """
-This represents an Expense
-"""
-type ExpenseType {
-  id: Int
-  idV2: String
-  amount: Float
-  currency: String
-  createdAt: DateString
-  updatedAt: DateString
-  incurredAt: DateString
-  description: String
-  tags: [String]
-  status: String
-  type: String
-  PayoutMethod: PayoutMethod @deprecated(reason: "2024-12-13: Please move to GraphQL v2")
-  privateMessage: String
-  items: [ExpenseItem] @deprecated(reason: "2024-12-13: Please move to GraphQL v2")
-  attachedFiles: [ExpenseAttachedFile!]
-  user: UserDetails
-  fromCollective: CollectiveInterface
-  collective: CollectiveInterface
-
-  """
-  Returns the DEBIT transaction to pay out this expense
-  """
-  transaction: Transaction
-}
-
-"""
-A payout method for expenses
-"""
-type PayoutMethod {
-  id: Int
-  type: PayoutMethodTypeEnum
-  name: String
-  isSaved: Boolean
-  data: JSON
-}
-
-enum PayoutMethodTypeEnum {
-  OTHER
-  PAYPAL
-  BANK_ACCOUNT
-  ACCOUNT_BALANCE
-  CREDIT_CARD
-}
-
-"""
-Public fields for an expense item
-"""
-type ExpenseItem {
-  id: Int!
-  amount: Int!
-  createdAt: IsoDateString!
-  updatedAt: IsoDateString!
-  incurredAt: IsoDateString!
-  deletedAt: IsoDateString
-  description: String
-  url: String
-}
-
-"""
-Fields for an expense's attached file
-"""
-type ExpenseAttachedFile {
-  """
-  Unique identifier for this file
-  """
-  id: Int!
-  url: String
-}
-
-"""
 A social link
 """
 type SocialLink {
@@ -1011,6 +931,25 @@ enum PaymenMethodOrderField {
   Order payment methods by type (creditcard, giftcard, etc.)
   """
   type
+}
+
+"""
+A payout method for expenses
+"""
+type PayoutMethod {
+  id: Int
+  type: PayoutMethodTypeEnum
+  name: String
+  isSaved: Boolean
+  data: JSON
+}
+
+enum PayoutMethodTypeEnum {
+  OTHER
+  PAYPAL
+  BANK_ACCOUNT
+  ACCOUNT_BALANCE
+  CREDIT_CARD
 }
 
 """
@@ -1981,11 +1920,6 @@ type CollectiveStatsType {
   events: Int
 
   """
-  Breakdown of expenses submitted to this collective by type (ALL/PENDING/APPROVED/PAID/REJECTED)
-  """
-  expenses: ExpensesStatsType @deprecated(reason: "2024-12-13: Please move to GraphQL v2")
-
-  """
   Number of transactions
   """
   transactions: TransactionsStatsType
@@ -2069,34 +2003,6 @@ type CollectivesStatsType {
   Returns the number of events that have this collective has parent
   """
   events: Int
-}
-
-"""
-Breakdown of expenses per status (ALL/PENDING/APPROVED/PAID/REJECTED)
-"""
-type ExpensesStatsType {
-  id: Int
-  all: Int
-
-  """
-  Returns the number of expenses that are pending
-  """
-  pending: Int
-
-  """
-  Returns the number of expenses that are approved
-  """
-  approved: Int
-
-  """
-  Returns the number of expenses that are rejected
-  """
-  rejected: Int
-
-  """
-  Returns the number of expenses that are paid
-  """
-  paid: Int
 }
 
 """
@@ -2295,8 +2201,6 @@ type Collective implements CollectiveInterface {
     """
     includeExpenseTransactions: Boolean
   ): [Transaction]
-  expenses(type: String, limit: Int, offset: Int, includeHostedCollectives: Boolean, status: String): [ExpenseType]
-    @deprecated(reason: "2024-12-13: Please move to GraphQL v2")
 
   """
   The list of expense types supported by this account
@@ -2565,8 +2469,6 @@ type Event implements CollectiveInterface {
     """
     includeExpenseTransactions: Boolean
   ): [Transaction]
-  expenses(type: String, limit: Int, offset: Int, includeHostedCollectives: Boolean, status: String): [ExpenseType]
-    @deprecated(reason: "2024-12-13: Please move to GraphQL v2")
 
   """
   The list of expense types supported by this account
@@ -2835,8 +2737,6 @@ type Fund implements CollectiveInterface {
     """
     includeExpenseTransactions: Boolean
   ): [Transaction]
-  expenses(type: String, limit: Int, offset: Int, includeHostedCollectives: Boolean, status: String): [ExpenseType]
-    @deprecated(reason: "2024-12-13: Please move to GraphQL v2")
 
   """
   The list of expense types supported by this account
@@ -3105,8 +3005,6 @@ type Organization implements CollectiveInterface {
     """
     includeExpenseTransactions: Boolean
   ): [Transaction]
-  expenses(type: String, limit: Int, offset: Int, includeHostedCollectives: Boolean, status: String): [ExpenseType]
-    @deprecated(reason: "2024-12-13: Please move to GraphQL v2")
 
   """
   The list of expense types supported by this account
@@ -3375,8 +3273,6 @@ type Project implements CollectiveInterface {
     """
     includeExpenseTransactions: Boolean
   ): [Transaction]
-  expenses(type: String, limit: Int, offset: Int, includeHostedCollectives: Boolean, status: String): [ExpenseType]
-    @deprecated(reason: "2024-12-13: Please move to GraphQL v2")
 
   """
   The list of expense types supported by this account
@@ -3468,144 +3364,6 @@ type Project implements CollectiveInterface {
 }
 
 """
-Expense model
-"""
-type Expense implements Transaction {
-  id: Int
-  idV2: String
-  refundTransaction: Transaction
-  isRefund: Boolean
-  uuid: String
-  type: String
-  kind: String
-  amount: Float
-  currency: String
-  hostCurrency: String
-
-  """
-  Exchange rate between the currency of the transaction and the currency of the host (transaction.amount * transaction.hostCurrencyFxRate = transaction.amountInHostCurrency)
-  """
-  hostCurrencyFxRate: Float
-
-  """
-  Fee kept by the host in the lowest unit of the currency of the host (ie. in cents)
-  """
-  hostFeeInHostCurrency(
-    """
-    Fetch HOST_FEE transaction for retro-compatiblity.
-    """
-    fetchHostFee: Boolean = false
-  ): Float
-
-  """
-  Fee kept by the Open Collective Platform in the lowest unit of the currency of the host (ie. in cents)
-  """
-  platformFeeInHostCurrency: Float
-
-  """
-  Fee kept by the payment processor in the lowest unit of the currency of the host (ie. in cents)
-  """
-  paymentProcessorFeeInHostCurrency(
-    """
-    Fetch PAYMENT_PROCESSOR_FEE transaction for retro-compatiblity.
-    """
-    fetchPaymentProcessorFee: Boolean = false
-  ): Float
-
-  """
-  The amount paid in tax (for example VAT) for this transaction
-  """
-  taxAmount(
-    """
-    Fetch TAX transaction for retro-compatiblity.
-    """
-    fetchTax: Boolean = false
-  ): Float
-
-  """
-  If taxAmount is set, this field will contain more info about the tax
-  """
-  taxInfo: TaxInfo
-
-  """
-  Amount after fees received by the collective in the lowest unit of its own currency (ie. cents)
-  """
-  netAmountInCollectiveCurrency(
-    """
-    Fetch HOST_FEE transaction and integrate in calculation for retro-compatiblity.
-    """
-    fetchHostFee: Boolean = false
-
-    """
-    Fetch PAYMENT_PROCESSOR_FEE transaction and integrate in calculation for retro-compatiblity.
-    """
-    fetchPaymentProcessorFee: Boolean = false
-
-    """
-    Fetch TAX transaction transaction and integrate in calculation for retro-compatiblity.
-    """
-    fetchTax: Boolean = false
-  ): Float
-  amountInHostCurrency: Float
-  host: User
-  createdByUser: UserDetails
-  fromCollective: CollectiveInterface
-  usingGiftCardFromCollective: CollectiveInterface
-  collective: CollectiveInterface
-  createdAt: DateString
-  updatedAt: DateString
-  paymentMethod: PaymentMethodType
-  invoiceTemplate: String
-  description: String
-  expense: ExpenseType @deprecated(reason: "2024-12-13: Please move to GraphQL v2")
-}
-
-"""
-Information about a tax
-"""
-type TaxInfo {
-  """
-  An unique identifier for this tax (GST, VAT, etc)
-  """
-  id: String!
-
-  """
-  Identifier for this tax (GST, VAT, etc)
-  """
-  type: OrderTaxType!
-
-  """
-  Percentage applied, between 0-100
-  """
-  percentage: Int! @deprecated(reason: "Please use `rate` instead")
-
-  """
-  Percentage applied, between 0-1
-  """
-  rate: Float!
-
-  """
-  Tax ID number of the 3rd party receiving/paying the tax
-  """
-  idNumber: String
-}
-
-"""
-The type of a tax like GST, VAT, etc
-"""
-enum OrderTaxType {
-  """
-  European Value Added Tax
-  """
-  VAT
-
-  """
-  New Zealand Good and Services Tax
-  """
-  GST
-}
-
-"""
 Transaction interface
 """
 interface Transaction {
@@ -3665,6 +3423,51 @@ interface Transaction {
   refundTransaction: Transaction
   isRefund: Boolean
   invoiceTemplate: String
+}
+
+"""
+Information about a tax
+"""
+type TaxInfo {
+  """
+  An unique identifier for this tax (GST, VAT, etc)
+  """
+  id: String!
+
+  """
+  Identifier for this tax (GST, VAT, etc)
+  """
+  type: OrderTaxType!
+
+  """
+  Percentage applied, between 0-100
+  """
+  percentage: Int! @deprecated(reason: "Please use `rate` instead")
+
+  """
+  Percentage applied, between 0-1
+  """
+  rate: Float!
+
+  """
+  Tax ID number of the 3rd party receiving/paying the tax
+  """
+  idNumber: String
+}
+
+"""
+The type of a tax like GST, VAT, etc
+"""
+enum OrderTaxType {
+  """
+  European Value Added Tax
+  """
+  VAT
+
+  """
+  New Zealand Good and Services Tax
+  """
+  GST
 }
 
 """
@@ -3940,8 +3743,6 @@ type User implements CollectiveInterface {
     """
     includeExpenseTransactions: Boolean
   ): [Transaction]
-  expenses(type: String, limit: Int, offset: Int, includeHostedCollectives: Boolean, status: String): [ExpenseType]
-    @deprecated(reason: "2024-12-13: Please move to GraphQL v2")
 
   """
   The list of expense types supported by this account
@@ -4212,8 +4013,6 @@ type Vendor implements CollectiveInterface {
     """
     includeExpenseTransactions: Boolean
   ): [Transaction]
-  expenses(type: String, limit: Int, offset: Int, includeHostedCollectives: Boolean, status: String): [ExpenseType]
-    @deprecated(reason: "2024-12-13: Please move to GraphQL v2")
 
   """
   The list of expense types supported by this account

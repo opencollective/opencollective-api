@@ -12,7 +12,7 @@ import {
 } from 'graphql';
 import { Kind } from 'graphql/language';
 import { GraphQLJSON } from 'graphql-scalars';
-import { omit, pick } from 'lodash';
+import { pick } from 'lodash';
 import moment from 'moment';
 
 import FEATURE from '../../constants/feature';
@@ -27,7 +27,6 @@ import { reportMessageToSentry } from '../../lib/sentry';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import models, { Op, sequelize } from '../../models';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
-import { canSeeExpenseAttachments, canSeeExpensePayoutMethodPrivateDetails } from '../common/expenses';
 import { hasSeenLatestChangelogEntry } from '../common/user';
 import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
 
@@ -680,195 +679,6 @@ export const InvoiceType = new GraphQLObjectType({
   },
 });
 
-const ExpenseItemType = new GraphQLObjectType({
-  name: 'ExpenseItem',
-  description: 'Public fields for an expense item',
-  deprecationReason: '2024-12-13: Please move to GraphQL v2',
-  fields: () => ({
-    id: { type: new GraphQLNonNull(GraphQLInt) },
-    amount: { type: new GraphQLNonNull(GraphQLInt) },
-    createdAt: { type: new GraphQLNonNull(IsoDateString) },
-    updatedAt: { type: new GraphQLNonNull(IsoDateString) },
-    incurredAt: { type: new GraphQLNonNull(IsoDateString) },
-    deletedAt: { type: IsoDateString },
-    description: { type: GraphQLString },
-    url: { type: GraphQLString },
-  }),
-});
-
-const ExpenseAttachedFile = new GraphQLObjectType({
-  name: 'ExpenseAttachedFile',
-  description: "Fields for an expense's attached file",
-  deprecationReason: '2024-12-13: Please move to GraphQL v2',
-  fields: () => ({
-    id: {
-      type: new GraphQLNonNull(GraphQLInt),
-      description: 'Unique identifier for this file',
-    },
-    url: {
-      type: GraphQLString,
-    },
-  }),
-});
-
-export const ExpenseType = new GraphQLObjectType({
-  name: 'ExpenseType',
-  description: 'This represents an Expense',
-  deprecationReason: '2024-12-13: Please move to GraphQL v2',
-  fields: () => {
-    return {
-      id: {
-        type: GraphQLInt,
-        resolve(expense) {
-          return expense.id;
-        },
-      },
-      idV2: {
-        type: GraphQLString,
-        resolve(expense) {
-          return idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE);
-        },
-      },
-      amount: {
-        type: GraphQLFloat,
-        resolve(expense) {
-          return expense.amount;
-        },
-      },
-      currency: {
-        type: GraphQLString,
-        resolve(expense) {
-          return expense.currency;
-        },
-      },
-      createdAt: {
-        type: DateString,
-        resolve(expense) {
-          return expense.createdAt;
-        },
-      },
-      updatedAt: {
-        type: DateString,
-        resolve(expense) {
-          return expense.updatedAt;
-        },
-      },
-      incurredAt: {
-        type: DateString,
-        resolve(expense) {
-          return expense.incurredAt;
-        },
-      },
-      description: {
-        type: GraphQLString,
-        resolve(expense) {
-          return expense.description;
-        },
-      },
-      tags: {
-        type: new GraphQLList(GraphQLString),
-        resolve(expense) {
-          return expense.tags;
-        },
-      },
-      status: {
-        type: GraphQLString,
-        resolve(expense) {
-          return expense.status;
-        },
-      },
-      type: {
-        type: GraphQLString,
-        resolve(expense) {
-          return expense.type;
-        },
-      },
-      PayoutMethod: {
-        type: PayoutMethodType,
-        deprecationReason: '2024-12-13: Please move to GraphQL v2',
-        async resolve(expense, _, req) {
-          if (!expense.PayoutMethodId || !(await canSeeExpensePayoutMethodPrivateDetails(req, expense))) {
-            return null;
-          } else {
-            return expense.payoutMethod || req.loaders.PayoutMethod.byId.load(expense.PayoutMethodId);
-          }
-        },
-      },
-      privateMessage: {
-        type: GraphQLString,
-        async resolve(expense, args, req) {
-          if (!req.remoteUser) {
-            return null;
-          }
-
-          const collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
-
-          if (req.remoteUser.isAdminOfCollective(collective) || req.remoteUser.id === expense.UserId) {
-            return expense.privateMessage;
-          } else if (req.remoteUser.isAdmin(collective.HostCollectiveId)) {
-            return expense.privateMessage;
-          } else {
-            return null;
-          }
-        },
-      },
-      items: {
-        type: new GraphQLList(ExpenseItemType),
-        deprecationReason: '2024-12-13: Please move to GraphQL v2',
-        async resolve(expense, _, req) {
-          const canSeeAttachments = await canSeeExpenseAttachments(req, expense);
-          return (await req.loaders.Expense.items.load(expense.id)).map(async item => {
-            if (canSeeAttachments) {
-              return item;
-            } else {
-              return omit(item, ['url']);
-            }
-          });
-        },
-      },
-      attachedFiles: {
-        type: new GraphQLList(new GraphQLNonNull(ExpenseAttachedFile)),
-        async resolve(expense, _, req) {
-          if (await canSeeExpenseAttachments(req, expense)) {
-            return req.loaders.Expense.attachedFiles.load(expense.id);
-          }
-        },
-      },
-      user: {
-        type: UserType,
-        async resolve(expense, _, req) {
-          return req.loaders.User.byId.load(expense.UserId);
-        },
-      },
-      fromCollective: {
-        type: CollectiveInterfaceType,
-        resolve(expense, _, req) {
-          return req.loaders.Collective.byId.load(expense.FromCollectiveId);
-        },
-      },
-      collective: {
-        type: CollectiveInterfaceType,
-        resolve(expense, args, req) {
-          return req.loaders.Collective.byId.load(expense.CollectiveId);
-        },
-      },
-      transaction: {
-        type: TransactionInterfaceType,
-        description: 'Returns the DEBIT transaction to pay out this expense',
-        resolve(expense) {
-          return models.Transaction.findOne({
-            where: {
-              type: 'DEBIT',
-              CollectiveId: expense.CollectiveId,
-              ExpenseId: expense.id,
-            },
-          });
-        },
-      },
-    };
-  },
-});
-
 export const NotificationType = new GraphQLObjectType({
   name: 'NotificationType',
   description: 'This represents a Notification',
@@ -1462,16 +1272,6 @@ export const OrderType = new GraphQLObjectType({
         type: DateString,
         resolve(order) {
           return order.updatedAt;
-        },
-      },
-      // TODO: two fields below (isPastDue & isSubscriptionActive) an possibly be combined as one
-      // Leaving them separate for now to make it easy for logged in vs logged out data
-      isPastDue: {
-        description: 'Whether this subscription is past due or not',
-        type: GraphQLBoolean,
-        deprecationReason: '2024-12-13: Not used, so we stop returning it.',
-        resolve() {
-          return null;
         },
       },
       // Note this field is public
