@@ -799,6 +799,7 @@ export const loaders = req => {
   };
   // Order - activities
   context.loaders.Order.activities = orderLoaders.generateOrderActivitiesLoader();
+  context.loaders.Order.totalContributed = orderLoaders.generateOrderTotalContributedLoader();
 
   /** *** Member *****/
 
