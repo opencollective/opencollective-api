@@ -65,34 +65,35 @@ if (parseToBoolean(config.services.searchSync)) {
   } else {
     startElasticSearchPostgresSync();
   }
+
+  // Add a handler to make sure we flush the Elastic Search sync queue before shutting down
+  let isShuttingDown = false;
+  const gracefullyShutdown = async signal => {
+    if (!isShuttingDown) {
+      logger.info(`Received ${signal}. Shutting down.`);
+      isShuttingDown = true;
+
+      if (appPromise) {
+        await appPromise.then(app => {
+          if (app.__server__) {
+            logger.info('Closing express server');
+            app.__server__.close();
+          }
+        });
+      }
+
+      if (parseToBoolean(config.services.searchSync) && isElasticSearchConfigured()) {
+        await stopElasticSearchPostgresSync();
+      }
+
+      process.exit();
+    }
+  };
+
+  process.on('exit', () => gracefullyShutdown('exit'));
+  process.on('SIGINT', () => gracefullyShutdown('SIGINT'));
+  process.on('SIGTERM', () => gracefullyShutdown('SIGTERM'));
 }
-
-let isShuttingDown = false;
-const gracefullyShutdown = async signal => {
-  if (!isShuttingDown) {
-    logger.info(`Received ${signal}. Shutting down.`);
-    isShuttingDown = true;
-
-    if (appPromise) {
-      await appPromise.then(app => {
-        if (app.__server__) {
-          logger.info('Closing express server');
-          app.__server__.close();
-        }
-      });
-    }
-
-    if (parseToBoolean(config.services.searchSync) && isElasticSearchConfigured()) {
-      await stopElasticSearchPostgresSync();
-    }
-
-    process.exit();
-  }
-};
-
-process.on('exit', () => gracefullyShutdown('exit'));
-process.on('SIGINT', () => gracefullyShutdown('SIGINT'));
-process.on('SIGTERM', () => gracefullyShutdown('SIGTERM'));
 
 // This is used by tests
 export default async function startServerForTest() {

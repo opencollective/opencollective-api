@@ -10,6 +10,7 @@ import { ElasticSearchModelsAdapters, getAdapterFromTableName } from './adapters
 import { getElasticSearchClient } from './client';
 import { ElasticSearchIndexName } from './constants';
 import { ElasticSearchRequest, ElasticSearchRequestType, isFullAccountReIndexRequest } from './types';
+import { HandlerType, reportErrorToSentry, reportMessageToSentry } from '../sentry';
 
 const debug = debugLib('elasticsearch-batch-processor');
 
@@ -144,16 +145,17 @@ export class ElasticSearchBatchProcessor {
 
         // Handle any indexing errors
         if (bulkResponse.errors) {
-          // TODO better logs
-          logger.error(
-            'Bulk indexing errors:',
-            bulkResponse.items.filter(item => item.index.status >= 400),
-          );
+          reportMessageToSentry('ElasticSearchBatchProcessor: Bulk indexing errors', {
+            severity: 'warning',
+            extra: { processingQueue, bulkResponse },
+          });
         }
       }
     } catch (error) {
-      console.error('Batch processing failed', error);
-      // TODO: implement retry or dead-letter queue logic
+      reportErrorToSentry(error, {
+        handler: HandlerType.ELASTICSEARCH_SYNC_JOB,
+        extra: { processingQueue },
+      });
     }
 
     // End of processing

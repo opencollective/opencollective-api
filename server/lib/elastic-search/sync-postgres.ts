@@ -3,13 +3,13 @@ import createSubscriber from 'pg-listen';
 import { getDBUrl } from '../db';
 import logger from '../logger';
 import { runWithTimeout } from '../promises';
-import { HandlerType, reportErrorToSentry } from '../sentry';
+import { HandlerType, reportErrorToSentry, reportMessageToSentry } from '../sentry';
 import sequelize from '../sequelize';
 
 import { ElasticSearchModelsAdapters } from './adapters';
 import { ElasticSearchBatchProcessor } from './batch-processor';
 import { isElasticSearchConfigured } from './client';
-import { ElasticSearchRequestType } from './types';
+import { ElasticSearchRequestType, isValidElasticSearchRequest } from './types';
 
 const CHANNEL_NAME = 'elasticsearch-requests';
 
@@ -97,12 +97,18 @@ export const startElasticSearchPostgresSync = async () => {
   // Setup DB message queue
   subscriber = createSubscriber({ connectionString: getDBUrl('database') });
   subscriber.notifications.on(CHANNEL_NAME, async event => {
+    if (!isValidElasticSearchRequest(event)) {
+      reportMessageToSentry('Invalid ElasticSearch request', {
+        extra: { event },
+        handler: HandlerType.ELASTICSEARCH_SYNC_JOB,
+        severity: 'error',
+      });
+      return;
+    }
+
     try {
-      // TODO: Check message format
       await elasticSearchBatchProcessor.addToQueue(event);
-      // await handleElasticSearchRequest(event);
     } catch (error) {
-      // TODO: maybe error handling in the batch processor?
       reportErrorToSentry(error, { handler: HandlerType.ELASTICSEARCH_SYNC_JOB });
     }
   });
