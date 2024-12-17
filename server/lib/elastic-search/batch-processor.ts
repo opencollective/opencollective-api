@@ -5,12 +5,12 @@ import debugLib from 'debug';
 import { groupBy, keyBy } from 'lodash';
 
 import logger from '../logger';
+import { HandlerType, reportErrorToSentry, reportMessageToSentry } from '../sentry';
 
 import { ElasticSearchModelsAdapters, getAdapterFromTableName } from './adapters';
 import { getElasticSearchClient } from './client';
 import { ElasticSearchIndexName } from './constants';
 import { ElasticSearchRequest, ElasticSearchRequestType, isFullAccountReIndexRequest } from './types';
-import { HandlerType, reportErrorToSentry, reportMessageToSentry } from '../sentry';
 
 const debug = debugLib('elasticsearch-batch-processor');
 
@@ -19,15 +19,15 @@ const debug = debugLib('elasticsearch-batch-processor');
  * the server.
  */
 export class ElasticSearchBatchProcessor {
+  public maxBatchSize: number = 1_000;
   private static instance: ElasticSearchBatchProcessor;
   private client: Client;
-  private queue: ElasticSearchRequest[] = [];
-  private maxBatchSize: number = 1_000;
-  private maxWaitTimeInSeconds: number = config.elasticSearch.maxSyncDelay;
-  private timeoutHandle: NodeJS.Timeout | null = null;
-  private isStarted: boolean = false;
-  private isProcessing: boolean = false;
-  private processBatchPromise: Promise<void> | null = null;
+  private _queue: ElasticSearchRequest[] = [];
+  private _maxWaitTimeInSeconds: number = config.elasticSearch.maxSyncDelay;
+  private _timeoutHandle: NodeJS.Timeout | null = null;
+  private _isStarted: boolean = false;
+  private _isProcessing: boolean = false;
+  private _processBatchPromise: Promise<void> | null = null;
 
   static getInstance(): ElasticSearchBatchProcessor {
     if (!ElasticSearchBatchProcessor.instance) {
@@ -38,24 +38,32 @@ export class ElasticSearchBatchProcessor {
   }
 
   start() {
-    this.isStarted = true;
+    this._isStarted = true;
+  }
+
+  get isProcessing() {
+    return this._isProcessing;
+  }
+
+  get hasScheduledBatch() {
+    return Boolean(this._timeoutHandle);
   }
 
   async flushAndClose() {
     debug('Flushing and closing Elastic Search Batch Processor');
-    this.isStarted = false;
+    this._isStarted = false;
     return this.callProcessBatch();
   }
 
-  async addToQueue(request: ElasticSearchRequest) {
-    if (!this.isStarted) {
+  addToQueue(request: ElasticSearchRequest) {
+    if (!this._isStarted) {
       return;
     }
 
     debug('New request:', request.type, request['table'] || '', request.payload);
-    this.queue.push(request);
+    this._queue.push(request);
 
-    if (this.queue.length >= this.maxBatchSize || isFullAccountReIndexRequest(request)) {
+    if (this._queue.length >= this.maxBatchSize || isFullAccountReIndexRequest(request)) {
       this.callProcessBatch();
     } else {
       this.scheduleCallProcessBatch();
@@ -67,9 +75,9 @@ export class ElasticSearchBatchProcessor {
     this.client = getElasticSearchClient({ throwIfUnavailable: true });
   }
 
-  private scheduleCallProcessBatch(wait = this.maxWaitTimeInSeconds) {
-    if (!this.timeoutHandle) {
-      this.timeoutHandle = setTimeout(() => this.callProcessBatch(), wait);
+  private scheduleCallProcessBatch(wait = this._maxWaitTimeInSeconds) {
+    if (!this._timeoutHandle) {
+      this._timeoutHandle = setTimeout(() => this.callProcessBatch(), wait);
     }
   }
 
@@ -79,23 +87,23 @@ export class ElasticSearchBatchProcessor {
    */
   private async callProcessBatch(): Promise<void> {
     // Scenario 1: we are already processing a batch.
-    if (this.processBatchPromise) {
+    if (this._processBatchPromise) {
       debug('callProcessBatch: waiting on existing batch processing');
-      await this.processBatchPromise;
+      await this._processBatchPromise;
     }
     // Scenario 2: there is a pending batch processing. We cancel the timeout and run the batch immediately.
-    else if (this.timeoutHandle) {
+    else if (this._timeoutHandle) {
       debug('callProcessBatch: running batch early');
-      clearTimeout(this.timeoutHandle);
-      this.timeoutHandle = null;
-      this.processBatchPromise = this._processBatch();
-      await this.processBatchPromise;
+      clearTimeout(this._timeoutHandle);
+      this._timeoutHandle = null;
+      this._processBatchPromise = this._processBatch();
+      await this._processBatchPromise;
     }
     // Scenario 3: there is no pending batch processing and no timeout, but there are requests in the queue.
-    else if (this.queue.length) {
+    else if (this._queue.length) {
       debug('callProcessBatch: running batch now');
-      this.processBatchPromise = this._processBatch();
-      await this.processBatchPromise;
+      this._processBatchPromise = this._processBatch();
+      await this._processBatchPromise;
     }
     // Scenario 4: there is no pending batch processing, no timeout and no requests in the queue. We're done.
     else {
@@ -108,25 +116,25 @@ export class ElasticSearchBatchProcessor {
 
   private async _processBatch() {
     // Clear the timeout
-    if (this.timeoutHandle) {
-      clearTimeout(this.timeoutHandle);
-      this.timeoutHandle = null;
+    if (this._timeoutHandle) {
+      clearTimeout(this._timeoutHandle);
+      this._timeoutHandle = null;
     }
 
     // Skip if no messages
-    if (this.queue.length === 0) {
+    if (this._queue.length === 0) {
       debug('No messages to process');
       return;
     }
 
     // Skip if already processing
-    if (this.isProcessing) {
+    if (this._isProcessing) {
       return;
     }
 
     // Immediately move up to maxBatchSize items from the queue to the processing queue
-    this.isProcessing = true;
-    const processingQueue = this.queue.splice(0, this.maxBatchSize);
+    this._isProcessing = true;
+    const processingQueue = this._queue.splice(0, this.maxBatchSize);
     debug('Processing batch of', processingQueue.length, 'requests');
 
     try {
@@ -152,6 +160,7 @@ export class ElasticSearchBatchProcessor {
         }
       }
     } catch (error) {
+      debug('Error processing batch:', error);
       reportErrorToSentry(error, {
         handler: HandlerType.ELASTICSEARCH_SYNC_JOB,
         extra: { processingQueue },
@@ -159,11 +168,12 @@ export class ElasticSearchBatchProcessor {
     }
 
     // End of processing
-    this.isProcessing = false;
+    this._isProcessing = false;
+    this._processBatchPromise = null;
 
     // If the queue is ready to be processed again, do it
-    if (this.queue.length && !this.timeoutHandle) {
-      const wait = this.queue.length >= this.maxBatchSize ? 0 : this.maxWaitTimeInSeconds;
+    if (this._queue.length && !this._timeoutHandle) {
+      const wait = this._queue.length >= this.maxBatchSize ? 0 : this._maxWaitTimeInSeconds;
       this.scheduleCallProcessBatch(wait);
     }
   }
@@ -174,7 +184,6 @@ export class ElasticSearchBatchProcessor {
     const { accountsToReIndex, requestsGroupedByTableName } = this.preprocessRequests(requests);
     const operations: BulkOperationContainer[] = [];
     let deleteQuery: DeleteByQueryRequest | null = null;
-
     // Start with FULL_ACCOUNT_RE_INDEX requests
     if (accountsToReIndex.length > 0) {
       deleteQuery = this.getAccountsReIndexDeleteQuery(accountsToReIndex);
@@ -198,10 +207,13 @@ export class ElasticSearchBatchProcessor {
       }
 
       // Preload all updated entries
+      let groupedEntriesToIndex = {};
       const updateRequests = requests.filter(request => request.type === ElasticSearchRequestType.UPDATE);
-      const updateRequestsIds = updateRequests.map(request => request.payload.id);
-      const entriesToIndex = await adapter.findEntriesToIndex({ ids: updateRequestsIds });
-      const groupedEntriesToIndex = keyBy(entriesToIndex, 'id');
+      if (updateRequests.length) {
+        const updateRequestsIds = updateRequests.map(request => request.payload.id);
+        const entriesToIndex = await adapter.findEntriesToIndex({ ids: updateRequestsIds });
+        groupedEntriesToIndex = keyBy(entriesToIndex, 'id');
+      }
 
       // Iterate over requests and create bulk indexing operations
       for (const request of requests) {

@@ -13,6 +13,7 @@ import { get, has } from 'lodash';
 import pg from 'pg';
 import pgConnectionString from 'pg-connection-string';
 import format from 'pg-format';
+import createSubscriber from 'pg-listen';
 
 /** Load a dump file into the current database.
  *
@@ -160,3 +161,7 @@ export async function recreateDatabase(destroy = true) {
   const clientApp = await getConnectedClient(getDBUrl('database'));
   return [client, clientApp];
 }
+
+export const createPostgresListener = () => {
+  return createSubscriber({ connectionString: getDBUrl('database') });
+};

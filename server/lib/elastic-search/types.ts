@@ -29,7 +29,7 @@ export const isFullAccountReIndexRequest = (
 export const isValidElasticSearchRequest = (message: any): message is ElasticSearchRequest => {
   if (typeof message !== 'object' || message === null) {
     return false;
-  } else
+  } else {
     switch (message.type) {
       case ElasticSearchRequestType.FULL_ACCOUNT_RE_INDEX:
         return 'id' in message.payload && typeof message.payload.id === 'number';
@@ -39,4 +39,5 @@ export const isValidElasticSearchRequest = (message: any): message is ElasticSea
       default:
         return false;
     }
+  }
 };

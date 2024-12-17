@@ -41,7 +41,7 @@ export class ElasticSearchUpdatesAdapter implements ElasticSearchModelAdapter {
       where: {
         ...(options.fromDate ? { updatedAt: options.fromDate } : null),
         ...(options.maxId ? { id: { [Op.lte]: options.maxId } } : null),
-        ...(options.ids?.length ? { id: { [Op.in]: options.ids } } : null),
+        ...(options.ids?.length ? { id: options.ids } : null),
         ...(options.relatedToCollectiveIds?.length
           ? {
               [Op.or]: [

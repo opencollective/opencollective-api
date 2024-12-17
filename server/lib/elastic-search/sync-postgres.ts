@@ -1,6 +1,4 @@
-import createSubscriber from 'pg-listen';
-
-import { getDBUrl } from '../db';
+import { createPostgresListener } from '../db';
 import logger from '../logger';
 import { runWithTimeout } from '../promises';
 import { HandlerType, reportErrorToSentry, reportMessageToSentry } from '../sentry';
@@ -14,62 +12,68 @@ import { ElasticSearchRequestType, isValidElasticSearchRequest } from './types';
 const CHANNEL_NAME = 'elasticsearch-requests';
 
 const setupPostgresTriggers = async () => {
-  await sequelize.query(`
-    -- Create a trigger function to send notifications on table changes
-    CREATE OR REPLACE FUNCTION notify_elasticsearch_on_change()
-    RETURNS TRIGGER AS $$
-    DECLARE
-        notification JSON;
-    BEGIN
-        -- Determine the type of operation
-        IF (TG_OP = 'INSERT') THEN
-          notification = json_build_object('type', 'UPDATE',  'table', TG_TABLE_NAME, 'payload', json_build_object('id', NEW.id));
-        ELSIF (TG_OP = 'UPDATE') THEN
-          IF (OLD."deletedAt" IS NULL AND NEW."deletedAt" IS NOT NULL) THEN
-            notification = json_build_object('type', 'DELETE', 'table', TG_TABLE_NAME, 'payload', json_build_object('id', NEW.id));
-          ELSIF (OLD."deletedAt" IS NOT NULL AND NEW."deletedAt" IS NOT NULL) THEN
-            RETURN NULL; -- Do not notify on updates of deleted rows
-          ELSE
-            notification = json_build_object('type', 'UPDATE', 'table', TG_TABLE_NAME, 'payload', json_build_object('id', NEW.id));
+  try {
+    await sequelize.query(`
+      -- Create a trigger function to send notifications on table changes
+      CREATE OR REPLACE FUNCTION notify_elasticsearch_on_change()
+      RETURNS TRIGGER AS $$
+      DECLARE
+          notification JSON;
+      BEGIN
+          -- Determine the type of operation
+          IF (TG_OP = 'INSERT') THEN
+            notification = json_build_object('type', 'UPDATE',  'table', TG_TABLE_NAME, 'payload', json_build_object('id', NEW.id));
+          ELSIF (TG_OP = 'UPDATE') THEN
+            IF (OLD."deletedAt" IS NULL AND NEW."deletedAt" IS NOT NULL) THEN
+              notification = json_build_object('type', 'DELETE', 'table', TG_TABLE_NAME, 'payload', json_build_object('id', NEW.id));
+            ELSIF (OLD."deletedAt" IS NOT NULL AND NEW."deletedAt" IS NOT NULL) THEN
+              RETURN NULL; -- Do not notify on updates of deleted rows
+            ELSE
+              notification = json_build_object('type', 'UPDATE', 'table', TG_TABLE_NAME, 'payload', json_build_object('id', NEW.id));
+            END IF;
+          ELSIF (TG_OP = 'DELETE') THEN
+            notification = json_build_object('type', 'DELETE', 'table', TG_TABLE_NAME, 'payload', json_build_object('id', OLD.id));
           END IF;
-        ELSIF (TG_OP = 'DELETE') THEN
-          notification = json_build_object('type', 'DELETE', 'table', TG_TABLE_NAME, 'payload', json_build_object('id', OLD.id));
-        END IF;
-
-        -- Publish the notification to the Elastic Search requests channel
-        PERFORM pg_notify('${CHANNEL_NAME}', notification::text);
-
-        RETURN NULL;
-    END;
-    $$ LANGUAGE plpgsql;
-
-    ${Object.values(ElasticSearchModelsAdapters)
-      .map(
-        adapter => `
-    -- Create the trigger for INSERT operations
-    CREATE OR REPLACE TRIGGER  ${adapter.getModel().tableName}_insert_trigger
-    AFTER INSERT ON "${adapter.getModel().tableName}"
-    FOR EACH ROW
-    EXECUTE FUNCTION notify_elasticsearch_on_change();
-
-    -- Create the trigger for UPDATE operations
-    CREATE OR REPLACE TRIGGER  ${adapter.getModel().tableName}_update_trigger
-    AFTER UPDATE ON "${adapter.getModel().tableName}"
-    FOR EACH ROW
-    EXECUTE FUNCTION notify_elasticsearch_on_change();
-
-    -- Create the trigger for DELETE operations
-    CREATE OR REPLACE TRIGGER  ${adapter.getModel().tableName}_delete_trigger
-    AFTER DELETE ON "${adapter.getModel().tableName}"
-    FOR EACH ROW
-    EXECUTE FUNCTION notify_elasticsearch_on_change();
-  `,
-      )
-      .join('\n')}
-  `);
+  
+          -- Publish the notification to the Elastic Search requests channel
+          PERFORM pg_notify('${CHANNEL_NAME}', notification::text);
+  
+          RETURN NULL;
+      END;
+      $$ LANGUAGE plpgsql;
+  
+      ${Object.values(ElasticSearchModelsAdapters)
+        .map(
+          adapter => `
+      -- Create the trigger for INSERT operations
+      CREATE OR REPLACE TRIGGER  ${adapter.getModel().tableName}_insert_trigger
+      AFTER INSERT ON "${adapter.getModel().tableName}"
+      FOR EACH ROW
+      EXECUTE FUNCTION notify_elasticsearch_on_change();
+  
+      -- Create the trigger for UPDATE operations
+      CREATE OR REPLACE TRIGGER  ${adapter.getModel().tableName}_update_trigger
+      AFTER UPDATE ON "${adapter.getModel().tableName}"
+      FOR EACH ROW
+      EXECUTE FUNCTION notify_elasticsearch_on_change();
+  
+      -- Create the trigger for DELETE operations
+      CREATE OR REPLACE TRIGGER  ${adapter.getModel().tableName}_delete_trigger
+      AFTER DELETE ON "${adapter.getModel().tableName}"
+      FOR EACH ROW
+      EXECUTE FUNCTION notify_elasticsearch_on_change();
+    `,
+        )
+        .join('\n')}
+    `);
+  } catch (error) {
+    logger.error(`Error setting up Postgres triggers: ${JSON.stringify(error)}`);
+    reportErrorToSentry(error, { handler: HandlerType.ELASTICSEARCH_SYNC_JOB });
+    throw new Error('Failed to setup Postgres triggers');
+  }
 };
 
-const removePostgresTriggers = async () => {
+export const removeElasticSearchPostgresTriggers = async () => {
   await sequelize.query(`
     ${Object.values(ElasticSearchModelsAdapters)
       .map(
@@ -88,14 +92,14 @@ const removePostgresTriggers = async () => {
 
 // Some shared variables
 let shutdownPromise: Promise<void> | null = null;
-let subscriber: ReturnType<typeof createSubscriber>;
+let subscriber: ReturnType<typeof createPostgresListener>;
 
 export const startElasticSearchPostgresSync = async () => {
   const elasticSearchBatchProcessor = ElasticSearchBatchProcessor.getInstance();
   elasticSearchBatchProcessor.start();
 
   // Setup DB message queue
-  subscriber = createSubscriber({ connectionString: getDBUrl('database') });
+  subscriber = createPostgresListener();
   subscriber.notifications.on(CHANNEL_NAME, async event => {
     if (!isValidElasticSearchRequest(event)) {
       reportMessageToSentry('Invalid ElasticSearch request', {
@@ -107,7 +111,7 @@ export const startElasticSearchPostgresSync = async () => {
     }
 
     try {
-      await elasticSearchBatchProcessor.addToQueue(event);
+      elasticSearchBatchProcessor.addToQueue(event);
     } catch (error) {
       reportErrorToSentry(error, { handler: HandlerType.ELASTICSEARCH_SYNC_JOB });
     }
@@ -124,9 +128,11 @@ export const startElasticSearchPostgresSync = async () => {
   await setupPostgresTriggers();
 
   logger.info('ElasticSearch <-> Postgres sync job started');
+
+  return subscriber;
 };
 
-export const stopElasticSearchPostgresSync = async () => {
+export const stopElasticSearchPostgresSync = (): Promise<void> => {
   if (!shutdownPromise) {
     logger.info('Shutting down ElasticSearch <-> Postgres sync job');
     if (subscriber) {
@@ -135,7 +141,7 @@ export const stopElasticSearchPostgresSync = async () => {
 
     shutdownPromise = runWithTimeout(
       (async () => {
-        await removePostgresTriggers();
+        await removeElasticSearchPostgresTriggers();
         const elasticSearchBatchProcessor = ElasticSearchBatchProcessor.getInstance();
         await elasticSearchBatchProcessor.flushAndClose();
         logger.info('ElasticSearch <-> Postgres sync job shutdown complete');
@@ -158,8 +164,7 @@ export const elasticSearchFullAccountReIndex = async (collectiveId: number): Pro
     return;
   }
 
-  const elasticSearchBatchProcessor = ElasticSearchBatchProcessor.getInstance();
-  await elasticSearchBatchProcessor.addToQueue({
+  ElasticSearchBatchProcessor.getInstance().addToQueue({
     type: ElasticSearchRequestType.FULL_ACCOUNT_RE_INDEX,
     payload: { id: collectiveId },
   });
