@@ -616,6 +616,7 @@ export const loaders = req => {
         AND "Transaction"."RefundTransactionId" IS NULL
         AND "Transaction"."type" = 'CREDIT'
         AND "Transaction"."kind" IN ('CONTRIBUTION', 'ADDED_FUNDS')
+        AND "Transaction"."deletedAt" IS NULL
         GROUP BY "Order"."TierId";
       `,
         {
