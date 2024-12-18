@@ -25,6 +25,10 @@
     "readOnly": "DATABASE_READ_ONLY"
   },
   "graphql": {
+    "apollo": {
+      "key": "APOLLO_KEY",
+      "graphRef": "APOLLO_GRAPH_REF"
+    },
     "cache": {
       "enabled": "GRAPHQL_CACHE_ENABLED",
       "ttl": "GRAPHQL_CACHE_TTL",

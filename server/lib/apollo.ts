@@ -1,9 +1,13 @@
 import config from 'config';
-import { orderBy, round, uniqBy } from 'lodash';
+import { orderBy, pick, round, uniqBy, isNil } from 'lodash';
 
+import { ApolloServerPluginUsageReporting } from '@apollo/server/plugin/usageReporting';
 import cache from './cache';
 import logger from './logger';
 import { sentryHandleSlowRequests } from './sentry';
+import { ContentNotReady } from '../graphql/errors';
+import { AxiosError } from 'axios';
+import { GraphQLError } from 'graphql';
 
 const minExecutionTimeToCache = parseInt(config.graphql.cache.minExecutionTimeToCache);
 
@@ -69,3 +73,31 @@ export const apolloSlowResolverDebugPlugin = enablePluginIf(config.env === 'deve
     };
   },
 });
+
+const IGNORED_ERRORS = [ContentNotReady, AxiosError];
+
+export const apolloStudioUsagePlugin = enablePluginIf(
+  !isNil(config.graphql?.apollo?.graphRef),
+  ApolloServerPluginUsageReporting({
+    generateClientInfo: args => {
+      return {
+        clientName: args.request.http?.headers.get('oc-application') || 'unknown',
+        clientVersion: args.request.http?.headers.get('oc-version') || 'unknown',
+      };
+    },
+    sendErrors: {
+      transform: err => {
+        if (IGNORED_ERRORS.some(e => err instanceof e || err?.originalError instanceof e)) {
+          return null;
+        }
+
+        return Object.assign({}, err, { originalError: undefined } as Partial<GraphQLError>);
+      },
+    },
+    sendVariableValues: {
+      transform: ({ variables }) => {
+        return pick(variables, ['slug', 'account', 'fromAccount', 'toAccount', 'id']);
+      },
+    },
+  }),
+);
