@@ -378,6 +378,8 @@ const getGiftCardBatchesForCollective = async collectiveId => {
     FROM "PaymentMethods" pm
     INNER JOIN "PaymentMethods" spm ON pm."SourcePaymentMethodId" = spm.id
     WHERE spm."CollectiveId" = :collectiveId
+    AND pm."deletedAt" IS NULL
+    AND spm."deletedAt" IS NULL
     GROUP BY pm.batch
     ORDER BY pm.batch ASC
   `,
