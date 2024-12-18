@@ -21,7 +21,7 @@ import { paypalWebhook, plaidWebhook, stripeWebhook, transferwiseWebhook } from 
 import { getGraphqlCacheProperties } from './graphql/cache';
 import graphqlSchemaV1 from './graphql/v1/schema';
 import graphqlSchemaV2 from './graphql/v2/schema';
-import { apolloSlowRequestCachePlugin, apolloSlowResolverDebugPlugin } from './lib/apollo';
+import { apolloSlowRequestCachePlugin, apolloSlowResolverDebugPlugin, apolloStudioUsagePlugin } from './lib/apollo';
 import cache from './lib/cache';
 import errors from './lib/errors';
 import expressLimiter from './lib/express-limiter';
@@ -223,15 +223,22 @@ export default async app => {
     blockFieldSuggestion: { enabled: false }, // Our schema is public, no need to hide fields
   });
 
+  const httpServer = http.createServer(app);
+
   const graphqlProtection = apolloArmor.protect();
-  const graphqlPlugins = [...graphqlProtection.plugins];
+
+  const graphqlPlugins = [
+    ...graphqlProtection.plugins,
+    ApolloServerPluginDrainHttpServer({ httpServer }),
+    apolloSlowRequestCachePlugin,
+    apolloSlowResolverDebugPlugin,
+    apolloStudioUsagePlugin,
+  ];
 
   /* GraphQL server generic options */
   if (config.sentry?.dsn) {
     graphqlPlugins.push(SentryGraphQLPlugin);
   }
-
-  const httpServer = http.createServer(app);
 
   const apolloServerOptions = {
     includeStacktraceInErrorResponses: config.env !== 'production',
@@ -262,12 +269,7 @@ export default async app => {
       return formattedError;
     },
     ...graphqlProtection,
-    plugins: [
-      ApolloServerPluginDrainHttpServer({ httpServer }),
-      apolloSlowRequestCachePlugin,
-      apolloSlowResolverDebugPlugin,
-      ...graphqlPlugins,
-    ],
+    plugins: graphqlPlugins,
   };
 
   const apolloExpressMiddlewareOptions = {

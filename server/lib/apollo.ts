@@ -1,5 +1,10 @@
+import { ApolloServerPluginUsageReporting } from '@apollo/server/plugin/usageReporting';
+import { AxiosError } from 'axios';
 import config from 'config';
-import { orderBy, round, uniqBy } from 'lodash';
+import { GraphQLError } from 'graphql';
+import { isNil, orderBy, pick, round, uniqBy } from 'lodash';
+
+import { ContentNotReady } from '../graphql/errors';
 
 import cache from './cache';
 import logger from './logger';
@@ -69,3 +74,31 @@ export const apolloSlowResolverDebugPlugin = enablePluginIf(config.env === 'deve
     };
   },
 });
+
+const IGNORED_ERRORS = [ContentNotReady, AxiosError];
+
+export const apolloStudioUsagePlugin = enablePluginIf(
+  !isNil(config.graphql?.apollo?.graphRef),
+  ApolloServerPluginUsageReporting({
+    generateClientInfo: args => {
+      return {
+        clientName: args.request.http?.headers.get('oc-application') || 'unknown',
+        clientVersion: args.request.http?.headers.get('oc-version') || 'unknown',
+      };
+    },
+    sendErrors: {
+      transform: err => {
+        if (IGNORED_ERRORS.some(e => err instanceof e || err?.originalError instanceof e)) {
+          return null;
+        }
+
+        return Object.assign({}, err, { originalError: undefined } as Partial<GraphQLError>);
+      },
+    },
+    sendVariableValues: {
+      transform: ({ variables }) => {
+        return pick(variables, ['slug', 'account', 'fromAccount', 'toAccount', 'id']);
+      },
+    },
+  }),
+);
