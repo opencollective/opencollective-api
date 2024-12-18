@@ -52,7 +52,8 @@
     "fetchHostTransactionsCsv": true
   },
   "sentry": {
-    "tracesSampleRate": 0.01
+    "tracesSampleRate": 0.01,
+    "profilesSampleRate": 0.02
   },
   "graphql": {
     "cache": {

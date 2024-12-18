@@ -1,5 +1,6 @@
 import { URLSearchParams } from 'url';
 
+import * as Sentry from '@sentry/node';
 import config from 'config';
 import debugLib from 'debug';
 import gqlmin from 'gqlmin';
@@ -13,7 +14,7 @@ import errors from '../lib/errors';
 import logger from '../lib/logger';
 import RateLimit from '../lib/rate-limit';
 import { clearRedirectCookie, setRedirectCookie } from '../lib/redirect-cookie';
-import { reportMessageToSentry } from '../lib/sentry';
+import { dbUserToSentryUser, reportMessageToSentry } from '../lib/sentry';
 import { TWITTER_SCOPES } from '../lib/twitter';
 import { getBearerTokenFromRequestHeaders, parseToBoolean } from '../lib/utils';
 import models from '../models';
@@ -155,6 +156,7 @@ const _authenticateUserByJwt = async (req, res, next) => {
     return next(new errors.Unauthorized('This token has expired'));
   }
 
+  Sentry.setUser(dbUserToSentryUser(user));
   const { earlyAccess = {} } = user.collective.settings || {};
   if (
     earlyAccess.dashboard ||

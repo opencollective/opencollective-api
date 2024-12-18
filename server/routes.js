@@ -21,14 +21,15 @@ import { paypalWebhook, plaidWebhook, stripeWebhook, transferwiseWebhook } from 
 import { getGraphqlCacheProperties } from './graphql/cache';
 import graphqlSchemaV1 from './graphql/v1/schema';
 import graphqlSchemaV2 from './graphql/v2/schema';
-import { apolloSlowRequestCachePlugin, apolloSlowResolverDebugPlugin } from './lib/apollo';
+import { apolloSlowRequestCachePlugin, apolloSlowResolverDebugPlugin, apolloStudioUsagePlugin } from './lib/apollo';
 import cache from './lib/cache';
 import errors from './lib/errors';
 import expressLimiter from './lib/express-limiter';
 import logger from './lib/logger';
 import oauth, { authorizeAuthenticateHandler } from './lib/oauth';
 import { createRedisClient, RedisInstanceType } from './lib/redis';
-import { HandlerType, reportMessageToSentry, SentryGraphQLPlugin, sentryHandleSlowRequests } from './lib/sentry';
+import { HandlerType, reportMessageToSentry, SentryGraphQLPlugin } from './lib/sentry';
+import { checkIfSentryConfigured } from './lib/sentry/init';
 import { parseToBoolean } from './lib/utils';
 import * as authentication from './middleware/authentication';
 import errorHandler from './middleware/error-handler';
@@ -141,7 +142,6 @@ export default async app => {
           res.servedFromGraphqlCache = true;
           req.endAt = req.endAt || new Date();
           const executionTime = req.endAt - req.startAt;
-          sentryHandleSlowRequests(executionTime);
           res.set('Execution-Time', executionTime);
           res.set('GraphQL-Cache', 'HIT');
           res.send(fromCache);
@@ -223,15 +223,22 @@ export default async app => {
     blockFieldSuggestion: { enabled: false }, // Our schema is public, no need to hide fields
   });
 
-  const graphqlProtection = apolloArmor.protect();
-  const graphqlPlugins = [...graphqlProtection.plugins];
+  const httpServer = http.createServer(app);
 
-  /* GraphQL server generic options */
-  if (config.sentry?.dsn) {
+  const graphqlProtection = apolloArmor.protect();
+
+  const graphqlPlugins = [
+    ...graphqlProtection.plugins,
+    ApolloServerPluginDrainHttpServer({ httpServer }),
+    apolloSlowRequestCachePlugin,
+    apolloSlowResolverDebugPlugin,
+    apolloStudioUsagePlugin,
+  ];
+
+  // /* GraphQL server generic options */
+  if (checkIfSentryConfigured()) {
     graphqlPlugins.push(SentryGraphQLPlugin);
   }
-
-  const httpServer = http.createServer(app);
 
   const apolloServerOptions = {
     includeStacktraceInErrorResponses: config.env !== 'production',
@@ -262,12 +269,7 @@ export default async app => {
       return formattedError;
     },
     ...graphqlProtection,
-    plugins: [
-      ApolloServerPluginDrainHttpServer({ httpServer }),
-      apolloSlowRequestCachePlugin,
-      apolloSlowResolverDebugPlugin,
-      ...graphqlPlugins,
-    ],
+    plugins: graphqlPlugins,
   };
 
   const apolloExpressMiddlewareOptions = {

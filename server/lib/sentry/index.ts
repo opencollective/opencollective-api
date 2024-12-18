@@ -5,99 +5,21 @@
  * 3. As a fallback for the entire APP (esp. CRON jobs), in this own file (see `.on('unhandledRejection')`)
  */
 
-import '../env';
+import '../../env';
 
 import { ApolloServerPlugin } from '@apollo/server';
 import * as Sentry from '@sentry/node';
-import type { SeverityLevel } from '@sentry/types';
+import { SeverityLevel } from '@sentry/node';
 import axios, { AxiosError } from 'axios';
 import config from 'config';
-import { cloneDeep, get, isEmpty, isEqual, pick } from 'lodash';
+import { get, isEmpty, isEqual, pick } from 'lodash';
 
-import FEATURE from '../constants/feature';
-import { User } from '../models';
+import FEATURE from '../../constants/feature';
+import { User } from '../../models';
+import logger from '../logger';
+import { safeJsonStringify, sanitizeObjectForJSON } from '../safe-json-stringify';
 
-import logger from './logger';
-import { safeJsonStringify, sanitizeObjectForJSON } from './safe-json-stringify';
-import * as utils from './utils';
-
-const TRACES_SAMPLE_RATE = parseFloat(config.sentry.tracesSampleRate) || 0;
-const MIN_EXECUTION_TIME_TO_SAMPLE = parseInt(config.sentry.minExecutionTimeToSample);
-
-const checkIfSentryConfigured = () => Boolean(config.sentry?.dsn);
-
-const redactSensitiveDataFromRequest = rawRequest => {
-  if (!rawRequest) {
-    return;
-  }
-
-  // Redact from payload
-  const request = cloneDeep(rawRequest);
-  try {
-    const reqBody = JSON.parse(request.data);
-    request.data = JSON.stringify(utils.redactSensitiveFields(reqBody));
-  } catch {
-    // request data is not a json
-  }
-
-  // Redact from headers
-  if (request.headers) {
-    request.headers = utils.redactSensitiveFields(request.headers);
-  }
-
-  // Redact fom query string
-  if (request['query_string']) {
-    request['query_string'] = utils.redactSensitiveFields(request['query_string']);
-  }
-
-  return request;
-};
-
-Sentry.init({
-  beforeSend(event) {
-    event.request = redactSensitiveDataFromRequest(event.request);
-    return event;
-  },
-  beforeSendTransaction(event) {
-    event.request = redactSensitiveDataFromRequest(event.request);
-    return event;
-  },
-  dsn: config.sentry.dsn,
-  environment: config.env,
-  attachStacktrace: true,
-  enabled: config.env !== 'test',
-  tracesSampler: samplingContext => {
-    if (!TRACES_SAMPLE_RATE || !samplingContext) {
-      return 0;
-    } else if (samplingContext.request?.url?.match(/\/graphql(\/.*)?$/)) {
-      return 1; // GraphQL endpoints handle sampling manually in `server/routes.js`
-    } else {
-      return TRACES_SAMPLE_RATE;
-    }
-  },
-});
-
-if (checkIfSentryConfigured()) {
-  logger.info('Initializing Sentry');
-
-  // Catch all errors that haven't been caught anywhere else
-  process
-    .on('unhandledRejection', (reason: any) => {
-      reportErrorToSentry(reason, { severity: 'fatal', handler: HandlerType.FALLBACK });
-    })
-    .on('uncaughtException', (err: Error) => {
-      reportErrorToSentry(err, { severity: 'fatal', handler: HandlerType.FALLBACK });
-    });
-}
-
-export enum HandlerType {
-  GQL = 'GQL',
-  EXPRESS = 'EXPRESS',
-  CRON = 'CRON',
-  FALLBACK = 'FALLBACK',
-  WEBHOOK = 'WEBHOOK',
-  ELASTICSEARCH_SYNC_JOB = 'ELASTICSEARCH_SYNC_JOB',
-}
+import { checkIfSentryConfigured, HandlerType, redactSensitiveDataFromRequest } from './init';
 
 export type CaptureErrorParams = {
   severity?: SeverityLevel;
@@ -141,6 +63,19 @@ const stringifyExtra = (value: unknown) => {
     return value?.toString();
   }
 };
+
+if (checkIfSentryConfigured()) {
+  logger.info(`Initializing Sentry in ${config.env} environment `);
+
+  // Catch all errors that haven't been caught anywhere else
+  process
+    .on('unhandledRejection', (reason: any) => {
+      reportErrorToSentry(reason, { severity: 'fatal', handler: HandlerType.FALLBACK });
+    })
+    .on('uncaughtException', (err: Error) => {
+      reportErrorToSentry(err, { severity: 'fatal', handler: HandlerType.FALLBACK });
+    });
+}
 
 const enhanceScopeWithAxiosError = (scope: Sentry.Scope, err: AxiosError, params: CaptureErrorParams) => {
   scope.setTag('lib_axios', 'true');
@@ -280,21 +215,7 @@ export const reportMessageToSentry = (message: string, params: CaptureErrorParam
   });
 };
 
-export const sentryHandleSlowRequests = (executionTime: number) => {
-  const sentryTransaction = Sentry.getCurrentHub().getScope()?.getTransaction();
-  if (sentryTransaction) {
-    if (sentryTransaction.status === 'deadline_exceeded' || executionTime >= MIN_EXECUTION_TIME_TO_SAMPLE) {
-      sentryTransaction.setTag('graphql.slow', 'true');
-      sentryTransaction.setTag('graphql.executionTime', executionTime);
-      sentryTransaction.sampled = true; // Make sure we always report timeouts and slow requests
-    } else if (Math.random() > TRACES_SAMPLE_RATE) {
-      sentryTransaction.sampled = false; // We explicitly set `sampled` to false if we don't want to sample, to handle cases we're it's forced to `1`
-    }
-  }
-};
-
-// GraphQL
-
+// // GraphQL
 const IGNORED_GQL_ERRORS = [
   {
     message: /^No collective found/,
@@ -339,13 +260,7 @@ export const SentryGraphQLPlugin: ApolloServerPlugin = {
     // There's normally no parent transaction, but just in case there's one  - either because it was created in the parent context or
     // if we go back to the default Sentry middleware, we want to make sure we don't create a new transaction
     const transactionName = `GraphQL: ${request.operationName || 'Anonymous Operation'}`;
-    const transaction = Sentry.getCurrentHub()?.getScope()?.getTransaction();
-    if (transaction) {
-      transaction.setName(transactionName);
-    } else {
-      Sentry.startTransaction({ op: 'graphql', name: transactionName });
-    }
-
+    Sentry.getCurrentScope()?.setTransactionName(transactionName);
     return {
       async didEncounterErrors(ctx): Promise<void> {
         // If we couldn't parse the operation, don't do anything here
@@ -366,10 +281,6 @@ export const SentryGraphQLPlugin: ApolloServerPlugin = {
             severity: 'error',
             tags: { kind: ctx.operation.operation },
             req,
-            extra: {
-              query: ctx.request.query,
-              variables: utils.redactSensitiveFields(ctx.request.variables || {}),
-            },
             breadcrumbs: err.path && [
               {
                 category: 'query-path',
