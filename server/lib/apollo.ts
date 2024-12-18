@@ -1,13 +1,14 @@
-import config from 'config';
-import { orderBy, pick, round, uniqBy, isNil } from 'lodash';
-
 import { ApolloServerPluginUsageReporting } from '@apollo/server/plugin/usageReporting';
+import { AxiosError } from 'axios';
+import config from 'config';
+import { GraphQLError } from 'graphql';
+import { isNil, orderBy, pick, round, uniqBy } from 'lodash';
+
+import { ContentNotReady } from '../graphql/errors';
+
 import cache from './cache';
 import logger from './logger';
 import { sentryHandleSlowRequests } from './sentry';
-import { ContentNotReady } from '../graphql/errors';
-import { AxiosError } from 'axios';
-import { GraphQLError } from 'graphql';
 
 const minExecutionTimeToCache = parseInt(config.graphql.cache.minExecutionTimeToCache);
 
