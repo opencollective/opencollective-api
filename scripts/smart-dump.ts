@@ -81,10 +81,11 @@ program.command('dump [recipe] [as_user] [env_file]').action(async (recipe, asUs
 
   let start = new Date();
 
+  const PG_URL = process.env.PG_URL;
   logger.info('>>> Dumping Schema...');
-  exec(`pg_dump -csOx --if-exists $PG_URL > ${tempDumpDir}/schema.sql`);
+  exec(`pg_dump -csOx --if-exists "${PG_URL}" > ${tempDumpDir}/schema.sql`);
   exec(
-    `pg_dump --schema=public --table=public.\\"SequelizeMeta\\" --data-only $PG_URL >> ${tempDumpDir}/migrations.sql`,
+    `pg_dump --schema=public --table=public.\\"SequelizeMeta\\" --data-only "${PG_URL}" >> ${tempDumpDir}/migrations.sql`,
   );
   logger.info(`>>> Schema Dumped in ${moment(start).fromNow(true)}`);
 
