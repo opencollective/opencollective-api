@@ -20,7 +20,7 @@ describe('server/controllers/transferwise', () => {
   after(sandbox.restore);
 
   let remoteUser, expense, host, req, res;
-  let payExpensesBatchGroup;
+  let payExpensesBatchGroup, quote;
   beforeEach(async () => {
     sandbox.restore();
     remoteUser = await fakeUser();
@@ -79,7 +79,7 @@ describe('server/controllers/transferwise', () => {
     res.end = sandbox.stub().returns(res);
     res.setHeader = sandbox.stub().returns(res);
 
-    sandbox.stub(transferwise, 'getTemporaryQuote').resolves({
+    quote = {
       id: 1234,
       sourceCurrency: 'USD',
       targetCurrency: 'EUR',
@@ -87,25 +87,24 @@ describe('server/controllers/transferwise', () => {
       targetAmount: 90.44,
       rate: 0.9044,
       payOut: 'BANK_TRANSFER',
-      paymentOptions: [
-        {
-          formattedEstimatedDelivery: 'by March 18th',
-          estimatedDeliveryDelays: [],
-          allowedProfileTypes: ['PERSONAL', 'BUSINESS'],
-          payInProduct: 'BALANCE',
-          feePercentage: 0.0038,
-          estimatedDelivery: '2021-03-18T12:45:00Z',
-          fee: { transferwise: 3.79, payIn: 0, discount: 0, total: 3.79, priceSetId: 134, partner: 0 },
-          payIn: 'BALANCE',
-          sourceAmount: 101.14,
-          targetAmount: 90.44,
-          sourceCurrency: 'USD',
-          targetCurrency: 'EUR',
-          payOut: 'BANK_TRANSFER',
-          disabled: false,
-        },
-      ],
-    });
+      paymentOption: {
+        formattedEstimatedDelivery: 'by March 18th',
+        estimatedDeliveryDelays: [],
+        allowedProfileTypes: ['PERSONAL', 'BUSINESS'],
+        payInProduct: 'BALANCE',
+        feePercentage: 0.0038,
+        estimatedDelivery: '2021-03-18T12:45:00Z',
+        fee: { transferwise: 3.79, payIn: 0, discount: 0, total: 3.79, priceSetId: 134, partner: 0 },
+        payIn: 'BALANCE',
+        sourceAmount: 101.14,
+        targetAmount: 90.44,
+        sourceCurrency: 'USD',
+        targetCurrency: 'EUR',
+        payOut: 'BANK_TRANSFER',
+        disabled: false,
+      },
+    };
+    sandbox.stub(transferwise, 'quoteExpense').resolves(quote);
     payExpensesBatchGroup = sandbox.stub(transferwise, 'payExpensesBatchGroup').resolves({ status: 'COMPLETED' });
   });
 
@@ -153,7 +152,7 @@ describe('server/controllers/transferwise', () => {
   it('should mark expense as processing when retrying with OTT header', async () => {
     req.headers['x-2fa-approval'] = 'hash';
     // Simulate paid expenses because we stub fundExpensesBatchGroup
-    await expense.update({ data: { ...expense.data, transfer: { id: 1234 } } });
+    await expense.update({ data: { ...expense.data, transfer: { id: 1234 }, quote } });
     await transferwiseController.payBatch(req, res);
 
     await expense.reload();
