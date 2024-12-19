@@ -62,6 +62,7 @@ import { GraphQLSecurityCheck } from './SecurityCheck';
 import { GraphQLTaxInfo } from './TaxInfo';
 import { GraphQLTransferWiseRequiredField } from './TransferWise';
 import { GraphQLVirtualCard } from './VirtualCard';
+import { Unauthorized } from '../../errors';
 
 const EXPENSE_DRAFT_PUBLIC_FIELDS = [
   'taxes',
@@ -577,7 +578,10 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Reques
             ? await ExpenseLib.canUnschedulePayment(req, expense)
             : await ExpenseLib.canPayExpense(req, expense);
           if (canSeeQuote) {
-            const quote = isScheduledForPayment ? expense.data?.quote : await ExpenseLib.quoteExpense(expense, { req });
+            if (!(await ExpenseLib.canPayExpense(req, expense))) {
+              throw new Unauthorized("You don't have permission to pay this expense");
+            }
+            const quote = isScheduledForPayment ? expense.data?.quote : await ExpenseLib.quoteExpense(expense);
             if (!quote) {
               return null;
             }
