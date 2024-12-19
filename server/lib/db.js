@@ -165,6 +165,6 @@ export async function recreateDatabase(destroy = true) {
 export const createPostgresListener = () => {
   return createSubscriber({
     connectionString: getDBUrl('database'),
-    ssl: !['development', 'test', 'ci'].includes(config.env),
+    ...config.database.options.dialectOptions,
   });
 };
