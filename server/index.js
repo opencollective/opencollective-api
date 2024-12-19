@@ -11,6 +11,7 @@ import { isElasticSearchConfigured } from './lib/elastic-search/client';
 import { startElasticSearchPostgresSync, stopElasticSearchPostgresSync } from './lib/elastic-search/sync-postgres';
 import expressLib from './lib/express';
 import logger from './lib/logger';
+import { reportErrorToSentry } from './lib/sentry';
 import { updateCachedFidoMetadata } from './lib/two-factor-authentication/fido-metadata';
 import { parseToBoolean } from './lib/utils';
 import routes from './routes';
@@ -63,36 +64,35 @@ if (parseToBoolean(config.services.searchSync)) {
   if (!isElasticSearchConfigured()) {
     logger.warn('ElasticSearch is not configured. Skipping sync job.');
   } else {
-    startElasticSearchPostgresSync();
-  }
+    startElasticSearchPostgresSync()
+      .catch(e => reportErrorToSentry(e)) // We don't want to crash the server if the sync job fails to start
+      .then(() => {
+        // Add a handler to make sure we flush the Elastic Search sync queue before shutting down
+        let isShuttingDown = false;
+        const gracefullyShutdown = async signal => {
+          if (!isShuttingDown) {
+            logger.info(`Received ${signal}. Shutting down.`);
+            isShuttingDown = true;
 
-  // Add a handler to make sure we flush the Elastic Search sync queue before shutting down
-  let isShuttingDown = false;
-  const gracefullyShutdown = async signal => {
-    if (!isShuttingDown) {
-      logger.info(`Received ${signal}. Shutting down.`);
-      isShuttingDown = true;
+            if (appPromise) {
+              await appPromise.then(app => {
+                if (app.__server__) {
+                  logger.info('Closing express server');
+                  app.__server__.close();
+                }
+              });
+            }
 
-      if (appPromise) {
-        await appPromise.then(app => {
-          if (app.__server__) {
-            logger.info('Closing express server');
-            app.__server__.close();
+            await stopElasticSearchPostgresSync();
+            process.exit();
           }
-        });
-      }
+        };
 
-      if (parseToBoolean(config.services.searchSync) && isElasticSearchConfigured()) {
-        await stopElasticSearchPostgresSync();
-      }
-
-      process.exit();
-    }
-  };
-
-  process.on('exit', () => gracefullyShutdown('exit'));
-  process.on('SIGINT', () => gracefullyShutdown('SIGINT'));
-  process.on('SIGTERM', () => gracefullyShutdown('SIGTERM'));
+        process.on('exit', () => gracefullyShutdown('exit'));
+        process.on('SIGINT', () => gracefullyShutdown('SIGINT'));
+        process.on('SIGTERM', () => gracefullyShutdown('SIGTERM'));
+      });
+  }
 }
 
 // This is used by tests
