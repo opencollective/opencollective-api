@@ -9,6 +9,7 @@ import { HandlerType, reportErrorToSentry, reportMessageToSentry } from '../sent
 
 import { ElasticSearchModelsAdapters, getAdapterFromTableName } from './adapters';
 import { getElasticSearchClient } from './client';
+import { formatIndexNameForElasticSearch } from './common';
 import { ElasticSearchIndexName } from './constants';
 import { ElasticSearchRequest, ElasticSearchRequestType, isFullAccountReIndexRequest } from './types';
 
@@ -191,7 +192,7 @@ export class ElasticSearchBatchProcessor {
         const entriesToIndex = await adapter.findEntriesToIndex({ relatedToCollectiveIds: accountsToReIndex });
         for (const entry of entriesToIndex) {
           operations.push(
-            { index: { _index: adapter.index, _id: entry['id'].toString() } },
+            { index: { _index: formatIndexNameForElasticSearch(adapter.index), _id: entry['id'].toString() } },
             adapter.mapModelInstanceToDocument(entry),
           );
         }
@@ -220,15 +221,19 @@ export class ElasticSearchBatchProcessor {
         if (request.type === ElasticSearchRequestType.UPDATE) {
           const entry = groupedEntriesToIndex[request.payload.id];
           if (!entry) {
-            operations.push({ delete: { _index: adapter.index, _id: request.payload.id.toString() } });
+            operations.push({
+              delete: { _index: formatIndexNameForElasticSearch(adapter.index), _id: request.payload.id.toString() },
+            });
           } else {
             operations.push(
-              { index: { _index: adapter.index, _id: request.payload.id.toString() } },
+              { index: { _index: formatIndexNameForElasticSearch(adapter.index), _id: request.payload.id.toString() } },
               adapter.mapModelInstanceToDocument(entry),
             );
           }
         } else if (request.type === ElasticSearchRequestType.DELETE) {
-          operations.push({ delete: { _index: adapter.index, _id: request.payload.id.toString() } });
+          operations.push({
+            delete: { _index: formatIndexNameForElasticSearch(adapter.index), _id: request.payload.id.toString() },
+          });
         }
       }
     }
@@ -243,7 +248,7 @@ export class ElasticSearchBatchProcessor {
 
     const allIndexes = Object.values(ElasticSearchModelsAdapters).map(adapter => adapter.index);
     return {
-      index: allIndexes.join(','),
+      index: allIndexes.map(formatIndexNameForElasticSearch).join(','),
       wait_for_completion: true, // eslint-disable-line camelcase
       query: {
         bool: {
@@ -251,7 +256,10 @@ export class ElasticSearchBatchProcessor {
             // Delete all collectives
             {
               bool: {
-                must: [{ term: { _index: ElasticSearchIndexName.COLLECTIVES } }, { terms: { _id: accountIds } }],
+                must: [
+                  { term: { _index: formatIndexNameForElasticSearch(ElasticSearchIndexName.COLLECTIVES) } },
+                  { terms: { _id: accountIds } },
+                ],
               },
             },
             // Delete all relationships
