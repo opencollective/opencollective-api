@@ -34,9 +34,8 @@ interface SanitizeOptions {
 }
 
 export const buildSanitizerOptions = (allowedContent: AllowedContentType = {}): SanitizeOptions => {
-  // Nothing allowed by default
-  const allowedTags = [];
-  const allowedAttributes = {};
+  const allowedTags = []; // Nothing allowed by default
+  const allowedAttributes = { '*': ['dir'] }; // Always allow dir attribute to support RTL languages
   const allowedIframeHostnames = [];
   const transformTags = {
     a: function (_, attribs) {
