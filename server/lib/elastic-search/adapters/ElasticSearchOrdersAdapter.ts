@@ -1,13 +1,12 @@
 import { omit } from 'lodash';
 import { Op } from 'sequelize';
 
-import models from '../../../models';
+import models, { Subscription } from '../../../models';
 import { ElasticSearchIndexName } from '../constants';
 
-import { ElasticSearchModelAdapter } from './ElasticSearchModelAdapter';
+import { ElasticSearchModelAdapter, FindEntriesToIndexOptions } from './ElasticSearchModelAdapter';
 
 export class ElasticSearchOrdersAdapter implements ElasticSearchModelAdapter {
-  public readonly model = models.Order;
   public readonly index = ElasticSearchIndexName.ORDERS;
   public readonly mappings = {
     properties: {
@@ -18,6 +17,7 @@ export class ElasticSearchOrdersAdapter implements ElasticSearchModelAdapter {
       // Relationships
       CollectiveId: { type: 'keyword' },
       FromCollectiveId: { type: 'keyword' },
+      CreatedByUserId: { type: 'keyword' },
       // Special fields
       HostCollectiveId: { type: 'keyword' },
       ParentCollectiveId: { type: 'keyword' },
@@ -25,15 +25,11 @@ export class ElasticSearchOrdersAdapter implements ElasticSearchModelAdapter {
     },
   } as const;
 
-  public findEntriesToIndex(
-    options: {
-      offset?: number;
-      limit?: number;
-      fromDate?: Date;
-      maxId?: number;
-      ids?: number[];
-    } = {},
-  ) {
+  public getModel() {
+    return models.Order;
+  }
+
+  public findEntriesToIndex(options: FindEntriesToIndexOptions = {}) {
     return models.Order.findAll({
       attributes: omit(Object.keys(this.mappings.properties), ['HostCollectiveId', 'ParentCollectiveId']),
       order: [['id', 'DESC']],
@@ -42,16 +38,24 @@ export class ElasticSearchOrdersAdapter implements ElasticSearchModelAdapter {
       where: {
         ...(options.fromDate ? { updatedAt: options.fromDate } : null),
         ...(options.maxId ? { id: { [Op.lte]: options.maxId } } : null),
-        ...(options.ids?.length ? { id: { [Op.in]: options.ids } } : null),
+        ...(options.ids?.length ? { id: options.ids } : null),
+        ...(options.relatedToCollectiveIds?.length
+          ? {
+              [Op.or]: [
+                { CollectiveId: options.relatedToCollectiveIds },
+                { FromCollectiveId: options.relatedToCollectiveIds },
+              ],
+            }
+          : null),
       },
       include: [
         {
           association: 'collective',
           required: true,
-          attributes: ['HostCollectiveId', 'ParentCollectiveId'],
+          attributes: ['isActive', 'HostCollectiveId', 'ParentCollectiveId'],
         },
         {
-          model: models.Subscription,
+          model: Subscription,
           required: false,
           attributes: ['paypalSubscriptionId'],
         },
@@ -69,8 +73,9 @@ export class ElasticSearchOrdersAdapter implements ElasticSearchModelAdapter {
       description: instance.description,
       CollectiveId: instance.CollectiveId,
       FromCollectiveId: instance.FromCollectiveId,
-      HostCollectiveId: instance.collective.HostCollectiveId,
+      HostCollectiveId: !instance.collective.isActive ? null : instance.collective.HostCollectiveId,
       ParentCollectiveId: instance.collective.ParentCollectiveId,
+      CreatedByUserId: instance.CreatedByUserId,
       paypalSubscriptionId: instance.Subscription?.paypalSubscriptionId,
     };
   }
@@ -81,6 +86,9 @@ export class ElasticSearchOrdersAdapter implements ElasticSearchModelAdapter {
       default: 'PUBLIC' as const,
       fields: {
         paypalSubscriptionId: {
+          terms: { HostCollectiveId: adminOfAccountIds },
+        },
+        CreatedByUserId: {
           terms: { HostCollectiveId: adminOfAccountIds },
         },
       },

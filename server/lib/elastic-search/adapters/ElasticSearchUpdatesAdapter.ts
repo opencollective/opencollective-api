@@ -5,10 +5,9 @@ import models from '../../../models';
 import { stripHTMLOrEmpty } from '../../sanitize-html';
 import { ElasticSearchIndexName } from '../constants';
 
-import { ElasticSearchModelAdapter } from './ElasticSearchModelAdapter';
+import { ElasticSearchModelAdapter, FindEntriesToIndexOptions } from './ElasticSearchModelAdapter';
 
 export class ElasticSearchUpdatesAdapter implements ElasticSearchModelAdapter {
-  public readonly model = models.Update;
   public readonly index = ElasticSearchIndexName.UPDATES;
   public readonly mappings = {
     properties: {
@@ -29,15 +28,11 @@ export class ElasticSearchUpdatesAdapter implements ElasticSearchModelAdapter {
     },
   } as const;
 
-  public findEntriesToIndex(
-    options: {
-      offset?: number;
-      limit?: number;
-      fromDate?: Date;
-      maxId?: number;
-      ids?: number[];
-    } = {},
-  ) {
+  public getModel() {
+    return models.Update;
+  }
+
+  public findEntriesToIndex(options: FindEntriesToIndexOptions = {}) {
     return models.Update.findAll({
       attributes: omit(Object.keys(this.mappings.properties), ['HostCollectiveId', 'ParentCollectiveId']),
       order: [['id', 'DESC']],
@@ -46,13 +41,21 @@ export class ElasticSearchUpdatesAdapter implements ElasticSearchModelAdapter {
       where: {
         ...(options.fromDate ? { updatedAt: options.fromDate } : null),
         ...(options.maxId ? { id: { [Op.lte]: options.maxId } } : null),
-        ...(options.ids?.length ? { id: { [Op.in]: options.ids } } : null),
+        ...(options.ids?.length ? { id: options.ids } : null),
+        ...(options.relatedToCollectiveIds?.length
+          ? {
+              [Op.or]: [
+                { CollectiveId: options.relatedToCollectiveIds },
+                { FromCollectiveId: options.relatedToCollectiveIds },
+              ],
+            }
+          : null),
       },
       include: [
         {
           association: 'collective',
           required: true,
-          attributes: ['HostCollectiveId', 'ParentCollectiveId'],
+          attributes: ['isActive', 'HostCollectiveId', 'ParentCollectiveId'],
         },
       ],
     });
@@ -72,7 +75,7 @@ export class ElasticSearchUpdatesAdapter implements ElasticSearchModelAdapter {
       CollectiveId: instance.CollectiveId,
       FromCollectiveId: instance.FromCollectiveId,
       CreatedByUserId: instance.CreatedByUserId,
-      HostCollectiveId: instance.collective.HostCollectiveId,
+      HostCollectiveId: !instance.collective.isActive ? null : instance.collective.HostCollectiveId,
       ParentCollectiveId: instance.collective.ParentCollectiveId,
     };
   }

@@ -116,6 +116,7 @@
     "pg": "8.13.1",
     "pg-connection-string": "2.7.0",
     "pg-format": "1.0.4",
+    "pg-listen": "1.7.0",
     "plaid": "29.0.0",
     "prepend-http": "3.0.1",
     "redis": "4.6.6",

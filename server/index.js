@@ -7,14 +7,17 @@ import config from 'config';
 import express from 'express';
 import throng from 'throng';
 
+import { isElasticSearchConfigured } from './lib/elastic-search/client';
+import { startElasticSearchPostgresSync, stopElasticSearchPostgresSync } from './lib/elastic-search/sync-postgres';
 import expressLib from './lib/express';
 import logger from './lib/logger';
 import { updateCachedFidoMetadata } from './lib/two-factor-authentication/fido-metadata';
+import { parseToBoolean } from './lib/utils';
 import routes from './routes';
 
 const workers = process.env.WEB_CONCURRENCY || 1;
 
-async function start(i) {
+async function startExpressServer(workerId) {
   const expressApp = express();
 
   await updateCachedFidoMetadata();
@@ -35,7 +38,7 @@ async function start(i) {
       host,
       server.address().port,
       config.env,
-      i,
+      workerId,
     );
   });
 
@@ -45,15 +48,54 @@ async function start(i) {
   return expressApp;
 }
 
-let app;
+// Start the express server
+let appPromise;
+if (parseToBoolean(config.services.server)) {
+  if (['production', 'staging'].includes(config.env) && workers > 1) {
+    throng({ worker: startExpressServer, count: workers }); // TODO: Thong is not compatible with the shutdown logic below
+  } else {
+    appPromise = startExpressServer(1);
+  }
+}
 
-if (['production', 'staging'].includes(config.env) && workers > 1) {
-  throng({ worker: start, count: workers });
-} else {
-  app = start(1);
+// Start the search sync job
+if (parseToBoolean(config.services.searchSync)) {
+  if (!isElasticSearchConfigured()) {
+    logger.warn('ElasticSearch is not configured. Skipping sync job.');
+  } else {
+    startElasticSearchPostgresSync();
+  }
+
+  // Add a handler to make sure we flush the Elastic Search sync queue before shutting down
+  let isShuttingDown = false;
+  const gracefullyShutdown = async signal => {
+    if (!isShuttingDown) {
+      logger.info(`Received ${signal}. Shutting down.`);
+      isShuttingDown = true;
+
+      if (appPromise) {
+        await appPromise.then(app => {
+          if (app.__server__) {
+            logger.info('Closing express server');
+            app.__server__.close();
+          }
+        });
+      }
+
+      if (parseToBoolean(config.services.searchSync) && isElasticSearchConfigured()) {
+        await stopElasticSearchPostgresSync();
+      }
+
+      process.exit();
+    }
+  };
+
+  process.on('exit', () => gracefullyShutdown('exit'));
+  process.on('SIGINT', () => gracefullyShutdown('SIGINT'));
+  process.on('SIGTERM', () => gracefullyShutdown('SIGTERM'));
 }
 
 // This is used by tests
-export default async function () {
-  return app ? app : start(1);
+export default async function startServerForTest() {
+  return appPromise ?? startExpressServer(1);
 }

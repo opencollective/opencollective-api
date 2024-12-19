@@ -2,7 +2,6 @@
  * This file contains the logic to bind the ElasticSearch functionality to the GraphQL API.
  */
 
-import DataLoader from 'dataloader';
 import {
   GraphQLBoolean,
   GraphQLFieldConfigArgumentMap,
@@ -13,10 +12,10 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLJSONObject } from 'graphql-scalars';
-import { groupBy, mapKeys, mapValues } from 'lodash';
+import { keyBy, mapKeys, mapValues } from 'lodash';
 
 import { FieldsToGraphQLFieldConfigArgumentMap } from '../../graphql/common/typescript-helpers';
-import { SearchResultBucket } from '../../graphql/loaders/search';
+import { SearchResult } from '../../graphql/loaders/search';
 import { GraphQLAccountCollection } from '../../graphql/v2/collection/AccountCollection';
 import { CommentCollection } from '../../graphql/v2/collection/CommentCollection';
 import { GraphQLExpenseCollection } from '../../graphql/v2/collection/ExpenseCollection';
@@ -56,7 +55,7 @@ const GraphQLSearchResultsStrategy: Record<
   ElasticSearchIndexName,
   {
     // A loader to use for loading entities from the (optionally encoded) ID
-    loadMany: (req, ids) => DataLoader<unknown, unknown>;
+    loadMany: (req, ids) => Array<unknown | null>;
     // A function to encode the ID for use in the GraphQL API
     getGraphQLId: (result: Record<string, unknown>) => string;
     // A function to get Elastic Search index-specific parameters from the GraphQL arguments. By default, it returns the raw arguments.
@@ -135,9 +134,9 @@ const buildSearchResultsType = (index: ElasticSearchIndexName, name: string, col
     resolve: async (baseSearchParams: GraphQLSearchParams, args, req) => {
       const indexParams = strategy.prepareArguments ? strategy.prepareArguments(args) : args;
       const fullSearchParams = { ...baseSearchParams, index, indexParams };
-      const results = (await req.loaders.search.load(fullSearchParams)) as SearchResultBucket;
+      const result = (await req.loaders.search.load(fullSearchParams)) as SearchResult | null;
 
-      if (!results || results['doc_count'] === 0) {
+      if (!result || result.count === 0) {
         return {
           maxScore: 0,
           collection: { totalCount: 0, offset: 0, limit: baseSearchParams.limit, nodes: () => [] },
@@ -145,23 +144,22 @@ const buildSearchResultsType = (index: ElasticSearchIndexName, name: string, col
         };
       }
 
-      const hits = results['top_hits_by_index']['hits']['hits'];
-      const maxScore = results['top_hits_by_index']['hits']['max_score'] ?? 0;
-      const getSQLIdFromHit = hit => hit['_source']['id'];
-      const hitsGroupedBySQLId = groupBy(hits, getSQLIdFromHit);
-      const hitsGroupedByGraphQLKey = mapKeys(hitsGroupedBySQLId, result =>
-        strategy.getGraphQLId(result[0]['_source']),
-      );
-      const highlights = mapValues(hitsGroupedByGraphQLKey, hits => hits[0]['highlight']);
+      const getSQLIdFromHit = (hit: (typeof result.hits)[0]): number => hit.source['id'] as number;
+      const hitsGroupedBySQLId = keyBy(result.hits, getSQLIdFromHit);
+      const hitsGroupedByGraphQLKey = mapKeys(hitsGroupedBySQLId, result => strategy.getGraphQLId(result.source));
+      const highlights = mapValues(hitsGroupedByGraphQLKey, hit => hit.highlight);
 
       return {
-        maxScore,
+        maxScore: result.maxScore,
         highlights,
         collection: {
-          totalCount: results['doc_count'],
+          totalCount: result.count,
           offset: 0,
           limit: baseSearchParams.limit,
-          nodes: () => strategy.loadMany(req, hits.map(getSQLIdFromHit)),
+          nodes: async () => {
+            const entries = await strategy.loadMany(req, result.hits.map(getSQLIdFromHit));
+            return entries.filter(Boolean); // Entries in ElasticSearch may have been deleted in the DB
+          },
         },
       };
     },

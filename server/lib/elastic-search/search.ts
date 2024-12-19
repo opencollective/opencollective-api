@@ -10,6 +10,7 @@ import { reportErrorToSentry } from '../sentry';
 
 import { ElasticSearchModelsAdapters } from './adapters';
 import { getElasticSearchClient } from './client';
+import { formatIndexNameForElasticSearch } from './common';
 import { ElasticSearchIndexName, ElasticSearchIndexParams } from './constants';
 
 /**
@@ -112,7 +113,7 @@ const buildQuery = (
           {
             bool: {
               filter: [
-                { term: { _index: index } },
+                { term: { _index: formatIndexNameForElasticSearch(index) } },
                 ...(permissions.default === 'PUBLIC' ? [] : [permissions.default]),
                 ...getIndexConditions(index, indexParams),
               ],
@@ -178,7 +179,7 @@ export const elasticSearchGlobalSearch = async (
     return await client.search({
       /* eslint-disable camelcase */
       timeout: `${timeoutInSeconds}s`,
-      index: Array.from(indexes).join(','),
+      index: Array.from(indexes).map(formatIndexNameForElasticSearch).join(','),
       body: {
         size: 0, // We don't need hits at the top level
         query,

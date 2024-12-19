@@ -1,9 +1,11 @@
 import '../server/env';
 
 import { Command } from 'commander';
+import config from 'config';
 import { partition, uniq } from 'lodash';
 
 import { getElasticSearchClient } from '../server/lib/elastic-search/client';
+import { formatIndexNameForElasticSearch } from '../server/lib/elastic-search/common';
 import { ElasticSearchIndexName } from '../server/lib/elastic-search/constants';
 import { elasticSearchGlobalSearch } from '../server/lib/elastic-search/search';
 import {
@@ -77,7 +79,8 @@ program
     const indexes = parseIndexesFromInput(indexesInput);
     logger.info('Creating all indices...');
     for (const indexName of indexes) {
-      logger.info(`Creating index ${indexName}`);
+      const realIndexName = formatIndexNameForElasticSearch(indexName);
+      logger.info(`Creating index ${indexName}${realIndexName !== indexName ? ` (${realIndexName})` : ''}`);
       await createElasticSearchIndex(indexName);
     }
     logger.info('Create completed!');
@@ -98,9 +101,10 @@ program
     ) {
       logger.info('Syncing all models...');
       for (const indexName of indexes) {
-        logger.info(`Dropping index ${indexName}`);
+        const realIndexName = formatIndexNameForElasticSearch(indexName);
+        logger.info(`Dropping index ${indexName}${realIndexName !== indexName ? ` (${realIndexName})` : ''}`);
         await deleteElasticSearchIndex(indexName, { throwIfMissing: false });
-        logger.info(`Re-creating index ${indexName}`);
+        logger.info(`Re-creating index ${indexName}${realIndexName !== indexName ? ` (${realIndexName})` : ''}`);
         await createElasticSearchIndex(indexName);
         await syncElasticSearchIndex(indexName, { log: true });
       }
@@ -192,17 +196,35 @@ program
   .command('stats')
   .description('Show information about the ElasticSearch indices')
   .argument('[indexes...]', 'Only show information about specific indexes')
-  .action(async indexesInput => {
+  .option('--all', 'Show information about all indexes, even those not matching the prefix')
+  .action(async (indexesInput, options) => {
     checkElasticSearchAvailable();
-    const indexes = parseIndexesFromInput(indexesInput);
+    const indexesFromArgs = parseIndexesFromInput(indexesInput, null);
     const client = getElasticSearchClient();
-    const availableIndexes = await getAvailableElasticSearchIndexes();
-    const [availableIndexesToQuery, unknownIndexes] = partition(indexes, index => availableIndexes.includes(index));
-    if (unknownIndexes.length) {
-      logger.warn(`Unknown indexes: ${unknownIndexes.join(', ')}`);
+    let availableIndexes = await getAvailableElasticSearchIndexes();
+
+    // Only get the indexes specified in args
+    if (indexesFromArgs) {
+      const partitionedIndexes = partition(indexesFromArgs, index => availableIndexes.includes(index));
+      availableIndexes = partitionedIndexes[0];
+      if (partitionedIndexes[1].length) {
+        logger.warn(`Unknown indexes: ${partitionedIndexes[1].join(', ')}`);
+      }
     }
 
-    const result = await client.indices.stats({ index: availableIndexesToQuery.join(',') });
+    // Filter out indexes that don't match the prefix
+    if (!options.all) {
+      const prefix = config.elasticSearch.indexesPrefix;
+      if (prefix) {
+        availableIndexes = availableIndexes.filter(index => index.startsWith(prefix));
+      } else {
+        availableIndexes = availableIndexes.filter(index =>
+          Object.values(ElasticSearchIndexName).includes(index as ElasticSearchIndexName),
+        );
+      }
+    }
+
+    const result = await client.indices.stats({ index: availableIndexes.join(',') });
     let nbDocs = 0;
     let totalSize = 0;
     const formatSize = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(2)} MB`;
