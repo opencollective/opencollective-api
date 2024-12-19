@@ -2819,8 +2819,6 @@ export const getExpenseFees = async (
   const payoutMethodType = payoutMethod ? payoutMethod.type : expense.getPayoutMethodTypeFromLegacy();
 
   if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT) {
-    const connectedAccount = await host.getAccountForPaymentProvider('transferwise');
-
     const existingQuote = expense.data?.quote;
     const existingPaymentOption = existingQuote?.paymentOption;
     if (
