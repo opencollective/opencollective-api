@@ -65,7 +65,11 @@ if (parseToBoolean(config.services.searchSync)) {
     logger.warn('ElasticSearch is not configured. Skipping sync job.');
   } else {
     startElasticSearchPostgresSync()
-      .catch(e => reportErrorToSentry(e)) // We don't want to crash the server if the sync job fails to start
+      .catch(e => {
+        // We don't want to crash the server if the sync job fails to start
+        logger.error('Failed to start ElasticSearch sync job', e);
+        reportErrorToSentry(e);
+      })
       .then(() => {
         // Add a handler to make sure we flush the Elastic Search sync queue before shutting down
         let isShuttingDown = false;
