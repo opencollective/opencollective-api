@@ -27,6 +27,7 @@ import transferwise from '../../../paymentProviders/transferwise';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import * as ExpenseLib from '../../common/expenses';
 import { checkScope } from '../../common/scope-check';
+import { Unauthorized } from '../../errors';
 import { CommentCollection } from '../collection/CommentCollection';
 import { GraphQLLegalDocumentCollection } from '../collection/LegalDocumentCollection';
 import { GraphQLCurrency } from '../enum';
@@ -577,7 +578,10 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Reques
             ? await ExpenseLib.canUnschedulePayment(req, expense)
             : await ExpenseLib.canPayExpense(req, expense);
           if (canSeeQuote) {
-            const quote = isScheduledForPayment ? expense.data?.quote : await ExpenseLib.quoteExpense(expense, { req });
+            if (!(await ExpenseLib.canPayExpense(req, expense))) {
+              throw new Unauthorized("You don't have permission to pay this expense");
+            }
+            const quote = isScheduledForPayment ? expense.data?.quote : await ExpenseLib.quoteExpense(expense);
             if (!quote) {
               return null;
             }
