@@ -4,7 +4,11 @@ import { Op } from 'sequelize';
 import models from '../../../models';
 import { ElasticSearchIndexName } from '../constants';
 
-import { ElasticSearchModelAdapter, FindEntriesToIndexOptions } from './ElasticSearchModelAdapter';
+import {
+  ElasticSearchFieldWeight,
+  ElasticSearchModelAdapter,
+  FindEntriesToIndexOptions,
+} from './ElasticSearchModelAdapter';
 
 export class ElasticSearchHostApplicationsAdapter implements ElasticSearchModelAdapter {
   public readonly index = ElasticSearchIndexName.HOST_APPLICATIONS;
@@ -26,6 +30,17 @@ export class ElasticSearchHostApplicationsAdapter implements ElasticSearchModelA
   public getModel() {
     return models.HostApplication;
   }
+
+  public readonly weights: Partial<Record<keyof (typeof this.mappings)['properties'], ElasticSearchFieldWeight>> = {
+    message: 10,
+    // Ignored fields
+    CollectiveId: 0,
+    HostCollectiveId: 0,
+    CreatedByUserId: 0,
+    createdAt: 0,
+    updatedAt: 0,
+    ParentCollectiveId: 0,
+  };
 
   public findEntriesToIndex(options: FindEntriesToIndexOptions = {}) {
     return models.HostApplication.findAll({
