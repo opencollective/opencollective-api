@@ -14,6 +14,9 @@
       }
     }
   },
+  "elasticSearch": {
+    "indexesPrefix": "staging"
+  },
   "host": {
     "api": "https://api-staging.opencollective.com",
     "frontend": "https://frontend-staging.opencollective.com",

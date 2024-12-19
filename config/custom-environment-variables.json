@@ -10,7 +10,8 @@
   },
   "elasticSearch": {
     "url": "ELASTICSEARCH_URL",
-    "maxSyncDelay": "ELASTICSEARCH_MAX_SYNC_DELAY"
+    "maxSyncDelay": "ELASTICSEARCH_MAX_SYNC_DELAY",
+    "indexesPrefix": "ELASTICSEARCH_INDEXES_PREFIX"
   },
   "database": {
     "url": "PG_URL",

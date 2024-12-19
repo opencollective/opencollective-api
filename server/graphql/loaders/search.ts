@@ -4,6 +4,7 @@ import { AggregationsMultiBucketAggregateBase, SearchResponse } from '@elastic/e
 import DataLoader from 'dataloader';
 import { groupBy, pick } from 'lodash';
 
+import { formatIndexNameForElasticSearch } from '../../lib/elastic-search/common';
 import { ElasticSearchIndexName, ElasticSearchIndexParams } from '../../lib/elastic-search/constants';
 import { elasticSearchGlobalSearch, ElasticSearchIndexRequest } from '../../lib/elastic-search/search';
 import { reportMessageToSentry } from '../../lib/sentry';
@@ -12,7 +13,7 @@ import { Collective } from '../../models';
 type SearchParams = {
   requestId: string;
   searchTerm: string;
-  index: string;
+  index: ElasticSearchIndexName;
   indexParams: ElasticSearchIndexParams[ElasticSearchIndexName];
   limit: number;
   adminOfAccountIds: number[];
@@ -20,7 +21,7 @@ type SearchParams = {
   host: Collective;
 };
 
-export type SearchResultBucket = {
+type SearchResultBucket = {
   key: string;
   doc_count: number;
   top_hits_by_index: {
@@ -41,6 +42,18 @@ export type SearchResultBucket = {
   };
 };
 
+export type SearchResult = {
+  count: number;
+  maxScore: number;
+  hits: Array<{
+    indexName: ElasticSearchIndexName;
+    score: number;
+    id: string;
+    source: Record<string, unknown>;
+    highlight: Record<string, string[]>;
+  }>;
+};
+
 const getSearchIndexes = (requests: SearchParams[]): ElasticSearchIndexRequest[] => {
   const results: Partial<Record<ElasticSearchIndexName, ElasticSearchIndexRequest>> = {};
   for (const request of requests) {
@@ -56,9 +69,10 @@ const getSearchIndexes = (requests: SearchParams[]): ElasticSearchIndexRequest[]
  * A loader to batch search requests on multiple indexes into a single ElasticSearch query.
  */
 export const generateSearchLoaders = req => {
-  return new DataLoader<SearchParams, SearchResultBucket>(async (entries: SearchParams[]) => {
-    const groupedRequests = groupBy(entries, 'requestId');
+  return new DataLoader<SearchParams, SearchResult | null>(async (requests: SearchParams[]) => {
+    const groupedRequests = groupBy(requests, 'requestId');
     const requestsResults = new Map<string, SearchResponse>();
+    const failures = [];
 
     // All grouped requests must have the same searchTerm
     assert(
@@ -79,29 +93,40 @@ export const generateSearchLoaders = req => {
       });
 
       if (results) {
-        if (results._shards?.failures) {
-          reportMessageToSentry('ElasticSearch search shard failures', {
-            extra: {
-              failures: results._shards.failures,
-              request: firstRequest,
-              indexes,
-            },
-          });
-        }
-
         requestsResults.set(requestId, results);
+        if (results._shards?.failures) {
+          failures.push({ request: firstRequest, indexes, items: results._shards.failures });
+        }
       }
     }
 
-    return entries.map(entry => {
-      const results = requestsResults.get(entry.requestId);
+    if (failures.length > 0) {
+      reportMessageToSentry('ElasticSearch shard failures', { extra: { failures } });
+    }
+
+    return requests.map(request => {
+      const results = requestsResults.get(request.requestId);
       const resultsAggregationsByIndex = results?.aggregations?.by_index as AggregationsMultiBucketAggregateBase;
       const buckets = resultsAggregationsByIndex?.buckets as Array<SearchResultBucket>;
       if (!buckets) {
         return null;
       }
 
-      return buckets.find(bucket => bucket.key === entry.index);
+      const expectedBucket = formatIndexNameForElasticSearch(request.index);
+      const bucket = buckets.find(bucket => bucket.key === expectedBucket);
+      if (bucket) {
+        return {
+          count: bucket.doc_count,
+          maxScore: bucket.top_hits_by_index.hits.max_score || 0,
+          hits: bucket.top_hits_by_index.hits.hits.map(hit => ({
+            indexName: request.index,
+            score: hit._score,
+            id: hit._id,
+            source: hit._source,
+            highlight: hit.highlight,
+          })),
+        };
+      }
     });
   });
 };

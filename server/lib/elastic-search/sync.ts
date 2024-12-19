@@ -2,6 +2,7 @@
  * Functions to sync data between the database and elastic search
  */
 
+import config from 'config';
 import { chunk } from 'lodash';
 
 import { Op } from '../../models';
@@ -9,6 +10,7 @@ import logger from '../logger';
 
 import { ElasticSearchModelsAdapters } from './adapters';
 import { getElasticSearchClient } from './client';
+import { formatIndexNameForElasticSearch } from './common';
 import { ElasticSearchIndexName } from './constants';
 
 export async function createElasticSearchIndex(indexName: ElasticSearchIndexName) {
@@ -19,7 +21,7 @@ export async function createElasticSearchIndex(indexName: ElasticSearchIndexName
   }
 
   return client.indices.create({
-    index: adapter.index,
+    index: formatIndexNameForElasticSearch(indexName),
     body: { mappings: adapter['mappings'], settings: adapter['settings'] },
   });
 }
@@ -44,7 +46,7 @@ async function removeDeletedEntries(indexName: ElasticSearchIndexName, fromDate:
       return;
     }
     await client.bulk({
-      index: indexName,
+      index: formatIndexNameForElasticSearch(indexName),
       body: deletedEntries.flatMap(entry => [{ delete: { _id: entry.id } }]),
     });
     offset += pageSize;
@@ -61,7 +63,7 @@ export async function restoreUndeletedEntries(indexName: ElasticSearchIndexName,
 
   /* eslint-disable camelcase */
   let scrollSearch = await client.search({
-    index: indexName,
+    index: formatIndexNameForElasticSearch(indexName),
     body: { _source: false },
     filter_path: ['hits.hits._id', '_scroll_id'],
     size: 10_000, // Max value allowed by ES
@@ -115,7 +117,7 @@ export async function restoreUndeletedEntries(indexName: ElasticSearchIndexName,
 
     // Send data to ElasticSearch
     await client.bulk({
-      index: indexName,
+      index: formatIndexNameForElasticSearch(indexName),
       body: modelEntries.flatMap(entry => [{ index: { _id: entry.id } }, adapter.mapModelInstanceToDocument(entry)]),
     });
 
@@ -133,7 +135,10 @@ export async function syncElasticSearchIndex(
   const { fromDate } = options;
 
   if (options.log) {
-    logger.info(`Syncing index ${indexName}...`);
+    const realIndexName = formatIndexNameForElasticSearch(indexName);
+    logger.info(
+      `Syncing index ${indexName}${realIndexName !== indexName ? ` (${realIndexName})` : ''}${fromDate ? ` from ${fromDate}` : ''}...`,
+    );
   }
 
   // If there's a fromDate, it means we are doing a simple sync (not a full resync) and therefore need to look at deleted entries
@@ -159,7 +164,7 @@ export async function syncElasticSearchIndex(
 
     // Send data to ElasticSearch
     await client.bulk({
-      index: indexName,
+      index: formatIndexNameForElasticSearch(indexName),
       body: modelEntries.flatMap(entry => [{ index: { _id: entry.id } }, adapter.mapModelInstanceToDocument(entry)]),
     });
 
@@ -188,10 +193,10 @@ export const deleteElasticSearchIndex = async (indexName: ElasticSearchIndexName
   }
 
   const client = getElasticSearchClient({ throwIfUnavailable: true });
-  await client.indices.delete({ index: indexName });
+  await client.indices.delete({ index: formatIndexNameForElasticSearch(indexName) });
 };
 
-export const waitForAllIndexesRefresh = async () => {
+export const waitForAllIndexesRefresh = async (prefix = config.elasticSearch.indexesPrefix) => {
   const client = getElasticSearchClient({ throwIfUnavailable: true });
-  await client.indices.refresh({ index: '_all' });
+  await client.indices.refresh({ index: !prefix ? '_all' : `${prefix}_*` });
 };
