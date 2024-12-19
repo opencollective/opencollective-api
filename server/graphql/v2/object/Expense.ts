@@ -27,6 +27,7 @@ import transferwise from '../../../paymentProviders/transferwise';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import * as ExpenseLib from '../../common/expenses';
 import { checkScope } from '../../common/scope-check';
+import { Unauthorized } from '../../errors';
 import { CommentCollection } from '../collection/CommentCollection';
 import { GraphQLLegalDocumentCollection } from '../collection/LegalDocumentCollection';
 import { GraphQLCurrency } from '../enum';
@@ -62,7 +63,6 @@ import { GraphQLSecurityCheck } from './SecurityCheck';
 import { GraphQLTaxInfo } from './TaxInfo';
 import { GraphQLTransferWiseRequiredField } from './TransferWise';
 import { GraphQLVirtualCard } from './VirtualCard';
-import { Unauthorized } from '../../errors';
 
 const EXPENSE_DRAFT_PUBLIC_FIELDS = [
   'taxes',
