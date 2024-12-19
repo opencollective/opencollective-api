@@ -1854,20 +1854,18 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
       describe('With transferwise', () => {
         const fee = 1.74;
-        let getTemporaryQuote, expense;
+        let quoteExpense, expense;
         const quote = {
           payOut: 'BANK_TRANSFER',
-          paymentOptions: [
-            {
-              payInProduct: 'BALANCE',
-              fee: { total: fee },
-              payIn: 'BALANCE',
-              sourceCurrency: 'USD',
-              targetCurrency: 'EUR',
-              payOut: 'BANK_TRANSFER',
-              disabled: false,
-            },
-          ],
+          paymentOption: {
+            payInProduct: 'BALANCE',
+            fee: { total: fee },
+            payIn: 'BALANCE',
+            sourceCurrency: 'USD',
+            targetCurrency: 'EUR',
+            payOut: 'BANK_TRANSFER',
+            disabled: false,
+          },
         };
 
         before(async () => {
@@ -1876,7 +1874,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         });
 
         beforeEach(() => {
-          getTemporaryQuote = sandbox.stub(paymentProviders.transferwise, 'getTemporaryQuote').resolves(quote);
+          quoteExpense = sandbox.stub(paymentProviders.transferwise, 'quoteExpense').resolves(quote);
           sandbox.stub(paymentProviders.transferwise, 'payExpense').resolves({ quote });
         });
 
@@ -1916,7 +1914,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           expect(res.errors).to.not.exist;
           await expense.reload();
 
-          expect(getTemporaryQuote.called).to.be.true;
+          expect(quoteExpense.called).to.be.true;
           expect(expense)
             .to.have.nested.property('data.feesInHostCurrency.paymentProcessorFeeInHostCurrency')
             .to.equal(Math.round(fee * 100));
@@ -2914,23 +2912,21 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       payoutMethod;
     const quote = {
       payOut: 'BANK_TRANSFER',
-      paymentOptions: [
-        {
-          payInProduct: 'BALANCE',
-          fee: { total: fee },
-          payIn: 'BALANCE',
-          sourceCurrency: 'USD',
-          targetCurrency: 'EUR',
-          payOut: 'BANK_TRANSFER',
-          disabled: false,
-        },
-      ],
+      paymentOption: {
+        payInProduct: 'BALANCE',
+        fee: { total: fee },
+        payIn: 'BALANCE',
+        sourceCurrency: 'USD',
+        targetCurrency: 'EUR',
+        payOut: 'BANK_TRANSFER',
+        disabled: false,
+      },
     };
 
     before(() => {
       sandbox = createSandbox();
       sandbox.stub(paymentProviders.transferwise, 'payExpense').resolves({ quote });
-      sandbox.stub(paymentProviders.transferwise, 'getTemporaryQuote').resolves(quote);
+      sandbox.stub(paymentProviders.transferwise, 'quoteExpense').resolves(quote);
     });
 
     after(() => sandbox.restore());
