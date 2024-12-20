@@ -9,10 +9,11 @@ import '../env';
 
 import { ApolloServerPlugin } from '@apollo/server';
 import * as Sentry from '@sentry/node';
+import { nodeProfilingIntegration } from '@sentry/profiling-node';
 import type { SeverityLevel } from '@sentry/types';
 import axios, { AxiosError } from 'axios';
 import config from 'config';
-import { cloneDeep, get, isEmpty, isEqual, pick } from 'lodash';
+import { cloneDeep, compact, get, isEmpty, isEqual, pick } from 'lodash';
 
 import FEATURE from '../constants/feature';
 import { User } from '../models';
@@ -22,6 +23,7 @@ import { safeJsonStringify, sanitizeObjectForJSON } from './safe-json-stringify'
 import * as utils from './utils';
 
 const TRACES_SAMPLE_RATE = parseFloat(config.sentry.tracesSampleRate) || 0;
+const PROFILES_SAMPLE_RATE = parseFloat(config.sentry.profilesSampleRate) || 0;
 const MIN_EXECUTION_TIME_TO_SAMPLE = parseInt(config.sentry.minExecutionTimeToSample);
 
 const checkIfSentryConfigured = () => Boolean(config.sentry?.dsn);
@@ -64,6 +66,7 @@ Sentry.init({
   },
   dsn: config.sentry.dsn,
   environment: config.env,
+  integrations: compact([TRACES_SAMPLE_RATE > 0 && nodeProfilingIntegration()]),
   attachStacktrace: true,
   enabled: config.env !== 'test',
   tracesSampler: samplingContext => {
@@ -75,10 +78,12 @@ Sentry.init({
       return TRACES_SAMPLE_RATE;
     }
   },
+  // Relative to tracesSampler
+  profilesSampleRate: PROFILES_SAMPLE_RATE,
 });
 
 if (checkIfSentryConfigured()) {
-  logger.info('Initializing Sentry');
+  logger.info(`Initializing Sentry in ${config.env} environment `);
 
   // Catch all errors that haven't been caught anywhere else
   process

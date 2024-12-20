@@ -216,6 +216,7 @@
   },
   "sentry": {
     "tracesSampleRate": 0,
+    "profilesSampleRate": 0,
     "minExecutionTimeToSample": 800
   },
   "ledger": {
