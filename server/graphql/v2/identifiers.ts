@@ -49,7 +49,7 @@ export const IDENTIFIER_TYPES = {
   TRANSACTIONS_IMPORT_ROW: 'transactions-import-row',
 } as const;
 
-type IdentifierType = (typeof IDENTIFIER_TYPES)[keyof typeof IDENTIFIER_TYPES];
+export type IdentifierType = (typeof IDENTIFIER_TYPES)[keyof typeof IDENTIFIER_TYPES];
 
 const getDefaultInstance = (type: IdentifierType): Hashids => {
   switch (type) {

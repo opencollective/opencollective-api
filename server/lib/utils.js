@@ -511,6 +511,12 @@ export const getBearerTokenFromRequestHeaders = req => {
   }
 };
 
+export const getBearerTokenFromCookie = req => {
+  return req?.cookies?.accessTokenPayload && req?.cookies?.accessTokenSignature
+    ? [req.cookies.accessTokenPayload, req.cookies.accessTokenSignature].join('.')
+    : null;
+};
+
 export const sumByWhen = (vector, iteratee, predicate) => sumBy(filter(vector, predicate), iteratee);
 
 /**
