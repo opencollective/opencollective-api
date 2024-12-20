@@ -143,7 +143,8 @@ export async function fetchFxRates(
       const res = await fetch(`https://data.fixer.io/${simplifiedDate}?${searchParams.toString()}`);
       const json = await res.json();
       if (json.error) {
-        throw new Error(`${json.error.info} (${searchParams.toString()})`);
+        reportMessageToSentry(`FX Rate query issue: ${json.error.info} (${searchParams.toString()})`);
+        throw new Error('We are unable to fetch some currencies FX rate at the moment');
       }
       const rates = {};
       keys(json.rates).forEach(to => {
