@@ -24,6 +24,11 @@ const getPlatformConstants = (checkIfMigrated: () => boolean) => ({
     return 845576;
   },
 
+  get OficoCollectiveId() {
+    // https://opencollective.com/ofico
+    return 835523;
+  },
+
   get PlatformCollectiveId() {
     if (checkIfMigrated()) {
       return this.OfitechCollectiveId;
@@ -69,7 +74,7 @@ const getPlatformConstants = (checkIfMigrated: () => boolean) => ({
 
   /** Gets all platform collective ids - old and new */
   get AllPlatformCollectiveIds() {
-    return [8686, 835523];
+    return [this.OCICollectiveId, this.OfitechCollectiveId, this.OficoCollectiveId];
   },
 
   get FirstPartyHostCollectiveIds() {
