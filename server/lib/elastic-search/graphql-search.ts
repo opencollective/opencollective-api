@@ -127,8 +127,12 @@ const buildSearchResultsType = (index: ElasticSearchIndexName, name: string, col
       name: `SearchResults${name}`,
       fields: {
         collection: { type: new GraphQLNonNull(collectionType) },
-        highlights: { type: GraphQLJSONObject },
         maxScore: { type: new GraphQLNonNull(GraphQLFloat) },
+        highlights: {
+          type: GraphQLJSONObject,
+          description:
+            'Details about the matches typed as: { [id]: { score: number, fields: { [field]: [highlight] } } }',
+        },
       },
     }),
     resolve: async (baseSearchParams: GraphQLSearchParams, args, req) => {
@@ -147,7 +151,10 @@ const buildSearchResultsType = (index: ElasticSearchIndexName, name: string, col
       const getSQLIdFromHit = (hit: (typeof result.hits)[0]): number => hit.source['id'] as number;
       const hitsGroupedBySQLId = keyBy(result.hits, getSQLIdFromHit);
       const hitsGroupedByGraphQLKey = mapKeys(hitsGroupedBySQLId, result => strategy.getGraphQLId(result.source));
-      const highlights = mapValues(hitsGroupedByGraphQLKey, hit => hit.highlight);
+      const highlights = mapValues(hitsGroupedByGraphQLKey, hit => ({
+        score: hit.score,
+        fields: hit.highlight,
+      }));
 
       return {
         maxScore: result.maxScore,

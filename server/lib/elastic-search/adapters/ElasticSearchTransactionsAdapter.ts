@@ -4,7 +4,11 @@ import { Op } from 'sequelize';
 import models from '../../../models';
 import { ElasticSearchIndexName } from '../constants';
 
-import { ElasticSearchModelAdapter, FindEntriesToIndexOptions } from './ElasticSearchModelAdapter';
+import {
+  ElasticSearchFieldWeight,
+  ElasticSearchModelAdapter,
+  FindEntriesToIndexOptions,
+} from './ElasticSearchModelAdapter';
 
 export class ElasticSearchTransactionsAdapter implements ElasticSearchModelAdapter {
   public readonly index = ElasticSearchIndexName.TRANSACTIONS;
@@ -30,6 +34,21 @@ export class ElasticSearchTransactionsAdapter implements ElasticSearchModelAdapt
   public getModel() {
     return models.Transaction;
   }
+
+  public readonly weights: Partial<Record<keyof (typeof this.mappings)['properties'], ElasticSearchFieldWeight>> = {
+    TransactionGroup: 10,
+    uuid: 10,
+    merchantId: 10,
+    description: 5,
+    kind: 3,
+    id: 1,
+    // Ignored fields
+    CollectiveId: 0,
+    FromCollectiveId: 0,
+    HostCollectiveId: 0,
+    createdAt: 0,
+    updatedAt: 0,
+  };
 
   public findEntriesToIndex(options: FindEntriesToIndexOptions = {}) {
     return models.Transaction.findAll({

@@ -2,7 +2,11 @@ import models, { Op } from '../../../models';
 import { stripHTMLOrEmpty } from '../../sanitize-html';
 import { ElasticSearchIndexName } from '../constants';
 
-import { ElasticSearchModelAdapter, FindEntriesToIndexOptions } from './ElasticSearchModelAdapter';
+import {
+  ElasticSearchFieldWeight,
+  ElasticSearchModelAdapter,
+  FindEntriesToIndexOptions,
+} from './ElasticSearchModelAdapter';
 
 export class ElasticSearchCollectivesAdapter implements ElasticSearchModelAdapter {
   public readonly index = ElasticSearchIndexName.COLLECTIVES;
@@ -32,6 +36,18 @@ export class ElasticSearchCollectivesAdapter implements ElasticSearchModelAdapte
   public getModel() {
     return models.Collective;
   }
+
+  public readonly weights: Partial<Record<keyof (typeof this.mappings)['properties'], ElasticSearchFieldWeight>> = {
+    slug: 10,
+    // Ignored fields
+    HostCollectiveId: 0,
+    ParentCollectiveId: 0,
+    isHostAccount: 0,
+    isActive: 0,
+    createdAt: 0,
+    updatedAt: 0,
+    deactivatedAt: 0,
+  };
 
   public async findEntriesToIndex(options: FindEntriesToIndexOptions = {}) {
     return models.Collective.findAll({
