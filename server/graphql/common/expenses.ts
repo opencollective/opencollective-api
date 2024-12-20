@@ -2819,8 +2819,6 @@ export const getExpenseFees = async (
   const payoutMethodType = payoutMethod ? payoutMethod.type : expense.getPayoutMethodTypeFromLegacy();
 
   if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT) {
-    const connectedAccount = await host.getAccountForPaymentProvider('transferwise');
-
     const existingQuote = expense.data?.quote;
     const existingPaymentOption = existingQuote?.paymentOption;
     if (
@@ -2834,8 +2832,8 @@ export const getExpenseFees = async (
         existingPaymentOption.fee.total / collectiveToHostFxRate,
       );
     } else {
-      const quote = await paymentProviders.transferwise.getTemporaryQuote(connectedAccount, payoutMethod, expense);
-      const paymentOption = quote.paymentOptions.find(p => p.payIn === 'BALANCE' && p.payOut === quote.payOut);
+      const quote = await quoteExpense(expense);
+      const paymentOption = quote.paymentOption;
       if (!paymentOption) {
         throw new BadRequest(`Could not find available payment option for this transaction.`, null, quote);
       }
@@ -3300,7 +3298,7 @@ export async function markExpenseAsUnpaid(
   return expense;
 }
 
-export async function quoteExpense(expense_, { req }) {
+export async function quoteExpense(expense_) {
   const expense = await models.Expense.findByPk(expense_.id, {
     include: [
       { model: models.Collective, as: 'collective' },
@@ -3309,11 +3307,8 @@ export async function quoteExpense(expense_, { req }) {
   });
   const payoutMethod = await expense.getPayoutMethod();
   const payoutMethodType = payoutMethod ? payoutMethod.type : expense.getPayoutMethodTypeFromLegacy();
-  if (!(await canPayExpense(req, expense))) {
-    throw new Unauthorized("You don't have permission to pay this expense");
-  }
 
-  const host = await expense.collective.getHostCollective({ loaders: req.loaders });
+  const host = await expense.collective.getHostCollective();
   if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT) {
     const connectedAccount = await host.getAccountForPaymentProvider(Service.TRANSFERWISE);
 

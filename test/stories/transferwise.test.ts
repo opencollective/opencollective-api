@@ -167,7 +167,7 @@ describe('/test/stories/transferwise.test.ts', () => {
       currency: 'USD',
       type: 'aba',
       details: {
-        abartn: '026009593',
+        abartn: '284084266',
         address: {
           city: 'New York',
           state: 'NY',
@@ -177,7 +177,7 @@ describe('/test/stories/transferwise.test.ts', () => {
         },
         legalType: 'PRIVATE',
         accountType: 'CHECKING',
-        accountNumber: '12345678',
+        accountNumber: '65261083',
       },
     };
 
@@ -301,7 +301,7 @@ describe('/test/stories/transferwise.test.ts', () => {
       currency: 'USD',
       type: 'aba',
       details: {
-        abartn: '026009593',
+        abartn: '284084266',
         address: {
           city: 'New York',
           state: 'NY',
@@ -311,7 +311,7 @@ describe('/test/stories/transferwise.test.ts', () => {
         },
         legalType: 'PRIVATE',
         accountType: 'CHECKING',
-        accountNumber: '12345678',
+        accountNumber: '65261083',
       },
     };
 
