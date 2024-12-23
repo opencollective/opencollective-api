@@ -295,4 +295,4 @@ export const SentryGraphQLPlugin: ApolloServerPlugin = {
   },
 };
 
-export { Sentry };
+export { Sentry, HandlerType };
