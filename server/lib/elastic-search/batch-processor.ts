@@ -78,7 +78,7 @@ export class ElasticSearchBatchProcessor {
 
   private scheduleCallProcessBatch(wait = this._maxWaitTimeInSeconds) {
     if (!this._timeoutHandle) {
-      this._timeoutHandle = setTimeout(() => this.callProcessBatch(), wait);
+      this._timeoutHandle = setTimeout(() => this.callProcessBatch(true), wait);
     }
   }
 
@@ -86,7 +86,7 @@ export class ElasticSearchBatchProcessor {
    * A wrapper around `processBatch` that either calls it immediately or return a promise that resolves
    * once the batch is fully processed or after a timeout.
    */
-  private async callProcessBatch(): Promise<void> {
+  private async callProcessBatch(isTimeout = false): Promise<void> {
     // Scenario 1: we are already processing a batch.
     if (this._processBatchPromise) {
       debug('callProcessBatch: waiting on existing batch processing');
@@ -94,7 +94,7 @@ export class ElasticSearchBatchProcessor {
     }
     // Scenario 2: there is a pending batch processing. We cancel the timeout and run the batch immediately.
     else if (this._timeoutHandle) {
-      debug('callProcessBatch: running batch early');
+      debug(!isTimeout ? 'callProcessBatch: running batch early' : 'callProcessBatch: running batch after sync delay');
       clearTimeout(this._timeoutHandle);
       this._timeoutHandle = null;
       this._processBatchPromise = this._processBatch();
@@ -111,8 +111,6 @@ export class ElasticSearchBatchProcessor {
       debug('callProcessBatch: all done');
       return;
     }
-
-    await this.callProcessBatch();
   }
 
   private async _processBatch() {
