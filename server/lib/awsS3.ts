@@ -169,6 +169,34 @@ export const listFilesInS3 = async (bucket: string): Promise<ListObjectsV2Output
   return allObjects;
 };
 
+export const copyFileInS3 = async (
+  s3Url: string,
+  newKey: string,
+  params: Omit<CopyObjectRequest, 'Bucket' | 'CopySource' | 'Key'> = {},
+) => {
+  if (!s3) {
+    throw new Error('S3 is not set');
+  }
+
+  const { bucket, key } = parseS3Url(s3Url);
+  logger.debug(`Copying S3 file ${s3Url} (${key}) to ${newKey}`);
+
+  try {
+    return s3.send(
+      new CopyObjectCommand({
+        MetadataDirective: 'COPY',
+        Bucket: bucket,
+        CopySource: `${bucket}/${encodeURIComponent(key)}`,
+        Key: newKey,
+        ...params,
+      }),
+    );
+  } catch (e) {
+    logger.error(`Error copying S3 file ${s3Url} (${key}) to ${newKey}:`, e);
+    throw e;
+  }
+};
+
 /**
  * Move S3 file to a new key, within the same bucket.
  */
