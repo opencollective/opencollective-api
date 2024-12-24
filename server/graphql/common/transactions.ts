@@ -149,16 +149,20 @@ export const canRefund = async (transaction: Transaction, _: void, req: express.
     return true;
   }
 
-  // Host admins can refund simple transactions
+  // Only certain transaction kinds can be refunded
   if (
-    (await isTransactionHostAdmin(req, transaction)) &&
-    [
+    ![
       TransactionKind.ADDED_FUNDS,
       TransactionKind.BALANCE_TRANSFER,
       TransactionKind.CONTRIBUTION,
       TransactionKind.EXPENSE,
     ].includes(transaction.kind)
   ) {
+    return false;
+  }
+
+  // Host admins can refund transactions without time limit
+  if (await isTransactionHostAdmin(req, transaction)) {
     return true;
   }
 
