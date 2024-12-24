@@ -5,7 +5,11 @@ import models from '../../../models';
 import { stripHTMLOrEmpty } from '../../sanitize-html';
 import { ElasticSearchIndexName } from '../constants';
 
-import { ElasticSearchModelAdapter, FindEntriesToIndexOptions } from './ElasticSearchModelAdapter';
+import {
+  ElasticSearchFieldWeight,
+  ElasticSearchModelAdapter,
+  FindEntriesToIndexOptions,
+} from './ElasticSearchModelAdapter';
 
 export class ElasticSearchTiersAdapter implements ElasticSearchModelAdapter {
   public readonly index = ElasticSearchIndexName.TIERS;
@@ -30,6 +34,21 @@ export class ElasticSearchTiersAdapter implements ElasticSearchModelAdapter {
   public getModel() {
     return models.Tier;
   }
+
+  public readonly weights: Partial<Record<keyof (typeof this.mappings)['properties'], ElasticSearchFieldWeight>> = {
+    description: 5,
+    name: 5,
+    longDescription: 5,
+    slug: 7,
+    id: 1,
+    // Ignored fields
+    CollectiveId: 0,
+    HostCollectiveId: 0,
+    ParentCollectiveId: 0,
+    createdAt: 0,
+    updatedAt: 0,
+    type: 0,
+  };
 
   public findEntriesToIndex(options: FindEntriesToIndexOptions = {}) {
     return models.Tier.findAll({

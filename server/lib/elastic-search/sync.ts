@@ -185,15 +185,16 @@ export const getAvailableElasticSearchIndexes = async (): Promise<string[]> => {
  * Deletes a single index from Elastic search.
  */
 export const deleteElasticSearchIndex = async (indexName: ElasticSearchIndexName, { throwIfMissing = true } = {}) => {
-  if (!throwIfMissing) {
-    const indices = await getAvailableElasticSearchIndexes();
-    if (!indices.find(index => index === indexName)) {
+  const client = getElasticSearchClient({ throwIfUnavailable: true });
+  try {
+    await client.indices.delete({ index: formatIndexNameForElasticSearch(indexName) });
+  } catch (error) {
+    if (error.meta.statusCode === 404 && !throwIfMissing) {
       return;
+    } else {
+      throw error;
     }
   }
-
-  const client = getElasticSearchClient({ throwIfUnavailable: true });
-  await client.indices.delete({ index: formatIndexNameForElasticSearch(indexName) });
 };
 
 export const waitForAllIndexesRefresh = async (prefix = config.elasticSearch.indexesPrefix) => {
