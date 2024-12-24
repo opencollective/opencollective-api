@@ -93,13 +93,12 @@ const isPayerCollectiveAdmin = async (req, transaction): Promise<boolean> => {
   return req.remoteUser.isAdminOfCollective(payer);
 };
 
-const isPayeeHostAdmin = async (req, transaction): Promise<boolean> => {
-  if (!req.remoteUser) {
+const isTransactionHostAdmin = async (req, transaction): Promise<boolean> => {
+  if (!req.remoteUser || !transaction.HostCollectiveId) {
     return false;
+  } else {
+    return req.remoteUser.isAdmin(transaction.HostCollectiveId);
   }
-
-  const payee = await getPayee(req, transaction);
-  return payee?.HostCollectiveId && req.remoteUser.isAdmin(payee.HostCollectiveId);
 };
 
 const isPayeeCollectiveAdmin = async (req, transaction): Promise<boolean> => {
@@ -145,11 +144,31 @@ export const canRefund = async (transaction: Transaction, _: void, req: express.
     }
   }
 
+  // Root users can always refund
+  if (await isRoot(req)) {
+    return true;
+  }
+
+  // Only certain transaction kinds can be refunded
+  if (
+    ![
+      TransactionKind.ADDED_FUNDS,
+      TransactionKind.BALANCE_TRANSFER,
+      TransactionKind.CONTRIBUTION,
+      TransactionKind.EXPENSE,
+    ].includes(transaction.kind)
+  ) {
+    return false;
+  }
+
+  // Host admins can refund transactions without time limit
+  if (await isTransactionHostAdmin(req, transaction)) {
+    return true;
+  }
+
   // 1) We only allow the transaction to be refunded by Collective admins if it's within 30 days.
   // 2) To ensure proper accounting, we only allow added funds to be refunded by Host admins and never by Collective admins.
-  if (await remoteUserMeetsOneCondition(req, transaction, [isRoot, isPayeeHostAdmin])) {
-    return true;
-  } else if (await isPayeeCollectiveAdmin(req, transaction)) {
+  if (await isPayeeCollectiveAdmin(req, transaction)) {
     const timeLimit = moment().subtract(30, 'd');
     const createdAtMoment = moment(transaction.createdAt);
     const transactionIsOlderThanThirtyDays = createdAtMoment < timeLimit;
@@ -166,9 +185,9 @@ export const canRefund = async (transaction: Transaction, _: void, req: express.
 
     const host = payee.host || (await req.loaders.Collective.byId.load(payee.HostCollectiveId));
     return await getPolicy(host, POLICIES.COLLECTIVE_ADMINS_CAN_REFUND);
-  } else {
-    return false;
   }
+
+  return false;
 };
 
 export const canDownloadInvoice = async (transaction: Transaction, _: void, req: express.Request): Promise<boolean> => {
@@ -181,7 +200,7 @@ export const canDownloadInvoice = async (transaction: Transaction, _: void, req:
   return remoteUserMeetsOneCondition(req, transaction, [
     isPayerCollectiveAdmin,
     isHostAdmin,
-    isPayeeHostAdmin,
+    isTransactionHostAdmin,
     isPayerAccountant,
     isPayeeAccountant,
   ]);
