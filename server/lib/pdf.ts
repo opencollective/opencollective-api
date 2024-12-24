@@ -1,4 +1,8 @@
+import fs from 'fs';
+import path from 'path';
+
 import config from 'config';
+import pdf from 'html-pdf';
 import { get } from 'lodash';
 import moment from 'moment';
 
@@ -7,9 +11,69 @@ import { USTaxFormType } from '../models/LegalDocument';
 
 import { TOKEN_EXPIRATION_PDF } from './auth';
 import { fetchWithTimeout } from './fetch';
+import handlebars from './handlebars';
 import logger from './logger';
 import { reportErrorToSentry, reportMessageToSentry } from './sentry';
 import { parseToBoolean } from './utils';
+
+/**
+ * export transactions to PDF
+ */
+export function exportToPDF(template, data, options) {
+  options = options || {};
+  options.paper = options.paper || 'Letter'; // Letter for US or A4 for Europe
+
+  let paperSize;
+
+  switch (options.paper) {
+    case 'A4':
+      paperSize = {
+        width: '210mm',
+        height: '297mm',
+        margin: {
+          top: '10mm',
+          left: '10mm',
+        },
+      };
+      break;
+    case 'Letter':
+    default:
+      paperSize = {
+        width: '8.5in',
+        height: '11in',
+        margin: {
+          top: '0.4in',
+          left: '0.4in',
+        },
+      };
+      break;
+  }
+
+  data.paperSize = paperSize;
+  options.paperSize = paperSize;
+
+  const templateFilepath = path.resolve(__dirname, `../../templates/pdf/${template}.hbs`);
+  const source = fs.readFileSync(templateFilepath, 'utf8');
+  const render = handlebars.compile(source);
+
+  const html = render(data);
+
+  if (options.format === 'html') {
+    return Promise.resolve(html);
+  }
+  options.format = options.paper;
+
+  options.timeout = 60000;
+
+  return new Promise((resolve, reject) => {
+    pdf.create(html, options).toBuffer((err, buffer) => {
+      if (err) {
+        return reject(err);
+      }
+      return resolve(buffer);
+    });
+  });
+}
 
 export const getTransactionPdf = async (transaction, user) => {
   if (parseToBoolean(config.pdfService.fetchTransactionsReceipts) === false) {
