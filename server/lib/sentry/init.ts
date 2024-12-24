@@ -74,6 +74,8 @@ Sentry.init({
   tracesSampler: samplingContext => {
     if (!TRACES_SAMPLE_RATE || !samplingContext) {
       return 0;
+    } else if (samplingContext.parentSampled !== undefined) {
+      return samplingContext.parentSampled;
     } else if (samplingContext.request?.url?.match(/\/graphql(\/.*)?$/)) {
       return 1; // GraphQL endpoints handle sampling manually in `server/routes.js`
     } else {
