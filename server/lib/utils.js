@@ -535,12 +535,15 @@ export const ifStr = (condition, trueExpression, falseExpression = undefined) =>
 export const redactSensitiveFields = fastRedact({
   serialize: false,
   paths: [
+    'api_key',
     'authorization',
     'Authorization',
     'AUTHORIZATION',
     'token',
     'accessToken',
     'access_token',
+    'accessTokenPayload',
+    'accessTokenSignature',
     'refreshToken',
     '["Personal-Token"]',
     'password',
@@ -550,6 +553,7 @@ export const redactSensitiveFields = fastRedact({
     'variables.newPassword',
     'variables.currentPassword',
     'variables.formData.taxIdNumber',
+    'variables.expense.payoutMethod.data',
   ],
 });
 

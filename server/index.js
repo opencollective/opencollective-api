@@ -1,8 +1,10 @@
 import './env';
+import './lib/sentry/init';
 import './open-telemetry';
 
 import os from 'os';
 
+import * as Sentry from '@sentry/node';
 import config from 'config';
 import express from 'express';
 import throng from 'throng';
@@ -28,6 +30,8 @@ async function startExpressServer(workerId) {
    * Routes.
    */
   await routes(expressApp);
+
+  Sentry.setupExpressErrorHandler(expressApp);
 
   /**
    * Start server

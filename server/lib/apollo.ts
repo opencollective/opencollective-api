@@ -1,9 +1,13 @@
+import { ApolloServerPluginUsageReporting } from '@apollo/server/plugin/usageReporting';
+import { AxiosError } from 'axios';
 import config from 'config';
-import { orderBy, round, uniqBy } from 'lodash';
+import { GraphQLError } from 'graphql';
+import { isNil, orderBy, pick, round, uniqBy } from 'lodash';
+
+import { ContentNotReady } from '../graphql/errors';
 
 import cache from './cache';
 import logger from './logger';
-import { sentryHandleSlowRequests } from './sentry';
 
 const minExecutionTimeToCache = parseInt(config.graphql.cache.minExecutionTimeToCache);
 
@@ -24,9 +28,6 @@ export const apolloSlowRequestCachePlugin = {
         req.endAt = req.endAt || new Date();
         const executionTime = req.endAt - req.startAt;
         req.res.set('Execution-Time', executionTime);
-
-        // Track all slow queries on Sentry performance
-        sentryHandleSlowRequests(executionTime);
 
         // This will never happen for logged-in users as cacheKey is not set
         if (req.cacheKey && !response?.errors && executionTime > minExecutionTimeToCache) {
@@ -69,3 +70,31 @@ export const apolloSlowResolverDebugPlugin = enablePluginIf(config.env === 'deve
     };
   },
 });
+
+const IGNORED_ERRORS = [ContentNotReady, AxiosError];
+
+export const apolloStudioUsagePlugin = enablePluginIf(
+  !isNil(config.graphql?.apollo?.graphRef),
+  ApolloServerPluginUsageReporting({
+    generateClientInfo: args => {
+      return {
+        clientName: args.request.http?.headers.get('oc-application') || 'unknown',
+        clientVersion: args.request.http?.headers.get('oc-version') || 'unknown',
+      };
+    },
+    sendErrors: {
+      transform: err => {
+        if (IGNORED_ERRORS.some(e => err instanceof e || err?.originalError instanceof e)) {
+          return null;
+        }
+
+        return Object.assign({}, err, { originalError: undefined } as Partial<GraphQLError>);
+      },
+    },
+    sendVariableValues: {
+      transform: ({ variables }) => {
+        return pick(variables, ['slug', 'account', 'fromAccount', 'toAccount', 'id']);
+      },
+    },
+  }),
+);
