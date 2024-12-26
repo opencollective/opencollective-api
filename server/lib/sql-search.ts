@@ -40,7 +40,7 @@ export const searchCollectivesByEmail = async (email, user, offset = 0, limit = 
   // Put some rate limiting to users can't use this endpoint to bruteforce emails
   const rateLimit = new RateLimit(
     `user_email_search_${user.id}`,
-    config.limits.searchEmailPerHour,
+    config.limits.search.email.perHourPerUser,
     ONE_HOUR_IN_SECONDS,
   );
 
