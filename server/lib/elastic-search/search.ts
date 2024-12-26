@@ -63,6 +63,7 @@ const getIndexConditions = (
 export type ElasticSearchIndexRequest<T extends ElasticSearchIndexName = ElasticSearchIndexName> = {
   index: T;
   indexParams?: ElasticSearchIndexParams[T];
+  forbidPrivate?: boolean;
 };
 
 const isSearchableField = (adapter, field) => {
@@ -74,6 +75,21 @@ const addWeightToField = (adapter: ElasticSearchModelAdapter, field: string): st
     return field;
   } else {
     return `${field}^${adapter.weights[field]}`;
+  }
+};
+
+const getIndexPermissions = (
+  adapter: ElasticSearchModelAdapter,
+  adminOfAccountIds: number[],
+  isRoot: boolean,
+  forbidPrivate: boolean,
+) => {
+  if (forbidPrivate) {
+    return adapter.getIndexPermissions([]);
+  } else if (isRoot) {
+    return { default: 'PUBLIC' };
+  } else {
+    return adapter.getIndexPermissions(adminOfAccountIds);
   }
 };
 
@@ -100,11 +116,11 @@ const buildQuery = (
       // Filter to match on CollectiveId/ParentCollectiveId/HostCollectiveId
       ...(accountConditions.length && { filter: accountConditions }),
       // We now build the should array dynamically
-      should: indexes.flatMap(({ index, indexParams }) => {
+      should: indexes.flatMap(({ index, indexParams, forbidPrivate }) => {
         const adapter = ElasticSearchModelsAdapters[index];
 
         // Avoid searching on private indexes if the user is not an admin of anything
-        const permissions = isRoot ? { default: 'PUBLIC' } : adapter.getIndexPermissions(adminOfAccountIds);
+        const permissions = getIndexPermissions(adapter, adminOfAccountIds, isRoot, forbidPrivate);
         if (permissions.default === 'FORBIDDEN') {
           return [];
         }
