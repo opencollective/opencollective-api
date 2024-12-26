@@ -14,6 +14,8 @@ import {
 import { GraphQLJSONObject } from 'graphql-scalars';
 import { keyBy, mapKeys, mapValues } from 'lodash';
 
+import OAuthScopes from '../../constants/oauth-scopes';
+import { checkScope } from '../../graphql/common/scope-check';
 import { FieldsToGraphQLFieldConfigArgumentMap } from '../../graphql/common/typescript-helpers';
 import { SearchResult } from '../../graphql/loaders/search';
 import { GraphQLAccountCollection } from '../../graphql/v2/collection/AccountCollection';
@@ -51,22 +53,24 @@ export const getElasticSearchQueryId = (
   return `${user?.id || 'public'}-host_${host?.id || 'all'}-account_${account?.id || 'all'}-${searchTerm}`;
 };
 
-const GraphQLSearchResultsStrategy: Record<
-  ElasticSearchIndexName,
-  {
-    // A loader to use for loading entities from the (optionally encoded) ID
-    loadMany: (req, ids) => Array<unknown | null>;
-    // A function to encode the ID for use in the GraphQL API
-    getGraphQLId: (result: Record<string, unknown>) => string;
-    // A function to get Elastic Search index-specific parameters from the GraphQL arguments. By default, it returns the raw arguments.
-    prepareArguments?: (args: Record<string, unknown>) => Record<string, unknown>;
-    // Definition of the GraphQL arguments for the search query
-    args?: GraphQLFieldConfigArgumentMap;
-  }
-> = {
+type GraphQLSearchIndexStrategy = {
+  // A loader to use for loading entities from the (optionally encoded) ID
+  loadMany: (req, ids) => Array<unknown | null>;
+  // A function to encode the ID for use in the GraphQL API
+  getGraphQLId: (result: Record<string, unknown>) => string;
+  // A function to get Elastic Search index-specific parameters from the GraphQL arguments. By default, it returns the raw arguments.
+  prepareArguments?: (args: Record<string, unknown>) => Record<string, unknown>;
+  // Scopes to enforce to access private fields/entries
+  oauthScopeForPrivateFields?: OAuthScopes;
+  // Definition of the GraphQL arguments for the search query
+  args?: GraphQLFieldConfigArgumentMap;
+};
+
+const GraphQLSearchResultsStrategy: Record<ElasticSearchIndexName, GraphQLSearchIndexStrategy> = {
   [ElasticSearchIndexName.COLLECTIVES]: {
     getGraphQLId: (result: Record<string, unknown>) => idEncode(parseInt(result['id'] as string), 'account'),
     loadMany: (req, ids) => req.loaders.Collective.byId.loadMany(ids),
+    oauthScopeForPrivateFields: OAuthScopes.account,
     args: {
       type: {
         type: GraphQLAccountType,
@@ -95,14 +99,17 @@ const GraphQLSearchResultsStrategy: Record<
   [ElasticSearchIndexName.EXPENSES]: {
     getGraphQLId: (result: Record<string, unknown>) => idEncode(parseInt(result['id'] as string), 'expense'),
     loadMany: (req, ids) => req.loaders.Expense.byId.loadMany(ids),
+    oauthScopeForPrivateFields: OAuthScopes.expenses,
   },
   [ElasticSearchIndexName.HOST_APPLICATIONS]: {
     getGraphQLId: (result: Record<string, unknown>) => idEncode(parseInt(result['id'] as string), 'host-application'),
     loadMany: (req, ids) => req.loaders.HostApplication.byId.loadMany(ids),
+    oauthScopeForPrivateFields: OAuthScopes.applications,
   },
   [ElasticSearchIndexName.ORDERS]: {
     getGraphQLId: (result: Record<string, unknown>) => idEncode(parseInt(result['id'] as string), 'order'),
     loadMany: (req, ids) => req.loaders.Order.byId.loadMany(ids),
+    oauthScopeForPrivateFields: OAuthScopes.orders,
   },
   [ElasticSearchIndexName.TIERS]: {
     getGraphQLId: (result: Record<string, unknown>) => idEncode(parseInt(result['id'] as string), 'tier'),
@@ -111,12 +118,24 @@ const GraphQLSearchResultsStrategy: Record<
   [ElasticSearchIndexName.TRANSACTIONS]: {
     getGraphQLId: (result: Record<string, unknown>) => result['uuid'] as string,
     loadMany: (req, ids) => req.loaders.Transaction.byId.loadMany(ids),
+    oauthScopeForPrivateFields: OAuthScopes.transactions,
   },
   [ElasticSearchIndexName.UPDATES]: {
     getGraphQLId: (result: Record<string, unknown>) => idEncode(parseInt(result['id'] as string), 'update'),
     loadMany: (req, ids) => req.loaders.Update.byId.loadMany(ids),
+    oauthScopeForPrivateFields: OAuthScopes.updates,
   },
 } as const;
+
+const getForbidPrivate = (req, strategy: GraphQLSearchIndexStrategy) => {
+  if (!req.remoteUser) {
+    return true;
+  } else if (strategy.oauthScopeForPrivateFields) {
+    return !checkScope(req, strategy.oauthScopeForPrivateFields);
+  } else {
+    return false;
+  }
+};
 
 const buildSearchResultsType = (index: ElasticSearchIndexName, name: string, collectionType: GraphQLObjectType) => {
   const strategy = GraphQLSearchResultsStrategy[index];
@@ -137,7 +156,8 @@ const buildSearchResultsType = (index: ElasticSearchIndexName, name: string, col
     }),
     resolve: async (baseSearchParams: GraphQLSearchParams, args, req) => {
       const indexParams = strategy.prepareArguments ? strategy.prepareArguments(args) : args;
-      const fullSearchParams = { ...baseSearchParams, index, indexParams };
+      const forbidPrivate = getForbidPrivate(req, strategy);
+      const fullSearchParams = { ...baseSearchParams, index, indexParams, forbidPrivate };
       const result = (await req.loaders.search.load(fullSearchParams)) as SearchResult | null;
 
       if (!result || result.count === 0) {

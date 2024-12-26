@@ -5,6 +5,7 @@ import gql from 'fake-tag';
 import { isNil } from 'lodash';
 import sinon from 'sinon';
 
+import OAuthScopes from '../../../../../server/constants/oauth-scopes';
 import PlatformConstants from '../../../../../server/constants/platform';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
@@ -32,8 +33,9 @@ import {
   fakeTransaction,
   fakeUpdate,
   fakeUser,
+  fakeUserToken,
 } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, resetTestDB } from '../../../../utils';
+import { graphqlQueryV2, oAuthGraphqlQueryV2, resetTestDB } from '../../../../utils';
 
 describe('server/graphql/v2/query/SearchQuery', () => {
   const searchQuery = gql`
@@ -150,22 +152,26 @@ describe('server/graphql/v2/query/SearchQuery', () => {
       includeUpdates = false,
     } = {},
     remoteUser?: User,
+    params: { useOAuth?: boolean; oauthScopes?: OAuthScopes[] } = {},
   ) => {
-    return graphqlQueryV2(
-      searchQuery,
-      {
-        searchTerm,
-        includeAccounts,
-        includeComments,
-        includeExpenses,
-        includeHostApplications,
-        includeOrders,
-        includeTiers,
-        includeTransactions,
-        includeUpdates,
-      },
-      remoteUser,
-    );
+    const args = {
+      searchTerm,
+      includeAccounts,
+      includeComments,
+      includeExpenses,
+      includeHostApplications,
+      includeOrders,
+      includeTiers,
+      includeTransactions,
+      includeUpdates,
+    };
+
+    if (params.useOAuth) {
+      const userToken = await fakeUserToken({ scope: params.oauthScopes, UserId: remoteUser.id });
+      return oAuthGraphqlQueryV2(searchQuery, args, userToken);
+    } else {
+      return graphqlQueryV2(searchQuery, args, remoteUser);
+    }
   };
 
   let sandbox: sinon.SinonSandbox,
@@ -418,6 +424,7 @@ describe('server/graphql/v2/query/SearchQuery', () => {
       index: string,
       uniqueValue: string,
       permissions: Record<keyof typeof testUsers, number> & { unauthenticated: number },
+      params: { useOAuth?: boolean; oauthScopes?: OAuthScopes[] } = {},
     ) => {
       const getIncludes = (index: string) => {
         switch (index) {
@@ -445,7 +452,7 @@ describe('server/graphql/v2/query/SearchQuery', () => {
       for (const [userKey, permission] of Object.entries(permissions)) {
         if (!isNil(permission)) {
           it(`can ${permission ? '' : 'not '}be used by ${userKey}`, async () => {
-            const queryResult = await callSearchQuery(uniqueValue, getIncludes(index), testUsers[userKey]);
+            const queryResult = await callSearchQuery(uniqueValue, getIncludes(index), testUsers[userKey], params);
             queryResult.errors && console.error(queryResult.errors);
             expect(queryResult.errors).to.be.undefined;
             expect(queryResult.data.search.results[index].collection.totalCount).to.eq(permission);
@@ -658,6 +665,46 @@ describe('server/graphql/v2/query/SearchQuery', () => {
           fromUser: 0,
           unauthenticated: 0,
         });
+      });
+
+      describe('merchantId (OAuth without transactions scope)', () => {
+        testPermissionsForField(
+          'transactions',
+          'AVeryUniqueTransactionCaptureId',
+          {
+            hostAdmin: 0,
+            collectiveAdmin: 0,
+            projectAdmin: 0,
+            randomUser: 0,
+            rootUser: 0,
+            fromUser: 0,
+            unauthenticated: null, // doesn't apply
+          },
+          {
+            useOAuth: true,
+            oauthScopes: [OAuthScopes.account],
+          },
+        );
+      });
+
+      describe('merchantId (OAuth with transactions scope)', () => {
+        testPermissionsForField(
+          'transactions',
+          'AVeryUniqueTransactionCaptureId',
+          {
+            hostAdmin: 1,
+            collectiveAdmin: 0,
+            projectAdmin: 0,
+            randomUser: 0,
+            rootUser: 2,
+            fromUser: 0,
+            unauthenticated: null, // doesn't apply
+          },
+          {
+            useOAuth: true,
+            oauthScopes: [OAuthScopes.account, OAuthScopes.transactions],
+          },
+        );
       });
     });
 

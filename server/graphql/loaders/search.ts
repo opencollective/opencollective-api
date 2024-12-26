@@ -15,6 +15,7 @@ type SearchParams = {
   searchTerm: string;
   index: ElasticSearchIndexName;
   indexParams: ElasticSearchIndexParams[ElasticSearchIndexName];
+  forbidPrivate?: boolean;
   limit: number;
   adminOfAccountIds: number[];
   account: Collective;
@@ -58,7 +59,7 @@ const getSearchIndexes = (requests: SearchParams[]): ElasticSearchIndexRequest[]
   const results: Partial<Record<ElasticSearchIndexName, ElasticSearchIndexRequest>> = {};
   for (const request of requests) {
     if (!results[request.index]) {
-      results[request.index] = pick(request, ['index', 'indexParams']);
+      results[request.index] = pick(request, ['index', 'indexParams', 'forbidPrivate']);
     }
   }
 
