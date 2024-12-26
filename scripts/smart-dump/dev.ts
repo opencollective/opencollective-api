@@ -29,7 +29,23 @@ const basicDependencies: RecipeItem[] = [
   { model: 'Agreement', on: 'CollectiveId' },
 ];
 
+const SYSTEM_VENDOR_SLUGS = [
+  'stripe-payment-processor-vendor',
+  'paypal-payment-processor-vendor',
+  'wise-payment-processor-vendor',
+  'other-payment-processor-vendor',
+  'eu-vat-tax-vendor',
+  'nz-gst-tax-vendor',
+  'other-tax-vendor',
+];
+
 const entries: RecipeItem[] = [
+  {
+    model: 'Collective',
+    where: {
+      slug: SYSTEM_VENDOR_SLUGS,
+    },
+  },
   {
     model: 'Collective',
     where: {
