@@ -173,6 +173,7 @@ type Settings = {
     enabled?: boolean;
   };
   customEmailMessage?: string;
+  earlyAccess?: Record<string, boolean>;
 } & TaxSettings;
 
 type Data = Partial<{

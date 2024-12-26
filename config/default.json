@@ -85,8 +85,16 @@
     "confirmGuestAccountPerMinutePerIp": 5,
     "maxNumberOfAppsPerUser": 15,
     "maxWebhooksPerUserPerCollective": 50,
-    "searchEmailPerHour": 150,
-    "searchEmailPerHourPerIp": 50,
+    "search": {
+      "global": {
+        "perMinutePerUser": 75,
+        "perMinutePerIp": 15
+      },
+      "email": {
+        "perHourPerUser": 150,
+        "perHourPerIp": 50
+      }
+    },
     "userSigninAttemptsPerHourPerIp": 50,
     "userExchangeLoginTokenPerHourPerIp": 50,
     "userRefreshTokenPerHourPerIp": 50,

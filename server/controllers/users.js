@@ -34,7 +34,7 @@ export const exists = async (req, res) => {
   } else {
     const rateLimit = new RateLimit(
       `user_email_search_ip_${req.ip}`,
-      config.limits.searchEmailPerHourPerIp,
+      config.limits.search.email.perHourPerIp,
       ONE_HOUR_IN_SECONDS,
     );
     if (!(await rateLimit.registerCall())) {

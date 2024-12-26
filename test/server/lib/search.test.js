@@ -208,7 +208,7 @@ describe('server/lib/search', () => {
       it('is rate limited', async () => {
         const user = await fakeUser();
         const searchedUser = await fakeUser();
-        for (let i = 0; i < config.limits.searchEmailPerHour; i++) {
+        for (let i = 0; i < config.limits.search.email.perHourPerUser; i++) {
           await searchCollectivesByEmail(searchedUser.email, user);
         }
 
