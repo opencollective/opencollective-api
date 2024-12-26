@@ -79,14 +79,15 @@ async function* paginate(model: ModelNames, where: Record<string, any>, order: R
   let offset = 0;
   let totalCount = 0;
   if (limit) {
-    return await (models[model] as any).findAll({ where, order, limit });
+    yield await (models[model] as any).findAll({ where, order, limit });
+  } else {
+    do {
+      const result = await (models[model] as any).findAndCountAll({ where, order, limit: PAGINATION_LIMIT, offset });
+      totalCount = result.count;
+      yield result.rows;
+      offset += PAGINATION_LIMIT;
+    } while (offset < totalCount);
   }
-  do {
-    const result = await (models[model] as any).findAndCountAll({ where, order, limit: PAGINATION_LIMIT, offset });
-    totalCount = result.count;
-    yield result.rows;
-    offset += PAGINATION_LIMIT;
-  } while (offset < totalCount);
 }
 
 const hashObject = (obj: Record<string, any>) => crypto.hash(JSON.stringify(obj));
