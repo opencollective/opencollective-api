@@ -226,6 +226,9 @@ describe('server/graphql/v2/query/SearchQuery', () => {
       admin: testUsers.projectAdmin,
     });
 
+    // Hidden account
+    await fakeCollective({ name: 'HideMePlease', slug: 'hide-me-please', data: { hideFromSearch: true } });
+
     // To test slug prioritization over name
     await fakeCollective({ name: 'a-prioritized-unique-name-or-slug', slug: 'whatever' });
     await fakeCollective({ name: 'whatever', slug: 'a-prioritized-unique-name-or-slug' });
@@ -355,34 +358,43 @@ describe('server/graphql/v2/query/SearchQuery', () => {
     sandbox.restore();
   });
 
-  it('should search only in requested indexes', async () => {
-    const searchSpy = sandbox.spy(elasticSearchClient, 'search');
+  describe('base', () => {
+    it('should search only in requested indexes', async () => {
+      const searchSpy = sandbox.spy(elasticSearchClient, 'search');
 
-    const queryResult = await callSearchQuery('iNcReDiBlE', { includeAccounts: true, includeExpenses: true });
-    queryResult.errors && console.error(queryResult.errors);
-    expect(queryResult.errors).to.be.undefined;
+      const queryResult = await callSearchQuery('iNcReDiBlE', { includeAccounts: true, includeExpenses: true });
+      queryResult.errors && console.error(queryResult.errors);
+      expect(queryResult.errors).to.be.undefined;
 
-    const results = queryResult.data.search.results;
-    expect(results.accounts.collection.totalCount).to.eq(3); // Collective + host + project
-    expect(results.accounts.collection.nodes).to.have.length(3);
-    expect(results.accounts.maxScore).to.be.gt(0);
+      const results = queryResult.data.search.results;
+      expect(results.accounts.collection.totalCount).to.eq(3); // Collective + host + project
+      expect(results.accounts.collection.nodes).to.have.length(3);
+      expect(results.accounts.maxScore).to.be.gt(0);
 
-    expect(results.accounts.highlights).to.have.property(idEncode(host.id, IDENTIFIER_TYPES.ACCOUNT));
-    const hostMatch = results.accounts.highlights[idEncode(host.id, IDENTIFIER_TYPES.ACCOUNT)];
-    expect(hostMatch.score).to.be.within(1, 100);
-    expect(hostMatch.fields.name).to.deep.eq(['<mark>Incredible</mark> Host']);
-    const collectiveMatch = results.accounts.highlights[idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT)];
-    expect(collectiveMatch.score).to.be.within(1, 100);
-    expect(collectiveMatch.fields.name).to.deep.eq(['<mark>Incredible</mark> Collective with AUniqueCollectiveName']);
-    const projectMatch = results.accounts.highlights[idEncode(project.id, IDENTIFIER_TYPES.ACCOUNT)];
-    expect(projectMatch.score).to.be.within(1, 100);
-    expect(projectMatch.fields.name).to.deep.eq(['<mark>Incredible</mark> Project']);
+      expect(results.accounts.highlights).to.have.property(idEncode(host.id, IDENTIFIER_TYPES.ACCOUNT));
+      const hostMatch = results.accounts.highlights[idEncode(host.id, IDENTIFIER_TYPES.ACCOUNT)];
+      expect(hostMatch.score).to.be.within(1, 100);
+      expect(hostMatch.fields.name).to.deep.eq(['<mark>Incredible</mark> Host']);
+      const collectiveMatch = results.accounts.highlights[idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT)];
+      expect(collectiveMatch.score).to.be.within(1, 100);
+      expect(collectiveMatch.fields.name).to.deep.eq(['<mark>Incredible</mark> Collective with AUniqueCollectiveName']);
+      const projectMatch = results.accounts.highlights[idEncode(project.id, IDENTIFIER_TYPES.ACCOUNT)];
+      expect(projectMatch.score).to.be.within(1, 100);
+      expect(projectMatch.fields.name).to.deep.eq(['<mark>Incredible</mark> Project']);
 
-    expect(results.comments).to.be.undefined;
-    expect(searchSpy.callCount).to.eq(1);
-    expect(searchSpy.firstCall.args[0].index).to.eq(
-      `${formatIndexNameForElasticSearch(ElasticSearchIndexName.COLLECTIVES)},${formatIndexNameForElasticSearch(ElasticSearchIndexName.EXPENSES)}`,
-    );
+      expect(results.comments).to.be.undefined;
+      expect(searchSpy.callCount).to.eq(1);
+      expect(searchSpy.firstCall.args[0].index).to.eq(
+        `${formatIndexNameForElasticSearch(ElasticSearchIndexName.COLLECTIVES)},${formatIndexNameForElasticSearch(ElasticSearchIndexName.EXPENSES)}`,
+      );
+    });
+
+    it('should not return hidden accounts', async () => {
+      const queryResult = await callSearchQuery('hide', { includeAccounts: true });
+      queryResult.errors && console.error(queryResult.errors);
+      expect(queryResult.errors).to.be.undefined;
+      expect(queryResult.data.search.results.accounts.collection.totalCount).to.eq(0);
+    });
   });
 
   describe('weights', () => {
