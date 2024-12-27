@@ -57,6 +57,10 @@ export class ElasticSearchCollectivesAdapter implements ElasticSearchModelAdapte
       offset: options.offset,
       raw: true,
       where: {
+        isIncognito: false,
+        deactivatedAt: { [Op.is]: null },
+        data: { hideFromSearch: { [Op.not]: true }, isGuest: { [Op.not]: true } },
+        name: { [Op.notIn]: ['incognito', 'anonymous'] },
         ...(options.fromDate ? { updatedAt: options.fromDate } : null),
         ...(options.maxId ? { id: { [Op.lte]: options.maxId } } : null),
         ...(options.ids?.length ? { id: options.ids } : null),
