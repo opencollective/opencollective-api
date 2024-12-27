@@ -81,10 +81,11 @@ program.command('dump [recipe] [as_user] [env_file]').action(async (recipe, asUs
 
   let start = new Date();
 
+  const PG_URL = process.env.PG_URL;
   logger.info('>>> Dumping Schema...');
-  exec(`pg_dump -csOx --if-exists $PG_URL > ${tempDumpDir}/schema.sql`);
+  exec(`pg_dump -csOx --if-exists "${PG_URL}" > ${tempDumpDir}/schema.sql`);
   exec(
-    `pg_dump --schema=public --table=public.\\"SequelizeMeta\\" --data-only $PG_URL >> ${tempDumpDir}/migrations.sql`,
+    `pg_dump --schema=public --table=public.\\"SequelizeMeta\\" --data-only "${PG_URL}" >> ${tempDumpDir}/migrations.sql`,
   );
   logger.info(`>>> Schema Dumped in ${moment(start).fromNow(true)}`);
 
@@ -124,6 +125,7 @@ program.command('dump [recipe] [as_user] [env_file]').action(async (recipe, asUs
 
 program.command('restore <file>').action(async file => {
   const database = process.env.PG_DATABASE;
+  const rootUser = process.env.PG_USERNAME || 'postgres';
   if (!database) {
     logger.error('PG_DATABASE is not set!');
     process.exit(1);
@@ -147,8 +149,10 @@ program.command('restore <file>').action(async file => {
   exec(`dropdb ${database}`);
   exec(`createdb ${database}`);
   exec(`psql -d ${database} -c 'GRANT ALL PRIVILEGES ON DATABASE ${database} TO opencollective'`);
+  exec(`psql -h localhost -U ${rootUser} ${database} -c 'GRANT ALL ON SCHEMA public TO opencollective'`);
   exec(`psql -h localhost -U opencollective ${database} < ${tempImportDir}/schema.sql`);
   exec(`psql -h localhost -U opencollective ${database} < ${tempImportDir}/migrations.sql`);
+  exec(`psql -h localhost -U ${rootUser} -c 'ALTER DATABASE ${database} OWNER TO opencollective'`);
   logger.info(`>>> DB Created! in ${moment(start).fromNow(true)}`);
 
   const transaction = await (sequelize as Sequelize).transaction();
@@ -216,6 +220,7 @@ program.command('restore <file>').action(async file => {
   await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"`);
   await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
   await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTagStats"`);
+  await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveOrderStats"`);
   await sequelize.query(`REFRESH MATERIALIZED VIEW "ExpenseTagStats"`);
   await sequelize.query(`REFRESH MATERIALIZED VIEW "HostMonthlyTransactions"`);
 
@@ -298,6 +303,7 @@ program.command('merge <file>').action(async file => {
   await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"`);
   await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
   await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTagStats"`);
+  await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveOrderStats"`);
   await sequelize.query(`REFRESH MATERIALIZED VIEW "ExpenseTagStats"`);
   await sequelize.query(`REFRESH MATERIALIZED VIEW "HostMonthlyTransactions"`);
 
@@ -316,12 +322,12 @@ Both restore and merge operations require a connection with a superuser role.
 Make sure you have a zip and a compatible version of psql (pg_dump, pg_restore, createdb and dropdb) installed.
 
 
-Examples:
+Examples (defaults to root user postgres):
 
   To export data and DB schema:
   $ npm run script scripts/smart-dump.ts dump ./smart-dump/engineering.ts superuser prod
 
-  To restore the whole DB:
+  To restore the whole DB ():
   $ PG_USERNAME=postgres PG_DATABASE=opencollective_prod_snapshot npm run script scripts/smart-dump.ts restore dbdumps/2023-03-21.c5292.zip
 
   To merge data into an existing DB:
