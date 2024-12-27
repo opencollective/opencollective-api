@@ -3,7 +3,7 @@
  */
 
 import config from 'config';
-import { chunk } from 'lodash';
+import { chunk, partition, uniq } from 'lodash';
 
 import { Op } from '../../models';
 import logger from '../logger';
@@ -53,6 +53,49 @@ async function removeDeletedEntries(indexName: ElasticSearchIndexName, fromDate:
   } while (deletedEntries.length === pageSize);
 }
 
+/**
+ * Takes a list like [1,2,3,4,0,165,7,8,9] and simplifies it to [[0,4],[7,9],165]
+ * to reduce the cost of running SQL queries with large IN clauses. Also simplify smaller ranges:
+ * adding the number in `id NOT IN (a,b,c)` is cheaper than `id NOT BETWEEN a AND b`. We therefore only
+ * keep ranges of 5 or more numbers.
+ */
+const simplifyNumbersInRanges = (
+  ids: number[],
+  minRangeSize = 5,
+): {
+  ranges: number[][];
+  lonelyNumbers: number[];
+} => {
+  const results: Array<number | number[]> = [];
+
+  // We need the list to be sorted
+  const sortedIds = uniq(ids).sort((a, b) => a - b);
+
+  // Build the list like [[0,4],[7,9],165]
+  let firstRangeNumber = sortedIds[0];
+  let consecutiveNumbers = 0;
+  for (let i = 1; i < sortedIds.length; i++) {
+    const id = sortedIds[i];
+    if (id === firstRangeNumber + consecutiveNumbers + 1) {
+      consecutiveNumbers++;
+    } else {
+      if (consecutiveNumbers >= minRangeSize) {
+        results.push([firstRangeNumber, firstRangeNumber + consecutiveNumbers]);
+      } else {
+        for (let j = 0; j <= consecutiveNumbers; j++) {
+          results.push(firstRangeNumber + j);
+        }
+      }
+      firstRangeNumber = id;
+      consecutiveNumbers = 0;
+    }
+  }
+
+  // Group by type
+  const [lonelyNumbers, ranges] = partition(results, x => typeof x === 'number');
+  return { ranges, lonelyNumbers };
+};
+
 export async function restoreUndeletedEntries(indexName: ElasticSearchIndexName, { log = false } = {}) {
   const client = getElasticSearchClient({ throwIfUnavailable: true });
   const adapter = ElasticSearchModelsAdapters[indexName];
@@ -85,10 +128,16 @@ export async function restoreUndeletedEntries(indexName: ElasticSearchIndexName,
   /* eslint-enable camelcase */
 
   // Search for entries that are not marked as deleted in the database
+  const { ranges, lonelyNumbers } = simplifyNumbersInRanges(allIds.map(Number));
   const undeletedEntries = (await adapter.getModel().findAll({
     attributes: ['id'],
-    where: { id: { [Op.not]: allIds } },
     raw: true,
+    where: {
+      [Op.and]: [
+        { id: { [Op.notIn]: lonelyNumbers } },
+        ...ranges.map(([start, end]) => ({ id: { [Op.notBetween]: [start, end] } })),
+      ],
+    },
   })) as unknown as Array<{ id: number }>;
 
   if (!undeletedEntries.length) {
