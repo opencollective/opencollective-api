@@ -37,8 +37,7 @@ const getJoinCondition = (
   includeHostedAccounts = false,
   includeChildrenAccounts = false,
 ): Record<string, unknown> => {
-  const associationFields = { collective: 'CollectiveId', fromCollective: 'FromCollectiveId' };
-  const field = associationFields[association] || `$${association}.id$`;
+  const field = `$${association}.id$`;
   const conditions = [{ [field]: account.id }];
 
   // Hosted accounts
@@ -408,7 +407,7 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
       where[Op.or]['data.isPendingContribution'] = 'true';
       where[Op.or]['data.isManualContribution'] = 'true';
     }
-  } else {
+  } else if (!where['status']) {
     where['status'] = { ...where['status'], [Op.ne]: OrderStatuses.PENDING };
   }
 
