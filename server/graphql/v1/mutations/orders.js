@@ -612,9 +612,9 @@ export async function confirmOrder(order, remoteUser, guestToken) {
       id: order.id,
     },
     include: [
-      { model: models.Collective, as: 'collective' },
-      { model: models.Collective, as: 'fromCollective' },
-      { model: models.PaymentMethod, as: 'paymentMethod' },
+      { model: models.Collective, as: 'collective', required: true },
+      { model: models.Collective, as: 'fromCollective', required: true },
+      { model: models.PaymentMethod, as: 'paymentMethod', required: true },
       { model: models.Subscription, as: 'Subscription' },
       { association: 'createdByUser' },
     ],
@@ -631,7 +631,9 @@ export async function confirmOrder(order, remoteUser, guestToken) {
       // Guest token is verified, we can consider that request submitter is the owner of this order
       remoteUser = order.createdByUser;
     }
-  } else if (!remoteUser.isAdmin(order.FromCollectiveId)) {
+  }
+
+  if (!remoteUser.isAdmin(order.FromCollectiveId)) {
     throw new Unauthorized("You don't have permission to confirm this order");
   }
 
