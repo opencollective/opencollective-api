@@ -1,3 +1,4 @@
+import debugLib from 'debug';
 import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
@@ -6,6 +7,8 @@ import { getContextPermission, PERMISSION_TYPE } from '../../common/context-perm
 import { checkScope } from '../../common/scope-check';
 import { GraphQLPayoutMethodType } from '../enum/PayoutMethodType';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+
+const debug = debugLib('graphql:v2:PayoutMethod');
 
 const GraphQLPayoutMethod = new GraphQLObjectType({
   name: 'PayoutMethod',
@@ -60,6 +63,9 @@ const GraphQLPayoutMethod = new GraphQLObjectType({
           getContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, payoutMethod.id)
         ) {
           if (checkScope(req, 'expenses')) {
+            debug(
+              `User ${req.remoteUser?.id} can see payout method private details for payout method ${payoutMethod.id} (context=${getContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, payoutMethod.id)}, isAdmin=${req.remoteUser?.isAdminOfCollective(collective)})`,
+            );
             return payoutMethod.data;
           }
         }
