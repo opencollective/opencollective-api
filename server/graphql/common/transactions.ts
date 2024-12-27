@@ -139,7 +139,9 @@ export const canRefund = async (transaction: Transaction, _: void, req: express.
   }
   if (transaction.OrderId) {
     const order = await req.loaders.Order.byId.load(transaction.OrderId);
-    if ([orderStatus.REJECTED, orderStatus.REFUNDED].includes(order.status)) {
+
+    // Not including rejected status since some orders can be rejected without all their transactions being refunded
+    if ([orderStatus.REFUNDED].includes(order.status)) {
       return false;
     }
   }
