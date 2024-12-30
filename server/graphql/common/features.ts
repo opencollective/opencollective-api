@@ -134,6 +134,20 @@ export const checkCanUsePaymentMethods = async collective => {
   }
 };
 
+const checkCanRequestVirtualCards = async (req, collective) => {
+  if (!collective.HostCollectiveId || !collective.isActive) {
+    return FEATURE_STATUS.UNSUPPORTED;
+  }
+
+  const host = await collective.getHostCollective({ loaders: req.loaders });
+  if (!host?.settings?.virtualcards?.requestcard) {
+    return FEATURE_STATUS.DISABLED;
+  }
+
+  const balance = await collective.getBalance({ loaders: req.loaders });
+  return balance > 0 ? FEATURE_STATUS.AVAILABLE : FEATURE_STATUS.DISABLED;
+};
+
 export const checkCanEmitGiftCards = async collective => {
   // Ignore type if the account already has some gift cards setup. Useful for Organizations that were turned into Funds.
 
@@ -253,15 +267,8 @@ export const getFeatureStatusResolver =
         return checkCanEmitGiftCards(collective);
       case FEATURE.VIRTUAL_CARDS:
         return checkVirtualCardFeatureStatus(collective);
-      case FEATURE.REQUEST_VIRTUAL_CARDS: {
-        const host = await collective.getHostCollective({ loaders: req.loaders });
-        const balance = await collective.getBalance();
-        return balance > 0 && // Collective has balance
-          collective.isActive && // Collective is effectively being hosted
-          host?.settings?.virtualcards?.requestcard
-          ? FEATURE_STATUS.ACTIVE // TODO: This flag is misused, there's a confusion between ACTIVE and AVAILABLE
-          : FEATURE_STATUS.DISABLED;
-      }
+      case FEATURE.REQUEST_VIRTUAL_CARDS:
+        return checkCanRequestVirtualCards(req, collective);
       case FEATURE.PAYPAL_PAYOUTS: {
         return checkIsActiveIfExistsInDB(
           `SELECT 1 FROM "ConnectedAccounts" WHERE "CollectiveId" = :CollectiveId AND "deletedAt" IS NULL AND "service" = 'paypal'`,
