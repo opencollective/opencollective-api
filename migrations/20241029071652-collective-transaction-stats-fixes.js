@@ -1,5 +1,9 @@
 'use strict';
 
+/**
+ * /!\ When updating `CurrentCollectiveTransactionStats`, remember to also update `CurrentCollectiveTransactionStatsIndex`.
+ */
+
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface) {
