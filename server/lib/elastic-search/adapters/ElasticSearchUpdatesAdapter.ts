@@ -18,6 +18,7 @@ export class ElasticSearchUpdatesAdapter implements ElasticSearchModelAdapter {
       id: { type: 'keyword' },
       createdAt: { type: 'date' },
       updatedAt: { type: 'date' },
+      publishedAt: { type: 'date' },
       html: { type: 'text' },
       title: { type: 'text' },
       slug: { type: 'keyword' },
@@ -47,6 +48,7 @@ export class ElasticSearchUpdatesAdapter implements ElasticSearchModelAdapter {
     CreatedByUserId: 0,
     createdAt: 0,
     updatedAt: 0,
+    publishedAt: 0,
     isPrivate: 0,
     ParentCollectiveId: 0,
     HostCollectiveId: 0,
@@ -76,6 +78,7 @@ export class ElasticSearchUpdatesAdapter implements ElasticSearchModelAdapter {
           association: 'collective',
           required: true,
           attributes: ['isActive', 'HostCollectiveId', 'ParentCollectiveId'],
+          where: { data: { hideFromSearch: { [Op.not]: true } } },
         },
       ],
     });
@@ -89,6 +92,7 @@ export class ElasticSearchUpdatesAdapter implements ElasticSearchModelAdapter {
       createdAt: instance.createdAt,
       updatedAt: instance.updatedAt,
       isPrivate: instance.isPrivate,
+      publishedAt: instance.publishedAt,
       slug: instance.slug,
       html: stripHTMLOrEmpty(instance.html),
       title: instance.title,
@@ -107,7 +111,7 @@ export class ElasticSearchUpdatesAdapter implements ElasticSearchModelAdapter {
         bool: {
           minimum_should_match: 1,
           should: [
-            { term: { isPrivate: false } },
+            { bool: { must: [{ term: { isPrivate: false } }, { exists: { field: 'publishedAt' } }] } },
             { terms: { HostCollectiveId: adminOfAccountIds } },
             { terms: { CollectiveId: adminOfAccountIds } },
             { terms: { ParentCollectiveId: adminOfAccountIds } },
