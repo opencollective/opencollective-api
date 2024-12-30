@@ -805,6 +805,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       const itemsFromAPI = result.data.editExpense.items;
       expect(result.data.editExpense.amount).to.equal(1000);
       expect(itemsFromAPI.length).to.equal(2);
+
       expenseUpdateData.items.forEach(item => {
         const itemFromAPI = itemsFromAPI.find(a => a.description === item.description);
         expect(itemFromAPI).to.exist;
