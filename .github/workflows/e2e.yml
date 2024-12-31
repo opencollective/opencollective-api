@@ -33,9 +33,89 @@ env:
   AWS_SECRET: ${{ secrets.AWS_SECRET }}
 
 jobs:
+  # A job to build the frontend, to prevent having each e2e matrix job to do it
+  build-dependencies:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Set REF in env, removing the `refs/` part
+        run: echo "MATCHING_BRANCH_REF=$(echo $GITHUB_REF | sed 's|refs/||')" >> $GITHUB_ENV
+
+      - name: Check matching branch
+        id: check-matching-branch
+        uses: octokit/request-action@v2.x
+        with:
+          route: GET /repos/{owner}/{repo}/git/ref/{ref}
+          owner: opencollective
+          repo: opencollective-frontend
+          ref: ${{ env.MATCHING_BRANCH_REF }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Checkout (frontend - matching branch)
+        if: steps.check-matching-branch.outputs.status == 200
+        uses: actions/checkout@v4
+        with:
+          repository: opencollective/opencollective-frontend
+          path: opencollective-frontend
+          ref: ${{ github.ref }}
+
+      - name: Checkout (frontend - main)
+        if: steps.check-matching-branch.outputs.status != 200
+        uses: actions/checkout@v4
+        with:
+          repository: opencollective/opencollective-frontend
+          path: opencollective-frontend
+
+      - name: Restore node_modules (frontend)
+        uses: actions/cache@v4
+        id: frontend-node-modules
+        with:
+          path: opencollective-frontend/node_modules
+          key: ${{ runner.os }}-frontend-node-modules-${{ hashFiles('opencollective-frontend/package-lock.json') }}
+
+      - name: Install dependencies (frontend)
+        if: steps.frontend-node-modules.outputs.cache-hit != 'true'
+        working-directory: opencollective-frontend
+        run: CYPRESS_INSTALL_BINARY=0 npm ci --prefer-offline --no-audit
+
+      - name: Set commit hash (frontend)
+        working-directory: opencollective-frontend
+        run: echo "FRONTEND_COMMIT_HASH=$(git rev-parse HEAD)" >> $GITHUB_ENV
+
+      - name: Restore .next build (frontend)
+        uses: actions/cache@v4
+        id: next-build
+        with:
+          path: opencollective-frontend/.next
+          key: ${{ runner.os }}-next-build-${{ env.FRONTEND_COMMIT_HASH }}
+
+      - name: Restore .next cache (frontend)
+        if: steps.next-build.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: opencollective-frontend/.next/cache
+          key: ${{ runner.os }}-next-cache-${{ env.FRONTEND_COMMIT_HASH }}
+          restore-keys: |
+            ${{ runner.os }}-next-cache-${{ env.FRONTEND_COMMIT_HASH }}
+            ${{ runner.os }}-next-cache-
+
+      - name: Build (frontend)
+        if: steps.next-build.outputs.cache-hit != 'true'
+        working-directory: opencollective-frontend
+        run: npm run build
+
+      - name: Cache frontend build
+        uses: actions/cache@v4
+        id: frontend-build
+        with:
+          path: opencollective-frontend
+          key: ${{ runner.os }}-next-build-${{ github.sha }}
+
   e2e:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    needs: build-dependencies
 
     strategy:
       matrix:
@@ -88,36 +168,11 @@ jobs:
           cache: 'npm'
 
       # Checkouts
-
-      - name: Set REF in env, removing the `refs/` part
-        run: echo "MATCHING_BRANCH_REF=$(echo $GITHUB_REF | sed 's|refs/||')" >> $GITHUB_ENV
-
-      - name: Check matching branch
-        id: check-matching-branch
-        uses: octokit/request-action@v2.x
+      - name: Download Frontend build cache
+        uses: actions/cache@v4
         with:
-          route: GET /repos/{owner}/{repo}/git/ref/{ref}
-          owner: opencollective
-          repo: opencollective-frontend
-          ref: ${{ env.MATCHING_BRANCH_REF }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
-
-      - name: Checkout (frontend - matching branch)
-        if: steps.check-matching-branch.outputs.status == 200
-        uses: actions/checkout@v4
-        with:
-          repository: opencollective/opencollective-frontend
           path: opencollective-frontend
-          ref: ${{ github.ref }}
-
-      - name: Checkout (frontend - main)
-        if: steps.check-matching-branch.outputs.status != 200
-        uses: actions/checkout@v4
-        with:
-          repository: opencollective/opencollective-frontend
-          path: opencollective-frontend
+          key: ${{ runner.os }}-next-build-${{ github.sha }}
 
       - name: Checkout (images)
         uses: actions/checkout@v4
@@ -153,46 +208,6 @@ jobs:
 
       - name: Build (api)
         if: steps.api-build.outputs.cache-hit != 'true'
-        run: npm run build
-
-      # Prepare Frontend
-
-      - name: Restore node_modules (frontend)
-        uses: actions/cache@v4
-        id: frontend-node-modules
-        with:
-          path: opencollective-frontend/node_modules
-          key: ${{ runner.os }}-frontend-node-modules-${{ hashFiles('opencollective-frontend/package-lock.json') }}
-
-      - name: Install dependencies (frontend)
-        if: steps.frontend-node-modules.outputs.cache-hit != 'true'
-        working-directory: opencollective-frontend
-        run: CYPRESS_INSTALL_BINARY=0 npm ci --prefer-offline --no-audit
-
-      - name: Set commit hash (frontend)
-        working-directory: opencollective-frontend
-        run: echo "FRONTEND_COMMIT_HASH=$(git rev-parse HEAD)" >> $GITHUB_ENV
-
-      - name: Restore .next build (frontend)
-        uses: actions/cache@v4
-        id: next-build
-        with:
-          path: opencollective-frontend/.next
-          key: ${{ runner.os }}-next-build-${{ env.FRONTEND_COMMIT_HASH }}
-
-      - name: Restore .next cache (frontend)
-        if: steps.next-build.outputs.cache-hit != 'true'
-        uses: actions/cache@v4
-        with:
-          path: opencollective-frontend/.next/cache
-          key: ${{ runner.os }}-next-cache-${{ env.FRONTEND_COMMIT_HASH }}
-          restore-keys: |
-            ${{ runner.os }}-next-cache-${{ env.FRONTEND_COMMIT_HASH }}
-            ${{ runner.os }}-next-cache-
-
-      - name: Build (frontend)
-        if: steps.next-build.outputs.cache-hit != 'true'
-        working-directory: opencollective-frontend
         run: npm run build
 
       # Prepare Images
