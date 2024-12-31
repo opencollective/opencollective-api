@@ -1,10 +1,16 @@
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
-import { collectiveResolver, fromCollectiveResolver } from '../../common/comment';
+import { canSeeComment, collectiveResolver, fromCollectiveResolver } from '../../common/comment';
 import { GraphQLCommentType } from '../enum/CommentType';
 import { getIdEncodeResolver } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
+
+import GraphQLConversation from './Conversation';
+import { GraphQLExpense } from './Expense';
+import { GraphQLHostApplication } from './HostApplication';
+import { GraphQLOrder } from './Order';
+import GraphQLUpdate from './Update';
 
 export const GraphQLComment = new GraphQLObjectType({
   name: 'Comment',
@@ -20,6 +26,11 @@ export const GraphQLComment = new GraphQLObjectType({
       },
       html: {
         type: GraphQLString,
+        resolve: async (comment, _, req) => {
+          if (await canSeeComment(req, comment)) {
+            return comment.html;
+          }
+        },
       },
       fromAccount: {
         type: GraphQLAccount,
@@ -46,6 +57,47 @@ export const GraphQLComment = new GraphQLObjectType({
         async resolve(comment, args, req) {
           if (req.remoteUser) {
             return req.loaders.Comment.remoteUserReactionsByCommentId.load(comment.id);
+          }
+        },
+      },
+      // Relationships
+      conversation: {
+        type: GraphQLConversation,
+        resolve(comment, args, req) {
+          if (comment.ConversationId) {
+            return req.loaders.Conversation.byId.load(comment.ConversationId);
+          }
+        },
+      },
+      expense: {
+        type: GraphQLExpense,
+        resolve(comment, args, req) {
+          if (comment.ExpenseId) {
+            return req.loaders.Expense.byId.load(comment.ExpenseId);
+          }
+        },
+      },
+      hostApplication: {
+        type: GraphQLHostApplication,
+        resolve(comment, args, req) {
+          if (comment.HostApplicationId) {
+            return req.loaders.HostApplication.byId.load(comment.HostApplicationId);
+          }
+        },
+      },
+      order: {
+        type: GraphQLOrder,
+        resolve(comment, args, req) {
+          if (comment.OrderId) {
+            return req.loaders.Order.byId.load(comment.OrderId);
+          }
+        },
+      },
+      update: {
+        type: GraphQLUpdate,
+        resolve(comment, args, req) {
+          if (comment.UpdateId) {
+            return req.loaders.Update.byId.load(comment.UpdateId);
           }
         },
       },

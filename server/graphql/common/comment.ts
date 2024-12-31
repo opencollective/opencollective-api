@@ -68,14 +68,16 @@ const loadCommentedEntity = async (
       }
     }
   } else if (commentValues.HostApplicationId) {
-    entity = (await models.HostApplication.findByPk(commentValues.HostApplicationId)) as HostApplication;
-    activityType = ActivityTypes.HOST_APPLICATION_COMMENT_CREATED;
-    entity.host = await entity.getHost();
-    entity.collective = await entity.getCollective();
-    activityData = {
-      host: entity.host?.info,
-      collective: entity.collective?.info,
-    };
+    entity = (await loaders.HostApplication.byId.load(commentValues.HostApplicationId)) as HostApplication;
+    if (entity) {
+      activityType = ActivityTypes.HOST_APPLICATION_COMMENT_CREATED;
+      entity.host = await loaders.Collective.byId.load(entity.HostCollectiveId);
+      entity.collective = await loaders.Collective.byId.load(entity.CollectiveId);
+      activityData = {
+        host: entity.host?.info,
+        collective: entity.collective?.info,
+      };
+    }
   }
 
   return [entity, activityType, activityData];

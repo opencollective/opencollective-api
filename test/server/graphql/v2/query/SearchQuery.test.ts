@@ -312,6 +312,8 @@ describe('server/graphql/v2/query/SearchQuery', () => {
       CreatedByUserId: testUsers.fromUser.id,
       html: '<div>AVeryUniqueUpdateHtml</div>',
       title: 'AVeryUniqueUpdateTitle',
+      isPrivate: false,
+      publishedAt: new Date(),
     });
 
     // A private update
@@ -322,6 +324,18 @@ describe('server/graphql/v2/query/SearchQuery', () => {
       html: '<div>AVeryUniquePrivateUpdateHtml</div>',
       title: 'AVeryUniquePrivateUpdateTitle',
       isPrivate: true,
+      publishedAt: new Date(),
+    });
+
+    // A public, unpublished update
+    await fakeUpdate({
+      FromCollectiveId: testUsers.fromUser.CollectiveId,
+      CollectiveId: project.id,
+      CreatedByUserId: testUsers.fromUser.id,
+      html: '<div>AVeryUniqueUnpublishedUpdateHtml</div>',
+      title: 'AVeryUniqueUnpublishedUpdateTitle',
+      isPrivate: false,
+      publishedAt: null,
     });
 
     // A comment on a public update
@@ -730,6 +744,18 @@ describe('server/graphql/v2/query/SearchQuery', () => {
           rootUser: 1,
           fromUser: 1,
           unauthenticated: 1,
+        });
+      });
+
+      describe('html for public but unpublished updates', () => {
+        testPermissionsForField('updates', 'AVeryUniqueUnpublishedUpdateHtml', {
+          hostAdmin: 1,
+          collectiveAdmin: 1,
+          projectAdmin: 1,
+          randomUser: 0,
+          rootUser: 1,
+          fromUser: 0,
+          unauthenticated: 0,
         });
       });
 
