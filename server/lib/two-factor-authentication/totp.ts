@@ -37,11 +37,16 @@ export default {
  * twoFactorAuthenticatorCode = 6-digit TOTP
  */
 function validateTOTPToken(encryptedSecret: string, token: string): boolean {
-  const decryptedTwoFactorAuthToken = crypto.decrypt(encryptedSecret);
-  return speakeasy.totp.verify({
-    secret: decryptedTwoFactorAuthToken,
-    encoding: 'base32',
-    token: token,
-    window: 2,
-  });
+  try {
+    const decryptedTwoFactorAuthToken = crypto.decrypt(encryptedSecret);
+    return speakeasy.totp.verify({
+      secret: decryptedTwoFactorAuthToken,
+      encoding: 'base32',
+      token: token,
+      window: 2,
+    });
+  } catch {
+    // An error can be thrown if the token is malformed. We simply return false in this case.
+    return false;
+  }
 }
