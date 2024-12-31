@@ -99,7 +99,7 @@
     "ics": "3.8.1",
     "intl-messageformat": "10.7.10",
     "jsonwebtoken": "9.0.2",
-    "juice": "10.0.1",
+    "juice": "11.0.0",
     "limax": "4.1.0",
     "lodash": "4.17.21",
     "lru-cache": "11.0.2",
