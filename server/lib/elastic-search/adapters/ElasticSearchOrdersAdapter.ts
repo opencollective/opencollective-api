@@ -42,6 +42,7 @@ export class ElasticSearchOrdersAdapter implements ElasticSearchModelAdapter {
     FromCollectiveId: 0,
     HostCollectiveId: 0,
     ParentCollectiveId: 0,
+    CreatedByUserId: 0,
     createdAt: 0,
     updatedAt: 0,
   };

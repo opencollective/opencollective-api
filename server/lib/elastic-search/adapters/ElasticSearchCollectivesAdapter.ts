@@ -47,6 +47,7 @@ export class ElasticSearchCollectivesAdapter implements ElasticSearchModelAdapte
     createdAt: 0,
     updatedAt: 0,
     deactivatedAt: 0,
+    id: 0,
   };
 
   public async findEntriesToIndex(options: FindEntriesToIndexOptions = {}) {
