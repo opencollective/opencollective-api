@@ -214,6 +214,7 @@ export const elasticSearchGlobalSearch = async (
       body: {
         size: 0, // We don't need hits at the top level
         query,
+        min_score: 0.0001, // Ignore results that fulfill the accounts criteria but don't match the search term
         // Aggregate results by index, keeping only `limit` top hits per index
         aggs: {
           by_index: {
