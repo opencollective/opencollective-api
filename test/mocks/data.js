@@ -18,6 +18,10 @@ export default {
     longDescription: 'This is a long description with some *markdown* **style**',
     twitterHandle: 'philmod',
     address: 'Paradize street\nSan Francisco CA 94100\nUSA',
+    collective: {
+      name: 'Phil Mod',
+      slug: 'philmod',
+    },
   },
 
   user2: {
@@ -28,6 +32,10 @@ export default {
     twitterHandle: 'abas',
     company: 'Open Collective Inc.',
     website: 'http://abas.com',
+    collective: {
+      name: 'Anish Bas',
+      slug: 'anishbas',
+    },
   },
 
   user3: {
@@ -590,6 +598,16 @@ export default {
     incurredAt: '2016-03-06 UTC+0300',
     legacyPayoutMethod: 'paypal',
     attachment: 'https://opencollective-production.s3.us-west-1.amazonaws.com/d6618050-82be-11e6-a262-73c13d37e1af.JPG',
+    items: [
+      {
+        amount: 10000,
+        description: 'Lunch with Jenn',
+      },
+      {
+        amount: 2000,
+        description: 'Dessert',
+      },
+    ],
   },
   expense2: {
     description: 'tshirts',

@@ -165,6 +165,7 @@
     "chai-jest-snapshot": "^2.0.0",
     "chai-sorted": "^0.2.0",
     "chai-subset": "^1.6.0",
+    "chokidar": "^4.0.1",
     "commitizen": "^4.3.0",
     "cz-conventional-changelog": "^3.3.0",
     "eslint": "^9.14.0",
@@ -194,7 +195,8 @@
     "supertest": "^7.0.0",
     "ts-unused-exports": "^10.1.0",
     "typescript": "5.7.2",
-    "typescript-eslint": "^8.13.0"
+    "typescript-eslint": "^8.13.0",
+    "ws": "^8.18.0"
   },
   "scripts": {
     "build": "npm run build:clean && npm run build:updates && npm run build:server",
@@ -240,6 +242,7 @@
     "lint:check": "npm run lint -- --quiet",
     "lint:fix": "npm run lint -- --fix",
     "mailpit": "./scripts/dev/run-docker.sh compose -f docker-compose.dev.yml --profile mail up",
+    "mail:preview": "npm run script scripts/dev/dev-email-preview.ts",
     "postinstall": "./scripts/postinstall.sh",
     "prettier": "prettier \"**/*.@(js|ts|json|md)\"",
     "prettier:check": "npm run prettier -- --check",
