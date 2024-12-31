@@ -149,7 +149,7 @@
     "@opentelemetry/exporter-trace-otlp-proto": "^0.54.0",
     "@opentelemetry/resources": "^1.20.0",
     "@opentelemetry/sdk-trace-node": "^1.20.0",
-    "@types/express": "^4.17.21",
+    "@types/express": "^5.0.0",
     "@types/graphql-upload": "16.0.7",
     "@types/jsonwebtoken": "^9.0.5",
     "@types/lodash": "^4.14.202",
