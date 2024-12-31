@@ -3309,6 +3309,14 @@ export async function quoteExpense(expense_) {
   const payoutMethodType = payoutMethod ? payoutMethod.type : expense.getPayoutMethodTypeFromLegacy();
 
   const host = await expense.collective.getHostCollective();
+  if (!host) {
+    throw new Error(
+      expense.collective.deactivatedAt
+        ? `@${expense.collective.slug} has been archived`
+        : `Host not found for account @${expense.collective.slug}`,
+    );
+  }
+
   if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT) {
     const connectedAccount = await host.getAccountForPaymentProvider(Service.TRANSFERWISE);
 

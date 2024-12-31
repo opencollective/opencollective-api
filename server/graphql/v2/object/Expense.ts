@@ -612,6 +612,14 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Reques
           if (payoutMethod?.type === 'BANK_ACCOUNT' && (await ExpenseLib.canPayExpense(req, expense))) {
             const collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
             const host = await collective.getHostCollective({ loaders: req.loaders });
+            if (!host) {
+              throw new Error(
+                collective.deactivatedAt
+                  ? `@${collective.slug} has been archived`
+                  : `Host not found for account @${collective.slug}`,
+              );
+            }
+
             const connectedAccount = await host.getAccountForPaymentProvider(Service.TRANSFERWISE);
             return await transferwise.validateTransferRequirements(
               connectedAccount,
