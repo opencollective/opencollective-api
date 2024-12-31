@@ -16,5 +16,6 @@ export interface ElasticSearchIndexParams extends Record<ElasticSearchIndexName,
     type?: CollectiveType;
     isHost?: boolean;
     tags?: string[];
+    isActive?: boolean;
   };
 }

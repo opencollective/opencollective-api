@@ -210,6 +210,7 @@ export const searchCollectivesInDB = async (
   offset = 0,
   limit = 100,
   {
+    ids,
     countries,
     hasCustomContributionsEnabled,
     hostCollectiveIds,
@@ -226,6 +227,7 @@ export const searchCollectivesInDB = async (
     types,
     ...args
   }: {
+    ids?: number[];
     countries?: string[];
     currency?: string;
     hasCustomContributionsEnabled?: boolean;
@@ -342,6 +344,7 @@ export const searchCollectivesInDB = async (
     AND c.name != 'incognito'
     AND c.name != 'anonymous'
     AND c."isIncognito" = FALSE ${dynamicConditions}
+    ${!isEmpty(ids) ? `AND c.id IN (:ids)` : ''}
     ${!isEmpty(args.consolidatedBalance) ? `AND ${CONSOLIDATED_BALANCE_SUBQUERY} ${getAmountRangeQuery(args.consolidatedBalance)}` : ''}
     ORDER BY __sort__ ${orderBy?.direction || 'DESC'}
     OFFSET :offset
@@ -351,6 +354,7 @@ export const searchCollectivesInDB = async (
       model: models.Collective,
       mapToModel: true,
       replacements: {
+        ids,
         types,
         term: term,
         slugifiedTerm: term ? slugify(term) : '',

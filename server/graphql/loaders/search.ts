@@ -17,7 +17,6 @@ type SearchParams = {
   indexParams: ElasticSearchIndexParams[ElasticSearchIndexName];
   forbidPrivate?: boolean;
   limit: number;
-  adminOfAccountIds: number[];
   account: Collective;
   host: Collective;
 };
@@ -86,7 +85,7 @@ export const generateSearchLoaders = req => {
       const firstRequest = groupedRequests[requestId][0];
       const { searchTerm, limit, account, host } = firstRequest;
       const indexes = getSearchIndexes(groupedRequests[requestId]);
-      const results = await elasticSearchGlobalSearch(indexes, searchTerm, {
+      const results = await elasticSearchGlobalSearch(searchTerm, indexes, {
         user: req.remoteUser,
         account,
         host,

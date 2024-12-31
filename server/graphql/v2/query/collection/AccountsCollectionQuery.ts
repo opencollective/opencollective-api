@@ -1,5 +1,10 @@
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import { isNil, omitBy } from 'lodash';
 
+import { isElasticSearchConfigured } from '../../../../lib/elastic-search/client';
+import { formatIndexNameForElasticSearch } from '../../../../lib/elastic-search/common';
+import { ElasticSearchIndexName } from '../../../../lib/elastic-search/constants';
+import { elasticSearchGlobalSearch } from '../../../../lib/elastic-search/search';
 import { searchCollectivesInDB } from '../../../../lib/sql-search';
 import { GraphQLAccountCollection } from '../../collection/AccountCollection';
 import { AccountTypeToModelMapping, GraphQLAccountType, GraphQLCountryISO } from '../../enum';
@@ -102,7 +107,43 @@ const AccountsCollectionQuery = {
       ? await fetchAccountWithReference(args.includeVendorsForHost).then(({ id }) => id)
       : undefined;
 
+    let preFilteredCollectiveIds: number[];
+    if (
+      isElasticSearchConfigured() &&
+      args.searchTerm &&
+      args.tagSearchOperator === 'AND' &&
+      !args.includeArchived && // Archived collectives are not indexed in ElasticSearch
+      args.skipGuests && // Guests are not indexed in ElasticSearch
+      isNil(args.includeVendorsForHost)
+    ) {
+      // TODO hostCollectiveIds
+      // TODO rate limiting
+      const elasticSearchResult = await elasticSearchGlobalSearch(
+        cleanTerm,
+        {
+          index: ElasticSearchIndexName.COLLECTIVES,
+          indexParams: omitBy(
+            {
+              types: args.type?.length ? args.type.map(value => AccountTypeToModelMapping[value]) : null,
+              isHost: args.isHost,
+              tags: args.tag,
+              isActive: args.onlyActive ? true : null,
+            },
+            isNil,
+          ),
+        },
+        {
+          skipHighlight: true,
+        },
+      );
+
+      const bucketResult = elasticSearchResult.aggregations.by_index['buckets'][0];
+      const hits = bucketResult.top_hits_by_index.hits.hits;
+      preFilteredCollectiveIds = hits.map(hit => hit._source.id);
+    }
+
     const extraParameters = {
+      ids: preFilteredCollectiveIds,
       orderBy: args.orderBy || { field: 'RANK', direction: 'DESC' },
       types: args.type?.length ? args.type.map(value => AccountTypeToModelMapping[value]) : null,
       hostCollectiveIds,
