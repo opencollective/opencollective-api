@@ -101,11 +101,13 @@ const buildQuery = (
   host: Collective,
 ): {
   query: QueryDslQueryContainer;
-  fields: Set<string>;
+  /** All fields for which the search term was used. Does not include account constraints */
+  searchedFields: Set<string>;
+  /** All indexes that were fetched */
   indexes: Set<ElasticSearchIndexName>;
 } => {
   const accountConditions = getAccountFilterConditions(account, host);
-  const fetchedFields = new Set<string>();
+  const searchedFields = new Set<string>();
   const fetchedIndexes = new Set<ElasticSearchIndexName>();
   const adminOfAccountIds = !remoteUser ? [] : remoteUser.getAdministratedCollectiveIds();
   const isRoot = remoteUser && remoteUser.isRoot();
@@ -131,7 +133,7 @@ const buildQuery = (
         const publicFields = searchableFields.filter(field => !permissions['fields']?.[field]);
 
         // Register fetched fields and indexes for later reuse in the aggregation
-        allFields.forEach(field => fetchedFields.add(field));
+        searchableFields.forEach(field => searchedFields.add(field));
         fetchedIndexes.add(index);
 
         // Build the query for this index
@@ -178,7 +180,7 @@ const buildQuery = (
     /* eslint-enable camelcase */
   };
 
-  return { query, fields: fetchedFields, indexes: fetchedIndexes };
+  return { query, searchedFields, indexes: fetchedIndexes };
 };
 
 export const elasticSearchGlobalSearch = async (
@@ -199,7 +201,7 @@ export const elasticSearchGlobalSearch = async (
   } = {},
 ) => {
   const client = getElasticSearchClient({ throwIfUnavailable: true });
-  const { query, fields, indexes } = buildQuery(searchTerm, requestedIndexes, user, account, host);
+  const { query, searchedFields, indexes } = buildQuery(searchTerm, requestedIndexes, user, account, host);
 
   // Due to permissions, we may end up searching on no index at all (e.g. trying to search for comments while unauthenticated)
   if (indexes.size === 0) {
@@ -235,7 +237,7 @@ export const elasticSearchGlobalSearch = async (
                     post_tags: ['</mark>'],
                     fragment_size: 40,
                     number_of_fragments: 1,
-                    fields: Array.from(fields).reduce((acc, field) => {
+                    fields: Array.from(searchedFields).reduce((acc, field) => {
                       acc[field] = {};
                       return acc;
                     }, {}),
