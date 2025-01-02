@@ -22,7 +22,6 @@ module.exports = {
       'wise_batchgroup_status', // Table: Expenses. Size: 648 kB
       'privacy_transfer_id', // Table: Transactions. Size: 16 kB
       'Subscriptions_lastChargedAt', // Table: Subscriptions. Size: 16 kB
-      'virtual_card_requests__host_collective_id__collective_id', // Table: VirtualCardRequests. Size: 16 kB
     ]) {
       console.time(`Dropping index ${indexName}`);
       await queryInterface.sequelize.query(`DROP INDEX CONCURRENTLY IF EXISTS "${indexName}"`);
