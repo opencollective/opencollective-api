@@ -32,6 +32,7 @@ class ConnectedAccount extends Model<
   declare public CreatedByUserId: CreationOptional<number>;
   declare public createdAt: CreationOptional<Date>;
   declare public updatedAt: CreationOptional<Date>;
+  declare public deletedAt: CreationOptional<Date>;
 
   declare public collective?: NonAttribute<Collective>;
   declare public getCollective: BelongsToGetAssociationMixin<Collective>;
@@ -110,6 +111,9 @@ ConnectedAccount.init(
     createdAt: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,
+    },
+    deletedAt: {
+      type: DataTypes.DATE,
     },
     updatedAt: {
       type: DataTypes.DATE,
