@@ -440,7 +440,7 @@ export const TransactionsCollectionResolver = async (
     where.push({ OrderId: { [args.hasOrder ? Op.ne : Op.eq]: null } });
   }
   if (!args.includeDebts) {
-    where.push({ isDebt: { [Op.not]: true } });
+    where.push({ isDebt: false });
   }
   if (args.kind) {
     where.push({ kind: args.kind });
