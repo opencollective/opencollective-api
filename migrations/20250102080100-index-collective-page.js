@@ -10,11 +10,21 @@ module.exports = {
       AND "type" = 'CREDIT'
       AND "RefundTransactionId" IS NULL;
     `);
+
+    await queryInterface.sequelize.query(`
+      CREATE INDEX CONCURRENTLY transactions__non_debt
+      ON "Transactions"("HostCollectiveId", "CollectiveId", kind)
+      WHERE "deletedAt" IS NULL AND "isDebt" = false;
+    `);
   },
 
   async down(queryInterface, Sequelize) {
     await queryInterface.sequelize.query(`
       DROP INDEX CONCURRENTLY transactions__unrefunded_credits;
+    `);
+
+    await queryInterface.sequelize.query(`
+      DROP INDEX CONCURRENTLY transactions__non_debt;
     `);
   },
 };
