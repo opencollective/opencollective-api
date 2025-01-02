@@ -857,7 +857,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
             type: 'USER',
           },
           legalDocument: {
-            year: 2024,
+            year: new Date().getFullYear(),
             service: 'OPENCOLLECTIVE',
             documentLink: null,
             documentType: 'US_TAX_FORM',
@@ -2449,7 +2449,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
             type: 'USER',
           },
           legalDocument: {
-            year: 2024,
+            year: new Date().getFullYear(),
             service: 'OPENCOLLECTIVE',
             documentLink: null,
             documentType: 'US_TAX_FORM',
