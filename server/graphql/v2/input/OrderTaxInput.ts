@@ -1,7 +1,7 @@
 import { GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
 
 import { GraphQLCountryISO } from '../enum';
-import { GraphQLOrderTaxType } from '../enum/OrderTaxType';
+import { GraphQLTaxType } from '../enum/TaxType';
 
 import { GraphQLAmountInput } from './AmountInput';
 
@@ -10,7 +10,7 @@ export const GraphQLOrderTaxInput = new GraphQLInputObjectType({
   description: 'Input to set taxes for an order',
   fields: () => ({
     type: {
-      type: new GraphQLNonNull(GraphQLOrderTaxType),
+      type: new GraphQLNonNull(GraphQLTaxType),
     },
     amount: {
       type: new GraphQLNonNull(GraphQLAmountInput),
