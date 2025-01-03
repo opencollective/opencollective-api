@@ -7,6 +7,7 @@ import { MigrationLogType } from '../models/MigrationLog';
 import User from '../models/User';
 
 import { DEFAULT_GUEST_NAME } from './guest-accounts';
+import { safeJsonStringify } from './safe-json-stringify';
 
 const countEntities = async (fieldsConfig, entityId) => {
   const resultsList = await Promise.all(
@@ -355,7 +356,9 @@ const moveCollectiveAssociations = async (from, into, transaction) => {
           `A legal document for ${from.slug} could not be transferred as one already exists for the same year/type with ${into.slug}`,
         );
       } else {
-        throw e;
+        throw new Error(
+          `Error moving ${entity} from ${from.slug} to ${into.slug}: ${e.message} (${safeJsonStringify(updateWhere)})`,
+        );
       }
     }
   }
