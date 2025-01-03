@@ -103,12 +103,13 @@ export async function deleteUpdate(_, args, req) {
   return update;
 }
 
-const canSeeUpdateForFinancialContributors = (req, collective): boolean => {
+const canSeeUpdateForFinancialContributors = (req, collective): Promise<boolean> => {
   const allowedNonAdminRoles = [MemberRoles.MEMBER, MemberRoles.CONTRIBUTOR, MemberRoles.BACKER];
   return (
     req.remoteUser.isAdminOfCollectiveOrHost(collective) ||
     req.remoteUser.hasRole(allowedNonAdminRoles, collective.id) ||
-    req.remoteUser.hasRole(allowedNonAdminRoles, collective.ParentCollectiveId)
+    req.remoteUser.hasRole(allowedNonAdminRoles, collective.ParentCollectiveId) ||
+    req.loaders.Member.remoteUserIsIndirectFinancialContributor.load(collective.id)
   );
 };
 
@@ -149,8 +150,8 @@ export async function canSeeUpdate(req, update): Promise<boolean> {
       return canSeeUpdateForCollectiveAdmins(req, update.collective);
     case UPDATE_NOTIFICATION_AUDIENCE.ALL:
       return (
-        canSeeUpdateForFinancialContributors(req, update.collective) ||
-        canSeeUpdateForCollectiveAdmins(req, update.collective)
+        (await canSeeUpdateForFinancialContributors(req, update.collective)) ||
+        (await canSeeUpdateForCollectiveAdmins(req, update.collective))
       );
     case UPDATE_NOTIFICATION_AUDIENCE.NO_ONE:
       return req.remoteUser.isAdminOfCollective(update.collective);

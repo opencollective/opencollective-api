@@ -197,7 +197,7 @@ describe('server/graphql/v2/query/UpdateQuery', () => {
   });
 
   describe('userCanSeeUpdate', () => {
-    let project, parentCollective, host, allUsers, backers, accountAdmins, hostAdmins, notAllowedUsers;
+    let project, parentCollective, host, allUsers, backers, indirectBacker, accountAdmins, hostAdmins, notAllowedUsers;
 
     before(async () => {
       host = await fakeHost();
@@ -219,7 +219,17 @@ describe('server/graphql/v2/query/UpdateQuery', () => {
         fakeUser({ name: 'Random user' }), // Random user
         null, // Unauthenticated
       ]);
-      allUsers = [...backers, ...accountAdmins, ...hostAdmins, ...notAllowedUsers];
+
+      indirectBacker = await fakeUser();
+      const backerOrganization = await fakeOrganization({ admin: indirectBacker });
+      await indirectBacker.populateRoles();
+      await fakeMember({
+        MemberCollectiveId: backerOrganization.id,
+        CollectiveId: project.id,
+        role: MemberRoles.BACKER,
+      });
+
+      allUsers = [...backers, indirectBacker, ...accountAdmins, ...hostAdmins, ...notAllowedUsers];
     });
 
     it('always returns true for published public updates', async () => {

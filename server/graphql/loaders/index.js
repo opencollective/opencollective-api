@@ -31,6 +31,7 @@ import {
   generateAdminUsersEmailsForCollectiveLoader,
   generateCountAdminMembersOfCollective,
   generateRemoteUserIsAdminOfHostedAccountLoader,
+  generateRemoteUserIsIndirectFinancialContributor,
 } from './members';
 import * as orderLoaders from './order';
 import { generateCollectivePayoutMethodsLoader, generateCollectivePaypalPayoutMethodsLoader } from './payout-method';
@@ -819,6 +820,8 @@ export const loaders = req => {
   context.loaders.Member.adminUserEmailsForCollective = generateAdminUsersEmailsForCollectiveLoader();
   context.loaders.Member.remoteUserIdAdminOfHostedAccount = generateRemoteUserIsAdminOfHostedAccountLoader(req);
   context.loaders.Member.countAdminMembersOfCollective = generateCountAdminMembersOfCollective();
+  context.loaders.Member.remoteUserIsIndirectFinancialContributor =
+    generateRemoteUserIsIndirectFinancialContributor(req);
 
   /** SocialLink */
   context.loaders.SocialLink.byCollectiveId = new DataLoader(async keys => {
