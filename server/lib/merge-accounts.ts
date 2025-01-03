@@ -317,6 +317,31 @@ const moveCollectiveAssociations = async (from, into, transaction) => {
       }
     }
 
+    // Similarly, for social links, if a link already exists for the same type and URL, just delete the old one
+    else if (entity === 'socialLinks') {
+      const isSameLink = (link1, link2) => link1.url === link2.url && link1.type === link2.type;
+      const existingLinks = await models.SocialLink.findAll({
+        where: { CollectiveId: into.id },
+        transaction,
+        raw: true,
+      });
+      const linksToIgnore = await models.SocialLink.findAll({
+        where: { CollectiveId: from.id },
+        transaction,
+        raw: true,
+      });
+
+      const linksToDestroy = linksToIgnore.filter(linkToIgnore =>
+        existingLinks.some(link => isSameLink(link, linkToIgnore)),
+      );
+      if (linksToDestroy.length) {
+        await models.SocialLink.destroy({
+          where: { CollectiveId: from.id, [Op.or]: linksToDestroy.map(l => ({ type: l.type, url: l.url })) },
+          transaction,
+        });
+      }
+    }
+
     try {
       const [, results] = await entityConfig.model.update(
         { [entityConfig.field]: into.id },
@@ -350,7 +375,10 @@ const moveCollectiveAssociations = async (from, into, transaction) => {
         } as any);
       }
     } catch (e) {
-      if (e.name === 'SequelizeUniqueConstraintError' && entityConfig.model === models.LegalDocument) {
+      if (
+        e.name === 'SequelizeUniqueConstraintError' &&
+        (entityConfig.model === models.LegalDocument || entityConfig.model === models.SocialLink)
+      ) {
         // It's fine if the target profile already has a legal document set for this type/year, just delete the other one
         warnings.push(
           `A legal document for ${from.slug} could not be transferred as one already exists for the same year/type with ${into.slug}`,

@@ -130,149 +130,174 @@ const sumCounts = (count1, count2) => {
 };
 
 describe('server/lib/merge-accounts', () => {
-  let fromUser, toUser, fromOrganization, toOrganization, fromCollective, toCollective;
+  describe('Full scenario', () => {
+    let fromUser, toUser, fromOrganization, toOrganization, fromCollective, toCollective;
 
-  before(async () => {
-    await resetTestDB();
-    await generateTestData();
+    before(async () => {
+      await resetTestDB();
+      await generateTestData();
 
-    // Load accounts
-    fromCollective = await models.Collective.findBySlug('from-collective');
-    toCollective = await models.Collective.findBySlug('to-collective');
-    fromOrganization = await models.Collective.findBySlug('from-org');
-    toOrganization = await models.Collective.findBySlug('to-org');
+      // Load accounts
+      fromCollective = await models.Collective.findBySlug('from-collective');
+      toCollective = await models.Collective.findBySlug('to-collective');
+      fromOrganization = await models.Collective.findBySlug('from-org');
+      toOrganization = await models.Collective.findBySlug('to-org');
 
-    // Load users
-    const fromUserCollective = await models.Collective.findBySlug('from-user');
-    const toUserCollective = await models.Collective.findBySlug('to-user');
-    fromUser = await models.User.findOne({ where: { CollectiveId: fromUserCollective.id } });
-    toUser = await models.User.findOne({ where: { CollectiveId: toUserCollective.id } });
-    fromUser.collective = fromUserCollective;
-    toUser.collective = toUserCollective;
-  });
-
-  describe('simulateMergeAccounts', () => {
-    it('Correctly estimates the number of items to move for collective account', async () => {
-      // Generate & check summary
-      const summary = await simulateMergeAccounts(fromCollective, toCollective);
-      expect(summary).to.matchSnapshot();
+      // Load users
+      const fromUserCollective = await models.Collective.findBySlug('from-user');
+      const toUserCollective = await models.Collective.findBySlug('to-user');
+      fromUser = await models.User.findOne({ where: { CollectiveId: fromUserCollective.id } });
+      toUser = await models.User.findOne({ where: { CollectiveId: toUserCollective.id } });
+      fromUser.collective = fromUserCollective;
+      toUser.collective = toUserCollective;
     });
 
-    it('Correctly estimates the number of items to move for organization account', async () => {
-      // Generate & check summary
-      const summary = await simulateMergeAccounts(fromOrganization, toOrganization);
-      expect(summary).to.matchSnapshot();
-    });
-
-    it('Correctly estimates the number of items to move for user account', async () => {
-      // Generate & check summary
-      const summary = await simulateMergeAccounts(fromUser.collective, toUser.collective);
-      expect(summary).to.matchSnapshot();
-    });
-  });
-
-  describe('mergeAccounts', () => {
-    it('Merges an organization', async () => {
-      // Check seed data
-      const preMoveFromItemsCounts = await getMovableItemsCounts(fromOrganization);
-      const preMoveToItemsCounts = await getMovableItemsCounts(toOrganization);
-      expect(preMoveFromItemsCounts.account).to.matchSnapshot();
-      expect(preMoveToItemsCounts.account).to.matchSnapshot();
-      expect(preMoveFromItemsCounts.user).to.be.null;
-      expect(preMoveToItemsCounts.user).to.be.null;
-
-      // Merge accounts
-      await mergeAccounts(fromOrganization, toOrganization);
-
-      // Profile info
-      await fromOrganization.reload({ paranoid: false });
-      await toOrganization.reload();
-      expect(fromOrganization.deletedAt).to.not.be.null;
-      expect(fromOrganization.slug).to.eq('from-org-merged');
-      expect(fromOrganization.data.mergedIntoCollectiveId).to.eq(toOrganization.id);
-      expect(toOrganization.countryISO).to.eq('FR');
-
-      // Associated data
-      const postMoveFromItemsCounts = await getMovableItemsCounts(fromOrganization);
-      const postMoveToItemsCounts = await getMovableItemsCounts(toOrganization);
-      const expectedCounts = sumCounts(preMoveFromItemsCounts, preMoveToItemsCounts);
-      expectedCounts.account.legalDocuments -= 1; // Should not be transferred as one already exists
-      expect(postMoveToItemsCounts.account).to.matchSnapshot();
-      expect(postMoveToItemsCounts).to.deep.equal(expectedCounts);
-      expect(postMoveFromItemsCounts.user).to.be.null;
-      expect(postMoveToItemsCounts.user).to.be.null;
-      Object.values(postMoveFromItemsCounts.account).forEach(count => expect(count).to.eq(0));
-
-      // Creates a MigrationLog
-      const migrationLog = await models.MigrationLog.findOne({
-        where: {
-          type: MigrationLogType.MERGE_ACCOUNTS,
-          description: 'Merge from-org into to-org',
-        },
+    describe('simulateMergeAccounts', () => {
+      it('Correctly estimates the number of items to move for collective account', async () => {
+        // Generate & check summary
+        const summary = await simulateMergeAccounts(fromCollective, toCollective);
+        expect(summary).to.matchSnapshot();
       });
 
-      const migrationLogData = <MigrationLogDataForMergeAccounts>migrationLog.data;
-      expect(migrationLogData).to.exist;
-      expect(migrationLogData.fromAccount).to.eq(fromOrganization.id);
-      expect(migrationLogData.intoAccount).to.eq(toOrganization.id);
-      expect(migrationLogData.associations.members).to.have.length(2);
-      expect(migrationLogData.associations.expenses).to.have.length(1);
-      expect(migrationLogData.associations.giftCardTransactions).to.have.length(1);
-      expect(migrationLogData.associations.socialLinks).to.have.length(1);
-      expect(migrationLogData.associations.socialLinks[0]['CollectiveId']).to.eq(toOrganization.id);
-      expect(migrationLogData.associations.socialLinks[0]['type']).to.exist;
-      expect(migrationLogData.associations.socialLinks[0]['url']).to.exist;
-    });
-
-    it('Merges a user profile', async () => {
-      // Check seed data
-      const preMoveFromItemsCounts = await getMovableItemsCounts(fromUser.collective);
-      const preMoveToItemsCounts = await getMovableItemsCounts(toUser.collective);
-      expect(preMoveFromItemsCounts.account).to.matchSnapshot();
-      expect(preMoveToItemsCounts.account).to.matchSnapshot();
-      expect(preMoveFromItemsCounts.user).to.matchSnapshot();
-      expect(preMoveToItemsCounts.user).to.matchSnapshot();
-
-      // Prepare test data
-      await mergeAccounts(fromUser.collective, toUser.collective);
-
-      // Profile info
-      await fromUser.reload({ paranoid: false });
-      await fromUser.collective.reload({ paranoid: false });
-      await toUser.reload();
-      expect(fromUser.deletedAt).to.not.be.null;
-      expect(fromUser.collective.deletedAt).to.not.be.null;
-      expect(fromUser.collective.slug).to.eq('from-user-merged');
-      expect(fromUser.collective.data.mergedIntoCollectiveId).to.eq(toUser.CollectiveId);
-      expect(fromUser.data.mergedIntoUserId).to.eq(toUser.id);
-      expect(toUser.collective.countryISO).to.eq('FR');
-
-      // Associated data
-      const postMoveFromItemsCounts = await getMovableItemsCounts(fromUser.collective);
-      const postMoveToItemsCounts = await getMovableItemsCounts(toUser.collective);
-      const expectedCounts = sumCounts(preMoveFromItemsCounts, preMoveToItemsCounts);
-      expectedCounts.account.legalDocuments -= 1; // Should not be transferred as one already exists
-      expectedCounts.user.collectives -= 1; // User profile is not merged, not transferred
-      expect(postMoveToItemsCounts.account).to.matchSnapshot();
-      expect(postMoveToItemsCounts).to.deep.equal(expectedCounts);
-      Object.values(postMoveFromItemsCounts.account).forEach(count => expect(count).to.eq(0));
-      Object.values(postMoveFromItemsCounts.user).forEach(count => expect(count).to.eq(0));
-
-      // Creates a MigrationLog
-      const migrationLog = await models.MigrationLog.findOne({
-        where: {
-          type: MigrationLogType.MERGE_ACCOUNTS,
-          description: 'Merge from-user into to-user',
-        },
+      it('Correctly estimates the number of items to move for organization account', async () => {
+        // Generate & check summary
+        const summary = await simulateMergeAccounts(fromOrganization, toOrganization);
+        expect(summary).to.matchSnapshot();
       });
 
-      const migrationLogData = <MigrationLogDataForMergeAccounts>migrationLog.data;
-      expect(migrationLogData).to.exist;
-      expect(migrationLogData.fromAccount).to.eq(fromUser.collective.id);
-      expect(migrationLogData.intoAccount).to.eq(toUser.collective.id);
-      expect(migrationLogData.associations.giftCardTransactions).to.have.length(1);
-      expect(migrationLogData.associations.expenses).to.have.length(1);
-      expect(migrationLogData.userChanges.notifications).to.have.length(1);
+      it('Correctly estimates the number of items to move for user account', async () => {
+        // Generate & check summary
+        const summary = await simulateMergeAccounts(fromUser.collective, toUser.collective);
+        expect(summary).to.matchSnapshot();
+      });
+    });
+
+    describe('mergeAccounts', () => {
+      it('Merges an organization', async () => {
+        // Check seed data
+        const preMoveFromItemsCounts = await getMovableItemsCounts(fromOrganization);
+        const preMoveToItemsCounts = await getMovableItemsCounts(toOrganization);
+        expect(preMoveFromItemsCounts.account).to.matchSnapshot();
+        expect(preMoveToItemsCounts.account).to.matchSnapshot();
+        expect(preMoveFromItemsCounts.user).to.be.null;
+        expect(preMoveToItemsCounts.user).to.be.null;
+
+        // Merge accounts
+        await mergeAccounts(fromOrganization, toOrganization);
+
+        // Profile info
+        await fromOrganization.reload({ paranoid: false });
+        await toOrganization.reload();
+        expect(fromOrganization.deletedAt).to.not.be.null;
+        expect(fromOrganization.slug).to.eq('from-org-merged');
+        expect(fromOrganization.data.mergedIntoCollectiveId).to.eq(toOrganization.id);
+        expect(toOrganization.countryISO).to.eq('FR');
+
+        // Associated data
+        const postMoveFromItemsCounts = await getMovableItemsCounts(fromOrganization);
+        const postMoveToItemsCounts = await getMovableItemsCounts(toOrganization);
+        const expectedCounts = sumCounts(preMoveFromItemsCounts, preMoveToItemsCounts);
+        expectedCounts.account.legalDocuments -= 1; // Should not be transferred as one already exists
+        expect(postMoveToItemsCounts.account).to.matchSnapshot();
+        expect(postMoveToItemsCounts).to.deep.equal(expectedCounts);
+        expect(postMoveFromItemsCounts.user).to.be.null;
+        expect(postMoveToItemsCounts.user).to.be.null;
+        Object.values(postMoveFromItemsCounts.account).forEach(count => expect(count).to.eq(0));
+
+        // Creates a MigrationLog
+        const migrationLog = await models.MigrationLog.findOne({
+          where: {
+            type: MigrationLogType.MERGE_ACCOUNTS,
+            description: 'Merge from-org into to-org',
+          },
+        });
+
+        const migrationLogData = <MigrationLogDataForMergeAccounts>migrationLog.data;
+        expect(migrationLogData).to.exist;
+        expect(migrationLogData.fromAccount).to.eq(fromOrganization.id);
+        expect(migrationLogData.intoAccount).to.eq(toOrganization.id);
+        expect(migrationLogData.associations.members).to.have.length(2);
+        expect(migrationLogData.associations.expenses).to.have.length(1);
+        expect(migrationLogData.associations.giftCardTransactions).to.have.length(1);
+        expect(migrationLogData.associations.socialLinks).to.have.length(1);
+        expect(migrationLogData.associations.socialLinks[0]['CollectiveId']).to.eq(toOrganization.id);
+        expect(migrationLogData.associations.socialLinks[0]['type']).to.exist;
+        expect(migrationLogData.associations.socialLinks[0]['url']).to.exist;
+      });
+
+      it('Merges a user profile', async () => {
+        // Check seed data
+        const preMoveFromItemsCounts = await getMovableItemsCounts(fromUser.collective);
+        const preMoveToItemsCounts = await getMovableItemsCounts(toUser.collective);
+        expect(preMoveFromItemsCounts.account).to.matchSnapshot();
+        expect(preMoveToItemsCounts.account).to.matchSnapshot();
+        expect(preMoveFromItemsCounts.user).to.matchSnapshot();
+        expect(preMoveToItemsCounts.user).to.matchSnapshot();
+
+        // Prepare test data
+        await mergeAccounts(fromUser.collective, toUser.collective);
+
+        // Profile info
+        await fromUser.reload({ paranoid: false });
+        await fromUser.collective.reload({ paranoid: false });
+        await toUser.reload();
+        expect(fromUser.deletedAt).to.not.be.null;
+        expect(fromUser.collective.deletedAt).to.not.be.null;
+        expect(fromUser.collective.slug).to.eq('from-user-merged');
+        expect(fromUser.collective.data.mergedIntoCollectiveId).to.eq(toUser.CollectiveId);
+        expect(fromUser.data.mergedIntoUserId).to.eq(toUser.id);
+        expect(toUser.collective.countryISO).to.eq('FR');
+
+        // Associated data
+        const postMoveFromItemsCounts = await getMovableItemsCounts(fromUser.collective);
+        const postMoveToItemsCounts = await getMovableItemsCounts(toUser.collective);
+        const expectedCounts = sumCounts(preMoveFromItemsCounts, preMoveToItemsCounts);
+        expectedCounts.account.legalDocuments -= 1; // Should not be transferred as one already exists
+        expectedCounts.user.collectives -= 1; // User profile is not merged, not transferred
+        expect(postMoveToItemsCounts.account).to.matchSnapshot();
+        expect(postMoveToItemsCounts).to.deep.equal(expectedCounts);
+        Object.values(postMoveFromItemsCounts.account).forEach(count => expect(count).to.eq(0));
+        Object.values(postMoveFromItemsCounts.user).forEach(count => expect(count).to.eq(0));
+
+        // Creates a MigrationLog
+        const migrationLog = await models.MigrationLog.findOne({
+          where: {
+            type: MigrationLogType.MERGE_ACCOUNTS,
+            description: 'Merge from-user into to-user',
+          },
+        });
+
+        const migrationLogData = <MigrationLogDataForMergeAccounts>migrationLog.data;
+        expect(migrationLogData).to.exist;
+        expect(migrationLogData.fromAccount).to.eq(fromUser.collective.id);
+        expect(migrationLogData.intoAccount).to.eq(toUser.collective.id);
+        expect(migrationLogData.associations.giftCardTransactions).to.have.length(1);
+        expect(migrationLogData.associations.expenses).to.have.length(1);
+        expect(migrationLogData.userChanges.notifications).to.have.length(1);
+      });
+    });
+  });
+
+  describe('simple cases', () => {
+    it('properly handles duplicate social links', async () => {
+      const collective1 = await Faker.fakeCollective();
+      const collective2 = await Faker.fakeCollective();
+      const socialLink1 = await Faker.fakeSocialLink({ CollectiveId: collective1.id });
+      await Faker.fakeSocialLink({
+        CollectiveId: collective2.id,
+        type: socialLink1.type,
+        url: socialLink1.url,
+      });
+
+      await mergeAccounts(collective1, collective2);
+
+      // Collective 2 should have only one social link, the one from collective 1 should be deleted
+      const socialLinks = await models.SocialLink.findAll({ where: { CollectiveId: collective2.id } });
+      expect(socialLinks).to.have.length(1);
+      expect(socialLinks[0].type).to.eq(socialLink1.type);
+      expect(socialLinks[0].url).to.eq(socialLink1.url);
+
+      expect(await models.SocialLink.findOne({ where: { CollectiveId: collective1.id } })).to.be.null;
     });
   });
 });
