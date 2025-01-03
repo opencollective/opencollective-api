@@ -1,6 +1,6 @@
 import { GraphQLFloat, GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
-import { GraphQLOrderTaxType } from '../enum/OrderTaxType';
+import { GraphQLTaxType } from '../enum/TaxType';
 
 export const GraphQLTaxInfo = new GraphQLObjectType({
   name: 'TaxInfo',
@@ -11,7 +11,7 @@ export const GraphQLTaxInfo = new GraphQLObjectType({
       description: 'An unique identifier for this tax (GST, VAT, etc)',
     },
     type: {
-      type: new GraphQLNonNull(GraphQLOrderTaxType),
+      type: new GraphQLNonNull(GraphQLTaxType),
       description: 'Identifier for this tax (GST, VAT, etc)',
     },
     percentage: {

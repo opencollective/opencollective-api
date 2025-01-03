@@ -299,7 +299,7 @@ export const GraphQLOrder = new GraphQLObjectType({
               id: order.data.tax.id,
               type: order.data.tax.id,
               percentage: order.data.tax.percentage,
-              rate: round(order.data.tax.percentage / 100, 2),
+              rate: round(order.data.tax.percentage / 100, 4),
               idNumber: order.data.tax.idNumber,
             };
           }
@@ -314,6 +314,7 @@ export const GraphQLOrder = new GraphQLObjectType({
               {
                 type: order.data.tax.id,
                 percentage: order.data.tax.percentage,
+                rate: round(order.data.tax.percentage / 100, 4),
               },
             ];
           } else {
