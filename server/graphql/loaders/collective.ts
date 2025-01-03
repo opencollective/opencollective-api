@@ -94,7 +94,7 @@ export default {
       // that are linked to users`
       if (otherAccountsCollectiveIds.length) {
         await remoteUser.populateRoles();
-        const adminOfCollectiveIds = Object.keys(remoteUser.rolesByCollectiveId).filter(id => remoteUser.isAdmin(id));
+        const adminOfCollectiveIds = remoteUser.getAdministratedCollectiveIds();
         administratedMembers = await models.Member.findAll({
           attributes: ['MemberCollectiveId'],
           group: ['MemberCollectiveId'],

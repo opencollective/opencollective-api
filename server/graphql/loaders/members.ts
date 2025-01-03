@@ -1,5 +1,5 @@
 import DataLoader from 'dataloader';
-import _, { groupBy, partition, uniq } from 'lodash';
+import _, { groupBy, keyBy, partition, uniq } from 'lodash';
 
 import MemberRoles from '../../constants/roles';
 import models, { Collective, sequelize } from '../../models';
@@ -96,5 +96,36 @@ export const generateRemoteUserIsAdminOfHostedAccountLoader = req => {
 
     const groupedResults = groupBy(results, 'HostCollectiveId');
     return hostIds.map(id => Boolean(groupedResults[id] && (groupedResults[id][0] as any).MembersCount > 0));
+  });
+};
+
+/**
+ * A dataloader to check if a remote user is an indirect financial contributor of a collective,
+ * aka he is an admin of an account that contributes to the collective.
+ */
+export const generateRemoteUserIsIndirectFinancialContributor = (req: Express.Request) => {
+  return new DataLoader(async (collectiveIds: number[]): Promise<boolean[]> => {
+    if (!req.remoteUser) {
+      return collectiveIds.map(() => false);
+    }
+
+    const adminOfCollectiveIds = req.remoteUser.getAdministratedCollectiveIds();
+    if (adminOfCollectiveIds.length === 0) {
+      return collectiveIds.map(() => false);
+    }
+
+    const results = await models.Member.findAll({
+      attributes: ['CollectiveId', [sequelize.fn('COUNT', 'Member.id'), 'MembersCount']],
+      group: ['CollectiveId'],
+      raw: true,
+      where: {
+        role: [MemberRoles.BACKER, MemberRoles.ATTENDEE],
+        MemberCollectiveId: adminOfCollectiveIds,
+        CollectiveId: collectiveIds,
+      },
+    });
+
+    const groupedResults = keyBy(results, 'CollectiveId');
+    return collectiveIds.map(id => groupedResults[id]?.['MembersCount'] > 0);
   });
 };
