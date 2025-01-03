@@ -1,6 +1,6 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`server/lib/merge-accounts mergeAccounts Merges a user profile 1`] = `
+exports[`server/lib/merge-accounts Full scenario mergeAccounts Merges a user profile 1`] = `
 Object {
   "accountingCategories": 1,
   "activities": 1,
@@ -51,7 +51,7 @@ Object {
 }
 `;
 
-exports[`server/lib/merge-accounts mergeAccounts Merges a user profile 2`] = `
+exports[`server/lib/merge-accounts Full scenario mergeAccounts Merges a user profile 2`] = `
 Object {
   "accountingCategories": 1,
   "activities": 1,
@@ -102,7 +102,7 @@ Object {
 }
 `;
 
-exports[`server/lib/merge-accounts mergeAccounts Merges a user profile 3`] = `
+exports[`server/lib/merge-accounts Full scenario mergeAccounts Merges a user profile 3`] = `
 Object {
   "activities": 0,
   "agreements": 1,
@@ -134,7 +134,7 @@ Object {
 }
 `;
 
-exports[`server/lib/merge-accounts mergeAccounts Merges a user profile 4`] = `
+exports[`server/lib/merge-accounts Full scenario mergeAccounts Merges a user profile 4`] = `
 Object {
   "activities": 0,
   "agreements": 1,
@@ -166,7 +166,7 @@ Object {
 }
 `;
 
-exports[`server/lib/merge-accounts mergeAccounts Merges a user profile 5`] = `
+exports[`server/lib/merge-accounts Full scenario mergeAccounts Merges a user profile 5`] = `
 Object {
   "accountingCategories": 2,
   "activities": 2,
@@ -217,7 +217,7 @@ Object {
 }
 `;
 
-exports[`server/lib/merge-accounts mergeAccounts Merges an organization 1`] = `
+exports[`server/lib/merge-accounts Full scenario mergeAccounts Merges an organization 1`] = `
 Object {
   "accountingCategories": 1,
   "activities": 1,
@@ -268,7 +268,7 @@ Object {
 }
 `;
 
-exports[`server/lib/merge-accounts mergeAccounts Merges an organization 2`] = `
+exports[`server/lib/merge-accounts Full scenario mergeAccounts Merges an organization 2`] = `
 Object {
   "accountingCategories": 1,
   "activities": 1,
@@ -319,7 +319,7 @@ Object {
 }
 `;
 
-exports[`server/lib/merge-accounts mergeAccounts Merges an organization 3`] = `
+exports[`server/lib/merge-accounts Full scenario mergeAccounts Merges an organization 3`] = `
 Object {
   "accountingCategories": 2,
   "activities": 2,
@@ -370,7 +370,7 @@ Object {
 }
 `;
 
-exports[`server/lib/merge-accounts simulateMergeAccounts Correctly estimates the number of items to move for collective account 1`] = `
+exports[`server/lib/merge-accounts Full scenario simulateMergeAccounts Correctly estimates the number of items to move for collective account 1`] = `
 "The profiles information will be merged.
 
 The following items will be moved to @to-collective:
@@ -411,7 +411,7 @@ The following items will be moved to @to-collective:
 "
 `;
 
-exports[`server/lib/merge-accounts simulateMergeAccounts Correctly estimates the number of items to move for organization account 1`] = `
+exports[`server/lib/merge-accounts Full scenario simulateMergeAccounts Correctly estimates the number of items to move for organization account 1`] = `
 "The profiles information will be merged.
 
 The following items will be moved to @to-org:
@@ -452,7 +452,7 @@ The following items will be moved to @to-org:
 "
 `;
 
-exports[`server/lib/merge-accounts simulateMergeAccounts Correctly estimates the number of items to move for user account 1`] = `
+exports[`server/lib/merge-accounts Full scenario simulateMergeAccounts Correctly estimates the number of items to move for user account 1`] = `
 "The profiles information will be merged.
 
 The following items will be moved to @to-user:
