@@ -48,11 +48,16 @@ program.command('dump [recipe] [as_user] [env_file]').action(async (recipe, asUs
 
   if (!recipe || (recipe && !env)) {
     logger.info('Using default recipe...');
-    recipe = './smart-dump/defaultRecipe.js';
+    recipe = './smart-dump/dev.ts';
   }
 
   // Prepare req object
   const remoteUser = await models.User.findOne({ include: [{ association: 'collective', where: { slug: asUser } }] });
+  if (!remoteUser) {
+    logger.error(`User ${asUser} not found!`);
+    process.exit(1);
+  }
+  await remoteUser.populateRoles();
   const req: PartialRequest = { remoteUser, loaders: loaders({ remoteUser }) };
 
   // eslint-disable-next-line @typescript-eslint/no-require-imports
