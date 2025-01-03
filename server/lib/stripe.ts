@@ -1,5 +1,5 @@
 import config from 'config';
-import { get } from 'lodash';
+import { get, pick } from 'lodash';
 import moment from 'moment';
 import Stripe from 'stripe';
 
@@ -156,4 +156,23 @@ function getDashboardUrl(path: string, accountId?: string) {
   }
 
   return url.toString();
+}
+
+/**
+ * Sanitizes a Stripe error before sending it to the client.
+ */
+export function sanitizeStripeError(stripeError) {
+  if (!stripeError) {
+    return null;
+  }
+
+  const allowedIntentFields = ['id', 'status', 'allowed_source_types', 'last_payment_error.message', 'client_secret'];
+  return pick(stripeError, [
+    'type',
+    'message',
+    'account',
+    ...['response.setupIntent', 'response.paymentIntent']
+      .map(intent => allowedIntentFields.map(field => `${intent}.${field}`))
+      .flat(),
+  ]);
 }
