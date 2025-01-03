@@ -416,6 +416,19 @@ export const ExpensesCollectionQueryResolver = async (
       );
     }
 
+    if (args.lastCommentBy.includes('NON_HOST_ADMIN')) {
+      conditions.push(
+        sequelize.literal(
+          `(SELECT "FromCollectiveId" FROM "Comments" WHERE "Comments"."deletedAt" IS NULL AND "Comments"."ExpenseId" = "Expense"."id" ORDER BY "id" DESC LIMIT 1)
+            NOT IN (
+              SELECT "MemberCollectiveId" FROM "Members" WHERE
+              "role" = 'ADMIN' AND "deletedAt" IS NULL AND
+              "CollectiveId" = "collective"."HostCollectiveId"
+          )`,
+        ),
+      );
+    }
+
     where[Op.and].push(conditions.length > 1 ? { [Op.or]: conditions } : conditions[0]);
   }
 
