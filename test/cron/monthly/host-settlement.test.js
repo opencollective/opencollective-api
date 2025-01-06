@@ -281,7 +281,8 @@ describe('cron/monthly/host-settlement', () => {
 
   it('should attach detailed list of transactions in the expense', async () => {
     const [attachment] = await gphHostSettlementExpense.getAttachedFiles();
-    expect(attachment).to.have.property('url').that.includes('.csv');
+    expect(attachment).to.have.property('url');
+    expect(attachment.url).to.have.string('.csv');
   });
 
   it('should consider fixed fee per host collective', async () => {

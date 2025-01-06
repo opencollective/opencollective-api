@@ -1,5 +1,5 @@
 import config from 'config';
-import { DataTypes, ForeignKey, Model, Transaction } from 'sequelize';
+import { DataTypes, ForeignKey, Model, NonAttribute, Transaction } from 'sequelize';
 import isURL from 'validator/lib/isURL';
 
 import { diffDBEntries } from '../lib/data';
@@ -20,6 +20,8 @@ class ExpenseAttachedFile extends Model {
   declare public CreatedByUserId: ForeignKey<User['id']>;
   declare public url: string;
   declare public createdAt: Date;
+
+  declare public Expense?: NonAttribute<Expense>;
 
   /**
    * Create an attachment from user-submitted data.
@@ -88,9 +90,9 @@ ExpenseAttachedFile.init(
           if (
             !isURL(url, {
               // eslint-disable-next-line camelcase
-              require_host: config.env !== 'development',
+              require_host: config.env !== 'development' && config.env !== 'test',
               // eslint-disable-next-line camelcase
-              require_tld: config.env !== 'development',
+              require_tld: config.env !== 'development' && config.env !== 'test',
             })
           ) {
             throw new Error('File URL is not a valid URL');

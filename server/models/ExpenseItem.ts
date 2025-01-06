@@ -1,6 +1,6 @@
 import config from 'config';
 import { pick } from 'lodash';
-import type { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes } from 'sequelize';
+import type { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
 import { DataTypes, Model, Transaction } from 'sequelize';
 import isURL from 'validator/lib/isURL';
 
@@ -35,6 +35,8 @@ class ExpenseItem extends Model<InferAttributes<ExpenseItem>, InferCreationAttri
   declare public deletedAt: CreationOptional<Date>;
   declare public incurredAt: Date;
   declare public description: CreationOptional<string>;
+
+  declare public Expense: NonAttribute<Expense>;
 
   public static editableFields = [
     'amount',
@@ -152,9 +154,9 @@ ExpenseItem.init(
           if (
             !isURL(url, {
               // eslint-disable-next-line camelcase
-              require_host: config.env !== 'development',
+              require_host: config.env !== 'development' && config.env !== 'test',
               // eslint-disable-next-line camelcase
-              require_tld: config.env !== 'development',
+              require_tld: config.env !== 'development' && config.env !== 'test',
             })
           ) {
             throw new Error('File URL is not a valid URL');

@@ -11,6 +11,7 @@ import { get, pick } from 'lodash';
 import multer from 'multer';
 
 import * as connectedAccounts from './controllers/connectedAccounts';
+import * as filesController from './controllers/files';
 import * as gitbook from './controllers/gitbook';
 import uploadImage from './controllers/images';
 import LegalDocumentsController from './controllers/legal-documents';
@@ -372,6 +373,7 @@ export default async app => {
    * File downloads
    */
   app.get('/legal-documents/:id/download', LegalDocumentsController.download);
+  app.get('/files/:uploadedFileId', filesController.getFile);
 
   /**
    * Gitbook Search API

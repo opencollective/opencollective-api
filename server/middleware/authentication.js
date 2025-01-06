@@ -16,7 +16,7 @@ import RateLimit from '../lib/rate-limit';
 import { clearRedirectCookie, setRedirectCookie } from '../lib/redirect-cookie';
 import { dbUserToSentryUser, reportMessageToSentry } from '../lib/sentry';
 import { TWITTER_SCOPES } from '../lib/twitter';
-import { getBearerTokenFromRequestHeaders, parseToBoolean } from '../lib/utils';
+import { getBearerTokenFromCookie, getBearerTokenFromRequestHeaders, parseToBoolean } from '../lib/utils';
 import models from '../models';
 import paymentProviders from '../paymentProviders';
 
@@ -48,7 +48,7 @@ const debug = debugLib('auth');
 const parseJwt = req => {
   let token = req.params.access_token || req.query.access_token || req.body.access_token;
   if (!token) {
-    token = getBearerTokenFromRequestHeaders(req);
+    token = getBearerTokenFromRequestHeaders(req) || getBearerTokenFromCookie(req);
   }
 
   if (token) {
