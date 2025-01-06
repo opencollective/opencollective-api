@@ -562,6 +562,10 @@ export const redactSensitiveFields = fastRedact({
  * ensuring there are entries for each interval between a specified start and end date.
  */
 export function fillTimeSeriesWithNodes({ nodes, initialData, startDate = undefined, endDate = undefined, timeUnit }) {
+  if (!nodes?.length) {
+    return [];
+  }
+
   const sortedNodes = nodes.sort((a, b) => new Date(a.date) - new Date(b.date));
 
   const dateFrom = startDate ? moment(startDate).utc() : moment(sortedNodes[0].date).utc();
