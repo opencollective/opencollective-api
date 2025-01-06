@@ -152,6 +152,7 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
     let parsedURL: URL;
     try {
       parsedURL = new URL(url);
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (e) {
       return false;
     }
@@ -167,6 +168,7 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
     let parsedURL: URL;
     try {
       parsedURL = new URL(url);
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (e) {
       return null;
     }

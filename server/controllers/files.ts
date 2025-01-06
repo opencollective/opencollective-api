@@ -35,6 +35,7 @@ export async function getFile(req: Request, res: Response) {
   let decodedId: number;
   try {
     decodedId = idDecode(uploadedFileId, IDENTIFIER_TYPES.UPLOADED_FILE);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
   } catch (err) {
     return res.status(400).send({ message: 'Invalid id' });
   }
