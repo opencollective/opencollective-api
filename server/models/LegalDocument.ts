@@ -1,6 +1,7 @@
 import config from 'config';
 import { get, uniq } from 'lodash';
 import moment from 'moment';
+import prependHttp from 'prepend-http';
 import {
   BelongsToGetAssociationMixin,
   DataTypes,
@@ -401,6 +402,19 @@ LegalDocument.init(
     },
     documentLink: {
       type: DataTypes.STRING,
+      validate: {
+        isUrl: {
+          msg: 'The document link is invalid',
+        },
+      },
+      set(url: string) {
+        const trimmedUrl = url?.trim();
+        if (trimmedUrl) {
+          this.setDataValue('documentLink', prependHttp(trimmedUrl, { https: true }));
+        } else {
+          this.setDataValue('documentLink', null);
+        }
+      },
     },
     requestStatus: {
       type: DataTypes.ENUM,

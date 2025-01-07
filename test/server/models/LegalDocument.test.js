@@ -83,18 +83,43 @@ describe('server/models/LegalDocument', () => {
     sandbox.restore();
   });
 
-  it('it can set and save a new document_link', async () => {
-    const expected = 'a string';
-    const legalDoc = Object.assign({}, documentData, {
-      CollectiveId: userCollective.id,
+  describe('documentLink', () => {
+    it('it can set and save a new document_link', async () => {
+      const expectedLink = 'https://drive.google.com/whatever';
+      const legalDoc = Object.assign({}, documentData, { CollectiveId: userCollective.id });
+      const doc = await LegalDocument.create({
+        ...documentData,
+        CollectiveId: userCollective.id,
+        documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
+        documentLink: expectedLink,
+      });
+
+      expect(doc.documentLink).to.eq(expectedLink);
     });
-    const doc = await LegalDocument.create(legalDoc);
 
-    doc.documentLink = expected;
-    await doc.save();
-    await doc.reload();
+    it('prefix the link with https:// if missing, and trims whitespace', async () => {
+      const legalDoc = Object.assign({}, documentData, { CollectiveId: userCollective.id });
+      const doc = await LegalDocument.create({
+        ...documentData,
+        CollectiveId: userCollective.id,
+        documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
+        documentLink: '    drive.google.com/whatever  ',
+      });
 
-    expect(doc.documentLink).to.eq(expected);
+      expect(doc.documentLink).to.eq('https://drive.google.com/whatever');
+    });
+
+    it('needs to be a valid URL', async () => {
+      const legalDoc = Object.assign({}, documentData, { CollectiveId: userCollective.id });
+      await expect(
+        LegalDocument.create({
+          ...documentData,
+          CollectiveId: userCollective.id,
+          documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
+          documentLink: 'not a valid link',
+        }),
+      ).to.be.rejectedWith('The document link is invalid');
+    });
   });
 
   // I think this is the correct behaviour. We have to keep tax records for 7 years. Maybe this clashes with GDPR? For now it's only on the Open Source Collective which is US based. So I _think_ it's ok.

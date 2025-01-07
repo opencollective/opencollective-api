@@ -6,11 +6,10 @@ import {
   TAX_FORM_IGNORED_EXPENSE_TYPES,
   US_TAX_FORM_THRESHOLD,
   US_TAX_FORM_THRESHOLD_FOR_PAYPAL,
-} from '../constants/tax-form';
-import { Collective, Expense } from '../models';
-import LegalDocument, { LEGAL_DOCUMENT_TYPE } from '../models/LegalDocument';
-
-import { uploadToS3 } from './awsS3';
+} from '../../constants/tax-form';
+import { Collective, Expense } from '../../models';
+import LegalDocument, { LEGAL_DOCUMENT_TYPE } from '../../models/LegalDocument';
+import { uploadToS3 } from '../awsS3';
 
 export const getTaxFormsS3Bucket = (): string => {
   return get(config, 'taxForms.aws.s3.bucket');
@@ -47,8 +46,8 @@ export function encryptAndUploadTaxFormToS3(
 function createTaxFormFilename({ collective, year, documentType, valuesHash }) {
   if (year >= 2023) {
     return valuesHash && valuesHash !== 'none'
-      ? `${documentType}/${year}/${collective.name}_${valuesHash}.pdf`
-      : `${documentType}/${year}/${collective.name}.pdf`;
+      ? `${documentType}/${year}/${collective.name || collective.legalName}-${collective.id}_${valuesHash}.pdf`
+      : `${documentType}/${year}/${collective.name || collective.legalName}-${collective.id}.pdf`;
   } else {
     return `${documentType}_${year}_${collective.name}.pdf`;
   }
