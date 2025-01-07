@@ -5,7 +5,12 @@ import { HandlerType, reportErrorToSentry } from '../../server/lib/sentry';
 import { sequelize } from '../../server/models';
 import { runCronJob } from '../utils';
 
-const VIEWS = ['CollectiveTransactionStats', 'TransactionBalances', 'CollectiveBalanceCheckpoint'];
+const VIEWS = [
+  'CollectiveTransactionStats',
+  'TransactionBalances',
+  'CollectiveBalanceCheckpoint',
+  'RelatedCollectives',
+];
 
 /**
  * Refresh the materialized views.
