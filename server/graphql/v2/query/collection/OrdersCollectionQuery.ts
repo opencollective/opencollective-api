@@ -37,7 +37,8 @@ const getJoinCondition = (
   includeHostedAccounts = false,
   includeChildrenAccounts = false,
 ): Record<string, unknown> => {
-  const field = `$${association}.id$`;
+  const associationFields = { collective: 'CollectiveId', fromCollective: 'FromCollectiveId' };
+  const field = associationFields[association] || `$${association}.id$`;
   const conditions = [{ [field]: account.id }];
 
   // Hosted accounts
