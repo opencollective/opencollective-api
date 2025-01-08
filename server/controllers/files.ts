@@ -20,6 +20,7 @@ export async function getFile(req: Request, res: Response) {
 
   const isJsonAccepted = req.query.json !== undefined;
   const isThumbnail = req.query.thumbnail !== undefined;
+  const isDownload = req.query.download !== undefined;
 
   const { uploadedFileId } = req.params;
   const { expenseId, draftKey } = req.query;
@@ -61,7 +62,7 @@ export async function getFile(req: Request, res: Response) {
 
   if (isThumbnail) {
     if (SUPPORTED_FILE_TYPES_IMAGES.includes(uploadedFile.fileType as (typeof SUPPORTED_FILE_TYPES_IMAGES)[number])) {
-      redirectUrl = `${config.host.website}/static/images/camera.png`;
+      redirectUrl = `${config.host.website}/static/images/file-text.svg`;
     } else {
       redirectUrl = `${config.host.website}/static/images/mime-pdf.png`;
     }
@@ -70,7 +71,13 @@ export async function getFile(req: Request, res: Response) {
       redirectUrl = actualUrl;
     } else {
       const { bucket, key } = parseS3Url(actualUrl);
-      redirectUrl = await getSignedGetURL({ Bucket: bucket, Key: key }, { expiresIn: 3600 });
+      const responseContentDisposition = isDownload
+        ? `attachment; filename="${encodeURIComponent(uploadedFile.fileName)}`
+        : null;
+      redirectUrl = await getSignedGetURL(
+        { Bucket: bucket, Key: key, ResponseContentDisposition: responseContentDisposition },
+        { expiresIn: 3600 },
+      );
     }
   }
 
