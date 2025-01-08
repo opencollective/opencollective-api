@@ -39,14 +39,17 @@ const getJoinCondition = (
 ): Record<string, unknown> => {
   const associationFields = { collective: 'CollectiveId', fromCollective: 'FromCollectiveId' };
   const field = associationFields[association] || `$${association}.id$`;
-  const conditions = [{ [field]: account.id }];
+  let conditions = [{ [field]: account.id }];
 
   // Hosted accounts
   if (includeHostedAccounts && account.isHostAccount) {
-    conditions.push({
-      [`$${association}.HostCollectiveId$`]: account.id,
-      [`$${association}.approvedAt$`]: { [Op.not]: null },
-    });
+    // Host are always approved and have a HostCollectiveId
+    conditions = [
+      {
+        [`$${association}.HostCollectiveId$`]: account.id,
+        [`$${association}.approvedAt$`]: { [Op.not]: null },
+      },
+    ];
   }
 
   // Children collectives
