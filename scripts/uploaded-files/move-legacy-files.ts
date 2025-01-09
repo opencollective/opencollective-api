@@ -19,6 +19,7 @@ const program = new Command();
 
 program.option('--run', 'Run the script. If not set, the script will only show the files that will be moved.');
 program.option('--limit <number>', 'Limit the number of files to move.', parseInt);
+program.option('--id <number>', 'Move a specific file by id.', parseInt);
 
 program.action(async options => {
   const files = (await sequelize.query(
@@ -28,12 +29,16 @@ program.action(async options => {
     WHERE "url" LIKE '${config.aws.s3.bucket}/%'
     AND "url" NOT LIKE '${config.aws.s3.bucket}/%/%'
     AND kind IN ('EXPENSE_ATTACHED_FILE', 'EXPENSE_ITEM')
+    ${options.id ? `AND "id" = :id` : ''}
     ORDER BY "id"
     ${options.limit ? `LIMIT :limit` : ''}
   `,
     {
       type: sequelize.QueryTypes.SELECT,
-      replacements: { limit: options.limit },
+      replacements: {
+        limit: options.limit,
+        id: options.id,
+      },
     },
   )) as { id: number; url: string; kind: 'EXPENSE_ATTACHED_FILE' | 'EXPENSE_ITEM' }[];
 
