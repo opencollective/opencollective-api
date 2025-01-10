@@ -967,7 +967,17 @@ Expense.init(
     tableName: 'Expenses',
     hooks: {
       async afterDestroy(expense: Expense) {
-        await ExpenseItem.destroy({ where: { ExpenseId: expense.id } });
+        // Not considering ExpensesAttachedFiles because they don't support soft delete (they should)
+        const promises = [
+          ExpenseItem.destroy({ where: { ExpenseId: expense.id } }),
+          models.Comment.destroy({ where: { ExpenseId: expense.id } }),
+        ];
+
+        if (expense.RecurringExpenseId) {
+          promises.push(RecurringExpense.destroy({ where: { id: expense.RecurringExpenseId } }));
+        }
+
+        await Promise.all(promises);
       },
     },
   },
