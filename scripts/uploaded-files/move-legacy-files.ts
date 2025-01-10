@@ -26,8 +26,8 @@ program.action(async options => {
     `
     SELECT "id", "url", "kind"
     FROM "UploadedFiles"
-    WHERE "url" LIKE '${config.aws.s3.bucket}/%'
-    AND "url" NOT LIKE '${config.aws.s3.bucket}/%/%'
+    WHERE "url" ILIKE 'https://${config.aws.s3.bucket}.s3.us-west-1.amazonaws.com/%'
+    AND "url" NOT ILIKE 'https://${config.aws.s3.bucket}.s3.us-west-1.amazonaws.com/%/%'
     AND kind IN ('EXPENSE_ATTACHED_FILE', 'EXPENSE_ITEM')
     ${options.id ? `AND "id" = :id` : ''}
     ORDER BY "id"
