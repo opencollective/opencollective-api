@@ -27,6 +27,7 @@ import { randEmail, randUrl } from '../../../../stores';
 import {
   fakeAccountingCategory,
   fakeCollective,
+  fakeComment,
   fakeConnectedAccount,
   fakeExpense,
   fakeExpenseItem,
@@ -1177,11 +1178,16 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
     describe('can delete rejected expenses', () => {
       it('if owner', async () => {
         const expense = await fakeExpense({ status: expenseStatus.REJECTED });
+        const item = await fakeExpenseItem({ ExpenseId: expense.id });
+        const comment = await fakeComment({ ExpenseId: expense.id });
         const result = await graphqlQueryV2(deleteExpenseMutation, prepareGQLParams(expense), expense.User);
 
         expect(result.data.deleteExpense.legacyId).to.eq(expense.id);
-        await expense.reload({ paranoid: false });
-        expect(expense.deletedAt).to.exist;
+
+        for (const model of [expense, item, comment]) {
+          const deletedModel = await model.reload({ paranoid: false });
+          expect(deletedModel.deletedAt).to.exist;
+        }
       });
 
       it('if collective admin', async () => {

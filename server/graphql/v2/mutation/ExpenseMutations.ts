@@ -277,11 +277,6 @@ const expenseMutations = {
       await twoFactorAuthLib.enforceForAccountsUserIsAdminOf(req, accountsFor2FA);
 
       // Cancel recurring expense
-      const recurringExpense = await expense.getRecurringExpense();
-      if (recurringExpense) {
-        await recurringExpense.destroy();
-      }
-
       await expense.destroy();
       return expense;
     },

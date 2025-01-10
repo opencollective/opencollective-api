@@ -162,10 +162,15 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
   };
 
   delete = async function (remoteUser) {
-    await Comment.destroy({ where: { UpdateId: this.id } });
-    await Update.update({ deletedAt: new Date(), LastEditedByUserId: remoteUser.id }, { where: { id: this.id } });
+    return sequelize.transaction(async transaction => {
+      await Comment.destroy({ where: { UpdateId: this.id }, transaction });
+      await Update.update(
+        { deletedAt: new Date(), LastEditedByUserId: remoteUser.id },
+        { where: { id: this.id }, transaction },
+      );
 
-    return this;
+      return this;
+    });
   };
 
   // Returns the User model of the User that created this Update

@@ -3,7 +3,14 @@ import { flatten, reduce, times } from 'lodash';
 
 import models, { Op } from '../../../server/models';
 import { randEmail } from '../../stores';
-import { fakeCollective, fakeMember, fakeOrganization, fakeUpdate, fakeUser } from '../../test-helpers/fake-data';
+import {
+  fakeCollective,
+  fakeComment,
+  fakeMember,
+  fakeOrganization,
+  fakeUpdate,
+  fakeUser,
+} from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
 const addRandomMemberUsers = (collective, count, role) => {
@@ -119,6 +126,21 @@ describe('server/models/Update', () => {
       // free up slug after deletion
       expect(uniqueSlug).to.not.be.equal(update.slug);
       expect(/-\d+$/.test(update.slug)).to.be.true;
+    });
+
+    it('deletes related comments and record the user who deleted it', async () => {
+      const user = await fakeUser();
+      const update = await fakeUpdate({ id: 4242 });
+      const comment = await fakeComment({ UpdateId: update.id });
+
+      await update.delete(user);
+      await update.reload({ paranoid: false });
+
+      expect(update.LastEditedByUserId).to.equal(user.id);
+      expect(update.deletedAt).to.not.be.null;
+
+      const comments = await models.Comment.findAll({ where: { UpdateId: update.id } });
+      expect(comments.length).to.equal(0);
     });
   });
 
