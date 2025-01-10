@@ -72,7 +72,7 @@ export async function getFile(req: Request, res: Response) {
     } else {
       const { bucket, key } = parseS3Url(actualUrl);
       const responseContentDisposition = isDownload
-        ? `attachment; filename="${encodeURIComponent(uploadedFile.fileName)}"`
+        ? `attachment; filename="${encodeURIComponent(uploadedFile.fileName || 'file')}"`
         : null;
       redirectUrl = await getSignedGetURL(
         { Bucket: bucket, Key: key, ResponseContentDisposition: responseContentDisposition },
