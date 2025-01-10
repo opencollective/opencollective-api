@@ -1,16 +1,11 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull } from 'graphql';
-import { intersection, isNil, isUndefined } from 'lodash';
 
-import { CollectiveType } from '../../../constants/collectives';
-import MemberRoles from '../../../constants/roles';
-import models, { Op, sequelize } from '../../../models';
-import { checkScope } from '../../common/scope-check';
-import { BadRequest } from '../../errors';
 import { GraphQLMemberCollection } from '../collection/MemberCollection';
-import { AccountTypeToModelMapping, GraphQLAccountType } from '../enum/AccountType';
+import { GraphQLAccountType } from '../enum/AccountType';
 import { GraphQLMemberRole } from '../enum/MemberRole';
 import { GraphQLChronologicalOrderInput } from '../input/ChronologicalOrderInput';
-import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput';
+import { GraphQLTierReferenceInput } from '../input/TierReferenceInput';
+import MembersCollectionQuery from '../query/collection/MembersCollectionQuery';
 import MemberInvitationsQuery from '../query/MemberInvitationsQuery';
 import EmailAddress from '../scalar/EmailAddress';
 
@@ -41,93 +36,8 @@ export const HasMembersFields = {
         description: 'Filter members by tier. Pass null to filter for members without any tier.',
       },
     },
-    async resolve(collective, args, req) {
-      // Check Pagination arguments
-      if (isNil(args.limit) || args.limit < 0) {
-        args.limit = 100;
-      }
-      if (isNil(args.offset) || args.offset < 0) {
-        args.offset = 0;
-      }
-      if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
-        throw new Error('Cannot fetch more than 1,000 members at the same time, please adjust the limit');
-      }
-
-      // TODO: isn't it a better practice to return null?
-      if (collective.isIncognito && (!req.remoteUser?.isAdmin(collective.id) || !checkScope(req, 'incognito'))) {
-        return { offset: args.offset, limit: args.limit, totalCount: 0, nodes: [] };
-      }
-
-      let where = { CollectiveId: collective.id };
-      const collectiveInclude = [];
-
-      if (args.role && args.role.length > 0) {
-        where.role = { [Op.in]: args.role };
-      }
-      const collectiveConditions = { deletedAt: null };
-      if (args.accountType && args.accountType.length > 0) {
-        collectiveConditions.type = {
-          [Op.in]: args.accountType.map(value => AccountTypeToModelMapping[value]),
-        };
-      }
-
-      // Filter by tier using TierReferenceInput
-      if (!isUndefined(args.tier)) {
-        if (args.tier) {
-          const tier = await fetchTierWithReference(args.tier, { loaders: req.loaders, throwIfMissing: true });
-          if (tier.CollectiveId !== collective.id) {
-            throw new BadRequest('Tier does not belong to this collective');
-          }
-          where.TierId = tier.id;
-        } else {
-          where.TierId = { [Op.is]: null };
-        }
-      }
-
-      // Inherit Accountants and Admin from parent collective for Events and Projects
-      if (args.includeInherited && [CollectiveType.EVENT, CollectiveType.PROJECT].includes(collective.type)) {
-        const inheritedRoles = [MemberRoles.ACCOUNTANT, MemberRoles.ADMIN, MemberRoles.MEMBER];
-        where = {
-          [Op.or]: [
-            where,
-            {
-              CollectiveId: collective.ParentCollectiveId,
-              role: { [Op.in]: args.role ? intersection(args.role, inheritedRoles) : inheritedRoles },
-            },
-          ],
-        };
-      }
-
-      if (args.email) {
-        if (!req.remoteUser?.isAdminOfCollective(collective)) {
-          throw new BadRequest('Only admins can lookup for members using the "email" argument');
-        } else {
-          collectiveInclude.push({ association: 'user', required: true, where: { email: args.email.toLowerCase() } });
-        }
-      }
-
-      const result = await models.Member.findAndCountAll({
-        where,
-        limit: args.limit,
-        offset: args.offset,
-        order: [[args.orderBy.field, args.orderBy.direction]],
-        attributes: {
-          include: [
-            [sequelize.literal(`"Member"."CollectiveId" = ${collective.ParentCollectiveId || 0}`), 'inherited'],
-          ],
-        },
-        include: [
-          {
-            model: models.Collective,
-            as: 'memberCollective',
-            where: collectiveConditions,
-            include: collectiveInclude,
-            required: true,
-          },
-        ],
-      });
-
-      return { nodes: result.rows, totalCount: result.count, limit: args.limit, offset: args.offset };
+    resolve(account, args, req) {
+      return MembersCollectionQuery.resolve(null, { ...args, account }, req);
     },
   },
   memberInvitations: MemberInvitationsQuery,
