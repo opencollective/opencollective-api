@@ -18,7 +18,22 @@ import { sequelize } from '../../server/models';
 
 const DRY_RUN = process.env.DRY_RUN !== 'false';
 const LOCAL_CACHE_FILE = 'output/s3-files.json';
-const IGNORED_FILES = ['robots.txt'];
+const IGNORED_FILES = [
+  'robots.txt',
+  // Old platform settlements
+  'Open Collective Foundation 501(c)(3)-April-2021.gdlV44.csv',
+  'Open Collective Foundation 501(c)(3)-August-2021.607fe537.csv',
+  'Open Collective Foundation 501(c)(3)-December-2020.vL0CPB.csv',
+  'Open Collective Foundation 501(c)(3)-February-2021.bpFNIv.csv',
+  'Open Collective Foundation 501(c)(3)-January-2021.lKHZJu.csv',
+  'Open Collective Foundation 501(c)(3)-July-2021.f3828857.csv',
+  'Open Collective Foundation 501(c)(3)-June-2021.45564876.csv',
+  'Open Collective Foundation 501(c)(3)-March-2021.XgOxEN.csv',
+  'Open Collective Foundation 501(c)(3)-May-2021.itPy5f.csv',
+  'Open Collective Foundation 501(c)(3)-November-2020.QOsUFi.csv',
+  'Open Source Collective 501(c)(6)-December-2020.cHHPDT.csv',
+  'Open Source Collective 501(c)(6)-November-2020.7FGan5.csv',
+];
 
 const getNonTrashedFilesFromS3 = async (ignoreCache: boolean) => {
   let objects: Awaited<ReturnType<typeof listFilesInS3>> = [];
@@ -53,16 +68,22 @@ const getNonTrashedFilesFromS3 = async (ignoreCache: boolean) => {
  * the `/` characters as they are used to create a folder structure.
  */
 const formatKey = key => {
-  return key
-    .split('/')
-    .map(encodeURIComponent)
-    .map(key => key.replace(/\(/g, '%28').replace(/\)/g, '%29')) // encodeURIComponent does not encode `(` and `)`, but we want to encode them
-    .join('/');
+  return key.split('/').map(encodeURIComponent).join('/');
 };
 
 const main = async options => {
+  if (!options.ignoreDeprecation) {
+    logger.warn(
+      'This script currently has issues with parentheses we ran in subfolders. It seems that the way S3 encoded them changed through time. Please be extra careful when running without "--onlyRootFolder". Use `ignoreDeprecation` to ignore this warning.',
+    );
+    process.exit(1);
+  }
+
   const concurrency = parseInt(options['concurrency']) || 3;
   const allObjects = await getNonTrashedFilesFromS3(Boolean(options['ignoreCache']));
+  const includeSoftDeleted = Boolean(options['includeSoftDeleted']);
+  const onlyRootFolder = Boolean(options['onlyRootFolder']);
+  const filteredObjects = onlyRootFolder ? allObjects.filter(o => !o.Key.includes('/')) : allObjects;
 
   // Get a report for all S3 files presence in the database
   const results: [{ key: string; uploadedFileId: number; deletedAt: Date }] = await sequelize.query(
@@ -70,22 +91,28 @@ const main = async options => {
       SELECT
         "key",
         "uf"."id" AS "uploadedFileId",
-        "uf"."deletedAt" AS "deletedAt"
+        "uf"."deletedAt" AS "deletedAt",
+        "uf".url AS url
       FROM UNNEST(ARRAY[:keys]) "key"
       LEFT JOIN "UploadedFiles" "uf"
         ON "uf"."url" = 'https://${config.aws.s3.bucket}.s3.us-west-1.amazonaws.com/' || "key"
     `,
     {
       type: sequelize.QueryTypes.SELECT,
-      replacements: { keys: allObjects.map(o => formatKey(o.Key)) },
+      replacements: { keys: filteredObjects.map(o => formatKey(o.Key)) },
     },
   );
 
   // Log report
-  const filesDeletedInDbButNotInS3 = results.filter(r => r.uploadedFileId && r.deletedAt);
+  const filesDeletedInDbButNotInS3 = !includeSoftDeleted ? [] : results.filter(r => r.uploadedFileId && r.deletedAt);
   const filesNotInLocalDb = results.filter(r => !r.uploadedFileId);
   logger.info(`Found ${filesDeletedInDbButNotInS3.length} files trashed in database but not in S3`);
   logger.info(`Found ${filesNotInLocalDb.length} files in S3 but not in database`);
+  logger.info('Saving the list of files to delete to `output/files-to-delete.json`');
+  fs.writeFileSync(
+    'output/files-to-delete.json',
+    JSON.stringify({ filesDeletedInDbButNotInS3, filesNotInLocalDb }, null, 2),
+  );
 
   // Actually trash files
   if (!DRY_RUN) {
@@ -116,6 +143,9 @@ const main = async options => {
 const program = new Command()
   .option('--concurrency <number>', 'Number of concurrent requests to S3', '3')
   .option('--ignoreCache', 'Ignore local cache and fetch all files from S3')
+  .option('--includeSoftDeleted', 'Include files that have been soft deleted in the database')
+  .option('--onlyRootFolder', 'Only consider files in the root folder (no subfolders)')
+  .option('--ignoreDeprecation', 'Ignore the deprecation block')
   .parse(process.argv);
 
 main(program.opts())
