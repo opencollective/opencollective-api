@@ -242,13 +242,30 @@ async function createTransfer(
     throw new TransferwiseError(message, null, { quote });
   }
 
+  const country = recipient.details.address?.country;
+  let reference = `${expense.collective.slug.toUpperCase().substring(0, 3)}${expense.id}`; // MAX 10 chars for the US
+  switch (country) {
+    case 'GBP': // max 18 chars
+      reference = `${expense.collective.slug.toUpperCase().substring(0, 10)}${expense.id}`;
+      break;
+    case 'EUR': // max 35 chars
+      reference = `${expense.collective.slug.substring(0, 25)}${expense.id}`;
+      break;
+    case 'USD': // max 10 chars
+      reference = `${expense.collective.slug.toUpperCase().substring(0, 3)}${expense.id}`;
+      break;
+    case 'MXN': // max 100 chars
+      reference = `${expense.collective.slug.substring(0, 100)}${expense.id}`;
+      break;
+  }
+
   try {
     const transferOptions: transferwise.CreateTransfer = {
       accountId: recipient.id,
       quoteUuid: quote.id,
       customerTransactionId: uuid(),
       details: {
-        reference: `${expense.id}`,
+        reference,
         ...options?.details,
       },
     };
