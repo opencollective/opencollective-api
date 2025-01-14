@@ -5,7 +5,10 @@
       {
         "targets": {
           "node": true
-        }
+        },
+        "exclude": [
+          "proposal-dynamic-import"
+        ]
       }
     ]
   ],
@@ -16,7 +19,7 @@
         "allowDeclareFields": true
       }
     ],
-    "add-module-exports",
+    "add-module-exports"
   ],
   "env": {
     "test": {

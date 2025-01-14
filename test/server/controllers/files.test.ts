@@ -8,6 +8,7 @@ import * as FilesController from '../../../server/controllers/files';
 import { loaders } from '../../../server/graphql/loaders';
 import { idEncode, IDENTIFIER_TYPES } from '../../../server/graphql/v2/identifiers';
 import * as awsS3 from '../../../server/lib/awsS3';
+import * as thumbnailsLib from '../../../server/lib/thumbnails';
 import { Collective, Expense, UploadedFile, User } from '../../../server/models';
 import {
   fakeActiveHost,
@@ -259,6 +260,7 @@ describe('server/controllers/files', () => {
 
     it('should redirect to resource if user has access to expense item thumbnail', async () => {
       const thumbnailUrl = `${config.host.website}/static/images/mime-pdf.png`;
+      sandbox.stub(thumbnailsLib, 'generateThumbnailFromBucketUrl').resolves(null);
 
       const otherUserResponse = await makeRequest(expenseAttachedUploadedFile.id, otherUser, {
         thumbnail: true,
@@ -286,6 +288,7 @@ describe('server/controllers/files', () => {
 
     it('should redirect to resource if user has access to expense attached file thumbnail', async () => {
       const thumbnailUrl = `${config.host.website}/static/images/mime-pdf.png`;
+      sandbox.stub(thumbnailsLib, 'generateThumbnailFromBucketUrl').resolves(null);
 
       const otherUserResponse = await makeRequest(expenseAttachedUploadedFile.id, otherUser, {
         thumbnail: true,

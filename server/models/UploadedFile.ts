@@ -379,6 +379,12 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
     // S3 limits file names to 1024 characters. We're using 900 to be safe and give some room for the kind + uuid + extension.
     return `${parsedFileName.name.slice(0, 900)}${expectedExtension}`;
   }
+
+  public isPublicFile(): boolean {
+    return ['ACCOUNT_AVATAR', 'ACCOUNT_BANNER', 'ACCOUNT_LONG_DESCRIPTION', 'TIER_LONG_DESCRIPTION'].includes(
+      this.kind,
+    );
+  }
 }
 
 UploadedFile.init(

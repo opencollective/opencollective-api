@@ -73,13 +73,11 @@ export async function hasUploadedFilePermission(
         include: { model: Expense, include: [{ association: 'fromCollective' }] },
       });
 
-      const expense = expenseItem?.Expense;
-
-      if (!expense) {
+      if (!expenseItem) {
         return req.remoteUser?.id === uploadedFile.CreatedByUserId;
       }
 
-      if (await canSeeExpenseAttachments(req, expense)) {
+      if (await canSeeExpenseAttachments(req, expenseItem?.Expense)) {
         return true;
       }
       break;
@@ -92,13 +90,11 @@ export async function hasUploadedFilePermission(
         include: { model: Expense, include: [{ model: Collective, as: 'fromCollective' }] },
       });
 
-      const expense = expenseAttachedFile?.Expense;
-
-      if (!expense) {
+      if (!expenseAttachedFile) {
         return req.remoteUser?.id === uploadedFile.CreatedByUserId;
       }
 
-      if (await canSeeExpenseAttachments(req, expense)) {
+      if (await canSeeExpenseAttachments(req, expenseAttachedFile?.Expense)) {
         return true;
       }
 

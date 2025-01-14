@@ -7,6 +7,7 @@ import {
   DeleteObjectCommand,
   DeleteObjectOutput,
   GetObjectCommand,
+  GetObjectCommandOutput,
   HeadObjectCommand,
   HeadObjectOutput,
   ListObjectsV2Command,
@@ -138,14 +139,18 @@ export const getFileInfoFromS3 = async (s3Url: string): Promise<HeadObjectOutput
   return s3.send(command) as Promise<HeadObjectOutput>;
 };
 
-export const getFileFromS3 = async (s3Url: string): Promise<Buffer> => {
+export const getObjectFromUrl = async (s3Url: string): Promise<GetObjectCommandOutput> => {
   if (!s3) {
     throw new Error('S3 is not set');
   }
 
   const { bucket, key } = parseS3Url(s3Url);
   const command = new GetObjectCommand({ Bucket: bucket, Key: key });
-  const data = await s3.send(command);
+  return await s3.send(command);
+};
+
+export const getFileFromS3 = async (s3Url: string): Promise<Buffer> => {
+  const data = await getObjectFromUrl(s3Url);
   const body = await data.Body?.transformToByteArray();
   if (!body) {
     throw new Error('Failed to get file from S3');

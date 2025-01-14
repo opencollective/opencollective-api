@@ -398,9 +398,9 @@ export const fakeUploadedFile = async (fileData: Partial<InferCreationAttributes
   const fileType = sample(SUPPORTED_FILE_TYPES);
   const extension = SUPPORTED_FILE_EXTENSIONS[fileType];
   const fileName = `${randStr()}${extension}`;
-  const kind = sample(SUPPORTED_FILE_KINDS);
+  const kind = fileData?.kind || sample(SUPPORTED_FILE_KINDS);
   return models.UploadedFile.create({
-    url: fakeUploadedFileURL(fileData?.kind || kind, fileName),
+    url: fakeUploadedFileURL(kind, fileName),
     kind,
     fileSize: randNumber(100, 100000),
     fileName,

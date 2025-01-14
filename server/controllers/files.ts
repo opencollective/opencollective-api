@@ -4,6 +4,7 @@ import { Request, Response } from 'express';
 import { hasUploadedFilePermission } from '../graphql/common/uploaded-file';
 import { idDecode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
 import { getSignedGetURL, parseS3Url } from '../lib/awsS3';
+import { generateThumbnailFromBucketUrl } from '../lib/thumbnails';
 import { UploadedFile } from '../models';
 import { SUPPORTED_FILE_TYPES_IMAGES } from '../models/UploadedFile';
 
@@ -49,6 +50,14 @@ export async function getFile(req: Request, res: Response) {
 
   const actualUrl = uploadedFile.getDataValue('url');
 
+  if (uploadedFile.isPublicFile()) {
+    if (isJsonAccepted) {
+      return res.send({ url: actualUrl });
+    } else {
+      return res.redirect(307, actualUrl);
+    }
+  }
+
   if (
     !(await hasUploadedFilePermission(req, uploadedFile, {
       expenseId: expenseId ? idDecode(expenseId as string, IDENTIFIER_TYPES.EXPENSE) : null,
@@ -61,6 +70,12 @@ export async function getFile(req: Request, res: Response) {
   let redirectUrl: string;
 
   if (isThumbnail) {
+    const thumbail = await generateThumbnailFromBucketUrl(actualUrl);
+    if (thumbail) {
+      res.setHeader('Content-Type', 'image/png');
+      return res.send(thumbail);
+    }
+
     if (SUPPORTED_FILE_TYPES_IMAGES.includes(uploadedFile.fileType as (typeof SUPPORTED_FILE_TYPES_IMAGES)[number])) {
       redirectUrl = `${config.host.website}/static/images/file-text.svg`;
     } else {
