@@ -5,6 +5,7 @@ import {
   CopyObjectCommand,
   CopyObjectRequest,
   DeleteObjectCommand,
+  DeleteObjectOutput,
   GetObjectCommand,
   HeadObjectCommand,
   HeadObjectOutput,
@@ -156,7 +157,10 @@ export const getFileFromS3 = async (s3Url: string): Promise<Buffer> => {
 /**
  * A wrapper around S3.listObjectsV2 that handles pagination to get more than 1000 files.
  */
-export const listFilesInS3 = async (bucket: string): Promise<ListObjectsV2Output['Contents']> => {
+export const listFilesInS3 = async (
+  bucket: string,
+  keyPrefix = undefined,
+): Promise<ListObjectsV2Output['Contents']> => {
   if (!s3) {
     throw new Error('S3 is not set');
   }
@@ -170,7 +174,11 @@ export const listFilesInS3 = async (bucket: string): Promise<ListObjectsV2Output
       }`,
     );
 
-    const command = new ListObjectsV2Command({ Bucket: bucket, ContinuationToken: continuationToken });
+    const command = new ListObjectsV2Command({
+      Bucket: bucket,
+      ContinuationToken: continuationToken,
+      Prefix: keyPrefix,
+    });
     const data = (await s3.send(command)) as ListObjectsV2Output;
     allObjects.push(...(data.Contents || []));
     continuationToken = data.NextContinuationToken;
@@ -268,6 +276,23 @@ export const restoreFileFromS3Trash = (s3Url: string, trashType: TrashType, acl?
   const { key } = parseS3Url(s3Url);
   const originalKey = key.replace(new RegExp(`^${S3_TRASH_PREFIX}${trashType}/`), '');
   return moveFileInS3(s3Url, originalKey, { StorageClass: 'STANDARD', ACL: acl });
+};
+
+/**
+ * WARNING: This will permanently delete the file from S3. Use `trashFileFromS3` instead if
+ * you want to move the file to a trash folder.
+ */
+export const permanentlyDeleteFileFromS3 = async (bucket: string, key: string): Promise<DeleteObjectOutput> => {
+  if (!s3) {
+    throw new Error('S3 is not set');
+  }
+
+  try {
+    return s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+  } catch (e) {
+    logger.error(`Error deleting S3 file ${key}:`, e);
+    throw e;
+  }
 };
 
 export const checkS3Configured = (): boolean => Boolean(s3);
