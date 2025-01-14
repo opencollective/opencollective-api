@@ -488,9 +488,11 @@ const expenseMutations = {
       const remoteUser = req.remoteUser;
       const expenseData = args.expense;
 
-      const rateLimit = new RateLimit(`draft_expense_${remoteUser.id}`, 1, 10, true);
-      if (!(await rateLimit.registerCall())) {
-        throw new RateLimitExceeded();
+      if (remoteUser.data?.limits?.draftExpenses !== 'bypass') {
+        const rateLimit = new RateLimit(`draft_expense_${remoteUser.id}`, 1, 10, true);
+        if (!(await rateLimit.registerCall())) {
+          throw new RateLimitExceeded();
+        }
       }
 
       if (size(expenseData.attachedFiles) > 15) {

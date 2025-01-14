@@ -33,6 +33,9 @@ type UserData = {
   creationRequest?: { ip: string };
   lastSignInRequest?: { ip: string };
   features?: Record<FEATURE, boolean>;
+  limits?: {
+    draftExpenses?: 'bypass';
+  };
 };
 
 class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
