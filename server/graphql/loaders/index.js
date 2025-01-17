@@ -929,6 +929,20 @@ export const loaders = req => {
 
   /** *** TransactionsImports *****/
   context.loaders.TransactionsImport.stats = generateTransactionsImportStatsLoader();
+  context.loaders.TransactionsImportRow.byExpenseId = new DataLoader(async expenseIds => {
+    const rows = await models.TransactionsImportRow.findAll({
+      where: { ExpenseId: { [Op.in]: expenseIds } },
+    });
+
+    return sortResultsSimple(expenseIds, rows, 'ExpenseId');
+  });
+  context.loaders.TransactionsImportRow.byOrderId = new DataLoader(async orderIds => {
+    const rows = await models.TransactionsImportRow.findAll({
+      where: { OrderId: { [Op.in]: orderIds } },
+    });
+
+    return sortResultsSimple(orderIds, rows, 'OrderId');
+  });
 
   context.loaders.search = generateSearchLoaders(req);
 

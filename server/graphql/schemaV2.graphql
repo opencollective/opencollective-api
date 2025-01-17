@@ -2086,6 +2086,11 @@ type Order {
     offset: Int! = 0
     orderBy: ChronologicalOrderInput = { field: CREATED_AT, direction: ASC }
   ): CommentCollection
+
+  """
+  [Host admins only] If the order was associated with a transactions import row, this field will reference it
+  """
+  transactionImportRow: TransactionsImportRow
 }
 
 """
@@ -2584,6 +2589,11 @@ type Expense {
   Fields that cannot be edited on this expense
   """
   lockedFields: [ExpenseLockableFields]
+
+  """
+  [Host admins only] If the expense associated with a transactions import row, this field will reference it
+  """
+  transactionImportRow: TransactionsImportRow
 }
 
 """
@@ -4714,6 +4724,11 @@ enum LastCommentBy {
   Fiscal Host Admin
   """
   HOST_ADMIN
+
+  """
+  Not a Fiscal Host Admin
+  """
+  NON_HOST_ADMIN
 
   """
   Collective Admin

@@ -35,6 +35,7 @@ import { GraphQLMemberOf } from './Member';
 import GraphQLOrderPermissions from './OrderPermissions';
 import { GraphQLOrderTax } from './OrderTax';
 import { GraphQLTaxInfo } from './TaxInfo';
+import { GraphQLTransactionsImportRow } from './TransactionsImportRow';
 
 const GraphQLPendingOrderFromAccountInfo = new GraphQLObjectType({
   name: 'PendingOrderFromAccountInfo',
@@ -497,6 +498,16 @@ export const GraphQLOrder = new GraphQLObjectType({
             totalCount,
             nodes,
           };
+        },
+      },
+      transactionImportRow: {
+        type: GraphQLTransactionsImportRow,
+        description:
+          '[Host admins only] If the order was associated with a transactions import row, this field will reference it',
+        async resolve(order, _, req) {
+          if (await OrdersLib.canSeeOrderTransactionImportRow(req, order)) {
+            return req.loaders.TransactionsImportRow.byOrderId.load(order.id);
+          }
         },
       },
     };

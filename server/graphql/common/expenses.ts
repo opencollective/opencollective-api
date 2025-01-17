@@ -471,6 +471,14 @@ export const canSeeExpenseDraftPrivateDetails: ExpensePermissionEvaluator = asyn
   }
 };
 
+export const canSeeExpenseTransactionImportRow: ExpensePermissionEvaluator = async (req, expense) => {
+  if (!validateExpenseScope(req)) {
+    return false;
+  } else {
+    return isHostAdmin(req, expense);
+  }
+};
+
 /** Checks if the user can verify or resend a draft */
 export const canVerifyDraftExpense: ExpensePermissionEvaluator = async (req, expense): Promise<boolean> => {
   if (!validateExpenseScope(req)) {
