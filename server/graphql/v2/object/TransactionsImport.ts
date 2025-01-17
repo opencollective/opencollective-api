@@ -110,13 +110,7 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
 
         // Filter by status
         if (args.status) {
-          if (args.status === 'IGNORED') {
-            where[Op.and].push({ isDismissed: true });
-          } else if (args.status === 'LINKED') {
-            where[Op.and].push({ [Op.or]: [{ ExpenseId: { [Op.not]: null } }, { OrderId: { [Op.not]: null } }] });
-          } else if (args.status === 'PENDING') {
-            where[Op.and].push({ ExpenseId: null }, { OrderId: null }, { isDismissed: false });
-          }
+          where[Op.and].push({ status: args.status });
         }
 
         // Search term
@@ -170,6 +164,14 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
             type: new GraphQLNonNull(GraphQLInt),
             description:
               'Number of rows that have been processed (either dismissed or converted to expenses or orders)',
+          },
+          onHold: {
+            type: new GraphQLNonNull(GraphQLInt),
+            description: 'Number of rows that are on hold',
+          },
+          invalid: {
+            type: new GraphQLNonNull(GraphQLInt),
+            description: 'Number of rows that are invalid (e.g. linked but without an expense or order)',
           },
         },
       }),

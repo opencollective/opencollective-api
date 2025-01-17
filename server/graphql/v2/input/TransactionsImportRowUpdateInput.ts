@@ -2,6 +2,7 @@ import { GraphQLBoolean, GraphQLInputObjectType, GraphQLNonNull, GraphQLString }
 import { GraphQLDateTime, GraphQLNonEmptyString } from 'graphql-scalars';
 
 import { AmountInputType, GraphQLAmountInput } from './AmountInput';
+import { ExpenseReferenceInputFields, GraphQLExpenseReferenceInput } from './ExpenseReferenceInput';
 import { GraphQLOrderReferenceInput, OrderReferenceInputGraphQLType } from './OrderReferenceInput';
 
 export type TransactionImportRowGraphQLType = {
@@ -12,6 +13,7 @@ export type TransactionImportRowGraphQLType = {
   amount?: AmountInputType | null;
   isDismissed?: boolean | null;
   order?: OrderReferenceInputGraphQLType | null;
+  expense: ExpenseReferenceInputFields | null;
 };
 
 export const GraphQLTransactionsImportRowUpdateInput = new GraphQLInputObjectType({
@@ -45,6 +47,10 @@ export const GraphQLTransactionsImportRowUpdateInput = new GraphQLInputObjectTyp
     order: {
       type: GraphQLOrderReferenceInput,
       description: 'The order associated with the row',
+    },
+    expense: {
+      type: GraphQLExpenseReferenceInput,
+      description: 'The expense associated with the row',
     },
   }),
 });

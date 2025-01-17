@@ -7,6 +7,7 @@ import type {
 } from 'sequelize';
 
 import { SupportedCurrency } from '../constants/currencies';
+import { TransactionsImportRowStatus } from '../graphql/v2/enum/TransactionsImportRowStatus';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 import Collective from './Collective';
@@ -25,7 +26,7 @@ class TransactionsImportRow extends Model<
   declare public ExpenseId: ForeignKey<Expense['id']>;
   declare public OrderId: ForeignKey<Order['id']>;
   declare public sourceId: string;
-  declare public isDismissed: boolean;
+  declare public status: TransactionsImportRowStatus | `${TransactionsImportRowStatus}`;
   declare public description: string;
   declare public date: Date;
   declare public amount: number;
@@ -40,7 +41,7 @@ class TransactionsImportRow extends Model<
   declare public getImport: BelongsToGetAssociationMixin<TransactionsImport>;
 
   public isProcessed(): boolean {
-    return Boolean(this.OrderId || this.ExpenseId || this.isDismissed);
+    return this.status === 'LINKED' || this.status === 'IGNORED';
   }
 }
 
@@ -80,10 +81,10 @@ TransactionsImportRow.init(
         notEmpty: true,
       },
     },
-    isDismissed: {
-      type: DataTypes.BOOLEAN,
+    status: {
+      type: DataTypes.ENUM(...Object.values(TransactionsImportRowStatus)),
+      defaultValue: 'PENDING',
       allowNull: false,
-      defaultValue: false,
     },
     description: {
       type: DataTypes.STRING,

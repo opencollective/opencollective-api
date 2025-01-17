@@ -1876,7 +1876,7 @@ export async function createExpense(req: express.Request, expenseData: ExpenseDa
     // Link to transactions import
     if (expenseData.transactionsImportRow) {
       await expenseData.transactionsImportRow.update(
-        { ExpenseId: createdExpense.id, isDismissed: false },
+        { ExpenseId: createdExpense.id, status: 'LINKED' },
         { transaction: t },
       );
     }

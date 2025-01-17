@@ -7,7 +7,7 @@ import Expense from '../../../models/Expense';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
-interface ExpenseReferenceInputFields {
+export interface ExpenseReferenceInputFields {
   id?: string;
   legacyId?: number;
 }
