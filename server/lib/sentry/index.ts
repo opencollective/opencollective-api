@@ -180,7 +180,7 @@ export const reportErrorToSentry = (err: Error, params: CaptureErrorParams = {})
 
     if (checkIfSentryConfigured()) {
       Sentry.captureException(err);
-    } else {
+    } else if (config.sentry?.logToConsole) {
       logger.error(
         `[Sentry disabled] The following error would be reported: ${err.message} (${safeJsonStringify(
           {
