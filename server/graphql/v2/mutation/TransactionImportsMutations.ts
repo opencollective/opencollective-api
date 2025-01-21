@@ -3,7 +3,7 @@ import type { Request } from 'express';
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull } from 'graphql';
 import { GraphQLJSONObject, GraphQLNonEmptyString } from 'graphql-scalars';
 import GraphQLUpload from 'graphql-upload/GraphQLUpload.js';
-import { omit, pick } from 'lodash';
+import { isNil, omit, pick } from 'lodash';
 
 import { disconnectPlaidAccount } from '../../../lib/plaid/connect';
 import RateLimit from '../../../lib/rate-limit';
@@ -243,6 +243,7 @@ const transactionImportsMutations = {
           await Promise.all(
             args.rows.map(async row => {
               const rowId = idDecode(row.id, 'transactions-import-row');
+              const where = { id: rowId, TransactionsImportId: importId };
               let values: Parameters<typeof TransactionsImportRow.update>[0] = pick(row, [
                 'sourceId',
                 'description',
@@ -275,19 +276,19 @@ const transactionImportsMutations = {
 
                 values['ExpenseId'] = expense.id;
                 values['status'] = 'LINKED';
-              } else if (row.isDismissed) {
-                values['status'] = 'IGNORED';
+              } else if (!isNil(row.isDismissed)) {
+                values['status'] = row.isDismissed ? 'IGNORED' : 'PENDING';
+                if (row.isDismissed) {
+                  where['status'] = { [Op.not]: 'LINKED' };
+                }
               }
 
-              // For plaid imports, users can't change amount, date or sourceId
+              // For plaid imports, users can't change imported data
               if (transactionsImport.type === 'PLAID') {
-                values = omit(values, ['amount', 'date', 'sourceId']);
+                values = omit(values, ['amount', 'date', 'sourceId', 'description']);
               }
 
-              const [updatedCount] = await TransactionsImportRow.update(values, {
-                where: { id: rowId, TransactionsImportId: importId },
-                transaction,
-              });
+              const [updatedCount] = await TransactionsImportRow.update(values, { where, transaction });
 
               if (!updatedCount) {
                 throw new NotFound(`Row not found: ${row.id}`);
