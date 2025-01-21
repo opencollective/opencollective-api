@@ -61,6 +61,7 @@ import GraphQLPayoutMethod from './PayoutMethod';
 import GraphQLRecurringExpense from './RecurringExpense';
 import { GraphQLSecurityCheck } from './SecurityCheck';
 import { GraphQLTaxInfo } from './TaxInfo';
+import { GraphQLTransactionsImportRow } from './TransactionsImportRow';
 import { GraphQLTransferWiseRequiredField } from './TransferWise';
 import { GraphQLVirtualCard } from './VirtualCard';
 
@@ -734,6 +735,16 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Reques
         description: 'Fields that cannot be edited on this expense',
         async resolve(expense) {
           return expense.data?.lockedFields || [];
+        },
+      },
+      transactionImportRow: {
+        type: GraphQLTransactionsImportRow,
+        description:
+          '[Host admins only] If the expense associated with a transactions import row, this field will reference it',
+        async resolve(expense, _, req) {
+          if (await ExpenseLib.canSeeExpenseTransactionImportRow(req, expense)) {
+            return req.loaders.TransactionsImportRow.byExpenseId.load(expense.id);
+          }
         },
       },
     };

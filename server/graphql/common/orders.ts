@@ -9,9 +9,11 @@ import { executeOrder } from '../../lib/payments';
 import models, { AccountingCategory, Collective, sequelize, Tier, TransactionsImportRow, User } from '../../models';
 import { AccountingCategoryAppliesTo } from '../../models/AccountingCategory';
 import Order from '../../models/Order';
-import { NotFound, ValidationFailed } from '../errors';
+import { Forbidden, NotFound, ValidationFailed } from '../errors';
 import { getOrderTaxInfoFromTaxInput } from '../v1/mutations/orders';
 import { TaxInput } from '../v2/input/TaxInput';
+
+import { checkScope } from './scope-check';
 
 type AddFundsInput = {
   totalAmount: number;
@@ -192,6 +194,26 @@ export const canComment = async (req: express.Request, order: Order): Promise<bo
 
 export const canSeeOrderPrivateActivities = async (req: express.Request, order: Order): Promise<boolean> => {
   return isOrderHostAdmin(req, order);
+};
+
+const validateOrderScope = (req: express.Request, options: { throw?: boolean } = { throw: false }) => {
+  if (!checkScope(req, 'orders')) {
+    if (options.throw) {
+      throw new Forbidden('You do not have the necessary scope to perform this action');
+    } else {
+      return false;
+    }
+  }
+
+  return true;
+};
+
+export const canSeeOrderTransactionImportRow = async (req: express.Request, order: Order): Promise<boolean> => {
+  if (!validateOrderScope(req)) {
+    return false;
+  } else {
+    return isOrderHostAdmin(req, order);
+  }
 };
 
 export const canSetOrderTags = async (req: express.Request, order: Order): Promise<boolean> => {
