@@ -60,9 +60,21 @@ export const plaidMutations = {
       checkRemoteUserCanUseTransactions(req);
 
       // Check if user is an admin of any third party host or platform
-      const allowedIds = [...PlatformConstants.FirstPartyHostCollectiveIds, PlatformConstants.PlatformCollectiveId];
-      if (!allowedIds.some(id => req.remoteUser.isAdmin(id))) {
+      const allowedIds = [
+        ...PlatformConstants.FirstPartyHostCollectiveIds,
+        ...PlatformConstants.AllPlatformCollectiveIds,
+        PlatformConstants.OCICollectiveId,
+      ];
+
+      if (!req.remoteUser.isRoot() && !allowedIds.some(id => req.remoteUser.isAdmin(id))) {
         throw new Forbidden('You do not have permission to connect a Plaid account');
+      }
+
+      const rateLimiter = new RateLimit(`generatePlaidLinkToken:${req.remoteUser.id}`, 10, 60);
+      if (!(await rateLimiter.registerCall())) {
+        throw new RateLimitExceeded(
+          'A sync was already requested for this account recently. Please wait a few minutes before trying again.',
+        );
       }
 
       const tokenData = await generatePlaidLinkToken(req.remoteUser, ['auth', 'transactions'], ['US']);
@@ -100,6 +112,13 @@ export const plaidMutations = {
       const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
       if (!req.remoteUser.isAdminOfCollective(host)) {
         throw new Forbidden('You do not have permission to connect a Plaid account');
+      }
+
+      const rateLimiter = new RateLimit(`connectPlaidAccount:${req.remoteUser.id}`, 20, 60 * 60);
+      if (!(await rateLimiter.registerCall())) {
+        throw new RateLimitExceeded(
+          'A sync was already requested for this account recently. Please wait a few minutes before trying again.',
+        );
       }
 
       const accountInfo = pick(args, ['sourceName', 'name']);
