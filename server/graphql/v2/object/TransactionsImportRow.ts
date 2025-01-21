@@ -2,6 +2,7 @@ import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from
 import { GraphQLDateTime, GraphQLJSONObject, GraphQLNonEmptyString } from 'graphql-scalars';
 
 import { TransactionsImportRow } from '../../../models';
+import { GraphQLTransactionsImportRowStatus } from '../enum/TransactionsImportRowStatus';
 import { getIdEncodeResolver } from '../identifiers';
 
 import { GraphQLAmount } from './Amount';
@@ -24,6 +25,12 @@ export const GraphQLTransactionsImportRow = new GraphQLObjectType({
     isDismissed: {
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Whether the row has been dismissed',
+      deprecationReason: '2025-01-17: isDismissed is deprecated, use status instead',
+      resolve: (row: TransactionsImportRow) => row.status === 'IGNORED',
+    },
+    status: {
+      type: new GraphQLNonNull(GraphQLTransactionsImportRowStatus),
+      description: 'The status of the row',
     },
     description: {
       type: new GraphQLNonNull(GraphQLString),

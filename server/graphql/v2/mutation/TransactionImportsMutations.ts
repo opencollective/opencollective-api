@@ -8,13 +8,21 @@ import { omit, pick } from 'lodash';
 import { disconnectPlaidAccount } from '../../../lib/plaid/connect';
 import RateLimit from '../../../lib/rate-limit';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import { ConnectedAccount, sequelize, TransactionsImport, TransactionsImportRow, UploadedFile } from '../../../models';
+import {
+  ConnectedAccount,
+  Op,
+  sequelize,
+  TransactionsImport,
+  TransactionsImportRow,
+  UploadedFile,
+} from '../../../models';
 import { checkRemoteUserCanUseTransactions } from '../../common/scope-check';
 import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 import { GraphQLTransactionsImportType } from '../enum/TransactionsImportType';
 import { idDecode } from '../identifiers';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { getValueInCentsFromAmountInput } from '../input/AmountInput';
+import { fetchExpenseWithReference } from '../input/ExpenseReferenceInput';
 import { getDatabaseIdFromOrderReference } from '../input/OrderReferenceInput';
 import { GraphQLTransactionsImportRowCreateInput } from '../input/TransactionsImportRowCreateInput';
 import {
@@ -239,12 +247,12 @@ const transactionImportsMutations = {
                 'sourceId',
                 'description',
                 'date',
-                'isDismissed',
               ]);
               if (row.amount) {
                 values.amount = getValueInCentsFromAmountInput(row.amount);
                 values.currency = row.amount.currency;
               }
+
               if (row.order) {
                 const orderId = getDatabaseIdFromOrderReference(row.order);
                 const order = await req.loaders.Order.byId.load(orderId);
@@ -254,6 +262,21 @@ const transactionImportsMutations = {
                 }
 
                 values['OrderId'] = order.id;
+                values['status'] = 'LINKED';
+              } else if (row.expense) {
+                const expense = await fetchExpenseWithReference(row.expense, {
+                  loaders: req.loaders,
+                  throwIfMissing: true,
+                });
+                const collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
+                if (collective.HostCollectiveId !== transactionsImport.CollectiveId) {
+                  throw new Unauthorized(`Expense not associated with the import: ${expense.id}`);
+                }
+
+                values['ExpenseId'] = expense.id;
+                values['status'] = 'LINKED';
+              } else if (row.isDismissed) {
+                values['status'] = 'IGNORED';
               }
 
               // For plaid imports, users can't change amount, date or sourceId
@@ -273,16 +296,27 @@ const transactionImportsMutations = {
           );
         } else if (args.dismissAll) {
           await TransactionsImportRow.update(
-            { isDismissed: true },
+            { status: 'IGNORED' },
             {
-              where: { TransactionsImportId: importId, isDismissed: false, ExpenseId: null, OrderId: null },
+              where: {
+                TransactionsImportId: importId,
+                status: { [Op.not]: 'IGNORED' },
+                ExpenseId: null,
+                OrderId: null,
+              },
               transaction,
             },
           );
         } else if (args.restoreAll) {
           await TransactionsImportRow.update(
-            { isDismissed: false },
-            { where: { TransactionsImportId: importId, isDismissed: true }, transaction },
+            { status: 'PENDING' },
+            {
+              where: {
+                TransactionsImportId: importId,
+                status: 'IGNORED',
+              },
+              transaction,
+            },
           );
         } else {
           throw new ValidationFailed('You must provide at least one row to update or dismiss/restore all rows');

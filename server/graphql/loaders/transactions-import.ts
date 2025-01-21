@@ -18,8 +18,10 @@ export const generateTransactionsImportStatsLoader = () => {
       SELECT
         row."TransactionsImportId",
         COUNT(row.id) AS total,
-        COUNT(row.id) FILTER (WHERE "isDismissed" IS TRUE OR "ExpenseId" IS NOT NULL OR "OrderId" IS NOT NULL) AS processed,
-        COUNT(row.id) FILTER (WHERE "isDismissed" IS TRUE) AS ignored,
+        COUNT(row.id) FILTER (WHERE "status" = 'IGNORED' OR "status" = 'LINKED') AS processed,
+        COUNT(row.id) FILTER (WHERE "status" = 'LINKED' AND "ExpenseId" IS NULL AND "OrderId" IS NULL) AS invalid,
+        COUNT(row.id) FILTER (WHERE "status" = 'IGNORED') AS ignored,
+        COUNT(row.id) FILTER (WHERE "status" = 'ON_HOLD') AS on_hold,
         COUNT(row.id) FILTER (WHERE "ExpenseId" IS NOT NULL) AS expenses,
         COUNT(row.id) FILTER (WHERE "OrderId" IS NOT NULL) AS orders
       FROM "TransactionsImportsRows" row
@@ -41,6 +43,8 @@ export const generateTransactionsImportStatsLoader = () => {
         expenses: result['expenses'] || 0,
         orders: result['orders'] || 0,
         processed: result['processed'] || 0,
+        onHold: result['on_hold'] || 0,
+        invalid: result['invalid'] || 0,
       };
     });
   });
