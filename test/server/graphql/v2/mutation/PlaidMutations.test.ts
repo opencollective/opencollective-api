@@ -39,8 +39,8 @@ describe('server/graphql/v2/mutation/PlaidMutations', () => {
 
   describe('generatePlaidLinkToken', () => {
     const GENERATE_PLAID_LINK_TOKEN_MUTATION = gql`
-      mutation GeneratePlaidLinkToken {
-        generatePlaidLinkToken {
+      mutation GeneratePlaidLinkToken($host: AccountReferenceInput!) {
+        generatePlaidLinkToken(host: $host) {
           linkToken
           expiration
           requestId
@@ -50,15 +50,25 @@ describe('server/graphql/v2/mutation/PlaidMutations', () => {
 
     it('must be the member of a 1st party host or platform', async () => {
       const remoteUser = await fakeUser();
-      const result = await graphqlQueryV2(GENERATE_PLAID_LINK_TOKEN_MUTATION, {}, remoteUser);
+      const host = await fakeActiveHost({ admin: remoteUser });
+      const result = await graphqlQueryV2(
+        GENERATE_PLAID_LINK_TOKEN_MUTATION,
+        { host: { legacyId: host.id } },
+        remoteUser,
+      );
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal('You do not have permission to connect a Plaid account');
     });
 
     it('should generate a Plaid Link token', async () => {
       const remoteUser = await fakeUser({ data: { isRoot: true } });
+      const host = await fakeActiveHost({ admin: remoteUser });
       await platform.addUserWithRole(remoteUser, 'ADMIN');
-      const result = await graphqlQueryV2(GENERATE_PLAID_LINK_TOKEN_MUTATION, {}, remoteUser);
+      const result = await graphqlQueryV2(
+        GENERATE_PLAID_LINK_TOKEN_MUTATION,
+        { host: { legacyId: host.id } },
+        remoteUser,
+      );
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       const tokenResponse = result.data.generatePlaidLinkToken;

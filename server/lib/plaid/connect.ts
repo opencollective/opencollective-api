@@ -1,4 +1,4 @@
-import { truncate } from 'lodash';
+import { omit, truncate } from 'lodash';
 import { CountryCode, ItemPublicTokenExchangeResponse, Products } from 'plaid';
 
 import { Service } from '../../constants/connected-account';
@@ -9,21 +9,61 @@ import { reportErrorToSentry } from '../sentry';
 import { getPlaidClient } from './client';
 import { getPlaidWebhookUrl } from './webhooks';
 
+// See https://plaid.com/docs/api/link/#link-token-create-request-language
+const PlaidSupportedLocales = [
+  'da',
+  'nl',
+  'en',
+  'et',
+  'fr',
+  'de',
+  'hi',
+  'it',
+  'lv',
+  'lt',
+  'no',
+  'pl',
+  'pt',
+  'ro',
+  'es',
+  'sv',
+  'vi',
+] as const;
+
+const getPlaidLanguage = (locale: string): (typeof PlaidSupportedLocales)[number] => {
+  if (locale) {
+    locale = locale.toLowerCase().split('-')[0].trim();
+    if ((PlaidSupportedLocales as readonly string[]).includes(locale)) {
+      return locale as (typeof PlaidSupportedLocales)[number];
+    }
+  }
+
+  return 'en';
+};
+
 export const generatePlaidLinkToken = async (
   remoteUser: User,
-  products: readonly (Products | `${Products}`)[],
-  countryCodes: readonly (CountryCode | `${CountryCode}`)[],
+  params: {
+    products: readonly (Products | `${Products}`)[];
+    countries: readonly (CountryCode | `${CountryCode}`)[];
+    locale: string;
+    accessToken?: string;
+  },
 ) => {
   const linkTokenConfig = {
     /* eslint-disable camelcase */
     user: { client_user_id: remoteUser.id.toString() },
     client_name: PlatformConstants.PlatformName,
-    language: 'en',
-    products: products as Products[],
-    country_codes: countryCodes as CountryCode[],
+    language: getPlaidLanguage(params.locale),
+    products: params.products as Products[],
+    country_codes: params.countries as CountryCode[],
     webhook: getPlaidWebhookUrl(),
     /* eslint-enable camelcase */
   };
+
+  if (params.accessToken) {
+    linkTokenConfig['access_token'] = params.accessToken;
+  }
 
   try {
     const PlaidClient = getPlaidClient();
@@ -39,7 +79,7 @@ export const connectPlaidAccount = async (
   remoteUser: User,
   host: Collective,
   publicToken: string,
-  { sourceName, name }: { sourceName: string; name: string },
+  { sourceName, name }: { sourceName?: string; name?: string },
 ) => {
   // Permissions check
   if (!remoteUser.isAdminOfCollective(host)) {
@@ -80,6 +120,7 @@ export const connectPlaidAccount = async (
         clientId: exchangeTokenResponse['item_id'],
         token: exchangeTokenResponse['access_token'],
         CreatedByUserId: remoteUser.id,
+        data: omit(exchangeTokenResponse, ['item_id', 'access_token']),
       },
       { transaction },
     );
@@ -97,7 +138,15 @@ export const connectPlaidAccount = async (
     );
 
     // Record the transactions import ID in the connected account for audit purposes
-    await connectedAccount.update({ data: { transactionsImportId: transactionsImport.id } }, { transaction });
+    await connectedAccount.update(
+      {
+        data: {
+          ...connectedAccount.data,
+          transactionsImportId: transactionsImport.id,
+        },
+      },
+      { transaction },
+    );
 
     return { connectedAccount, transactionsImport };
   });
