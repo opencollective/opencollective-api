@@ -1720,13 +1720,15 @@ export async function createExpense(req: express.Request, expenseData: ExpenseDa
   checkTaxes(collective, collective.host, expenseData.type, taxes);
   checkExpenseItems(expenseData.type, itemsData, taxes);
   checkExpenseType(expenseData.type, collective, collective.parent, collective.host);
-  checkCanUseAccountingCategory(
-    remoteUser,
-    expenseData.type,
-    expenseData.accountingCategory,
-    collective.host,
-    collective,
-  );
+  if (expenseData.accountingCategory) {
+    checkCanUseAccountingCategory(
+      remoteUser,
+      expenseData.type,
+      expenseData.accountingCategory,
+      collective.host,
+      collective,
+    );
+  }
 
   if (size(expenseData.attachedFiles) > 15) {
     throw new ValidationFailed('The number of files that you can attach to an expense is limited to 15');
