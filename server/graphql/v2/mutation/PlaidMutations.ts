@@ -1,5 +1,6 @@
-import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { pick } from 'lodash';
+import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLLocale } from 'graphql-scalars';
+import { isEmpty, pick } from 'lodash';
 
 import PlatformConstants from '../../../constants/platform';
 import { connectPlaidAccount, generatePlaidLinkToken } from '../../../lib/plaid/connect';
@@ -7,11 +8,18 @@ import { requestPlaidAccountSync } from '../../../lib/plaid/sync';
 import RateLimit from '../../../lib/rate-limit';
 import { checkRemoteUserCanUseTransactions } from '../../common/scope-check';
 import { Forbidden, RateLimitExceeded } from '../../errors';
+import { GraphQLCountryISO } from '../enum';
+import { GraphQLAccountingCategoryReferenceInputFields } from '../input/AccountingCategoryInput';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import {
   fetchConnectedAccountWithReference,
   GraphQLConnectedAccountReferenceInput,
 } from '../input/ConnectedAccountReferenceInput';
+import {
+  fetchTransactionsImportWithReference,
+  GraphQLTransactionsImportReferenceInput,
+  GraphQLTransactionsImportReferenceInputFields,
+} from '../input/TransactionsImportReferenceInput';
 import { GraphQLConnectedAccount } from '../object/ConnectedAccount';
 import { GraphQLTransactionsImport } from '../object/TransactionsImport';
 
@@ -56,7 +64,25 @@ export const plaidMutations = {
   generatePlaidLinkToken: {
     type: new GraphQLNonNull(GraphQLPlaidLinkTokenCreateResponse),
     description: 'Generate a Plaid Link token',
-    resolve: async (_, _args, req: Express.Request) => {
+    args: {
+      host: {
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+        description: 'The account to which the Plaid account should be connected',
+      },
+      transactionImport: {
+        type: GraphQLTransactionsImportReferenceInput,
+        description: 'Use this parameter to specify the import to update (when using the Plaid update flow)',
+      },
+      countries: {
+        type: new GraphQLList(new GraphQLNonNull(GraphQLCountryISO)),
+        description: 'The countries to enable in the accounts selection. Defaults to the host country.',
+      },
+      locale: {
+        type: GraphQLLocale,
+        description: 'The language to use in the Plaid Link flow. Defaults to "en".',
+      },
+    },
+    resolve: async (_, args, req: Express.Request) => {
       checkRemoteUserCanUseTransactions(req);
 
       // Check if user is an admin of any third party host or platform
@@ -77,7 +103,37 @@ export const plaidMutations = {
         );
       }
 
-      const tokenData = await generatePlaidLinkToken(req.remoteUser, ['auth', 'transactions'], ['US']);
+      const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
+      if (!req.remoteUser.isAdminOfCollective(host)) {
+        throw new Forbidden('You do not have permission to connect a Plaid account for this host');
+      }
+
+      const params: Parameters<typeof generatePlaidLinkToken>[1] = {
+        products: ['auth', 'transactions'],
+        countries: isEmpty(args.countries) ? [host.countryISO || 'US'] : args.countries,
+        locale: args.locale || 'en',
+      };
+
+      if (args.transactionImport) {
+        const transactionImport = await fetchTransactionsImportWithReference(args.transactionImport, {
+          throwIfMissing: true,
+        });
+        if (transactionImport.CollectiveId !== host.id) {
+          throw new Forbidden('You do not have permission to update this import');
+        }
+
+        const connectedAccount = await transactionImport.getConnectedAccount();
+        if (!connectedAccount) {
+          throw new Error('Connected account not found');
+        } else if (connectedAccount.CollectiveId !== host.id) {
+          throw new Forbidden('You do not have permission to update the connection for this import');
+        }
+
+        params.accessToken = connectedAccount.token;
+      }
+
+      const tokenData = await generatePlaidLinkToken(req.remoteUser, params);
+
       return {
         linkToken: tokenData['link_token'],
         expiration: tokenData['expiration'],
@@ -107,7 +163,17 @@ export const plaidMutations = {
         description: 'The name of the bank account',
       },
     },
-    resolve: async (_, args, req) => {
+    resolve: async (
+      _,
+      args: {
+        host: GraphQLAccountingCategoryReferenceInputFields;
+        transactionImport: GraphQLTransactionsImportReferenceInputFields;
+        publicToken: string;
+        sourceName?: string;
+        name?: string;
+      },
+      req,
+    ) => {
       checkRemoteUserCanUseTransactions(req);
       const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
       if (!req.remoteUser.isAdminOfCollective(host)) {
@@ -121,7 +187,7 @@ export const plaidMutations = {
         );
       }
 
-      const accountInfo = pick(args, ['sourceName', 'name']);
+      const accountInfo: Parameters<typeof connectPlaidAccount>[3] = pick(args, ['sourceName', 'name']);
       return connectPlaidAccount(req.remoteUser, host, args.publicToken, accountInfo);
     },
   },
