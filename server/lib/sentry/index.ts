@@ -172,28 +172,24 @@ const simplifyReq = req =>
  * Helper to capture an error on Sentry
  */
 export const reportErrorToSentry = (err: Error, params: CaptureErrorParams = {}): void => {
-  withScopeFromCaptureErrorParams(params, (scope: Sentry.Scope) => {
-    // Add some more data if the error is an Axios error
-    if (axios.isAxiosError(err)) {
-      enhanceScopeWithAxiosError(scope, err, params);
-    }
+  if (checkIfSentryConfigured()) {
+    withScopeFromCaptureErrorParams(params, (scope: Sentry.Scope) => {
+      // Add some more data if the error is an Axios error
+      if (axios.isAxiosError(err)) {
+        enhanceScopeWithAxiosError(scope, err, params);
+      }
 
-    if (checkIfSentryConfigured()) {
       Sentry.captureException(err);
-    } else if (config.sentry?.logToConsole) {
-      logger.error(
-        `[Sentry disabled] The following error would be reported: ${err.message} (${safeJsonStringify(
-          {
-            err,
-            params: { ...params, req: redactSensitiveDataFromRequest(simplifyReq(params.req)) },
-            stacktrace: err.stack,
-          },
-          null,
-          2,
-        )})`,
-      );
-    }
-  });
+    });
+  } else {
+    logger.error(
+      err.stack ? err.stack : err.message,
+      sanitizeObjectForJSON({
+        ...params,
+        req: redactSensitiveDataFromRequest(simplifyReq(params.req)),
+      }),
+    );
+  }
 };
 
 /**
