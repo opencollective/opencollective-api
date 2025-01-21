@@ -16,6 +16,7 @@ import { reportErrorToSentry } from './sentry';
 import { isEmailInternal, md5, sha512 } from './utils';
 
 const debug = debugLib('email');
+const isDev = config.env === 'development';
 
 type SendMessageOptions = Pick<
   nodemailer.SendMailOptions,
@@ -217,6 +218,9 @@ const sendMessage = (
             transactionName: 'emailLib.sendMessage',
             extra: { recipients, subject, html, options },
           });
+          if (isDev && err.message.includes('ECONNREFUSED')) {
+            return resolve();
+          }
           return reject(err);
         } else {
           debug('>>> mailer.sendMail success', info);
