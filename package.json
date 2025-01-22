@@ -144,7 +144,7 @@
     "@babel/cli": "^7.23.4",
     "@babel/register": "^7.23.7",
     "@eslint/compat": "^1.2.1",
-    "@graphql-eslint/eslint-plugin": "^3.20.1",
+    "@graphql-eslint/eslint-plugin": "^4.0.0",
     "@opentelemetry/api": "^1.7.0",
     "@opentelemetry/auto-instrumentations-node": "^0.55.0",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.54.0",
