@@ -1,8 +1,11 @@
+import type { Request } from 'express';
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { uniqBy } from 'lodash';
 
+import { roles } from '../../../constants';
 import { CollectiveType } from '../../../constants/collectives';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models from '../../../models';
+import models, { Op } from '../../../models';
 import UserTwoFactorMethod from '../../../models/UserTwoFactorMethod';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { checkScope } from '../../common/scope-check';
@@ -10,11 +13,13 @@ import { hasSeenLatestChangelogEntry } from '../../common/user';
 import { GraphQLOAuthAuthorizationCollection } from '../collection/OAuthAuthorizationCollection';
 import { GraphQLPersonalTokenCollection } from '../collection/PersonalTokenCollection';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { AccountFields, GraphQLAccount } from '../interface/Account';
 import { CollectionArgs } from '../interface/Collection';
-import { UserTwoFactorMethod as UserTwoFactorMethodObject } from '../object/UserTwoFactorMethod';
 
+import { GraphQLContributorProfile } from './ContributorProfile';
 import { GraphQLHost } from './Host';
+import { UserTwoFactorMethod as UserTwoFactorMethodObject } from './UserTwoFactorMethod';
 
 export const GraphQLIndividual = new GraphQLObjectType({
   name: 'Individual',
@@ -27,7 +32,7 @@ export const GraphQLIndividual = new GraphQLObjectType({
       email: {
         type: GraphQLString,
         description: 'Email for the account. For authenticated user: scope: "email".',
-        async resolve(userCollective, args, req) {
+        async resolve(userCollective, args, req: Request) {
           if (!req.remoteUser || userCollective.isIncognito) {
             return null;
           } else if (req.remoteUser.CollectiveId === userCollective.id && !checkScope(req, 'email')) {
@@ -54,7 +59,7 @@ export const GraphQLIndividual = new GraphQLObjectType({
           },
         },
         async resolve(collective, args, req) {
-          const conversationId = parseInt(idDecode(args.id, IDENTIFIER_TYPES.CONVERSATION));
+          const conversationId = idDecode(args.id, IDENTIFIER_TYPES.CONVERSATION);
           const user = await req.loaders.User.byCollectiveId.load(collective.id);
 
           if (!user) {
@@ -154,10 +159,10 @@ export const GraphQLIndividual = new GraphQLObjectType({
           const query = { where: { UserId: user.id } };
 
           if (limit) {
-            query.limit = limit;
+            query['limit'] = limit;
           }
           if (offset) {
-            query.offset = offset;
+            query['offset'] = offset;
           }
 
           const result = await models.UserToken.findAndCountAll(query);
@@ -189,11 +194,10 @@ export const GraphQLIndividual = new GraphQLObjectType({
             return null;
           }
           const { limit, offset } = args;
-          const order = [['createdAt', 'DESC']];
 
           const result = await models.PersonalToken.findAndCountAll({
             where: { CollectiveId: collective.id },
-            order,
+            order: [['createdAt', 'DESC']],
             limit,
             offset,
           });
@@ -225,6 +229,68 @@ export const GraphQLIndividual = new GraphQLObjectType({
               UserId: req.remoteUser.id,
             },
           });
+        },
+      },
+      contributorProfiles: {
+        type: new GraphQLNonNull(new GraphQLList(GraphQLContributorProfile)),
+        args: {
+          forAccount: {
+            type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+          },
+        },
+        async resolve(userCollective, args, req: Request) {
+          const loggedInUser = req.remoteUser;
+          const forAccount = await fetchAccountWithReference(args.forAccount, {
+            throwIfMissing: true,
+            loaders: req.loaders,
+          });
+
+          if (!loggedInUser || !req.remoteUser?.isAdminOfCollective(userCollective)) {
+            return [];
+          }
+
+          const memberships = await models.Member.findAll({
+            where: {
+              MemberCollectiveId: loggedInUser.CollectiveId,
+              role: roles.ADMIN,
+              CollectiveId: { [Op.ne]: forAccount.id },
+            },
+            include: [
+              {
+                model: models.Collective,
+                as: 'collective',
+                required: true,
+                where: {
+                  [Op.or]: [
+                    {
+                      type: { [Op.in]: [CollectiveType.COLLECTIVE, CollectiveType.FUND] },
+                      HostCollectiveId: forAccount.HostCollectiveId,
+                    },
+                    {
+                      type: { [Op.in]: [CollectiveType.ORGANIZATION, CollectiveType.USER] },
+                    },
+                  ],
+                },
+                include: [
+                  {
+                    model: models.Collective,
+                    as: 'children',
+                    where: { HostCollectiveId: forAccount.HostCollectiveId },
+                    required: false,
+                  },
+                ],
+              },
+            ],
+          });
+
+          const contributorProfiles = [{ account: userCollective }];
+          memberships.forEach(membership => {
+            contributorProfiles.push({ account: membership.collective });
+            membership.collective.children?.forEach(children => {
+              contributorProfiles.push({ account: children });
+            });
+          });
+          return uniqBy(contributorProfiles, 'account.id');
         },
       },
     };
