@@ -195,7 +195,7 @@
     "sinon": "^19.0.0",
     "sinon-chai": "^3.7.0",
     "supertest": "^7.0.0",
-    "ts-unused-exports": "^10.1.0",
+    "ts-unused-exports": "^11.0.0",
     "typescript": "5.7.3",
     "typescript-eslint": "^8.13.0",
     "ws": "^8.18.0"
