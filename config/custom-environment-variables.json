@@ -223,8 +223,7 @@
     "dsn": "SENTRY_DSN",
     "tracesSampleRate": "SENTRY_TRACES_SAMPLE_RATE",
     "profilesSampleRate": "SENTRY_PROFILES_SAMPLE_RATE",
-    "minExecutionTimeToSample": "SENTRY_MIN_EXECUTION_TIME_TO_SAMPLE",
-    "logToConsole": "SENTRY_LOG_TO_CONSOLE"
+    "minExecutionTimeToSample": "SENTRY_MIN_EXECUTION_TIME_TO_SAMPLE"
   },
   "ledger": {
     "fastBalance": "LEDGER_FAST_BALANCE",
