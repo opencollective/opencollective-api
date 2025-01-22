@@ -1,5 +1,4 @@
-import { fixupPluginRules } from '@eslint/compat';
-import * as graphqlEslint from '@graphql-eslint/eslint-plugin';
+import graphqlPlugin from '@graphql-eslint/eslint-plugin'; // eslint-disable-line import/no-unresolved
 import openCollectiveConfig from 'eslint-config-opencollective/eslint.config.cjs';
 import mocha from 'eslint-plugin-mocha';
 import globals from 'globals';
@@ -9,7 +8,6 @@ export default [
   // Global ignores
   {
     ignores: [
-      './server/graphql/*.graphql',
       '**/node_modules/',
       '**/seeders/',
       'migrations/archives',
@@ -23,6 +21,8 @@ export default [
   },
   {
     files: ['**/*.{js,ts}'],
+
+    processor: graphqlPlugin.processor,
 
     settings: {
       'import/resolver': {
@@ -101,10 +101,11 @@ export default [
   {
     files: ['**/*.graphql'],
 
-    plugins: { '@graphql-eslint': fixupPluginRules(graphqlEslint) },
-
     languageOptions: {
-      parser: { ...graphqlEslint, meta: { name: '@graphql-eslint' } },
+      parser: graphqlPlugin.parser,
+    },
+    plugins: {
+      '@graphql-eslint': graphqlPlugin,
     },
 
     settings: {
