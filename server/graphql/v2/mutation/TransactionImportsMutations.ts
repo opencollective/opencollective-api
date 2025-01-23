@@ -248,6 +248,7 @@ const transactionImportsMutations = {
                 'sourceId',
                 'description',
                 'date',
+                'note',
               ]);
               if (row.amount) {
                 values.amount = getValueInCentsFromAmountInput(row.amount);

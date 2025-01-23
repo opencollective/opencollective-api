@@ -45,6 +45,10 @@ export const GraphQLTransactionsImportRow = new GraphQLObjectType({
       description: 'The amount of the row',
       resolve: (row: TransactionsImportRow) => ({ value: row.amount, currency: row.currency }),
     },
+    note: {
+      type: GraphQLString,
+      description: 'Optional note for the row',
+    },
     expense: {
       type: GraphQLExpense,
       description: 'The expense associated with the row',

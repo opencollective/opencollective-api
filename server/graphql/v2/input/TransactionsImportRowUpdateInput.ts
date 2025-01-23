@@ -14,6 +14,7 @@ export type TransactionImportRowGraphQLType = {
   isDismissed?: boolean | null;
   order?: OrderReferenceInputGraphQLType | null;
   expense: ExpenseReferenceInputFields | null;
+  comment?: string | null;
 };
 
 export const GraphQLTransactionsImportRowUpdateInput = new GraphQLInputObjectType({
@@ -51,6 +52,10 @@ export const GraphQLTransactionsImportRowUpdateInput = new GraphQLInputObjectTyp
     expense: {
       type: GraphQLExpenseReferenceInput,
       description: 'The expense associated with the row',
+    },
+    note: {
+      type: GraphQLString,
+      description: 'Optional note for the row',
     },
   }),
 });
