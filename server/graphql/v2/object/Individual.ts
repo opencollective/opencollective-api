@@ -5,7 +5,7 @@ import { uniqBy } from 'lodash';
 import { roles } from '../../../constants';
 import { CollectiveType } from '../../../constants/collectives';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models, { Op } from '../../../models';
+import models, { Collective, Op } from '../../../models';
 import UserTwoFactorMethod from '../../../models/UserTwoFactorMethod';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { checkScope } from '../../common/scope-check';
@@ -238,7 +238,7 @@ export const GraphQLIndividual = new GraphQLObjectType({
             type: new GraphQLNonNull(GraphQLAccountReferenceInput),
           },
         },
-        async resolve(userCollective, args, req: Request) {
+        async resolve(userCollective: Collective, args, req: Request) {
           const loggedInUser = req.remoteUser;
           const forAccount = await fetchAccountWithReference(args.forAccount, {
             throwIfMissing: true,
@@ -283,11 +283,11 @@ export const GraphQLIndividual = new GraphQLObjectType({
             ],
           });
 
-          const contributorProfiles = [{ account: userCollective }];
+          const contributorProfiles = [{ account: userCollective, forAccount }];
           memberships.forEach(membership => {
-            contributorProfiles.push({ account: membership.collective });
+            contributorProfiles.push({ account: membership.collective, forAccount });
             membership.collective.children?.forEach(children => {
-              contributorProfiles.push({ account: children });
+              contributorProfiles.push({ account: children, forAccount });
             });
           });
           return uniqBy(contributorProfiles, 'account.id');
