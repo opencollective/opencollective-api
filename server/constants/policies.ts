@@ -20,6 +20,8 @@ enum POLICIES {
   // When enabled, admins of the collective are allowed to see the payout methods of expenses
   COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS = 'COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS',
   EXPENSE_POLICIES = 'EXPENSE_POLICIES',
+  /** Enforces contributor information requirements based on yearly contribution amount thresholds */
+  CONTRIBUTOR_INFO_THRESHOLDS = 'CONTRIBUTOR_INFO_THRESHOLDS',
 }
 
 export type Policies = Partial<{
@@ -51,6 +53,10 @@ export type Policies = Partial<{
   };
   [POLICIES.EXPENSE_PUBLIC_VENDORS]: boolean;
   [POLICIES.COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS]: boolean;
+  [POLICIES.CONTRIBUTOR_INFO_THRESHOLDS]: {
+    legalName?: number;
+    address?: number;
+  };
 }>;
 
 export const DEFAULT_POLICIES: { [T in POLICIES]: Policies[T] } = {
@@ -88,6 +94,7 @@ export const DEFAULT_POLICIES: { [T in POLICIES]: Policies[T] } = {
   },
   [POLICIES.EXPENSE_PUBLIC_VENDORS]: false,
   [POLICIES.COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS]: false,
+  [POLICIES.CONTRIBUTOR_INFO_THRESHOLDS]: undefined,
 };
 
 export default POLICIES;

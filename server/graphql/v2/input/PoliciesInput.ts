@@ -58,5 +58,14 @@ export const GraphQLPoliciesInput = new GraphQLInputObjectType({
     [POLICIES.COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS]: {
       type: GraphQLBoolean,
     },
+    [POLICIES.CONTRIBUTOR_INFO_THRESHOLDS]: {
+      type: new GraphQLInputObjectType({
+        name: 'PoliciesContributorInfoThresholdsInput',
+        fields: () => ({
+          legalName: { type: GraphQLInt },
+          address: { type: GraphQLInt },
+        }),
+      }),
+    },
   }),
 });
