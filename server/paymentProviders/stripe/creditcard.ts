@@ -194,9 +194,14 @@ export default {
         'Invalid amount.',
         'Payment Intent require action',
         'Invalid account.',
+        /^Amount must convert to at least 50 cents\./,
       ];
 
-      if (knownErrors.includes(error.message)) {
+      if (
+        knownErrors.some(knownError =>
+          typeof knownError === 'string' ? knownError === error.message : knownError.test(error.message),
+        )
+      ) {
         logger.error(
           `Stripe Error (handled): ${error.type}, Message: ${error.message}, Decline Code: ${error.decline_code}, Code: ${error.code}`,
         );
