@@ -1120,7 +1120,7 @@ const sendManualPendingOrderEmail = async (order: Order): Promise<void> => {
   const { collective, fromCollective } = order;
   const host = await collective.getHostCollective();
 
-  let replyTo = [];
+  let replyTo: string | string[] = [];
   if (fromCollective.isIncognito) {
     // We still want to surface incognito emails to the host as they often need to contact them to reconciliate the bank transfer
     const user = await User.findByPk(fromCollective.CreatedByUserId);

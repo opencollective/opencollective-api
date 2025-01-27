@@ -6,6 +6,7 @@ import { createSandbox } from 'sinon';
 import { activities, roles } from '../../../../../server/constants';
 import OrderStatuses from '../../../../../server/constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../server/constants/paymentMethods';
+import PlatformConstants from '../../../../../server/constants/platform';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import VirtualCardProviders from '../../../../../server/constants/virtual-card-providers';
 import { GraphQLProcessHostApplicationAction } from '../../../../../server/graphql/v2/enum';
@@ -121,15 +122,23 @@ const REMOVE_HOST_MUTATION = gql`
 `;
 
 describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
-  let rootUser;
+  let rootUser, hostOSC, hostAdminOSC, platform;
 
   before(async () => {
     await resetTestDB();
+    platform = await fakeCollective({ id: PlatformConstants.PlatformCollectiveId });
+    hostAdminOSC = await fakeUser();
+    hostOSC = await fakeActiveHost({
+      admin: hostAdminOSC,
+      name: 'Open Source Collective',
+      slug: 'opensource',
+      id: PlatformConstants.FiscalHostOSCCollectiveId,
+    });
   });
 
   before(async () => {
     rootUser = await fakeUser({ data: { isRoot: true } });
-    await fakeMember({ CollectiveId: rootUser.id, MemberCollectiveId: 1, role: roles.ADMIN });
+    await fakeMember({ MemberCollectiveId: rootUser.CollectiveId, CollectiveId: platform.id, role: roles.ADMIN });
   });
 
   describe('processHostApplication', () => {
@@ -280,6 +289,35 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
         expect(subject).to.eq('🎉 Your Collective has been approved!');
         expect(body).to.include(`Hey ${collective.name}`);
         expect(body).to.include(`the money will be held by ${host.name}`);
+      });
+
+      it('sends a special template for OSC', async () => {
+        const collectiveAdmin = await fakeUser();
+        const collective = await fakeCollective({
+          admin: collectiveAdmin,
+          HostCollectiveId: hostOSC.id,
+          isActive: false,
+          approvedAt: null,
+        });
+        await fakeHostApplication({
+          CollectiveId: collective.id,
+          HostCollectiveId: hostOSC.id,
+          status: HostApplicationStatus.PENDING,
+        });
+        const result = await graphqlQueryV2(
+          PROCESS_HOST_APPLICATION_MUTATION,
+          { host: { slug: hostOSC.slug }, account: { slug: collective.slug }, action: 'APPROVE' },
+          hostAdminOSC,
+        );
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+
+        await waitForCondition(() => sendEmailSpy.callCount === 1);
+        const [to, subject, body] = sendEmailSpy.firstCall.args;
+        expect(to).to.eq(collectiveAdmin.email);
+        expect(subject).to.eq('Getting started with Open Source Collective');
+        expect(body).to.include(`Hey ${collective.name} 👋`);
+        expect(body).to.include(`Thanks for joining Open Source Collective`);
       });
     });
 
@@ -485,6 +523,7 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
         rootUser,
       );
 
+      result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       expect(result.data.removeHost.host).to.be.null;
 

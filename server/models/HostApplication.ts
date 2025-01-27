@@ -8,8 +8,10 @@ import {
   NonAttribute,
 } from 'sequelize';
 
+import { activities } from '../constants';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
+import Activity from './Activity';
 import Collective from './Collective';
 import User from './User';
 
@@ -47,7 +49,7 @@ class HostApplication extends Model<InferAttributes<HostApplication>, InferCreat
     status: HostApplicationStatus,
     data: Record<string, unknown>,
   ): Promise<HostApplication> {
-    const existingApplication = await this.findOne({
+    let application = await this.findOne({
       order: [['createdAt', 'DESC']],
       where: {
         HostCollectiveId: <number>host.id,
@@ -55,10 +57,10 @@ class HostApplication extends Model<InferAttributes<HostApplication>, InferCreat
         status,
       },
     });
-    if (existingApplication) {
-      return existingApplication.update({ updatedAt: new Date() });
+    if (application) {
+      application.update({ updatedAt: new Date() });
     } else {
-      return this.create({
+      application = await this.create({
         HostCollectiveId: host.id,
         CollectiveId: collective.id,
         CreatedByUserId: user.id,
@@ -66,6 +68,22 @@ class HostApplication extends Model<InferAttributes<HostApplication>, InferCreat
         ...(<Record<string, unknown>>pick(data, ['message', 'customData'])),
       });
     }
+
+    if (status === HostApplicationStatus.APPROVED) {
+      await Activity.create({
+        type: activities.COLLECTIVE_APPROVED,
+        UserId: user.id,
+        CollectiveId: collective.id,
+        HostCollectiveId: host.id,
+        data: {
+          collective: collective.info,
+          host: host.info,
+          user: { email: user.email },
+        },
+      });
+    }
+
+    return application;
   }
 
   /**

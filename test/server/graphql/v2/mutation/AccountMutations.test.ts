@@ -1252,7 +1252,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
   <td colspan="3" align="center" style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;box-sizing:border-box;font-size:12px;color:#999;">
     We can do great things together<br><br>
 
-    You can also follow us on <a href="https://twitter.com/OpenCollect" style="text-decoration: none; color: #297EFF;">Twitter</a> or come chat with us on our public
+    Come chat with us on our public
     <a href="https://discord.opencollective.com" style="text-decoration: none; color: #297EFF;">Discord</a>.
     <br><br>
     Made with ❤️ from <a href="https://docs.opencollective.com/help/about/team" style="text-decoration: none; color: #297EFF;">all over the world</a>

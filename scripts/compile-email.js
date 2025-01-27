@@ -157,14 +157,13 @@ data['ticket.confirmed'] = {
     currency: 'USD',
   },
 };
-data['ticket.confirmed.fearlesscitiesbrussels'] = data['ticket.confirmed'];
 data['github.signup'] = {
   collective: {
     name: 'webpack',
     slug: 'webpack',
   },
 };
-data['collective.created.the-social-change-nest'] = data['collective.approved.the-social-change-nest'] = {
+data['collective.approved.the-social-change-nest'] = {
   host: {
     slug: 'the-social-change-nest',
     name: 'The Social Change Nest',
@@ -172,6 +171,17 @@ data['collective.created.the-social-change-nest'] = data['collective.approved.th
   collective: {
     slug: 'coinbase',
     name: 'Coinbase',
+  },
+};
+data['collective.approved.opensource'] = {
+  host: {
+    id: 11004,
+    slug: 'opensource',
+    name: 'Open Source Collective',
+  },
+  collective: {
+    slug: 'webpack',
+    name: 'Webpack',
   },
 };
 data['organization.collective.created'] = {

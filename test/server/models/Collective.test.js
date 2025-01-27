@@ -141,16 +141,12 @@ describe('server/models/Collective', () => {
     await utils.resetCaches();
   });
 
-  before(() => {
-    sandbox = createSandbox();
-    sendEmailSpy = sandbox.spy(emailLib, 'sendMessage');
-  });
-
   after(() => sandbox.restore());
 
-  before(() => utils.resetTestDB());
-
   before(async () => {
+    sandbox = createSandbox();
+    sendEmailSpy = sandbox.spy(emailLib, 'sendMessage');
+    await utils.resetTestDB();
     user1 = await User.createUserWithCollective(users[0]);
     user2 = await User.createUserWithCollective(users[1]);
     hostUser = await User.createUserWithCollective(utils.data('host1'));
@@ -600,12 +596,22 @@ describe('server/models/Collective', () => {
       expect(membership).to.exist;
       expect(membership.MemberCollectiveId).to.equal(newHost.id);
       expect(newCollective.HostCollectiveId).to.equal(newHost.id);
-      // moving to a host where the user making the request is not an admin of turns isActive to false
+
+      // Make sure all previous emails have been sent before resetting
+      await utils.sleep(1000);
+      await utils.waitForCondition(() => sendEmailSpy.callCount >= 1);
       sendEmailSpy.resetHistory();
+
+      // moving to a host where the user making the request is not an admin of turns isActive to false
       await newCollective.changeHost(hostUser.collective.id, user2);
       await assertCollectiveCurrency(newCollective, hostUser.collective.currency);
       expect(newCollective.HostCollectiveId).to.equal(hostUser.id);
       expect(newCollective.isActive).to.be.false;
+      const activities = await models.Activity.findAll({
+        where: { CollectiveId: newCollective.id },
+        order: [['createdAt', 'DESC']],
+      });
+
       await utils.waitForCondition(() => sendEmailSpy.callCount === 2, {
         tag: '"would love to be hosted" by AND "Thanks for applying"',
       });

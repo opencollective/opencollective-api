@@ -77,9 +77,13 @@ const getPlatformConstants = (checkIfMigrated: () => boolean) => ({
     return [this.OCICollectiveId, this.OfitechCollectiveId, this.OficoCollectiveId];
   },
 
+  get FiscalHostOSCCollectiveId() {
+    return 11004;
+  },
+
   get FirstPartyHostCollectiveIds() {
     return [
-      11004, // opensource
+      this.FiscalHostOSCCollectiveId,
       9807, // europe
       729588, // oce-foundation-eur
       696998, // oce-foundation-usd
