@@ -1,4 +1,4 @@
-import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSONObject, GraphQLNonEmptyString } from 'graphql-scalars';
 
 import { TransactionsImportRow } from '../../../models';
@@ -21,12 +21,6 @@ export const GraphQLTransactionsImportRow = new GraphQLObjectType({
     sourceId: {
       type: new GraphQLNonNull(GraphQLNonEmptyString),
       description: 'The source id of the row',
-    },
-    isDismissed: {
-      type: new GraphQLNonNull(GraphQLBoolean),
-      description: 'Whether the row has been dismissed',
-      deprecationReason: '2025-01-17: isDismissed is deprecated, use status instead',
-      resolve: (row: TransactionsImportRow) => row.status === 'IGNORED',
     },
     status: {
       type: new GraphQLNonNull(GraphQLTransactionsImportRowStatus),
