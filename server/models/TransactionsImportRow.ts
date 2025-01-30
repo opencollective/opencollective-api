@@ -33,6 +33,7 @@ class TransactionsImportRow extends Model<
   declare public isUnique: boolean;
   declare public currency: SupportedCurrency;
   declare public rawValue: Record<string, string>;
+  declare public note: string | null;
   declare public createdAt: Date;
   declare public updatedAt: Date;
   declare public deletedAt: Date | null;
@@ -108,6 +109,13 @@ TransactionsImportRow.init(
     rawValue: {
       type: DataTypes.JSONB,
       allowNull: true,
+    },
+    note: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      validate: {
+        len: [0, 5000],
+      },
     },
     createdAt: {
       type: DataTypes.DATE,

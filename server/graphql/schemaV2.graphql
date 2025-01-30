@@ -7204,6 +7204,11 @@ type TransactionsImportRow {
   amount: Amount!
 
   """
+  Optional note for the row
+  """
+  note: String
+
+  """
   The expense associated with the row
   """
   expense: Expense
@@ -23168,6 +23173,11 @@ input TransactionsImportRowUpdateInput {
   The expense associated with the row
   """
   expense: ExpenseReferenceInput
+
+  """
+  Optional note for the row
+  """
+  note: String
 }
 
 """
