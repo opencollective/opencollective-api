@@ -1,39 +1,43 @@
 'use strict';
 
+import logger from '../server/lib/logger';
+
+import { mergeDataDeep } from './lib/helpers';
+
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.sequelize.query(`
-      WITH updated_collectives AS (
-        UPDATE "Collectives"
-        SET "data" =
-          -- Merge "data" into nested data, to make sure newly created keys aren't dropped
-          (data->'data' || data)
-          -- Make sure any policy created in (data->'data'->'policies'->'EXPENSE_POLICIES') is merged with the top level policies
-          || JSONB_BUILD_OBJECT(
-            'policies',
-            COALESCE(data->'data'->'policies', '{}') || COALESCE(data->'policies', '{}')
-          )
-        WHERE data ? 'data'
-        RETURNING id, data
-      ) INSERT INTO "MigrationLogs" ("type", "description", "createdAt", "data")
-        SELECT
-          'MIGRATION',
-          '20250130072503-fix-nested-collecives-data',
-          NOW(),
-          CASE WHEN (SELECT COUNT(*) FROM updated_collectives) = 0
-            THEN '[]'
-            ELSE jsonb_agg(jsonb_build_object('id', id, 'data', data))
-          END
-        FROM updated_collectives
-        RETURNING id
-    `);
+    const page = 1;
+    while (true) {
+      const collectives = await queryInterface.sequelize.query(
+        `SELECT id, data FROM "Collectives" WHERE data ? 'data' LIMIT 500`,
+        { type: Sequelize.QueryTypes.SELECT },
+      );
 
-    await queryInterface.sequelize.query(`
-      UPDATE "Collectives"
-      SET "data" = data - 'data'
-      WHERE data ? 'data'
-    `);
+      if (collectives.length === 0) {
+        break;
+      }
+
+      logger.info(`Processing page ${page} with ${collectives.length} collectives`);
+      const updates = [];
+      for (const collective of collectives) {
+        const newData = mergeDataDeep(collective.data);
+        updates.push({ id: collective.id, data: collective.data, newData });
+        await queryInterface.sequelize.query(`UPDATE "Collectives" SET data = :newData WHERE id = :id`, {
+          replacements: { newData: JSON.stringify(newData), id: collective.id },
+        });
+      }
+
+      logger.info(`Deleting nested data for ${updates.length} collectives`);
+      await queryInterface.sequelize.query(
+        `
+        UPDATE "Collectives"
+        SET data = data - 'data'
+        WHERE id IN (:ids)
+      `,
+        { replacements: { ids: updates.map(update => update.id) } },
+      );
+    }
   },
 
   async down(queryInterface, Sequelize) {
