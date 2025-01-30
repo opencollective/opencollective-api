@@ -1007,7 +1007,15 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(result.errors).to.not.exist;
 
       await collective.reload();
-      expect(collective.data.policies).to.deep.equal({ [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true } });
+      expect(collective.data.policies).to.deep.equal({
+        [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true },
+        // Expense policies from `expensePolicy` field set at account creation
+        [POLICIES.EXPENSE_POLICIES]: {
+          invoicePolicy: 'Be reasonable',
+          receiptPolicy: 'Be reasonable',
+          titlePolicy: '',
+        },
+      });
 
       // Check activity
       const activity = await models.Activity.findOne({
@@ -1018,8 +1026,25 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(activity).to.exist;
       expect(activity.CollectiveId).to.equal(collective.id);
       expect(activity.data).to.deep.equal({
-        previousData: { policies: {} },
-        newData: { policies: { [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true } } },
+        previousData: {
+          policies: {
+            [POLICIES.EXPENSE_POLICIES]: {
+              invoicePolicy: 'Be reasonable',
+              receiptPolicy: 'Be reasonable',
+              titlePolicy: '',
+            },
+          },
+        },
+        newData: {
+          policies: {
+            [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true },
+            [POLICIES.EXPENSE_POLICIES]: {
+              invoicePolicy: 'Be reasonable',
+              receiptPolicy: 'Be reasonable',
+              titlePolicy: '',
+            },
+          },
+        },
       });
     });
 
@@ -1035,6 +1060,11 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(collective.data.policies).to.deep.eq({
         [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true },
         [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: { numberOfAdmins: 42 },
+        [POLICIES.EXPENSE_POLICIES]: {
+          invoicePolicy: 'Be reasonable',
+          receiptPolicy: 'Be reasonable',
+          titlePolicy: '',
+        },
       });
 
       // Check activity
@@ -1046,11 +1076,25 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(activity).to.exist;
       expect(activity.CollectiveId).to.equal(collective.id);
       expect(activity.data).to.deep.equal({
-        previousData: { policies: { [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true } } },
+        previousData: {
+          policies: {
+            [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true },
+            [POLICIES.EXPENSE_POLICIES]: {
+              invoicePolicy: 'Be reasonable',
+              receiptPolicy: 'Be reasonable',
+              titlePolicy: '',
+            },
+          },
+        },
         newData: {
           policies: {
             [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true },
             [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: { numberOfAdmins: 42 },
+            [POLICIES.EXPENSE_POLICIES]: {
+              invoicePolicy: 'Be reasonable',
+              receiptPolicy: 'Be reasonable',
+              titlePolicy: '',
+            },
           },
         },
       });
@@ -1065,7 +1109,13 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(result.errors).to.not.exist;
 
       await collective.reload();
-      expect(collective.data.policies).to.be.empty;
+      expect(collective.data.policies).to.deep.equal({
+        [POLICIES.EXPENSE_POLICIES]: {
+          invoicePolicy: 'Be reasonable',
+          receiptPolicy: 'Be reasonable',
+          titlePolicy: '',
+        },
+      });
 
       // Check activity
       const activity = await models.Activity.findOne({
@@ -1076,11 +1126,24 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(activity).to.exist;
       expect(activity.CollectiveId).to.equal(collective.id);
       expect(activity.data).to.deep.equal({
-        newData: { policies: {} },
+        newData: {
+          policies: {
+            [POLICIES.EXPENSE_POLICIES]: {
+              invoicePolicy: 'Be reasonable',
+              receiptPolicy: 'Be reasonable',
+              titlePolicy: '',
+            },
+          },
+        },
         previousData: {
           policies: {
             [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true },
             [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: { numberOfAdmins: 42 },
+            [POLICIES.EXPENSE_POLICIES]: {
+              invoicePolicy: 'Be reasonable',
+              receiptPolicy: 'Be reasonable',
+              titlePolicy: '',
+            },
           },
         },
       });
@@ -1095,7 +1158,13 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(result.errors).to.have.lengthOf(1);
 
       await collective.reload();
-      expect(collective.data.policies).to.be.empty;
+      expect(collective.data.policies).to.deep.equal({
+        [POLICIES.EXPENSE_POLICIES]: {
+          invoicePolicy: 'Be reasonable',
+          receiptPolicy: 'Be reasonable',
+          titlePolicy: '',
+        },
+      });
     });
   });
 
