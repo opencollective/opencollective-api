@@ -87,6 +87,7 @@ const getPlatformConstants = (checkIfMigrated: () => boolean) => ({
       9807, // europe
       729588, // oce-foundation-eur
       696998, // oce-foundation-usd
+      766450, // raft
     ];
   },
 });
