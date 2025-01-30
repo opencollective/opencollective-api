@@ -169,6 +169,10 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
             type: new GraphQLNonNull(GraphQLInt),
             description: 'Number of rows that are on hold',
           },
+          pending: {
+            type: new GraphQLNonNull(GraphQLInt),
+            description: 'Number of rows that are pending',
+          },
           invalid: {
             type: new GraphQLNonNull(GraphQLInt),
             description: 'Number of rows that are invalid (e.g. linked but without an expense or order)',

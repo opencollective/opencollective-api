@@ -9,6 +9,9 @@ type TransactionsImportStats = {
   expenses: number;
   orders: number;
   processed: number;
+  pending: number;
+  onHold: number;
+  invalid: number;
 };
 
 export const generateTransactionsImportStatsLoader = () => {
@@ -21,9 +24,10 @@ export const generateTransactionsImportStatsLoader = () => {
         COUNT(row.id) FILTER (WHERE "status" = 'IGNORED' OR "status" = 'LINKED') AS processed,
         COUNT(row.id) FILTER (WHERE "status" = 'LINKED' AND "ExpenseId" IS NULL AND "OrderId" IS NULL) AS invalid,
         COUNT(row.id) FILTER (WHERE "status" = 'IGNORED') AS ignored,
-        COUNT(row.id) FILTER (WHERE "status" = 'ON_HOLD') AS on_hold,
+        COUNT(row.id) FILTER (WHERE "status" = 'ON_HOLD') AS "onHold",
         COUNT(row.id) FILTER (WHERE "ExpenseId" IS NOT NULL) AS expenses,
-        COUNT(row.id) FILTER (WHERE "OrderId" IS NOT NULL) AS orders
+        COUNT(row.id) FILTER (WHERE "OrderId" IS NOT NULL) AS orders,
+        COUNT(row.id) FILTER (WHERE "status" = 'PENDING') AS pending
       FROM "TransactionsImportsRows" row
       WHERE row."TransactionsImportId" IN (:importIds)
       GROUP BY row."TransactionsImportId"
@@ -43,7 +47,8 @@ export const generateTransactionsImportStatsLoader = () => {
         expenses: result['expenses'] || 0,
         orders: result['orders'] || 0,
         processed: result['processed'] || 0,
-        onHold: result['on_hold'] || 0,
+        pending: result['pending'] || 0,
+        onHold: result['onHold'] || 0,
         invalid: result['invalid'] || 0,
       };
     });

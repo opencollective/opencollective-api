@@ -1,9 +1,9 @@
 import config from 'config';
 import type { Request } from 'express';
-import { GraphQLBoolean, GraphQLList, GraphQLNonNull } from 'graphql';
+import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 import { GraphQLJSONObject, GraphQLNonEmptyString } from 'graphql-scalars';
 import GraphQLUpload from 'graphql-upload/GraphQLUpload.js';
-import { isNil, omit, pick } from 'lodash';
+import { omit, pick } from 'lodash';
 
 import { disconnectPlaidAccount } from '../../../lib/plaid/connect';
 import RateLimit from '../../../lib/rate-limit';
@@ -18,6 +18,10 @@ import {
 } from '../../../models';
 import { checkRemoteUserCanUseTransactions } from '../../common/scope-check';
 import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
+import {
+  GraphQLTransactionsImportRowAction,
+  TransactionsImportRowActionTypes,
+} from '../enum/TransactionsImportRowAction';
 import { GraphQLTransactionsImportType } from '../enum/TransactionsImportType';
 import { idDecode } from '../identifiers';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
@@ -30,6 +34,7 @@ import {
   TransactionImportRowGraphQLType,
 } from '../input/TransactionsImportRowUpdateInput';
 import { GraphQLTransactionsImport } from '../object/TransactionsImport';
+import { GraphQLTransactionsImportRow } from '../object/TransactionsImportRow';
 
 const transactionImportsMutations = {
   createTransactionsImport: {
@@ -195,8 +200,22 @@ const transactionImportsMutations = {
     },
   },
   updateTransactionsImportRows: {
-    type: new GraphQLNonNull(GraphQLTransactionsImport),
-    description: 'Update transactions import rows to set new values or mark them as dismissed',
+    type: new GraphQLNonNull(
+      new GraphQLObjectType({
+        name: 'TransactionsImportEditResponse',
+        fields: {
+          import: {
+            type: new GraphQLNonNull(GraphQLTransactionsImport),
+            description: 'Updated import',
+          },
+          rows: {
+            type: new GraphQLNonNull(new GraphQLList(GraphQLTransactionsImportRow)),
+            description: 'The rows updated by the mutation',
+          },
+        },
+      }),
+    ),
+    description: 'Update transactions import rows to set new values or perform actions on them',
     args: {
       id: {
         type: new GraphQLNonNull(GraphQLNonEmptyString),
@@ -206,13 +225,9 @@ const transactionImportsMutations = {
         type: new GraphQLList(new GraphQLNonNull(GraphQLTransactionsImportRowUpdateInput)),
         description: 'Rows to update',
       },
-      dismissAll: {
-        type: GraphQLBoolean,
-        description: 'Whether to ignore all non-processed rows',
-      },
-      restoreAll: {
-        type: GraphQLBoolean,
-        description: 'Whether to restore all dismissed rows',
+      action: {
+        type: new GraphQLNonNull(GraphQLTransactionsImportRowAction),
+        description: 'Action to perform on all non-processed rows',
       },
     },
     resolve: async (
@@ -220,8 +235,7 @@ const transactionImportsMutations = {
       args: {
         id: string;
         rows?: TransactionImportRowGraphQLType[];
-        dismissAll?: boolean;
-        restoreAll?: boolean;
+        action: (typeof TransactionsImportRowActionTypes)[number];
       },
       req: Request,
     ) => {
@@ -236,13 +250,17 @@ const transactionImportsMutations = {
         throw new Unauthorized('You need to be an admin of the account to update a row');
       }
 
-      // Preload orders
-      return sequelize.transaction(async transaction => {
+      const allRowsIds = args.rows?.map(row => idDecode(row.id, 'transactions-import-row')) || [];
+      const updatedImport = await sequelize.transaction(async transaction => {
         // Update rows
-        if (args.rows?.length) {
+        if (args.action === 'UPDATE_ROWS') {
+          if (!allRowsIds.length) {
+            throw new ValidationFailed('You must provide at least one row to update');
+          }
+
           await Promise.all(
-            args.rows.map(async row => {
-              const rowId = idDecode(row.id, 'transactions-import-row');
+            args.rows.map(async (row, index) => {
+              const rowId = allRowsIds[index];
               const where = { id: rowId, TransactionsImportId: importId };
               let values: Parameters<typeof TransactionsImportRow.update>[0] = pick(row, [
                 'sourceId',
@@ -277,11 +295,9 @@ const transactionImportsMutations = {
 
                 values['ExpenseId'] = expense.id;
                 values['status'] = 'LINKED';
-              } else if (!isNil(row.isDismissed)) {
-                values['status'] = row.isDismissed ? 'IGNORED' : 'PENDING';
-                if (row.isDismissed) {
-                  where['status'] = { [Op.not]: 'LINKED' };
-                }
+              } else if (row.status) {
+                values['status'] = row.status;
+                where['status'] = { [Op.not]: 'LINKED' }; // Cannot change the status of a LINKED row
               }
 
               // For plaid imports, users can't change imported data
@@ -290,43 +306,64 @@ const transactionImportsMutations = {
               }
 
               const [updatedCount] = await TransactionsImportRow.update(values, { where, transaction });
-
               if (!updatedCount) {
                 throw new NotFound(`Row not found: ${row.id}`);
               }
             }),
           );
-        } else if (args.dismissAll) {
+        } else if (args.action === 'DISMISS_ALL') {
           await TransactionsImportRow.update(
             { status: 'IGNORED' },
             {
+              transaction,
               where: {
                 TransactionsImportId: importId,
-                status: { [Op.not]: 'IGNORED' },
+                status: { [Op.not]: ['LINKED', 'ON_HOLD'] },
                 ExpenseId: null,
                 OrderId: null,
+                ...(allRowsIds.length ? { id: { [Op.in]: allRowsIds } } : {}),
               },
-              transaction,
             },
           );
-        } else if (args.restoreAll) {
+        } else if (args.action === 'RESTORE_ALL') {
           await TransactionsImportRow.update(
             { status: 'PENDING' },
             {
+              transaction,
               where: {
                 TransactionsImportId: importId,
                 status: 'IGNORED',
+                ...(allRowsIds.length ? { id: { [Op.in]: allRowsIds } } : {}),
               },
-              transaction,
             },
           );
-        } else {
-          throw new ValidationFailed('You must provide at least one row to update or dismiss/restore all rows');
+        } else if (args.action === 'PUT_ON_HOLD_ALL') {
+          await TransactionsImportRow.update(
+            { status: 'ON_HOLD' },
+            {
+              transaction,
+              where: {
+                TransactionsImportId: importId,
+                status: { [Op.not]: ['LINKED', 'ON_HOLD'] },
+                ...(allRowsIds.length ? { id: { [Op.in]: allRowsIds } } : {}),
+              },
+            },
+          );
         }
 
         // Update import
         return transactionsImport.update({ updatedAt: new Date() }, { transaction });
       });
+
+      return {
+        import: updatedImport,
+        rows: await TransactionsImportRow.findAll({
+          where: {
+            TransactionsImportId: importId,
+            ...(allRowsIds.length ? { id: { [Op.in]: allRowsIds } } : {}),
+          },
+        }),
+      };
     },
   },
   deleteTransactionsImport: {

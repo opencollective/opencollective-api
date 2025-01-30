@@ -1,4 +1,4 @@
-import { GraphQLBoolean, GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSONObject, GraphQLNonEmptyString } from 'graphql-scalars';
 
 import { GraphQLAmountInput } from './AmountInput';
@@ -25,11 +25,6 @@ export const GraphQLTransactionsImportRowCreateInput = new GraphQLInputObjectTyp
     rawValue: {
       type: GraphQLJSONObject,
       description: 'The raw value of the row',
-    },
-    isDismissed: {
-      type: new GraphQLNonNull(GraphQLBoolean),
-      description: 'Whether the row is dismissed',
-      defaultValue: false,
     },
   }),
 });
