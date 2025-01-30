@@ -3746,7 +3746,7 @@ Collective.init(
               receiptPolicy: sanitizeHTML(expensePolicy, optsSanitizeHtmlForSimplified),
             },
           };
-          this.setDataValue('data', { data: { ...data, policies: newPolicies } });
+          this.setDataValue('data', { ...data, policies: newPolicies });
         } else {
           const data = this.getDataValue('data');
           const newPolicies = {
@@ -3757,7 +3757,7 @@ Collective.init(
               receiptPolicy: '',
             },
           };
-          this.setDataValue('data', { data: { ...data, policies: newPolicies } });
+          this.setDataValue('data', { ...data, policies: newPolicies });
         }
       },
     },
