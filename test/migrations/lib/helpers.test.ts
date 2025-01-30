@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { moveSection, removeSection } from '../../../migrations/lib/helpers';
+import { mergeDataDeep, moveSection, removeSection } from '../../../migrations/lib/helpers';
 
 describe('migrations/lib/helpers', () => {
   describe('moveSection', () => {
@@ -122,6 +122,157 @@ describe('migrations/lib/helpers', () => {
           ],
         },
       });
+    });
+  });
+
+  describe('mergeDataDeep', () => {
+    it('merges data deep', () => {
+      expect(
+        mergeDataDeep({
+          data: {
+            data: {
+              data: {
+                data: {
+                  data: {
+                    data: {
+                      data: {
+                        data: {
+                          data: {
+                            data: {
+                              policies: {
+                                EXPENSE_POLICIES: {
+                                  titlePolicy: '',
+                                  invoicePolicy: '',
+                                  receiptPolicy: '',
+                                },
+                                EXPENSE_CATEGORIZATION: {
+                                  requiredForCollectiveAdmins: true,
+                                  requiredForExpenseSubmitters: true,
+                                },
+                                EXPENSE_PUBLIC_VENDORS: false,
+                                REQUIRE_2FA_FOR_ADMINS: true,
+                                COLLECTIVE_MINIMUM_ADMINS: {
+                                  freeze: false,
+                                  applies: 'NEW_COLLECTIVES',
+                                  numberOfAdmins: 0,
+                                },
+                                COLLECTIVE_ADMINS_CAN_REFUND: true,
+                                EXPENSE_AUTHOR_CANNOT_APPROVE: {
+                                  enabled: false,
+                                  amountInCents: 0,
+                                  appliesToHostedCollectives: false,
+                                  appliesToSingleAdminCollectives: false,
+                                },
+                              },
+                            },
+                            policies: {
+                              EXPENSE_POLICIES: {
+                                titlePolicy: '',
+                                invoicePolicy: '',
+                                receiptPolicy: '',
+                              },
+                            },
+                          },
+                          policies: {
+                            EXPENSE_POLICIES: {
+                              titlePolicy: '',
+                              invoicePolicy: '',
+                              receiptPolicy: '',
+                            },
+                            REQUIRE_2FA_FOR_ADMINS: true,
+                          },
+                        },
+                        policies: {
+                          EXPENSE_POLICIES: {
+                            titlePolicy: '',
+                            invoicePolicy: '',
+                            receiptPolicy: '',
+                          },
+                        },
+                      },
+                      policies: {
+                        EXPENSE_POLICIES: {
+                          titlePolicy: '',
+                          invoicePolicy: '',
+                          receiptPolicy: '',
+                        },
+                      },
+                    },
+                    policies: {
+                      EXPENSE_POLICIES: {
+                        titlePolicy: '',
+                        invoicePolicy: '',
+                        receiptPolicy: '',
+                      },
+                    },
+                  },
+                  policies: {
+                    EXPENSE_POLICIES: {
+                      titlePolicy: '',
+                      invoicePolicy: '',
+                      receiptPolicy: '',
+                    },
+                  },
+                },
+                policies: {
+                  EXPENSE_POLICIES: {
+                    titlePolicy: '',
+                    invoicePolicy: '',
+                    receiptPolicy: '',
+                  },
+                },
+              },
+              policies: {
+                EXPENSE_POLICIES: {
+                  titlePolicy: '',
+                  invoicePolicy: '',
+                  receiptPolicy: '',
+                },
+              },
+            },
+            policies: {
+              EXPENSE_POLICIES: {
+                titlePolicy: '',
+                invoicePolicy: '',
+                receiptPolicy: '',
+              },
+            },
+          },
+          isTrustedHost: true,
+        }),
+      ).to.deep.eq({
+        isTrustedHost: true,
+        policies: {
+          EXPENSE_POLICIES: {
+            titlePolicy: '',
+            invoicePolicy: '',
+            receiptPolicy: '',
+          },
+          EXPENSE_CATEGORIZATION: {
+            requiredForCollectiveAdmins: true,
+            requiredForExpenseSubmitters: true,
+          },
+          EXPENSE_PUBLIC_VENDORS: false,
+          REQUIRE_2FA_FOR_ADMINS: true,
+          COLLECTIVE_MINIMUM_ADMINS: {
+            freeze: false,
+            applies: 'NEW_COLLECTIVES',
+            numberOfAdmins: 0,
+          },
+          COLLECTIVE_ADMINS_CAN_REFUND: true,
+          EXPENSE_AUTHOR_CANNOT_APPROVE: {
+            enabled: false,
+            amountInCents: 0,
+            appliesToHostedCollectives: false,
+            appliesToSingleAdminCollectives: false,
+          },
+        },
+      });
+    });
+
+    it('works ok with simple cases', () => {
+      expect(mergeDataDeep({ data: { key: 1 }, key: 2 })).to.deep.eq({ key: 2 });
+      expect(mergeDataDeep({ data: { key: 1 } })).to.deep.eq({ key: 1 });
     });
   });
 });

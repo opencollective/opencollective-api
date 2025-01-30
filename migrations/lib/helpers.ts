@@ -1,4 +1,4 @@
-import { cloneDeep, remove } from 'lodash';
+import { cloneDeep, merge, omit, remove } from 'lodash';
 import { QueryInterface } from 'sequelize';
 
 /**
@@ -165,4 +165,17 @@ export const renameInJSONB = (
     "${column}" #> '{${oldPathStr}}', -- Get old value
     ${createIfNotExist.toString()} -- Whether to create the new path if it doesn't exist
   )`;
+};
+
+/**
+ * Takes an object like { data: { data: {data: { key: 1 }}, key: 2, keyAlt: 3 }} and merges it into { data: { key: 2, keyAlt: 3 } }.
+ * Top level properties have priority over nested properties.
+ */
+export const mergeDataDeep = data => {
+  if (!data.data) {
+    return data;
+  } else {
+    const mergedNestedData = mergeDataDeep(data.data);
+    return merge(mergedNestedData, omit(data, 'data'));
+  }
 };
