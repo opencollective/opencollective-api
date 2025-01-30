@@ -7,6 +7,7 @@ import { roles } from '../../constants';
 import ActivityTypes, { TransactionalActivities } from '../../constants/activities';
 import Channels from '../../constants/channels';
 import { CollectiveType } from '../../constants/collectives';
+import PlatformConstants from '../../constants/platform';
 import MemberRoles from '../../constants/roles';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
@@ -580,20 +581,16 @@ export const notifyByEmail = async (activity: Activity) => {
       break;
 
     case ActivityTypes.COLLECTIVE_CREATED:
-      // Disable for the-social-change-nest
-      if (get(activity, 'data.host.slug') === 'the-social-change-nest') {
+      // Disable for OSC and the-social-change-nest, as they're sending `collective.approved.{host}`
+      // templates instead of `collective.created`.
+      if (
+        get(activity, 'data.host.slug') === 'the-social-change-nest' ||
+        get(activity, 'data.host.id') === PlatformConstants.FiscalHostOSCCollectiveId
+      ) {
         break;
       }
       // Normal case
       await notify.collective(activity, { collectiveId: activity.data.collective.id });
-      break;
-
-    case ActivityTypes.COLLECTIVE_CREATED_GITHUB:
-      await notify.collective(activity, {
-        collectiveId: activity.data.collective.id,
-        template: 'collective.created.opensource',
-      });
-      notify.user(activity, { template: 'github.signup' });
       break;
 
     case ActivityTypes.ACTIVATED_COLLECTIVE_AS_HOST:

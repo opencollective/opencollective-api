@@ -66,8 +66,7 @@ See: [docs/deployment.md](docs/deployment.md)
 
 ## Discussion
 
-If you have any questions, ping us on [Discord](https://discord.opencollective.com) or Twitter
-([@opencollect](https://twitter.com/opencollect)).
+If you have any questions, ping us on [Discord](https://discord.opencollective.com).
 
 ## License
 

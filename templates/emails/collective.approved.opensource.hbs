@@ -2,16 +2,10 @@ Subject: Getting started with Open Source Collective
 
 {{> header}}
 
-<h1>Hey {{collective.name}} 👋</h1>
+<p>Hey {{collective.name}} 👋,</p>
 
 <p>
-  {{#if hostPending}}
-    Your {{accountType}} is pending approval for Fiscal Hosting by (<a href="https://opencollective.com/{{host.slug}}">{{host.name}}</a>).
-    Your Host will hold money on behalf of your {{accountType}}.
-    Once approved, your {{accountType}} will be able to receive money.
-  {{else}}
-    Thanks for joining Open Source Collective (OSC), a nonprofit fiscal host supporting thousands of open source projects on the Open Collective platform. At OSC, we help manage your Collective's finances – holding funds, processing expenses, handling taxes, accounting, and more – so you can focus on your code and community.
-  {{/if}}
+  Thanks for joining Open Source Collective (OSC), a nonprofit fiscal host supporting thousands of open source projects on the Open Collective platform. At OSC, we help manage your Collective's finances – holding funds, processing expenses, handling taxes, accounting, and more – so you can focus on your code and community.
 </p>
 
 <p>Here are a few actions to help get you started:</p>
@@ -19,10 +13,6 @@ Subject: Getting started with Open Source Collective
     <li>
       <a href="https://onboarding.oscollective.org/">Watch Our New Collective Onboarding Video</a>: 
       Get a quick overview of who we are, how the Open Collective platform works, the services we offer, and more.
-    </li>
-    <li>
-      <a href="https://opensourcecollective.notion.site/1705ad4acbc180a6a505ded64f7db21b?pvs=105">Fill Out The New Collective Welcome Form</a>: 
-      This form is an opportunity to share more about your Collective and how we can best support it. By taking a few minutes to fill it out, you’ll help shape the support and resources OSC provides to better serve our community.
     </li>
     <li>
       <strong>Get Your First Financial Contributors:</strong> 
@@ -43,6 +33,6 @@ Subject: Getting started with Open Source Collective
     We’ll email you more tips over the next week. In the meantime, if you have any questions, feel free to <strong>email us</strong> at <a href="mailto:hello@oscollective.org">hello@oscollective.org</a> or join the conversation on <strong>Discord</strong> in the <a href="#">#open-source-collective</a> channel.
 </p>
 <p>Warmly,</p>
-<p>The OSC Team – Lauren, Benjam, Sourav, and Grace</p>
+{{> opensourceSignature}}
 
 {{> footer}}

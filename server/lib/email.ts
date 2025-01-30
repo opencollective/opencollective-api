@@ -2,7 +2,7 @@ import config from 'config';
 import debugLib from 'debug';
 import { htmlToText } from 'html-to-text';
 import juice from 'juice';
-import { get, includes, isArray, merge, pick } from 'lodash';
+import { cloneDeep, get, includes, isArray, merge, pick } from 'lodash';
 import nodemailer from 'nodemailer';
 import SMTPTransport from 'nodemailer/lib/smtp-transport';
 
@@ -26,7 +26,7 @@ type SendMessageOptions = Pick<
   replyTo?;
   attachments?;
   sendEvenIfNotProduction?: boolean;
-  type?: EmailTemplates;
+  type?: EmailTemplates | 'onboarding';
   isTransactional?: boolean;
   unsubscribeUrl?: string;
   accountSlug?: string;
@@ -42,7 +42,7 @@ type SendMessageData = {
 } & Record<string, any>;
 
 export const getMailer = () => {
-  if (config.mailpit.client) {
+  if (config.mailpit.client && config.env !== 'production') {
     return nodemailer.createTransport({
       host: '127.0.0.1',
       ignoreTLS: true,
@@ -302,23 +302,8 @@ const generateEmailFromTemplate = (
     }
   }
 
-  if (template === 'ticket.confirmed') {
-    if (slug === 'fearlesscitiesbrussels') {
-      template += '.fearlesscitiesbrussels';
-    }
-    if (eventSlug === 'open-2020-networked-commons-initiatives-9b91f4ca') {
-      template += '.open-2020';
-    }
-  }
-
   if (template === 'collective.approved') {
-    if (['the-social-change-nest'].includes(hostSlug)) {
-      template = `${template}.${hostSlug}`;
-    }
-  }
-
-  if (template === 'collective.created') {
-    if (['opensource', 'the-social-change-nest'].includes(hostSlug)) {
+    if (['the-social-change-nest', 'opensource'].includes(hostSlug)) {
       template = `${template}.${hostSlug}`;
     }
   }
@@ -375,7 +360,7 @@ const generateEmailFromTemplate = (
   return renderedTemplate;
 };
 
-const isNotificationActive = async (template, data) => {
+const isNotificationActive = async (template: string, data: SendMessageData) => {
   if (data.user && data.user.id) {
     return models.Notification.isActive(template, data.user, data.collective);
   } else {
@@ -389,19 +374,23 @@ const isNotificationActive = async (template, data) => {
 const generateEmailFromTemplateAndSend = async (
   template: string,
   recipient: string,
-  data: SendMessageData,
-  options: SendMessageOptions = {},
+  dataInput: SendMessageData,
+  optionsInput: SendMessageOptions = {},
 ) => {
   if (!recipient) {
     logger.info(`Email with template '${template}' not sent. No recipient.`);
     return;
   }
 
-  const notificationIsActive = await isNotificationActive(template, data);
+  const notificationIsActive = await isNotificationActive(template, dataInput);
   if (!notificationIsActive) {
     logger.info(`Email with template '${template}' not sent. Recipient email notification is not active.`);
     return;
   }
+
+  // The function calls below (especially `generateEmailFromTemplate`) mutate the data and options objects.
+  const options = cloneDeep(optionsInput);
+  const data = cloneDeep(dataInput);
 
   try {
     const renderedTemplate = generateEmailFromTemplate(template, recipient, data, options);

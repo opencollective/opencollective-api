@@ -1397,7 +1397,7 @@ class Collective extends Model<
     collectiveAttributes?: any;
     paranoid?: boolean;
     transaction?: SequelizeTransaction;
-  } = {}) {
+  } = {}): Promise<User[]> {
     if (this.type === 'USER' && !this.isIncognito) {
       // Incognito profiles rely on the `Members` entry to know which user it belongs to
       return [
@@ -1431,7 +1431,7 @@ class Collective extends Model<
     collectiveAttributes = [], // Don't include the member collective by default. Pass `null` to fetch all attributes.
     paranoid = true,
     transaction = undefined,
-  } = {}) {
+  } = {}): Promise<User[]> {
     return User.findAll({
       group: ['User.id', 'collective.id'],
       order: [['id', 'ASC']], // Not needed, but it's always nice to have a consistent order (e.g. for tests)

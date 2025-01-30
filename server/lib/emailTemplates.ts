@@ -16,6 +16,7 @@ export const templateNames = [
   'collective.apply',
   'collective.apply.for.host',
   'collective.approved',
+  'collective.approved.opensource',
   'collective.approved.the-social-change-nest',
   'collective.rejected',
   'collective.comment.created',
@@ -25,7 +26,6 @@ export const templateNames = [
   'collective.frozen',
   'collective.unfrozen',
   'collective.unhosted',
-  'collective.created.opensource',
   'collective.expense.approved',
   'collective.expense.approved.for.host',
   'collective.expense.created',
@@ -95,8 +95,6 @@ export const templateNames = [
   'taxform.invalidated',
   'taxform.received',
   'ticket.confirmed',
-  'ticket.confirmed.fearlesscitiesbrussels',
-  'ticket.confirmed.open-2020',
   'order.thankyou',
   'order.thankyou.wwcode',
   'order.thankyou.fr',
@@ -129,6 +127,7 @@ const header = fs.readFileSync(`${templatesPath}/partials/header.hbs`, 'utf8');
 const greeting = fs.readFileSync(`${templatesPath}/partials/greeting.hbs`, 'utf8');
 const footer = fs.readFileSync(`${templatesPath}/partials/footer.hbs`, 'utf8');
 const toplogo = fs.readFileSync(`${templatesPath}/partials/toplogo.hbs`, 'utf8');
+const opensourceSignature = fs.readFileSync(`${templatesPath}/partials/opensource-signature.hbs`, 'utf8');
 const eventsnippet = fs.readFileSync(`${templatesPath}/partials/eventsnippet.hbs`, 'utf8');
 const expenseItems = fs.readFileSync(`${templatesPath}/partials/expense-items.hbs`, 'utf8');
 const eventdata = fs.readFileSync(`${templatesPath}/partials/eventdata.hbs`, 'utf8');
@@ -142,6 +141,7 @@ handlebars.registerPartial('header', header);
 handlebars.registerPartial('greeting', greeting);
 handlebars.registerPartial('footer', footer);
 handlebars.registerPartial('toplogo', toplogo);
+handlebars.registerPartial('opensourceSignature', opensourceSignature);
 handlebars.registerPartial('collectivecard', collectivecard);
 handlebars.registerPartial('linkCollective', linkCollective);
 handlebars.registerPartial('eventsnippet', eventsnippet);
