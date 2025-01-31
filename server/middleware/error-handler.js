@@ -16,6 +16,8 @@ const isKnownError = error => {
   }
 };
 
+const IgnoredErrorCodes = ['ECONNABORTED'];
+
 /**
  * error handler of the api
  */
@@ -58,7 +60,7 @@ export default (err, req, res, next) => {
   logger.error(`Express Error: ${err.message}`);
 
   // Log unknown errors to Sentry
-  if (!isKnownError(err)) {
+  if (!IgnoredErrorCodes.includes(err.code) && !isKnownError(err)) {
     try {
       reportErrorToSentry(err, {
         handler: HandlerType.EXPRESS,
