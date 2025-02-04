@@ -137,7 +137,7 @@ const isDraftPayee = async (req: express.Request, expense: Expense): Promise<boo
 
   if (isEmpty(payeeReference)) {
     if (expense.data?.payee?.email) {
-      return req.remoteUser?.email === expense.data?.payee?.email;
+      return req.remoteUser.email === expense.data.payee.email;
     }
 
     return false;
