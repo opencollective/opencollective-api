@@ -2445,7 +2445,7 @@ export async function editExpense(
     }
     const payoutMethodData = <BankAccountPayoutMethodData>payoutMethod.data;
     const accountHolderName = payoutMethodData?.accountHolderName;
-    const legalName = <string>expenseData.fromCollective.legalName;
+    const legalName = <string>fromCollective.legalName;
     if (accountHolderName && legalName && !isAccountHolderNameAndLegalNameMatch(accountHolderName, legalName)) {
       logger.warn('The legal name should match the bank account holder name (${accountHolderName} ≠ ${legalName})');
     }
