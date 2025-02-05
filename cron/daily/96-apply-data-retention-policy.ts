@@ -7,11 +7,6 @@ import { parseToBoolean } from '../../server/lib/utils';
 import models, { Op, sequelize } from '../../server/models';
 import { runCronJob } from '../utils';
 
-if (!parseToBoolean(process.env.ENABLE_RETENTION_POLICY_CRON)) {
-  logger.info('Retention policy cron is disabled, exiting');
-  process.exit();
-}
-
 enum RetentionPeriod {
   /** IRS retention period is 7 years, France and Germany 10 years */
   FINANCIAL = '10 years',
@@ -30,7 +25,7 @@ const MODEL_RETENTION_PERIODS = new Map<ModelStatic<any>, RetentionPeriod>([
   [models.Expense, RetentionPeriod.FINANCIAL],
   [models.ExpenseItem, RetentionPeriod.FINANCIAL],
   [models.LegalDocument, RetentionPeriod.FINANCIAL],
-  [models.Location, RetentionPeriod.DEFAULT],
+  [models.Location, RetentionPeriod.FINANCIAL],
   [models.OAuthAuthorizationCode, RetentionPeriod.REDUCED],
   [models.Order, RetentionPeriod.FINANCIAL],
   [models.PaymentMethod, RetentionPeriod.FINANCIAL],
@@ -59,8 +54,7 @@ const MODEL_RETENTION_PERIODS = new Map<ModelStatic<any>, RetentionPeriod>([
   // [models.Collective, RetentionPeriod.FINANCIAL],
 ]);
 
-const run = async () => {
-  const mustCommit = parseToBoolean(process.env.DRY_RUN);
+export const runDataRetentionPolicyJob = async (isDryRun = false) => {
   const transaction = await sequelize.transaction();
   for (const [model, retentionPeriod] of MODEL_RETENTION_PERIODS) {
     const result = await model.destroy({
@@ -75,11 +69,11 @@ const run = async () => {
     });
 
     if (result) {
-      logger.info(`${mustCommit ? 'Deleting' : 'Would delete'} ${result} records for ${model.name}`);
+      logger.info(`${!isDryRun ? 'Deleting' : 'Would delete'} ${result} records for ${model.name}`);
     }
   }
 
-  if (mustCommit) {
+  if (!isDryRun) {
     logger.info('Committing retention policy transaction');
     await transaction.commit();
   } else {
@@ -89,5 +83,11 @@ const run = async () => {
 };
 
 if (require.main === module) {
-  runCronJob('apply-data-retention-policy', run, 24 * 60 * 60);
+  if (!parseToBoolean(process.env.ENABLE_RETENTION_POLICY_CRON)) {
+    logger.info('Retention policy cron is disabled, exiting');
+    process.exit();
+  } else {
+    const isDryRun = parseToBoolean(process.env.DRY_RUN);
+    runCronJob('apply-data-retention-policy', () => runDataRetentionPolicyJob(isDryRun), 24 * 60 * 60);
+  }
 }
