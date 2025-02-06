@@ -2,7 +2,6 @@ import { GraphQLBoolean, GraphQLObjectType } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import moment from 'moment';
 
-import { getFxRate } from '../../../lib/currency';
 import type { ContributorsLoaders } from '../../loaders/contributors';
 import { GraphQLAccount } from '../interface/Account';
 
@@ -31,12 +30,12 @@ export const GraphQLContributorProfile = new GraphQLObjectType({
         },
         since: {
           type: GraphQLDateTime,
-          description: 'The date since when to calculate the total',
+          description: 'The date since when to calculate the total. Defaults to the start of the current year.',
         },
       },
       resolve: async ({ account, forAccount }, args, req) => {
         const host = await req.loaders.Collective.byId.load(forAccount.HostCollectiveId);
-        const since = moment(args.since).toISOString() || moment.utc().startOf('year').toISOString();
+        const since = args.since ? moment(args.since).toISOString() : moment.utc().startOf('year').toISOString();
         const stats = await (req.loaders.Contributors as ContributorsLoaders).totalContributedToHost
           .buildLoader({ hostId: host.id, since })
           .load(account.id);
@@ -47,8 +46,11 @@ export const GraphQLContributorProfile = new GraphQLObjectType({
         }
 
         if (args.inCollectiveCurrency && stats.currency !== currency) {
-          const fxRate = await getFxRate(stats.currency, currency);
-          return { value: Math.round(stats.amount * fxRate), currency };
+          const convertParams = { amount: stats.amount, fromCurrency: stats.currency, toCurrency: currency };
+          return {
+            value: await req.loaders.CurrencyExchangeRate.convert.load(convertParams),
+            currency,
+          };
         }
         return { value: stats.amount, currency };
       },
