@@ -1,13 +1,6 @@
 import { GraphQLNonNull, GraphQLObjectType } from 'graphql';
 
 import { getSearchResultFields } from '../../../lib/elastic-search/graphql-search';
-import { GraphQLAccountTypeKeys } from '../enum/AccountType';
-
-export type SearchQueryAccountsResolverArgs = {
-  type: GraphQLAccountTypeKeys;
-  isHost: boolean;
-  tags: string[];
-};
 
 const GraphQLSearchResults = new GraphQLObjectType({
   name: 'SearchResults',
