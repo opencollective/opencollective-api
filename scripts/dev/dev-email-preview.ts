@@ -3,6 +3,7 @@ import path from 'path';
 
 import chokidar from 'chokidar';
 import express from 'express';
+import { mapValues } from 'lodash';
 import { Server as WebSocketServer, WebSocket } from 'ws';
 
 import EmailLib, { getTemplateAttributes } from '../../server/lib/email';
@@ -93,12 +94,44 @@ app.get('/', async (req, res) => {
   }
 });
 
-const renderEmail = (templateName: string) => {
+const renderEmail = (templateName: string, allData) => {
   try {
-    return EmailLib.generateEmailFromTemplate(templateName, mockData.email, mockData);
+    return EmailLib.generateEmailFromTemplate(templateName, allData.email, allData);
   } catch (error) {
     return error.toString();
   }
+};
+
+/**
+ * Generates template data from mockData + query params
+ */
+const getTemplateData = query => {
+  return {
+    ...mockData,
+    ...mapValues(query, value => {
+      // Parse numbers
+      const asNumber = Number(value);
+      if (!isNaN(asNumber)) {
+        return asNumber;
+      }
+
+      // Parse booleans
+      if (value === 'true') {
+        return true;
+      } else if (value === 'false') {
+        return false;
+      }
+
+      // Parse JSON
+      try {
+        return JSON.parse(value);
+      } catch {
+        // Ignore
+      }
+
+      return value;
+    }),
+  };
 };
 
 app.get('/preview/:template', async (req, res) => {
@@ -121,6 +154,7 @@ app.get('/preview/:template', async (req, res) => {
     return;
   }
 
+  const templateData = getTemplateData(req.query);
   res.send(`
     <!DOCTYPE html>
     <html>
@@ -157,18 +191,76 @@ app.get('/preview/:template', async (req, res) => {
           background-color: #f8f9fa;
           padding: 10px;
         }
+        .variables-container {
+          margin-bottom: 20px;
+        }
+        details {
+          margin-bottom: 12px;
+        }
+        hr {
+          margin: 10px 0;
+          border: none;
+          border-top: 1px solid #ddd;
+        }
       </style>
     </head>
     <body>
       <a href="/">&#x2190; Back to templates</a>
       <h1>Rendering template: <code>${safeTemplateName}</code></h1>
+      <div class="variables-container">
+        <h2>Variables</h2>
+        <details>
+          <summary>See all</summary>
+          <pre>${JSON.stringify(mockData, null, 2)}</pre>
+        </details>
+        <form action="/preview/${safeTemplateName}" method="GET">
+          ${Object.keys(req.query)
+            .map(
+              key => `
+            <label for="${key}">${key}</label>
+            <input type="text" name="${key}" value="${req.query[key]}">
+            <button type="button" class="remove-variable" data-key="${key}">Remove</button>
+            <hr>
+          `,
+            )
+            .join('')}
+          <label for="new-field-name">New field</label>
+          <input type="text" name="new-field-name" id="new-field-name" pattern="[a-zA-Z]+" title="Alpha characters only" required>
+          <input type="text" id="new-field-value" required>
+          <hr>
+          <button type="submit">Update</button>
+        </form>
+        <script>
+          document.querySelector('form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const nameInput = document.getElementById('new-field-name');
+            const valueInput = document.getElementById('new-field-value');
+            if (nameInput.value && valueInput.value) {
+              const newName = nameInput.value;
+              const newValue = valueInput.value;
+              const currentUrl = new URL(window.location.href);
+              currentUrl.searchParams.set(newName, newValue);
+              window.location.href = currentUrl.toString();
+            }
+          });
+
+          document.querySelectorAll('.remove-variable').forEach((button) => {
+            button.addEventListener('click', (e) => {
+              const key = e.target.getAttribute('data-key');
+              const currentUrl = new URL(window.location.href);
+              currentUrl.searchParams.delete(key);
+              window.location.href = currentUrl.toString();
+            });
+          });
+        </script>
+      </div>
       <div class="subject-container">
         <span>Subject:</span>
-        <iframe src="/render/${safeTemplateName}/title"></iframe>
+        <iframe src="/render/${safeTemplateName}/title?${new URLSearchParams(req.query as any).toString()}"></iframe>
       </div>
-      <iframe class="content-preview" src="/render/${safeTemplateName}"></iframe>
+      <iframe class="content-preview" src="/render/${safeTemplateName}?${new URLSearchParams(req.query as any).toString()}"></iframe>
       <h2>Text version</h2>
-      <pre class="text-preview">${renderEmail(safeTemplateName).text}</pre>
+      <pre class="text-preview">${renderEmail(safeTemplateName, templateData).text}</pre>
     </body>
     </html>
   `);
@@ -181,7 +273,8 @@ app.get('/render/:template', async (req, res) => {
       throw new Error(`Template not found: ${templateName}`);
     }
 
-    const renderResult = renderEmail(templateName);
+    const templateData = getTemplateData(req.query);
+    const renderResult = renderEmail(templateName, templateData);
     const attributes = getTemplateAttributes(renderResult.html);
     res.send(attributes.body);
   } catch (error) {
@@ -204,7 +297,8 @@ app.get('/render/:template', async (req, res) => {
 app.get('/render/:template/title', async (req, res) => {
   const templateName = req.params.template;
   try {
-    const renderResult = renderEmail(templateName);
+    const templateData = getTemplateData(req.query);
+    const renderResult = renderEmail(templateName, templateData);
     const attributes = getTemplateAttributes(renderResult.html);
     res.send(attributes.subject);
   } catch (error) {
