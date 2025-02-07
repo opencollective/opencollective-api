@@ -1,5 +1,5 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLObjectType, GraphQLString } from 'graphql';
-import { get, isEmpty, isNil, mapValues } from 'lodash';
+import { get, isNil, mapValues } from 'lodash';
 
 import POLICIES, { Policies } from '../../../constants/policies';
 import { VirtualCardLimitIntervals } from '../../../constants/virtual-cards';
@@ -156,7 +156,7 @@ export const GraphQLPolicies = new GraphQLObjectType({
             : account;
         let thresholds = await getPolicy(host, POLICIES.CONTRIBUTOR_INFO_THRESHOLDS, req);
         let fxRate = 1;
-        if (!thresholds || isEmpty(thresholds)) {
+        if (!thresholds) {
           fxRate = await getFxRate('USD', account.currency);
           thresholds = DEFAULT_USD_THRESHOLDS;
         } else if (host.currency !== account.currency) {
