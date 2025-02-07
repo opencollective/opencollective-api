@@ -74,6 +74,7 @@ export const loaders = req => {
   // Contributors
   context.loaders.Contributors = {
     forCollectiveId: contributorsLoaders.forCollectiveId(),
+    totalContributedToHost: contributorsLoaders.totalContributedToHost,
   };
 
   // Expense

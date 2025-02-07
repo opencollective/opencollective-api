@@ -1,14 +1,20 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLObjectType, GraphQLString } from 'graphql';
-import { get } from 'lodash';
+import { get, isEmpty, isNil, mapValues } from 'lodash';
 
-import POLICIES from '../../../constants/policies';
+import POLICIES, { Policies } from '../../../constants/policies';
 import { VirtualCardLimitIntervals } from '../../../constants/virtual-cards';
+import { getFxRate } from '../../../lib/currency';
 import { getPolicy } from '../../../lib/policies';
 import { checkScope } from '../../common/scope-check';
 import { GraphQLPolicyApplication } from '../enum/PolicyApplication';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
 import { GraphQLAmount } from './Amount';
+
+const DEFAULT_USD_THRESHOLDS: Policies[POLICIES.CONTRIBUTOR_INFO_THRESHOLDS] = {
+  address: 5000e2,
+  legalName: 250e2,
+};
 
 export const GraphQLPolicies = new GraphQLObjectType({
   name: 'Policies',
@@ -131,6 +137,32 @@ export const GraphQLPolicies = new GraphQLObjectType({
         if (req.remoteUser?.isAdminOfCollectiveOrHost(account) && checkScope(req, 'account')) {
           return getPolicy(account, POLICIES.COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS);
         }
+      },
+    },
+    [POLICIES.CONTRIBUTOR_INFO_THRESHOLDS]: {
+      type: new GraphQLObjectType({
+        name: POLICIES.CONTRIBUTOR_INFO_THRESHOLDS,
+        fields: () => ({
+          legalName: { type: GraphQLInt },
+          address: { type: GraphQLInt },
+        }),
+      }),
+      description:
+        'Contribution threshold to enforce contributor info. This resolver can be called from the collective or the host, when resolved through the collective the thresholds are returned in the collective currency',
+      async resolve(account, args, req) {
+        const host =
+          account.HostCollectiveId && account.HostCollectiveId !== account.id
+            ? await req.loaders.Collective.byId.load(account.HostCollectiveId)
+            : account;
+        let thresholds = await getPolicy(host, POLICIES.CONTRIBUTOR_INFO_THRESHOLDS, req);
+        let fxRate = 1;
+        if (!thresholds || isEmpty(thresholds)) {
+          fxRate = await getFxRate('USD', account.currency);
+          thresholds = DEFAULT_USD_THRESHOLDS;
+        } else if (host.currency !== account.currency) {
+          fxRate = await getFxRate(host.currency, account.currency);
+        }
+        return mapValues(thresholds, threshold => (isNil(threshold) ? null : Math.round(threshold * fxRate)));
       },
     },
   }),
