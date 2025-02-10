@@ -10,6 +10,7 @@ import { generateHostFeeAmountForTransactionLoader } from '../server/graphql/loa
 import { getHostTransactionsCsvAsAdmin } from '../server/lib/csv';
 import emailLib from '../server/lib/email';
 import { getBackersStats, getHostedCollectives, sumTransactions } from '../server/lib/hostlib';
+import logger from '../server/lib/logger';
 import { stripHTML } from '../server/lib/sanitize-html';
 import { reportErrorToSentry, reportMessageToSentry } from '../server/lib/sentry';
 import { getPaidTaxTransactions, getTaxesSummary, getTransactions } from '../server/lib/transactions';
@@ -96,7 +97,9 @@ const sendEmail = (emailTemplate, recipients, data, attachments) => {
   }
   debug('email data stats', JSON.stringify(data.stats, null, 2));
   const options = { attachments };
-  return emailLib.send(emailTemplate, recipients, data, options);
+  for (const recipient of recipients) {
+    return emailLib.send(emailTemplate, recipient, data, options);
+  }
 };
 
 async function HostReport(year, month, hostId) {
@@ -130,7 +133,7 @@ async function HostReport(year, month, hostId) {
   const csvFilename = `${moment(d).format(dateFormat)}-transactions.csv`;
   const csvFilenameV2 = `${moment(d).format(dateFormat)}-transactions-v2.csv`;
   const pdfFilename = `${moment(d).format(dateFormat)}-expenses.pdf`;
-  console.log('startDate', startDate, 'endDate', endDate);
+  logger.info('startDate', startDate, 'endDate', endDate);
 
   year = year || startDate.getFullYear();
 
@@ -226,10 +229,11 @@ async function HostReport(year, month, hostId) {
       data.erratumMessage = process.env.ERRATUM_MESSAGE;
       data.erratumNumber = process.env.ERRATUM_NUMBER;
 
+      logger.info('>>> Processing host', host.slug);
+
       if (GENERATE_LEGACY_REPORT) {
         data.legacyReport = true;
         summary.totalHosts++;
-        console.log('>>> Processing host', host.slug);
         const note =
           'using fxrate of the day of the transaction as provided by the ECB. Your effective fxrate may vary.';
         const expensesPerPage = 30; // number of expenses per page of the Table Of Content (for PDF export)
@@ -281,7 +285,7 @@ async function HostReport(year, month, hostId) {
         collectivesById = keyBy(collectives, 'id');
         data.stats.totalCollectives = collectives.filter(c => c.type === 'COLLECTIVE').length;
         summary.totalCollectives += data.stats.totalCollectives;
-        console.log(`>>> processing ${data.stats.totalCollectives} collectives`);
+        logger.info(`>>> processing ${data.stats.totalCollectives} collectives`);
         let transactions = await getTransactions(Object.keys(collectivesById), startDate, endDate, {
           where: {
             HostCollectiveId: host.id,
@@ -311,10 +315,10 @@ async function HostReport(year, month, hostId) {
 
         const paidTaxTransactions = await getPaidTaxTransactions(host.id, startDate, endDate);
         if (!transactions.length && !paidTaxTransactions.length) {
-          console.log(`No transaction found for ${host.slug}, skipping`);
+          logger.info(`No transaction found for ${host.slug}, skipping`);
           return;
         }
-        console.log(`>>> processing ${transactions.length + paidTaxTransactions.length} transactions`);
+        logger.info(`>>> processing ${transactions.length + paidTaxTransactions.length} transactions`);
         await enrichTransactionsWithHostFee(transactions);
         transactions = await Promise.all(transactions.map(processTransaction));
 
@@ -508,7 +512,7 @@ async function HostReport(year, month, hostId) {
       const admins = await getHostAdminsEmails(host);
       await sendEmail(emailTemplate, admins, data, attachments);
     } catch (e) {
-      console.error(`Error in processing host ${host.slug}:`, e);
+      logger.error(`Error in processing host ${host.slug}:`, e);
       reportErrorToSentry(e);
       debug(e);
     }
@@ -532,12 +536,12 @@ async function HostReport(year, month, hostId) {
     type: sequelize.QueryTypes.SELECT,
     replacements: { startDate: startDate, endDate: endDate },
   });
-  console.log(`Preparing the ${reportName} for ${hosts.length} hosts`);
+  logger.info(`Preparing the ${reportName} for ${hosts.length} hosts`);
 
   for (const host of hosts) {
     await processHost(host);
   }
-  console.log('>>> All done. Exiting.');
+  logger.info('>>> All done. Exiting.');
 }
 
 export default HostReport;
