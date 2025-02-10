@@ -479,10 +479,7 @@ Subject: {{#if erratumMessage}}Erratum{{#if erratumNumber}} {{erratumNumber}}{{/
 {{else}}
   <div>
     <p>{{> greeting}}</p>
-    <p>{{host.name}}'s {{#if month}}monthly{{else}}yearly{{/if}} stats report from {{moment startDate}} to
-      {{moment endDateIncluded}} has been generated. This report provides insights into your impact and activity
-      over the past {{#if month}}month{{else}}year{{/if}}.
-    </p>
+    <p>{{host.name}}'s {{#if month}}monthly{{else}}yearly{{/if}} stats report from {{moment startDate}} to {{moment endDateIncluded}} has been generated.</p>
     <center style="margin: 30px 0;">
       <a class="btn blue" href="{{config.host.website}}/dashboard/{{host.slug}}/reports/transactions/{{reportSlug}}">
         {{#if month}}
