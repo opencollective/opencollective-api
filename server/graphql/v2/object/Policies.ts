@@ -12,7 +12,7 @@ import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAmount } from './Amount';
 
 const DEFAULT_USD_THRESHOLDS: Policies[POLICIES.CONTRIBUTOR_INFO_THRESHOLDS] = {
-  address: 5000e2,
+  address: 500e2,
   legalName: 250e2,
 };
 
