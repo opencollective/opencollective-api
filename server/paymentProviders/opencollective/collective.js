@@ -22,16 +22,25 @@ paymentMethodProvider.getBalance = (paymentMethod, parameters = {}) => {
 };
 
 paymentMethodProvider.processOrder = async order => {
-  if (!order.fromCollective.isActive) {
-    throw new Error('Cannot use the Open Collective payment method if not active.');
-  } else if (!order.paymentMethod) {
+  if (!order.paymentMethod) {
     throw new Error('No payment method set on this order');
-  } else if (order.paymentMethod.CollectiveId !== order.fromCollective.id) {
-    throw new Error('Cannot use the Open Collective payment method to make a payment on behalf of another collective');
   }
 
+  // The `FromCollectiveId` in the order is not the same as the `CollectiveId` of
+  // the Collective payment method if we're using a gift card.
+  const paymentMethodCollective = await order.paymentMethod.getCollective();
+  if (!paymentMethodCollective.isActive) {
+    throw new Error('Cannot use the Open Collective payment method if not active.');
+  }
+
+  // TODO: We need to make sure that the condition below somehow still applies, with some safe
+  // exceptions for Gift Cards.
+  /* else if (order.paymentMethod.CollectiveId !== order.fromCollective.id) {
+    throw new Error('Cannot use the Open Collective payment method to make a payment on behalf of another collective');
+  }*/
+
   // Get the host of the fromCollective and collective
-  const fromCollectiveHost = await order.fromCollective.getHostCollective();
+  const fromCollectiveHost = await paymentMethodCollective.getHostCollective();
   const host = await order.collective.getHostCollective();
   if (!fromCollectiveHost) {
     throw new Error('Cannot use the Open Collective payment method without an Host.');

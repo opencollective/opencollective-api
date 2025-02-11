@@ -5,6 +5,7 @@ import sanitize from 'sanitize-html';
 import { v4 as uuid } from 'uuid';
 
 import { activities } from '../../constants';
+import { CollectiveType } from '../../constants/collectives';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import { ValidationFailed } from '../../graphql/errors';
 import cache from '../../lib/cache';
@@ -208,12 +209,16 @@ export async function bulkCreateGiftCards(collective, args, remoteUser, count) {
 
   // Load source payment method, ensure there is enough funds on it
   const sourcePaymentMethod = await getSourcePaymentMethodFromCreateArgs(args, collective);
+  console.log('Hello0');
   const giftCardCurrency = getCurrencyFromCreateArgs(args, collective);
+  console.log('Hello');
   await checkSourcePaymentMethodBalance(sourcePaymentMethod, totalAmount, giftCardCurrency);
+  console.log('Hello2');
 
   const giftCardsParams = times(count, () => {
     return getCreateParams(args, collective, sourcePaymentMethod, remoteUser);
   });
+  console.log('Hellozz');
   const giftCards = await models.PaymentMethod.bulkCreate(giftCardsParams);
   registerCreateInCache(args.CollectiveId, giftCards.length);
   return giftCards;
@@ -293,13 +298,26 @@ async function checkSourcePaymentMethodBalance(paymentMethod, amount, giftCardCu
     return;
   }
 
+  // Return type is inconsistent, see https://github.com/opencollective/opencollective/issues/1596
+  const balanceAmount = typeof balance === 'number' ? balance : balance.amount;
+  const balanceCurrency = typeof balance === 'number' ? paymentMethod.currency : balance.currency;
+
   // Convert amounts if not the same currency
-  const fxRate = await currency.getFxRate(giftCardCurrency, balance.currency);
+  const fxRate = await currency.getFxRate(giftCardCurrency, balanceCurrency);
   const totalAmountInPaymentMethodCurrency = Math.round(amount * fxRate);
 
+  // For balance-based gift cards, we don't really care about the balance since it's dynamic. We should just display a warning
+  // and let the user create the gift cards anyway.
+  if (
+    paymentMethod.service === PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE &&
+    paymentMethod.type === PAYMENT_METHOD_TYPE.COLLECTIVE
+  ) {
+    return;
+  }
+
   // Check balance
-  if (totalAmountInPaymentMethodCurrency > balance.amount) {
-    const currentBalanceDetails = `Current balance is ${formatCurrency(balance.amount, balance.currency)}`;
+  if (totalAmountInPaymentMethodCurrency > balanceAmount) {
+    const currentBalanceDetails = `Current balance is ${formatCurrency(balanceAmount, balanceCurrency)}`;
     throw new Error(`There is not enough funds on this PaymentMethod. ${currentBalanceDetails}`);
   }
 
@@ -307,7 +325,7 @@ async function checkSourcePaymentMethodBalance(paymentMethod, amount, giftCardCu
   const existingTotal = await getTotalAmountAllocatedForGiftCards(paymentMethod);
   if (existingTotal + totalAmountInPaymentMethodCurrency > paymentMethod.initialBalance) {
     const initialBalanceStr = formatCurrency(paymentMethod.initialBalance, paymentMethod.currency);
-    const alreadyCreatedAmountStr = formatCurrency(existingTotal, balance.currency);
+    const alreadyCreatedAmountStr = formatCurrency(existingTotal, balanceCurrency);
     const currentBalanceDetails = `Initial balance is ${initialBalanceStr}`;
     const alreadyCreatedDetails = `you have already created ${alreadyCreatedAmountStr} worth of gift cards`;
     throw new Error(
@@ -417,8 +435,13 @@ function getCreateParams(args, collective, sourcePaymentMethod, remoteUser) {
   args.currency = getCurrencyFromCreateArgs(args, collective);
 
   // Ensure sourcePaymentMethod type is supported
-  if (!['creditcard', 'prepaid'].includes(sourcePaymentMethod.type)) {
+  if (!['creditcard', 'prepaid', 'collective'].includes(sourcePaymentMethod.type)) {
     throw new Error('Only prepaid and creditcard can be used as gift cards source payment methods');
+  }
+
+  // Limit the collective payment method to funds
+  if (sourcePaymentMethod.type === PAYMENT_METHOD_TYPE.COLLECTIVE && collective.type !== CollectiveType.FUND) {
+    throw new Error('Collective payment methods can only be used as gift cards source payment methods by funds');
   }
 
   // Ensure amount or monthlyLimitPerMember are valid
