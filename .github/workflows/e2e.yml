@@ -4,7 +4,7 @@ on: [push]
 
 env:
   TZ: UTC
-  OC_ENV: ci
+  OC_ENV: e2e
   NODE_ENV: test
   WEBSITE_URL: http://localhost:3000
   IMAGES_URL: http://localhost:3001
