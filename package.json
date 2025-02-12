@@ -250,6 +250,7 @@
     "prettier:write": "npm run prettier -- --write",
     "script": "babel-node --extensions .js,.ts $1",
     "search": "./scripts/dev/run-docker.sh compose -f docker-compose.dev.yml --profile search up",
+    "minio": "./scripts/dev/run-docker.sh compose -f docker-compose.dev.yml --profile uploads up",
     "sequelize": "babel-node --extensions .js,.ts -- ./node_modules/.bin/sequelize --config config/sequelize-cli.js",
     "start": "node ./dist/index.js",
     "start:e2e": "TZ=UTC NODE_ENV=production OC_ENV=e2e E2E_TEST=1 npm-run-all db:restore:e2e db:migrate build start:e2e:server",

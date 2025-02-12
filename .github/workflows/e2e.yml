@@ -29,8 +29,6 @@ env:
   TERM: xterm
   STRIPE_WEBHOOK_KEY: ${{ secrets.STRIPE_WEBHOOK_KEY }}
   STRIPE_WEBHOOK_SIGNING_SECRET: ${{ secrets.STRIPE_WEBHOOK_SIGNING_SECRET }}
-  AWS_KEY: ${{ secrets.AWS_KEY }}
-  AWS_SECRET: ${{ secrets.AWS_SECRET }}
 
 jobs:
   e2e:
@@ -154,6 +152,10 @@ jobs:
       - name: Build (api)
         if: steps.api-build.outputs.cache-hit != 'true'
         run: npm run build
+
+      - # We start MinIO here because Github Actions `services` doesn't support `command`. See https://stackoverflow.com/questions/64031598/creating-a-minios3-container-inside-a-github-actions-yml-file
+        name: Start MinIO
+        run: npm run minio -- -d
 
       # Prepare Frontend
 

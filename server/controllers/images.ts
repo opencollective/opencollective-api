@@ -1,6 +1,9 @@
+import config from 'config';
+
 import { SUPPORTED_FILE_KINDS } from '../constants/file-kind';
 import s3 from '../lib/awsS3';
 import errors from '../lib/errors';
+import logger from '../lib/logger';
 import UploadedFile, { SUPPORTED_FILE_TYPES } from '../models/UploadedFile';
 import { MulterFile } from '../types/Multer';
 
@@ -56,7 +59,11 @@ export default async function uploadImage(req, res, next) {
   }
 
   if (!s3) {
-    return next(new errors.ServerError('S3 service object not initialized'));
+    if (config.env !== 'production') {
+      logger.error('S3 service object not initialized. In dev or test environments, use [minio](/docs/s3.md).');
+    }
+
+    return next(new errors.ServerError('File uploads are currently disabled'));
   }
 
   // Rate limit
