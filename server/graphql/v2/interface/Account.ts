@@ -740,6 +740,11 @@ const accountFieldsDefinition = () => ({
       searchTerm: {
         type: GraphQLString,
       },
+      orderBy: {
+        type: new GraphQLNonNull(GraphQLOrderByInput),
+        defaultValue: { field: ORDER_BY_PSEUDO_FIELDS.CREATED_AT, direction: 'DESC' },
+        description: 'Order of the results. Defaults to createdAt DESC.',
+      },
     },
     async resolve(account, args) {
       if (args.limit > 100) {
@@ -768,10 +773,31 @@ const accountFieldsDefinition = () => ({
         };
       }
 
-      const order = [
-        ['createdAt', 'DESC'],
+      let order: Order = [
+        ['createdAt', args.orderBy.direction],
         ['id', 'DESC'],
-      ] as Order;
+      ];
+
+      if (args.orderBy.field) {
+        switch (args.orderBy.field) {
+          case ORDER_BY_PSEUDO_FIELDS.CREATED_AT:
+            break; // Nothing to do, already the default
+          case ORDER_BY_PSEUDO_FIELDS.STARTS_AT:
+            order = [
+              ['startsAt', args.orderBy.direction],
+              ['id', 'DESC'],
+            ];
+            break;
+          case ORDER_BY_PSEUDO_FIELDS.ENDS_AT:
+            order = [
+              ['endsAt', args.orderBy.direction],
+              ['id', 'DESC'],
+            ];
+            break;
+          default:
+            throw new Error(`Ordering by ${args.orderBy.field} is not supported for children accounts`);
+        }
+      }
 
       return {
         nodes: () => models.Collective.findAll({ where, limit: args.limit, offset: args.offset, order }),
