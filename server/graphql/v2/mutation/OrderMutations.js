@@ -1113,6 +1113,15 @@ const orderMutations = {
 
       if (!req.remoteUser?.isAdminOfCollective(host)) {
         throw new Unauthorized('Only host admins can create pending orders');
+      } else if (
+        fromAccount.HostCollectiveId !== host.id &&
+        !req.remoteUser.isRoot() &&
+        !host.data?.allowAddFundsFromAllAccounts &&
+        !host.data?.isTrustedHost
+      ) {
+        throw new Error(
+          "You don't have the permission to create pending contributions from this account. Please contact support@opencollective.com if you want to enable this.",
+        );
       }
 
       // Check accounting category
