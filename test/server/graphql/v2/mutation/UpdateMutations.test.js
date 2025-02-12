@@ -6,13 +6,12 @@ import { assert, createSandbox } from 'sinon';
 import roles from '../../../../../server/constants/roles';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import emailLib from '../../../../../server/lib/email';
-import twitterLib from '../../../../../server/lib/twitter';
 import models from '../../../../../server/models';
 import { randStr } from '../../../../test-helpers/fake-data';
 import * as utils from '../../../../utils';
 
 let host, user1, user2, collective1, event1, update1;
-let sandbox, sendEmailSpy, sendTweetSpy;
+let sandbox, sendEmailSpy;
 
 describe('server/graphql/v2/mutation/UpdateMutations', () => {
   /* SETUP
@@ -24,7 +23,6 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
   before(() => {
     sandbox = createSandbox();
     sendEmailSpy = sandbox.spy(emailLib, 'sendMessage');
-    sendTweetSpy = sandbox.spy(twitterLib, 'tweetStatus');
   });
 
   after(() => sandbox.restore());
@@ -236,11 +234,6 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
           role: roles.BACKER,
           CreatedByUserId: user1.id,
         });
-        await models.ConnectedAccount.create({
-          CollectiveId: collective1.id,
-          service: 'twitter',
-          settings: { updatePublished: { active: true } },
-        });
         result = await utils.graphqlQueryV2(
           publishUpdateMutation,
           { id: idEncode(update1.id, IDENTIFIER_TYPES.UPDATE), notificationAudience: update1.notificationAudience },
@@ -262,12 +255,6 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
         assert.calledWithMatch(sendEmailSpy, user1.email, 'first update & "love"');
         assert.calledWithMatch(sendEmailSpy, user2.email, 'first update & "love"');
         assert.calledWithMatch(sendEmailSpy, user4.email, 'first update & "love"');
-      });
-
-      it('sends a tweet', async () => {
-        expect(sendTweetSpy.callCount).to.equal(1);
-        expect(sendTweetSpy.firstCall.args[1]).to.equal('Latest update from the collective: first update & "love"');
-        expect(sendTweetSpy.firstCall.args[2]).to.contain('/scouts/updates/first-update-and-love');
       });
 
       it('should publish update without notifying anyone', async () => {

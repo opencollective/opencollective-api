@@ -473,7 +473,7 @@ const accountFieldsDefinition = () => ({
   },
   connectedAccounts: {
     type: new GraphQLList(GraphQLConnectedAccount),
-    description: 'The list of connected accounts (Stripe, Twitter, etc ...)',
+    description: 'The list of connected accounts (Stripe, PayPal, etc ...)',
   },
   oAuthApplications: {
     type: GraphQLOAuthApplicationCollection,
@@ -1362,7 +1362,7 @@ export const AccountFields = {
   },
   connectedAccounts: {
     type: new GraphQLList(GraphQLConnectedAccount),
-    description: 'The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".',
+    description: 'The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".',
     // Only for admins, no pagination
     async resolve(collective, _, req) {
       if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'connectedAccounts')) {

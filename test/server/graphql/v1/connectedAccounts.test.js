@@ -27,7 +27,7 @@ describe('server/graphql/v1/connectedAccounts', () => {
     collective.addUserWithRole(backer, 'BACKER');
     connectedAccount = await models.ConnectedAccount.create({
       CollectiveId: collective.id,
-      service: 'twitter',
+      service: 'github',
       username: 'opencollecttest',
     });
     connectedAccountData = {
@@ -74,7 +74,7 @@ describe('server/graphql/v1/connectedAccounts', () => {
         admin,
       );
       expect(res.errors).to.not.exist;
-      expect(res.data.editConnectedAccount.service).to.equal('twitter');
+      expect(res.data.editConnectedAccount.service).to.equal('github');
       expect(res.data.editConnectedAccount.settings).to.deep.equal(connectedAccountData.settings);
     });
   });

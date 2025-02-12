@@ -31,23 +31,16 @@ const doFormatMessage = (activity, format) => {
   let recurringAmount = null;
   let currency = '';
   let description = '';
-  let userTwitter = '';
-  let collectiveTwitter = '';
-  let tweet = '';
 
   // get user data
   if (activity.data.user) {
     userString = getUserString(format, activity.data.fromCollective);
-    if (activity.data.fromCollective) {
-      userTwitter = activity.data.fromCollective.twitterHandle;
-    }
   }
 
   // get collective data
   if (activity.data.collective) {
     collectiveName = activity.data.collective.name;
     ({ publicUrl } = activity.data.collective);
-    collectiveTwitter = activity.data.collective.twitterHandle;
   }
 
   // get host data
@@ -75,9 +68,6 @@ const doFormatMessage = (activity, format) => {
     ({ currency } = activity.data.transaction);
     ({ description } = activity.data.transaction);
   }
-
-  let tweetLink,
-    tweetThis = '';
 
   // get expense data
   if (activity.data.expense) {
@@ -113,16 +103,7 @@ const doFormatMessage = (activity, format) => {
     // Currently used for both new donation and expense
     case activities.COLLECTIVE_TRANSACTION_CREATED:
       if (activity.data.transaction.type === TransactionTypes.CREDIT) {
-        if (userTwitter) {
-          tweet = encodeURIComponent(
-            `@${userTwitter} thanks for your ${formatCurrency(currency, recurringAmount)} contribution to ${
-              collectiveTwitter ? `@${collectiveTwitter}` : collectiveName
-            } 👍 ${publicUrl}`,
-          );
-          tweetLink = linkify(format, `https://twitter.com/intent/tweet?text=${tweet}`, 'Thank that person on Twitter');
-          tweetThis = ` [${tweetLink}]`;
-        }
-        return `New financial contribution: ${userString} gave ${currency} ${amount} to ${collective}${tweetThis}`;
+        return `New financial contribution: ${userString} gave ${currency} ${amount} to ${collective}`;
       } else if (activity.data.transaction.ExpenseId) {
         return `New transaction for paid expense "${description}" (${currency} ${amount}) on ${collective}`;
       } else if (activity.data.transaction.isRefund) {
@@ -147,16 +128,7 @@ const doFormatMessage = (activity, format) => {
       return `Expense paid on ${collective}: ${currency} ${amount} for '${description}'`;
 
     case activities.SUBSCRIPTION_CONFIRMED:
-      if (userTwitter) {
-        tweet = encodeURIComponent(
-          `@${userTwitter} thanks for your ${formatCurrency(currency, recurringAmount)} contribution to ${
-            collectiveTwitter ? `@${collectiveTwitter}` : collectiveName
-          } 👍 ${publicUrl}`,
-        );
-        tweetLink = linkify(format, `https://twitter.com/intent/tweet?text=${tweet}`, 'Thank that person on Twitter');
-        tweetThis = ` [${tweetLink}]`;
-      }
-      return `New subscription confirmed: ${currency} ${recurringAmount} from ${userString} to ${collective}${tweetThis}`;
+      return `New subscription confirmed: ${currency} ${recurringAmount} from ${userString} to ${collective}`;
 
     case activities.COLLECTIVE_CREATED:
       return `New collective created by ${userString}: ${collective} ${hostString}`.trim();
@@ -244,9 +216,7 @@ const linkify = (format, link, text) => {
 const getUserString = (format, userCollective, email) => {
   userCollective = userCollective || {};
   const userString = userCollective.name || userCollective.twitterHandle || 'someone';
-  const link = userCollective.twitterHandle
-    ? `https://twitter.com/${userCollective.twitterHandle}`
-    : userCollective.website;
+  const link = userCollective.website;
 
   let returnVal;
   if (link) {

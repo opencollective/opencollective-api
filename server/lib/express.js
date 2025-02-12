@@ -1,4 +1,3 @@
-import { Strategy as TwitterStrategy } from '@superfaceai/passport-twitter-oauth2';
 import cloudflareIps from 'cloudflare-ip/ips.json';
 import config from 'config';
 import RedisStore from 'connect-redis';
@@ -72,23 +71,6 @@ export default async function (app) {
     passport.use(new GitHubStrategy(get(config, 'github'), verify));
   } else {
     logger.info('Configuration missing for passport GitHubStrategy, skipping.');
-  }
-
-  // Twitter
-  const twitterConfig = get(config, 'twitter');
-  if (has(twitterConfig, 'consumerKey') && has(twitterConfig, 'consumerSecret')) {
-    passport.use(
-      new TwitterStrategy(
-        {
-          clientType: 'confidential',
-          clientID: twitterConfig.consumerKey,
-          clientSecret: twitterConfig.consumerSecret,
-        },
-        verify,
-      ),
-    );
-  } else {
-    logger.info('Configuration missing for passport TwitterStrategy, skipping.');
   }
 
   app.use(cookieParser());

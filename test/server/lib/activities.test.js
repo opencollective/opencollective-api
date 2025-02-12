@@ -46,7 +46,7 @@ describe('server/lib/activities', () => {
     it(`${constants.SUBSCRIPTION_CONFIRMED} with month interval`, () => {
       const { message } = activitiesLib.formatMessageForPublicChannel(activitiesData[16], 'slack');
       expect(message).to.equal(
-        'New subscription confirmed: EUR 12.34/month from <https://twitter.com/xdamman|xdamman> to <https://opencollective.com/yeoman|Yeoman> [<https://twitter.com/intent/tweet?text=%40xdamman%20thanks%20for%20your%20%E2%82%AC12.34%2Fmonth%20contribution%20to%20%40yeoman%20%F0%9F%91%8D%20https%3A%2F%2Fopencollective.com%2Fyeoman|Thank that person on Twitter>]',
+        'New subscription confirmed: EUR 12.34/month from xdamman to <https://opencollective.com/yeoman|Yeoman>',
       );
     });
 

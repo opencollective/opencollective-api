@@ -45,7 +45,7 @@ describe('lib/security/expense', () => {
       // Connected Accounts overlap
       const otherUser = await fakeUser();
       const [ca] = await multiple(fakeConnectedAccount, 2, {
-        service: Service.TWITTER,
+        service: Service.GITHUB,
         username: 'dude',
         CollectiveId: otherUser.collective.id,
       });
