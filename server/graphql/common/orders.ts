@@ -73,19 +73,19 @@ export async function addFunds(order: AddFundsInput, remoteUser: User) {
 
   const { collective, fromCollective, host } = order;
 
-  if (fromCollective.hasBudget()) {
-    // Make sure logged in user is admin of the source profile, unless it doesn't have a budget (user
-    // or host organization without budget activated). It's not an ideal solution though, as spammy
-    // hosts could still use this to pollute user's ledgers.
-    const isAdminOfFromCollective = remoteUser.isRoot() || remoteUser.isAdmin(fromCollective.id);
-    if (!isAdminOfFromCollective && fromCollective.HostCollectiveId !== host.id) {
-      const fromCollectiveHostId = await fromCollective.getHostCollectiveId();
-      if (!remoteUser.isAdmin(fromCollectiveHostId) && !host.data?.allowAddFundsFromAllAccounts) {
-        throw new Error(
-          "You don't have the permission to add funds from accounts you don't own or host. Please contact support@opencollective.com if you want to enable this.",
-        );
-      }
-    }
+  if (!host) {
+    throw new Error('Host not found');
+  } else if (!remoteUser.isAdmin(host.id)) {
+    throw new Error("You don't have the permission to add funds to this host");
+  } else if (
+    fromCollective.HostCollectiveId !== host.id &&
+    !remoteUser.isRoot() &&
+    !host.data?.allowAddFundsFromAllAccounts &&
+    !host.data?.isTrustedHost
+  ) {
+    throw new Error(
+      "You don't have the permission to add funds from accounts you don't own or host. Please contact support@opencollective.com if you want to enable this.",
+    );
   }
 
   if (order.tier && order.tier.CollectiveId !== order.collective.id) {
