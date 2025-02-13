@@ -2,9 +2,11 @@ import { GraphQLIndividual } from '../object/Individual';
 
 import AccountsCollectionQuery from './collection/AccountsCollectionQuery';
 import ActivitiesCollectionQuery from './collection/ActivitiesCollectionQuery';
+import ContributorsCollectionQuery from './collection/ContributorsCollectionQuery';
 import ExpensesCollectionQuery from './collection/ExpensesCollectionQuery';
 import ExpenseTagStatsCollectionQuery from './collection/ExpenseTagStatsCollectionQuery';
 import HostsCollectionQuery from './collection/HostsCollectionQuery';
+import MembersCollectionQuery from './collection/MembersCollectionQuery';
 import getOrdersCollectionQuery from './collection/OrdersCollectionQuery';
 import TagStatsCollectionQuery from './collection/TagStatsCollectionQuery';
 import TransactionGroupCollectionQuery from './collection/TransactionGroupCollectionQuery';
@@ -14,6 +16,7 @@ import VirtualCardRequestsCollectionQuery from './collection/VirtualCardRequests
 import AccountQuery from './AccountQuery';
 import ApplicationQuery from './ApplicationQuery';
 import CollectiveQuery from './CollectiveQuery';
+import ContributorQuery from './ContributorQuery';
 import ConversationQuery from './ConversationQuery';
 import CurrencyExchangeRateQuery from './CurrencyExchangeRateQuery';
 import EventQuery from './EventQuery';
@@ -44,6 +47,8 @@ const query = {
   application: ApplicationQuery,
   collective: CollectiveQuery,
   conversation: ConversationQuery,
+  contributors: ContributorsCollectionQuery,
+  contributor: ContributorQuery,
   currencyExchangeRate: CurrencyExchangeRateQuery,
   event: EventQuery,
   expense: ExpenseQuery,
@@ -54,6 +59,7 @@ const query = {
   hosts: HostsCollectionQuery,
   individual: IndividualQuery,
   memberInvitations: MemberInvitationsQuery,
+  members: MembersCollectionQuery,
   order: OrderQuery,
   orders: getOrdersCollectionQuery(),
   organization: OrganizationQuery,
