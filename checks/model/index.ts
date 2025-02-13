@@ -32,11 +32,10 @@ const allModelChecks: CheckFn[] = [
 export async function checkAllModels() {
   const errors = await runAllChecks(allModelChecks);
   logChecksErrors(errors);
-  await sequelize.close();
-
   return { errors };
 }
 
 if (!module.parent) {
   checkAllModels();
+  sequelize.close();
 }
