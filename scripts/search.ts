@@ -252,7 +252,7 @@ program
     }
 
     const indexInputs = indexes.map(index => ({ index }));
-    const result = await elasticSearchGlobalSearch(indexInputs, query, { account, host, limit, user });
+    const result = await elasticSearchGlobalSearch(query, indexInputs, { account, host, limit, user });
     console.log('Result', JSON.stringify(result, null, 2));
   });
 
