@@ -650,7 +650,7 @@ export const GraphQLHost = new GraphQLObjectType({
 
           try {
             return await host.getAccountForPaymentProvider('stripe');
-          } catch (err) {
+          } catch {
             return null;
           }
         },

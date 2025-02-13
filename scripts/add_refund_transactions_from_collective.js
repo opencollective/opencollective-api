@@ -42,9 +42,9 @@ async function refundTransaction(transaction) {
       // try to do both stripe and database refunds
       const refundTransactions = await paymentMethod.refundTransaction(transaction, { id: UPDATER_USER_ID });
       debugRefund(`Stripe refundTransactions: ${JSON.stringify(refundTransactions, null, 2)}`);
-    } catch (error) {
+    } catch {
       // Error means stripe has already refunded
-      debugRefund(`STRIPE error meaning it was already refund...trying to refund only on our database:`);
+      debugRefund(`STRIPE error meaning it was already refund...trying to refund only on our database`);
       try {
         const refundTransactions = await paymentMethod.refundTransactionOnlyInDatabase(transaction, {
           id: UPDATER_USER_ID,

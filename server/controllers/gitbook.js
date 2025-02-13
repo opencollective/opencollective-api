@@ -17,7 +17,7 @@ export async function search(req, res) {
     });
     const data = await response.json();
     res.status(response.status).send(data);
-  } catch (error) {
+  } catch {
     res.sendStatus(500);
   }
 }

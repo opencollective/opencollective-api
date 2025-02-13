@@ -2,7 +2,7 @@
 
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
-  async up(queryInterface, Sequelize) {
+  async up(queryInterface) {
     await queryInterface.sequelize.query(`
       CREATE INDEX CONCURRENTLY transactions__unrefunded_credits
       ON "Transactions"("CollectiveId", kind, "createdAt")
@@ -18,7 +18,7 @@ module.exports = {
     `);
   },
 
-  async down(queryInterface, Sequelize) {
+  async down(queryInterface) {
     await queryInterface.sequelize.query(`
       DROP INDEX CONCURRENTLY transactions__unrefunded_credits;
     `);

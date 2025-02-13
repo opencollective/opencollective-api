@@ -59,11 +59,19 @@ export default [
       'import/no-commonjs': 'off',
     },
   },
+  // Disable some JS rules that are enforced in TS
+  {
+    files: ['**/*.js'],
+    rules: {
+      'no-unused-vars': 'error',
+    },
+  },
   // New TS rules
   {
     files: ['**/*.ts'],
     rules: {
       '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-unused-vars': 'error',
     },
   },
   // Tests

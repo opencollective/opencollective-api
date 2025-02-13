@@ -143,7 +143,7 @@ export const verify = async (req, res, next) => {
   const rateLimit = new RateLimit(`connected-accounts-verify-${req.ip}`, 60, 10);
   try {
     await rateLimit.registerCallOrThrow();
-  } catch (e) {
+  } catch {
     return next(new errors.RateLimitExceeded());
   }
 
@@ -188,7 +188,7 @@ export const fetchAllRepositories = async (req, res, next) => {
   const rateLimit = new RateLimit(`connected-accounts-fetch-all-repositories-${req.ip}`, 60, 10);
   try {
     await rateLimit.registerCallOrThrow();
-  } catch (e) {
+  } catch {
     return next(new errors.RateLimitExceeded());
   }
 

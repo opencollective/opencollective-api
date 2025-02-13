@@ -28,7 +28,7 @@ function requiredOptions(options, properties) {
         try {
           // Try to parse if JSON
           value = JSON.parse(value);
-        } catch (e) {
+        } catch {
           // ignore error: leave value as it is
         }
         req.required[prop] = value;
