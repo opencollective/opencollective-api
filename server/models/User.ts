@@ -416,7 +416,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     const connectedAccounts = await ConnectedAccount.findAll({
       where: {
         CollectiveId: this.CollectiveId,
-        service: { [Op.in]: [Service.GITHUB, Service.TWITTER, Service.PAYPAL] },
+        service: { [Op.in]: [Service.GITHUB, Service.PAYPAL] },
         username: { [Op.ne]: null },
       },
     });

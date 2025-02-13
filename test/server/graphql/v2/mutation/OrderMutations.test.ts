@@ -15,7 +15,6 @@ import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/ide
 import emailLib from '../../../../../server/lib/email';
 import * as OrderSecurityLib from '../../../../../server/lib/security/order';
 import stripe from '../../../../../server/lib/stripe';
-import twitterLib from '../../../../../server/lib/twitter';
 import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
 import models from '../../../../../server/models';
 import * as StripeCommon from '../../../../../server/paymentProviders/stripe/common';
@@ -811,32 +810,6 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           const result = await callCreateOrder({ order: orderData }, fromUser);
           expect(result.errors).to.exist;
           expect(result.errors[0].message).to.equal('This order requires a payment method');
-        });
-
-        it('sends a tweet', async () => {
-          const newContributor = await fakeUser(null, { twitterHandle: 'johnsmith' }); // Only new contributors get a tweet
-          const collective = await fakeCollective({ twitterHandle: 'test', HostCollectiveId: host.id });
-          await fakeConnectedAccount({
-            CollectiveId: collective.id,
-            service: 'twitter',
-            clientId: 'xxxx',
-            token: 'xxxx',
-            settings: {
-              newBacker: { active: true, tweet: '{backerTwitterHandle} thank you for your {amount} donation!' },
-            },
-          });
-
-          const tweetStatusStub = sandbox.stub(twitterLib, 'tweetStatus');
-          const orderData = {
-            ...validOrderParams,
-            fromAccount: { legacyId: newContributor.CollectiveId },
-            toAccount: { legacyId: collective.id },
-          };
-          const result = await callCreateOrder({ order: orderData }, newContributor);
-          result.errors && console.error(result.errors);
-          expect(result.errors).to.not.exist;
-          await waitForCondition(() => tweetStatusStub.callCount > 0);
-          expect(tweetStatusStub.firstCall.args[1]).to.contain('@johnsmith thank you for your $50.00 donation!');
         });
       });
 

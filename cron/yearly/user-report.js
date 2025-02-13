@@ -6,7 +6,7 @@ import _ from 'lodash';
 import emailLib from '../../server/lib/email';
 import queries from '../../server/lib/queries';
 import { reportErrorToSentry } from '../../server/lib/sentry';
-import { formatArrayToString, formatCurrency, formatCurrencyObject } from '../../server/lib/utils';
+import { formatCurrencyObject } from '../../server/lib/utils';
 import models, { Op, sequelize } from '../../server/models';
 import { runCronJob } from '../utils';
 
@@ -56,40 +56,6 @@ LEFT JOIN "Collectives" c ON ut."CollectiveId" = c.id
 LEFT JOIN "Collectives" host ON ut."HostCollectiveId" = host.id
 WHERE c.type = 'COLLECTIVE'
 `;
-
-const buildTweet = (fromCollective, collectives, totalDonations) => {
-  let tweet;
-  const totalCollectives = Object.keys(collectives).length;
-  const collectivesNames = [],
-    collectivesDonationsNames = [];
-  for (const slug in collectives) {
-    const collective = collectives[slug];
-    const collectiveName = collective.twitterHandle ? `@${collective.twitterHandle}` : collective.name;
-    collectivesNames.push(collectiveName);
-    collectivesDonationsNames.push(
-      `${formatCurrency(collective.totalDonations, collective.currency)} across ${collectiveName}`,
-    );
-  }
-  const pronoun = fromCollective.type === 'USER' ? 'I' : 'we';
-  if (totalCollectives > 2) {
-    tweet = `🎁 In ${year}, ${pronoun} have contributed a total of ${formatCurrencyObject(
-      totalDonations,
-    )} across ${totalCollectives} collectives`;
-    const listCollectives = formatArrayToString(collectivesNames);
-    if (`${tweet}: ${listCollectives}`.length < 120) {
-      tweet = `${tweet}: ${listCollectives}`;
-    }
-  } else if (totalCollectives === 1) {
-    tweet = `🎁 In ${year}, ${pronoun} have contributed ${collectivesDonationsNames[0].replace(
-      ' to ',
-      ' to the ',
-    )} collective`;
-  } else {
-    tweet = `🎁 In ${year}, ${pronoun} have contributed ${formatArrayToString(collectivesDonationsNames)}'s collective`;
-  }
-
-  return tweet;
-};
 
 const getPlatformStats = async () => {
   return {
@@ -189,19 +155,12 @@ const processCollective = collective => {
       delete hosts['stripe'];
       delete hosts['opencollective'];
 
-      const profileUrl = `https://opencollective.com/${collective.slug}`;
-      const tweetText = buildTweet(collective, collectivesBySlug, totalDonations);
-      const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}&url=${profileUrl}`;
       return {
         stats: {
           totalCollectives,
           totalDonations,
           totalDonationsString: formatCurrencyObject(totalDonations),
         },
-        tweet: { text: tweetText.substr(2), url: tweetUrl },
-        fburl: `https://facebook.com/sharer.php?url=${encodeURIComponent(
-          `https://opencollective.com/${collective.slug}?description=${encodeURIComponent(tweetText.substr(2))}`,
-        )}`,
         fees,
         hosts,
         year,

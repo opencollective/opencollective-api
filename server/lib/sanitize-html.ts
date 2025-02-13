@@ -241,7 +241,6 @@ const isTrustedLinkUrl = (url: string): boolean => {
     /^(.+\.)?oceurope.org$/,
     /^(.+\.)?github.com$/,
     /^(.+\.)?meetup.com$/,
-    /^(.+\.)?twitter.com$/,
     /^(.+\.)?wikipedia.com$/,
   ];
 

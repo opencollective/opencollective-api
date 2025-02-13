@@ -349,7 +349,7 @@ export default async app => {
    */
   app.get('/connected-accounts/:service(github|transferwise)', noCache, authentication.authenticateService); // backward compatibility
   app.get(
-    '/connected-accounts/:service(github|twitter|stripe|paypal|transferwise)/oauthUrl',
+    '/connected-accounts/:service(github|stripe|paypal|transferwise)/oauthUrl',
     noCache,
     authentication.authenticateService,
   );
