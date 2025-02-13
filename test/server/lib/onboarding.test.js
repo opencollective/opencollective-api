@@ -121,7 +121,7 @@ describe('server/lib/onboarding', () => {
 
         expect(emailLibSendMessageSpy.callCount).to.equal(1);
 
-        const [to, subject, html, options] = emailLibSendMessageSpy.firstCall.args;
+        const [, subject, html, options] = emailLibSendMessageSpy.firstCall.args;
         expect(options.listId).to.equal(`${collective.slug}::onboarding`);
         expect(options.unsubscribeUrl).to.contain(encodeURIComponent(admin.email));
         expect(options.from).to.equal('Open Collective <support@opencollective.com>');
@@ -145,7 +145,7 @@ describe('server/lib/onboarding', () => {
 
         expect(emailLibSendMessageSpy.callCount).to.equal(1);
 
-        const [to, subject, html, options] = emailLibSendMessageSpy.firstCall.args;
+        const [, subject, html, options] = emailLibSendMessageSpy.firstCall.args;
         expect(options.listId).to.equal(`${collective.slug}::onboarding`);
         expect(options.unsubscribeUrl).to.contain(encodeURIComponent(admin.email));
         expect(options.from).to.equal('Open Collective <support@opencollective.com>');
@@ -162,7 +162,7 @@ describe('server/lib/onboarding', () => {
         threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
 
         const admin = await fakeUser();
-        const collective = await fakeCollective({
+        await fakeCollective({
           admin,
           name: 'webpack',
           isActive: true,

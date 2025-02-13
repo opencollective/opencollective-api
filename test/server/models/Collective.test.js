@@ -607,10 +607,6 @@ describe('server/models/Collective', () => {
       await assertCollectiveCurrency(newCollective, hostUser.collective.currency);
       expect(newCollective.HostCollectiveId).to.equal(hostUser.id);
       expect(newCollective.isActive).to.be.false;
-      const activities = await models.Activity.findAll({
-        where: { CollectiveId: newCollective.id },
-        order: [['createdAt', 'DESC']],
-      });
 
       await utils.waitForCondition(() => sendEmailSpy.callCount === 2, {
         tag: '"would love to be hosted" by AND "Thanks for applying"',

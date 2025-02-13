@@ -40,7 +40,7 @@ module.exports = {
     }
   },
 
-  async down(queryInterface, Sequelize) {
+  async down() {
     console.log('Please look at the migration logs to see the data that was migrated');
   },
 };

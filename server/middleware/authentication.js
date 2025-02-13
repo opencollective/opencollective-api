@@ -269,7 +269,7 @@ export const authenticateService = async (req, res, next) => {
   const rateLimit = new RateLimit(`connected-accounts-authenticate-${req.ip}`, 60, 10);
   try {
     await rateLimit.registerCallOrThrow();
-  } catch (e) {
+  } catch {
     return next(new errors.RateLimitExceeded());
   }
 
@@ -316,7 +316,7 @@ export const authenticateServiceCallback = async (req, res, next) => {
   const rateLimit = new RateLimit(`connected-accounts-callback-${req.ip}`, 60, 10);
   try {
     await rateLimit.registerCallOrThrow();
-  } catch (e) {
+  } catch {
     return next(new errors.RateLimitExceeded());
   }
 
@@ -364,7 +364,7 @@ export const authenticateServiceDisconnect = async (req, res, next) => {
   const rateLimit = new RateLimit(`connected-accounts-disconnect-${req.ip}`, 60, 10);
   try {
     await rateLimit.registerCallOrThrow();
-  } catch (e) {
+  } catch {
     return next(new errors.RateLimitExceeded());
   }
 

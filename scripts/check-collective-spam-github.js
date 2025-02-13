@@ -52,8 +52,7 @@ async function run() {
 
     try {
       await checkGithubExists(getGithubHandleFromUrl(collective.repositoryUrl));
-    } catch (err) {
-      // console.log(err);
+    } catch {
       report(collective, 'NEW');
     }
   }

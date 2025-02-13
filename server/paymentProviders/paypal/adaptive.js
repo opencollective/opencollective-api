@@ -120,7 +120,7 @@ export default {
       // Otherwise we fetch is from PayPal API
       const updatedPM = await getPreapprovalDetailsAndUpdatePaymentMethod(paymentMethod);
       return { amount: updatedPM.data.balance, currency: updatedPM.currency };
-    } catch (e) {
+    } catch {
       return { amount: 0, currency: paymentMethod.currency };
     }
   },

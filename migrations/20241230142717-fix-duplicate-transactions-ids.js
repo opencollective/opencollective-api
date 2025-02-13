@@ -2,7 +2,7 @@
 
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
-  async up(queryInterface, Sequelize) {
+  async up(queryInterface) {
     // Some transactions have a `null` JSON value for `data` (not a SQL NULL), which causes issues
     // when trying to update them. We need to set them to an empty object.
     let start = performance.now();
@@ -54,7 +54,7 @@ module.exports = {
     );
   },
 
-  async down(queryInterface, Sequelize) {
+  async down() {
     console.log('No rollback possible');
   },
 };

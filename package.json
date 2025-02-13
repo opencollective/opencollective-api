@@ -241,6 +241,7 @@
     "graphql:updateV2": "npm run script scripts/update-gql-schemas.ts http://localhost:3060/graphql/v2 server/graphql/schemaV2.graphql && prettier server/graphql/schemaV2.graphql --write",
     "lint": "eslint .",
     "lint:check": "npm run lint -- --quiet",
+    "lint:check:simplified": "npm run lint -- --rule '@typescript-eslint/no-explicit-any: 0' --rule '@graphql-eslint/no-deprecated: 0'",
     "lint:fix": "npm run lint -- --fix",
     "mailpit": "./scripts/dev/run-docker.sh compose -f docker-compose.dev.yml --profile mail up",
     "mail:preview": "npm run script scripts/dev/dev-email-preview.ts",
