@@ -20,11 +20,11 @@ export type CheckFn = (options: { fix: boolean }) => Promise<void>;
 export const runAllChecks = async (checks: CheckFn[]): Promise<Error[]> => {
   const errors = [];
   const options = parseOptions();
-  const start = performance.now();
   for (const check of checks) {
     try {
-      logger.info(`Running: ${check.name} (+${Math.round(performance.now() - start)}ms)`);
+      const start = performance.now();
       await check(options);
+      logger.info(`Checked: ${check.name} (${Math.round(performance.now() - start)}ms)`);
     } catch (error) {
       errors.push(error);
     }
