@@ -30,6 +30,7 @@ import locationLoaders from './location';
 import {
   generateAdminUsersEmailsForCollectiveLoader,
   generateCountAdminMembersOfCollective,
+  generateMemberIsActiveLoader,
   generateRemoteUserIsAdminOfHostedAccountLoader,
   generateRemoteUserIsIndirectFinancialContributor,
 } from './members';
@@ -818,6 +819,7 @@ export const loaders = req => {
   );
 
   context.loaders.Member.adminUserEmailsForCollective = generateAdminUsersEmailsForCollectiveLoader();
+  context.loaders.Member.isActive = generateMemberIsActiveLoader(req);
   context.loaders.Member.remoteUserIdAdminOfHostedAccount = generateRemoteUserIsAdminOfHostedAccountLoader(req);
   context.loaders.Member.countAdminMembersOfCollective = generateCountAdminMembersOfCollective();
   context.loaders.Member.remoteUserIsIndirectFinancialContributor =

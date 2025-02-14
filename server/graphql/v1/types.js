@@ -420,6 +420,13 @@ export const MemberType = new GraphQLObjectType({
           return member.since;
         },
       },
+      isActive: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        description: 'Whether the membership is active. Warning: this definition is subject to change.',
+        async resolve(member, _, req) {
+          return req.loaders.Member.isActive.load(member.id);
+        },
+      },
     };
   },
 });
