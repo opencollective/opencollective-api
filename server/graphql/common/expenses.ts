@@ -137,7 +137,7 @@ const isDraftPayee = async (req: express.Request, expense: Expense): Promise<boo
 
   if (isEmpty(payeeReference)) {
     if (expense.data?.payee?.email) {
-      return req.remoteUser.email === expense.data.payee.email;
+      return req.remoteUser.email === expense.data.payee.email.toLowerCase();
     }
 
     return false;
@@ -2201,6 +2201,9 @@ export async function editExpenseDraft(req: express.Request, expenseData: Expens
 
   if (args.expense.payee && isDifferentInvitedPayee(existingExpense, args.expense.payee)) {
     const payee = args.expense.payee as { email: string; name?: string };
+    if (payee.email) {
+      payee.email = payee.email.toLowerCase();
+    }
     newExpenseValues.data['payee'] = payee;
     newExpenseValues.data['draftKey'] =
       process.env.OC_ENV === 'e2e' || process.env.OC_ENV === 'ci' ? 'draft-key' : uuid();
