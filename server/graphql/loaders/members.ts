@@ -1,8 +1,9 @@
 import DataLoader from 'dataloader';
-import _, { groupBy, keyBy, partition, uniq } from 'lodash';
+import _, { groupBy, keyBy, partition, remove, uniq } from 'lodash';
 
 import MemberRoles from '../../constants/roles';
-import models, { Collective, sequelize } from '../../models';
+import models, { Collective, sequelize, Tier } from '../../models';
+import { MemberModelInterface } from '../../models/Member';
 
 export const generateAdminUsersEmailsForCollectiveLoader = () => {
   return new DataLoader(
@@ -66,6 +67,73 @@ export const generateCountAdminMembersOfCollective = () => {
     });
     const result = _.keyBy(adminsByCollective, 'CollectiveId');
     return collectiveIds.map(collectiveId => (result[collectiveId]?.dataValues as any)?.adminCount || 0);
+  });
+};
+
+export const generateMemberIsActiveLoader = (req: Express.Request) => {
+  return new DataLoader(async (memberIds: number[]): Promise<boolean[]> => {
+    const membersToProcess: MemberModelInterface[] = await req.loaders.Member.byId.loadMany(memberIds);
+    const activeMemberIds = new Set<number>();
+
+    // Members without tiers are always active
+    const membersWithoutTiers = remove(membersToProcess, m => !m.TierId);
+    membersWithoutTiers.forEach(m => activeMemberIds.add(m.id));
+
+    // Otherwise, we need to look at the tier properties
+    const allTierIds = membersToProcess.map(m => m.TierId);
+    if (allTierIds.length > 0) {
+      const tiers: Tier[] = await req.loaders.Tier.byId.loadMany(membersToProcess.map(m => m.TierId));
+      const groupedTiers = keyBy(tiers, 'id');
+
+      // Exclude people that are members of tiers without interval or with interval 'flexible'
+      const membersWithoutIntervalRestriction = remove(
+        membersToProcess,
+        m => !groupedTiers[m.TierId]?.interval || groupedTiers[m.TierId].interval === 'flexible',
+      );
+      membersWithoutIntervalRestriction.forEach(m => activeMemberIds.add(m.id));
+
+      // The members left all have a tier with a monthly or yearly interval, we need to check their last transaction
+      if (membersToProcess.length) {
+        // The query below uses a 45 days grace period because, when contributing for the 1st time after the 15th of the month,
+        // the next charge date is set to the following month (to avoid charging twice in a short period of time). This also
+        // adds a grace period in case the first payment fails.
+        // See `getNextChargeAndPeriodStartDates`
+        const results: [{ id: number }] = await sequelize.query(
+          `
+          SELECT DISTINCT m.id
+          FROM "Members" m
+          INNER JOIN "Collectives" mc
+            ON m."MemberCollectiveId" = mc."id"
+            AND mc."deletedAt" IS NULL
+          INNER JOIN "Orders" o
+            ON mc."id" = o."FromCollectiveId"
+            AND o."CollectiveId" = m."CollectiveId"
+            AND o."TierId" = m."TierId"
+            AND o."deletedAt" IS NULL
+          INNER JOIN "Tiers" t ON o."TierId" = t."id" AND t."deletedAt" IS NULL
+          INNER JOIN "Transactions" tr
+            ON tr."deletedAt" IS NULL
+            AND tr."OrderId" = o."id"
+            AND tr."RefundTransactionId" IS NULL
+            AND CASE
+              WHEN t.interval = 'year' THEN tr."createdAt" >= NOW() - INTERVAL '1 year'
+              WHEN t.interval = 'month' THEN tr."createdAt" >= NOW() - INTERVAL '45 days'
+              ELSE FALSE
+            END
+          WHERE m.id IN (:membersIds)
+          AND m."deletedAt" IS NULL
+        `,
+          {
+            replacements: { membersIds: membersToProcess.map(m => m.id) },
+            type: sequelize.QueryTypes.SELECT,
+          },
+        );
+
+        results.forEach(({ id }) => activeMemberIds.add(id));
+      }
+    }
+
+    return memberIds.map(id => activeMemberIds.has(id));
   });
 };
 
