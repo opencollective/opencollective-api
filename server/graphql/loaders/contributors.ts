@@ -66,6 +66,4 @@ const loaders = {
     ),
 };
 
-export type ContributorsLoaders = typeof loaders;
-
 export default loaders;
