@@ -62,6 +62,22 @@ export const checkCanUseAccountingCategoryForOrder = (
   }
 };
 
+export const canAddFundsFromAccount = (fromCollective: Collective, host: Collective, remoteUser: User) => {
+  if (!remoteUser) {
+    return false;
+  } else if (remoteUser.isRoot()) {
+    return true;
+  } else {
+    return (
+      remoteUser.isAdmin(host.id) &&
+      (fromCollective.HostCollectiveId === host.id ||
+        host.data?.allowAddFundsFromAllAccounts ||
+        host.data?.isFirstPartyHost ||
+        host.data?.isTrustedHost)
+    );
+  }
+};
+
 export async function addFunds(order: AddFundsInput, remoteUser: User) {
   if (!remoteUser) {
     throw new Error('You need to be logged in to add fund to collective');
@@ -77,12 +93,7 @@ export async function addFunds(order: AddFundsInput, remoteUser: User) {
     throw new Error('Host not found');
   } else if (!remoteUser.isAdmin(host.id)) {
     throw new Error("You don't have the permission to add funds to this host");
-  } else if (
-    fromCollective.HostCollectiveId !== host.id &&
-    !remoteUser.isRoot() &&
-    !host.data?.allowAddFundsFromAllAccounts &&
-    !host.data?.isTrustedHost
-  ) {
+  } else if (!canAddFundsFromAccount(fromCollective, host, remoteUser)) {
     throw new Error(
       "You don't have the permission to add funds from accounts you don't own or host. Please contact support@opencollective.com if you want to enable this.",
     );
