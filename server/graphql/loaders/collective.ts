@@ -14,7 +14,7 @@ export default {
    */
   byUserId: (): DataLoader<number, Collective> => {
     return new DataLoader(async userIds => {
-      const collectives = await sequelize.query(
+      const collectives: Array<Collective> = await sequelize.query(
         ` SELECT      c.*, u.id AS __user_id__
           FROM        "Collectives" c
           INNER JOIN  "Users" u ON u."CollectiveId" = c.id
