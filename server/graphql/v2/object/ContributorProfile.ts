@@ -2,7 +2,6 @@ import { GraphQLBoolean, GraphQLObjectType } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import moment from 'moment';
 
-import type { ContributorsLoaders } from '../../loaders/contributors';
 import { GraphQLAccount } from '../interface/Account';
 
 import { GraphQLAmount } from './Amount';
@@ -36,9 +35,11 @@ export const GraphQLContributorProfile = new GraphQLObjectType({
       resolve: async ({ account, forAccount }, args, req) => {
         const host = await req.loaders.Collective.byId.load(forAccount.HostCollectiveId);
         const since = args.since ? moment(args.since).toISOString() : moment.utc().startOf('year').toISOString();
-        const stats = await (req.loaders.Contributors as ContributorsLoaders).totalContributedToHost
-          .buildLoader({ hostId: host.id, since })
-          .load(account.id);
+        const stats = await req.loaders.Contributors.totalContributedToHost.load({
+          CollectiveId: account.id,
+          HostId: host.id,
+          since,
+        });
 
         const currency = args.inCollectiveCurrency ? forAccount.currency : host.currency;
         if (!stats) {
