@@ -1,6 +1,7 @@
 import { cloneDeep, set, update } from 'lodash';
 
-import { TransactionsImport } from '../../models';
+import ActivityTypes from '../../constants/activities';
+import { Activity, TransactionsImport, TransactionsImportRow } from '../../models';
 import ConnectedAccount from '../../models/ConnectedAccount';
 import { TransactionsImportLockedError } from '../../models/TransactionsImport';
 import logger from '../logger';
@@ -99,15 +100,64 @@ const syncTransactionsImport = async (
         /* eslint-enable camelcase */
       });
 
-      const data = response.data; // We're only interested in new transactions for now, but Plaid also returns `modified` and `removed` transactions
-      if (data.removed.length || data.modified.length) {
-        reportMessageToSentry('Plaid returned removed or modified transactions', {
-          extra: {
-            connectedAccountId: connectedAccount.id,
-            removed: data.removed,
-            modified: data.modified,
-          },
+      const data = response.data;
+
+      // Removed transactions
+      if (data.removed.length) {
+        const existingTransactionsRemoved = await TransactionsImportRow.findAll({
+          where: { TransactionsImportId: transactionsImport.id, sourceId: data.removed.map(tr => tr.transaction_id) },
         });
+
+        // Plaid often send events for "removed" transactions that are in fact transactions going from pending to non-pending.
+        // Since we're not recording pending transactions, we can safely ignore these events.
+        // See https://github.com/opencollective/opencollective/issues/7617
+        if (existingTransactionsRemoved.length) {
+          // TODO: Here, we likely want to delete the transactions from the import if it hasn't been
+          // reconciled yet, but we need to be careful with the UX.
+          reportMessageToSentry('Plaid returned removed transactions for synchronized items', {
+            extra: { connectedAccountId: connectedAccount.id, removed: data.removed },
+          });
+        }
+      }
+
+      // Modified transactions
+      const nonPendingModifiedTransactions = data.modified.filter(transaction => !transaction.pending); // We're not syncing pending transactions for now, see https://github.com/opencollective/opencollective/issues/7617
+      if (nonPendingModifiedTransactions.length) {
+        const allSourceIds = nonPendingModifiedTransactions.map(tr => tr.transaction_id);
+        const existingRows = await TransactionsImportRow.findAll({
+          where: { TransactionsImportId: transactionsImport.id, sourceId: allSourceIds },
+        });
+
+        if (existingRows.length !== allSourceIds.length) {
+          reportMessageToSentry('Plaid returned modified transactions for items that have not been synchronized', {
+            extra: {
+              connectedAccountId: connectedAccount.id,
+              modified: data.modified,
+              existingRowsIds: existingRows.map(r => r.sourceId),
+            },
+          });
+        }
+
+        for (const row of existingRows) {
+          const transaction = nonPendingModifiedTransactions.find(tr => tr.transaction_id === row.sourceId);
+          const previousData = row.rawValue;
+          await row.update({
+            description: transaction.name,
+            date: new Date(transaction.date),
+            amount: -floatAmountToCents(transaction.amount),
+            currency: transaction.iso_currency_code,
+            rawValue: transaction as unknown as Record<string, unknown>,
+          });
+
+          await Activity.create({
+            HostCollectiveId: connectedAccount.CollectiveId,
+            CollectiveId: transactionsImport.CollectiveId,
+            ExpenseId: row.ExpenseId,
+            OrderId: row.OrderId,
+            type: ActivityTypes.TRANSACTIONS_IMPORT_ROW_UPDATED,
+            data: { source: 'PLAID', previousData, newData: transaction },
+          });
+        }
       }
 
       const newTransactions = data.added.filter(transaction => !syncedTransactionIds.has(transaction.transaction_id));
