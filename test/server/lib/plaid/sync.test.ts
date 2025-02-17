@@ -6,7 +6,7 @@ import sinon from 'sinon';
 
 import * as PlaidClient from '../../../../server/lib/plaid/client';
 import { syncPlaidAccount } from '../../../../server/lib/plaid/sync';
-import { ConnectedAccount, TransactionsImport } from '../../../../server/models';
+import { Activity, ConnectedAccount, TransactionsImport } from '../../../../server/models';
 import { plaidTransactionsSyncResponse } from '../../../mocks/plaid';
 import {
   fakeActiveHost,
@@ -151,6 +151,67 @@ describe('server/lib/plaid/sync', () => {
           count: 500,
           /* eslint-enable camelcase */
         });
+      });
+
+      it('properly updates modified transactions and creates activities', async () => {
+        // First create a row that we'll modify
+        const existingRow = await fakeTransactionsImportRow({
+          TransactionsImportId: transactionsImport.id,
+          sourceId: 'tx_1',
+          description: 'Original description',
+          date: new Date('2024-01-01'),
+          amount: -1000,
+          currency: 'USD',
+          rawValue: { original: 'data' },
+          isUnique: true,
+        });
+
+        // Setup Plaid response with a modified transaction
+        const modifiedTransaction = {
+          /* eslint-disable camelcase */
+          transaction_id: 'tx_1',
+          name: 'New description',
+          date: '2024-01-02',
+          amount: 20.5,
+          iso_currency_code: 'EUR',
+          pending: false,
+          modified_data: 'new data',
+          /* eslint-enable camelcase */
+        };
+
+        stubPlaidAPI.transactionsSync.resolves({
+          data: {
+            added: [],
+            modified: [modifiedTransaction],
+            removed: [],
+            /* eslint-disable camelcase */
+            next_cursor: 'next_cursor',
+            has_more: false,
+            /* eslint-enable camelcase */
+          },
+        });
+
+        // Sync the account
+        await syncPlaidAccount(connectedAccount);
+
+        // Verify the row was updated
+        await existingRow.reload();
+        expect(existingRow.description).to.eq('New description');
+        expect(existingRow.date.toISOString()).to.include('2024-01-02');
+        expect(existingRow.amount).to.eq(-2050); // Should be in cents and negated
+        expect(existingRow.currency).to.eq('EUR');
+        expect(existingRow.rawValue).to.deep.eq(modifiedTransaction);
+
+        // Verify an activity was created
+        const activities = await Activity.findAll({ where: { CollectiveId: transactionsImport.CollectiveId } });
+        expect(activities).to.have.length(1);
+        expect(activities[0].type).to.eq('transactions.import.updated');
+        expect(activities[0].data.previousData).to.deep.eq({ original: 'data' });
+        expect(activities[0].data.newData).to.deep.eq(modifiedTransaction);
+        expect(activities[0].CollectiveId).to.eq(transactionsImport.CollectiveId);
+        expect(activities[0].HostCollectiveId).to.eq(connectedAccount.CollectiveId);
+        expect(activities[0].ExpenseId).to.eq(existingRow.ExpenseId);
+        expect(activities[0].OrderId).to.eq(existingRow.OrderId);
       });
     });
 

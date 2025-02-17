@@ -78,6 +78,7 @@ enum ActivityTypes {
   COLLECTIVE_TRANSACTION_CREATED = 'collective.transaction.created',
   // Transactions imports
   TRANSACTIONS_IMPORT_CREATED = 'transactions.import.created',
+  TRANSACTIONS_IMPORT_ROW_UPDATED = 'transactions.import.updated',
   // Updates
   COLLECTIVE_UPDATE_CREATED = 'collective.update.created',
   COLLECTIVE_UPDATE_PUBLISHED = 'collective.update.published',

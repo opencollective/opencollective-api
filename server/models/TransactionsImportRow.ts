@@ -6,12 +6,10 @@ import type {
   InferCreationAttributes,
 } from 'sequelize';
 
-import { SupportedCurrency } from '../constants/currencies';
 import { TransactionsImportRowStatus } from '../graphql/v2/enum/TransactionsImportRowStatus';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 import Collective from './Collective';
-import CustomDataTypes from './DataTypes';
 import Expense from './Expense';
 import Order from './Order';
 import TransactionsImport from './TransactionsImport';
@@ -31,8 +29,8 @@ class TransactionsImportRow extends Model<
   declare public date: Date;
   declare public amount: number;
   declare public isUnique: boolean;
-  declare public currency: SupportedCurrency;
-  declare public rawValue: Record<string, string>;
+  declare public currency: string;
+  declare public rawValue: Record<string, unknown>;
   declare public note: string | null;
   declare public createdAt: Date;
   declare public updatedAt: Date;
@@ -100,7 +98,15 @@ TransactionsImportRow.init(
       type: DataTypes.INTEGER,
       allowNull: false,
     },
-    currency: CustomDataTypes(DataTypes).currency,
+    currency: {
+      type: DataTypes.STRING(3),
+      allowNull: false,
+      set(val) {
+        if (val && typeof val === 'string' && val.toUpperCase) {
+          this.setDataValue('currency', val.toUpperCase());
+        }
+      },
+    },
     isUnique: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
