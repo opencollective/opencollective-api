@@ -3,7 +3,7 @@ import type { Request } from 'express';
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 import { GraphQLJSONObject, GraphQLNonEmptyString } from 'graphql-scalars';
 import GraphQLUpload from 'graphql-upload/GraphQLUpload.js';
-import { omit, pick } from 'lodash';
+import { isEmpty, keyBy, mapValues, omit, pick } from 'lodash';
 
 import { disconnectPlaidAccount } from '../../../lib/plaid/connect';
 import RateLimit from '../../../lib/rate-limit';
@@ -24,10 +24,15 @@ import {
 } from '../enum/TransactionsImportRowAction';
 import { GraphQLTransactionsImportType } from '../enum/TransactionsImportType';
 import { idDecode } from '../identifiers';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import {
+  fetchAccountsWithReferences,
+  fetchAccountWithReference,
+  GraphQLAccountReferenceInput,
+} from '../input/AccountReferenceInput';
 import { getValueInCentsFromAmountInput } from '../input/AmountInput';
 import { fetchExpenseWithReference } from '../input/ExpenseReferenceInput';
 import { getDatabaseIdFromOrderReference } from '../input/OrderReferenceInput';
+import { GraphQLTransactionsImportAssignmentInput } from '../input/TransactionsImportAssignmentInput';
 import { GraphQLTransactionsImportRowCreateInput } from '../input/TransactionsImportRowCreateInput';
 import {
   GraphQLTransactionsImportRowUpdateInput,
@@ -98,6 +103,10 @@ const transactionImportsMutations = {
         type: GraphQLNonEmptyString,
         description: 'Name of the import (e.g. "Contributions May 2021", "Tickets for Mautic Conference 2024")',
       },
+      assignments: {
+        type: new GraphQLList(new GraphQLNonNull(GraphQLTransactionsImportAssignmentInput)),
+        description: 'Assignments for the import',
+      },
     },
     resolve: async (_: void, args, req: Request) => {
       checkRemoteUserCanUseTransactions(req);
@@ -109,7 +118,39 @@ const transactionImportsMutations = {
         throw new Unauthorized('You need to be an admin of the account to edit an import');
       }
 
-      return importInstance.update(pick(args, ['source', 'name']));
+      const newValues = pick(args, ['source', 'name']);
+      if (args.assignments) {
+        const loadedAssignments = await Promise.all(
+          args.assignments.map(async assignment => ({
+            ...assignment,
+            accounts: await fetchAccountsWithReferences(assignment.accounts, {
+              throwIfMissing: true,
+              attributes: ['id', 'HostCollectiveId'],
+            }),
+          })),
+        );
+
+        if (
+          loadedAssignments.some(assignment =>
+            assignment.accounts.some(account => account.HostCollectiveId !== importInstance.collective.id),
+          )
+        ) {
+          throw new ValidationFailed('You can only assign accounts from the same host');
+        }
+
+        newValues['settings'] = {
+          ...importInstance.settings,
+          assignments: mapValues(keyBy(loadedAssignments, 'importedAccountId'), assignments =>
+            assignments.accounts.map(account => account.id),
+          ),
+        };
+      }
+
+      if (!isEmpty(newValues)) {
+        await importInstance.update(newValues);
+      }
+
+      return importInstance;
     },
   },
   importTransactions: {

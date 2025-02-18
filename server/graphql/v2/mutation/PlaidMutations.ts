@@ -1,11 +1,13 @@
-import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLLocale } from 'graphql-scalars';
 import { isEmpty, pick } from 'lodash';
 
+import { Service } from '../../../constants/connected-account';
 import PlatformConstants from '../../../constants/platform';
-import { connectPlaidAccount, generatePlaidLinkToken } from '../../../lib/plaid/connect';
+import { connectPlaidAccount, generatePlaidLinkToken, refreshPlaidSubAccounts } from '../../../lib/plaid/connect';
 import { requestPlaidAccountSync } from '../../../lib/plaid/sync';
 import RateLimit from '../../../lib/rate-limit';
+import { ConnectedAccount, TransactionsImport } from '../../../models';
 import { checkRemoteUserCanUseTransactions } from '../../common/scope-check';
 import { Forbidden, RateLimitExceeded } from '../../errors';
 import { GraphQLCountryISO } from '../enum';
@@ -84,6 +86,10 @@ export const plaidMutations = {
         type: GraphQLLocale,
         description: 'The language to use in the Plaid Link flow. Defaults to "en".',
       },
+      accountSelectionEnabled: {
+        type: GraphQLBoolean,
+        description: 'If true, the account selection flow will be enabled. Requires a `transactionImport`.',
+      },
     },
     resolve: async (_, args, req: Express.Request) => {
       checkRemoteUserCanUseTransactions(req);
@@ -115,6 +121,7 @@ export const plaidMutations = {
         products: ['auth', 'transactions'],
         countries: isEmpty(args.countries) ? [host.countryISO || 'US'] : args.countries,
         locale: args.locale || 'en',
+        accountSelectionEnabled: args.accountSelectionEnabled,
       };
 
       if (args.transactionImport) {
@@ -221,6 +228,56 @@ export const plaidMutations = {
 
       await requestPlaidAccountSync(connectedAccount);
       return connectedAccount;
+    },
+  },
+  refreshPlaidAccount: {
+    type: new GraphQLNonNull(GraphQLPlaidConnectAccountResponse),
+    description: 'Refresh the list of sub-accounts & other metadata by re-fetching the account info',
+    args: {
+      connectedAccount: {
+        type: GraphQLConnectedAccountReferenceInput,
+        description: 'The Plaid connected account to refresh',
+      },
+      transactionImport: {
+        type: GraphQLTransactionsImportReferenceInput,
+        description: 'The transactions import to refresh',
+      },
+    },
+    resolve: async (_, args, req) => {
+      checkRemoteUserCanUseTransactions(req);
+
+      let transactionsImport: TransactionsImport | null = null;
+      let connectedAccount: ConnectedAccount | null = null;
+
+      if (args.transactionImport) {
+        transactionsImport = await fetchTransactionsImportWithReference(args.transactionImport, {
+          throwIfMissing: true,
+        });
+        if (transactionsImport) {
+          connectedAccount = await transactionsImport.getConnectedAccount();
+        }
+      } else if (args.connectedAccount) {
+        connectedAccount = await fetchConnectedAccountWithReference(args.connectedAccount, {
+          throwIfMissing: true,
+        });
+
+        transactionsImport = await TransactionsImport.findOne({
+          where: { ConnectedAccountId: connectedAccount.id },
+        });
+      } else {
+        throw new Error('You must provide either a transaction import or a connected account');
+      }
+
+      if (!transactionsImport || !connectedAccount) {
+        throw new Error('Transactions import not found');
+      } else if (!req.remoteUser.isAdmin(connectedAccount.CollectiveId)) {
+        throw new Forbidden('You do not have permission to refresh this account');
+      } else if (connectedAccount.service !== Service.PLAID) {
+        throw new Forbidden('This account is not a Plaid account');
+      }
+
+      await refreshPlaidSubAccounts(connectedAccount, transactionsImport);
+      return { connectedAccount, transactionsImport };
     },
   },
 };

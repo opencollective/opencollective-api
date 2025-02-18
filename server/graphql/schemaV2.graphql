@@ -612,7 +612,7 @@ interface Account {
     The term to search
     """
     searchTerm: String
-    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference. Not existing yet.")
+    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference.")
     tier: [TierReferenceInput]
 
     """
@@ -630,6 +630,11 @@ interface Account {
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
     """
     oppositeAccount: AccountReferenceInput
+
+    """
+    Return only orders made from/to these hosted accounts
+    """
+    hostedAccounts: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
     direction: ExpenseDirection
@@ -653,6 +658,11 @@ interface Account {
     Reference of an account that is the payer of an expense
     """
     account: AccountReferenceInput
+
+    """
+    An alternative to filter by accounts, both cannot be used together
+    """
+    accounts: [AccountReferenceInput]
 
     """
     Return expenses only for this host
@@ -3153,7 +3163,7 @@ type Host implements Account & AccountWithContributions {
     The term to search
     """
     searchTerm: String
-    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference. Not existing yet.")
+    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference.")
     tier: [TierReferenceInput]
 
     """
@@ -3171,6 +3181,11 @@ type Host implements Account & AccountWithContributions {
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
     """
     oppositeAccount: AccountReferenceInput
+
+    """
+    Return only orders made from/to these hosted accounts
+    """
+    hostedAccounts: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
     direction: ExpenseDirection
@@ -3194,6 +3209,11 @@ type Host implements Account & AccountWithContributions {
     Reference of an account that is the payer of an expense
     """
     account: AccountReferenceInput
+
+    """
+    An alternative to filter by accounts, both cannot be used together
+    """
+    accounts: [AccountReferenceInput]
 
     """
     Return expenses only for this host
@@ -5205,7 +5225,7 @@ type PaymentMethod {
     The term to search
     """
     searchTerm: String
-    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference. Not existing yet.")
+    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference.")
     tier: [TierReferenceInput]
 
     """
@@ -5223,6 +5243,11 @@ type PaymentMethod {
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
     """
     oppositeAccount: AccountReferenceInput
+
+    """
+    Return only orders made from/to these hosted accounts
+    """
+    hostedAccounts: [AccountReferenceInput]
   ): OrderCollection
 }
 
@@ -7140,6 +7165,16 @@ type TransactionsImport {
   lastSyncCursor: String
 
   """
+  List of available accounts for the import
+  """
+  plaidAccounts: [PlaidAccount]
+
+  """
+  Assignments for the import, as a map of account id to legacy collective IDs. The `__default__` key can be use to set the default assignment.
+  """
+  assignments: [TransactionsImportAssignment!]!
+
+  """
   Connected account linked to the import
   """
   connectedAccount: ConnectedAccount
@@ -7167,6 +7202,11 @@ type TransactionsImport {
     Search by text
     """
     searchTerm: String
+
+    """
+    Filter rows by plaid account id
+    """
+    accountId: [NonEmptyString]
   ): TransactionsImportRowCollection!
   stats: TransactionsImportStats
 }
@@ -7183,6 +7223,52 @@ enum TransactionsImportType {
   CSV
   MANUAL
   PLAID
+}
+
+type PlaidAccount {
+  accountId: String!
+  mask: String!
+  name: String!
+  officialName: String!
+  subtype: String!
+  type: PlaidAccountType!
+}
+
+enum PlaidAccountType {
+  """
+  Investment
+  """
+  investment
+
+  """
+  Credit
+  """
+  credit
+
+  """
+  Depository
+  """
+  depository
+
+  """
+  Loan
+  """
+  loan
+
+  """
+  Brokerage
+  """
+  brokerage
+
+  """
+  Other
+  """
+  other
+}
+
+type TransactionsImportAssignment {
+  importedAccountId: NonEmptyString!
+  accounts: [Account!]!
 }
 
 """
@@ -7238,6 +7324,11 @@ type TransactionsImportRow {
   The expense associated with the row
   """
   expense: Expense
+
+  """
+  If an account ID is available in the imported row, it will be stored here. Returns the default account ID otherwise.
+  """
+  accountId: String
 
   """
   The raw data of the row
@@ -8394,7 +8485,7 @@ type Bot implements Account {
     The term to search
     """
     searchTerm: String
-    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference. Not existing yet.")
+    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference.")
     tier: [TierReferenceInput]
 
     """
@@ -8412,6 +8503,11 @@ type Bot implements Account {
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
     """
     oppositeAccount: AccountReferenceInput
+
+    """
+    Return only orders made from/to these hosted accounts
+    """
+    hostedAccounts: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
     direction: ExpenseDirection
@@ -8435,6 +8531,11 @@ type Bot implements Account {
     Reference of an account that is the payer of an expense
     """
     account: AccountReferenceInput
+
+    """
+    An alternative to filter by accounts, both cannot be used together
+    """
+    accounts: [AccountReferenceInput]
 
     """
     Return expenses only for this host
@@ -9272,7 +9373,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     The term to search
     """
     searchTerm: String
-    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference. Not existing yet.")
+    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference.")
     tier: [TierReferenceInput]
 
     """
@@ -9290,6 +9391,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
     """
     oppositeAccount: AccountReferenceInput
+
+    """
+    Return only orders made from/to these hosted accounts
+    """
+    hostedAccounts: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
     direction: ExpenseDirection
@@ -9313,6 +9419,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     Reference of an account that is the payer of an expense
     """
     account: AccountReferenceInput
+
+    """
+    An alternative to filter by accounts, both cannot be used together
+    """
+    accounts: [AccountReferenceInput]
 
     """
     Return expenses only for this host
@@ -10699,7 +10810,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     The term to search
     """
     searchTerm: String
-    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference. Not existing yet.")
+    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference.")
     tier: [TierReferenceInput]
 
     """
@@ -10717,6 +10828,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
     """
     oppositeAccount: AccountReferenceInput
+
+    """
+    Return only orders made from/to these hosted accounts
+    """
+    hostedAccounts: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
     direction: ExpenseDirection
@@ -10740,6 +10856,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     Reference of an account that is the payer of an expense
     """
     account: AccountReferenceInput
+
+    """
+    An alternative to filter by accounts, both cannot be used together
+    """
+    accounts: [AccountReferenceInput]
 
     """
     Return expenses only for this host
@@ -11846,7 +11967,7 @@ type Individual implements Account {
     The term to search
     """
     searchTerm: String
-    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference. Not existing yet.")
+    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference.")
     tier: [TierReferenceInput]
 
     """
@@ -11864,6 +11985,11 @@ type Individual implements Account {
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
     """
     oppositeAccount: AccountReferenceInput
+
+    """
+    Return only orders made from/to these hosted accounts
+    """
+    hostedAccounts: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
     direction: ExpenseDirection
@@ -11887,6 +12013,11 @@ type Individual implements Account {
     Reference of an account that is the payer of an expense
     """
     account: AccountReferenceInput
+
+    """
+    An alternative to filter by accounts, both cannot be used together
+    """
+    accounts: [AccountReferenceInput]
 
     """
     Return expenses only for this host
@@ -12971,7 +13102,7 @@ type Organization implements Account & AccountWithContributions {
     The term to search
     """
     searchTerm: String
-    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference. Not existing yet.")
+    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference.")
     tier: [TierReferenceInput]
 
     """
@@ -12989,6 +13120,11 @@ type Organization implements Account & AccountWithContributions {
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
     """
     oppositeAccount: AccountReferenceInput
+
+    """
+    Return only orders made from/to these hosted accounts
+    """
+    hostedAccounts: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
     direction: ExpenseDirection
@@ -13012,6 +13148,11 @@ type Organization implements Account & AccountWithContributions {
     Reference of an account that is the payer of an expense
     """
     account: AccountReferenceInput
+
+    """
+    An alternative to filter by accounts, both cannot be used together
+    """
+    accounts: [AccountReferenceInput]
 
     """
     Return expenses only for this host
@@ -13962,7 +14103,7 @@ type Vendor implements Account & AccountWithContributions {
     The term to search
     """
     searchTerm: String
-    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference. Not existing yet.")
+    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference.")
     tier: [TierReferenceInput]
 
     """
@@ -13980,6 +14121,11 @@ type Vendor implements Account & AccountWithContributions {
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
     """
     oppositeAccount: AccountReferenceInput
+
+    """
+    Return only orders made from/to these hosted accounts
+    """
+    hostedAccounts: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
     direction: ExpenseDirection
@@ -14003,6 +14149,11 @@ type Vendor implements Account & AccountWithContributions {
     Reference of an account that is the payer of an expense
     """
     account: AccountReferenceInput
+
+    """
+    An alternative to filter by accounts, both cannot be used together
+    """
+    accounts: [AccountReferenceInput]
 
     """
     Return expenses only for this host
@@ -14817,6 +14968,11 @@ type Query {
     account: AccountReferenceInput
 
     """
+    An alternative to filter by accounts, both cannot be used together
+    """
+    accounts: [AccountReferenceInput]
+
+    """
     Return expenses only for this host
     """
     host: AccountReferenceInput
@@ -15191,7 +15347,7 @@ type Query {
     The term to search
     """
     searchTerm: String
-    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference. Not existing yet.")
+    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference.")
     tier: [TierReferenceInput]
 
     """
@@ -15209,6 +15365,11 @@ type Query {
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
     """
     oppositeAccount: AccountReferenceInput
+
+    """
+    Return only orders made from/to these hosted accounts
+    """
+    hostedAccounts: [AccountReferenceInput]
   ): OrderCollection!
   organization(
     """
@@ -17599,7 +17760,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     The term to search
     """
     searchTerm: String
-    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference. Not existing yet.")
+    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference.")
     tier: [TierReferenceInput]
 
     """
@@ -17617,6 +17778,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
     """
     oppositeAccount: AccountReferenceInput
+
+    """
+    Return only orders made from/to these hosted accounts
+    """
+    hostedAccounts: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
     direction: ExpenseDirection
@@ -17640,6 +17806,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     Reference of an account that is the payer of an expense
     """
     account: AccountReferenceInput
+
+    """
+    An alternative to filter by accounts, both cannot be used together
+    """
+    accounts: [AccountReferenceInput]
 
     """
     Return expenses only for this host
@@ -18624,7 +18795,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     The term to search
     """
     searchTerm: String
-    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference. Not existing yet.")
+    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference.")
     tier: [TierReferenceInput]
 
     """
@@ -18642,6 +18813,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
     """
     oppositeAccount: AccountReferenceInput
+
+    """
+    Return only orders made from/to these hosted accounts
+    """
+    hostedAccounts: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
     direction: ExpenseDirection
@@ -18665,6 +18841,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     Reference of an account that is the payer of an expense
     """
     account: AccountReferenceInput
+
+    """
+    An alternative to filter by accounts, both cannot be used together
+    """
+    accounts: [AccountReferenceInput]
 
     """
     Return expenses only for this host
@@ -20731,6 +20912,11 @@ type Mutation {
     The language to use in the Plaid Link flow. Defaults to "en".
     """
     locale: Locale
+
+    """
+    If true, the account selection flow will be enabled. Requires a `transactionImport`.
+    """
+    accountSelectionEnabled: Boolean
   ): PlaidLinkTokenCreateResponse!
 
   """
@@ -20767,6 +20953,21 @@ type Mutation {
     """
     connectedAccount: ConnectedAccountReferenceInput!
   ): TransactionsImport!
+
+  """
+  Refresh the list of sub-accounts & other metadata by re-fetching the account info
+  """
+  refreshPlaidAccount(
+    """
+    The Plaid connected account to refresh
+    """
+    connectedAccount: ConnectedAccountReferenceInput
+
+    """
+    The transactions import to refresh
+    """
+    transactionImport: TransactionsImportReferenceInput
+  ): PlaidConnectAccountResponse!
 
   """
   [Root only] Edits account flags (deleted, banned, archived, trusted host)
@@ -20956,6 +21157,11 @@ type Mutation {
     Name of the import (e.g. "Contributions May 2021", "Tickets for Mautic Conference 2024")
     """
     name: NonEmptyString
+
+    """
+    Assignments for the import
+    """
+    assignments: [TransactionsImportAssignmentInput!]
   ): TransactionsImport!
 
   """
@@ -23257,6 +23463,18 @@ type BanAccountResponse {
   The accounts impacted by the mutation
   """
   accounts: [Account!]!
+}
+
+input TransactionsImportAssignmentInput {
+  """
+  The ID of the account to assign the transactions to
+  """
+  importedAccountId: NonEmptyString!
+
+  """
+  The accounts to assign the transactions to
+  """
+  accounts: [AccountReferenceInput!]!
 }
 
 input TransactionsImportRowCreateInput {

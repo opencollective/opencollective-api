@@ -13,7 +13,7 @@ import { getBalances } from '../../../../lib/budget';
 import { loadFxRatesMap } from '../../../../lib/currency';
 import { buildSearchConditions } from '../../../../lib/sql-search';
 import { expenseMightBeSubjectToTaxForm } from '../../../../lib/tax-forms';
-import { AccountingCategory, Op, sequelize } from '../../../../models';
+import { AccountingCategory, Collective, Op, sequelize } from '../../../../models';
 import Expense, { ExpenseType } from '../../../../models/Expense';
 import { PayoutMethodTypes } from '../../../../models/PayoutMethod';
 import { validateExpenseCustomData } from '../../../common/expenses';
@@ -23,7 +23,11 @@ import GraphQLExpenseStatusFilter from '../../enum/ExpenseStatusFilter';
 import { GraphQLExpenseType } from '../../enum/ExpenseType';
 import { GraphQLLastCommentBy } from '../../enum/LastCommentByType';
 import { GraphQLPayoutMethodType } from '../../enum/PayoutMethodType';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
+import {
+  fetchAccountsWithReferences,
+  fetchAccountWithReference,
+  GraphQLAccountReferenceInput,
+} from '../../input/AccountReferenceInput';
 import {
   CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   GraphQLChronologicalOrderInput,
@@ -119,6 +123,10 @@ export const ExpensesCollectionQueryArgs = {
     type: GraphQLAccountReferenceInput,
     description: 'Reference of an account that is the payer of an expense',
   },
+  accounts: {
+    type: new GraphQLList(GraphQLAccountReferenceInput),
+    description: 'An alternative to filter by accounts, both cannot be used together',
+  },
   host: {
     type: GraphQLAccountReferenceInput,
     description: 'Return expenses only for this host',
@@ -204,6 +212,42 @@ export const ExpensesCollectionQueryArgs = {
   },
 };
 
+const loadAllAccountsFromArgs = async (
+  args,
+  req,
+): Promise<{
+  fromAccount: Collective;
+  accounts: Collective[];
+  host: Collective;
+  createdByAccount: Collective;
+}> => {
+  if (args.accounts && args.account) {
+    throw new Error('accounts and account cannot be used together');
+  }
+
+  const fetchAccountParams = { loaders: req.loaders, throwIfMissing: true };
+  const getAccountsPromise = async (): Promise<Collective[]> => {
+    if (args.account) {
+      return [await fetchAccountWithReference(args.account, fetchAccountParams)];
+    } else if (args.accounts && args.accounts.length > 0) {
+      return fetchAccountsWithReferences(args.accounts, fetchAccountParams);
+    } else {
+      return [];
+    }
+  };
+
+  const [accounts, fromAccount, host, createdByAccount] = await Promise.all([
+    getAccountsPromise(),
+    ...[args.fromAccount, args.host, args.createdByAccount].map(reference => {
+      if (reference) {
+        return fetchAccountWithReference(reference, fetchAccountParams);
+      }
+    }),
+  ]);
+
+  return { fromAccount, accounts, host, createdByAccount };
+};
+
 export const ExpensesCollectionQueryResolver = async (
   _: void,
   args,
@@ -218,27 +262,27 @@ export const ExpensesCollectionQueryResolver = async (
   }
 
   // Load accounts
-  const fetchAccountParams = { loaders: req.loaders, throwIfMissing: true };
-  const [fromAccount, account, host, createdByAccount] = await Promise.all(
-    [args.fromAccount, args.account, args.host, args.createdByAccount].map(
-      reference => reference && fetchAccountWithReference(reference, fetchAccountParams),
-    ),
-  );
+  const { fromAccount, accounts, host, createdByAccount } = await loadAllAccountsFromArgs(args, req);
+
   if (fromAccount) {
     const fromAccounts = [fromAccount.id];
     if (args.includeChildrenExpenses) {
-      const childIds = await fromAccount.getChildren().then(children => children.map(child => child.id));
+      const childIds = await req.loaders.Collective.childrenIds.load(fromAccount.id);
       fromAccounts.push(...childIds);
     }
     where['FromCollectiveId'] = fromAccounts;
   }
-  if (account) {
-    const accounts = [account.id];
-    if (args.includeChildrenExpenses) {
-      const childIds = await account.getChildren().then(children => children.map(child => child.id));
-      accounts.push(...childIds);
+  if (accounts.length > 0) {
+    if (host && accounts.some(account => account.HostCollectiveId !== host.id || !account.isActive)) {
+      throw new Error('When filtering by both host and accounts, all accounts must be hosted by the same host');
     }
-    where['CollectiveId'] = accounts;
+
+    const accountIds = accounts.map(account => account.id);
+    if (args.includeChildrenExpenses) {
+      const childIds = await req.loaders.Collective.childrenIds.loadMany(accountIds);
+      accountIds.push(...childIds.flat());
+    }
+    where['CollectiveId'] = uniq(accountIds);
   }
   if (host) {
     // Either the expense has its `HostCollectiveId` set to the host (when its paid) or the collective is hosted by the host
@@ -371,7 +415,7 @@ export const ExpensesCollectionQueryResolver = async (
     if (req.remoteUser) {
       const userClause: any[] = [{ status: { [Op.notIn]: [expenseStatus.DRAFT, expenseStatus.SPAM] } }];
 
-      if (req.remoteUser.isAdminOfCollectiveOrHost(account)) {
+      if (accounts.every(account => req.remoteUser.isAdminOfCollectiveOrHost(account))) {
         userClause.push({ status: expenseStatus.DRAFT });
       } else {
         userClause.push({ status: expenseStatus.DRAFT, UserId: req.remoteUser.id });
@@ -436,13 +480,13 @@ export const ExpensesCollectionQueryResolver = async (
     // Check permissions
     if (!req.remoteUser) {
       throw new Unauthorized('You need to be logged in to filter by customData');
-    } else if (!fromAccount && !account && !host) {
+    } else if (!fromAccount && !accounts.length && !host) {
       throw new Unauthorized(
         'You need to filter by at least one of fromAccount, account or host to filter by customData',
       );
     } else if (
       !(fromAccount && req.remoteUser.isAdminOfCollective(fromAccount)) &&
-      !(account && req.remoteUser.isAdminOfCollective(account)) &&
+      !(accounts.length && accounts.every(account => req.remoteUser.isAdminOfCollective(account))) &&
       !(host && req.remoteUser.isAdmin(host))
     ) {
       throw new Unauthorized('You need to be an admin of the fromAccount, account or host to filter by customData');

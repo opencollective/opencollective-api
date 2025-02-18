@@ -1,14 +1,14 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLEnumType, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { compact } from 'lodash';
+import { compact, uniq } from 'lodash';
 import { Includeable, Order } from 'sequelize';
 
 import OrderStatuses from '../../../../constants/order-status';
 import { buildSearchConditions } from '../../../../lib/sql-search';
-import models, { Op, sequelize } from '../../../../models';
+import models, { Collective, Op, sequelize } from '../../../../models';
 import { checkScope } from '../../../common/scope-check';
-import { NotFound, Unauthorized } from '../../../errors';
+import { Forbidden, NotFound, Unauthorized } from '../../../errors';
 import { GraphQLOrderCollection } from '../../collection/OrderCollection';
 import { GraphQLAccountOrdersFilter } from '../../enum/AccountOrdersFilter';
 import { GraphQLContributionFrequency } from '../../enum/ContributionFrequency';
@@ -16,7 +16,11 @@ import { GraphQLOrderPausedBy } from '../../enum/OrderPausedBy';
 import { GraphQLOrderStatus } from '../../enum/OrderStatus';
 import { GraphQLPaymentMethodService } from '../../enum/PaymentMethodService';
 import { GraphQLPaymentMethodType } from '../../enum/PaymentMethodType';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
+import {
+  fetchAccountsWithReferences,
+  fetchAccountWithReference,
+  GraphQLAccountReferenceInput,
+} from '../../input/AccountReferenceInput';
 import {
   CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   GraphQLChronologicalOrderInput,
@@ -31,15 +35,18 @@ import { CollectionArgs, CollectionReturnType } from '../../interface/Collection
 type OrderAssociation = 'fromCollective' | 'collective';
 
 // Returns the join condition for association
-const getJoinCondition = (
+const getCollectivesJoinCondition = (
   account,
   association: OrderAssociation,
   includeHostedAccounts = false,
   includeChildrenAccounts = false,
+  limitToHostedAccounts?: Collective[],
 ): Record<string, unknown> => {
   const associationFields = { collective: 'CollectiveId', fromCollective: 'FromCollectiveId' };
   const field = associationFields[association] || `$${association}.id$`;
-  let conditions = [{ [field]: account.id }];
+  const limitToHostedAccountsIds = limitToHostedAccounts?.map(a => a.id) || [];
+  const allTopAccountIds = uniq([account.id, ...limitToHostedAccountsIds]);
+  let conditions = [{ [field]: allTopAccountIds }];
 
   // Hosted accounts
   if (includeHostedAccounts && account.isHostAccount) {
@@ -48,13 +55,14 @@ const getJoinCondition = (
       {
         [`$${association}.HostCollectiveId$`]: account.id,
         [`$${association}.approvedAt$`]: { [Op.not]: null },
+        ...(limitToHostedAccountsIds.length ? { [`$${association}.id$`]: { [Op.in]: limitToHostedAccountsIds } } : {}),
       },
     ];
   }
 
   // Children collectives
   if (includeChildrenAccounts) {
-    conditions.push({ [`$${association}.ParentCollectiveId$`]: account.id });
+    conditions.push({ [`$${association}.ParentCollectiveId$`]: allTopAccountIds });
   }
 
   return conditions.length === 1 ? conditions[0] : { [Op.or]: conditions };
@@ -149,7 +157,7 @@ export const OrdersCollectionArgs = {
   },
   tierSlug: {
     type: GraphQLString,
-    deprecationReason: '2022-02-25: Should be replaced by a tier reference. Not existing yet.',
+    deprecationReason: '2022-02-25: Should be replaced by a tier reference.',
   },
   tier: {
     type: new GraphQLList(GraphQLTierReferenceInput),
@@ -178,6 +186,10 @@ export const OrdersCollectionArgs = {
     description:
       'Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)',
   },
+  hostedAccounts: {
+    type: new GraphQLList(GraphQLAccountReferenceInput),
+    description: 'Return only orders made from/to these hosted accounts',
+  },
 };
 
 export const OrdersCollectionResolver = async (args, req: express.Request) => {
@@ -199,7 +211,7 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     throw new Error('Cannot fetch more than 1,000 orders at the same time, please adjust the limit');
   }
 
-  let account, oppositeAccount;
+  let account, oppositeAccount, hostedAccounts;
 
   // Load accounts
   if (args.account) {
@@ -211,16 +223,32 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
       oppositeAccount = await fetchAccountWithReference(args.oppositeAccount, fetchAccountParams);
     }
 
-    const accountConditions = [];
-    const oppositeAccountConditions = [];
+    // Load hosted accounts
+    if (args.hostedAccounts) {
+      hostedAccounts = await fetchAccountsWithReferences(args.hostedAccounts, fetchAccountParams);
+      hostedAccounts.forEach(hostedAccount => {
+        if (hostedAccount.HostCollectiveId !== account.id || !account.isActive) {
+          throw new Forbidden('You can only fetch orders from hosted accounts of the specified account');
+        }
+      });
+    }
+
+    const accountOrConditions = [];
+    const oppositeAccountOrConditions = [];
 
     // Filter on fromCollective
     if (!args.filter || args.filter === 'OUTGOING') {
-      accountConditions.push(
-        getJoinCondition(account, 'fromCollective', args.includeHostedAccounts, args.includeChildrenAccounts),
+      accountOrConditions.push(
+        getCollectivesJoinCondition(
+          account,
+          'fromCollective',
+          args.includeHostedAccounts,
+          args.includeChildrenAccounts,
+          hostedAccounts,
+        ),
       );
       if (oppositeAccount) {
-        oppositeAccountConditions.push(getJoinCondition(oppositeAccount, 'collective'));
+        oppositeAccountOrConditions.push(getCollectivesJoinCondition(oppositeAccount, 'collective'));
       }
       if (args.includeIncognito) {
         // Needs to be root or admin of the profile to see incognito orders
@@ -230,7 +258,7 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
         ) {
           const incognitoProfile = await account.getIncognitoProfile();
           if (incognitoProfile) {
-            accountConditions.push(getJoinCondition(incognitoProfile, 'fromCollective'));
+            accountOrConditions.push(getCollectivesJoinCondition(incognitoProfile, 'fromCollective'));
           }
         } else {
           // Is this desirable? Some current tests don't like it.
@@ -241,19 +269,27 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
 
     // Filter on collective
     if (!args.filter || args.filter === 'INCOMING') {
-      accountConditions.push(
-        getJoinCondition(account, 'collective', args.includeHostedAccounts, args.includeChildrenAccounts),
+      accountOrConditions.push(
+        getCollectivesJoinCondition(
+          account,
+          'collective',
+          args.includeHostedAccounts,
+          args.includeChildrenAccounts,
+          hostedAccounts,
+        ),
       );
       if (oppositeAccount) {
-        oppositeAccountConditions.push(getJoinCondition(oppositeAccount, 'fromCollective'));
+        oppositeAccountOrConditions.push(getCollectivesJoinCondition(oppositeAccount, 'fromCollective'));
       }
     }
 
     // Bind account conditions to the query
-    where[Op.and].push(accountConditions.length === 1 ? accountConditions : { [Op.or]: accountConditions });
-    if (oppositeAccountConditions.length > 0) {
+    where[Op.and].push(accountOrConditions.length === 1 ? accountOrConditions : { [Op.or]: accountOrConditions });
+    if (oppositeAccountOrConditions.length > 0) {
       where[Op.and].push(
-        oppositeAccountConditions.length === 1 ? oppositeAccountConditions : { [Op.or]: oppositeAccountConditions },
+        oppositeAccountOrConditions.length === 1
+          ? oppositeAccountOrConditions
+          : { [Op.or]: oppositeAccountOrConditions },
       );
     }
   }
