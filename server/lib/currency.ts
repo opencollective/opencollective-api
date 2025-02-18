@@ -21,7 +21,7 @@ export function getDate(date: string | Date = 'latest'): string {
   if (typeof date === 'string') {
     return date;
   } else if (date.getFullYear) {
-    return moment(date).format('YYYY-MM-DD');
+    return moment(date).utc().format('YYYY-MM-DD');
   }
 }
 
