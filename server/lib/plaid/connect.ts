@@ -102,17 +102,17 @@ export const connectPlaidAccount = async (
   } catch (error) {
     const errorData = error.response?.data;
     if (!errorData) {
-      throw new Error("A network occurred while exchanging Plaid's public token");
+      throw new Error('A network occurred while connecting Plaid');
     } else if (errorData.error_code === 'INVALID_PUBLIC_TOKEN') {
       throw new Error('Provided Plaid public token is invalid');
     } else {
       reportErrorToSentry(error, { extra: { errorData }, user: remoteUser });
-      throw new Error("An error occurred while exchanging Plaid's public token");
+      throw new Error('An error occurred while connecting Plaid');
     }
   }
 
   // Create connected account
-  return sequelize.transaction(async transaction => {
+  const result = await sequelize.transaction(async transaction => {
     const connectedAccount = await ConnectedAccount.create(
       {
         CollectiveId: host.id,
@@ -150,6 +150,15 @@ export const connectPlaidAccount = async (
 
     return { connectedAccount, transactionsImport };
   });
+
+  // Try to update the list of sub accounts. This is not critical, so we don't fail the whole import if it doesn't work
+  try {
+    await refreshPlaidSubAccounts(result.connectedAccount, result.transactionsImport);
+  } catch (error) {
+    reportErrorToSentry(error, { user: remoteUser, extra: { connectedAccountId: result.connectedAccount.id } });
+  }
+
+  return result;
 };
 
 export const disconnectPlaidAccount = async (connectedAccount: ConnectedAccount): Promise<void> => {
@@ -177,4 +186,32 @@ export const disconnectPlaidAccount = async (connectedAccount: ConnectedAccount)
   }
 
   await TransactionsImport.update({ ConnectedAccountId: null }, { where: { ConnectedAccountId: connectedAccount.id } });
+};
+
+export const refreshPlaidSubAccounts = async (
+  connectedAccount: ConnectedAccount,
+  transactionsImport: TransactionsImport,
+) => {
+  if (transactionsImport.type !== 'PLAID') {
+    throw new Error('Only Plaid transactions imports can be refreshed');
+  } else if (transactionsImport.ConnectedAccountId !== connectedAccount.id) {
+    throw new Error('The connected account does not match the transactions import');
+  }
+
+  const PlaidClient = getPlaidClient();
+  const { data } = await PlaidClient.accountsGet({ access_token: connectedAccount.token }); // eslint-disable-line camelcase
+  await transactionsImport.update({
+    data: {
+      plaid: {
+        availableAccounts: data.accounts.map(account => ({
+          accountId: account.account_id,
+          mask: account.mask,
+          name: account.name,
+          officialName: account.official_name,
+          subtype: account.subtype,
+          type: account.type,
+        })),
+      },
+    },
+  });
 };
