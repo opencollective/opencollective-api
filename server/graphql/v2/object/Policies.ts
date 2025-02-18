@@ -11,8 +11,8 @@ import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
 import { GraphQLAmount } from './Amount';
 
-const DEFAULT_USD_THRESHOLDS: Policies[POLICIES.CONTRIBUTOR_INFO_THRESHOLDS] = {
-  address: 500e2,
+const DEFAULT_CONTRIBUTION_INFO_USD_THRESHOLDS: Policies[POLICIES.CONTRIBUTOR_INFO_THRESHOLDS] = {
+  address: 5000e2,
   legalName: 250e2,
 };
 
@@ -158,7 +158,7 @@ export const GraphQLPolicies = new GraphQLObjectType({
         let fxRate = 1;
         if (!thresholds) {
           if (host.currency === 'USD') {
-            thresholds = DEFAULT_USD_THRESHOLDS;
+            thresholds = DEFAULT_CONTRIBUTION_INFO_USD_THRESHOLDS;
           } else {
             return null;
           }
