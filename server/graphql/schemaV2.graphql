@@ -7139,6 +7139,16 @@ type TransactionsImport {
   lastSyncCursor: String
 
   """
+  List of available accounts for the import
+  """
+  plaidAccounts: [PlaidAccount]
+
+  """
+  Assignments for the import, as a map of account id to legacy collective IDs. The `__default__` key can be use to set the default assignment.
+  """
+  assignments: [TransactionsImportAssignment!]!
+
+  """
   Connected account linked to the import
   """
   connectedAccount: ConnectedAccount
@@ -7166,6 +7176,11 @@ type TransactionsImport {
     Search by text
     """
     searchTerm: String
+
+    """
+    Filter rows by plaid account id
+    """
+    accountId: [NonEmptyString]
   ): TransactionsImportRowCollection!
   stats: TransactionsImportStats
 }
@@ -7182,6 +7197,52 @@ enum TransactionsImportType {
   CSV
   MANUAL
   PLAID
+}
+
+type PlaidAccount {
+  accountId: String!
+  mask: String!
+  name: String!
+  officialName: String!
+  subtype: String!
+  type: PlaidAccountType!
+}
+
+enum PlaidAccountType {
+  """
+  Investment
+  """
+  investment
+
+  """
+  Credit
+  """
+  credit
+
+  """
+  Depository
+  """
+  depository
+
+  """
+  Loan
+  """
+  loan
+
+  """
+  Brokerage
+  """
+  brokerage
+
+  """
+  Other
+  """
+  other
+}
+
+type TransactionsImportAssignment {
+  importedAccountId: NonEmptyString!
+  accounts: [Account!]!
 }
 
 """
@@ -20709,7 +20770,27 @@ type Mutation {
   """
   Generate a Plaid Link token
   """
-  generatePlaidLinkToken: PlaidLinkTokenCreateResponse!
+  generatePlaidLinkToken(
+    """
+    The account to which the Plaid account should be connected
+    """
+    host: AccountReferenceInput!
+
+    """
+    Use this parameter to specify the import to update (when using the Plaid update flow)
+    """
+    transactionImport: TransactionsImportReferenceInput
+
+    """
+    The countries to enable in the accounts selection. Defaults to the host country.
+    """
+    countries: [CountryISO!]
+
+    """
+    The language to use in the Plaid Link flow. Defaults to "en".
+    """
+    locale: Locale
+  ): PlaidLinkTokenCreateResponse!
 
   """
   Connect a Plaid account
@@ -20745,6 +20826,21 @@ type Mutation {
     """
     connectedAccount: ConnectedAccountReferenceInput!
   ): TransactionsImport!
+
+  """
+  Refresh the list of sub-accounts & other metadata by re-fetching the account info
+  """
+  refreshPlaidAccount(
+    """
+    The Plaid connected account to refresh
+    """
+    connectedAccount: ConnectedAccountReferenceInput
+
+    """
+    The transactions import to refresh
+    """
+    transactionImport: TransactionsImportReferenceInput
+  ): PlaidConnectAccountResponse!
 
   """
   [Root only] Edits account flags (deleted, banned, archived, trusted host)
@@ -20934,6 +21030,11 @@ type Mutation {
     Name of the import (e.g. "Contributions May 2021", "Tickets for Mautic Conference 2024")
     """
     name: NonEmptyString
+
+    """
+    Assignments for the import
+    """
+    assignments: [TransactionsImportAssignmentInput!]
   ): TransactionsImport!
 
   """
@@ -23155,6 +23256,18 @@ type PlaidLinkTokenCreateResponse {
   hostedLinkUrl: String
 }
 
+input TransactionsImportReferenceInput {
+  """
+  The id of the row
+  """
+  id: NonEmptyString!
+}
+
+"""
+The locale in the format of a BCP 47 (RFC 5646) standard string
+"""
+scalar Locale
+
 type PlaidConnectAccountResponse {
   """
   The connected account that was created
@@ -23200,6 +23313,18 @@ type BanAccountResponse {
   The accounts impacted by the mutation
   """
   accounts: [Account!]!
+}
+
+input TransactionsImportAssignmentInput {
+  """
+  The ID of the account to assign the transactions to
+  """
+  importedAccountId: NonEmptyString!
+
+  """
+  The accounts to assign the transactions to
+  """
+  accounts: [AccountReferenceInput!]!
 }
 
 input TransactionsImportRowCreateInput {
