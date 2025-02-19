@@ -38,6 +38,7 @@ import {
   payExpense,
   prepareAttachedFiles,
   prepareExpenseItemInputs,
+  prepareInvoiceFile,
   rejectExpense,
   releaseExpense,
   requestExpenseReApproval,
@@ -127,6 +128,7 @@ const expenseMutations = {
             'type',
             'privateMessage',
             'attachedFiles',
+            'invoiceFile',
             'invoiceInfo',
             'payeeLocation',
             'currency',
@@ -225,6 +227,7 @@ const expenseMutations = {
           id: attachedFile.id && idDecode(attachedFile.id, IDENTIFIER_TYPES.EXPENSE_ATTACHED_FILE),
           url: attachedFile.url,
         })),
+        invoiceFile: expense.invoiceFile,
         fromCollective: requestedPayee,
         accountingCategory: isNil(args.expense.accountingCategory)
           ? args.expense.accountingCategory // This will make sure we pass either `null` (to remove the category) or `undefined` (to keep the existing one)
@@ -539,6 +542,7 @@ const expenseMutations = {
       const currency = expenseData.currency || collective.currency;
       const items = await prepareExpenseItemInputs(req, currency, expenseData.items);
       const attachedFiles = await prepareAttachedFiles(req, expenseData.attachedFiles);
+      const invoiceFile = await prepareInvoiceFile(req, expenseData.invoiceFile);
 
       const payee = payeeLegacyId
         ? (await fetchAccountWithReference({ legacyId: payeeLegacyId }, { throwIfMissing: true }))?.minimal
@@ -572,6 +576,11 @@ const expenseMutations = {
         data: {
           items,
           attachedFiles,
+          invoiceFile: invoiceFile
+            ? {
+                url: invoiceFile.getDataValue('url'),
+              }
+            : null,
           payee,
           invitedByCollectiveId: fromCollective.id,
           draftKey,

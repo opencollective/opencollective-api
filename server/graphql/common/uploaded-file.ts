@@ -48,8 +48,9 @@ export async function hasUploadedFilePermission(
     const attachedFileMatches = ((expense.data?.attachedFiles as { url?: string }[]) || []).some(
       item => item.url && item.url === actualUrl,
     );
+    const invoiceFileMatches = (expense.data?.invoiceFile as { url: string })?.url === actualUrl;
 
-    const fileIsInDraft = itemMatches || attachedFileMatches;
+    const fileIsInDraft = itemMatches || attachedFileMatches || invoiceFileMatches;
 
     if (fileIsInDraft && (await canSeeExpenseDraftPrivateDetails(req, expense))) {
       return true;
@@ -74,6 +75,23 @@ export async function hasUploadedFilePermission(
       });
 
       const expense = expenseItem?.Expense;
+
+      if (!expense) {
+        return req.remoteUser?.id === uploadedFile.CreatedByUserId;
+      }
+
+      if (await canSeeExpenseAttachments(req, expense)) {
+        return true;
+      }
+      break;
+    }
+    case 'EXPENSE_INVOICE': {
+      const expense = await Expense.findOne({
+        where: {
+          InvoiceFileId: uploadedFile.id,
+        },
+        include: [{ association: 'fromCollective' }],
+      });
 
       if (!expense) {
         return req.remoteUser?.id === uploadedFile.CreatedByUserId;

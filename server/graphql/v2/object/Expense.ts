@@ -45,6 +45,7 @@ import {
 } from '../input/ChronologicalOrderInput';
 import { GraphQLAccount } from '../interface/Account';
 import { CollectionArgs } from '../interface/Collection';
+import { GraphQLFileInfo } from '../interface/FileInfo';
 
 import { GraphQLAccountingCategory } from './AccountingCategory';
 import { GraphQLActivity } from './Activity';
@@ -77,6 +78,7 @@ const EXPENSE_DRAFT_PUBLIC_FIELDS = [
 const EXPENSE_DRAFT_PRIVATE_FIELDS = [
   'recipientNote',
   'attachedFiles',
+  'invoiceFile',
   'payoutMethod',
   'payeeLocation',
   'payee.email',
@@ -408,6 +410,21 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Reques
           }
         },
       },
+      invoiceFile: {
+        type: GraphQLFileInfo,
+        description: '(Optional - applicable to invoice expense only) The invoice file for this expense',
+        async resolve(expense, _, req) {
+          if (expense.type !== ExpenseTypes.INVOICE) {
+            return null;
+          }
+
+          if (!(await ExpenseLib.canSeeExpenseAttachments(req, expense))) {
+            return null;
+          }
+
+          return expense.invoiceFile || (await UploadedFile.findByPk(expense.InvoiceFileId));
+        },
+      },
       items: {
         type: new GraphQLList(GraphQLExpenseItem),
         async resolve(expense, _, req) {
@@ -588,6 +605,18 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Reques
 
             if (attachedFiles.length > 0) {
               draftData.attachedFiles = attachedFiles;
+            }
+
+            if (draftData.invoiceFile) {
+              const uploadedFile = await req.loaders.UploadedFile.byUrl.load(draftData.invoiceFile['url']);
+              draftData.invoiceFile['url'] = uploadedFile
+                ? UploadedFile.getProtectedURLFromOpenCollectiveS3Bucket(uploadedFile, {
+                    expenseId: expense.id,
+                    draftKey: req.remoteUser ? null : expense.data.draftKey,
+                  })
+                : draftData.invoiceFile['url'];
+
+              draftData.invoiceFile = pick(draftData.invoiceFile, ['url']);
             }
 
             return draftData;
