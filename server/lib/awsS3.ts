@@ -4,14 +4,18 @@ import path from 'path';
 import {
   CopyObjectCommand,
   CopyObjectRequest,
+  CreateBucketCommand,
+  DeleteBucketCommand,
   DeleteObjectCommand,
   DeleteObjectOutput,
   GetObjectCommand,
+  HeadBucketCommand,
   HeadObjectCommand,
   HeadObjectOutput,
   ListObjectsV2Command,
   ListObjectsV2Output,
   ObjectCannedACL,
+  PutBucketPolicyCommand,
   PutObjectCommand,
   PutObjectCommandOutput,
   S3Client,
@@ -292,6 +296,72 @@ export const permanentlyDeleteFileFromS3 = async (bucket: string, key: string): 
   } catch (e) {
     logger.error(`Error deleting S3 file ${key}:`, e);
     throw e;
+  }
+};
+
+export const checkBucketExists = async (bucket: string): Promise<boolean> => {
+  if (!s3) {
+    throw new Error('S3 is not set');
+  }
+  try {
+    await s3.send(new HeadBucketCommand({ Bucket: bucket }));
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+export const createBucket = async (bucket: string): Promise<void> => {
+  if (!s3) {
+    throw new Error('S3 is not set');
+  }
+  try {
+    await s3.send(new CreateBucketCommand({ Bucket: bucket }));
+  } catch (e) {
+    logger.error(`Error creating bucket ${bucket}:`, e);
+    throw e;
+  }
+};
+
+/**
+ * This function initializes the S3 buckets for non-production environments.
+ */
+export const dangerouslyInitNonProductionBuckets = async ({
+  dropExisting = false,
+}: { dropExisting?: boolean } = {}) => {
+  const buckets = [config.aws.s3.bucket, config.taxForms.aws.s3.bucket];
+
+  for (const bucket of buckets) {
+    const bucketExists = await checkBucketExists(bucket);
+    if (dropExisting && bucketExists) {
+      logger.info(`Bucket ${bucket} already exists, dropping...`);
+      await s3.send(new DeleteBucketCommand({ Bucket: bucket }));
+    } else if (bucketExists) {
+      logger.info(`Bucket ${bucket} already exists`);
+      continue;
+    }
+
+    logger.info(`Creating bucket ${bucket}...`);
+    await createBucket(bucket);
+
+    // TODO: We currently create test buckets with public read/write access. We should make sure they use the same policy as the production buckets.
+    await s3.send(
+      new PutBucketPolicyCommand({
+        Bucket: bucket,
+        Policy: JSON.stringify({
+          Version: '2012-10-17',
+          Statement: [
+            {
+              Sid: 'PublicReadGetObject',
+              Effect: 'Allow',
+              Principal: '*',
+              Action: ['s3:GetObject', 's3:ListBucket'],
+              Resource: [`arn:aws:s3:::${bucket}`, `arn:aws:s3:::${bucket}/*`],
+            },
+          ],
+        }),
+      }),
+    );
   }
 };
 
