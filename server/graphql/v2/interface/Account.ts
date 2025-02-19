@@ -441,6 +441,13 @@ const accountFieldsDefinition = () => ({
   payoutMethods: {
     type: new GraphQLList(GraphQLPayoutMethod),
     description: 'The list of payout methods that this account can use to get paid',
+    args: {
+      includeArchived: {
+        type: GraphQLBoolean,
+        defaultValue: false,
+        description: 'Whether to include archived payout methods',
+      },
+    },
   },
   paymentMethods: {
     type: new GraphQLList(GraphQLPaymentMethod),
@@ -1254,7 +1261,14 @@ export const AccountFields = {
     type: new GraphQLList(GraphQLPayoutMethod),
     description:
       'The list of payout methods that this collective can use to get paid. In most cases, admin only and scope: "expenses".',
-    async resolve(collective, _, req) {
+    args: {
+      includeArchived: {
+        type: GraphQLBoolean,
+        defaultValue: false,
+        description: 'Whether to include archived payout methods',
+      },
+    },
+    async resolve(collective, args, req) {
       // Scope check is a a bit more complex because we have to accomodate the case where payoutMethods are public
       if (
         req.remoteUser?.isAdminOfCollective(collective) &&
@@ -1264,13 +1278,16 @@ export const AccountFields = {
         return null;
       }
 
+      const loader = args.includeArchived
+        ? req.loaders.PayoutMethod.allByCollectiveId
+        : req.loaders.PayoutMethod.byCollectiveId;
       if (req.remoteUser?.isAdminOfCollective(collective)) {
-        return req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
+        return loader.load(collective.id);
       }
 
       // Exception for Fiscal Hosts so people can post Expense accross hosts
       if (collective.isHostAccount) {
-        const payoutMethods = await req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
+        const payoutMethods = await loader.load(collective.id);
         for (const payoutMethod of payoutMethods) {
           allowContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, payoutMethod.id);
         }

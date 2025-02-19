@@ -92,6 +92,32 @@ const payoutMethodMutations = {
       return payoutMethod.update({ isSaved: false });
     },
   },
+  restorePayoutMethod: {
+    description: 'Restore the given payout method. Scope: "expenses".',
+    type: new GraphQLNonNull(GraphQLPayoutMethod),
+    args: {
+      payoutMethodId: {
+        type: new GraphQLNonNull(GraphQLString),
+      },
+    },
+    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+      checkRemoteUserCanUseExpenses(req);
+
+      const pmId = idDecode(args.payoutMethodId, IDENTIFIER_TYPES.PAYOUT_METHOD);
+      const payoutMethod = await req.loaders.PayoutMethod.byId.load(pmId);
+
+      if (!payoutMethod) {
+        throw new NotFound('This payout method does not exist');
+      }
+
+      const collective = await req.loaders.Collective.byId.load(payoutMethod.CollectiveId);
+      if (!req.remoteUser.isAdminOfCollective(collective)) {
+        throw new Forbidden();
+      }
+
+      return payoutMethod.update({ isSaved: true });
+    },
+  },
 };
 
 export default payoutMethodMutations;
