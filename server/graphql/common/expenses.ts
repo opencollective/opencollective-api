@@ -1551,6 +1551,7 @@ type ExpenseData = {
   payeeLocation?: Location;
   items?: (Record<string, unknown> & { url?: string })[];
   attachedFiles?: (Record<string, unknown> & { url: string })[];
+  invoiceFile?: { url: string };
   collective?: Collective;
   fromCollective?: Collective;
   tags?: string[];
@@ -1674,6 +1675,22 @@ export async function prepareAttachedFiles(req: Request, attachedFiles: ExpenseD
     ...file,
     url: mapItemUrlToUploadedFile[file.url],
   }));
+}
+
+export async function prepareInvoiceFile(req: Request, invoiceFile: ExpenseData['invoiceFile']): Promise<UploadedFile> {
+  if (!invoiceFile) {
+    return null;
+  }
+
+  if (!UploadedFile.isUploadedFileURL(invoiceFile.url)) {
+    throw new ValidationFailed('Invalid expense invoice file url');
+  }
+
+  if (!(await hasProtectedUrlPermission(req, invoiceFile.url))) {
+    throw new ValidationFailed('Invalid expense invoice file url');
+  }
+
+  return await UploadedFile.getFromURL(invoiceFile.url);
 }
 
 export const prepareExpenseItemInputs = async (
@@ -1993,6 +2010,12 @@ export async function createExpense(
   }
 
   const expense = await sequelize.transaction(async t => {
+    let invoiceFileId: number;
+    if (expenseData.type === EXPENSE_TYPE.INVOICE && expenseData.invoiceFile) {
+      const invoiceFile = await prepareInvoiceFile(req, expenseData.invoiceFile);
+      invoiceFileId = invoiceFile.id;
+    }
+
     // Create expense
     const createdExpense = await models.Expense.create(
       {
@@ -2009,6 +2032,7 @@ export async function createExpense(
         legacyPayoutMethod: models.Expense.getLegacyPayoutMethodTypeFromPayoutMethod(payoutMethod),
         amount: models.Expense.computeTotalAmountForExpense(itemsData, taxes),
         AccountingCategoryId: expenseData.accountingCategory?.id,
+        InvoiceFileId: invoiceFileId,
         data,
       },
       { transaction: t },
@@ -2335,6 +2359,11 @@ export async function editExpenseDraft(
     (await prepareExpenseItemInputs(req, currency, expenseData.items, { isEditing: true })) || existingExpense.items;
 
   const attachedFiles = await prepareAttachedFiles(req, expenseData.attachedFiles);
+  const invoiceFile =
+    (expenseData.type || existingExpense.type) === EXPENSE_TYPE.INVOICE
+      ? await prepareInvoiceFile(req, expenseData.invoiceFile)
+      : null;
+
   const newExpenseValues = {
     ...pick(expenseData, DRAFT_EXPENSE_FIELDS),
     amount: models.Expense.computeTotalAmountForExpense(items, expenseData.tax),
@@ -2344,6 +2373,7 @@ export async function editExpenseDraft(
       items,
       taxes: expenseData.tax,
       attachedFiles: attachedFiles,
+      invoiceFile: invoiceFile ? { url: invoiceFile.getDataValue('url') } : null,
     },
   };
 
@@ -2496,7 +2526,10 @@ export async function editExpense(
   // before the `canEditExpense` permissions check, because `editOnlyTagsAndAccountingCategory` has its
   // own permissions checks that are more permissive (e.g. tags can be edited even if the expense is paid)
   const modifiedFields = omitBy(expenseData, (_, key) => key === 'id' || !isValueChanging(expense, expenseData, key));
-  if (Object.keys(modifiedFields).every(field => ['tags', 'accountingCategory'].includes(field))) {
+  if (
+    isUndefined(expenseData.invoiceFile) &&
+    Object.keys(modifiedFields).every(field => ['tags', 'accountingCategory'].includes(field))
+  ) {
     return editOnlyTagsAndAccountingCategory(expense, modifiedFields, req);
   }
 
@@ -2690,6 +2723,22 @@ export async function editExpense(
           models.ExpenseAttachedFile.update({ url: file.url }, { where: { id: file.id, ExpenseId: expense.id } }),
         ),
       );
+    }
+
+    if (!isUndefined(expenseData.invoiceFile) && (expenseData.type || expense.type) === EXPENSE_TYPE.INVOICE) {
+      const newInvoiceUploadedFile = expenseData.invoiceFile
+        ? await prepareInvoiceFile(req, expenseData.invoiceFile)
+        : null;
+
+      if (expense.InvoiceFileId && (!newInvoiceUploadedFile || expense.InvoiceFileId !== newInvoiceUploadedFile.id)) {
+        const oldInvoiceUploadedFile = await UploadedFile.findByPk(expense.InvoiceFileId, { transaction });
+        await oldInvoiceUploadedFile.destroy({ transaction });
+        cleanExpenseData['InvoiceFileId'] = null;
+      }
+
+      if (newInvoiceUploadedFile) {
+        cleanExpenseData['InvoiceFileId'] = newInvoiceUploadedFile.id;
+      }
     }
 
     let status = expense.status;

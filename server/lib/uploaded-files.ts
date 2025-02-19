@@ -37,6 +37,12 @@ export const FileFieldsDefinition: Record<
     UserIdField: 'CreatedByUserId',
     fieldType: 'url',
   },
+  EXPENSE_INVOICE: {
+    model: models.UploadedFile,
+    field: 'url',
+    UserIdField: 'CreatedByUserId',
+    fieldType: 'url',
+  },
   // Rich text fields
   ACCOUNT_LONG_DESCRIPTION: {
     model: models.Collective,

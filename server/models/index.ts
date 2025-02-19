@@ -197,6 +197,7 @@ Expense.belongsTo(VirtualCard, { foreignKey: 'VirtualCardId', as: 'virtualCard' 
 Expense.hasMany(Activity, { as: 'activities' });
 Expense.hasMany(Comment, { as: 'comments' });
 Expense.hasMany(ExpenseAttachedFile, { as: 'attachedFiles' });
+Expense.belongsTo(UploadedFile, { foreignKey: 'InvoiceFileId', as: 'invoiceFile' });
 Expense.hasMany(ExpenseItem, { as: 'items' });
 Expense.hasMany(Transaction);
 

@@ -52,7 +52,7 @@ import Transaction from './Transaction';
 import TransactionSettlement from './TransactionSettlement';
 import User from './User';
 import VirtualCard from './VirtualCard';
-import models from '.';
+import models, { UploadedFile } from '.';
 
 export { ExpenseStatus, ExpenseType };
 
@@ -93,6 +93,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   declare public VirtualCardId: ForeignKey<VirtualCard['id']>;
   declare public RecurringExpenseId: ForeignKey<RecurringExpense['id']>;
   declare public AccountingCategoryId: ForeignKey<AccountingCategory['id']>;
+  declare public InvoiceFileId: UploadedFile['id'];
 
   declare public payeeLocation: Location;
   declare public data: Record<string, unknown> & {
@@ -148,6 +149,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   declare public virtualCard?: VirtualCard;
   declare public items?: ExpenseItem[];
   declare public attachedFiles?: ExpenseAttachedFile[];
+  declare public invoiceFile?: NonAttribute<UploadedFile>;
   declare public accountingCategory?: AccountingCategory;
   declare public reference: string;
 
@@ -791,6 +793,17 @@ Expense.init(
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
       allowNull: false,
+    },
+
+    InvoiceFileId: {
+      type: DataTypes.INTEGER,
+      references: {
+        model: 'UploadedFiles',
+        key: 'id',
+      },
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE',
+      allowNull: true,
     },
 
     currency: CustomDataTypes(DataTypes).currency,
