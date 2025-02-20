@@ -2981,8 +2981,8 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const mutationParams = { expenseId: expense.id, action: 'APPROVE' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, expense.User);
         expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.eq('You are authenticated but forbidden to perform this action');
-        expect(result.errors[0].extensions.code).to.equal('Forbidden');
+        expect(result.errors[0].message).to.eq('You do not have the necessary permissions to perform this action');
+        expect(result.errors[0].extensions.code).to.equal('MINIMAL_CONDITION_NOT_MET');
       });
 
       it('Approves the expense', async () => {
@@ -3006,7 +3006,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const mutationParams = { expenseId: expense.id, action: 'APPROVE' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, collectiveAdmin);
         expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.eq('You are authenticated but forbidden to perform this action');
+        expect(result.errors[0].message).to.eq('Can not approve expense in current status (PAID)');
       });
 
       it("Doesn't crash for already-approved expenses", async () => {
@@ -3031,7 +3031,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const mutationParams = { expenseId: expense.id, action: 'UNAPPROVE' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, expense.User);
         expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.eq('You are authenticated but forbidden to perform this action');
+        expect(result.errors[0].message).to.eq('You do not have the necessary permissions to perform this action');
       });
 
       it('Unapproves the expense', async () => {
@@ -3043,10 +3043,10 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
       it('Expense needs to be approved', async () => {
         const expense = await fakeExpense({ CollectiveId: collective.id, status: 'PAID' });
-        const mutationParams = { expenseId: expense.id, action: 'APPROVE' };
+        const mutationParams = { expenseId: expense.id, action: 'UNAPPROVE' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, collectiveAdmin);
         expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.eq('You are authenticated but forbidden to perform this action');
+        expect(result.errors[0].message).to.eq('Can not unapprove expense in current status (PAID)');
       });
 
       it("Doesn't crash for already-pending expenses", async () => {
@@ -3071,7 +3071,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const mutationParams = { expenseId: expense.id, action: 'REJECT' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, expense.User);
         expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.eq('You are authenticated but forbidden to perform this action');
+        expect(result.errors[0].message).to.eq('You do not have the necessary permissions to perform this action');
       });
 
       it('Rejects the expense', async () => {
@@ -3086,7 +3086,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const mutationParams = { expenseId: expense.id, action: 'REJECT' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, collectiveAdmin);
         expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.eq('You are authenticated but forbidden to perform this action');
+        expect(result.errors[0].message).to.eq('Can not reject expense in current status (PAID)');
       });
 
       it("Doesn't crash for already-rejected expenses", async () => {
