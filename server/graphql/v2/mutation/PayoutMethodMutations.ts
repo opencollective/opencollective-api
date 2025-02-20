@@ -6,9 +6,9 @@ import logger from '../../../lib/logger';
 import { reportErrorToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
-import PayoutMethodModel from '../../../models/PayoutMethod';
+import PayoutMethodModel, { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { checkRemoteUserCanUseExpenses } from '../../common/scope-check';
-import { Forbidden, NotFound, Unauthorized } from '../../errors';
+import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLPayoutMethodInput } from '../input/PayoutMethodInput';
@@ -39,7 +39,7 @@ const payoutMethodMutations = {
       // Enforce 2FA
       await twoFactorAuthLib.enforceForAccount(req, collective);
 
-      if (args.payoutMethod.data.isManualBankTransfer) {
+      if (args.payoutMethod.data?.isManualBankTransfer) {
         try {
           await collective.setCurrency(args.payoutMethod.data.currency);
         } catch (error) {
@@ -57,6 +57,10 @@ const payoutMethodMutations = {
         if (existingBankAccount) {
           return await existingBankAccount.update(pick(args.payoutMethod, ['name', 'data']));
         }
+      } else if (args.payoutMethod.type === PayoutMethodTypes.OTHER && !args.payoutMethod.data) {
+        throw new ValidationFailed(
+          'Custom payout methods must have a `data` object with a `content` and a `currency` field',
+        );
       }
 
       return await models.PayoutMethod.create({
