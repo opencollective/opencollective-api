@@ -83,6 +83,7 @@ const SupportedTypeByKind: Record<FileKind, readonly SupportedFileType[]> = {
   ACCOUNT_BANNER: SUPPORTED_FILE_TYPES_IMAGES,
   EXPENSE_ATTACHED_FILE: SUPPORTED_FILE_TYPES,
   EXPENSE_ITEM: SUPPORTED_FILE_TYPES,
+  EXPENSE_INVOICE: SUPPORTED_FILE_TYPES,
   TRANSACTIONS_IMPORT: ['text/csv'],
   ACCOUNT_LONG_DESCRIPTION: SUPPORTED_FILE_TYPES_IMAGES,
   UPDATE: SUPPORTED_FILE_TYPES_IMAGES,
@@ -442,7 +443,10 @@ UploadedFile.init(
       get() {
         const url = this.getDataValue('url');
         const kind = this.getDataValue('kind');
-        if (['EXPENSE_ITEM', 'EXPENSE_ATTACHED_FILE'].includes(kind) && UploadedFile.isOpenCollectiveS3BucketURL(url)) {
+        if (
+          ['EXPENSE_ITEM', 'EXPENSE_ATTACHED_FILE', 'EXPENSE_INVOICE'].includes(kind) &&
+          UploadedFile.isOpenCollectiveS3BucketURL(url)
+        ) {
           return UploadedFile.getProtectedURLFromOpenCollectiveS3Bucket(this);
         } else {
           return url;
@@ -459,9 +463,11 @@ UploadedFile.init(
           if (
             !isURL(url, {
               // eslint-disable-next-line camelcase
-              require_host: config.env !== 'development' && config.env !== 'test' && config.env !== 'e2e',
+              require_host:
+                config.env !== 'development' && config.env !== 'test' && config.env !== 'e2e' && !process.env.E2E_TEST,
               // eslint-disable-next-line camelcase
-              require_tld: config.env !== 'development' && config.env !== 'test' && config.env !== 'e2e',
+              require_tld:
+                config.env !== 'development' && config.env !== 'test' && config.env !== 'e2e' && !process.env.E2E_TEST,
             })
           ) {
             throw new Error('File URL is not a valid URL');

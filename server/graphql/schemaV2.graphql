@@ -2484,6 +2484,11 @@ type Expense {
   (Optional) files attached to the expense
   """
   attachedFiles: [ExpenseAttachedFile!]
+
+  """
+  (Optional - applicable to invoice expense only) The invoice file for this expense
+  """
+  invoiceFile: FileInfo
   items: [ExpenseItem]
 
   """
@@ -22006,6 +22011,11 @@ input ExpenseCreateInput {
   attachedFiles: [ExpenseAttachedFileInput!]
 
   """
+  (Optional - applicable to invoice expense only) The invoice file for this expense
+  """
+  invoiceFile: ExpenseAttachedFileInput
+
+  """
   Account to reimburse
   """
   payee: AccountReferenceInput!
@@ -22209,6 +22219,11 @@ input ExpenseUpdateInput {
   (Optional) A list of files that you want to attach to this expense
   """
   attachedFiles: [ExpenseAttachedFileInput!]
+
+  """
+  (Optional - applicable to invoice expense only) The invoice file for this expense
+  """
+  invoiceFile: ExpenseAttachedFileInput
 
   """
   Account to reimburse
@@ -22488,6 +22503,11 @@ input ExpenseInviteDraftInput {
   (Optional) A list of files that you want to attach to this expense
   """
   attachedFiles: [JSON]
+
+  """
+  (Optional - applicable to invoice expense only) The invoice file for this expense
+  """
+  invoiceFile: JSON
 
   """
   Account to reimburse
@@ -23468,6 +23488,7 @@ enum UploadedFileKind {
   TIER_LONG_DESCRIPTION
   ACCOUNT_CUSTOM_EMAIL
   AGREEMENT_ATTACHMENT
+  EXPENSE_INVOICE
 }
 
 """
