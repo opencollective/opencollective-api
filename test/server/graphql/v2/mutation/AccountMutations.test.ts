@@ -1274,7 +1274,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       <td>
 
 <p style="color: #494B4D; font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; line-height: 18px; font-size: 17px; padding: 1em;">
-  Hi Admin Name,
+  Hi Test Collective,
   <br><br>
   <a href="http://localhost:3000/tester" style="text-decoration: none; color: #297EFF;">Tester</a> just sent a message to <a href="http://localhost:3000/test-collective-with-contact" style="text-decoration: none; color: #297EFF;">Test Collective</a> on Open
   Collective. Simply reply to this email to reply to the sender.
