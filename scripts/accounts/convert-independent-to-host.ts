@@ -19,10 +19,7 @@ const program = new Command();
 program.argument('<slug>', 'The account slug to convert');
 program.option('--projects-to-collectives', 'Convert projects to collectives');
 
-program.action(async (slug, options) => {
-  logger.info('Starting conversion...');
-  logger.info(`DRY_RUN: ${DRY_RUN}`);
-
+export const main = async (slug: string, options: { isDryRun: boolean; projectsToCollectives: boolean }) => {
   const collective = await Collective.findOne({ where: { slug } });
   if (!collective) {
     throw new Error(`Account with slug ${slug} not found`);
@@ -92,7 +89,7 @@ program.action(async (slug, options) => {
       }
     }
 
-    if (!DRY_RUN) {
+    if (!options.isDryRun) {
       await transaction.commit();
       logger.info('Conversion completed successfully!');
     } else {
@@ -119,6 +116,12 @@ program.action(async (slug, options) => {
     await transaction.rollback();
     throw error;
   }
+};
+
+program.action(async (slug, options) => {
+  logger.info('Starting conversion...');
+  logger.info(`DRY_RUN: ${DRY_RUN}`);
+  await main(slug, { ...options, isDryRun: DRY_RUN });
 });
 
 if (!module.parent) {
