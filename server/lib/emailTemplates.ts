@@ -93,7 +93,6 @@ export const templateNames = [
   'subscription.ready.to.be.resumed',
   'taxform.request',
   'taxform.invalidated',
-  'taxform.received',
   'ticket.confirmed',
   'order.thankyou',
   'order.thankyou.wwcode',

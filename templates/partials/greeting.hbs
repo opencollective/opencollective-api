@@ -1,5 +1,9 @@
-{{#if recipient ~}}
-Hi{{#if recipient.name}} {{recipient.name}}{{/if}},
+{{#if collective.name ~}}
+Hi {{collective.name}},
+{{else if collective.legalName ~}}
+Hi {{collective.legalName}},
+{{else if recipient.name ~}}
+Hi {{recipient.name}},
 {{else if recipientName ~}}
 Hi {{recipientName}},
 {{else ~}}
