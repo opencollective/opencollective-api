@@ -139,7 +139,6 @@ export default async app => {
       if (cacheKey) {
         const fromCache = await cache.get(cacheKey);
         if (fromCache) {
-          // Track all slow queries on Sentry performance
           res.servedFromGraphqlCache = true;
           req.endAt = req.endAt || new Date();
           const executionTime = req.endAt - req.startAt;
