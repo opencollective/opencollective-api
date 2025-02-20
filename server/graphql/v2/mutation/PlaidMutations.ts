@@ -9,8 +9,11 @@ import RateLimit from '../../../lib/rate-limit';
 import { checkRemoteUserCanUseTransactions } from '../../common/scope-check';
 import { Forbidden, RateLimitExceeded } from '../../errors';
 import { GraphQLCountryISO } from '../enum';
-import { GraphQLAccountingCategoryReferenceInputFields } from '../input/AccountingCategoryInput';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import {
+  AccountReferenceInput,
+  fetchAccountWithReference,
+  GraphQLAccountReferenceInput,
+} from '../input/AccountReferenceInput';
 import {
   fetchConnectedAccountWithReference,
   GraphQLConnectedAccountReferenceInput,
@@ -166,7 +169,7 @@ export const plaidMutations = {
     resolve: async (
       _,
       args: {
-        host: GraphQLAccountingCategoryReferenceInputFields;
+        host: AccountReferenceInput;
         transactionImport: GraphQLTransactionsImportReferenceInputFields;
         publicToken: string;
         sourceName?: string;
