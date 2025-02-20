@@ -67,13 +67,18 @@ export const canAddFundsFromAccount = (fromCollective: Collective, host: Collect
     return false;
   } else if (remoteUser.isRoot()) {
     return true;
+  } else if (!remoteUser.isAdmin(host.id)) {
+    return false;
   } else {
     return (
-      remoteUser.isAdmin(host.id) &&
-      (fromCollective.HostCollectiveId === host.id ||
-        host.data?.allowAddFundsFromAllAccounts ||
-        host.data?.isFirstPartyHost ||
-        host.data?.isTrustedHost)
+      // Allowed from vendors under the same host
+      (fromCollective.type === CollectiveType.VENDOR && fromCollective.ParentCollectiveId === host.id) ||
+      // Allowed from profiles under the same host
+      fromCollective.HostCollectiveId === host.id ||
+      // Allowed with special flags
+      host.data?.allowAddFundsFromAllAccounts ||
+      host.data?.isFirstPartyHost ||
+      host.data?.isTrustedHost
     );
   }
 };
