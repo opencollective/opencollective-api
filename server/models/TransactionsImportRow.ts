@@ -122,6 +122,9 @@ TransactionsImportRow.init(
       validate: {
         len: [0, 5000],
       },
+      set(val: string) {
+        this.setDataValue('note', val?.trim() || null);
+      },
     },
     createdAt: {
       type: DataTypes.DATE,
