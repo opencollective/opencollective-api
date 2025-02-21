@@ -157,7 +157,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       });
     }
 
-    if (plan.pricePerCollective) {
+    if (plan.pricePerCollective && (!KIND || KIND === HOST_FEE_SHARE_DEBT)) {
       const activeHostedCollectives = await host.getHostedCollectivesCount();
       const amount = (activeHostedCollectives || 0) * plan.pricePerCollective;
       if (amount) {
@@ -209,7 +209,11 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
     if (KIND === PLATFORM_TIP_DEBT) {
       extraDescription = ' (Platform Tips)';
     } else if (KIND === HOST_FEE_SHARE_DEBT) {
-      extraDescription = ' (Platform Share)';
+      if (plan.pricePerCollective) {
+        extraDescription = ' (Platform Fees)';
+      } else {
+        extraDescription = ' (Platform Share)';
+      }
     }
 
     const transactionIds = transactions.map(t => t.id);
