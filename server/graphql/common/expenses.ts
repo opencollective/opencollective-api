@@ -2261,7 +2261,10 @@ const isValueChanging = (expense: Expense, expenseData: Partial<ExpenseData>, ke
   const value = expenseData[key];
   if (key === 'accountingCategory') {
     return !isUndefined(value) && (value?.id ?? null) !== expense.AccountingCategoryId;
-  } else {
+  } else if (key === 'invoiceFile') {
+    return !isUndefined(value) && !isEqual(value, expense[key]);
+  }
+  {
     return !isNil(value) && !isEqual(value, expense[key]);
   }
 };
@@ -2526,10 +2529,7 @@ export async function editExpense(
   // before the `canEditExpense` permissions check, because `editOnlyTagsAndAccountingCategory` has its
   // own permissions checks that are more permissive (e.g. tags can be edited even if the expense is paid)
   const modifiedFields = omitBy(expenseData, (_, key) => key === 'id' || !isValueChanging(expense, expenseData, key));
-  if (
-    isUndefined(expenseData.invoiceFile) &&
-    Object.keys(modifiedFields).every(field => ['tags', 'accountingCategory'].includes(field))
-  ) {
+  if (Object.keys(modifiedFields).every(field => ['tags', 'accountingCategory'].includes(field))) {
     return editOnlyTagsAndAccountingCategory(expense, modifiedFields, req);
   }
 
