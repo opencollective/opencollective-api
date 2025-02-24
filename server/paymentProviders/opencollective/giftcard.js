@@ -551,9 +551,13 @@ async function claim(args, remoteUser) {
       { type: PAYMENT_METHOD_TYPE.GIFTCARD },
     ),
   });
+
   if (!giftCardPaymentMethod) {
     throw Error(`Gift Card code "${args.code}" is invalid`);
+  } else if (giftCardPaymentMethod.confirmedAt) {
+    throw Error('Gift Card already claimed');
   }
+
   const sourcePaymentMethod = await models.PaymentMethod.findByPk(giftCardPaymentMethod.SourcePaymentMethodId);
   // if the gift card PM Collective Id is different than the Source PM Collective Id
   // it means this gift card was already claimed
@@ -568,7 +572,10 @@ async function claim(args, remoteUser) {
   const user = remoteUser || (await models.User.findOrCreateByEmail(get(args, 'user.email'), args.user));
   if (!user) {
     throw Error('Please provide user details or make this request as a logged in user.');
+  } else if (user.CollectiveId === sourcePaymentMethod.CollectiveId) {
+    throw new ValidationFailed(`You can't claim your own gift card`);
   }
+
   // updating gift card with collective Id of the user
   await giftCardPaymentMethod.update({
     CollectiveId: user.CollectiveId,

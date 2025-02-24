@@ -336,12 +336,12 @@ const mutations = {
     },
   },
   claimPaymentMethod: {
-    type: PaymentMethodType,
+    type: new GraphQLNonNull(PaymentMethodType),
     args: {
       code: { type: new GraphQLNonNull(GraphQLString) },
       user: { type: UserInputType },
     },
-    resolve: async (_, args, req) => paymentMethodsMutation.claimPaymentMethod(args, req.remoteUser),
+    resolve: async (_, args, req) => paymentMethodsMutation.claimPaymentMethod(args, req),
   },
   removePaymentMethod: {
     type: new GraphQLNonNull(PaymentMethodType),
