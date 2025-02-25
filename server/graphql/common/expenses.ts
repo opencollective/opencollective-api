@@ -2263,8 +2263,7 @@ const isValueChanging = (expense: Expense, expenseData: Partial<ExpenseData>, ke
     return !isUndefined(value) && (value?.id ?? null) !== expense.AccountingCategoryId;
   } else if (key === 'invoiceFile') {
     return !isUndefined(value) && !isEqual(value, expense[key]);
-  }
-  {
+  } else {
     return !isNil(value) && !isEqual(value, expense[key]);
   }
 };
