@@ -118,7 +118,7 @@
     "pg-connection-string": "2.7.0",
     "pg-format": "1.0.4",
     "pg-listen": "1.7.0",
-    "plaid": "31.0.0",
+    "plaid": "31.1.0",
     "prepend-http": "3.0.1",
     "redis": "4.6.6",
     "sanitize-html": "2.13.1",
