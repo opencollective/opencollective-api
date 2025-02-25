@@ -20,12 +20,19 @@ export const generateCollectivePaypalPayoutMethodsLoader = (): DataLoader<number
 /**
  * Loader for all collective's payout methods
  */
-export const generateCollectivePayoutMethodsLoader = (): DataLoader<number, PayoutMethod[]> => {
+export function generateCollectivePayoutMethodsLoader({ excludeArchived = true } = {}): DataLoader<
+  number,
+  PayoutMethod[]
+> {
   return new DataLoader(async (collectiveIds: number[]) => {
+    const where = { CollectiveId: { [Op.in]: collectiveIds } };
+    if (excludeArchived) {
+      where['isSaved'] = true;
+    }
     const payoutMethods = await PayoutMethod.findAll({
-      where: { CollectiveId: { [Op.in]: collectiveIds }, isSaved: true },
+      where,
     });
 
     return sortResultsArray(collectiveIds, payoutMethods, pm => pm.CollectiveId);
   });
-};
+}

@@ -93,6 +93,7 @@ export const loaders = req => {
   // Payout method
   context.loaders.PayoutMethod.paypalByCollectiveId = generateCollectivePaypalPayoutMethodsLoader();
   context.loaders.PayoutMethod.byCollectiveId = generateCollectivePayoutMethodsLoader();
+  context.loaders.PayoutMethod.allByCollectiveId = generateCollectivePayoutMethodsLoader({ excludeArchived: false });
 
   // Virtual Card
   context.loaders.VirtualCard.byCollectiveId = generateCollectiveVirtualCardLoader();
