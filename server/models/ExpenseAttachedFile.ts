@@ -90,9 +90,11 @@ ExpenseAttachedFile.init(
           if (
             !isURL(url, {
               // eslint-disable-next-line camelcase
-              require_host: config.env !== 'development' && config.env !== 'test' && config.env !== 'e2e',
+              require_host:
+                config.env !== 'development' && config.env !== 'test' && config.env !== 'e2e' && !process.env.E2E_TEST,
               // eslint-disable-next-line camelcase
-              require_tld: config.env !== 'development' && config.env !== 'test' && config.env !== 'e2e',
+              require_tld:
+                config.env !== 'development' && config.env !== 'test' && config.env !== 'e2e' && !process.env.E2E_TEST,
             })
           ) {
             throw new Error('File URL is not a valid URL');

@@ -19,7 +19,7 @@ import {
   TwoFactorMethod,
 } from '../../../../../server/lib/two-factor-authentication/lib';
 import { sleep } from '../../../../../server/lib/utils';
-import models, { UploadedFile } from '../../../../../server/models';
+import models, { Expense, UploadedFile } from '../../../../../server/models';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../../server/models/LegalDocument';
 import { PayoutMethodTypes } from '../../../../../server/models/PayoutMethod';
 import UserTwoFactorMethod from '../../../../../server/models/UserTwoFactorMethod';
@@ -184,6 +184,9 @@ const mutationExpenseFields = gql`
       }
       incurredAt
       description
+    }
+    invoiceFile {
+      url
     }
     attachedFiles {
       url
@@ -1198,6 +1201,152 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.data).to.not.exist;
       });
     });
+
+    describe('invoice file', () => {
+      it('creates expense with invoice file', async () => {
+        const user = await fakeUser();
+        const existingUploadedFile = await fakeUploadedFile({
+          kind: 'EXPENSE_ATTACHED_FILE',
+          CreatedByUserId: user.id,
+        });
+        const invoiceUploadedFile = await fakeUploadedFile({
+          kind: 'EXPENSE_INVOICE',
+          CreatedByUserId: user.id,
+        });
+        const collectiveAdmin = await fakeUser();
+        const collective = await fakeCollective({ admin: collectiveAdmin.collective });
+        const payee = await fakeCollective({
+          type: 'ORGANIZATION',
+          admin: user.collective,
+          location: { address: null },
+        });
+        const expenseData = {
+          ...getValidExpenseData(),
+          type: 'INVOICE',
+          items: [
+            {
+              description: 'A first item',
+              amount: 4200,
+            },
+          ],
+          attachedFiles: [
+            {
+              url: existingUploadedFile.url,
+            },
+          ],
+          invoiceFile: {
+            url: invoiceUploadedFile.url,
+          },
+          payee: { legacyId: payee.id },
+          reference: '123456',
+        };
+
+        const result = await graphqlQueryV2(
+          createExpenseMutation,
+          { expense: expenseData, account: { legacyId: collective.id } },
+          user,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.createExpense.invoiceFile.url).to.eql(invoiceUploadedFile.url);
+      });
+
+      it('fails if submitter does not have permission to invoice file', async () => {
+        const user = await fakeUser();
+        const existingUploadedFile = await fakeUploadedFile({
+          kind: 'EXPENSE_ATTACHED_FILE',
+          CreatedByUserId: user.id,
+        });
+        const invoiceUploadedFile = await fakeUploadedFile({
+          kind: 'EXPENSE_INVOICE',
+        });
+        const collectiveAdmin = await fakeUser();
+        const collective = await fakeCollective({ admin: collectiveAdmin.collective });
+        const payee = await fakeCollective({
+          type: 'ORGANIZATION',
+          admin: user.collective,
+          location: { address: null },
+        });
+        const expenseData = {
+          ...getValidExpenseData(),
+          type: 'INVOICE',
+          items: [
+            {
+              description: 'A first item',
+              amount: 4200,
+            },
+          ],
+          attachedFiles: [
+            {
+              url: existingUploadedFile.url,
+            },
+          ],
+          invoiceFile: {
+            url: invoiceUploadedFile.url,
+          },
+          payee: { legacyId: payee.id },
+          reference: '123456',
+        };
+
+        const result = await graphqlQueryV2(
+          createExpenseMutation,
+          { expense: expenseData, account: { legacyId: collective.id } },
+          user,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eql('Invalid expense invoice file url');
+      });
+
+      it('ignores if expense type is not invoice', async () => {
+        const user = await fakeUser();
+        const existingUploadedFile = await fakeUploadedFile({
+          kind: 'EXPENSE_ITEM',
+          CreatedByUserId: user.id,
+        });
+        const invoiceUploadedFile = await fakeUploadedFile({
+          kind: 'EXPENSE_INVOICE',
+          CreatedByUserId: user.id,
+        });
+        const collectiveAdmin = await fakeUser();
+        const collective = await fakeCollective({ admin: collectiveAdmin.collective });
+        const payee = await fakeCollective({
+          type: 'ORGANIZATION',
+          admin: user.collective,
+          location: { address: null },
+        });
+        const expenseData = {
+          ...getValidExpenseData(),
+          type: 'RECEIPT',
+          items: [
+            {
+              url: existingUploadedFile.url,
+              description: 'A first item',
+              amount: 4200,
+            },
+          ],
+          invoiceFile: {
+            url: invoiceUploadedFile.url,
+          },
+          payee: { legacyId: payee.id },
+          reference: '123456',
+        };
+
+        const result = await graphqlQueryV2(
+          createExpenseMutation,
+          { expense: expenseData, account: { legacyId: collective.id } },
+          user,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.createExpense.invoiceFile).to.be.null;
+
+        const expense = await Expense.findByPk(result.data.createExpense.legacyId);
+        expect(expense.InvoiceFileId).to.be.null;
+      });
+    });
   });
 
   describe('editExpense', () => {
@@ -2036,6 +2185,10 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       it('allows invited DRAFT to be edited by original author', async () => {
         const collective = await fakeCollective({ currency: 'EUR', settings: { VAT: { type: 'OWN' } } });
         const draftAuthor = await fakeUser();
+        const invoiceUploadedFile = await fakeUploadedFile({
+          kind: 'EXPENSE_INVOICE',
+          CreatedByUserId: draftAuthor.id,
+        });
         const payee = await fakeUser();
         const expense = await fakeExpense({
           status: expenseStatus.DRAFT,
@@ -2066,6 +2219,9 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
               description: 'Item 1',
             },
           ],
+          invoiceFile: {
+            url: invoiceUploadedFile.url,
+          },
         };
 
         const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, draftAuthor);
@@ -2083,11 +2239,17 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(expense.data.items[0].incurredAt).to.equal('2023-09-26T00:00:00.000Z');
         expect(expense.data.items[0].description).to.equal('Item 1');
         expect(expense.data.payee).to.contain({ id: payee.collective.id });
+        expect(expense.data.invoiceFile).to.exist;
+        expect(expense.data.invoiceFile.url).to.eql(invoiceUploadedFile.getDataValue('url'));
       });
 
       it('allows invited DRAFT to be edited by original author with draft-key', async () => {
         const collective = await fakeCollective({ currency: 'EUR', settings: { VAT: { type: 'OWN' } } });
         const draftAuthor = await fakeUser();
+        const invoiceUploadedFile = await fakeUploadedFile({
+          kind: 'EXPENSE_INVOICE',
+          CreatedByUserId: draftAuthor.id,
+        });
         const payee = await fakeUser();
         const expense = await fakeExpense({
           status: expenseStatus.DRAFT,
@@ -2101,6 +2263,9 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
             customData: { customField: 'customValue' },
             taxes: [{ type: 'VAT', rate: 0.055 }],
             payee: payee.collective.minimal,
+            invoiceFile: {
+              url: randUrl(),
+            },
           },
         });
 
@@ -2117,6 +2282,9 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
               description: 'Item 1',
             },
           ],
+          invoiceFile: {
+            url: invoiceUploadedFile.url,
+          },
         };
 
         const result = await graphqlQueryV2(
@@ -2137,6 +2305,8 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(expense.data.items[0].incurredAt).to.equal('2023-09-26T00:00:00.000Z');
         expect(expense.data.items[0].description).to.equal('Item 1');
         expect(expense.data.payee).to.contain({ id: payee.collective.id });
+        expect(expense.data.invoiceFile).to.exist;
+        expect(expense.data.invoiceFile.url).to.eql(invoiceUploadedFile.getDataValue('url'));
       });
 
       it('send notification to invited external user when DRAFT is updated', async () => {
@@ -2779,6 +2949,167 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const result = await graphqlQueryV2(editExpenseMutation, { expense: expenseUpdateData }, expense.User);
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.eql('Invalid expense attached file url');
+      });
+    });
+
+    describe('invoice file', () => {
+      it('adds an invoice file', async () => {
+        const expense = await fakeExpense({ type: 'INVOICE', status: 'APPROVED', amount: 3000 });
+        const invoiceUploadedFile = await fakeUploadedFile({
+          kind: 'EXPENSE_INVOICE',
+          CreatedByUserId: expense.User.id,
+        });
+        const expenseUpdateData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          invoiceFile: {
+            url: invoiceUploadedFile.url,
+          },
+        };
+
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: expenseUpdateData }, expense.User);
+        result.errors && console.error(result.errors);
+
+        await expense.reload();
+        expect(expense.InvoiceFileId).to.eql(invoiceUploadedFile.id);
+
+        expect(result.data.editExpense.invoiceFile).to.exist;
+        expect(result.data.editExpense.invoiceFile.url).to.eql(invoiceUploadedFile.url);
+      });
+
+      it('removes invoice file', async () => {
+        const user = await fakeUser();
+        const invoiceUploadedFile = await fakeUploadedFile({
+          kind: 'EXPENSE_INVOICE',
+          CreatedByUserId: user.id,
+        });
+        const expense = await fakeExpense({
+          UserId: user.id,
+          type: 'INVOICE',
+          status: 'APPROVED',
+          amount: 3000,
+          InvoiceFileId: invoiceUploadedFile.id,
+        });
+        expect(expense.InvoiceFileId).to.eql(invoiceUploadedFile.id);
+
+        const expenseUpdateData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          invoiceFile: null,
+        };
+
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: expenseUpdateData }, expense.User);
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+
+        await expense.reload();
+        expect(expense.InvoiceFileId).to.be.null;
+
+        expect(result.data.editExpense.invoiceFile).to.not.exist;
+      });
+
+      it('preserves invoice file', async () => {
+        const user = await fakeUser();
+        const invoiceUploadedFile = await fakeUploadedFile({
+          kind: 'EXPENSE_INVOICE',
+          CreatedByUserId: user.id,
+        });
+        const expense = await fakeExpense({
+          UserId: user.id,
+          type: 'INVOICE',
+          status: 'APPROVED',
+          amount: 3000,
+          InvoiceFileId: invoiceUploadedFile.id,
+          attachedFiles: [],
+        });
+        expect(expense.InvoiceFileId).to.eql(invoiceUploadedFile.id);
+
+        const expenseUpdateData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          attachedFiles: { url: randUrl() },
+        };
+
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: expenseUpdateData }, expense.User);
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+
+        await expense.reload();
+        expect(expense.InvoiceFileId).to.eq(invoiceUploadedFile.id);
+
+        expect(result.data.editExpense.attachedFiles).to.exist;
+        expect(result.data.editExpense.attachedFiles).to.have.length(1);
+        expect(result.data.editExpense.invoiceFile).to.exist;
+        expect(result.data.editExpense.invoiceFile.url).to.eql(invoiceUploadedFile.url);
+      });
+
+      it('replaces invoice file', async () => {
+        const user = await fakeUser();
+        const invoiceUploadedFile = await fakeUploadedFile({
+          kind: 'EXPENSE_INVOICE',
+          CreatedByUserId: user.id,
+        });
+
+        const newInvoiceUploadedFile = await fakeUploadedFile({
+          kind: 'EXPENSE_INVOICE',
+          CreatedByUserId: user.id,
+        });
+        const expense = await fakeExpense({
+          UserId: user.id,
+          type: 'INVOICE',
+          status: 'APPROVED',
+          amount: 3000,
+          InvoiceFileId: invoiceUploadedFile.id,
+        });
+        expect(expense.InvoiceFileId).to.eql(invoiceUploadedFile.id);
+
+        const expenseUpdateData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          invoiceFile: {
+            url: newInvoiceUploadedFile.url,
+          },
+        };
+
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: expenseUpdateData }, expense.User);
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+
+        await expense.reload();
+        expect(expense.InvoiceFileId).to.eql(newInvoiceUploadedFile.id);
+
+        expect(result.data.editExpense.invoiceFile).to.exist;
+        expect(result.data.editExpense.invoiceFile.url).to.eql(newInvoiceUploadedFile.url);
+      });
+
+      it('fails if submitter does not have permission to invoice file', async () => {
+        const user = await fakeUser();
+        const invoiceUploadedFile = await fakeUploadedFile({
+          kind: 'EXPENSE_INVOICE',
+          CreatedByUserId: user.id,
+        });
+
+        const newInvoiceUploadedFile = await fakeUploadedFile({
+          kind: 'EXPENSE_INVOICE',
+        });
+        const expense = await fakeExpense({
+          UserId: user.id,
+          type: 'INVOICE',
+          status: 'APPROVED',
+          amount: 3000,
+          InvoiceFileId: invoiceUploadedFile.id,
+        });
+        expect(expense.InvoiceFileId).to.eql(invoiceUploadedFile.id);
+
+        const expenseUpdateData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          invoiceFile: {
+            url: newInvoiceUploadedFile.url,
+          },
+        };
+
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: expenseUpdateData }, expense.User);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eql('Invalid expense invoice file url');
+
+        await expense.reload();
+        expect(expense.InvoiceFileId).to.eql(invoiceUploadedFile.id);
       });
     });
   });
@@ -4888,9 +5219,15 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         CreatedByUserId: user.id,
       });
 
+      const invoiceUploadedFile = await fakeUploadedFile({
+        kind: 'EXPENSE_INVOICE',
+        CreatedByUserId: user.id,
+      });
+
       const expenseInput = cloneDeep(invoice);
       expenseInput.items[0].url = expenseExpenseItemUploadedFile.url;
-
+      expenseInput.invoiceFile = { url: invoiceUploadedFile.url };
+      console.log('expenseInput', expenseInput);
       const result = await graphqlQueryV2(
         draftExpenseAndInviteUserMutation,
         { expense: expenseInput, account: { legacyId: collective.id } },
@@ -4901,6 +5238,11 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(result.errors).to.not.exist;
       expect(result.data?.draftExpenseAndInviteUser?.draft?.items).to.exist;
       expect(result.data.draftExpenseAndInviteUser.draft?.items).to.have.length(1);
+      expect(result.data.draftExpenseAndInviteUser.draft?.invoiceFile).to.exist;
+
+      const expectedInvoiceFileUrl = new URL(invoiceUploadedFile.url);
+      expectedInvoiceFileUrl.searchParams.set('expenseId', result.data.draftExpenseAndInviteUser.id);
+      expect(result.data.draftExpenseAndInviteUser.draft?.invoiceFile.url).to.eql(expectedInvoiceFileUrl.toString());
 
       const expectedUrl = new URL(expenseExpenseItemUploadedFile.url);
       expectedUrl.searchParams.set('expenseId', result.data.draftExpenseAndInviteUser.id);
