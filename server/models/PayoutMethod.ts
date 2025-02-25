@@ -18,6 +18,7 @@ import { objHasOnlyKeys } from '../lib/utils';
 import { RecipientAccount as BankAccountPayoutMethodData } from '../types/transferwise';
 
 import Collective from './Collective';
+import Expense from './Expense';
 import User from './User';
 
 /**
@@ -212,6 +213,16 @@ class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCreationAtt
       logger.warn(`Couldn't pick identifiable data fields from PayoutMethod #${this.id}`);
       return [];
     }
+  }
+
+  async canBeEditedOrDeleted(): Promise<boolean> {
+    const expenses = await Expense.findOne({
+      where: {
+        PayoutMethodId: this.id,
+      },
+    });
+
+    return !expenses;
   }
 }
 

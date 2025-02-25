@@ -4,7 +4,7 @@ import { SequelizeValidationError, ValidationError } from 'sequelize';
 import models from '../../../server/models';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 import { randEmail } from '../../stores';
-import { fakePayoutMethod, fakeUser } from '../../test-helpers/fake-data';
+import { fakeExpense, fakePayoutMethod, fakeUser } from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
 
 describe('server/models/PayoutMethod', () => {
@@ -154,6 +154,19 @@ describe('server/models/PayoutMethod', () => {
         const pm = await models.PayoutMethod.create({ ...baseData, data: { content: 'Yep' } });
         expect(pm).to.exist;
       });
+    });
+  });
+
+  describe('canBeEditedOrDeleted', () => {
+    it(`returns false for a payout method is attached to an expense`, async () => {
+      const pm = await fakePayoutMethod();
+      await fakeExpense({ CollectiveId: pm.CollectiveId, PayoutMethodId: pm.id });
+      expect(await pm.canBeEditedOrDeleted()).to.be.false;
+    });
+
+    it('returns true for a payout method that is not attached to any expenses', async () => {
+      const pm = await fakePayoutMethod();
+      expect(await pm.canBeEditedOrDeleted()).to.be.true;
     });
   });
 });
