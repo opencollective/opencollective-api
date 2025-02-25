@@ -12,6 +12,7 @@ import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../error
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLPayoutMethodInput } from '../input/PayoutMethodInput';
+import { fetchPayoutMethodWithReference, GraphQLPayoutMethodReferenceInput } from '../input/PayoutMethodReferenceInput';
 import GraphQLPayoutMethod from '../object/PayoutMethod';
 
 const payoutMethodMutations = {
@@ -78,11 +79,11 @@ const payoutMethodMutations = {
         type: new GraphQLNonNull(GraphQLString),
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+    async resolve(_: void, args, req: express.Request): Promise<PayoutMethodModel> {
       checkRemoteUserCanUseExpenses(req);
 
       const pmId = idDecode(args.payoutMethodId, IDENTIFIER_TYPES.PAYOUT_METHOD);
-      const payoutMethod = await req.loaders.PayoutMethod.byId.load(pmId);
+      const payoutMethod: PayoutMethodModel = await req.loaders.PayoutMethod.byId.load(pmId);
 
       if (!payoutMethod) {
         throw new NotFound('This payout method does not exist');
@@ -93,7 +94,71 @@ const payoutMethodMutations = {
         throw new Forbidden();
       }
 
-      return payoutMethod.update({ isSaved: false });
+      if (await payoutMethod.canBeEditedOrDeleted()) {
+        await payoutMethod.destroy();
+        return payoutMethod;
+      } else {
+        return payoutMethod.update({ isSaved: false });
+      }
+    },
+  },
+  restorePayoutMethod: {
+    description: 'Restore the given payout method. Scope: "expenses".',
+    type: new GraphQLNonNull(GraphQLPayoutMethod),
+    args: {
+      payoutMethod: {
+        type: new GraphQLNonNull(GraphQLPayoutMethodReferenceInput),
+        description: 'Payout Method reference',
+      },
+    },
+    async resolve(_: void, args, req: express.Request): Promise<PayoutMethodModel> {
+      checkRemoteUserCanUseExpenses(req);
+
+      const payoutMethod = await fetchPayoutMethodWithReference(args.payoutMethod);
+
+      const collective = await req.loaders.Collective.byId.load(payoutMethod.CollectiveId);
+      if (!req.remoteUser.isAdminOfCollective(collective)) {
+        throw new Forbidden();
+      }
+
+      return payoutMethod.update({ isSaved: true });
+    },
+  },
+  editPayoutMethod: {
+    type: new GraphQLNonNull(GraphQLPayoutMethod),
+    args: {
+      payoutMethod: {
+        type: new GraphQLNonNull(GraphQLPayoutMethodInput),
+        description: 'Payout Method reference',
+      },
+    },
+    async resolve(_: void, args, req: express.Request): Promise<PayoutMethodModel> {
+      checkRemoteUserCanUseExpenses(req);
+
+      const payoutMethod = await fetchPayoutMethodWithReference(args.payoutMethod);
+
+      const collective = await req.loaders.Collective.byId.load(payoutMethod.CollectiveId);
+      if (!req.remoteUser.isAdminOfCollective(collective)) {
+        throw new Forbidden();
+      }
+
+      // Enforce 2FA
+      await twoFactorAuthLib.enforceForAccount(req, collective);
+
+      if (await payoutMethod.canBeEditedOrDeleted()) {
+        return await payoutMethod.update({
+          ...pick(args.payoutMethod, ['name', 'data', 'isSaved']),
+          CollectiveId: collective.id,
+          CreatedByUserId: req.remoteUser.id,
+        });
+      } else {
+        await payoutMethod.update({ isSaved: false });
+        return await models.PayoutMethod.create({
+          ...pick(args.payoutMethod, ['name', 'data', 'type']),
+          CollectiveId: collective.id,
+          CreatedByUserId: req.remoteUser.id,
+        });
+      }
     },
   },
 };
