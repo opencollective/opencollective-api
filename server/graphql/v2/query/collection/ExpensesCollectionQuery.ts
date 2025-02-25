@@ -17,7 +17,7 @@ import { AccountingCategory, Collective, Op, sequelize } from '../../../../model
 import Expense, { ExpenseType } from '../../../../models/Expense';
 import { PayoutMethodTypes } from '../../../../models/PayoutMethod';
 import { validateExpenseCustomData } from '../../../common/expenses';
-import { Unauthorized } from '../../../errors';
+import { Forbidden, NotFound, Unauthorized } from '../../../errors';
 import { GraphQLExpenseCollection } from '../../collection/ExpenseCollection';
 import GraphQLExpenseStatusFilter from '../../enum/ExpenseStatusFilter';
 import { GraphQLExpenseType } from '../../enum/ExpenseType';
@@ -32,6 +32,10 @@ import {
   CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   GraphQLChronologicalOrderInput,
 } from '../../input/ChronologicalOrderInput';
+import {
+  fetchPayoutMethodWithReference,
+  GraphQLPayoutMethodReferenceInput,
+} from '../../input/PayoutMethodReferenceInput';
 import { GraphQLVirtualCardReferenceInput } from '../../input/VirtualCardReferenceInput';
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
 import { UncategorizedValue } from '../../object/AccountingCategory';
@@ -210,6 +214,10 @@ export const ExpensesCollectionQueryArgs = {
     type: new GraphQLList(GraphQLString),
     description: 'Only return expenses that match these accounting categories',
   },
+  payoutMethod: {
+    type: GraphQLPayoutMethodReferenceInput,
+    description: 'Only return transactions that are associated with this payout method',
+  },
 };
 
 const loadAllAccountsFromArgs = async (
@@ -384,7 +392,15 @@ export const ExpensesCollectionQueryResolver = async (
     where['createdAt'][Op.lte] = args.dateTo;
   }
 
-  if (args.payoutMethodType === 'CREDIT_CARD') {
+  if (args.payoutMethod) {
+    const payoutMethod = await fetchPayoutMethodWithReference(args.payoutMethod);
+    assert(payoutMethod, new NotFound('Requested payment method not found'));
+    assert(
+      req.remoteUser?.isAdmin(payoutMethod.CollectiveId),
+      new Forbidden("You need to be an admin of the payment method's collective to access this resource"),
+    );
+    where['PayoutMethodId'] = payoutMethod.id;
+  } else if (args.payoutMethodType === 'CREDIT_CARD') {
     where[Op.and].push({ VirtualCardId: { [Op.not]: null } });
   } else if (args.payoutMethodType) {
     include.push({
