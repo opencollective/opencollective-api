@@ -183,7 +183,7 @@ export default async app => {
    */
   const logGraphQLComplexityRejection = (ctx, err) => {
     let queryName = 'Query';
-    const document = ctx.getDocument();
+    const document = ctx?.getDocument();
     const operation = document?.definitions?.find(d => d.kind === 'OperationDefinition');
     queryName = get(operation, 'name.value') || queryName;
     reportMessageToSentry('Query complexity is too high', {
