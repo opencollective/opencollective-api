@@ -3,7 +3,7 @@ import gql from 'fake-tag';
 
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import { PayoutMethodTypes } from '../../../../../server/models/PayoutMethod';
-import { fakeCollective, fakePayoutMethod, fakeUser } from '../../../../test-helpers/fake-data';
+import { fakeCollective, fakeExpense, fakePayoutMethod, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
 import * as utils from '../../../../utils';
 
@@ -131,6 +131,7 @@ describe('server/graphql/v2/mutation/PayoutMethodMutations', () => {
       adminUser = await fakeUser();
       randomUser = await fakeUser();
       payoutMethod = await fakePayoutMethod({ CollectiveId: adminUser.CollectiveId, isSaved: true });
+      await fakeExpense({ PayoutMethodId: payoutMethod.id });
       mutationArgs = { id: idEncode(payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD) };
     });
 
