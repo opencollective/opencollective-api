@@ -160,7 +160,7 @@ describe('server/models/PayoutMethod', () => {
   describe('canBeEditedOrDeleted', () => {
     it(`returns false for a payout method is attached to an expense`, async () => {
       const pm = await fakePayoutMethod();
-      await fakeExpense({ CollectiveId: pm.CollectiveId, PayoutMethodId: pm.id });
+      await fakeExpense({ CollectiveId: pm.CollectiveId, PayoutMethodId: pm.id, status: 'APPROVED' });
       expect(await pm.canBeEditedOrDeleted()).to.be.false;
     });
 

@@ -12,14 +12,13 @@ import {
 } from 'sequelize';
 import isEmail from 'validator/lib/isEmail';
 
+import ExpenseStatuses from '../constants/expense-status';
 import logger from '../lib/logger';
 import sequelize, { Op } from '../lib/sequelize';
 import { objHasOnlyKeys } from '../lib/utils';
 import { RecipientAccount as BankAccountPayoutMethodData } from '../types/transferwise';
 
-import Collective from './Collective';
-import Expense from './Expense';
-import User from './User';
+import type { Collective, Expense, User } from '.';
 
 /**
  * Match the Postgres enum defined for `PayoutMethods` > `type`
@@ -216,9 +215,10 @@ class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCreationAtt
   }
 
   async canBeEditedOrDeleted(): Promise<boolean> {
-    const expenses = await Expense.findOne({
+    const expenses = await (sequelize.models.Expense as typeof Expense).findOne({
       where: {
         PayoutMethodId: this.id,
+        status: { [Op.notIn]: [ExpenseStatuses.PENDING, ExpenseStatuses.DRAFT] },
       },
     });
 

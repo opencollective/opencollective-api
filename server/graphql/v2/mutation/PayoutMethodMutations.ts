@@ -2,6 +2,7 @@ import express from 'express';
 import { GraphQLNonNull, GraphQLString } from 'graphql';
 import { pick } from 'lodash';
 
+import ExpenseStatuses from '../../../constants/expense-status';
 import logger from '../../../lib/logger';
 import { reportErrorToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
@@ -152,12 +153,20 @@ const payoutMethodMutations = {
           CreatedByUserId: req.remoteUser.id,
         });
       } else {
+        // Archive the current payout method and create a new one
         await payoutMethod.update({ isSaved: false });
-        return await models.PayoutMethod.create({
-          ...pick(args.payoutMethod, ['name', 'data', 'type']),
+        const newPayoutMethod = await models.PayoutMethod.create({
+          ...pick(payoutMethod, ['name', 'data', 'type']),
+          ...pick(args.payoutMethod, ['name', 'data', 'type', 'isSaved']),
           CollectiveId: collective.id,
           CreatedByUserId: req.remoteUser.id,
         });
+        // Update Pending expenses to use the new payout method
+        await models.Expense.update(
+          { PayoutMethodId: newPayoutMethod.id },
+          { where: { PayoutMethodId: payoutMethod.id, status: [ExpenseStatuses.PENDING, ExpenseStatuses.DRAFT] } },
+        );
+        return newPayoutMethod;
       }
     },
   },
