@@ -30,14 +30,17 @@ import {
   fakeAccountingCategory,
   fakeActiveHost,
   fakeCollective,
+  fakeComment,
   fakeConnectedAccount,
   fakeExpense,
+  fakeExpenseAttachedFile,
   fakeExpenseItem,
   fakeHost,
   fakeLegalDocument,
   fakeOrganization,
   fakePaymentMethod,
   fakePayoutMethod,
+  fakeRecurringExpense,
   fakeTransaction,
   fakeTransactionsImport,
   fakeTransactionsImportRow,
@@ -3121,6 +3124,8 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       it('if owner', async () => {
         const expense = await fakeExpense({ status: expenseStatus.REJECTED });
         const result = await graphqlQueryV2(deleteExpenseMutation, prepareGQLParams(expense), expense.User);
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
 
         expect(result.data.deleteExpense.legacyId).to.eq(expense.id);
         await expense.reload({ paranoid: false });
@@ -3246,6 +3251,53 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const result = await graphqlQueryV2(deleteExpenseMutation, prepareGQLParams(expense), expense.User);
         expect(result.errors).to.not.exist;
       });
+    });
+
+    it('deletes the expense and all associated data', async () => {
+      // Some random data to make sure it stays untouched
+      const randomComment = await fakeComment();
+      const randomExpenseItem = await fakeExpenseItem();
+      const randomExpenseAttachedFile = await fakeExpenseAttachedFile();
+      const randomExpense = await fakeExpense();
+      const randomRecurringExpense = await fakeRecurringExpense();
+      const randomUploadedFile = await fakeUploadedFile();
+      const randomTransactionsImportRow = await fakeTransactionsImportRow();
+
+      // The actual expense to delete
+      const recurringExpense = await fakeRecurringExpense();
+      const invoiceFile = await fakeUploadedFile({ kind: 'EXPENSE_INVOICE' });
+      const expense = await fakeExpense({
+        status: expenseStatus.REJECTED,
+        InvoiceFileId: invoiceFile.id,
+        RecurringExpenseId: recurringExpense.id,
+      });
+      const item = await fakeExpenseItem({ ExpenseId: expense.id });
+      const attachedFile = await fakeExpenseAttachedFile({ ExpenseId: expense.id });
+      const transactionsImportRow = await fakeTransactionsImportRow({ ExpenseId: expense.id });
+      const comment = await fakeComment({ ExpenseId: expense.id });
+
+      const result = await graphqlQueryV2(deleteExpenseMutation, prepareGQLParams(expense), expense.User);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      // Ensure other data is untouched
+      expect((await randomComment.reload()).deletedAt).to.not.exist;
+      expect((await randomExpenseItem.reload()).deletedAt).to.not.exist;
+      expect((await randomExpenseAttachedFile.reload()).deletedAt).to.not.exist;
+      expect((await randomExpense.reload()).deletedAt).to.not.exist;
+      expect((await randomRecurringExpense.reload()).deletedAt).to.not.exist;
+      expect((await randomUploadedFile.reload()).deletedAt).to.not.exist;
+      expect((await randomTransactionsImportRow.reload()).deletedAt).to.not.exist;
+
+      // Check deleted
+      expect(result.data.deleteExpense.legacyId).to.eq(expense.id);
+      expect((await expense.reload({ paranoid: false })).deletedAt).to.exist;
+      expect((await recurringExpense.reload({ paranoid: false })).deletedAt).to.exist;
+      expect((await invoiceFile.reload({ paranoid: false })).deletedAt).to.exist;
+      expect((await item.reload({ paranoid: false })).deletedAt).to.exist;
+      expect((await comment.reload({ paranoid: false })).deletedAt).to.exist;
+      expect((await attachedFile.reload({ paranoid: false })).deletedAt).to.not.exist; // This model doesn't support soft-delete, so we don't touch it
+      expect((await transactionsImportRow.reload({ paranoid: false })).ExpenseId).to.be.null;
     });
   });
 
