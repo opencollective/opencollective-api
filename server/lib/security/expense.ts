@@ -460,7 +460,7 @@ export const checkExpensesBatch = async (
         // Check if this Payout Method is being used by someone other user or collective
         const similarPayoutMethods = await expense.PayoutMethod.findSimilar({
           include: [{ model: models.Collective, attributes: ['slug'] }],
-          where: { CollectiveId: { [Op.ne]: expense.User.collective.id } },
+          where: { CollectiveId: { [Op.ne]: expense.FromCollectiveId } },
         });
         if (similarPayoutMethods) {
           addBooleanCheck(checks, similarPayoutMethods.length > 0, {
