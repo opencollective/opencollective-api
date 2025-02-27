@@ -15,6 +15,14 @@ env:
   CI: true
   OC_ENV: ci
   NODE_ENV: test
+  AWS_KEY: user
+  AWS_SECRET: password
+  AWS_S3_BUCKET: opencollective-e2e
+  AWS_S3_REGION: us-east-1
+  AWS_S3_API_VERSION: latest
+  AWS_S3_ENDPOINT: http://localhost:9000
+  AWS_S3_SSL_ENABLED: false
+  AWS_S3_FORCE_PATH_STYLE: true
 
 jobs:
   lint:
@@ -215,6 +223,14 @@ jobs:
         ports:
           - 5432:5432
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+      minio:
+        image: minio/minio:edge-cicd
+        ports:
+          - 9000:9000
+        options: --name=minio --health-cmd "curl http://localhost:9000/minio/health/live"
+        env:
+          MINIO_ROOT_USER: user
+          MINIO_ROOT_PASSWORD: password
 
     steps:
       - name: Checkout
@@ -281,6 +297,14 @@ jobs:
           --health-interval=10s
           --health-timeout=15s
           --health-retries=30
+      minio:
+        image: minio/minio:edge-cicd
+        ports:
+          - 9000:9000
+        options: --name=minio --health-cmd "curl http://localhost:9000/minio/health/live"
+        env:
+          MINIO_ROOT_USER: user
+          MINIO_ROOT_PASSWORD: password
     steps:
       - name: Checkout
         uses: actions/checkout@v4
