@@ -28,11 +28,14 @@ export const isValidRESTServiceURL = (url: string): boolean => {
 };
 
 export function isValidURL(url: string) {
+  const isDevEnv =
+    ['development', 'test', 'e2e', 'ci'].includes(config.env) ||
+    process.env.E2E_TEST ||
+    process.env.NODE_ENV !== 'production';
   return isURL(url, {
     // eslint-disable-next-line camelcase
-    require_host:
-      config.env !== 'development' && config.env !== 'test' && config.env !== 'e2e' && !process.env.E2E_TEST,
+    require_host: !isDevEnv,
     // eslint-disable-next-line camelcase
-    require_tld: config.env !== 'development' && config.env !== 'test' && config.env !== 'e2e' && !process.env.E2E_TEST,
+    require_tld: !isDevEnv,
   });
 }
