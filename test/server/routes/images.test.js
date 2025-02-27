@@ -2,14 +2,12 @@ import fs from 'fs';
 import path from 'path';
 
 import { expect } from 'chai';
-import config from 'config';
 import exif from 'exif-reader';
 import { omit, pick } from 'lodash';
 import fetch from 'node-fetch';
 import sharp from 'sharp';
 import request from 'supertest';
 
-import { dangerouslyInitNonProductionBuckets } from '../../../server/lib/awsS3';
 import { fakeUser } from '../../test-helpers/fake-data';
 import { startTestServer, stopTestServer } from '../../test-helpers/server';
 import * as utils from '../../utils';
@@ -20,10 +18,6 @@ describe('server/routes/images', () => {
   let user, expressApp;
 
   before(async () => {
-    // Initialize the buckets
-    await dangerouslyInitNonProductionBuckets();
-
-    // Start server
     expressApp = await startTestServer();
     await utils.resetTestDB();
     user = await fakeUser();

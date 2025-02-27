@@ -27,7 +27,7 @@
     "s3": {
       "bucket": "opencollective-test",
       "endpoint": "http://localhost:9000",
-      "key": "minio",
+      "key": "user",
       "secret": "password",
       "region": "us-east-1",
       "forcePathStyle": true

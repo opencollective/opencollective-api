@@ -182,10 +182,6 @@ jobs:
         if: steps.api-build.outputs.cache-hit != 'true'
         run: npm run build
 
-      - # We start MinIO here because Github Actions `services` doesn't support `command`. See https://stackoverflow.com/questions/64031598/creating-a-minios3-container-inside-a-github-actions-yml-file
-        name: Start MinIO
-        run: npm run minio -- -d
-
       # Prepare Frontend
 
       - name: Restore node_modules (frontend)

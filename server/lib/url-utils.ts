@@ -1,4 +1,5 @@
 import config from 'config';
+import isURL from 'validator/lib/isURL';
 
 export const getEditRecurringContributionsUrl = collective => {
   return `${config.host.website}/dashboard/${collective.slug}/outgoing-contributions?status=ACTIVE&status=ERROR&type=RECURRING`;
@@ -25,3 +26,13 @@ export const isValidRESTServiceURL = (url: string): boolean => {
 
   return parsedURL.origin === config.host.rest;
 };
+
+export function isValidURL(url: string) {
+  return isURL(url, {
+    // eslint-disable-next-line camelcase
+    require_host:
+      config.env !== 'development' && config.env !== 'test' && config.env !== 'e2e' && !process.env.E2E_TEST,
+    // eslint-disable-next-line camelcase
+    require_tld: config.env !== 'development' && config.env !== 'test' && config.env !== 'e2e' && !process.env.E2E_TEST,
+  });
+}
