@@ -984,10 +984,14 @@ Expense.init(
         const promises = [
           ExpenseItem.destroy({ where: { ExpenseId: expense.id } }),
           models.Comment.destroy({ where: { ExpenseId: expense.id } }),
+          models.TransactionsImportRow.update({ ExpenseId: null }, { where: { ExpenseId: expense.id } }),
         ];
 
         if (expense.RecurringExpenseId) {
           promises.push(RecurringExpense.destroy({ where: { id: expense.RecurringExpenseId } }));
+        }
+        if (expense.InvoiceFileId) {
+          promises.push(UploadedFile.destroy({ where: { id: expense.InvoiceFileId } }));
         }
 
         await Promise.all(promises);

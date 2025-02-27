@@ -294,7 +294,7 @@ const expenseMutations = {
       const accountsFor2FA = [expense.fromCollective, expense.collective, expense.collective.host].filter(Boolean);
       await twoFactorAuthLib.enforceForAccountsUserIsAdminOf(req, accountsFor2FA);
 
-      // Cancel recurring expense
+      // Associations are deleted/updated in `afterDestroy`
       await expense.destroy();
       return expense;
     },
