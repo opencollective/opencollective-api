@@ -51,6 +51,7 @@ const getIndexConditions = (
     case ElasticSearchIndexName.COLLECTIVES:
       params = params as ElasticSearchIndexParams[ElasticSearchIndexName.COLLECTIVES];
       return [
+        ...(typeof params.isActive === 'boolean' ? [{ term: { isActive: params.isActive } }] : []),
         ...(params.type ? [{ term: { type: params.type } }] : []),
         ...(!isNil(params.isHost) ? [{ term: { isHostAccount: params.isHost } }] : []),
         ...(!isNil(params.tags) && !isEmpty(params.tags) ? [{ terms: { tags: params.tags } }] : []),
@@ -184,24 +185,27 @@ const buildQuery = (
 };
 
 export const elasticSearchGlobalSearch = async (
-  requestedIndexes: ElasticSearchIndexRequest[],
   searchTerm: string,
+  requestedIndexes: ElasticSearchIndexRequest | Array<ElasticSearchIndexRequest>,
   {
     account,
     host,
     timeoutInSeconds = 30,
     limit = 50,
     user,
+    skipHighlight = false,
   }: {
     account?: Collective;
     host?: Collective;
     timeoutInSeconds?: number;
     limit?: number;
     user?: User;
+    skipHighlight?: boolean;
   } = {},
 ) => {
   const client = getElasticSearchClient({ throwIfUnavailable: true });
-  const { query, searchedFields, indexes } = buildQuery(searchTerm, requestedIndexes, user, account, host);
+  const indexesInputArray = Array.isArray(requestedIndexes) ? requestedIndexes : [requestedIndexes];
+  const { query, searchedFields, indexes } = buildQuery(searchTerm, indexesInputArray, user, account, host);
 
   // Due to permissions, we may end up searching on no index at all (e.g. trying to search for comments while unauthenticated)
   if (indexes.size === 0) {
@@ -232,16 +236,18 @@ export const elasticSearchGlobalSearch = async (
                     // We only need to retrieve the IDs, the rest will be fetched by the loaders
                     includes: ['id', 'uuid'],
                   },
-                  highlight: {
-                    pre_tags: ['<mark>'],
-                    post_tags: ['</mark>'],
-                    fragment_size: 40,
-                    number_of_fragments: 1,
-                    fields: Array.from(searchedFields).reduce((acc, field) => {
-                      acc[field] = {};
-                      return acc;
-                    }, {}),
-                  },
+                  highlight: skipHighlight
+                    ? undefined
+                    : {
+                        pre_tags: ['<mark>'],
+                        post_tags: ['</mark>'],
+                        fragment_size: 40,
+                        number_of_fragments: 1,
+                        fields: Array.from(searchedFields).reduce((acc, field) => {
+                          acc[field] = {};
+                          return acc;
+                        }, {}),
+                      },
                 },
               },
             },
