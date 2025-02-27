@@ -38,6 +38,7 @@ import {
   payExpense,
   prepareAttachedFiles,
   prepareExpenseItemInputs,
+  prepareInvoiceFile,
   rejectExpense,
   releaseExpense,
   requestExpenseReApproval,
@@ -117,37 +118,44 @@ const expenseMutations = {
       // Right now this endpoint uses the old mutation by adapting the data for it. Once we get rid
       // of the `createExpense` endpoint in V1, the actual code to create the expense should be moved
       // here and cleaned.
-      const expense = await createExpense(req, {
-        ...pick(args.expense, [
-          'description',
-          'longDescription',
-          'tags',
-          'type',
-          'privateMessage',
-          'attachedFiles',
-          'invoiceInfo',
-          'payeeLocation',
-          'currency',
-          'items',
-          'tax',
-          'customData',
-          'reference',
-        ]),
-        payoutMethod,
-        collective: await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true }),
-        fromCollective,
-        accountingCategory:
-          args.expense.accountingCategory &&
-          (await fetchAccountingCategoryWithReference(args.expense.accountingCategory, {
-            throwIfMissing: true,
-            loaders: req.loaders,
-          })),
-        transactionsImportRow:
-          args.transactionsImportRow &&
-          (await fetchTransactionsImportRowWithReference(args.transactionsImportRow, {
-            throwIfMissing: true,
-          })),
-      });
+      const expense = await createExpense(
+        req,
+        {
+          ...pick(args.expense, [
+            'description',
+            'longDescription',
+            'tags',
+            'type',
+            'privateMessage',
+            'attachedFiles',
+            'invoiceFile',
+            'invoiceInfo',
+            'payeeLocation',
+            'currency',
+            'items',
+            'tax',
+            'customData',
+            'reference',
+          ]),
+          payoutMethod,
+          collective: await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true }),
+          fromCollective,
+          accountingCategory:
+            args.expense.accountingCategory &&
+            (await fetchAccountingCategoryWithReference(args.expense.accountingCategory, {
+              throwIfMissing: true,
+              loaders: req.loaders,
+            })),
+          transactionsImportRow:
+            args.transactionsImportRow &&
+            (await fetchTransactionsImportRowWithReference(args.transactionsImportRow, {
+              throwIfMissing: true,
+            })),
+        },
+        {
+          isNewExpenseFlow: req.header('x-is-new-expense-flow') === 'true',
+        },
+      );
 
       if (args.recurring) {
         await models.RecurringExpense.createFromExpense(expense, args.recurring.interval, args.recurring.endsAt);
@@ -219,6 +227,7 @@ const expenseMutations = {
           id: attachedFile.id && idDecode(attachedFile.id, IDENTIFIER_TYPES.EXPENSE_ATTACHED_FILE),
           url: attachedFile.url,
         })),
+        invoiceFile: expense.invoiceFile,
         fromCollective: requestedPayee,
         accountingCategory: isNil(args.expense.accountingCategory)
           ? args.expense.accountingCategory // This will make sure we pass either `null` (to remove the category) or `undefined` (to keep the existing one)
@@ -230,16 +239,25 @@ const expenseMutations = {
       const isRecurring = Boolean(existingExpense.RecurringExpenseId);
       // Draft can be edited by the author of the expense if the expense is not recurring
       if (existingExpense.status === expenseStatus.DRAFT && !userIsOriginalPayee && userIsAuthor && !isRecurring) {
-        return editExpenseDraft(req, expenseData, args);
+        return editExpenseDraft(req, expenseData, args, {
+          isNewExpenseFlow: req.header('x-is-new-expense-flow') === 'true',
+        });
       }
       // Draft can be submitted by: new user with draft-key, payee of the original expense or author of the original expense (in the case of Recurring Expense draft)
       else if (
         existingExpense.status === expenseStatus.DRAFT &&
         (args.draftKey || userIsOriginalPayee || (userIsAuthor && isRecurring))
       ) {
-        return submitExpenseDraft(req, expenseData, { args, requestedPayee, originalPayee });
+        return submitExpenseDraft(req, expenseData, {
+          args,
+          requestedPayee,
+          originalPayee,
+          isNewExpenseFlow: req.header('x-is-new-expense-flow') === 'true',
+        });
       } else {
-        return editExpense(req, expenseData);
+        return editExpense(req, expenseData, {
+          isNewExpenseFlow: req.header('x-is-new-expense-flow') === 'true',
+        });
       }
     },
   },
@@ -276,7 +294,7 @@ const expenseMutations = {
       const accountsFor2FA = [expense.fromCollective, expense.collective, expense.collective.host].filter(Boolean);
       await twoFactorAuthLib.enforceForAccountsUserIsAdminOf(req, accountsFor2FA);
 
-      // Cancel recurring expense
+      // Associations are deleted/updated in `afterDestroy`
       await expense.destroy();
       return expense;
     },
@@ -524,6 +542,7 @@ const expenseMutations = {
       const currency = expenseData.currency || collective.currency;
       const items = await prepareExpenseItemInputs(req, currency, expenseData.items);
       const attachedFiles = await prepareAttachedFiles(req, expenseData.attachedFiles);
+      const invoiceFile = await prepareInvoiceFile(req, expenseData.invoiceFile);
 
       const payee = payeeLegacyId
         ? (await fetchAccountWithReference({ legacyId: payeeLegacyId }, { throwIfMissing: true }))?.minimal
@@ -557,6 +576,11 @@ const expenseMutations = {
         data: {
           items,
           attachedFiles,
+          invoiceFile: invoiceFile
+            ? {
+                url: invoiceFile.getDataValue('url'),
+              }
+            : null,
           payee,
           invitedByCollectiveId: fromCollective.id,
           draftKey,
@@ -568,6 +592,7 @@ const expenseMutations = {
           reference: expenseData.reference,
           notify: !args.skipInvite,
           lockedFields: args.lockedFields,
+          isNewExpenseFlow: req.header('x-is-new-expense-flow') === 'true' ? true : undefined,
         },
       });
 

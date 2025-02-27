@@ -1,5 +1,6 @@
-import { truncate } from 'lodash';
-import { CountryCode, ItemPublicTokenExchangeResponse, Products } from 'plaid';
+import config from 'config';
+import { omit, truncate } from 'lodash';
+import { CountryCode, ItemPublicTokenExchangeResponse, LinkTokenCreateRequest, Products } from 'plaid';
 
 import { Service } from '../../constants/connected-account';
 import PlatformConstants from '../../constants/platform';
@@ -9,21 +10,67 @@ import { reportErrorToSentry } from '../sentry';
 import { getPlaidClient } from './client';
 import { getPlaidWebhookUrl } from './webhooks';
 
+// See https://plaid.com/docs/api/link/#link-token-create-request-language
+const PlaidSupportedLocales = [
+  'da',
+  'nl',
+  'en',
+  'et',
+  'fr',
+  'de',
+  'hi',
+  'it',
+  'lv',
+  'lt',
+  'no',
+  'pl',
+  'pt',
+  'ro',
+  'es',
+  'sv',
+  'vi',
+] as const;
+
+const getPlaidLanguage = (locale: string): (typeof PlaidSupportedLocales)[number] => {
+  if (locale) {
+    locale = locale.toLowerCase().split('-')[0].trim();
+    if ((PlaidSupportedLocales as readonly string[]).includes(locale)) {
+      return locale as (typeof PlaidSupportedLocales)[number];
+    }
+  }
+
+  return 'en';
+};
+
 export const generatePlaidLinkToken = async (
   remoteUser: User,
-  products: readonly (Products | `${Products}`)[],
-  countryCodes: readonly (CountryCode | `${CountryCode}`)[],
+  params: {
+    products: readonly (Products | `${Products}`)[];
+    countries: readonly (CountryCode | `${CountryCode}`)[];
+    locale: string;
+    accessToken?: string;
+    /** If `accessToken` is provided, this flag will enable the account selection flow */
+    accountSelectionEnabled?: boolean;
+  },
 ) => {
-  const linkTokenConfig = {
-    /* eslint-disable camelcase */
+  /* eslint-disable camelcase */
+  const linkTokenConfig: LinkTokenCreateRequest = {
     user: { client_user_id: remoteUser.id.toString() },
     client_name: PlatformConstants.PlatformName,
-    language: 'en',
-    products: products as Products[],
-    country_codes: countryCodes as CountryCode[],
+    language: getPlaidLanguage(params.locale),
+    products: params.products as Products[],
+    country_codes: params.countries as CountryCode[],
     webhook: getPlaidWebhookUrl(),
-    /* eslint-enable camelcase */
+    redirect_uri: `${config.host.website}/services/plaid/oauth/callback`, // Redirect URL must be listed in https://dashboard.plaid.com/developers/api
   };
+
+  if (params.accessToken) {
+    linkTokenConfig.access_token = params.accessToken;
+    if (params.accountSelectionEnabled) {
+      linkTokenConfig.update = { account_selection_enabled: true };
+    }
+  }
+  /* eslint-enable camelcase */
 
   try {
     const PlaidClient = getPlaidClient();
@@ -39,7 +86,7 @@ export const connectPlaidAccount = async (
   remoteUser: User,
   host: Collective,
   publicToken: string,
-  { sourceName, name }: { sourceName: string; name: string },
+  { sourceName, name }: { sourceName?: string; name?: string },
 ) => {
   // Permissions check
   if (!remoteUser.isAdminOfCollective(host)) {
@@ -62,17 +109,17 @@ export const connectPlaidAccount = async (
   } catch (error) {
     const errorData = error.response?.data;
     if (!errorData) {
-      throw new Error("A network occurred while exchanging Plaid's public token");
+      throw new Error('A network occurred while connecting Plaid');
     } else if (errorData.error_code === 'INVALID_PUBLIC_TOKEN') {
       throw new Error('Provided Plaid public token is invalid');
     } else {
       reportErrorToSentry(error, { extra: { errorData }, user: remoteUser });
-      throw new Error("An error occurred while exchanging Plaid's public token");
+      throw new Error('An error occurred while connecting Plaid');
     }
   }
 
   // Create connected account
-  return sequelize.transaction(async transaction => {
+  const result = await sequelize.transaction(async transaction => {
     const connectedAccount = await ConnectedAccount.create(
       {
         CollectiveId: host.id,
@@ -80,6 +127,7 @@ export const connectPlaidAccount = async (
         clientId: exchangeTokenResponse['item_id'],
         token: exchangeTokenResponse['access_token'],
         CreatedByUserId: remoteUser.id,
+        data: omit(exchangeTokenResponse, ['item_id', 'access_token']),
       },
       { transaction },
     );
@@ -97,10 +145,27 @@ export const connectPlaidAccount = async (
     );
 
     // Record the transactions import ID in the connected account for audit purposes
-    await connectedAccount.update({ data: { transactionsImportId: transactionsImport.id } }, { transaction });
+    await connectedAccount.update(
+      {
+        data: {
+          ...connectedAccount.data,
+          transactionsImportId: transactionsImport.id,
+        },
+      },
+      { transaction },
+    );
 
     return { connectedAccount, transactionsImport };
   });
+
+  // Try to update the list of sub accounts. This is not critical, so we don't fail the whole import if it doesn't work
+  try {
+    await refreshPlaidSubAccounts(result.connectedAccount, result.transactionsImport);
+  } catch (error) {
+    reportErrorToSentry(error, { user: remoteUser, extra: { connectedAccountId: result.connectedAccount.id } });
+  }
+
+  return result;
 };
 
 export const disconnectPlaidAccount = async (connectedAccount: ConnectedAccount): Promise<void> => {
@@ -128,4 +193,32 @@ export const disconnectPlaidAccount = async (connectedAccount: ConnectedAccount)
   }
 
   await TransactionsImport.update({ ConnectedAccountId: null }, { where: { ConnectedAccountId: connectedAccount.id } });
+};
+
+export const refreshPlaidSubAccounts = async (
+  connectedAccount: ConnectedAccount,
+  transactionsImport: TransactionsImport,
+) => {
+  if (transactionsImport.type !== 'PLAID') {
+    throw new Error('Only Plaid transactions imports can be refreshed');
+  } else if (transactionsImport.ConnectedAccountId !== connectedAccount.id) {
+    throw new Error('The connected account does not match the transactions import');
+  }
+
+  const PlaidClient = getPlaidClient();
+  const { data } = await PlaidClient.accountsGet({ access_token: connectedAccount.token }); // eslint-disable-line camelcase
+  await transactionsImport.update({
+    data: {
+      plaid: {
+        availableAccounts: data.accounts.map(account => ({
+          accountId: account.account_id,
+          mask: account.mask,
+          name: account.name,
+          officialName: account.official_name,
+          subtype: account.subtype,
+          type: account.type,
+        })),
+      },
+    },
+  });
 };

@@ -17,8 +17,6 @@ export const createOrUpdate = async (req, res, next, accessToken, data) => {
   const { CollectiveId, context } = req.query;
   const { service } = req.params;
 
-  let collective, connectedAccount;
-
   switch (service) {
     case 'github': {
       const profile = data.profile._json;
@@ -59,43 +57,6 @@ export const createOrUpdate = async (req, res, next, accessToken, data) => {
       } else {
         res.redirect(`${config.host.website}/${userCollective.slug}/admin/connected-accounts`);
       }
-
-      break;
-    }
-
-    case 'twitter': {
-      const profile = data.profile._json;
-
-      if (!CollectiveId) {
-        return next(new errors.ValidationFailed('Please provide a CollectiveId as a query parameter'));
-      }
-
-      collective = await models.Collective.findByPk(CollectiveId);
-      if (!req.remoteUser.isAdminOfCollective(collective)) {
-        throw new errors.Unauthorized('Please login as an admin of this collective to add a connected account');
-      }
-
-      collective.image =
-        collective.image ||
-        (profile.profile_image_url_https ? profile.profile_image_url_https.replace(/_normal/, '') : null);
-      collective.description = collective.description || profile.description;
-      collective.backgroundImage =
-        collective.backgroundImage || (profile.profile_banner_url ? `${profile.profile_banner_url}/1500x500` : null);
-      collective.website = collective.website || profile.url;
-      collective.twitterHandle = profile.screen_name;
-      await collective.save();
-
-      connectedAccount = await createConnectedAccountForCollective(collective.id, service);
-      await connectedAccount.update({
-        username: data.profile.username,
-        clientId: null,
-        token: accessToken,
-        data: { ...data.profile._json, isOAuth2: true },
-        settings: { ...connectedAccount.settings, needsReconnect: false },
-        CreatedByUserId: req.remoteUser.id,
-      });
-
-      res.redirect(`${config.host.website}/${collective.slug}/admin/connected-accounts`);
 
       break;
     }
@@ -143,7 +104,7 @@ export const verify = async (req, res, next) => {
   const rateLimit = new RateLimit(`connected-accounts-verify-${req.ip}`, 60, 10);
   try {
     await rateLimit.registerCallOrThrow();
-  } catch (e) {
+  } catch {
     return next(new errors.RateLimitExceeded());
   }
 
@@ -188,7 +149,7 @@ export const fetchAllRepositories = async (req, res, next) => {
   const rateLimit = new RateLimit(`connected-accounts-fetch-all-repositories-${req.ip}`, 60, 10);
   try {
     await rateLimit.registerCallOrThrow();
-  } catch (e) {
+  } catch {
     return next(new errors.RateLimitExceeded());
   }
 
@@ -222,11 +183,3 @@ export const fetchAllRepositories = async (req, res, next) => {
     next(e);
   }
 };
-
-function createConnectedAccountForCollective(CollectiveId, service) {
-  const attrs = { service };
-  return models.Collective.findByPk(CollectiveId)
-    .then(collective => (attrs.CollectiveId = collective.id))
-    .then(() => models.ConnectedAccount.findOne({ where: attrs }))
-    .then(ca => ca || models.ConnectedAccount.create(attrs));
-}

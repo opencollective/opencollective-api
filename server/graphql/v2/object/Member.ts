@@ -1,6 +1,7 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
+import { MemberModelInterface } from '../../../models/Member';
 import { checkScope } from '../../common/scope-check';
 import { GraphQLMemberRole } from '../enum/MemberRole';
 import { idEncode } from '../identifiers';
@@ -9,20 +10,14 @@ import { GraphQLAmount } from '../object/Amount';
 import { GraphQLTier } from '../object/Tier';
 
 const getMemberFields = () => ({
-  // _internal_id: {
-  //   type: GraphQLInt,
-  //   resolve(member) {
-  //     return member.id;
-  //   },
-  // },
   id: {
-    type: GraphQLString,
+    type: new GraphQLNonNull(GraphQLString),
     resolve(member) {
       return idEncode(member.id, 'member');
     },
   },
   role: {
-    type: GraphQLMemberRole,
+    type: new GraphQLNonNull(GraphQLMemberRole),
     resolve(member) {
       return member.role;
     },
@@ -39,21 +34,21 @@ const getMemberFields = () => ({
     },
   },
   createdAt: {
-    type: GraphQLDateTime,
+    type: new GraphQLNonNull(GraphQLDateTime),
     resolve(member) {
       return member.createdAt;
     },
   },
   updatedAt: {
-    type: GraphQLDateTime,
+    type: new GraphQLNonNull(GraphQLDateTime),
     resolve(member) {
       return member.updatedAt;
     },
   },
   since: {
-    type: GraphQLDateTime,
+    type: new GraphQLNonNull(GraphQLDateTime),
     resolve(member) {
-      return member.since;
+      return member.since || member.createdAt;
     },
   },
   totalDonations: {
@@ -86,16 +81,23 @@ const getMemberFields = () => ({
     },
   },
   inherited: {
-    type: GraphQLBoolean,
+    type: new GraphQLNonNull(GraphQLBoolean),
     description: 'If membership is inherited from parent collective',
     resolve(member) {
       // Fetching from dataValues because this is a virtual property that is generated at query time
-      return member.dataValues?.inherited;
+      return Boolean(member.dataValues?.inherited);
+    },
+  },
+  isActive: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Whether the membership is active. Warning: this definition is subject to change.',
+    async resolve(member: MemberModelInterface, _, req: Express.Request) {
+      return req.loaders.Member.isActive.load(member.id);
     },
   },
 });
 
-const getMemberAccountResolver = field => async (member, args, req) => {
+const getMemberAccountResolver = field => async (member: MemberModelInterface, args, req: Express.Request) => {
   const memberAccount = member.memberCollective || (await req.loaders.Collective.byId.load(member.MemberCollectiveId));
   const account = member.collective || (await req.loaders.Collective.byId.load(member.CollectiveId));
 

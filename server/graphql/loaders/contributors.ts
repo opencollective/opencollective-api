@@ -1,11 +1,19 @@
 import DataLoader from 'dataloader';
-import { compact, uniq, zipObject } from 'lodash';
+import { flatten, groupBy, uniq, zipObject } from 'lodash';
 
 import { SupportedCurrency } from '../../constants/currencies';
 import { ContributorsCacheEntry, getContributorsForCollective } from '../../lib/contributors';
 import models, { sequelize } from '../../models';
 
 import { sortResultsSimple } from './helpers';
+
+type TotalContributedToHost = {
+  CollectiveId: number;
+  amount: number;
+  currency: SupportedCurrency;
+  HostCollectiveId: number;
+  since: string;
+};
 
 const loaders = {
   forCollectiveId: (): DataLoader<number, ContributorsCacheEntry> =>
@@ -20,53 +28,42 @@ const loaders = {
       const result = collectiveIds.map(id => contributorsByIds[id]);
       return result;
     }),
-
-  totalContributedToHost: {
-    buildLoader: ({
-      since,
-      hostId,
-    }: {
-      hostId: number;
-      since: Date | string;
-    }): DataLoader<
-      number,
-      { CollectiveId: number; amount: number; currency: SupportedCurrency; HostCollectiveId: number }
-    > => {
-      const key = compact([hostId, since]).join('-');
-      if (!loaders.totalContributedToHost[key]) {
-        loaders.totalContributedToHost[key] = new DataLoader(async (collectiveIds: number[]) => {
-          const stats = await sequelize.query(
-            `
-            SELECT t."FromCollectiveId" as "CollectiveId", SUM (t."amountInHostCurrency") as amount, t."hostCurrency" as currency, t."HostCollectiveId"
+  generateTotalContributedToHost: () =>
+    new DataLoader<{ CollectiveId: number; HostId: number; since: string }, TotalContributedToHost, string>(
+      async requests => {
+        const baseQuery = `
+            SELECT t."FromCollectiveId" as "CollectiveId", SUM (t."amountInHostCurrency") as amount, t."hostCurrency" as currency, t."HostCollectiveId", :since as since
             FROM "Transactions" t
-            WHERE t."FromCollectiveId" IN (:collectiveIds)
+            WHERE t."FromCollectiveId" IN (:CollectiveIds)
+              AND t."HostCollectiveId" = :HostId
+              AND t."createdAt" >= :since
               AND t.kind = 'CONTRIBUTION'
-              AND t."HostCollectiveId" = :hostId
               AND t."deletedAt" IS NULL
               AND t."RefundTransactionId" IS NULL
-              AND t."createdAt" >= :since
             GROUP BY t."FromCollectiveId", t."HostCollectiveId", t."hostCurrency"
-            `,
-            {
-              replacements: {
-                collectiveIds,
-                since,
-                hostId,
-              },
-              type: sequelize.QueryTypes.SELECT,
-              raw: true,
-            },
-          );
+          `;
 
-          return sortResultsSimple(collectiveIds, stats, row => row.CollectiveId);
+        const groups = groupBy(requests, r => `${r.HostId}:${r.since}`);
+        const queries = Object.values(groups).map(group => {
+          const { HostId, since } = group[0];
+          const CollectiveIds = group.map(r => r.CollectiveId);
+          return sequelize.query(baseQuery, {
+            replacements: { CollectiveIds, HostId, since },
+            type: sequelize.QueryTypes.SELECT,
+            raw: true,
+          }) as Promise<TotalContributedToHost[]>;
         });
-      }
 
-      return loaders.totalContributedToHost[key];
-    },
-  },
+        const results = await Promise.all(queries).then(flatten);
+
+        const keys = requests.map(({ CollectiveId, HostId, since }) => `${HostId}:${since}:${CollectiveId}`);
+        const genKeyFromResult = (r: TotalContributedToHost) => `${r.HostCollectiveId}:${r.since}:${r.CollectiveId}`;
+        return sortResultsSimple(keys, results, genKeyFromResult);
+      },
+      {
+        cacheKeyFn: arg => `${arg.HostId}-${arg.since}-${arg.CollectiveId}`,
+      },
+    ),
 };
-
-export type ContributorsLoaders = typeof loaders;
 
 export default loaders;

@@ -2,6 +2,7 @@ import '../../server/env';
 
 import { checkAllModels } from '../../checks/model';
 import email from '../../server/lib/email';
+import logger from '../../server/lib/logger';
 import { runCronJob } from '../utils';
 
 const recipients = 'ops@opencollective.com';
@@ -16,6 +17,7 @@ async function run() {
   const { errors } = await checkAllModels();
 
   if (errors.length > 0) {
+    logger.info('Sending checks report to ops@opencollective.com');
     const html = `${failureMessage}<br>\n<br>\n${errors
       .map(msg => `<li> ${msg}`)
       .join('\n')}<br>\n<br>\n${fixMessage} <code>${fixCommand}</code>`;

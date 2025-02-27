@@ -60,9 +60,11 @@ const uploadedFileMutations = {
       // Limit on `kind` for this first release. If removing this, remember to update the part about `parseDocument`
       // as we don't want to support parsing for all kinds (e.g. Avatars).
       const allKinds = args.files.map(f => f.kind);
-      const unSupportedKinds = difference(allKinds, ['EXPENSE_ITEM', 'EXPENSE_ATTACHED_FILE']);
+      const unSupportedKinds = difference(allKinds, ['EXPENSE_ITEM', 'EXPENSE_ATTACHED_FILE', 'EXPENSE_INVOICE']);
       if (unSupportedKinds.length > 0) {
-        throw new Error(`This mutation only supports the following kinds: EXPENSE_ITEM, EXPENSE_ATTACHED_FILE`);
+        throw new Error(
+          `This mutation only supports the following kinds: EXPENSE_ITEM, EXPENSE_ATTACHED_FILE, EXPENSE_INVOICE`,
+        );
       }
 
       // Since we're only supporting for expense at the moment, we check the expenses scope

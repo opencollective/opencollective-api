@@ -230,11 +230,9 @@ Subject: {{capitalize month}} Open Collective Report
               {{#if order.Subscription}}
               You are currently contributing {{currency order.Subscription.amount currency=order.Subscription.currency}} per {{order.Subscription.interval}}.
               (<a href="{{../config.host.website}}/recurring-contributions">increase your contribution</a>)
-              (<a href="https://twitter.com/intent/tweet?text={{{encodeURIComponent nextGoal.tweet}}}">share their goal</a>)
               {{else}}
               You have contributed {{order.totalAmount}}.
               (<a href="{{../config.host.website}}/{{slug}}/donate">increase your contribution</a>)
-              (<a href="https://twitter.com/intent/tweet?text={{{encodeURIComponent nextGoal.tweet}}}">share their goal</a>)
               {{/if}}
               </li>
             {{/if}}

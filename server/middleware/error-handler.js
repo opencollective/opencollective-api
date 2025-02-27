@@ -10,7 +10,7 @@ const debug = debugLib('error-handler');
 const isKnownError = error => {
   try {
     return Object.keys(errors).some(errorClass => error instanceof errors[errorClass]);
-  } catch (e) {
+  } catch {
     debug('isKnownError crash', error, Object.keys(errors), errors);
     return false;
   }

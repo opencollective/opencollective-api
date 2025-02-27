@@ -15,7 +15,6 @@ import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/ide
 import emailLib from '../../../../../server/lib/email';
 import * as OrderSecurityLib from '../../../../../server/lib/security/order';
 import stripe from '../../../../../server/lib/stripe';
-import twitterLib from '../../../../../server/lib/twitter';
 import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
 import models from '../../../../../server/models';
 import * as StripeCommon from '../../../../../server/paymentProviders/stripe/common';
@@ -812,32 +811,6 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           expect(result.errors).to.exist;
           expect(result.errors[0].message).to.equal('This order requires a payment method');
         });
-
-        it('sends a tweet', async () => {
-          const newContributor = await fakeUser(null, { twitterHandle: 'johnsmith' }); // Only new contributors get a tweet
-          const collective = await fakeCollective({ twitterHandle: 'test', HostCollectiveId: host.id });
-          await fakeConnectedAccount({
-            CollectiveId: collective.id,
-            service: 'twitter',
-            clientId: 'xxxx',
-            token: 'xxxx',
-            settings: {
-              newBacker: { active: true, tweet: '{backerTwitterHandle} thank you for your {amount} donation!' },
-            },
-          });
-
-          const tweetStatusStub = sandbox.stub(twitterLib, 'tweetStatus');
-          const orderData = {
-            ...validOrderParams,
-            fromAccount: { legacyId: newContributor.CollectiveId },
-            toAccount: { legacyId: collective.id },
-          };
-          const result = await callCreateOrder({ order: orderData }, newContributor);
-          result.errors && console.error(result.errors);
-          expect(result.errors).to.not.exist;
-          await waitForCondition(() => tweetStatusStub.callCount > 0);
-          expect(tweetStatusStub.firstCall.args[1]).to.contain('@johnsmith thank you for your $50.00 donation!');
-        });
       });
 
       describe('Quantity', () => {
@@ -1599,7 +1572,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
     before(async () => {
       hostAdmin = await fakeUser();
       collectiveAdmin = await fakeUser();
-      host = await fakeHost({ admin: hostAdmin });
+      host = await fakeActiveHost({ admin: hostAdmin, data: { isTrustedHost: true } });
       const collective = await fakeCollective({ currency: 'USD', HostCollectiveId: host.id, admin: collectiveAdmin });
       const user = await fakeUser();
       const validAccountingCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'CONTRIBUTION' });
@@ -1626,6 +1599,25 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       result = await callCreatePendingOrder({ order: validOrderPrams }, collectiveAdmin);
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal('Only host admins can create pending orders');
+    });
+
+    it('must be a trusted host if fromCollective and collective have different hosts', async () => {
+      const host = await fakeActiveHost({ admin: hostAdmin });
+      const collective = await fakeCollective({ currency: 'USD', HostCollectiveId: host.id, admin: collectiveAdmin });
+      const result = await callCreatePendingOrder(
+        {
+          order: {
+            ...validOrderPrams,
+            fromAccount: { legacyId: (await fakeCollective({ currency: 'USD' })).id },
+            toAccount: { legacyId: collective.id },
+          },
+        },
+        hostAdmin,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(
+        "You don't have the permission to create pending contributions from this account. Please contact support@opencollective.com if you want to enable this.",
+      );
     });
 
     it('creates a pending order', async () => {

@@ -326,7 +326,7 @@ export const twoFactorAuthAndUpdateToken = async (req, res, next) => {
       },
       req,
     );
-  } catch (e) {
+  } catch {
     return fail(new Unauthorized('Two-factor authentication code failed. Please try again'));
   }
 

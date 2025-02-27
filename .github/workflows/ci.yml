@@ -237,10 +237,6 @@ jobs:
         if: steps.api-node-modules.outputs.cache-hit != 'true'
         run: npm ci --prefer-offline --no-audit
 
-      - # We start MinIO here because Github Actions `services` doesn't support `command`. See https://stackoverflow.com/questions/64031598/creating-a-minios3-container-inside-a-github-actions-yml-file
-        name: Start MinIO
-        run: npm run minio -- -d
-
       - run: npm run db:restore
       - run: npm run db:migrate
 

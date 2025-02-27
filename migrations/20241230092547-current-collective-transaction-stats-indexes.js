@@ -2,7 +2,7 @@
 
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
-  async up(queryInterface, Sequelize) {
+  async up(queryInterface) {
     await queryInterface.sequelize.query(`
       CREATE INDEX CONCURRENTLY "CurrentCollectiveTransactionStatsIndex"
       ON "Transactions" ("CollectiveId", "createdAt")
@@ -13,7 +13,7 @@ module.exports = {
     `);
   },
 
-  async down(queryInterface, Sequelize) {
+  async down(queryInterface) {
     await queryInterface.sequelize.query(`
       DROP INDEX CONCURRENTLY "CurrentCollectiveTransactionStatsIndex"
     `);

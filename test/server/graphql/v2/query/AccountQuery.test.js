@@ -299,16 +299,21 @@ describe('server/graphql/v2/query/AccountQuery', () => {
   describe('childrenAccounts', () => {
     let collective, user;
     const childrenAccounts = gql`
-      query Account($slug: String!, $accountType: [AccountType]) {
+      query Account($slug: String!, $accountType: [AccountType], $orderBy: OrderByInput) {
         account(slug: $slug) {
           id
           legacyId
-          childrenAccounts(limit: 100, accountType: $accountType) {
+          childrenAccounts(limit: 100, accountType: $accountType, orderBy: $orderBy) {
             totalCount
             nodes {
               id
               slug
               type
+              createdAt
+              ... on Event {
+                startsAt
+                endsAt
+              }
             }
           }
         }
@@ -317,7 +322,30 @@ describe('server/graphql/v2/query/AccountQuery', () => {
 
     before(async () => {
       [collective] = await multiple(fakeCollective, 3);
-      await multiple(fakeCollective, 4, { ParentCollectiveId: collective.id, type: 'EVENT' });
+      // Create events with specific dates for testing ordering
+      await Promise.all([
+        fakeCollective({
+          ParentCollectiveId: collective.id,
+          type: 'EVENT',
+          startsAt: new Date('2024-01-01'),
+          endsAt: new Date('2024-01-02'),
+          createdAt: new Date('2024-01-01'),
+        }),
+        fakeCollective({
+          ParentCollectiveId: collective.id,
+          type: 'EVENT',
+          startsAt: new Date('2024-02-01'),
+          endsAt: new Date('2024-02-02'),
+          createdAt: new Date('2024-02-01'),
+        }),
+        fakeCollective({
+          ParentCollectiveId: collective.id,
+          type: 'EVENT',
+          startsAt: new Date('2024-03-01'),
+          endsAt: new Date('2024-03-02'),
+          createdAt: new Date('2024-03-01'),
+        }),
+      ]);
       await multiple(fakeCollective, 4, { ParentCollectiveId: collective.id, type: 'PROJECT' });
       user = await fakeUser();
       await collective.addUserWithRole(user, 'ADMIN');
@@ -325,12 +353,109 @@ describe('server/graphql/v2/query/AccountQuery', () => {
 
     it('can list all childrens if admin', async () => {
       const result = await graphqlQueryV2(childrenAccounts, { slug: collective.slug }, user);
-      expect(result).to.have.nested.property('data.account.childrenAccounts.totalCount').eq(8);
+      result.errors && console.error(result.errors);
+      expect(result).to.have.nested.property('data.account.childrenAccounts.totalCount').eq(7);
     });
 
     it('can filter by account type', async () => {
       const result = await graphqlQueryV2(childrenAccounts, { slug: collective.slug, accountType: ['EVENT'] }, user);
-      expect(result).to.have.nested.property('data.account.childrenAccounts.totalCount').eq(4);
+      result.errors && console.error(result.errors);
+      expect(result).to.have.nested.property('data.account.childrenAccounts.totalCount').eq(3);
+    });
+
+    it('orders by startsAt ASC', async () => {
+      const result = await graphqlQueryV2(
+        childrenAccounts,
+        {
+          slug: collective.slug,
+          accountType: ['EVENT'],
+          orderBy: { field: 'STARTS_AT', direction: 'ASC' },
+        },
+        user,
+      );
+
+      result.errors && console.error(result.errors);
+      const nodes = result.data.account.childrenAccounts.nodes;
+      expect(nodes).to.have.length(3);
+      expect(new Date(nodes[0].startsAt)).to.deep.equal(new Date('2024-01-01'));
+      expect(new Date(nodes[1].startsAt)).to.deep.equal(new Date('2024-02-01'));
+      expect(new Date(nodes[2].startsAt)).to.deep.equal(new Date('2024-03-01'));
+    });
+
+    it('orders by startsAt DESC', async () => {
+      const result = await graphqlQueryV2(
+        childrenAccounts,
+        {
+          slug: collective.slug,
+          accountType: ['EVENT'],
+          orderBy: { field: 'STARTS_AT', direction: 'DESC' },
+        },
+        user,
+      );
+
+      result.errors && console.error(result.errors);
+      const nodes = result.data.account.childrenAccounts.nodes;
+      expect(nodes).to.have.length(3);
+      expect(new Date(nodes[0].startsAt)).to.deep.equal(new Date('2024-03-01'));
+      expect(new Date(nodes[1].startsAt)).to.deep.equal(new Date('2024-02-01'));
+      expect(new Date(nodes[2].startsAt)).to.deep.equal(new Date('2024-01-01'));
+    });
+
+    it('orders by endsAt ASC', async () => {
+      const result = await graphqlQueryV2(
+        childrenAccounts,
+        {
+          slug: collective.slug,
+          accountType: ['EVENT'],
+          orderBy: { field: 'ENDS_AT', direction: 'ASC' },
+        },
+        user,
+      );
+
+      result.errors && console.error(result.errors);
+      const nodes = result.data.account.childrenAccounts.nodes;
+      expect(nodes).to.have.length(3);
+      expect(new Date(nodes[0].endsAt)).to.deep.equal(new Date('2024-01-02'));
+      expect(new Date(nodes[1].endsAt)).to.deep.equal(new Date('2024-02-02'));
+      expect(new Date(nodes[2].endsAt)).to.deep.equal(new Date('2024-03-02'));
+    });
+
+    it('orders by endsAt DESC', async () => {
+      const result = await graphqlQueryV2(
+        childrenAccounts,
+        {
+          slug: collective.slug,
+          accountType: ['EVENT'],
+          orderBy: { field: 'ENDS_AT', direction: 'DESC' },
+        },
+        user,
+      );
+
+      result.errors && console.error(result.errors);
+      const nodes = result.data.account.childrenAccounts.nodes;
+      expect(nodes).to.have.length(3);
+      expect(new Date(nodes[0].endsAt)).to.deep.equal(new Date('2024-03-02'));
+      expect(new Date(nodes[1].endsAt)).to.deep.equal(new Date('2024-02-02'));
+      expect(new Date(nodes[2].endsAt)).to.deep.equal(new Date('2024-01-02'));
+    });
+
+    it('defaults to createdAt DESC when no order specified', async () => {
+      const result = await graphqlQueryV2(
+        childrenAccounts,
+        {
+          slug: collective.slug,
+          accountType: ['EVENT'],
+        },
+        user,
+      );
+
+      result.errors && console.error(result.errors);
+      const nodes = result.data.account.childrenAccounts.nodes;
+      expect(nodes).to.have.length(3);
+
+      expect(new Date(nodes[0].createdAt)).to.deep.equal(new Date('2024-03-01'));
+      expect(new Date(nodes[1].createdAt)).to.deep.equal(new Date('2024-02-01'));
+      expect(new Date(nodes[2].createdAt)).to.deep.equal(new Date('2024-01-01'));
     });
   });
 

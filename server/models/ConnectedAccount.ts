@@ -83,7 +83,7 @@ ConnectedAccount.init(
         },
       },
     },
-    username: DataTypes.STRING, // paypal email / Stripe UserId / Twitter username / ...
+    username: DataTypes.STRING, // paypal email / Stripe UserId username / ...
     clientId: DataTypes.STRING, // paypal app id
     // either paypal secret OR an accessToken to do requests to the provider on behalf of the user
     token: {
@@ -107,7 +107,7 @@ ConnectedAccount.init(
       },
     },
     data: DataTypes.JSONB, // Extra service provider specific data, e.g. Stripe: { publishableKey, scope, tokenType }
-    settings: DataTypes.JSONB, // configuration settings, e.g. defining templates for auto-tweeting
+    settings: DataTypes.JSONB, // configuration settings
     createdAt: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,

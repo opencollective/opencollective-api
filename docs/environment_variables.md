@@ -92,9 +92,6 @@
 | SLACK_WEBHOOK_ABUSE                           | .slack.webhooks.abuse                              | Slack abuse webhook URL                                                            |
 | GITHUB_CLIENT_ID                              | .github.clientID                                   | GitHub client ID                                                                   |
 | GITHUB_CLIENT_SECRET                          | .github.clientSecret                               | GitHub client secret                                                               |
-| TWITTER_CONSUMER_KEY                          | .twitter.consumerKey                               | Twitter consumer key                                                               |
-| TWITTER_CONSUMER_SECRET                       | .twitter.consumerSecret                            | Twitter consumer secret                                                            |
-| TWITTER_DISABLE                               | .twitter.disable                                   | Disable Twitter integration                                                        |
 | FIXER_ACCESS_KEY                              | .fixer.accessKey                                   | Fixer access key                                                                   |
 | FIXER_DISABLE_MOCK                            | .fixer.disableMock                                 | Disable Fixer mock                                                                 |
 | CAPTCHA_ENABLE                                | .captcha.enabled                                   | Enable CAPTCHA                                                                     |

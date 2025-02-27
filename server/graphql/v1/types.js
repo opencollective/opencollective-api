@@ -420,6 +420,13 @@ export const MemberType = new GraphQLObjectType({
           return member.since;
         },
       },
+      isActive: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        description: 'Whether the membership is active. Warning: this definition is subject to change.',
+        async resolve(member, _, req) {
+          return req.loaders.Member.isActive.load(member.id);
+        },
+      },
     };
   },
 });
@@ -1529,7 +1536,7 @@ export const ConnectedAccountType = new GraphQLObjectType({
         type: GraphQLString,
         resolve(ca, args, req) {
           // Services which we consider the username to be public
-          const publicServices = ['github', 'twitter'];
+          const publicServices = ['github'];
           if (req.remoteUser && req.remoteUser.isAdmin(ca.CollectiveId)) {
             return ca.username;
           } else if (publicServices.includes(ca.service)) {

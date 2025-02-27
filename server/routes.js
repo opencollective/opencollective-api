@@ -139,7 +139,6 @@ export default async app => {
       if (cacheKey) {
         const fromCache = await cache.get(cacheKey);
         if (fromCache) {
-          // Track all slow queries on Sentry performance
           res.servedFromGraphqlCache = true;
           req.endAt = req.endAt || new Date();
           const executionTime = req.endAt - req.startAt;
@@ -349,7 +348,7 @@ export default async app => {
    */
   app.get('/connected-accounts/:service(github|transferwise)', noCache, authentication.authenticateService); // backward compatibility
   app.get(
-    '/connected-accounts/:service(github|twitter|stripe|paypal|transferwise)/oauthUrl',
+    '/connected-accounts/:service(github|stripe|paypal|transferwise)/oauthUrl',
     noCache,
     authentication.authenticateService,
   );

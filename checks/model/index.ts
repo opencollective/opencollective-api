@@ -29,14 +29,15 @@ const allModelChecks: CheckFn[] = [
   ...virtualCardsChecks,
 ];
 
-export async function checkAllModels() {
+export async function checkAllModels({ closeConnection = false }: { closeConnection?: boolean } = {}) {
   const errors = await runAllChecks(allModelChecks);
   logChecksErrors(errors);
-  await sequelize.close();
-
+  if (closeConnection) {
+    await sequelize.close();
+  }
   return { errors };
 }
 
 if (!module.parent) {
-  checkAllModels();
+  checkAllModels({ closeConnection: true });
 }

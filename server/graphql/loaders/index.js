@@ -30,6 +30,7 @@ import locationLoaders from './location';
 import {
   generateAdminUsersEmailsForCollectiveLoader,
   generateCountAdminMembersOfCollective,
+  generateMemberIsActiveLoader,
   generateRemoteUserIsAdminOfHostedAccountLoader,
   generateRemoteUserIsIndirectFinancialContributor,
 } from './members';
@@ -74,7 +75,7 @@ export const loaders = req => {
   // Contributors
   context.loaders.Contributors = {
     forCollectiveId: contributorsLoaders.forCollectiveId(),
-    totalContributedToHost: contributorsLoaders.totalContributedToHost,
+    totalContributedToHost: contributorsLoaders.generateTotalContributedToHost(),
   };
 
   // Expense
@@ -307,6 +308,18 @@ export const loaders = req => {
   );
 
   context.loaders.Collective.canSeePrivateInfo = collectiveLoaders.canSeePrivateInfo(req);
+
+  context.loaders.Collective.childrenIds = new DataLoader(ids =>
+    models.Collective.findAll({
+      mapToModel: false,
+      raw: true,
+      where: { ParentCollectiveId: { [Op.in]: ids } },
+      attributes: ['ParentCollectiveId', 'id'],
+    }).then(results => {
+      const groupedResults = groupBy(results, 'ParentCollectiveId');
+      return ids.map(id => groupedResults[id]?.map(result => result.id) || []);
+    }),
+  );
 
   context.loaders.Collective.yearlyBudget = new DataLoader(ids =>
     getYearlyBudgets(ids).then(results => sortResults(ids, Object.values(results), 'CollectiveId')),
@@ -818,6 +831,7 @@ export const loaders = req => {
   );
 
   context.loaders.Member.adminUserEmailsForCollective = generateAdminUsersEmailsForCollectiveLoader();
+  context.loaders.Member.isActive = generateMemberIsActiveLoader(req);
   context.loaders.Member.remoteUserIdAdminOfHostedAccount = generateRemoteUserIsAdminOfHostedAccountLoader(req);
   context.loaders.Member.countAdminMembersOfCollective = generateCountAdminMembersOfCollective();
   context.loaders.Member.remoteUserIsIndirectFinancialContributor =

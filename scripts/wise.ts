@@ -24,6 +24,51 @@ const printAndExit = (message, method = 'log') => {
   sequelize.close();
 };
 
+program.command('check-batch <batchId> [env]').action(async batchId => {
+  console.log(`Checking batch ${batchId}`);
+  const expenses = await models.Expense.findAll({
+    where: {
+      data: { batchGroup: { id: batchId } },
+    },
+    include: [
+      { model: models.Collective, as: 'collective' },
+      { model: models.Collective, as: 'host', required: true },
+    ],
+  });
+  if (!expenses.length) {
+    return printAndExit(`Batch ${batchId} not found or not paid through the paltform.`, 'warn');
+  }
+
+  const host = expenses[0].host;
+  const connectedAccount = await host.getAccountForPaymentProvider(Service.TRANSFERWISE, {
+    throwIfMissing: false,
+  });
+  if (!connectedAccount) {
+    return printAndExit(`${host.slug} not connected to Wise`, 'error');
+  }
+
+  const batch = await transferwiseLib.getBatchGroup(connectedAccount, batchId);
+  if (!batch) {
+    return printAndExit(`Batch ${batchId} not found`, 'error');
+  }
+  console.log(`Batch ${batchId} found:`);
+  console.dir(batch);
+
+  console.log('\n');
+  const allExpensesWerePaid = expenses.every(expense => batch.transferIds.includes(expense.data.transfer.id));
+  if (allExpensesWerePaid) {
+    console.log(`✅ All expenses tracked on the platform were included in the batch`);
+  } else {
+    expenses
+      .filter(expense => !batch.transferIds.includes(expense.data.transfer.id))
+      .forEach(expense => {
+        console.warn(`❌ Expense ${expense.id} for ${expense.collective.slug} was not included in the batch`);
+      });
+  }
+
+  sequelize.close();
+});
+
 program.command('check-expense <expenseId>').action(async expenseId => {
   console.log(`Checking expense ${expenseId}`);
   const expense = await models.Expense.findOne({

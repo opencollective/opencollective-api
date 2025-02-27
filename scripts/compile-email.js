@@ -26,7 +26,6 @@ data['onboarding.day7.opensource'] = mockCollective;
 data['onboarding.noExpenses.opensource'] = mockCollective;
 data['onboarding.day28'] = mockCollective;
 data['onboarding.day35.inactive'] = mockCollective;
-data['onboarding.day21.noTwitter'] = mockCollective;
 data['collective.expense.approved'] = {
   host: { id: 1, name: 'WWCode', slug: 'wwcode' },
   expense: {

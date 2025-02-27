@@ -174,6 +174,7 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
 
     await collective.addUserWithRole(collectiveAdmin, roles.ADMIN);
     await collective.host.addUserWithRole(hostAdmin, roles.ADMIN);
+    await collective.host.update({ data: { isTrustedHost: true } });
     await collectiveAdmin.populateRoles();
     await hostAdmin.populateRoles();
 
@@ -248,6 +249,27 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
       expect(result.errors[0].message).to.match(/Adding funds is not allowed for frozen accounts/);
     });
 
+    it('cannot add funds from an external account if not a trusted host', async () => {
+      const host = await fakeActiveHost();
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const hostAdmin = await fakeUser();
+      await host.addUserWithRole(hostAdmin, roles.ADMIN);
+      const result = await graphqlQueryV2(
+        addFundsMutation,
+        {
+          ...validMutationVariables,
+          account: { legacyId: collective.id },
+          fromAccount: { legacyId: randomUser.CollectiveId },
+        },
+        hostAdmin,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(
+        "You don't have the permission to add funds from accounts you don't own or host. Please contact support@opencollective.com if you want to enable this.",
+      );
+    });
+
     it('can add funds as host admin', async () => {
       const accountingCategory = await fakeAccountingCategory({ CollectiveId: collective.host.id });
       const encodedAccountingCategoryId = idEncode(accountingCategory.id, 'accounting-category');
@@ -269,7 +291,11 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
     });
 
     it('can add funds as host admin even if RECEIVE_FINANCIAL_CONTRIBUTIONS is false', async () => {
-      const collective = await fakeCollective({ settings: { features: { RECEIVE_FINANCIAL_CONTRIBUTIONS: false } } });
+      const host = await fakeActiveHost({ data: { isTrustedHost: true } });
+      const collective = await fakeCollective({
+        HostCollectiveId: host.id,
+        settings: { features: { RECEIVE_FINANCIAL_CONTRIBUTIONS: false } },
+      });
       const hostAdmin = await fakeUser();
       await collective.host.addUserWithRole(hostAdmin, roles.ADMIN);
       const result = await graphqlQueryV2(
@@ -364,7 +390,7 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
     it('adds funds from the host (USD) to the collective (EUR) on behalf of a new organization', async () => {
       const hostAdmin = await fakeUser();
       const org = await fakeOrganization();
-      const host = await fakeActiveHost({ currency: 'USD', admin: hostAdmin });
+      const host = await fakeActiveHost({ currency: 'USD', admin: hostAdmin, data: { isTrustedHost: true } });
       const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'EUR' });
       const result = await graphqlQueryV2(
         addFundsMutation,

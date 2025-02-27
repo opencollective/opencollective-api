@@ -86,7 +86,6 @@ describe('server/models/LegalDocument', () => {
   describe('documentLink', () => {
     it('it can set and save a new document_link', async () => {
       const expectedLink = 'https://drive.google.com/whatever';
-      const legalDoc = Object.assign({}, documentData, { CollectiveId: userCollective.id });
       const doc = await LegalDocument.create({
         ...documentData,
         CollectiveId: userCollective.id,
@@ -98,7 +97,6 @@ describe('server/models/LegalDocument', () => {
     });
 
     it('prefix the link with https:// if missing, and trims whitespace', async () => {
-      const legalDoc = Object.assign({}, documentData, { CollectiveId: userCollective.id });
       const doc = await LegalDocument.create({
         ...documentData,
         CollectiveId: userCollective.id,
@@ -110,7 +108,6 @@ describe('server/models/LegalDocument', () => {
     });
 
     it('needs to be a valid URL', async () => {
-      const legalDoc = Object.assign({}, documentData, { CollectiveId: userCollective.id });
       await expect(
         LegalDocument.create({
           ...documentData,

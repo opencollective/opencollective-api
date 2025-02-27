@@ -6,7 +6,6 @@ import ActivityTypes from '../../constants/activities';
 import { Activity, Notification } from '../../models';
 import { reportErrorToSentry } from '../sentry';
 import slackLib from '../slack';
-import twitter from '../twitter';
 import { parseToBoolean } from '../utils';
 import { enrichActivity, sanitizeActivity } from '../webhooks';
 
@@ -53,7 +52,7 @@ const dispatch = async (
   }
 
   const dispatchToOtherChannels = async () => {
-    // process notification entries for slack, twitter, etc...
+    // process notification entries for slack, webhooks, etc...
     if (!activity.CollectiveId || !activity.type) {
       return;
     }
@@ -84,9 +83,6 @@ const dispatch = async (
         try {
           if (notifConfig.channel === channels.SLACK) {
             await slackLib.postActivityOnPublicChannel(activity, notifConfig.webhookUrl);
-            notifConfig.recordSuccess(); // No need to await
-          } else if (notifConfig.channel === channels.TWITTER) {
-            await twitter.tweetActivity(activity);
             notifConfig.recordSuccess(); // No need to await
           } else if (notifConfig.channel === channels.WEBHOOK) {
             const success = await publishToWebhook(notifConfig, activity);

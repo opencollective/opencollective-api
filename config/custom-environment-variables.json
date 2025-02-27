@@ -153,11 +153,6 @@
     "clientID": "GITHUB_CLIENT_ID",
     "clientSecret": "GITHUB_CLIENT_SECRET"
   },
-  "twitter": {
-    "consumerKey": "TWITTER_CONSUMER_KEY",
-    "consumerSecret": "TWITTER_CONSUMER_SECRET",
-    "disable": "TWITTER_DISABLE"
-  },
   "fixer": {
     "accessKey": "FIXER_ACCESS_KEY",
     "disableMock": "FIXER_DISABLE_MOCK"

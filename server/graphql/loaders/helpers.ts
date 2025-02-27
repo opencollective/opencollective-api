@@ -6,7 +6,7 @@ import { Model, ModelStatic } from 'sequelize';
 import models from '../../models';
 
 /** A default getter that returns item's id */
-const defaultKeyGetter = (item): number | string => item.id;
+const defaultKeyGetter = <T>(item: T): number | string => item['id'];
 
 /**
  * A newer implementation of `sortResults`.
@@ -21,7 +21,7 @@ const defaultKeyGetter = (item): number | string => item.id;
 export function sortResultsSimple<ResultType>(
   keys: readonly (string | number)[],
   results: readonly ResultType[],
-  getKeyFromResult = defaultKeyGetter,
+  getKeyFromResult = defaultKeyGetter<ResultType>,
   defaultValue: ResultType = undefined,
 ): ResultType[] {
   const resultsById = {};
@@ -47,7 +47,7 @@ export function sortResultsSimple<ResultType>(
 export function sortResultsArray<ResultType>(
   keys: readonly (string | number)[],
   results: readonly ResultType[],
-  getKeyFromResult = defaultKeyGetter,
+  getKeyFromResult = defaultKeyGetter<ResultType>,
   defaultValue = [],
 ): ResultType[][] {
   const resultsById = {};

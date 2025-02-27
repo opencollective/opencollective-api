@@ -20,7 +20,6 @@ import emailLib from '../email';
 import logger from '../logger';
 import { getTransactionPdf } from '../pdf';
 import { reportMessageToSentry } from '../sentry';
-import twitter from '../twitter';
 import { toIsoDateStr } from '../utils';
 
 import { replaceVideosByImagePreviews } from './utils';
@@ -255,7 +254,6 @@ export const notifyByEmail = async (activity: Activity) => {
       break;
 
     case ActivityTypes.COLLECTIVE_MEMBER_CREATED:
-      twitter.tweetActivity(activity);
       await notify.collective(activity, { collectiveId: activity.data.collective.id });
       break;
 
@@ -320,8 +318,6 @@ export const notifyByEmail = async (activity: Activity) => {
     }
 
     case ActivityTypes.COLLECTIVE_UPDATE_PUBLISHED: {
-      twitter.tweetActivity(activity);
-
       // Never notify for certain updates (changelog, coming from OC Inc, etc)
       const update = await models.Update.findByPk(activity.data.update.id);
       if (!update?.shouldNotify()) {

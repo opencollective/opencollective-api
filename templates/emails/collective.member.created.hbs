@@ -14,15 +14,6 @@ Subject: New financial contributor to {{{collective.name}}}: {{{member.memberCol
   <p class="pullQuote">“{{order.publicMessage}}”<br />- {{member.memberCollective.name}}</p>
 {{/if}}
 
-{{#if tweet}}
-<center>
-  {{tweet.text}}<br />
-  <a href="https://twitter.com/intent/tweet?text={{tweet.encoded}}" class="btn blue">
-    <div>Thank them on Twitter!</div>
-  </a>
-</center>
-{{/if}}
-
 {{#if member.memberCollective.isIncognito}}
 {{else}}
 <h2>About {{member.memberCollective.name}}</h2>

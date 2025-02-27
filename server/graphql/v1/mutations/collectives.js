@@ -634,7 +634,7 @@ export async function unarchiveCollective(_, args, req) {
       deactivatedAt: null,
       isActive: parentCollective.isActive,
       HostCollectiveId: parentCollective.HostCollectiveId,
-      approvedAt: collective.approvedAt,
+      approvedAt: parentCollective.approvedAt ? new Date() : null,
     });
 
     // purge cache for parent to make sure the card gets updated on the collective page

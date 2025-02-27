@@ -144,7 +144,6 @@ Subject: {{{collective.name}}} {{month}} {{year}} Report
   </div>
   <div class="dimmed">
   ({{collective.nextGoal.percentage}} - missing {{currency collective.nextGoal.missing.amount currency=collective.currency}}{{#if collective.nextGoal.missing.interval}}/{{collective.nextGoal.missing.interval}}{{/if}})
-  (<a href="https://twitter.com/intent/tweet?text={{{encodeURIComponent collective.nextGoal.tweet}}}">share this goal</a>)
   </div>
   {{else}}
   <p><a href="{{config.host.website}}/dashboard/{{@root.collective.slug}}/goals">Set a goal</a> to motivate contributions.</p>
