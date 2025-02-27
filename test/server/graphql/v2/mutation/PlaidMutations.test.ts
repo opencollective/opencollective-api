@@ -86,6 +86,7 @@ describe('server/graphql/v2/mutation/PlaidMutations', () => {
         products: ['auth', 'transactions'],
         country_codes: ['US'],
         webhook: 'http://localhost:3060/webhooks/plaid',
+        redirect_uri: 'http://localhost:3000/services/plaid/oauth/callback',
         /* eslint-enable camelcase */
       });
     });

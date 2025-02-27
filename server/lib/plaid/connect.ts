@@ -1,3 +1,4 @@
+import config from 'config';
 import { omit, truncate } from 'lodash';
 import { CountryCode, ItemPublicTokenExchangeResponse, LinkTokenCreateRequest, Products } from 'plaid';
 
@@ -52,14 +53,15 @@ export const generatePlaidLinkToken = async (
     accountSelectionEnabled?: boolean;
   },
 ) => {
+  /* eslint-disable camelcase */
   const linkTokenConfig: LinkTokenCreateRequest = {
-    /* eslint-disable camelcase */
     user: { client_user_id: remoteUser.id.toString() },
     client_name: PlatformConstants.PlatformName,
     language: getPlaidLanguage(params.locale),
     products: params.products as Products[],
     country_codes: params.countries as CountryCode[],
     webhook: getPlaidWebhookUrl(),
+    redirect_uri: `${config.host.website}/services/plaid/oauth/callback`, // Redirect URL must be listed in https://dashboard.plaid.com/developers/api
   };
 
   if (params.accessToken) {

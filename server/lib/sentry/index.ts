@@ -185,7 +185,7 @@ export const reportErrorToSentry = (err: Error, params: CaptureErrorParams = {})
     let details = err.stack ? err.stack : err.message;
     if (axios.isAxiosError(err) && err.response?.data) {
       details += '\nAxios response:';
-      details += sanitizeObjectForJSON(err.response.data);
+      details += safeJsonStringify(err.response.data);
     }
 
     logger.error(
