@@ -14,7 +14,6 @@ import {
 } from 'sequelize';
 import sharp from 'sharp';
 import { v4 as uuid } from 'uuid';
-import isURL from 'validator/lib/isURL';
 
 import { FileKind, SUPPORTED_FILE_KINDS } from '../constants/file-kind';
 import { idDecode, idEncode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
@@ -25,6 +24,7 @@ import RateLimit from '../lib/rate-limit';
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 import streamToBuffer from '../lib/stream-to-buffer';
+import { isValidURL } from '../lib/url-utils';
 
 import User from './User';
 
@@ -460,16 +460,7 @@ UploadedFile.init(
           msg: 'The uploaded file URL is too long',
         },
         isValidURL(url: string): void {
-          if (
-            !isURL(url, {
-              // eslint-disable-next-line camelcase
-              require_host:
-                config.env !== 'development' && config.env !== 'test' && config.env !== 'e2e' && !process.env.E2E_TEST,
-              // eslint-disable-next-line camelcase
-              require_tld:
-                config.env !== 'development' && config.env !== 'test' && config.env !== 'e2e' && !process.env.E2E_TEST,
-            })
-          ) {
+          if (!isValidURL(url)) {
             throw new Error('File URL is not a valid URL');
           }
 

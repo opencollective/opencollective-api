@@ -106,6 +106,7 @@ import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op, Sequelize, Transaction as SequelizeTransaction } from '../lib/sequelize';
 import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective, SpamAnalysisReport } from '../lib/spam';
 import { sanitizeTags, validateTags } from '../lib/tags';
+import { isValidURL } from '../lib/url-utils';
 import { canUseFeature } from '../lib/user-permissions';
 import userlib from '../lib/userlib';
 import { capitalize, formatCurrency, getDomain, md5 } from '../lib/utils';
@@ -3781,8 +3782,10 @@ Collective.init(
     image: {
       type: DataTypes.STRING,
       validate: {
-        isUrl: {
-          msg: 'The image URL is not valid',
+        isValidUrl(url) {
+          if (url && !isValidURL(url)) {
+            throw new Error('The image URL is not valid');
+          }
         },
         len: {
           args: [0, MAX_UPLOADED_FILE_URL_LENGTH],
@@ -3827,8 +3830,10 @@ Collective.init(
     backgroundImage: {
       type: DataTypes.STRING,
       validate: {
-        isUrl: {
-          msg: 'The background image URL is not valid',
+        isValidUrl(url) {
+          if (url && !isValidURL(url)) {
+            throw new Error('The background image URL is not valid');
+          }
         },
         len: {
           args: [0, MAX_UPLOADED_FILE_URL_LENGTH],
