@@ -548,6 +548,8 @@ export const redactSensitiveFields = fastRedact({
     'token',
     'accessToken',
     'access_token',
+    '["X-XSRF-TOKEN"]',
+    '["PLAID-SECRET"]',
     'accessTokenPayload',
     'accessTokenSignature',
     'refreshToken',

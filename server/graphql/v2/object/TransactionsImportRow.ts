@@ -52,6 +52,13 @@ export const GraphQLTransactionsImportRow = new GraphQLObjectType({
         }
       },
     },
+    accountId: {
+      type: GraphQLString,
+      description:
+        'If an account ID is available in the imported row, it will be stored here. Returns the default account ID otherwise.',
+      // "__default__" must match `components/dashboard/sections/transactions-imports/lib/types.ts`
+      resolve: (row: TransactionsImportRow) => row.rawValue?.['account_id'] || '__default__',
+    },
     rawValue: {
       type: GraphQLJSONObject,
       description: 'The raw data of the row',
