@@ -2,6 +2,7 @@ import type { Request } from 'express';
 import { capitalize, compact, filter, find, first, isEqual, isNil, keyBy, max, startCase, uniq, uniqBy } from 'lodash';
 import moment from 'moment';
 
+import { CollectiveType } from '../../constants/collectives';
 import { SupportedCurrency } from '../../constants/currencies';
 import status from '../../constants/expense-status';
 import expenseType from '../../constants/expense-type';
@@ -459,7 +460,14 @@ export const checkExpensesBatch = async (
 
         // Check if this Payout Method is being used by someone other user or collective
         const similarPayoutMethods = await expense.PayoutMethod.findSimilar({
-          include: [{ model: models.Collective, attributes: ['slug'] }],
+          include: [
+            {
+              model: models.Collective,
+              where: { type: { [Op.ne]: CollectiveType.VENDOR } },
+              attributes: ['slug'],
+              required: true,
+            },
+          ],
           where: { CollectiveId: { [Op.ne]: expense.FromCollectiveId } },
         });
         if (similarPayoutMethods) {
