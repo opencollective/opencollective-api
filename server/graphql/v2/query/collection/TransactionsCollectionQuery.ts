@@ -1,3 +1,5 @@
+import assert from 'assert';
+
 import config from 'config';
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
@@ -14,6 +16,7 @@ import { AccountingCategory, Expense, Op, PaymentMethod, sequelize } from '../..
 import Order from '../../../../models/Order';
 import Transaction, { MERCHANT_ID_PATHS } from '../../../../models/Transaction';
 import { checkScope } from '../../../common/scope-check';
+import { Forbidden, NotFound } from '../../../errors';
 import {
   GraphQLTransactionCollection,
   GraphQLTransactionsCollectionReturnType,
@@ -34,6 +37,14 @@ import {
 } from '../../input/ChronologicalOrderInput';
 import { getDatabaseIdFromExpenseReference, GraphQLExpenseReferenceInput } from '../../input/ExpenseReferenceInput';
 import { getDatabaseIdFromOrderReference, GraphQLOrderReferenceInput } from '../../input/OrderReferenceInput';
+import {
+  fetchPaymentMethodWithReferences,
+  GraphQLPaymentMethodReferenceInput,
+} from '../../input/PaymentMethodReferenceInput';
+import {
+  fetchPayoutMethodWithReference,
+  GraphQLPayoutMethodReferenceInput,
+} from '../../input/PayoutMethodReferenceInput';
 import { GraphQLVirtualCardReferenceInput } from '../../input/VirtualCardReferenceInput';
 import { CollectionArgs } from '../../interface/Collection';
 
@@ -209,6 +220,14 @@ export const TransactionsCollectionArgs = {
   accountingCategory: {
     type: new GraphQLList(GraphQLString),
     description: 'Only return transactions that are associated with these accounting categories',
+  },
+  paymentMethod: {
+    type: new GraphQLList(GraphQLPaymentMethodReferenceInput),
+    description: 'Only return transactions that are associated with this payment method',
+  },
+  payoutMethod: {
+    type: GraphQLPayoutMethodReferenceInput,
+    description: 'Only return transactions that are associated with this payout method',
   },
 };
 
@@ -445,7 +464,15 @@ export const TransactionsCollectionResolver = async (
   if (args.kind) {
     where.push({ kind: args.kind });
   }
-  if (args.paymentMethodService || args.paymentMethodType) {
+
+  if (args.paymentMethod) {
+    const paymentMethods = await fetchPaymentMethodWithReferences(args.paymentMethod);
+    assert(
+      paymentMethods.every(pm => req.remoteUser?.isAdmin(pm.CollectiveId)),
+      new Forbidden("You need to be an admin of the payment method's collective to access this resource"),
+    );
+    where.push({ PaymentMethodId: { [Op.in]: paymentMethods.map(pm => pm.id) } });
+  } else if (args.paymentMethodService || args.paymentMethodType) {
     const paymentMethodTypeConditions = [];
     const paymentMethodServiceConditions = [];
     uniq(args.paymentMethodType).forEach(type => {
@@ -465,6 +492,16 @@ export const TransactionsCollectionResolver = async (
     if (paymentMethodServiceConditions.length) {
       where.push({ [Op.or]: paymentMethodServiceConditions });
     }
+  }
+
+  if (args.payoutMethod) {
+    const payoutMethod = await fetchPayoutMethodWithReference(args.payoutMethod);
+    assert(payoutMethod, new NotFound('Requested payment method not found'));
+    assert(
+      req.remoteUser?.isAdmin(payoutMethod.CollectiveId),
+      new Forbidden("You need to be an admin of the payment method's collective to access this resource"),
+    );
+    where.push({ PayoutMethodId: payoutMethod.id });
   }
 
   if (!isEmpty(args.virtualCard)) {

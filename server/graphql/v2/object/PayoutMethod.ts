@@ -2,6 +2,7 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
 
+import { PayoutMethod } from '../../../models';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { checkScope } from '../../common/scope-check';
 import { GraphQLPayoutMethodType } from '../enum/PayoutMethodType';
@@ -62,6 +63,21 @@ const GraphQLPayoutMethod = new GraphQLObjectType({
           if (checkScope(req, 'expenses')) {
             return payoutMethod.data;
           }
+        }
+      },
+    },
+    canBeEditedOrDeleted: {
+      type: GraphQLBoolean,
+      description: 'Whether this payout method can be edit or deleted',
+      resolve: async (payoutMethod: PayoutMethod, _, req: express.Request): Promise<boolean> => {
+        if (!req.remoteUser) {
+          return false;
+        }
+        const collective = await req.loaders.Collective.byId.load(payoutMethod.CollectiveId);
+        if (req.remoteUser?.isAdminOfCollective(collective)) {
+          return payoutMethod.canBeEditedOrDeleted();
+        } else {
+          return false;
         }
       },
     },

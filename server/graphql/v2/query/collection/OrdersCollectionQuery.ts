@@ -26,7 +26,7 @@ import {
   GraphQLChronologicalOrderInput,
 } from '../../input/ChronologicalOrderInput';
 import {
-  fetchPaymentMethodWithReference,
+  fetchPaymentMethodWithReferences,
   GraphQLPaymentMethodReferenceInput,
 } from '../../input/PaymentMethodReferenceInput';
 import { getDatabaseIdFromTierReference, GraphQLTierReferenceInput } from '../../input/TierReferenceInput';
@@ -85,7 +85,7 @@ export const OrdersCollectionArgs = {
     description: 'Only return orders that were paused by these roles. status must be set to PAUSED.',
   },
   paymentMethod: {
-    type: GraphQLPaymentMethodReferenceInput,
+    type: new GraphQLList(GraphQLPaymentMethodReferenceInput),
     description:
       'Only return orders that were paid with this payment method. Must be an admin of the account owning the payment method.',
   },
@@ -296,13 +296,13 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
 
   // Load payment method
   if (args.paymentMethod) {
-    const paymentMethod = await fetchPaymentMethodWithReference(args.paymentMethod, {
+    const paymentMethods = await fetchPaymentMethodWithReferences(args.paymentMethod, {
       sequelizeOpts: { attributes: ['id'], include: [{ model: models.Collective }] },
     });
-    if (!req.remoteUser?.isAdminOfCollective(paymentMethod.Collective)) {
+    if (!paymentMethods.every(paymentMethod => req.remoteUser?.isAdminOfCollective(paymentMethod.Collective))) {
       throw new Unauthorized('You must be an admin of the payment method to fetch its orders');
     }
-    where['PaymentMethodId'] = paymentMethod.id;
+    where['PaymentMethodId'] = { [Op.in]: paymentMethods.map(pm => pm.id) };
   }
 
   // Filter on payment method service/type

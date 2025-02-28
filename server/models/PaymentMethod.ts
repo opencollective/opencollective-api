@@ -61,6 +61,7 @@ class PaymentMethod extends Model<InferAttributes<PaymentMethod>, InferCreationA
 
   // Instance methods
   declare getCollective: () => Promise<Collective>;
+  declare getOrders: (unknown) => Promise<Order[]>;
   declare getBalanceForUser: (user: User) => Promise<{ amount: number; currency: SupportedCurrency }>;
   declare canBeUsedForOrder: (order: Order, user: User) => Promise<boolean>;
   declare isConfirmed: () => boolean;
