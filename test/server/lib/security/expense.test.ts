@@ -1,10 +1,12 @@
 import { expect } from 'chai';
 import { pick } from 'lodash';
 
+import { CollectiveType } from '../../../../server/constants/collectives';
 import { Service } from '../../../../server/constants/connected-account';
 import { checkExpense, checkExpensesBatch } from '../../../../server/lib/security/expense';
 import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
 import {
+  fakeCollective,
   fakeConnectedAccount,
   fakeExpense,
   fakeOrder,
@@ -100,6 +102,28 @@ describe('lib/security/expense', () => {
       expect(await checkExpense(expense, { req: makeRequest() as any })).to.deep.equal(expenseCheck);
       expect(snapshotChecks(expenseCheck)).to.matchTableSnapshot();
       expect(snapshotChecks(otherExpenseCheck)).to.matchTableSnapshot();
+    });
+
+    it('ignores similar payout methods that belongs to VENDORs', async () => {
+      const [vendor, anotherVendor] = await multiple(fakeCollective, 2, { type: CollectiveType.VENDOR });
+      const pm = await fakePayoutMethod({
+        CollectiveId: vendor.id,
+        type: PayoutMethodTypes.PAYPAL,
+        data: {
+          email: 'vendor@opencollective.com',
+        },
+      });
+      await fakePayoutMethod({
+        CollectiveId: anotherVendor.id,
+        type: PayoutMethodTypes.PAYPAL,
+        data: {
+          email: 'vendor@opencollective.com',
+        },
+      });
+      const vendorExpense = await fakeExpense({ UserId: vendor.CreatedByUserId, PayoutMethodId: pm.id });
+
+      const checks = await checkExpense(vendorExpense, { req: makeRequest() as any });
+      expect(snapshotChecks(checks)).to.matchTableSnapshot();
     });
   });
 });
