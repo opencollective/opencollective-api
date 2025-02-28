@@ -218,7 +218,14 @@ class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCreationAtt
     const expenses = await (sequelize.models.Expense as typeof Expense).findOne({
       where: {
         PayoutMethodId: this.id,
-        status: { [Op.notIn]: [ExpenseStatuses.PENDING, ExpenseStatuses.DRAFT] },
+        status: {
+          [Op.notIn]: [
+            ExpenseStatuses.PENDING,
+            ExpenseStatuses.DRAFT,
+            ExpenseStatuses.CANCELED,
+            ExpenseStatuses.REJECTED,
+          ],
+        },
       },
     });
 
