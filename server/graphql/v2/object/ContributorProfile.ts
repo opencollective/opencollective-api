@@ -2,6 +2,9 @@ import { GraphQLBoolean, GraphQLObjectType } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import moment from 'moment';
 
+import { CollectiveType } from '../../../constants/collectives';
+import type { Collective } from '../../../models';
+import type { TotalContributedToHost } from '../../loaders/contributors';
 import { GraphQLAccount } from '../interface/Account';
 
 import { GraphQLAmount } from './Amount';
@@ -32,14 +35,43 @@ export const GraphQLContributorProfile = new GraphQLObjectType({
           description: 'The date since when to calculate the total. Defaults to the start of the current year.',
         },
       },
-      resolve: async ({ account, forAccount }, args, req) => {
+      resolve: async (
+        { account, forAccount }: { account: Collective; forAccount: Collective },
+        args,
+        req: Express.Request,
+      ) => {
+        if (!req.remoteUser || !req.remoteUser?.isAdminOfCollective(account)) {
+          return null;
+        }
+
         const host = await req.loaders.Collective.byId.load(forAccount.HostCollectiveId);
         const since = args.since ? moment(args.since).toISOString() : moment.utc().startOf('year').toISOString();
-        const stats = await req.loaders.Contributors.totalContributedToHost.load({
-          CollectiveId: account.id,
-          HostId: host.id,
-          since,
-        });
+
+        let stats: TotalContributedToHost;
+        // If Account is a user, we need to combine both contributions from the user and a potential incognito profile
+        const incognitoMember = account.type === CollectiveType.USER && (await account.getIncognitoMember());
+        if (incognitoMember) {
+          const allStats: TotalContributedToHost[] = await req.loaders.Contributors.totalContributedToHost.loadMany(
+            [incognitoMember.MemberCollectiveId, incognitoMember.CollectiveId].map(CollectiveId => ({
+              CollectiveId,
+              HostId: host.id,
+              since,
+            })),
+          );
+          stats = {
+            CollectiveId: account.id,
+            amount: allStats.reduce((sum, stat) => sum + (stat?.amount || 0), 0),
+            currency: (allStats[0] || allStats[1]).currency,
+            HostCollectiveId: host.id,
+            since,
+          };
+        } else {
+          stats = await req.loaders.Contributors.totalContributedToHost.load({
+            CollectiveId: account.id,
+            HostId: host.id,
+            since,
+          });
+        }
 
         const currency = args.inCollectiveCurrency ? forAccount.currency : host.currency;
         if (!stats) {

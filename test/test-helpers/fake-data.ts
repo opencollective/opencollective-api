@@ -181,6 +181,19 @@ export const fakeUser = async (
   return user;
 };
 
+export const fakeIncognitoProfile = async user => {
+  const incognitoCollective = await fakeCollective({
+    type: CollectiveType.USER,
+    name: 'Incognito',
+    slug: randStr('incognito-'),
+    HostCollectiveId: null,
+    CreatedByUserId: user.id,
+    isIncognito: true,
+  });
+  await fakeMember({ CollectiveId: incognitoCollective.id, MemberCollectiveId: user.CollectiveId, role: roles.ADMIN });
+  return incognitoCollective;
+};
+
 /** @deprecated: use fakeActiveHost */
 export const fakeHost = async (hostData: Parameters<typeof fakeCollective>[0] = {}) => {
   return fakeCollective({
