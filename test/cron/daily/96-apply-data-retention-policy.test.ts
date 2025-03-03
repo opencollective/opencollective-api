@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import { last } from 'lodash';
 import moment from 'moment';
 
 import { runDataRetentionPolicyJob } from '../../../cron/daily/96-apply-data-retention-policy';
@@ -37,10 +38,13 @@ describe('cron/daily/96-apply-data-retention-policy', () => {
   describe('retention periods', () => {
     let records: Record<string, ModelInstance<any>>;
 
+    const getModelNameFromRecordKey = (key: string) => last(key.split('.'));
+
     beforeEach(async () => {
       // Create test data for all retention periods
       records = {
         // FINANCIAL (10 years)
+        'Expense.Comment': await fakeComment({ ExpenseId: (await fakeExpense()).id }),
         Expense: await fakeExpense(),
         ExpenseItem: await fakeExpenseItem(),
         LegalDocument: await fakeLegalDocument(),
@@ -55,8 +59,8 @@ describe('cron/daily/96-apply-data-retention-policy', () => {
         VirtualCard: await fakeVirtualCard(),
 
         // SENSITIVE (1 year)
-        Comment: await fakeComment(),
         ConnectedAccount: await fakeConnectedAccount(),
+        'Conversation.Comment': await fakeComment({ ConversationId: (await fakeConversation()).id }),
 
         // DEFAULT (6 months)
         Conversation: await fakeConversation(),
@@ -69,7 +73,7 @@ describe('cron/daily/96-apply-data-retention-policy', () => {
         OAuthAuthorizationCode: await fakeOAuthAuthorizationCode(),
         PersonalToken: await fakePersonalToken(),
         UserToken: await fakeUserToken(),
-      };
+      } as const;
 
       // Soft delete all records
       for (const record of Object.values(records)) {
@@ -81,7 +85,8 @@ describe('cron/daily/96-apply-data-retention-policy', () => {
       await runDataRetentionPolicyJob();
 
       // Check all records still exist
-      for (const [modelName, record] of Object.entries(records)) {
+      for (const [recordKey, record] of Object.entries(records)) {
+        const modelName = getModelNameFromRecordKey(recordKey);
         expect(await models[modelName].findByPk(record.id, { paranoid: false }), `${modelName} should exist`).to.exist;
       }
     });
@@ -116,15 +121,17 @@ describe('cron/daily/96-apply-data-retention-policy', () => {
       await runDataRetentionPolicyJob();
 
       // Verify all active records are preserved
-      for (const [modelName, record] of Object.entries(activeRecords)) {
+      for (const [recordKey, record] of Object.entries(activeRecords)) {
+        const modelName = getModelNameFromRecordKey(recordKey);
         expect(await models[modelName].findByPk(record.id), `${modelName} should exist`).to.exist;
       }
     });
 
     it('applies FINANCIAL retention period (10 years)', async () => {
       const oldDate = moment().subtract(11, 'years').toDate();
-      const financialModels = [
+      const financialModels: (keyof typeof records)[] = [
         'Expense',
+        'Expense.Comment',
         'ExpenseItem',
         'LegalDocument',
         'Location',
@@ -139,16 +146,18 @@ describe('cron/daily/96-apply-data-retention-policy', () => {
       ];
 
       // Update deletedAt for all financial models
-      for (const modelName of financialModels) {
-        const record = records[modelName];
+      for (const recordKey of financialModels) {
+        const modelName = getModelNameFromRecordKey(recordKey);
+        const record = records[recordKey];
         await models[modelName].update({ deletedAt: oldDate }, { where: { id: record.id }, paranoid: false });
       }
 
       await runDataRetentionPolicyJob();
 
       // Verify all financial records are deleted
-      for (const modelName of financialModels) {
-        const record = records[modelName];
+      for (const recordKey of financialModels) {
+        const modelName = getModelNameFromRecordKey(recordKey);
+        const record = records[recordKey];
         expect(await models[modelName].findByPk(record.id, { paranoid: false }), `${modelName} should be deleted`).to
           .not.exist;
       }
@@ -156,19 +165,21 @@ describe('cron/daily/96-apply-data-retention-policy', () => {
 
     it('applies SENSITIVE retention period (1 year)', async () => {
       const oldDate = moment().subtract(2, 'years').toDate();
-      const sensitiveModels = ['Comment', 'ConnectedAccount'];
+      const sensitiveModels: (keyof typeof records)[] = ['Conversation.Comment', 'ConnectedAccount'];
 
       // Update deletedAt for all sensitive models
-      for (const modelName of sensitiveModels) {
-        const record = records[modelName];
+      for (const recordKey of sensitiveModels) {
+        const record = records[recordKey];
+        const modelName = getModelNameFromRecordKey(recordKey);
         await models[modelName].update({ deletedAt: oldDate }, { where: { id: record.id }, paranoid: false });
       }
 
       await runDataRetentionPolicyJob();
 
       // Verify all sensitive records are deleted
-      for (const modelName of sensitiveModels) {
-        const record = records[modelName];
+      for (const recordKey of sensitiveModels) {
+        const record = records[recordKey];
+        const modelName = getModelNameFromRecordKey(recordKey);
         expect(await models[modelName].findByPk(record.id, { paranoid: false }), `${modelName} should be deleted`).to
           .not.exist;
       }
@@ -176,19 +187,27 @@ describe('cron/daily/96-apply-data-retention-policy', () => {
 
     it('applies DEFAULT retention period (6 months)', async () => {
       const oldDate = moment().subtract(7, 'months').toDate();
-      const defaultModels = ['Conversation', 'PaypalPlan', 'PaypalProduct', 'RecurringExpense', 'Update'];
+      const defaultModels: (keyof typeof records)[] = [
+        'Conversation',
+        'PaypalPlan',
+        'PaypalProduct',
+        'RecurringExpense',
+        'Update',
+      ];
 
       // Update deletedAt for all default retention models
-      for (const modelName of defaultModels) {
-        const record = records[modelName];
+      for (const recordKey of defaultModels) {
+        const modelName = getModelNameFromRecordKey(recordKey);
+        const record = records[recordKey];
         await models[modelName].update({ deletedAt: oldDate }, { where: { id: record.id }, paranoid: false });
       }
 
       await runDataRetentionPolicyJob();
 
       // Verify all default retention records are deleted
-      for (const modelName of defaultModels) {
-        const record = records[modelName];
+      for (const recordKey of defaultModels) {
+        const modelName = getModelNameFromRecordKey(recordKey);
+        const record = records[recordKey];
         expect(await models[modelName].findByPk(record.id, { paranoid: false }), `${modelName} should be deleted`).to
           .not.exist;
       }
@@ -196,19 +215,21 @@ describe('cron/daily/96-apply-data-retention-policy', () => {
 
     it('applies REDUCED retention period (1 month)', async () => {
       const oldDate = moment().subtract(2, 'months').toDate();
-      const reducedModels = ['OAuthAuthorizationCode', 'PersonalToken', 'UserToken'];
+      const reducedModels: (keyof typeof records)[] = ['OAuthAuthorizationCode', 'PersonalToken', 'UserToken'];
 
       // Update deletedAt for all reduced retention models
-      for (const modelName of reducedModels) {
-        const record = records[modelName];
+      for (const recordKey of reducedModels) {
+        const modelName = getModelNameFromRecordKey(recordKey);
+        const record = records[recordKey];
         await models[modelName].update({ deletedAt: oldDate }, { where: { id: record.id }, paranoid: false });
       }
 
       await runDataRetentionPolicyJob();
 
       // Verify all reduced retention records are deleted
-      for (const modelName of reducedModels) {
-        const record = records[modelName];
+      for (const recordKey of reducedModels) {
+        const modelName = getModelNameFromRecordKey(recordKey);
+        const record = records[recordKey];
         expect(await models[modelName].findByPk(record.id, { paranoid: false }), `${modelName} should be deleted`).to
           .not.exist;
       }
@@ -216,8 +237,9 @@ describe('cron/daily/96-apply-data-retention-policy', () => {
 
     it('preserves records within retention period', async () => {
       // Set deletedAt dates within retention periods
-      const updates = {
+      const updates: Record<keyof typeof records, Date> = {
         // FINANCIAL: just under 10 years
+        'Expense.Comment': moment().subtract(9, 'years').toDate(),
         Expense: moment().subtract(9, 'years').toDate(),
         ExpenseItem: moment().subtract(9, 'years').toDate(),
         LegalDocument: moment().subtract(9, 'years').toDate(),
@@ -232,7 +254,7 @@ describe('cron/daily/96-apply-data-retention-policy', () => {
         VirtualCard: moment().subtract(9, 'years').toDate(),
 
         // SENSITIVE: just under 1 year
-        Comment: moment().subtract(11, 'months').toDate(),
+        'Conversation.Comment': moment().subtract(11, 'months').toDate(),
         ConnectedAccount: moment().subtract(11, 'months').toDate(),
 
         // DEFAULT: just under 6 months
@@ -249,15 +271,17 @@ describe('cron/daily/96-apply-data-retention-policy', () => {
       };
 
       // Update all records
-      for (const [modelName, date] of Object.entries(updates)) {
-        const record = records[modelName];
+      for (const [recordKey, date] of Object.entries(updates)) {
+        const record = records[recordKey];
+        const modelName = getModelNameFromRecordKey(recordKey);
         await models[modelName].update({ deletedAt: date }, { where: { id: record.id }, paranoid: false });
       }
 
       await runDataRetentionPolicyJob();
 
       // Verify all records still exist
-      for (const [modelName, record] of Object.entries(records)) {
+      for (const [recordKey, record] of Object.entries(records)) {
+        const modelName = getModelNameFromRecordKey(recordKey);
         expect(await models[modelName].findByPk(record.id, { paranoid: false }), `${modelName} should exist`).to.exist;
       }
     });
