@@ -47,24 +47,31 @@ export const GraphQLContributorProfile = new GraphQLObjectType({
         const host = await req.loaders.Collective.byId.load(forAccount.HostCollectiveId);
         const since = args.since ? moment(args.since).toISOString() : moment.utc().startOf('year').toISOString();
 
-        let stats: TotalContributedToHost;
+        let stats: TotalContributedToHost | null;
         // If Account is a user, we need to combine both contributions from the user and a potential incognito profile
         const incognitoMember = account.type === CollectiveType.USER && (await account.getIncognitoMember());
         if (incognitoMember) {
-          const allStats: TotalContributedToHost[] = await req.loaders.Contributors.totalContributedToHost.loadMany(
-            [incognitoMember.MemberCollectiveId, incognitoMember.CollectiveId].map(CollectiveId => ({
-              CollectiveId,
-              HostId: host.id,
+          const [individual, incognito]: Array<TotalContributedToHost | undefined> =
+            await req.loaders.Contributors.totalContributedToHost.loadMany(
+              [incognitoMember.MemberCollectiveId, incognitoMember.CollectiveId].map(CollectiveId => ({
+                CollectiveId,
+                HostId: host.id,
+                since,
+              })),
+            );
+          if (!individual && !incognito) {
+            stats = null;
+          } else if (individual && incognito) {
+            stats = {
+              CollectiveId: account.id,
+              amount: individual.amount + incognito.amount,
+              currency: individual.currency,
+              HostCollectiveId: host.id,
               since,
-            })),
-          );
-          stats = {
-            CollectiveId: account.id,
-            amount: allStats.reduce((sum, stat) => sum + (stat?.amount || 0), 0),
-            currency: (allStats[0] || allStats[1]).currency,
-            HostCollectiveId: host.id,
-            since,
-          };
+            };
+          } else {
+            stats = individual || incognito;
+          }
         } else {
           stats = await req.loaders.Contributors.totalContributedToHost.load({
             CollectiveId: account.id,
