@@ -7,7 +7,7 @@ import models, { sequelize } from '../../models';
 
 import { sortResultsSimple } from './helpers';
 
-type TotalContributedToHost = {
+export type TotalContributedToHost = {
   CollectiveId: number;
   amount: number;
   currency: SupportedCurrency;
