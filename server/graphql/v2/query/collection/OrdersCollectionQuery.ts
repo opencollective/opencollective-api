@@ -43,7 +43,11 @@ const getCollectivesJoinCondition = (
   limitToHostedAccounts?: Collective[],
 ): Record<string, unknown> => {
   const associationFields = { collective: 'CollectiveId', fromCollective: 'FromCollectiveId' };
-  const field = associationFields[association] || `$${association}.id$`;
+  const field =
+    // Foreign Key columns should only be used in isolation. When querying for associated data, it is more performant to also query for the associated id
+    associationFields[association] && !includeChildrenAccounts && !(includeHostedAccounts && account.isHostAccount)
+      ? associationFields[association]
+      : `$${association}.id$`;
   const limitToHostedAccountsIds = limitToHostedAccounts?.map(a => a.id) || [];
   const allTopAccountIds = uniq([account.id, ...limitToHostedAccountsIds]);
   let conditions = [{ [field]: allTopAccountIds }];
