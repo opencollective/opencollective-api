@@ -56,7 +56,7 @@ export const GraphQLAccountingCategory = new GraphQLObjectType({
       description: 'The time of creation of this accounting category',
     },
     appliesTo: {
-      type: new GraphQLNonNull(GraphQLAccountingCategoryAppliesTo),
+      type: GraphQLAccountingCategoryAppliesTo,
       description: 'If the category is applicable to the Host or Hosted Collectives',
     },
   }),
