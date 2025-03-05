@@ -25,7 +25,12 @@
   },
   "aws": {
     "s3": {
-      "bucket": "opencollective-test"
+      "bucket": "opencollective-test",
+      "endpoint": "http://localhost:9000",
+      "key": "user",
+      "secret": "password",
+      "region": "us-east-1",
+      "forcePathStyle": true
     }
   },
   "taxForms": {

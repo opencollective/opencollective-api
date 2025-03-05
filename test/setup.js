@@ -8,6 +8,8 @@ import markdownTable from 'markdown-table';
 import Sequelize from 'sequelize';
 import sinonChai from 'sinon-chai';
 
+import { dangerouslyInitNonProductionBuckets } from '../server/lib/awsS3';
+
 // setting up NODE_ENV to test when running the tests.
 if (!process.env.NODE_ENV) {
   process.env.NODE_ENV = 'test';
@@ -25,6 +27,10 @@ before(() => {
 
 beforeEach(function () {
   chaiJestSnapshot.configureUsingMochaContext(this);
+});
+
+before(async () => {
+  await dangerouslyInitNonProductionBuckets();
 });
 
 // Chai plugins
