@@ -18,8 +18,36 @@ enum RetentionPeriod {
   REDUCED = '1 month',
 }
 
-const MODEL_RETENTION_PERIODS = new Map<ModelStatic<any>, RetentionPeriod>([
-  [models.Comment, RetentionPeriod.SENSITIVE],
+type AdditionalConditions = Record<string, any> & { deletedAt?: never };
+
+type ModelRetentionPeriodSettings = [ModelStatic<any>, RetentionPeriod, AdditionalConditions?];
+
+/**
+ * Recursively replaces Sequelize operators with their string representation
+ */
+const stringifySequelizeOperators = (value: AdditionalConditions): any => {
+  const result: Record<string, any> = {};
+
+  if (typeof value === 'object') {
+    for (const symbol of Object.getOwnPropertySymbols(value)) {
+      result[symbol.toString()] = value[symbol as unknown as string];
+    }
+
+    for (const [key, val] of Object.entries(value)) {
+      if (typeof val === 'object') {
+        result[key] = stringifySequelizeOperators(val);
+      } else {
+        result[key] = val.toString();
+      }
+    }
+  }
+
+  return JSON.stringify(result);
+};
+
+const MODEL_RETENTION_PERIODS: ModelRetentionPeriodSettings[] = [
+  [models.Comment, RetentionPeriod.FINANCIAL, { ExpenseId: { [Op.not]: null } }],
+  [models.Comment, RetentionPeriod.SENSITIVE, { ExpenseId: { [Op.is]: null } }],
   [models.ConnectedAccount, RetentionPeriod.SENSITIVE],
   [models.Conversation, RetentionPeriod.DEFAULT],
   [models.Expense, RetentionPeriod.FINANCIAL],
@@ -52,11 +80,11 @@ const MODEL_RETENTION_PERIODS = new Map<ModelStatic<any>, RetentionPeriod>([
   // [models.Tier, RetentionPeriod.DEFAULT],
   // We don't delete collectives for now as we first need to backup the banned profiles for training SPAM detection
   // [models.Collective, RetentionPeriod.FINANCIAL],
-]);
+];
 
 export const runDataRetentionPolicyJob = async (isDryRun = false) => {
   const transaction = await sequelize.transaction();
-  for (const [model, retentionPeriod] of MODEL_RETENTION_PERIODS) {
+  for (const [model, retentionPeriod, otherConditions] of MODEL_RETENTION_PERIODS) {
     const result = await model.destroy({
       transaction,
       force: true,
@@ -65,12 +93,15 @@ export const runDataRetentionPolicyJob = async (isDryRun = false) => {
           [Op.not]: null,
           [Op.lte]: sequelize.literal(`NOW() - INTERVAL '${retentionPeriod}'`),
         },
+        ...otherConditions,
       },
     });
 
-    if (result) {
-      logger.info(`${!isDryRun ? 'Deleting' : 'Would delete'} ${result} records for ${model.name}`);
-    }
+    logger.info(
+      `${!isDryRun ? 'Deleting' : 'Would delete'} ${result} records for ${model.name}${
+        !otherConditions ? '' : ` (${stringifySequelizeOperators(otherConditions)})`
+      }`,
+    );
   }
 
   if (!isDryRun) {
