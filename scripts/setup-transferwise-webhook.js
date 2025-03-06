@@ -23,6 +23,30 @@ const run = async () => {
     }
     console.log('Deleting webhook ', id);
     await deleteApplicationWebhook(id);
+  } else if (action === 'dev') {
+    const url = process.argv?.[3];
+    if (!url) {
+      console.error('Missing url.');
+      process.exit(1);
+    }
+    console.log('Creating TransferWise app webhook for dev...');
+    const webhooks = await transferwise.createWebhooksForHost(url);
+    webhooks.forEach(webhook => {
+      console.log(`Webhook created: ${webhook.id} -> ${webhook.trigger_on} ${webhook.delivery.url}`);
+    });
+
+    console.log('Webhooks created, awaiting for SIGINT (Ctrl + C) to delete them..');
+    process.stdin.resume();
+    process.on('SIGINT', async () => {
+      await Promise.all(
+        webhooks.map(webhook => {
+          console.log(`Deleting webhook ${webhook.id} -> ${webhook.trigger_on} ${webhook.delivery.url}`);
+          return deleteApplicationWebhook(webhook.id);
+        }),
+      );
+      process.exit();
+    });
+    return;
   } else {
     console.log('Usage: npm run script scripts/setup-transferwise-webhook.js [up|list|down] [id]');
     process.exit();

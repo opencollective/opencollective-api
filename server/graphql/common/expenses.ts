@@ -3455,6 +3455,9 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
           throw new Error('No Paypal account linked, please reconnect Paypal or pay manually');
         }
       } else if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT) {
+        if (host.settings?.transferwise?.ott === true) {
+          throw new Error('You cannot pay this expense directly without Scheduling it for payment first.');
+        }
         const connectedAccount = await host.getAccountForPaymentProvider(Service.TRANSFERWISE);
 
         const data = await paymentProviders.transferwise.payExpense(
