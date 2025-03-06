@@ -12,6 +12,7 @@ import {
   fakeExpense,
   fakePayoutMethod,
   fakeUser,
+  randStr,
 } from '../../test-helpers/fake-data';
 
 describe('server/controllers/transferwise', () => {
@@ -106,6 +107,7 @@ describe('server/controllers/transferwise', () => {
     };
     sandbox.stub(transferwise, 'quoteExpense').resolves(quote);
     payExpensesBatchGroup = sandbox.stub(transferwise, 'payExpensesBatchGroup').resolves({ status: 'COMPLETED' });
+    sandbox.stub(transferwise, 'approveExpenseBatchGroupPayment').resolves({ status: 'COMPLETED' });
   });
 
   it('should throw if remote user is not a host admin', async () => {
@@ -138,19 +140,21 @@ describe('server/controllers/transferwise', () => {
   });
 
   it('should proxy OTT headers from TransferWise', async () => {
-    payExpensesBatchGroup.resolves({ status: 403, headers: { 'x-2fa-approval': 'hash' } });
+    const hash = randStr('hash');
+    payExpensesBatchGroup.resolves({ status: 403, headers: { 'x-2fa-approval': hash } });
 
     await transferwiseController.payBatch(req, res);
 
     expect(res.setHeader.called).to.be.true;
     expect(res.sendStatus.called).to.be.true;
     expect(res.setHeader.firstCall).to.have.nested.property('args[0]', 'x-2fa-approval');
-    expect(res.setHeader.firstCall).to.have.nested.property('args[1]', 'hash');
+    expect(res.setHeader.firstCall).to.have.nested.property('args[1]', hash);
     expect(res.sendStatus.firstCall.firstArg).to.equal(403);
   });
 
   it('should mark expense as processing when retrying with OTT header', async () => {
-    req.headers['x-2fa-approval'] = 'hash';
+    const hash = randStr('hash');
+    req.headers['x-2fa-approval'] = hash;
     // Simulate paid expenses because we stub fundExpensesBatchGroup
     await expense.update({ data: { ...expense.data, transfer: { id: 1234 }, quote } });
     await transferwiseController.payBatch(req, res);

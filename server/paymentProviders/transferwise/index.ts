@@ -386,7 +386,8 @@ async function scheduleExpenseForPayment(
   const balanceInSourceCurrency = wiseBalances.find(b => b.currency === quote.sourceCurrency);
 
   // Check for any existing Batch Group where status = NEW, create a new one if needed
-  const batchGroup = await getOrCreateActiveBatch(host, { connectedAccount, token });
+  let batchGroup = await getOrCreateActiveBatch(host, { connectedAccount, token });
+  assert(batchGroup.id, 'Failed to create a new batch group');
   let totalAmountToPay = quote.paymentOption.sourceAmount;
   if (batchGroup.transferIds.length > 0) {
     const batchedExpenses = await Expense.findAll({
@@ -401,13 +402,17 @@ async function scheduleExpenseForPayment(
     `Insufficient balance in ${quote.sourceCurrency} to cover the existing batch plus this expense amount, you need ${roundedTotalAmountToPay} ${quote.sourceCurrency} and you currently have ${balanceInSourceCurrency.amount.value} ${balanceInSourceCurrency.amount.currency}. Please add funds to your Wise ${quote.sourceCurrency} account.`,
   );
 
-  await createTransfer(connectedAccount, expense.PayoutMethod, expense, {
+  const { transfer } = await createTransfer(connectedAccount, expense.PayoutMethod, expense, {
     batchGroupId: batchGroup.id,
     token,
     details: transferDetails,
   });
+
+  batchGroup = await transferwise.getBatchGroup(connectedAccount, batchGroup.id);
+  assert(batchGroup.transferIds.includes(transfer.id), new Error('Failed to add transfer to existing batch group'));
   await expense.reload();
   await expense.update({ data: { ...expense.data, batchGroup } });
+  await updateBatchGroup(batchGroup);
   return expense;
 }
 
@@ -441,7 +446,31 @@ async function unscheduleExpenseForPayment(expense: Expense): Promise<void> {
   );
 }
 
-async function payExpensesBatchGroup(host, expenses, x2faApproval?: string, remoteUser?) {
+const updateBatchGroup = async (batchGroup: BatchGroup): Promise<void> => {
+  return await sequelize.query(
+    `
+        UPDATE "Expenses" SET "data" = JSONB_SET("data", '{batchGroup}', :newBatchGroup::JSONB) WHERE
+        "data"#>>'{batchGroup, id}' = :batchGroupId;
+      `,
+    {
+      replacements: {
+        newBatchGroup: JSON.stringify(batchGroup),
+        batchGroupId: batchGroup.id,
+      },
+    },
+  );
+};
+
+async function payExpensesBatchGroup({
+  host,
+  expenses,
+  remoteUser,
+}: {
+  host: Collective;
+  expenses: Expense[];
+  remoteUser?: User;
+}) {
+  assert(expenses.length > 0, 'No expenses provided to pay');
   const connectedAccount = await host.getAccountForPaymentProvider(Service.TRANSFERWISE);
   assert(connectedAccount, `No connected account found for host ${host.id} and user ${remoteUser?.id}`);
 
@@ -449,78 +478,78 @@ async function payExpensesBatchGroup(host, expenses, x2faApproval?: string, remo
   const token = await transferwise.getToken(connectedAccount);
 
   try {
-    if (!x2faApproval && expenses) {
-      let batchGroup = await transferwise.getBatchGroup(connectedAccount, expenses[0].data.batchGroup.id);
-      // Throw if batch group was already paid
-      if (batchGroup.status === 'COMPLETED' && batchGroup.alreadyPaid === true) {
-        throw new Error('Can not pay batch group, existing batch group was already paid');
-      }
-      // Throw if batch group is cancelled
-      else if (['MARKED_FOR_CANCELLATION', 'PROCESSING_CANCEL', 'CANCELLED'].includes(batchGroup.status)) {
-        throw new Error(`Can not pay batch group, existing batch group was cancelled`);
-      }
-      // If it is new, check if the expenses match the batch group and mark it as completed
-      else if (batchGroup.status === 'NEW') {
-        const expenseTransferIds = expenses.map(e => e.data.transfer.id);
-        if (difference(batchGroup.transferIds, expenseTransferIds).length > 0) {
-          throw new Error(`Expenses requested do not match the transfers added to batch group ${batchGroup.id}`);
-        }
-        expenses.forEach(expense => {
-          if (expense.data.batchGroup.id !== batchGroup.id) {
-            throw new Error(
-              `All expenses should belong to the same batch group. Unschedule expense ${expense.id} and try again`,
-            );
-          }
-          if (moment().isSameOrAfter(expense.data.quote.expirationTime)) {
-            throw new Error(`Expense ${expense.id} quote expired. Unschedule expense and try again`);
-          }
-          if (!batchGroup.transferIds.includes(expense.data.transfer.id)) {
-            throw new Error(`Batch group ${batchGroup.id} does not include expense ${expense.id}`);
-          }
-        });
-
-        batchGroup = await transferwise.completeBatchGroup(connectedAccount, batchGroup.id, batchGroup.version);
-
-        // Update batchGroup status to make sure we don't try to reuse a completed batchGroup
-        await sequelize.query(
-          `
-        UPDATE "Expenses" SET "data" = JSONB_SET("data", '{batchGroup}', :newBatchGroup::JSONB) WHERE "id" IN (:expenseIds) AND "data"#>>'{batchGroup, id}' = :batchGroupId;
-      `,
-          {
-            replacements: {
-              expenseIds: expenses.map(e => e.id),
-              newBatchGroup: JSON.stringify(batchGroup),
-              batchGroupId: batchGroup.id,
-            },
-          },
-        );
-      }
-      // If it is completed, fund it and forward the OTT
-      const fundResponse = await transferwise.fundBatchGroup(token, profileId, batchGroup.id);
-      if ('status' in fundResponse && 'headers' in fundResponse) {
-        const cacheKey = `transferwise_ott_${fundResponse.headers['x-2fa-approval']}`;
-        await sessionCache.set(cacheKey, batchGroup.id, 30 * 60);
-      }
-      return fundResponse;
-    } else if (x2faApproval) {
-      const cacheKey = `transferwise_ott_${x2faApproval}`;
-      const batchGroupId = await sessionCache.get(cacheKey);
-      if (!batchGroupId) {
-        throw new Error('Invalid or expired OTT approval code');
-      }
-      const batchGroup = (await transferwise.fundBatchGroup(
-        token,
-        profileId,
-        batchGroupId,
-        x2faApproval,
-      )) as BatchGroup;
-      await sessionCache.delete(cacheKey);
-      return batchGroup;
-    } else {
-      throw new Error('payExpensesBatchGroup: you need to pass either expenses or x2faApproval');
+    let batchGroup = await transferwise.getBatchGroup(connectedAccount, expenses[0].data.batchGroup.id);
+    // Throw if batch group was already paid
+    if (batchGroup.status === 'COMPLETED' && batchGroup.alreadyPaid === true) {
+      throw new Error('Can not pay batch group, existing batch group was already paid');
     }
+    // Throw if batch group is cancelled
+    else if (['MARKED_FOR_CANCELLATION', 'PROCESSING_CANCEL', 'CANCELLED'].includes(batchGroup.status)) {
+      throw new Error(`Can not pay batch group, existing batch group was cancelled`);
+    }
+    // If it is new, check if the expenses match the batch group and mark it as completed
+    else if (batchGroup.status === 'NEW') {
+      const expenseTransferIds = expenses.map(e => e.data.transfer.id);
+      if (difference(batchGroup.transferIds, expenseTransferIds).length > 0) {
+        throw new Error(`Expenses requested do not match the transfers added to batch group ${batchGroup.id}`);
+      }
+      expenses.forEach(expense => {
+        if (expense.data.batchGroup.id !== batchGroup.id) {
+          throw new Error(
+            `All expenses should belong to the same batch group. Unschedule expense ${expense.id} and try again`,
+          );
+        }
+        if (moment().isSameOrAfter(expense.data.quote.expirationTime)) {
+          throw new Error(`Expense ${expense.id} quote expired. Unschedule expense and try again`);
+        }
+        if (!batchGroup.transferIds.includes(expense.data.transfer.id)) {
+          throw new Error(`Batch group ${batchGroup.id} does not include expense ${expense.id}`);
+        }
+      });
+
+      batchGroup = await transferwise.completeBatchGroup(connectedAccount, batchGroup.id, batchGroup.version);
+      // Update batchGroup status to make sure we don't try to reuse a completed batchGroup
+      await updateBatchGroup(batchGroup);
+    }
+    // If it is completed, fund it and forward the OTT
+    const fundResponse = await transferwise.fundBatchGroup(token, profileId, batchGroup.id);
+    if ('status' in fundResponse && 'headers' in fundResponse) {
+      const cacheKey = `transferwise_ott_${fundResponse.headers['x-2fa-approval']}`;
+      await sessionCache.set(cacheKey, batchGroup.id, 30 * 60);
+    }
+    return fundResponse;
   } catch (e) {
     logger.error('Error paying Wise batch group', e);
+    throw e;
+  }
+}
+
+async function approveExpenseBatchGroupPayment({
+  host,
+  x2faApproval,
+  remoteUser,
+}: {
+  host: Collective;
+  x2faApproval: string;
+  remoteUser?: User;
+}) {
+  const connectedAccount = await host.getAccountForPaymentProvider(Service.TRANSFERWISE);
+  assert(connectedAccount, `No connected account found for host ${host.id} and user ${remoteUser?.id}`);
+
+  const profileId = connectedAccount.data.id;
+  const token = await transferwise.getToken(connectedAccount);
+  try {
+    const cacheKey = `transferwise_ott_${x2faApproval}`;
+    const batchGroupId = await sessionCache.get(cacheKey);
+    if (!batchGroupId) {
+      throw new Error('Invalid or expired OTT approval code');
+    }
+    const batchGroup = (await transferwise.fundBatchGroup(token, profileId, batchGroupId, x2faApproval)) as BatchGroup;
+    await sessionCache.delete(cacheKey);
+    await updateBatchGroup(batchGroup);
+    return batchGroup;
+  } catch (e) {
+    logger.error('Error approving Wise batch group payment', e);
     throw e;
   }
 }
@@ -788,8 +817,7 @@ const oauth = {
   },
 };
 
-async function createWebhooksForHost(): Promise<Webhook[]> {
-  const url = `${config.host.api}/webhooks/transferwise`;
+async function createWebhooksForHost(url = `${config.host.api}/webhooks/transferwise`): Promise<Webhook[]> {
   const existingWebhooks = await transferwise.listApplicationWebhooks();
 
   const requiredHooks = [
@@ -852,6 +880,7 @@ export default {
   quoteExpense,
   payExpense,
   payExpensesBatchGroup,
+  approveExpenseBatchGroupPayment,
   createWebhooksForHost,
   validatePayoutMethod,
   scheduleExpenseForPayment,
