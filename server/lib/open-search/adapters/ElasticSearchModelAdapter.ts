@@ -1,15 +1,16 @@
-import { MappingTypeMapping, QueryDslQueryContainer } from '@elastic/elasticsearch/lib/api/types';
 import { ModelStatic } from 'sequelize';
 
-import { Model } from '../../../lib/sequelize';
+import { Model } from '../../sequelize';
 import { ModelType } from '../../../models';
-import { ElasticSearchIndexName } from '../constants';
+import { OpenSearchIndexName } from '../constants';
+import { QueryContainer } from '@opensearch-project/opensearch/api/_types/_common.query_dsl';
+import { TypeMapping } from '@opensearch-project/opensearch/api/_types/_common.mapping';
 
-type ElasticSearchModelPermissions = {
+type OpenSearchModelPermissions = {
   /** Either public, forbidden or an array of conditions (interpreted as OR) */
-  default: QueryDslQueryContainer | 'PUBLIC' | 'FORBIDDEN';
+  default: QueryContainer | 'PUBLIC' | 'FORBIDDEN';
   /** Additional per-field conditions */
-  fields?: Record<string, QueryDslQueryContainer | 'FORBIDDEN'>;
+  fields?: Record<string, QueryContainer | 'FORBIDDEN'>;
 };
 
 export type FindEntriesToIndexOptions = {
@@ -21,12 +22,12 @@ export type FindEntriesToIndexOptions = {
   relatedToCollectiveIds?: number[];
 };
 
-export type ElasticSearchFieldWeight = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
+export type OpenSearchFieldWeight = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
 
-export interface ElasticSearchModelAdapter {
-  readonly index: ElasticSearchIndexName;
-  readonly mappings: MappingTypeMapping;
-  readonly weights: Partial<Record<keyof (typeof this)['mappings']['properties'], ElasticSearchFieldWeight>>;
+export interface OpenSearchModelAdapter {
+  readonly index: OpenSearchIndexName;
+  readonly mappings: TypeMapping;
+  readonly weights: Partial<Record<keyof (typeof this)['mappings']['properties'], OpenSearchFieldWeight>>;
 
   getModel(): ModelStatic<Model>;
 
@@ -39,5 +40,5 @@ export interface ElasticSearchModelAdapter {
   ): Record<keyof (typeof this)['mappings']['properties'], unknown>;
 
   /** Returns the conditions for the permissions */
-  getIndexPermissions(adminOfAccountIds: number[]): ElasticSearchModelPermissions;
+  getIndexPermissions(adminOfAccountIds: number[]): OpenSearchModelPermissions;
 }

@@ -20,7 +20,7 @@
     },
     "readOnly": false
   },
-  "elasticSearch": {
+  "opensearch": {
     "maxSyncDelay": 5000
   },
   "maintenancedb": {

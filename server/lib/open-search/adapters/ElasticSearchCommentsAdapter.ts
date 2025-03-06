@@ -5,16 +5,12 @@ import { Op } from 'sequelize';
 import models from '../../../models';
 import { CommentType } from '../../../models/Comment';
 import { stripHTMLOrEmpty } from '../../sanitize-html';
-import { ElasticSearchIndexName } from '../constants';
+import { OpenSearchIndexName } from '../constants';
 
-import {
-  ElasticSearchFieldWeight,
-  ElasticSearchModelAdapter,
-  FindEntriesToIndexOptions,
-} from './ElasticSearchModelAdapter';
+import { OpenSearchFieldWeight, OpenSearchModelAdapter, FindEntriesToIndexOptions } from './ElasticSearchModelAdapter';
 
-export class ElasticSearchCommentsAdapter implements ElasticSearchModelAdapter {
-  public readonly index = ElasticSearchIndexName.COMMENTS;
+export class ElasticSearchCommentsAdapter implements OpenSearchModelAdapter {
+  public readonly index = OpenSearchIndexName.COMMENTS;
   public readonly mappings = {
     properties: {
       id: { type: 'keyword' },
@@ -36,7 +32,7 @@ export class ElasticSearchCommentsAdapter implements ElasticSearchModelAdapter {
     return models.Comment;
   }
 
-  public readonly weights: Partial<Record<keyof (typeof this.mappings)['properties'], ElasticSearchFieldWeight>> = {
+  public readonly weights: Partial<Record<keyof (typeof this.mappings)['properties'], OpenSearchFieldWeight>> = {
     html: 10,
     // Ignored fields
     id: 0,
