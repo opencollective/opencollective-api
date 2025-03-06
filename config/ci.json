@@ -6,7 +6,7 @@
       "benchmark": true
     }
   },
-  "elasticSearch": {
+  "opensearch": {
     "url": "http://localhost:9200"
   },
   "fees": {

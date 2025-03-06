@@ -4,17 +4,17 @@ import { AggregationsMultiBucketAggregateBase, SearchResponse } from '@elastic/e
 import DataLoader from 'dataloader';
 import { groupBy, pick } from 'lodash';
 
-import { formatIndexNameForElasticSearch } from '../../lib/elastic-search/common';
-import { ElasticSearchIndexName, ElasticSearchIndexParams } from '../../lib/elastic-search/constants';
-import { elasticSearchGlobalSearch, ElasticSearchIndexRequest } from '../../lib/elastic-search/search';
+import { formatIndexNameForOpenSearch } from '../../lib/open-search/common';
+import { OpenSearchIndexName, OpenSearchIndexParams } from '../../lib/open-search/constants';
+import { openSearchGlobalSearch, OpenSearchIndexRequest } from '../../lib/open-search/search';
 import { reportMessageToSentry } from '../../lib/sentry';
 import { Collective } from '../../models';
 
 type SearchParams = {
   requestId: string;
   searchTerm: string;
-  index: ElasticSearchIndexName;
-  indexParams: ElasticSearchIndexParams[ElasticSearchIndexName];
+  index: OpenSearchIndexName;
+  indexParams: OpenSearchIndexParams[OpenSearchIndexName];
   forbidPrivate?: boolean;
   limit: number;
   adminOfAccountIds: number[];
@@ -47,7 +47,7 @@ export type SearchResult = {
   count: number;
   maxScore: number;
   hits: Array<{
-    indexName: ElasticSearchIndexName;
+    indexName: OpenSearchIndexName;
     score: number;
     id: string;
     source: Record<string, unknown>;
@@ -55,8 +55,8 @@ export type SearchResult = {
   }>;
 };
 
-const getSearchIndexes = (requests: SearchParams[]): ElasticSearchIndexRequest[] => {
-  const results: Partial<Record<ElasticSearchIndexName, ElasticSearchIndexRequest>> = {};
+const getSearchIndexes = (requests: SearchParams[]): OpenSearchIndexRequest[] => {
+  const results: Partial<Record<OpenSearchIndexName, OpenSearchIndexRequest>> = {};
   for (const request of requests) {
     if (!results[request.index]) {
       results[request.index] = pick(request, ['index', 'indexParams', 'forbidPrivate']);
@@ -86,13 +86,14 @@ export const generateSearchLoaders = req => {
       const firstRequest = groupedRequests[requestId][0];
       const { searchTerm, limit, account, host } = firstRequest;
       const indexes = getSearchIndexes(groupedRequests[requestId]);
-      const results = await elasticSearchGlobalSearch(indexes, searchTerm, {
+      const response = await openSearchGlobalSearch(indexes, searchTerm, {
         user: req.remoteUser,
         account,
         host,
         limit,
       });
 
+      const results = response.body;
       if (results) {
         requestsResults.set(requestId, results);
         if (results._shards?.failures) {
@@ -113,7 +114,7 @@ export const generateSearchLoaders = req => {
         return null;
       }
 
-      const expectedBucket = formatIndexNameForElasticSearch(request.index);
+      const expectedBucket = formatIndexNameForOpenSearch(request.index);
       const bucket = buckets.find(bucket => bucket.key === expectedBucket);
       if (bucket) {
         return {

@@ -4,9 +4,9 @@ import { runWithTimeout } from '../promises';
 import { HandlerType, reportErrorToSentry, reportMessageToSentry } from '../sentry';
 import sequelize from '../sequelize';
 
-import { ElasticSearchModelsAdapters } from './adapters';
+import { OpenSearchModelsAdapters } from './adapters';
 import { ElasticSearchBatchProcessor } from './batch-processor';
-import { isElasticSearchConfigured } from './client';
+import { isOpenSearchConfigured } from './client';
 import { ElasticSearchRequestType, isValidElasticSearchRequest } from './types';
 
 const CHANNEL_NAME = 'elasticsearch-requests';
@@ -42,7 +42,7 @@ const setupPostgresTriggers = async () => {
       END;
       $$ LANGUAGE plpgsql;
   
-      ${Object.values(ElasticSearchModelsAdapters)
+      ${Object.values(OpenSearchModelsAdapters)
         .map(
           adapter => `
       -- Create the trigger for INSERT operations
@@ -75,7 +75,7 @@ const setupPostgresTriggers = async () => {
 
 export const removeElasticSearchPostgresTriggers = async () => {
   await sequelize.query(`
-    ${Object.values(ElasticSearchModelsAdapters)
+    ${Object.values(OpenSearchModelsAdapters)
       .map(
         adapter => `
     DROP TRIGGER IF EXISTS ${adapter.getModel().tableName}_insert_trigger ON "${adapter.getModel().tableName}";
@@ -159,7 +159,7 @@ export const stopElasticSearchPostgresSync = (): Promise<void> => {
  * `HostCollectiveId`, `FromCollectiveId`...etc.
  */
 export const elasticSearchFullAccountReIndex = async (collectiveId: number): Promise<void> => {
-  if (!isElasticSearchConfigured()) {
+  if (!isOpenSearchConfigured()) {
     logger.debug(`ElasticSearch is not configured, skipping ${collectiveId} full account re-index`);
     return;
   }

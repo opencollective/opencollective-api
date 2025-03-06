@@ -4,16 +4,16 @@ import { Command } from 'commander';
 import config from 'config';
 import { partition, uniq } from 'lodash';
 
-import { getElasticSearchClient } from '../server/lib/elastic-search/client';
-import { formatIndexNameForElasticSearch } from '../server/lib/elastic-search/common';
-import { ElasticSearchIndexName } from '../server/lib/elastic-search/constants';
-import { elasticSearchGlobalSearch } from '../server/lib/elastic-search/search';
+import { getOpenSearchClient } from '../server/lib/open-search/client';
+import { formatIndexNameForOpenSearch } from '../server/lib/open-search/common';
+import { OpenSearchIndexName } from '../server/lib/open-search/constants';
+import { openSearchGlobalSearch } from '../server/lib/open-search/search';
 import {
-  createElasticSearchIndex,
+  createOpenSearchIndex,
   deleteElasticSearchIndex,
-  getAvailableElasticSearchIndexes,
+  getAvailableOpenSearchIndexes,
   syncElasticSearchIndex,
-} from '../server/lib/elastic-search/sync';
+} from '../server/lib/open-search/sync';
 import logger from '../server/lib/logger';
 import models from '../server/models';
 
@@ -22,23 +22,20 @@ import { confirm } from './common/helpers';
 const program = new Command();
 
 const checkElasticSearchAvailable = () => {
-  if (!getElasticSearchClient()) {
+  if (!getOpenSearchClient()) {
     throw new Error('ElasticSearch is not configured');
   }
 };
 
-const parseIndexesFromInput = (
-  indexes,
-  defaultValue = Object.values(ElasticSearchIndexName),
-): ElasticSearchIndexName[] => {
+const parseIndexesFromInput = (indexes, defaultValue = Object.values(OpenSearchIndexName)): OpenSearchIndexName[] => {
   if (!indexes?.length) {
     return defaultValue;
   }
 
-  const allIndexes = Object.values(ElasticSearchIndexName);
-  const uniqIndexes = uniq(indexes) as ElasticSearchIndexName[];
+  const allIndexes = Object.values(OpenSearchIndexName);
+  const uniqIndexes = uniq(indexes) as OpenSearchIndexName[];
   uniqIndexes.forEach(index => {
-    if (!allIndexes.includes(index as ElasticSearchIndexName)) {
+    if (!allIndexes.includes(index as OpenSearchIndexName)) {
       throw new Error(`Invalid index: ${index}`);
     }
   });
@@ -62,7 +59,7 @@ program
       logger.info('Dropping all indices...');
       for (const indexName of indexes) {
         logger.info(`Dropping index ${indexName}`);
-        await deleteElasticSearchIndex(indexName);
+        await deleteElasticSearchIndex(indexName, { throwIfMissing: false });
       }
       logger.info('Drop completed!');
     }
@@ -78,9 +75,9 @@ program
     const indexes = parseIndexesFromInput(indexesInput);
     logger.info('Creating all indices...');
     for (const indexName of indexes) {
-      const realIndexName = formatIndexNameForElasticSearch(indexName);
+      const realIndexName = formatIndexNameForOpenSearch(indexName);
       logger.info(`Creating index ${indexName}${realIndexName !== indexName ? ` (${realIndexName})` : ''}`);
-      await createElasticSearchIndex(indexName);
+      await createOpenSearchIndex(indexName);
     }
     logger.info('Create completed!');
   });
@@ -100,11 +97,11 @@ program
     ) {
       logger.info('Syncing all models...');
       for (const indexName of indexes) {
-        const realIndexName = formatIndexNameForElasticSearch(indexName);
+        const realIndexName = formatIndexNameForOpenSearch(indexName);
         logger.info(`Dropping index ${indexName}${realIndexName !== indexName ? ` (${realIndexName})` : ''}`);
         await deleteElasticSearchIndex(indexName, { throwIfMissing: false });
         logger.info(`Re-creating index ${indexName}${realIndexName !== indexName ? ` (${realIndexName})` : ''}`);
-        await createElasticSearchIndex(indexName);
+        await createOpenSearchIndex(indexName);
         await syncElasticSearchIndex(indexName, { log: true });
       }
       logger.info('Re-index completed!');
@@ -128,12 +125,12 @@ program
       }
     }
 
-    const allIndexes = Object.values(ElasticSearchIndexName);
+    const allIndexes = Object.values(OpenSearchIndexName);
     const indexes = parseIndexesFromInput(indexesInput);
     const modelsLabels = indexes.length === allIndexes.length ? 'all indices' : indexes.join(', ');
     logger.info(`Syncing ${modelsLabels} from ${!parsedDate ? 'all time' : parsedDate.toISOString()}`);
     for (const indexName of indexes) {
-      await syncElasticSearchIndex(indexName as ElasticSearchIndexName, { fromDate: parsedDate, log: true });
+      await syncElasticSearchIndex(indexName as OpenSearchIndexName, { fromDate: parsedDate, log: true });
     }
 
     logger.info('Sync completed!');
@@ -147,13 +144,13 @@ program
   .action(async indexesInput => {
     checkElasticSearchAvailable();
     const indexes = parseIndexesFromInput(indexesInput);
-    const availableIndexes = await getAvailableElasticSearchIndexes();
+    const availableIndexes = await getAvailableOpenSearchIndexes();
     const [availableIndexesToQuery, unknownIndexes] = partition(indexes, index => availableIndexes.includes(index));
     if (unknownIndexes.length) {
       logger.warn(`Unknown indexes: ${unknownIndexes.join(', ')}`);
     }
 
-    const client = getElasticSearchClient();
+    const client = getOpenSearchClient();
     for (const index of availableIndexesToQuery) {
       const result = await client.indices.getMapping({ index });
       console.log(`Index: ${index}`);
@@ -169,7 +166,7 @@ program
   .argument('<id>', 'Entry ID')
   .action(async (index, id) => {
     checkElasticSearchAvailable();
-    const client = getElasticSearchClient();
+    const client = getOpenSearchClient();
     const result = await client.get({ index, id });
     console.log(JSON.stringify(result, null, 2));
   });
@@ -182,8 +179,8 @@ program
   .action(async (indexesInput, options) => {
     checkElasticSearchAvailable();
     const indexesFromArgs = parseIndexesFromInput(indexesInput, null);
-    const client = getElasticSearchClient();
-    let availableIndexes = await getAvailableElasticSearchIndexes();
+    const client = getOpenSearchClient();
+    let availableIndexes = await getAvailableOpenSearchIndexes();
 
     // Only get the indexes specified in args
     if (indexesFromArgs) {
@@ -196,12 +193,12 @@ program
 
     // Filter out indexes that don't match the prefix
     if (!options.all) {
-      const prefix = config.elasticSearch.indexesPrefix;
+      const prefix = config.opensearch.indexesPrefix;
       if (prefix) {
         availableIndexes = availableIndexes.filter(index => index.startsWith(prefix));
       } else {
         availableIndexes = availableIndexes.filter(index =>
-          Object.values(ElasticSearchIndexName).includes(index as ElasticSearchIndexName),
+          Object.values(OpenSearchIndexName).includes(index as OpenSearchIndexName),
         );
       }
     }
@@ -211,7 +208,7 @@ program
     let totalSize = 0;
     const formatSize = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(2)} MB`;
 
-    Object.entries(result.indices).forEach(([index, values]) => {
+    Object.entries(result.body.indices).forEach(([index, values]) => {
       console.log(`- Index: ${index}`);
       console.log(`  - Docs: ${values.primaries.docs.count}`);
       console.log(`  - Size: ${formatSize(values.primaries.store.size_in_bytes)}`);
@@ -252,7 +249,7 @@ program
     }
 
     const indexInputs = indexes.map(index => ({ index }));
-    const result = await elasticSearchGlobalSearch(indexInputs, query, { account, host, limit, user });
+    const result = await openSearchGlobalSearch(indexInputs, query, { account, host, limit, user });
     console.log('Result', JSON.stringify(result, null, 2));
   });
 

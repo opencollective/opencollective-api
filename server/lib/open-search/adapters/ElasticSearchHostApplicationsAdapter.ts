@@ -2,57 +2,45 @@ import { omit } from 'lodash';
 import { Op } from 'sequelize';
 
 import models from '../../../models';
-import { ElasticSearchIndexName } from '../constants';
+import { OpenSearchIndexName } from '../constants';
 
-import {
-  ElasticSearchFieldWeight,
-  ElasticSearchModelAdapter,
-  FindEntriesToIndexOptions,
-} from './ElasticSearchModelAdapter';
+import { OpenSearchFieldWeight, OpenSearchModelAdapter, FindEntriesToIndexOptions } from './ElasticSearchModelAdapter';
 
-export class ElasticSearchTransactionsAdapter implements ElasticSearchModelAdapter {
-  public readonly index = ElasticSearchIndexName.TRANSACTIONS;
+export class ElasticSearchHostApplicationsAdapter implements OpenSearchModelAdapter {
+  public readonly index = OpenSearchIndexName.HOST_APPLICATIONS;
   public readonly mappings = {
     properties: {
       id: { type: 'keyword' },
-      type: { type: 'keyword' },
       createdAt: { type: 'date' },
       updatedAt: { type: 'date' },
-      kind: { type: 'keyword' },
-      description: { type: 'text' },
-      uuid: { type: 'keyword' },
-      TransactionGroup: { type: 'keyword' },
+      message: { type: 'text' },
       // Relationships
       CollectiveId: { type: 'keyword' },
-      FromCollectiveId: { type: 'keyword' },
       HostCollectiveId: { type: 'keyword' },
+      CreatedByUserId: { type: 'keyword' },
       // Special fields
-      merchantId: { type: 'keyword' },
+      ParentCollectiveId: { type: 'keyword' },
     },
   } as const;
 
   public getModel() {
-    return models.Transaction;
+    return models.HostApplication;
   }
 
-  public readonly weights: Partial<Record<keyof (typeof this.mappings)['properties'], ElasticSearchFieldWeight>> = {
-    TransactionGroup: 10,
-    uuid: 10,
-    merchantId: 10,
-    description: 5,
-    kind: 3,
-    id: 1,
+  public readonly weights: Partial<Record<keyof (typeof this.mappings)['properties'], OpenSearchFieldWeight>> = {
+    message: 10,
     // Ignored fields
     CollectiveId: 0,
-    FromCollectiveId: 0,
     HostCollectiveId: 0,
+    CreatedByUserId: 0,
     createdAt: 0,
     updatedAt: 0,
+    ParentCollectiveId: 0,
   };
 
   public findEntriesToIndex(options: FindEntriesToIndexOptions = {}) {
-    return models.Transaction.findAll({
-      attributes: omit(Object.keys(this.mappings.properties), ['merchantId']),
+    return models.HostApplication.findAll({
+      attributes: omit(Object.keys(this.mappings.properties), ['ParentCollectiveId']),
       order: [['id', 'DESC']],
       limit: options.limit,
       offset: options.offset,
@@ -64,42 +52,50 @@ export class ElasticSearchTransactionsAdapter implements ElasticSearchModelAdapt
           ? {
               [Op.or]: [
                 { CollectiveId: options.relatedToCollectiveIds },
-                { FromCollectiveId: options.relatedToCollectiveIds },
                 { HostCollectiveId: options.relatedToCollectiveIds },
               ],
             }
           : null),
       },
+      include: [
+        {
+          association: 'collective',
+          required: true,
+          attributes: ['ParentCollectiveId'],
+        },
+      ],
     });
   }
 
   public mapModelInstanceToDocument(
-    instance: InstanceType<typeof models.Transaction>,
+    instance: InstanceType<typeof models.HostApplication>,
   ): Record<keyof (typeof this.mappings)['properties'], unknown> {
     return {
       id: instance.id,
-      uuid: instance.uuid,
       createdAt: instance.createdAt,
       updatedAt: instance.updatedAt,
-      type: instance.type,
-      kind: instance.kind,
-      description: instance.description,
       CollectiveId: instance.CollectiveId,
-      FromCollectiveId: instance.FromCollectiveId,
       HostCollectiveId: instance.HostCollectiveId,
-      TransactionGroup: instance.TransactionGroup,
-      merchantId: instance.merchantId,
+      CreatedByUserId: instance.CreatedByUserId,
+      message: instance.message,
+      ParentCollectiveId: instance.collective.ParentCollectiveId,
     };
   }
 
   public getIndexPermissions(adminOfAccountIds: number[]) {
+    /* eslint-disable camelcase */
+    if (!adminOfAccountIds.length) {
+      return { default: 'FORBIDDEN' as const };
+    }
+
     return {
-      default: 'PUBLIC' as const,
-      fields: {
-        merchantId: !adminOfAccountIds.length
-          ? ('FORBIDDEN' as const)
-          : { terms: { HostCollectiveId: adminOfAccountIds } },
+      default: {
+        bool: {
+          minimum_should_match: 1,
+          should: [{ terms: { HostCollectiveId: adminOfAccountIds } }, { terms: { CollectiveId: adminOfAccountIds } }],
+        },
       },
     };
+    /* eslint-enable camelcase */
   }
 }

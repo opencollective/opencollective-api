@@ -9,15 +9,15 @@ import OAuthScopes from '../../../../../server/constants/oauth-scopes';
 import PlatformConstants from '../../../../../server/constants/platform';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
-import * as ElasticSearchClientSingletonLib from '../../../../../server/lib/elastic-search/client';
-import { formatIndexNameForElasticSearch } from '../../../../../server/lib/elastic-search/common';
-import { ElasticSearchIndexName } from '../../../../../server/lib/elastic-search/constants';
+import * as ElasticSearchClientSingletonLib from '../../../../../server/lib/open-search/client';
+import { formatIndexNameForOpenSearch } from '../../../../../server/lib/open-search/common';
+import { OpenSearchIndexName } from '../../../../../server/lib/open-search/constants';
 import {
-  createElasticSearchIndex,
+  createOpenSearchIndex,
   deleteElasticSearchIndex,
   syncElasticSearchIndex,
   waitForAllIndexesRefresh,
-} from '../../../../../server/lib/elastic-search/sync';
+} from '../../../../../server/lib/open-search/sync';
 import { Collective, User } from '../../../../../server/models';
 import { CommentType } from '../../../../../server/models/Comment';
 import {
@@ -351,21 +351,21 @@ describe('server/graphql/v2/query/SearchQuery', () => {
     await Promise.all(Object.values(testUsers).map(user => user.populateRoles()));
 
     // Reset Elastic search
-    for (const indexName of Object.values(ElasticSearchIndexName)) {
+    for (const indexName of Object.values(OpenSearchIndexName)) {
       await deleteElasticSearchIndex(indexName, { throwIfMissing: false });
-      await createElasticSearchIndex(indexName);
+      await createOpenSearchIndex(indexName);
       await syncElasticSearchIndex(indexName);
     }
 
     await waitForAllIndexesRefresh();
 
     // Stub Elastic search client
-    elasticSearchClient = new Client({ node: config.elasticSearch.url });
+    elasticSearchClient = new Client({ node: config.opensearch.url });
   });
 
   beforeEach(() => {
     sandbox = sinon.createSandbox();
-    sandbox.stub(ElasticSearchClientSingletonLib, 'getElasticSearchClient').returns(elasticSearchClient);
+    sandbox.stub(ElasticSearchClientSingletonLib, 'getOpenSearchClient').returns(elasticSearchClient);
   });
 
   afterEach(() => {
@@ -399,7 +399,7 @@ describe('server/graphql/v2/query/SearchQuery', () => {
       expect(results.comments).to.be.undefined;
       expect(searchSpy.callCount).to.eq(1);
       expect(searchSpy.firstCall.args[0].index).to.eq(
-        `${formatIndexNameForElasticSearch(ElasticSearchIndexName.COLLECTIVES)},${formatIndexNameForElasticSearch(ElasticSearchIndexName.EXPENSES)}`,
+        `${formatIndexNameForOpenSearch(OpenSearchIndexName.COLLECTIVES)},${formatIndexNameForOpenSearch(OpenSearchIndexName.EXPENSES)}`,
       );
     });
 
