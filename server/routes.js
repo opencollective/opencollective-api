@@ -181,15 +181,16 @@ export default async app => {
    * @param {ValidationContext} ctx
    * @param {GraphQLError} err
    */
-  const logGraphQLComplexityRejection = (ctx, err) => {
+  const getGraphQLComplexityRejectionHandler = checkName => (ctx, err) => {
+    // Log the query
     let queryName = 'Query';
     const document = ctx?.getDocument();
     const operation = document?.definitions?.find(d => d.kind === 'OperationDefinition');
     queryName = get(operation, 'name.value') || queryName;
-    reportMessageToSentry('Query complexity is too high', {
+    reportMessageToSentry(`Query complexity is too high (${checkName})`, {
       handler: HandlerType.GQL,
       severity: 'warning',
-      transactionName: `GraphQL complexity too high: ${queryName}`,
+      transactionName: `GraphQL complexity too high (${checkName}): ${queryName}`,
       extra: {
         message: err.message,
         body: document?.loc?.source?.body || '',
@@ -201,22 +202,22 @@ export default async app => {
   const apolloArmor = new ApolloArmor({
     // Depth is the number of nested fields in a query
     maxDepth: {
-      onReject: [logGraphQLComplexityRejection],
+      onReject: [getGraphQLComplexityRejectionHandler('maxDepth')],
       propagateOnRejection: false,
       n: 15, // Currently identified max: 13 in contribution flow
     },
     // Cost is computed by the complexity plugin, it's a mix of the number of fields and the complexity of each field
     costLimit: {
-      onReject: [logGraphQLComplexityRejection],
+      onReject: [getGraphQLComplexityRejectionHandler('costLimit')],
       ignoreIntrospection: true,
       propagateOnRejection: false,
       maxCost: 100_000, // Currently identified max: around 64169 on the "ExpenseFormSchema" mutation
     },
     // Tokens are the number of fields in a query
     maxTokens: {
-      onReject: [logGraphQLComplexityRejection],
+      onReject: [getGraphQLComplexityRejectionHandler('maxTokens')],
       propagateOnRejection: false,
-      n: 1250, // Currently identified max: 1009 in the host admin expenses
+      n: 1400, // Approx. currently identified max on the expense page
     },
     maxAliases: { enabled: false }, // Not clear what value this adds
     maxDirectives: { enabled: false }, // Not clear what value this adds
