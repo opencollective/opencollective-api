@@ -1,15 +1,11 @@
 import models, { Op } from '../../../models';
 import { stripHTMLOrEmpty } from '../../sanitize-html';
-import { ElasticSearchIndexName } from '../constants';
+import { OpenSearchIndexName } from '../constants';
 
-import {
-  ElasticSearchFieldWeight,
-  ElasticSearchModelAdapter,
-  FindEntriesToIndexOptions,
-} from './ElasticSearchModelAdapter';
+import { FindEntriesToIndexOptions, OpenSearchFieldWeight, OpenSearchModelAdapter } from './OpenSearchModelAdapter';
 
-export class ElasticSearchCollectivesAdapter implements ElasticSearchModelAdapter {
-  public readonly index = ElasticSearchIndexName.COLLECTIVES;
+export class OpenSearchCollectivesAdapter implements OpenSearchModelAdapter {
+  public readonly index = OpenSearchIndexName.COLLECTIVES;
   public readonly mappings = {
     properties: {
       id: { type: 'keyword' },
@@ -37,7 +33,7 @@ export class ElasticSearchCollectivesAdapter implements ElasticSearchModelAdapte
     return models.Collective;
   }
 
-  public readonly weights: Partial<Record<keyof (typeof this.mappings)['properties'], ElasticSearchFieldWeight>> = {
+  public readonly weights: Partial<Record<keyof (typeof this.mappings)['properties'], OpenSearchFieldWeight>> = {
     slug: 10,
     // Ignored fields
     HostCollectiveId: 0,

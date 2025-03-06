@@ -30,7 +30,15 @@ beforeEach(function () {
 });
 
 before(async () => {
-  await dangerouslyInitNonProductionBuckets();
+  try {
+    await dangerouslyInitNonProductionBuckets();
+  } catch {
+    if (process.env.OC_ENV !== 'ci') {
+      console.warn(
+        'Unable to initialize test S3 buckets. This is expected if you are running the tests locally without touching uploaded files tests. Otherwise, start minio (see docs/s3.md).',
+      );
+    }
+  }
 });
 
 // Chai plugins

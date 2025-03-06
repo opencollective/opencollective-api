@@ -4,18 +4,18 @@ import { runWithTimeout } from '../promises';
 import { HandlerType, reportErrorToSentry, reportMessageToSentry } from '../sentry';
 import sequelize from '../sequelize';
 
-import { ElasticSearchModelsAdapters } from './adapters';
-import { ElasticSearchBatchProcessor } from './batch-processor';
-import { isElasticSearchConfigured } from './client';
-import { ElasticSearchRequestType, isValidElasticSearchRequest } from './types';
+import { OpenSearchModelsAdapters } from './adapters';
+import { OpenSearchBatchProcessor } from './batch-processor';
+import { isOpenSearchConfigured } from './client';
+import { isValidOpenSearchRequest, OpenSearchRequestType } from './types';
 
-const CHANNEL_NAME = 'elasticsearch-requests';
+const CHANNEL_NAME = 'opensearch-requests';
 
 const setupPostgresTriggers = async () => {
   try {
     await sequelize.query(`
       -- Create a trigger function to send notifications on table changes
-      CREATE OR REPLACE FUNCTION notify_elasticsearch_on_change()
+      CREATE OR REPLACE FUNCTION notify_opensearch_on_change()
       RETURNS TRIGGER AS $$
       DECLARE
           notification JSON;
@@ -35,47 +35,47 @@ const setupPostgresTriggers = async () => {
             notification = json_build_object('type', 'DELETE', 'table', TG_TABLE_NAME, 'payload', json_build_object('id', OLD.id));
           END IF;
   
-          -- Publish the notification to the Elastic Search requests channel
+          -- Publish the notification to the search requests channel
           PERFORM pg_notify('${CHANNEL_NAME}', notification::text);
   
           RETURN NULL;
       END;
       $$ LANGUAGE plpgsql;
   
-      ${Object.values(ElasticSearchModelsAdapters)
+      ${Object.values(OpenSearchModelsAdapters)
         .map(
           adapter => `
       -- Create the trigger for INSERT operations
       CREATE OR REPLACE TRIGGER  ${adapter.getModel().tableName}_insert_trigger
       AFTER INSERT ON "${adapter.getModel().tableName}"
       FOR EACH ROW
-      EXECUTE FUNCTION notify_elasticsearch_on_change();
+      EXECUTE FUNCTION notify_opensearch_on_change();
   
       -- Create the trigger for UPDATE operations
       CREATE OR REPLACE TRIGGER  ${adapter.getModel().tableName}_update_trigger
       AFTER UPDATE ON "${adapter.getModel().tableName}"
       FOR EACH ROW
-      EXECUTE FUNCTION notify_elasticsearch_on_change();
+      EXECUTE FUNCTION notify_opensearch_on_change();
   
       -- Create the trigger for DELETE operations
       CREATE OR REPLACE TRIGGER  ${adapter.getModel().tableName}_delete_trigger
       AFTER DELETE ON "${adapter.getModel().tableName}"
       FOR EACH ROW
-      EXECUTE FUNCTION notify_elasticsearch_on_change();
+      EXECUTE FUNCTION notify_opensearch_on_change();
     `,
         )
         .join('\n')}
     `);
   } catch (error) {
     logger.error(`Error setting up Postgres triggers: ${JSON.stringify(error)}`);
-    reportErrorToSentry(error, { handler: HandlerType.ELASTICSEARCH_SYNC_JOB });
+    reportErrorToSentry(error, { handler: HandlerType.OPENSEARCH_SYNC_JOB });
     throw new Error('Failed to setup Postgres triggers');
   }
 };
 
-export const removeElasticSearchPostgresTriggers = async () => {
+export const removeOpenSearchPostgresTriggers = async () => {
   await sequelize.query(`
-    ${Object.values(ElasticSearchModelsAdapters)
+    ${Object.values(OpenSearchModelsAdapters)
       .map(
         adapter => `
     DROP TRIGGER IF EXISTS ${adapter.getModel().tableName}_insert_trigger ON "${adapter.getModel().tableName}";
@@ -86,7 +86,7 @@ export const removeElasticSearchPostgresTriggers = async () => {
       )
       .join('\n')}
 
-    DROP FUNCTION IF EXISTS notify_elasticsearch_on_change();
+    DROP FUNCTION IF EXISTS notify_opensearch_on_change();
   `);
 };
 
@@ -94,31 +94,31 @@ export const removeElasticSearchPostgresTriggers = async () => {
 let shutdownPromise: Promise<void> | null = null;
 let subscriber: ReturnType<typeof createPostgresListener>;
 
-export const startElasticSearchPostgresSync = async () => {
-  const elasticSearchBatchProcessor = ElasticSearchBatchProcessor.getInstance();
-  elasticSearchBatchProcessor.start();
+export const startOpenSearchPostgresSync = async () => {
+  const openSearchBatchProcessor = OpenSearchBatchProcessor.getInstance();
+  openSearchBatchProcessor.start();
 
   // Setup DB message queue
   subscriber = createPostgresListener();
   subscriber.notifications.on(CHANNEL_NAME, async event => {
-    if (!isValidElasticSearchRequest(event)) {
-      reportMessageToSentry('Invalid ElasticSearch request', {
+    if (!isValidOpenSearchRequest(event)) {
+      reportMessageToSentry('Invalid OpenSearch request', {
         extra: { event },
-        handler: HandlerType.ELASTICSEARCH_SYNC_JOB,
+        handler: HandlerType.OPENSEARCH_SYNC_JOB,
         severity: 'error',
       });
       return;
     }
 
     try {
-      elasticSearchBatchProcessor.addToQueue(event);
+      openSearchBatchProcessor.addToQueue(event);
     } catch (error) {
-      reportErrorToSentry(error, { handler: HandlerType.ELASTICSEARCH_SYNC_JOB });
+      reportErrorToSentry(error, { handler: HandlerType.OPENSEARCH_SYNC_JOB });
     }
   });
 
   subscriber.events.on('error', error => {
-    reportErrorToSentry(error, { handler: HandlerType.ELASTICSEARCH_SYNC_JOB });
+    reportErrorToSentry(error, { handler: HandlerType.OPENSEARCH_SYNC_JOB });
   });
 
   await subscriber.connect();
@@ -127,27 +127,27 @@ export const startElasticSearchPostgresSync = async () => {
   // Setup postgres triggers
   await setupPostgresTriggers();
 
-  logger.info('ElasticSearch <-> Postgres sync job started');
+  logger.info('OpenSearch <-> Postgres sync job started');
 
   return subscriber;
 };
 
-export const stopElasticSearchPostgresSync = (): Promise<void> => {
+export const stopOpenSearchPostgresSync = (): Promise<void> => {
   if (!shutdownPromise) {
-    logger.info('Shutting down ElasticSearch <-> Postgres sync job');
+    logger.info('Shutting down OpenSearch <-> Postgres sync job');
     if (subscriber) {
       subscriber.close();
     }
 
     shutdownPromise = runWithTimeout(
       (async () => {
-        await removeElasticSearchPostgresTriggers();
-        const elasticSearchBatchProcessor = ElasticSearchBatchProcessor.getInstance();
-        await elasticSearchBatchProcessor.flushAndClose();
-        logger.info('ElasticSearch <-> Postgres sync job shutdown complete');
+        await removeOpenSearchPostgresTriggers();
+        const openSearchBatchProcessor = OpenSearchBatchProcessor.getInstance();
+        await openSearchBatchProcessor.flushAndClose();
+        logger.info('OpenSearch <-> Postgres sync job shutdown complete');
       })(),
       30_000,
-      'Elastic Search <-> Postgres sync job took too long to shutdown, forcing exit',
+      'OpenSearch <-> Postgres sync job took too long to shutdown, forcing exit',
     );
   }
 
@@ -158,14 +158,18 @@ export const stopElasticSearchPostgresSync = (): Promise<void> => {
  * Re-indexes all entries across all indexes related to this `collectiveId`, either through `CollectiveId`,
  * `HostCollectiveId`, `FromCollectiveId`...etc.
  */
-export const elasticSearchFullAccountReIndex = async (collectiveId: number): Promise<void> => {
-  if (!isElasticSearchConfigured()) {
-    logger.debug(`ElasticSearch is not configured, skipping ${collectiveId} full account re-index`);
+export const openSearchFullAccountReIndex = async (collectiveId: number): Promise<void> => {
+  if (!isOpenSearchConfigured()) {
+    logger.debug(`OpenSearch is not configured, skipping ${collectiveId} full account re-index`);
     return;
   }
 
-  ElasticSearchBatchProcessor.getInstance().addToQueue({
-    type: ElasticSearchRequestType.FULL_ACCOUNT_RE_INDEX,
+  OpenSearchBatchProcessor.getInstance().addToQueue({
+    type: OpenSearchRequestType.FULL_ACCOUNT_RE_INDEX,
     payload: { id: collectiveId },
   });
 };
+
+setTimeout(() => {
+  openSearchFullAccountReIndex(1);
+}, 5000);

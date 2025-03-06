@@ -1,30 +1,30 @@
 import { expect } from 'chai';
 import sinon from 'sinon';
 
-import { ElasticSearchBatchProcessor } from '../../../../server/lib/elastic-search/batch-processor';
-import * as ElasticSearchClient from '../../../../server/lib/elastic-search/client';
-import { ElasticSearchRequestType } from '../../../../server/lib/elastic-search/types';
+import { OpenSearchBatchProcessor } from '../../../../server/lib/open-search/batch-processor';
+import * as OpenSearchClient from '../../../../server/lib/open-search/client';
+import { OpenSearchRequestType } from '../../../../server/lib/open-search/types';
 import * as SentryLib from '../../../../server/lib/sentry';
 
-describe('server/lib/elastic-search/batch-processor', () => {
-  let processor: ElasticSearchBatchProcessor;
+describe('server/lib/open-search/batch-processor', () => {
+  let processor: OpenSearchBatchProcessor;
   let clientStub;
   let sentryReportMessageStub;
   let sentryReportErrorStub;
 
   beforeEach(() => {
     // Reset singleton instance
-    (ElasticSearchBatchProcessor as any).instance = null;
+    (OpenSearchBatchProcessor as any).instance = null;
 
     // Create stub for ES client
     clientStub = {
-      bulk: sinon.stub().resolves({ items: [], errors: false, took: 0 }),
+      bulk: sinon.stub().resolves({ body: { items: [], errors: false, took: 0 } }),
       deleteByQuery: sinon.stub().resolves({ took: 0 }),
     };
 
     // Mock the ES client
-    sinon.stub(ElasticSearchClient, 'getElasticSearchClient').returns(clientStub);
-    processor = ElasticSearchBatchProcessor.getInstance();
+    sinon.stub(OpenSearchClient, 'getOpenSearchClient').returns(clientStub);
+    processor = OpenSearchBatchProcessor.getInstance();
 
     sentryReportMessageStub = sinon.stub(SentryLib, 'reportMessageToSentry');
     sentryReportErrorStub = sinon.stub(SentryLib, 'reportErrorToSentry');
@@ -38,7 +38,7 @@ describe('server/lib/elastic-search/batch-processor', () => {
     it('should add requests to the queue and schedule batch processing', async () => {
       processor.start();
       processor.addToQueue({
-        type: ElasticSearchRequestType.UPDATE,
+        type: OpenSearchRequestType.UPDATE,
         table: 'Collectives',
         payload: { id: 1 },
       });
@@ -54,7 +54,7 @@ describe('server/lib/elastic-search/batch-processor', () => {
       // Fill queue to maxBatchSize
       for (let i = 0; i < processor.maxBatchSize; i++) {
         processor.addToQueue({
-          type: ElasticSearchRequestType.UPDATE,
+          type: OpenSearchRequestType.UPDATE,
           table: 'Collectives',
           payload: { id: i }, // Need to have unique payloads to prevent deduplication
         });
@@ -68,7 +68,7 @@ describe('server/lib/elastic-search/batch-processor', () => {
       const processSpy = sinon.spy(processor, '_processBatch');
 
       processor.addToQueue({
-        type: ElasticSearchRequestType.FULL_ACCOUNT_RE_INDEX,
+        type: OpenSearchRequestType.FULL_ACCOUNT_RE_INDEX,
         payload: { id: 1 },
       });
 
@@ -77,7 +77,7 @@ describe('server/lib/elastic-search/batch-processor', () => {
 
     it('should not add requests when processor is not started', async () => {
       processor.addToQueue({
-        type: ElasticSearchRequestType.UPDATE,
+        type: OpenSearchRequestType.UPDATE,
         table: 'Collectives',
         payload: { id: 1 },
       });
@@ -92,7 +92,7 @@ describe('server/lib/elastic-search/batch-processor', () => {
       const processSpy = sinon.spy(processor as any, '_processBatch');
 
       processor.addToQueue({
-        type: ElasticSearchRequestType.UPDATE,
+        type: OpenSearchRequestType.UPDATE,
         table: 'Collectives',
         payload: { id: 1 },
       });
@@ -115,7 +115,7 @@ describe('server/lib/elastic-search/batch-processor', () => {
       (processor as any).processBatchPromise = Promise.resolve();
 
       processor.addToQueue({
-        type: ElasticSearchRequestType.UPDATE,
+        type: OpenSearchRequestType.UPDATE,
         table: 'Collectives',
         payload: { id: 1 },
       });
@@ -135,7 +135,7 @@ describe('server/lib/elastic-search/batch-processor', () => {
       (processor as any).processBatchPromise = Promise.resolve();
 
       processor.addToQueue({
-        type: ElasticSearchRequestType.UPDATE,
+        type: OpenSearchRequestType.UPDATE,
         table: 'Collectives',
         payload: { id: 1 },
       });
@@ -152,12 +152,12 @@ describe('server/lib/elastic-search/batch-processor', () => {
     it('should prioritize FULL_ACCOUNT_RE_INDEX requests', () => {
       const requests = [
         {
-          type: ElasticSearchRequestType.UPDATE,
+          type: OpenSearchRequestType.UPDATE,
           table: 'Collectives',
           payload: { id: 1 },
         },
         {
-          type: ElasticSearchRequestType.FULL_ACCOUNT_RE_INDEX,
+          type: OpenSearchRequestType.FULL_ACCOUNT_RE_INDEX,
           payload: { id: 1 },
         },
       ];
@@ -172,12 +172,12 @@ describe('server/lib/elastic-search/batch-processor', () => {
     it('should group non-reindex requests by table', () => {
       const requests = [
         {
-          type: ElasticSearchRequestType.UPDATE,
+          type: OpenSearchRequestType.UPDATE,
           table: 'Collectives',
           payload: { id: 1 },
         },
         {
-          type: ElasticSearchRequestType.UPDATE,
+          type: OpenSearchRequestType.UPDATE,
           table: 'Transactions',
           payload: { id: 2 },
         },
@@ -187,8 +187,8 @@ describe('server/lib/elastic-search/batch-processor', () => {
       expect(result).to.deep.eq({
         accountsToReIndex: [],
         requestsGroupedByTableName: {
-          Collectives: [{ type: ElasticSearchRequestType.UPDATE, table: 'Collectives', payload: { id: 1 } }],
-          Transactions: [{ type: ElasticSearchRequestType.UPDATE, table: 'Transactions', payload: { id: 2 } }],
+          Collectives: [{ type: OpenSearchRequestType.UPDATE, table: 'Collectives', payload: { id: 1 } }],
+          Transactions: [{ type: OpenSearchRequestType.UPDATE, table: 'Transactions', payload: { id: 2 } }],
         },
       });
     });
@@ -196,12 +196,12 @@ describe('server/lib/elastic-search/batch-processor', () => {
     it('should take the most recent request for each entry', () => {
       const requests = [
         {
-          type: ElasticSearchRequestType.DELETE,
+          type: OpenSearchRequestType.DELETE,
           table: 'Collectives',
           payload: { id: 1 },
         },
         {
-          type: ElasticSearchRequestType.UPDATE,
+          type: OpenSearchRequestType.UPDATE,
           table: 'Collectives',
           payload: { id: 1 },
         },
@@ -211,7 +211,7 @@ describe('server/lib/elastic-search/batch-processor', () => {
       expect(result).to.deep.eq({
         accountsToReIndex: [],
         requestsGroupedByTableName: {
-          Collectives: [{ type: ElasticSearchRequestType.UPDATE, table: 'Collectives', payload: { id: 1 } }],
+          Collectives: [{ type: OpenSearchRequestType.UPDATE, table: 'Collectives', payload: { id: 1 } }],
         },
       });
     });
@@ -223,7 +223,7 @@ describe('server/lib/elastic-search/batch-processor', () => {
       clientStub.bulk.rejects(new Error('Test error'));
 
       processor.addToQueue({
-        type: ElasticSearchRequestType.UPDATE,
+        type: OpenSearchRequestType.UPDATE,
         table: 'Collectives',
         payload: { id: 1 },
       });
@@ -236,10 +236,10 @@ describe('server/lib/elastic-search/batch-processor', () => {
 
     it('should handle bulk response errors', async () => {
       processor.start();
-      clientStub.bulk.resolves({ items: [], errors: true, took: 0 });
+      clientStub.bulk.resolves({ body: { items: [], errors: true, took: 0 } });
 
       processor.addToQueue({
-        type: ElasticSearchRequestType.UPDATE,
+        type: OpenSearchRequestType.UPDATE,
         table: 'Collectives',
         payload: { id: 1 },
       });

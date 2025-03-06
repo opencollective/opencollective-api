@@ -9,10 +9,10 @@ import config from 'config';
 import express from 'express';
 import throng from 'throng';
 
-import { isElasticSearchConfigured } from './lib/elastic-search/client';
-import { startElasticSearchPostgresSync, stopElasticSearchPostgresSync } from './lib/elastic-search/sync-postgres';
 import expressLib from './lib/express';
 import logger from './lib/logger';
+import { isOpenSearchConfigured } from './lib/open-search/client';
+import { startOpenSearchPostgresSync, stopOpenSearchPostgresSync } from './lib/open-search/sync-postgres';
 import { reportErrorToSentry } from './lib/sentry';
 import { updateCachedFidoMetadata } from './lib/two-factor-authentication/fido-metadata';
 import { parseToBoolean } from './lib/utils';
@@ -65,17 +65,17 @@ if (parseToBoolean(config.services.server)) {
 
 // Start the search sync job
 if (parseToBoolean(config.services.searchSync)) {
-  if (!isElasticSearchConfigured()) {
-    logger.warn('ElasticSearch is not configured. Skipping sync job.');
+  if (!isOpenSearchConfigured()) {
+    logger.warn('OpenSearch is not configured. Skipping sync job.');
   } else {
-    startElasticSearchPostgresSync()
+    startOpenSearchPostgresSync()
       .catch(e => {
         // We don't want to crash the server if the sync job fails to start
-        logger.error('Failed to start ElasticSearch sync job', e);
+        logger.error('Failed to start OpenSearch sync job', e);
         reportErrorToSentry(e);
       })
       .then(() => {
-        // Add a handler to make sure we flush the Elastic Search sync queue before shutting down
+        // Add a handler to make sure we flush the OpenSearch sync queue before shutting down
         let isShuttingDown = false;
         const gracefullyShutdown = async signal => {
           if (!isShuttingDown) {
@@ -91,7 +91,7 @@ if (parseToBoolean(config.services.searchSync)) {
               });
             }
 
-            await stopElasticSearchPostgresSync();
+            await stopOpenSearchPostgresSync();
             process.exit();
           }
         };

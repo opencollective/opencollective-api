@@ -1,29 +1,29 @@
 import { expect } from 'chai';
 import sinon from 'sinon';
 
-import { ElasticSearchBatchProcessor } from '../../../../server/lib/elastic-search/batch-processor';
+import { OpenSearchBatchProcessor } from '../../../../server/lib/open-search/batch-processor';
 import {
-  removeElasticSearchPostgresTriggers,
-  startElasticSearchPostgresSync,
-  stopElasticSearchPostgresSync,
-} from '../../../../server/lib/elastic-search/sync-postgres';
+  removeOpenSearchPostgresTriggers,
+  startOpenSearchPostgresSync,
+  stopOpenSearchPostgresSync,
+} from '../../../../server/lib/open-search/sync-postgres';
 import * as SentryLib from '../../../../server/lib/sentry';
 import { fakeCollective, sequelize } from '../../../test-helpers/fake-data';
 import { waitForCondition } from '../../../utils';
 
-const checkIfElasticSearchTriggerExists = async () => {
+const checkIfSearchTriggerExists = async () => {
   const [result] = await sequelize.query(`SELECT * FROM pg_trigger WHERE tgname LIKE '%_%_trigger'`);
   return result.length > 0;
 };
 
-describe('server/lib/elastic-search/sync-postgres', () => {
+describe('server/lib/open-search/sync-postgres', () => {
   let processorStub;
   let sentryReportMessageStub;
   let sentryReportErrorStub;
 
   beforeEach(() => {
-    processorStub = sinon.createStubInstance(ElasticSearchBatchProcessor);
-    sinon.stub(ElasticSearchBatchProcessor, 'getInstance').returns(processorStub);
+    processorStub = sinon.createStubInstance(OpenSearchBatchProcessor);
+    sinon.stub(OpenSearchBatchProcessor, 'getInstance').returns(processorStub);
 
     sentryReportMessageStub = sinon.stub(SentryLib, 'reportMessageToSentry');
     sentryReportErrorStub = sinon.stub(SentryLib, 'reportErrorToSentry');
@@ -31,10 +31,10 @@ describe('server/lib/elastic-search/sync-postgres', () => {
 
   afterEach(async () => {
     sinon.restore();
-    await removeElasticSearchPostgresTriggers(); // Make sure we always remove triggers to not impact tests performance
+    await removeOpenSearchPostgresTriggers(); // Make sure we always remove triggers to not impact tests performance
   });
 
-  describe('startElasticSearchPostgresSync', () => {
+  describe('startOpenSearchPostgresSync', () => {
     let listener;
 
     afterEach(async () => {
@@ -45,24 +45,24 @@ describe('server/lib/elastic-search/sync-postgres', () => {
     });
 
     it('should dispatch events to the batch processor', async () => {
-      listener = await startElasticSearchPostgresSync();
+      listener = await startOpenSearchPostgresSync();
       await fakeCollective();
       await waitForCondition(() => processorStub.addToQueue.called, { timeout: 2_000 });
       expect(sentryReportMessageStub.calledOnce).to.be.false;
       expect(sentryReportErrorStub.calledOnce).to.be.false;
-      expect(await checkIfElasticSearchTriggerExists()).to.be.true;
+      expect(await checkIfSearchTriggerExists()).to.be.true;
     });
 
     it('should report errors to Sentry', async () => {
-      listener = await startElasticSearchPostgresSync();
-      await listener.notify('elasticsearch-requests', { type: 'INVALID' });
+      listener = await startOpenSearchPostgresSync();
+      await listener.notify('opensearch-requests', { type: 'INVALID' });
       await waitForCondition(() => sentryReportMessageStub.called, { timeout: 2_000 });
       expect(processorStub.addToQueue.called).to.be.false;
-      expect(await checkIfElasticSearchTriggerExists()).to.be.true;
+      expect(await checkIfSearchTriggerExists()).to.be.true;
     });
   });
 
-  describe('stopElasticSearchPostgresSync', () => {
+  describe('stopOpenSearchPostgresSync', () => {
     let listener;
 
     afterEach(async () => {
@@ -73,20 +73,20 @@ describe('server/lib/elastic-search/sync-postgres', () => {
     });
 
     it('should close connections and flush processor', async () => {
-      listener = await startElasticSearchPostgresSync();
+      listener = await startOpenSearchPostgresSync();
       const listenerStopSpy = sinon.spy(listener, 'close');
-      await stopElasticSearchPostgresSync();
+      await stopOpenSearchPostgresSync();
 
       expect(processorStub.flushAndClose.calledOnce).to.be.true;
       expect(listenerStopSpy.calledOnce).to.be.true;
-      expect(await checkIfElasticSearchTriggerExists()).to.be.false;
+      expect(await checkIfSearchTriggerExists()).to.be.false;
     });
 
     it('should not create multiple shutdown promises', async () => {
-      listener = await startElasticSearchPostgresSync();
+      listener = await startOpenSearchPostgresSync();
 
-      const firstStop = stopElasticSearchPostgresSync();
-      const secondStop = stopElasticSearchPostgresSync();
+      const firstStop = stopOpenSearchPostgresSync();
+      const secondStop = stopOpenSearchPostgresSync();
 
       expect(firstStop).to.equal(secondStop);
     });
