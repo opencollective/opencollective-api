@@ -387,7 +387,7 @@ async function scheduleExpenseForPayment(
 
   // Check for any existing Batch Group where status = NEW, create a new one if needed
   let batchGroup = await getOrCreateActiveBatch(host, { connectedAccount, token });
-  assert(batchGroup.id, 'Failed to create a new batch group');
+  assert(batchGroup?.id, 'Failed to create new batch group');
   let totalAmountToPay = quote.paymentOption.sourceAmount;
   if (batchGroup.transferIds.length > 0) {
     const batchedExpenses = await Expense.findAll({
@@ -447,6 +447,7 @@ async function unscheduleExpenseForPayment(expense: Expense): Promise<void> {
 }
 
 const updateBatchGroup = async (batchGroup: BatchGroup): Promise<void> => {
+  assert(batchGroup.id, 'Batch group id is required');
   return await sequelize.query(
     `
         UPDATE "Expenses" SET "data" = JSONB_SET("data", '{batchGroup}', :newBatchGroup::JSONB) WHERE
