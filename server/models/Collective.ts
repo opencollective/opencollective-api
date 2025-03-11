@@ -3744,6 +3744,7 @@ Collective.init(
               ...currentPolicy,
               invoicePolicy: sanitizeHTML(expensePolicy, optsSanitizeHtmlForSimplified),
               receiptPolicy: sanitizeHTML(expensePolicy, optsSanitizeHtmlForSimplified),
+              grantPolicy: sanitizeHTML(expensePolicy, optsSanitizeHtmlForSimplified),
             },
           };
           this.setDataValue('data', { ...data, policies: newPolicies });
@@ -3755,6 +3756,7 @@ Collective.init(
               ...currentPolicy,
               invoicePolicy: '',
               receiptPolicy: '',
+              grantPolicy: '',
             },
           };
           this.setDataValue('data', { ...data, policies: newPolicies });
