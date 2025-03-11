@@ -13,6 +13,7 @@ export const GraphQLPoliciesInput = new GraphQLInputObjectType({
           invoicePolicy: { type: GraphQLString },
           receiptPolicy: { type: GraphQLString },
           titlePolicy: { type: GraphQLString },
+          grantPolicy: { type: GraphQLString },
         }),
       }),
     },
