@@ -1,6 +1,6 @@
 import cloudflareIps from 'cloudflare-ip/ips.json';
 import config from 'config';
-import RedisStore from 'connect-redis';
+import { RedisStore } from 'connect-redis';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import errorHandler from 'errorhandler';
