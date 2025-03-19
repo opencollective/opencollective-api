@@ -50,6 +50,7 @@ describe('cron/daily/96-apply-data-retention-policy', () => {
         LegalDocument: await fakeLegalDocument(),
         Location: await fakeLocation(),
         Order: await fakeOrder(),
+        'Order.Comment': await fakeComment({ OrderId: (await fakeOrder()).id }),
         PaymentMethod: await fakePaymentMethod(),
         PayoutMethod: await fakePayoutMethod(),
         Subscription: await fakeSubscription(),
@@ -60,14 +61,15 @@ describe('cron/daily/96-apply-data-retention-policy', () => {
 
         // SENSITIVE (1 year)
         ConnectedAccount: await fakeConnectedAccount(),
-        'Conversation.Comment': await fakeComment({ ConversationId: (await fakeConversation()).id }),
 
         // DEFAULT (6 months)
         Conversation: await fakeConversation(),
+        'Conversation.Comment': await fakeComment({ ConversationId: (await fakeConversation()).id }),
         PaypalPlan: await fakePaypalPlan(),
         PaypalProduct: await fakePaypalProduct(),
         RecurringExpense: await fakeRecurringExpense(),
         Update: await fakeUpdate(),
+        'Update.Comment': await fakeComment({ UpdateId: (await fakeUpdate()).id }),
 
         // REDUCED (1 month)
         OAuthAuthorizationCode: await fakeOAuthAuthorizationCode(),
@@ -245,6 +247,7 @@ describe('cron/daily/96-apply-data-retention-policy', () => {
         LegalDocument: moment().subtract(9, 'years').toDate(),
         Location: moment().subtract(9, 'years').toDate(),
         Order: moment().subtract(9, 'years').toDate(),
+        'Order.Comment': moment().subtract(9, 'years').toDate(),
         PaymentMethod: moment().subtract(9, 'years').toDate(),
         PayoutMethod: moment().subtract(9, 'years').toDate(),
         Subscription: moment().subtract(9, 'years').toDate(),
@@ -254,15 +257,16 @@ describe('cron/daily/96-apply-data-retention-policy', () => {
         VirtualCard: moment().subtract(9, 'years').toDate(),
 
         // SENSITIVE: just under 1 year
-        'Conversation.Comment': moment().subtract(11, 'months').toDate(),
         ConnectedAccount: moment().subtract(11, 'months').toDate(),
 
         // DEFAULT: just under 6 months
         Conversation: moment().subtract(5, 'months').toDate(),
+        'Conversation.Comment': moment().subtract(5, 'months').toDate(),
         PaypalPlan: moment().subtract(5, 'months').toDate(),
         PaypalProduct: moment().subtract(5, 'months').toDate(),
         RecurringExpense: moment().subtract(5, 'months').toDate(),
         Update: moment().subtract(5, 'months').toDate(),
+        'Update.Comment': moment().subtract(5, 'months').toDate(),
 
         // REDUCED: just under 1 month
         OAuthAuthorizationCode: moment().subtract(25, 'days').toDate(),
@@ -282,7 +286,7 @@ describe('cron/daily/96-apply-data-retention-policy', () => {
       // Verify all records still exist
       for (const [recordKey, record] of Object.entries(records)) {
         const modelName = getModelNameFromRecordKey(recordKey);
-        expect(await models[modelName].findByPk(record.id, { paranoid: false }), `${modelName} should exist`).to.exist;
+        expect(await models[modelName].findByPk(record.id, { paranoid: false }), `${recordKey} should exist`).to.exist;
       }
     });
   });
