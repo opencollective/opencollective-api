@@ -47,7 +47,10 @@ const stringifySequelizeOperators = (value: AdditionalConditions): any => {
 
 const MODEL_RETENTION_PERIODS: ModelRetentionPeriodSettings[] = [
   [models.Comment, RetentionPeriod.FINANCIAL, { ExpenseId: { [Op.not]: null } }],
-  [models.Comment, RetentionPeriod.SENSITIVE, { ExpenseId: { [Op.is]: null } }],
+  [models.Comment, RetentionPeriod.DEFAULT, { UpdateId: { [Op.not]: null } }],
+  [models.Comment, RetentionPeriod.FINANCIAL, { OrderId: { [Op.not]: null } }],
+  [models.Comment, RetentionPeriod.DEFAULT, { ConversationId: { [Op.not]: null } }],
+  [models.Comment, RetentionPeriod.SENSITIVE, { HostApplicationId: { [Op.not]: null } }],
   [models.ConnectedAccount, RetentionPeriod.SENSITIVE],
   [models.Conversation, RetentionPeriod.DEFAULT],
   [models.Expense, RetentionPeriod.FINANCIAL],
