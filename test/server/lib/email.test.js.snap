@@ -1,6 +1,6 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`server/lib/email Sending emails sends the thankyou.fr email template 1`] = `
+exports[`server/lib/email Sending emails sends the order.processed.fr email template 1`] = `
 "<!DOCTYPE html PUBLIC \\"-//W3C//DTD XHTML 1.0 Transitional//EN\\" \\"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\\">
 <html xmlns=\\"http://www.w3.org/1999/xhtml\\">
 <head>
@@ -32,26 +32,24 @@ exports[`server/lib/email Sending emails sends the thankyou.fr email template 1`
       <td>
 
 
-<p style=\\"color: #494B4D; font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; font-size: 14px; line-height: 18px;\\">Xavier,</p>
+<p style=\\"color: #494B4D; font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; font-size: 14px; line-height: 18px;\\">Bonjour Xavier,</p>
 
 
-<p style=\\"color: #494B4D; font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; font-size: 14px; line-height: 18px;\\">Votre dernière contribution de 50,00 € vient d'être reçue. Merci pour continuer à nous soutenir!</p>
+<p style=\\"color: #494B4D; font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; font-size: 14px; line-height: 18px;\\">Votre dernière contribution de 50,00 € vient d'être reçue. Merci de continuer à nous soutenir !</p>
 
 
-<p style=\\"color: #494B4D; font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; font-size: 14px; line-height: 18px;\\">Vous pouvez suivre nos prochaines activités et comment on va utiliser l'argent recolté sur la page de notre collectif
-  ouvert:
-  <a href=\\"https://opencollective.com/enmarchebe\\" style=\\"text-decoration: none; color: #297EFF;\\">https://opencollective.com/enmarchebe</a>.
+<p style=\\"color: #494B4D; font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; font-size: 14px; line-height: 18px;\\">Vous pouvez suivre nos activités et voir comment nous utilisons les fonds sur la page de notre collectif :
+  <a href=\\"https://opencollective.com/enmarchebe\\" style=\\"text-decoration: none; color: #297EFF;\\">https://opencollective.com/enmarchebe</a>
 </p>
 
 
-<h2 style=\\"color: #303233; font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; font-weight: normal; font-size: 20px; line-height: 24px; text-align: center;\\">Aidez-nous à récolter plus d'argent!</h2>
-<p style=\\"color: #494B4D; font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; font-size: 14px; line-height: 18px;\\">Partagez cette URL: <a href=\\"https://opencollective.com/enmarchebe/donate\\" style=\\"text-decoration: none; color: #297EFF;\\">https://opencollective.com/enmarchebe/donate</a>.
+<h2 style=\\"color: #303233; font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; font-weight: normal; font-size: 20px; line-height: 24px; text-align: center;\\">Aidez-nous à développer notre communauté !</h2>
+<p style=\\"color: #494B4D; font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; font-size: 14px; line-height: 18px;\\">Partagez cette URL : <a href=\\"https://opencollective.com/enmarchebe\\" style=\\"text-decoration: none; color: #297EFF;\\">https://opencollective.com/enmarchebe</a></p>
 
 
 
 
-
-  </p><p style=\\"color: #494B4D; font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; font-size: 14px; line-height: 18px;\\">Encore merci! 🙏</p>
+  <p style=\\"color: #494B4D; font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; font-size: 14px; line-height: 18px;\\">Encore merci! 🙏</p>
 
   <p style=\\"color: #494B4D; font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; font-size: 14px; line-height: 18px;\\">
     – Le collectif En Marche
@@ -80,7 +78,7 @@ exports[`server/lib/email Sending emails sends the thankyou.fr email template 1`
   <tr>
     <td colspan=\\"3\\" align=\\"center\\" style=\\"font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;box-sizing:border-box;font-size:12px;color:#999;\\">
       We can do great things together<br><br>
-      To unsubscribe from thank you for your donation, <a href=\\"http://localhost:3000/email/unsubscribe/user1%40opencollective.com/enmarchebe/order.thankyou/54349853da7f4493e08265f3a6d600a9b705aec3bea42cb8ce23688c3060c3837d04a6285263edfdcdc83cfd7a7f95692f274a1c4d7f40f4c0db031e638589e9\\" style=\\"text-decoration: none; color: #297EFF;\\">click here</a><br><br>
+      To unsubscribe from \\"thank you for your contribution\\", <a href=\\"http://localhost:3000/email/unsubscribe/user1%40opencollective.com/enmarchebe/order.processed/fbb17fc67d353d6a23b83d40deeac07c08a546361faa19b0c8d72fdc71ead9cf7c323d4dfd1a5b969c3de973fea142be177455cf70291faa7bc53676e782a55d\\" style=\\"text-decoration: none; color: #297EFF;\\">click here</a><br><br>
   
       Come chat with us on our public
       <a href=\\"https://discord.opencollective.com\\" style=\\"text-decoration: none; color: #297EFF;\\">Discord</a>.
@@ -106,21 +104,21 @@ exports[`server/lib/email Sending emails sends the thankyou.fr email template 1`
   </html>"
 `;
 
-exports[`server/lib/email Sending emails sends the thankyou.fr email template 2`] = `
-"Xavier,
+exports[`server/lib/email Sending emails sends the order.processed.fr email template 2`] = `
+"Bonjour Xavier,
 
-Votre dernière contribution de 50,00 € vient d'être reçue. Merci pour continuer
-à nous soutenir!
+Votre dernière contribution de 50,00 € vient d'être reçue. Merci de continuer à
+nous soutenir !
 
-Vous pouvez suivre nos prochaines activités et comment on va utiliser l'argent
-recolté sur la page de notre collectif ouvert:
-https://opencollective.com/enmarchebe [https://opencollective.com/enmarchebe].
+Vous pouvez suivre nos activités et voir comment nous utilisons les fonds sur la
+page de notre collectif : https://opencollective.com/enmarchebe
+[https://opencollective.com/enmarchebe]
 
 
-AIDEZ-NOUS À RÉCOLTER PLUS D'ARGENT!
+AIDEZ-NOUS À DÉVELOPPER NOTRE COMMUNAUTÉ !
 
-Partagez cette URL: https://opencollective.com/enmarchebe/donate
-[https://opencollective.com/enmarchebe/donate].
+Partagez cette URL : https://opencollective.com/enmarchebe
+[https://opencollective.com/enmarchebe]
 
 Encore merci! 🙏
 
@@ -131,8 +129,8 @@ http://localhost:3000
 
 We can do great things together
 
-To unsubscribe from thank you for your donation, click here
-[http://localhost:3000/email/unsubscribe/user1%40opencollective.com/enmarchebe/order.thankyou/54349853da7f4493e08265f3a6d600a9b705aec3bea42cb8ce23688c3060c3837d04a6285263edfdcdc83cfd7a7f95692f274a1c4d7f40f4c0db031e638589e9]
+To unsubscribe from \\"thank you for your contribution\\", click here
+[http://localhost:3000/email/unsubscribe/user1%40opencollective.com/enmarchebe/order.processed/fbb17fc67d353d6a23b83d40deeac07c08a546361faa19b0c8d72fdc71ead9cf7c323d4dfd1a5b969c3de973fea142be177455cf70291faa7bc53676e782a55d]
 
 Come chat with us on our public Discord [https://discord.opencollective.com].
 

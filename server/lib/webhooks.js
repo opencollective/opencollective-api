@@ -109,7 +109,7 @@ const expenseActivities = [
 /**
  * Sanitize an activity to make it suitable for posting on external webhooks
  */
-export const sanitizeActivity = activity => {
+export const sanitizeActivityForWebhookPayload = activity => {
   // Fields commons to all activity types
   const cleanActivity = pick(activity, ['createdAt', 'id', 'type', 'CollectiveId']);
   const type = cleanActivity.type;
@@ -143,6 +143,15 @@ export const sanitizeActivity = activity => {
     cleanActivity.data = pick(activity.data, ['recipient.name']);
     cleanActivity.data.tier = getTierInfo(activity.data.tier);
     cleanActivity.data.order = getOrderInfo(activity.data.order);
+  } else if (type === activities.ORDER_PROCESSED) {
+    cleanActivity.data = pick(activity.data, ['firstPayment']);
+    cleanActivity.data.order = getOrderInfo(activity.data.order);
+    cleanActivity.data.host = getCollectiveInfo(activity.data.host);
+    cleanActivity.data.collective = getCollectiveInfo(activity.data.collective);
+    cleanActivity.data.fromCollective = getCollectiveInfo(activity.data.fromCollective);
+    if (activity.data.order?.TierId) {
+      cleanActivity.data.tier = getTierInfo({ id: activity.data.order.TierId });
+    }
   } else if (
     [activities.SUBSCRIPTION_CANCELED, activities.SUBSCRIPTION_PAUSED, activities.SUBSCRIPTION_RESUMED].includes(type)
   ) {
@@ -175,7 +184,7 @@ const enrichActivityData = data => {
 /**
  * Adds user-friendly fields to an activity. Mutates activity.
  */
-export const enrichActivity = activity => {
+export const enrichActivityForWebhookPayload = activity => {
   enrichActivityData(activity.data);
   return activity;
 };

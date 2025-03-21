@@ -255,7 +255,7 @@ const getNotificationLabel = (template): string => {
     onboarding: 'onboarding emails',
     'user.monthlyreport': 'monthly reports for backers',
     'user.yearlyreport': 'yearly reports',
-    [activities.ORDER_THANKYOU]: 'thank you for your donation',
+    [activities.ORDER_PROCESSED]: 'thank you for your contribution',
     'conversation.comment.created': 'notifications of new comments submitted to this conversation',
     'update.comment.created': 'notifications of new comments submitted to this update',
     'expense.comment.created': 'notifications of new comments submitted to this expense',
@@ -312,13 +312,11 @@ const generateEmailFromTemplate = (
     template = 'host.report';
   }
 
-  if (template === activities.ORDER_THANKYOU) {
-    if (slug.match(/wwcode/)) {
-      template = `${activities.ORDER_THANKYOU}.wwcode`;
-    } else if (['opensource'].includes(hostSlug)) {
-      template = `${activities.ORDER_THANKYOU}.${hostSlug}`;
-    } else if (includes(['laprimaire', 'lesbarbares', 'enmarchebe', 'monnaie-libre'], slug)) {
-      template = `${activities.ORDER_THANKYOU}.fr`;
+  if (template === activities.ORDER_PROCESSED) {
+    if (['opensource'].includes(hostSlug)) {
+      template = `${activities.ORDER_PROCESSED}.${hostSlug}`;
+    } else if (includes(['laprimaire', 'lesbarbares', 'enmarchebe', 'monnaie-libre', 'captainfact_io'], slug)) {
+      template = `${activities.ORDER_PROCESSED}.fr`;
 
       // xdamman: hack
       switch (data.interval) {

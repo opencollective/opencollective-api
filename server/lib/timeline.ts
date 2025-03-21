@@ -72,7 +72,7 @@ const makeTimelineQuery = async (
         type: [
           ActivityTypes.PAYMENT_FAILED,
           ActivityTypes.ORDER_PAYMENT_FAILED,
-          ActivityTypes.ORDER_THANKYOU,
+          ActivityTypes.ORDER_PROCESSED,
           ActivityTypes.ORDER_PROCESSING,
         ],
         [Op.or]: [{ UserId: collective.CreatedByUserId }, { FromCollectiveId: collective.id }],
@@ -152,7 +152,7 @@ const makeTimelineQuery = async (
         ActivityTypes.ORDER_PAYMENT_FAILED,
         ActivityTypes.ORDER_PENDING_CONTRIBUTION_NEW,
         ActivityTypes.ORDER_PENDING_CONTRIBUTION_REMINDER,
-        ActivityTypes.ORDER_THANKYOU,
+        ActivityTypes.ORDER_PROCESSED,
         ActivityTypes.ORDERS_SUSPICIOUS,
         ActivityTypes.PAYMENT_CREDITCARD_EXPIRING,
         ActivityTypes.PAYMENT_FAILED,

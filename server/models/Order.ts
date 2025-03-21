@@ -230,6 +230,16 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
    */
   declare lock: <T>(callback: () => T, options?: { retries?: number; retryDelay?: number }) => Promise<T>;
   declare isLocked: () => boolean;
+  declare createProcessedActivity: ({
+    user,
+    data,
+    UserTokenId,
+  }: {
+    user?: User | null;
+    data?: Record<string, unknown>;
+    UserTokenId?: number | undefined;
+  }) => Promise<Activity>;
+
   declare createResumeActivity: (user: User, params: { UserTokenId?: number }) => Promise<void>;
   declare markSimilarPausedOrdersAsCancelled: () => Promise<void>;
 
@@ -853,6 +863,28 @@ Order.prototype.getUserForActivity = async function () {
   }
 
   return this.createdByUser;
+};
+
+Order.prototype.createProcessedActivity = async function ({
+  user = null,
+  data = undefined,
+  UserTokenId = undefined,
+} = {}) {
+  const collective = this.collective || (await this.getCollective());
+  const HostCollectiveId = collective.HostCollectiveId;
+  return Activity.create({
+    type: ActivityTypes.ORDER_PROCESSED,
+    UserId: user?.id,
+    UserTokenId,
+    FromCollectiveId: this.FromCollectiveId,
+    OrderId: this.id,
+    CollectiveId: this.CollectiveId,
+    HostCollectiveId,
+    data: {
+      order: this.info,
+      ...data,
+    },
+  });
 };
 
 /**

@@ -51,8 +51,8 @@ describe('server/lib/email', () => {
       nodemailer.createTransport.restore();
     });
 
-    it('sends the thankyou.fr email template', async () => {
-      const template = 'order.thankyou';
+    it('sends the order.processed.fr email template', async () => {
+      const template = 'order.processed';
       const collective = { name: 'En Marche', slug: 'enmarchebe' };
       const data = {
         order: { totalAmount: 5000, currency: 'EUR' },
@@ -80,8 +80,7 @@ describe('server/lib/email', () => {
       expect(nm.sendMail.lastCall.args[0].subject).to.contain(
         `Merci pour votre contribution de ${amountStr}/mois à En Marche`,
       );
-      expect(nm.sendMail.lastCall.args[0].html).to.contain('Merci pour continuer à nous soutenir');
-      expect(nm.sendMail.lastCall.args[0].html).to.contain('donate');
+      expect(nm.sendMail.lastCall.args[0].html).to.contain('Merci de continuer à nous soutenir');
       expect(nm.sendMail.lastCall.args[0].headers['X-Mailgun-Tag']).to.equal('internal');
 
       expect(nm.sendMail.lastCall.args[0].html).to.matchSnapshot();
@@ -89,49 +88,10 @@ describe('server/lib/email', () => {
 
       expect(nm.sendMail.lastCall.args[0].headers).to.containSubset({
         'X-OpenCollective-Account': 'enmarchebe',
-        'List-ID': 'enmarchebe::order.thankyou',
+        'List-ID': 'enmarchebe::order.processed',
         'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
         'List-Unsubscribe':
-          '<http://localhost:3000/email/unsubscribe/user1%40opencollective.com/enmarchebe/order.thankyou/54349853da7f4493e08265f3a6d600a9b705aec3bea42cb8ce23688c3060c3837d04a6285263edfdcdc83cfd7a7f95692f274a1c4d7f40f4c0db031e638589e9>',
-      });
-    });
-
-    it('sends the thankyou.wwcode email template', async () => {
-      const paymentData = {
-        totalAmount: 5000,
-        currency: 'USD',
-      };
-
-      const data = {
-        order: paymentData,
-        transaction: { uuid: '17811b3e-0ac4-4101-81d4-86e9e0aefd7b' },
-        config: { host: config.host },
-        interval: 'month',
-        user: emailData.user,
-        collective: {
-          name: 'WWCode Austin',
-          slug: 'wwcodeaustin',
-        },
-      };
-      await emailLib.send('order.thankyou', data.user.email, data);
-      let amountStr = 50;
-      amountStr = amountStr.toLocaleString('en-US', {
-        style: 'currency',
-        currency: 'USD',
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      });
-      expect(nm.sendMail.lastCall.args[0].to).to.equal('emailbcc+user1-at-opencollective.com@opencollective.com');
-      expect(nm.sendMail.lastCall.args[0].subject).to.contain(
-        `Thank you for your ${amountStr}/month donation to WWCode Austin`,
-      );
-
-      expect(nm.sendMail.lastCall.args[0].headers).to.containSubset({
-        'X-OpenCollective-Account': 'wwcodeaustin',
-        'List-ID': 'wwcodeaustin::order.thankyou',
-        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
-        'List-Unsubscribe':
-          '<http://localhost:3000/email/unsubscribe/user1%40opencollective.com/wwcodeaustin/order.thankyou/d33986f22d66bf7254173f354874ba1557b094f96ac12ebb0afbabfd9a3fe76ed1fc5c30662d7ecc318ff6a0a47f9b09b9e71797b72627423b9694710fd0c80e>',
+          '<http://localhost:3000/email/unsubscribe/user1%40opencollective.com/enmarchebe/order.processed/fbb17fc67d353d6a23b83d40deeac07c08a546361faa19b0c8d72fdc71ead9cf7c323d4dfd1a5b969c3de973fea142be177455cf70291faa7bc53676e782a55d>',
       });
     });
   });

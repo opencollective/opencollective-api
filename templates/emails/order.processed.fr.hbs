@@ -9,43 +9,41 @@ Subject: Merci pour votre contribution de {{currency order.totalAmount currency=
 {{> toplogo}}
 
 {{#if fromCollective.name}}
-<p>{{fromCollective.name}},</p>
+<p>Bonjour {{fromCollective.name}},</p>
 {{else}}
-<p>Hep!</p>
+<p>Bonjour,</p>
 {{/if}}
 
 {{#if interval}}
 
 {{#if firstPayment }}
-<p>Merci pour votre contribution de {{currency order.totalAmount currency=order.currency}} par {{interval}}. Votre premier
-  paiement vient d'être reçu. Votre contribution nous aidera à continuer nos activités.</p>
-<p>Veuillez noter que vos futurs paiements seront effectués au premier du mois (<a
+<p>Nous vous remercions pour votre contribution de {{currency order.totalAmount currency=order.currency}} par {{interval}}. Votre premier
+  paiement a bien été reçu. Votre soutien nous permettra de poursuivre nos activités.</p>
+<p>À noter que vos prochains paiements seront effectués le premier du mois (<a
     href='https://docs.opencollective.com/help/financial-contributors/payments#recurring-financial-contributions-subscriptions'>plus
-    d'info</a>).</p>
+    d'informations</a>).</p>
 {{else}}
-<p>Votre dernière contribution de {{currency order.totalAmount currency=order.currency}} vient d'être reçue. Merci pour continuer à nous soutenir!</p>
+<p>Votre dernière contribution de {{currency order.totalAmount currency=order.currency}} vient d'être reçue. Merci de continuer à nous soutenir !</p>
 {{/if}}
 
 {{else}}
-<p>Merci pour votre contribution de {{currency order.totalAmount currency=order.currency}}.
-  Votre contribution nous aide à continuer nos activités.</p>
+<p>Nous vous remercions pour votre contribution de {{currency order.totalAmount currency=order.currency}}.
+  Votre soutien nous permet de poursuivre nos activités.</p>
 {{/if}}
 
-<p>Vous pouvez suivre nos prochaines activités et comment on va utiliser l'argent recolté sur la page de notre collectif
-  ouvert:
-  <a href="https://opencollective.com/{{collective.slug}}">https://opencollective.com/{{collective.slug}}</a>.
+<p>Vous pouvez suivre nos activités et voir comment nous utilisons les fonds sur la page de notre collectif :
+  <a href="https://opencollective.com/{{collective.slug}}">https://opencollective.com/{{collective.slug}}</a>
 </p>
 
 {{#if customMessage}}
-<p>Un message de {{collective.name}}:</p>
+<p>Message de {{collective.name}} :</p>
 
 <img width="40" height="33" src="{{config.host.website}}/static/images/email/quotation-custom-email.png" />
 <div style="color: #494B4D; font-size: 14px; line-height: 18px; padding-left: 10px; margin-top: 10px; border-left: 5px solid #F1F2F3">{{{customMessage}}}</div>
 {{/if}}
 
-<h2>Aidez-nous à récolter plus d'argent!</h2>
-<p>Partagez cette URL: <a href="https://opencollective.com/{{collective.slug}}/donate">https://opencollective.com/{{collective.slug}}/donate</a>.
-
+<h2>Aidez-nous à développer notre communauté !</h2>
+<p>Partagez cette URL : <a href="https://opencollective.com/{{collective.slug}}">https://opencollective.com/{{collective.slug}}</a></p>
 
   {{#if subscriptionsLink}}
   <p>

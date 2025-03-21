@@ -26,7 +26,7 @@ import { replaceVideosByImagePreviews } from './utils';
 
 const debug = debugLib('notifications');
 
-const VENDOR_SUBSCRIBED_ACTIVITIES = [ActivityTypes.ORDER_THANKYOU];
+const VENDOR_SUBSCRIBED_ACTIVITIES = [ActivityTypes.ORDER_PROCESSED];
 
 type NotifySubscribersOptions = {
   attachments?: any[];
