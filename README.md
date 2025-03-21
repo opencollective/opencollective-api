@@ -62,7 +62,6 @@ See: [docs/deployment.md](docs/deployment.md)
 - [PostgreSQL Database](docs/postgres.md)
 - [List of supported environment variables](docs/environment_variables.md)
 - [Developing with Emails](docs/emails.md)
-- [Data Exports](docs/data_exports.md)
 
 ## Discussion
 
