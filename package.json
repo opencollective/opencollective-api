@@ -3,6 +3,7 @@
   "name": "opencollective-api",
   "description": "Open Collective API",
   "license": "MIT",
+  "type": "commonjs",
   "contributors": [
     "Arnaud Bénard (https://github.com/arnaudbenard)",
     "Aseem Sood (https://github.com/asood123)",
