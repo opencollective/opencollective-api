@@ -8,10 +8,10 @@
   "mailpit": {
     "client": "MAILPIT_CLIENT"
   },
-  "elasticSearch": {
-    "url": "ELASTICSEARCH_URL",
-    "maxSyncDelay": "ELASTICSEARCH_MAX_SYNC_DELAY",
-    "indexesPrefix": "ELASTICSEARCH_INDEXES_PREFIX"
+  "opensearch": {
+    "url": "OPENSEARCH_URL",
+    "maxSyncDelay": "OPENSEARCH_MAX_SYNC_DELAY",
+    "indexesPrefix": "OPENSEARCH_INDEXES_PREFIX"
   },
   "database": {
     "url": "PG_URL",

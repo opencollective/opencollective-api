@@ -9,8 +9,8 @@ import config from 'config';
 import express from 'express';
 import throng from 'throng';
 
-import { isElasticSearchConfigured } from './lib/elastic-search/client';
-import { startElasticSearchPostgresSync, stopElasticSearchPostgresSync } from './lib/elastic-search/sync-postgres';
+import { isOpenSearchConfigured } from './lib/open-search/client';
+import { startElasticSearchPostgresSync, stopElasticSearchPostgresSync } from './lib/open-search/sync-postgres';
 import expressLib from './lib/express';
 import logger from './lib/logger';
 import { reportErrorToSentry } from './lib/sentry';
@@ -65,7 +65,7 @@ if (parseToBoolean(config.services.server)) {
 
 // Start the search sync job
 if (parseToBoolean(config.services.searchSync)) {
-  if (!isElasticSearchConfigured()) {
+  if (!isOpenSearchConfigured()) {
     logger.warn('ElasticSearch is not configured. Skipping sync job.');
   } else {
     startElasticSearchPostgresSync()

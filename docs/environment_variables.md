@@ -7,9 +7,9 @@
 | ENABLE_SERVICE_SERVER                         | .services.server                                   | Enable server service                                                              |
 | ENABLE_SERVICE_SEARCH_SYNC                    | .services.searchSync                               | Enable search sync service                                                         |
 | MAILPIT_CLIENT                                | .mailpit.client                                    | Mailpit client configuration                                                       |
-| ELASTICSEARCH_URL                             | .elasticSearch.url                                 | ElasticSearch URL                                                                  |
-| ELASTICSEARCH_MAX_SYNC_DELAY                  | .elasticSearch.maxSyncDelay                        | Maximum sync delay for ElasticSearch                                               |
-| ELASTICSEARCH_INDEXES_PREFIX                  | .elasticSearch.indexesPrefix                       | Prefix for ElasticSearch indexes                                                   |
+| OPENSEARCH_URL                                | .opensearch.url                                    | OpenSearch URL                                                                     |
+| OPENSEARCH_MAX_SYNC_DELAY                     | .opensearch.maxSyncDelay                           | Maximum sync delay for OpenSearch                                                  |
+| OPENSEARCH_INDEXES_PREFIX                     | .opensearch.indexesPrefix                          | Prefix for OpenSearch indexes                                                      |
 | PG_URL                                        | .database.url                                      | Postgres database URL                                                              |
 | PG_DATABASE                                   | .database.override.database                        | Postgres database name                                                             |
 | PG_USERNAME                                   | .database.override.username                        | Postgres database username                                                         |

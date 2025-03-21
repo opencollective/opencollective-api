@@ -1,6 +1,6 @@
 import { GraphQLNonNull, GraphQLObjectType } from 'graphql';
 
-import { getSearchResultFields } from '../../../lib/elastic-search/graphql-search';
+import { getSearchResultFields } from '../../../lib/open-search/graphql-search';
 import { GraphQLAccountTypeKeys } from '../enum/AccountType';
 
 export type SearchQueryAccountsResolverArgs = {

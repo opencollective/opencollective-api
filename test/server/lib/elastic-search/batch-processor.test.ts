@@ -1,12 +1,12 @@
 import { expect } from 'chai';
 import sinon from 'sinon';
 
-import { ElasticSearchBatchProcessor } from '../../../../server/lib/elastic-search/batch-processor';
-import * as ElasticSearchClient from '../../../../server/lib/elastic-search/client';
-import { ElasticSearchRequestType } from '../../../../server/lib/elastic-search/types';
+import { ElasticSearchBatchProcessor } from '../../../../server/lib/open-search/batch-processor';
+import * as ElasticSearchClient from '../../../../server/lib/open-search/client';
+import { ElasticSearchRequestType } from '../../../../server/lib/open-search/types';
 import * as SentryLib from '../../../../server/lib/sentry';
 
-describe('server/lib/elastic-search/batch-processor', () => {
+describe('server/lib/open-search/batch-processor', () => {
   let processor: ElasticSearchBatchProcessor;
   let clientStub;
   let sentryReportMessageStub;
@@ -23,7 +23,7 @@ describe('server/lib/elastic-search/batch-processor', () => {
     };
 
     // Mock the ES client
-    sinon.stub(ElasticSearchClient, 'getElasticSearchClient').returns(clientStub);
+    sinon.stub(ElasticSearchClient, 'getOpenSearchClient').returns(clientStub);
     processor = ElasticSearchBatchProcessor.getInstance();
 
     sentryReportMessageStub = sinon.stub(SentryLib, 'reportMessageToSentry');

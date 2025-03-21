@@ -1,12 +1,12 @@
 import { expect } from 'chai';
 import sinon from 'sinon';
 
-import { ElasticSearchBatchProcessor } from '../../../../server/lib/elastic-search/batch-processor';
+import { ElasticSearchBatchProcessor } from '../../../../server/lib/open-search/batch-processor';
 import {
   removeElasticSearchPostgresTriggers,
   startElasticSearchPostgresSync,
   stopElasticSearchPostgresSync,
-} from '../../../../server/lib/elastic-search/sync-postgres';
+} from '../../../../server/lib/open-search/sync-postgres';
 import * as SentryLib from '../../../../server/lib/sentry';
 import { fakeCollective, sequelize } from '../../../test-helpers/fake-data';
 import { waitForCondition } from '../../../utils';
@@ -16,7 +16,7 @@ const checkIfElasticSearchTriggerExists = async () => {
   return result.length > 0;
 };
 
-describe('server/lib/elastic-search/sync-postgres', () => {
+describe('server/lib/open-search/sync-postgres', () => {
   let processorStub;
   let sentryReportMessageStub;
   let sentryReportErrorStub;

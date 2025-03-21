@@ -1,6 +1,6 @@
 import { CollectiveType } from '../../constants/collectives';
 
-export enum ElasticSearchIndexName {
+export enum OpenSearchIndexName {
   COLLECTIVES = 'collectives',
   COMMENTS = 'comments',
   EXPENSES = 'expenses',
@@ -11,8 +11,8 @@ export enum ElasticSearchIndexName {
   HOST_APPLICATIONS = 'host-applications',
 }
 
-export interface ElasticSearchIndexParams extends Record<ElasticSearchIndexName, Record<string, unknown>> {
-  [ElasticSearchIndexName.COLLECTIVES]: {
+export interface OpenSearchIndexParams extends Record<OpenSearchIndexName, Record<string, unknown>> {
+  [OpenSearchIndexName.COLLECTIVES]: {
     type?: CollectiveType;
     isHost?: boolean;
     tags?: string[];

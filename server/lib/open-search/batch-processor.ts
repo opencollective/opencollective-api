@@ -7,10 +7,10 @@ import { groupBy, keyBy } from 'lodash';
 import logger from '../logger';
 import { HandlerType, reportErrorToSentry, reportMessageToSentry } from '../sentry';
 
-import { ElasticSearchModelsAdapters, getAdapterFromTableName } from './adapters';
-import { getElasticSearchClient } from './client';
-import { formatIndexNameForElasticSearch } from './common';
-import { ElasticSearchIndexName } from './constants';
+import { OpenSearchModelsAdapters, getAdapterFromTableName } from './adapters';
+import { getOpenSearchClient } from './client';
+import { formatIndexNameForOpenSearch } from './common';
+import { OpenSearchIndexName } from './constants';
 import { ElasticSearchRequest, ElasticSearchRequestType, isFullAccountReIndexRequest } from './types';
 
 const debug = debugLib('elasticsearch-batch-processor');
@@ -24,7 +24,7 @@ export class ElasticSearchBatchProcessor {
   private static instance: ElasticSearchBatchProcessor;
   private client: Client;
   private _queue: ElasticSearchRequest[] = [];
-  private _maxWaitTimeInSeconds: number = config.elasticSearch.maxSyncDelay;
+  private _maxWaitTimeInSeconds: number = config.opensearch.maxSyncDelay;
   private _timeoutHandle: NodeJS.Timeout | null = null;
   private _isStarted: boolean = false;
   private _isProcessing: boolean = false;
@@ -73,7 +73,7 @@ export class ElasticSearchBatchProcessor {
 
   // ---- Private methods ----
   private constructor() {
-    this.client = getElasticSearchClient({ throwIfUnavailable: true });
+    this.client = getOpenSearchClient({ throwIfUnavailable: true });
   }
 
   private scheduleCallProcessBatch(wait = this._maxWaitTimeInSeconds) {
@@ -186,11 +186,11 @@ export class ElasticSearchBatchProcessor {
     // Start with FULL_ACCOUNT_RE_INDEX requests
     if (accountsToReIndex.length > 0) {
       deleteQuery = this.getAccountsReIndexDeleteQuery(accountsToReIndex);
-      for (const adapter of Object.values(ElasticSearchModelsAdapters)) {
+      for (const adapter of Object.values(OpenSearchModelsAdapters)) {
         const entriesToIndex = await adapter.findEntriesToIndex({ relatedToCollectiveIds: accountsToReIndex });
         for (const entry of entriesToIndex) {
           operations.push(
-            { index: { _index: formatIndexNameForElasticSearch(adapter.index), _id: entry['id'].toString() } },
+            { index: { _index: formatIndexNameForOpenSearch(adapter.index), _id: entry['id'].toString() } },
             adapter.mapModelInstanceToDocument(entry),
           );
         }
@@ -220,17 +220,17 @@ export class ElasticSearchBatchProcessor {
           const entry = groupedEntriesToIndex[request.payload.id];
           if (!entry) {
             operations.push({
-              delete: { _index: formatIndexNameForElasticSearch(adapter.index), _id: request.payload.id.toString() },
+              delete: { _index: formatIndexNameForOpenSearch(adapter.index), _id: request.payload.id.toString() },
             });
           } else {
             operations.push(
-              { index: { _index: formatIndexNameForElasticSearch(adapter.index), _id: request.payload.id.toString() } },
+              { index: { _index: formatIndexNameForOpenSearch(adapter.index), _id: request.payload.id.toString() } },
               adapter.mapModelInstanceToDocument(entry),
             );
           }
         } else if (request.type === ElasticSearchRequestType.DELETE) {
           operations.push({
-            delete: { _index: formatIndexNameForElasticSearch(adapter.index), _id: request.payload.id.toString() },
+            delete: { _index: formatIndexNameForOpenSearch(adapter.index), _id: request.payload.id.toString() },
           });
         }
       }
@@ -244,9 +244,9 @@ export class ElasticSearchBatchProcessor {
       return null;
     }
 
-    const allIndexes = Object.values(ElasticSearchModelsAdapters).map(adapter => adapter.index);
+    const allIndexes = Object.values(OpenSearchModelsAdapters).map(adapter => adapter.index);
     return {
-      index: allIndexes.map(formatIndexNameForElasticSearch).join(','),
+      index: allIndexes.map(formatIndexNameForOpenSearch).join(','),
       wait_for_completion: true, // eslint-disable-line camelcase
       query: {
         bool: {
@@ -255,7 +255,7 @@ export class ElasticSearchBatchProcessor {
             {
               bool: {
                 must: [
-                  { term: { _index: formatIndexNameForElasticSearch(ElasticSearchIndexName.COLLECTIVES) } },
+                  { term: { _index: formatIndexNameForOpenSearch(OpenSearchIndexName.COLLECTIVES) } },
                   { terms: { _id: accountIds } },
                 ],
               },

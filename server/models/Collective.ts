@@ -85,7 +85,7 @@ import {
 } from '../lib/collectivelib';
 import { invalidateContributorsCache } from '../lib/contributors';
 import { getFxRate } from '../lib/currency';
-import { elasticSearchFullAccountReIndex } from '../lib/elastic-search/sync-postgres';
+import { elasticSearchFullAccountReIndex } from '../lib/open-search/sync-postgres';
 import emailLib from '../lib/email';
 import { formatAddress } from '../lib/format-address';
 import { getGithubHandleFromUrl, getGithubUrlFromHandle } from '../lib/github';
