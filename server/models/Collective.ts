@@ -204,6 +204,10 @@ type Data = Partial<{
     taxId: string;
     notes: string;
   }>;
+  whitelabel?: {
+    domain: string;
+    logo?: string;
+  };
 }> &
   Record<string, unknown>;
 

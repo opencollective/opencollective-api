@@ -77,6 +77,7 @@ import { GraphQLSocialLink } from '../object/SocialLink';
 import { GraphQLTagStats } from '../object/TagStats';
 import { GraphQLTransactionReports } from '../object/TransactionReports';
 import { GraphQLTransferWise } from '../object/TransferWise';
+import { GraphQLWhitelabelProvider } from '../object/WhitelabelProvider';
 import {
   ExpensesCollectionQueryArgs,
   ExpensesCollectionQueryResolver,
@@ -1047,6 +1048,13 @@ const accountFieldsDefinition = () => ({
         dateTo: args.dateTo,
         nodes,
       };
+    },
+  },
+  whitelabel: {
+    type: GraphQLWhitelabelProvider,
+    description: 'The whitelabel domain of this account',
+    resolve(account) {
+      return get(account, 'data.whitelabel');
     },
   },
 });

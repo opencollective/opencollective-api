@@ -19,7 +19,9 @@ export const PROVIDER_TYPES = {
 
 const debugCache = debug('cache');
 
-const oneDayInSeconds = 60 * 60 * 24;
+export const ONE_DAY = 60 * 60 * 24;
+export const ONE_HOUR = 60 * 60;
+export const FIVE_MINUTES = 60 * 5;
 
 export const getProvider = async (providerType, instanceType = RedisInstanceType.DEFAULT) => {
   switch (providerType) {
@@ -118,7 +120,7 @@ export async function fetchCollectiveId(collectiveSlug) {
     where: { slug: collectiveSlug.toLowerCase() },
   });
   if (collective) {
-    cache.set(cacheKey, collective.id, oneDayInSeconds);
+    cache.set(cacheKey, collective.id, ONE_DAY);
     return collective.id;
   }
 }

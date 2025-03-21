@@ -36,6 +36,7 @@ import TransactionsImportQuery from './TransactionsImport';
 import UpdateQuery from './UpdateQuery';
 import VirtualCardQuery from './VirtualCardQuery';
 import VirtualCardRequestQuery from './VirtualCardRequestQuery';
+import WhitelabelProvidersQuery from './WhitelabelProviders';
 
 const query = {
   account: AccountQuery,
@@ -94,6 +95,7 @@ const query = {
       }
     },
   },
+  whitelabelProviders: WhitelabelProvidersQuery,
 };
 
 export default query;
