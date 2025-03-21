@@ -171,7 +171,12 @@
     "secret": "0x0000000000000000000000000000000000000000"
   },
   "taxForms": {
-    "encryptionKey": "Pz/LnMPzhxQqsbXZ0SCb3sP0uhw8dCxspoAXLXO4CV8="
+    "encryptionKey": "Pz/LnMPzhxQqsbXZ0SCb3sP0uhw8dCxspoAXLXO4CV8=",
+    "aws": {
+      "s3": {
+        "bucket": "opencollective-tax-forms-test"
+      }
+    }
   },
   "githubFlow": {
     "minNbStars": 100

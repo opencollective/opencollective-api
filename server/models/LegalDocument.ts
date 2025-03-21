@@ -21,6 +21,7 @@ import { notify } from '../lib/notifications/email';
 import SQLQueries from '../lib/queries';
 import sequelize from '../lib/sequelize';
 import { getTaxFormsS3Bucket } from '../lib/tax-forms';
+import { isValidURL } from '../lib/url-utils';
 
 import Activity from './Activity';
 import Collective from './Collective';
@@ -403,8 +404,14 @@ LegalDocument.init(
     documentLink: {
       type: DataTypes.STRING,
       validate: {
-        isUrl: {
-          msg: 'The document link is invalid',
+        isValidURL(url: string): void {
+          if (!url) {
+            return;
+          }
+
+          if (!isValidURL(url)) {
+            throw new Error('The document link is invalid');
+          }
         },
       },
       set(url: string) {
