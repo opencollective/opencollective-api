@@ -1,14 +1,13 @@
-import config from 'config';
 import { pick } from 'lodash';
 import type { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
 import { DataTypes, Model, Transaction } from 'sequelize';
-import isURL from 'validator/lib/isURL';
 
 import { SUPPORTED_CURRENCIES, SupportedCurrency } from '../constants/currencies';
 import { diffDBEntries } from '../lib/data';
 import { isValidUploadedImage } from '../lib/images';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize from '../lib/sequelize';
+import { isValidURL } from '../lib/url-utils';
 
 import { FX_RATE_SOURCE } from './CurrencyExchangeRate';
 import Expense from './Expense';
@@ -151,16 +150,7 @@ ExpenseItem.init(
             return;
           }
 
-          if (
-            !isURL(url, {
-              // eslint-disable-next-line camelcase
-              require_host:
-                config.env !== 'development' && config.env !== 'test' && config.env !== 'e2e' && !process.env.E2E_TEST,
-              // eslint-disable-next-line camelcase
-              require_tld:
-                config.env !== 'development' && config.env !== 'test' && config.env !== 'e2e' && !process.env.E2E_TEST,
-            })
-          ) {
+          if (!isValidURL(url)) {
             throw new Error('File URL is not a valid URL');
           }
         },

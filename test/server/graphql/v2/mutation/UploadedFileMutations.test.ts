@@ -63,7 +63,7 @@ describe('server/graphql/v2/mutation/UploadedFileMutations', () => {
     // Mock S3
     sandbox.stub(awsS3Lib, 'checkS3Configured').returns(true);
     uploadToS3Stub = sandbox.stub(awsS3Lib, 'uploadToS3').callsFake(() => ({
-      url: `https://opencollective-test.s3.us-west-1.amazonaws.com/expense-item/${uuid()}.pdf`,
+      url: `${config.aws.s3.endpoint}/expense-item/${uuid()}.pdf`,
       s3Data: { ChecksumSHA256: uuid() },
     }));
   });
@@ -339,7 +339,7 @@ describe('server/graphql/v2/mutation/UploadedFileMutations', () => {
           // Remove existing `uploadToS3` stub
           uploadToS3Stub.restore();
           uploadToS3Stub = sandbox.stub(awsS3Lib, 'uploadToS3').callsFake(() => ({
-            url: `https://opencollective-test.s3.us-west-1.amazonaws.com/expense-item/${uuid()}.pdf`,
+            url: `${config.aws.s3.endpoint}/expense-item/${uuid()}.pdf`,
             s3Data: { ChecksumSHA256: '1234567890' },
           }));
 

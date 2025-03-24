@@ -4,14 +4,18 @@ import path from 'path';
 import {
   CopyObjectCommand,
   CopyObjectRequest,
+  CreateBucketCommand,
+  DeleteBucketCommand,
   DeleteObjectCommand,
   DeleteObjectOutput,
   GetObjectCommand,
+  HeadBucketCommand,
   HeadObjectCommand,
   HeadObjectOutput,
   ListObjectsV2Command,
   ListObjectsV2Output,
   ObjectCannedACL,
+  PutBucketPolicyCommand,
   PutObjectCommand,
   PutObjectCommandOutput,
   S3Client,
@@ -295,6 +299,161 @@ export const permanentlyDeleteFileFromS3 = async (bucket: string, key: string): 
   }
 };
 
+export const checkBucketExists = async (bucket: string): Promise<boolean> => {
+  if (!s3) {
+    throw new Error('S3 is not set');
+  }
+  try {
+    await s3.send(new HeadBucketCommand({ Bucket: bucket }));
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+export const createBucket = async (bucket: string): Promise<void> => {
+  if (!s3) {
+    throw new Error('S3 is not set');
+  }
+  try {
+    await s3.send(new CreateBucketCommand({ Bucket: bucket }));
+  } catch (e) {
+    logger.error(`Error creating bucket ${bucket}:`, e);
+    throw e;
+  }
+};
+
+/**
+ * This function initializes the S3 buckets for non-production environments.
+ */
+export const dangerouslyInitNonProductionBuckets = async ({
+  dropExisting = false,
+}: { dropExisting?: boolean } = {}) => {
+  const buckets = [
+    { name: config.aws.s3.bucket, policy: s3BucketNonProductionPolicy },
+    { name: config.taxForms.aws.s3.bucket, policy: s3TaxFormsBucketNonProductionPolicy },
+  ];
+
+  for (const bucket of buckets) {
+    const bucketExists = await checkBucketExists(bucket.name);
+    if (dropExisting && bucketExists) {
+      logger.info(`Bucket ${bucket.name} already exists, dropping...`);
+      await s3.send(new DeleteBucketCommand({ Bucket: bucket.name }));
+    } else if (bucketExists) {
+      logger.info(`Bucket ${bucket.name} already exists`);
+      continue;
+    }
+
+    logger.info(`Creating bucket ${bucket.name}...`);
+    await createBucket(bucket.name);
+
+    await s3.send(
+      new PutBucketPolicyCommand({
+        Bucket: bucket.name,
+        Policy: bucket.policy,
+      }),
+    );
+  }
+};
+
 export const checkS3Configured = (): boolean => Boolean(s3);
+
+const s3TaxFormsBucketNonProductionPolicy = `
+{
+    "ID": "Policy1445855025726",
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Deny",
+            "Principal": {
+                "AWS": [
+                    "*"
+                ]
+            },
+            "Action": [
+              "s3:GetObject",
+              "s3:ListBucket",
+              "s3:PutObject"
+            ],
+            "Resource": [
+                "arn:aws:s3:::*"
+            ],
+            "Condition": {
+                "StringNotEquals": {
+                    "aws:username": [
+                        "user"
+                    ]
+                }
+            }
+        }
+    ]
+}
+`;
+
+const s3BucketNonProductionPolicy = `
+{
+    "ID": "Policy1445855025726",
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Deny",
+            "Principal": {
+                "AWS": [
+                    "*"
+                ]
+            },
+            "Action": [
+                "s3:GetObject"
+            ],
+            "Resource": [
+                "arn:aws:s3:::*/expense-attached-file/*",
+                "arn:aws:s3:::*/expense-invoice/*",
+                "arn:aws:s3:::*/expense-item/*"
+            ],
+            "Condition": {
+                "StringNotEquals": {
+                    "aws:username": [
+                        "user"
+                    ]
+                }
+            }
+        },
+        {
+            "Effect": "Allow",
+            "Principal": {
+                "AWS": [
+                    "*"
+                ]
+            },
+            "Action": [
+                "s3:GetBucketLocation",
+                "s3:ListBucket",
+                "s3:ListBucketMultipartUploads"
+            ],
+            "Resource": [
+                "arn:aws:s3:::*"
+            ]
+        },
+        {
+            "Effect": "Allow",
+            "Principal": {
+                "AWS": [
+                    "*"
+                ]
+            },
+            "Action": [
+                "s3:AbortMultipartUpload",
+                "s3:DeleteObject",
+                "s3:GetObject",
+                "s3:ListMultipartUploadParts",
+                "s3:PutObject"
+            ],
+            "Resource": [
+                "arn:aws:s3:::*/*"
+            ]
+        }
+    ]
+}
+`;
 
 export default s3;
