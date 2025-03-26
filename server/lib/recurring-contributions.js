@@ -219,7 +219,7 @@ export async function handleRetryStatus(order, transaction) {
   const errorMessage = get(order, 'data.error.message');
   switch (order.Subscription.chargeRetryCount) {
     case 0:
-      return sendThankYouEmail(order, transaction);
+      return recordOrderProcessed(order, transaction);
     case 1:
     case 2:
       // Don't send an error in the 2 first attempts because the user is not responsible for these errors
@@ -393,8 +393,8 @@ async function createPaymentFailedActivity(order, lastAttempt) {
   });
 }
 
-/** Send `thankyou` email */
-export async function sendThankYouEmail(order, transaction, isFirstPayment = false) {
+/** Send `Thank you` (order.processed) email */
+export async function recordOrderProcessed(order, transaction, { isFirstPayment = false, skipEmail = false } = {}) {
   const attachments = [];
   const { collective, paymentMethod } = order;
 
@@ -444,13 +444,16 @@ export async function sendThankYouEmail(order, transaction, isFirstPayment = fal
     }
   }
 
-  const activity = { type: activities.ORDER_THANKYOU, data };
-  return notify.collective(activity, {
-    collectiveId: data.fromCollective.id,
-    role: [roles.ACCOUNTANT, roles.ADMIN],
-    from: emailLib.generateFromEmailHeader(order.collective.name),
-    attachments,
-  });
+  const activity = await order.createProcessedActivity({ user, data });
+
+  if (!skipEmail) {
+    await notify.collective(activity, {
+      collectiveId: data.fromCollective.id,
+      role: [roles.ACCOUNTANT, roles.ADMIN],
+      from: emailLib.generateFromEmailHeader(order.collective.name),
+      attachments,
+    });
+  }
 }
 
 async function createPaymentCreditCardConfirmationActivity(order) {

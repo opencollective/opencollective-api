@@ -7,7 +7,7 @@ import { Activity, Notification } from '../../models';
 import { reportErrorToSentry } from '../sentry';
 import slackLib from '../slack';
 import { parseToBoolean } from '../utils';
-import { enrichActivity, sanitizeActivity } from '../webhooks';
+import { enrichActivityForWebhookPayload, sanitizeActivityForWebhookPayload } from '../webhooks';
 
 import { notifyByEmail } from './email';
 
@@ -28,8 +28,8 @@ const publishToWebhook = async (notification: Notification, activity: Activity):
     await slackLib.postActivityOnPublicChannel(activity, notification.webhookUrl);
     return true;
   } else {
-    const sanitizedActivity = sanitizeActivity(activity);
-    const enrichedActivity = enrichActivity(sanitizedActivity);
+    const sanitizedActivity = sanitizeActivityForWebhookPayload(activity);
+    const enrichedActivity = enrichActivityForWebhookPayload(sanitizedActivity);
     const response = await axios.post(notification.webhookUrl, enrichedActivity, { maxRedirects: 0, timeout: 30000 });
     return response.status >= 200 && response.status < 300;
   }

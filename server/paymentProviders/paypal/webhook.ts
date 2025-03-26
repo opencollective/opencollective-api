@@ -12,7 +12,7 @@ import logger from '../../lib/logger';
 import { floatAmountToCents } from '../../lib/math';
 import { createRefundTransaction, pauseOrderInDb } from '../../lib/payments';
 import { validateWebhookEvent } from '../../lib/paypal';
-import { sendThankYouEmail } from '../../lib/recurring-contributions';
+import { recordOrderProcessed } from '../../lib/recurring-contributions';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
 import models, { Op } from '../../models';
 import { PayoutWebhookRequest, PaypalCapture } from '../../types/paypal';
@@ -145,9 +145,9 @@ async function handleSaleCompleted(req: Request): Promise<void> {
     });
   });
 
-  // 3. Send thankyou email
+  // 3. Send "Thank you" (order.processed) email & record activity
   const isFirstPayment = order.Subscription.chargeNumber === 1;
-  await sendThankYouEmail(order, transaction, isFirstPayment);
+  await recordOrderProcessed(order, transaction, { isFirstPayment });
 
   // 4. Register user as a member, since the transaction is not created in `processOrder`
   // for PayPal subscriptions.
@@ -214,8 +214,8 @@ async function handleCaptureCompleted(req: Request): Promise<void> {
   await Promise.all([
     // Register user as a member, since the transaction is not created in `processOrder`
     order.getOrCreateMembers(),
-    // Send thankyou email
-    sendThankYouEmail(order, transaction),
+    // Send "Thank you" (order.processed) email & record activity
+    recordOrderProcessed(order, transaction),
   ]);
 }
 
