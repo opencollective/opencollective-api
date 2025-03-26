@@ -169,7 +169,3 @@ export const openSearchFullAccountReIndex = async (collectiveId: number): Promis
     payload: { id: collectiveId },
   });
 };
-
-setTimeout(() => {
-  openSearchFullAccountReIndex(1);
-}, 5000);
