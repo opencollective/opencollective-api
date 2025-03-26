@@ -46,19 +46,19 @@ const setupPostgresTriggers = async () => {
         .map(
           adapter => `
       -- Create the trigger for INSERT operations
-      CREATE OR REPLACE TRIGGER  ${adapter.getModel().tableName}_insert_trigger
+      CREATE OR REPLACE TRIGGER  search_${adapter.getModel().tableName}_insert_trigger
       AFTER INSERT ON "${adapter.getModel().tableName}"
       FOR EACH ROW
       EXECUTE FUNCTION notify_opensearch_on_change();
   
       -- Create the trigger for UPDATE operations
-      CREATE OR REPLACE TRIGGER  ${adapter.getModel().tableName}_update_trigger
+      CREATE OR REPLACE TRIGGER  search_${adapter.getModel().tableName}_update_trigger
       AFTER UPDATE ON "${adapter.getModel().tableName}"
       FOR EACH ROW
       EXECUTE FUNCTION notify_opensearch_on_change();
   
       -- Create the trigger for DELETE operations
-      CREATE OR REPLACE TRIGGER  ${adapter.getModel().tableName}_delete_trigger
+      CREATE OR REPLACE TRIGGER  search_${adapter.getModel().tableName}_delete_trigger
       AFTER DELETE ON "${adapter.getModel().tableName}"
       FOR EACH ROW
       EXECUTE FUNCTION notify_opensearch_on_change();
@@ -78,10 +78,10 @@ export const removeOpenSearchPostgresTriggers = async () => {
     ${Object.values(OpenSearchModelsAdapters)
       .map(
         adapter => `
-    DROP TRIGGER IF EXISTS ${adapter.getModel().tableName}_insert_trigger ON "${adapter.getModel().tableName}";
-    DROP TRIGGER IF EXISTS ${adapter.getModel().tableName}_update_trigger ON "${adapter.getModel().tableName}";
-    DROP TRIGGER IF EXISTS ${adapter.getModel().tableName}_delete_trigger ON "${adapter.getModel().tableName}";
-    DROP TRIGGER IF EXISTS ${adapter.getModel().tableName}_truncate_trigger ON "${adapter.getModel().tableName}";
+    DROP TRIGGER IF EXISTS search_${adapter.getModel().tableName}_insert_trigger ON "${adapter.getModel().tableName}";
+    DROP TRIGGER IF EXISTS search_${adapter.getModel().tableName}_update_trigger ON "${adapter.getModel().tableName}";
+    DROP TRIGGER IF EXISTS search_${adapter.getModel().tableName}_delete_trigger ON "${adapter.getModel().tableName}";
+    DROP TRIGGER IF EXISTS search_${adapter.getModel().tableName}_truncate_trigger ON "${adapter.getModel().tableName}";
   `,
       )
       .join('\n')}
