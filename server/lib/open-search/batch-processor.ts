@@ -1,5 +1,6 @@
-import { Client } from '@elastic/elasticsearch';
-import { BulkOperationContainer, DeleteByQueryRequest } from '@elastic/elasticsearch/lib/api/types';
+import { Client } from '@opensearch-project/opensearch';
+import { DeleteByQuery_Request as DeleteByQueryRequest } from '@opensearch-project/opensearch/api';
+import { BulkByScrollResponseBase } from '@opensearch-project/opensearch/api/_types/_common';
 import config from 'config';
 import debugLib from 'debug';
 import { groupBy, keyBy } from 'lodash';
@@ -7,35 +8,35 @@ import { groupBy, keyBy } from 'lodash';
 import logger from '../logger';
 import { HandlerType, reportErrorToSentry, reportMessageToSentry } from '../sentry';
 
-import { ElasticSearchModelsAdapters, getAdapterFromTableName } from './adapters';
-import { getElasticSearchClient } from './client';
-import { formatIndexNameForElasticSearch } from './common';
-import { ElasticSearchIndexName } from './constants';
-import { ElasticSearchRequest, ElasticSearchRequestType, isFullAccountReIndexRequest } from './types';
+import { getAdapterFromTableName, OpenSearchModelsAdapters } from './adapters';
+import { getOpenSearchClient } from './client';
+import { formatIndexNameForOpenSearch } from './common';
+import { OpenSearchIndexName } from './constants';
+import { isFullAccountReIndexRequest, OpenSearchRequest, OpenSearchRequestType } from './types';
 
-const debug = debugLib('elasticsearch-batch-processor');
+const debug = debugLib('opensearch-batch-processor');
 
 /**
- * This class processes ElasticSearch requests in batches, to reduce the number of requests sent to
+ * This class processes requests in batches, to reduce the number of requests sent to
  * the server.
  */
-export class ElasticSearchBatchProcessor {
+export class OpenSearchBatchProcessor {
   public maxBatchSize: number = 1_000;
-  private static instance: ElasticSearchBatchProcessor;
+  private static instance: OpenSearchBatchProcessor;
   private client: Client;
-  private _queue: ElasticSearchRequest[] = [];
-  private _maxWaitTimeInSeconds: number = config.elasticSearch.maxSyncDelay;
+  private _queue: OpenSearchRequest[] = [];
+  private _maxWaitTimeInSeconds: number = config.opensearch.maxSyncDelay;
   private _timeoutHandle: NodeJS.Timeout | null = null;
   private _isStarted: boolean = false;
   private _isProcessing: boolean = false;
   private _processBatchPromise: Promise<void> | null = null;
 
-  static getInstance(): ElasticSearchBatchProcessor {
-    if (!ElasticSearchBatchProcessor.instance) {
-      ElasticSearchBatchProcessor.instance = new ElasticSearchBatchProcessor();
+  static getInstance(): OpenSearchBatchProcessor {
+    if (!OpenSearchBatchProcessor.instance) {
+      OpenSearchBatchProcessor.instance = new OpenSearchBatchProcessor();
     }
 
-    return ElasticSearchBatchProcessor.instance;
+    return OpenSearchBatchProcessor.instance;
   }
 
   start() {
@@ -51,12 +52,12 @@ export class ElasticSearchBatchProcessor {
   }
 
   async flushAndClose() {
-    debug('Flushing and closing Elastic Search Batch Processor');
+    debug('Flushing and closing OpenSearch Batch Processor');
     this._isStarted = false;
     return this.callProcessBatch();
   }
 
-  addToQueue(request: ElasticSearchRequest) {
+  addToQueue(request: OpenSearchRequest) {
     if (!this._isStarted) {
       return;
     }
@@ -73,7 +74,7 @@ export class ElasticSearchBatchProcessor {
 
   // ---- Private methods ----
   private constructor() {
-    this.client = getElasticSearchClient({ throwIfUnavailable: true });
+    this.client = getOpenSearchClient({ throwIfUnavailable: true });
   }
 
   private scheduleCallProcessBatch(wait = this._maxWaitTimeInSeconds) {
@@ -139,20 +140,19 @@ export class ElasticSearchBatchProcessor {
     try {
       // Prepare bulk indexing body
       const { operations, deleteQuery } = await this.convertRequestsToBulkOperations(processingQueue);
-
       if (deleteQuery) {
-        debug('Running delete query for', deleteQuery.query.bool.should[0].bool.must[1].terms._id);
+        debug('Running delete query for', deleteQuery.body.query.bool.should[0].bool.must[1].terms._id);
         const deleteQueryResult = await this.client.deleteByQuery(deleteQuery);
-        debug('Delete query took', deleteQueryResult.took, 'ms');
+        debug('Delete query took', (deleteQueryResult.body as BulkByScrollResponseBase).took, 'ms');
       }
 
       if (operations.length > 0) {
-        const bulkResponse = await this.client.bulk({ operations });
-        debug('Synchronized', bulkResponse.items.length, 'items in', bulkResponse.took, 'ms');
+        const bulkResponse = await this.client.bulk({ body: operations });
+        debug('Synchronized', bulkResponse.body.items.length, 'items in', bulkResponse.body.took, 'ms');
 
         // Handle any indexing errors
-        if (bulkResponse.errors) {
-          reportMessageToSentry('ElasticSearchBatchProcessor: Bulk indexing errors', {
+        if (bulkResponse.body.errors) {
+          reportMessageToSentry('OpenSearchBatchProcessor: Bulk indexing errors', {
             severity: 'warning',
             extra: { processingQueue, bulkResponse },
           });
@@ -161,7 +161,7 @@ export class ElasticSearchBatchProcessor {
     } catch (error) {
       debug('Error processing batch:', error);
       reportErrorToSentry(error, {
-        handler: HandlerType.ELASTICSEARCH_SYNC_JOB,
+        handler: HandlerType.OPENSEARCH_SYNC_JOB,
         extra: { processingQueue },
       });
     }
@@ -178,19 +178,20 @@ export class ElasticSearchBatchProcessor {
   }
 
   private async convertRequestsToBulkOperations(
-    requests: ElasticSearchRequest[],
-  ): Promise<{ operations: BulkOperationContainer[]; deleteQuery: DeleteByQueryRequest }> {
+    requests: OpenSearchRequest[],
+  ): Promise<{ operations: Record<string, any>[]; deleteQuery: DeleteByQueryRequest }> {
     const { accountsToReIndex, requestsGroupedByTableName } = this.preprocessRequests(requests);
-    const operations: BulkOperationContainer[] = [];
+    const operations: Record<string, any>[] = [];
+
     let deleteQuery: DeleteByQueryRequest | null = null;
     // Start with FULL_ACCOUNT_RE_INDEX requests
     if (accountsToReIndex.length > 0) {
       deleteQuery = this.getAccountsReIndexDeleteQuery(accountsToReIndex);
-      for (const adapter of Object.values(ElasticSearchModelsAdapters)) {
+      for (const adapter of Object.values(OpenSearchModelsAdapters)) {
         const entriesToIndex = await adapter.findEntriesToIndex({ relatedToCollectiveIds: accountsToReIndex });
         for (const entry of entriesToIndex) {
           operations.push(
-            { index: { _index: formatIndexNameForElasticSearch(adapter.index), _id: entry['id'].toString() } },
+            { index: { _index: formatIndexNameForOpenSearch(adapter.index), _id: entry['id'].toString() } },
             adapter.mapModelInstanceToDocument(entry),
           );
         }
@@ -201,13 +202,13 @@ export class ElasticSearchBatchProcessor {
     for (const [table, requests] of Object.entries(requestsGroupedByTableName)) {
       const adapter = getAdapterFromTableName(table);
       if (!adapter) {
-        logger.error(`No ElasticSearch adapter found for table ${table}`);
+        logger.error(`No OpenSearch adapter found for table ${table}`);
         continue;
       }
 
       // Preload all updated entries
       let groupedEntriesToIndex = {};
-      const updateRequests = requests.filter(request => request.type === ElasticSearchRequestType.UPDATE);
+      const updateRequests = requests.filter(request => request.type === OpenSearchRequestType.UPDATE);
       if (updateRequests.length) {
         const updateRequestsIds = updateRequests.map(request => request.payload.id);
         const entriesToIndex = await adapter.findEntriesToIndex({ ids: updateRequestsIds });
@@ -216,21 +217,21 @@ export class ElasticSearchBatchProcessor {
 
       // Iterate over requests and create bulk indexing operations
       for (const request of requests) {
-        if (request.type === ElasticSearchRequestType.UPDATE) {
+        if (request.type === OpenSearchRequestType.UPDATE) {
           const entry = groupedEntriesToIndex[request.payload.id];
           if (!entry) {
             operations.push({
-              delete: { _index: formatIndexNameForElasticSearch(adapter.index), _id: request.payload.id.toString() },
+              delete: { _index: formatIndexNameForOpenSearch(adapter.index), _id: request.payload.id.toString() },
             });
           } else {
             operations.push(
-              { index: { _index: formatIndexNameForElasticSearch(adapter.index), _id: request.payload.id.toString() } },
+              { index: { _index: formatIndexNameForOpenSearch(adapter.index), _id: request.payload.id.toString() } },
               adapter.mapModelInstanceToDocument(entry),
             );
           }
-        } else if (request.type === ElasticSearchRequestType.DELETE) {
+        } else if (request.type === OpenSearchRequestType.DELETE) {
           operations.push({
-            delete: { _index: formatIndexNameForElasticSearch(adapter.index), _id: request.payload.id.toString() },
+            delete: { _index: formatIndexNameForOpenSearch(adapter.index), _id: request.payload.id.toString() },
           });
         }
       }
@@ -244,28 +245,30 @@ export class ElasticSearchBatchProcessor {
       return null;
     }
 
-    const allIndexes = Object.values(ElasticSearchModelsAdapters).map(adapter => adapter.index);
+    const allIndexes = Object.values(OpenSearchModelsAdapters).map(adapter => adapter.index);
     return {
-      index: allIndexes.map(formatIndexNameForElasticSearch).join(','),
+      index: allIndexes.map(formatIndexNameForOpenSearch),
       wait_for_completion: true, // eslint-disable-line camelcase
-      query: {
-        bool: {
-          should: [
-            // Delete all collectives
-            {
-              bool: {
-                must: [
-                  { term: { _index: formatIndexNameForElasticSearch(ElasticSearchIndexName.COLLECTIVES) } },
-                  { terms: { _id: accountIds } },
-                ],
+      body: {
+        query: {
+          bool: {
+            should: [
+              // Delete all collectives
+              {
+                bool: {
+                  must: [
+                    { term: { _index: formatIndexNameForOpenSearch(OpenSearchIndexName.COLLECTIVES) } },
+                    { terms: { _id: accountIds } },
+                  ],
+                },
               },
-            },
-            // Delete all relationships
-            { bool: { must: [{ terms: { HostCollectiveId: accountIds } }] } },
-            { bool: { must: [{ terms: { ParentCollectiveId: accountIds } }] } },
-            { bool: { must: [{ terms: { FromCollectiveId: accountIds } }] } },
-            { bool: { must: [{ terms: { CollectiveId: accountIds } }] } },
-          ],
+              // Delete all relationships
+              { bool: { must: [{ terms: { HostCollectiveId: accountIds } }] } },
+              { bool: { must: [{ terms: { ParentCollectiveId: accountIds } }] } },
+              { bool: { must: [{ terms: { FromCollectiveId: accountIds } }] } },
+              { bool: { must: [{ terms: { CollectiveId: accountIds } }] } },
+            ],
+          },
         },
       },
     };
@@ -275,12 +278,12 @@ export class ElasticSearchBatchProcessor {
    * Deduplicates requests, returning only the latest request for each entity, unless it's a
    * FULL_ACCOUNT_RE_INDEX request - which always takes maximum priority - then groups them by table.
    */
-  private preprocessRequests(requests: ElasticSearchRequest[]): {
+  private preprocessRequests(requests: OpenSearchRequest[]): {
     accountsToReIndex: Array<number>;
-    requestsGroupedByTableName: Record<string, ElasticSearchRequest[]>;
+    requestsGroupedByTableName: Record<string, OpenSearchRequest[]>;
   } {
     const accountsToReIndex = new Set<number>();
-    const otherRequests: Record<number, ElasticSearchRequest> = {};
+    const otherRequests: Record<number, OpenSearchRequest> = {};
 
     for (const request of requests) {
       if (isFullAccountReIndexRequest(request)) {

@@ -3,16 +3,12 @@ import { Op } from 'sequelize';
 
 import models from '../../../models';
 import { stripHTMLOrEmpty } from '../../sanitize-html';
-import { ElasticSearchIndexName } from '../constants';
+import { OpenSearchIndexName } from '../constants';
 
-import {
-  ElasticSearchFieldWeight,
-  ElasticSearchModelAdapter,
-  FindEntriesToIndexOptions,
-} from './ElasticSearchModelAdapter';
+import { FindEntriesToIndexOptions, OpenSearchFieldWeight, OpenSearchModelAdapter } from './OpenSearchModelAdapter';
 
-export class ElasticSearchTiersAdapter implements ElasticSearchModelAdapter {
-  public readonly index = ElasticSearchIndexName.TIERS;
+export class OpenSearchTiersAdapter implements OpenSearchModelAdapter {
+  public readonly index = OpenSearchIndexName.TIERS;
   public readonly mappings = {
     properties: {
       id: { type: 'keyword' },
@@ -35,7 +31,7 @@ export class ElasticSearchTiersAdapter implements ElasticSearchModelAdapter {
     return models.Tier;
   }
 
-  public readonly weights: Partial<Record<keyof (typeof this.mappings)['properties'], ElasticSearchFieldWeight>> = {
+  public readonly weights: Partial<Record<keyof (typeof this.mappings)['properties'], OpenSearchFieldWeight>> = {
     description: 5,
     name: 5,
     longDescription: 5,

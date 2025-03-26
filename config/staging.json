@@ -14,7 +14,7 @@
       }
     }
   },
-  "elasticSearch": {
+  "opensearch": {
     "indexesPrefix": "staging"
   },
   "host": {

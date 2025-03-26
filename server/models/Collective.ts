@@ -85,7 +85,6 @@ import {
 } from '../lib/collectivelib';
 import { invalidateContributorsCache } from '../lib/contributors';
 import { getFxRate } from '../lib/currency';
-import { elasticSearchFullAccountReIndex } from '../lib/elastic-search/sync-postgres';
 import emailLib from '../lib/email';
 import { formatAddress } from '../lib/format-address';
 import { getGithubHandleFromUrl, getGithubUrlFromHandle } from '../lib/github';
@@ -99,6 +98,7 @@ import {
 import { isValidUploadedImage } from '../lib/images';
 import { mustUpdateLocation } from '../lib/location';
 import logger from '../lib/logger';
+import { openSearchFullAccountReIndex } from '../lib/open-search/sync-postgres';
 import { getPolicy, POLICIES_EDITABLE_BY_HOST_ONLY } from '../lib/policies';
 import queries from '../lib/queries';
 import { buildSanitizerOptions, optsSanitizeHtmlForSimplified, sanitizeHTML, stripHTML } from '../lib/sanitize-html';
@@ -2620,7 +2620,7 @@ class Collective extends Model<
     }
 
     // Update search
-    elasticSearchFullAccountReIndex(this.id);
+    openSearchFullAccountReIndex(this.id);
 
     return this;
   };

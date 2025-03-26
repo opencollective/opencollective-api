@@ -1,5 +1,5 @@
 /**
- * This file contains the logic to bind the ElasticSearch functionality to the GraphQL API.
+ * This file contains the logic to bind the OpenSearch functionality to the GraphQL API.
  */
 
 import {
@@ -31,7 +31,7 @@ import { idEncode } from '../../graphql/v2/identifiers';
 import type { SearchQueryAccountsResolverArgs } from '../../graphql/v2/object/SearchResponse';
 import { Collective, User } from '../../models';
 
-import { ElasticSearchIndexName, ElasticSearchIndexParams } from './constants';
+import { OpenSearchIndexName, OpenSearchIndexParams } from './constants';
 
 type GraphQLSearchParams = {
   requestId: string;
@@ -42,14 +42,9 @@ type GraphQLSearchParams = {
 };
 
 /**
- * Returns a unique identifier for the ElasticSearch query, which can be used to batch multiple queries together.
+ * Returns a unique identifier for the OpenSearch query, which can be used to batch multiple queries together.
  */
-export const getElasticSearchQueryId = (
-  user: User | null,
-  host: Collective,
-  account: Collective,
-  searchTerm: string,
-) => {
+export const getOpenSearchQueryId = (user: User | null, host: Collective, account: Collective, searchTerm: string) => {
   return `${user?.id || 'public'}-host_${host?.id || 'all'}-account_${account?.id || 'all'}-${searchTerm}`;
 };
 
@@ -58,7 +53,7 @@ type GraphQLSearchIndexStrategy = {
   loadMany: (req, ids) => Array<unknown | null>;
   // A function to encode the ID for use in the GraphQL API
   getGraphQLId: (result: Record<string, unknown>) => string;
-  // A function to get Elastic Search index-specific parameters from the GraphQL arguments. By default, it returns the raw arguments.
+  // A function to get index-specific parameters from the GraphQL arguments. By default, it returns the raw arguments.
   prepareArguments?: (args: Record<string, unknown>) => Record<string, unknown>;
   // Scopes to enforce to access private fields/entries
   oauthScopeForPrivateFields?: OAuthScopes;
@@ -66,8 +61,8 @@ type GraphQLSearchIndexStrategy = {
   args?: GraphQLFieldConfigArgumentMap;
 };
 
-const GraphQLSearchResultsStrategy: Record<ElasticSearchIndexName, GraphQLSearchIndexStrategy> = {
-  [ElasticSearchIndexName.COLLECTIVES]: {
+const GraphQLSearchResultsStrategy: Record<OpenSearchIndexName, GraphQLSearchIndexStrategy> = {
+  [OpenSearchIndexName.COLLECTIVES]: {
     getGraphQLId: (result: Record<string, unknown>) => idEncode(parseInt(result['id'] as string), 'account'),
     loadMany: (req, ids) => req.loaders.Collective.byId.loadMany(ids),
     oauthScopeForPrivateFields: OAuthScopes.account,
@@ -87,40 +82,40 @@ const GraphQLSearchResultsStrategy: Record<ElasticSearchIndexName, GraphQLSearch
     } satisfies FieldsToGraphQLFieldConfigArgumentMap<SearchQueryAccountsResolverArgs>,
     prepareArguments: (
       args: SearchQueryAccountsResolverArgs,
-    ): ElasticSearchIndexParams[ElasticSearchIndexName.COLLECTIVES] => {
+    ): OpenSearchIndexParams[OpenSearchIndexName.COLLECTIVES] => {
       // Convert from GraphQL enum to SQL value (INDIVIDUAL -> USER)
       return { ...args, type: AccountTypeToModelMapping[args.type] };
     },
   },
-  [ElasticSearchIndexName.COMMENTS]: {
+  [OpenSearchIndexName.COMMENTS]: {
     getGraphQLId: (result: Record<string, unknown>) => idEncode(parseInt(result['id'] as string), 'comment'),
     loadMany: (req, ids) => req.loaders.Comment.byId.loadMany(ids),
   },
-  [ElasticSearchIndexName.EXPENSES]: {
+  [OpenSearchIndexName.EXPENSES]: {
     getGraphQLId: (result: Record<string, unknown>) => idEncode(parseInt(result['id'] as string), 'expense'),
     loadMany: (req, ids) => req.loaders.Expense.byId.loadMany(ids),
     oauthScopeForPrivateFields: OAuthScopes.expenses,
   },
-  [ElasticSearchIndexName.HOST_APPLICATIONS]: {
+  [OpenSearchIndexName.HOST_APPLICATIONS]: {
     getGraphQLId: (result: Record<string, unknown>) => idEncode(parseInt(result['id'] as string), 'host-application'),
     loadMany: (req, ids) => req.loaders.HostApplication.byId.loadMany(ids),
     oauthScopeForPrivateFields: OAuthScopes.applications,
   },
-  [ElasticSearchIndexName.ORDERS]: {
+  [OpenSearchIndexName.ORDERS]: {
     getGraphQLId: (result: Record<string, unknown>) => idEncode(parseInt(result['id'] as string), 'order'),
     loadMany: (req, ids) => req.loaders.Order.byId.loadMany(ids),
     oauthScopeForPrivateFields: OAuthScopes.orders,
   },
-  [ElasticSearchIndexName.TIERS]: {
+  [OpenSearchIndexName.TIERS]: {
     getGraphQLId: (result: Record<string, unknown>) => idEncode(parseInt(result['id'] as string), 'tier'),
     loadMany: (req, ids) => req.loaders.Tier.byId.loadMany(ids),
   },
-  [ElasticSearchIndexName.TRANSACTIONS]: {
+  [OpenSearchIndexName.TRANSACTIONS]: {
     getGraphQLId: (result: Record<string, unknown>) => result['uuid'] as string,
     loadMany: (req, ids) => req.loaders.Transaction.byId.loadMany(ids),
     oauthScopeForPrivateFields: OAuthScopes.transactions,
   },
-  [ElasticSearchIndexName.UPDATES]: {
+  [OpenSearchIndexName.UPDATES]: {
     getGraphQLId: (result: Record<string, unknown>) => idEncode(parseInt(result['id'] as string), 'update'),
     loadMany: (req, ids) => req.loaders.Update.byId.loadMany(ids),
     oauthScopeForPrivateFields: OAuthScopes.updates,
@@ -137,7 +132,7 @@ const getForbidPrivate = (req, strategy: GraphQLSearchIndexStrategy) => {
   }
 };
 
-const buildSearchResultsType = (index: ElasticSearchIndexName, name: string, collectionType: GraphQLObjectType) => {
+const buildSearchResultsType = (index: OpenSearchIndexName, name: string, collectionType: GraphQLObjectType) => {
   const strategy = GraphQLSearchResultsStrategy[index];
   return {
     description: `Search results for ${name}`,
@@ -185,7 +180,7 @@ const buildSearchResultsType = (index: ElasticSearchIndexName, name: string, col
           limit: baseSearchParams.limit,
           nodes: async () => {
             const entries = await strategy.loadMany(req, result.hits.map(getSQLIdFromHit));
-            return entries.filter(Boolean); // Entries in ElasticSearch may have been deleted in the DB
+            return entries.filter(Boolean); // Entries in OpenSearch may have been deleted in the DB
           },
         },
       };
@@ -195,21 +190,21 @@ const buildSearchResultsType = (index: ElasticSearchIndexName, name: string, col
 
 export const getSearchResultFields = () => {
   return {
-    accounts: buildSearchResultsType(ElasticSearchIndexName.COLLECTIVES, 'Accounts', GraphQLAccountCollection),
-    comments: buildSearchResultsType(ElasticSearchIndexName.COMMENTS, 'Comments', CommentCollection),
-    expenses: buildSearchResultsType(ElasticSearchIndexName.EXPENSES, 'Expenses', GraphQLExpenseCollection),
+    accounts: buildSearchResultsType(OpenSearchIndexName.COLLECTIVES, 'Accounts', GraphQLAccountCollection),
+    comments: buildSearchResultsType(OpenSearchIndexName.COMMENTS, 'Comments', CommentCollection),
+    expenses: buildSearchResultsType(OpenSearchIndexName.EXPENSES, 'Expenses', GraphQLExpenseCollection),
     hostApplications: buildSearchResultsType(
-      ElasticSearchIndexName.HOST_APPLICATIONS,
+      OpenSearchIndexName.HOST_APPLICATIONS,
       'HostApplications',
       GraphQLHostApplicationCollection,
     ),
-    orders: buildSearchResultsType(ElasticSearchIndexName.ORDERS, 'Orders', GraphQLOrderCollection),
-    tiers: buildSearchResultsType(ElasticSearchIndexName.TIERS, 'Tiers', GraphQLTierCollection),
+    orders: buildSearchResultsType(OpenSearchIndexName.ORDERS, 'Orders', GraphQLOrderCollection),
+    tiers: buildSearchResultsType(OpenSearchIndexName.TIERS, 'Tiers', GraphQLTierCollection),
     transactions: buildSearchResultsType(
-      ElasticSearchIndexName.TRANSACTIONS,
+      OpenSearchIndexName.TRANSACTIONS,
       'Transactions',
       GraphQLTransactionCollection,
     ),
-    updates: buildSearchResultsType(ElasticSearchIndexName.UPDATES, 'Updates', GraphQLUpdateCollection),
+    updates: buildSearchResultsType(OpenSearchIndexName.UPDATES, 'Updates', GraphQLUpdateCollection),
   };
 };

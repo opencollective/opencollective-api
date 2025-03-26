@@ -1,5 +1,5 @@
 /**
- * Functions to sync data between the database and elastic search
+ * Functions to sync data between the database and open search
  */
 
 import config from 'config';
@@ -7,27 +7,27 @@ import config from 'config';
 import { Op } from '../../models';
 import logger from '../logger';
 
-import { ElasticSearchModelsAdapters } from './adapters';
-import { getElasticSearchClient } from './client';
-import { formatIndexNameForElasticSearch } from './common';
-import { ElasticSearchIndexName } from './constants';
+import { OpenSearchModelsAdapters } from './adapters';
+import { getOpenSearchClient } from './client';
+import { formatIndexNameForOpenSearch } from './common';
+import { OpenSearchIndexName } from './constants';
 
-export async function createElasticSearchIndex(indexName: ElasticSearchIndexName) {
-  const client = getElasticSearchClient({ throwIfUnavailable: true });
-  const adapter = ElasticSearchModelsAdapters[indexName];
+export async function createOpenSearchIndex(indexName: OpenSearchIndexName) {
+  const client = getOpenSearchClient({ throwIfUnavailable: true });
+  const adapter = OpenSearchModelsAdapters[indexName];
   if (!adapter) {
-    throw new Error(`No ElasticSearch adapter found for index ${indexName}`);
+    throw new Error(`No OpenSearch adapter found for index ${indexName}`);
   }
 
   return client.indices.create({
-    index: formatIndexNameForElasticSearch(indexName),
+    index: formatIndexNameForOpenSearch(indexName),
     body: { mappings: adapter['mappings'], settings: adapter['settings'] },
   });
 }
 
-async function removeDeletedEntries(indexName: ElasticSearchIndexName, fromDate: Date, { log = false } = {}) {
-  const client = getElasticSearchClient({ throwIfUnavailable: true });
-  const adapter = ElasticSearchModelsAdapters[indexName];
+async function removeDeletedEntries(indexName: OpenSearchIndexName, fromDate: Date, { log = false } = {}) {
+  const client = getOpenSearchClient({ throwIfUnavailable: true });
+  const adapter = OpenSearchModelsAdapters[indexName];
   const pageSize = 20000; // We're only fetching the id, so we can fetch more entries at once
   let offset = 0;
   let deletedEntries = [];
@@ -48,21 +48,21 @@ async function removeDeletedEntries(indexName: ElasticSearchIndexName, fromDate:
     }
 
     await client.bulk({
-      index: formatIndexNameForElasticSearch(indexName),
+      index: formatIndexNameForOpenSearch(indexName),
       body: deletedEntries.flatMap(entry => [{ delete: { _id: entry.id } }]),
     });
     offset += pageSize;
   } while (deletedEntries.length === pageSize);
 }
 
-export async function syncElasticSearchIndex(
-  indexName: ElasticSearchIndexName,
+export async function syncOpenSearchIndex(
+  indexName: OpenSearchIndexName,
   options: { fromDate?: Date; log?: boolean } = {},
 ) {
   const { fromDate } = options;
 
   if (options.log) {
-    const realIndexName = formatIndexNameForElasticSearch(indexName);
+    const realIndexName = formatIndexNameForOpenSearch(indexName);
     logger.info(
       `Syncing index ${indexName}${realIndexName !== indexName ? ` (${realIndexName})` : ''}${fromDate ? ` from ${fromDate}` : ''}...`,
     );
@@ -74,8 +74,8 @@ export async function syncElasticSearchIndex(
   }
 
   // Sync new/edited entries
-  const client = getElasticSearchClient({ throwIfUnavailable: true });
-  const adapter = ElasticSearchModelsAdapters[indexName];
+  const client = getOpenSearchClient({ throwIfUnavailable: true });
+  const adapter = OpenSearchModelsAdapters[indexName];
   const limit = 5000;
   let modelEntries = [];
   let maxId = undefined;
@@ -88,9 +88,9 @@ export async function syncElasticSearchIndex(
       maxId = modelEntries[0].id;
     }
 
-    // Send data to ElasticSearch
+    // Send data to OpenSearch
     await client.bulk({
-      index: formatIndexNameForElasticSearch(indexName),
+      index: formatIndexNameForOpenSearch(indexName),
       body: modelEntries.flatMap(entry => [{ index: { _id: entry.id } }, adapter.mapModelInstanceToDocument(entry)]),
     });
 
@@ -101,19 +101,19 @@ export async function syncElasticSearchIndex(
   } while (modelEntries.length === limit);
 }
 
-export const getAvailableElasticSearchIndexes = async (): Promise<string[]> => {
-  const client = getElasticSearchClient({ throwIfUnavailable: true });
+export const getAvailableOpenSearchIndexes = async (): Promise<string[]> => {
+  const client = getOpenSearchClient({ throwIfUnavailable: true });
   const indices = await client.cat.indices({ format: 'json' });
-  return indices.map(index => index.index);
+  return indices.body.map(index => index.index);
 };
 
 /**
- * Deletes a single index from Elastic search.
+ * Deletes a single index from OpenSearch.
  */
-export const deleteElasticSearchIndex = async (indexName: ElasticSearchIndexName, { throwIfMissing = true } = {}) => {
-  const client = getElasticSearchClient({ throwIfUnavailable: true });
+export const removeOpenSearchIndex = async (indexName: OpenSearchIndexName, { throwIfMissing = true } = {}) => {
+  const client = getOpenSearchClient({ throwIfUnavailable: true });
   try {
-    await client.indices.delete({ index: formatIndexNameForElasticSearch(indexName) });
+    await client.indices.delete({ index: formatIndexNameForOpenSearch(indexName) });
   } catch (error) {
     if (error.meta.statusCode === 404 && !throwIfMissing) {
       return;
@@ -123,7 +123,7 @@ export const deleteElasticSearchIndex = async (indexName: ElasticSearchIndexName
   }
 };
 
-export const waitForAllIndexesRefresh = async (prefix = config.elasticSearch.indexesPrefix) => {
-  const client = getElasticSearchClient({ throwIfUnavailable: true });
+export const waitForAllIndexesRefresh = async (prefix = config.opensearch.indexesPrefix) => {
+  const client = getOpenSearchClient({ throwIfUnavailable: true });
   await client.indices.refresh({ index: !prefix ? '_all' : `${prefix}_*` });
 };

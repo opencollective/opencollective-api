@@ -2,16 +2,12 @@ import { omit } from 'lodash';
 import { Op } from 'sequelize';
 
 import models from '../../../models';
-import { ElasticSearchIndexName } from '../constants';
+import { OpenSearchIndexName } from '../constants';
 
-import {
-  ElasticSearchFieldWeight,
-  ElasticSearchModelAdapter,
-  FindEntriesToIndexOptions,
-} from './ElasticSearchModelAdapter';
+import { FindEntriesToIndexOptions, OpenSearchFieldWeight, OpenSearchModelAdapter } from './OpenSearchModelAdapter';
 
-export class ElasticSearchTransactionsAdapter implements ElasticSearchModelAdapter {
-  public readonly index = ElasticSearchIndexName.TRANSACTIONS;
+export class OpenSearchTransactionsAdapter implements OpenSearchModelAdapter {
+  public readonly index = OpenSearchIndexName.TRANSACTIONS;
   public readonly mappings = {
     properties: {
       id: { type: 'keyword' },
@@ -35,7 +31,7 @@ export class ElasticSearchTransactionsAdapter implements ElasticSearchModelAdapt
     return models.Transaction;
   }
 
-  public readonly weights: Partial<Record<keyof (typeof this.mappings)['properties'], ElasticSearchFieldWeight>> = {
+  public readonly weights: Partial<Record<keyof (typeof this.mappings)['properties'], OpenSearchFieldWeight>> = {
     TransactionGroup: 10,
     uuid: 10,
     merchantId: 10,

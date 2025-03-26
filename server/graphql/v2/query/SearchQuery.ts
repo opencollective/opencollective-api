@@ -2,8 +2,8 @@ import config from 'config';
 import express from 'express';
 import { GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
 
-import { isElasticSearchConfigured } from '../../../lib/elastic-search/client';
-import { getElasticSearchQueryId } from '../../../lib/elastic-search/graphql-search';
+import { isOpenSearchConfigured } from '../../../lib/open-search/client';
+import { getOpenSearchQueryId } from '../../../lib/open-search/graphql-search';
 import RateLimit from '../../../lib/rate-limit';
 import { Forbidden, RateLimitExceeded } from '../../errors';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
@@ -52,9 +52,9 @@ const SearchQuery = {
       (!remoteUser || !remoteUser.collective?.settings?.earlyAccess?.['SEARCH_COMMAND'])
     ) {
       throw new Forbidden();
-    } else if (!isElasticSearchConfigured()) {
+    } else if (!isOpenSearchConfigured()) {
       throw new Error(
-        config.env === 'development' ? 'Elastic search is not running' : 'The search is temporarily unavailable',
+        config.env === 'development' ? 'OpenSearch is not running' : 'The search is temporarily unavailable',
       );
     }
 
@@ -70,7 +70,7 @@ const SearchQuery = {
     const limit = args.defaultLimit;
 
     // Return the base arguments that will be digested by `GraphQLSearchResponse`
-    const requestId = getElasticSearchQueryId(remoteUser, host, account, searchTerm);
+    const requestId = getOpenSearchQueryId(remoteUser, host, account, searchTerm);
     return { results: { requestId, limit, searchTerm, account, host } };
   },
 };
