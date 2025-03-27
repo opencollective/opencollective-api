@@ -1051,6 +1051,22 @@ interface Account {
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
+  goal: Goal
+  activeContributors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+    forGoalType: GoalType
+    dateFrom: DateTime
+    dateTo: DateTime
+    includeActiveRecurringContributions: Boolean
+  ): AccountCollection
 }
 
 """
@@ -3612,6 +3628,22 @@ type Host implements Account & AccountWithContributions {
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
+  goal: Goal
+  activeContributors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+    forGoalType: GoalType
+    dateFrom: DateTime
+    dateTo: DateTime
+    includeActiveRecurringContributions: Boolean
+  ): AccountCollection
   webhooks(
     """
     The number of results to fetch (default 10, max 1000)
@@ -6586,6 +6618,64 @@ type TransactionsAmountGroup {
   expenseType: ExpenseType
 }
 
+type Goal {
+  """
+  The type of the goal (per month, per year or all time)
+  """
+  type: GoalType
+
+  """
+  The amount of the goal
+  """
+  amount: Amount
+
+  """
+  The progress of the goal in percentage
+  """
+  progress: Int
+  contributors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): AccountCollection
+}
+
+"""
+All supported goal types
+"""
+enum GoalType {
+  """
+  Total contributions
+  """
+  ALL_TIME
+
+  """
+  Active yearly contributions (divided by 12), active monthly contributions and one-time contributions in the past 30 days
+  """
+  MONTHLY_BUDGET
+
+  """
+  Active yearly contributions , active monthly contributions (times 12) and one-time contributions in the past 365 days
+  """
+  YEARLY_BUDGET
+
+  """
+  Contributions in the current calendar month
+  """
+  CALENDAR_MONTH
+
+  """
+  Contributions in the current calendar year
+  """
+  CALENDAR_YEAR
+}
+
 """
 A collection of webhooks
 """
@@ -8966,6 +9056,22 @@ type Bot implements Account {
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
+  goal: Goal
+  activeContributors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+    forGoalType: GoalType
+    dateFrom: DateTime
+    dateTo: DateTime
+    includeActiveRecurringContributions: Boolean
+  ): AccountCollection
   webhooks(
     """
     The number of results to fetch (default 10, max 1000)
@@ -9874,6 +9980,22 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
+  goal: Goal
+  activeContributors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+    forGoalType: GoalType
+    dateFrom: DateTime
+    dateTo: DateTime
+    includeActiveRecurringContributions: Boolean
+  ): AccountCollection
   webhooks(
     """
     The number of results to fetch (default 10, max 1000)
@@ -11331,6 +11453,22 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
+  goal: Goal
+  activeContributors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+    forGoalType: GoalType
+    dateFrom: DateTime
+    dateTo: DateTime
+    includeActiveRecurringContributions: Boolean
+  ): AccountCollection
   webhooks(
     """
     The number of results to fetch (default 10, max 1000)
@@ -12506,6 +12644,22 @@ type Individual implements Account {
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
+  goal: Goal
+  activeContributors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+    forGoalType: GoalType
+    dateFrom: DateTime
+    dateTo: DateTime
+    includeActiveRecurringContributions: Boolean
+  ): AccountCollection
   webhooks(
     """
     The number of results to fetch (default 10, max 1000)
@@ -13661,6 +13815,22 @@ type Organization implements Account & AccountWithContributions {
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
+  goal: Goal
+  activeContributors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+    forGoalType: GoalType
+    dateFrom: DateTime
+    dateTo: DateTime
+    includeActiveRecurringContributions: Boolean
+  ): AccountCollection
   webhooks(
     """
     The number of results to fetch (default 10, max 1000)
@@ -14684,6 +14854,22 @@ type Vendor implements Account & AccountWithContributions {
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
+  goal: Goal
+  activeContributors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+    forGoalType: GoalType
+    dateFrom: DateTime
+    dateTo: DateTime
+    includeActiveRecurringContributions: Boolean
+  ): AccountCollection
   webhooks(
     """
     The number of results to fetch (default 10, max 1000)
@@ -18376,6 +18562,22 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
+  goal: Goal
+  activeContributors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+    forGoalType: GoalType
+    dateFrom: DateTime
+    dateTo: DateTime
+    includeActiveRecurringContributions: Boolean
+  ): AccountCollection
   webhooks(
     """
     The number of results to fetch (default 10, max 1000)
@@ -19431,6 +19633,22 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
+  goal: Goal
+  activeContributors(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+    forGoalType: GoalType
+    dateFrom: DateTime
+    dateTo: DateTime
+    includeActiveRecurringContributions: Boolean
+  ): AccountCollection
   webhooks(
     """
     The number of results to fetch (default 10, max 1000)
@@ -20564,6 +20782,18 @@ type Mutation {
     """
     emailConfirmationToken: String!
   ): ConfirmGuestAccountResponse!
+
+  """
+  Set a goal for your account.
+  """
+  setGoal(
+    account: AccountReferenceInput!
+
+    """
+    The goal to set for the account. Setting goal to undefined or null will remove any current goal.
+    """
+    goal: GoalInput
+  ): Goal
 
   """
   Apply to an host with a collective. Scope: "account".
@@ -23036,6 +23266,14 @@ type ConfirmGuestAccountResponse {
   A token that can be used to sign in
   """
   accessToken: String!
+}
+
+"""
+Input type for Goals
+"""
+input GoalInput {
+  type: GoalType!
+  amount: Int!
 }
 
 type ProcessHostApplicationResponse {
