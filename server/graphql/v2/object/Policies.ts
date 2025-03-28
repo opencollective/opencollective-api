@@ -30,6 +30,7 @@ export const GraphQLPolicies = new GraphQLObjectType({
           invoicePolicy: { type: GraphQLString },
           receiptPolicy: { type: GraphQLString },
           titlePolicy: { type: GraphQLString },
+          grantPolicy: { type: GraphQLString },
         }),
       }),
       async resolve(account) {

@@ -1011,6 +1011,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true },
         // Expense policies from `expensePolicy` field set at account creation
         [POLICIES.EXPENSE_POLICIES]: {
+          grantPolicy: 'Be reasonable',
           invoicePolicy: 'Be reasonable',
           receiptPolicy: 'Be reasonable',
           titlePolicy: '',
@@ -1029,6 +1030,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         previousData: {
           policies: {
             [POLICIES.EXPENSE_POLICIES]: {
+              grantPolicy: 'Be reasonable',
               invoicePolicy: 'Be reasonable',
               receiptPolicy: 'Be reasonable',
               titlePolicy: '',
@@ -1039,6 +1041,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
           policies: {
             [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true },
             [POLICIES.EXPENSE_POLICIES]: {
+              grantPolicy: 'Be reasonable',
               invoicePolicy: 'Be reasonable',
               receiptPolicy: 'Be reasonable',
               titlePolicy: '',
@@ -1061,6 +1064,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true },
         [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: { numberOfAdmins: 42 },
         [POLICIES.EXPENSE_POLICIES]: {
+          grantPolicy: 'Be reasonable',
           invoicePolicy: 'Be reasonable',
           receiptPolicy: 'Be reasonable',
           titlePolicy: '',
@@ -1080,6 +1084,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
           policies: {
             [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true },
             [POLICIES.EXPENSE_POLICIES]: {
+              grantPolicy: 'Be reasonable',
               invoicePolicy: 'Be reasonable',
               receiptPolicy: 'Be reasonable',
               titlePolicy: '',
@@ -1091,6 +1096,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
             [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true },
             [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: { numberOfAdmins: 42 },
             [POLICIES.EXPENSE_POLICIES]: {
+              grantPolicy: 'Be reasonable',
               invoicePolicy: 'Be reasonable',
               receiptPolicy: 'Be reasonable',
               titlePolicy: '',
@@ -1111,6 +1117,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       await collective.reload();
       expect(collective.data.policies).to.deep.equal({
         [POLICIES.EXPENSE_POLICIES]: {
+          grantPolicy: 'Be reasonable',
           invoicePolicy: 'Be reasonable',
           receiptPolicy: 'Be reasonable',
           titlePolicy: '',
@@ -1129,6 +1136,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         newData: {
           policies: {
             [POLICIES.EXPENSE_POLICIES]: {
+              grantPolicy: 'Be reasonable',
               invoicePolicy: 'Be reasonable',
               receiptPolicy: 'Be reasonable',
               titlePolicy: '',
@@ -1140,6 +1148,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
             [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true },
             [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: { numberOfAdmins: 42 },
             [POLICIES.EXPENSE_POLICIES]: {
+              grantPolicy: 'Be reasonable',
               invoicePolicy: 'Be reasonable',
               receiptPolicy: 'Be reasonable',
               titlePolicy: '',
@@ -1160,6 +1169,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       await collective.reload();
       expect(collective.data.policies).to.deep.equal({
         [POLICIES.EXPENSE_POLICIES]: {
+          grantPolicy: 'Be reasonable',
           invoicePolicy: 'Be reasonable',
           receiptPolicy: 'Be reasonable',
           titlePolicy: '',

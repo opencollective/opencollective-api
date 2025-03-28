@@ -29,6 +29,7 @@ export type Policies = Partial<{
     invoicePolicy: string;
     receiptPolicy: string;
     titlePolicy: string;
+    grantPolicy: string;
   };
   [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: {
     enabled: boolean;
@@ -64,6 +65,7 @@ export const DEFAULT_POLICIES: { [T in POLICIES]: Policies[T] } = {
     invoicePolicy: '',
     receiptPolicy: '',
     titlePolicy: '',
+    grantPolicy: '',
   },
   [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: {
     enabled: false,
