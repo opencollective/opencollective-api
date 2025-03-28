@@ -1025,6 +1025,13 @@ export const canMarkAsUnpaid: ExpensePermissionEvaluator = async (
       );
     }
     return false;
+  } else if (
+    expense.type === EXPENSE_TYPE.SETTLEMENT &&
+    expense.FromCollectiveId === PlatformConstants.PlatformCollectiveId &&
+    req.remoteUser.isRoot()
+  ) {
+    // Allow platform admins to mark settlements as unpaid
+    return true;
   } else {
     return remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options);
   }
