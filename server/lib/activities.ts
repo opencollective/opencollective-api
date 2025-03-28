@@ -25,6 +25,7 @@ const doFormatMessage = (activity, format) => {
   let userString = '',
     hostString = '';
   let collectiveName = '';
+  let fromCollective = '';
   let publicUrl = '';
   let amount = null;
   let interval = '';
@@ -35,6 +36,13 @@ const doFormatMessage = (activity, format) => {
   // get user data
   if (activity.data.user) {
     userString = getUserString(format, activity.data.fromCollective);
+  }
+
+  if (activity.data.fromCollective) {
+    fromCollective = getUserString(format, activity.data.fromCollective);
+    if (fromCollective) {
+      fromCollective = linkify(format, `${config.host.website}/${activity.data.fromCollective.slug}`, fromCollective);
+    }
   }
 
   // get collective data
@@ -101,6 +109,7 @@ const doFormatMessage = (activity, format) => {
 
   switch (activity.type) {
     // Currently used for both new donation and expense
+    // @deprecated This activity type is deprecated in favor of ORDER_PROCESSED
     case activities.COLLECTIVE_TRANSACTION_CREATED:
       if (activity.data.transaction.type === TransactionTypes.CREDIT) {
         return `New financial contribution: ${userString} gave ${currency} ${amount} to ${collective}`;
@@ -111,6 +120,41 @@ const doFormatMessage = (activity, format) => {
       } else {
         return `New debit transaction on ${collective} for ${currency} ${amount}`;
       }
+
+    // Account activities
+    case activities.COLLECTIVE_CREATED:
+      return `New collective created by ${userString}: ${collective} ${hostString}`.trim();
+
+    case activities.COLLECTIVE_EDITED:
+      return `Account edited: ${collective} has been updated`;
+
+    case activities.COLLECTIVE_DELETED:
+      return `Account deleted: ${collectiveName} has been deleted`;
+
+    // Expense Activities
+    case activities.COLLECTIVE_EXPENSE_DELETED:
+      return `Expense deleted: ${currency} ${amount} for ${description} in ${collective}`;
+
+    case activities.COLLECTIVE_EXPENSE_UPDATED:
+      return `Expense updated: ${currency} ${amount} for ${description} in ${collective}`;
+
+    case activities.COLLECTIVE_EXPENSE_UNAPPROVED:
+      return `Expense unapproved: ${currency} ${amount} for ${description} in ${collective}`;
+
+    case activities.COLLECTIVE_EXPENSE_MOVED:
+      return `Expense moved: ${currency} ${amount} for ${description} in ${collective}`;
+
+    case activities.COLLECTIVE_EXPENSE_MARKED_AS_UNPAID:
+      return `Expense marked as unpaid: ${currency} ${amount} for ${description} in ${collective}`;
+
+    case activities.COLLECTIVE_EXPENSE_MARKED_AS_SPAM:
+      return `Expense marked as spam: ${currency} ${amount} for ${description} in ${collective}`;
+
+    case activities.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE:
+      return `Expense marked as incomplete: ${currency} ${amount} for ${description} in ${collective}`;
+
+    case activities.COLLECTIVE_EXPENSE_ERROR:
+      return `Error with expense: ${currency} ${amount} for ${description} in ${collective}`;
 
     case activities.COLLECTIVE_EXPENSE_CREATED:
       return `New Expense: ${userString} submitted an expense to ${collective}: ${currency} ${amount} for ${description}`;
@@ -127,24 +171,66 @@ const doFormatMessage = (activity, format) => {
     case activities.COLLECTIVE_EXPENSE_PAID:
       return `Expense paid on ${collective}: ${currency} ${amount} for '${description}'`;
 
+    // Contributions Related Activities
+
     case activities.SUBSCRIPTION_CONFIRMED:
       return `New subscription confirmed: ${currency} ${recurringAmount} from ${userString} to ${collective}`;
 
-    case activities.COLLECTIVE_CREATED:
-      return `New collective created by ${userString}: ${collective} ${hostString}`.trim();
-
     case activities.ORDERS_SUSPICIOUS:
-      return `Suspicious Order: ${userString} gave ${currency} ${amount} to ${collective}. Score: ${activity.data.recaptchaResponse.score}`;
+      return `Suspicious Contribution: ${fromCollective}'s ${currency} ${amount} contribution to ${collective}. Score: ${activity.data.recaptchaResponse.score}`;
 
-    case activities.COLLECTIVE_APPLY:
-      return handleCollectiveApply(activity, format);
+    case activities.ORDER_PROCESSED:
+      return `Contribution processed: ${fromCollective} gave ${currency} ${amount} to ${collective}`;
 
+    case activities.TICKET_CONFIRMED:
+      return `Ticket confirmed by ${fromCollective} for event at ${collective}`;
+
+    case activities.ORDER_UPDATED:
+      return `Contribution from ${fromCollective} updated for ${collective}`;
+
+    // Updates
     case activities.COLLECTIVE_UPDATE_CREATED:
-      return `New update drafted on ${collective}`;
+      return `New ${update} drafted on ${collective}`;
 
     case activities.COLLECTIVE_UPDATE_PUBLISHED:
       return `New ${update} published on ${collective}`;
 
+    // Hosted Collective Related Activities
+    case activities.COLLECTIVE_APPLY:
+      return handleCollectiveApply(activity, format);
+
+    case activities.COLLECTIVE_APPROVED:
+      return `Collective approved: ${collective} has been approved by ${linkify(format, `${config.host.website}/${activity.data.host.slug}`, activity.data.host.name)}`;
+
+    case activities.COLLECTIVE_REJECTED:
+      return `Collective rejected: ${collective} has been rejected by ${linkify(format, `${config.host.website}/${activity.data.host.slug}`, activity.data.host.name)}`;
+
+    case activities.COLLECTIVE_UNHOSTED:
+      return `Collective unhosted: ${collective} is no longer hosted by ${getUserString(format, activity.data.host)}`;
+
+    case activities.COLLECTIVE_FROZEN:
+      return `Collective frozen: ${collective} has been frozen`;
+
+    case activities.COLLECTIVE_UNFROZEN:
+      return `Collective unfrozen: ${collective} has been unfrozen`;
+
+    // Comment Related Activities
+    case activities.COLLECTIVE_CONVERSATION_CREATED:
+      return `New conversation started on ${collective} by ${userString}`;
+
+    case activities.UPDATE_COMMENT_CREATED:
+      return `New comment on update by ${userString} on ${collective}`;
+
+    case activities.EXPENSE_COMMENT_CREATED:
+      return `New comment on expense by ${userString} on ${collective}`;
+
+    case activities.CONVERSATION_COMMENT_CREATED:
+      return `New comment in conversation by ${userString} on ${collective}`;
+
+    case activities.ORDER_COMMENT_CREATED:
+      return `New comment on contribution by ${userString} on ${collective}`;
+
+    // Member Activities
     case activities.COLLECTIVE_MEMBER_CREATED:
       if (amount) {
         return `${member} just joined ${collective} and contributed with ${formatCurrency(currency, amount)}`;
@@ -152,6 +238,29 @@ const doFormatMessage = (activity, format) => {
         return `New member ${member} joined ${collective}`;
       }
 
+    case activities.COLLECTIVE_MEMBER_INVITED:
+      return `New member invited to ${collective}`;
+
+    case activities.COLLECTIVE_CORE_MEMBER_ADDED:
+      return `New core member added to ${collective}`;
+
+    case activities.COLLECTIVE_CORE_MEMBER_INVITED:
+      return `New core member invited to ${collective}`;
+
+    case activities.COLLECTIVE_CORE_MEMBER_INVITATION_DECLINED:
+      return `Core member invitation declined for ${collective}`;
+
+    case activities.COLLECTIVE_CORE_MEMBER_REMOVED:
+      return `Core member removed from ${collective}`;
+
+    case activities.COLLECTIVE_CORE_MEMBER_EDITED:
+      return `Core member role updated in ${collective}`;
+
+    // Contact Activities
+    case activities.HOST_APPLICATION_COMMENT_CREATED:
+      return `New comment on host application for ${collective}`;
+
+    // Virtual cards
     case activities.VIRTUAL_CARD_PURCHASE:
       return `New virtual card purchase: A virtual card purchase of amount ${currency} ${amount} for ${description} was submitted!`;
 
@@ -192,7 +301,7 @@ const handleCollectiveApply = (activity, format) => {
 /**
  * Generates a url for Slack
  */
-const linkify = (format, link, text) => {
+const linkify = (format: 'slack' | 'markdown', link: string, text: string): string => {
   switch (format) {
     case 'slack':
       if (link && !text) {
@@ -213,7 +322,10 @@ const linkify = (format, link, text) => {
 /**
  * Generates a userString given a user's info
  */
-const getUserString = (format, userCollective, email) => {
+const getUserString = (
+  format: 'slack' | 'markdown',
+  userCollective: { name?: string; twitterHandle?: string; website?: string },
+): string => {
   userCollective = userCollective || {};
   const userString = userCollective.name || userCollective.twitterHandle || 'someone';
   const link = userCollective.website;
@@ -225,9 +337,6 @@ const getUserString = (format, userCollective, email) => {
     returnVal = userString;
   }
 
-  if (email) {
-    returnVal += ` (${email})`;
-  }
   return returnVal;
 };
 
@@ -239,6 +348,6 @@ const LEGACY_TRANSACTION_ACTIVITY_COLLECTIVE_IDS = config.activities?.legacyTran
  * Returns true if a `collective.transaction.created` activity should be generated for the given collective.
  * Implemented as a separate function to allow for easy testing.
  */
-export const shouldGenerateTransactionActivities = collectiveId => {
+export const shouldGenerateTransactionActivities = (collectiveId: number): boolean => {
   return LEGACY_TRANSACTION_ACTIVITY_COLLECTIVE_IDS.includes(collectiveId);
 };
