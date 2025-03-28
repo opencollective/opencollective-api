@@ -1,6 +1,6 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { get, has, intersection, memoize, pick, sortBy } from 'lodash';
+import { get, has, intersection, memoize, pick, sortBy, sumBy } from 'lodash';
 import moment from 'moment';
 
 import { TransactionKind } from '../../../constants/transaction-kind';
@@ -99,11 +99,32 @@ export const GraphQLAccountStats = new GraphQLObjectType({
         description: 'The consolidated amount of all the events and projects combined.',
         deprecationReason: '2022-09-02: Use balance + includeChildren instead',
         type: new GraphQLNonNull(GraphQLAmount),
-        resolve(account, args, req) {
-          return account.getBalanceAmount({
+        async resolve(account, args, req) {
+          const balanceAmount = await account.getBalanceAmount({
             loaders: req.loaders,
-            includeChildren: true,
+            includeChildren: false,
           });
+          const children = await account.getChildren();
+
+          if (!children) {
+            return balanceAmount;
+          }
+
+          const childrenBalances = await Promise.all(
+            children.map(child =>
+              child.getBalanceAmount({
+                loaders: req.loaders,
+                includeChildren: false,
+                currency: account.currency,
+              }),
+            ),
+          );
+
+          const consolidatedBalanceValue = sumBy([balanceAmount, ...childrenBalances], 'value');
+          return {
+            value: consolidatedBalanceValue,
+            currency: account.currency,
+          };
         },
       },
       monthlySpending: {
