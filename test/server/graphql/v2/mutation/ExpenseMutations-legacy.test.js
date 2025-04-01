@@ -211,7 +211,7 @@ const convertExpenseItemId = item => {
   return item?.id ? { ...item, id: idEncode(item.id, IDENTIFIER_TYPES.EXPENSE_ITEM) } : item;
 };
 
-describe('server/graphql/v2/mutation/ExpenseMutations', () => {
+describe('server/graphql/v2/mutation/ExpenseMutations-legacy', () => {
   before(async () => {
     // It seems that a previous test doesn't free the sendMessage stub. This corrects it
     await resetTestDB();
@@ -3249,7 +3249,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
       expect(recipient).to.eq(invoice.payee.email);
       expect(subject).to.include(collective.name);
-      expect(subject).to.include('wants to pay you');
+      expect(subject).to.include('wants to send funds to');
       expect(body).to.include(
         `href="http://localhost:3000/${collective.slug}/expenses/${expense.id}?key&#x3D;${expense.data.draftKey}"`,
       );
