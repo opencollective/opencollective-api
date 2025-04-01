@@ -1372,6 +1372,10 @@ const CollectiveFields = () => {
         roles: { type: new GraphQLList(ContributorRoleEnum) },
       },
       async resolve(collective, args, req) {
+        if (collective.isIncognito || collective.type === 'USER') {
+          return [];
+        }
+
         const contributors = await req.loaders.Contributors.forCollectiveId.load(collective.id);
         return filterContributors(contributors.all, args);
       },
