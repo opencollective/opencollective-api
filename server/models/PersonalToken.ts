@@ -1,12 +1,15 @@
 import { randomBytes } from 'crypto';
 
 import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
+import { z } from 'zod';
 
 import oAuthScopes from '../constants/oauth-scopes';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 import Application from './Application';
 import User from './User';
+
+const personelTokenDataSchema = z.object({ allowGraphQLV1: z.boolean().optional() }).optional().nullable();
 
 class PersonalToken extends Model<InferAttributes<PersonalToken>, InferCreationAttributes<PersonalToken>> {
   declare public readonly id: CreationOptional<number>;
@@ -16,7 +19,7 @@ class PersonalToken extends Model<InferAttributes<PersonalToken>, InferCreationA
   declare public updatedAt: CreationOptional<Date>;
   declare public deletedAt: CreationOptional<Date>;
   declare public lastUsedAt: CreationOptional<Date>;
-  declare public data: Record<string, unknown>;
+  declare public data: z.infer<typeof personelTokenDataSchema>;
   declare public CollectiveId: number;
   declare public UserId: ForeignKey<User['id']>;
   declare public scope: oAuthScopes[];
@@ -81,6 +84,13 @@ PersonalToken.init(
     data: {
       type: DataTypes.JSONB,
       allowNull: true,
+      validate: {
+        isValid(value) {
+          if (value) {
+            personelTokenDataSchema.parse(value);
+          }
+        },
+      },
     },
     createdAt: {
       type: DataTypes.DATE,
