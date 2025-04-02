@@ -60,7 +60,12 @@ const getData = <T extends { data?: Record<string, unknown> }>(obj: T | undefine
   obj && obj.data;
 
 const parseError = (
-  error: AxiosError<{ errorCode?: TransferwiseErrorCodes; errors?: Record<string, unknown>[]; error?: string }>,
+  error: AxiosError<{
+    errorCode?: TransferwiseErrorCodes;
+    errors?: Record<string, unknown>[];
+    error?: string;
+    error_description?: string;
+  }>,
   defaultMessage?: string,
   defaultCode?: string,
 ): string | Error => {
@@ -73,7 +78,8 @@ const parseError = (
   if (error.response?.data?.errors) {
     message = error.response.data.errors.map(e => e.message).join(' ');
   } else if (error.response?.data?.error) {
-    message = error.response.data.error;
+    message = error.response.data.error_description || error.response.data.error;
+    code = error.response.data.error;
   }
   if (error.response?.status === 422) {
     message = `TransferWise validation error: ${message}`;
@@ -117,6 +123,26 @@ export async function getToken(connectedAccount: ConnectedAccount, refresh = fal
       await connectedAccount.update({ token, refreshToken, data: { ...connectedAccount.data, ...data } });
       return token;
     } catch (e) {
+      if (e.extensions?.code) {
+        if (['invalid_token', 'invalid_grant'].includes(e.extensions.code)) {
+          logger.error(
+            `Invalid token for connected account #${connectedAccount.id}, disconnecting account from Wise and notificating admins...`,
+            e,
+          );
+          const collective = await connectedAccount.getCollective();
+          await connectedAccount.destroy();
+          await Activity.create({
+            type: ActivityTypes.CONNECTED_ACCOUNT_REMOVED,
+            data: {
+              connectedAccount: connectedAccount.activity,
+              message: e.message,
+              collective: collective.minimal,
+            },
+            CollectiveId: connectedAccount.CollectiveId,
+          });
+        }
+      }
+
       logger.error(`Error refreshing Wise token for connected account #${connectedAccount.id}`, e);
       throw e;
     }
