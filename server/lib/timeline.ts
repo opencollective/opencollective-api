@@ -19,6 +19,8 @@ const debug = debugLib('timeline');
 const getCollectiveIdsForRole = (memberships: MemberModelInterface[], roles: MemberRoles[]): number[] =>
   memberships.filter(m => roles.includes(m.role)).map(m => m.CollectiveId);
 
+const CREATED_AT_HORIZON = { [Op.gt]: Sequelize.literal("NOW() - INTERVAL '6 months'") };
+
 const makeTimelineQuery = async (
   collective: Collective,
   classes: ActivityClasses[] = [
@@ -105,7 +107,10 @@ const makeTimelineQuery = async (
         });
       }
     }
-    return { [Op.or]: conditionals };
+    return {
+      [Op.or]: conditionals,
+      createdAt: CREATED_AT_HORIZON,
+    };
   }
 
   const types = [];
@@ -176,6 +181,7 @@ const makeTimelineQuery = async (
   return {
     type: { [Op.in]: types },
     [Op.or]: [{ CollectiveId: collective.id }, { FromCollectiveId: collective.id }],
+    createdAt: CREATED_AT_HORIZON,
   };
 };
 
@@ -218,15 +224,18 @@ const createOrUpdateFeed = async (collective: Collective, sinceId?: number) => {
     await redis.expire(cacheKey, hasActivities ? TTL : 60);
   }
   // If we're updating the cache, make sure we only add activities and bump the TTL if there are any
-  else if (sinceId && hasActivities) {
-    // Add new activities to the cache and bump TTL
-    await redis.zAdd(cacheKey, activities);
-    await redis.expire(cacheKey, TTL);
-    // Trim the cache if updating with new activities
-    const count = await redis.zCount(cacheKey, '0', '+inf');
-    if (count > FEED_LIMIT) {
-      await redis.zRemRangeByRank(cacheKey, 0, count - FEED_LIMIT - 1);
+  else if (sinceId) {
+    if (hasActivities) {
+      // Add new activities to the cache and bump TTL
+      await redis.zAdd(cacheKey, activities);
+      // Trim the cache if updating with new activities
+      const count = await redis.zCount(cacheKey, '0', '+inf');
+      if (count > FEED_LIMIT) {
+        await redis.zRemRangeByRank(cacheKey, 0, count - FEED_LIMIT - 1);
+      }
     }
+    // Refresh TTL as long as user is interacting with the timeline
+    await redis.expire(cacheKey, TTL);
   }
 
   stopWatch();
