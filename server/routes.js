@@ -171,7 +171,11 @@ export default async app => {
     }
 
     if (req.personalToken) {
-      logger.warn(`Personal Token using GraphQL v1: ${req.personalToken.id}`);
+      if (req.personalToken.data?.allowGraphQLV1) {
+        logger.warn(`Personal Token using GraphQL v1: ${req.personalToken.id}`);
+      } else {
+        return next(new errors.Unauthorized('Personal Tokens are not accepted on GraphQL v1'));
+      }
     }
     next();
   });
