@@ -10,7 +10,7 @@ import { createRedisClient, RedisInstanceType } from '../lib/redis';
 import { Activity, Collective } from '../models';
 import { MemberModelInterface } from '../models/Member';
 
-import cache from './cache';
+import makeRedisProvider from './cache/redis';
 import { utils } from './statsd';
 import { parseToBoolean } from './utils';
 
@@ -249,6 +249,7 @@ export const getCollectiveFeed = async ({
   }
 
   const redis = await createRedisClient(RedisInstanceType.TIMELINE);
+  const cache = await makeRedisProvider(RedisInstanceType.TIMELINE);
   // If we don't have a redis client, we can't cache the timeline using sorted sets
   if (!redis) {
     debug('Redis is not configured, skipping cached timeline');
@@ -275,10 +276,12 @@ export const getCollectiveFeed = async ({
     const lockKey = `${cacheKey}-semaphore`;
     if (await cache.has(lockKey)) {
       debug('Timeline cache is being generated, ignoring request');
+      // Refresh lock key
+      await cache.set(lockKey, true, 120);
       return null;
     }
-    cache.set(lockKey, true, 60);
 
+    await cache.set(lockKey, true, 120);
     // If we don't have a cache, generate it asynchronously
     createOrUpdateFeed(collective).finally(() => cache.delete(lockKey));
     return null;
