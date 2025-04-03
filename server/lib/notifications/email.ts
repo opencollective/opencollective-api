@@ -618,14 +618,22 @@ export const notifyByEmail = async (activity: Activity) => {
         await emailLib.send(activity.type, activity.data.payee.email, activity.data, {
           replyTo: sender?.email,
         });
-      } else if (activity.data.payee.id) {
-        await notify.collective(activity, {
-          collectiveId: activity.data.payee.id,
-        });
-      } else if (activity.data.payee.slug) {
-        const collective = await models.Collective.findBySlug(activity.data.payee.slug);
-        await notify.collective(activity, { collective });
+      } else if (activity.data.payee.id || activity.data.payee.slug) {
+        const payee = activity.data.payee.id
+          ? await models.Collective.findByPk(activity.data.payee.id)
+          : await models.Collective.findBySlug(activity.data.payee.slug);
+
+        // If the payee is hosted by a different host, we need to notify the host admins as they're the ones setting the payout method
+        if (payee.HostCollectiveId && payee.approvedAt && payee.HostCollectiveId !== activity.HostCollectiveId) {
+          activity.data.isCrossHostExpense = true;
+          activity.data.payee = payee.info;
+          const payeeHost = await models.Collective.findByPk(payee.HostCollectiveId);
+          await notify.collective(activity, { collective: payeeHost });
+        } else {
+          await notify.collective(activity, { collective: payee });
+        }
       }
+
       break;
 
     case ActivityTypes.COLLECTIVE_EXPENSE_RECURRING_DRAFTED:

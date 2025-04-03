@@ -13,9 +13,8 @@ import { getAccountReportNodesFromQueryResult } from '../../../lib/transaction-r
 import { canSeeLegalName } from '../../../lib/user-permissions';
 import models, { Collective, Op, sequelize } from '../../../models';
 import Application from '../../../models/Application';
-import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { GraphQLCollectiveFeatures } from '../../common/CollectiveFeatures';
-import { allowContextPermission, getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
+import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { checkRemoteUserCanUseAccount, checkScope } from '../../common/scope-check';
 import { BadRequest, ContentNotReady, Unauthorized } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
@@ -1269,34 +1268,15 @@ export const AccountFields = {
       },
     },
     async resolve(collective, args, req) {
-      // Scope check is a a bit more complex because we have to accomodate the case where payoutMethods are public
-      if (
-        req.remoteUser?.isAdminOfCollective(collective) &&
-        !collective.isHostAccount &&
-        !checkScope(req, 'expenses')
-      ) {
+      if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'expenses')) {
         return null;
       }
 
       const loader = args.includeArchived
         ? req.loaders.PayoutMethod.allByCollectiveId
         : req.loaders.PayoutMethod.byCollectiveId;
-      if (req.remoteUser?.isAdminOfCollective(collective)) {
-        return loader.load(collective.id);
-      }
 
-      // Exception for Fiscal Hosts so people can post Expense accross hosts
-      if (collective.isHostAccount) {
-        const payoutMethods = await loader.load(collective.id);
-        for (const payoutMethod of payoutMethods) {
-          allowContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, payoutMethod.id);
-        }
-        return payoutMethods.filter(
-          pm => pm.isSaved && [PayoutMethodTypes.BANK_ACCOUNT, PayoutMethodTypes.PAYPAL].includes(pm.type),
-        );
-      }
-
-      return null;
+      return loader.load(collective.id);
     },
   },
   paymentMethods: {
