@@ -1,6 +1,6 @@
 import config from 'config';
 import debugLib from 'debug';
-import { flatten, isEmpty, toInteger, toString } from 'lodash';
+import { flatten, isEmpty, last, toInteger, toString } from 'lodash';
 import { InferAttributes, Op, Order, Sequelize, WhereOptions } from 'sequelize';
 
 import ActivityTypes, { ActivitiesPerClass, ActivityClasses } from '../constants/activities';
@@ -109,7 +109,6 @@ const makeTimelineQuery = async (
     }
     return {
       [Op.or]: conditionals,
-      createdAt: CREATED_AT_HORIZON,
     };
   }
 
@@ -181,7 +180,6 @@ const makeTimelineQuery = async (
   return {
     type: { [Op.in]: types },
     [Op.or]: [{ CollectiveId: collective.id }, { FromCollectiveId: collective.id }],
-    createdAt: CREATED_AT_HORIZON,
   };
 };
 
@@ -189,54 +187,87 @@ type SerializedActivity = { id: number; type: ActivityTypes };
 const order: Order = [['createdAt', 'DESC']];
 const TTL = 60 * 60 * 24 * parseInt(config.timeline.daysCached);
 const FEED_LIMIT = 1000;
+const PAGE_SIZE = 40;
 const EMPTY_FLAG = 'EMPTY';
 debug('Cache TTL: %d (%d days)', TTL, config.timeline.daysCached);
 
-const createOrUpdateFeed = async (collective: Collective, sinceId?: number) => {
+/**
+ * Updates an existing cached timeline feed and trim it to the limit.
+ */
+const updateFeed = async (collective: Collective, sinceId: number) => {
   const cacheKey = `timeline-${collective.slug}`;
-  const stopWatch = utils.stopwatch(sinceId ? 'timeline.update' : 'timeline.create', { log: debug });
+  const stopWatch = utils.stopwatch('timeline.update', { log: debug });
   const redis = await createRedisClient(RedisInstanceType.TIMELINE);
-
   const where = await makeTimelineQuery(collective);
-  if (sinceId) {
-    where['id'] = { [Op.gt]: sinceId };
-  }
+  where['id'] = { [Op.gt]: sinceId };
+
+  debug('Fetching %d activities since #%s for %s', PAGE_SIZE, sinceId, collective.slug);
   const result = await Activity.findAll({
     where,
     attributes: ['id', 'type', 'createdAt'],
     order,
-    limit: FEED_LIMIT,
   });
-  const activities = result.map(({ id, type, createdAt }) => {
-    const value: SerializedActivity = { id, type };
-    return {
-      score: toInteger(createdAt.getTime() / 1000),
-      value: JSON.stringify(value),
-    };
-  });
-  const hasActivities = !isEmpty(activities);
 
-  debug(`${sinceId ? 'Updated' : 'Generated'} timeline for ${collective.slug} with ${activities.length} activities`);
-  // If not updating the cache, add new activities or add an EMPTY_FLAG
-  if (!sinceId) {
-    await redis.zAdd(cacheKey, hasActivities ? activities : [{ score: 0, value: EMPTY_FLAG }]);
-    // Set initial TTL or set EMPTY_FLAG duration to 1 minute
-    await redis.expire(cacheKey, hasActivities ? TTL : 60);
+  if (!isEmpty(result)) {
+    const activities = result.map(({ id, type, createdAt }) => {
+      const value: SerializedActivity = { id, type };
+      return {
+        score: toInteger(createdAt.getTime() / 1000),
+        value: JSON.stringify(value),
+      };
+    });
+
+    await redis.zAdd(cacheKey, activities);
   }
-  // If we're updating the cache, make sure we only add activities and bump the TTL if there are any
-  else if (sinceId) {
-    if (hasActivities) {
-      // Add new activities to the cache and bump TTL
-      await redis.zAdd(cacheKey, activities);
-      // Trim the cache if updating with new activities
-      const count = await redis.zCount(cacheKey, '0', '+inf');
-      if (count > FEED_LIMIT) {
-        await redis.zRemRangeByRank(cacheKey, 0, count - FEED_LIMIT - 1);
-      }
+
+  // Trim the cache if updating with new activities
+  const count = await redis.zCount(cacheKey, '0', '+inf');
+  if (count > FEED_LIMIT) {
+    await redis.zRemRangeByRank(cacheKey, 0, count - FEED_LIMIT - 1);
+  }
+
+  stopWatch();
+};
+
+const createNewFeed = async (collective: Collective) => {
+  const cacheKey = `timeline-${collective.slug}`;
+  const stopWatch = utils.stopwatch('timeline.create', { log: debug });
+  const redis = await createRedisClient(RedisInstanceType.TIMELINE);
+
+  const where = await makeTimelineQuery(collective);
+  let result = [];
+  let lastId = null;
+  let total = 0;
+  do {
+    debug('Fetching %d activities before #%s for %s', PAGE_SIZE, lastId, collective.slug);
+    if (lastId) {
+      where['id'] = { [Op.lt]: lastId };
     }
-    // Refresh TTL as long as user is interacting with the timeline
-    await redis.expire(cacheKey, TTL);
-  }
+    result = await Activity.findAll({
+      where,
+      attributes: ['id', 'type', 'createdAt'],
+      order,
+      limit: PAGE_SIZE,
+    });
+
+    if (!isEmpty(result)) {
+      total += result.length;
+      lastId = last(result)['id'];
+      const activities = result.map(({ id, type, createdAt }) => {
+        const value: SerializedActivity = { id, type };
+        return {
+          score: toInteger(createdAt.getTime() / 1000),
+          value: JSON.stringify(value),
+        };
+      });
+      await redis.zAdd(cacheKey, activities);
+    } else if (lastId === null) {
+      await redis.zAdd(cacheKey, [{ score: 0, value: EMPTY_FLAG }]);
+    }
+  } while (!isEmpty(result) && total < FEED_LIMIT);
+
+  await redis.expire(cacheKey, TTL);
+  debug(`Generated timeline for ${collective.slug} with ${total} activities`);
 
   stopWatch();
 };
@@ -258,7 +289,6 @@ export const getCollectiveFeed = async ({
   }
 
   const redis = await createRedisClient(RedisInstanceType.TIMELINE);
-  const cache = await makeRedisProvider(RedisInstanceType.TIMELINE);
   // If we don't have a redis client, we can't cache the timeline using sorted sets
   if (!redis) {
     debug('Redis is not configured, skipping cached timeline');
@@ -266,7 +296,9 @@ export const getCollectiveFeed = async ({
 
     const where = await makeTimelineQuery(collective, classes);
     if (dateTo) {
-      where['createdAt'] = { [Op.lt]: dateTo };
+      where['createdAt'] = { ...CREATED_AT_HORIZON, [Op.lt]: dateTo };
+    } else {
+      where['createdAt'] = CREATED_AT_HORIZON;
     }
 
     const activities = await Activity.findAll({
@@ -278,6 +310,7 @@ export const getCollectiveFeed = async ({
     return activities;
   }
 
+  const cache = await makeRedisProvider(RedisInstanceType.TIMELINE);
   // Check if timeline cache exists
   const cacheKey = `timeline-${collective.slug}`;
   const cacheExists = await redis.exists(cacheKey);
@@ -292,7 +325,7 @@ export const getCollectiveFeed = async ({
 
     await cache.set(lockKey, true, 120);
     // If we don't have a cache, generate it asynchronously
-    createOrUpdateFeed(collective).finally(() => cache.delete(lockKey));
+    createNewFeed(collective).finally(() => cache.delete(lockKey));
     return null;
   }
 
@@ -300,7 +333,6 @@ export const getCollectiveFeed = async ({
     log: debug,
   });
   const wantedTypes = flatten(classes.map(c => ActivitiesPerClass[c]));
-  const ids = [];
   let offset = 0;
 
   // This is a thunk responsible for paginating until we have enough results
@@ -323,9 +355,10 @@ export const getCollectiveFeed = async ({
     }
     const activity = JSON.parse(latest) as SerializedActivity;
     debug(`Updating timeline for ${collective.slug} from id ${activity.id}`);
-    await createOrUpdateFeed(collective, activity.id);
+    await updateFeed(collective, activity.id);
   }
 
+  const idsToLoad = [];
   let cached = await fetchMore();
   while (cached.length > 0) {
     cached
@@ -333,9 +366,9 @@ export const getCollectiveFeed = async ({
       // Filter out unwanted types based on the classes the user requested
       .filter(({ type }) => wantedTypes.includes(type))
       // In the case we fetch more than we need, we slice the array to the limit
-      .slice(0, limit - ids.length)
-      .forEach(({ id }) => ids.push(id));
-    if (ids.length >= limit) {
+      .slice(0, limit - idsToLoad.length)
+      .forEach(({ id }) => idsToLoad.push(id));
+    if (idsToLoad.length >= limit) {
       break;
     } else {
       offset += limit;
@@ -344,7 +377,7 @@ export const getCollectiveFeed = async ({
   }
 
   // Return the actual activities from the database
-  const activities = await Activity.findAll({ where: { id: ids }, order });
+  const activities = await Activity.findAll({ where: { id: idsToLoad }, order });
   stopWatch();
   return activities;
 };
