@@ -2,11 +2,19 @@ import { expect } from 'chai';
 import gqlV1 from 'fake-tag';
 import { stub } from 'sinon';
 
+import OrderStatuses from '../../../../server/constants/order-status';
 import roles from '../../../../server/constants/roles';
 import models from '../../../../server/models';
 import paypalAdaptive from '../../../../server/paymentProviders/paypal/adaptiveGateway';
 import paypalMock from '../../../mocks/paypal';
-import { fakeOrganization, fakeTransaction } from '../../../test-helpers/fake-data';
+import {
+  fakeCollective,
+  fakeOrder,
+  fakeOrganization,
+  fakePaymentMethod,
+  fakeTransaction,
+  fakeUser,
+} from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
 let host, admin, user, collective, paypalPaymentMethod;
@@ -100,6 +108,159 @@ describe('server/graphql/v1/paymentMethods', () => {
       PaymentMethodId: paypalPaymentMethod.id,
     }),
   );
+
+  describe('removePaymentMethod', () => {
+    const removePaymentMethodQuery = gqlV1`
+      mutation RemovePaymentMethod($id: Int!) {
+        removePaymentMethod(id: $id) {
+          id
+        }
+      }
+    `;
+
+    it('removes payment method', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({ admin: user });
+      const pm = await fakePaymentMethod({
+        CollectiveId: collective.id,
+      });
+
+      await fakeOrder({
+        PaymentMethodId: pm.id,
+      });
+
+      const res = await utils.graphqlQuery(
+        removePaymentMethodQuery,
+        {
+          id: pm.id,
+        },
+        user,
+      );
+
+      expect(res.errors).to.not.exist;
+      await pm.reload({
+        paranoid: false,
+      });
+      expect(pm.isSoftDeleted()).to.be.true;
+    });
+
+    it('removes payment method from inactive subscription', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({ admin: user });
+      const pm = await fakePaymentMethod({
+        CollectiveId: collective.id,
+      });
+
+      const order = await fakeOrder(
+        {
+          PaymentMethodId: pm.id,
+        },
+        { withSubscription: true },
+      );
+
+      await order.Subscription.update({ isActive: false });
+
+      const res = await utils.graphqlQuery(
+        removePaymentMethodQuery,
+        {
+          id: pm.id,
+        },
+        user,
+      );
+
+      expect(res.errors).to.not.exist;
+      await pm.reload({
+        paranoid: false,
+      });
+      expect(pm.isSoftDeleted()).to.be.true;
+    });
+
+    it('cant remove if is an active subscription payment method', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({ admin: user });
+      const pm = await fakePaymentMethod({
+        CollectiveId: collective.id,
+      });
+
+      await fakeOrder(
+        {
+          PaymentMethodId: pm.id,
+        },
+        { withSubscription: true },
+      );
+
+      const res = await utils.graphqlQuery(
+        removePaymentMethodQuery,
+        {
+          id: pm.id,
+        },
+        user,
+      );
+
+      expect(res.errors).to.exist;
+      await pm.reload({
+        paranoid: false,
+      });
+      expect(pm.isSoftDeleted()).to.be.false;
+    });
+
+    it('cant remove if is an active subscription payment method with order processing', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({ admin: user });
+      const pm = await fakePaymentMethod({
+        CollectiveId: collective.id,
+      });
+
+      await fakeOrder(
+        {
+          PaymentMethodId: pm.id,
+          status: OrderStatuses.PROCESSING,
+        },
+        { withSubscription: true },
+      );
+
+      const res = await utils.graphqlQuery(
+        removePaymentMethodQuery,
+        {
+          id: pm.id,
+        },
+        user,
+      );
+
+      expect(res.errors).to.exist;
+      await pm.reload({
+        paranoid: false,
+      });
+      expect(pm.isSoftDeleted()).to.be.false;
+    });
+
+    it('cant remove if is an payment method with order processing', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({ admin: user });
+      const pm = await fakePaymentMethod({
+        CollectiveId: collective.id,
+      });
+
+      await fakeOrder({
+        PaymentMethodId: pm.id,
+        status: OrderStatuses.PROCESSING,
+      });
+
+      const res = await utils.graphqlQuery(
+        removePaymentMethodQuery,
+        {
+          id: pm.id,
+        },
+        user,
+      );
+
+      expect(res.errors).to.exist;
+      await pm.reload({
+        paranoid: false,
+      });
+      expect(pm.isSoftDeleted()).to.be.false;
+    });
+  });
 
   describe('oauth flow', () => {
     // not implemented

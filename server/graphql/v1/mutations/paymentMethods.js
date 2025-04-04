@@ -205,6 +205,14 @@ export async function removePaymentMethod(paymentMethodId, req) {
     throw new ValidationFailed('The payment method has active subscriptions', 'PM.Remove.HasActiveSubscriptions');
   }
 
+  const processingOrders = await paymentMethod.getOrders({
+    where: { status: ORDER_STATUS.PROCESSING },
+  });
+
+  if (processingOrders.length > 0) {
+    throw new ValidationFailed('The payment method has processing orders');
+  }
+
   return paymentMethod.destroy();
 }
 
