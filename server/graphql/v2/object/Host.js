@@ -706,6 +706,14 @@ export const GraphQLHost = new GraphQLObjectType({
               );
             }
 
+            if (args.lastCommentBy.includes('COLLECTIVE_ADMIN')) {
+              conditions.push(
+                sequelize.literal(
+                  `NOT EXISTS (SELECT "id" from "Comments" WHERE "Comments"."HostApplicationId" = "HostApplication"."id" ORDER BY "Comments"."createdAt" DESC LIMIT 1)`,
+                ),
+              );
+            }
+
             where[Op.and] = where[Op.and] || [];
             where[Op.and].push(conditions.length > 1 ? { [Op.or]: conditions } : conditions[0]);
           }
