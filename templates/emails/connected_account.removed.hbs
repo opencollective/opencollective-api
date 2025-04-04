@@ -1,0 +1,19 @@
+Subject: {{{collective.name}}} has been disconnected from Wise
+
+{{> header}}
+
+<p>We have disconnected {{{collective.name}}} from Wise due to a failure while acquiring or renewing its authorization token.</p>
+
+<p>This can happen when the user profile who connected Wise to Open Collective has been removed from the connected Wise Profile team or when it has changed its email.</p>
+
+{{#if message}}
+<blockquote style="color: #6a737d;font-size: 16px;text-align: left;padding: 0.5em 0.75em;margin: 0 24px;border-left: 3px solid #e4e4e4;white-space: pre-line;font-style: italic;">{{message}}</blockquote>
+{{/if}}
+
+<p>If, for any reason, you're no longer using Wise, you can safely ignore this message. If you are, please reconnect your account following the instructions on our <a href="https://docs.opencollective.com/help/fiscal-hosts/payouts/payouts-with-transferwise">documentation</a>.</p>
+
+<p>If you have questions or believe this was a mistake, contact <a
+		href="mailto:support@opencollective.com">support@opencollective.com</a>.</p>
+
+
+{{> footer}}

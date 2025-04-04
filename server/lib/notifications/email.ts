@@ -196,6 +196,7 @@ export const notifyByEmail = async (activity: Activity) => {
     case ActivityTypes.COLLECTIVE_UNFROZEN:
     case ActivityTypes.PAYMENT_CREDITCARD_EXPIRING:
     case ActivityTypes.ORDER_PENDING_CREATED:
+    case ActivityTypes.CONNECTED_ACCOUNT_REMOVED:
       await notify.collective(activity);
       break;
 

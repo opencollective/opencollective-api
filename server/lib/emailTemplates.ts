@@ -115,6 +115,7 @@ export const templateNames = [
   'update.comment.created',
   'expense.comment.created',
   'virtualcard.purchase',
+  'connected_account.removed',
 ] as const;
 
 export type EmailTemplates = (typeof templateNames)[number];
