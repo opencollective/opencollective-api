@@ -97,6 +97,8 @@ async function processRecurringOrder(order: Order) {
       ? false
       : (host?.settings?.isPlatformRevenueDirectlyCollected ?? true);
   const applicationFee = await getApplicationFee(order);
+
+  /* eslint-disable camelcase*/
   const paymentIntentParams: Stripe.PaymentIntentCreateParams = {
     currency: order.currency,
     amount: convertToStripeAmount(order.currency, order.totalAmount),
@@ -104,13 +106,11 @@ async function processRecurringOrder(order: Order) {
   };
 
   if (applicationFee && isPlatformRevenueDirectlyCollected && hostStripeAccount.username !== config.stripe.accountId) {
-    // eslint-disable-next-line camelcase
     paymentIntentParams.application_fee_amount = convertToStripeAmount(order.currency, applicationFee);
   }
 
-  // eslint-disable-next-line camelcase
+  paymentIntentParams.setup_future_usage = 'off_session';
   paymentIntentParams.payment_method_types = [order.paymentMethod?.type];
-  // eslint-disable-next-line camelcase
   paymentIntentParams.payment_method = order.paymentMethod?.data?.stripePaymentMethodId;
   paymentIntentParams.customer = order.paymentMethod?.customerId;
   paymentIntentParams.metadata = {
@@ -130,9 +130,18 @@ async function processRecurringOrder(order: Order) {
       data: { ...order.data, paymentIntent: { id: paymentIntent.id, status: paymentIntent.status } },
     });
 
-    paymentIntent = await stripe.paymentIntents.confirm(paymentIntent.id, {
-      stripeAccount: hostStripeAccount.username,
-    });
+    paymentIntent = await stripe.paymentIntents.confirm(
+      paymentIntent.id,
+      {
+        setup_future_usage: 'off_session',
+        off_session: Boolean(order.processedAt), // If the order was already processed, it means it's a recurring payment and not the first one = it's an async process.
+      },
+      {
+        stripeAccount: hostStripeAccount.username,
+      },
+    );
+
+    /* eslint-enable camelcase */
 
     await order.update({ data: { ...order.data, paymentIntent } });
 
