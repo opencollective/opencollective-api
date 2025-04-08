@@ -261,7 +261,7 @@ jobs:
       - run: OPENSSL_CONF=/dev/null npm run test -- --ignore "test/server/graphql/**"
 
       - name: Report coverage
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: Unit
@@ -333,7 +333,7 @@ jobs:
       - run: npm run test:graphql
 
       - name: Report coverage
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: GraphQL
