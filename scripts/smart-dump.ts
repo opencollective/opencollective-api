@@ -13,7 +13,7 @@ import moment from 'moment';
 import type { Sequelize } from 'sequelize';
 import { Model as SequelizeModel, ModelStatic } from 'sequelize';
 
-import { loaders } from '../server/graphql/loaders';
+import { generateLoaders } from '../server/graphql/loaders';
 import { getMigrationsHash, traverse } from '../server/lib/import-export/export';
 import {
   mergeRecords,
@@ -22,7 +22,6 @@ import {
   remapPKs,
   resetModelsSequences,
 } from '../server/lib/import-export/import';
-import { PartialRequest } from '../server/lib/import-export/types';
 import logger from '../server/lib/logger';
 import { md5 } from '../server/lib/utils';
 import models, { sequelize } from '../server/models';
@@ -58,7 +57,7 @@ program.command('dump [recipe] [as_user] [env_file]').action(async (recipe, asUs
     process.exit(1);
   }
   await remoteUser.populateRoles();
-  const req: PartialRequest = { remoteUser, loaders: loaders({ remoteUser }) };
+  const req: any = { remoteUser, loaders: generateLoaders({ remoteUser }) };
 
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { entries, defaultDependencies } = require(recipe);

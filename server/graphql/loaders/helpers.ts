@@ -1,9 +1,8 @@
 import DataLoader from 'dataloader';
-import type { Request } from 'express';
 import { get } from 'lodash';
-import { Model, ModelStatic } from 'sequelize';
+import { Association, Model, ModelStatic } from 'sequelize';
 
-import models from '../../models';
+import { ModelNames } from '../../models';
 
 /** A default getter that returns item's id */
 const defaultKeyGetter = <T>(item: T): number | string => item['id'];
@@ -65,6 +64,9 @@ export function sortResultsArray<ResultType>(
   return keys.map(id => resultsById[id] || defaultValue);
 }
 
+type SortResults =
+  | (<T>(keys: readonly (string | number)[], results: readonly T[], attribute?: string, defaultValue?: unknown) => T[])
+  | (<T>(keys: readonly (string | number)[], results: readonly T[], attribute?: string, defaultValue?: []) => T[][]);
 /**
  * @deprecated Prefer to use `sortResultsSimple`.
  *
@@ -79,16 +81,11 @@ export function sortResultsArray<ResultType>(
  * @param attribute: the attribute to use to get the key
  * @param defaultValue: a default value used when there's no result in `results`
  */
-export const sortResults = (
-  keys: readonly (string | number)[],
-  results: readonly Record<string, unknown>[],
-  attribute = 'id',
-  defaultValue = undefined,
-): Record<string, unknown>[] => {
+export const sortResults: SortResults = (keys, results, attribute = 'id', defaultValue = undefined) => {
   const resultsById = {};
   results.forEach(r => {
     let key;
-    const dataValues = r.dataValues || r;
+    const dataValues = r['dataValues'] || r;
     if (attribute.indexOf(':') !== -1) {
       const keyComponents = [];
       attribute.split(':').forEach(attr => {
@@ -119,25 +116,24 @@ export const sortResults = (
  * - It sets the association on the model instances, optimizing future calls
  * - If any other model called for this loader already has
  */
-export function buildLoaderForAssociation<AssociatedModel extends Model>(
-  model: ModelStatic<AssociatedModel>,
+
+export function buildLoaderForAssociation<SM extends Model, AM extends Model>(
+  staticModel: ModelStatic<Model>,
   association: string,
   options: {
-    /** Will not load the association if this filter returns false */
     filter?: (item) => boolean;
-    /** A custom function to load target entities by their referenced column. Useful to further optimize with loaders */
-    loader?: (ids: readonly (string | number)[]) => Promise<AssociatedModel[]>;
+    loader?: (ids: readonly (string | number)[]) => Promise<AM[]>;
   } = {},
-) {
-  return new DataLoader<Model, AssociatedModel>(
-    async (entities: Model[]): Promise<AssociatedModel[]> => {
-      const associationInfo = model['associations'][association];
-      const associationsByForeignKey: Record<ForeignKeyType, Model> = {};
+): DataLoader<SM, AM, string> {
+  return new DataLoader(
+    async (entities: SM[]): Promise<AM[]> => {
+      const associationInfo = staticModel['associations'][association] as Association<SM, AM>;
+      const associationsByForeignKey: Record<ForeignKeyType, SM | AM> = {};
       type ForeignKeyType = typeof associationInfo.foreignKey;
 
       // Cache all associations that are already loaded and list all foreign keys that need to be loaded
       for (const entity of entities) {
-        const alreadyLoaded: AssociatedModel | null = entity[associationInfo.as];
+        const alreadyLoaded: AM | null = entity[associationInfo.as];
         const associationId: ForeignKeyType = entity[associationInfo.foreignKey];
         if (associationsByForeignKey[associationId]) {
           continue; // We already have this association
@@ -152,14 +148,14 @@ export function buildLoaderForAssociation<AssociatedModel extends Model>(
       const associationNotLoadedYet = (id: ForeignKeyType): boolean => !associationsByForeignKey[id];
       const associationsIdsToLoad = Object.keys(associationsByForeignKey).filter(associationNotLoadedYet);
       if (associationsIdsToLoad.length > 0) {
-        let loadedAssociations: Model[];
+        let loadedAssociations: Array<AM> = [];
         if (options.loader) {
           // If a loader is provided, use it to load the associations using the IDs we've collected
           loadedAssociations = await options.loader(associationsIdsToLoad);
         } else {
           // Otherwise fallback on making a query using the model + foreign key
           loadedAssociations = await associationInfo.target.findAll({
-            where: { [associationInfo.target.primaryKeyAttribute]: associationsIdsToLoad },
+            where: { [associationInfo.target.primaryKeyAttribute]: associationsIdsToLoad } as any,
           });
         }
 
@@ -187,21 +183,21 @@ export function buildLoaderForAssociation<AssociatedModel extends Model>(
       });
     },
     {
-      cacheKeyFn: (entity: AssociatedModel) => entity[model['primaryKeyAttribute']],
+      cacheKeyFn: (entity: SM): string => entity[staticModel['primaryKeyAttribute']],
     },
   );
 }
 
 export const populateModelAssociations = async <M>(
-  req: Request,
+  req: Express.Request,
   objects: M[],
-  associations: Array<{ fkField: string; as?: string; modelName: keyof typeof models }>,
+  associations: Array<{ fkField: string; as?: string; modelName: ModelNames }>,
 ): Promise<M[]> => {
   const promises = associations.map(async ({ fkField, as: propertyKey, modelName }) => {
     const ids = objects.map(obj => obj[fkField]).filter(id => id);
     const foreignObjects = await req.loaders[modelName].byId.loadMany(ids);
     objects.forEach(obj => {
-      const subObject = foreignObjects.find(s => s.id === obj[fkField]);
+      const subObject = foreignObjects.find(s => s['id'] === obj[fkField]);
       if (subObject) {
         obj[propertyKey || modelName] = subObject;
       }

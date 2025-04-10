@@ -17,7 +17,7 @@ import sinon, { assert } from 'sinon';
 import speakeasy from 'speakeasy';
 
 import * as dbRestore from '../scripts/db_restore';
-import { loaders } from '../server/graphql/loaders';
+import { generateLoaders, Loaders } from '../server/graphql/loaders';
 import schemaV1 from '../server/graphql/v1/schema';
 import schemaV2 from '../server/graphql/v2/schema';
 import cache from '../server/lib/cache';
@@ -120,7 +120,7 @@ export const makeRequest = (
   remoteUser: typeof remoteUser;
   jwtPayload: typeof jwtPayload;
   body: { query: string };
-  loaders: ReturnType<typeof loaders>;
+  loaders: Loaders;
   headers: typeof headers;
   header: (key: string) => string;
   get: (key: string) => string;
@@ -134,7 +134,7 @@ export const makeRequest = (
     remoteUser,
     jwtPayload,
     body: { query },
-    loaders: loaders({ remoteUser }),
+    loaders: generateLoaders({ remoteUser }),
     headers,
     header: () => null,
     get: a => {

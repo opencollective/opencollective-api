@@ -5,7 +5,7 @@ import sinon from 'sinon';
 
 import { expenseStatus } from '../../../server/constants';
 import * as FilesController from '../../../server/controllers/files';
-import { loaders } from '../../../server/graphql/loaders';
+import { generateLoaders } from '../../../server/graphql/loaders';
 import { idEncode, IDENTIFIER_TYPES } from '../../../server/graphql/v2/identifiers';
 import * as awsS3 from '../../../server/lib/awsS3';
 import { Collective, Expense, UploadedFile, User } from '../../../server/models';
@@ -193,7 +193,7 @@ describe('server/controllers/files', () => {
       const response = httpMocks.createResponse();
 
       request.remoteUser = otherUser;
-      request.loaders = loaders({ remoteUser: otherUser });
+      request.loaders = generateLoaders({ remoteUser: otherUser });
       await FilesController.getFile(request, response);
 
       expect(response._getStatusCode()).to.eql(400);
