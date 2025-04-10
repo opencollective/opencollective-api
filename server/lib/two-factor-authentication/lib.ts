@@ -1,4 +1,4 @@
-import { Request } from 'express';
+import type Express from 'express';
 import { isNil, pick } from 'lodash';
 
 import { activities } from '../../constants';
@@ -68,7 +68,7 @@ const providers: { [method in TwoFactorMethod]: TwoFactorAuthProvider } = {
   [TwoFactorMethod.WEBAUTHN]: webauthn,
 };
 
-function getTwoFactorAuthTokenFromRequest(req: Request): Token {
+function getTwoFactorAuthTokenFromRequest(req: Express.Request): Token {
   const header = req.get(TwoFactorAuthenticationHeader);
   if (!header) {
     return null;
@@ -102,7 +102,7 @@ const DefaultValidateRequestOptions: ValidateRequestOptions = {
   sessionDuration: DEFAULT_TWO_FACTOR_AUTH_SESSION_DURATION,
 };
 
-function getSessionKey(req: Request, options: ValidateRequestOptions): string {
+function getSessionKey(req: Express.Request, options: ValidateRequestOptions): string {
   const userId = req.remoteUser.id;
   if (typeof options.sessionKey === 'function') {
     return `2fa:${userId}:${options.sessionKey()}`;
@@ -115,7 +115,7 @@ function getSessionKey(req: Request, options: ValidateRequestOptions): string {
 }
 
 async function hasValidTwoFactorSession(
-  req: Request,
+  req: Express.Request,
   options: ValidateRequestOptions = DefaultValidateRequestOptions,
 ): Promise<boolean> {
   const sessionKey = getSessionKey(req, options);
@@ -129,12 +129,15 @@ async function hasValidTwoFactorSession(
   return true;
 }
 
-async function storeTwoFactorSession(req: Request, options: ValidateRequestOptions = DefaultValidateRequestOptions) {
+async function storeTwoFactorSession(
+  req: Express.Request,
+  options: ValidateRequestOptions = DefaultValidateRequestOptions,
+) {
   const sessionKey = getSessionKey(req, options);
   return sessionCache.set(sessionKey, {}, options.sessionDuration);
 }
 
-function inferContextFromRequest(req: Request) {
+function inferContextFromRequest(req: Express.Request) {
   if (req.isGraphQL && req.body) {
     const operation = req.body.operationName || 'Request';
     return `GraphQL: ${operation}`;
@@ -148,7 +151,7 @@ function inferContextFromRequest(req: Request) {
  * @returns true if 2FA was validated, false if not required
  */
 async function validateRequest(
-  req: Request,
+  req: Express.Request,
   options: ValidateRequestOptions = DefaultValidateRequestOptions,
 ): Promise<boolean> {
   options = { ...DefaultValidateRequestOptions, ...options };
@@ -259,7 +262,7 @@ async function shouldEnforceForAccount(account?: Collective): Promise<boolean> {
  * @returns true if 2FA was validated, false if not required
  */
 async function enforceForAccount(
-  req: Request,
+  req: Express.Request,
   account: Collective,
   options: Omit<ValidateRequestOptions, 'requireTwoFactorAuthEnabled'> = undefined,
 ): Promise<boolean | undefined> {
@@ -279,7 +282,7 @@ async function enforceForAccount(
  * @returns true if 2FA was validated, false if not required
  */
 async function enforceForAccountsUserIsAdminOf(
-  req: Request,
+  req: Express.Request,
   accounts: Collective | Array<Collective>,
   options: Omit<ValidateRequestOptions, 'requireTwoFactorAuthEnabled'> = undefined,
 ): Promise<boolean | undefined> {

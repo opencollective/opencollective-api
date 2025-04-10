@@ -1,4 +1,4 @@
-import { Request } from 'express';
+import type Express from 'express';
 
 import { Collective, Expense, ExpenseAttachedFile, ExpenseItem, UploadedFile } from '../../models';
 import { ExpenseStatus } from '../../models/Expense';
@@ -6,7 +6,7 @@ import { idDecode, IDENTIFIER_TYPES } from '../v2/identifiers';
 
 import { canSeeExpenseAttachments, canSeeExpenseDraftPrivateDetails } from './expenses';
 
-export async function hasProtectedUrlPermission(req: Request, url: string) {
+export async function hasProtectedUrlPermission(req: Express.Request, url: string) {
   const requestedUrl = new URL(url);
   const encodedExpenseId = requestedUrl.searchParams.get('expenseId');
   const draftKey = requestedUrl.searchParams.get('draftKey');
@@ -33,7 +33,7 @@ export async function hasProtectedUrlPermission(req: Request, url: string) {
 }
 
 export async function hasUploadedFilePermission(
-  req: Request,
+  req: Express.Request,
   uploadedFile: UploadedFile,
   options?: { expenseId: number; draftKey?: string },
 ): Promise<boolean> {

@@ -22,7 +22,7 @@
  * }
  */
 
-import express from 'express';
+import type Express from 'express';
 import { get, has, isNil, set } from 'lodash';
 
 /**
@@ -59,7 +59,7 @@ const checkPermissionType = (permissionType): void => {
  * @param entityId The unique identifier for the item to which the permissions apply
  */
 export const allowContextPermission = (
-  req: express.Request,
+  req: Express.Request,
   permissionType: PERMISSION_TYPE,
   entityId: string | number,
 ): void => {
@@ -75,7 +75,7 @@ export const allowContextPermission = (
  * @returns `true` if allowed, `false` if not allowed
  */
 export const getContextPermission = (
-  req: express.Request,
+  req: Express.Request,
   permissionType: PERMISSION_TYPE,
   entityId: string | number,
 ): boolean => {

@@ -633,7 +633,7 @@ const accountMutations = {
         description: 'Account to edit.',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+    async resolve(_: void, args, req: express.Request): Promise<Collective> {
       checkRemoteUserCanUseAccount(req);
 
       const id = idDecode(args.account.id, 'account');
@@ -684,7 +684,7 @@ const accountMutations = {
       },
     },
 
-    async resolve(_: void, args, req: express.Request): Promise<void> {
+    async resolve(_: void, args, req: express.Request): Promise<Collective> {
       checkRemoteUserCanUseAccount(req);
 
       const id = args.account.legacyId || idDecode(args.account.id, 'account');

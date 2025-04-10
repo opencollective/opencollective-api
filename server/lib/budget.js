@@ -82,6 +82,9 @@ export async function getBalanceAmount(
   };
 }
 
+/**
+ * @return {Promise<Record<number, { CollectiveId: number, currency: string, value: number }>>}
+ */
 export async function getBalances(
   collectiveIds,
   {
@@ -192,6 +195,11 @@ export async function getTotalAmountSpentAmount(
   };
 }
 
+/**
+ * @param {number[] | readonly number[]} collectiveIds
+ * @param {{ net?: boolean, kind?: string, startDate?: Date, endDate?: Date, includeChildren?: boolean, includeGiftCards?: boolean, version?: string, loaders?: any }} param1
+ * @returns {Promise<Record<number,{ CollectiveId number, currency: string, value: number }>>}
+ */
 export async function getSumCollectivesAmountSpent(
   collectiveIds,
   {
@@ -418,6 +426,11 @@ export async function getBalanceTimeSeries(
   };
 }
 
+/**
+ * @param {number[] | readonly number[]} collectiveIds
+ * @param {{ net?: boolean, useMaterializedView?: boolean, kind?: string, startDate?: Date, endDate?: Date, includeChildren?: boolean, version?: string, groupByAttributes?: any, extraAttributes?: any, loaders?: any }} param1
+ * @returns {Promise<Record<number,{ CollectiveId number, currency: string, value: number }>>}
+ */
 export async function getSumCollectivesAmountReceived(
   collectiveIds,
   {
@@ -525,6 +538,9 @@ export async function getTotalMoneyManagedAmount(
   return { value, currency };
 }
 
+/**
+ * @returns {Promise<Record<number,{ CollectiveId number, currency: string, value: number }>>}
+ */
 export async function sumCollectivesTransactions(
   ids,
   {

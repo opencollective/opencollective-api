@@ -2,6 +2,7 @@ import express from 'express';
 import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
+import type { UploadedFile } from '../../../models';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLFileInfo } from '../interface/FileInfo';
@@ -98,7 +99,7 @@ const GraphQLExpenseItem = new GraphQLObjectType({
     file: {
       type: GraphQLFileInfo,
       description: 'The file associated with this item (if any)',
-      resolve(item, _, req: express.Request): string | undefined {
+      resolve(item, _, req: express.Request): Promise<UploadedFile> {
         if (item.url && getContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_ATTACHMENTS_URL, item.ExpenseId)) {
           return req.loaders.UploadedFile.byUrl.load(item.url);
         }

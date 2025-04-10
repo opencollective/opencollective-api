@@ -1,4 +1,4 @@
-import express from 'express';
+import type Express from 'express';
 import { cloneDeepWith, pick } from 'lodash';
 import { InferAttributes } from 'sequelize';
 
@@ -17,8 +17,6 @@ import * as OrdersLib from '../../graphql/common/orders';
 import { canSeeUpdate } from '../../graphql/common/update';
 import { Agreement, Collective, LegalDocument, ModelInstance, type ModelNames } from '../../models';
 import { IDENTIFIABLE_DATA_FIELDS } from '../../models/PayoutMethod';
-
-import { PartialRequest } from './types';
 
 const TEST_STRIPE_ACCOUNTS = Object.values(testStripeAccounts).reduce(
   (obj, account) => ({ ...obj, [account.CollectiveId]: account }),
@@ -75,7 +73,7 @@ const DEV_SANITIZERS = {
 
 type Sanitizer<ModelName extends ModelNames> = (
   values: ModelInstance<ModelName>,
-  req: PartialRequest,
+  req: Express.Request,
 ) =>
   | void
   | null
@@ -149,33 +147,27 @@ const PROD_SANITIZERS: { [k in ModelNames]: Sanitizer<k> } = {
   },
   Expense: async (expense, req) => {
     req.loaders.Expense.byId.prime(expense.id, expense); // Store the expense in the cache for later row resolvers
-    if (await ExpenseLib.canSeeExpensePayoutMethodPrivateDetails(req as express.Request, expense)) {
-      allowContextPermission(req as express.Request, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, expense.PayoutMethodId);
+    if (await ExpenseLib.canSeeExpensePayoutMethodPrivateDetails(req, expense)) {
+      allowContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, expense.PayoutMethodId);
     }
 
     return {
-      payeeLocation: (await ExpenseLib.canSeeExpensePayeeLocation(req as express.Request, expense))
-        ? expense.payeeLocation
-        : null,
-      privateMessage: (await ExpenseLib.canSeeExpenseAttachments(req as express.Request, expense))
-        ? expense.privateMessage
-        : null,
-      invoiceInfo: (await ExpenseLib.canSeeExpenseInvoiceInfo(req as express.Request, expense))
-        ? expense.invoiceInfo
-        : null,
-      data: (await ExpenseLib.isHostAdmin(req as express.Request, expense)) ? expense.data : null,
+      payeeLocation: (await ExpenseLib.canSeeExpensePayeeLocation(req, expense)) ? expense.payeeLocation : null,
+      privateMessage: (await ExpenseLib.canSeeExpenseAttachments(req, expense)) ? expense.privateMessage : null,
+      invoiceInfo: (await ExpenseLib.canSeeExpenseInvoiceInfo(req, expense)) ? expense.invoiceInfo : null,
+      data: (await ExpenseLib.isHostAdmin(req, expense)) ? expense.data : null,
     };
   },
   ExpenseAttachedFile: async (file, req) => {
     const expense = await req.loaders.Expense.byId.load(file.ExpenseId);
-    if (!expense || !(await ExpenseLib.canSeeExpenseAttachments(req as express.Request, expense))) {
+    if (!expense || !(await ExpenseLib.canSeeExpenseAttachments(req, expense))) {
       return null;
     }
   },
   ExpenseItem: async (item, req) => {
     const expense = await req.loaders.Expense.byId.load(item.ExpenseId);
     return {
-      url: (await ExpenseLib.canSeeExpenseAttachments(req as express.Request, expense)) ? item.url : null,
+      url: (await ExpenseLib.canSeeExpenseAttachments(req, expense)) ? item.url : null,
     };
   },
   HostApplication: async (application, req) => {
@@ -230,26 +222,20 @@ const PROD_SANITIZERS: { [k in ModelNames]: Sanitizer<k> } = {
       'closedReason',
     ];
 
-    const isHostAdmin = await OrdersLib.isOrderHostAdmin(req as express.Request, order);
+    const isHostAdmin = await OrdersLib.isOrderHostAdmin(req, order);
     if (isHostAdmin) {
-      allowContextPermission(req as express.Request, PERMISSION_TYPE.SEE_PAYMENT_METHOD_DETAILS, order.PaymentMethodId);
-      allowContextPermission(
-        req as express.Request,
-        PERMISSION_TYPE.SEE_SUBSCRIPTION_PRIVATE_DETAILS,
-        order.SubscriptionId,
-      );
+      allowContextPermission(req, PERMISSION_TYPE.SEE_PAYMENT_METHOD_DETAILS, order.PaymentMethodId);
+      allowContextPermission(req, PERMISSION_TYPE.SEE_SUBSCRIPTION_PRIVATE_DETAILS, order.SubscriptionId);
     }
 
     return {
       privateMessage: null, // This field is not used since 2017, we don't want to export it
-      CreatedByUserId: (await OrdersLib.canSeeOrderCreator(req as express.Request, order))
-        ? order.CreatedByUserId
-        : null,
+      CreatedByUserId: (await OrdersLib.canSeeOrderCreator(req, order)) ? order.CreatedByUserId : null,
       data: pick(order.data, isHostAdmin ? [...publicDataFields, ...privateDataFields] : publicDataFields),
     };
   },
   PaymentMethod: async (paymentMethod, req) => {
-    if (!getContextPermission(req as express.Request, PERMISSION_TYPE.SEE_PAYMENT_METHOD_DETAILS, paymentMethod.id)) {
+    if (!getContextPermission(req, PERMISSION_TYPE.SEE_PAYMENT_METHOD_DETAILS, paymentMethod.id)) {
       return {
         uuid: null,
         CreatedByUserId: null,
@@ -261,7 +247,7 @@ const PROD_SANITIZERS: { [k in ModelNames]: Sanitizer<k> } = {
     }
   },
   PayoutMethod: (payoutMethod, req) => {
-    if (!getContextPermission(req as express.Request, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, payoutMethod.id)) {
+    if (!getContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, payoutMethod.id)) {
       return {
         data: null,
         isSaved: null,
@@ -270,9 +256,7 @@ const PROD_SANITIZERS: { [k in ModelNames]: Sanitizer<k> } = {
     }
   },
   Subscription: (subscription, req) => {
-    if (
-      !getContextPermission(req as express.Request, PERMISSION_TYPE.SEE_SUBSCRIPTION_PRIVATE_DETAILS, subscription.id)
-    ) {
+    if (!getContextPermission(req, PERMISSION_TYPE.SEE_SUBSCRIPTION_PRIVATE_DETAILS, subscription.id)) {
       return {
         data: null,
         interval: null,

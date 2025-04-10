@@ -2,6 +2,7 @@ import express from 'express';
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
+import type { Collective } from '../../../models';
 import { GraphQLMemberRole } from '../enum/MemberRole';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
@@ -21,7 +22,7 @@ export const GraphQLMemberInvitation = new GraphQLObjectType({
       inviter: {
         type: GraphQLIndividual,
         description: 'The person who invited the member, if any',
-        resolve: async (member, _, req: express.Request): Promise<Record<string, unknown>> => {
+        resolve: async (member, _, req: express.Request): Promise<Collective> => {
           const collective = await req.loaders.Collective.byUserId.load(member.CreatedByUserId);
           if (!collective?.isIncognito) {
             return collective;

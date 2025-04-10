@@ -1,4 +1,4 @@
-import express from 'express';
+import type Express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLString } from 'graphql';
 
 import { activities } from '../../../constants';
@@ -27,7 +27,7 @@ const transactionMutations = {
         description: 'If true, the refund will be processed even if it exceeds the balance of the Collective',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<Transaction> {
+    async resolve(_: void, args, req: Express.Request): Promise<Transaction> {
       checkRemoteUserCanUseTransactions(req);
       const transaction = await fetchTransactionWithReference(args.transaction, { throwIfMissing: true });
       return refundTransaction(transaction, req, { ignoreBalanceCheck: args.ignoreBalanceCheck });
@@ -47,7 +47,7 @@ const transactionMutations = {
         description: 'Message to send to the contributor whose contribution has been rejected',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<Transaction> {
+    async resolve(_: void, args, req: Express.Request): Promise<Transaction> {
       checkRemoteUserCanUseTransactions(req);
 
       // get transaction info

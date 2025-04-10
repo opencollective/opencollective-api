@@ -36,7 +36,7 @@ async function makeRequest(
   });
 
   request.remoteUser = remoteUser;
-  request.loaders = loaders({ remoteUser });
+  request.loaders = generateLoaders({ remoteUser });
   const response = httpMocks.createResponse();
 
   await FilesController.getFile(request, response);

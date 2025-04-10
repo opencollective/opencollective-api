@@ -3,7 +3,7 @@ import assert from 'assert';
 import * as LibTaxes from '@opencollective/taxes';
 import config from 'config';
 import debugLib from 'debug';
-import express, { Request } from 'express';
+import type express from 'express';
 import {
   cloneDeep,
   find,
@@ -475,7 +475,7 @@ export const canSeeExpenseDraftPrivateDetails: ExpensePermissionEvaluator = asyn
   }
 };
 
-export const canSeeExpenseTransactionImportRow: ExpensePermissionEvaluator = async (req, expense) => {
+export const canSeeExpenseTransactionImportRow: ExpensePermissionEvaluator = async (req: express.Request, expense) => {
   if (!validateExpenseScope(req)) {
     return false;
   } else {
@@ -1651,7 +1651,7 @@ const checkCanUseAccountingCategory = (
   }
 };
 
-export async function prepareAttachedFiles(req: Request, attachedFiles: ExpenseData['attachedFiles']) {
+export async function prepareAttachedFiles(req: express.Request, attachedFiles: ExpenseData['attachedFiles']) {
   if (!attachedFiles) {
     return null;
   } else if (!attachedFiles.length) {
@@ -1684,7 +1684,10 @@ export async function prepareAttachedFiles(req: Request, attachedFiles: ExpenseD
   }));
 }
 
-export async function prepareInvoiceFile(req: Request, invoiceFile: ExpenseData['invoiceFile']): Promise<UploadedFile> {
+export async function prepareInvoiceFile(
+  req: express.Request,
+  invoiceFile: ExpenseData['invoiceFile'],
+): Promise<UploadedFile> {
   if (!invoiceFile) {
     return null;
   }
@@ -1701,7 +1704,7 @@ export async function prepareInvoiceFile(req: Request, invoiceFile: ExpenseData[
 }
 
 export const prepareExpenseItemInputs = async (
-  req: Request,
+  req: express.Request,
   expenseCurrency: SupportedCurrency,
   itemsInput: Array<ExpenseItem | (Record<string, unknown> & { url?: string })>,
   { isEditing = false } = {},

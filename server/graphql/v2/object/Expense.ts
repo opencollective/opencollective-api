@@ -1,4 +1,4 @@
-import express from 'express';
+import type Express from 'express';
 import {
   GraphQLBoolean,
   GraphQLFloat,
@@ -102,7 +102,7 @@ const loadHostForExpense = async (expense, req) => {
     : req.loaders.Collective.hostByCollectiveId.load(expense.CollectiveId);
 };
 
-export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Request>({
+export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Request>({
   name: 'Expense',
   description: 'This represents an Expense',
   fields: () => {
@@ -628,7 +628,7 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Reques
         description: 'The account that requested this expense to be submitted',
         async resolve(expense, _, req) {
           if (expense.data?.invitedByCollectiveId) {
-            return await req.loaders.Collective.byId.load(expense.data.invitedByCollectiveId);
+            return await req.loaders.Collective.byId.load(expense.data.invitedByCollectiveId as number);
           }
         },
       },
@@ -770,7 +770,7 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Reques
         type: GraphQLTransactionsImportRow,
         description:
           '[Host admins only] If the expense associated with a transactions import row, this field will reference it',
-        async resolve(expense, _, req) {
+        async resolve(expense, _, req: Express.Request) {
           if (await ExpenseLib.canSeeExpenseTransactionImportRow(req, expense)) {
             return req.loaders.TransactionsImportRow.byExpenseId.load(expense.id);
           }

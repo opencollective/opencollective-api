@@ -8,6 +8,7 @@ import { OrderItem, Sequelize } from 'sequelize';
 
 import { expenseStatus } from '../../../../constants';
 import { CollectiveType } from '../../../../constants/collectives';
+import { SupportedCurrency } from '../../../../constants/currencies';
 import MemberRoles from '../../../../constants/roles';
 import { getBalances } from '../../../../lib/budget';
 import { loadFxRatesMap } from '../../../../lib/currency';
@@ -98,7 +99,7 @@ const updateFilterConditionsForReadyToPay = async (where, include, host, loaders
       uniq(
         expensesWithoutPendingTaxForm.map(expense => {
           const collectiveBalance = balances[expense.CollectiveId];
-          return { fromCurrency: expense.currency, toCurrency: collectiveBalance.currency };
+          return { fromCurrency: expense.currency, toCurrency: collectiveBalance.currency as SupportedCurrency };
         }),
       ),
     );
@@ -287,7 +288,9 @@ export const ExpensesCollectionQueryResolver = async (
 
     const accountIds = accounts.map(account => account.id);
     if (args.includeChildrenExpenses) {
-      const childIds = await req.loaders.Collective.childrenIds.loadMany(accountIds);
+      const childIds = (await req.loaders.Collective.childrenIds.loadMany(accountIds)).filter(
+        id => id instanceof Array,
+      );
       accountIds.push(...childIds.flat());
     }
     where['CollectiveId'] = uniq(accountIds);
@@ -553,7 +556,11 @@ export const ExpensesCollectionQueryResolver = async (
         amountsByCurrency,
         amount: async ({ currency = 'USD' }) => {
           const values = await req.loaders.CurrencyExchangeRate.convert.loadMany(
-            amountsByCurrency.map(v => ({ amount: v.value, fromCurrency: v.currency, toCurrency: currency })),
+            amountsByCurrency.map(v => ({
+              amount: v.value,
+              fromCurrency: v.currency as SupportedCurrency,
+              toCurrency: currency as SupportedCurrency,
+            })),
           );
           return {
             value: sum(values),

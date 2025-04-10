@@ -52,13 +52,13 @@ export const GraphQLContributorProfile = new GraphQLObjectType({
         const incognitoMember = account.type === CollectiveType.USER && (await account.getIncognitoMember());
         if (incognitoMember) {
           const [individual, incognito]: Array<TotalContributedToHost | undefined> =
-            await req.loaders.Contributors.totalContributedToHost.loadMany(
+            (await req.loaders.Contributors.totalContributedToHost.loadMany(
               [incognitoMember.MemberCollectiveId, incognitoMember.CollectiveId].map(CollectiveId => ({
                 CollectiveId,
                 HostId: host.id,
                 since,
               })),
-            );
+            )) as TotalContributedToHost[];
           if (!individual && !incognito) {
             stats = null;
           } else if (individual && incognito) {

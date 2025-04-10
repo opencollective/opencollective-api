@@ -1,7 +1,8 @@
-import express from 'express';
+import type express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
+import { Collective } from '../../../models';
 import { GraphQLActivityChannel } from '../enum/ActivityChannel';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
@@ -46,7 +47,7 @@ export const GraphQLActivitySubscription = new GraphQLObjectType({
     individual: {
       type: new GraphQLNonNull(GraphQLIndividual),
       description: 'The user who defined the setting',
-      resolve: async (notification, _, req: express.Request): Promise<Record<string, unknown>> => {
+      resolve: async (notification, _, req: express.Request): Promise<Collective> => {
         if (notification.UserId) {
           const collective = await req.loaders.Collective.byUserId.load(notification.UserId);
           if (!collective?.isIncognito) {

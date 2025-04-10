@@ -24,7 +24,7 @@ describe('server/graphql/loaders/helpers', () => {
       const host = await fakeHost();
       const collective = await fakeCollective({ isActive: true, HostCollectiveId: host.id });
       const dbSpy = sandbox.spy(models.Collective, 'findAll');
-      const loader = buildLoaderForAssociation<Collective>(Collective, 'host');
+      const loader = buildLoaderForAssociation<Collective, Collective>(Collective, 'host');
 
       collective.host = host;
       const result = await loader.load(collective);
@@ -36,7 +36,7 @@ describe('server/graphql/loaders/helpers', () => {
       const host = await fakeHost();
       const collective = await fakeCollective({ isActive: true, HostCollectiveId: host.id });
       const dbSpy = sandbox.spy(models.Collective, 'findAll');
-      const loader = buildLoaderForAssociation<Collective>(Collective, 'host');
+      const loader = buildLoaderForAssociation<Collective, Collective>(Collective, 'host');
 
       collective.host = undefined;
       const result = await loader.load(collective);
@@ -48,7 +48,7 @@ describe('server/graphql/loaders/helpers', () => {
       const host = await fakeHost();
       const collective = await fakeCollective({ isActive: true, HostCollectiveId: host.id });
       const dbSpy = sandbox.spy(models.Collective, 'findAll');
-      const loader = buildLoaderForAssociation<Collective>(Collective, 'host');
+      const loader = buildLoaderForAssociation<Collective, Collective>(Collective, 'host');
 
       // First call
       collective.host = undefined;
@@ -69,7 +69,7 @@ describe('server/graphql/loaders/helpers', () => {
       const collective = await fakeCollective({ isActive: true, HostCollectiveId: host.id });
       const customLoader = stub().resolves([host]);
       const dbSpy = sandbox.spy(models.Collective, 'findAll');
-      const loader = buildLoaderForAssociation<Collective>(models.Collective, 'host', {
+      const loader = buildLoaderForAssociation<Collective, Collective>(models.Collective, 'host', {
         loader: customLoader,
       });
 
@@ -85,7 +85,7 @@ describe('server/graphql/loaders/helpers', () => {
       const collective1 = await fakeCollective({ isActive: true, HostCollectiveId: host.id });
       const collective2 = await fakeCollective({ isActive: true, HostCollectiveId: host.id });
       const dbSpy = sandbox.spy(models.Collective, 'findAll');
-      const loader = buildLoaderForAssociation<Collective>(Collective, 'host');
+      const loader = buildLoaderForAssociation<Collective, Collective>(Collective, 'host');
 
       collective1.host = undefined;
       collective2.host = host;
@@ -98,7 +98,7 @@ describe('server/graphql/loaders/helpers', () => {
       const host = await fakeHost();
       const collective = await fakeCollective({ isActive: true, HostCollectiveId: host.id });
       const dbSpy = sandbox.spy(models.Collective, 'findAll');
-      const loader = buildLoaderForAssociation<Collective>(models.Collective, 'host', {
+      const loader = buildLoaderForAssociation<Collective, Collective>(models.Collective, 'host', {
         filter: () => false,
       });
 

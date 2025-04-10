@@ -72,7 +72,8 @@ export const generateCountAdminMembersOfCollective = () => {
 
 export const generateMemberIsActiveLoader = (req: Express.Request) => {
   return new DataLoader(async (memberIds: number[]): Promise<boolean[]> => {
-    const membersToProcess: MemberModelInterface[] = await req.loaders.Member.byId.loadMany(memberIds);
+    const membersToProcess = (await req.loaders.Member.byId.loadMany(memberIds)) as MemberModelInterface[];
+
     const activeMemberIds = new Set<number>();
 
     // Members without tiers are always active
@@ -82,7 +83,7 @@ export const generateMemberIsActiveLoader = (req: Express.Request) => {
     // Otherwise, we need to look at the tier properties
     const allTierIds = membersToProcess.map(m => m.TierId);
     if (allTierIds.length > 0) {
-      const tiers: Tier[] = await req.loaders.Tier.byId.loadMany(membersToProcess.map(m => m.TierId));
+      const tiers = (await req.loaders.Tier.byId.loadMany(membersToProcess.map(m => m.TierId))) as Tier[];
       const groupedTiers = keyBy(tiers, 'id');
 
       // Exclude people that are members of tiers without interval or with interval 'flexible'

@@ -1,4 +1,4 @@
-import express from 'express';
+import type express from 'express';
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
@@ -28,7 +28,7 @@ export const GraphQLAgreement = new GraphQLObjectType<AgreementModel, express.Re
       async resolve(agreement, _, req) {
         const user = agreement.User || (await req.loaders.User.byId.load(agreement.UserId));
         if (user && user.CollectiveId) {
-          return user.Collective || (await req.loaders.Collective.byId.load(user.CollectiveId));
+          return user.collective || (await req.loaders.Collective.byId.load(user.CollectiveId));
         }
       },
     },

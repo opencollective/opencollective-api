@@ -1,3 +1,4 @@
+import type Express from 'express';
 import { pick } from 'lodash';
 
 import ActivityTypes from '../../constants/activities';
@@ -5,7 +6,7 @@ import { Activity } from '../../models';
 
 import * as ExpenseLib from './expenses';
 
-export const sanitizeActivityData = async (req, activity): Promise<Partial<Activity['data']>> => {
+export const sanitizeActivityData = async (req: Express.Request, activity): Promise<Partial<Activity['data']>> => {
   const toPick = [];
   if (activity.type === ActivityTypes.COLLECTIVE_EXPENSE_PAID) {
     toPick.push('isManualPayout');
