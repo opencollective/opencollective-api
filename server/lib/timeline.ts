@@ -7,8 +7,7 @@ import ActivityTypes, { ActivitiesPerClass, ActivityClasses } from '../constants
 import { CollectiveType } from '../constants/collectives';
 import MemberRoles from '../constants/roles';
 import { createRedisClient, RedisInstanceType } from '../lib/redis';
-import { Activity, Collective } from '../models';
-import { MemberModelInterface } from '../models/Member';
+import { Activity, Collective, Member } from '../models';
 
 import makeRedisProvider from './cache/redis';
 import { utils } from './statsd';
@@ -16,7 +15,7 @@ import { parseToBoolean } from './utils';
 
 const debug = debugLib('timeline');
 
-const getCollectiveIdsForRole = (memberships: MemberModelInterface[], roles: MemberRoles[]): number[] =>
+const getCollectiveIdsForRole = (memberships: Member[], roles: MemberRoles[]): number[] =>
   memberships.filter(m => roles.includes(m.role)).map(m => m.CollectiveId);
 
 const CREATED_AT_HORIZON = { [Op.gt]: Sequelize.literal("NOW() - INTERVAL '6 months'") };

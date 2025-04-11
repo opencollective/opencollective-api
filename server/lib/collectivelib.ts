@@ -11,7 +11,6 @@ import PlatformConstants from '../constants/platform';
 import { VAT_OPTIONS } from '../constants/vat';
 import models, { Collective, Member, Op, sequelize, User } from '../models';
 import Expense from '../models/Expense';
-import { MemberModelInterface } from '../models/Member';
 import MemberInvitation from '../models/MemberInvitation';
 import Order from '../models/Order';
 import PaymentMethod from '../models/PaymentMethod';
@@ -468,7 +467,7 @@ export async function deleteCollective(collective: Collective, remoteUser: User)
       [Op.or]: [{ CollectiveId: collective.id }, { MemberCollectiveId: collective.id }],
     },
   });
-  await map(members, (member: MemberModelInterface) => member.destroy(), { concurrency: 3 });
+  await map(members, (member: Member) => member.destroy(), { concurrency: 3 });
 
   const orders = await models.Order.findAll({
     where: {
