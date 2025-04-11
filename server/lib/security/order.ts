@@ -1,6 +1,6 @@
 import config from 'config';
 import debugLib from 'debug';
-import Express from 'express';
+import express from 'express';
 import { pick, toLower, toString } from 'lodash';
 
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
@@ -219,7 +219,7 @@ export const checkEmail = async (email: string) => {
 };
 
 export const orderFraudProtection = async (
-  req: Express.Request,
+  req: express.Request,
   order: {
     guestInfo?: { email?: string };
     paymentMethod?: {

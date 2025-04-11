@@ -1,13 +1,10 @@
-import DataLoader from 'dataloader';
-
-import PersonalToken from '../models/PersonalToken';
-import UserModel from '../models/User';
-import UserToken from '../models/UserToken';
+import type { Loaders } from '../graphql/loaders';
+import type { PersonalToken, User, UserToken } from '../models';
 
 declare global {
   namespace Express {
-    interface Request {
-      remoteUser?: UserModel | null;
+    export interface Request {
+      remoteUser?: User;
       isGraphQL?: boolean;
       jwtPayload?: {
         sessionId?: string;
@@ -25,7 +22,7 @@ declare global {
       };
       userToken?: UserToken;
       personalToken?: PersonalToken;
-      loaders: Record<string, DataLoader>;
+      loaders: Loaders;
       rawBody?: string;
       params: Record<string, string>;
     }

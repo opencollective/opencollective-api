@@ -1,7 +1,8 @@
-import express from 'express';
+import type express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
+import type { Collective, Conversation, Expense, Order, Transaction, Update } from '../../../models';
 import { sanitizeActivityData } from '../../common/activities';
 import { GraphQLActivityType } from '../enum';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
@@ -35,7 +36,7 @@ export const GraphQLActivity = new GraphQLObjectType({
     fromAccount: {
       type: GraphQLAccount,
       description: 'The account that authored by this activity, if any',
-      resolve: async (activity, _, req: express.Request): Promise<Record<string, unknown>> => {
+      resolve: async (activity, _, req: express.Request): Promise<Collective> => {
         if (activity.FromCollectiveId) {
           return req.loaders.Collective.byId.load(activity.FromCollectiveId);
         }
@@ -44,7 +45,7 @@ export const GraphQLActivity = new GraphQLObjectType({
     account: {
       type: GraphQLAccount,
       description: 'The account targeted by this activity, if any',
-      resolve: async (activity, _, req: express.Request): Promise<Record<string, unknown>> => {
+      resolve: async (activity, _, req: express.Request): Promise<Collective> => {
         if (activity.CollectiveId) {
           return req.loaders.Collective.byId.load(activity.CollectiveId);
         }
@@ -53,7 +54,7 @@ export const GraphQLActivity = new GraphQLObjectType({
     host: {
       type: GraphQLHost,
       description: 'The host under which this activity happened, if any',
-      resolve: async (activity, _, req: express.Request): Promise<Record<string, unknown>> => {
+      resolve: async (activity, _, req: express.Request): Promise<Collective> => {
         if (activity.HostCollectiveId) {
           return req.loaders.Collective.byId.load(activity.HostCollectiveId);
         }
@@ -62,7 +63,7 @@ export const GraphQLActivity = new GraphQLObjectType({
     individual: {
       type: GraphQLIndividual,
       description: 'The person who triggered the action, if any',
-      resolve: async (activity, _, req: express.Request): Promise<Record<string, unknown>> => {
+      resolve: async (activity, _, req: express.Request): Promise<Collective> => {
         if (!activity.UserId) {
           return null;
         }
@@ -91,7 +92,7 @@ export const GraphQLActivity = new GraphQLObjectType({
     expense: {
       type: GraphQLExpense,
       description: 'The expense related to this activity, if any',
-      resolve: async (activity, _, req: express.Request): Promise<Record<string, unknown>> => {
+      resolve: async (activity, _, req: express.Request): Promise<Expense> => {
         if (activity.ExpenseId) {
           return req.loaders.Expense.byId.load(activity.ExpenseId);
         }
@@ -100,7 +101,7 @@ export const GraphQLActivity = new GraphQLObjectType({
     order: {
       type: GraphQLOrder,
       description: 'The order related to this activity, if any',
-      resolve: async (activity, _, req: express.Request): Promise<Record<string, unknown>> => {
+      resolve: async (activity, _, req: express.Request): Promise<Order> => {
         if (activity.OrderId) {
           return req.loaders.Order.byId.load(activity.OrderId);
         }
@@ -109,7 +110,7 @@ export const GraphQLActivity = new GraphQLObjectType({
     update: {
       type: GraphQLUpdate,
       description: 'The update related to this activity, if any',
-      resolve: async (activity, _, req: express.Request): Promise<Record<string, unknown>> => {
+      resolve: async (activity, _, req: express.Request): Promise<Update> => {
         const updateId = activity.data?.UpdateId || activity.data?.update?.id;
         if (updateId) {
           return req.loaders.Update.byId.load(updateId);
@@ -119,7 +120,7 @@ export const GraphQLActivity = new GraphQLObjectType({
     conversation: {
       type: GraphQLConversation,
       description: 'The conversation related to this activity, if any',
-      resolve: async (activity, _, req: express.Request): Promise<Record<string, unknown>> => {
+      resolve: async (activity, _, req: express.Request): Promise<Conversation> => {
         const conversationId = activity.data?.ConversationId || activity.data?.conversation?.id;
         if (conversationId) {
           return req.loaders.Conversation.byId.load(conversationId);
@@ -129,7 +130,7 @@ export const GraphQLActivity = new GraphQLObjectType({
     transaction: {
       type: GraphQLTransaction,
       description: 'The transaction related to this activity, if any',
-      resolve: async (activity, _, req: express.Request): Promise<Record<string, unknown>> => {
+      resolve: async (activity, _, req: express.Request): Promise<Transaction> => {
         if (activity.TransactionId) {
           return req.loaders.Transaction.byId.load(activity.TransactionId);
         }

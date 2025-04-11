@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import config from 'config';
-import type Express from 'express';
+import type express from 'express';
 
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
 import {
@@ -149,13 +149,13 @@ describe('lib/security/order', () => {
           PaymentMethodId: pm.id,
         });
 
-        await expect(orderFraudProtection({ ip: '1.1.1.1' } as Express.Request, {})).to.be.rejectedWith(
+        await expect(orderFraudProtection({ ip: '1.1.1.1' } as express.Request, {})).to.be.rejectedWith(
           'IP 1.1.1.1 failed fraud protection',
         );
       });
 
       it('should throw if IP is alredy suspended', async () => {
-        await expect(orderFraudProtection({ ip: '1.1.1.1' } as Express.Request, {})).to.be.rejectedWith(
+        await expect(orderFraudProtection({ ip: '1.1.1.1' } as express.Request, {})).to.be.rejectedWith(
           'IP is suspended',
         );
       });
@@ -177,13 +177,13 @@ describe('lib/security/order', () => {
           data: { expYear: 2022, expMonth: 13, country: 'US' },
         });
         await multiple(fakeOrder, 5, { status: 'ERROR', PaymentMethodId: pm.id, CreatedByUserId: remoteUser.id });
-        await expect(orderFraudProtection({ remoteUser } as Express.Request, {})).to.be.rejectedWith(
+        await expect(orderFraudProtection({ remoteUser } as express.Request, {})).to.be.rejectedWith(
           'failed fraud protection',
         );
       });
 
       it('should throw if user is alredy suspended', async () => {
-        await expect(orderFraudProtection({ remoteUser } as Express.Request, {})).to.be.rejectedWith(
+        await expect(orderFraudProtection({ remoteUser } as express.Request, {})).to.be.rejectedWith(
           'USER is suspended',
         );
       });
@@ -196,13 +196,13 @@ describe('lib/security/order', () => {
       });
 
       it('should throw if donation comes from a guest-user from the same email', async () => {
-        await expect(orderFraudProtection({} as Express.Request, order)).to.be.rejectedWith(
+        await expect(orderFraudProtection({} as express.Request, order)).to.be.rejectedWith(
           'willem@dafoe.com failed fraud protection',
         );
       });
 
       it('should throw if user email is already suspended', async () => {
-        await expect(orderFraudProtection({} as Express.Request, order)).to.be.rejectedWith(
+        await expect(orderFraudProtection({} as express.Request, order)).to.be.rejectedWith(
           'EMAIL_ADDRESS is suspended',
         );
       });
@@ -222,13 +222,13 @@ describe('lib/security/order', () => {
       });
 
       it('should throw if donation comes from a guest-user from the same email', async () => {
-        await expect(orderFraudProtection({} as Express.Request, order)).to.be.rejectedWith(
+        await expect(orderFraudProtection({} as express.Request, order)).to.be.rejectedWith(
           'Credit Card 4242-Visa-13-2022 failed fraud protection',
         );
       });
 
       it('should throw if user email is already suspended', async () => {
-        await expect(orderFraudProtection({} as Express.Request, order)).to.be.rejectedWith('CREDIT_CARD is suspended');
+        await expect(orderFraudProtection({} as express.Request, order)).to.be.rejectedWith('CREDIT_CARD is suspended');
       });
     });
   });

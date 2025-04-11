@@ -1,6 +1,6 @@
 import assert from 'assert';
 
-import express from 'express';
+import type Express from 'express';
 import { isNull } from 'lodash';
 import moment from 'moment';
 
@@ -47,7 +47,7 @@ const getPayer = async (req, transaction) => {
   return req.loaders.Collective.byId.load(transaction[column]);
 };
 
-const isRoot = async (req: express.Request): Promise<boolean> => {
+const isRoot = async (req: Express.Request): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
   }
@@ -128,7 +128,7 @@ const remoteUserMeetsOneCondition = async (req, transaction, conditions): Promis
 };
 
 /** Checks if the user can refund this transaction */
-export const canRefund = async (transaction: Transaction, _: void, req: express.Request): Promise<boolean> => {
+export const canRefund = async (transaction: Transaction, _: void, req: Express.Request): Promise<boolean> => {
   if (
     transaction.type !== TransactionTypes.CREDIT ||
     transaction.OrderId === null ||
@@ -192,7 +192,7 @@ export const canRefund = async (transaction: Transaction, _: void, req: express.
   return false;
 };
 
-export const canDownloadInvoice = async (transaction: Transaction, _: void, req: express.Request): Promise<boolean> => {
+export const canDownloadInvoice = async (transaction: Transaction, _: void, req: Express.Request): Promise<boolean> => {
   if (transaction.OrderId) {
     const order = await req.loaders.Order.byId.load(transaction.OrderId);
     if (order.status === orderStatus.REJECTED) {
@@ -213,7 +213,7 @@ export const canReject = canRefund;
 
 export async function refundTransaction(
   passedTransaction: Transaction,
-  req: express.Request,
+  req: Express.Request,
   args: { message?: string; ignoreBalanceCheck?: boolean } = {},
 ) {
   // 0. Retrieve transaction from database
