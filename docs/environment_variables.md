@@ -33,6 +33,7 @@
 | REDIS_TIMELINE_URL                            | .redis.serverUrlTimeline                           | Redis timeline URL                                                                 |
 | REDIS_SESSION_URL                             | .redis.serverUrlSession                            | Redis session URL                                                                  |
 | API_KEY                                       | .keys.opencollective.apiKey                        | The API KEY                                                                        |
+| PDF_SERVICE_API_KEY                           | .keys.opencollective.pdfApiKey                     | The API KEY                                                                        |
 | SESSION_SECRET                                | .keys.opencollective.sessionSecret                 | Session secret                                                                     |
 | JWT_SECRET                                    | .keys.opencollective.jwtSecret                     | JWT secret                                                                         |
 | EMAIL_UNSUBSCRIBE_SECRET                      | .keys.opencollective.emailUnsubscribeSecret        | Email unsubscribe secret                                                           |
@@ -79,6 +80,7 @@
 | FRONTEND_URL                                  | .host.frontend                                     | URL of the frontend service                                                        |
 | WEBSITE_URL                                   | .host.website                                      | Website URL                                                                        |
 | PDF_SERVICE_URL                               | .host.pdf                                          | PDF service URL                                                                    |
+| PDF_SERVICE_V2_URL                            | .host.pdfV2                                        | PDF service V2 URL                                                                 |
 | REST_URL                                      | .host.rest                                         | REST service URL                                                                   |
 | ORDERS_LIMIT_ACCOUNT                          | .limits.ordersPerHour.perAccount                   | Orders limit per account                                                           |
 | ORDERS_LIMIT_ACCOUNT_COLLECTIVE               | .limits.ordersPerHour.perAccountForCollective      | Orders limit per account for collective                                            |
