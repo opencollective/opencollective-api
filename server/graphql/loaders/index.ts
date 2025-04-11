@@ -1103,6 +1103,12 @@ export const generateLoaders = req => {
         const transactions = await Transaction.findAll({ where, order });
         return sortResults(keys, transactions, 'OrderId', []) as Transaction[][];
       }),
+      byExpenseId: new DataLoader<number, Transaction[]>(async keys => {
+        const where = { ExpenseId: { [Op.in]: keys } };
+        const order = [['createdAt', 'ASC']] as OrderItem[];
+        const transactions = await Transaction.findAll({ where, order });
+        return sortResults(keys, transactions, 'ExpenseId', []) as Transaction[][];
+      }),
       directDonationsFromTo: new DataLoader<{ CollectiveId: number; FromCollectiveId: number }, number>(keys =>
         Transaction.findAll({
           attributes: [
