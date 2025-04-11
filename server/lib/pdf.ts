@@ -15,11 +15,17 @@ export const getTransactionPdf = async (transaction, user) => {
   if (parseToBoolean(config.pdfService.fetchTransactionsReceipts) === false) {
     return;
   }
-  const pdfUrl = `${config.host.pdf}/receipts/transactions/${transaction.uuid}/receipt.pdf`;
   const accessToken = user.jwt({}, TOKEN_EXPIRATION_PDF);
   const headers = {
     Authorization: `Bearer ${accessToken}`,
   };
+  let pdfUrl;
+  if (config.host.pdfV2) {
+    pdfUrl = `${config.host.pdf}/receipts/transaction/${transaction.uuid}/receipt.pdf`;
+    headers['x-api-key'] = config.keys.opencollective.pdfApiKey;
+  } else {
+    pdfUrl = `${config.host.pdf}/receipts/transactions/${transaction.uuid}/receipt.pdf`;
+  }
 
   return fetchWithTimeout(pdfUrl, { method: 'get', headers, timeoutInMs: 10000 })
     .then(response => {
