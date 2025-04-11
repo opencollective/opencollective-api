@@ -103,6 +103,8 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
     transfer?: Transfer;
     valuesByRole?: ExpenseDataValuesByRole;
     recipient?: RecipientAccount;
+    /** From PayPal Payouts */
+    time_processed?: string;
     payee?: {
       id?: number;
       slug?: string;

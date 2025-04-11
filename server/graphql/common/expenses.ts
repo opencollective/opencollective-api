@@ -3642,7 +3642,9 @@ export async function quoteExpense(expense_) {
   }
 }
 
-export const getExpenseAmountInDifferentCurrency = async (expense, toCurrency, req) => {
+const { WISE, PAYPAL, OPENCOLLECTIVE } = CurrencyExchangeRateSourceTypeEnum;
+
+export const getExpenseAmountInDifferentCurrency = async (expense: Expense, toCurrency, req: Express.Request) => {
   // Small helper to quickly generate an Amount object with fxRate
   const buildAmount = (
     fxRatePercentage: number,
@@ -3667,10 +3669,27 @@ export const getExpenseAmountInDifferentCurrency = async (expense, toCurrency, r
     return { value: expense.amount, currency: expense.currency, exchangeRate: null };
   }
 
-  // Retrieve existing FX rate based from payment provider payload (for already paid or quoted stuff)
-  const { WISE, PAYPAL, OPENCOLLECTIVE } = CurrencyExchangeRateSourceTypeEnum;
-  const payoutMethod = expense.PayoutMethodId && (await req.loaders.PayoutMethod.byId.load(expense.PayoutMethodId));
+  // TODO: Can we retrieve something for virtual cards?
+  if (expense.status === 'PAID') {
+    const transactions = await req.loaders.Transaction.byExpenseId.load(expense.id);
+    const transaction = find(transactions, { kind: TransactionKind.EXPENSE, isRefund: false, type: 'CREDIT' });
+    // If requested currency matches the Host, return the precise amount in which the expense was accounted for.
+    if (transaction && transaction.hostCurrency === toCurrency) {
+      return {
+        value: transaction.amountInHostCurrency,
+        currency: transaction.hostCurrency,
+        exchangeRate: null,
+      };
+    }
+    const result = await req.loaders.Expense.expenseToHostTransactionFxRateLoader.load(expense.id);
+    // If collective changed their currency since the expense was paid, we can't rely on transaction.currency
+    if (!isNil(result?.rate) && (!expense.collective || expense.collective.currency === result.currency)) {
+      return buildAmount(result.rate, OPENCOLLECTIVE, false, expense.createdAt);
+    }
+  }
 
+  // Retrieve existing FX rate based from payment provider payload (for already paid or quoted stuff)
+  const payoutMethod = expense.PayoutMethodId && (await req.loaders.PayoutMethod.byId.load(expense.PayoutMethodId));
   if (payoutMethod) {
     if (payoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
       const wiseFxRateInfo = getWiseFxRateInfoFromExpenseData(expense, expense.currency, toCurrency);
@@ -3689,20 +3708,10 @@ export const getExpenseAmountInDifferentCurrency = async (expense, toCurrency, r
         );
 
         if (fxRate) {
-          const date = expense.data['time_processed'] ? new Date(expense.data['time_processed']) : null;
+          const date = expense.data?.time_processed ? new Date(expense.data.time_processed) : null;
           return buildAmount(fxRate, PAYPAL, false, date);
         }
       }
-    }
-  }
-
-  // TODO: Can we retrieve something for virtual cards?
-
-  if (expense.status === 'PAID') {
-    const result = await req.loaders.Expense.expenseToHostTransactionFxRateLoader.load(expense.id);
-    // If collective changed their currency since the expense was paid, we can't rely on transaction.currency
-    if (!isNil(result?.rate) && (!expense.collective || expense.collective.currency === result.currency)) {
-      return buildAmount(result.rate, OPENCOLLECTIVE, false, expense.createdAt);
     }
   }
 
