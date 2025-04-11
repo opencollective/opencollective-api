@@ -6,8 +6,7 @@ import INTERVALS from '../constants/intervals';
 import OrderStatus from '../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import { BadRequest, Unauthorized, UnexpectedError } from '../graphql/errors';
-import { sequelize } from '../models';
-import { MemberModelInterface } from '../models/Member';
+import { Member, sequelize } from '../models';
 import Order from '../models/Order';
 import PaymentMethod from '../models/PaymentMethod';
 import Tier from '../models/Tier';
@@ -166,7 +165,7 @@ type OrderSubscriptionUpdate = {
  */
 export const updateOrderSubscription = async (
   order: Order,
-  member: MemberModelInterface,
+  member: Member,
   newOrderData: Record<string, unknown>,
   newSubscriptionData: Record<string, unknown>,
   newMemberData: Record<string, unknown>,
@@ -198,7 +197,7 @@ export const updateOrderSubscription = async (
 export const updateSubscriptionDetails = async (
   order: Order,
   tier: Tier,
-  member: MemberModelInterface,
+  member: Member,
   amountInCents: number,
 ): Promise<OrderSubscriptionUpdate> => {
   // Make sure the new details are ok values, that match tier's minimum amount if there's one

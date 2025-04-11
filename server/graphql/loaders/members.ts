@@ -2,8 +2,7 @@ import DataLoader from 'dataloader';
 import _, { groupBy, keyBy, partition, remove, uniq } from 'lodash';
 
 import MemberRoles from '../../constants/roles';
-import models, { Collective, sequelize, Tier } from '../../models';
-import { MemberModelInterface } from '../../models/Member';
+import models, { Collective, Member, sequelize, Tier } from '../../models';
 
 export const generateAdminUsersEmailsForCollectiveLoader = () => {
   return new DataLoader(
@@ -72,8 +71,7 @@ export const generateCountAdminMembersOfCollective = () => {
 
 export const generateMemberIsActiveLoader = (req: Express.Request) => {
   return new DataLoader(async (memberIds: number[]): Promise<boolean[]> => {
-    const membersToProcess = (await req.loaders.Member.byId.loadMany(memberIds)) as MemberModelInterface[];
-
+    const membersToProcess = (await req.loaders.Member.byId.loadMany(memberIds)) as Member[];
     const activeMemberIds = new Set<number>();
 
     // Members without tiers are always active

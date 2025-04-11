@@ -52,7 +52,7 @@ import Comment from '../../server/models/Comment';
 import Conversation from '../../server/models/Conversation';
 import HostApplication, { HostApplicationStatus } from '../../server/models/HostApplication';
 import LegalDocument, { LEGAL_DOCUMENT_SERVICE } from '../../server/models/LegalDocument';
-import { MemberModelInterface } from '../../server/models/Member';
+import Member from '../../server/models/Member';
 import MemberInvitation from '../../server/models/MemberInvitation';
 import Order from '../../server/models/Order';
 import PaymentMethod from '../../server/models/PaymentMethod';
@@ -913,7 +913,7 @@ export const fakeTransactionsImportRow = async (data: Partial<InferCreationAttri
 /**
  * Creates a fake member. All params are optionals.
  */
-export const fakeMember = async (data: Partial<InferCreationAttributes<MemberModelInterface>> = {}) => {
+export const fakeMember = async (data: Partial<InferCreationAttributes<Member>> = {}) => {
   const collective = data.CollectiveId ? await models.Collective.findByPk(data.CollectiveId) : await fakeCollective();
   const memberCollective = data.MemberCollectiveId
     ? await models.Collective.findByPk(data.MemberCollectiveId)
@@ -927,8 +927,8 @@ export const fakeMember = async (data: Partial<InferCreationAttributes<MemberMod
   });
 
   // Attach associations
-  member.collective = collective;
-  member.memberCollective = memberCollective;
+  member['collective'] = collective;
+  member['memberCollective'] = memberCollective;
   return member;
 };
 

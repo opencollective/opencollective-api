@@ -42,7 +42,7 @@ import Activity from './Activity';
 import Collective from './Collective';
 import Comment from './Comment';
 import CustomDataTypes from './DataTypes';
-import { MemberModelInterface } from './Member';
+import Member from './Member';
 import PaymentMethod from './PaymentMethod';
 import Subscription from './Subscription';
 import Tier from './Tier';
@@ -205,7 +205,7 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
   declare createCreatedByUser: BelongsToCreateAssociationMixin<User>;
 
   // Class methods
-  declare getOrCreateMembers: () => Promise<[MemberModelInterface, MemberModelInterface]>;
+  declare getOrCreateMembers: () => Promise<[Member, Member]>;
   declare getUser: () => Promise<User | undefined>;
   declare getSubscriptionForUser: (user: User) => Promise<Subscription | null>;
   declare markAsPaid: (user: User) => Promise<Order>;
