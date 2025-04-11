@@ -8,8 +8,7 @@
 import '../../env';
 
 import { ApolloServerPlugin } from '@apollo/server';
-import * as Sentry from '@sentry/node';
-import { SeverityLevel } from '@sentry/node';
+import Sentry, { SeverityLevel } from '@sentry/node';
 import axios, { AxiosError } from 'axios';
 import config from 'config';
 import { get, isEmpty, isEqual, pick } from 'lodash';
