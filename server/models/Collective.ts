@@ -120,7 +120,7 @@ import Expense from './Expense';
 import HostApplication, { HostApplicationStatus } from './HostApplication';
 import LegalDocument from './LegalDocument';
 import Location from './Location';
-import Member, { MemberModelInterface } from './Member';
+import Member from './Member';
 import MemberInvitation from './MemberInvitation';
 import Order from './Order';
 import PaymentMethod from './PaymentMethod';
@@ -329,10 +329,10 @@ class Collective extends Model<
   declare public tiers?: NonAttribute<Array<Tier>>;
   declare public getTiers: HasManyGetAssociationsMixin<Tier>;
 
-  declare public members?: NonAttribute<Array<MemberModelInterface>>;
-  declare public getMembers: HasManyGetAssociationsMixin<MemberModelInterface>;
-  declare public adminMembers?: NonAttribute<Array<MemberModelInterface>>;
-  declare public getAdminMembers: HasManyGetAssociationsMixin<MemberModelInterface>;
+  declare public members?: NonAttribute<Array<Member>>;
+  declare public getMembers: HasManyGetAssociationsMixin<Member>;
+  declare public adminMembers?: NonAttribute<Array<Member>>;
+  declare public getAdminMembers: HasManyGetAssociationsMixin<Member>;
 
   declare public socialLinks?: NonAttribute<Array<SocialLink>>;
   declare public getSocialLinks: HasManyGetAssociationsMixin<SocialLink>;
