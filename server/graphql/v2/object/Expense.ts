@@ -173,7 +173,7 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
         },
       },
       taxes: {
-        type: new GraphQLNonNull(new GraphQLList(GraphQLTaxInfo)),
+        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLTaxInfo))),
         description: 'Taxes applied to this expense',
         resolve(expense, _, req) {
           if (!expense.data?.taxes) {
@@ -426,7 +426,7 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
         },
       },
       items: {
-        type: new GraphQLList(GraphQLExpenseItem),
+        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLExpenseItem))),
         async resolve(expense, _, req) {
           if (await ExpenseLib.canSeeExpenseAttachments(req, expense)) {
             allowContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_ATTACHMENTS_URL, expense.id);

@@ -2406,7 +2406,7 @@ type Expense {
   """
   Taxes applied to this expense
   """
-  taxes: [TaxInfo]!
+  taxes: [TaxInfo!]!
 
   """
   The exchange rate between the expense currency and the account currency
@@ -2519,7 +2519,7 @@ type Expense {
   (Optional - applicable to invoice expense only) The invoice file for this expense
   """
   invoiceFile: FileInfo
-  items: [ExpenseItem]
+  items: [ExpenseItem!]!
 
   """
   Additional information about the payment as HTML. Only visible to user and admins.
@@ -6153,6 +6153,7 @@ type EXPENSE_POLICIES {
   invoicePolicy: String
   receiptPolicy: String
   titlePolicy: String
+  grantPolicy: String
 }
 
 type EXPENSE_AUTHOR_CANNOT_APPROVE {
@@ -6361,6 +6362,7 @@ enum ActivityType {
   ACCOUNTING_CATEGORIES_EDITED
   CONNECTED_ACCOUNT_CREATED
   CONNECTED_ACCOUNT_ERROR
+  CONNECTED_ACCOUNT_REMOVED
   COLLECTIVE_CREATED_GITHUB
   COLLECTIVE_APPLY
   COLLECTIVE_APPROVED
@@ -17314,6 +17316,7 @@ enum ActivityAndClassesType {
   ACCOUNTING_CATEGORIES_EDITED
   CONNECTED_ACCOUNT_CREATED
   CONNECTED_ACCOUNT_ERROR
+  CONNECTED_ACCOUNT_REMOVED
   COLLECTIVE_CREATED_GITHUB
   COLLECTIVE_APPLY
   COLLECTIVE_APPROVED
@@ -22129,6 +22132,7 @@ input PoliciesExpensePolicies {
   invoicePolicy: String
   receiptPolicy: String
   titlePolicy: String
+  grantPolicy: String
 }
 
 input PoliciesCollectiveExpenseAuthorCannotApprove {
