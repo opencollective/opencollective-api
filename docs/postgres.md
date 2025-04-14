@@ -48,22 +48,15 @@ host    all             all             ::1/128                 trust
 
 Finally start Postgres with `sudo systemctl start postgresql`.
 
-### With Docker
+### With Docker / Podman
 
 If you don't want to run a local instance of PostgreSQL in your computer, you can run one in Docker.
 
-Create and run the container:
-
-```
-docker run -p 5432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust -d --name opencollective-postgres --shm-size=1g --memory=4g --cpus=2 -v opencollective-postgres-data:/var/lib/postgresql/data postgres:16
-```
-
-Set the necessary environment variables:
-
-```
-export PGHOST=localhost
-export PGUSER=postgres
-```
+- Using the compose file: `npm run db:dev`
+- Or c4reate and run the container manually:
+  ```
+  docker run -p 5432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust -e PGHOST=localhost -e PGUSER=postgres -d --name opencollective-postgres --shm-size=1g --memory=4g --cpus=2 -v opencollective-postgres-data:/var/lib/postgresql/data postgres:16
+  ```
 
 You'll also need to have Postgres client tools like `psql`, `dropdb`, `createuser` locally available to run our scripts. In macOS you can install those using Homebrew with:
 

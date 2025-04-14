@@ -212,6 +212,7 @@
     "cron:monthly": "./scripts/cron.sh monthly",
     "cron:weekly": "./scripts/cron.sh weekly",
     "cron:yearly": "./scripts/cron.sh yearly",
+    "db:dev": "./scripts/dev/run-docker-compose.sh -f docker-compose.dev.yml --profile db up -d --force-recreate",
     "db:clean": "babel-node --extensions .js,.ts ./scripts/sanitize-db.ts",
     "db:copy:prod": "./scripts/db_copy_to_localhost.sh prod && PG_DATABASE=opencollective_prod_snapshot npm run db:sanitize",
     "db:copy:prod:staging": "./scripts/db_copy_prod_to_staging.sh opencollective-staging-api && heroku run npm run db:sanitize --app opencollective-staging-api",
