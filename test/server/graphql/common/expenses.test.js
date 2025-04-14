@@ -1071,7 +1071,7 @@ describe('server/graphql/common/expenses', () => {
           });
         });
 
-        it('when there is a transaction to retrieve the rate', async () => {
+        it("when it's paid and the expense currency matches the host currency", async () => {
           await createTransactionsFromPaidExpense(expense.collective.host, expense, undefined, 1.6);
           await expense.update({ status: 'PAID' });
 
@@ -1079,14 +1079,7 @@ describe('server/graphql/common/expenses', () => {
           expect(amount).to.deep.eq({
             value: 1600,
             currency: 'USD',
-            exchangeRate: {
-              date: amount.exchangeRate.date, // We don't really care about the date
-              fromCurrency: 'EUR',
-              isApproximate: false,
-              source: 'OPENCOLLECTIVE',
-              toCurrency: 'USD',
-              value: 1.6,
-            },
+            exchangeRate: null,
           });
         });
       });
