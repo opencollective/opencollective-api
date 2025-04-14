@@ -927,8 +927,8 @@ export const fakeMember = async (data: Partial<InferCreationAttributes<Member>> 
   });
 
   // Attach associations
-  member['collective'] = collective;
-  member['memberCollective'] = memberCollective;
+  member.collective = collective;
+  member.memberCollective = memberCollective;
   return member;
 };
 

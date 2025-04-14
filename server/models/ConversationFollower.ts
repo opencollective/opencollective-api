@@ -1,4 +1,4 @@
-import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes, Model } from 'sequelize';
+import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes, Model, NonAttribute } from 'sequelize';
 
 import sequelize, { DataTypes } from '../lib/sequelize';
 
@@ -17,8 +17,8 @@ class ConversationFollower extends Model<
   declare public updatedAt: Date;
 
   // Associations
-  declare public user?: User;
-  declare public conversation?: Conversation;
+  declare public user?: NonAttribute<User>;
+  declare public conversation?: NonAttribute<Conversation>;
 
   /**
    * @returns true if user follows the conversation

@@ -5,7 +5,8 @@ import {
   InferAttributes,
   InferCreationAttributes,
   Model,
-  Transaction as SequelizeTransaction,
+  NonAttribute,
+  Transaction,
 } from 'sequelize';
 
 import { CollectiveType } from '../constants/collectives';
@@ -39,9 +40,9 @@ class Member extends Model<InferAttributes<Member, { omit: 'info' }>, InferCreat
   declare public updatedAt: Date;
   declare public deletedAt?: Date;
 
-  declare public tier?: Tier;
-  declare public memberCollective?: Collective;
-  declare public collective?: Collective;
+  declare public tier?: NonAttribute<Tier>;
+  declare public memberCollective?: NonAttribute<Collective>;
+  declare public collective?: NonAttribute<Collective>;
 
   get info() {
     return {
@@ -83,7 +84,7 @@ class Member extends Model<InferAttributes<Member, { omit: 'info' }>, InferCreat
     parentCollective: Collective,
     user: User,
     memberInfo,
-    options: { transaction?: SequelizeTransaction } = {},
+    options: { transaction?: Transaction } = {},
   ) {
     const CONNECTED_ACCOUNT_ACCEPTED_TYPES = [
       CollectiveType.COLLECTIVE,
