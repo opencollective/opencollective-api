@@ -78,7 +78,7 @@ export const buildSanitizerOptions = (allowedContent: AllowedContentType = {}): 
         if (isValidUploadedImage(attribs.src, { ignoreInNonProductionEnv: false })) {
           return { tagName, attribs };
         } else {
-          return { tagName: 'INVALID_TAG', text: 'Invalid image' }; // Will be stripped by other rules (invalid tag name)
+          return {};
         }
       };
     }
