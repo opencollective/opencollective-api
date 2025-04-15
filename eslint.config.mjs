@@ -1,5 +1,5 @@
 import graphqlPlugin from '@graphql-eslint/eslint-plugin'; // eslint-disable-line import/no-unresolved
-import openCollectiveConfig from 'eslint-config-opencollective/eslint.config.cjs';
+import openCollectiveConfig from 'eslint-config-opencollective/eslint-node.config.cjs';
 import mocha from 'eslint-plugin-mocha';
 import globals from 'globals';
 
