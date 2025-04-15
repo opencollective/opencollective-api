@@ -10,7 +10,6 @@ import { CollectiveType } from '../../server/constants/collectives';
 import MemberRoles from '../../server/constants/roles';
 import logger from '../../server/lib/logger';
 import { Collective, Member, sequelize } from '../../server/models';
-import { MemberModelInterface } from '../../server/models/Member';
 
 const DRY_RUN = process.env.DRY_RUN !== 'false';
 
@@ -45,7 +44,7 @@ export const main = async (slug: string, options: { isDryRun: boolean; projectsT
 
     // Convert projects to collectives (if requested)
     let projects: Collective[] = [];
-    const projectAdmins: Record<number, MemberModelInterface[]> = {};
+    const projectAdmins: Record<number, Member[]> = {};
     if (options.projectsToCollectives) {
       logger.info('Converting projects to collectives...');
       [, projects] = await Collective.update(

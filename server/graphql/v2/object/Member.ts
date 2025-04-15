@@ -1,7 +1,7 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import { MemberModelInterface } from '../../../models/Member';
+import { Member } from '../../../models';
 import { checkScope } from '../../common/scope-check';
 import { GraphQLMemberRole } from '../enum/MemberRole';
 import { idEncode } from '../identifiers';
@@ -91,13 +91,13 @@ const getMemberFields = () => ({
   isActive: {
     type: new GraphQLNonNull(GraphQLBoolean),
     description: 'Whether the membership is active. Warning: this definition is subject to change.',
-    async resolve(member: MemberModelInterface, _, req: Express.Request) {
+    async resolve(member: Member, _, req: Express.Request) {
       return req.loaders.Member.isActive.load(member.id);
     },
   },
 });
 
-const getMemberAccountResolver = field => async (member: MemberModelInterface, args, req: Express.Request) => {
+const getMemberAccountResolver = field => async (member: Member, args, req: Express.Request) => {
   const memberAccount = member.memberCollective || (await req.loaders.Collective.byId.load(member.MemberCollectiveId));
   const account = member.collective || (await req.loaders.Collective.byId.load(member.CollectiveId));
 
