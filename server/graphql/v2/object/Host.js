@@ -1276,6 +1276,11 @@ export const GraphQLHost = new GraphQLObjectType({
         description: 'Returns whether the host is trusted or not',
         resolve: account => get(account, 'data.isTrustedHost', false),
       },
+      isFirstPartyHost: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        description: 'Returns whether the host is trusted or not',
+        resolve: account => get(account, 'data.isFirstPartyHost', false),
+      },
       hasDisputedOrders: {
         type: GraphQLBoolean,
         description: 'Returns whether the host has any Stripe disputed orders',

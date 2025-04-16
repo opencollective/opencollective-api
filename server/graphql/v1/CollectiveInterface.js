@@ -616,6 +616,8 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       slug: { type: GraphQLString },
       path: { type: GraphQLString },
       isHost: { type: GraphQLBoolean },
+      isTrustedHost: { type: new GraphQLNonNull(GraphQLBoolean) },
+      isFirstPartyHost: { type: new GraphQLNonNull(GraphQLBoolean) },
       isIncognito: { type: GraphQLBoolean },
       isFrozen: { type: new GraphQLNonNull(GraphQLBoolean), description: 'Whether this account is frozen' },
       isGuest: { type: GraphQLBoolean },
@@ -1138,6 +1140,11 @@ const CollectiveFields = () => {
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Returns whether this host is trusted or not',
       resolve: collective => Boolean(get(collective, 'data.isTrustedHost')),
+    },
+    isFirstPartyHost: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Returns whether this host is trusted or not',
+      resolve: collective => Boolean(get(collective, 'data.isFirstPartyHost')),
     },
     isTwoFactorAuthEnabled: {
       type: GraphQLBoolean,
