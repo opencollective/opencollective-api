@@ -2019,6 +2019,15 @@ export async function createExpense(
     data['isNewExpenseFlow'] = true;
   }
 
+  let status = statuses.PENDING;
+  if (
+    remoteUser.isAdminOfCollectiveOrHost(collective) &&
+    remoteUser.isAdminOfCollective(fromCollective) &&
+    fromCollective.type === CollectiveType.VENDOR
+  ) {
+    status = statuses.APPROVED;
+  }
+
   const expense = await sequelize.transaction(async t => {
     let invoiceFileId: number;
     if (expenseData.type === EXPENSE_TYPE.INVOICE && expenseData.invoiceFile) {
@@ -2032,7 +2041,7 @@ export async function createExpense(
         ...(<Pick<ExpenseData, ExpenseEditableFieldsUnion>>pick(expenseData, EXPENSE_EDITABLE_FIELDS)),
         currency: expenseCurrency,
         tags: expenseData.tags,
-        status: statuses.PENDING,
+        status,
         CollectiveId: collective.id,
         FromCollectiveId: fromCollective.id,
         lastEditedById: remoteUser.id,

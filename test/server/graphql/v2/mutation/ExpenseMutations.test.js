@@ -504,6 +504,22 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(result.errors[0].message).to.eq('You must be an admin of the account to submit an expense in its name');
     });
 
+    it('automatically approves if host admin submits as VENDOR', async () => {
+      const hostAdmin = await fakeUser();
+      const collective = await fakeCollective();
+      await collective.host.addUserWithRole(hostAdmin, 'ADMIN');
+      const vendor = await fakeCollective({ type: 'VENDOR', ParentCollectiveId: collective.host.id });
+      const expenseData = { ...getValidExpenseData(), payee: { legacyId: vendor.id } };
+
+      const result = await graphqlQueryV2(
+        createExpenseMutation,
+        { expense: expenseData, account: { legacyId: collective.id } },
+        hostAdmin,
+      );
+
+      expect(result.data.createExpense.status).to.equal('APPROVED');
+    });
+
     it('with VAT', async () => {
       const collective = await fakeCollective({
         currency: 'EUR',
