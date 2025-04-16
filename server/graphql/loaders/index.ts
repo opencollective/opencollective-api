@@ -1194,7 +1194,7 @@ export const generateLoaders = req => {
         return sortResultsSimple(transactionIds, transactionBalances);
       }),
     },
-    TransactionImport: {
+    TransactionsImport: {
       ...context.loaders.TransactionsImport,
       stats: generateTransactionsImportStatsLoader(),
     },
