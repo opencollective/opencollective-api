@@ -214,7 +214,7 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
           },
         },
       }),
-      resolve: async (importInstance, _, req) => {
+      resolve: async (importInstance, _, req: Express.Request) => {
         return req.loaders.TransactionsImport.stats.load(importInstance.id);
       },
     },
