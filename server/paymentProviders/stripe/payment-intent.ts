@@ -133,9 +133,8 @@ async function processRecurringOrder(order: Order) {
     paymentIntent = await stripe.paymentIntents.confirm(
       paymentIntent.id,
       {
-        // If the order was already processed, it means it's a recurring payment and not the first one = it's an async process.
-        setup_future_usage: order.processedAt ? undefined : 'off_session',
-        off_session: Boolean(order.processedAt),
+        setup_future_usage: 'off_session',
+        off_session: Boolean(order.processedAt), // If the order was already processed, it means it's a recurring payment and not the first one = it's an async process.
       },
       {
         stripeAccount: hostStripeAccount.username,
