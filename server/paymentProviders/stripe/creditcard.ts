@@ -87,13 +87,14 @@ const createChargeAndTransactions = async (
     });
   }
 
+  const isOffSession = Boolean(order.interval && order.processedAt);
   paymentIntent = await stripe.paymentIntents.confirm(
     paymentIntent.id,
     {
       payment_method: stripePaymentMethod.id,
       expand: ['latest_charge'],
-      setup_future_usage: order.interval ? 'off_session' : undefined,
-      off_session: Boolean(order.interval && order.processedAt),
+      setup_future_usage: !isOffSession && order.interval ? 'off_session' : undefined,
+      off_session: isOffSession,
     },
     { stripeAccount: hostStripeAccount.username },
   );
