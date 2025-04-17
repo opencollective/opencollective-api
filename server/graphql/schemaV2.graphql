@@ -207,6 +207,11 @@ interface Account {
   expensePolicy: String @deprecated(reason: "2024-11-04: Please use policies.EXPENSE_POLICIES")
 
   """
+  Whether the account is verified
+  """
+  isVerified: Boolean!
+
+  """
   Defines if the contributors wants to be incognito (name not displayed)
   """
   isIncognito: Boolean!
@@ -2756,6 +2761,11 @@ type Host implements Account & AccountWithContributions {
   expensePolicy: String @deprecated(reason: "2024-11-04: Please use policies.EXPENSE_POLICIES")
 
   """
+  Whether the account is verified
+  """
+  isVerified: Boolean!
+
+  """
   Defines if the contributors wants to be incognito (name not displayed)
   """
   isIncognito: Boolean!
@@ -3942,6 +3952,11 @@ type Host implements Account & AccountWithContributions {
   Returns whether the host is trusted or not
   """
   isTrustedHost: Boolean!
+
+  """
+  Returns whether the host is trusted or not
+  """
+  isFirstPartyHost: Boolean!
 
   """
   Returns whether the host has any Stripe disputed orders
@@ -7398,6 +7413,11 @@ type TransactionsImportRow {
   The order associated with the row
   """
   order: Order
+
+  """
+  The transactions import associated with the row
+  """
+  transactionsImport: TransactionsImportRow!
 }
 
 """
@@ -8110,6 +8130,11 @@ type Bot implements Account {
   """
   currency: Currency!
   expensePolicy: String @deprecated(reason: "2024-11-04: Please use policies.EXPENSE_POLICIES")
+
+  """
+  Whether the account is verified
+  """
+  isVerified: Boolean!
 
   """
   Defines if the contributors wants to be incognito (name not displayed)
@@ -9018,6 +9043,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   """
   currency: Currency!
   expensePolicy: String @deprecated(reason: "2024-11-04: Please use policies.EXPENSE_POLICIES")
+
+  """
+  Whether the account is verified
+  """
+  isVerified: Boolean!
 
   """
   Defines if the contributors wants to be incognito (name not displayed)
@@ -10477,6 +10507,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   expensePolicy: String @deprecated(reason: "2024-11-04: Please use policies.EXPENSE_POLICIES")
 
   """
+  Whether the account is verified
+  """
+  isVerified: Boolean!
+
+  """
   Defines if the contributors wants to be incognito (name not displayed)
   """
   isIncognito: Boolean!
@@ -11654,6 +11689,11 @@ type Individual implements Account {
   expensePolicy: String @deprecated(reason: "2024-11-04: Please use policies.EXPENSE_POLICIES")
 
   """
+  Whether the account is verified
+  """
+  isVerified: Boolean!
+
+  """
   Defines if the contributors wants to be incognito (name not displayed)
   """
   isIncognito: Boolean!
@@ -12809,6 +12849,11 @@ type Organization implements Account & AccountWithContributions {
   expensePolicy: String @deprecated(reason: "2024-11-04: Please use policies.EXPENSE_POLICIES")
 
   """
+  Whether the account is verified
+  """
+  isVerified: Boolean!
+
+  """
   Defines if the contributors wants to be incognito (name not displayed)
   """
   isIncognito: Boolean!
@@ -13828,6 +13873,11 @@ type Vendor implements Account & AccountWithContributions {
   """
   currency: Currency!
   expensePolicy: String @deprecated(reason: "2024-11-04: Please use policies.EXPENSE_POLICIES")
+
+  """
+  Whether the account is verified
+  """
+  isVerified: Boolean!
 
   """
   Defines if the contributors wants to be incognito (name not displayed)
@@ -17523,6 +17573,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   expensePolicy: String @deprecated(reason: "2024-11-04: Please use policies.EXPENSE_POLICIES")
 
   """
+  Whether the account is verified
+  """
+  isVerified: Boolean!
+
+  """
   Defines if the contributors wants to be incognito (name not displayed)
   """
   isIncognito: Boolean!
@@ -18576,6 +18631,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   """
   currency: Currency!
   expensePolicy: String @deprecated(reason: "2024-11-04: Please use policies.EXPENSE_POLICIES")
+
+  """
+  Whether the account is verified
+  """
+  isVerified: Boolean!
 
   """
   Defines if the contributors wants to be incognito (name not displayed)

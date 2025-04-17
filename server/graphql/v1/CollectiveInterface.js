@@ -618,6 +618,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       isHost: { type: GraphQLBoolean },
       isTrustedHost: { type: new GraphQLNonNull(GraphQLBoolean) },
       isFirstPartyHost: { type: new GraphQLNonNull(GraphQLBoolean) },
+      isVerified: { type: new GraphQLNonNull(GraphQLBoolean) },
       isIncognito: { type: GraphQLBoolean },
       isFrozen: { type: new GraphQLNonNull(GraphQLBoolean), description: 'Whether this account is frozen' },
       isGuest: { type: GraphQLBoolean },
@@ -1145,6 +1146,13 @@ const CollectiveFields = () => {
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Returns whether this host is trusted or not',
       resolve: collective => Boolean(get(collective, 'data.isFirstPartyHost')),
+    },
+    isVerified: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the account is verified',
+      resolve(collective) {
+        return get(collective, 'data.isVerified') || get(collective, 'data.isRoot') || false;
+      },
     },
     isTwoFactorAuthEnabled: {
       type: GraphQLBoolean,

@@ -42,6 +42,9 @@ interface CollectiveInterface {
   slug: String
   path: String
   isHost: Boolean
+  isTrustedHost: Boolean!
+  isFirstPartyHost: Boolean!
+  isVerified: Boolean!
   isIncognito: Boolean
 
   """
@@ -2188,6 +2191,16 @@ type Collective implements CollectiveInterface {
   isTrustedHost: Boolean!
 
   """
+  Returns whether this host is trusted or not
+  """
+  isFirstPartyHost: Boolean!
+
+  """
+  Whether the account is verified
+  """
+  isVerified: Boolean!
+
+  """
   Returns whether this user has two factor authentication enabled
   """
   isTwoFactorAuthEnabled: Boolean
@@ -2456,6 +2469,16 @@ type Event implements CollectiveInterface {
   Returns whether this host is trusted or not
   """
   isTrustedHost: Boolean!
+
+  """
+  Returns whether this host is trusted or not
+  """
+  isFirstPartyHost: Boolean!
+
+  """
+  Whether the account is verified
+  """
+  isVerified: Boolean!
 
   """
   Returns whether this user has two factor authentication enabled
@@ -2728,6 +2751,16 @@ type Fund implements CollectiveInterface {
   isTrustedHost: Boolean!
 
   """
+  Returns whether this host is trusted or not
+  """
+  isFirstPartyHost: Boolean!
+
+  """
+  Whether the account is verified
+  """
+  isVerified: Boolean!
+
+  """
   Returns whether this user has two factor authentication enabled
   """
   isTwoFactorAuthEnabled: Boolean
@@ -2998,6 +3031,16 @@ type Organization implements CollectiveInterface {
   isTrustedHost: Boolean!
 
   """
+  Returns whether this host is trusted or not
+  """
+  isFirstPartyHost: Boolean!
+
+  """
+  Whether the account is verified
+  """
+  isVerified: Boolean!
+
+  """
   Returns whether this user has two factor authentication enabled
   """
   isTwoFactorAuthEnabled: Boolean
@@ -3266,6 +3309,16 @@ type Project implements CollectiveInterface {
   Returns whether this host is trusted or not
   """
   isTrustedHost: Boolean!
+
+  """
+  Returns whether this host is trusted or not
+  """
+  isFirstPartyHost: Boolean!
+
+  """
+  Whether the account is verified
+  """
+  isVerified: Boolean!
 
   """
   Returns whether this user has two factor authentication enabled
@@ -3833,6 +3886,16 @@ type User implements CollectiveInterface {
   isTrustedHost: Boolean!
 
   """
+  Returns whether this host is trusted or not
+  """
+  isFirstPartyHost: Boolean!
+
+  """
+  Whether the account is verified
+  """
+  isVerified: Boolean!
+
+  """
   Returns whether this user has two factor authentication enabled
   """
   isTwoFactorAuthEnabled: Boolean
@@ -4103,6 +4166,16 @@ type Vendor implements CollectiveInterface {
   Returns whether this host is trusted or not
   """
   isTrustedHost: Boolean!
+
+  """
+  Returns whether this host is trusted or not
+  """
+  isFirstPartyHost: Boolean!
+
+  """
+  Whether the account is verified
+  """
+  isVerified: Boolean!
 
   """
   Returns whether this user has two factor authentication enabled

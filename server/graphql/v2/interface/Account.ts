@@ -181,6 +181,13 @@ const accountFieldsDefinition = () => ({
     type: GraphQLString,
     deprecationReason: '2024-11-04: Please use policies.EXPENSE_POLICIES',
   },
+  isVerified: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Whether the account is verified',
+    resolve(collective) {
+      return get(collective, 'data.isVerified') || get(collective, 'data.isRoot') || false;
+    },
+  },
   isIncognito: {
     type: new GraphQLNonNull(GraphQLBoolean),
     description: 'Defines if the contributors wants to be incognito (name not displayed)',
