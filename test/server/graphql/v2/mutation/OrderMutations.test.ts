@@ -811,6 +811,45 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           expect(result.errors).to.exist;
           expect(result.errors[0].message).to.equal('This order requires a payment method');
         });
+
+        it('requires contributions to be enabled', async () => {
+          const fromUser = await fakeUser();
+          const collective = await fakeCollective({
+            admin: fromUser,
+            settings: { disableCustomContributions: true },
+            HostCollectiveId: host.id,
+            approvedAt: new Date(),
+            isActive: true,
+          });
+          const orderData = {
+            ...validOrderParams,
+            toAccount: { legacyId: collective.id },
+            fromAccount: { legacyId: fromUser.CollectiveId },
+          };
+          const result = await callCreateOrder({ order: orderData }, fromUser);
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.equal('This collective cannot receive financial contributions');
+        });
+
+        it('requires contributions to be enabled, except for balance transfer', async () => {
+          const fromUser = await fakeUser();
+          const collective = await fakeCollective({
+            admin: fromUser,
+            settings: { disableCustomContributions: true },
+            HostCollectiveId: host.id,
+            approvedAt: new Date(),
+            isActive: true,
+          });
+          const orderData = {
+            ...validOrderParams,
+            toAccount: { legacyId: collective.id },
+            fromAccount: { legacyId: fromUser.CollectiveId },
+            isBalanceTransfer: true,
+          };
+          const result = await callCreateOrder({ order: orderData }, fromUser);
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+        });
       });
 
       describe('Quantity', () => {

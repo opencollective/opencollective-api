@@ -245,7 +245,8 @@ export async function createOrder(order, req) {
   }
 
   const receiveOrdersStatus = await checkReceiveFinancialContributions(collective, req, { ignoreActive: true });
-  if (!['ACTIVE', 'AVAILABLE'].includes(receiveOrdersStatus)) {
+
+  if (!['ACTIVE', 'AVAILABLE'].includes(receiveOrdersStatus) && !order.isBalanceTransfer) {
     throw new Forbidden('This collective cannot receive financial contributions');
   }
 
