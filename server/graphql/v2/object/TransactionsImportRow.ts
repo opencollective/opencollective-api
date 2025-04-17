@@ -72,5 +72,12 @@ export const GraphQLTransactionsImportRow = new GraphQLObjectType({
         }
       },
     },
+    transactionsImport: {
+      type: new GraphQLNonNull(GraphQLTransactionsImportRow),
+      description: 'The transactions import associated with the row',
+      resolve: async (row: TransactionsImportRow, _, req) => {
+        return req.loaders.TransactionsImport.byId.load(row.TransactionsImportId);
+      },
+    },
   }),
 });
