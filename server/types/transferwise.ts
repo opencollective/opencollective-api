@@ -230,40 +230,66 @@ export type RecipientAccount = {
   };
 };
 
-export type PersonalProfile = {
+export type PersonalProfileV2 = {
+  type: 'PERSONAL';
   id: number;
-  type: 'personal' | 'business';
-  details: {
-    firstName: string;
-    lastName: string;
-    dateOfBirth: string; // YYYY-MM-DD
+  publicId: string;
+  userId: number;
+  address: {
+    addressFirstLine?: string;
+    city?: string;
+    countryIso2Code?: string;
+    countryIso3Code?: string;
+    postCode?: string;
+    stateCode?: string;
+  };
+  contactDetails: {
+    email: string;
     phoneNumber: string;
-    avatar: string;
-    occupation: string;
-    primaryAddress: number | string | null;
   };
+  currentState: 'VISIBLE' | 'HIDDEN' | 'DEACTIVATED';
+  email: string;
+  obfuscated: boolean;
+  firstName: string;
+  lastName: string;
+  dateOfBirth: string;
+  phoneNumber: string;
+  fullName: string;
+  dataObfuscated: boolean;
 };
 
-export type BusinessProfile = {
+export type BusinessProfileV2 = {
+  type: 'BUSINESS';
   id: number;
-  type: 'business';
-  details: {
-    name: string;
-    registrationNumber: string;
-    acn: string | null;
-    abn: string | null;
-    arbn: string | null;
-    companyType: string;
-    companyRole: string;
-    descriptionOfBusiness: string;
-    webpage: string;
-    primaryAddress: number | string | null;
-    businessCategory: string;
-    businessSubCategory: string;
+  publicId: string;
+  userId: number;
+  address: {
+    addressFirstLine?: string;
+    city?: string;
+    countryIso2Code?: string;
+    countryIso3Code?: string;
+    postCode?: string;
+    stateCode?: string;
   };
+  contactDetails: {
+    email: string;
+    phoneNumber: string;
+  };
+  currentState: 'VISIBLE' | 'HIDDEN' | 'DEACTIVATED';
+  email: string;
+  createdAt: string;
+  updatedAt: string;
+  obfuscated: boolean;
+  businessName: string;
+  registrationNumber: string;
+  descriptionOfBusiness: string;
+  companyType: string;
+  companyRole: 'OWNER' | string;
+  fullName: string;
+  dataObfuscated: boolean;
 };
 
-export type Profile = PersonalProfile | BusinessProfile;
+export type ProfileV2 = PersonalProfileV2 | BusinessProfileV2;
 
 export type TransferStatus =
   | 'incoming_payment_waiting'
