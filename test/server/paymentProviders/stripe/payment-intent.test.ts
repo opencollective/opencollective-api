@@ -155,12 +155,7 @@ describe('stripe/payment-intent', () => {
           { stripeAccount: 'testUserName' },
         );
 
-        assert.calledWithMatch(
-          stripe.paymentIntents.confirm,
-          paymentIntentId,
-          { setup_future_usage: 'off_session', off_session: false },
-          { stripeAccount: 'testUserName' },
-        );
+        assert.calledWithMatch(stripe.paymentIntents.confirm, paymentIntentId, { stripeAccount: 'testUserName' });
       });
 
       it('throws error if create payment intent fails', async () => {

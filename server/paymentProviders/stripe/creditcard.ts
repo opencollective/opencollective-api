@@ -54,7 +54,6 @@ const createChargeAndTransactions = async (
       description: order.description,
       confirm: false,
       confirmation_method: 'manual',
-      payment_method: stripePaymentMethod.id,
       metadata: {
         from: `${config.host.website}/${order.fromCollective.slug}`,
         to: `${config.host.website}/${order.collective.slug}`,
@@ -87,15 +86,9 @@ const createChargeAndTransactions = async (
     });
   }
 
-  const isOffSession = Boolean(order.interval && order.processedAt);
   paymentIntent = await stripe.paymentIntents.confirm(
     paymentIntent.id,
-    {
-      payment_method: stripePaymentMethod.id,
-      expand: ['latest_charge'],
-      setup_future_usage: !isOffSession && order.interval ? 'off_session' : undefined,
-      off_session: isOffSession,
-    },
+    { payment_method: stripePaymentMethod.id, expand: ['latest_charge'] },
     { stripeAccount: hostStripeAccount.username },
   );
 
