@@ -20,7 +20,7 @@ import {
   BatchGroup,
   CurrencyPair,
   ExchangeRate,
-  Profile,
+  ProfileV2,
   QuoteV3,
   RecipientAccount,
   TransactionRequirementsType,
@@ -404,7 +404,7 @@ export const fundTransfer = async (
   );
 };
 
-export const getProfiles = async (connectedAccount: ConnectedAccount): Promise<Profile[]> => {
+export const getProfiles = async (connectedAccount: ConnectedAccount): Promise<ProfileV2[]> => {
   return requestDataAndThrowParsedError(
     axiosClient.get,
     `/v2/profiles`,
