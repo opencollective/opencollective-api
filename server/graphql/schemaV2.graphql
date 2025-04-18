@@ -7417,7 +7417,7 @@ type TransactionsImportRow {
   """
   The transactions import associated with the row
   """
-  transactionsImport: TransactionsImportRow!
+  transactionsImport: TransactionsImport!
 }
 
 """
@@ -15013,6 +15013,11 @@ type Query {
     Only return Fiscal Hosts accounts if true
     """
     isHost: Boolean
+
+    """
+    Must be used with `isHost` to filter hosts that can accept applications
+    """
+    onlyOpenToApplications: Boolean
 
     """
     Only accounts with custom contribution (/donate) enabled

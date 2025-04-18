@@ -8,6 +8,7 @@ import { getIdEncodeResolver } from '../identifiers';
 import { GraphQLAmount } from './Amount';
 import { GraphQLExpense } from './Expense';
 import { GraphQLOrder } from './Order';
+import { GraphQLTransactionsImport } from './TransactionsImport';
 
 export const GraphQLTransactionsImportRow = new GraphQLObjectType({
   name: 'TransactionsImportRow',
@@ -73,7 +74,7 @@ export const GraphQLTransactionsImportRow = new GraphQLObjectType({
       },
     },
     transactionsImport: {
-      type: new GraphQLNonNull(GraphQLTransactionsImportRow),
+      type: new GraphQLNonNull(GraphQLTransactionsImport),
       description: 'The transactions import associated with the row',
       resolve: async (row: TransactionsImportRow, _, req) => {
         return req.loaders.TransactionsImport.byId.load(row.TransactionsImportId);
