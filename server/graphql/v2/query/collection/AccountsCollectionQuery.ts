@@ -73,6 +73,10 @@ const AccountsCollectionQuery = {
       type: GraphQLBoolean,
       description: 'Only return Fiscal Hosts accounts if true',
     },
+    onlyOpenToApplications: {
+      type: GraphQLBoolean,
+      description: 'Must be used with `isHost` to filter hosts that can accept applications',
+    },
     hasCustomContributionsEnabled: {
       type: GraphQLBoolean,
       description: 'Only accounts with custom contribution (/donate) enabled',
@@ -119,6 +123,7 @@ const AccountsCollectionQuery = {
       includeVendorsForHostId,
       consolidatedBalance: args.consolidatedBalance,
       isRoot: req.remoteUser?.isRoot() || false,
+      onlyOpenHosts: args.onlyOpenToApplications ? true : null,
     };
 
     const [accounts, totalCount] = await searchCollectivesInDB(cleanTerm, offset, limit, extraParameters);
