@@ -1,10 +1,12 @@
-import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
 import { GraphQLConnectedAccountService } from '../enum/ConnectedAccountService';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { GraphQLAccount } from '../interface/Account';
+import { Collective, ConnectedAccount } from '../../../models';
 
-export const GraphQLConnectedAccount = new GraphQLObjectType({
+export const GraphQLConnectedAccount = new GraphQLObjectType<ConnectedAccount, Express.Request>({
   name: 'ConnectedAccount',
   description: 'This represents a Connected Account',
   fields: () => ({
@@ -31,5 +33,41 @@ export const GraphQLConnectedAccount = new GraphQLObjectType({
     },
     settings: { type: GraphQLJSON },
     service: { type: new GraphQLNonNull(GraphQLConnectedAccountService) },
+    accountsMirrored: {
+      type: new GraphQLList(GraphQLAccount),
+      description: 'The accounts that are mirroring this connected account',
+      async resolve(connectedAccount, _, req) {
+        const mirroredConnectedAccounts = await ConnectedAccount.findAll({
+          where: {
+            data: {
+              MirrorConnectedAccountId: connectedAccount.id,
+            },
+          },
+          include: [
+            {
+              model: Collective,
+              as: 'collective',
+            },
+          ],
+        });
+        return mirroredConnectedAccounts.map(mirroredConnectedAccount => {
+          return mirroredConnectedAccount.collective;
+        });
+      },
+    },
+    hash: { type: GraphQLString },
+    createdByAccount: {
+      type: GraphQLAccount,
+      description: 'The account who connected this account',
+      async resolve(connectedAccount, _, req) {
+        const user = await req.loaders.User.byId.load(connectedAccount.CreatedByUserId);
+        if (user && user.CollectiveId) {
+          const collective = await req.loaders.Collective.byId.load(user.CollectiveId);
+          if (collective && !collective.isIncognito) {
+            return collective;
+          }
+        }
+      },
+    },
   }),
 });

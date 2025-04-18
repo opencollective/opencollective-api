@@ -1,4 +1,12 @@
-import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import {
+  GraphQLBoolean,
+  GraphQLFieldConfig,
+  GraphQLInt,
+  GraphQLInterfaceType,
+  GraphQLList,
+  GraphQLNonNull,
+  GraphQLString,
+} from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { assign, get, invert, isEmpty, isNil, isNull, merge, omit, omitBy } from 'lodash';
 import moment from 'moment';
@@ -94,6 +102,7 @@ import GraphQLEmailAddress from '../scalar/EmailAddress';
 import { CollectionArgs } from './Collection';
 import { HasMembersFields } from './HasMembers';
 import { IsMemberOfFields } from './IsMemberOf';
+import { GraphQLConnectedAccountService } from '../enum/ConnectedAccountService';
 
 const accountFieldsDefinition = () => ({
   id: {
@@ -480,6 +489,12 @@ const accountFieldsDefinition = () => ({
   connectedAccounts: {
     type: new GraphQLList(GraphQLConnectedAccount),
     description: 'The list of connected accounts (Stripe, PayPal, etc ...)',
+    args: {
+      service: {
+        type: GraphQLConnectedAccountService,
+        description: 'Filter connected accounts by service',
+      },
+    },
   },
   oAuthApplications: {
     type: GraphQLOAuthApplicationCollection,
@@ -1361,12 +1376,21 @@ export const AccountFields = {
     type: new GraphQLList(GraphQLConnectedAccount),
     description: 'The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".',
     // Only for admins, no pagination
-    async resolve(collective, _, req) {
+    args: {
+      service: {
+        type: GraphQLConnectedAccountService,
+        description: 'Filter connected accounts by service',
+      },
+    },
+    async resolve(collective: Collective, args, req: Express.Request) {
       if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'connectedAccounts')) {
         return null;
       }
 
       const connectedAccounts = await req.loaders.Collective.connectedAccounts.load(collective.id);
+      if (args.service) {
+        return connectedAccounts.filter(ca => ca.service === args.service);
+      }
       return connectedAccounts;
     },
   },

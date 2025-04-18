@@ -27,7 +27,7 @@ export const buildAccountQuery = ({ objectType }) => ({
       description: `If false, will return null instead of an error if the ${objectType.name} is not found`,
     },
   },
-  async resolve(_, args, req) {
+  async resolve(_, args, req: Express.Request) {
     let collective;
     if (args.slug) {
       const slug = args.slug.toLowerCase();
