@@ -30,8 +30,8 @@ import models, { Op, sequelize } from '../../models';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import { canSeeExpenseAttachments, canSeeExpensePayoutMethodPrivateDetails } from '../common/expenses';
 import { hasSeenLatestChangelogEntry } from '../common/user';
-import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
 import { Unauthorized } from '../errors';
+import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
 
 import { CollectiveInterfaceType, CollectiveSearchResultsType } from './CollectiveInterface';
 import { TransactionInterfaceType } from './TransactionInterface';
