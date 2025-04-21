@@ -415,6 +415,17 @@ export const getProfiles = async (connectedAccount: ConnectedAccount): Promise<P
   );
 };
 
+export const getProfile = async (connectedAccount: ConnectedAccount, profileId: number): Promise<ProfileV2> => {
+  return requestDataAndThrowParsedError(
+    axiosClient.get,
+    `/v2/profiles/${profileId}`,
+    {
+      connectedAccount,
+    },
+    'There was an error fetching the profiles for Wise',
+  );
+};
+
 export const listTransfers = async (connectedAccount: ConnectedAccount, params) => {
   return requestDataAndThrowParsedError(
     axiosClient.get,
