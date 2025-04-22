@@ -197,7 +197,7 @@ export const populateModelAssociations = async <M>(
     const ids = objects.map(obj => obj[fkField]).filter(id => id);
     const foreignObjects = await req.loaders[modelName].byId.loadMany(ids);
     objects.forEach(obj => {
-      const subObject = foreignObjects.find(s => s['id'] === obj[fkField]);
+      const subObject = foreignObjects.find(s => s?.['id'] === obj[fkField]);
       if (subObject) {
         obj[propertyKey || modelName] = subObject;
       }
