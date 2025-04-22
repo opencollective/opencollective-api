@@ -69,6 +69,29 @@ program.command('check-batch <batchId> [env]').action(async batchId => {
   sequelize.close();
 });
 
+program.command('delete-stuck-batchs <hostSlug> <commaSeparatedBatchIds> [env]').action(async (hostSlug, ids) => {
+  console.log(`Deleting stuck batchs ${ids} for host ${hostSlug}`);
+  const host = await models.Collective.findOne({ where: { slug: hostSlug } });
+  assert(host, `Host ${hostSlug} not found`);
+  const connectedAccount = await host.getAccountForPaymentProvider(Service.TRANSFERWISE);
+  assert(connectedAccount, `${host.slug} not connected to Wise`);
+  ids = ids.split(',');
+  for (const id of ids) {
+    const batch = await transferwiseLib.getBatchGroup(connectedAccount, id);
+    if (!batch) {
+      console.warn(`Batch ${id} not found`);
+      continue;
+    } else if (batch.status === 'NEW') {
+      console.log(`Deleting stuck batch ${id}...`);
+      await transferwiseLib.cancelBatchGroup(connectedAccount, batch.id, batch.version);
+      console.log(`Batch ${id} deleted`);
+    } else {
+      console.log(`Batch ${id} was already processed or cancelled with status ${batch.status}`);
+    }
+  }
+  sequelize.close();
+});
+
 program.command('check-expense <expenseId>').action(async expenseId => {
   console.log(`Checking expense ${expenseId}`);
   const expense = await models.Expense.findOne({
@@ -177,6 +200,7 @@ program.addHelpText(
 
 Example call:
   $ npm run script scripts/wise.ts check-expense expenseId
+  $ npm run script scripts/wise.ts delete-stuck-batchs europe '242db7eb-466b-49fd-9233-d6ec51671910,041d0772-26e4-4913-be56-adf725096fb9' prod
 `,
 );
 
