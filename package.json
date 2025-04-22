@@ -122,7 +122,7 @@
     "plaid": "31.1.0",
     "prepend-http": "3.0.1",
     "redis": "4.7.0",
-    "sanitize-html": "2.15.0",
+    "sanitize-html": "2.16.0",
     "sequelize": "6.37.7",
     "sequelize-cli": "6.6.2",
     "sequelize-temporal": "2.1.1",
