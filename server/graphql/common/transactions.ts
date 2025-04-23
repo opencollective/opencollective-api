@@ -146,11 +146,6 @@ export const canRefund = async (transaction: Transaction, _: void, req: Express.
     }
   }
 
-  // Root users can always refund
-  if (await isRoot(req)) {
-    return true;
-  }
-
   // Only certain transaction kinds can be refunded
   if (
     ![
@@ -161,6 +156,11 @@ export const canRefund = async (transaction: Transaction, _: void, req: Express.
     ].includes(transaction.kind)
   ) {
     return false;
+  }
+
+  // Root users can always refund
+  if (await isRoot(req)) {
+    return true;
   }
 
   // Host admins can refund transactions without time limit
