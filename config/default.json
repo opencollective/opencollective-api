@@ -266,7 +266,8 @@
   },
   "gitbook": {
     "apiUrl": "https://api.gitbook.com",
-    "apiKey": "UNDEFINED_GITBOOK_API_KEY"
+    "apiKey": "UNDEFINED_GITBOOK_API_KEY",
+    "spaceId": "NDB6a9zS8ZMISyZwm7K9"
   },
   "opentelemetry": {
     "enabled": false

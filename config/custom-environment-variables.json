@@ -249,7 +249,9 @@
     "enforceSuspendedAsset": "FRAUD_PROTECTION_SUSPEND_ASSET"
   },
   "gitbook": {
-    "apiKey": "GITBOOK_API_KEY"
+    "apiKey": "GITBOOK_API_KEY",
+    "apiUrl": "GITBOOK_API_URL",
+    "spaceId": "GITBOOK_SPACE_ID"
   },
   "opentelemetry": {
     "enabled": "OPENTELEMETRY_ENABLED"
