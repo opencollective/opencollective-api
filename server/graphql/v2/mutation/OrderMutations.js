@@ -1067,7 +1067,6 @@ const orderMutations = {
             description: `Contribution to ${toAccount.name}`,
             amount: convertToStripeAmount(currency, totalOrderAmount),
             currency: paymentIntentInput.amount.currency.toLowerCase(),
-            setup_future_usage: paymentIntentInput.frequency !== TierFrequencyKey.ONETIME ? 'off_session' : undefined,
             // eslint-disable-next-line camelcase
             automatic_payment_methods: { enabled: true },
             metadata: {

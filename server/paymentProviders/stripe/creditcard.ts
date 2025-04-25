@@ -46,43 +46,59 @@ const createChargeAndTransactions = async (
   /* eslint-disable camelcase */
 
   let paymentIntent: Stripe.PaymentIntent | undefined = order.data.paymentIntent;
-  const createPayload: Stripe.PaymentIntentCreateParams = {
-    amount: convertToStripeAmount(order.currency, order.totalAmount),
-    currency: order.currency,
-    customer: stripePaymentMethod.customer,
-    description: order.description,
-    confirm: true,
-    confirmation_method: 'manual',
-    metadata: {
-      from: `${config.host.website}/${order.fromCollective.slug}`,
-      to: `${config.host.website}/${order.collective.slug}`,
-      orderId: order.id,
-    },
-  };
-  // We don't add a platform fee if the host is the root account
-  if (applicationFee && isPlatformRevenueDirectlyCollected && hostStripeAccount.username !== config.stripe.accountId) {
-    createPayload.application_fee_amount = convertToStripeAmount(order.currency, applicationFee);
-  }
-  if (order.interval) {
-    if (order.processedAt) {
-      createPayload.off_session = true;
-    } else {
-      createPayload.setup_future_usage = 'off_session';
+  let shouldConfirmOnCreate = false;
+  if (!paymentIntent || paymentIntent.status === 'succeeded') {
+    shouldConfirmOnCreate = Boolean(order.processedAt && order.interval);
+    const createPayload: Stripe.PaymentIntentCreateParams = {
+      amount: convertToStripeAmount(order.currency, order.totalAmount),
+      currency: order.currency,
+      customer: stripePaymentMethod.customer,
+      description: order.description,
+      confirm: shouldConfirmOnCreate,
+      confirmation_method: 'manual',
+      metadata: {
+        from: `${config.host.website}/${order.fromCollective.slug}`,
+        to: `${config.host.website}/${order.collective.slug}`,
+        orderId: order.id,
+      },
+    };
+    // We don't add a platform fee if the host is the root account
+    if (
+      applicationFee &&
+      isPlatformRevenueDirectlyCollected &&
+      hostStripeAccount.username !== config.stripe.accountId
+    ) {
+      createPayload.application_fee_amount = convertToStripeAmount(order.currency, applicationFee);
     }
-  } else if (!order.processedAt && order.data.savePaymentMethod) {
-    createPayload.setup_future_usage = 'on_session';
+    if (order.interval) {
+      if (shouldConfirmOnCreate) {
+        createPayload.off_session = true;
+      } else {
+        createPayload.setup_future_usage = 'off_session';
+      }
+    } else if (!order.processedAt && order.data.savePaymentMethod) {
+      createPayload.setup_future_usage = 'on_session';
+    }
+
+    const stripePaymentMethodId = stripePaymentMethod.id;
+    if (stripePaymentMethodId) {
+      createPayload.payment_method = stripePaymentMethodId;
+    } else {
+      logger.info('paymentMethod is missing in paymentMethod to pass to Payment Intent.');
+      logger.info(JSON.stringify(stripePaymentMethod));
+    }
+    paymentIntent = await stripe.paymentIntents.create(createPayload, {
+      stripeAccount: hostStripeAccount.username,
+    });
   }
 
-  const stripePaymentMethodId = stripePaymentMethod.id;
-  if (stripePaymentMethodId) {
-    createPayload.payment_method = stripePaymentMethodId;
-  } else {
-    logger.info('paymentMethod is missing in paymentMethod to pass to Payment Intent.');
-    logger.info(JSON.stringify(stripePaymentMethod));
+  if (!shouldConfirmOnCreate) {
+    paymentIntent = await stripe.paymentIntents.confirm(
+      paymentIntent.id,
+      { payment_method: stripePaymentMethod.id, expand: ['latest_charge'] },
+      { stripeAccount: hostStripeAccount.username },
+    );
   }
-  paymentIntent = await stripe.paymentIntents.create(createPayload, {
-    stripeAccount: hostStripeAccount.username,
-  });
 
   /* eslint-enable camelcase */
 
