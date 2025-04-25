@@ -185,7 +185,7 @@ const accountFieldsDefinition = () => ({
     type: new GraphQLNonNull(GraphQLBoolean),
     description: 'Whether the account is verified',
     resolve(collective) {
-      return get(collective, 'data.isVerified') || get(collective, 'data.isRoot') || false;
+      return get(collective, 'data.isVerified') || false;
     },
   },
   isIncognito: {
