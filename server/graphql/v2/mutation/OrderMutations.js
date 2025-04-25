@@ -1055,20 +1055,22 @@ const orderMutations = {
       try {
         let paymentMethodConfiguration = config.stripe.oneTimePaymentMethodConfiguration;
 
-        if (paymentIntentInput.frequency && paymentIntentInput.frequency !== TierFrequencyKey.ONETIME) {
+        const isRecurring = paymentIntentInput.frequency && paymentIntentInput.frequency !== TierFrequencyKey.ONETIME;
+        if (isRecurring) {
           paymentMethodConfiguration = config.stripe.recurringPaymentMethodConfiguration;
         }
 
         const paymentIntent = await stripe.paymentIntents.create(
           {
-            // eslint-disable-next-line camelcase
+            /* eslint-disable camelcase */
             payment_method_configuration: paymentMethodConfiguration,
             customer: stripeCustomerId,
             description: `Contribution to ${toAccount.name}`,
             amount: convertToStripeAmount(currency, totalOrderAmount),
             currency: paymentIntentInput.amount.currency.toLowerCase(),
-            // eslint-disable-next-line camelcase
+            setup_future_usage: isRecurring ? 'off_session' : undefined,
             automatic_payment_methods: { enabled: true },
+            /* eslint-enable camelcase */
             metadata: {
               from: fromAccount ? `${config.host.website}/${fromAccount.slug}` : undefined,
               to: `${config.host.website}/${toAccount.slug}`,
