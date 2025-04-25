@@ -214,7 +214,7 @@ class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCreationAtt
     }
   }
 
-  async canBeEditedOrDeleted(): Promise<boolean> {
+  async canBeEdited(): Promise<boolean> {
     const expenses = await (sequelize.models.Expense as typeof Expense).findOne({
       where: {
         PayoutMethodId: this.id,
@@ -226,6 +226,16 @@ class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCreationAtt
             ExpenseStatuses.REJECTED,
           ],
         },
+      },
+    });
+
+    return !expenses;
+  }
+
+  async canBeDeleted(): Promise<boolean> {
+    const expenses = await (sequelize.models.Expense as typeof Expense).findOne({
+      where: {
+        PayoutMethodId: this.id,
       },
     });
 

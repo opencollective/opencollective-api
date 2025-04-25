@@ -66,16 +66,31 @@ const GraphQLPayoutMethod = new GraphQLObjectType({
         }
       },
     },
-    canBeEditedOrDeleted: {
+    canBeEdited: {
       type: GraphQLBoolean,
-      description: 'Whether this payout method can be edit or deleted',
+      description: 'Whether this payout method can be edited',
       resolve: async (payoutMethod: PayoutMethod, _, req: express.Request): Promise<boolean> => {
         if (!req.remoteUser) {
           return false;
         }
         const collective = await req.loaders.Collective.byId.load(payoutMethod.CollectiveId);
         if (req.remoteUser?.isAdminOfCollective(collective)) {
-          return payoutMethod.canBeEditedOrDeleted();
+          return payoutMethod.canBeEdited();
+        } else {
+          return false;
+        }
+      },
+    },
+    canBeDeleted: {
+      type: GraphQLBoolean,
+      description: 'Whether this payout method can be deleted or only archived',
+      resolve: async (payoutMethod: PayoutMethod, _, req: express.Request): Promise<boolean> => {
+        if (!req.remoteUser) {
+          return false;
+        }
+        const collective = await req.loaders.Collective.byId.load(payoutMethod.CollectiveId);
+        if (req.remoteUser?.isAdminOfCollective(collective)) {
+          return payoutMethod.canBeDeleted();
         } else {
           return false;
         }

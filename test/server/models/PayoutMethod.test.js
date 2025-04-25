@@ -157,16 +157,29 @@ describe('server/models/PayoutMethod', () => {
     });
   });
 
-  describe('canBeEditedOrDeleted', () => {
-    it(`returns false for a payout method is attached to an expense`, async () => {
+  describe('canBeEdited', () => {
+    it(`returns false for a payout method is attached to an approved or paid expense`, async () => {
       const pm = await fakePayoutMethod();
-      await fakeExpense({ CollectiveId: pm.CollectiveId, PayoutMethodId: pm.id, status: 'APPROVED' });
-      expect(await pm.canBeEditedOrDeleted()).to.be.false;
+      await fakeExpense({ CollectiveId: pm.CollectiveId, PayoutMethodId: pm.id, status: 'PAID' });
+      expect(await pm.canBeEdited()).to.be.false;
     });
 
     it('returns true for a payout method that is not attached to any expenses', async () => {
       const pm = await fakePayoutMethod();
-      expect(await pm.canBeEditedOrDeleted()).to.be.true;
+      expect(await pm.canBeEdited()).to.be.true;
+    });
+  });
+
+  describe('canBeDeleted', () => {
+    it(`returns false for a payout method is attached to any expense`, async () => {
+      const pm = await fakePayoutMethod();
+      await fakeExpense({ CollectiveId: pm.CollectiveId, PayoutMethodId: pm.id });
+      expect(await pm.canBeDeleted()).to.be.false;
+    });
+
+    it('returns true for a payout method that is not attached to any expenses', async () => {
+      const pm = await fakePayoutMethod();
+      expect(await pm.canBeDeleted()).to.be.true;
     });
   });
 });

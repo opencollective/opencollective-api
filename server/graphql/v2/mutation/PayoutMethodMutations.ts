@@ -95,7 +95,7 @@ const payoutMethodMutations = {
         throw new Forbidden();
       }
 
-      if (await payoutMethod.canBeEditedOrDeleted()) {
+      if (await payoutMethod.canBeDeleted()) {
         await payoutMethod.destroy();
         return payoutMethod;
       } else {
@@ -146,7 +146,7 @@ const payoutMethodMutations = {
       // Enforce 2FA
       await twoFactorAuthLib.enforceForAccount(req, collective);
 
-      if (await payoutMethod.canBeEditedOrDeleted()) {
+      if (await payoutMethod.canBeEdited()) {
         return await payoutMethod.update({
           ...pick(args.payoutMethod, ['name', 'data', 'isSaved']),
           CollectiveId: collective.id,
