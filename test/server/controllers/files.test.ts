@@ -8,6 +8,7 @@ import * as FilesController from '../../../server/controllers/files';
 import { generateLoaders } from '../../../server/graphql/loaders';
 import { idEncode, IDENTIFIER_TYPES } from '../../../server/graphql/v2/identifiers';
 import * as awsS3 from '../../../server/lib/awsS3';
+import * as thumbnailsLib from '../../../server/lib/thumbnails';
 import { Collective, Expense, UploadedFile, User } from '../../../server/models';
 import {
   fakeActiveHost,
@@ -258,7 +259,64 @@ describe('server/controllers/files', () => {
     });
 
     it('should redirect to resource if user has access to expense item thumbnail', async () => {
+      const thumbnailUrl = `${config.host.website}/static/images/generated.png`;
+      sandbox.stub(thumbnailsLib, 'getThumbnailSignedGetUrlFromBucketUrl').resolves(thumbnailUrl);
+
+      const otherUserResponse = await makeRequest(expenseAttachedUploadedFile.id, otherUser, {
+        thumbnail: true,
+      });
+      expect(otherUserResponse._getStatusCode()).to.eql(403);
+
+      const submitterResponse = await makeRequest(expenseAttachedUploadedFile.id, submitter, {
+        thumbnail: true,
+      });
+      expect(submitterResponse._getStatusCode()).to.eql(307);
+      expect(submitterResponse._getRedirectUrl()).to.eql(thumbnailUrl);
+
+      const hostAdminResponse = await makeRequest(expenseAttachedUploadedFile.id, hostAdmin, {
+        thumbnail: true,
+      });
+      expect(hostAdminResponse._getStatusCode()).to.eql(307);
+      expect(hostAdminResponse._getRedirectUrl()).to.eql(thumbnailUrl);
+
+      const collectiveAdminResponse = await makeRequest(expenseAttachedUploadedFile.id, collectiveAdmin, {
+        thumbnail: true,
+      });
+      expect(collectiveAdminResponse._getStatusCode()).to.eql(307);
+      expect(collectiveAdminResponse._getRedirectUrl()).to.eql(thumbnailUrl);
+    });
+
+    it('should redirect to default resource if user has access to expense item thumbnail', async () => {
       const thumbnailUrl = `${config.host.website}/static/images/mime-pdf.png`;
+      sandbox.stub(thumbnailsLib, 'getThumbnailSignedGetUrlFromBucketUrl').throws();
+
+      const otherUserResponse = await makeRequest(expenseAttachedUploadedFile.id, otherUser, {
+        thumbnail: true,
+      });
+      expect(otherUserResponse._getStatusCode()).to.eql(403);
+
+      const submitterResponse = await makeRequest(expenseAttachedUploadedFile.id, submitter, {
+        thumbnail: true,
+      });
+      expect(submitterResponse._getStatusCode()).to.eql(307);
+      expect(submitterResponse._getRedirectUrl()).to.eql(thumbnailUrl);
+
+      const hostAdminResponse = await makeRequest(expenseAttachedUploadedFile.id, hostAdmin, {
+        thumbnail: true,
+      });
+      expect(hostAdminResponse._getStatusCode()).to.eql(307);
+      expect(hostAdminResponse._getRedirectUrl()).to.eql(thumbnailUrl);
+
+      const collectiveAdminResponse = await makeRequest(expenseAttachedUploadedFile.id, collectiveAdmin, {
+        thumbnail: true,
+      });
+      expect(collectiveAdminResponse._getStatusCode()).to.eql(307);
+      expect(collectiveAdminResponse._getRedirectUrl()).to.eql(thumbnailUrl);
+    });
+
+    it('should redirect to default resource if user has access to expense attached file thumbnail', async () => {
+      const thumbnailUrl = `${config.host.website}/static/images/mime-pdf.png`;
+      sandbox.stub(thumbnailsLib, 'getThumbnailSignedGetUrlFromBucketUrl').throws();
 
       const otherUserResponse = await makeRequest(expenseAttachedUploadedFile.id, otherUser, {
         thumbnail: true,
@@ -285,7 +343,8 @@ describe('server/controllers/files', () => {
     });
 
     it('should redirect to resource if user has access to expense attached file thumbnail', async () => {
-      const thumbnailUrl = `${config.host.website}/static/images/mime-pdf.png`;
+      const thumbnailUrl = `${config.host.website}/static/images/generated.png`;
+      sandbox.stub(thumbnailsLib, 'getThumbnailSignedGetUrlFromBucketUrl').resolves(thumbnailUrl);
 
       const otherUserResponse = await makeRequest(expenseAttachedUploadedFile.id, otherUser, {
         thumbnail: true,

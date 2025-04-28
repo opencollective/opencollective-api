@@ -1658,14 +1658,14 @@ export async function prepareAttachedFiles(req: express.Request, attachedFiles: 
     return [];
   }
 
-  const mapItemUrlToUploadedFile: Record<string, string> = {};
+  const mapItemUrlToUploadedFileUrl: Record<string, string> = {};
   for (const item of attachedFiles) {
     if (!item.url) {
       continue;
     }
 
     if (!UploadedFile.isUploadedFileURL(item.url)) {
-      mapItemUrlToUploadedFile[item.url] = item.url;
+      mapItemUrlToUploadedFileUrl[item.url] = item.url;
       continue;
     }
 
@@ -1675,12 +1675,12 @@ export async function prepareAttachedFiles(req: express.Request, attachedFiles: 
 
     const uploadedFile = await UploadedFile.getFromURL(item.url);
 
-    mapItemUrlToUploadedFile[item.url] = uploadedFile.getDataValue('url');
+    mapItemUrlToUploadedFileUrl[item.url] = uploadedFile.getDataValue('url');
   }
 
   return attachedFiles.map(file => ({
     ...file,
-    url: mapItemUrlToUploadedFile[file.url],
+    url: mapItemUrlToUploadedFileUrl[file.url],
   }));
 }
 
@@ -1737,14 +1737,14 @@ export const prepareExpenseItemInputs = async (
     );
   }
 
-  const mapItemUrlToUploadedFile: Record<string, string> = {};
+  const mapItemUrlToUploadedFileUrl: Record<string, string> = {};
   for (const item of itemsInput) {
     if (!item.url) {
       continue;
     }
 
     if (!UploadedFile.isUploadedFileURL(item.url)) {
-      mapItemUrlToUploadedFile[item.url] = item.url;
+      mapItemUrlToUploadedFileUrl[item.url] = item.url;
       continue;
     }
 
@@ -1753,7 +1753,7 @@ export const prepareExpenseItemInputs = async (
     }
 
     const uploadedFile = await UploadedFile.getFromURL(item.url);
-    mapItemUrlToUploadedFile[item.url] = uploadedFile.getDataValue('url');
+    mapItemUrlToUploadedFileUrl[item.url] = uploadedFile.getDataValue('url');
   }
 
   // Prepare items
@@ -1762,7 +1762,7 @@ export const prepareExpenseItemInputs = async (
     const values: Partial<ExpenseItem> = pick(itemInput, fieldsToPick);
 
     if (values.url) {
-      values.url = mapItemUrlToUploadedFile[values.url];
+      values.url = mapItemUrlToUploadedFileUrl[values.url];
     }
 
     if (itemInput['amount'] && itemInput['amountV2']) {
