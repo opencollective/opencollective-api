@@ -220,7 +220,7 @@ export default async app => {
     maxTokens: {
       onReject: [logGraphQLComplexityRejection],
       propagateOnRejection: false,
-      n: 1250, // Currently identified max: 1009 in the host admin expenses
+      n: 1500, // ExpensePage query
     },
     maxAliases: { enabled: false }, // Not clear what value this adds
     maxDirectives: { enabled: false }, // Not clear what value this adds
