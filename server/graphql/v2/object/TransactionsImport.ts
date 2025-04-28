@@ -200,6 +200,10 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
             description:
               'Number of rows that have been processed (either dismissed or converted to expenses or orders)',
           },
+          imported: {
+            type: new GraphQLNonNull(GraphQLInt),
+            description: 'Number of rows that have been imported (converted to expenses or orders)',
+          },
           onHold: {
             type: new GraphQLNonNull(GraphQLInt),
             description: 'Number of rows that are on hold',
