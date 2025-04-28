@@ -504,7 +504,24 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(result.errors[0].message).to.eq('You must be an admin of the account to submit an expense in its name');
     });
 
-    it('automatically approves if host admin submits as VENDOR', async () => {
+    it('automatically approves if host admin submits as VENDOR to the host', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdmin });
+      const vendor = await fakeCollective({ type: 'VENDOR', ParentCollectiveId: host.id });
+      const expenseData = { ...getValidExpenseData(), payee: { legacyId: vendor.id } };
+
+      const result = await graphqlQueryV2(
+        createExpenseMutation,
+        { expense: expenseData, account: { legacyId: host.id } },
+        hostAdmin,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.createExpense.status).to.equal('APPROVED');
+    });
+
+    it('does not automatically approves if host admin submits as VENDOR to a collective', async () => {
       const hostAdmin = await fakeUser();
       const collective = await fakeCollective();
       await collective.host.addUserWithRole(hostAdmin, 'ADMIN');
@@ -517,7 +534,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         hostAdmin,
       );
 
-      expect(result.data.createExpense.status).to.equal('APPROVED');
+      expect(result.data.createExpense.status).to.equal('PENDING');
     });
 
     it('with VAT', async () => {
