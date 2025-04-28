@@ -45,6 +45,7 @@ export const generateTransactionsImportStatsLoader = () => {
       return {
         total: result['total'] || 0,
         ignored: result['ignored'] || 0,
+        imported: result['imported'] || 0,
         expenses: result['expenses'] || 0,
         orders: result['orders'] || 0,
         processed: result['processed'] || 0,
