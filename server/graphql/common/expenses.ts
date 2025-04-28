@@ -2020,10 +2020,13 @@ export async function createExpense(
   }
 
   let status = statuses.PENDING;
+
+  // Auto-approve expenses for host vendor expenses if the user is admin of both the vendor and the host
   if (
     remoteUser.isAdminOfCollectiveOrHost(collective) &&
     remoteUser.isAdminOfCollective(fromCollective) &&
-    fromCollective.type === CollectiveType.VENDOR
+    fromCollective.type === CollectiveType.VENDOR &&
+    collective.isHostAccount
   ) {
     status = statuses.APPROVED;
   }
