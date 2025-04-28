@@ -10,7 +10,7 @@ const refund = async (stripeAccount, paymentIntentId) => {
     { expand: ['latest_charge'] },
     { stripeAccount },
   );
-  const charge = paymentIntent.latest_charge || (paymentIntent as any).charges.data[0];
+  const charge = (paymentIntent as any).charges.data[0];
 
   console.log(
     `Amount: ${charge.amount}, livemode: ${charge.livemode}, status: ${charge.status}, refunded: ${charge.refunded}, type: ${charge.payment_method_details.type}`,
