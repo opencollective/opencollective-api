@@ -1,5 +1,6 @@
 import config from 'config';
 import { pick } from 'lodash';
+import assert from 'node:assert';
 
 import { activities } from '../../constants';
 import { CollectiveType } from '../../constants/collectives';
@@ -39,6 +40,7 @@ export const createUser = (
   },
   { organizationData, sendSignInLink, throwIfExists, redirect, websiteUrl, creationRequest }: CreateUserOptions,
 ): Promise<{ user: User; organization?: Collective }> => {
+  assert(userData.email, 'Email is required');
   return sequelize.transaction(async transaction => {
     let user = await models.User.findOne({ where: { email: userData.email.toLowerCase() }, transaction });
 
