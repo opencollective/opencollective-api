@@ -22,6 +22,7 @@ export const generateTransactionsImportStatsLoader = () => {
         row."TransactionsImportId",
         COUNT(row.id) AS total,
         COUNT(row.id) FILTER (WHERE "status" = 'IGNORED' OR "status" = 'LINKED') AS processed,
+        COUNT(row.id) FILTER (WHERE "status" = 'LINKED') AS imported,
         COUNT(row.id) FILTER (WHERE "status" = 'LINKED' AND "ExpenseId" IS NULL AND "OrderId" IS NULL) AS invalid,
         COUNT(row.id) FILTER (WHERE "status" = 'IGNORED') AS ignored,
         COUNT(row.id) FILTER (WHERE "status" = 'ON_HOLD') AS "onHold",
