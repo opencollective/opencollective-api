@@ -21,6 +21,48 @@ const GraphQLExpensePermissions = new GraphQLObjectType({
         return ExpenseLib.canEditExpense(req, expense);
       },
     },
+    canEditTitle: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can edit the expense title',
+      async resolve(expense, _, req: express.Request): Promise<boolean> {
+        return ExpenseLib.canEditExpense(req, expense);
+      },
+    },
+    canEditType: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can edit the expense type',
+      async resolve(expense, _, req: express.Request): Promise<boolean> {
+        return ExpenseLib.canEditExpense(req, expense);
+      },
+    },
+    canEditPaidBy: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can edit the paid by account',
+      async resolve(expense, _, req: express.Request): Promise<boolean> {
+        return ExpenseLib.canEditExpense(req, expense);
+      },
+    },
+    canEditPayee: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can edit the payee',
+      async resolve(expense, _, req: express.Request): Promise<boolean> {
+        return ExpenseLib.canEditExpense(req, expense);
+      },
+    },
+    canEditPayoutMethod: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can edit the payout method',
+      async resolve(expense, _, req: express.Request): Promise<boolean> {
+        return ExpenseLib.canEditExpense(req, expense);
+      },
+    },
+    canEditItems: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can edit the expense items and attachments',
+      async resolve(expense, _, req: express.Request): Promise<boolean> {
+        return ExpenseLib.canEditExpense(req, expense);
+      },
+    },
     canEditAccountingCategory: {
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Whether the current user can edit the expense accounting category',

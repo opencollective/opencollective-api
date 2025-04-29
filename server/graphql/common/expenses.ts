@@ -536,6 +536,81 @@ export const canEditExpense: ExpensePermissionEvaluator = async (
   }
 };
 
+const createPermissionEvaluator = (
+  permissionMatrix: Partial<Record<ExpenseStatuses, ExpensePermissionEvaluator[]>>,
+  errorMessage = 'You do not have permission for this action',
+): ExpensePermissionEvaluator => {
+  return async (req: express.Request, expense: Expense, options = { throw: false }) => {
+    if (!validateExpenseScope(req, options)) {
+      if (options?.throw) {
+        throw new Forbidden(
+          'Your current token is missing the necessary scope',
+          EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
+        );
+      }
+      return false;
+    }
+
+    // Check if the status exists in our matrix
+    if (!permissionMatrix[expense.status]) {
+      if (options?.throw) {
+        throw new Forbidden(
+          `Cannot perform this action in current status (${expense.status})`,
+          EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+        );
+      }
+      return false;
+    }
+
+    const permissions = permissionMatrix[expense.status];
+    // Check each role independently
+    const hasPermission = remoteUserMeetsOneCondition(req, expense, permissions, options);
+
+    if (!hasPermission && options?.throw) {
+      throw new Forbidden(errorMessage, EXPENSE_PERMISSION_ERROR_CODES.MINIMAL_CONDITION_NOT_MET);
+    }
+
+    return hasPermission;
+  };
+};
+
+export const canEditTitle = createPermissionEvaluator(
+  {
+    PENDING: [isOwner, isCollectiveAdmin],
+    APPROVED: [isHostAdmin],
+    INCOMPLETE: [isOwner, isCollectiveAdmin, isHostAdmin],
+  },
+  'You do not have permission to edit the title for this expense',
+);
+
+export const canEditType = createPermissionEvaluator({
+  PENDING: [isOwner, isCollectiveAdmin],
+  APPROVED: [isHostAdmin],
+  INCOMPLETE: [isOwner, isCollectiveAdmin, isHostAdmin],
+});
+
+export const canEditPaidBy = createPermissionEvaluator({
+  PENDING: [isOwner, isCollectiveAdmin],
+  APPROVED: [isHostAdmin],
+  INCOMPLETE: [isOwner, isHostAdmin],
+});
+
+export const canEditPayee = createPermissionEvaluator({
+  PENDING: [isOwner],
+  // add permission for INCOMPLETE: [isOwner]?
+});
+
+export const canEditPayoutMethod = createPermissionEvaluator({
+  PENDING: [isOwner],
+  INCOMPLETE: [isOwner],
+});
+
+export const canEditItems = createPermissionEvaluator({
+  PENDING: [isOwner],
+  APPROVED: [isHostAdmin],
+  INCOMPLETE: [isOwner, isHostAdmin],
+});
+
 export const canEditExpenseTags: ExpensePermissionEvaluator = async (
   req: express.Request,
   expense: Expense,
