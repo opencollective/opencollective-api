@@ -31,7 +31,7 @@ import sequelize from '../../../lib/sequelize';
 import { buildSearchConditions } from '../../../lib/sql-search';
 import { getHostReportNodesFromQueryResult } from '../../../lib/transaction-reports';
 import { ifStr, parseToBoolean } from '../../../lib/utils';
-import models, { Collective, Op, TransactionsImportRow } from '../../../models';
+import models, { Collective, Op } from '../../../models';
 import { AccountingCategoryAppliesTo } from '../../../models/AccountingCategory';
 import Agreement from '../../../models/Agreement';
 import { LEGAL_DOCUMENT_TYPE } from '../../../models/LegalDocument';
@@ -42,7 +42,6 @@ import { Unauthorized, ValidationFailed } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { GraphQLAccountingCategoryCollection } from '../collection/AccountingCategoryCollection';
 import { GraphQLAgreementCollection } from '../collection/AgreementCollection';
-import { GraphQLTransactionsImportRowCollection } from '../collection/GraphQLTransactionsImportRow';
 import { GraphQLHostApplicationCollection } from '../collection/HostApplicationCollection';
 import { GraphQLHostedAccountCollection } from '../collection/HostedAccountCollection';
 import { GraphQLLegalDocumentCollection } from '../collection/LegalDocumentCollection';
@@ -63,7 +62,6 @@ import { GraphQLLegalDocumentRequestStatus } from '../enum/LegalDocumentRequestS
 import { GraphQLLegalDocumentType } from '../enum/LegalDocumentType';
 import { PaymentMethodLegacyTypeEnum } from '../enum/PaymentMethodLegacyType';
 import { GraphQLTimeUnit } from '../enum/TimeUnit';
-import { GraphQLTransactionsImportRowStatus, TransactionsImportRowStatus } from '../enum/TransactionsImportRowStatus';
 import { GraphQLVirtualCardStatusEnum } from '../enum/VirtualCardStatus';
 import {
   fetchAccountsIdsWithReference,
@@ -1436,6 +1434,7 @@ export const GraphQLHost = new GraphQLObjectType({
             where[Op.or] = searchTermConditions;
           }
 
+          // @ts-expect-error Property 'group' is missing => It's an error on sequelize types, as the [docs](https://sequelize.org/docs/v6/core-concepts/model-querying-finders/#findandcountall) clearly say it's opitonal
           const findArgs: Parameters<typeof models.Collective.findAndCountAll>[0] = {
             where,
             limit: args.limit,
@@ -1626,11 +1625,14 @@ export const GraphQLHost = new GraphQLObjectType({
               assert(args.balance.lte.currency === host.currency, 'Balance currency must match host currency');
             }
 
+            // @ts-expect-error Type 'unique symbol' cannot be used as an index type. Not sure why TS is not happy here.
             if (!where[Op.and]) {
+              // @ts-expect-error Type 'unique symbol' cannot be used as an index type. Not sure why TS is not happy here.
               where[Op.and] = [];
             }
 
             const { operator, value } = getAmountRangeValueAndOperator(args.balance);
+            // @ts-expect-error Type 'unique symbol' cannot be used as an index type. Not sure why TS is not happy here.
             where[Op.and].push(sequelize.where(ACCOUNT_BALANCE_QUERY, operator, value));
           }
 
@@ -1649,11 +1651,14 @@ export const GraphQLHost = new GraphQLObjectType({
               );
             }
 
+            // @ts-expect-error Type 'unique symbol' cannot be used as an index type. Not sure why TS is not happy here.
             if (!where[Op.and]) {
+              // @ts-expect-error Type 'unique symbol' cannot be used as an index type. Not sure why TS is not happy here.
               where[Op.and] = [];
             }
 
             const { operator, value } = getAmountRangeValueAndOperator(args.consolidatedBalance);
+            // @ts-expect-error Type 'unique symbol' cannot be used as an index type. Not sure why TS is not happy here.
             where[Op.and].push(sequelize.where(ACCOUNT_CONSOLIDATED_BALANCE_QUERY, operator, value));
           }
 
@@ -1679,6 +1684,7 @@ export const GraphQLHost = new GraphQLObjectType({
           });
 
           if (searchTermConditions.length) {
+            // @ts-expect-error Type 'unique symbol' cannot be used as an index type. Not sure why TS is not happy here.
             where[Op.or] = searchTermConditions;
           }
 
@@ -1726,7 +1732,6 @@ export const GraphQLHost = new GraphQLObjectType({
           const documents = await models.RequiredLegalDocument.findAll({
             attributes: ['documentType'],
             where: { HostCollectiveId: host.id },
-            distinct: true,
             raw: true,
           });
 
@@ -1886,95 +1891,6 @@ export const GraphQLHost = new GraphQLObjectType({
             plain: false,
             where: { CollectiveId: host.id },
           }).then((results: { DISTINCT: string }[]) => results.map(({ DISTINCT }) => DISTINCT));
-        },
-      },
-      offPlatformTransactions: {
-        type: new GraphQLNonNull(GraphQLTransactionsImportRowCollection),
-        args: {
-          ...getCollectionArgs({ limit: 100 }),
-          status: {
-            type: GraphQLTransactionsImportRowStatus,
-            description: 'Filter rows by status',
-          },
-          searchTerm: {
-            type: GraphQLString,
-            description: 'Search by text',
-          },
-          accountId: {
-            type: new GraphQLList(GraphQLNonEmptyString),
-            description: 'Filter rows by plaid account id',
-          },
-          transactionsImportId: {
-            type: new GraphQLList(new GraphQLNonNull(GraphQLNonEmptyString)),
-            description: 'The transactions import id(s)',
-          },
-        },
-        async resolve(
-          host,
-          args: {
-            limit: number;
-            offset: number;
-            status: TransactionsImportRowStatus;
-            searchTerm: string;
-            accountId: string[];
-          },
-          req,
-        ) {
-          if (!req.remoteUser?.isAdminOfCollective(host)) {
-            throw new Unauthorized(
-              'You need to be logged in as an admin of the host to see its off platform transactions',
-            );
-          }
-
-          checkRemoteUserCanUseTransactions(req);
-
-          const include: Parameters<typeof TransactionsImportRow.findAll>[0]['include'] = [
-            {
-              association: 'import',
-              required: true,
-              where: { CollectiveId: host.id },
-            },
-          ];
-
-          const where: Parameters<typeof TransactionsImportRow.findAll>[0]['where'] = [];
-
-          // Filter by status
-          if (args.status) {
-            where.push({ status: args.status });
-          }
-
-          // Search term
-          if (args.searchTerm) {
-            where.push({
-              [Op.or]: buildSearchConditions(args.searchTerm, {
-                textFields: ['description', 'sourceId'],
-              }),
-            });
-          }
-
-          // Filter by plaid account id
-          if (args.accountId?.length) {
-            // eslint-disable-next-line camelcase
-            where.push({ rawValue: { account_id: { [Op.in]: args.accountId } } });
-          }
-
-          return {
-            offset: args.offset,
-            limit: args.limit,
-            totalCount: () => TransactionsImportRow.count({ where, include }),
-            nodes: () =>
-              TransactionsImportRow.findAll({
-                where,
-                include,
-                limit: args.limit,
-                offset: args.offset,
-                order: [
-                  ['date', 'DESC'],
-                  ['createdAt', 'DESC'],
-                  ['id', 'DESC'],
-                ],
-              }),
-          };
         },
       },
     };
