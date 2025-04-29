@@ -1,6 +1,7 @@
 import assert from 'assert';
 
 import config from 'config';
+import type express from 'express';
 import {
   GraphQLBoolean,
   GraphQLFloat,
@@ -30,7 +31,7 @@ import sequelize from '../../../lib/sequelize';
 import { buildSearchConditions } from '../../../lib/sql-search';
 import { getHostReportNodesFromQueryResult } from '../../../lib/transaction-reports';
 import { ifStr, parseToBoolean } from '../../../lib/utils';
-import models, { Collective, Op } from '../../../models';
+import models, { Collective, Op, TransactionsImportRow } from '../../../models';
 import { AccountingCategoryAppliesTo } from '../../../models/AccountingCategory';
 import Agreement from '../../../models/Agreement';
 import { LEGAL_DOCUMENT_TYPE } from '../../../models/LegalDocument';
@@ -41,6 +42,7 @@ import { Unauthorized, ValidationFailed } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { GraphQLAccountingCategoryCollection } from '../collection/AccountingCategoryCollection';
 import { GraphQLAgreementCollection } from '../collection/AgreementCollection';
+import { GraphQLTransactionsImportRowCollection } from '../collection/GraphQLTransactionsImportRow';
 import { GraphQLHostApplicationCollection } from '../collection/HostApplicationCollection';
 import { GraphQLHostedAccountCollection } from '../collection/HostedAccountCollection';
 import { GraphQLLegalDocumentCollection } from '../collection/LegalDocumentCollection';
@@ -61,6 +63,7 @@ import { GraphQLLegalDocumentRequestStatus } from '../enum/LegalDocumentRequestS
 import { GraphQLLegalDocumentType } from '../enum/LegalDocumentType';
 import { PaymentMethodLegacyTypeEnum } from '../enum/PaymentMethodLegacyType';
 import { GraphQLTimeUnit } from '../enum/TimeUnit';
+import { GraphQLTransactionsImportRowStatus, TransactionsImportRowStatus } from '../enum/TransactionsImportRowStatus';
 import { GraphQLVirtualCardStatusEnum } from '../enum/VirtualCardStatus';
 import {
   fetchAccountsIdsWithReference,
@@ -153,8 +156,8 @@ export const GraphQLHost = new GraphQLObjectType({
         },
         // Not paginated yet as we don't expect to have too many categories for now
         async resolve(host, args, req) {
-          const where = { CollectiveId: host.id };
-          const order = [['code', 'ASC']]; // Code is unique per host, so sorting on it here should be consistent
+          const where: Parameters<typeof models.AccountingCategory.findAll>[0]['where'] = { CollectiveId: host.id };
+          const order: Parameters<typeof models.AccountingCategory.findAll>[0]['order'] = [['code', 'ASC']]; // Code is unique per host, so sorting on it here should be consistent
           if (args.kind) {
             where.kind = uniq(args.kind);
           }
@@ -1112,7 +1115,7 @@ export const GraphQLHost = new GraphQLObjectType({
               'You need to be logged in as an admin or an accountant of the host to see the contribution stats.',
             );
           }
-          const where = {
+          const where: Parameters<typeof models.Transaction.findAll>[0]['where'] = {
             HostCollectiveId: host.id,
             kind: [TransactionKind.CONTRIBUTION, TransactionKind.ADDED_FUNDS],
             type: TransactionTypes.CREDIT,
@@ -1148,7 +1151,14 @@ export const GraphQLHost = new GraphQLObjectType({
             include: [{ model: models.Order, attributes: [] }],
             group: ['label'],
             raw: true,
-          });
+          }) as unknown as Promise<
+            Array<{
+              label: 'one-time' | 'recurring';
+              count: number;
+              countDistinct: number;
+              sumAmount: number;
+            }>
+          >;
 
           return {
             contributionsCount: contributionsCountPromise.then(results =>
@@ -1205,7 +1215,7 @@ export const GraphQLHost = new GraphQLObjectType({
               'You need to be logged in as an admin or an accountant of the host to see the expense stats.',
             );
           }
-          const where = {
+          const where: Parameters<typeof models.Transaction.findAll>[0]['where'] = {
             HostCollectiveId: host.id,
             kind: 'EXPENSE',
             type: TransactionTypes.DEBIT,
@@ -1235,7 +1245,14 @@ export const GraphQLHost = new GraphQLObjectType({
             include: [{ model: models.Expense, attributes: [] }],
             group: ['Expense.type'],
             raw: true,
-          });
+          }) as unknown as Promise<
+            Array<{
+              type: string;
+              countDistinct: number;
+              count: number;
+              sumAmount: number;
+            }>
+          >;
 
           return {
             expensesCount: expensesCountPromise.then(results =>
@@ -1253,7 +1270,7 @@ export const GraphQLHost = new GraphQLObjectType({
             ),
             grantsCount: expensesCountPromise.then(results =>
               results
-                .filter(result => [expenseType.FUNDING_REQUEST, expenseType.GRANT].includes(result.type))
+                .filter(result => ([expenseType.FUNDING_REQUEST, expenseType.GRANT] as string[]).includes(result.type))
                 .reduce((total, result) => total + result.countDistinct, 0),
             ),
             // NOTE: not supported here UNCLASSIFIED, SETTLEMENT, CHARGE
@@ -1419,7 +1436,13 @@ export const GraphQLHost = new GraphQLObjectType({
             where[Op.or] = searchTermConditions;
           }
 
-          const findArgs = { where, limit: args.limit, offset: args.offset, order: [['createdAt', 'DESC']] };
+          const findArgs: Parameters<typeof models.Collective.findAndCountAll>[0] = {
+            where,
+            limit: args.limit,
+            offset: args.offset,
+            order: [['createdAt', 'DESC']],
+          };
+
           if (args.forAccount) {
             const account = await fetchAccountWithReference(args.forAccount);
             findArgs['attributes'] = {
@@ -1559,8 +1582,7 @@ export const GraphQLHost = new GraphQLObjectType({
           },
         },
         async resolve(host, args) {
-          /** @type {Parameters<typeof models.Collective.findAndCountAll>[0]['where']} */
-          const where = {
+          const where: Parameters<typeof models.Collective.findAndCountAll>[0]['where'] = {
             HostCollectiveId: host.id,
             id: { [Op.not]: host.id },
           };
@@ -1596,10 +1618,13 @@ export const GraphQLHost = new GraphQLObjectType({
           }
 
           if (!isEmpty(args.balance)) {
-            args.balance.gte?.currency &&
-              assert(args.balance.gte.currency, host.currency, 'Balance currency must match host currency');
-            args.balance.lte?.currency &&
-              assert(args.balance.lte.currency, host.currency, 'Balance currency must match host currency');
+            if (args.balance.gte?.currency) {
+              assert(args.balance.gte.currency === host.currency, 'Balance currency must match host currency');
+            }
+
+            if (args.balance.lte?.currency) {
+              assert(args.balance.lte.currency === host.currency, 'Balance currency must match host currency');
+            }
 
             if (!where[Op.and]) {
               where[Op.and] = [];
@@ -1610,18 +1635,19 @@ export const GraphQLHost = new GraphQLObjectType({
           }
 
           if (!isEmpty(args.consolidatedBalance)) {
-            args.consolidatedBalance.gte?.currency &&
+            if (args.consolidatedBalance.gte?.currency) {
               assert(
-                args.consolidatedBalance.gte.currency,
-                host.currency,
+                args.consolidatedBalance.gte.currency === host.currency,
                 'Consolidated Balance currency must match host currency',
               );
-            args.consolidatedBalance.lte?.currency &&
+            }
+
+            if (args.consolidatedBalance.lte?.currency) {
               assert(
-                args.consolidatedBalance.lte.currency,
-                host.currency,
+                args.consolidatedBalance.lte.currency === host.currency,
                 'Consolidated Balance currency must match host currency',
               );
+            }
 
             if (!where[Op.and]) {
               where[Op.and] = [];
@@ -1848,7 +1874,7 @@ export const GraphQLHost = new GraphQLObjectType({
       transactionsImportsSources: {
         type: new GraphQLNonNull(new GraphQLList(GraphQLNonEmptyString)),
         description: 'Returns a list of transactions imports sources for this host',
-        async resolve(host, args, req) {
+        async resolve(host: Collective, args, req: express.Request) {
           checkRemoteUserCanUseHost(req);
           if (!req.remoteUser.isAdminOfCollective(host)) {
             throw new Unauthorized(
@@ -1859,7 +1885,96 @@ export const GraphQLHost = new GraphQLObjectType({
           return models.TransactionsImport.aggregate('source', 'DISTINCT', {
             plain: false,
             where: { CollectiveId: host.id },
-          }).then(results => results.map(({ DISTINCT }) => DISTINCT));
+          }).then((results: { DISTINCT: string }[]) => results.map(({ DISTINCT }) => DISTINCT));
+        },
+      },
+      offPlatformTransactions: {
+        type: new GraphQLNonNull(GraphQLTransactionsImportRowCollection),
+        args: {
+          ...getCollectionArgs({ limit: 100 }),
+          status: {
+            type: GraphQLTransactionsImportRowStatus,
+            description: 'Filter rows by status',
+          },
+          searchTerm: {
+            type: GraphQLString,
+            description: 'Search by text',
+          },
+          accountId: {
+            type: new GraphQLList(GraphQLNonEmptyString),
+            description: 'Filter rows by plaid account id',
+          },
+          transactionsImportId: {
+            type: new GraphQLList(new GraphQLNonNull(GraphQLNonEmptyString)),
+            description: 'The transactions import id(s)',
+          },
+        },
+        async resolve(
+          host,
+          args: {
+            limit: number;
+            offset: number;
+            status: TransactionsImportRowStatus;
+            searchTerm: string;
+            accountId: string[];
+          },
+          req,
+        ) {
+          if (!req.remoteUser?.isAdminOfCollective(host)) {
+            throw new Unauthorized(
+              'You need to be logged in as an admin of the host to see its off platform transactions',
+            );
+          }
+
+          checkRemoteUserCanUseTransactions(req);
+
+          const include: Parameters<typeof TransactionsImportRow.findAll>[0]['include'] = [
+            {
+              association: 'import',
+              required: true,
+              where: { CollectiveId: host.id },
+            },
+          ];
+
+          const where: Parameters<typeof TransactionsImportRow.findAll>[0]['where'] = [];
+
+          // Filter by status
+          if (args.status) {
+            where.push({ status: args.status });
+          }
+
+          // Search term
+          if (args.searchTerm) {
+            where.push({
+              [Op.or]: buildSearchConditions(args.searchTerm, {
+                textFields: ['description', 'sourceId'],
+              }),
+            });
+          }
+
+          // Filter by plaid account id
+          if (args.accountId?.length) {
+            // eslint-disable-next-line camelcase
+            where.push({ rawValue: { account_id: { [Op.in]: args.accountId } } });
+          }
+
+          return {
+            offset: args.offset,
+            limit: args.limit,
+            totalCount: () => TransactionsImportRow.count({ where, include }),
+            nodes: () =>
+              TransactionsImportRow.findAll({
+                where,
+                include,
+                limit: args.limit,
+                offset: args.offset,
+                order: [
+                  ['date', 'DESC'],
+                  ['createdAt', 'DESC'],
+                  ['id', 'DESC'],
+                ],
+              }),
+          };
         },
       },
     };
